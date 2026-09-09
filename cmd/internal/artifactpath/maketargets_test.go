@@ -50,6 +50,23 @@ func TestEveryMakefileTestSelectorMatchesALiveTest(t *testing.T) {
 				t.Errorf("%s: `go test -run %s` matches no test that exists.\n"+
 					"go test exits 0 with \"[no tests to run]\", so this target reports green while checking nothing.\n"+
 					"Delete the target, or point it at a test that is still here.", makefile, selector)
+				continue
+			}
+			// EVERY name, not just one. "matches at least one" was the original
+			// bar and it is too low: `^(A|B|C|D)$` with D renamed still matches
+			// A, so the target stays green while silently running three of the
+			// four things it claims. Measured in #215 -- the live budget
+			// conformance test was renamed in one round and the selector kept
+			// the old name for two more, including inside a close's `--verified`
+			// evidence, with `make test-couch-zellij-live` reporting ok
+			// throughout.
+			for _, alternative := range enumeratedNames(selector) {
+				if !contains(names, alternative) {
+					t.Errorf("%s: `go test -run %s` names %s, which no longer exists.\n"+
+						"The other alternatives still match, so this target reports green "+
+						"while running LESS than it claims -- the quiet half of the same "+
+						"failure the check above catches loudly.", makefile, selector, alternative)
+				}
 			}
 		}
 	}
@@ -58,6 +75,36 @@ func TestEveryMakefileTestSelectorMatchesALiveTest(t *testing.T) {
 func matchesAny(expression *regexp.Regexp, names []string) bool {
 	for _, name := range names {
 		if expression.MatchString(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// enumeratedNames pulls the bare test names out of a `^(A|B|C)$` selector, which
+// is the form every target in this repo uses. Anything with regex metacharacters
+// in an alternative is skipped: it is a pattern, not a name, and only the
+// at-least-one check applies to it.
+func enumeratedNames(selector string) []string {
+	trimmed := strings.TrimSuffix(strings.TrimPrefix(selector, "^("), ")$")
+	if trimmed == selector {
+		return nil // not the enumerated form
+	}
+	var out []string
+	for _, alternative := range strings.Split(trimmed, "|") {
+		alternative = strings.TrimSpace(alternative)
+		if bareTestName.MatchString(alternative) {
+			out = append(out, alternative)
+		}
+	}
+	return out
+}
+
+var bareTestName = regexp.MustCompile(`^Test[A-Za-z0-9_]+$`)
+
+func contains(names []string, want string) bool {
+	for _, name := range names {
+		if name == want {
 			return true
 		}
 	}

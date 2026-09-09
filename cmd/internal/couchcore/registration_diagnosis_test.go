@@ -39,11 +39,19 @@ func TestARegistrationTimeoutSaysWhetherPairStarted(t *testing.T) {
 			want:   []string{"15s", "could NOT determine", "not a verdict", "zellij list-sessions"},
 			absent: "IS live",
 		},
+		{
+			// A binding that READS cleanly and says the session is not live. The
+			// one case that supports the verdict, and the only one that did not
+			// have a test -- deleting the whole branch left the suite green.
+			name: "pair's session is readably not live", present: false, session: "📁brain-couch-23",
+			want:   []string{"15s", "NO Pair session is live", "never started", "the launch"},
+			absent: "could NOT determine",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fake := NewFakeThreadArtifactCollisionChecker()
-			if tc.present {
-				fake.SetPairSession(address, tc.session, true)
+			if tc.session != "" {
+				fake.SetPairSession(address, tc.session, tc.present)
 			}
 			c := &Couch{Artifacts: fake}
 

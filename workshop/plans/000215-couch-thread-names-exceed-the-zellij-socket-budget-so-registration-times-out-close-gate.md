@@ -383,6 +383,141 @@ rounds:
           family: fallback-guess-used-as-oracle
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-09T00:26:35-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: measureAcceptedLimit now narrows through the caller's own acceptor; one encoding of "does this fit".
+          round: 4
+        - id: BR-6
+          disposition: not-addressed
+          note: Untouched by rounds 2 and 3; still no assertion that the diagnosis reaches launch_existing.go:123-124.
+          round: 4
+        - id: BR-8
+          disposition: not-addressed
+          note: couch.go:114 still assigns pairRegistrationTimeout with no note that the resume branch is a test seam.
+          round: 4
+        - id: BR-10
+          disposition: not-addressed
+          note: Still no "## Revisions" section, and both inaccurate Done-when bullets stand unchanged.
+          round: 4
+        - id: BR-16
+          disposition: not-addressed
+          note: trace.sh:12 still prints `trace.sh disarm` without eval; SKILL.md:15 still has it. Two runbooks, still disagreeing.
+          round: 4
+        - id: BR-17
+          disposition: addressed
+          note: The live test now carries its own marker literal and drives the production acceptor, so it no longer follows production silently.
+          round: 4
+        - id: BR-18
+          disposition: addressed
+          note: 'Mutation-verified: gating the acceptance cache on a prior refusal reds the generous-budget subtest at 26 vs 61 probes. Measured 3-4 probes flat across budgets 20-200.'
+          round: 4
+        - id: BR-19
+          disposition: not-addressed
+          note: The named test was removed with its subject, but the three-site enumeration the finding demanded was never run; BR-6 is still open and a fourth site surfaced under mutation.
+          round: 4
+        - id: BR-20
+          disposition: addressed
+          note: promptForTag now defaults to the observation and only upgrades to a measured or refused number.
+          round: 4
+      findings:
+        - id: BR-21
+          severity: Important
+          title: the live conformance test was renamed and Makefile.local's -run regex was not, so test-couch-zellij-live passes without running it
+          detail: |-
+            This is the 2nd finding in family `fake-is-the-only-oracle`. 869ec844 renamed
+            TestSessionNameBudgetMatchesRealZellijLive to TestTheAcceptorAgreesWithRealZellijLive
+            (session_name_budget_live_test.go:25) and left Makefile.local:84 selecting the old name.
+            Verified: `go test ./cmd/internal/launcher -run '^(TestSessionNameBudgetMatchesRealZellijLive)$'`
+            prints "ok ... [no tests to run]" and exits 0. So round 3's "test-couch-zellij-live exits 0"
+            claim is vacuous for that test, and sessionNameRejected -- the single-substring seam #215 made
+            load-bearing for every candidate rather than one -- has no live check running anywhere.
+            ARCH-MOCK. The rule: a suite selected by a name regex silently passes when the name stops
+            matching, so the selection needs a floor that fails when it matches nothing. The other five
+            names in that target still resolve; I checked.
+          family: fake-is-the-only-oracle
+          round: 4
+        - id: BR-22
+          severity: Important
+          title: diagnoseRegistrationFailure's "NO Pair session is live / Pair never started" branch has no test; deleting it leaves the package green
+          detail: |-
+            This is the 4th finding in family `fix-not-pinned-at-its-call-site` (BR-6, BR-14, BR-19). Do
+            NOT fix this instance alone. The rule: a branch or guard whose value is what it says must be
+            shown to go RED when it is removed -- reachable is not asserted. Verified by mutation:
+            replacing launch_existing.go:234 with `return ""` leaves ./cmd/internal/couchcore passing.
+            registration_diagnosis_test.go uses one `present` flag to decide whether SetPairSession is
+            called at all, so present:false lands on the error path (BR-7's case) and never on
+            observeErr == nil with Present false -- which production reaches whenever the name is in the
+            index but no live session matches (artifactcollision.go:165-174). That branch is the first
+            discriminator the issue's Done-when names. The enumeration for this window is now four sites:
+            BR-14's argv[0] guard (done, with a positive control), BR-19's site (removed with its test
+            rather than swept), BR-6's launch_existing.go:123-124, and this branch. Run the mutation on
+            each. The fixture change here is one line: SetPairSession(address, "\U0001F4C1pair-couch-26", false).
+          family: fix-not-pinned-at-its-call-site
+          round: 4
+        - id: BR-23
+          severity: Minor
+          title: createflow.go:310 still describes a budget measurement and a per-tag discovery that round 3 deleted
+          detail: |-
+            This is the 2nd finding in family `vestigial-branch-reads-as-policy`. The rule: when you delete
+            a mechanism, grep for the prose that describes it in the same commit -- `git log -S` finds the
+            code but not the sentence. The shared thing is now a length bracket, not a discovery, and "N
+            tags cost one discovery, not N" describes an implementation that no longer exists.
+          family: vestigial-branch-reads-as-policy
+          round: 4
+        - id: BR-24
+          severity: Minor
+          title: deleting TestDiscoverSessionNameBudget took with it the only assertion that calibration probes are synthetic pads
+          detail: |-
+            The deleted test asserted every probe carried sessionNameProbeMarker, because
+            `list-clients` SUCCEEDS against a foreign live session and would read as "fits" for the wrong
+            reason -- making the measured limit depend on whatever else is running. measureAcceptedLimit
+            still depends on that property and nothing in cmd/ now references sessionNameProbeMarker
+            outside createflow.go. The rule: when a replacement test supersedes an old one, diff their
+            assertions, not just their names.
+          family: property-lost-when-its-test-was-replaced
+          round: 4
+        - id: BR-25
+          severity: Minor
+          title: runCreate still calls rt.ProbeSessionName raw, a third encoding of "will zellij take this name" outside the acceptor
+          detail: |-
+            This is the 3rd finding in family `duplicated-probe-then-discover`. Do NOT fix this instance
+            alone. The rule, now that the acceptor exists: the acceptor is the ONLY encoding of "does this
+            fit", and any site asking that question takes one rather than calling the probe directly.
+            createflow.go:379 costs an unconditional subprocess on every create, after assignment has
+            already established acceptability. ARCH-DRY. Worth writing the rule into sessionNameAcceptor's
+            godoc so the next site inherits it.
+          family: duplicated-probe-then-discover
+          round: 4
+        - id: BR-26
+          severity: Minor
+          title: ProbeSessionName discards the exec error, so a missing or timed-out zellij reads as ACCEPT -- and the bracket now generalizes that
+          detail: |-
+            This is the 2nd finding in family `inconclusive-observation-stated-as-conclusion`. The rule is
+            the one BR-7 was fixed under: a failed observation is not a positive one; degrade visibly.
+            osruntime.go:108 does `out, _ := exec.CommandContext(...).CombinedOutput()`, so an absent
+            zellij, a killed process, or a call past zjTimeout (5s, reachable under exactly the load this
+            issue is about) yields empty output, sessionNameRejected returns false, and the name is
+            accepted. Pre-#215 that mis-accepted one candidate; the bracket now writes it to longestOK and
+            answers every shorter name from it. ARCH-SECURE.
+          family: inconclusive-observation-stated-as-conclusion
+          round: 4
+        - id: BR-27
+          severity: Minor
+          title: round 3's lesson -- every probe-count fixture pinned one budget, so the fake could not express the failing environment -- is not in workshop/lessons.md
+          detail: |-
+            This is the 2nd finding in family `lesson-recorded-only-in-the-issue`. The rule: a review
+            round's transferable lesson belongs in lessons.md, not only in the commit message and the gate
+            ledger, because that is the file AGENTS.md asks you to read at session start. The existing
+            #215 entry covers rounds 1-2 (provenance) and stops there; BR-18's lesson -- an optimisation
+            whose precondition is unstated, hidden because every fixture pinned maxSessionNameBytes: 24 --
+            is the strongest of the issue and the one most likely to recur in a different file.
+          family: lesson-recorded-only-in-the-issue
+          round: 4
+      blocked: false
 ---
 
 # Gate ledger — pair#215 (boundary-review)
@@ -611,14 +746,92 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   machine BR-1 exists for. Pre-#215 in origin (#130), but the line was edited in this
   window and the acceptance half of the same rule was already fixed here.
 
+## Round 4 — 2026-09-09T00:26:35-07:00 (claude) — passed
+
+### Disposed
+
+- BR-5 — addressed — measureAcceptedLimit now narrows through the caller's own acceptor; one encoding of "does this fit".
+- BR-6 — not-addressed — Untouched by rounds 2 and 3; still no assertion that the diagnosis reaches launch_existing.go:123-124.
+- BR-8 — not-addressed — couch.go:114 still assigns pairRegistrationTimeout with no note that the resume branch is a test seam.
+- BR-10 — not-addressed — Still no "## Revisions" section, and both inaccurate Done-when bullets stand unchanged.
+- BR-16 — not-addressed — trace.sh:12 still prints `trace.sh disarm` without eval; SKILL.md:15 still has it. Two runbooks, still disagreeing.
+- BR-17 — addressed — The live test now carries its own marker literal and drives the production acceptor, so it no longer follows production silently.
+- BR-18 — addressed — Mutation-verified: gating the acceptance cache on a prior refusal reds the generous-budget subtest at 26 vs 61 probes. Measured 3-4 probes flat across budgets 20-200.
+- BR-19 — not-addressed — The named test was removed with its subject, but the three-site enumeration the finding demanded was never run; BR-6 is still open and a fourth site surfaced under mutation.
+- BR-20 — addressed — promptForTag now defaults to the observation and only upgrades to a measured or refused number.
+
+### Raised
+
+- **BR-21** [Important] `fake-is-the-only-oracle` the live conformance test was renamed and Makefile.local's -run regex was not, so test-couch-zellij-live passes without running it
+  This is the 2nd finding in family `fake-is-the-only-oracle`. 869ec844 renamed
+  TestSessionNameBudgetMatchesRealZellijLive to TestTheAcceptorAgreesWithRealZellijLive
+  (session_name_budget_live_test.go:25) and left Makefile.local:84 selecting the old name.
+  Verified: `go test ./cmd/internal/launcher -run '^(TestSessionNameBudgetMatchesRealZellijLive)$'`
+  prints "ok ... [no tests to run]" and exits 0. So round 3's "test-couch-zellij-live exits 0"
+  claim is vacuous for that test, and sessionNameRejected -- the single-substring seam #215 made
+  load-bearing for every candidate rather than one -- has no live check running anywhere.
+  ARCH-MOCK. The rule: a suite selected by a name regex silently passes when the name stops
+  matching, so the selection needs a floor that fails when it matches nothing. The other five
+  names in that target still resolve; I checked.
+- **BR-22** [Important] `fix-not-pinned-at-its-call-site` diagnoseRegistrationFailure's "NO Pair session is live / Pair never started" branch has no test; deleting it leaves the package green
+  This is the 4th finding in family `fix-not-pinned-at-its-call-site` (BR-6, BR-14, BR-19). Do
+  NOT fix this instance alone. The rule: a branch or guard whose value is what it says must be
+  shown to go RED when it is removed -- reachable is not asserted. Verified by mutation:
+  replacing launch_existing.go:234 with `return ""` leaves ./cmd/internal/couchcore passing.
+  registration_diagnosis_test.go uses one `present` flag to decide whether SetPairSession is
+  called at all, so present:false lands on the error path (BR-7's case) and never on
+  observeErr == nil with Present false -- which production reaches whenever the name is in the
+  index but no live session matches (artifactcollision.go:165-174). That branch is the first
+  discriminator the issue's Done-when names. The enumeration for this window is now four sites:
+  BR-14's argv[0] guard (done, with a positive control), BR-19's site (removed with its test
+  rather than swept), BR-6's launch_existing.go:123-124, and this branch. Run the mutation on
+  each. The fixture change here is one line: SetPairSession(address, "\U0001F4C1pair-couch-26", false).
+- **BR-23** [Minor] `vestigial-branch-reads-as-policy` createflow.go:310 still describes a budget measurement and a per-tag discovery that round 3 deleted
+  This is the 2nd finding in family `vestigial-branch-reads-as-policy`. The rule: when you delete
+  a mechanism, grep for the prose that describes it in the same commit -- `git log -S` finds the
+  code but not the sentence. The shared thing is now a length bracket, not a discovery, and "N
+  tags cost one discovery, not N" describes an implementation that no longer exists.
+- **BR-24** [Minor] `property-lost-when-its-test-was-replaced` deleting TestDiscoverSessionNameBudget took with it the only assertion that calibration probes are synthetic pads
+  The deleted test asserted every probe carried sessionNameProbeMarker, because
+  `list-clients` SUCCEEDS against a foreign live session and would read as "fits" for the wrong
+  reason -- making the measured limit depend on whatever else is running. measureAcceptedLimit
+  still depends on that property and nothing in cmd/ now references sessionNameProbeMarker
+  outside createflow.go. The rule: when a replacement test supersedes an old one, diff their
+  assertions, not just their names.
+- **BR-25** [Minor] `duplicated-probe-then-discover` runCreate still calls rt.ProbeSessionName raw, a third encoding of "will zellij take this name" outside the acceptor
+  This is the 3rd finding in family `duplicated-probe-then-discover`. Do NOT fix this instance
+  alone. The rule, now that the acceptor exists: the acceptor is the ONLY encoding of "does this
+  fit", and any site asking that question takes one rather than calling the probe directly.
+  createflow.go:379 costs an unconditional subprocess on every create, after assignment has
+  already established acceptability. ARCH-DRY. Worth writing the rule into sessionNameAcceptor's
+  godoc so the next site inherits it.
+- **BR-26** [Minor] `inconclusive-observation-stated-as-conclusion` ProbeSessionName discards the exec error, so a missing or timed-out zellij reads as ACCEPT -- and the bracket now generalizes that
+  This is the 2nd finding in family `inconclusive-observation-stated-as-conclusion`. The rule is
+  the one BR-7 was fixed under: a failed observation is not a positive one; degrade visibly.
+  osruntime.go:108 does `out, _ := exec.CommandContext(...).CombinedOutput()`, so an absent
+  zellij, a killed process, or a call past zjTimeout (5s, reachable under exactly the load this
+  issue is about) yields empty output, sessionNameRejected returns false, and the name is
+  accepted. Pre-#215 that mis-accepted one candidate; the bracket now writes it to longestOK and
+  answers every shorter name from it. ARCH-SECURE.
+- **BR-27** [Minor] `lesson-recorded-only-in-the-issue` round 3's lesson -- every probe-count fixture pinned one budget, so the fake could not express the failing environment -- is not in workshop/lessons.md
+  This is the 2nd finding in family `lesson-recorded-only-in-the-issue`. The rule: a review
+  round's transferable lesson belongs in lessons.md, not only in the commit message and the gate
+  ledger, because that is the file AGENTS.md asks you to read at session start. The existing
+  #215 entry covers rounds 1-2 (provenance) and stops there; BR-18's lesson -- an optimisation
+  whose precondition is unstated, hidden because every fixture pinned maxSessionNameBytes: 24 --
+  is the strongest of the issue and the one most likely to recur in a different file.
+
 ## Open findings
 
-- **BR-5** [Minor] `duplicated-probe-then-discover` promptForTag hand-rolls the probe-then-discover pair that sessionNameAcceptor now encapsulates
 - **BR-6** [Minor] `fix-not-pinned-at-its-call-site` nothing asserts diagnoseRegistrationFailure's output actually reaches the operator
 - **BR-8** [Minor] `vestigial-branch-reads-as-policy` resumeRegistrationTimeout now equals the cold constant, so the resume/cold branch is a test seam only
 - **BR-10** [Minor] `issue-overwritten-not-revised` the issue records three mid-stream scope changes in Log subsections instead of a Revisions section, and Done-when now overstates
 - **BR-16** [Minor] `runbook-disagrees-with-itself` trace.sh's header runbook omits the eval on disarm, so following it leaves PATH armed
-- **BR-17** [Minor] `duplicated-probe-then-discover` the live conformance test re-derives pad() byte-for-byte from the production padding scheme
-- **BR-18** [Important] `optimisation-gated-on-unstated-environment` the O(1) probe count holds only where the socket budget is smaller than the longest candidate, and code, atlas and Done-when all state it unconditionally
 - **BR-19** [Minor] `fix-not-pinned-at-its-call-site` the acceptor half of TestTheBudgetSearchReportsEitherBoundAsUNMEASURED never enters the branch it claims to cover
-- **BR-20** [Minor] `fallback-guess-used-as-oracle` promptForTag can print a blank refusal when the fallback budget contradicts zellij's own rejection
+- **BR-21** [Important] `fake-is-the-only-oracle` the live conformance test was renamed and Makefile.local's -run regex was not, so test-couch-zellij-live passes without running it
+- **BR-22** [Important] `fix-not-pinned-at-its-call-site` diagnoseRegistrationFailure's "NO Pair session is live / Pair never started" branch has no test; deleting it leaves the package green
+- **BR-23** [Minor] `vestigial-branch-reads-as-policy` createflow.go:310 still describes a budget measurement and a per-tag discovery that round 3 deleted
+- **BR-24** [Minor] `property-lost-when-its-test-was-replaced` deleting TestDiscoverSessionNameBudget took with it the only assertion that calibration probes are synthetic pads
+- **BR-25** [Minor] `duplicated-probe-then-discover` runCreate still calls rt.ProbeSessionName raw, a third encoding of "will zellij take this name" outside the acceptor
+- **BR-26** [Minor] `inconclusive-observation-stated-as-conclusion` ProbeSessionName discards the exec error, so a missing or timed-out zellij reads as ACCEPT -- and the bracket now generalizes that
+- **BR-27** [Minor] `lesson-recorded-only-in-the-issue` round 3's lesson -- every probe-count fixture pinned one budget, so the fake could not express the failing environment -- is not in workshop/lessons.md

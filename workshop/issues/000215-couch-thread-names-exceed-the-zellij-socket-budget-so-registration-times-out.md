@@ -1,12 +1,13 @@
 ---
 id: 000215
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-09
 estimate_hours:
 started: 2026-09-08T20:56:16-07:00
+actual_hours: 4.16
 ---
 
 # couch spends 52 zellij subprocesses assigning a name inside a 5s registration deadline
@@ -164,6 +165,8 @@ started and did not register", and name the session it waited for.
 
 ## Log
 
+
+- 2026-09-09: closed — Unblock achieved and operator-confirmed: couch cold-starts a pair thread and relaunches a parked one, repeatedly, where before it failed with "context deadline exceeded". Round 3 fixed BR-18 at the class, and the fix is smaller than what it replaced: a session name is a socket filename so acceptance is MONOTONE IN LENGTH, and a two-sided bracket learns from an acceptance as readily as from a refusal. Previously the arithmetic path started only after a rejection, so on a host whose socket dir is short enough that the longest candidate fits (Linux ~/.cache/zellij vs macOS temp) nothing was refused and it paid one probe per suffix -- O(threads) restored on the machines with the most headroom, while code, atlas and Done-when claimed O(1) unconditionally. Now: tight budget 8->4 probes, generous budget O(N)->3, both INVARIANT across 25 and 60 owned suffixes; resume still exactly 1 probe. Pinned by TestProbeCountIsInvariantInBothBudgetRegimes, mutation-verified (27 at 25 owned, 62 at 60 without it). discoverSessionNameBudget and defaultSessionNameBudget deleted -- the acceptor needs no constant, and a production symbol only tests reach is its own smell (#192); measureAcceptedLimit replaces it for refusal MESSAGES through the caller own acceptor, so one encoding of "does this fit" and the answers cannot contradict, which closes the 3rd finding in family fallback-guess-used-as-oracle (the old fallback could call a name fitting that the probe had just refused, printing an EMPTY message on exactly the machine BR-1 is about). Two tests replaced rather than quietly deleted: BR-1 probe-count proxy became a soundness test asserting the acceptor agrees with a raw probe on every candidate across five budgets, which subsumes BR-1 and pins the monotonicity the bracket rests on; the live conformance test now drives the production acceptor so what is pinned is what runs. atlas/session-identity.md rewritten to describe the bracket and both regimes. make test, test-smoke and test-couch-zellij-live all exit 0; binaries rebuilt.; review verdict: FIX-THEN-SHIP
 ### 2026-09-08
 
 Operator could not start a pair thread in couch. Diagnosed by composing the name by hand and asking

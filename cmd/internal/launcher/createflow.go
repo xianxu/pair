@@ -307,8 +307,10 @@ func assignLaunchSessionNames(rt Runtime, live []Session, repoRoot, globalDataDi
 	}
 	names := map[string]string{}
 	newEntries := map[string]SessionNameEntry{}
-	// OUTSIDE the loop: one budget measurement shared by every tag. Built here
-	// rather than per iteration so N tags cost one discovery, not N.
+	// OUTSIDE the loop: one length BRACKET shared by every tag. There is no
+	// budget measurement any more -- what is shared is the pair of bounds the
+	// probes have narrowed, and since it keys on length alone, tag B is answered
+	// from tag A's observations for free.
 	accepts, _ := sessionNameAcceptor(rt)
 	for _, tag := range tags {
 		if tag == "" {

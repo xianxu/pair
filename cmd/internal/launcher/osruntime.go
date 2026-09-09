@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -105,9 +106,23 @@ func (OSRuntime) SessionBlocksReuse(session string) bool {
 func (OSRuntime) ProbeSessionName(session string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
-	out, _ := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").CombinedOutput()
+	out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "list-clients").CombinedOutput()
 	if sessionNameRejected(string(out)) {
 		return fmt.Errorf("session name too long: %s", session)
+	}
+	// A FAILED observation is not a positive one. Discarding err meant a zellij
+	// that is missing, killed, or past zjTimeout produced empty output,
+	// sessionNameRejected("") said false, and the name read as ACCEPTED. Since
+	// #215 that is worse than one bad answer: acceptance is monotone, so the
+	// bracket generalises a single failed observation to every name of that
+	// length or shorter, arithmetically and without asking again. A timeout here
+	// is reachable under exactly the load this issue is about (zjTimeout is 5s,
+	// and a `zellij action` round-trip was measured at 467ms under load, #203).
+	//
+	// Empty output with a non-zero exit is the tell: zellij that ran and refused
+	// says so on stderr, which CombinedOutput captures.
+	if err != nil && len(bytes.TrimSpace(out)) == 0 {
+		return fmt.Errorf("could not ask zellij about session name %q: %w", session, err)
 	}
 	return nil
 }

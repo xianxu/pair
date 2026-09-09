@@ -295,3 +295,36 @@ func TestARefusalMessageIsNeverEmptyEvenWhenNothingCanBeMeasured(t *testing.T) {
 		})
 	}
 }
+
+// Calibration probes must be SYNTHETIC pads, never a name that could belong to
+// a real session (#215).
+//
+// ProbeSessionName runs `zellij --session <name> action list-clients`, which
+// SUCCEEDS against a foreign live session -- so a probe borrowing a plausible
+// name would read as "fits" for entirely the wrong reason, and the measured
+// limit would depend on whatever else happens to be running on the machine.
+//
+// This property was asserted by TestDiscoverSessionNameBudget, which #215
+// deleted along with the function it covered. measureAcceptedLimit still relies
+// on it, so the assertion moves rather than goes.
+func TestCalibrationProbesAreAlwaysSyntheticPads(t *testing.T) {
+	var probed []string
+	accepts := func(name string) bool {
+		probed = append(probed, name)
+		return len(name) <= 30
+	}
+	if _, measured := measureAcceptedLimit(accepts); !measured {
+		t.Fatal("a budget between the bounds was not measured; the fixture is wrong")
+	}
+	if len(probed) == 0 {
+		t.Fatal("no probes issued; this guard is checking nothing")
+	}
+	for _, name := range probed {
+		if !strings.HasPrefix(name, sessionNameProbeMarker) {
+			t.Errorf("calibration probed %q, which is not a synthetic pad: "+
+				"list-clients succeeds against a foreign LIVE session, so this would "+
+				"read as a fit for the wrong reason and make the limit depend on what "+
+				"else is running", name)
+		}
+	}
+}

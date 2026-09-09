@@ -4045,3 +4045,43 @@ one name and was paying for a binary search it had no use for. The bounded-cold-
 test stayed green throughout. **"Bounded" and "cheap" are different claims, and a
 fix for either can quietly pay for it out of the other** — so both paths now have
 their own pin. Cf. [Changing what a shared predicate MEANS is three obligations].
+
+## 2026-09-09 — Every fixture pinned the same environment, so the fake could not express the case where the optimisation fails
+
+pair#215's third review round found that the O(1) claim held only on machines
+where some candidate name is actually *refused*. On a host whose socket directory
+is short enough that the longest candidate fits — Linux `~/.cache/zellij` against
+macOS's temp path — nothing was ever rejected, the arithmetic path never engaged,
+and assignment paid one subprocess per suffix: **the O(threads) cost the issue
+exists to remove, quietly restored on the machines with the most headroom.**
+
+The reason no test caught it is worth more than the bug. Every probe-count
+fixture said `maxSessionNameBytes: 24`. That is this laptop. The fake could
+express *how many names were owned* but not *how generous the machine is*, so an
+entire axis of the input space had one value in every test, and the regime where
+the optimisation fails was unreachable by construction.
+
+- **A fake's parameters are the input space you can test.** Look at what every
+  fixture holds constant, and ask whether the constant is a fact about the world
+  or a fact about the machine that wrote the test. `maxSessionNameBytes: 24` is
+  the second kind and appeared in six fixtures.
+- **A performance claim has an environment clause even when nobody writes it
+  down.** "O(1) probes" was true, on a tight budget. Code, atlas and Done-when all
+  stated it unconditionally, so nothing prompted the question "under what
+  conditions?" — and the answer was two regimes, not one.
+- **The fix was smaller than the thing it replaced**, which is the usual sign the
+  earlier version was solving the problem from the wrong end. Acceptance is
+  monotone in length (a session name is a socket filename), so a two-sided
+  bracket learns from an *acceptance* as readily as from a refusal and needs no
+  measured constant at all — which also deleted the `defaultSessionNameBudget`
+  apparatus that had produced two earlier findings in this same issue.
+
+**And the guard that should have caught the related regression was too weak in a
+way that reads as strong.** `TestEveryMakefileTestSelectorMatchesALiveTest`
+checks that a `-run '^(A|B|C|D)$'` selector matches *at least one* live test. I
+renamed a live conformance test; `D` went stale; `A` still matched, so the guard
+passed and `make test-couch-zellij-live` reported ok for two review rounds while
+running three of the four things it claimed — including inside a close's
+`--verified` evidence, where I quoted it to the operator as proof. **"Matches
+something" is not the property; "every name resolves" is.** An enumerated
+selector must be checked element-wise, and the guard now does.
