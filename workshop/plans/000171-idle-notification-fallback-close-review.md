@@ -428,3 +428,145 @@ findings:
       completed idle expiry in the debug log and the trace, which is where a future
       operator will go to reconstruct why an alert did or did not fire.
 ```
+
+---
+
+## Re-review — 2026-09-09T03:23:43-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 171 — Always-on idle notification fallback |
+| repo | pair |
+| issue file | workshop/issues/000171-idle-notification-fallback.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9edc8a9772321eed8999dd5cacef28cdd4d0fd31..384c2fc337d27d5e57f3e18978d72b102b54db51 |
+| command | sdlc close --issue 171 |
+| reviewer | claude |
+| timestamp | 2026-09-09T03:23:43-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The floor is correct and, this round, genuinely pinned. I independently reproduced 9 of the 11 mutations in the Log's sweep table — every one reddened a specific named test (`epoch-after-drain`, `del-drain`, `del-precedence`, `del-rearm`, `del-passthrough-publish`, `del-emitplaincr-publish`, `idle-completes`, `unconditional-arm`, `drop-once-per-turn`), so BR-2/3/6/13/14's deliverables are falsifiable rather than plausible. `go vet` clean, `-race -count=2` clean on the lifecycle/idle set, fuzz 3.5M execs pass, and the 11 residual failures are the known pty-child/sandbox environmental set, identical at BASE. Nothing here blocks: no correctness bug survived. What remains is a docs-accuracy regression the BR-14 re-arm introduced in this same round (README and atlas still promise "at most once per turn" / "one alert per generation", which the code and the implementor's own restated fuzz invariant say is false), and one test oracle I measured as unfalsifiable — the master-loop "exactly 1 notification" row stays GREEN under a floor mutated to alert ten times, because the 500 ms `emitOuter` limiter masks duplicates inside its 400 ms settle window.
+
+## 1. Strengths
+
+- `notification_lifecycle.go:286-315` — `applyIdleExpiry(token uint64)` takes the epoch as a **parameter**, so the call site's evaluation order pins the snapshot structurally rather than by comment. Reverting to `Token: p.idleTimerToken` reddens `TestIdleExpiryDoesNotAlertAgainstATurnOpenedByItsOwnDrain` (verified). This is the right shape for the ARCH-ORDER fix.
+- `wrap.go:104-123` — `resolveNotifyConfig` is a real pure extraction, and `TestResolveNotifyConfigNeverZeroesTheIdleInterval` asserts the *absence* of the gate across four agents. Turning an absence into an assertable property is the hard half of BR-13.
+- The BR-14 population enumeration is genuinely complete: `passThroughChunk` (`wrap.go:1579-1586`) is the exclusive `else` of `hasReturnRemap()`, `pickerActive` can only be set when `ttyProfile != nil` (`wrap.go:1694`, `wrap.go:1191`), and `translateStdinFrom` is the only writer to `p.ptmx` — so every byte the agent receives passes one of the two publishers, with no overlay hazard on the pass-through side. I checked all four claims.
+- `TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch` picks a real observable (receiving the pending expiry after widening the interval) instead of `len(C)`/`Stop()`, both of which are blind here. The comment explaining why is accurate for Go 1.23 timers.
+- `lessons.md` — the "a mutation that fails to apply is indistinguishable from one that survives" rule is correct and I hit exactly that trap myself (`cp` failed, `&&` short-circuited the mutation, output read as a clean survivor). Well earned.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**README.md:605 and atlas/architecture.md:783 — both still promise a once-per-turn guarantee the BR-14 re-arm removed in this same commit.**
+`ObservationBareReturn` mid-turn now clears `IdleNotified` and mints a fresh `IdleToken` (`notification_lifecycle.go:206-210`), so one generation can raise N alerts — which is precisely why the fuzz invariant was rewritten from per-generation to per-epoch (`notification_lifecycle_test.go:196-198`). README says "It fires at most once per turn"; atlas says "a generation can carry one alert plus a later real completion" and "`IdleToken` … is minted once per turn" (`:785`), the latter contradicted three sentences later by its own re-arm paragraph. The model changed, one consumer (the fuzz) was updated, two were not — ARCH-PURPOSE shadow-sweep. Fix: "at most once per attention window — answering a prompt starts a new one"; atlas `:783` → "one alert per idle epoch"; `:785` → "minted once per turn and re-minted when a bare CR re-arms a spent floor."
+
+**idle_floor_test.go:102 — the exactly-once oracle cannot fail.** Measured: with `!state.IdleNotified` dropped from both the reducer guard and `syncIdleTimer`, `TestIdleFloorArmsForEveryNotifyModeNotJustOneNothingSelects` PASSES, because `settle(400ms)` < `rateLimitS` (500 ms, `wrap.go:78`) so `emitOuter` suppresses every duplicate. Widening to `settle(1500ms)` under the same mutation fails with `notifications = 3`. This is the 3rd finding in family `unfalsifiable-race-test`. Earlier rounds fixed instances; do NOT just widen this one. The rule: **an assertion on emitted-notification count is only falsifiable when the observation window exceeds `rateLimitS`, or when the limiter's clock is injected** — the proxy already carries a `now func() time.Time` field that `emitOuter:652` bypasses in favour of `time.Now()`. Route the limiter through `p.now` and the whole class becomes deterministic. Prevalence, measured: 3 count assertions in `idle_floor_test.go` (:102, :207, :231) all sit inside the limiter window; :207 and :231 survive only because their *content* checks (`"finished working"`, `"stopped working"`) carry the falsifiability — `del-drain` and `del-precedence` redden them — so :102 is the one site where the count is the whole oracle and it reports nothing.
+
+## 4. Minor findings
+
+- **No test crosses the startup wiring seam** (2nd in family `test-avoids-seam-not-injects-it`). Measured: re-adding `if p.notifyModeActive != "idle" { p.idleS = 0 }` after `wrap.go:2416` leaves the package GREEN — the pure resolver is asserted, the path that consumes it is not. `Run` ends in `pty.Start`, so an end-to-end test isn't available here. Rule, not instance: `p.idleS` and `p.notifyModeActive` should have exactly one assignment site, fed by `resolveNotifyConfig`, enforced by a source-scanning test — or the residue accepted explicitly in the Log.
+- `notification_lifecycle.go:304` vs `wrap.go:2694` — the `kind, token := p.lifecycleTimerKind, p.lifecycleTimerToken; processLifecycleObservation(...)` pair is still written twice (BR-15, unaddressed); the `outer` + `outer-path` sidecar fixture is still at 7 test sites across 5 files.
+- `notification_lifecycle.go:310-311` — `p.debug("IDLE", …)` and `traceWrap("idle", …)` still fire before the reducer decides, so a token-rejected expiry records a completed idle expiry in the log an operator will later use to reconstruct why an alert did or did not fire (BR-16, unaddressed).
+- `TestIdleFloorStaysSilentWhileTheAgentIsProducingOutput` writes every 15 ms against a 60 ms deadline; a 60 ms scheduler stall on a loaded machine makes it flake. Injecting the limiter clock (above) would let this drop the sleeps too.
+- Pre-existing, noted only because the idle path now sits beside it: `syncLifecycleTimer` (`:263-275`) still resets the watchdog/grace deadline on *every* reduced observation, including journal records — the exact non-idempotence BR-10 fixed on the idle side. Out of scope for #171; worth an issue.
+
+## 5. Test coverage notes
+
+Coverage is materially better than round 2. The pure reducer rows (a)–(f) all exist and each pins a distinct property; the three master-loop-adjacent behaviours (drain, epoch snapshot, lifecycle precedence) are now injected through `applyIdleExpiry` rather than raced, and I confirmed each reddens under its mutation. `TestReducePreservesTheGenerationInvariantForEveryObservationKind` walks 1..`observationKindCount-1`, so the enum bound is derived rather than restated, and the fuzz reaches both new kinds via the added seeds (`{0,10,11,10,4}` → UserSubmission, IdleExpired, BareReturn, IdleExpired, MarkerCompletion). Gaps: the count-oracle above; and the timer-level half of the BR-14 re-arm (that a bare CR re-arms the *proxy's* `idleTimer`, not just `IdleToken`) is pinned only in the reducer.
+
+## 6. Architectural notes
+
+ARCH-DRY — flag (BR-15 residue, above). ARCH-PURE — pass; `Reduce`, `resolveNotifyConfig`, `decidePlainReturn`, `idleAlertMessage` are all pure and unit-tested without IO, with timers and the TTY at the seam. ARCH-PURPOSE — flag (README/atlas shadow-sweep, above); the covered-population question BR-14 raised is now genuinely answered. ARCH-MOCK — pass; `spawnSlug` is injected, ptmx is an `os.Pipe`, the outer TTY is a temp sidecar, no new unseamed external call. ARCH-CONSTRAINTS — pass; the per-chunk Stop+Reset budget is stated and `syncIdleTimer` is idempotent so non-output observations no longer churn the deadline; wall-clock test margins are the only soft spot. ARCH-SECURE — pass, effectively N/A: no new untrusted-input parse (the only new stdin handling is a `\r` byte scan), no credential surface, message text generated internally. ARCH-ORDER — mostly pass: the epoch is now a parameter and the interleaving is injected; flagged for the count oracle (above) and BR-9's five-boolean constellation, correctly separated into pair#219 rather than bundled into a behaviour change.
+
+## 7. Plan revision recommendations
+
+None for the Plan — every `- [x]` row now has code that reddens a test when removed, verified independently. Add a `## Revisions` note to the issue only if the operator accepts the startup-seam residue: record that "remove the mode gate" is pinned at `resolveNotifyConfig` but not through the arg-parse path, and why (`Run` terminates in `pty.Start`).
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Bound is now observationKindCount-1 (1..12, both new kinds reachable); seeds reach each; invariant split into completion-per-generation and alert-per-epoch; walk test covers every declared kind; 3.5M execs pass.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      Deliberately deferred to pair#219, which exists with a real spec; pre-existing pattern, Minor, non-blocking.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Verified by mutation — unconditional resetIdleTimer reddens TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch; sub-second rendering pinned separately.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Sweep reproduced independently: 9 of 11 mutations redden a specific named test. One re-addition mutation still survives; carried forward as a Minor, since re-adding deleted code is not the deletion rule BR-13 stated.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      del-passthrough-publish, del-emitplaincr-publish and del-rearm all redden; I re-verified the population enumeration (pass-through is the exclusive else of hasReturnRemap, overlay unreachable there, ptmx has one writer).
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      Both instances still present — notification_lifecycle.go:304 vs wrap.go:2694, and the outer/outer-path fixture at 7 test sites.
+  - id: BR-16
+    disposition: not-addressed
+    note: |
+      notification_lifecycle.go:310-311 still log and trace the expiry unconditionally, before the reducer decides whether the alert applies.
+findings:
+  - id: new
+    severity: Important
+    family: atlas-overstates-guarantee
+    title: |
+      README and atlas still promise "at most once per turn", which this round's bare-CR re-arm made false
+    detail: |
+      This is the 2nd finding in family `atlas-overstates-guarantee`. The rule, not the
+      instance: when a state-machine invariant changes, every restatement of it must be
+      swept in the same round — here the fuzz invariant was rewritten from per-generation
+      to per-epoch (notification_lifecycle_test.go:196-198) while README.md:605 ("It fires
+      at most once per turn") and atlas/architecture.md:783 ("a generation can carry one
+      alert plus a later real completion") kept the superseded claim. atlas:785 also still
+      says IdleToken is "minted once per turn" and then describes the re-arm that mints a
+      second one. Enumerated restatements of the once-per invariant: 3 (fuzz, README,
+      atlas x2 clauses); 1 swept, 3 stale.
+  - id: new
+    severity: Important
+    family: unfalsifiable-race-test
+    title: |
+      The master-loop exactly-once oracle cannot fail — the 500ms emit limiter masks duplicates inside its 400ms window
+    detail: |
+      This is the 3rd finding in family `unfalsifiable-race-test`. Do NOT fix this instance
+      by widening the sleep. Rule: a notification-count assertion is falsifiable only when
+      the observation window exceeds rateLimitS (wrap.go:78, 500ms) or the limiter's clock
+      is injected; emitOuter:652 calls time.Now() directly even though the proxy already
+      carries an injectable `now func() time.Time`. Measured: with !state.IdleNotified
+      dropped from both the reducer guard and syncIdleTimer, idle_floor_test.go:102 passes;
+      re-run with settle(1500ms) it fails with "notifications = 3". Prevalence: 3 count
+      assertions in idle_floor_test.go (:102, :207, :231) all inside the limiter window;
+      :207 and :231 survive on their content checks, :102 has none.
+  - id: new
+    severity: Minor
+    family: test-avoids-seam-not-injects-it
+    title: |
+      No test crosses the startup wiring seam, so the mode gate can be re-added at its original call site with the package green
+    detail: |
+      This is the 2nd finding in family `test-avoids-seam-not-injects-it`. Measured:
+      inserting `if p.notifyModeActive != "idle" { p.idleS = 0 }` after wrap.go:2416 leaves
+      the package GREEN (failure set identical to baseline). resolveNotifyConfig is
+      asserted, but nothing tests the path that consumes it, and Run terminates in
+      pty.Start so an end-to-end test is not available in this environment. Rule, not
+      instance: p.idleS and p.notifyModeActive should have exactly one assignment site fed
+      by resolveNotifyConfig, enforced by a source-scanning test — or the residue accepted
+      explicitly in the issue Log.
+```

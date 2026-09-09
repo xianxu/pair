@@ -612,7 +612,7 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 // haiku call per agent turn. The 1s debounce only collapses bursts, not the
 // per-turn baseline; that's the accepted price of an always-current slug.
 func (p *proxy) maybeSpawnSlug() {
-	now := time.Now()
+	now := p.clock()
 	if !p.lastSlug.IsZero() && now.Sub(p.lastSlug) < slugDebounceS {
 		return
 	}
@@ -641,6 +641,17 @@ func slugSpawnCmd(agent string) *exec.Cmd {
 
 // Rate-limited: any call within rateLimitS of the last successful emit is
 // silently dropped. All errors are swallowed — never blocks the proxy.
+// clock is the proxy's injectable time source. The emit limiter and the slug
+// debounce read it rather than time.Now() so a test can assert how many
+// notifications were produced without the 500ms limiter silently collapsing
+// duplicates into one and making the assertion unfalsifiable (BR-18).
+func (p *proxy) clock() time.Time {
+	if p.now != nil {
+		return p.now()
+	}
+	return time.Now()
+}
+
 func (p *proxy) emitOuter(msg string) {
 	if msg == "" {
 		msg = "agent attention"
@@ -649,7 +660,7 @@ func (p *proxy) emitOuter(msg string) {
 	// This is pair's agent-agnostic notify sink (marker/idle/native all land
 	// here), so it works for claude/codex/agy alike — no claude Stop hook.
 	p.maybeSpawnSlug()
-	now := time.Now()
+	now := p.clock()
 	if !p.lastEmit.IsZero() && now.Sub(p.lastEmit) < rateLimitS {
 		p.debug("EMIT-skip", fmt.Sprintf("rate-limited (%.2fs since last)", now.Sub(p.lastEmit).Seconds()))
 		return

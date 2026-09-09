@@ -280,6 +280,84 @@ rounds:
           family: message-overstates-measurement
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-09T03:23:43-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: Bound is now observationKindCount-1 (1..12, both new kinds reachable); seeds reach each; invariant split into completion-per-generation and alert-per-epoch; walk test covers every declared kind; 3.5M execs pass.
+          round: 4
+        - id: BR-9
+          disposition: not-addressed
+          note: Deliberately deferred to pair#219, which exists with a real spec; pre-existing pattern, Minor, non-blocking.
+          round: 4
+        - id: BR-10
+          disposition: addressed
+          note: Verified by mutation — unconditional resetIdleTimer reddens TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch; sub-second rendering pinned separately.
+          round: 4
+        - id: BR-13
+          disposition: addressed
+          note: 'Sweep reproduced independently: 9 of 11 mutations redden a specific named test. One re-addition mutation still survives; carried forward as a Minor, since re-adding deleted code is not the deletion rule BR-13 stated.'
+          round: 4
+        - id: BR-14
+          disposition: addressed
+          note: del-passthrough-publish, del-emitplaincr-publish and del-rearm all redden; I re-verified the population enumeration (pass-through is the exclusive else of hasReturnRemap, overlay unreachable there, ptmx has one writer).
+          round: 4
+        - id: BR-15
+          disposition: not-addressed
+          note: Both instances still present — notification_lifecycle.go:304 vs wrap.go:2694, and the outer/outer-path fixture at 7 test sites.
+          round: 4
+        - id: BR-16
+          disposition: not-addressed
+          note: notification_lifecycle.go:310-311 still log and trace the expiry unconditionally, before the reducer decides whether the alert applies.
+          round: 4
+      findings:
+        - id: BR-17
+          severity: Important
+          title: README and atlas still promise "at most once per turn", which this round's bare-CR re-arm made false
+          detail: |-
+            This is the 2nd finding in family `atlas-overstates-guarantee`. The rule, not the
+            instance: when a state-machine invariant changes, every restatement of it must be
+            swept in the same round — here the fuzz invariant was rewritten from per-generation
+            to per-epoch (notification_lifecycle_test.go:196-198) while README.md:605 ("It fires
+            at most once per turn") and atlas/architecture.md:783 ("a generation can carry one
+            alert plus a later real completion") kept the superseded claim. atlas:785 also still
+            says IdleToken is "minted once per turn" and then describes the re-arm that mints a
+            second one. Enumerated restatements of the once-per invariant: 3 (fuzz, README,
+            atlas x2 clauses); 1 swept, 3 stale.
+          family: atlas-overstates-guarantee
+          round: 4
+        - id: BR-18
+          severity: Important
+          title: The master-loop exactly-once oracle cannot fail — the 500ms emit limiter masks duplicates inside its 400ms window
+          detail: |-
+            This is the 3rd finding in family `unfalsifiable-race-test`. Do NOT fix this instance
+            by widening the sleep. Rule: a notification-count assertion is falsifiable only when
+            the observation window exceeds rateLimitS (wrap.go:78, 500ms) or the limiter's clock
+            is injected; emitOuter:652 calls time.Now() directly even though the proxy already
+            carries an injectable `now func() time.Time`. Measured: with !state.IdleNotified
+            dropped from both the reducer guard and syncIdleTimer, idle_floor_test.go:102 passes;
+            re-run with settle(1500ms) it fails with "notifications = 3". Prevalence: 3 count
+            assertions in idle_floor_test.go (:102, :207, :231) all inside the limiter window;
+            :207 and :231 survive on their content checks, :102 has none.
+          family: unfalsifiable-race-test
+          round: 4
+        - id: BR-19
+          severity: Minor
+          title: No test crosses the startup wiring seam, so the mode gate can be re-added at its original call site with the package green
+          detail: |-
+            This is the 2nd finding in family `test-avoids-seam-not-injects-it`. Measured:
+            inserting `if p.notifyModeActive != "idle" { p.idleS = 0 }` after wrap.go:2416 leaves
+            the package GREEN (failure set identical to baseline). resolveNotifyConfig is
+            asserted, but nothing tests the path that consumes it, and Run terminates in
+            pty.Start so an end-to-end test is not available in this environment. Rule, not
+            instance: p.idleS and p.notifyModeActive should have exactly one assignment site fed
+            by resolveNotifyConfig, enforced by a source-scanning test — or the residue accepted
+            explicitly in the issue Log.
+          family: test-avoids-seam-not-injects-it
+          round: 4
+      blocked: true
 ---
 
 # Gate ledger — pair#171 (boundary-review)
@@ -448,12 +526,55 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   completed idle expiry in the debug log and the trace, which is where a future
   operator will go to reconstruct why an alert did or did not fire.
 
+## Round 4 — 2026-09-09T03:23:43-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-4 — addressed — Bound is now observationKindCount-1 (1..12, both new kinds reachable); seeds reach each; invariant split into completion-per-generation and alert-per-epoch; walk test covers every declared kind; 3.5M execs pass.
+- BR-9 — not-addressed — Deliberately deferred to pair#219, which exists with a real spec; pre-existing pattern, Minor, non-blocking.
+- BR-10 — addressed — Verified by mutation — unconditional resetIdleTimer reddens TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch; sub-second rendering pinned separately.
+- BR-13 — addressed — Sweep reproduced independently: 9 of 11 mutations redden a specific named test. One re-addition mutation still survives; carried forward as a Minor, since re-adding deleted code is not the deletion rule BR-13 stated.
+- BR-14 — addressed — del-passthrough-publish, del-emitplaincr-publish and del-rearm all redden; I re-verified the population enumeration (pass-through is the exclusive else of hasReturnRemap, overlay unreachable there, ptmx has one writer).
+- BR-15 — not-addressed — Both instances still present — notification_lifecycle.go:304 vs wrap.go:2694, and the outer/outer-path fixture at 7 test sites.
+- BR-16 — not-addressed — notification_lifecycle.go:310-311 still log and trace the expiry unconditionally, before the reducer decides whether the alert applies.
+
+### Raised
+
+- **BR-17** [Important] `atlas-overstates-guarantee` README and atlas still promise "at most once per turn", which this round's bare-CR re-arm made false
+  This is the 2nd finding in family `atlas-overstates-guarantee`. The rule, not the
+  instance: when a state-machine invariant changes, every restatement of it must be
+  swept in the same round — here the fuzz invariant was rewritten from per-generation
+  to per-epoch (notification_lifecycle_test.go:196-198) while README.md:605 ("It fires
+  at most once per turn") and atlas/architecture.md:783 ("a generation can carry one
+  alert plus a later real completion") kept the superseded claim. atlas:785 also still
+  says IdleToken is "minted once per turn" and then describes the re-arm that mints a
+  second one. Enumerated restatements of the once-per invariant: 3 (fuzz, README,
+  atlas x2 clauses); 1 swept, 3 stale.
+- **BR-18** [Important] `unfalsifiable-race-test` The master-loop exactly-once oracle cannot fail — the 500ms emit limiter masks duplicates inside its 400ms window
+  This is the 3rd finding in family `unfalsifiable-race-test`. Do NOT fix this instance
+  by widening the sleep. Rule: a notification-count assertion is falsifiable only when
+  the observation window exceeds rateLimitS (wrap.go:78, 500ms) or the limiter's clock
+  is injected; emitOuter:652 calls time.Now() directly even though the proxy already
+  carries an injectable `now func() time.Time`. Measured: with !state.IdleNotified
+  dropped from both the reducer guard and syncIdleTimer, idle_floor_test.go:102 passes;
+  re-run with settle(1500ms) it fails with "notifications = 3". Prevalence: 3 count
+  assertions in idle_floor_test.go (:102, :207, :231) all inside the limiter window;
+  :207 and :231 survive on their content checks, :102 has none.
+- **BR-19** [Minor] `test-avoids-seam-not-injects-it` No test crosses the startup wiring seam, so the mode gate can be re-added at its original call site with the package green
+  This is the 2nd finding in family `test-avoids-seam-not-injects-it`. Measured:
+  inserting `if p.notifyModeActive != "idle" { p.idleS = 0 }` after wrap.go:2416 leaves
+  the package GREEN (failure set identical to baseline). resolveNotifyConfig is
+  asserted, but nothing tests the path that consumes it, and Run terminates in
+  pty.Start so an end-to-end test is not available in this environment. Rule, not
+  instance: p.idleS and p.notifyModeActive should have exactly one assignment site fed
+  by resolveNotifyConfig, enforced by a source-scanning test — or the residue accepted
+  explicitly in the issue Log.
+
 ## Open findings
 
-- **BR-4** [Important] `hand-maintained-enumeration` The lifecycle fuzz excludes both new observation kinds, and the invariant it asserts is now false for the idle alert
 - **BR-9** [Minor] `boolean-constellation-needs-tagged-enum` NotificationLifecycle now carries five booleans whose legal combinations are unwritten
-- **BR-10** [Minor] `message-overstates-measurement` "no agent output for Ns" reports the configured interval, and non-output observations also reset the deadline
-- **BR-13** [Important] `unfalsifiable-race-test` Three of this round's deliverables can be deleted with the whole wrapcmd package still green, including the mode gate this issue exists to remove
-- **BR-14** [Important] `purpose-vs-covered-population` The floor never arms under PAIR_WRAP_REMAP_RETURN=0 or for agents outside harnessTTYProfiles, and a bare CR mid-turn cannot re-arm a spent floor
 - **BR-15** [Minor] `duplicated-idiom` The lifecycle-expiry application is now written twice, and the outer-TTY sidecar test fixture is at seven sites
 - **BR-16** [Minor] `message-overstates-measurement` applyIdleExpiry logs IDLE and traces the expiry before the reducer decides whether the alert applies
+- **BR-17** [Important] `atlas-overstates-guarantee` README and atlas still promise "at most once per turn", which this round's bare-CR re-arm made false
+- **BR-18** [Important] `unfalsifiable-race-test` The master-loop exactly-once oracle cannot fail — the 500ms emit limiter masks duplicates inside its 400ms window
+- **BR-19** [Minor] `test-avoids-seam-not-injects-it` No test crosses the startup wiring seam, so the mode gate can be re-added at its original call site with the package green

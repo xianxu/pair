@@ -601,9 +601,10 @@ leaves the ordinary "agent went quiet" watchdog with nothing to arm. So Pair
 puts a floor under it: while a turn is open and nothing has reported its end, 60
 seconds with no output from the agent emits `no agent output for 60s`. It says
 only what was observed — silence — because at that point Pair genuinely does not
-know whether the agent finished, is waiting on you, or never started. It fires
-at most once per turn, and if the agent does report a real end afterwards you
-still get that notification too.
+know whether the agent finished, is waiting on you, or never started. It fires once per
+quiet stretch — answering a prompt starts a fresh window, so a turn you
+interact with repeatedly can notify more than once — and if the agent does
+report a real end afterwards you still get that notification too.
 
 A working agent produces output continuously, so the floor does not fire on one;
 it is the quiet cases — a menu waiting for an answer, a turn that silently went

@@ -41,10 +41,21 @@ func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *
 		t.Fatal(err)
 	}
 	h := &idleFloorHarness{writer: writer, done: make(chan struct{})}
+	// An advancing clock: every read is a second later than the last, so the
+	// 500ms emit limiter can never collapse two notifications into one and
+	// silently make a count assertion unfalsifiable (BR-18).
+	var clockMu sync.Mutex
+	clock := time.Unix(1_800_000_000, 0)
+	advancing := func() time.Time {
+		clockMu.Lock()
+		defer clockMu.Unlock()
+		clock = clock.Add(time.Second)
+		return clock
+	}
 	h.proxy = &proxy{
 		ptmx: reader, agentBasename: agent, notifyModeActive: mode,
 		stdoutPump: newStdoutPump(io.Discard), stdoutFlushEvery: 5 * time.Millisecond,
-		captureWindow: defaultCaptureWindow, now: time.Now,
+		captureWindow: defaultCaptureWindow, now: advancing,
 		lifecycleEvents: make(chan TurnObservation, 32),
 		outerTTYFile:    sidecar,
 		idleS:           idle,
@@ -413,5 +424,26 @@ func TestSyncIdleTimerDoesNotRestartAnArmedDeadlineWithinTheSameEpoch(t *testing
 	case <-p.idleTimer.C:
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("a non-output observation restarted an already-expired deadline")
+	}
+}
+
+func TestNotifyWiringHasASingleAssignmentSiteFedByTheResolver(t *testing.T) {
+	// BR-19. Run terminates in pty.Start, so the startup path cannot be driven
+	// end-to-end here — the mode gate could be re-added at its original call
+	// site with every test still green. What is checkable is the shape that
+	// made the gate possible: p.idleS and p.notifyModeActive each having one
+	// assignment site, fed by resolveNotifyConfig. A second site is where a
+	// gate like the removed one would live again.
+	source, err := os.ReadFile("wrap.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"p.idleS = ", "p.notifyModeActive = "} {
+		if got := strings.Count(string(source), field); got != 1 {
+			t.Errorf("%q assigned at %d sites in wrap.go, want exactly 1 (fed by resolveNotifyConfig)", field, got)
+		}
+	}
+	if !strings.Contains(string(source), "notify := resolveNotifyConfig(") {
+		t.Error("wrap.go no longer feeds its notify wiring from resolveNotifyConfig")
 	}
 }

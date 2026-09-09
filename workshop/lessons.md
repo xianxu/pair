@@ -4128,3 +4128,19 @@ a test that fails to catch the deletion.
 sweep whose failure mode is a false "GREEN" reports the opposite of the truth
 and will send you writing tests for code that is already covered, or worse,
 declaring coverage you do not have. Caught in #000171 close review round 2.
+
+## A count assertion under a rate limiter asserts the rate limiter
+
+A test asserted "exactly one notification" over a 400ms window while the emit
+path collapsed anything inside 500ms. The oracle could not fail: with the
+once-per-turn guard removed the code emitted nine notifications and the test
+still passed, because the limiter delivered one.
+
+**Rule.** Before asserting how many times something was produced, find every
+debounce, throttle, and rate limiter between the producer and your observation
+point. Either observe upstream of them, or inject their clock — most already
+have an injectable time source that production wires to `time.Now` and tests
+forget to use. Widening the sleep past the limiter window is the fragile fix; it
+trades an unfalsifiable test for a slow flaky one. Prove the result by mutation:
+the same duplicate-producing change must redden with the clock injected and stay
+green without it. Caught in #000171 close review round 3.

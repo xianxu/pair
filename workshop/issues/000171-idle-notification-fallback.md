@@ -480,3 +480,36 @@ immediately caught a real consequence of BR-14: with re-arming, one generation
 alert per **epoch**. Fuzz: 4.4M execs pass.
 
 **BR-9** — still deferred to pair#219, unchanged reasoning.
+
+### 2026-09-09 — boundary review round 3: FIX-THEN-SHIP, addressed
+
+Two blocking findings, both created by round 2's own fixes — the cost of
+changing an invariant late.
+
+**BR-17 — changing an invariant means sweeping every restatement of it.** The
+bare-CR re-arm made "at most once per turn" false, and only the fuzz was
+updated: README still said "It fires at most once per turn", atlas still said a
+generation carries "one alert plus a later real completion", and atlas still
+called `IdleToken` "minted once per turn" two sentences before describing the
+re-arm that mints a second. All three swept. The live invariant is: **one
+completion per generation, one alert per idle epoch.** (This also supersedes the
+"one alert per turn" wording in this issue's own Plan and earlier Log entries —
+recorded here rather than rewritten, per the append-only convention.)
+
+**BR-18 — the exactly-once oracle could not fail.** The master-loop count
+assertion sat inside `rateLimitS` (500ms) with a 400ms window, so the limiter
+delivered one notification no matter how many the floor produced. The fix is the
+rule the finding names, not a wider sleep: `emitOuter` and `maybeSpawnSlug` now
+read the proxy's already-injectable `now` through a `clock()` helper, and the
+harness injects a clock that advances a second per read. Proven by mutation —
+with the once-per-epoch guards and the epoch check all removed, the test now
+fails with **`notifications = 9`**; the identical mutation with the clock left at
+`time.Now` still passes. The limiter was the only thing being asserted.
+
+**BR-19 (Minor) — pinned rather than accepted.** `Run` terminates in
+`pty.Start`, so the startup path cannot be driven end-to-end here and the mode
+gate could be re-added at its original call site with everything green. What is
+checkable is the shape that allowed the gate: `p.idleS` and `p.notifyModeActive`
+each having exactly one assignment site, fed by `resolveNotifyConfig`. A
+source-scanning test asserts that, and reddens when the gate is re-inserted
+("p.idleS = " assigned at 2 sites).
