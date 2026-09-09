@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-09
 updated: 2026-09-09
-estimate_hours:
+estimate_hours: 1.07
 started: 2026-09-09T13:39:07-07:00
 ---
 
@@ -100,16 +100,95 @@ delicate. The goal is to remove the 590ms that has no reason to be there.
 - `procutil.Alive` performs no subprocess.
 - No regression in `#216`'s tests or `#123`/`#199`'s focus behaviour.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: pensive              design=0.10 impl=0.05
+item: smaller-go-module    design=0.05 impl=0.10
+item: smaller-go-module    design=0.10 impl=0.16
+item: smaller-go-module    design=0.10 impl=0.16
+item: milestone-review     design=0.00 impl=0.20
+design-buffer: 0.15
+total: 1.07
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Rows: the measurement already taken and its
+Log write-up; `procutil.Alive`; the shared sidecar-first resolver plus its
+agreement and ambiguity tests; the two `termcmd` callers; one close review. Frequency note per `#201`: this is an
+interactive navigation gesture pressed repeatedly, so latency is worth spending
+on here in a way it was not for a per-send cost. (`sdlc estimate-source` reports
+the calibration doc `[stale]`, #127.)
+
 ## Plan
 
-- [ ] `procutil.Alive` via `syscall.Kill(pid, 0)`, treating `EPERM` as alive;
-      unit rows for live, dead, and not-ours.
-- [ ] Fast-path resolution in `layoutcmd`, returning the pane id; slow path kept
-      verbatim behind it.
-- [ ] Agreement test: for inputs the fast path handles, assert it returns what
-      `pickRightTerminal` would have.
-- [ ] Ambiguity test: two live ids and no record still consults the pane list.
-- [ ] Re-measure end-to-end and record the before/after in the `## Log`.
+- [ ] **The rule (PQ-3), because two of five callers is the easy subset.**
+      Every `ListPanesJSON()` caller is either resolving a pane **ID** — which
+      sidecars already answer — or needing **geometry / the full pane set**,
+      which only zellij can answer. Enumerated, all five:
+
+      | caller | needs | disposition |
+      |---|---|---|
+      | `layoutcmd:61` `resolveRightTerminal` (`Alt+k` from draft/agent, `Alt+Shift+←/→`) | right terminal ID | sidecar-first |
+      | `termcmd:568` `currentRightTerminalPane` (`Alt+Shift+d` split) | right terminal ID | sidecar-first, same resolver |
+      | `termcmd:144` `focusedWorkbenchPanes` (`Alt+j`/`Alt+k` **from the terminal** — PQ-3's named instance) | **not IDs only** — `run.go:129` passes the whole `panes.focused` to `RoleForPaneWith`, which reads `IsPlugin`/`TerminalCommand`/`Title` | role is known **by construction** on the live path: `run.go:150` already records that bytes on `pair term`'s stdin can only come from its own pane, so role = `PaneRoleRightTerminal`, focused ID = `CurrentPaneID()`, draft ID = cached. Falls back to the pane list when `CurrentPaneID()` is empty (the `--test-shortcut` path, which has no live pane) |
+      | `draftroute:81` `RouteLua` | draft ID | **already** sidecar-first — the precedent, see below |
+      | `layoutcmd:189` `RunToggleFocused` (`Alt+Shift+Enter`) | pane **geometry** for the resize planner | keeps `list-panes --json`; no sidecar carries geometry |
+
+- [ ] **Reuse `draftroute`'s shape, do not invent one (ARCH-DRY).** `RouteLua`
+      already does cache-then-`list-panes`-on-miss (`route.go:60-70`, `:79-87`),
+      and the part to copy is the PURE half: `ValidateCachedDraftPane(data, session,
+      alive)` takes bytes and an aliveness predicate and returns an id — no
+      Runtime, no IO (`ARCH-PURE`). `RouteLua` itself is the IO shell around it.
+      The terminal resolver mirrors the validator, not the shell.
+- [ ] **What the registry is, and is not (PQ-1).** `$PAIR_TERMINAL_PANES_PATH`
+      is written by each `pair term` at startup, so it is a **subset** of the
+      right terminals — a pane that has not registered yet is absent. The fast
+      path is therefore conditional, never assumed:
+      - `0` live ids → fall back. Absence proves nothing.
+      - recorded last-terminal is live **and in the registry** → answer.
+      - exactly `1` live id **and no record** → answer.
+      - `≥2` live ids and no record → fall back; that is precisely the
+        zellij-focus tie-break only the pane list can make.
+      The failure mode if registration races: the chord targets a registered
+      half while an unregistered one exists — the same wrong-half risk the slow
+      path already carries from a stale record. Acceptable, and stated rather
+      than discovered. Note the slow path **already trusts this registry**:
+      `isRightTerminal` / `RoleForPaneWith` take `terminalPaneIDs` to recognise
+      split halves at all, so this is not new trust, only earlier trust.
+- [ ] **`procutil.Alive` without a subprocess, guarded (PQ-4).**
+      `syscall.Kill(pid, 0)`, with `EPERM` meaning "exists but not ours" →
+      alive. **Route through the existing `positivePID`**, which
+      `identity_darwin.go:14` and `identity_other.go:14` already use and `Alive`
+      does not: `kill(0, …)` signals the whole process group and `kill(-1, …)`
+      every process the user owns, so an unguarded pid is a correctness bug of a
+      different order than a slow one.
+- [ ] **The pure decision, named (PQ-2).**
+      `resolveFromSidecars(liveIDs []string, lastTerminal string) (string, bool)`
+      — no `Runtime`, no IO, mirroring `ValidateCachedDraftPane`'s shape
+      (`ARCH-PURE`). It returns `false` for "sidecars cannot answer", which is
+      the only signal the IO shell needs to decide whether to spend the 590ms.
+- [ ] **Agreement by GENERATION, not by hand (PQ-2).** The adversarial class is
+      *the registry disagreeing with the pane report*, and hand-picked cases are
+      blind to it by construction — I would only write the disagreements I
+      already thought of. So: generate the cross-product of
+      **pane set** {command-classified, title-classified, registry-only-visible}
+      x **registry subset** {empty, proper subset, disjoint from the pane set}
+      x **record** {none, live-and-registered, stale, unregistered-but-present},
+      and assert the one property that matters:
+      **`resolveFromSidecars` answering implies its answer equals
+      `pickRightTerminal`'s** on the same inputs. Where it declines, assert only
+      that the caller falls back. That property is what stops `Alt+k` and
+      `Alt+Shift+←/→` from disagreeing about a split half (`#216` BR-10), and it
+      holds or fails over the whole generated space rather than over my
+      imagination.
+- [ ] **Fall-back-still-runs test.** With two live ids and no record, assert the
+      pane list IS consulted — otherwise the fast path silently eats the
+      zellij-focus tie-break.
+- [ ] **Re-measure end to end** on a quiet host, before/after, and record both
+      in the `## Log` with the agent population, per `#201`'s Done-when.
 
 ## Log
 
