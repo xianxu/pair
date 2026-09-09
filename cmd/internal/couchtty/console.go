@@ -1004,7 +1004,11 @@ func (c *Console) takeOverScreen(body []byte) {
 // debt; the next chunk that lands on a boundary pays it.
 func (c *Console) writeOwn(p string) {
 	c.mu.Lock()
-	if c.hostScan.MidSequence() {
+	// SafeToPaint, not MidSequence: the shared door adds "the child holds the
+	// cursor save", which couch needs for the same reason termcmd does even
+	// though its full-screen child usually repaints over the damage. Masking is
+	// not safety -- two bugs latent in this primitive since #146 proved that.
+	if !c.hostScan.SafeToPaint() {
 		c.paintPending = true
 		c.mu.Unlock()
 		return
@@ -1104,7 +1108,7 @@ func (c *Console) onChunk(ch chunk) {
 		}
 		if part.Notification != nil {
 			c.mu.Lock()
-			unsafe := c.hostScan.MidSequence()
+			unsafe := !c.hostScan.SafeToPaint()
 			if unsafe {
 				ch.batch.Parts = append([]ptychild.OutputPart(nil), parts[i:]...)
 				c.deferredNotifications = append(c.deferredNotifications, ch)
@@ -1134,7 +1138,7 @@ func (c *Console) onChunk(ch chunk) {
 	// A paint deferred while the stream was mid-sequence is owed as soon as
 	// the stream is whole again.
 	c.mu.Lock()
-	owed := c.paintPending && !c.hostScan.MidSequence()
+	owed := c.paintPending && c.hostScan.SafeToPaint()
 	c.mu.Unlock()
 	if owed {
 		c.paintNow()
@@ -1181,7 +1185,7 @@ func (c *Console) onChunk(ch chunk) {
 // inserting another actor's OSC cannot corrupt a partial host sequence.
 func (c *Console) flushDeferredNotifications() {
 	c.mu.Lock()
-	if c.flushingNotifications || c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+	if c.flushingNotifications || !c.hostScan.SafeToPaint() || len(c.deferredNotifications) == 0 {
 		c.mu.Unlock()
 		return
 	}

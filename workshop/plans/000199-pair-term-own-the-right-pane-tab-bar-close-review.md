@@ -467,3 +467,183 @@ The one cost I can't undo: tar created four symlinks inside pre-existing dot-dir
 - `~/.tart/scripts`
 
 All four were `../../ariadne/…` relative links, valid inside the repo and dangling from `$HOME`. If any of those paths held real content of yours before, it's gone and worth restoring. I switched to `$TMPDIR` for the rest of the session's scratch work.
+
+---
+
+## Re-review — 2026-09-08T18:22:51-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c61f5ca0619d59e3ba795b77d6e12ad18e5517f5..93fa3f5d30e2f4361a6db4324b77701d1d9cd9c4 |
+| command | sdlc close --issue 199 |
+| reviewer | claude |
+| timestamp | 2026-09-08T18:22:51-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: medium
+```
+
+The window delivers the issue as specified — the strip is real, pure, and tested; the single-writer/gate envelope is enforced rather than asserted; `Reserve`/`PaintRow` genuinely moved into `hostty`; the pane is borderless at all nine rungs; README and atlas both carry the new surface; and `make test` is green at HEAD (exit 0, verified). This round's two fixes are both real and both pinned: I mutation-checked the borderless guard at all nine rungs (every one goes red now, including the three split rungs BR-74 named) and reverted the SCOSC block to confirm two of its three new tests fail without it. What keeps this from SHIP is that two of the three Important findings this round disposed are only fixed at the site they named. BR-75 stated "enumerate EVERY byte form the terminal accepts for that control" and then covered exactly the one sibling the finding pointed at: `CSI ? 1048 h` and the save half of `CSI ? 1049 h` are still untracked (measured — `HoldsCursorSave` stays `false` for both), and `?1049h` is how essentially every full-screen child takes that slot, so the gate is blind on the most common path to the symptom M3 exists to remove. BR-72 stated that the guard's file list is the enumeration of artifact *classes* and then swept three prose sites, leaving `atlas/architecture.md:711` asserting the frame is the split divider and — the sharper one — `tests/term-pane-shortcuts-test.sh:255`, a guard wired into `make test` that actively asserts the split panes keep frames. Neither is a crash; both are the same "instance, not class" shape the ledger has now recorded thirteen times.
+
+## 1. Strengths
+
+- **`cmd/internal/termcmd/strip.go`** is a clean ARCH-PURE core: `RenderStrip(width, model) → (row, spans)`, no IO, no mux, no clock. The rename-first/active-second budget order, the detached-rename branch, and display-column spans are all decidable from the arguments and are unit-tested that way.
+- **`hostty/reserve.go:115-136`** — `ReserveAndPaint` and `Paint` now share `drawRow`, so the two differ only in the region assertion, and the doc states *why* the order is load-bearing (DECSTBM homes the cursor). This is the BR-65 fix done properly, at the mechanism.
+- **The guard suite is unusually adversarial for this repo** — `TestEveryStripModelMutatorHasARepaintCase`, `TestNoPlannedRowSurvivesItsTickedMilestone`, `TestEveryCoreConceptRowNamesASymbolThatExists`, `TestNoProbeExitsPastItsOwnCleanup`, `tests/plan-superseded-facts-test.sh`. The `paneBlock` rewrite in `cmd/internal/runtimebundle/terminalborderless_test.go:71` is correct for every position class (sole / first-of-pair / last-of-pair / block-opening) — I verified by mutation, not by reading.
+- **`paneTitleLocked` asks `TitleIdentifiesRightTerminal` instead of restating it** (`run.go:1577`), and `launcher/layoutflow.go:71` asks `RoleForPane`. One predicate, two consumers plus the producer — the BR-48/BR-56 fix landed at the seam.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**(a) BR-75 residual — the save-form enumeration stops at the sibling the finding named.** `cmd/internal/ptychild/screen.go:463-486` now classifies `CSI s` / `CSI u`, and the tests fail without it (verified by revert). But three byte forms of the same control remain unmodelled, and I measured all three against the shipped code:
+
+- `\x1b[?1048h` → `HoldsCursorSave() == false`. xterm ctlseqs: *"Save cursor as in DECSC"*.
+- `\x1b[?1049h` → `false`, and worse, `screen.go:492` **explicitly clears** `cursorSaved` on that transition with the comment *"Entering or leaving the alt screen abandons whatever the child had saved"*. That is true for `?47`/`?1047` and false for `?1049`, which is defined as DECSC-then-switch. So `\x1b7` followed by `\x1b[?1049h` reports no debt (measured).
+- Parameter-free `CSI s` is treated as SCOSC unconditionally, while `?69` (DECLRMM) is untracked — the file's own `TestParameterisedCSIsIsMarginsNotASave` includes `\x1b[?69h\x1b[1;40s`, so DECSLRM was enumerated and then the default-parameter spelling `\x1b[?69h\x1b[s` was left classified as a save, which under `flushOwed`'s deliberately unbounded paint deferral freezes the strip for the life of that child.
+
+The consequence of the `?1049` case is the milestone's headline symptom: `hostty.Paint` brackets with `\x1b7`/`\x1b8` (`control.go:26-28`), so any strip paint during a full-screen child's alt-screen session overwrites the slot that child's `?1049l` will restore from. **Do not fix the two sites.** The rule BR-75 already stated is right; what is missing is its enumeration written down where it can fire — a table in `screen_test.go`, one row per save/restore spelling (`ESC 7`/`ESC 8`, `CSI s`/`CSI u`, `?1048h`/`l`, `?1049h`/`l`), each row owning an assertion. And the terminal-side premise is a claim about zellij, not about us: `probes/cursorsaveslots` is the instrument that should answer whether zellij's `1049` uses the DECSC register, and the negative belongs recorded next to the gate. Note the fix is a *design* decision, not a one-liner — modelling `?1049h` as a held save would defer every paint for the whole nvim session, so "stale beats wrong" needs re-deciding for that case.
+
+**(b) BR-72 residual — two more sites, one of them an enforcing guard, and the artifact-class enumeration still has a hole.** This is the 13th in family `plan-table-drift`; the rule is BR-72's own and it was not carried out. Live at HEAD:
+
+- `tests/term-pane-shortcuts-test.sh:253-257` — `! grep -Fq '"--borderless"' run.go` with the comment *"the split must not opt out — the frame is the divider and carries the #118 tab title"* and the pass message *"right terminal split panes keep zellij default frames"*. This is in `make test`. A **test** is a class the enumeration in `tests/plan-superseded-facts-test.sh:124-136` never names (it lists plan, issue, atlas, config/layout, code comments) and it is the most binding class of the six, because it does not merely restate the retired design — it enforces it.
+- `atlas/architecture.md:711` — *"(frames stay by zellij default; the frame is the visible divider between the halves and carries the #118 tab title)"*, describing `Alt+Shift+d`. No registered token covers it; the round's own note that "one token per file is not one token per claim" applies to this file a third time.
+- Cosmetic residue of the sweep itself: `zellij/layouts/main-3.kdl:22-26` and `atlas/architecture.md:381` now read *"…serving as the divider between split halves / and full mouse support."* — the replacement dropped the clause the next line completes.
+
+**(c) NEW — the cursor-save precondition landed in one consumer's private predicate, not at the mechanism's door.** This is the 3rd finding in family `wrong-seam-named`, so the rule rather than the site. `hostty.Reservation.Paint` / `ReserveAndPaint` (`reserve.go:119,154`) emit `\x1b7 … \x1b8`, which is a property of the *mechanism* this issue lifted into the shared package. The precondition M3 discovered — *"do not write while the child holds a save"* — was implemented as `terminalMux.unsafeToPaint` (`run.go:949`), private to one consumer. The other consumer of the same primitive, `couchtty/console.go:1062` via `writeOwn` (`:1005-1013`), gates on `MidSequence()` alone; `grep -rn HoldsCursorSave cmd/internal/couchtty` returns nothing. couch's children are alt-screen agent TUIs, so the identical clobber is reachable there with no guard at all. **THE RULE:** a precondition that is a property of a shared mechanism belongs at that mechanism's seam, stated so every consumer must satisfy it — not in one consumer's helper. The enumeration is two lines (`grep -rn 'ReserveAndPaint\|\.Paint(' cmd --include='*.go' | grep -v _test`) and yields exactly two production call sites, so a guard test over that set is cheap. This is the same shape as BR-15 (the sanitize obligation, also still undocumented at that door) — both are obligations of `hostty.Paint` that live only in the callers that happened to learn them.
+
+## 4. Minor findings
+
+- BR-8: `M4.3` (plan:696-702) still has no `Alt+Shift+d` step, and it is now load-bearing in a second way — `splitTerminalDown` (`run.go:537`) creates the split pane with no `--borderless`, and finding (b)'s guard forbids adding one, so the Done-when bullet *"two right-pane halves each draw their own strip"* is unverified by hand **and** unasserted by test.
+- BR-9: `writer_test.go:117` still splits one hand-chosen sequence at one index.
+- BR-13: `couchtty/console.go:922` still builds `hostty.Reservation{…}` literally; `NewReservation` has production callers only in `termcmd`.
+- BR-14: `atlas/couch.md` contains zero occurrences of `Reservation`.
+- BR-15: no sanitize/clamp obligation anywhere in `cmd/internal/hostty` (grep for `sanitiz|rowtext` returns one unrelated hit).
+- BR-24: plan:528 still writes `--include=*.go` unquoted; re-measured this round in the repo's zsh — `(eval):1: no matches found: --include=*.go`. Same shape at `run.go:1541`.
+- BR-30: `run.go:168` still takes `stdin`, `stdout` — and `panes` — none of which the body references.
+- BR-31: the envelope (plan ARCH-CONSTRAINTS) still budgets paints and subprocesses only; no entry for the second full parse of every child chunk (`hostScan.FeedFraming`, `run.go:847`) or the unterminated-OSC stall.
+- BR-38: `couchtty/reserve.go:143-152` still ends in the doc paragraphs for `sanitize` and `truncate`, which now live in `rowtext`.
+- BR-73: all three present — `menu_render.go:625` `SanitizeAndFit((line), width)`, the `rowtext` import inside the stdlib group at `:5`, and `manifest.go:631` out of sort order.
+- BR-76: `workshop/lessons.md` gained two 2026-09-08 entries close to BR-70's rule but not it; the "a tracked-artifact edit is an input to a guard, so the commit that ticks a milestone runs the suite" rule is still only in `git log`.
+
+## 5. Test coverage notes
+
+- `make test` exits 0 at HEAD (full run, unsandboxed). All `go test ./...` failures I saw under the sandbox are the documented `operation not permitted` pty/`ps` class and disappear without it.
+- Mutation evidence I generated myself: nine-of-nine borderless rungs go red under `paneBlock`; reverting the SCOSC block reds `TestTheCSISpellingOfSaveRestoreHoldsTheSameSlot` and `TestTheTwoSpellingsSettleEachOther`. Both claimed fixes are genuinely pinned.
+- The gap that matters: there is no test that asserts the *negative* for an unmodelled save form. `TestParameterisedCSIsIsMarginsNotASave` asserts one negative for DECSLRM; nothing asserts what the model should say about `?1048`/`?1049`, which is why the enumeration could be declared complete while two spellings were missing.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag.** Finding (c): one behavioural rule for a shared primitive, implemented in one of its two consumers. Also BR-13 (a validating door with a bypass in production).
+- **ARCH-PURE — pass.** `strip.go` and `rowtext` are pure and tested without IO; the mux is the thin seam; `FakeHost`/fake child carry the boundary.
+- **ARCH-PURPOSE — flag.** BR-75 and BR-72 are both "the instance the finding named, not the class the finding stated." The ledger now shows `plan-table-drift` ×13 and `external-input-assumed-wellformed` ×5, which per the principle is the ledger reporting that the enumeration was never written rather than that the reviewers are thorough.
+- **ARCH-MOCK — pass, with a note.** `probes/cursorsaveslots`, `probes/zellijscrollregion`, `cmd/probes/couchnestedrows` are real live-conformance checks behind `make test-smoke`/named targets, and `zellijprobe` deduplicated the harness. The note is that the model's newest claims (which spellings share zellij's slot) are the exact thing that instrument exists to settle and were not put to it.
+- **ARCH-CONSTRAINTS — flag.** BR-31: the per-chunk second parse is undeclared, and a long unterminated OSC holds `MidSequence` up to `maxPending`, stalling any owed paint. `maxOwedDiag` is bounded; the paint slot's unbounded deferral is now *decided* rather than defaulted, which is right — but finding (a) widens the set of children that can hold it open indefinitely.
+- **ARCH-SECURE — flag (BR-15).** `rowtext` at the single egress is the correct shape and the C1 gap is closed; the residual is that `hostty.Paint` writes caller text verbatim between `SaveCursor`/`RestoreCursor` with no stated obligation, one package away from the consumer whose input is operator-supplied tab names.
+- **ARCH-ORDER — flag (BR-9).** The states×events table exists and the takeover/defer/flush transitions are tested, including the fresh-supersedes-owed inversion. The oracle gap stands: one hand-chosen split index is a sample of size one, and the plan's own note says any index is legal.
+
+## 7. Plan revision recommendations
+
+- **`## Revisions` — the artifact-class enumeration is six classes, not five.** Record that `tests/*.sh` guards are an artifact class asserting the design, name `tests/term-pane-shortcuts-test.sh:253-257` as the instance found at the close boundary, and register the pair.
+- **`## Revisions` — the save-form enumeration.** Record the four spellings, which of them the code models today, which are unmeasured against zellij, and what `probes/cursorsaveslots` is expected to answer. If `?1049` is carried as a follow-up rather than fixed here, say so explicitly with the trade-off (gating on it would freeze the strip for a whole alt-screen session), so it is a decision rather than an omission.
+- **ARCH-CONSTRAINTS section** — add the two undeclared costs BR-31 names (second full parse per chunk; unterminated-OSC stall bound) with a budget and a bounded behaviour when exceeded.
+- **M4.3** — add the `Alt+Shift+d` step, and state whether the runtime-created split half is borderless by swap-layout re-tiling or by nothing; the plan currently claims nine sites are the whole enumeration while a tenth pane is created at runtime.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      plan:696-702 still has no Alt+Shift+d step; and splitTerminalDown (run.go:537) creates the split pane with no --borderless while tests/term-pane-shortcuts-test.sh:255 forbids one, so "each half draws its own strip" is unverified by hand and unasserted by test.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      writer_test.go:117 still splits one hand-chosen sequence at one index; no parameterisation over indices.
+  - id: BR-13
+    disposition: not-addressed
+    note: |
+      couchtty/console.go:922 still returns hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom} directly.
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      grep for "Reservation" in atlas/couch.md returns zero hits; the reserved-row section still reads as couch-owned.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      No caller obligation stated anywhere in cmd/internal/hostty; grep for sanitiz/rowtext in that package returns one unrelated line about row clamping.
+  - id: BR-24
+    disposition: not-addressed
+    note: |
+      plan:528 unchanged; re-measured in the repo's zsh this round -- "(eval):1: no matches found: --include=*.go", exit 1, pipeline never runs. Same shape at run.go:1541.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      run.go:168 still takes stdin and stdout -- and panes -- none of which the body references.
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      The envelope still budgets paints and subprocesses only; no entry for the per-chunk FeedFraming second parse or the unterminated-OSC stall.
+  - id: BR-33
+    disposition: addressed
+    note: |
+      atlas:518-523 now scopes coalescing to a paint and the takeover drop to the paint; the ban token was the literal prior text and is registered at plan-superseded-facts-test.sh:156. The atlas still does not state that diagnostics queue and survive a takeover -- worth one sentence, not a re-raise.
+  - id: BR-38
+    disposition: not-addressed
+    note: |
+      couchtty/reserve.go:143-152 still ends in the two doc paragraphs for sanitize and truncate, which now live in rowtext.
+  - id: BR-72
+    disposition: not-addressed
+    note: |
+      Two more live sites, and the class hole is the point: tests/term-pane-shortcuts-test.sh:253-257 is a make-test guard ENFORCING "split panes keep zellij default frames", a sixth artifact class the enumeration never names; atlas/architecture.md:711 still calls the frame the visible divider between split halves. The sweep also left main-3.kdl:22-26 and atlas:381 mid-sentence.
+  - id: BR-73
+    disposition: not-addressed
+    note: |
+      All three present at HEAD -- menu_render.go:625 redundant parens, its rowtext import inside the stdlib group at :5, manifest.go:631 out of sort order.
+  - id: BR-74
+    disposition: addressed
+    note: |
+      Mutation-verified independently: deleting borderless=true from each of the nine rungs in source and mirror reds the guard in all nine cases, including sole, first-of-pair, last-of-pair and block-opening positions.
+  - id: BR-75
+    disposition: not-addressed
+    note: |
+      The named site is fixed and pinned (revert-verified). The RULE is not: measured at HEAD, "\x1b[?1048h" and "\x1b[?1049h" both leave HoldsCursorSave false -- and screen.go:492 actively clears the flag on the alt-screen transition, false for 1049 which is defined as DECSC-then-switch and is how nearly every full-screen child takes the slot. Parameter-free CSI s is also read as SCOSC with ?69/DECLRMM untracked. Write the enumeration as a table with one assertion per spelling, and let probes/cursorsaveslots answer the zellij-side premise.
+  - id: BR-76
+    disposition: not-addressed
+    note: |
+      lessons.md's two new 2026-09-08 entries are adjacent rules (mutation-check the guard; stating a class is not closing it) but not BR-70's; that rule is still only in git log.
+findings:
+  - id: new
+    severity: Important
+    family: wrong-seam-named
+    title: |
+      The cursor-save precondition landed in termcmd's private predicate, not at the shared Reservation door, so couch paints unguarded
+    detail: |
+      This is the 3rd finding in family `wrong-seam-named`, so the rule, not the
+      site. hostty.Reservation.Paint / ReserveAndPaint (reserve.go:119,154) emit
+      \x1b7 ... \x1b8 -- a property of the MECHANISM this issue lifted into the
+      shared package. The precondition M3 measured for it ("never write while the
+      child holds a save") was implemented as terminalMux.unsafeToPaint
+      (run.go:949), private to one consumer. The other consumer of the same
+      primitive, couchtty/console.go:1062 via writeOwn (:1005-1013), gates on
+      MidSequence() alone; grep -rn HoldsCursorSave cmd/internal/couchtty returns
+      nothing, and couch's children are alt-screen agent TUIs, so the identical
+      clobber is reachable there with no guard. THE RULE - a precondition that is
+      a property of a shared mechanism belongs at that mechanism's seam, stated so
+      every consumer must satisfy it, not in whichever consumer happened to
+      discover it. The enumeration is one grep
+      (`ReserveAndPaint\|\.Paint(` over cmd, minus tests) and yields exactly two
+      production call sites, so a guard over that set is cheap. Same door as
+      BR-15's undocumented sanitize obligation - both are obligations of
+      hostty.Paint recorded only in the callers that learned them (ARCH-DRY).
+```

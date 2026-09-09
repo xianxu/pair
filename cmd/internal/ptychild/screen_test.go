@@ -508,25 +508,65 @@ func TestASecondSaveDoesNotDeepenTheDebt(t *testing.T) {
 	}
 }
 
-// A held save must not outlive the events that abandon it, or the row goes
-// permanently stale instead of briefly so.
-func TestEventsThatAbandonASaveClearTheDebt(t *testing.T) {
-	for name, seq := range map[string]string{
-		"RIS":              "\x1bc",
-		"enter alt screen": "\x1b[?1049h",
-		"leave alt screen": "\x1b[?1049l",
+// THE SAVE-SLOT ENUMERATION, one case per spelling.
+//
+// A missing arm here is a silent hole in the paint gate, not a visible failure,
+// which is why this is a table rather than a handful of examples. The previous
+// version of this test asserted that ENTERING the alt screen clears the save --
+// encoding the bug it was meant to catch. `?1049h` is defined as
+// DECSC-then-switch: it TAKES the slot, and it is how nearly every full-screen
+// child takes it.
+func TestEverySaveSlotSpellingIsAccountedFor(t *testing.T) {
+	const (
+		takes    = "takes the slot"
+		releases = "releases it"
+		inert    = "leaves it alone"
+	)
+	for _, tc := range []struct{ name, seq, effect string }{
+		{"DECSC", "\x1b7", takes},
+		{"DECRC", "\x1b8", releases},
+		{"SCOSC", "\x1b[s", takes},
+		{"SCORC", "\x1b[u", releases},
+		{"save cursor (1048h)", "\x1b[?1048h", takes},
+		{"restore cursor (1048l)", "\x1b[?1048l", releases},
+		{"alt screen WITH save (1049h)", "\x1b[?1049h", takes},
+		{"leave alt screen (1049l)", "\x1b[?1049l", releases},
+		{"alt screen only (1047h)", "\x1b[?1047h", inert},
+		{"alt screen only (1047l)", "\x1b[?1047l", inert},
+		{"alt screen only (47h)", "\x1b[?47h", inert},
+		{"RIS", "\x1bc", releases},
 	} {
-		t.Run(name, func(t *testing.T) {
-			var s Screen
-			s.FeedFraming([]byte("\x1b7"))
-			if !s.HoldsCursorSave() {
-				t.Fatal("setup: the save was not observed")
+		t.Run(tc.name, func(t *testing.T) {
+			// From EMPTY: does it take?
+			var empty Screen
+			empty.FeedFraming([]byte(tc.seq))
+			if got := empty.HoldsCursorSave(); got != (tc.effect == takes) {
+				t.Fatalf("from empty, %s left HoldsCursorSave=%v; it %s", tc.name, got, tc.effect)
 			}
-			s.FeedFraming([]byte(seq))
-			if s.HoldsCursorSave() {
-				t.Fatalf("%s left the child's save outstanding", name)
+			// From HELD: does it release, or leave it alone?
+			var held Screen
+			held.FeedFraming([]byte("\x1b7"))
+			held.FeedFraming([]byte(tc.seq))
+			want := tc.effect != releases // takes and inert both leave it held
+			if got := held.HoldsCursorSave(); got != want {
+				t.Fatalf("from held, %s left HoldsCursorSave=%v; it %s", tc.name, got, tc.effect)
 			}
 		})
+	}
+}
+
+// 1047/47 switch screens WITHOUT the save half, so clearing the flag there would
+// hand a console permission to paint inside a save the child still holds. This
+// is the arm most likely to be written as "an alt-screen transition abandons the
+// save", which is true of 1049 and false of these.
+func TestAltScreenWithoutTheSaveHalfDoesNotReleaseTheSlot(t *testing.T) {
+	for _, seq := range []string{"\x1b[?1047h", "\x1b[?1047l", "\x1b[?47h", "\x1b[?47l"} {
+		var s Screen
+		s.FeedFraming([]byte("\x1b7"))
+		s.FeedFraming([]byte(seq))
+		if !s.HoldsCursorSave() {
+			t.Fatalf("%q released a save it does not touch", seq)
+		}
 	}
 }
 

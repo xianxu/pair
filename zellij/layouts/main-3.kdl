@@ -19,10 +19,10 @@
 // life; zellij 0.44.3 lets any floating pane be dragged off position by its
 // frame with no config gate, so the terminal moved into the tiled tree —
 // tiled panes have no mouse-move operation at all, making the workbench
-// drag-immune. The terminal panes are BORDERLESS since pair#199 M4: `pair term`
-// draws its own strip in a reserved row, carrying the tab title the frame used
-// to and serving as the divider between split halves
-// and full mouse support. This also removed the old invisible right-side
+// drag-immune, and keeps full mouse support. The terminal panes are BORDERLESS
+// since pair#199 M4: `pair term` draws its own strip in a reserved row, which
+// carries the tab title the frame used to and is what separates split halves --
+// each half draws its own. This also removed the old invisible right-side
 // filler pane and its focus-trap.
 //
 // LAYOUT RUNGS — the left column's draft pane has three sizes: minimized

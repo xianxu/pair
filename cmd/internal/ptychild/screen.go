@@ -161,6 +161,25 @@ func (s *Screen) TakeRowDirty() bool {
 // wholesale resets the whole Screen anyway.
 func (s *Screen) HoldsCursorSave() bool { return s.cursorSaved }
 
+// SafeToPaint reports whether a console may write to the terminal right now.
+//
+// THE SHARED DOOR. Both reserved-row consumers must ask the same question, and
+// an earlier version answered it only inside termcmd's private predicate -- so
+// `pair term` was guarded and couch, running the identical primitive, was not.
+// couch's child is a full-screen TUI that repaints continuously, which MASKS
+// the damage rather than preventing it; two bugs latent in this primitive since
+// #146 were invisible for exactly that reason, so masking has already proven
+// not to be safety here.
+//
+// Two conditions, clearing on different bytes:
+//
+//   - MID-SEQUENCE: a write between two of the child's escape bytes lands
+//     inside its sequence.
+//   - THE CHILD HOLDS THE CURSOR SAVE: the slot is shared, one per terminal, so
+//     a console save/restore inside the child's pair leaves the slot holding the
+//     CONSOLE's position and the child's restore lands there.
+func (s *Screen) SafeToPaint() bool { return !s.MidSequence() && !s.cursorSaved }
+
 // TakeBell reports and clears whether the child rang the terminal bell. This is
 // the one "the agent wants you" signal available before #147's transport, so a
 // false positive matters: every title change ends in BEL, which is why BEL is
@@ -491,21 +510,35 @@ func (s *Screen) classify(seq []byte) {
 		on := final == 'h'
 		for _, mode := range splitParams(params[1:]) {
 			switch mode {
-			case "1049", "1047", "47":
+			// THE SAVE-SLOT ENUMERATION, one arm per spelling, because a
+			// missing arm is a silent hole in the paint gate rather than a
+			// visible failure. `?1049h` is DEFINED as DECSC-then-switch: it
+			// SAVES the cursor, and an earlier version cleared the flag here --
+			// exactly backwards for how nearly every full-screen child takes
+			// the slot.
+			//
+			//   ESC 7 / ESC 8          DECSC / DECRC          take / release
+			//   CSI s / CSI u          SCOSC / SCORC          take / release
+			//   CSI ?1048h / ?1048l    save / restore cursor  take / release
+			//   CSI ?1049h / ?1049l    ?1048 + ?1047          take / release
+			//   CSI ?1047h / ?1047l    alt screen ONLY        no effect
+			//   CSI ?47h   / ?47l      alt screen ONLY        no effect
+			//   ESC c                  RIS                    release
+			case "1049":
 				s.altScreen = on
-				// Entering or leaving the alt screen abandons whatever the
-				// child had saved, so the debt this creates for a console's
-				// paint must not outlive it.
-				s.cursorSaved = false
-				// An alt-screen transition is exactly when a child redraws
-				// from scratch and the region can go with it.
+				// 1049 = 1048 + 1047: it saves on entry and restores on exit.
+				s.cursorSaved = on
 				s.rowDirty = true
-			// TRACKING and ENCODING are different facts and must not share a
-			// bool. 1000/1002/1003 say the child wants mouse events at all;
-			// 1006 says only how coordinates are encoded. Collapsed, a child
-			// doing `?1002h` then `?1006l` read as "no mouse" -- so a supervisor
-			// asking "does the child hold tracking" got false and asserted its
-			// own mode over a child that was still tracking (pair#172 BR-26).
+			case "1047", "47":
+				// Screen switch WITHOUT the save half. The slot is untouched,
+				// so the flag must not move in either direction -- clearing it
+				// here would hand a console permission to paint inside a save
+				// the child still holds.
+				s.altScreen = on
+				s.rowDirty = true
+			case "1048":
+				// The save half on its own.
+				s.cursorSaved = on
 			case "1000", "1002", "1003":
 				s.mouse = on
 				s.mouseObserved = true

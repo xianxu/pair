@@ -137,6 +137,11 @@ check "$PLAN" 'the shared package M3 extracts' 'extracted in M2' "$REV"
 ATLAS="atlas/architecture.md"
 CONFIG="zellij/config.kdl"
 LAYOUT="zellij/layouts/main-3.kdl"
+# The SIXTH class, and the one that bites hardest: a TEST can encode the design
+# too, and a guard asserting the old truth outranks prose because `make test`
+# enforces it. tests/term-pane-shortcuts-test.sh carried "split panes keep
+# zellij default frames" through M4.
+GUARD="tests/term-pane-shortcuts-test.sh"
 check "$ATLAS" 'agent pane and layout-3 terminal.*render frames' 'only the agent pane is framed'
 check "$ATLAS" 'The draft pane opts out via `borderless=true` in both' 'TWO panes opt out'
 
@@ -150,6 +155,9 @@ check "$CONFIG" 'scroll offset to plugins or the CLI. The draft pane opts out vi
 check "$CONFIG" 'keep their frames' 'they are borderless since M4'
 check "$LAYOUT" 'while keeping frames' 'the terminal panes are borderless'
 check "$ATLAS" 'drag-immune while keeping frames and full mouse support' 'keeping the agent pane s frame'
+check "$ATLAS" 'frames stay by zellij default' 'borderless since M4'
+check "$ATLAS" 'frame-title rename editor' 'the field renders in the strip'
+check "$GUARD" 'keep zellij default frames' 'the layout declares borderless, not the call site'
 # BR-33's own paragraph: diagnostics stopped sharing the coalescing slot when
 # they got owedDiag, and the paragraph that described one slot for every
 # console write outlived that by two commits.

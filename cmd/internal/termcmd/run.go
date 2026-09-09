@@ -929,25 +929,10 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	m.paintStripInline()
 }
 
-// unsafeToPaint reports whether a console write would damage the child.
-//
-// TWO conditions, and they clear on different bytes.
-//
-//  1. MID-SEQUENCE — a write between two of the child's escape bytes lands
-//     inside its sequence.
-//  2. THE CHILD HOLDS A CURSOR SAVE — the save slot is SHARED, one per
-//     terminal, so our save/restore inside the child's DECSC..DECRC pair leaves
-//     the slot holding OUR position and the child's restore lands there. That
-//     is the operator's "`l` ends with the cursor in the tab bar" and the
-//     right-prompt drawn on the strip's row: zsh uses terminfo sc/rc, which are
-//     exactly these bytes.
-//
-// The second is why option (a) died: there is no second save slot to move to
-// (probes/cursorsaveslots), so the only way not to clobber the child's is to not
-// write while it is held.
-func (m *terminalMux) unsafeToPaint() bool {
-	return m.hostScan.MidSequence() || m.hostScan.HoldsCursorSave()
-}
+// unsafeToPaint asks the SHARED door (ptychild.Screen.SafeToPaint), which both
+// reserved-row consumers use. It lived here as a private predicate first, which
+// left couch -- running the identical primitive -- unguarded.
+func (m *terminalMux) unsafeToPaint() bool { return !m.hostScan.SafeToPaint() }
 
 // maxOwedDiag bounds the deferred-diagnostic queue. Sized for "a wheel tick
 // firing zellij actions at a shell that is holding a save": enough that a real
