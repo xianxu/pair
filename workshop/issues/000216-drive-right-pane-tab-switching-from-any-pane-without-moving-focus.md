@@ -1,11 +1,12 @@
 ---
 id: 000216
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-08
-updated: 2026-09-08
+updated: 2026-09-09
 estimate_hours:
+started: 2026-09-09T10:45:14-07:00
 ---
 
 # drive right-pane tab switching from any pane, without moving focus
