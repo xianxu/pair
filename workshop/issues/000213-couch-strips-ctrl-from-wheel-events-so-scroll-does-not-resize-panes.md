@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-07
 updated: 2026-09-09
-estimate_hours:
+estimate_hours: 0.71
 started: 2026-09-09T07:49:18-07:00
 ---
 
@@ -115,13 +115,91 @@ deserves its own risk assessment rather than riding in as a fix for this.
   produced four rounds of defects, and the mode-belief behaviour must not shift.
 - The code comment names `mouse_scroll_resize` as the upgrade that retires this.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module    design=0.05 impl=0.12
+item: smaller-go-module    design=0.10 impl=0.12
+item: atlas-docs           design=0.05 impl=0.04
+item: milestone-review     design=0.00 impl=0.20
+design-buffer: 0.15
+total: 0.71
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Rows: the `mouseinput` button splice; the
+`couchtty` strip policy; atlas; one close-boundary review. The review row takes
+the top of its band rather than the middle — this touches the mouse seam that
+`#196` needed four rounds to settle, so a cheap review is not the expected case.
+(`sdlc estimate-source` reports the calibration doc `[stale]`, ledger newer than
+the doc, tracked in #127; the per-primitive hours are provisional.)
+
 ## Plan
 
-- [ ] Add the strip in `RouteMouseReport`'s path, narrowed to wheel buttons and
-      to the ctrl bit only.
-- [ ] Unit tests for the four cases in Done-when.
-- [ ] Verify the existing routing tests and `#196`'s test are untouched.
-- [ ] Manual: ctrl+scroll in a live couch session scrolls, and pane sizes hold.
+**Design correction (see `## Revisions` 2026-09-09).** The Spec puts the strip
+"in `RouteMouseReport`". That function returns only a `MouseDisposition` — the
+forward path writes `hit.Raw`, the exact bytes the terminal sent, and both
+`keys.go:110-115` and `console.go:1597-1608` say plainly that re-encoding from
+`Event` would be a second source of truth for the wire format. A strip has to
+produce *different bytes*, which a disposition cannot express. So the work
+splits by ownership rather than living in one function:
+
+- [ ] **Format knowledge → `mouseinput`.** Two additions, both wire-format
+      facts that belong to the one package that owns the format (`ARCH-DRY`):
+      the modifier bits (`ModShift 4`, `ModAlt 8`, `ModCtrl 16`, `ModMask`)
+      beside the existing `WheelUp`/`WheelDown`, with `BaseButton(button int)`
+      returning `button &^ ModMask`; and `WithButton(raw []byte, button int)
+      ([]byte, bool)`, which splices only the button field and leaves
+      separators, coordinates and terminator byte-identical. `WithButton` is
+      deliberately NOT the re-encoder the package rejects — it cannot drift on
+      the parts it does not touch — and returns false on anything `Parse` would
+      reject, so a caller can never splice a malformed report into a
+      well-formed-looking one.
+- [ ] **Policy → `couchtty`.** A pure `stripWheelResizeModifier(event
+      mouseinput.Event, raw []byte) (mouseinput.Event, []byte)`. **The predicate
+      is on the modifier-masked base button**, not on the raw value:
+      ctrl+wheel-up is `80`, so a `Button == WheelUp` test would never fire and
+      the whole change would be a silent no-op. It matches
+      `mouseinput.BaseButton(event.Button)` against `WheelUp`/`WheelDown` and
+      clears only `ModCtrl`. Horizontal wheel (`66`/`67`) is excluded on purpose
+      — zellij 0.44.3 maps the resize off vertical wheel — and the comment says
+      so, so the narrowing reads as a choice. The comment also names
+      `mouse_scroll_resize` as the zellij option that retires this function,
+      per the Spec's "record that this is deletable".
+- [ ] **Apply it once, at the top of `onMouse`,** before `RouteMouseReport`, so
+      routing and forwarding see one canonical event rather than two. Routing is
+      provably unaffected either way — its only button test is `Button == 0`,
+      and ctrl+wheel (`80`/`81`) and plain wheel (`64`/`65`) are all non-zero —
+      which is why applying it early is safe and is the reason to prefer one
+      event over branching.
+- [ ] **Wiring test — the strip must be proven to be CALLED.** Both new
+      functions are pure and unit-testable, but a call whose result is discarded
+      or placed in the wrong branch compiles and leaves every unit test green.
+      Model on `console_mouse_test.go`'s `TestForwardPreservesRawBytes`: through
+      `newMouseFixture`, have the child enable `\x1b[?1000;1006h`, write
+      `\x1b[<80;7;9M` to the host pipe, and assert the child receives
+      `\x1b[<64;7;9M`. Without this the Done-when rests on the manual step alone.
+- [ ] **Unit-test strategy, one line per risky function.** For `WithButton` the
+      risky class is arbitrary bytes rather than the shapes an enumeration would
+      list: a fuzz seeded with malformed and truncated forms, property =
+      `Parse(WithButton(raw, b))` equals `Parse(raw)` with only `Button`
+      differing and every other byte identical — which also covers absurd button
+      arguments a hand-list is blind to. For `stripWheelResizeModifier` the
+      risky class is the modifier cross-product: table over
+      {plain, shift, alt, ctrl, ctrl+shift} × {wheel-up, wheel-down, horizontal
+      wheel, left-press}, asserting ctrl is cleared for exactly the vertical
+      wheel rows and every other byte is untouched. Assert on the RAW bytes as
+      well as the `Event` — the bytes are what the child receives, and an
+      `Event`-only assertion passes with the splice broken.
+- [ ] **Regression.** Existing `couchtty` routing tests and `#196`'s reattach
+      test run unmodified — no edits to either, which is the evidence that the
+      mode-belief behaviour did not shift.
+- [ ] **Atlas.** Note the strip and its deletion trigger on the couch mouse
+      surface.
+- [ ] **Manual.** Ctrl+scroll in a live couch session scrolls and pane sizes
+      hold; plain scroll still scrolls.
 
 ## Log
 
@@ -137,3 +215,37 @@ nobody re-runs it: Ghostty rejects wheel keybind triggers outright, and zellij
 bogus key is what showed that `mouse_scroll_resize` is unsupported here rather
 than merely unset. Without the control, "config file well defined" would have
 read as confirmation and sent this to the wrong layer.
+
+## Revisions
+
+### 2026-09-09 — strip cannot live in `RouteMouseReport`
+
+**Reason.** The Spec names `RouteMouseReport` as the site because it is the
+single pure decision point for mouse events. It is — but it decides a
+*disposition*, and the forward path writes `hit.Raw` verbatim by explicit
+design. Stripping a modifier changes the bytes, so it cannot be expressed as a
+disposition. Discovered by reading the forward path, not assumed.
+
+**Delta.** The change splits along the ownership line the codebase already
+draws: the byte splice goes in `mouseinput` (the one owner of the wire format),
+the wheel/ctrl narrowing goes in `couchtty` (the policy, and the part that gets
+deleted on the zellij upgrade). Applied once at the top of `onMouse`. Everything
+the Spec fixes — wheel-only, ctrl-bit-only, deletable, named upgrade — is
+unchanged; only the location moves.
+
+### 2026-09-09 — plan-quality round 1
+
+**PQ-1 caught a silent no-op before it was written.** The plan said the
+predicate was "wheel buttons `64`/`65`". Ctrl+wheel-up IS `80` — the modifier
+bits are part of the button value — so that predicate never matches the case the
+issue exists to fix, and the change would have compiled, passed a careless test,
+and done nothing. The predicate is now on the modifier-masked base button, and
+the mask itself moved into `mouseinput` where the rest of the wire format lives.
+
+**PQ-2:** both new functions are pure, so a discarded call would leave every
+unit test green. Added a wiring test through the real `onMouse` path, modelled
+on the existing `TestForwardPreservesRawBytes` fixture.
+
+**PQ-3:** replaced the prose enumeration of test cases with a strategy line per
+risky function — a fuzz property for the splice, a modifier cross-product table
+for the policy.
