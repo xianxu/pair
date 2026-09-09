@@ -1,12 +1,13 @@
 ---
 id: 000199
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-07
+updated: 2026-09-08
 estimate_hours: 7.52
 started: 2026-09-06T19:24:15-07:00
+actual_hours: 24.41
 ---
 
 # pair term: own the right pane tab bar
@@ -194,6 +195,8 @@ Four milestones, each its own review boundary — detail in
 
 ## Log
 
+
+- 2026-09-08: closed — Round 7 closes the loop rounds 4-6 were stuck in. Audit RUN, not described: every hostScan consumer in couchtty+termcmd asks SafeToPaint (5 couch + 1 termcmd; the two bare MidSequence reads are inside midSequenceForTest); cursorSaved has 6 writers and altScreen 3, matching the save-slot enumeration in classify; hostScan is zero-valued on child swap (run.go:894, console.go:994) and skipNone is iota so the zero value is safe. Both prior guards were scoped to the site the reviewer named, so both are now closed over their class: tests/paint-gate-consumers-test.sh walks every hostScan reference in both packages (mutation-verified: console.go:1141 rewritten to !MidSequence fails it), and TestTheSafetyInputSetIsDerivedNotRemembered parses SafeToPaint source for its field set, requiring each reachable AND cleared by RIS (mutation-verified twice: dropping s.altScreen=false fails the RIS half, adding an unreachable input fails the reachability half). make test exit 0, make test-smoke exit 0. Operator smoke-tested and accepted M1-M4 outside couch. DECSTR recorded as a known liveness-only gap.; review verdict: FIX-THEN-SHIP
 - 2026-09-08 M4.3 manual acceptance: **operator ran the checklist and accepted**
   — frameless right pane, the strip legible and identifying the pane, the layout
   rungs not reframing it, `nvim` still behaving, and `Alt+R` renaming with the

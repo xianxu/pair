@@ -3967,3 +3967,35 @@ audit. Cf. [Stating a class rule is not closing it] and [A guard you write to
 close a class needs the same adversarial check as the code it guards]: this is
 the same family, one level up — the enumeration must be executed *by the guard*,
 not by me at the moment I write it.
+
+**Round 7 committed this lesson's own error, and the next review measured it.**
+The entry above was written in the same commit as three guards, and all three
+*derived their subject and hand-listed their scope*:
+`tests/paint-gate-consumers-test.sh` hardcoded `FILES=(console.go run.go)` and
+matched the literal identifier `hostScan.`; `doccomment_test.go` hand-listed four
+package roots; `plan-superseded-facts-test.sh` set `ATLAS` to one file directly
+beneath a comment declaring atlas an artifact *class*. Deriving each scope — one
+expression apiece — immediately found live defects the hand-lists could not see:
+**three** stacked godocs in `couchcore`/`couchtty` (one of them a paragraph
+explaining that this exact mistake had been caught before), and a stale atlas
+sentence falsified by this window's own change to the thing it described.
+
+- **A guard has a subject and a scope, and generalizing only the subject is the
+  same defect one level out.** "Which fields does this predicate read" derived
+  from source, "which files do I check" typed from memory — the second half
+  silently bounds the first.
+- **The tell is a list literal in a guard.** `FILES=(...)`, `roots := []string{...}`,
+  `ATLAS="one/file.md"`. Each one is an enumeration that stopped being executed.
+  If a guard exists because remembering failed, a list inside it is the same
+  remembering, relocated.
+- **A guard's scope must fail loudly when it goes blind**, because a derived scope
+  can silently match nothing. Every one of these now asserts a floor (`< 2 files`,
+  `< 3 modes`, "derived no scanner field") and fails rather than passing empty.
+
+And the second family, in the state direction: a **reset** arm's field set is
+derived from the terminal state that reset clears, not from the fields the
+load-bearing predicate happens to read. `TestTheSafetyInputSetIsDerivedNotRemembered`
+is scoped to `SafeToPaint`'s inputs by design, so it is structurally blind to a
+mode RIS forgets that the gate does not consult — and the mouse modes sat unreset
+behind exactly that blindness. Two derivations, two directions, both required:
+one from the predicate, one from the reset.

@@ -745,7 +745,7 @@ func safetyInputs(t *testing.T) []string {
 		}
 		rest := src[i:]
 		if j := strings.Index(rest[1:], "\nfunc "); j >= 0 {
-			rest = rest[:j]
+			rest = rest[:j+1] // +1: j indexes rest[1:], not rest
 		}
 		return rest
 	}
@@ -854,5 +854,75 @@ func TestTheSafetyInputSetIsDerivedNotRemembered(t *testing.T) {
 	}
 	if !s.SafeToPaint() {
 		t.Error("the gate is still closed after RIS")
+	}
+}
+
+// The OTHER direction of the same obligation: a reset arm's field set is
+// derived from the terminal state that reset clears, not from the fields the
+// currently-load-bearing predicate reads.
+//
+// TestTheSafetyInputSetIsDerivedNotRemembered is scoped to SafeToPaint's inputs
+// BY DESIGN, so it is structurally blind to a mode RIS forgets that the paint
+// gate does not read -- and the mouse modes sat unreset behind exactly that
+// blindness until a review measured them. The derivation here is the DECSET
+// arms: every field classify assigns from a mode's on/off value is a mode the
+// child can turn on, so RIS must turn it off.
+//
+// mouseObserved is correctly absent -- it is assigned `true`, not `on`, because
+// it latches that an expression happened rather than modelling a mode. See the
+// RIS arm for why it must survive the reset.
+func TestRISClearsEveryModeTheChildCanSet(t *testing.T) {
+	raw, err := os.ReadFile("screen.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := strings.Index(string(raw), "func (s *Screen) classify(")
+	if i < 0 {
+		t.Fatal("classify not found in screen.go; this guard is checking nothing")
+	}
+	modes := regexp.MustCompile(`s\.([a-z][A-Za-z0-9]*) = on\b`).
+		FindAllStringSubmatch(string(raw)[i:], -1)
+	seen := map[string]bool{}
+	var derived []string
+	for _, m := range modes {
+		if !seen[m[1]] {
+			seen[m[1]] = true
+			derived = append(derived, m[1])
+		}
+	}
+	if len(derived) < 3 {
+		t.Fatalf("derived only %v as settable modes; the parse broke and this guard is blind", derived)
+	}
+
+	var sc Screen
+	// Every mode arm classify has: alt screen + save slot, and both mouse forms.
+	sc.FeedFraming([]byte("\x1b[?1049h\x1b[?1000h\x1b[?1006h"))
+
+	v := reflect.ValueOf(&sc).Elem()
+	for _, name := range derived {
+		f := v.FieldByName(name)
+		if !f.IsValid() {
+			t.Fatalf("classify assigns s.%s but Screen has no such field", name)
+		}
+		if f.IsZero() {
+			t.Errorf("no corpus sequence turns s.%s on; add the DECSET that does, "+
+				"or the RIS check below passes vacuously for it", name)
+		}
+	}
+
+	sc.FeedFraming([]byte("\x1bc")) // RIS
+	for _, name := range derived {
+		if !v.FieldByName(name).IsZero() {
+			t.Errorf("RIS left mode s.%s on; a real terminal's RIS returns to the "+
+				"power-on state, so every mode the child can set must be cleared", name)
+		}
+	}
+	if sc.Mouse() || sc.SGRMouse() {
+		t.Error("mouse tracking still reads as on after RIS")
+	}
+	if !sc.MouseObserved() {
+		t.Error("mouseObserved must SURVIVE RIS: the reset is itself an observation " +
+			"that tracking is off, and clearing it makes a supervisor refrain from a " +
+			"mouse it may correctly own (pair#172 I1)")
 	}
 }

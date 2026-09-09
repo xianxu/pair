@@ -127,14 +127,31 @@ check "$PLAN" 'the shared package M3 extracts' 'extracted in M2' "$REV"
 #
 #   plan            $PLAN
 #   issue           $ISSUE
-#   atlas           $ATLAS
+#   atlas           atlas/*.md     <- a GLOB: the class is every atlas file (BR-84)
 #   config/layout   $CONFIG        <- added after M4 falsified it and nothing objected
 #   code comments   run.go, probes/*/main.go
 #
 # A pair registered for one class does not defend the others; that is how M4's
 # frame claims survived in the atlas while config.kdl was corrected in the same
 # commit.
-ATLAS="atlas/architecture.md"
+# check_atlas TOKEN REPLACEMENT [MAX_LINE] -- the atlas is a CLASS, not a file.
+#
+# BR-84: this sat as `ATLAS="atlas/architecture.md"` directly beneath a comment
+# declaring "atlas" an artifact class, so a superseded fact in any other atlas
+# file was invisible. It was measured: atlas/couch.md described couch's paint
+# gate as deferring on mid-sequence alone, falsified by this window's own change
+# to that gate, and no guard could see it. The scope is now the glob.
+check_atlas() {
+	found=0
+	for atlas_file in "$ROOT"/atlas/*.md; do
+		[ -f "$atlas_file" ] || continue
+		found=$((found + 1))
+		check "${atlas_file#$ROOT/}" "$1" "$2" "${3:-0}"
+	done
+	if [ "$found" -lt 2 ]; then
+		bad "atlas glob matched $found file(s); the atlas class went blind"
+	fi
+}
 CONFIG="zellij/config.kdl"
 LAYOUT="zellij/layouts/main-3.kdl"
 # The SIXTH class, and the one that bites hardest: a TEST can encode the design
@@ -142,8 +159,16 @@ LAYOUT="zellij/layouts/main-3.kdl"
 # enforces it. tests/term-pane-shortcuts-test.sh carried "split panes keep
 # zellij default frames" through M4.
 GUARD="tests/term-pane-shortcuts-test.sh"
-check "$ATLAS" 'agent pane and layout-3 terminal.*render frames' 'only the agent pane is framed'
-check "$ATLAS" 'The draft pane opts out via `borderless=true` in both' 'TWO panes opt out'
+check_atlas 'agent pane and layout-3 terminal.*render frames' 'only the agent pane is framed'
+# note: the gate asks TWO questions now -- mid-sequence AND the child holding the
+# cursor-save slot outside the alt screen. Found only once the atlas class became
+# a glob; atlas/couch.md had carried the one-question claim since this window
+# changed the gate.
+check_atlas 'defers while the CHILD.s stream is mid-sequence' 'SafeToPaint asks mid-sequence AND the cursor-save slot'
+# note: HoldsCursorSave reports the raw bit; SafeToPaint is the decision. Gating
+# on the raw bit freezes the row for a full-screen child's whole session (BR-79).
+check_atlas 'HoldsCursorSave. is the$' 'SafeToPaint is the predicate'
+check_atlas 'The draft pane opts out via `borderless=true` in both' 'TWO panes opt out'
 
 # The config/layout class. This is the pre-M4 sentence, verbatim: it claimed the
 # DRAFT pane was the only opt-out, which stopped being true when the terminal
@@ -154,14 +179,14 @@ check "$CONFIG" 'scroll offset to plugins or the CLI. The draft pane opts out vi
 # token per file is not one token per claim.
 check "$CONFIG" 'keep their frames' 'they are borderless since M4'
 check "$LAYOUT" 'while keeping frames' 'the terminal panes are borderless'
-check "$ATLAS" 'drag-immune while keeping frames and full mouse support' 'keeping the agent pane s frame'
-check "$ATLAS" 'frames stay by zellij default' 'borderless since M4'
-check "$ATLAS" 'frame-title rename editor' 'the field renders in the strip'
+check_atlas 'drag-immune while keeping frames and full mouse support' 'keeping the agent pane s frame'
+check_atlas 'frames stay by zellij default' 'borderless since M4'
+check_atlas 'frame-title rename editor' 'the field renders in the strip'
 check "$GUARD" 'keep zellij default frames' 'the layout declares borderless, not the call site'
 # BR-33's own paragraph: diagnostics stopped sharing the coalescing slot when
 # they got owedDiag, and the paragraph that described one slot for every
 # console write outlived that by two commits.
-check "$ATLAS" 'deferred into a single \*\*coalescing\*\* slot' 'a PAINT coalesces; diagnostics queue'
+check_atlas 'deferred into a single \*\*coalescing\*\* slot' 'a PAINT coalesces; diagnostics queue'
 
 check "probes/zellijscrollregion/main.go" 'cmd/probes/zellijscrollregion' 'probes/zellijscrollregion'
 

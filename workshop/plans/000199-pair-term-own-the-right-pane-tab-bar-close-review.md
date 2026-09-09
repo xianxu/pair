@@ -1043,3 +1043,185 @@ findings:
       comments, import order); when the defect is reachable in-process, the pin is a test that
       reaches it, and the fix's own commit message is not where that judgement gets recorded.
 ```
+
+---
+
+## Re-review — 2026-09-08T19:57:46-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 199 — pair term: own the right pane tab bar |
+| repo | pair |
+| issue file | workshop/issues/000199-pair-term-own-the-right-pane-tab-bar.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c61f5ca0619d59e3ba795b77d6e12ad18e5517f5..54baeb4d5392a944edd1ca7893b4d4dad358538a |
+| command | sdlc close --issue 199 |
+| reviewer | claude |
+| timestamp | 2026-09-08T19:57:46-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 7 landed the Critical properly: BR-81's missing `s.altScreen = false` in the RIS arm is fixed and genuinely pinned — I reverted the one line on disk and three tests went red, including the new derived-set guard, and I confirmed that guard is not vacuous by adding a fourth safety input (`s.mouse`) to `SafeToPaint` on disk and watching it fail with "no corpus entry sets it". `TestTheSafetyInputSetIsDerivedNotRemembered` and `tests/paint-gate-consumers-test.sh` are the two best artifacts this issue has produced. What blocks SHIP is that the round's *other* two claims do not survive measurement: BR-83's new behavioural test passes unchanged against the reverted BR-78 fix (I built the reproduction the finding described — 50 lines, single goroutine — and it hangs the full timeout with only `console.go:1207` reverted, so the "a test cannot stage this" comment now sitting in `console_test.go:879` is measurably false), and BR-82's takeover freeze reproduces exactly as reported at HEAD. Beyond that, the window's guards all *derive their subject and hand-list their scope*, and widening one hand-list by a single directory immediately finds a live instance of the very class it guards.
+
+## 1. Strengths
+
+- `cmd/internal/ptychild/screen_test.go:733` — `safetyInputs` parsing `SafeToPaint`'s own source for the fields it reads is the right shape, and it is not decorative: mutation-verified in both directions (new input → reachability error; missing RIS reset → RIS error).
+- `cmd/internal/ptychild/screen.go:456-490` — the save-slot enumeration as a one-arm-per-spelling table with the `1047`/`47` "no save half" arm called out is a correct model of the protocol, and the RIS comment now records *why* the reset is owed rather than just performing it.
+- `tests/paint-gate-consumers-test.sh` — reverting couch's `writeOwn` to `MidSequence` on disk fires this guard, and nothing in the Go suite does. The guard is the only thing standing between the tree and BR-77's regression.
+- `workshop/lessons.md:3911` — "Changing what a shared predicate MEANS is three obligations" is an accurate, self-critical write-up of the round-4/5/6 loop, and it names the countermeasure that held (`paneWriter` not being an `io.Writer`).
+- Test status: `go test` for every package this window touches is green apart from the documented pty class (`operation not permitted`); all three shell guards pass at HEAD.
+
+## 2. Critical findings
+
+None. BR-81 is fixed and pinned.
+
+## 3. Important findings
+
+**Every guard this window added derives its subject and hand-lists its scope** — `tests/paint-gate-consumers-test.sh:31-34` (`FILES=(console.go run.go)`), `cmd/internal/termcmd/doccomment_test.go:26-31` (`roots` = termcmd/hostty/ptychild/rowtext), `tests/plan-superseded-facts-test.sh:137` (`ATLAS="atlas/architecture.md"`, under a comment that declares "atlas" an artifact *class*). Two measured misses: adding `couchtty` to the doccomment roots fails instantly on `cmd/internal/couchtty/reserve.go:41`, where `ChipSpan` carries `RenderStatusRow`'s doc — including a paragraph explaining that this exact mistake was caught before; and `atlas/couch.md:248` still says couch's gate "defers while the CHILD's stream is mid-sequence", falsified by this window's own `console.go` change, invisible because the superseded-facts guard's atlas class is one file. Fix sketch: derive each scope (`grep -rln hostScan cmd --include=*.go`, `filepath.Glob("../*")` over `cmd/internal`, `atlas/*.md`) rather than listing members.
+
+**BR-82 and BR-83 remain open with measurements** — see the dispositions below; both are Important and both are cheap.
+
+**BR-80's plan/atlas leg remains open** — `SafeToPaint` still has no Core-concepts row, and `atlas/architecture.md:614` still names `HoldsCursorSave` as "the bit that says so".
+
+## 4. Minor findings
+
+- `screen.go:475-489` — RIS clears `cursorSaved`/`altScreen`/`rowDirty` but not `mouse`/`sgrMouse`/`mouseObserved`. Measured: `?1000h ?1006h` then `\x1bc` leaves all three true.
+- BR-73, BR-76, BR-24, BR-30, BR-31, BR-38, BR-14, BR-15, BR-8, BR-9 all still measure as reported (details in dispositions).
+- `screen_test.go` `body()` uses `rest[:j]` against an index taken from `rest[1:]` — off by one, harmless today.
+
+## 5. Test coverage notes
+
+The gap that matters: BR-78 (a hang, rated Critical) ships with **no test that fails without its fix**. I verified by construction. Same shape for BR-77: only the shell guard fires on revert, though couch deferring a paint while the child holds a save is trivially reachable in a unit test (`writeChild([]byte("\x1b7"))`, then assert `paintNow` defers).
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — flag: `hostty.Paint`/`ReserveAndPaint` still restate none of their obligations; both consumers carry them privately (BR-15, BR-77 residual).
+- **ARCH-PURE** — pass. `rowtext`, `Reservation`, `RenderStrip`, `Screen` are pure and unit-tested without IO.
+- **ARCH-PURPOSE** — flag: the new finding. The round named the class ("derive scope, don't remember it"), wrote it into `lessons.md`, and then hand-listed scope in all three guards it shipped in the same commits.
+- **ARCH-MOCK** — pass. `FakeHost`, `fakeRuntime`, `probes/zellijprobe` as the one live harness with per-probe `make` targets.
+- **ARCH-CONSTRAINTS** — flag: BR-31, still undeclared.
+- **ARCH-SECURE** — flag: BR-15, the sanitize/clamp obligation at the shared door.
+- **ARCH-ORDER** — flag: BR-82 (a takeover resets the gate's inputs to "knows nothing", and both directions of that unknown are wrong) and BR-83/BR-9 (single-interleaving oracles).
+
+## 7. Plan revision recommendations
+
+1. Core concepts: add a `Screen.SafeToPaint` row at `cmd/internal/ptychild/screen.go`; correct the `Screen.HoldsCursorSave` row (:277) and Integration-points row (:343) so they no longer name `HoldsCursorSave` as the deciding bit.
+2. ARCH-ORDER: add the takeover row — `hostScan = ptychild.Screen{}` re-enters "unknown", and state which gate inputs are re-established from the replay and which are not.
+3. ARCH-CONSTRAINTS: declare the second full parse of every child byte, and the unterminated-OSC ceiling on an owed paint.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      Plan :1196-1198 records it open itself; M4.3 still has no Alt+Shift+d step.
+  - id: BR-9
+    disposition: not-addressed
+    note: |
+      writer_test.go:117 still splits one hand-chosen sequence at one index.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      NewReservation now has three production callers (run.go:1397,1407; couchnestedrows:107); couch's bottomReservation still builds the literal and leans on usable().
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      atlas/couch.md:228 still has no hostty.Reservation pointer, and :248 now also states couch's gate as mid-sequence-only, which this window falsified.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      hostty/reserve.go:150 Paint states no sanitize/clamp obligation; same door as BR-77's precondition.
+  - id: BR-24
+    disposition: not-addressed
+    note: |
+      Measured: plan :528 run verbatim under zsh -c aborts with "no matches found: --include=*.go" before grep runs.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      run.go:168 still takes stdin and stdout; neither is read in the body (io.Discard is passed explicitly at :198).
+  - id: BR-31
+    disposition: not-addressed
+    note: |
+      Plan ARCH-CONSTRAINTS :390-411 budgets paints and subprocesses; no entry for the per-byte second parse or the unterminated-OSC stall.
+  - id: BR-38
+    disposition: not-addressed
+    note: |
+      couchtty/reserve.go:143-152 still ends in doc paragraphs for sanitize and truncate; grep "func sanitize\|func truncate" in couchtty returns nothing.
+  - id: BR-73
+    disposition: not-addressed
+    note: |
+      All three present at HEAD - menu_render.go:625 redundant parens, its rowtext import at :5 inside the stdlib group, manifest.go:631 out of sort order.
+  - id: BR-76
+    disposition: not-addressed
+    note: |
+      lessons.md gained 219 lines in this window; BR-70's rule (a tracked-artifact edit is a guard input, so the tick runs the suite) is in none of them.
+  - id: BR-77
+    disposition: addressed
+    note: |
+      couch is guarded - reverting writeOwn to MidSequence on disk now fires tests/paint-gate-consumers-test.sh. Two residuals live elsewhere - the undocumented obligation at hostty.Paint is BR-15, and the pin being source-text only is BR-83.
+  - id: BR-80
+    disposition: not-addressed
+    note: |
+      Tests name SafeToPaint, so that third is closed. Plan :277 and :343 still name HoldsCursorSave and there is no SafeToPaint row; grep SafeToPaint over atlas/ returns nothing while atlas/architecture.md:614 still calls HoldsCursorSave the deciding bit.
+  - id: BR-81
+    disposition: addressed
+    note: |
+      Revert-verified - deleting s.altScreen = false at screen.go:487 reds three tests. The 1047/47 arm keeping cursorSaved while altScreen is true is now consistent with the documented alt-screen carve-out, so that half is withdrawn rather than open.
+  - id: BR-82
+    disposition: not-addressed
+    note: |
+      Measured unchanged at HEAD - "\x1b[?1049h", Screen{}, "\x1b[?1048h" gives SafeToPaint()=false. couchtty/console.go:994 does not even feed body to hostScan, so couch re-enters unknown on every switch, in both directions.
+  - id: BR-83
+    disposition: not-addressed
+    note: |
+      Measured - I built the finding's reproduction (single goroutine, deterministic): it returns instantly at HEAD and hangs 3s with only console.go:1207 reverted. The new behavioural test at console_test.go:879 PASSES against that same reverted fix, so the Critical still has no failing-without-it pin, and the comment claiming the spin is unstageable is false.
+findings:
+  - id: new
+    severity: Important
+    family: consumer-set-not-derived
+    title: |
+      Every guard this window shipped derives its subject and hand-lists its scope, and widening one list by a single directory finds a live defect
+    detail: |
+      This is the 5th finding in family `consumer-set-not-derived`. Earlier rounds
+      fixed instances; do not fix these three. THE RULE - a guard that exists to
+      replace a remembered enumeration must derive its own SCOPE from the tree, or
+      it has only moved the remembering from the code into the test. Measured, three
+      sites, all added or edited in this window - tests/paint-gate-consumers-test.sh:31
+      hardcodes FILES=(couchtty/console.go termcmd/run.go) and matches the literal
+      identifier `hostScan.`, so a third file or a differently-named Screen is
+      unguarded by default; cmd/internal/termcmd/doccomment_test.go:26 hand-lists four
+      package roots; tests/plan-superseded-facts-test.sh:137 sets ATLAS to one file
+      directly under a comment declaring "atlas" an artifact CLASS. Two live misses
+      follow. Adding couchtty to the doccomment roots fails immediately on
+      cmd/internal/couchtty/reserve.go:41, where ChipSpan's doc comment carries
+      RenderStatusRow's - inside a paragraph that explains this exact mistake was
+      caught once before. And atlas/couch.md:248 still describes couch's gate as
+      deferring on mid-sequence alone, falsified by this window's own console.go
+      change, unseeable because the atlas class is one file. Each scope is one
+      expression away from being derived - grep -rln hostScan, a Glob over
+      cmd/internal, atlas/*.md.
+  - id: new
+    severity: Minor
+    family: state-bit-promoted-without-enumeration
+    title: |
+      RIS clears the two fields the paint gate reads and not the three mouse fields it also models
+    detail: |
+      This is the 2nd finding in family `state-bit-promoted-without-enumeration`, so
+      the rule rather than the line. THE RULE - a reset arm's field set is derived
+      from the fields modelling the terminal state that reset clears, not from the
+      fields whichever predicate is currently load-bearing happens to read. BR-81's
+      new guard is scoped to SafeToPaint's inputs by design, so it cannot see this
+      direction. Measured at HEAD - "\x1b[?1000h\x1b[?1006h" then "\x1bc" leaves
+      Mouse(), SGRMouse() and MouseObserved() all true, while a real terminal's RIS
+      returns to power-on state with tracking off. Those three are read in production
+      at couchtty/console.go:1559,1579,1582 and termcmd/run.go:1248 to decide the
+      terminal-global mouse mode, which is the pair#172 I1 symptom class the
+      mouseObserved latch exists for.
+```

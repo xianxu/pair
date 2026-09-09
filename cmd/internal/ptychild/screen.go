@@ -485,6 +485,19 @@ func (s *Screen) classify(seq []byte) {
 		// SAFETY input obliges an audit of every writer and every reset of that
 		// field, and this one was promoted without it.
 		s.altScreen = false
+		// And every other MODE the child can turn on. The reset arm's field set
+		// is derived from the terminal state RIS clears -- not from whichever
+		// predicate is currently load-bearing. BR-81's guard is scoped to
+		// SafeToPaint's inputs by design, so it cannot see this direction, and
+		// the mouse modes sat unreset behind it.
+		s.mouse = false
+		s.sgrMouse = false
+		// mouseObserved DELIBERATELY survives. It is not a mode -- it latches
+		// that the child has expressed a tracking state at all, and RIS IS such
+		// an expression: tracking is off. Keeping it makes RIS behave exactly
+		// like the `?1000l` it is a superset of, so a supervisor may reclaim the
+		// mouse. Clearing it would instead make the supervisor refrain, which is
+		// the pair#172 I1 symptom the latch was added to remove.
 		return
 	}
 	// DECSC / DECRC. Tracked because the cursor save slot is SHARED: a console

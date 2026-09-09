@@ -611,8 +611,12 @@ with terminfo `sc`/`rc`, which are exactly those bytes, so the operator's cursor
 ended up inside the tab strip. There is no second slot to move to:
 `probes/cursorsaveslots` measured `CSI s`/`CSI u` failing to restore where it
 was told while `DECSC` succeeded under the identical harness. So the only fix is
-not to write while a save is held, and `ptychild.Screen.HoldsCursorSave` is the
-bit that says so.
+not to write while a save is held OUTSIDE the alt screen, and
+`ptychild.Screen.SafeToPaint` is the one predicate that says so — the shared
+door both consoles ask, folding this together with mid-sequence.
+`HoldsCursorSave` reports the raw bit and is not the decision: gating on it
+alone freezes the row for a full-screen child's whole session, because `?1049h`
+holds the slot for all of nvim (pair#199 BR-79).
 
 **Every mutation of the strip's model owes a repaint, and the set is read out
 of the source** (`cmd/internal/termcmd/stripmutation_test.go`). A go/ast pass

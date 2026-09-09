@@ -480,7 +480,8 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 }
 
 // RetireIncarnation removes the one live incarnation whose exact process
-// identity matches, leaving the record with no incarnation and NO verified park.
+// identity matches, leaving the record with no incarnation and NO verified park,
+// and records that the thread was active up to detachedAt.
 //
 // It is FinalizePark's removal half without the park transaction, and that is
 // the whole difference between detach and park: park tears the zellij session
@@ -494,10 +495,8 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 // unknown is precisely the state the fail-closed projector exists to keep out of
 // the switcher, and retiring one would let an unproven thread present as cleanly
 // detached.
-// RetireIncarnation removes a live incarnation and records that the thread was
-// active up to detachedAt.
 //
-// It takes the time rather than reading a clock because the caller's retry loop
+// detachedAt is taken as an argument rather than read from a clock because the caller's retry loop
 // must record ONE time regardless of how many attempts it takes: a value that
 // drifts with contention is not an observation of anything. Park is the
 // precedent -- it folds parkedAt through the same MonotonicLastActiveAt.

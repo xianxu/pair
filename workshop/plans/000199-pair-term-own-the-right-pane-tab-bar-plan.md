@@ -274,7 +274,8 @@ of completeness.
 | `RenameEditor.Field` | `cmd/internal/termcmd/rename.go` | new |
 | `ReserveAndPaint` | `cmd/internal/hostty/reserve.go` | new |
 | `ResetSGR` | `cmd/internal/hostty/control.go` | new — the control constants live here, not with the reservation |
-| `Screen.HoldsCursorSave` | `cmd/internal/ptychild/screen.go` | new |
+| `Screen.SafeToPaint` | `cmd/internal/ptychild/screen.go` | new — THE paint gate: mid-sequence OR a cursor save held outside the alt screen. The one question both consoles ask |
+| `Screen.HoldsCursorSave` | `cmd/internal/ptychild/screen.go` | new — reports the raw bit; NOT the decision (see `SafeToPaint`) |
 | `TitleIdentifiesRightTerminal` | `cmd/internal/workbenchshortcut/shortcut.go` | new — the ONE title predicate, asked by both consumers and by the producer |
 | `renamePaneTitleLocked` | `cmd/internal/termcmd/run.go` | deleted — the rename field moved to the strip (M3) |
 | `couchtty.ChildRows` / `Reserve` / `Release` / `PaintRow` | `cmd/internal/couchtty/reserve.go` | deleted |
@@ -340,7 +341,7 @@ of completeness.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | single host writer | `cmd/internal/termcmd/run.go` | modified | the operator's tty |
-| paint gate | `cmd/internal/termcmd/run.go` | new | `ptychild.Screen.MidSequence` **and** `ptychild.Screen.HoldsCursorSave` — TWO conditions, widened in M3 when the shared save slot turned out to be the operator-visible one |
+| paint gate | `cmd/internal/ptychild/screen.go` | new | `ptychild.Screen.SafeToPaint`, asked by BOTH consoles — mid-sequence, OR the child holding the shared cursor-save slot **outside the alt screen**. The carve-out is load-bearing: `?1049h` holds the slot for a full-screen child's entire session (BR-79) |
 | strip repaint trigger | `cmd/internal/termcmd/run.go` | new | `ptychild.OutputBatch.RowDirty` (read in the Sink — see finding 7; `Child.TakeRowDirty` is already drained there) |
 | paint debt (`stripOwed`) | `cmd/internal/termcmd/run.go` | new | a row-dirty batch RECORDS a debt rather than painting (couch's policy, `couchtty/console.go:1147`); paid by the first chunk that leaves the stream safe. A shell erases on every prompt redraw, so painting per batch means painting constantly, and constantly while the child is mid-prompt |
 | degraded `rename-pane` | `cmd/internal/termcmd/run.go` | modified | `zellij action` |
@@ -1386,3 +1387,58 @@ predicate MEANS is three obligations"*. Its operational half: **prefer the check
 that derives its own scope over the check kept correct by remembering to.**
 `paneWriter` not being an `io.Writer` cost one line and has needed no round;
 every guard here that merely *checked* has itself needed a coverage audit.
+
+### 2026-09-08 — Close round 8 (FIX-THEN-SHIP): the guards' SCOPE, and the reset direction
+
+Round 7 derived each guard's *subject* and hand-listed its *scope*, in the same
+commit that wrote "prefer the check that derives its own scope" into
+`lessons.md`. The close review measured it (BR-84, 5th in family
+`consumer-set-not-derived`). All three scopes now come from the tree, each with a
+floor that fails rather than passing empty:
+
+| guard | was | now | found |
+|---|---|---|---|
+| `tests/paint-gate-consumers-test.sh` | `FILES=(console.go run.go)`, literal `hostScan.` | every non-test `.go` under `cmd/` holding a `ptychild.Screen`; the field name read off each declaration | — (mutation: a third file with a differently-named scanner is now caught) |
+| `cmd/internal/termcmd/doccomment_test.go` | four hand-listed roots | `filepath.Glob("../*")` | **3 live defects** — `couchtty/reserve.go` (`RenderStatusRow`'s doc stranded above `ChipSpan`, inside a paragraph explaining this same mistake), `couchcore/resume.go`, `couchcore/threadstore.go` |
+| `tests/plan-superseded-facts-test.sh` | `ATLAS="atlas/architecture.md"` | `check_atlas` over `atlas/*.md` | **1 live defect** — `atlas/couch.md:248` described the gate as deferring on mid-sequence alone, falsified by this window's own change |
+
+**The reset direction (2nd in family `state-bit-promoted-without-enumeration`).**
+`TestTheSafetyInputSetIsDerivedNotRemembered` is scoped to `SafeToPaint`'s inputs
+by design, so it cannot see a mode RIS forgets that the gate does not read — and
+`mouse`/`sgrMouse` sat unreset behind exactly that. RIS now clears them;
+`mouseObserved` deliberately survives, because RIS *is* an observation that
+tracking is off and clearing it would make a supervisor refrain from a mouse it
+may correctly own (pair#172 I1). `TestRISClearsEveryModeTheChildCanSet` derives
+the set from `classify`'s `s.X = on` assignments — mutation-verified three ways,
+including a mode added tomorrow with no reset.
+
+**BR-83 — the Critical's pin was source-text only, on a false premise.** The
+comment claiming the spin was unstageable was wrong: `onChunk` writes a part's
+bytes through `writeChild`, which feeds them to `hostScan`, so **the drain closes
+its own gate**. `TestTheDrainStopsWhenTheDrainItselfTakesTheCursorSave` is
+deterministic and single-goroutine, and hangs the full timeout against the
+reverted fix. Two earlier attempts passed for the wrong reason (an empty chunk
+re-defers nothing; an unregistered pane id returns at `if !known`), and the zero
+`Focus` is the PANEL, so the child's bytes are only written when the focus is set
+to the actor.
+
+**BR-82 — a takeover left the scanner knowing nothing.** couch reset `hostScan`
+without feeding the replay back, so after every switch it believed the primary
+screen and `SafeToPaint`'s alt-screen carve-out could not apply: BR-79's frozen
+strip reached through the switch path. `termcmd.applyTakeover` has fed the replay
+since M3; this is the same shared-primitive divergence as BR-77.
+
+**BR-80 — the plan and atlas taught the wrong bit.** `Screen.SafeToPaint` now has
+its Core-concepts row, the Integration-points row names it instead of
+`MidSequence` **and** `HoldsCursorSave`, and `atlas/architecture.md` no longer
+calls `HoldsCursorSave` "the bit that says so". Both corrections are registered
+in the superseded-facts guard.
+
+**BR-77's residual** — the fix was pinned by a source guard only.
+`TestCouchDefersItsOwnPaintWhileTheChildHoldsTheCursorSave` is the behavioural
+half: it goes red when couch's `writeOwn` is reverted to `MidSequence`.
+
+Still open and recorded rather than fixed: DECSTR (`CSI ! p`) unclassified
+(liveness-only); BR-8 (Alt+Shift+d step), BR-9 (single-interleaving oracle in
+`writer_test.go`), BR-14/BR-15 (`hostty.Paint`'s obligations restated by both
+consumers), BR-31 (undeclared constraints).

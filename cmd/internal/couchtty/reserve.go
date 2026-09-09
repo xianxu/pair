@@ -38,19 +38,6 @@ type StatusModel struct {
 	Notice string
 }
 
-// The untrusted-text rationale below belongs to RenderStatusRow, and sat above
-// ChipSpan until a review pointed out that `go doc ChipSpan` printed it: a
-// comment separated from its subject by an intervening declaration documents the
-// wrong thing to every reader who arrives through the tool rather than the file.
-//
-// RenderStatusRow lays the model out in width columns.
-//
-// Labels and notices carry UNTRUSTED text: couchcore.Describe prefers a sidecar
-// the agent session writes, so a description is whatever a child chose to put
-// there. Control bytes are stripped rather than escaped-around, because the
-// hazard is not a mangled row -- it is `\x1b[2J` from a description clearing the
-// operator's screen. Stripping also makes truncation honest, since after it
-// every remaining byte occupies the columns textwidth says it does.
 // ChipSpan is the column range one actor occupies on the drawn row, and the
 // actor a click there lands on. Half-open: [Start, End).
 //
@@ -90,6 +77,14 @@ func (r RenderedStatusRow) ColumnToActor(column int) (couchcore.ThreadAddress, b
 	return couchcore.ThreadAddress{}, false
 }
 
+// RenderStatusRow lays the model out in width columns.
+//
+// Labels and notices carry UNTRUSTED text: couchcore.Describe prefers a sidecar
+// the agent session writes, so a description is whatever a child chose to put
+// there. Control bytes are stripped rather than escaped-around, because the
+// hazard is not a mangled row -- it is `\x1b[2J` from a description clearing the
+// operator's screen. Stripping also makes truncation honest, since after it
+// every remaining byte occupies the columns textwidth says it does.
 func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	if width <= 0 {
 		return RenderedStatusRow{}

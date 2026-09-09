@@ -245,8 +245,10 @@ Three things that design has to survive, each learned the expensive way:
   child's escape sequences. Two rules keep that impossible rather than unlikely:
   **`Console.Run` is the only goroutine that writes to the host** (resizes and
   hotkeys are events it drains, not writers), and every console-originated write
-  goes through a gate that defers while the CHILD's stream is mid-sequence,
-  paying the debt on the next chunk that ends on a boundary.
+  goes through `ptychild.Screen.SafeToPaint`, one shared gate asking TWO
+  questions of the CHILD's stream -- mid-sequence, and whether the child is
+  holding the terminal's single cursor-save slot outside the alt screen -- and
+  paying the debt on the next chunk where both are clear.
 
   Both halves were learned by getting them wrong. Asking the *child* whether it
   was mid-sequence answered about a later chunk, because ptychild's pump feeds

@@ -23,17 +23,23 @@ import (
 // than once has been restarted. Named in the M3 review as "a vet-style check for
 // two comment blocks on one declaration catches the class"; this is that check.
 func TestNoDeclarationCarriesTwoStackedGodocs(t *testing.T) {
-	roots := []string{
-		filepath.Join("..", "termcmd"),
-		filepath.Join("..", "hostty"),
-		filepath.Join("..", "ptychild"),
-		filepath.Join("..", "rowtext"),
+	// SCOPE IS DERIVED, NOT LISTED. This guard replaced a remembered habit with
+	// a check; hand-listing four package roots put the remembering back, one
+	// level out. It was measured: adding `couchtty` to the old list failed
+	// immediately on a declaration carrying another function's doc -- inside a
+	// paragraph explaining that this exact mistake had been caught before.
+	roots, err := filepath.Glob(filepath.Join("..", "*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(roots) < 4 {
+		t.Fatalf("globbed %d package roots under cmd/internal; the scope went blind", len(roots))
 	}
 	checked := 0
 	for _, root := range roots {
-		files, err := filepath.Glob(filepath.Join(root, "*.go"))
-		if err != nil {
-			t.Fatal(err)
+		files, globErr := filepath.Glob(filepath.Join(root, "*.go"))
+		if globErr != nil {
+			t.Fatal(globErr)
 		}
 		for _, path := range files {
 			if strings.HasSuffix(path, "_test.go") {

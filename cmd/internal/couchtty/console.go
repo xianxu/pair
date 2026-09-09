@@ -997,6 +997,21 @@ func (c *Console) takeOverScreen(body []byte) {
 
 	_, _ = io.WriteString(c.host, hostty.HomeAndClear)
 	_, _ = c.host.Write(body)
+
+	// And FEED it back. The reset above drops the old child's partial sequence,
+	// which is right, but it also drops everything the scanner knew about the
+	// NEW child's modes -- and the body is exactly the bytes that re-establish
+	// them. Without this the scanner believes the primary screen after every
+	// switch, so SafeToPaint's alt-screen carve-out cannot apply: a full-screen
+	// child that then takes the cursor-save slot (nvim's `?1048h`) closes the
+	// paint gate for the rest of its session, which is BR-79's frozen strip
+	// arriving by another road (BR-82).
+	//
+	// termcmd's applyTakeover has done this since M3; couch resetting without
+	// feeding is the same shared-primitive divergence as BR-77.
+	c.mu.Lock()
+	c.hostScan.FeedFraming(body)
+	c.mu.Unlock()
 }
 
 // writeOwn emits the console's OWN bytes, and is the only way they reach the
