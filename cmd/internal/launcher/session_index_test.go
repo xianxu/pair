@@ -260,3 +260,39 @@ func TestAssignSessionNameCostsABoundedNumberOfProbes(t *testing.T) {
 			probes25, probes60, name25, name60)
 	}
 }
+
+// The RESUME path must stay at one probe (#215).
+//
+// Its companion above bounds the COLD path, and satisfying that one eagerly --
+// discovering the byte budget up front -- made this one SEVEN times worse:
+// the ledger short-circuit asks about a single name, and it was paying for a
+// binary search it had no use for. Measured, 1 -> 7, and shipped, because
+// nothing asserted the cheap path stayed cheap.
+//
+// Two tests, because "bounded" and "cheap" are different claims and a fix for
+// either can silently pay for it out of the other.
+func TestResumingAKnownThreadCostsOneProbe(t *testing.T) {
+	scope := mustScope(t, "/Users/a/work/brain")
+	const tag = "couch-e1a31510b7033d08"
+	index := SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "📁brain-couch-23",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         tag,
+	}}}
+
+	rt := &fakeRuntime{maxSessionNameBytes: 24}
+	name, _, err := AssignSessionName(index, nil, scope, tag, sessionNameAcceptor(rt))
+	if err != nil {
+		t.Fatalf("AssignSessionName returned error: %v", err)
+	}
+	if name != "📁brain-couch-23" {
+		t.Fatalf("name = %q, want the ledger's own answer", name)
+	}
+	if rt.probeCount != 1 {
+		t.Errorf("resuming a thread whose name is already in the ledger cost %d probes, "+
+			"want exactly 1: it asks about ONE name, so anything more is a budget "+
+			"search it has no use for", rt.probeCount)
+	}
+}

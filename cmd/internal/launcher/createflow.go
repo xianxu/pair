@@ -927,44 +927,52 @@ func sessionNameFits(name string, limit int) (ok bool, message string) {
 	return false, fmt.Sprintf("name '%s' needs %d bytes; zellij allows %d on this machine", name, len(name), limit)
 }
 
-// sessionNameAcceptor judges a candidate's LENGTH arithmetically, against a
-// budget measured ONCE per process.
+// sessionNameAcceptor answers "will zellij take this name" for a whole
+// assignment, paying at most ONE probe per assignment that does not need the
+// ladder, and a bounded handful for one that does.
 //
-// The ladder offers a candidate per rung and AssignSessionName walks a suffix per
-// collision, so an `accepts` that execs zellij costs a subprocess per candidate
-// and the count grows with every thread the repo has ever had -- nothing releases
-// a suffix on archive, and the walk restarts at 1. Measured at 52 subprocesses
-// for a repo owning suffixes 1..25, inside couch's registration deadline, where
-// one round-trip goes from 17.6ms calm to 467ms under load (#215, #203).
+// Two questions wear the same signature, and conflating them cost both ways:
 //
-// The budget is a LOCAL fact -- it falls out of the socket directory's path
-// length -- so only learning it needs zellij. Judging against it is arithmetic.
-// Discovery is lazy and memoized: a caller that short-circuits on a ledger hit
-// pays for it once, a caller that walks the ladder pays for it once, and neither
-// pays per candidate.
+//   - "is this ONE name still good?" -- what the ledger short-circuit asks on
+//     every resume. A direct probe answers it in one exec.
+//   - "which rung of the ladder fits?" -- asked once per candidate, and the
+//     candidate count grows with every thread the repo has ever had. Probing
+//     each was 52 subprocesses inside couch's registration deadline (#215).
+//
+// So: probe directly until a probe says NO, then measure the budget once and go
+// arithmetic. A rejection is the only evidence that a ladder walk is underway,
+// and it is exactly the moment the budget becomes worth its binary search.
+//
+// The first cut of this discovered the budget eagerly, which made the ladder
+// O(1) and the RESUME path 7x worse -- 1 probe became 7 on the common path,
+// measured, because the short-circuit's single question triggered the whole
+// search. Making one path cheap at another's expense is not a fix; the lazy
+// form is cheaper than both.
 func sessionNameAcceptor(rt Runtime) func(string) bool {
+	probe := func(n string) bool { return rt.ProbeSessionName(n) == nil }
 	budget := 0
 	return func(name string) bool {
-		if budget == 0 {
-			budget = discoverSessionNameBudget(func(n string) bool {
-				return rt.ProbeSessionName(n) == nil
-			})
+		if budget > 0 {
+			ok, _ := sessionNameFits(name, budget)
+			return ok
 		}
-		ok, _ := sessionNameFits(name, budget)
-		return ok
+		if probe(name) {
+			return true
+		}
+		// A real rejection: the ladder is walking. Learn the budget once, and
+		// answer this and every later candidate from arithmetic.
+		budget = discoverSessionNameBudget(probe)
+		return false
 	}
 }
 
 // discoverSessionNameBudget finds how many bytes zellij will actually accept,
 // by binary search over synthetic names.
 //
-// Called at most ONCE per process, through sessionNameAcceptor, which memoizes
-// the result and then judges every candidate arithmetically. An earlier version
-// of this comment said a per-process cache would buy nothing because `pair`
-// create is one-shot -- true when this was reached only after a name had already
-// been rejected, and false once it fronts every assignment: without the memo the
-// binary search would run per candidate, which is worse than the per-candidate
-// probe it replaces (#215).
+// Called at most ONCE per assignment, and only after a name has already been
+// rejected -- so an assignment the ledger answers never reaches it. From that
+// point sessionNameAcceptor judges every remaining candidate arithmetically,
+// which is what makes the ladder walk O(1) probes instead of O(candidates).
 //
 // The probes use a padding alphabet that cannot collide with a real session:
 // ProbeSessionName runs `zellij --session <name> action list-clients`, which
