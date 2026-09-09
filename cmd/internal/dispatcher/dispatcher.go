@@ -56,6 +56,7 @@ func Families() []CommandFamily {
 		{Name: "agent restart", Summary: "restart only the supervised agent conversation", Status: "implemented"},
 		{Name: "layout toggle-focused", Summary: "toggle focused workbench side width", Status: "implemented"},
 		{Name: "layout focus-terminal", Summary: "focus the floating right terminal pane by id", Status: "implemented"},
+		{Name: "layout switch-terminal-tab", Summary: "switch the right pane's tab from any pane, without moving focus", Status: "implemented"},
 		{Name: "slug", Summary: "session orientation slug generation", Status: "implemented"},
 		{Name: "notify", Summary: "emit a normalized notification to Pair's outer TTY", Status: "implemented"},
 		{Name: "wrap", Summary: "PTY proxy around a TUI agent", Status: "implemented", Streaming: true},
@@ -199,6 +200,10 @@ func Dispatch(args []string) Result {
 		})
 	case "layout toggle-focused":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return layoutcmd.RunToggleFocused(rest, layoutcmd.OSRuntime{}, stderr) })
+	case "layout switch-terminal-tab":
+		return bufferedStderr(func(stderr *bytes.Buffer) int {
+			return layoutcmd.RunSwitchTerminalTab(rest, layoutcmd.OSRuntime{}, stderr)
+		})
 	case "layout focus-terminal":
 		return bufferedStderr(func(stderr *bytes.Buffer) int { return layoutcmd.RunFocusTerminal(rest, layoutcmd.OSRuntime{}, stderr) })
 	case "scrollback render":

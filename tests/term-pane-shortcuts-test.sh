@@ -96,6 +96,24 @@ write_panes terminal
 run_shortcut "Alt+Shift+d"
 check_eq "right Alt+Shift+d splits terminal down as a native tiled split" "$(actions)" 'new-pane --direction down --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'
 
+# #216: the from-any-pane tab chords. Driven from the DRAFT's focus, since the
+# whole point is that they work where the operator is typing. handleTerminalChord
+# short-circuits these inside the right pane, so `--test-shortcut` is the only
+# reachable caller of runDecision's case — without these rows, deleting that case
+# left the whole suite green.
+write_panes draft
+run_shortcut "Alt+Shift+Left"
+check_eq "Alt+Shift+Left delivers previous-tab into the right terminal" "$(actions)" "write --pane-id 4 27 91 49 59 51 68"
+
+write_panes draft
+run_shortcut "Alt+Shift+Right"
+check_eq "Alt+Shift+Right delivers next-tab into the right terminal" "$(actions)" "write --pane-id 4 27 91 49 59 51 67"
+
+# No focus action of any kind: the cursor must not move.
+write_panes draft
+run_shortcut "Alt+Shift+Left"
+check_eq "Alt+Shift+Left moves no focus" "$(actions | grep -c 'focus' || true)" "0"
+
 write_panes terminal
 run_shortcut "Alt+x"
 check_eq "right Alt+x focuses then routes quit to draft" "$(actions)" "focus-pane-id 2

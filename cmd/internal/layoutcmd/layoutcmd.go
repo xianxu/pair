@@ -35,13 +35,33 @@ type Runtime interface {
 // to target a specific half. When no right terminal exists (layout2), fall
 // back to the relative move so two-pane layouts keep their old behavior.
 func FocusRightTerminal(rt Runtime) error {
-	panesJSON, err := rt.ListPanesJSON()
+	terminal, ok, err := resolveRightTerminal(rt)
 	if err != nil {
 		return err
 	}
-	// Sidecar reads degrade gracefully by design: a missing/corrupt record or
-	// registry must never break the focus jump — the picker just loses its
-	// preference signal and falls back to zellij focus / pane order.
+	if !ok {
+		return rt.RunZellijAction("move-focus", "right")
+	}
+	return rt.RunZellijAction("focus-pane-id", terminal.ID)
+}
+
+// resolveRightTerminal answers "which right terminal does a workbench action
+// mean?" — the pane list, the two sidecar preference signals, and the picker.
+//
+// Extracted because sharing only the PICKER left its inputs re-derived at each
+// caller (#216 BR-10): the guarantee that Alt+k and Alt+Shift+arrow cannot
+// disagree about a split half holds only while both feed it the same signals,
+// and a fourth preference signal or a change of degradation policy would
+// otherwise land at one site and miss the other.
+//
+// Sidecar reads degrade gracefully by design: a missing or corrupt record or
+// registry must never break the action — the picker just loses its preference
+// signal and falls back to zellij focus, then pane order.
+func resolveRightTerminal(rt Runtime) (zellijpane.Pane, bool, error) {
+	panesJSON, err := rt.ListPanesJSON()
+	if err != nil {
+		return zellijpane.Pane{}, false, err
+	}
 	lastTerminal, err := rt.LastTerminalPaneID()
 	if err != nil {
 		lastTerminal = ""
@@ -51,10 +71,7 @@ func FocusRightTerminal(rt Runtime) error {
 		terminalIDs = nil
 	}
 	terminal, ok := pickRightTerminal(zellijpane.Parse(panesJSON), lastTerminal, terminalIDs)
-	if !ok {
-		return rt.RunZellijAction("move-focus", "right")
-	}
-	return rt.RunZellijAction("focus-pane-id", terminal.ID)
+	return terminal, ok, nil
 }
 
 // pickRightTerminal chooses among the tiled right terminals — after an
@@ -84,6 +101,68 @@ func pickRightTerminal(panes []zellijpane.Pane, lastTerminalID string, terminalP
 		return focused, true
 	}
 	return first, found
+}
+
+// SwitchRightTerminalTab delivers a tab-switch chord to the right terminal
+// pane WITHOUT moving focus, so the operator can check another tab from the
+// draft without losing the cursor they are typing at (#216).
+//
+// It reuses pickRightTerminal rather than resolving the pane itself: after an
+// Alt+Shift+d split there are two right terminals with independent tab sets,
+// and if this picked differently from FocusRightTerminal then Alt+k would land
+// in one half while Alt+Shift+arrow switched the other's tabs (ARCH-DRY).
+//
+// Delivery is fire-and-forget by construction: the pane is resolved and then
+// written in a separate zellij action, so a terminal that exits in between
+// yields a stale id and the write fails. That is the right trade — the
+// alternative is an error for a pane the operator just closed.
+func SwitchRightTerminalTab(rt Runtime, chord workbenchshortcut.Chord) error {
+	terminal, ok, err := resolveRightTerminal(rt)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		// layout2, or a layout3 whose right pane exited: nothing to switch, and
+		// nothing to report — the chord is simply inert.
+		return nil
+	}
+	args, ok := workbenchshortcut.DeliverChordArgs(terminal.ID, chord)
+	if !ok {
+		return nil
+	}
+	return rt.RunZellijAction(args...)
+}
+
+// RunSwitchTerminalTab is the CLI entry the draft pane's Lua function calls, so
+// pane resolution and chord encoding stay in Go rather than being restated in
+// Lua (ARCH-DRY).
+func RunSwitchTerminalTab(args []string, rt Runtime, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "usage: pair layout switch-terminal-tab prev|next")
+		return 2
+	}
+	var action workbenchshortcut.ShortcutAction
+	switch args[0] {
+	case "prev":
+		action = workbenchshortcut.ActionTerminalPrevTab
+	case "next":
+		action = workbenchshortcut.ActionTerminalNextTab
+	default:
+		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: unknown direction %q (want prev|next)\n", args[0])
+		return 2
+	}
+	// Through the same mapping the pane executors use, so the CLI cannot drift
+	// from them about what "prev" delivers.
+	chord, ok := workbenchshortcut.TabChordFor(action)
+	if !ok {
+		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: no chord for %v\n", action)
+		return 1
+	}
+	if err := SwitchRightTerminalTab(rt, chord); err != nil {
+		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: %v\n", err)
+		return 1
+	}
+	return 0
 }
 
 func RunFocusTerminal(args []string, rt Runtime, stderr io.Writer) int {

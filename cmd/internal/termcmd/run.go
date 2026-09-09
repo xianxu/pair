@@ -100,6 +100,10 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 		return workbenchshortcut.ChordAltRight, true
 	case "alt+shift+enter", "alt+shift+return":
 		return workbenchshortcut.ChordAltShiftEnter, true
+	case "alt+shift+left", "alt+shift+left-arrow":
+		return workbenchshortcut.ChordAltShiftLeft, true
+	case "alt+shift+right", "alt+shift+right-arrow":
+		return workbenchshortcut.ChordAltShiftRight, true
 	default:
 		return workbenchshortcut.ChordUnknown, false
 	}
@@ -190,6 +194,12 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
+	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab:
+		chord, ok := workbenchshortcut.TabChordFor(decision.Action)
+		if !ok {
+			return nil
+		}
+		return layoutcmd.SwitchRightTerminalTab(rt, chord)
 	case workbenchshortcut.ActionFocusRightTerminal:
 		// One picker for the right-terminal jump (shared with draft nvim and
 		// pair wrap): id-based, preferring the recorded last-used split half.
@@ -509,10 +519,13 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 	case workbenchshortcut.ChordAltW:
 		mux.closeActive()
 		return true
-	case workbenchshortcut.ChordAltLeft:
+	case workbenchshortcut.ChordAltLeft, workbenchshortcut.ChordAltShiftLeft:
+		// Alt+Shift+Left is the from-anywhere form (#216). In THIS pane it needs
+		// no delivery — it is already here, so it calls the same mux method
+		// Alt+Left does. One implementation of tab switching, two callers.
 		mux.previousTab()
 		return true
-	case workbenchshortcut.ChordAltRight:
+	case workbenchshortcut.ChordAltRight, workbenchshortcut.ChordAltShiftRight:
 		mux.nextTab()
 		return true
 	case workbenchshortcut.ChordAltShiftD:

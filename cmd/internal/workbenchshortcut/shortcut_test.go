@@ -1,8 +1,11 @@
 package workbenchshortcut
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -470,7 +473,8 @@ func TestRoleBindingsCoverTerminalSwitch(t *testing.T) {
 	for _, rb := range RoleBindings() {
 		documented[rb.Chord] = rb.Help
 	}
-	for chord := ChordUnknown + 1; chord <= ChordAltShiftEnter; chord++ {
+	// Bound from the sentinel, not the last-named chord (#216 PQ-3).
+	for chord := ChordUnknown + 1; chord < chordMax; chord++ {
 		if _, isGlobal := DecideGlobal(chord); isGlobal {
 			continue // global chords carry their own Help on GlobalBinding
 		}
@@ -485,6 +489,139 @@ func TestRoleBindingsCoverTerminalSwitch(t *testing.T) {
 		}
 		if strings.TrimSpace(help) == "" {
 			t.Errorf("chord %v has an empty Help", chord)
+		}
+	}
+}
+
+func TestDeliverChordArgsEmitsTheCanonicalEncoding(t *testing.T) {
+	// ChordEncodings returns every accepted spelling — ChordAltLeft has three —
+	// so this pins WHICH one is delivered, as the complete argv. \x1b[1;3D is
+	// 27 91 49 59 51 68; the only difference for Right is the final byte.
+	for _, test := range []struct {
+		name  string
+		pane  string
+		chord Chord
+		want  []string
+		ok    bool
+	}{
+		{"previous tab", "4", ChordAltLeft, []string{"write", "--pane-id", "4", "27", "91", "49", "59", "51", "68"}, true},
+		{"next tab", "4", ChordAltRight, []string{"write", "--pane-id", "4", "27", "91", "49", "59", "51", "67"}, true},
+		{"no pane", "", ChordAltLeft, nil, false},
+		{"chord with no encoding", "4", ChordUnknown, nil, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, ok := DeliverChordArgs(test.pane, test.chord)
+			if ok != test.ok {
+				t.Fatalf("ok = %v, want %v", ok, test.ok)
+			}
+			if !ok {
+				return
+			}
+			if strings.Join(got, " ") != strings.Join(test.want, " ") {
+				t.Fatalf("argv = %v, want %v", got, test.want)
+			}
+		})
+	}
+}
+
+// The scanner walks chordSequences in order and stops at the first match, and
+// it also feeds a partial-chunk `held` buffer. A sequence that is a proper
+// prefix of another would therefore shadow it — the longer chord could never
+// fire, and the failure is silent.
+func TestNoChordSequenceIsAProperPrefixOfAnother(t *testing.T) {
+	sequences := ChordSequences()
+	for i, a := range sequences {
+		for j, b := range sequences {
+			if i == j || a == b {
+				continue
+			}
+			if strings.HasPrefix(b, a) {
+				t.Errorf("%q is a proper prefix of %q — the longer chord can never match", a, b)
+			}
+		}
+	}
+}
+
+func TestTabChordsAreHandledInPaneFromEveryRole(t *testing.T) {
+	// The point of the issue: the chord works from wherever focus happens to
+	// be. And it must NOT carry a DraftLuaFunction — the Go executors branch on
+	// that field first, so setting it would route tab switching through nvim.
+	for _, chord := range []struct {
+		chord Chord
+		want  ShortcutAction
+	}{
+		{ChordAltShiftLeft, ActionTerminalPrevTab},
+		{ChordAltShiftRight, ActionTerminalNextTab},
+	} {
+		for _, role := range []PaneRole{PaneRoleLeftDraft, PaneRoleLeftAgent, PaneRoleRightTerminal} {
+			decision := Decide(ShortcutInput{Role: role, Chord: chord.chord})
+			if decision.Disposition != DispositionHandle {
+				t.Errorf("chord %v role %v: disposition %v, want Handle", chord.chord, role, decision.Disposition)
+			}
+			if decision.Action != chord.want {
+				t.Errorf("chord %v role %v: action %v, want %v", chord.chord, role, decision.Action, chord.want)
+			}
+			if decision.DraftLuaFunction != "" {
+				t.Errorf("chord %v role %v: DraftLuaFunction %q — would route through the draft",
+					chord.chord, role, decision.DraftLuaFunction)
+			}
+		}
+	}
+}
+
+// The sentinel exists so enumerations over the chord space cover chords added
+// later. That only holds while the sentinel really is last, so assert it
+// against the encoding table rather than against the name of the current last
+// chord — the previous guards hard-coded `<= ChordAltShiftEnter` and silently
+// stopped covering everything appended after it (#216 PQ-3).
+func TestChordMaxFollowsEveryEncodedChord(t *testing.T) {
+	covered := map[Chord]bool{}
+	for chord := ChordUnknown + 1; chord < ChordMax(); chord++ {
+		covered[chord] = true
+	}
+	for _, candidate := range chordSequences {
+		if !covered[candidate.chord] {
+			t.Errorf("chord %v (%q) sits at or past ChordMax() — every enumeration over the chord space silently skips it",
+				candidate.chord, candidate.sequence)
+		}
+	}
+}
+
+// The RULE behind BR-2, not the four rows that prompted it: terminals disagree
+// about how to report Alt — bit 2 gives modifier 3, bit 8 ("meta") gives 9, and
+// adding shift gives 4 and 10. So for every arrow chord encoded as
+// \x1b[1;<m><letter>, the meta sibling \x1b[1;<m+6><letter> must be registered
+// too, or that chord is silently dead on a meta-style terminal in every pane
+// that decodes bytes itself. Checked mechanically so the NEXT arrow chord
+// cannot repeat it — four hand-added rows would have pinned nothing.
+func TestEveryArrowChordRegistersBothModifierFamilies(t *testing.T) {
+	const metaOffset = 6
+	arrow := regexp.MustCompile(`^\x1b\[1;(\d+)([A-D])$`)
+	registered := map[string]Chord{}
+	for _, candidate := range chordSequences {
+		registered[candidate.sequence] = candidate.chord
+	}
+	for _, candidate := range chordSequences {
+		match := arrow.FindStringSubmatch(candidate.sequence)
+		if match == nil {
+			continue
+		}
+		modifier, err := strconv.Atoi(match[1])
+		if err != nil {
+			t.Fatalf("unparseable modifier in %q", candidate.sequence)
+		}
+		if modifier >= 9 {
+			continue // already the meta form; its bit-2 sibling is the other row
+		}
+		sibling := fmt.Sprintf("\x1b[1;%d%s", modifier+metaOffset, match[2])
+		got, ok := registered[sibling]
+		if !ok {
+			t.Errorf("%q (%v) has no meta sibling %q — the chord is dead on a meta-style terminal",
+				candidate.sequence, candidate.chord, sibling)
+			continue
+		}
+		if got != candidate.chord {
+			t.Errorf("meta sibling %q maps to %v, want %v", sibling, got, candidate.chord)
 		}
 	}
 }

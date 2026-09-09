@@ -49,7 +49,19 @@ const (
 	ChordAltLeft
 	ChordAltRight
 	ChordAltShiftEnter
+	ChordAltShiftLeft
+	ChordAltShiftRight
+	// chordMax is one past the last chord. Enumerations over the chord space
+	// derive their bound from it, so a chord appended above is covered without
+	// editing the consumer. Both documentation guards previously stopped at
+	// ChordAltShiftEnter — the then-last const — which would have dropped every
+	// chord added after it from their loops with no failure (#216 PQ-3).
+	chordMax
 )
+
+// ChordMax is one past the last declared chord, for callers enumerating the
+// chord space.
+func ChordMax() Chord { return chordMax }
 
 type Disposition int
 
@@ -81,6 +93,12 @@ const (
 	ActionShrinkDraft
 	ActionToggleReview
 	ActionToggleFocusedLayout
+	// ActionTerminalPrevTab / ActionTerminalNextTab switch the RIGHT pane's
+	// tabs from whichever pane holds focus, without moving focus (#216). They
+	// are the first globals a pane handles itself rather than by routing a Lua
+	// call into the draft — see GlobalBinding.HandledInPane.
+	ActionTerminalPrevTab
+	ActionTerminalNextTab
 )
 
 type ShortcutInput struct {
@@ -107,6 +125,15 @@ type GlobalBinding struct {
 	LuaFunction string
 	NvimKey     string
 	FocusDraft  bool
+	// HandledInPane marks a global the FOCUSED PANE acts on itself, instead of
+	// routing LuaFunction into the draft. Every other global's action is a
+	// draft Lua call, so DecideGlobal sets DraftLuaFunction and both Go
+	// executors branch on that field first; a chord that must deliver bytes to
+	// the RIGHT pane cannot be expressed that way, and routing it through nvim
+	// would make tab switching depend on the draft being alive (#216).
+	// LuaFunction stays populated regardless — it is what RenderLuaGlobalMaps
+	// emits for the draft's own keymap.
+	HandledInPane bool
 	// Help is the user-facing description shown by `pair keys` / Alt+h (#132).
 	// It is authored HERE because these chords reach nvim through the generated
 	// workbench_actions.lua rather than literal vim.keymap.set calls, so no
@@ -133,6 +160,10 @@ var globalBindings = []GlobalBinding{
 		Help: "shrink the draft pane along the height ladder"},
 	{Chord: ChordAltC, Action: ActionToggleReview, LuaFunction: "PairReviewToggle", NvimKey: "<M-c>", FocusDraft: false,
 		Help: "open / show / hide the review pane"},
+	{Chord: ChordAltShiftLeft, Action: ActionTerminalPrevTab, LuaFunction: "PairTermPrevTab", NvimKey: "<S-M-Left>", FocusDraft: false, HandledInPane: true,
+		Help: "previous terminal tab, from any pane, without moving focus"},
+	{Chord: ChordAltShiftRight, Action: ActionTerminalNextTab, LuaFunction: "PairTermNextTab", NvimKey: "<S-M-Right>", FocusDraft: false, HandledInPane: true,
+		Help: "next terminal tab, from any pane, without moving focus"},
 }
 
 // RoleBinding describes a chord whose behaviour is PANE-LOCAL — it does something
@@ -284,6 +315,11 @@ func Decide(in ShortcutInput) ShortcutDecision {
 // from a primary pane; only pane-relative shortcuts need Role/geometry data.
 func DecideGlobal(chord Chord) (ShortcutDecision, bool) {
 	if binding, ok := globalDraftAction(chord); ok {
+		if binding.HandledInPane {
+			// No DraftLuaFunction: the executors branch on that field first, so
+			// setting it would route this into the draft instead.
+			return ShortcutDecision{Disposition: DispositionHandle, Action: binding.Action}, true
+		}
 		return ShortcutDecision{
 			Disposition:      DispositionHandle,
 			Action:           binding.Action,
@@ -322,8 +358,14 @@ var chordSequences = []struct {
 	{"\x1b[110;3u", ChordAltN},
 	{"\x1b[110;7u", ChordCtrlAltN},
 	{"\x1b[78;4u", ChordAltShiftN},
-	{"\x1b[1;3A", ChordAltUp},
-	{"\x1b[1;3B", ChordAltDown},
+	// Two modifier families, because terminals disagree about how to report
+	// Alt: bit 2 ("alt") gives modifier 3, bit 8 ("meta") gives 9, and adding
+	// shift gives 4 and 10 respectively. ChordAltLeft/Right have carried both
+	// since e6eee5a3; Up/Down had only the bit-2 form, so on a meta-style
+	// terminal they were silently dead. Registering both everywhere makes the
+	// family the rule rather than a per-chord accident (#216 BR-2).
+	{"\x1b[1;3A", ChordAltUp}, {"\x1b[1;9A", ChordAltUp},
+	{"\x1b[1;3B", ChordAltDown}, {"\x1b[1;9B", ChordAltDown},
 	{"\x1b[99;3u", ChordAltC},
 	{"\x1b/", ChordAltSlash}, {"\x1b[47;3u", ChordAltSlash},
 	{"\x1bC", ChordAltShiftC}, {"\x1b[67;3u", ChordAltShiftC},
@@ -331,6 +373,10 @@ var chordSequences = []struct {
 	{"\x1b[1;3D", ChordAltLeft}, {"\x1b[1;9D", ChordAltLeft}, {"\x1b[3D", ChordAltLeft},
 	{"\x1b[1;3C", ChordAltRight}, {"\x1b[1;9C", ChordAltRight}, {"\x1b[3C", ChordAltRight},
 	{"\x1b[13;4u", ChordAltShiftEnter},
+	// Modifier 4 = shift+alt, the same family as ChordAltShiftEnter above and
+	// ChordAltUp's \x1b[1;3A (alt) — both of which are proven live.
+	{"\x1b[1;4D", ChordAltShiftLeft}, {"\x1b[1;10D", ChordAltShiftLeft},
+	{"\x1b[1;4C", ChordAltShiftRight}, {"\x1b[1;10C", ChordAltShiftRight},
 }
 
 func ChordSequences() []string {
@@ -426,6 +472,10 @@ func ChordName(chord Chord) string {
 		return "Alt+Right"
 	case ChordAltShiftEnter:
 		return "Alt+Shift+Enter"
+	case ChordAltShiftLeft:
+		return "Alt+Shift+Left"
+	case ChordAltShiftRight:
+		return "Alt+Shift+Right"
 	default:
 		return ""
 	}
@@ -624,4 +674,46 @@ func writePaneID(path, paneID string) error {
 		return err
 	}
 	return nil
+}
+
+// DeliverChordArgs returns the `zellij action` argv that writes chord's
+// canonical bytes into paneID's pty, so a pane that never had focus receives
+// the chord exactly as if the operator had pressed it there (#216).
+//
+// `write`, not `write-chars`: the payload is an escape sequence, and `write`
+// takes decimal bytes while `write-chars` takes literal characters. Both accept
+// `--pane-id` (zellij 0.44.3).
+//
+// ChordEncodings returns every accepted spelling — ChordAltLeft has three — and
+// this emits the FIRST, which is the canonical form the table lists before its
+// legacy alternates. Pure: the caller owns the zellij invocation, so this stays
+// inside the package's no-IO invariant while keeping the byte knowledge in the
+// one package that owns the wire format.
+func DeliverChordArgs(paneID string, chord Chord) ([]string, bool) {
+	if paneID == "" {
+		return nil, false
+	}
+	encodings := ChordEncodings(chord)
+	if len(encodings) == 0 {
+		return nil, false
+	}
+	args := []string{"write", "--pane-id", paneID}
+	for _, b := range encodings[0] {
+		args = append(args, strconv.Itoa(int(b)))
+	}
+	return args, true
+}
+
+// TabChordFor maps a tab-switching action to the chord whose bytes deliver it.
+// One fact: the mapping was restated at each executor, which is the shape that
+// lets two of them drift (#216 BR-6).
+func TabChordFor(action ShortcutAction) (Chord, bool) {
+	switch action {
+	case ActionTerminalPrevTab:
+		return ChordAltLeft, true
+	case ActionTerminalNextTab:
+		return ChordAltRight, true
+	default:
+		return ChordUnknown, false
+	}
 }

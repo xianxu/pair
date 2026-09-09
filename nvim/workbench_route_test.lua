@@ -27,6 +27,11 @@ local expected = {
   ['<M-Up>'] = { fn = 'PairLayoutBigger', focus = false },
   ['<M-Down>'] = { fn = 'PairLayoutSmaller', focus = false },
   ['<M-c>'] = { fn = 'PairReviewToggle', focus = false },
+  -- #216: the draft's half of the from-anywhere tab chords. focus = false is
+  -- the requirement, not a detail — the whole point is that the cursor never
+  -- leaves the draft.
+  ['<S-M-Left>'] = { fn = 'PairTermPrevTab', focus = false },
+  ['<S-M-Right>'] = { fn = 'PairTermNextTab', focus = false },
 }
 for key, binding in pairs(expected) do
   assert(vim.deep_equal(route.global_maps[key], binding), key)
@@ -60,3 +65,12 @@ assert(route.validate_cached_draft(record, 'pair-work', function() return false 
 assert(route.validate_cached_draft('bad json', 'pair-work', function() return true end) == nil)
 
 print('workbench_route_test ok')
+
+-- #216 BR-13: the key -> function-name mapping above pins which function runs;
+-- this pins what that function actually executes.
+assert(vim.deep_equal(
+  route.switch_terminal_tab_command('/opt/pair/bin/pair', 'prev'),
+  { '/opt/pair/bin/pair', 'layout', 'switch-terminal-tab', 'prev' }))
+assert(vim.deep_equal(
+  route.switch_terminal_tab_command('pair', 'next'),
+  { 'pair', 'layout', 'switch-terminal-tab', 'next' }))

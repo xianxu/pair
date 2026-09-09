@@ -123,4 +123,11 @@ function M.install_global_maps(is_draft)
   end
 end
 
+-- The argv `PairTermPrevTab`/`PairTermNextTab` shell out with (#216). Pure and
+-- here rather than inline in init.lua so the command is pinned by a test: the
+-- key -> function-name mapping was covered, the argv was not.
+function M.switch_terminal_tab_command(pair_bin, direction)
+  return { pair_bin, 'layout', 'switch-terminal-tab', direction }
+end
+
 return M

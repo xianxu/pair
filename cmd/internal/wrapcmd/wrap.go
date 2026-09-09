@@ -1645,6 +1645,12 @@ func (p *proxy) handleWorkbenchChord(chord workbenchshortcut.Chord) bool {
 	return p.executeWorkbenchDecision(decision)
 }
 
+// switchTerminalTab is a var so the WIRING is testable, not only the delivery:
+// both halves of it are otherwise out of this package's reach, and a missing
+// case here would leave every test green while the chord silently did nothing
+// from the agent pane (#213's lesson, applied forward).
+var switchTerminalTab = layoutcmd.SwitchRightTerminalTab
+
 func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDecision) bool {
 	if decision.DraftLuaFunction != "" {
 		rt := p.draftRouteRuntime
@@ -1665,6 +1671,11 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 		return true
 	}
 	switch decision.Action {
+	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab:
+		if chord, ok := workbenchshortcut.TabChordFor(decision.Action); ok {
+			_ = switchTerminalTab(layoutcmd.OSRuntime{}, chord)
+		}
+		return true
 	case workbenchshortcut.ActionFocusLeftDraft:
 		_ = runZellijAction("move-focus", "down")
 		return true

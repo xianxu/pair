@@ -4191,3 +4191,33 @@ that reports milliseconds without a rate cannot be prioritized against anything.
 Caught when #000201 was punted: 70ms per alt+Return, which nobody perceives, and
 the genuinely felt symptom turned out to be a deliberate 100ms settle plus a
 0.38% server-stall tail that no proposed fix addressed.
+
+## A deletion is finished when its reference set is swept, not when the code compiles
+
+Removing a keybinding's implementation left four stale references behind: an
+orphaned helper, a comment block still describing the deleted behaviour as
+live, an atlas helper list naming the removed function, and a README row telling
+users the chord did something it no longer does. The compiler saw none of them —
+Lua has no unused-local error here, and no linter runs over `atlas/` or
+`README.md`. Two review rounds each named a subset, and each subset was smaller
+than the real one.
+
+**Rule.** When deleting a named thing, grep its full reference set BEFORE
+declaring the deletion done — the symbol, its callers, its helpers, comments
+that describe the behaviour, `atlas/`, `README.md` — and record the grep in the
+`## Log` so the next reader reuses the enumeration instead of re-deriving it.
+Chasing the sites a reviewer happens to name guarantees you stop one round
+short. Distinguish current-state docs from dated records: a stale `CHANGELOG.md`
+entry describing what shipped in v1.x is correct history and must NOT be
+rewritten, while a README row describing present behaviour must be.
+
+## Run luac -p on Lua before running the suite
+
+A helper inserted programmatically landed inside an `if` block. `make test`
+failed with exit 2 and **zero** FAIL lines, which reads like an infrastructure
+problem rather than a syntax error. `luac -p nvim/init.lua` named the file, the
+line, and the unclosed block immediately.
+
+**Rule.** After any scripted edit to a Lua file, run `luac -p` before the suite.
+A syntax error surfaces through `make test` as a shapeless non-zero exit, and
+the minutes spent bisecting it are the minutes the parser would have saved.

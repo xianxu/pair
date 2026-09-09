@@ -748,12 +748,18 @@ local function send_to_agent(body, no_submit, resume_phase)
   end, resume_phase)
 end
 
+-- One resolution of the pair binary. The `PAIR_HOME .. '/bin/pair'` idiom was
+-- copied at five sites; a sixth copy is how they drift (#216 BR-12).
+local function pair_bin()
+  local home = vim.env.PAIR_HOME or ''
+  return (home ~= '') and (home .. '/bin/pair') or 'pair'
+end
+
 _G.PairSubmission = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'submission.lua').new(function(body, append_id)
   if type(_G.PairTestSessionLogAppend) == 'function' then
     return _G.PairTestSessionLogAppend(body, append_id)
   end
-  local home = vim.env.PAIR_HOME or ''
-  local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+  local pair = pair_bin()
   local out = vim.fn.system({ pair, 'session-log', 'append', '--append-id', append_id }, body)
   if vim.v.shell_error ~= 0 then
     out = tostring(out or ''):gsub('%s+$', '')
@@ -764,8 +770,7 @@ end, function(append_id)
   if type(_G.PairTestSessionLogCommit) == 'function' then
     return _G.PairTestSessionLogCommit(append_id)
   end
-  local home = vim.env.PAIR_HOME or ''
-  local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+  local pair = pair_bin()
   local out = vim.fn.system({ pair, 'session-log', 'commit', '--append-id', append_id })
   if vim.v.shell_error ~= 0 then
     out = tostring(out or ''):gsub('%s+$', '')
@@ -889,7 +894,6 @@ do
   local function propose(file)
     local abs = vim.fn.fnamemodify(file, ':p')
     write_target(abs, 'proposed')
-    local home = vim.env.PAIR_HOME or ''
     -- PAIR_REVIEW_READINESS_BIN (test seam) is a binary implementing the readiness
     -- CLI directly (`--prepare <abs>`); the default self-execs the single pair as
     -- `pair review readiness --prepare <abs>` (#104 M2).
@@ -898,7 +902,7 @@ do
     if override and override ~= '' then
       cmd = { override, '--prepare', abs }
     else
-      local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+      local pair = pair_bin()
       cmd = { pair, 'review', 'readiness', '--prepare', abs }
     end
     local out = table.concat(vim.fn.systemlist(cmd), '\n')
@@ -947,8 +951,7 @@ do
     local t = read_target()
     local action = toggle_action(false, false, t and t.status)
     if action == 'open' then
-      local home = vim.env.PAIR_HOME or ''
-      local pair = (home ~= '') and (home .. '/bin/pair') or 'pair'
+      local pair = pair_bin()
       vim.fn.system({ pair, 'review', 'open', t.file })
       if vim.v.shell_error ~= 0 then
         vim.notify('PairReview: open failed — ' .. vim.fn.fnamemodify(t.file, ':t'), vim.log.levels.WARN)
@@ -2438,46 +2441,6 @@ local function nav_right()
   end
 end
 
--- Boundary-jump: Shift+Alt+←/→ steps between exactly three landmarks —
--- -h (oldest history), * (draft), +q (back of queue). The newest-history
--- (-1) and queue-front (+1) edges are deliberately *not* stops: Alt+←/→
--- already walks one slot at a time, so Shift+Alt is the coarse "jump to the
--- far end / back to draft" gesture. An empty region contributes no landmark.
-local function pos_rank(p)
-  if p == '*' then return 0 end
-  if p.kind == 'history' then return -p.n end   -- -1 ranks -1, -h ranks -h
-  if p.kind == 'queue'   then return  p.n end   -- +1 ranks 1,  +q ranks q
-  return 0
-end
-
-local function ordered_landmarks()
-  local list = {}
-  local h = #read_history()
-  local q = queue_count()
-  if h >= 1 then
-    table.insert(list, { kind = 'history', n = h })            -- -h (leftmost)
-  end
-  table.insert(list, '*')
-  if q >= 1 then
-    table.insert(list, { kind = 'queue', n = q })             -- +q (rightmost)
-  end
-  return list
-end
-
-local function nav_boundary(direction)
-  local landmarks = ordered_landmarks()
-  local cur = pos_rank(nav.pos)
-  if direction > 0 then
-    for _, lm in ipairs(landmarks) do
-      if pos_rank(lm) > cur then go_to(lm); return end
-    end
-  else
-    for i = #landmarks, 1, -1 do
-      if pos_rank(landmarks[i]) < cur then go_to(landmarks[i]); return end
-    end
-  end
-end
-
 -- Alt+BS — delete the current +N queue item without sending it. "Stay near":
 -- after delete, items at +(N+1)..+M shift down by one, so the same +N slot
 -- now displays what used to be next. Lets the user tap-tap to clean out a
@@ -3424,6 +3387,24 @@ function _G.PairLayoutBigger()
   layout_goto(LAYOUT_BY_LEVEL[math.min(cur + 1, #LAYOUT_BY_LEVEL)])
 end
 
+-- Alt+Shift+Left/Right — switch the RIGHT pane's terminal tabs from here,
+-- without moving focus, so the draft stays the cockpit while the operator
+-- checks another tab (#216). These replaced nav_boundary, which used to own
+-- these chords for history/queue Home-End jumps.
+--
+-- Shelled out rather than reimplemented: resolving WHICH right terminal (there
+-- are two after an Alt+Shift+d split) and encoding the chord bytes both live in
+-- Go, and restating either here would be a second source of truth. `pair layout
+-- switch-terminal-tab` is the same code path the agent pane uses.
+local function pair_switch_terminal_tab(direction)
+  vim.fn.jobstart(
+    _G.PairWorkbenchRoute.switch_terminal_tab_command(pair_bin(), direction),
+    { detach = true })
+end
+
+function _G.PairTermPrevTab() pair_switch_terminal_tab('prev') end
+function _G.PairTermNextTab() pair_switch_terminal_tab('next') end
+
 function _G.PairLayoutSmaller()
   local cur = LAYOUT_LADDER[layout_read()] or 1
   layout_goto(LAYOUT_BY_LEVEL[math.max(cur - 1, 1)])
@@ -3529,6 +3510,9 @@ vim.keymap.set({ 'n', 'i' }, '<M-r>', function() end,
 do
   local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
   local workbench_route = dofile(here .. 'workbench_route.lua')
+  -- Published so PairTermPrevTab/NextTab build their argv through the same
+  -- function workbench_route_test.lua pins, rather than restating it (#216).
+  _G.PairWorkbenchRoute = workbench_route
   workbench_route.install_global_maps(true)
 end
 
@@ -3548,11 +3532,6 @@ vim.keymap.set({ 'n', 'i' }, '<M-Left>', nav_left,
 
 vim.keymap.set({ 'n', 'i' }, '<M-Right>', nav_right,
   { silent = true, desc = 'pair: navigate toward draft / queue' })
-
-vim.keymap.set({ 'n', 'i' }, '<S-M-Left>',  function() nav_boundary(-1) end,
-  { silent = true, desc = 'pair: jump to previous region boundary' })
-vim.keymap.set({ 'n', 'i' }, '<S-M-Right>', function() nav_boundary( 1) end,
-  { silent = true, desc = 'pair: jump to next region boundary' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-q>', queue_current,
   { silent = true, desc = 'pair: park the draft on the queue (front, +1)' })
