@@ -351,3 +351,189 @@ findings:
       workbench_route_test.lua pins the key -> function-name mapping; nothing pins the
       jobstart argv at init.lua:3407-3408.
 ```
+
+---
+
+## Re-review — 2026-09-09T12:43:20-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 216 — drive right-pane tab switching from any pane, without moving focus |
+| repo | pair |
+| issue file | workshop/issues/000216-drive-right-pane-tab-switching-from-any-pane-without-moving-focus.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d15201957318de0b4a7172db0798cf176bc80d82..af1b51b72cdd2a4edd2f8524a9a708dd647a1a23 |
+| command | sdlc close --issue 216 |
+| reviewer | claude |
+| timestamp | 2026-09-09T12:43:20-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 2's fixes are real this time: I verified each by mutation rather than by reading the Log. The BR-7 rule guard reddens (`"\x1b[1;4D" (21) has no meta sibling "\x1b[1;10D"`) when the four meta rows are deleted; the BR-9 harness rows redden when `runDecision`'s tab case is removed; the `nav_boundary` reference set re-greps clean tree-wide with only the deliberate historical mentions surviving; `resolveRightTerminal` is a real extraction both callers use; `pair keys` renders both new rows from `GlobalBinding.Help`. I also ran the draft's actual production path end-to-end against a fake zellij (`pair layout switch-terminal-tab prev` → `write --pane-id 4 27 91 49 59 51 68`) and it works. What keeps this off SHIP is one measured gap in the same family that has now produced three findings: the **draft** pane — the pane the issue exists for — is the only one of the three whose delivery chain has no test crossing its seams. Renaming the `Dispatch` case string leaves `go test ./...` with a byte-identical failure set to the control, and the chord goes silently inert because nvim's detached `jobstart` discards the loud stderr the dispatcher does produce.
+
+## 1. Strengths
+
+- **`TestEveryArrowChordRegistersBothModifierFamilies` (`cmd/internal/workbenchshortcut/shortcut_test.go:597`) is a genuine rule guard, not four more rows.** Measured: deleting `\x1b[1;10D` / `\x1b[1;10C` from a scratch checkout reddens it with a message naming the missing sibling. This is exactly what BR-7 asked for and it will catch the next arrow chord.
+- **`resolveRightTerminal` (`cmd/internal/layoutcmd/layoutcmd.go:60`) is the right extraction.** Both callers now feed the picker the same signals, so the graceful-degradation policy and the recorded-half preference have one home. `FocusRightTerminal` keeps its `move-focus right` fallback and `SwitchRightTerminalTab` its inert `return nil` — the two callers differ only where they should.
+- **`HandledInPane` (`shortcut.go:136`, consumed at `shortcut.go:318`) expresses "self-handled global" without inventing a new decision type**, and `TestTabChordsAreHandledInPaneFromEveryRole` pins the load-bearing part: `DraftLuaFunction` stays empty from all three roles, which is what stops tab switching depending on nvim being alive.
+- **Split-arrival coverage (`termcmd/run_test.go:175-180`) pins the `held` buffer** for the new sequences in both `\x1b[1;4` + `D` and `\x1b[1;` + `4C` shapes — the failure mode where a chord straddling a read reads as a dead key.
+- **The `nav_boundary` sweep's CHANGELOG carve-out** (`workshop/lessons.md`) is the right refinement of BR-8's rule: current-state docs get swept, dated records don't, because rewriting them falsifies history.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**The draft pane's delivery chain has no test crossing either of its two seams** — `tests/term-pane-shortcuts-test.sh:99`, `cmd/internal/dispatcher/dispatcher.go:203`.
+
+The chain is: `<S-M-Left>` → `_G.PairTermPrevTab` (`nvim/init.lua:3405`) → `switch_terminal_tab_command` → `jobstart` → `pair layout switch-terminal-tab prev` → `Dispatch` case → `RunSwitchTerminalTab`. Each *half* is tested; neither *join* is. Measured: I renamed the `Dispatch` case to `"layout switch-terminal-tab-TYPO"` in a scratch checkout of `af1b51b7` and `go test ./...` produced a failure set identical to the control (36 pre-existing pty/exec `operation not permitted` failures, zero new). At runtime the dispatcher does fail closed — `pair-go: layout switch-terminal-tab has no buffered route wired`, exit 2 — but `jobstart(..., {detach = true})` has no `on_stderr`, so the operator sees a dead key.
+
+The rows that *look* like they cover this don't. `term-pane-shortcuts-test.sh:99-115` is commented "Driven from the DRAFT's focus, since the whole point is that they work where the operator is typing" — but `handleChord` short-circuits at `DecideGlobal` before reading any focus, so `write_panes draft` is inert there. Measured: rewriting all three rows to `write_panes terminal` leaves them PASSing identically. What those rows actually exercise is `termcmd`'s `runDecision` case, which the pump short-circuits in production (`run.go:522` returns true first) and which no production path reaches at all — `--test-shortcut` is its only caller tree-wide.
+
+Fix sketch: turn `Dispatch`'s buffered switch into a `map[string]handler` so `TestEveryImplementedFamilyIsRoutable` can iterate `Families()` and assert membership without executing anything, and add a Go test asserting the subcommand string `workbench_route.switch_terminal_tab_command` emits is a name `Families()` declares (the repo already reads `nvim/*.lua` from Go in `keyhelp`, so the cross-language read is idiomatic here).
+
+## 4. Minor findings
+
+- **`shortcut_test.go:613`** — the family rule is one-directional. `if modifier >= 9 { continue }` means a chord registered *only* in the meta spelling passes the guard with its bit-2 sibling missing; the comment asserts "its bit-2 sibling is the other row" rather than checking it. Separately, the rule's premise is unmeasured: `zellij/config.kdl:37` sets `support_kitty_keyboard_protocol true`, and under KKP bit 8 is **super**, not xterm's meta — so `\x1b[1;9A/B` and `\x1b[1;10D/C` also bind Cmd+↑/↓ to the layout ladder and Cmd+Shift+←/→ to tab switching in every byte-decoding pane. (`\x1b[1;9D/C` has been in the table since `e6eee5a3` with no reported misfire, so practical risk is low — but the diff promoted an unmeasured spelling to a tree-wide enforced rule.)
+- **`tests/term-pane-shortcuts-test.sh:115`** — the "moves no focus" row is fully subsumed by the two rows above it, which assert `"$(actions)"` equals the single `write …` line exactly. It passes vacuously: under the delete-the-`runDecision`-case mutation, with `actions` empty, it still PASSes.
+- **`nvim/scrollback.lua:273`** — BR-12's `pair_bin()` swept `init.lua`'s four sites but not the idiom's remaining member, which additionally lacks the empty-`PAIR_HOME` fallback (`vim.env.PAIR_HOME .. '/bin/pair'` errors on nil concat).
+- **ARCH-CONSTRAINTS, `nvim/init.lua:3399`** — from the draft each press is 1 detached `jobstart` + 1 `pair` process + 2 `zellij` subprocesses (`list-panes`, then `write`), with no debounce. The Estimate's frequency note reasons about a *deliberate single press*; a held arrow key at auto-repeat is the case it doesn't cover, and `detach = true` means the extent is unbounded.
+
+## 5. Test coverage notes
+
+Coverage now stands: right pane ✅ (`run_test.go:173-180`, in-place `mux` calls, no zellij action), agent pane ✅ (`keymap_registry_test.go:36`, the `switchTerminalTab` var seam pins the *wiring*, which is the part that would otherwise be silently missing), draft pane ⚠️ (both halves unit-tested, neither seam crossed — §3). `TestChordMaxFollowsEveryEncodedChord` is the right shape for the PQ-3 class: it asserts the sentinel against the encoding table rather than against the current last chord's name. All 36 failures in `go test ./...` at head are pty/exec `operation not permitted` in this environment; none touch this diff's packages' logic.
+
+## 6. Architectural notes
+
+ARCH-DRY **pass** (`TabChordFor` + `resolveRightTerminal` are the two consolidations that mattered; one residual noted in §4). ARCH-PURE **pass** — `DeliverChordArgs`, `TabChordFor` and `switch_terminal_tab_command` are pure and table-tested; IO stays at `RunZellijAction`/`jobstart`. ARCH-PURPOSE **pass with one flag** — the shadow-sweep of the chord surface is complete (keyhelp derives from `GlobalBinding.Help`, `workbench_actions.lua` is generated, README/atlas swept, CHANGELOG deliberately preserved); the flag is that the pane named in the issue's Problem statement is the one whose chain isn't joined by a test. ARCH-MOCK **pass** — the zellij seam is the `Runtime` interface plus the fake-zellij shell harness, and `write --pane-id` was already a depended-on surface (`draftroute/route.go:103`), so no new unfaked dependency enters. ARCH-CONSTRAINTS **flag** (§4). ARCH-SECURE **pass** — the pane id comes from zellij's own JSON and is passed as a distinct argv element with no shell; malformed JSON degrades through `zellijpane.Parse` → picker `!ok` → inert chord, which is visible-as-nothing rather than fabricated. ARCH-ORDER **pass** — the `held` buffer has split-arrival rows, the resolve→write race is stated and lands inert, and the double-press interleaving is idempotent per press.
+
+For upcoming work: `switchTerminalTab` as a package var (`wrap.go:1649`) is the first injection seam of its kind in `wrapcmd`; if a second appears, group them rather than accumulating package-level vars.
+
+## 7. Plan revision recommendations
+
+None — the issue's `## Plan` and `## Revisions` match the code, including the three recorded deviations. One process note for the closing agent, not a plan defect: the final `- [ ] Manual` item is still unticked by design (operator-pending live gesture), so the close will hit the plan-unchecked gate.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Both meta rows registered; superseded by BR-7, which is also now addressed.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Verified by mutation — deleting the meta rows reddens TestEveryArrowChordRegistersBothModifierFamilies.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Re-ran the enumeration at head; only deliberate historical references remain.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Verified by mutation — removing runDecision's case fails two harness rows; see the new finding on what those rows actually cover.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      resolveRightTerminal extracted at layoutcmd.go:60; both callers use it.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      atlas:715 now scopes the guarantee to the delivery path and states the in-split-half exception.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      pair_bin() ends the idiom in init.lua; one member outside that file survives, raised below.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      switch_terminal_tab_command is pure and pinned; its caller remains unpinned, folded into the new Important finding.
+findings:
+  - id: new
+    severity: Important
+    family: untested-executor-branch
+    title: |
+      The draft pane's chord chain crosses two seams and no test crosses either; renaming the Dispatch case leaves go test ./... identical to control
+    detail: |
+      This is the 3rd finding in family `untested-executor-branch`. Earlier rounds fixed
+      instances (the agent pane's executeWorkbenchDecision case, then termcmd's runDecision
+      case). Do NOT fix this instance by adding one more draft-specific test. The rule that
+      covers all three: a chord is delivered by a CHAIN, and every process- or
+      language-boundary in that chain needs a test that crosses it, not two tests that stop
+      on either side. Mechanically checkable form: Dispatch's buffered switch becomes a
+      map[string]handler so a table-driven test over Families() can assert every
+      Status:"implemented" entry is routable, and a Go test asserts the subcommand string
+      nvim/workbench_route.lua emits is a name Families() declares.
+      Measured: renaming `case "layout switch-terminal-tab"` (dispatcher.go:203) to a typo in
+      a scratch checkout of af1b51b7 left `go test ./...` with a failure set byte-identical to
+      the unmutated control (36 pre-existing pty "operation not permitted" failures, zero new).
+      Runtime behaviour of the mutant: exit 2, `pair-go: layout switch-terminal-tab has no
+      buffered route wired` on stderr -- loud at a shell, invisible through
+      jobstart(detach=true), which has no on_stderr. Also measured: the rows at
+      tests/term-pane-shortcuts-test.sh:99-115 do not cover this path despite their comment
+      ("Driven from the DRAFT's focus"). handleChord short-circuits at DecideGlobal before
+      reading pane focus, so rewriting all three to `write_panes terminal` leaves them
+      PASSing identically; what they exercise is termcmd's runDecision case, whose only
+      caller tree-wide is the `--test-shortcut` seam.
+  - id: new
+    severity: Minor
+    family: chord-encoding-family-coverage
+    title: |
+      The meta-family guard is one-directional, and its bit-8=Meta premise is Super under the kitty protocol zellij enables
+    detail: |
+      This is the 3rd finding in family `chord-encoding-family-coverage`. Earlier rounds fixed
+      instances (four table rows), then replaced them with the rule. Do NOT patch the two
+      spellings this names. The rule needs two corrections: (a) shortcut_test.go:613 skips
+      `modifier >= 9`, so a chord registered ONLY in the meta spelling passes with its bit-2
+      sibling missing -- the sibling relation should be enforced in both directions; (b) the
+      premise "bit 8 (meta) gives 9" is xterm's convention, but zellij/config.kdl:37 sets
+      support_kitty_keyboard_protocol true, and under KKP bit 8 is SUPER. So the enforced
+      rule now also binds Cmd+arrow to the layout ladder and Cmd+Shift+arrow to tab
+      switching in every byte-decoding pane. \x1b[1;9D/C has been in the table since
+      e6eee5a3 with no reported misfire, so the practical risk is low -- but an encoding
+      should be measured on the terminal in play before a test enforces it tree-wide, which
+      is the same "derived is not measured" caveat the issue Log applied to modifier 4 and
+      not to 9/10.
+  - id: new
+    severity: Minor
+    family: untested-executor-branch
+    title: |
+      tests/term-pane-shortcuts-test.sh:115 asserts nothing the two rows above it do not already prove, and passes vacuously
+    detail: |
+      The two rows above assert `"$(actions)"` equals exactly the single `write --pane-id 4 ...`
+      line, which already proves no focus action was emitted. Measured: under the
+      delete-the-runDecision-case mutation, `actions` is empty and the grep -c row still
+      PASSes. Either drop it or make it assert something the exact-match rows cannot.
+  - id: new
+    severity: Minor
+    family: dead-code-after-removal
+    title: |
+      The pair_bin() consolidation swept init.lua but not the idiom's member in nvim/scrollback.lua:273
+    detail: |
+      This is the 4th finding in family `dead-code-after-removal`. The family rule already
+      states it: a consolidation is complete only when the full instance set is enumerated
+      and the enumeration recorded, not when the sites a reviewer named are fixed. BR-12
+      enumerated five sites, all inside init.lua; the grep that would have found the sixth
+      is `grep -rn "bin/pair'" nvim/`. scrollback.lua:273 additionally lacks the
+      empty-PAIR_HOME fallback the helper has, so it errors on nil concat rather than
+      falling back to `pair` on PATH.
+  - id: new
+    severity: Minor
+    family: unbounded-keystroke-fanout
+    title: |
+      Held Alt+Shift+arrow in the draft spawns 3 detached processes per auto-repeat with no debounce
+    detail: |
+      nvim/init.lua:3399 fires jobstart(detach = true) per press; each spawned `pair layout
+      switch-terminal-tab` runs `zellij action list-panes` then `zellij action write`. The
+      Estimate's frequency note reasons about a deliberate single press, which is the right
+      call for one press; key auto-repeat is the case it does not cover, and `detach = true`
+      means the extent is not lexically bounded (ARCH-CONSTRAINTS / ARCH-ORDER extent).
+      Note for future, not a gate issue -- Alt+k from the draft has the same shape today.
+```

@@ -448,3 +448,36 @@ the key→function mapping was covered and what that function *ran* was not.
 it inside an `if` block, and `make test` reported exit 2 with **zero** FAIL
 lines — which reads as infrastructure, not syntax. `luac -p nvim/init.lua` named
 the file, line and unclosed block instantly. Added to `workshop/lessons.md`.
+
+### 2026-09-09 — boundary review round 3: the chain, not a third instance
+
+**BR-14** — third finding in `untested-executor-branch`. Rounds 1 and 2 fixed
+instances (the agent pane's case, then `termcmd`'s). The rule: **a chord is
+delivered by a CHAIN, and every process- or language-boundary in that chain
+needs a test that CROSSES it, not two tests that stop on either side.** The
+draft's chain is Lua → `pair layout switch-terminal-tab` → dispatcher case → Go,
+and both boundaries were string contracts nothing type-checks. Measured by the
+reviewer: renaming the Dispatch case left `go test ./...` byte-identical to
+control, failing only at runtime.
+
+Two mechanical checks, both crossing rather than stopping:
+
+- `TestEveryImplementedFamilyIsRoutable` — every `Status:"implemented"` family
+  must have a routing case. Read from **source**, not by calling `Dispatch`,
+  because calling it executes the command; a routability check that launches
+  `wrap` or `term` is not a test.
+- `TestDraftLuaSubcommandsAreDeclaredAndRoutable` — extracts the argv
+  `nvim/workbench_route.lua` actually builds and asserts Go both declares and
+  routes it. This is the boundary no compiler sees.
+
+**The first cut of the routability test was wrong, and its own failure said so.**
+It scanned only `dispatcher.go` and reported eight implemented families as
+unroutable — `wrap`, `term`, `hoprtt`, `scribe`, `session-watch`, `session-log
+append`/`commit`, `title`. They are routed in `cmd/pair-go/main.go`: the
+STREAMING commands never reach the buffered switch. So there are two routers,
+and a scan of one reports half the surface as broken. Both are scanned now.
+Worth keeping: a source-scanning guard's first failure is as likely to be the
+scan's own premise as the code's.
+
+Verified by mutation: renaming the Dispatch case reddens, and so does renaming
+the subcommand on the Lua side.
