@@ -1199,7 +1199,12 @@ func (c *Console) flushDeferredNotifications() {
 
 	for {
 		c.mu.Lock()
-		if c.hostScan.MidSequence() || len(c.deferredNotifications) == 0 {
+		// SafeToPaint, matching the entry guard above. They MUST agree: with the
+		// entry guard stricter than the loop, a chunk that takes the cursor
+		// slot mid-drain leaves onChunk deferring the notification straight
+		// back onto the queue this loop pops from -- and the loop, still asking
+		// the looser question, spins forever.
+		if !c.hostScan.SafeToPaint() || len(c.deferredNotifications) == 0 {
 			c.mu.Unlock()
 			return
 		}

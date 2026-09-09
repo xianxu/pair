@@ -1844,6 +1844,115 @@ rounds:
           family: wrong-seam-named
           round: 18
       blocked: true
+    - "n": 19
+      timestamp: "2026-09-08T18:46:39-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: not-addressed
+          note: plan:696-702 still has no Alt+Shift+d step; the split rungs remain hand-unverified.
+          round: 19
+        - id: BR-9
+          disposition: not-addressed
+          note: writer_test.go:117 still splits one hand-chosen sequence at one index.
+          round: 19
+        - id: BR-13
+          disposition: not-addressed
+          note: 'console.go:922 still returns hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom} directly.'
+          round: 19
+        - id: BR-14
+          disposition: not-addressed
+          note: grep Reservation in atlas/couch.md returns nothing; hostty appears only at :213 and :812.
+          round: 19
+        - id: BR-15
+          disposition: not-addressed
+          note: No sanitize/clamp obligation in cmd/internal/hostty; the same door now also omits the cursor-save precondition.
+          round: 19
+        - id: BR-24
+          disposition: not-addressed
+          note: plan:528 unchanged; the unquoted --include=*.go still aborts in the repo's zsh.
+          round: 19
+        - id: BR-30
+          disposition: not-addressed
+          note: run.go:168 still takes panes, stdin and stdout; none is referenced in the body.
+          round: 19
+        - id: BR-31
+          disposition: not-addressed
+          note: plan:390-410 still budgets paints and subprocesses only; no entry for the per-chunk FeedFraming or the stall.
+          round: 19
+        - id: BR-38
+          disposition: not-addressed
+          note: couchtty/reserve.go:143-152 still ends in the sanitize and truncate doc paragraphs for functions now in rowtext.
+          round: 19
+        - id: BR-72
+          disposition: addressed
+          note: Sixth class registered and the sweep is complete; verified the new GUARD pair fires and the script exits 1.
+          round: 19
+        - id: BR-73
+          disposition: not-addressed
+          note: All three present; plus a third instance from this round's sweep, the line-wrap artifact at atlas:517-521.
+          round: 19
+        - id: BR-75
+          disposition: addressed
+          note: Enumeration is a table and mutation-verified; its 1049 arm creates the new Critical, raised separately.
+          round: 19
+        - id: BR-76
+          disposition: not-addressed
+          note: lessons.md untouched this round; BR-70's rule still lives only in git log.
+          round: 19
+        - id: BR-77
+          disposition: not-addressed
+          note: Reverting all four couch call sites to MidSequence leaves the suite green, the obligation is still unstated at hostty.Paint, and the swap as landed spins.
+          round: 19
+      findings:
+        - id: BR-78
+          severity: Critical
+          title: The predicate swap reached four of five sites; the drain loop kept the old one and spins forever
+          detail: |-
+            couchtty/console.go:1202 still continues on MidSequence() while :1111 defers on
+            !SafeToPaint(), so a save taken during the drain makes the loop re-pop a chunk it
+            cannot progress on. Reproduced deterministically (drain never returns in 3s; the same
+            test returns instantly at f233b29d^). couch's Run goroutine is its only writer, so this
+            is a frozen console at 100% CPU. THE RULE - a defer condition and the loop that drains
+            it are ONE pair and must be the same expression; after replacing a gate predicate,
+            grep the old name (one production site remains outside ptychild).
+          family: moved-surface-drops-a-case
+          round: 19
+        - id: BR-79
+          severity: Critical
+          title: The new 1049 arm holds the paint gate closed for the child's whole alt-screen lifetime, in both consumers
+          detail: |-
+            screen.go:527-531 makes cursorSaved true from ?1049h until ?1049l, and SafeToPaint
+            (:181) is false throughout. Measured - in termcmd the strip never paints again after
+            \x1b[?1049h (five paint rounds, nothing reaches the pane; reverting only that arm
+            paints), and in couchtty repaint writes nothing. So less/vim/man freeze the strip and
+            make Alt+r blind typing, the symptom M3 exists to remove. flushOwed's justification for
+            unbounded deferral ("paid by the child's own DECRC") no longer covers this case, and
+            the premise that ?1049h takes the SAME slot our paint clobbers is asserted from the
+            spec while probes/cursorsaveslots, built for exactly this question, was not extended.
+            This is the 3rd finding in family deferred-work-lacks-own-trigger. THE RULE - a defer
+            condition is only admissible with a release the deferrer can observe will arrive;
+            widening it to a condition the child controls indefinitely requires either a narrower
+            condition or a bounded release, and the measurement that settles which.
+          family: deferred-work-lacks-own-trigger
+          round: 19
+        - id: BR-80
+          severity: Important
+          title: SafeToPaint is the one new exported shared-package symbol with no plan row, no atlas sentence and no test
+          detail: |-
+            This is the 13th finding in family plan-table-drift, so the rule, not the site.
+            Measured - the window adds 16 exported declarations under cmd/internal/{hostty,
+            ptychild,rowtext,workbenchshortcut}; 15 appear in the plan's Core-concepts material and
+            SafeToPaint appears zero times, in the plan, in the atlas, and in any test.
+            atlas/architecture.md:604-615 still names HoldsCursorSave as the bit that says so. The
+            Core-concepts guard is table-to-code only, so this direction cannot fire. THE RULE -
+            the artifact enumeration BR-72 wrote for SUPERSEDED facts needs its mirror for ADDED
+            shared surface (table row, atlas sentence, a test naming the symbol), and that
+            enumeration is producible from the diff's new exported declarations rather than from
+            memory.
+          family: plan-table-drift
+          round: 19
+      blocked: true
 ---
 
 # Gate ledger — pair#199 (boundary-review)
@@ -2779,6 +2888,60 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   BR-15's undocumented sanitize obligation - both are obligations of
   hostty.Paint recorded only in the callers that learned them (ARCH-DRY).
 
+## Round 19 — 2026-09-08T18:46:39-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — not-addressed — plan:696-702 still has no Alt+Shift+d step; the split rungs remain hand-unverified.
+- BR-9 — not-addressed — writer_test.go:117 still splits one hand-chosen sequence at one index.
+- BR-13 — not-addressed — console.go:922 still returns hostty.Reservation{Rows: rows, Edge: hostty.EdgeBottom} directly.
+- BR-14 — not-addressed — grep Reservation in atlas/couch.md returns nothing; hostty appears only at :213 and :812.
+- BR-15 — not-addressed — No sanitize/clamp obligation in cmd/internal/hostty; the same door now also omits the cursor-save precondition.
+- BR-24 — not-addressed — plan:528 unchanged; the unquoted --include=*.go still aborts in the repo's zsh.
+- BR-30 — not-addressed — run.go:168 still takes panes, stdin and stdout; none is referenced in the body.
+- BR-31 — not-addressed — plan:390-410 still budgets paints and subprocesses only; no entry for the per-chunk FeedFraming or the stall.
+- BR-38 — not-addressed — couchtty/reserve.go:143-152 still ends in the sanitize and truncate doc paragraphs for functions now in rowtext.
+- BR-72 — addressed — Sixth class registered and the sweep is complete; verified the new GUARD pair fires and the script exits 1.
+- BR-73 — not-addressed — All three present; plus a third instance from this round's sweep, the line-wrap artifact at atlas:517-521.
+- BR-75 — addressed — Enumeration is a table and mutation-verified; its 1049 arm creates the new Critical, raised separately.
+- BR-76 — not-addressed — lessons.md untouched this round; BR-70's rule still lives only in git log.
+- BR-77 — not-addressed — Reverting all four couch call sites to MidSequence leaves the suite green, the obligation is still unstated at hostty.Paint, and the swap as landed spins.
+
+### Raised
+
+- **BR-78** [Critical] `moved-surface-drops-a-case` The predicate swap reached four of five sites; the drain loop kept the old one and spins forever
+  couchtty/console.go:1202 still continues on MidSequence() while :1111 defers on
+  !SafeToPaint(), so a save taken during the drain makes the loop re-pop a chunk it
+  cannot progress on. Reproduced deterministically (drain never returns in 3s; the same
+  test returns instantly at f233b29d^). couch's Run goroutine is its only writer, so this
+  is a frozen console at 100% CPU. THE RULE - a defer condition and the loop that drains
+  it are ONE pair and must be the same expression; after replacing a gate predicate,
+  grep the old name (one production site remains outside ptychild).
+- **BR-79** [Critical] `deferred-work-lacks-own-trigger` The new 1049 arm holds the paint gate closed for the child's whole alt-screen lifetime, in both consumers
+  screen.go:527-531 makes cursorSaved true from ?1049h until ?1049l, and SafeToPaint
+  (:181) is false throughout. Measured - in termcmd the strip never paints again after
+  \x1b[?1049h (five paint rounds, nothing reaches the pane; reverting only that arm
+  paints), and in couchtty repaint writes nothing. So less/vim/man freeze the strip and
+  make Alt+r blind typing, the symptom M3 exists to remove. flushOwed's justification for
+  unbounded deferral ("paid by the child's own DECRC") no longer covers this case, and
+  the premise that ?1049h takes the SAME slot our paint clobbers is asserted from the
+  spec while probes/cursorsaveslots, built for exactly this question, was not extended.
+  This is the 3rd finding in family deferred-work-lacks-own-trigger. THE RULE - a defer
+  condition is only admissible with a release the deferrer can observe will arrive;
+  widening it to a condition the child controls indefinitely requires either a narrower
+  condition or a bounded release, and the measurement that settles which.
+- **BR-80** [Important] `plan-table-drift` SafeToPaint is the one new exported shared-package symbol with no plan row, no atlas sentence and no test
+  This is the 13th finding in family plan-table-drift, so the rule, not the site.
+  Measured - the window adds 16 exported declarations under cmd/internal/{hostty,
+  ptychild,rowtext,workbenchshortcut}; 15 appear in the plan's Core-concepts material and
+  SafeToPaint appears zero times, in the plan, in the atlas, and in any test.
+  atlas/architecture.md:604-615 still names HoldsCursorSave as the bit that says so. The
+  Core-concepts guard is table-to-code only, so this direction cannot fire. THE RULE -
+  the artifact enumeration BR-72 wrote for SUPERSEDED facts needs its mirror for ADDED
+  shared surface (table row, atlas sentence, a test naming the symbol), and that
+  enumeration is producible from the diff's new exported declarations rather than from
+  memory.
+
 ## Open findings
 
 - **BR-8** [Minor] `acceptance-misses-changed-sites` M4's manual acceptance never splits the pane, leaving six of nine borderless sites unverified
@@ -2790,8 +2953,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-30** [Minor] `handler-posts-to-own-queue` runDecision still receives the pane's stdout, unused, on the input goroutine
 - **BR-31** [Minor] `hot-path-cost-undeclared` The gate adds a second full parse of every child byte on the output path, undeclared in the envelope
 - **BR-38** [Minor] `atlas-points-at-old-home` couchtty/reserve.go keeps the doc comments for the sanitize and truncate it no longer has
-- **BR-72** [Important] `plan-table-drift` M4 falsified four "the terminal pane is framed" statements and swept none, two of them in the files it edited
 - **BR-73** [Minor] `formatting-drift` Two cosmetic slips in the M2 extraction: redundant parens and an out-of-order manifest entry
-- **BR-75** [Important] `external-input-assumed-wellformed` The cursor-save gate tracks DECSC only; the aliasing SCOSC form the repo's own probe names is untracked
 - **BR-76** [Minor] `plan-table-drift` BR-70's rule is recorded only in a commit message, so nothing will read it next time
 - **BR-77** [Important] `wrong-seam-named` The cursor-save precondition landed in termcmd's private predicate, not at the shared Reservation door, so couch paints unguarded
+- **BR-78** [Critical] `moved-surface-drops-a-case` The predicate swap reached four of five sites; the drain loop kept the old one and spins forever
+- **BR-79** [Critical] `deferred-work-lacks-own-trigger` The new 1049 arm holds the paint gate closed for the child's whole alt-screen lifetime, in both consumers
+- **BR-80** [Important] `plan-table-drift` SafeToPaint is the one new exported shared-package symbol with no plan row, no atlas sentence and no test

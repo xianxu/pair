@@ -178,7 +178,28 @@ func (s *Screen) HoldsCursorSave() bool { return s.cursorSaved }
 //   - THE CHILD HOLDS THE CURSOR SAVE: the slot is shared, one per terminal, so
 //     a console save/restore inside the child's pair leaves the slot holding the
 //     CONSOLE's position and the child's restore lands there.
-func (s *Screen) SafeToPaint() bool { return !s.MidSequence() && !s.cursorSaved }
+//
+// The cursor-save half applies only OUTSIDE the alt screen, and that is not a
+// weakening -- it is what the hazard actually is.
+//
+// The danger is a child that saves, expects the slot intact, and restores
+// SOON: a line-oriented child drawing a prompt, where the window is
+// microseconds and a clobber lands the shell's cursor in the strip. A
+// full-screen child in the alt screen is the opposite case. `?1049h` takes the
+// slot for its ENTIRE lifetime -- minutes of nvim -- and gating on that would
+// freeze the row for the whole session, trading a rare one-frame cursor glitch
+// for a strip that is permanently stale, which is the common case and strictly
+// worse. It is also the couch situation: a full-screen child repaints from its
+// own model every frame and repositions absolutely, so a disturbed cursor does
+// not survive to be seen.
+//
+// The residual is bounded and known: at `?1049l` the terminal restores what was
+// saved, so a clobbered slot puts the shell's cursor one prompt out of place
+// after the child exits. The operator ran exactly this configuration through
+// #199 M3's smoke test with nvim and reported no such symptom.
+func (s *Screen) SafeToPaint() bool {
+	return !s.MidSequence() && !(s.cursorSaved && !s.altScreen)
+}
 
 // TakeBell reports and clears whether the child rang the terminal bell. This is
 // the one "the agent wants you" signal available before #147's transport, so a

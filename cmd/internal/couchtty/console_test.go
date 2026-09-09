@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"syscall"
 	"testing"
@@ -850,5 +851,39 @@ func TestConsoleReportsWhatLeaveDid(t *testing.T) {
 		if !strings.Contains(got, want) {
 			t.Fatalf("leave report = %q, want it to mention %q", got, want)
 		}
+	}
+}
+
+// BR-78: the drain loop's condition must MATCH the entry guard's.
+//
+// With the entry guard stricter (SafeToPaint) than the loop (MidSequence), a
+// chunk taking the cursor slot mid-drain leaves onChunk deferring the
+// notification straight back onto the queue this loop pops from, and the loop
+// -- still asking the looser question -- spins forever. A source check because
+// the two conditions being the same predicate is the invariant; reproducing the
+// spin requires the exact interleaving that made it a Critical rather than a
+// flake.
+func TestTheNotificationDrainAsksTheSameQuestionAsItsEntryGuard(t *testing.T) {
+	raw, err := os.ReadFile("console.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(raw)
+	i := strings.Index(src, "func (c *Console) flushDeferredNotifications()")
+	if i < 0 {
+		t.Fatal("flushDeferredNotifications not found; this guard is checking nothing")
+	}
+	body := src[i:]
+	if j := strings.Index(body[1:], "\nfunc "); j >= 0 {
+		body = body[:j]
+	}
+	if strings.Contains(body, "hostScan.MidSequence()") {
+		t.Error("the notification drain still gates on MidSequence; it must ask " +
+			"SafeToPaint, the same question as its entry guard, or a save taken " +
+			"mid-drain spins the loop forever")
+	}
+	if strings.Count(body, "SafeToPaint()") < 2 {
+		t.Errorf("expected both the entry guard and the loop to ask SafeToPaint; found %d",
+			strings.Count(body, "SafeToPaint()"))
 	}
 }

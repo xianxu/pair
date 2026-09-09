@@ -633,3 +633,52 @@ func TestParameterisedCSIsIsMarginsNotASave(t *testing.T) {
 		}
 	}
 }
+
+// BR-79: gating on a save the child holds for its whole ALT-SCREEN lifetime
+// freezes the console's row for minutes. That is the common case (every nvim
+// session), and it trades a rare one-frame cursor glitch for a permanently
+// stale row -- strictly worse.
+//
+// The hazard the gate exists for is a child that saves and restores SOON: a
+// line-oriented child drawing a prompt. A full-screen child repaints from its
+// own model every frame and repositions absolutely, so a disturbed cursor does
+// not survive to be seen.
+func TestTheSaveGateDoesNotFreezeThroughAnAltScreenSession(t *testing.T) {
+	var s Screen
+	if !s.SafeToPaint() {
+		t.Fatal("a fresh screen refuses paints")
+	}
+
+	// nvim starting: 1049h takes the slot AND enters the alt screen.
+	s.FeedFraming([]byte("\x1b[?1049h"))
+	if !s.HoldsCursorSave() {
+		t.Fatal("1049h did not take the slot; it is DECSC-then-switch")
+	}
+	if !s.SafeToPaint() {
+		t.Fatal("the row is frozen for the child's whole alt-screen session")
+	}
+
+	// Still paintable after the child writes for a while.
+	s.FeedFraming([]byte("lots of nvim output\x1b[1;1H"))
+	if !s.SafeToPaint() {
+		t.Fatal("the row froze partway through the session")
+	}
+
+	// nvim quitting restores and leaves the alt screen.
+	s.FeedFraming([]byte("\x1b[?1049l"))
+	if s.HoldsCursorSave() || !s.SafeToPaint() {
+		t.Fatal("1049l did not release the slot")
+	}
+}
+
+// And the case the gate DOES exist for is unchanged: a line-oriented child
+// holding a save outside the alt screen -- zsh drawing its right-hand prompt.
+func TestTheSaveGateStillClosesOutsideTheAltScreen(t *testing.T) {
+	for _, seq := range []string{"\x1b7", "\x1b[s", "\x1b[?1048h"} {
+		var s Screen
+		s.FeedFraming([]byte(seq))
+		if s.SafeToPaint() {
+			t.Fatalf("%q left the gate open; a paint here corrupts the child's restore", seq)
+		}
+	}
+}
