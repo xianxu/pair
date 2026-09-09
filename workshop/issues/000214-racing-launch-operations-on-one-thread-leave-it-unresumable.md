@@ -100,10 +100,41 @@ Whether couch can repair the record in place — pick the newest binding, drop t
 the useful question this issue should answer, since the alternative is archiving a thread whose
 agent transcript is perfectly fine.
 
+### Operator decision, 2026-09-08 — scope the guard to one-at-a-time
+
+**Exactly one resume-class operation may be in progress per thread; a later
+request is REJECTED.** Not queued, not coalesced — refused, so the operator
+learns immediately that the gesture did not take.
+
+This deliberately forecloses the harder question. Concurrency *within a single
+repo* is a real future direction (several threads at one path is already legal —
+`atlas/couch.md`: *"two threads in one tree at different subdirectories remain
+legal"*), and the guard may be relaxed then. **For now: one.** Choosing the
+narrow rule now is what makes this small enough to land ahead of `#184`, which
+would otherwise add `switch-agent` as a third racer.
+
+So Spec option 1 is the chosen shape, and option 2 (store-level CAS refusal) is
+the belt to its braces rather than an alternative:
+
+- Key the operation queue by **(thread address, operation class)** where
+  `resume` / `relaunch` / `switch-agent` share one class.
+- The second gesture is refused with a message naming what is already running on
+  that thread — a refusal the operator can act on beats a silent second launch.
+- `CommitStartClaim`'s revision CAS stays the invariant of last resort, so a
+  caller that does not go through the menu still cannot double-launch.
+
+### Working-tree note for whoever takes this
+
+`couchtty/console.go:1509` holds the dedup key and was **uncommitted and being
+actively edited** by the `#199` session on 2026-09-08. Coordinate before editing
+it; that file has already cost `#199` four defects in one day.
+
 ## Done when
 
-- Two launch-producing operations cannot be admitted against one thread; the second is refused with a
-  message naming what is already running.
+- Two launch-producing operations cannot be admitted against one thread; the second is **refused**
+  (not queued) with a message naming what is already running on that thread.
+- The refusal is per (thread, operation class); two *different* threads are unaffected, so the guard
+  does not serialise the fleet.
 - A refused second gesture leaves the thread **resumable** — asserted by a test that fires
   resume-then-relaunch and then resumes successfully.
 - A test reproduces the three-launch history and asserts the projector's reason distinguishes
