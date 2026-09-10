@@ -15,8 +15,23 @@ if [ "$mode" = decom ]; then printf '\033[?6h'; fi
 printf '\0337\033[?6l\033[1;1H\033[2KTOP_STRIP\0338'
 # decom2: re-assert origin mode AFTER the paint rather than trusting DECRC to
 # restore it, so the reading is about DECOM itself.
-if [ "$mode" = decom2 ]; then printf '\033[?6h'; fi
+if [ "$mode" = decom2 ] || [ "$mode" = childregion ] || [ "$mode" = nvim ]; then printf '\033[?6h'; fi
 case "$mode" in
+childregion)
+	# What a full-screen child does: set ITS OWN scroll region in ITS OWN
+	# coordinates (it believes rows 1..N-1), home, and scroll inside it. DECSTBM
+	# parameters are absolute even under DECOM, so rows 1..10 here are pane rows
+	# 1..10 — the strip included — not the 2..11 the child means.
+	printf '\033[1;10r\033[H'
+	i=1; while [ $i -le 15 ]; do echo "child $i"; i=$((i+1)); done
+	q "after-child-scroll"
+	;;
+nvim)
+	f=$(mktemp); seq 1 400 > "$f"
+	stty rows "$((rows - 1))"      # the child believes N-1 rows, as under pair term
+	echo DONE >> "$out"
+	exec nvim -u NONE -n "$f"
+	;;
 scroll)
 	printf '\033[%d;1H' "$rows"
 	i=1; while [ $i -le 10 ]; do echo "short $i"; i=$((i+1)); done

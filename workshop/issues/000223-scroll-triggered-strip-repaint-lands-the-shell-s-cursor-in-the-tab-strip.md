@@ -1,11 +1,12 @@
 ---
 id: 000223
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-10
 estimate_hours:
+started: 2026-09-10T08:59:25-07:00
 ---
 
 # scroll-triggered strip repaint lands the shell's cursor in the tab strip
@@ -236,3 +237,22 @@ lands in the strip — the strip is pushed off-screen and returns at the next
 strip repaint, at the cost of the oldest visible line. The bottom edge loses the
 output and the cursor. The price is origin mode: every paint must re-assert
 `?6h` itself, and a child that sets or clears DECOM breaks the arrangement.
+
+**The top edge is ruled out, by measurement.** The last condition on moving the
+strip up was a probe of full-screen children under origin mode:
+
+| top edge + origin mode | result |
+|---|---|
+| a child sets its own region in its own coordinates (`ESC[1;10r`) | row 1 overwritten — DECSTBM parameters are ABSOLUTE even under DECOM, so the child's rows 1..10 include the strip |
+| real `nvim -u NONE`, half-pages down/up and a jump | row 1 overwritten with the buffer's line `94` |
+
+At the bottom edge the child's rows and the pane's rows are one coordinate
+system, so nvim is correct there today; at the top they are offset by one, and
+every full-screen app draws over the strip. Making the top work means rewriting
+the child's DECSTBM parameters (and policing its DECOM, RIS and buffer switches)
+in flight — the compositing-lite project `hostty/reserve.go` declined, to work
+around a bug that is not pair's.
+
+**Decision:** the strip stays at the bottom, and the fix goes where the bug is —
+zellij. The pre-fix state is tagged `repro/223-bottom-strip-zellij-wrap` (at
+`0baacfa7`) so the defect stays reproducible through pair.

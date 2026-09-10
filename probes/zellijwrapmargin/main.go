@@ -35,6 +35,17 @@
 //	top:decom    origin mode, trusted to DECRC draws ON the strip — zellij's
 //	                                           DECRC does not restore DECOM
 //	top:decom2   origin mode re-asserted       row 2; strip SURVIVES
+//	top:childregion  child sets ITS OWN region  strip OVERWRITTEN — DECSTBM
+//	                                           params are absolute even under
+//	                                           DECOM, so the child's rows 1..10
+//	                                           include the strip
+//	top:nvim     real nvim, scrolling          strip OVERWRITTEN by line "94"
+//
+// Which is why the strip did NOT move to the top: it would trade a shell-output
+// bug for corruption under every full-screen app, unless pair rewrote the
+// child's DECSTBM parameters in flight. The bottom edge keeps the child's rows
+// and the pane's rows in one coordinate system; that asymmetry is the one
+// hostty/reserve.go recorded when it refused EdgeTop.
 //
 // So the wrap ignores the region at BOTH edges; only the failure differs. And
 // zellij reports CPR relative to the region's top, so row=0 is absolute row 1.
@@ -127,6 +138,20 @@ func run() int {
 	if !strings.Contains(got, "DONE") {
 		fmt.Println("PROBE-INCONCLUSIVE: the pane process never finished its readings.")
 		return 2
+	}
+	if mode == "nvim" {
+		// Drive nvim the way a person reads a file: half-pages down, a jump,
+		// half-pages back up. Each is a scroll nvim may implement with its own
+		// DECSTBM region.
+		time.Sleep(2 * time.Second)
+		for _, keys := range [][]string{
+			{"write", "4"}, {"write", "4"}, {"write-chars", "120G"},
+			{"write", "21"}, {"write", "21"}, {"write-chars", "jjjjjjjjjj"},
+		} {
+			_, _ = session.Action(env, keys...)
+			time.Sleep(300 * time.Millisecond)
+		}
+		time.Sleep(time.Second)
 	}
 	if mode != "" {
 		// Content, not position, is the question for the top edge: is row 1
