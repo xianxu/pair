@@ -217,3 +217,22 @@ during `#209` because `#209`'s first version DID move the cursor (the `?1049`
 assertion, withdrawn in `213d64cf`), which put cursor symptoms under scrutiny at
 the same moment. The harness was a throwaway; `probes/zellijwrapmargin` is the
 durable measurement.
+
+**The top edge, measured rather than argued** (`PAIR_PROBE_EDGE=top:<mode>`,
+region 2..N). zellij's wrap ignores the region at BOTH edges; only the failure
+differs:
+
+| top edge | result |
+|---|---|
+| ordinary scrolling | strip survives |
+| one wrap at the last row | strip scrolled away — the wrap scrolls the whole screen |
+| `ESC[H`, no origin mode | draws on the strip (why `reserve.go` refused `EdgeTop`) |
+| origin mode, trusted to DECRC | draws on the strip — zellij's DECRC does not restore DECOM |
+| origin mode re-asserted after each paint | lands on row 2; strip survives |
+
+So a top strip would not be immune. But its failure is MILDER in kind: the
+cursor stays where the shell put it, no output is overprinted and nothing typed
+lands in the strip — the strip is pushed off-screen and returns at the next
+strip repaint, at the cost of the oldest visible line. The bottom edge loses the
+output and the cursor. The price is origin mode: every paint must re-assert
+`?6h` itself, and a child that sets or clears DECOM breaks the arrangement.

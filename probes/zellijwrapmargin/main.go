@@ -24,6 +24,21 @@
 //	after-its-newline     row=22 col=1    and stays there
 //	VERDICT: WRAP ESCAPES THE REGION
 //
+// The TOP-edge alternative (PAIR_PROBE_EDGE=top:<mode>, region 2..N) measured
+// the same day, because "put the strip at the top instead" was the obvious
+// workaround and deserved a reading rather than an argument:
+//
+//	top:scroll   ordinary scrolling            strip SURVIVES
+//	top:wrap     one wrap at the last row      strip SCROLLED AWAY — the wrap
+//	                                           scrolls the whole screen
+//	top:plain    ESC[H, no origin mode         draws ON the strip
+//	top:decom    origin mode, trusted to DECRC draws ON the strip — zellij's
+//	                                           DECRC does not restore DECOM
+//	top:decom2   origin mode re-asserted       row 2; strip SURVIVES
+//
+// So the wrap ignores the region at BOTH edges; only the failure differs. And
+// zellij reports CPR relative to the region's top, so row=0 is absolute row 1.
+//
 // Windows Terminal shipped the same class of bug (microsoft/terminal#19016).
 //
 // A session that never appears is a PRECONDITION failure, never a verdict
@@ -60,9 +75,17 @@ func run() int {
 	_ = outFile.Close()
 	defer os.Remove(outPath)
 
+	// PAIR_PROBE_EDGE=top:<wrap|plain|decom> measures the TOP-edge alternative
+	// (region 2..N) instead: whether a wrap at the last row leaves row 1 alone,
+	// and whether homing the cursor lands on it with and without origin mode.
+	script, mode := "probe.sh", ""
+	if edge := os.Getenv("PAIR_PROBE_EDGE"); strings.HasPrefix(edge, "top:") {
+		script, mode = "probe_top.sh", strings.TrimPrefix(edge, "top:")
+	}
 	layout, err := zellijprobe.WriteLayout(dir, map[string]string{
-		"PROBE_SH":  filepath.Join(dir, "probe.sh"),
-		"PROBE_OUT": outPath,
+		"PROBE_SH":   filepath.Join(dir, script),
+		"PROBE_OUT":  outPath,
+		"PROBE_MODE": mode,
 	})
 	if err != nil {
 		fmt.Println("PROBE-ERROR layout:", err)
@@ -104,6 +127,26 @@ func run() int {
 	if !strings.Contains(got, "DONE") {
 		fmt.Println("PROBE-INCONCLUSIVE: the pane process never finished its readings.")
 		return 2
+	}
+	if mode != "" {
+		// Content, not position, is the question for the top edge: is row 1
+		// still the strip? dump-screen's first line IS the viewport's row 1.
+		b, err := session.Action(env, "dump-screen")
+		if err != nil || len(b) == 0 {
+			fmt.Println("PROBE-INCONCLUSIVE: dump-screen returned nothing:", err)
+			return 2
+		}
+		lines := strings.Split(string(b), "\n")
+		fmt.Printf("row 1: |%s|\n", strings.TrimRight(lines[0], " "))
+		if len(lines) > 1 {
+			fmt.Printf("row 2: |%s|\n", strings.TrimRight(lines[1], " "))
+		}
+		if strings.TrimSpace(lines[0]) == "TOP_STRIP" {
+			fmt.Println("VERDICT: TOP STRIP SURVIVED")
+		} else {
+			fmt.Println("VERDICT: TOP STRIP OVERWRITTEN")
+		}
+		return 0
 	}
 	// A measurement, not an assertion: it reports what this zellij does and
 	// exits 0 either way, so test-smoke records the answer without going red on
