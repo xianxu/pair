@@ -16,8 +16,18 @@ import (
 // actively working agent emits that in roughly two minutes (measured in #171:
 // 143 KB over 123 s on a busy pane).
 
+// replayChild builds a fake with a SMALL ring, which NewFakeChild cannot
+// express. It carries fakeChildSize for the same reason NewFakeChild does: a
+// fixture with no geometry is a shape production cannot reach, and a test built
+// on one is green for paths production would have nudged (#209 BR-17).
 func replayChild(capacity int) *Child {
-	return &Child{ring: NewRing(capacity), screen: &Screen{}, done: make(chan struct{}), fake: &fakeState{}}
+	return &Child{
+		ring:   NewRing(capacity),
+		screen: &Screen{},
+		done:   make(chan struct{}),
+		fake:   &fakeState{},
+		size:   fakeChildSize,
+	}
 }
 
 // Mode 1 — the last full paint aged out. The screen is cleared and only the
@@ -128,13 +138,15 @@ func TestScreenStillKnowsTheBufferAfterTheModeSetAgesOut(t *testing.T) {
 	}
 }
 
-// Mode 2's answer lives in hostty.Repaint (an empty replay emits nothing rather
-// than blanking); this asserts the input half that makes it reachable.
+// Mode 2's answer is the REPAINT REQUEST, not a carve-out in the composition:
+// a takeover always blanks, and what fills the blank is the child (#209 C-1).
+// This asserts the input half — that an empty replay is reachable at all, so
+// the mode this issue reproduced is a real state and not a hypothetical.
 func TestAnEmptyReplayIsReachableAndDistinguishableFromNoOutput(t *testing.T) {
 	child := replayChild(16)
 	child.Feed([]byte(strings.Repeat("a", 100)))
 	if child.ReplayThrough(4) != nil {
-		t.Fatal("a cutoff older than the ring no longer yields an empty replay; hostty.Repaint's empty case is unreachable")
+		t.Fatal("a cutoff older than the ring no longer yields an empty replay; mode 2 is unreachable and the repaint request has one less job")
 	}
 }
 

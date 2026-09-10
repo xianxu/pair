@@ -1690,10 +1690,10 @@ func (m *terminalMux) paneTitleLocked() string {
 
 // redrawTab is the WHOLESALE TAKEOVER: repaint the tab from its retained output.
 //
-// The composition — asserting the child's buffer before the paint, and emitting
-// nothing rather than blanking when nothing was retained — belongs to
-// hostty.Repaint (#209). A deliberate blank is clearTab, not this with a nil
-// slice: the two differ in a case an empty slice cannot express.
+// The composition belongs to hostty (#209), and it ALWAYS blanks: the frame on
+// screen belongs to the tab being left, not to the one arriving, so "nothing
+// retained" is no reason to keep it. clearTab is this with nothing to draw and
+// nobody to ask — a name for a call site, not a second behaviour.
 //
 // It repaints from a REPLAY taken by the CALLER under m.mu, and never touches
 // the mutex itself. Callers already hold the lock immediately before calling, so

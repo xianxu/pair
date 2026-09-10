@@ -298,7 +298,11 @@ func (c *Child) nudge() {
 	}
 	shrunk := size
 	shrunk.Rows--
-	err := c.resizeLocked(shrunk)
+	// setSizeLocked, not resizeLocked: the shrink is a TRANSIENT poke at the
+	// pty, not a new intent, so it must not become the remembered size — that
+	// would make Size() report a row less than the truth for the length of a
+	// settle, which is exactly the window a debugger would ask in.
+	err := c.setSizeLocked(shrunk)
 	c.geom.Unlock()
 	if err != nil {
 		c.geom.Lock()
@@ -330,10 +334,11 @@ func (c *Child) nudge() {
 		// A caller resized while we settled. Its size is the current one and
 		// ours is stale, so restoring would undo it — the exact "permanently
 		// mis-sized" failure this mechanism exists to prevent, arriving from
-		// the other direction.
+		// the other direction. Its own resizeLocked already put the pty there,
+		// so there is nothing to put back.
 		return
 	}
-	_ = c.resizeLocked(size)
+	_ = c.setSizeLocked(size)
 }
 
 // RepaintSettle is how long the shrink is left standing before the restore
@@ -376,13 +381,22 @@ func (c *Child) Resize(s Size) error {
 	return c.resizeLocked(s)
 }
 
-// resizeLocked is the one place a size reaches the pty, and the one place the
-// remembered size is written. Caller holds geom.
+// resizeLocked records a new INTENT and applies it. Caller holds geom.
+//
+// Split from setSizeLocked because the nudge's two legs are not intents: they
+// poke the pty to provoke a repaint and put it straight back, and recording
+// them would make c.size — the answer to "how big is this child meant to be" —
+// briefly wrong.
 func (c *Child) resizeLocked(s Size) error {
-	// The dead-child refusal is FIRST and applies to both branches. It used to
-	// guard only the fake, so the double refused a resize the real Child
-	// happily attempted against a closing pty — a conformance gap in the
-	// direction that hides bugs, and the one the nudge's goroutine walked into.
+	if err := c.setSizeLocked(s); err != nil {
+		return err
+	}
+	c.size = s
+	return nil
+}
+
+// setSizeLocked is the one place a size reaches the pty. Caller holds geom.
+func (c *Child) setSizeLocked(s Size) error {
 	if c.Done() {
 		return fmt.Errorf("ptychild: resize a child that has exited")
 	}
@@ -390,18 +404,17 @@ func (c *Child) resizeLocked(s Size) error {
 		c.fake.mu.Lock()
 		c.fake.resizes = append(c.fake.resizes, s)
 		c.fake.mu.Unlock()
-		c.size = s
 		return nil
 	}
-	if err := pty.Setsize(c.ptmx, &pty.Winsize{Rows: s.Rows, Cols: s.Cols}); err != nil {
-		return err
-	}
-	c.size = s
-	return nil
+	return pty.Setsize(c.ptmx, &pty.Winsize{Rows: s.Rows, Cols: s.Cols})
 }
 
-// Size is the dimensions this child was last successfully set to, including the
-// size it was started at.
+// Size is how big this child is MEANT to be: the last size a caller asked for,
+// including the one it was started at.
+//
+// Not "the last size written to the pty" — a repaint nudge shrinks by a row and
+// puts it back, and reporting that would mean this lies for the length of a
+// settle.
 func (c *Child) Size() Size {
 	c.geom.Lock()
 	defer c.geom.Unlock()
@@ -481,7 +494,7 @@ func (c *Child) AltScreen() bool {
 	return c.screen.AltScreen()
 }
 
-// RepaintModes is what hostty.Repaint needs from this child, taken in one
+// RepaintModes is what hostty.RepaintFor needs from this child, taken in one
 // locked read so the two fields cannot disagree.
 //
 // The pair, not two accessors. `observed` is what stops a repaint asserting a

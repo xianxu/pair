@@ -528,16 +528,25 @@ mechanism sits in two packages that both drive:
   cursor and no sequence injects a previously-saved one. Mouse is left to the
   authorities that already own it rather than adding a third writer.
 
-  `RepaintFor(child, replay, intent)` is the door both consoles use, and the
-  reason is a testability one: with nothing asserted, `ChildModes` has no
-  observable effect, so a mode read done at each consumer could not be
-  distinguished from the zero value by any test there. One read, pinned once,
-  in the package that owns the composition.
+  `RepaintFor(child, replay)` is the door both consoles use, and the reason is a
+  testability one: with nothing asserted, the child's modes have no observable
+  effect, so a mode read done at each consumer could not be distinguished from
+  the zero value by any test there. One read, pinned once, in the package that
+  owns the composition.
 
-  Intent is CARRIED, not inferred from an empty slice: `pair term` deliberately
-  blanks a new tab before releasing its startup output, while a repaint with
-  nothing retained means the ring could not answer — where a stale frame beats a
-  blank one. `redrawTab` and `clearTab` are separate doors for that reason.
+  **A takeover ALWAYS BLANKS**, and the version that did not is worth recording
+  because its argument was persuasive enough to ship twice. It emitted nothing
+  for an empty replay, reasoning that a stale frame beats a blank one while the
+  child is asked to repaint. The hidden premise is that the stale frame belongs
+  to the CHILD BEING REPAINTED — and none of the five takeover sites is that
+  case: couch's switch shows the previous thread or the panel, `pair term`'s
+  shows the previous tab, and the three "deliberate clear" sites were carve-outs
+  invented to escape the rule rather than instances of it. Starting a thread
+  from the panel left the PANEL's body on screen under the new thread's label.
+  So the branch went, and the intent enum that existed to carve exceptions out
+  of it went with it — an intent parameter that changes no bytes is a trap.
+  `clearTab` survives as a name for a call site, not as a second behaviour.
+  What answers "the ring could not tell us what to draw" is asking the child.
 
   The guarantee differs by what the child IS, deliberately: zellij repaints its
   whole pane, a foreground TUI repaints, and a bare shell has no screen model at

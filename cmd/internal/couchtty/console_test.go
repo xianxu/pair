@@ -634,7 +634,7 @@ func TestConsoleNeverSplicesFromAnyPath(t *testing.T) {
 	// The hotkey is deliberately not hammered here -- since M3 it opens the
 	// panel, which is a screen TAKEOVER rather than an interleaved paint, and a
 	// takeover legitimately ends the child's stream's claim on the screen.
-	// TestPanelIsNotPaintedOverByABackgroundChild covers that path instead.
+	// TestOpeningThePanelBlanksTheChildsScreenDeliberately covers that path.
 	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
 	for i := 0; i < 20; i++ {
 		f.host.SetSize(ptychild.Size{Rows: uint16(24 + i%3), Cols: 80})
@@ -1145,12 +1145,13 @@ func TestSwitchWritesExactlyTheComposedRepaint(t *testing.T) {
 //
 // The close review measured BR-8's fix as silently revertible and asked for a
 // test. I wrote one, and it stayed green under the revert — because the two
-// intents differ in exactly one case, an EMPTY body, and the panel always
-// renders something. `RepaintReplace` and `RepaintClear` emit identical bytes
-// for everything `showMenu` can produce. That is the same disposition BR-6 got:
-// correct by construction, unpinnable until the case it governs is reachable.
-// hostty's TestRepaintCarriesIntentRatherThanInferringItFromAnEmptyReplay pins
-// the distinction itself.
+// intents differed in exactly one case, an EMPTY body, and the panel always
+// renders something. That was the same disposition BR-6 got: correct by
+// construction, unpinnable until the case it governs is reachable.
+//
+// C-1 then established that the empty-body case had no correct caller anywhere
+// and deleted both the branch and the intent enum, which retires the question:
+// every takeover blanks, so there is no longer a distinction here to drift.
 //
 // What this test DOES pin is worth keeping and is not the same claim: opening
 // the panel blanks what was on the screen, so a child's frame cannot show

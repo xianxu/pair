@@ -332,6 +332,74 @@ rounds:
           family: test-sleeps-instead-of-synchronizing
           round: 4
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-09T23:25:17-07:00"
+      agent: claude
+      dispose:
+        - id: BR-14
+          disposition: addressed
+          note: Branch and RepaintIntent both deleted; repaint always blanks, pinned by TestATakeoverAlwaysBlanksEvenWithNothingToDraw over nil/empty/non-empty.
+          round: 5
+        - id: BR-15
+          disposition: addressed
+          note: Verified by revert — holding geom across the settle reds TestAResizeDuringANudgeWinsWhicheverGoroutineItComesFrom with a 4th resize.
+          round: 5
+        - id: BR-16
+          disposition: addressed
+          note: False sentence deleted, divergence filed as pair#224, settle cancellable on c.done, Close takes geom.
+          round: 5
+        - id: BR-17
+          disposition: not-addressed
+          note: 'Measured — deleting `size: FakeChildSize` leaves all four packages at the baseline failure set; Size/RequestRepaint still absent from the conformance stimuli.'
+          round: 5
+        - id: BR-18
+          disposition: not-addressed
+          note: Instances unexported individually, no AST guard written, and the class grew — ChildModes, Screen.AltScreenObserved, FakeChildSize.
+          round: 5
+        - id: BR-19
+          disposition: addressed
+          note: The named recipe now cites child.RequestRepaint() in takeOverScreen, which exists; the class recurred elsewhere — see the new finding.
+          round: 5
+        - id: BR-20
+          disposition: addressed
+          note: waitForResizes(t, child, 2) replaces the sleep, exactly as recommended.
+          round: 5
+      findings:
+        - id: BR-21
+          severity: Important
+          title: The C-1 withdrawal reached the code and the named Plan rows, but not the seven other places the withdrawn rule is written
+          detail: |-
+            2nd in this family, so the deliverable is the rule: deleting an exported
+            identifier obliges a sweep of every PROSE reference to it, not only the
+            code that stopped compiling. Measured prevalence 7 at HEAD, all created by
+            the commit that deleted RepaintIntent — atlas/architecture.md:531 (wrong
+            RepaintFor signature) and :537-540 (teaches "a stale frame beats a blank
+            one" as current, in the always-current map); termcmd/run.go:1693-1696
+            (contradicts clearTab's own doc 20 lines below); termcmd/run_test.go:1431
+            and couchtty/console_test.go:1149 (MUTATION RECIPES naming RepaintReplace /
+            RepaintClear / TestRepaintCarriesIntent..., so a reviewer verifying a pin
+            finds nothing to flip — BR-19's exact failure mode one file over);
+            ptychild/replay_insufficiency_test.go:131,137; ptychild/child.go:484. The
+            set is fully mechanical (grep for the four deleted names over non-history
+            files), and doccomment_test.go is the precedent for turning it into a guard.
+          family: comment-cites-code-that-moved
+          round: 5
+        - id: BR-22
+          severity: Important
+          title: Done-when clause 2 states a criterion the shipped code deliberately does not meet, with no Revisions entry
+          detail: |-
+            2nd in this family, so the rule: a reversed commitment must be revised
+            everywhere it was written — Plan rows AND Done-when AND the atlas — not
+            only in the rows a review named. "The cutoff < ringStart path cannot
+            present a cleared screen with nothing drawn" was met by the middle version
+            and is now explicitly declined: repaint always blanks, so an empty replay
+            IS a cleared screen with nothing drawn until the child's frame lands, and
+            permanently for a bare-shell pair term tab. The third-pass Revisions Delta
+            lists three Plan rows and never touches Done-when, which is the section the
+            merge-time specs judge reads.
+          family: plan-row-ticked-not-delivered
+          round: 5
+      blocked: false
 ---
 
 # Gate ledger — pair#209 (boundary-review)
@@ -529,12 +597,48 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   waitForResizes(t, child, 2) instead - the same lesson the test's own
   comment teaches about the other party.
 
+## Round 5 — 2026-09-09T23:25:17-07:00 (claude) — passed
+
+### Disposed
+
+- BR-14 — addressed — Branch and RepaintIntent both deleted; repaint always blanks, pinned by TestATakeoverAlwaysBlanksEvenWithNothingToDraw over nil/empty/non-empty.
+- BR-15 — addressed — Verified by revert — holding geom across the settle reds TestAResizeDuringANudgeWinsWhicheverGoroutineItComesFrom with a 4th resize.
+- BR-16 — addressed — False sentence deleted, divergence filed as pair#224, settle cancellable on c.done, Close takes geom.
+- BR-17 — not-addressed — Measured — deleting `size: FakeChildSize` leaves all four packages at the baseline failure set; Size/RequestRepaint still absent from the conformance stimuli.
+- BR-18 — not-addressed — Instances unexported individually, no AST guard written, and the class grew — ChildModes, Screen.AltScreenObserved, FakeChildSize.
+- BR-19 — addressed — The named recipe now cites child.RequestRepaint() in takeOverScreen, which exists; the class recurred elsewhere — see the new finding.
+- BR-20 — addressed — waitForResizes(t, child, 2) replaces the sleep, exactly as recommended.
+
+### Raised
+
+- **BR-21** [Important] `comment-cites-code-that-moved` The C-1 withdrawal reached the code and the named Plan rows, but not the seven other places the withdrawn rule is written
+  2nd in this family, so the deliverable is the rule: deleting an exported
+  identifier obliges a sweep of every PROSE reference to it, not only the
+  code that stopped compiling. Measured prevalence 7 at HEAD, all created by
+  the commit that deleted RepaintIntent — atlas/architecture.md:531 (wrong
+  RepaintFor signature) and :537-540 (teaches "a stale frame beats a blank
+  one" as current, in the always-current map); termcmd/run.go:1693-1696
+  (contradicts clearTab's own doc 20 lines below); termcmd/run_test.go:1431
+  and couchtty/console_test.go:1149 (MUTATION RECIPES naming RepaintReplace /
+  RepaintClear / TestRepaintCarriesIntent..., so a reviewer verifying a pin
+  finds nothing to flip — BR-19's exact failure mode one file over);
+  ptychild/replay_insufficiency_test.go:131,137; ptychild/child.go:484. The
+  set is fully mechanical (grep for the four deleted names over non-history
+  files), and doccomment_test.go is the precedent for turning it into a guard.
+- **BR-22** [Important] `plan-row-ticked-not-delivered` Done-when clause 2 states a criterion the shipped code deliberately does not meet, with no Revisions entry
+  2nd in this family, so the rule: a reversed commitment must be revised
+  everywhere it was written — Plan rows AND Done-when AND the atlas — not
+  only in the rows a review named. "The cutoff < ringStart path cannot
+  present a cleared screen with nothing drawn" was met by the middle version
+  and is now explicitly declined: repaint always blanks, so an empty replay
+  IS a cleared screen with nothing drawn until the child's frame lands, and
+  permanently for a bare-shell pair term tab. The third-pass Revisions Delta
+  lists three Plan rows and never touches Done-when, which is the section the
+  merge-time specs judge reads.
+
 ## Open findings
 
-- **BR-14** [Critical] `absent-data-is-not-intent` An empty replay leaves the OUTGOING surface on screen, and no takeover site wants that
-- **BR-15** [Important] `operating-envelope-unstated` A mandatory Resize waits a full settle on the nudge's lock, while 204 states the cost as zero
-- **BR-16** [Important] `nudge-ordering-and-extent` takeOverScreen still claims Run-goroutine-only, and this round's own test drives it from the operationQueue
 - **BR-17** [Important] `fake-diverges-from-real` NewFakeChild starts with no geometry while Start records opts.Size, and geometry is what the nudge reads
 - **BR-18** [Minor] `dead-exported-surface` Three newly-exported identifiers have no consumer outside their own package's tests
-- **BR-19** [Minor] `comment-cites-code-that-moved` The mutation recipe in console_test.go names a signature and a call site that do not exist at HEAD
-- **BR-20** [Minor] `test-sleeps-instead-of-synchronizing` The goroutine-independence race test sleeps to let the nudge take the lock, so it can fail spuriously
+- **BR-21** [Important] `comment-cites-code-that-moved` The C-1 withdrawal reached the code and the named Plan rows, but not the seven other places the withdrawn rule is written
+- **BR-22** [Important] `plan-row-ticked-not-delivered` Done-when clause 2 states a criterion the shipped code deliberately does not meet, with no Revisions entry

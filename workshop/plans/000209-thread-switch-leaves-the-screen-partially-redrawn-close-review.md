@@ -597,3 +597,152 @@ findings:
       waitForResizes(t, child, 2) instead - the same lesson the test's own
       comment teaches about the other party.
 ```
+
+---
+
+## Re-review — 2026-09-09T23:25:17-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 209 — thread switch leaves the screen partially redrawn |
+| repo | pair |
+| issue file | workshop/issues/000209-thread-switch-leaves-the-screen-partially-redrawn.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 11e12276c7602d583d78fd1348a2bdd95fb4fa1f..b947b4d747958982c0e121d623345e16b3d42fdf |
+| command | sdlc close --issue 209 |
+| reviewer | claude |
+| timestamp | 2026-09-09T23:25:17-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The mechanism this issue set out to build is now correct, measured against the real binary, and defended by tests I verified by mutation: the takeover always blanks (C-1's withdrawal is real, not just documented), `RequestRepaint` takes no size and releases `geom` across the settle (I checked — holding it turns `TestAResizeDuringANudgeWinsWhicheverGoroutineItComesFrom` red), the request rides *inside* `takeOverScreen`/`applyTakeover` so no site can compose a screen without asking, and the probe reads `ptychild.RepaintSettle` instead of restating it. What blocks a clean SHIP is that the C-1 withdrawal was swept through the *code* and through the three Plan rows the last review named, but not through the enumerable rest of the places the withdrawn rule is written: seven prose sites (including `atlas/architecture.md`, which now teaches the deleted rule as current, and two mutation recipes that name symbols a reader cannot find) and one unrevised `## Done when` bullet the shipped code deliberately does not meet. Separately, and measured rather than inferred: BR-17's fix (`FakeChildSize`) reverts with the whole suite green — the second consecutive round in which an `addressed` disposition ships without a red-on-revert test. Full suite on the four touched packages is green modulo the documented pty-sandbox class (identical failure set at base); `-count=3 -race` on the nudge tests is clean; `go vet` clean.
+
+**1. Strengths**
+
+- `cmd/internal/hostty/repaint.go:26-49` — the C-1 withdrawal is written with its *hidden premise* named and the five-site enumeration that refutes it, and it is pinned (`TestATakeoverAlwaysBlanksEvenWithNothingToDraw` covers nil / empty / non-empty). This is the one place in the diff where a reader learns why the obvious design is wrong.
+- `cmd/internal/ptychild/child.go:272-330` — deleting the size parameter instead of documenting harder is the right shape of fix, and the generation counter makes "optional work never gates or beats the mandatory kind" a mechanism rather than a rule. Verified by revert in a scratch worktree: holding `geom` across the settle produces `resizes = [{24 80} {23 80} {24 80} {40 120}]` and reds the test.
+- `cmd/probes/zellijrepaint/main.go:118` reads the production constant, and the probe lives under `cmd/probes/` with its own `make test-zellij-repaint` target — confirmed `test-smoke` globs only `probes/*/`, so the condemned no-settle sequence can no longer run unattended.
+- `console.go:1056` / `run.go:1043` — binding the request to the takeover rather than to the call sites is the class fix I2 claimed, and it holds: `showMenu` and `clearTab` pass `nil`, `RequestRepaint`'s nil-receiver guard makes that total, and both are pinned (`TestOpeningThePanelAsksNoChildToRepaint`, `TestClosingATabAsksTheSurvivingChildToRepaint`).
+- `cmd/internal/termcmd/doccomment_test.go:121` — `stolenFrom` converts BR-10's recurrence into a mechanical guard, deliberately narrowed to "opens with another declaration's name in this file" so it stays a bug detector rather than a style rule.
+
+**2. Critical findings** — none.
+
+**3. Important findings**
+
+**(a) The C-1 withdrawal did not reach the prose that states the withdrawn rule** — 2nd in family `comment-cites-code-that-moved`, so the deliverable is the rule, not the seven edits. The rule: **deleting an exported identifier obliges a sweep of every prose reference to it, not only the code that stopped compiling** — and unlike most sweeps this one is fully mechanical (`grep -rn RepaintIntent\|RepaintReplace\|RepaintClear\|hostty.Repaint` over non-`history` files returns the whole set). The repo already writes AST guards for exactly this class (`doccomment_test.go`), so a check that a `//`-comment token matching a `Repaint[A-Z]\w*` shape resolves in the module is the same kind of guard one level over. Measured prevalence at HEAD, 7 sites, all created by the round that deleted the enum:
+
+| site | what it says that is no longer true |
+|---|---|
+| `atlas/architecture.md:531` | `RepaintFor(child, replay, intent)` — the signature has no `intent` |
+| `atlas/architecture.md:537-540` | "Intent is CARRIED, not inferred from an empty slice… a stale frame beats a blank one. `redrawTab` and `clearTab` are separate doors for that reason" — the atlas is the durable map and it teaches the rule C-1 deleted |
+| `cmd/internal/termcmd/run.go:1693-1696` | `redrawTab` doc: composition "emitting nothing rather than blanking… the two differ in a case an empty slice cannot express" — contradicted by `clearTab`'s own doc 20 lines below ("not a second behaviour") |
+| `cmd/internal/termcmd/run_test.go:1431-1440` | mutation recipe "flipping removeTab's intent back to `RepaintReplace`" — no such symbol; rationale restates "a stale frame beats a blank one… the right call for a switch" |
+| `cmd/internal/couchtty/console_test.go:1149-1153` | `RepaintReplace`/`RepaintClear`/`TestRepaintCarriesIntentRatherThanInferringItFromAnEmptyReplay` — all three deleted |
+| `cmd/internal/ptychild/replay_insufficiency_test.go:131,137` | "Mode 2's answer lives in `hostty.Repaint` (an empty replay emits nothing rather than blanking)", repeated in the failure message |
+| `cmd/internal/ptychild/child.go:484` | `hostty.Repaint` — unexported this round |
+
+Two of these are *mutation recipes*. A reviewer following `run_test.go:1431` to verify BR-4's pin finds nothing to flip and may conclude the test is unpinned — the precise failure mode this issue's ledger exists to prevent, and the one BR-19 named one file over.
+
+**(b) `## Done when` bullet 2 states a criterion the shipped code deliberately does not meet, with no `## Revisions` entry** — 2nd in family `plan-row-ticked-not-delivered`. The rule: **a reversed commitment must be revised everywhere it was written — Plan rows, `## Done when`, and the atlas — not only in the rows a review happened to name.** "The `cutoff < ringStart` path cannot present a cleared screen with nothing drawn" was met by the middle version and is now explicitly declined: `repaint` always blanks, so an empty replay *is* a cleared screen with nothing drawn until the child's frame lands (and permanently for a bare-shell `pair term` tab, per the 2026-09-09 revision's own "best-effort" carve-out). The `## Log` third-pass entry argues this position well — "mode 2's answer was never the empty-replay carve-out" — but the third-pass `## Revisions` Delta lists only three *Plan* rows and never touches Done-when. This is the criterion the merge-time `specs` judge reads.
+
+**(c) BR-17 re-raised as `not-addressed`** — see dispositions. Measured: deleting `size: FakeChildSize` from `NewFakeChild` (`fake.go:47`) leaves all four packages with a failure set byte-identical to the baseline pty-sandbox class. No test observes that a fresh fake has geometry, and the conformance stimulus set (`child_test.go:255-259`) still drives only Write/Resize/Signal — `Size` and `RequestRepaint`, the two surfaces this issue added and the ones the fix exists to serve, were not added as BR-17 asked.
+
+**4. Minor findings**
+
+- BR-18 re-raised as `not-addressed`: two instances unexported individually, no guard written, and the class grew — `hostty.ChildModes` (`repaint.go:21`, consumers only inside hostty), `ptychild.Screen.AltScreenObserved` (`screen.go:127`, consumers only inside ptychild — while `child.go:490` claims "there is deliberately no exported AltScreenObserved to reach for"), `ptychild.FakeChildSize` (`fake.go:59`, an exported *var* with zero consumers anywhere but its own definition), `Child.Size` (`child.go:405`, test-only).
+- `Child.Size()` reports the *shrunk* value for the 20 ms of a settle. Harmless today (no production callers) but it makes the accessor lie during exactly the window a debugger would ask.
+- `replayChild` (`replay_insufficiency_test.go:22`) builds a `&Child{}` directly and so bypasses `FakeChildSize` — the zero-geometry shape BR-17 says production cannot reach still exists in this package's fixtures.
+
+**5. Test coverage notes**
+
+`hostty/repaint_test.go` is the strongest file in the diff: four tests, no IO, one stated rule each, and the golden that makes the transitive differential (`TestSwitchWritesExactlyTheComposedRepaint` / `TestTakeoverWritesExactlyTheComposedRepaint`) mean something. The nudge suite is genuinely ordering-aware — the race test waits on the other party rather than sleeping toward it, and it asserts *exactly three* resizes, which is what caught the reverted lock-release for me. Two gaps: the `<-c.done` cancellation path has no test (observable against the fake only as timing, so cheap but low-value), and the fake/real conformance gap in 3(c). The `_ = modes` parameter in `repaint` is unpinnable by construction while the buffer assertion is withdrawn — the code says so honestly, which is the right disposition, but it does mean `RepaintFor`'s read reaches nothing today.
+
+**6. Architectural notes**
+
+- **ARCH-DRY** pass — one composer, one `RequestRepaint`, one `HomeAndClear` emitter, `childOf` spelled once. BR-5's copy-paste is fully retired.
+- **ARCH-PURE** pass — `repaint` returns bytes and writes nothing; `RepaintFor` is a thin locked read; all four hostty tests run without IO.
+- **ARCH-PURPOSE** flag — findings 3(a)/3(b): the withdrawal was swept for the *instances* the last review named and not for the enumerable class, which is the same axis as this round's own I1 lesson.
+- **ARCH-MOCK** flag (minor) — the live conformance check is real and now reads the production constant, which is the strong half. The in-process half is where the gap is: 3(c).
+- **ARCH-CONSTRAINTS** pass, with one unmeasured note for future work — `#204`'s table bounds nudges *per switch* (1) and in-flight nudges *per child* (1), but not per burst across children: holding alt+→ through N tabs nudges N children, each worth ≥6.6 KB of re-render on a single-pane measurement. Non-active children's bytes are gated at the console, so the cost is child CPU plus ~5% ring churn per nudge. Unmeasured, so a note rather than a finding — but it is the row `#204` will want when the fleet is 10+ panes.
+- **ARCH-SECURE** largely N/A — the only new external input is `PAIR_PROBE_SETTLE`, parsed with an explicit error path in a probe. No credentials, no persisted artifacts, no new trust boundary.
+- **ARCH-ORDER** pass — `(nudging, geomGen, size)` under one mutex with every exit path resetting `nudging`; cancellation tied to `c.done`; extent bounded by one settle; `Close` takes `geom` so an in-flight ioctl completes first. The interleaving is injectable and the race test drives the adversarial goroutine rather than sampling one ordering.
+
+**7. Plan revision recommendations**
+
+- `## Revisions`, third pass — extend the Delta with a fourth item: *Done-when clause 2* ("the `cutoff < ringStart` path cannot present a cleared screen with nothing drawn") is **withdrawn** for the same reason as the mode-2 row; the answer is the repaint request, and a blank frame for one settle is the intended behaviour, best-effort for a child with no screen model per the 2026-09-09 revision.
+- `## Revisions`, new entry — record that the withdrawal's sweep was incomplete, with the seven-site table from 3(a), and name the rule so the `?1047` follow-up does not re-introduce the deleted rationale from the atlas.
+- `## Plan`, ARCH-MOCK row — it claims the fake "models the behaviour we depend on"; add that `Size` and `RequestRepaint` join the conformance stimulus set, or say plainly that they do not and why.
+
+```findings
+dispose:
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Branch and RepaintIntent both deleted; repaint always blanks, pinned by TestATakeoverAlwaysBlanksEvenWithNothingToDraw over nil/empty/non-empty.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Verified by revert — holding geom across the settle reds TestAResizeDuringANudgeWinsWhicheverGoroutineItComesFrom with a 4th resize.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      False sentence deleted, divergence filed as pair#224, settle cancellable on c.done, Close takes geom.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      Measured — deleting `size: FakeChildSize` leaves all four packages at the baseline failure set; Size/RequestRepaint still absent from the conformance stimuli.
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      Instances unexported individually, no AST guard written, and the class grew — ChildModes, Screen.AltScreenObserved, FakeChildSize.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      The named recipe now cites child.RequestRepaint() in takeOverScreen, which exists; the class recurred elsewhere — see the new finding.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      waitForResizes(t, child, 2) replaces the sleep, exactly as recommended.
+findings:
+  - id: new
+    severity: Important
+    family: comment-cites-code-that-moved
+    title: |
+      The C-1 withdrawal reached the code and the named Plan rows, but not the seven other places the withdrawn rule is written
+    detail: |
+      2nd in this family, so the deliverable is the rule: deleting an exported
+      identifier obliges a sweep of every PROSE reference to it, not only the
+      code that stopped compiling. Measured prevalence 7 at HEAD, all created by
+      the commit that deleted RepaintIntent — atlas/architecture.md:531 (wrong
+      RepaintFor signature) and :537-540 (teaches "a stale frame beats a blank
+      one" as current, in the always-current map); termcmd/run.go:1693-1696
+      (contradicts clearTab's own doc 20 lines below); termcmd/run_test.go:1431
+      and couchtty/console_test.go:1149 (MUTATION RECIPES naming RepaintReplace /
+      RepaintClear / TestRepaintCarriesIntent..., so a reviewer verifying a pin
+      finds nothing to flip — BR-19's exact failure mode one file over);
+      ptychild/replay_insufficiency_test.go:131,137; ptychild/child.go:484. The
+      set is fully mechanical (grep for the four deleted names over non-history
+      files), and doccomment_test.go is the precedent for turning it into a guard.
+  - id: new
+    severity: Important
+    family: plan-row-ticked-not-delivered
+    title: |
+      Done-when clause 2 states a criterion the shipped code deliberately does not meet, with no Revisions entry
+    detail: |
+      2nd in this family, so the rule: a reversed commitment must be revised
+      everywhere it was written — Plan rows AND Done-when AND the atlas — not
+      only in the rows a review named. "The cutoff < ringStart path cannot
+      present a cleared screen with nothing drawn" was met by the middle version
+      and is now explicitly declined: repaint always blanks, so an empty replay
+      IS a cleared screen with nothing drawn until the child's frame lands, and
+      permanently for a bare-shell pair term tab. The third-pass Revisions Delta
+      lists three Plan rows and never touches Done-when, which is the section the
+      merge-time specs judge reads.
+```

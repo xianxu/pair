@@ -44,7 +44,7 @@ func NewFakeChild(output []byte) *Child {
 		screen: &Screen{},
 		done:   make(chan struct{}),
 		fake:   &fakeState{},
-		size:   FakeChildSize,
+		size:   fakeChildSize,
 	}
 	if len(output) > 0 {
 		c.Feed(output)
@@ -52,11 +52,14 @@ func NewFakeChild(output []byte) *Child {
 	return c
 }
 
-// FakeChildSize is the geometry a fake child starts with, standing in for the
+// fakeChildSize is the geometry a fake child starts with, standing in for the
 // opts.Size a real Start writes to the pty before the process runs. An ordinary
 // terminal, so a test that does not care about size gets a child that behaves
 // like one; a test that does calls Resize.
-var FakeChildSize = Size{Rows: 24, Cols: 80}
+//
+// Unexported: nothing outside this package names it, and exported surface needs
+// a consumer beyond its own package's tests (#209 BR-18).
+var fakeChildSize = Size{Rows: 24, Cols: 80}
 
 type fakeState struct {
 	mu      sync.Mutex

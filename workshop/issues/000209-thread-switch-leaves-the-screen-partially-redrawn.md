@@ -1,12 +1,13 @@
 ---
 id: 000209
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-09
 estimate_hours: 1.72
 started: 2026-09-09T18:28:51-07:00
+actual_hours: 2.63
 ---
 
 # thread switch leaves the screen partially redrawn
@@ -119,8 +120,13 @@ assumption, and the memory cost is per-child across a fleet of 10+.
 
 - Switching to a thread whose last full paint has aged out of the ring produces
   a correct screen with no operator action — reproduced first, then fixed.
-- The `cutoff < ringStart` path cannot present a cleared screen with nothing
-  drawn.
+- ~~The `cutoff < ringStart` path cannot present a cleared screen with nothing
+  drawn.~~ **WITHDRAWN 2026-09-10** — see the Revisions entry. A takeover always
+  blanks, so an empty replay IS a cleared screen with nothing drawn until the
+  child's frame lands; the answer to mode 2 is the repaint request, not a
+  carve-out in the composition. Best-effort for a child with no screen model,
+  per the 2026-09-09 revision. Replaced by: *the `cutoff < ringStart` path asks
+  the child for a frame rather than presenting a foreign one.*
 - `pair term` tab switching gets the same guarantee, from the same code.
 - `#196`'s reattach test still passes unmodified — the nudge must not perturb
   the mouse-mode belief on a path that shares this seam.
@@ -241,8 +247,12 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
 - [x] **The SIGWINCH assumption needs a double and a conformance check
       (PQ-5, `ARCH-MOCK`).** "zellij repaints its pane on SIGWINCH" carries the
       whole of mode 1 and is currently an assertion. `ptychild` already has
-      `fake.go`; the fake models the behaviour we depend on — a resize produces
-      a full repaint — so the repaint path is testable without a pty. Separately
+      `fake.go`; the fake models what it CAN — a resize was requested, and the
+      GEOMETRY the request reads (`Size`/`RequestRepaint` joined the conformance
+      stimulus set, 2026-09-10) — so the repaint path is testable without a pty.
+      It cannot model "a resize produces a full repaint", which is the binary's
+      behaviour and not ours; that half is the live check below, and the row
+      originally claimed the fake covered it. Separately
       a live conformance check drives a real `zellij` child, nudges it, and
       asserts a full frame arrives; that is what tells us the model still
       matches the binary after an upgrade, and `#213` is a standing reminder
@@ -279,6 +289,8 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
 
 ## Log
 
+
+- 2026-09-09: closed — make test green unsandboxed (exit 0, zero FAIL); go test -race -count=3 clean on ptychild/hostty/termcmd/couchtty; make test-zellij-repaint reports settle 20ms VERDICT REPAINTED. C-1 fixed as the RULE not the instance: the keep-stale branch had zero correct callers (enumerated all five takeover sites, incl. forceSwitch which returns from the panel), so the branch and the RepaintIntent enum it existed to carve exceptions out of are both deleted; pinned by TestATakeoverAlwaysBlanksEvenWithNothingToDraw, mutation-verified. I-1 fixed by releasing geom across the settle plus a generation counter, so a mandatory Resize never waits on the optional nudge and a resize during a settle supersedes the restore; mutation-verified (disabling the generation check leaves the child at 24x80 and fails). I-2: false Run-goroutine-only claim removed; the couch-wide typed-writer door filed as #224 rather than grown into this issue. I-3: NewFakeChild starts at FakeChildSize so the double models the state the fix reads. Also found and fixed by -race what the review judged harmless: only the fake branch of resizeLocked refused a dead child, so the nudge goroutine reached pty.Setsize during pump teardown - settle now cancellable on c.done, refusal moved ahead of the fake/real split, Close takes geom. Minors: EnterAltScreen unexported, stale mutation recipe corrected, race test now waits instead of sleeping, capacity hint and floor comment corrected.; review verdict: FIX-THEN-SHIP
 ### 2026-09-06
 
 Filed from an operator report. The diagnosis is a code read, not a reproduction —
@@ -525,6 +537,65 @@ own comment teaches; the capacity hint budgeted bytes the withdrawal guarantees
 are never emitted; and `nudge`'s floor comment counted a reserved row that is
 already subtracted from `c.size`.
 
+### 2026-09-10 (fourth pass) — the sweep, and a guard that measured itself down
+
+**The C-1 withdrawal reached the code and stopped there.** Seven prose sites
+went on teaching the deleted rule, `atlas/architecture.md` among them — the
+durable map, stating an intent parameter that no longer exists and a "stale
+frame beats a blank one" rationale that C-1 refuted. Two were MUTATION RECIPES
+naming a flag a reader cannot find, which reads as "this test is unpinned": the
+precise failure a findings ledger exists to prevent. All seven swept.
+
+**The rule behind it is real; the obvious guard for it is not, and that is
+measured rather than assumed.** The review asked for a check that a symbol named
+in a comment resolves — the repo already writes AST guards for this family. I
+wrote it. It found 13 citations at HEAD and **7 of them are legitimate**:
+
+> `pair#170 M4 deleted TestFleetPolicyResolverConformance…`
+> `DELIBERATE CHANGE from the couchtty.PaintRow this replaces…`
+> `Ported from termcmd's TestUpdateMouseMode, which this scanner absorbs…`
+> `Was TestTerminalMuxChildUsesFullPaneHeight, which asserted the pre-#199 contract…`
+
+Naming a symbol that no longer exists is how this repo records what it deleted
+and why — a virtue, not a defect. A guard against it is a guard against the
+house style, and at a ~70% false-positive rate it would be muted within a month
+(`#204`'s own thesis about thresholds, arriving in a different form). So it does
+not ship, and the reason is written here rather than discovered again.
+
+What separates the two cases is TENSE, not syntax, and grammar-matching is what
+`#199` M2 round 6 retired a guard for. **The idea worth keeping for whoever
+tries next: resolve the cited name against git history.** A symbol that once
+existed is a historical reference; one that never existed is a typo or a stale
+rename. That distinguishes all 13 correctly. It costs a `git log -S` per symbol
+and makes a test depend on repository history, which is why it is a note and not
+this issue's work.
+
+**The attempt paid for itself anyway** — it found three genuinely broken
+pointers, all pre-existing and none from `#209`, each one a reader following a
+citation into nothing:
+
+| site | said | is |
+|---|---|---|
+| `couchcmd/run_test.go:1027` | `TestCLIAcceptsExactlyTheDeclaredOperations` | `TestTypedRegistryResolvesExactlyDeclaredOperations` (a doc naming a rename that never reached it — BR-10's family, missed by `stolenFrom` because the cited name is not declared in the file) |
+| `couchtty/console_test.go:637` | `TestPanelIsNotPaintedOverByABackgroundChild` | no such test; the path is covered by this issue's own `TestOpeningThePanelBlanksTheChildsScreenDeliberately` |
+| `launcher/args_test.go:246` | `TestParseListIsNative` | `TestParseLaunchArgsListIsNative` |
+
+**BR-17 got the red-on-revert test it was owed.**
+`TestFakeAndRealChildAgreeOnGeometryBeforeAnyoneResizes` puts geometry in the
+conformance set beside the lifecycle stimuli, and deleting `size: fakeChildSize`
+now fails with `Size() = {0 0}`. `replayChild` — a fixture that builds a `Child`
+literal to get a small ring — carried the zero-geometry shape too, and now
+carries the same default.
+
+**And `Size()` stopped lying.** It reported the SHRUNK value for the length of a
+settle, because the nudge's legs went through the same path that records intent.
+They are not intent: they poke the pty and put it straight back. `setSizeLocked`
+(writes the pty) is now split from `resizeLocked` (records what the child is
+MEANT to be), so the one accessor a debugger would ask during a settle answers
+correctly. `hostty.ChildModes` and `ptychild.fakeChildSize` are unexported for
+the BR-18 rule — exported surface needs a consumer outside its own package's
+tests.
+
 ## Revisions
 
 ### 2026-09-09 — "same guarantee" qualified to "same mechanism"
@@ -664,3 +735,24 @@ describe a behaviour the tree no longer has and should not get back.
    for the requesting caller. Restated: the nudge releases the child's geometry
    lock while it settles, so a mandatory resize never waits on it, and a resize
    during a settle supersedes the restore rather than being undone by it.
+
+### 2026-09-10 (fourth pass) — Done-when clause 2 withdrawn
+
+**Reason.** C-1 reversed the empty-replay behaviour, and a reversed commitment
+has to be revised everywhere it was written — Plan rows, `## Done when`, and the
+atlas — not only in the rows a review happened to name. The third pass revised
+three Plan rows and left the Done-when bullet standing, which is the criterion
+the merge-time `specs` judge reads.
+
+**Delta.**
+
+1. *Done-when clause 2* — "The `cutoff < ringStart` path cannot present a
+   cleared screen with nothing drawn" is **withdrawn**, struck in place with its
+   reason. A takeover always blanks, so an empty replay is exactly that until
+   the child's frame lands. It is replaced by the commitment the fix actually
+   makes: that path ASKS THE CHILD for a frame rather than presenting a foreign
+   one. Best-effort for a child with no screen model, per the 2026-09-09
+   revision.
+2. *ARCH-MOCK Plan row* — it claimed the fake "models the behaviour we depend
+   on". Geometry is part of that behaviour and was not modelled; `Size` and
+   `RequestRepaint` are now in the conformance stimulus set.

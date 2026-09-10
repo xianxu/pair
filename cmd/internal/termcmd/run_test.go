@@ -1428,16 +1428,17 @@ func TestTakeoverWritesExactlyTheComposedRepaint(t *testing.T) {
 	}
 }
 
-// BR-4's fix reverted SILENTLY — the close review measured it: flipping
-// removeTab's intent back to RepaintReplace left the whole suite green. A
+// BR-4's fix reverted SILENTLY — the close review measured it — and a
 // disposition of "addressed" that no test defends is a claim, so this is the
 // test that should have shipped with it (#209 I1).
 //
 // The scenario is the operator's: close a tab while the SURVIVING tab's ring
-// still holds nothing. A replace emits zero bytes on an empty replay — the
-// right call for a switch, where a stale frame beats a blank one — but the
-// frame here belongs to a tab that no longer exists, and leaving it on the pane
-// is showing the operator a window into a closed thing.
+// still holds nothing. The frame standing on the pane belongs to a tab that no
+// longer exists, so leaving it there is showing the operator a window into a
+// closed thing. C-1 later established that this is true of EVERY takeover, not
+// just this one, and made blanking unconditional — so the mutation that reds
+// this test is now "make hostty's composition skip HomeAndClear when the replay
+// is empty", not a flag at this call site.
 func TestClosingATabBlanksTheDeadTabsScreenEvenWithNothingToDraw(t *testing.T) {
 	var stdout bytes.Buffer
 	survivor := ptychild.NewFakeChild(nil) // ring empty: nothing retained to draw

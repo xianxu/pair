@@ -243,7 +243,7 @@ func TestParseLaunchArgsLeadingFlagIsNotAnAgent(t *testing.T) {
 // natively — no ParseArgs verb falls back to the shell anymore; only a leading
 // flag (--help) does (TestParseLaunchArgsLeadingFlagIsNotAnAgent). The parse
 // contract for each native verb is pinned by TestParseRename / TestParseContinue
-// / TestParseListIsNative.
+// / TestParseLaunchArgsListIsNative.
 
 // list/ls parse to the read-only list command marker (#99 M5a), no longer a
 // shell-fallback error.
