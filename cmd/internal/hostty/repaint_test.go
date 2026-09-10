@@ -15,7 +15,7 @@ import (
 // that may alias DECSC (`\x1b7`) — which pair's tab strip paints with. Observed
 // live: typed characters landed mid-screen after a repaint. Mode 4 stays unfixed
 // until `?1047h`/`?1047l` (buffer switch WITHOUT cursor side effects) is
-// measured the way probes/zellijrepaint measured the repaint assumption.
+// measured the way cmd/probes/zellijrepaint measured the repaint assumption.
 func TestRepaintEmitsNoCursorMovingBufferAssertion(t *testing.T) {
 	for _, alt := range []bool{false, true} {
 		for _, observed := range []bool{false, true} {

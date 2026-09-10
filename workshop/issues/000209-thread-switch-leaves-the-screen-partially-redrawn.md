@@ -256,15 +256,21 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
 - [x] **Tests, named, one strategy line per risky surface (PQ-6).**
       *Shared repaint:* the four `replay_insufficiency_test.go` reproductions
       become regression rows against the new path — each asserts the mode it
-      demonstrates is now handled (2 and 4 fixed, 1 fixed given a repainting
-      child, 3 documented). *Intent:* a table over the two call intents
+      demonstrates is now handled: **2 fixed** (an empty replay emits nothing
+      rather than blanking), **4 tracked but NOT asserted on the wire** (the
+      child's `Screen` still knows the buffer once the sequence ages out, and
+      `?1049` was withdrawn from the composition because it moves the cursor —
+      the `?1047` candidate is where it returns), **1 fixed given a repainting
+      child**, **3 documented**. *Intent:* a table over the two call intents
       asserting a nothing-to-draw repaint emits no `HomeAndClear` while a
-      deliberate clear still does. *Mode assertion:* the emitted bytes end with
-      the modes `Screen` reports, over the cross-product
-      {alt-screen, mouse, SGR-mouse, cursor-save} x {set, unset}. *Both
-      consumers:* a differential row per `#220`'s lesson — assert the ANSWER,
-      that `couchtty` and `termcmd` produce byte-identical repaint output for
-      the same child state, not merely that both call the function.
+      deliberate clear still does. *Mode assertion:* WITHDRAWN with the
+      assertion itself. No mode is emitted, so there is no cross-product;
+      `hostty`'s `TestRepaintEmitsNoCursorMovingBufferAssertion` pins the
+      withdrawal and `TestRepaintForReadsTheChildsObservedModesRatherThanAssuming`
+      pins the mode READ that `?1047` will need. *Both consumers:* a
+      differential row per `#220`'s lesson — assert the ANSWER, that `couchtty`
+      and `termcmd` produce byte-identical repaint output for the same child
+      state, not merely that both call the function.
 - [x] **Counted invariant into `#204`:** a switch issues a repaint request, not
       only a replay write.
 - [x] **Atlas:** the reconstruction rule — the replay is the immediate paint,
@@ -294,7 +300,7 @@ the screen itself.
 
 **The boundary review's BR-3 was right, and the number is worse than "unmeasured".**
 It refused the conformance evidence on the grounds that
-`probes/zellijrepaint` slept 1.5 s between the shrink and the restore while
+`cmd/probes/zellijrepaint` slept 1.5 s between the shrink and the restore while
 production issues both `TIOCSWINSZ` ioctls back-to-back — signals do not queue,
 so zellij can take a single `SIGWINCH`, read a winsize already restored to 24
 rows, and re-render nothing. The probe now drives the production sequence, and
@@ -314,7 +320,7 @@ for it: the fake records that `Resize` was CALLED, which is not the property the
 fix depends on. This is `ARCH-MOCK`'s point stated as a measurement — the
 in-process double models the request, only the live check models the answer.
 
-**Fixed with a measured settle, not a guessed one.** `ptychild.repaintSettle` is
+**Fixed with a measured settle, not a guessed one.** `ptychild.RepaintSettle` (then unexported) is
 20 ms: the observed floor is under a millisecond, and 20 ms is about four of
 this host's process wake-ups (`#204` measured 4.92 ms) of headroom. It is paid
 once per switch keystroke, after the replay has already put a frame on screen,
@@ -366,6 +372,71 @@ was inserted between `Child.Resize`'s doc comment and its func, so godoc
 attributed the resize line to the nudge and left `Resize` bare. BR-11's
 `'+chr(39)+'` escape artifact is gone.
 
+### 2026-09-10 (second pass) — the settle was right and its two edges were not
+
+The close review returned REWORK on two Criticals, and both are cases where
+fixing the mechanism left something around it pointing the wrong way.
+
+**C1 — the probe defaulted to the sequence its own table condemns.** Adding
+`PAIR_PROBE_SETTLE` gave it a default of 0, which is exactly the back-to-back
+sequence measured at 6-of-12, and `make test-smoke` runs every `probes/*/`
+unattended with `|| exit 1` — so the standing conformance check would have
+aborted the smoke suite about half the time, while its own comment still claimed
+production issued no gap. A probe that restates the thing it verifies measures
+itself. It now READS `ptychild.RepaintSettle`, which means it had to move to
+`cmd/probes/` (Go forbids `probes/` from importing `cmd/internal/…`) with its
+own target in the same commit — the branch of the rule `atlas/index.md` already
+records, and the second time this repo has hit it. The move surfaced a second
+defect for free: the probe resolved `config.kdl` by counting `..` from its own
+directory, so it came back PROBE-INCONCLUSIVE at the new depth. Re-run through
+`make test-zellij-repaint`: settle 20 ms, **REPAINTED**.
+
+**C2 — the nudge's safety rule was a comment, and couch broke it in the same
+round.** `RequestRepaint(size)` took the size to restore, so a stale restore was
+EXPRESSIBLE, and correctness depended on every caller staying on the goroutine
+that serialized its other resizes. `switchTo` is reached from the operationQueue
+goroutine as well as the Run loop — the switcher's Enter and the status-chip
+click, which is the operator's primary gesture. So the rule was already false
+where it mattered most.
+
+The fix is to delete the parameter rather than to document harder. `Child` owns
+its geometry: `geom` guards every size change, the nudge holds it across the
+whole shrink-settle-restore, and the size it restores is the one IT read under
+that lock. A resize from any goroutine now either precedes the nudge (which
+picks it up) or waits and applies after — the child ends at the newest size
+either way, and no caller has an ordering obligation left to get wrong. Pinned
+by `TestAResizeDuringANudgeWinsWhicheverGoroutineItComesFrom`, and worth
+recording that the FIRST version of that test was green against the defect it
+names: it read the size before the restore leg had run. A race test that does
+not wait for the racing party is not a race test.
+
+Removing the parameter also made the settle affordable asynchronously, which
+retires the coalescing question rather than re-costing it: the nudge no longer
+occupies the caller's event loop for 20 ms, and a second request while one is in
+flight is dropped, so held key-repeat switching costs one settle rather than one
+per keystroke.
+
+**I2 — the takeover and the repaint request are now one act.** `removeTab` hands
+the screen to a surviving tab and asked nobody to repaint, so closing a tab
+could reproduce the issue's own symptom. The enumeration had been swept for
+*intent* and not for the *request* — the same four sites, the same class, one
+lens applied. Rather than add the call at the fourth site, the request rides
+inside `applyTakeover`/`takeOverScreen`, so a site cannot compose a screen
+without asking the child for the frame the ring may no longer hold. That also
+deletes `ptyChunk.nudge`/`nudgeSize` (a parallel seam beside `onWriter`) and
+carries `RepaintIntent` end-to-end instead of a bool converted back.
+
+**I1 — three prior fixes reverted silently, and the rule is the deliverable.**
+The review measured it: BR-4, BR-7 and BR-8 could each be reverted with the
+suite green. A disposition of `addressed` needs a test that goes red on the
+revert, and producing it is part of the fix. Done for BR-4
+(`TestClosingATabBlanksTheDeadTabsScreenEvenWithNothingToDraw`) and BR-7 (now
+subsumed by C2's goroutine-independence test). BR-8 is the honest exception and
+is recorded as one rather than papered over: `RepaintReplace` and `RepaintClear`
+emit identical bytes for any NON-empty body, and the panel always renders
+something, so the intent is byte-inert exactly as BR-6 is. The test kept there
+pins what it can — opening the panel blanks the child's frame — and says so.
+
 ## Revisions
 
 ### 2026-09-09 — "same guarantee" qualified to "same mechanism"
@@ -388,7 +459,7 @@ mode 1 everywhere at the cost of a screen model per tab across the fleet.
 ### 2026-09-09 — implementation, and the assumption measured
 
 **The SIGWINCH assumption is confirmed against the real binary, not asserted.**
-`probes/zellijrepaint` starts a throwaway zellij session in a pty, has its pane
+`cmd/probes/zellijrepaint` starts a throwaway zellij session in a pty, has its pane
 print a marker ONCE and go quiet, drains what the pty saw, then resizes rows
 only. Result on zellij 0.44.3 / macOS: **the resize produced 19,317 bytes and
 the marker returned** while the child emitted nothing — so zellij re-rendered
@@ -437,7 +508,12 @@ it, which is the whole point of ticking a row.
    {alt-screen, mouse, SGR-mouse, cursor-save} × {set, unset}. The design
    asserts no mode at all since the `?1049` withdrawal, so there is no
    cross-product; the row now names the two tests that replaced it. This is
-   BR-1, carried from PQ-12 and never disposed until now.
+   BR-1, carried from PQ-12. **Claimed applied on 2026-09-10 and was not** —
+   the edit script aborted on a later assertion before writing, so the entry
+   described a change nobody had made, which the next review caught and is
+   worse than the stale row it claimed to fix. Applied 2026-09-10 (second
+   pass), together with the same row's "2 and 4 fixed" claim: mode 4 is
+   tracked in the child's `Screen` but not asserted on the wire.
 2. *Mode-4 item 3* — claimed `altScreenObserved` **and** `sgrMouseObserved` were
    added. Only `altScreenObserved` exists; `mouseObserved` already covers both
    mouse fields, as PQ-9 itself said.
@@ -450,3 +526,30 @@ The two Tests rows the review found delivered-short are the exception and are
 NOT rewritten, because they were delivered this round instead: the four
 `replay_insufficiency_test.go` reproductions now carry their answers, and the
 differential row exists (see the Log entry above for how it closes).
+
+### 2026-09-10 (second pass) — the probe's home, the nudge's contract, the envelope
+
+**Reason.** The close review returned REWORK; three of its recommendations are
+plan-level rather than code-level.
+
+**Delta.**
+
+1. *Conformance-check row* — said the probe "drives the production sequence". It
+   drove a 0 ms settle by default while production settled 20 ms. The probe now
+   READS `ptychild.RepaintSettle` and lives at `cmd/probes/zellijrepaint` with
+   its own `make test-zellij-repaint` target, because importing `cmd/internal/…`
+   is forbidden from `probes/`. `PAIR_PROBE_SETTLE` stays as the override that
+   re-measures the table.
+2. *Nudge-safety row (plan item 2)* — asserted couch was safe because "both
+   `onResize` and `switchTo` run on the Run goroutine". **That is false**:
+   `switchTo` is also reached from the operationQueue goroutine via
+   `ExecuteConsoleOperation`, which is the switcher's Enter and the status-chip
+   click. The assumption is replaced by a mechanism — `Child` owns its geometry
+   and `RequestRepaint` takes no size — so the row's claim is now about the type
+   rather than about which goroutine a caller happens to be on.
+3. *Nudge-coalescing row* — "two SIGWINCHes cost one extra repaint, not a wrong
+   screen" was costed when the nudge was free, and a 20 ms settle is not free.
+   Re-costed rather than restated: the nudge is asynchronous, so it costs the
+   event loop nothing, and a request arriving while one is in flight is dropped.
+   Held key-repeat switching therefore costs ONE settle for the whole burst, and
+   the bound is one in-flight nudge per child.

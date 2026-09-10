@@ -495,11 +495,12 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 	// capability queries the child emitted at startup, and re-asking the host
 	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
 	// arriving at a new site.
+	// The repaint request rides WITH the takeover (see takeOverScreen): the
+	// replay is the immediate paint, and the request is what makes the result
+	// correct rather than probable once the last full frame has aged out of the
+	// ring (#209). It used to be a separate call here, which is how the SAME
+	// enumeration got swept for the composition and not for the request.
 	c.takeOverScreen(p.child, p.child.ReplayThrough(p.replayCutoff), hostty.RepaintReplace)
-	// Ask the child to repaint from its own state. The replay above is the
-	// immediate paint; this is what makes the result correct rather than
-	// probable when the last full frame has aged out of the ring (#209).
-	p.child.RequestRepaint(c.ChildSize())
 	c.flushDeferredNotifications()
 	c.paintNow()
 }
@@ -1029,6 +1030,14 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte, intent host
 	// so the `?1047` candidate does not need either console to remember.
 	c.hostScan.FeedFraming(composed)
 	c.mu.Unlock()
+
+	// AND ASK THE CHILD TO REPAINT. Here, not at the call sites, because a
+	// takeover and its repaint request are one act: the body above is the
+	// immediate paint, and this is what makes the result correct rather than
+	// probable once the child's last full frame has aged out of the bounded
+	// ring. Nil for couch's own surfaces — the panel is not a child's screen
+	// and has nobody to ask.
+	child.RequestRepaint()
 }
 
 // writeOwn emits the console's OWN bytes, and is the only way they reach the

@@ -72,7 +72,7 @@ func Repaint(modes ChildModes, replay []byte, intent RepaintIntent) []byte {
 	// Mode 4 is therefore unfixed for now. The candidate is `?1047h`/`?1047l`,
 	// which switch buffers WITHOUT touching the cursor — but that is exactly the
 	// kind of terminal-behaviour assumption #209 already had to measure once
-	// (probes/zellijrepaint), so it gets a probe before it ships, not a guess.
+	// (cmd/probes/zellijrepaint), so it gets a probe before it ships, not a guess.
 	if intent == RepaintClear || len(replay) > 0 {
 		out = append(out, HomeAndClear...)
 	}

@@ -58,8 +58,13 @@ const (
 	// may die or couch may be signalled before it emits its own paired restore.
 	LeaveAltScreen = "\x1b[?1049l"
 
-	// EnterAltScreen is LeaveAltScreen's counterpart, needed because a
-	// repaint must put the paint in the buffer the child is actually using (#209).
+	// EnterAltScreen is LeaveAltScreen's counterpart. It has NO production
+	// caller and that is deliberate rather than an oversight: #209 added the
+	// pair to assert a child's buffer during a repaint, then WITHDREW the
+	// assertion when `?1049` turned out to move the cursor through the save
+	// slot the tab strip paints with. Both spellings are kept because
+	// repaint_test.go's forbidden-list is what pins the withdrawal — naming the
+	// sequence is how the test states which bytes must not appear.
 	EnterAltScreen = "\x1b[?1049h"
 	ShowCursor     = "\x1b[?25h"
 	HideCursor     = "\x1b[?25l"

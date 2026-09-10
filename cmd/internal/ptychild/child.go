@@ -75,6 +75,21 @@ type Child struct {
 
 	closeOnce sync.Once
 
+	// geom guards the child's DIMENSIONS, and it is the whole of #209 C2's
+	// answer: every size change takes it, and a repaint nudge holds it for its
+	// entire shrink-settle-restore. Separate from mu because mu is held while
+	// scanning output and a nudge holds this one for the 20 ms settle; sharing
+	// them would stall the read pump on every switch.
+	geom sync.Mutex
+	// size is the last size successfully written to the pty. The nudge's
+	// restore leg reads THIS rather than a value a caller passed in, so no
+	// caller can hand it a size that a concurrent resize has already
+	// superseded.
+	size Size
+	// nudging says a repaint request is already in flight, so a second is
+	// dropped rather than queued behind the first one's settle.
+	nudging bool
+
 	// fake is non-nil only for NewFakeChild. Every method that would touch a
 	// pty branches on it, so one type serves both paths and a test cannot be
 	// exercising a different shape from production.
@@ -114,6 +129,10 @@ func Start(opts Options) (*Child, error) {
 		ring:   NewRing(capacity),
 		screen: &Screen{},
 		done:   make(chan struct{}),
+		// The size it was STARTED at counts as a size change: a child that is
+		// never resized still has geometry, and a nudge must be able to restore
+		// it rather than decline for want of a remembered value.
+		size: opts.Size,
 	}
 	go c.pump()
 	return c, nil
@@ -197,49 +216,87 @@ func (c *Child) Write(p []byte) (int, error) {
 // authority for a frame the bounded replay ring no longer holds (#209).
 //
 // SIGWINCH is the mechanism: zellij 0.44.3 has no repaint action (`clear`
-// destroys buffers, `dump-screen` writes to a file), and probes/zellijrepaint
+// destroys buffers, `dump-screen` writes to a file), and cmd/probes/zellijrepaint
 // confirms against the real binary that zellij re-renders its pane from its own
 // buffer on this exact sequence. It is the same thing the operator's mouse
 // click achieved, issued deliberately.
 //
+// IT TAKES NO SIZE, and that is the fix rather than an omission (#209 C2). The
+// first version took the size to restore, which made a stale restore
+// EXPRESSIBLE: whichever goroutine happened to call it sampled a size, and a
+// host resize landing inside the settle window was then overwritten by the
+// restore leg — the child left permanently mis-sized with no event to correct
+// it. The first answer to that was a rule ("callers must stay on the goroutine
+// that serializes their other resizes") written in this comment, and a comment
+// is not a mechanism: couch broke it immediately, because `switchTo` is reached
+// from the operationQueue goroutine as well as the Run loop, and that path is
+// the operator's primary switch gesture.
+//
+// So the Child owns its geometry, and there is no other owner to disagree with.
+// Every size change goes through `geom`, the nudge holds it for its whole
+// shrink-settle-restore, and the size it restores is the one IT read under that
+// lock. A resize arriving during a nudge waits and then applies — the child
+// ends at the newest size either way, from any goroutine, with no ordering rule
+// for a caller to remember.
+//
+// Asynchronous, because the settle is 20 ms and a caller is an event loop. The
+// serialization above is what makes that safe; it was not safe when ordering
+// depended on the caller's goroutine, which is why the first version blocked.
+// A second request while one is in flight is DROPPED rather than queued: two
+// nudges produce one repaint, and holding a key on tab-switch would otherwise
+// spend the settle once per keystroke.
+//
 // Rows, not columns: a column change reflows wrapped lines, which is an edit
-// rather than a repaint. Restored to the size the CALLER already owns, so no
-// new authority over child geometry is introduced here.
+// rather than a repaint.
 //
 // Fire and forget. The replay has already painted, so a nudge that fails
 // degrades to the old behaviour rather than to a blank screen — a switch must
 // never abort because a child would not resize.
 //
-// One home, not one per consumer: the settle below had to be written once
-// rather than discovered twice (#209 BR-5).
-//
-// It BLOCKS for repaintSettle, deliberately, and callers must stay on the
-// goroutine that serializes their other resizes. That is not a cost to route
-// around with a timer: the shrink and the restore have to be atomic with
-// respect to any other resize, and a host resize landing between them would be
-// erased by the restore leg, leaving the child permanently mis-sized with no
-// event to correct it (#209 BR-7).
-func (c *Child) RequestRepaint(size Size) {
-	if c == nil || size.Rows < 2 {
+// One home, not one per consumer (#209 BR-5).
+func (c *Child) RequestRepaint() {
+	if c == nil {
 		return
 	}
-	nudged := size
-	nudged.Rows--
-	if err := c.Resize(nudged); err != nil {
+	c.geom.Lock()
+	if c.nudging {
+		c.geom.Unlock()
 		return
 	}
-	time.Sleep(repaintSettle)
-	_ = c.Resize(size)
+	c.nudging = true
+	c.geom.Unlock()
+	go c.nudge()
 }
 
-// repaintSettle is how long the shrink is left standing before the restore
+func (c *Child) nudge() {
+	c.geom.Lock()
+	defer func() {
+		c.nudging = false
+		c.geom.Unlock()
+	}()
+	size := c.size
+	if size.Rows < 2 {
+		// One row for the child plus the reserved row is the floor; below it a
+		// "shrink" is a resize to zero rows, which is a different event.
+		return
+	}
+	shrunk := size
+	shrunk.Rows--
+	if err := c.resizeLocked(shrunk); err != nil {
+		return
+	}
+	time.Sleep(RepaintSettle)
+	_ = c.resizeLocked(size)
+}
+
+// RepaintSettle is how long the shrink is left standing before the restore
 // erases it, and it is what makes the nudge WORK rather than usually work.
 //
-// MEASURED, not chosen (probes/zellijrepaint, zellij 0.44.3 / macOS). Standard
-// signals do not queue: issue both TIOCSWINSZ ioctls back-to-back and zellij can
-// take a single SIGWINCH, read a winsize already back at 24 rows, and re-render
-// nothing. That is not theoretical — it is what the first version shipped, and
-// the probe caught it:
+// MEASURED, not chosen (cmd/probes/zellijrepaint, zellij 0.44.3 / macOS).
+// Standard signals do not queue: issue both TIOCSWINSZ ioctls back-to-back and
+// zellij can take a single SIGWINCH, read a winsize already back at 24 rows,
+// and re-render nothing. That is not theoretical — it is what the first version
+// shipped, and the probe caught it:
 //
 //	settle   repainted
 //	none     6 of 12   <- the sequence that shipped: a coin flip
@@ -250,18 +307,27 @@ func (c *Child) RequestRepaint(size Size) {
 //
 // The floor is under a millisecond and the margin is what is being bought:
 // #204 measured this host's process wake-up delay at 4.92 ms, so 20 ms is about
-// four wake-ups of headroom. It is paid ONCE per switch keystroke, AFTER the
-// replay has already put a frame on the screen, and 20 ms is far below the
-// threshold where a response stops reading as immediate.
+// four wake-ups of headroom.
 //
-// The probe is the standing conformance check (ARCH-MOCK's live half): if a
-// zellij upgrade changes the SIGWINCH handling, `go run ./probes/zellijrepaint`
-// with PAIR_PROBE_SETTLE says so, and #213 is the standing reminder that this
-// binary's documented and actual behaviour do diverge.
-const repaintSettle = 20 * time.Millisecond
+// EXPORTED so the probe reads this value instead of restating it. A probe that
+// hard-codes the sequence it is meant to verify measures itself: the default
+// was 0 for one commit, which is exactly the sequence this table condemns, and
+// `make test-smoke` would have run it unattended (#209 C1).
+const RepaintSettle = 20 * time.Millisecond
 
 // Resize changes the child's terminal dimensions. The child gets SIGWINCH.
+//
+// Serialized with every other size change, including a repaint nudge's pair, so
+// a caller needs no knowledge of which goroutine any other caller is on.
 func (c *Child) Resize(s Size) error {
+	c.geom.Lock()
+	defer c.geom.Unlock()
+	return c.resizeLocked(s)
+}
+
+// resizeLocked is the one place a size reaches the pty, and the one place the
+// remembered size is written. Caller holds geom.
+func (c *Child) resizeLocked(s Size) error {
 	if c.fake != nil {
 		if c.Done() {
 			return fmt.Errorf("ptychild: resize a child that has exited")
@@ -269,9 +335,22 @@ func (c *Child) Resize(s Size) error {
 		c.fake.mu.Lock()
 		c.fake.resizes = append(c.fake.resizes, s)
 		c.fake.mu.Unlock()
+		c.size = s
 		return nil
 	}
-	return pty.Setsize(c.ptmx, &pty.Winsize{Rows: s.Rows, Cols: s.Cols})
+	if err := pty.Setsize(c.ptmx, &pty.Winsize{Rows: s.Rows, Cols: s.Cols}); err != nil {
+		return err
+	}
+	c.size = s
+	return nil
+}
+
+// Size is the dimensions this child was last successfully set to, including the
+// size it was started at.
+func (c *Child) Size() Size {
+	c.geom.Lock()
+	defer c.geom.Unlock()
+	return c.size
 }
 
 // Snapshot is the raw replay window. Prefer Replay for repainting a screen --

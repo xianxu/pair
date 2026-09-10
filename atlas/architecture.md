@@ -474,19 +474,40 @@ mechanism sits in two packages that both drive:
   if the bounded ring happens to still hold a full frame — and four ways that
   fails are reproduced in `ptychild/replay_insufficiency_test.go`. So a switch
   now composes, then asks the child to repaint (a rows-only SIGWINCH nudge;
-  zellij 0.44.3 has no repaint action, and `probes/zellijrepaint` confirms
+  zellij 0.44.3 has no repaint action, and `cmd/probes/zellijrepaint` confirms
   against the real binary that it re-renders its pane from its own buffer).
 
   **The nudge has a SETTLE, and it is the difference between working and usually
-  working.** `ptychild.repaintSettle` (20 ms) is how long the shrink stands
+  working.** `ptychild.RepaintSettle` (20 ms) is how long the shrink stands
   before the restore erases it. Standard signals do not queue: issue both
   `TIOCSWINSZ` ioctls back-to-back and zellij can take one `SIGWINCH`, read a
   winsize already restored, and re-render nothing. Measured, not reasoned —
-  `probes/zellijrepaint` with `PAIR_PROBE_SETTLE` puts the no-settle sequence at
-  **6 of 12 runs repainted** and 1 ms at 5 of 5. It blocks the calling
-  goroutine on purpose: the shrink and the restore must be atomic against any
-  other resize, or a host resize landing between them is erased by the restore
-  leg and the child is left permanently mis-sized.
+  `cmd/probes/zellijrepaint` with `PAIR_PROBE_SETTLE` puts the no-settle
+  sequence at **6 of 12 runs repainted** and 1 ms at 5 of 5. The probe READS the
+  production constant rather than restating it, which is why it lives under
+  `cmd/probes/` — a probe that hard-codes the sequence it verifies measures
+  itself, and this one defaulted to the condemned sequence for exactly one
+  commit.
+
+  **`Child` owns its geometry, and that is what makes the nudge safe rather than
+  a rule someone has to keep.** `RequestRepaint` takes NO size: it reads what to
+  restore under the same lock it holds for the whole shrink-settle-restore, so a
+  resize from any goroutine either precedes the nudge or waits and applies
+  after, and the child ends at the newest size either way. The first version
+  took the size and documented "callers must stay on the goroutine that
+  serializes their other resizes" — couch broke that immediately, because
+  `switchTo` is reached from the operationQueue goroutine as well as the Run
+  loop, and that path is the operator's primary switch gesture. A doc comment is
+  not a mechanism. Being lock-serialized also lets the settle run off the
+  caller's goroutine, so a switch costs the event loop nothing and a second
+  request during one in flight is dropped.
+
+  **The repaint request rides WITH the takeover**, in `applyTakeover` and
+  `takeOverScreen` rather than at their call sites. Splitting them let
+  `removeTab` hand the screen to a surviving tab with no way to recover a frame
+  the ring no longer held — the issue's own symptom, reached by the one takeover
+  site that forgot. The four sites had been swept for *intent* and not for the
+  *request*: same enumeration, one lens applied.
 
   **What `Repaint` asserts is currently NOTHING, and that is a withdrawal rather
   than a simplification.** The composition asserted the child's buffer before

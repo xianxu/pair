@@ -156,6 +156,11 @@ rounds:
           family: operating-envelope-unstated
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-09T22:22:28-07:00"
+      agent: claude
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#209 (boundary-review)
@@ -249,6 +254,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   A rows-only resize reflows the whole zellij layout, and couch runs 10+ panes, on a
   keystroke path. PQ-7 was disposed on prose; the number belongs in #204's invariant
   table alongside the repaint-request count.
+
+## Round 3 — 2026-09-09T22:22:28-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

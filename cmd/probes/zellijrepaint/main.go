@@ -16,7 +16,7 @@
 // came from zellij re-rendering its own buffer — which is exactly the property
 // the fix depends on.
 //
-//	go run ./probes/zellijrepaint
+//	make test-zellij-repaint
 //
 // Result on zellij 0.44.3 / macOS: see the verdict this prints.
 //
@@ -33,6 +33,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/probes/zellijprobe"
 	"golang.org/x/sys/unix"
 )
@@ -56,6 +57,7 @@ func run() int {
 		return 1
 	}
 	dir := filepath.Dir(self)
+	repo := filepath.Join(dir, "..", "..", "..") // cmd/probes/zellijrepaint -> repo root
 
 	layout, err := zellijprobe.WriteLayout(dir, map[string]string{
 		"PROBE_SH": filepath.Join(dir, "probe.sh"),
@@ -68,7 +70,7 @@ func run() int {
 
 	env := zellijprobe.Scrub([]string{"ZELLIJ"}, "TERM=xterm-256color")
 	session, err := zellijprobe.Start(zellijprobe.Options{
-		ConfigFile: filepath.Join(dir, "..", "..", "zellij", "config.kdl"),
+		ConfigFile: filepath.Join(repo, "zellij", "config.kdl"),
 		Layout:     layout,
 		NamePrefix: "zellijrepaint",
 		Rows:       24, Cols: 80,
@@ -97,20 +99,23 @@ func run() int {
 
 	// SIGWINCH: rows only, exactly as the fix nudges (a column change would
 	// reflow wrapped lines rather than repaint).
-	// BACK-TO-BACK, exactly as production issues them (console.go and run.go
-	// both call Resize twice with nothing in between). The gap matters: standard
-	// signals do not queue, so zellij may take a single SIGWINCH, read a winsize
-	// that is already back to 24, and re-render nothing. A probe that sleeps
-	// between the two measures a sequence production never issues — and would
-	// report REPAINTED for a fix that is a no-op (BR-3).
+	// The gap is the whole question: standard signals do not queue, so with
+	// nothing between the two ioctls zellij may take a single SIGWINCH, read a
+	// winsize already back to 24, and re-render nothing. That is not a
+	// hypothesis — it is what this probe measured at 6 of 12 runs, which is why
+	// production settles ptychild.RepaintSettle here (BR-3, C1).
 	//
-	// SETTLE is the variable under test. Production issues the pair with
-	// nothing between them (PAIR_PROBE_SETTLE unset, the default): that is the
-	// sequence to measure, and the one BR-3 predicted might coalesce. Set it to
-	// a duration to measure how long zellij needs to OBSERVE the shrink before
-	// the restore erases it — the verdict below then says whether that settle
-	// is enough.
-	settle := time.Duration(0)
+	// THE SETTLE IS READ FROM PRODUCTION, not restated here (#209 C1). A probe
+	// that hard-codes the sequence it exists to verify measures itself: this
+	// defaulted to 0 for one commit, which is precisely the sequence its own
+	// table condemns at 6-of-12, and `make test-zellij-repaint` would have run
+	// it unattended. Importing ptychild is why the probe lives under
+	// cmd/probes/ — Go forbids it from probes/ outright, and the atlas records
+	// that branch of the rule.
+	//
+	// PAIR_PROBE_SETTLE overrides it, which is how the table was measured and
+	// how it gets re-measured after a zellij upgrade.
+	settle := ptychild.RepaintSettle
 	if raw := os.Getenv("PAIR_PROBE_SETTLE"); raw != "" {
 		d, err := time.ParseDuration(raw)
 		if err != nil {

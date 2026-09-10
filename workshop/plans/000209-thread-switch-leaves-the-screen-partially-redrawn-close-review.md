@@ -230,3 +230,82 @@ findings:
       keystroke path. PQ-7 was disposed on prose; the number belongs in #204's invariant
       table alongside the repaint-request count.
 ```
+
+---
+
+## Re-review — 2026-09-09T22:22:28-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 209 — thread switch leaves the screen partially redrawn |
+| repo | pair |
+| issue file | workshop/issues/000209-thread-switch-leaves-the-screen-partially-redrawn.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 11e12276c7602d583d78fd1348a2bdd95fb4fa1f..c4ee363f24718b58f0c4f24f70f82093f3cca18f |
+| command | sdlc close --issue 209 |
+| reviewer | claude |
+| timestamp | 2026-09-09T22:22:28-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+This round did the hard part well: the settle is a *measured* number rather than a guessed one, the probe's own table is what caught a fix that worked half the time, and the godoc guard was generalized to the class rather than the site (I mutation-verified it — inserting the BR-10 shape into `ptychild/child.go` now fails `TestNoDeclarationCarriesTwoStackedGodocs`). BR-2's couch half is genuinely pinned now (deleting `console.go:502` times out `TestSwitchAsksTheIncomingChildToRepaint`), and `HomeAndClear` is emitted from exactly one place in the tree. What blocks SHIP is two measured Criticals plus four prior findings that are still open. First: `probes/zellijrepaint` now defaults to `settle = 0` (`main.go:113`) while production settles 20 ms — so `make test-smoke`, which runs every `probes/*/` with `|| exit 1` (`Makefile.local:59-67`), now runs the sequence this round *itself* measured at **6 of 12**, and its comment at `main.go:107` still asserts "Production issues the pair with nothing between them", which stopped being true in the same commit. Second: couch's nudge (`console.go:502`) runs on the **operationQueue goroutine** for the operator's primary switch gesture, not the Run goroutine that owns `applyLayout` — the exact hazard BR-7 closed in termcmd, reopened in the consumer that is the operator's actual bug report. And three prior fixes (BR-4, BR-7, BR-8) revert silently: I reverted each in a scratch copy and the suite came back with the identical documented pty-sandbox failure set.
+
+## 1. Strengths
+
+- **`hostty/repaint.go` is the right shape and the right home.** Pure function, unit-tested with no IO, `RepaintFor` as the one thin adapter that touches a `*ptychild.Child`. The shadow-sweep is clean: `grep HomeAndClear` over non-test `cmd/` returns exactly one emitter (`repaint.go:77`) and four comments pointing at it.
+- **The withdrawal is pinned as a withdrawal.** `TestRepaintEmitsNoCursorMovingBufferAssertion` (`repaint_test.go:16`) makes the `?1049` retreat un-reversible-by-accident, and the reason (the 1049 save slot aliasing DECSC, which the strip paints with) is recorded where the next author will hit it.
+- **The godoc guard was generalized, not patched.** `stolenFrom` (`doccomment_test.go:101`) catches the *other* half of the family, and scope is derived by globbing `../*` rather than a hand-list. Mutation-verified: renaming `RequestRepaint`'s doc opener to `Resize` fails with a precise message naming both symbols.
+- **`Child.RequestRepaint` has one home and one settle** (`ptychild/child.go:196-233`), with the measurement table in the doc comment where the next reader of the constant will find it. BR-5 is properly closed.
+- **`#204`'s invariant row landed with an envelope, not a prose assurance** — 6.6 KB / 19.3 KB / 6-of-12 / 1-per-switch, and the honest note that a single-pane figure is a floor for a 10-pane couch.
+
+## 2. Critical findings
+
+**C1 — `probes/zellijrepaint` defaults to a sequence production no longer issues, and `make test-smoke` runs that default.** `probes/zellijrepaint/main.go:113` sets `settle := time.Duration(0)`; `main.go:107` still says "Production issues the pair with nothing between them". Production now sleeps `repaintSettle` (20 ms) between the two ioctls (`ptychild/child.go:227-229`). `Makefile.local:59-67` loops `go run ./probes/$p || exit 1` with no environment, so the standing conformance check runs at the settle this round measured at 6-of-12 and aborts the whole smoke suite on the ~50% of runs that come back NOT REPAINTED / PARTIAL. Fix sketch: single-source the settle instead of restating it. `atlas/index.md:34-44` already names the branch — a probe that must import `cmd/internal/…` belongs under `cmd/probes/` with its own target — so move it there and read `ptychild.repaintSettle` directly, keeping `PAIR_PROBE_SETTLE` as the override for re-measuring the table.
+
+**C2 — couch issues the nudge off the goroutine that serializes child geometry.** `console.go:502` calls `p.child.RequestRepaint(c.ChildSize())` inside `switchTo`. `switchTo` has two callers' goroutines: the Run loop (`console.go:716`, `console.go:1385`) *and* the operationQueue goroutine — `ExecuteConsoleOperation` case `"switch"` (`console.go:1853`) is reached from `operationQueue.Run` → `request.run()` (`operation_queue.go:62`), wired at `couchcmd/run.go:456-461`, and `"switch"` is declared `Effect: EffectConsole` (`couchcore/ops.go:220`). That is the switcher's Enter and the status-chip click — the operator's primary gesture. Meanwhile couch's only other `child.Resize` is `applyLayout` (`console.go:953`), reachable solely from the Run goroutine (`console.go:536`, `console.go:1283`). So a SIGWINCH landing inside the 20 ms shrink window resizes the child to the new size and the restore leg then writes back the size sampled before it — the child is permanently mis-sized with no event to correct it. This is what `RequestRepaint`'s own doc ("callers must stay on the goroutine that serializes their other resizes", `child.go:214-216`) and `atlas/architecture.md:485-488` both promise does not happen. This is the 2nd finding in family `nudge-ordering-and-extent`; per the escalation, the deliverable is the rule, not this site: **the nudge must run on, and read its restore size from, the goroutine that owns `Child.Resize` for that child — and that ownership must be enforced by the type, not asserted in a doc comment.** The enumeration is every `RequestRepaint` caller (2) crossed with its consumer's resize owner, and both instances fail it: couch calls it from two goroutines, and termcmd (below) samples the size on a third.
+
+## 3. Important findings
+
+**I1 — the class named by `claimed-fix-unpinned-by-test`, with measured prevalence.** This is the 2nd finding in that family. Do not fix the three instances individually; the rule is already written in this gate's own prompt and was violated again by the commit that closed the findings: **a disposition of `addressed` requires a test that goes red when the fix is reverted, and producing that test is part of the fix, not a follow-up.** Measured prevalence this round: of the seven prior findings whose fix changed production code, three revert silently — BR-4 (`run.go:1448` `true`→`false`), BR-7 (`run.go:1371` enqueue→direct call), BR-8 (`console_menu.go:196` `RepaintClear`→`RepaintReplace`) — each leaving the identical documented pty-sandbox failure set. Two are pinned by construction (BR-5, BR-12: the symbol moved, so a revert does not compile), one by a new guard (BR-10), one is byte-inert today and honestly unpinnable (BR-6). The enumeration that should be written into the plan is exactly the round's own addressed-list; running the revert over it is mechanical and would have caught all three.
+
+**I2 — `removeTab` hands the screen to a different child and asks for no repaint.** `run.go:1448` takes the screen over for the surviving tab but issues no `RequestRepaint`; only `switchRelative` (`run.go:1371`) got the nudge. Close tab 1 while tab 2's ring holds no full frame and the operator gets the issue's own symptom — cleared screen, partial content, no way to recover but to press Enter. BR-8's enumeration ("four takeover call sites") was correctly swept for *intent*; the same enumeration was not swept for the *repaint request*. Fix sketch: enqueue the same `nudge` chunk for `childOf(active)` after the takeover, or better, make the nudge a property of the takeover chunk so a site cannot do one without the other.
+
+## 4. Minor findings
+
+- **`hostty.EnterAltScreen` (`control.go:63`) has zero production callers** and its doc claims a rationale ("a repaint must put the paint in the buffer the child is actually using") withdrawn in the same commit; only `repaint_test.go:23`'s forbidden-list references it. 2nd in `dead-exported-surface` — the rule is that a constant added *for* a mechanism must land with it, not ahead of it; if it is scaffolding for the `?1047` attempt, say so in the doc or hold it until the probe runs.
+- **`ptyChunk.nudge` / `nudgeSize` (`run.go:713-714`) duplicate the existing `onWriter` seam** (`run.go:727-730`), which BR-7 named explicitly and which already runs before the switch without consuming the chunk. `clear bool` (`run.go:704`) likewise re-spells the `RepaintIntent` enum this same commit introduced, then converts back at `run.go:1013-1016`. 2nd in `shared-mechanism-duplicated` — rule: when a queue already has a "run this on the writer" affordance, route through it rather than growing a parallel field per caller.
+- **The no-coalescing decision predates the settle.** The plan's "two SIGWINCHes cost one extra repaint, not a wrong screen" was costed when the nudge was free; it now blocks termcmd's writer goroutine and couch's single Run loop for 20 ms per switch. Held key-repeat tab cycling stalls the loop proportionally (~300 ms/s at a 15/s repeat) while the child's own reflow bytes queue behind it. 2nd in `operating-envelope-unstated` — rule: an envelope stated for one event must be restated when the per-event cost changes.
+- `termcmd/run.go:1013-1016` builds `intent` from a bool inside `applyTakeover`; passing `hostty.RepaintIntent` end-to-end would remove the conversion and the field.
+
+## 5. Test coverage notes
+
+- Suite state: `hostty`, `ptychild`, `couchtty`, `termcmd` are green apart from the documented pty-sandbox class (`operation not permitted` on `pty.Open` / `start sh`), which matches the known environment limit and not this diff.
+- `TestTabSwitchIssuesARepaintRequestAndRestoresTheSize` (`run_test.go:1336`) builds a mux with `output == nil`, so `enqueue` dispatches inline on the test goroutine (`run.go:1188-1191`). It therefore cannot observe *which* goroutine the nudge runs on — which is why reverting the queue hop is invisible. termcmd already has the seam for this (`captureIDForTest`, `run.go:1489`, added precisely because "testing the seam is not testing the path"); the nudge needs the same treatment. ARCH-ORDER's highest-leverage flag: both nudge tests are samples of size one.
+- `TestRequestRepaintLeavesTheShrinkStandingLongEnoughToBeSeen` is a good pin on the settle, and asserting on `elapsed >= repaintSettle` rather than a literal keeps it honest if the constant moves.
+- The transitive differential (hostty golden + `TestSwitchWritesExactlyTheComposedRepaint` + `TestTakeoverWritesExactlyTheComposedRepaint`) is a legitimate way to close the row given nothing can drive both consoles, and both legs assert real bytes with a vacuity guard. Accepted.
+- BR-6's composed-bytes feed is byte-inert today (`HomeAndClear` is framing-complete) so no test can pin it; that is stated at both sites and is fine. It becomes pinnable the day `?1047` lands, and should be pinned then.
+
+## 6. Architectural notes
+
+- **ARCH-DRY** — flag (Minor): `ptyChunk.nudge`/`nudgeSize` vs `onWriter`; `clear bool` vs `RepaintIntent`. Otherwise a strong pass — one `HomeAndClear` emitter, one `RequestRepaint`.
+- **ARCH-PURE** — pass. `Repaint` is deterministic and tested with no IO; `RepaintFor` is the thin read; the `*Child` only appears in the adapter.
+- **ARCH-PURPOSE** — flag (I2). The single-source sweep for *intent* is complete; the sweep for the *repaint request* stopped at one of the two termcmd sites that change which child owns the screen.
+- **ARCH-MOCK** — flag (C1). The in-process fake and the live probe both exist, which is the right pair; the live half's default no longer models production, and it runs unattended in `make test-smoke`.
+- **ARCH-CONSTRAINTS** — flag (Minor). The envelope is declared and measured, which is a real improvement, but the settle blocks the one event loop and the coalescing policy was not revisited.
+- **ARCH-SECURE** — pass. `PAIR_PROBE_SETTLE` is parsed with `time.ParseDuration` and fails loudly (`main.go:115-119`); no credentials, no new untrusted-input surface, no test reaching real user state.
+- **ARCH-ORDER** — flag (C2, and the coverage note above). The state carried between events here is *child geometry*, and its legal transitions are currently spread across `applyLayout`, `resizeAll`, and `RequestRepaint` with the serialization rule living in a doc comment. Collapsing that into a single owner ("only this goroutine resizes children; the nudge asks it to") is the change that would make both instances unrepresentable rather than caught.
+
+## 7. Plan revision recommendations
+
+1. **Tests row, mode-assertion cross-product (BR-1, still open).** The 2026-09-10 revision claims delta #1 was applied; the Plan row at issue `:262-263` still reads `{alt-screen, mouse, SGR-mouse, cursor-save} x {set, unset}` verbatim. Deltas #2 and #3 *were* applied. Either apply #1 or withdraw it from the Revisions list — a revision entry that describes an edit nobody made is worse than the stale row, because it makes the row look already-fixed.
+2. **Same row: "2 and 4 fixed".** The row claims mode 4 is fixed; `hostty/repaint.go:62-78` asserts no mode at all and the Log says "Mode 4 is therefore unfixed for now." Restate as "2 fixed; 4 tracked to the child's `Screen` but not yet asserted on the wire — see the `?1047` candidate."
+3. **New Revisions entry for the probe default (C1).** The plan row on the conformance check says the probe "drives the production sequence". It drives a 0 ms settle by default. Record the delta and the single-sourcing decision (move to `cmd/probes/`, read `repaintSettle`).
+4. **New Revisions entry for the nudge's goroutine contract (C2).** The plan asserts couch is safe because "both are on the Run goroutine". It is not — the menu path runs on the operationQueue goroutine. Record the correction and the rule that replaces the assumption.
+5. **Nudge-coalescing row.** Re-cost "nothing is coalesced" now that a nudge costs 20 ms of the event loop, and state the bound for held key-repeat switching.

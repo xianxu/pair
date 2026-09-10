@@ -1091,7 +1091,7 @@ func TestSwitchAsksTheIncomingChildToRepaint(t *testing.T) {
 // A switch must not nudge the pane the operator is ALREADY on. The tracker
 // ignores a landing on the current actor, and a resize round-trip on a
 // full-screen child is a whole reflow — 19,317 bytes on a single-pane zellij,
-// measured by probes/zellijrepaint — so paying it for a no-op switch is exactly
+// measured by cmd/probes/zellijrepaint — so paying it for a no-op switch is exactly
 // the keystroke-path cost ARCH-CONSTRAINTS asks to be deliberate about.
 func TestSwitchingToTheActiveThreadAsksForNoRepaint(t *testing.T) {
 	f := newFixture(t, 24, 80)
@@ -1136,4 +1136,96 @@ func TestSwitchWritesExactlyTheComposedRepaint(t *testing.T) {
 	waitFor(t, "the takeover to reach the host", func() bool {
 		return strings.Contains(f.host.Written(), string(want))
 	})
+}
+
+// BR-8's INTENT is byte-inert today, and saying so is better than a test that
+// pretends otherwise (#209 I1).
+//
+// The close review measured BR-8's fix as silently revertible and asked for a
+// test. I wrote one, and it stayed green under the revert — because the two
+// intents differ in exactly one case, an EMPTY body, and the panel always
+// renders something. `RepaintReplace` and `RepaintClear` emit identical bytes
+// for everything `showMenu` can produce. That is the same disposition BR-6 got:
+// correct by construction, unpinnable until the case it governs is reachable.
+// hostty's TestRepaintCarriesIntentRatherThanInferringItFromAnEmptyReplay pins
+// the distinction itself.
+//
+// What this test DOES pin is worth keeping and is not the same claim: opening
+// the panel blanks what was on the screen, so a child's frame cannot show
+// through couch's own surface. Deleting the takeover fails it.
+func TestOpeningThePanelBlanksTheChildsScreenDeliberately(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.child.Feed([]byte("the child's frame"))
+	waitFor(t, "the child's frame to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), "the child's frame")
+	})
+	f.host.Reset()
+
+	f.con.showMenu()
+
+	if got := f.host.Written(); !strings.Contains(got, hostty.HomeAndClear) {
+		t.Fatalf("opening the panel wrote %q, want the screen blanked first — the panel "+
+			"is couch's own surface and must not have a child's frame showing through it", got)
+	}
+}
+
+// And the panel asks NOBODY to repaint. The repaint request rides with the
+// takeover so no site can forget it, which makes the converse worth pinning:
+// there is no child behind couch's own surface, and nudging the outgoing one
+// would resize a child whose screen is not on the terminal.
+func TestOpeningThePanelAsksNoChildToRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(f.child.Resizes())
+	f.con.showMenu()
+	time.Sleep(2 * ptychild.RepaintSettle)
+
+	if got := f.child.Resizes(); len(got) != before {
+		t.Fatalf("opening the panel resized the child: %v", got[before:])
+	}
+}
+
+// C2's consumer half: couch's switch is reached from TWO goroutines — the Run
+// loop, and the operationQueue for the switcher's Enter and the status-chip
+// click, which is the operator's primary gesture. The first version of the
+// nudge took a size and documented a rule ("callers must stay on the goroutine
+// that serializes their other resizes"); this path broke it immediately.
+//
+// The rule is gone and the mechanism replaced it: RequestRepaint takes no size
+// and reads its restore under the child's own geometry lock. So the property to
+// pin here is that the OPERATION path nudges exactly like the Run path — no
+// caller has an ordering obligation left to get wrong.
+func TestASwitchThroughTheOperationQueueNudgesLikeAnyOther(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	incoming := ptychild.NewFakeChild(nil)
+	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	f.con.attachThreadActor("c2", "c2", menuAddress("c2"), "c1", "brain", incoming)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(incoming.Resizes())
+	// The switcher's Enter, not con.Switch: this is the dispatcher path that
+	// runs off the Run goroutine.
+	if _, err := f.con.Ops()(couchcore.OperationCall{
+		Name: "switch", Implicit: true,
+		Args: map[string]string{
+			"repo-scope": menuAddress("c2").RepoScope,
+			"tag":        string(menuAddress("c2").Tag),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	waitFor(t, "the incoming child to be asked to repaint", func() bool {
+		return len(incoming.Resizes()) >= before+2
+	})
+	got := incoming.Resizes()[before:]
+	want := f.con.ChildSize()
+	if got[0].Rows != want.Rows-1 || got[1] != want {
+		t.Fatalf("operation-path switch resized %v, want a shrink-and-restore around %v", got, want)
+	}
+	if size := incoming.Size(); size != want {
+		t.Fatalf("child left at %v, want %v", size, want)
+	}
 }
