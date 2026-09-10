@@ -307,8 +307,15 @@ reprinted a row lower, on the strip row, with a duplicated separator above it �
 the look of a shell redrawing a two-line prompt after a SIGWINCH. It did not
 recur over many further `ls` runs. Ruled out by measurement: focus changes do
 not resize panes under either frame style (a probe moved focus four times; no
-pane received a single SIGWINCH). Not yet tested: whether `#209`'s repaint
-nudge — which sends SIGWINCH to the tab's shell on every takeover, including an
-Alt+←/→ tab "switch" with only one tab — makes zsh reprint a two-line prompt
-onto the strip row. That would be a `#209` regression, and it is the next thing
-to measure if the operator sees it again.
+pane received a single SIGWINCH). Also ruled out, each against the
+current `pair term` in zellij 0.45.1 with zsh on a two-line prompt (full-width
+separator, then the path), reading where a typed marker lands:
+
+| trigger | result |
+|---|---|
+| three Alt+→ tab "switches" with one tab — each a takeover plus `#209`'s SIGWINCH nudge | cursor at the prompt |
+| session resized 24→20→24→22→24 rows (a window resize or layout rung) | cursor at the prompt, twice |
+
+So it is not `#209`'s nudge and not a plain resize. It stays unexplained rather
+than guessed at; if it recurs, what the operator did just before is the evidence
+to collect. The probes were throwaways and are not kept.
