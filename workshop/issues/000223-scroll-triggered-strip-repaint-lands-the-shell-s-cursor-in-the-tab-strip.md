@@ -283,3 +283,32 @@ still-running old server, and the zellij-0.44.3-measured constants elsewhere in
 pair (`layoutcmd`'s resize fraction, couch's ctrl+wheel handling). The single-
 pane probe layout also came up 24×80 on v0.45.1 against 22×78 on v0.44.3, so a
 default around pane frames moved; worth watching in the real layout.
+
+### 2026-09-10 — live on zellij 0.45.1
+
+**The operator smoke-tested it: the wrap bug is gone.** A long `ls -la` in the
+right pane after the screen has filled now prints in full — `Makefile.workflow`
+wraps onto its own row, every later entry follows, and the strip holds the
+bottom row with the cursor at the prompt.
+
+**The upgrade moved one thing: the first line of the layout vanished.** zellij
+0.45 split `pane_frames true` into a STYLE and made the default `titles` — a
+title row above each pane and no border (zellij#5318). pair's layout was built
+on the full frame, whose top border is the agent pane's first line and carries
+its scroll indicator. Measured in a two-pane 30×100 session: 29×49 per pane
+under `titles`, 28×48 under `full`. `zellij/config.kdl` now states
+`pane_frame_style "full"`. It is harmless on 0.44.x — `zellij setup --check` on
+the official 0.44.3 binary reports the file well defined, because 0.44 looks
+options up by name and never rejects an unknown one.
+
+**A second, one-off glitch is not explained and is recorded as such.** After
+the operator moved focus to the right pane, one `ls` ended with the prompt
+reprinted a row lower, on the strip row, with a duplicated separator above it —
+the look of a shell redrawing a two-line prompt after a SIGWINCH. It did not
+recur over many further `ls` runs. Ruled out by measurement: focus changes do
+not resize panes under either frame style (a probe moved focus four times; no
+pane received a single SIGWINCH). Not yet tested: whether `#209`'s repaint
+nudge — which sends SIGWINCH to the tab's shell on every takeover, including an
+Alt+←/→ tab "switch" with only one tab — makes zsh reprint a two-line prompt
+onto the strip row. That would be a `#209` regression, and it is the next thing
+to measure if the operator sees it again.

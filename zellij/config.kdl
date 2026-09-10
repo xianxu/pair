@@ -38,6 +38,19 @@ support_kitty_keyboard_protocol true
 show_release_notes false
 show_startup_tips false
 pane_frames true
+// FULL frames, stated rather than defaulted (pair#223). zellij 0.45 split
+// `pane_frames true` into a style and changed the default to "titles" — a
+// title row above each pane and no border (zellij#5318). pair's layout was
+// built on the full frame: the agent pane's top border IS its first line, and
+// the scroll indicator above lives there. On 0.45 without this the operator
+// saw the first line vanish. Measured: in a 30x100 session a pane is 29x49
+// under "titles" and 28x48 under "full" — the full frame 0.44.3 drew.
+//
+// Harmless on 0.44.x, which predates the key: it looks options up by name and
+// never rejects an unknown one (`zellij setup --check` on 0.44.3 and 0.45.1
+// both report the file well defined). pair wants 0.45+ anyway — it is the
+// release that stops a wrapped line escaping `pair term`'s scroll region.
+pane_frame_style "full"
 
 // Cap zellij's per-pane scroll-back at 2000 rows. Matches the
 // pair-scrollback-render historyRows cap so PageUp inside the agent
