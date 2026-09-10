@@ -1,11 +1,12 @@
 ---
 id: 000221
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-09
-updated: 2026-09-09
+updated: 2026-09-10
 estimate_hours:
+started: 2026-09-10T10:28:19-07:00
 ---
 
 # ctrl+return jumps straight to the newest paging thread
