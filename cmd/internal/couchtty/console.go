@@ -495,7 +495,13 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 	// capability queries the child emitted at startup, and re-asking the host
 	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
 	// arriving at a new site.
-	c.takeOverScreen(p.child.ReplayThrough(p.replayCutoff))
+	altScreen, observed := p.child.RepaintModes()
+	c.takeOverScreen(hostty.ChildModes{AltScreen: altScreen, AltScreenObserved: observed},
+		p.child.ReplayThrough(p.replayCutoff))
+	// Ask the child to repaint from its own state. The replay above is the
+	// immediate paint; this is what makes the result correct rather than
+	// probable when the last full frame has aged out of the ring (#209).
+	c.requestRepaint(p.child)
 	c.flushDeferredNotifications()
 	c.paintNow()
 }
@@ -989,14 +995,47 @@ func (c *Console) writeChild(p []byte) {
 // to be corrupted.
 //
 // It is still Run-goroutine-only, like every other writer.
-func (c *Console) takeOverScreen(body []byte) {
+// requestRepaint asks a child to repaint from its OWN state, which is the only
+// authority for a frame the retained ring no longer holds (#209).
+//
+// A resize nudge — SIGWINCH — is the mechanism, because zellij 0.44.3 has no
+// repaint action (`clear` destroys buffers, `dump-screen` writes to a file) and
+// couch's children are zellij. It is the same thing the operator's mouse click
+// achieved, issued deliberately.
+//
+// Rows, not columns: a column change reflows wrapped lines, which is a visible
+// edit rather than a repaint.
+//
+// Fire and forget. The replay has already painted, so a nudge that fails
+// degrades to the old behaviour rather than to a blank screen — and a switch
+// must never abort because a child would not resize.
+func (c *Console) requestRepaint(child *ptychild.Child) {
+	if child == nil {
+		return
+	}
+	size := c.ChildSize()
+	if size.Rows < 2 {
+		return // nothing to shrink; the nudge would be a no-op resize
+	}
+	nudged := size
+	nudged.Rows--
+	if err := child.Resize(nudged); err != nil {
+		return
+	}
+	_ = child.Resize(size)
+}
+
+func (c *Console) takeOverScreen(modes hostty.ChildModes, body []byte) {
 	c.mu.Lock()
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
 	c.mu.Unlock()
 
-	_, _ = io.WriteString(c.host, hostty.HomeAndClear)
-	_, _ = c.host.Write(body)
+	// Composed, not clear-then-write (#209): the buffer must be asserted before
+	// the paint or the paint lands in the wrong one, and an empty body must not
+	// blank — that means the ring could not answer, and a stale frame beats a
+	// blank one while the child is asked to repaint.
+	_, _ = c.host.Write(hostty.Repaint(modes, body, hostty.RepaintReplace))
 
 	// And FEED it back. The reset above drops the old child's partial sequence,
 	// which is right, but it also drops everything the scanner knew about the

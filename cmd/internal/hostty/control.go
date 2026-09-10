@@ -57,6 +57,10 @@ const (
 	// LeaveAltScreen and ShowCursor are unconditional teardown guards. A child
 	// may die or couch may be signalled before it emits its own paired restore.
 	LeaveAltScreen = "\x1b[?1049l"
+
+	// EnterAltScreen is LeaveAltScreen's counterpart, needed because a
+	// repaint must put the paint in the buffer the child is actually using (#209).
+	EnterAltScreen = "\x1b[?1049h"
 	ShowCursor     = "\x1b[?25h"
 	HideCursor     = "\x1b[?25l"
 

@@ -279,6 +279,23 @@ func (c *Child) AltScreen() bool {
 	return c.screen.AltScreen()
 }
 
+// AltScreenObserved reports whether the child has said anything about the
+// alternate buffer. A repaint must not assert a buffer it never witnessed
+// (#209).
+func (c *Child) AltScreenObserved() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.screen.AltScreenObserved()
+}
+
+// RepaintModes is what hostty.Repaint needs from this child, taken in one
+// locked read so the two fields cannot disagree.
+func (c *Child) RepaintModes() (altScreen, observed bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.screen.AltScreen(), c.screen.AltScreenObserved()
+}
+
 func (c *Child) Mouse() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()

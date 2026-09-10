@@ -7,6 +7,7 @@ package termcmd
 
 import (
 	"bytes"
+	"github.com/xianxu/pair/cmd/internal/hostty"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"io"
@@ -31,7 +32,7 @@ func TestRedrawTabEmitsNoQueries(t *testing.T) {
 	}
 	m.tabs = append(m.tabs, tab)
 
-	m.redrawTab(replaySnapshotLocked(tab))
+	m.redrawTab(replaySnapshotLocked(tab), hostty.ChildModes{})
 
 	got := out.String()
 	for _, q := range []string{"\x1b[c", "\x1b[?2026$p"} {
