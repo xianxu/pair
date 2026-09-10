@@ -1,0 +1,8 @@
+layout {
+    // The probe's pane process. zellij resolves a relative command against its
+    // own cwd, so main.go rewrites this file's args at run time -- see
+    // writeLayout there.
+    pane command="bash" {
+        args "PROBE_SH" "PROBE_OUT"
+    }
+}

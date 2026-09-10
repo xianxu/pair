@@ -152,3 +152,48 @@ the same failure FAMILY, and not cause and effect:
   `#209` the screen buffer, and this would be the cursor-save slot — the third.
   Whatever this issue finds belongs in that account, not in a fourth private
   one.
+
+### 2026-09-10 — the mechanism is zellij's autowrap, and none of the three questions was it
+
+**Measured, and it is not the DECSC slot.** The operator's live report gave the
+clue the three questions above missed: `ls -la` output dies on exactly the one
+line that WRAPS (`Makefile.workflow → ../ariadne/Makefile.workflow`), and every
+later line — and the prompt — is overprinted onto the strip row. A second report
+narrowed it further: short single-line output at the bottom margin scrolls
+correctly, every time.
+
+`probes/zellijwrapmargin` asks zellij for its own cursor position (DSR) after
+each step, with the region set exactly as `pair term` sets it:
+
+```
+pane rows=22 cols=78 region=1..21
+at-bottom-margin      row=21 col=1
+after-short-line      row=21 col=1    newline scrolls the region: correct
+after-wrapping-line   row=22 col=11   autowrap lands ON the reserved row
+after-its-newline     row=22 col=1    and stays: LF below the region cannot scroll
+VERDICT: WRAP ESCAPES THE REGION
+```
+
+So on zellij 0.44.3, **autowrap at the bottom margin of a DECSTBM region moves
+the cursor below the region instead of scrolling it**, while a newline at the
+same spot is handled correctly — zellij disagrees with itself, which is the
+signature of a bug rather than a spec reading. Once the cursor is on row N,
+every later line overprints it; when zsh's next prompt dirties the row, `pair
+term` repaints the strip, and its DECSC/DECRC bracket faithfully restores the
+cursor to where the shell left it — on the strip row. The gate, the save slot
+and the scanner are all behaving correctly. The "sometimes" is whether a line
+long enough to wrap arrives after the screen has filled.
+
+The same class of bug shipped in Windows Terminal (microsoft/terminal#19016). No
+zellij report was found.
+
+**Consequences for this issue's framing.** Its Problem section attributes the
+symptom to `#199`'s save-slot hazard; that is wrong and is left above as the
+record of what was believed. `#209` neither caused nor could fix it. And `couch`
+is unaffected: it reserves its row on the HOST terminal, not in zellij's
+emulator.
+
+**The fix is a design decision, not a patch**, because nothing inside `pair
+term`'s current design can see the wrap happen: it forwards the child's bytes
+without modelling the cursor. The candidates are recorded in `## Spec` once the
+operator chooses.
