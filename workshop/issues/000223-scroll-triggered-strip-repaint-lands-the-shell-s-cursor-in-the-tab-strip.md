@@ -197,3 +197,23 @@ emulator.
 term`'s current design can see the wrap happen: it forwards the child's bytes
 without modelling the cursor. The candidates are recorded in `## Spec` once the
 operator chooses.
+
+**A/B against the pre-`#209` binary: identical.** The operator reported the
+symptom as a `#209` regression, so that was tested rather than argued. Two
+builds — `11e12276` (the branch point; its only change is `#209`'s issue file,
+and it already has `#199`'s strip) and the current head — each run as `pair
+term` inside a throwaway zellij session whose tab child fills the region, prints
+one line that wraps, then four marker lines. Both end with the same final row:
+
+```
+WWWWWWWWWW…WWWWWWWWEND_MARKER1]     ← markers overprinted the strip;
+                                      "1]" is what is left of "[terminal 1]"
+```
+
+So the escape predates `#209`. It is as old as the reserved row itself —
+`#199` M3, 2026-09-08 — and a `pair term` started before that has no scroll
+region and cannot hit it; several such panes are still running. It showed up
+during `#209` because `#209`'s first version DID move the cursor (the `?1049`
+assertion, withdrawn in `213d64cf`), which put cursor symptoms under scrutiny at
+the same moment. The harness was a throwaway; `probes/zellijwrapmargin` is the
+durable measurement.
