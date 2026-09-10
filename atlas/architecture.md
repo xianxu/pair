@@ -568,8 +568,10 @@ mechanism sits in two packages that both drive:
   `EdgeBottom` is the only implemented edge and the zero value. `EdgeTop` is
   representable and refused: with the region at 2..N the child still addresses
   absolute rows, so its row 1 *is* the strip, and any absolute positioning it
-  does lands on top. Correct only under origin mode (DECOM, `\x1b[?6h`)
-  arbitrated against children that set it themselves, which nothing tracks.
+  does lands on top. Origin mode (DECOM) does not rescue it — measured in
+  `#223`: DECSTBM parameters stay absolute under DECOM, so a full-screen child's
+  own region includes the strip, and real nvim overwrote it at once. A top edge
+  would need the child's DECSTBM rewritten in flight.
   `NewReservation` refuses it and the methods fail closed if a caller bypasses
   the constructor — emitting a region computed for an unimplemented edge is a
   silently corrupted screen, whereas drawing nothing costs only the strip.
@@ -587,8 +589,9 @@ mechanism sits in two packages that both drive:
   leaves the shell typing into it (`#223`). A newline at the same spot was always
   correct, which is why it hid for a day. Fixed upstream in zellij 0.45.0
   (zellij#5357); `probes/zellijwrapmargin` measures it and runs in
-  `make test-smoke`, and the pre-fix pair state is tagged
-  `repro/223-bottom-strip-zellij-wrap`.
+  `make test-smoke`. To reproduce through pair itself, run `pair term` on
+  zellij 0.44.x at any commit — the strip code is unchanged by the fix; commit
+  `0baacfa7` is the last one before the frame-style change.
 
   **The strip stays at the BOTTOM, and that was measured too.** The obvious
   workaround — reserve the top row — fails worse: DECSTBM parameters are

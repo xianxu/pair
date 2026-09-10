@@ -214,7 +214,7 @@ grab a path shouldn't hijack what you're writing.
 
 | Tool | Purpose |
 |---|---|
-| [`zellij`](https://zellij.dev/) | terminal multiplexer hosting the workbench |
+| [`zellij`](https://zellij.dev/) **≥ 0.45.0** | terminal multiplexer hosting the workbench |
 | [`nvim`](https://neovim.io/) | the input/drafting pane |
 | [`fzf`](https://github.com/junegunn/fzf) | session picker |
 | an agent | `claude`, `codex`, `agy`, or any TUI agent you want to drive |
@@ -253,6 +253,14 @@ brew update; brew upgrade pair
 ```
 
 That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `agy`) you install separately.
+
+**zellij must be 0.45.0 or newer**, and Homebrew will not upgrade one you
+already have: `brew install` skips a present dependency. Check with
+`zellij --version`, and `brew upgrade zellij` if it is older. On 0.44.x the
+right pane's tab strip breaks as soon as a long line wraps at the bottom of the
+pane — the shell's cursor lands on the strip row and later output overprints it
+(a zellij bug, fixed in 0.45.0; `#223`). Restart your pair sessions after
+upgrading, since running ones keep their old zellij server.
 
 `pair` is a **single Go binary** — the launcher and every helper (`pair wrap`,
 `pair review …`, `pair scrollback …`, `pair clip …`, …) live in one executable,

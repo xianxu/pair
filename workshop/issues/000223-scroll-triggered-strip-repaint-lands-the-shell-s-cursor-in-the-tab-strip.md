@@ -275,8 +275,11 @@ in flight — the compositing-lite project `hostty/reserve.go` declined, to work
 around a bug that is not pair's.
 
 **Decision:** the strip stays at the bottom, and the fix goes where the bug is —
-zellij. The pre-fix state is tagged `repro/223-bottom-strip-zellij-wrap` (at
-`0baacfa7`) so the defect stays reproducible through pair.
+zellij. The pre-fix state is commit `0baacfa7`, on `main` via PR #120, so the
+defect stays reproducible through pair; the operator's checkout also carries a
+local tag `repro/223-bottom-strip-zellij-wrap` at it, deliberately not pushed
+without their say-so, which is why durable docs cite the commit and not the tag
+(#223 BR-3).
 
 **Already fixed upstream — the fix is an upgrade, not a patch.** Reading
 zellij's source for the fix: `v0.44.3`'s `line_wrap()` never consults

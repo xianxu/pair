@@ -4348,3 +4348,30 @@ a ~70% false-positive guard gets muted. What separates the cases is tense, not
 syntax. The idea worth trying next is resolving the citation against **git
 history** — a symbol that once existed is a reference, one that never existed is
 a stale rename — which classified all 13 correctly in this sample.
+
+## A probe's verdict switch needs an explicit INCONCLUSIVE default (pair#223)
+
+**What happened.** `probes/zellijwrapmargin` read zellij's cursor position and
+chose between two verdicts with a `switch` whose `default` arm printed "WRAP
+SCROLLS THE REGION — not present in this zellij". Its parser ignored `Sscanf`
+failures, so an empty CPR reply, a failed `tput`, or a missing line all fell
+through to the FIXED verdict. It ran in `make test-smoke` as the regression
+check for the very bug it would then have reported fixed. The close review
+found it; the repo already had the rule (pair#208) and the probe broke it anyway.
+
+**Rule.** A measurement has three outcomes, not two. Parse into (value, ok),
+enumerate the readings the setup CAN produce, map exactly those to verdicts,
+and send everything else — unparsed, zero, out of range — to PROBE-INCONCLUSIVE
+with a non-zero exit. Then table-test the parser on the failure inputs, because
+the happy path is the one the live run already exercises.
+
+## Durable docs cite refs that exist on origin (pair#223)
+
+**What happened.** The atlas cited `repro/223-bottom-strip-zellij-wrap`, a tag
+created locally at the operator's request and deliberately not pushed. Anyone
+else reading the atlas — or the operator on another machine — would find a name
+that resolves to nothing.
+
+**Rule.** In atlas, README and issue text, cite a commit that is on `origin`
+(or a pushed tag), not a local convenience ref. A local tag is fine as a
+shortcut in conversation; the durable record names the commit it points at.

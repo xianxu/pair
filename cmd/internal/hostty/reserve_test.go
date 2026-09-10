@@ -40,10 +40,12 @@ func TestDegenerateHeightsNeverProduceAZeroRowChild(t *testing.T) {
 
 // EdgeTop is representable but refused, because a top reservation is NOT the
 // mirror of a bottom one: the child addresses rows 1..N-1, so its row 1 IS the
-// strip. Correct only under origin mode (DECOM), which nothing here tracks.
-func TestTopEdgeIsRefusedUntilOriginModeExists(t *testing.T) {
+// strip. Origin mode alone does not fix it — #223 measured DECSTBM parameters
+// staying absolute under DECOM, so a child's own scroll region still includes a
+// top strip. Correct only if the child's DECSTBM were rewritten in flight.
+func TestTopEdgeIsRefused(t *testing.T) {
 	if _, err := hostty.NewReservation(24, hostty.EdgeTop); err == nil {
-		t.Fatal("EdgeTop accepted; a top strip needs DECOM arbitration first")
+		t.Fatal("EdgeTop accepted; a top strip needs the child's DECSTBM rewritten in flight, not only DECOM")
 	}
 	if _, err := hostty.NewReservation(24, hostty.EdgeBottom); err != nil {
 		t.Fatalf("EdgeBottom refused: %v", err)

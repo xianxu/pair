@@ -57,8 +57,12 @@
 // down a row (the bottom-edge one). Re-measured against the official v0.45.1
 // release, 2026-09-10:
 //
-//	after-wrapping-line   row=23 col=11   (region 1..23): stays on the margin
+//	after-wrapping-line   row=21 col=11   (region 1..21): stays on the margin
 //	VERDICT: WRAP SCROLLS THE REGION      and top:wrap — TOP STRIP SURVIVED
+//
+// (Region 1..21 with `pane_frame_style "full"` in pair's config, which frames
+// the pane as 0.44.3 did; the first 0.45.1 reading was 1..23, taken before
+// that key existed, under 0.45's frameless "titles" default.)
 //
 // Windows Terminal shipped the same class of bug (microsoft/terminal#19016).
 //
@@ -96,9 +100,12 @@ func run() int {
 	_ = outFile.Close()
 	defer os.Remove(outPath)
 
-	// PAIR_PROBE_EDGE=top:<wrap|plain|decom> measures the TOP-edge alternative
-	// (region 2..N) instead: whether a wrap at the last row leaves row 1 alone,
-	// and whether homing the cursor lands on it with and without origin mode.
+	// PAIR_PROBE_EDGE=top:<mode> measures the TOP-edge alternative (region
+	// 2..N) instead. Modes: scroll (ordinary scrolling), wrap (one wrap at the
+	// last row), plain (home, no origin mode), decom (origin mode trusted to
+	// DECRC), decom2 (origin mode re-asserted), childregion (a child's own
+	// DECSTBM) and nvim (real nvim scrolling). Each reads whether row 1 is still
+	// the strip.
 	script, mode := "probe.sh", ""
 	if edge := os.Getenv("PAIR_PROBE_EDGE"); strings.HasPrefix(edge, "top:") {
 		script, mode = "probe_top.sh", strings.TrimPrefix(edge, "top:")
@@ -184,30 +191,62 @@ func run() int {
 		return 0
 	}
 	// A measurement, not an assertion: it reports what this zellij does and
-	// exits 0 either way, so test-smoke records the answer without going red on
-	// a bug that lives upstream. The reading that matters is the wrap row
-	// against the region's bottom margin.
-	switch {
-	case strings.Contains(got, "after-wrapping-line row=") && wrapEscaped(got):
+	// exits 0 for either VERDICT, so test-smoke records the answer without going
+	// red on a bug that lives upstream. But a reading it could not PARSE is not
+	// an answer, and exits 2 — the first version fell through to the "fixed"
+	// verdict on an empty CPR reply or a failed tput, which is the one lie a
+	// regression check must never tell (pair#208; #223 BR-1).
+	switch verdict(got) {
+	case wrapEscapes:
 		fmt.Println("VERDICT: WRAP ESCAPES THE REGION — autowrap at the bottom margin puts the")
 		fmt.Println("  cursor on the reserved row instead of scrolling. Every later line then")
 		fmt.Println("  overprints the strip (#223). A NEWLINE at the same spot scrolls correctly.")
-	default:
+	case wrapScrolls:
 		fmt.Println("VERDICT: WRAP SCROLLS THE REGION — the #223 mechanism is not present in this zellij.")
+	default:
+		fmt.Println("PROBE-INCONCLUSIVE: the readings did not parse into a pane height and a")
+		fmt.Println("  post-wrap row ON or BELOW the region's bottom margin; nothing was measured.")
+		return 2
 	}
 	return 0
 }
 
-// wrapEscaped reports whether the post-wrap cursor row is past the region.
-func wrapEscaped(readings string) bool {
-	var rows, bottom, wrapRow int
+type wrapVerdict int
+
+const (
+	inconclusive wrapVerdict = iota
+	wrapScrolls
+	wrapEscapes
+)
+
+// verdict reads the pane height and the post-wrap row out of the pane
+// process's report. It returns a verdict ONLY when both parsed and the row
+// is one the setup can produce: the cursor started on the region's bottom
+// margin, so after a wrap it is either still there (scrolled) or below it
+// (escaped). Anything else — a missing line, a zero, a row above the margin
+// — means the setup failed, and that is not a finding about zellij.
+func verdict(readings string) wrapVerdict {
+	var rows, wrapRow int
+	var haveRows, haveWrap bool
 	for _, line := range strings.Split(readings, "\n") {
-		if n, _ := fmt.Sscanf(line, "pane rows=%d", &rows); n == 1 {
-			bottom = rows - 1
+		if n, err := fmt.Sscanf(line, "pane rows=%d", &rows); n == 1 && err == nil {
+			haveRows = true
 		}
-		if strings.HasPrefix(line, "after-wrapping-line ") {
-			fmt.Sscanf(strings.TrimPrefix(line, "after-wrapping-line "), "row=%d", &wrapRow)
+		if rest, ok := strings.CutPrefix(line, "after-wrapping-line "); ok {
+			if n, err := fmt.Sscanf(rest, "row=%d", &wrapRow); n == 1 && err == nil {
+				haveWrap = true
+			}
 		}
 	}
-	return bottom > 0 && wrapRow > bottom
+	bottom := rows - 1
+	switch {
+	case !haveRows || !haveWrap || bottom < 1:
+		return inconclusive
+	case wrapRow == bottom:
+		return wrapScrolls
+	case wrapRow == rows:
+		return wrapEscapes
+	default:
+		return inconclusive
+	}
 }

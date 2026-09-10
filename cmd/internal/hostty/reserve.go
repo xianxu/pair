@@ -31,10 +31,17 @@ const (
 	// EdgeTop is representable and REFUSED. A top reservation is not the mirror
 	// of a bottom one: with the region set to 2..N the child still addresses
 	// absolute rows, so its row 1 IS the strip and any absolute positioning it
-	// does lands on top of us. Making it correct needs origin mode (DECOM,
-	// `\x1b[?6h`) arbitrated with children that set it themselves, which
-	// nothing here tracks. Named rather than omitted so the asymmetry is
-	// discoverable instead of being rediscovered.
+	// does lands on top of us.
+	//
+	// Origin mode (DECOM, `\x1b[?6h`) is NOT enough, and that is measured
+	// (#223, probes/zellijwrapmargin top:*): it moves the child's CUP, but
+	// DECSTBM parameters stay ABSOLUTE under it, so a full-screen child's own
+	// scroll region — nvim's, on every scroll — includes a top strip, and real
+	// nvim overwrote one on its first half-page. A top edge would have to
+	// rewrite the child's DECSTBM parameters in flight, and police its DECOM,
+	// RIS and buffer switches too; zellij's DECRC does not even restore DECOM.
+	// Named rather than omitted so the asymmetry is discoverable instead of
+	// being rediscovered.
 	EdgeTop
 )
 
@@ -64,7 +71,8 @@ func NewReservation(rows uint16, edge Edge) (Reservation, error) {
 	if edge != EdgeBottom {
 		return Reservation{}, fmt.Errorf(
 			"hostty: edge %d is not implemented; only EdgeBottom reserves correctly "+
-				"(a top strip needs DECOM arbitration)", edge)
+				"(a top strip would need the child's DECSTBM rewritten in flight — its "+
+				"parameters are absolute even under origin mode)", edge)
 	}
 	return Reservation{Rows: rows, Edge: edge}, nil
 }
