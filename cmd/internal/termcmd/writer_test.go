@@ -100,7 +100,7 @@ func TestOnlyOneGoroutineWritesTheHost(t *testing.T) {
 	go func() { // a concurrent redraw, as a tab switch would issue
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			m.redrawTab([]byte("redraw"))
+			m.redrawTab([]byte("redraw"), nil)
 		}
 	}()
 	wg.Wait()
@@ -201,7 +201,7 @@ func TestTakeoverResetsTheGateAndDropsTheOwedPaint(t *testing.T) {
 		t.Fatal("setup failed: the gate should be mid-sequence")
 	}
 
-	m.redrawTab([]byte("fresh"))
+	m.redrawTab([]byte("fresh"), nil)
 	m.drainForTest()
 
 	if m.midSequenceForTest() {
@@ -254,7 +254,7 @@ func TestDiagnosticsAreQueuedNotCoalescedAndSurviveATakeover(t *testing.T) {
 	m.reportError(errors.New("third failure"))
 	m.paintOwn([]byte("DOOMED"))
 	m.drainForTest()
-	m.redrawTab([]byte("replaced"))
+	m.redrawTab([]byte("replaced"), nil)
 	m.drainForTest()
 
 	got = rec.String()
@@ -438,7 +438,7 @@ func TestTheGateSeesExactlyWhatTheTerminalSees(t *testing.T) {
 		// The replay ends mid-sequence. Those bytes ARE written, so the gate
 		// must know the terminal is inside a sequence -- otherwise the next
 		// paint lands in the middle of it.
-		m.redrawTab([]byte("restored\x1b[3"))
+		m.redrawTab([]byte("restored\x1b[3"), nil)
 		m.drainForTest()
 		if !m.midSequenceForTest() {
 			t.Fatal("the gate is blind to a sequence the terminal was shown by the replay")
@@ -506,7 +506,7 @@ func TestADiagnosticNeverLandsInsideTheReplaysOpenSequence(t *testing.T) {
 	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
 	m.reportError(errors.New("owed failure"))
 	m.drainForTest()
-	m.redrawTab([]byte("restored\x1b[3"))
+	m.redrawTab([]byte("restored\x1b[3"), nil)
 	m.drainForTest()
 
 	if strings.Contains(rec.String(), "owed failure") {
@@ -595,7 +595,7 @@ func TestTheTakeoverResetIsLoadBearing(t *testing.T) {
 	// deferred, which is the failure this test is for.
 	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
 	m.drainForTest()
-	m.redrawTab([]byte("12345"))
+	m.redrawTab([]byte("12345"), nil)
 	m.drainForTest()
 	if m.midSequenceForTest() {
 		t.Fatal("the takeover did not reset the scan; the old screen's partial sequence still gates writes")
@@ -625,7 +625,7 @@ func TestATakeoverDropsTheOwedPaintRatherThanDeferringIt(t *testing.T) {
 	m.output <- ptyChunk{id: 1, data: []byte("x\x1b[3")}
 	m.paintOwn([]byte("DOOMED"))
 	m.drainForTest()
-	m.redrawTab([]byte("12345")) // digits: cannot terminate the stale CSI
+	m.redrawTab([]byte("12345"), nil) // digits: cannot terminate the stale CSI
 	m.drainForTest()
 
 	// Drive the stream to a clean boundary. A DEFERRED paint would land here;

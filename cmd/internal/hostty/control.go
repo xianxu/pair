@@ -57,6 +57,15 @@ const (
 	// LeaveAltScreen and ShowCursor are unconditional teardown guards. A child
 	// may die or couch may be signalled before it emits its own paired restore.
 	LeaveAltScreen = "\x1b[?1049l"
+
+	// enterAltScreen is LeaveAltScreen's counterpart, and UNEXPORTED because its
+	// only consumer is this package's own withdrawal test. #209 added the pair
+	// to assert a child's buffer during a repaint and then withdrew the
+	// assertion — `?1049` moves the cursor through the save slot the tab strip
+	// paints with — so the sequence is kept to be NAMED as forbidden, not to be
+	// written. Exported surface needs a consumer outside its own package's
+	// tests; this had none.
+	enterAltScreen = "\x1b[?1049h"
 	ShowCursor     = "\x1b[?25h"
 	HideCursor     = "\x1b[?25l"
 

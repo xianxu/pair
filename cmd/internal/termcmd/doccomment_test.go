@@ -50,6 +50,15 @@ func TestNoDeclarationCarriesTwoStackedGodocs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse %s: %v", path, err)
 			}
+			// The names declared in THIS file, so the second check below can
+			// tell "opens with another declaration's name" from "opens with an
+			// ordinary word".
+			declared := map[string]bool{}
+			for _, decl := range file.Decls {
+				for _, d := range documented(decl) {
+					declared[d.name] = true
+				}
+			}
 			for _, decl := range file.Decls {
 				for _, d := range documented(decl) {
 					checked++
@@ -58,6 +67,13 @@ func TestNoDeclarationCarriesTwoStackedGodocs(t *testing.T) {
 							"left above its replacement, so godoc prints both. Rewrite the sentence "+
 							"that is now wrong; do not append a correction below it.",
 							fset.Position(d.doc.Pos()), d.name, n)
+					}
+					if stolen := stolenFrom(d.doc, d.name, declared); stolen != "" {
+						t.Errorf("%s: %s's doc comment opens with %s's — a new declaration was "+
+							"inserted between %s's doc and its func, so godoc attributes one "+
+							"function's paragraph to another and leaves %s undocumented. Move the "+
+							"paragraph back down to the declaration it describes.",
+							fset.Position(d.doc.Pos()), d.name, stolen, stolen, stolen)
 					}
 				}
 			}
@@ -80,6 +96,41 @@ func countOpeners(doc *ast.CommentGroup, name string) int {
 		}
 	}
 	return n
+}
+
+// stolenFrom names the declaration whose godoc this one opens with, or "" when
+// the doc opens with its own name or with an ordinary word.
+//
+// The OTHER half of this family, and the half countOpeners cannot see. Its tell
+// is one doc comment restarted; this one's is a new declaration inserted
+// BETWEEN an existing doc and the func it described. The doc then reads as the
+// new declaration's, and the old one is left bare — godoc prints one function's
+// paragraph above another's body, which is worse than no doc because it is
+// confidently wrong.
+//
+// Both had already happened when the guard was written (`redrawTab` and
+// `ptychild.Screen.HoldsCursorSave`, whose doc landed in the MIDDLE of
+// `TakeRowDirty`'s) and the guard caught only the first shape; it recurred in
+// #209, where `RequestRepaint` was inserted between `Child.Resize`'s doc and
+// its func. So this is the class's own lesson applied to the check for it.
+//
+// Deliberately narrow: it fires only when the leading identifier is ANOTHER
+// declaration's name in the same file. A doc opening with an ordinary word is
+// not the convention but is also not this bug, and flagging it would make the
+// guard a style rule nobody keeps.
+func stolenFrom(doc *ast.CommentGroup, name string, declared map[string]bool) string {
+	if len(doc.List) == 0 {
+		return ""
+	}
+	body := strings.TrimSpace(strings.TrimPrefix(doc.List[0].Text, "//"))
+	lead := body
+	if i := strings.IndexAny(lead, " \t"); i >= 0 {
+		lead = lead[:i]
+	}
+	if lead == name || !declared[lead] {
+		return ""
+	}
+	return lead
 }
 
 // documented is every (name, doc comment) pair a declaration carries.

@@ -468,6 +468,91 @@ mechanism sits in two packages that both drive:
   `FakeHost`, and the terminal-control constants. `\x1b[r` lives here and only
   here; it was about to exist in two packages.
 
+  Since `#209` it also owns **`Repaint`** — how a switch hands the screen to a
+  child. The rule it encodes: **the replay is the immediate paint, the child is
+  the authority.** A switch used to be clear-then-replay, which is correct only
+  if the bounded ring happens to still hold a full frame — and four ways that
+  fails are reproduced in `ptychild/replay_insufficiency_test.go`. So a switch
+  now composes, then asks the child to repaint (a rows-only SIGWINCH nudge;
+  zellij 0.44.3 has no repaint action, and `cmd/probes/zellijrepaint` confirms
+  against the real binary that it re-renders its pane from its own buffer).
+
+  **The nudge has a SETTLE, and it is the difference between working and usually
+  working.** `ptychild.RepaintSettle` (20 ms) is how long the shrink stands
+  before the restore erases it. Standard signals do not queue: issue both
+  `TIOCSWINSZ` ioctls back-to-back and zellij can take one `SIGWINCH`, read a
+  winsize already restored, and re-render nothing. Measured, not reasoned —
+  `cmd/probes/zellijrepaint` with `PAIR_PROBE_SETTLE` puts the no-settle
+  sequence at **6 of 12 runs repainted** and 1 ms at 5 of 5. The probe READS the
+  production constant rather than restating it, which is why it lives under
+  `cmd/probes/` — a probe that hard-codes the sequence it verifies measures
+  itself, and this one defaulted to the condemned sequence for exactly one
+  commit.
+
+  **`Child` owns its geometry, and that is what makes the nudge safe rather than
+  a rule someone has to keep.** `RequestRepaint` takes NO size: it reads what to
+  restore under the same lock it holds for the whole shrink-settle-restore, so a
+  resize from any goroutine either precedes the nudge or waits and applies
+  after, and the child ends at the newest size either way. The first version
+  took the size and documented "callers must stay on the goroutine that
+  serializes their other resizes" — couch broke that immediately, because
+  `switchTo` is reached from the operationQueue goroutine as well as the Run
+  loop, and that path is the operator's primary switch gesture. A doc comment is
+  not a mechanism. Being lock-serialized also lets the settle run off the
+  caller's goroutine, so a switch costs the event loop nothing and a second
+  request during one in flight is dropped.
+
+  **The repaint request rides WITH the takeover**, in `applyTakeover` and
+  `takeOverScreen` rather than at their call sites. Splitting them let
+  `removeTab` hand the screen to a surviving tab with no way to recover a frame
+  the ring no longer held — the issue's own symptom, reached by the one takeover
+  site that forgot. The four sites had been swept for *intent* and not for the
+  *request*: same enumeration, one lens applied.
+
+  **What `Repaint` asserts is currently NOTHING, and that is a withdrawal rather
+  than a simplification.** The composition asserted the child's buffer before
+  the clear — right in principle, because `?1049h`/`?1049l` switch buffers and a
+  paint belongs to whichever buffer was active when it was written. But the
+  `1049` pair also SAVES and RESTORES the cursor, and the save slot is shared
+  with `DECSC`, which is what the tab strip paints with (`#199`); emitting
+  `?1049l` on every switch consumed the strip's save/restore pairing and landed
+  typed characters mid-screen. So mode 4 is unfixed, the candidate is
+  `?1047h`/`?1047l` (buffer switch WITHOUT the cursor half), and it gets a probe
+  before it ships rather than a second guess.
+
+  Two rules survive the withdrawal and are what the `?1047` attempt must honour:
+  a mode is asserted only when it was OBSERVED, since absence of evidence would
+  drop a child out of an alt screen it is really in (`#196`'s shape —
+  `Screen.AltScreenObserved` sits beside `mouseObserved` for the same reason);
+  and cursor-save is not asserted at all, because `\x1b7` saves the CURRENT
+  cursor and no sequence injects a previously-saved one. Mouse is left to the
+  authorities that already own it rather than adding a third writer.
+
+  `RepaintFor(child, replay)` is the door both consoles use, and the reason is a
+  testability one: with nothing asserted, the child's modes have no observable
+  effect, so a mode read done at each consumer could not be distinguished from
+  the zero value by any test there. One read, pinned once, in the package that
+  owns the composition.
+
+  **A takeover ALWAYS BLANKS**, and the version that did not is worth recording
+  because its argument was persuasive enough to ship twice. It emitted nothing
+  for an empty replay, reasoning that a stale frame beats a blank one while the
+  child is asked to repaint. The hidden premise is that the stale frame belongs
+  to the CHILD BEING REPAINTED — and none of the five takeover sites is that
+  case: couch's switch shows the previous thread or the panel, `pair term`'s
+  shows the previous tab, and the three "deliberate clear" sites were carve-outs
+  invented to escape the rule rather than instances of it. Starting a thread
+  from the panel left the PANEL's body on screen under the new thread's label.
+  So the branch went, and the intent enum that existed to carve exceptions out
+  of it went with it — an intent parameter that changes no bytes is a trap.
+  `clearTab` survives as a name for a call site, not as a second behaviour.
+  What answers "the ring could not tell us what to draw" is asking the child.
+
+  The guarantee differs by what the child IS, deliberately: zellij repaints its
+  whole pane, a foreground TUI repaints, and a bare shell has no screen model at
+  all, so a frame that scrolled out of the ring exists nowhere and mode 1 is
+  best-effort there. Same mechanism, different guarantee, said out loud.
+
   Since `#199` it also owns **`Reservation`** — the row-reservation primitive:
   `Reservation{Rows, Edge}` answering `ChildRows` / `Reserve` / `Release` /
   `Paint`. This is the same argument as `\x1b[r`, one level up. Reserving a row

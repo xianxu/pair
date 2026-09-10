@@ -4255,3 +4255,96 @@ right source" and "coincidentally agrees" are distinguishable observations;
 where the two collide, the test cannot fail for the reason it exists. Prove it
 by returning a deliberately wrong value and watching the comparison fail.
 Caught in #000220 close review round 3.
+
+## A carve-out with no instances is a rule that is wrong (pair#209)
+
+**What happened.** `Repaint` grew a branch that emitted nothing rather than
+blanking when the replay was empty — "a stale frame beats a blank one". Two
+later findings gave two call sites their own door to ESCAPE that branch, and
+each was fixed as an instance. The third review enumerated all five sites and
+found the branch had **zero** correct callers: its hidden premise was that the
+stale frame belongs to the child being repainted, and no takeover site is that
+case. Meanwhile it left the panel's own body on screen under a new thread's
+label, on the primary flow.
+
+**Rule.** When a second site needs an exemption from a rule you wrote, do not
+write the second door — enumerate every site and ask whether the rule has any
+instances at all. Carve-outs are how a wrong rule survives: each exemption looks
+local, and the count is the signal. And when the answer is none, delete the
+branch AND the parameter that selected it — an intent that changes no bytes is a
+trap, because a site can pass the wrong one and nothing says so.
+
+## A disposition of "addressed" needs a test that reds on the revert (pair#209)
+
+**What happened.** Three consecutive boundary reviews measured previously-closed
+findings by reverting them in a scratch copy. BR-4, BR-7, BR-8 and later BR-17
+each reverted with the whole suite green. The findings were genuinely fixed; the
+fixes were simply undefended, so the ledger recorded a claim.
+
+**Rule.** Producing the red-on-revert test is part of the fix, not a follow-up —
+and run the revert yourself before writing `addressed`. Where a fix is honestly
+unpinnable, say so with the reason (two intents emitting identical bytes for
+every reachable input, a field read by nothing while a mechanism is withdrawn)
+rather than shipping a test that cannot fail. `#209`'s BR-6 and BR-8 are the
+worked examples of the honest exception.
+
+## A goroutine-ownership rule in a comment is not a mechanism (pair#209)
+
+**What happened.** `RequestRepaint(size)` took the size to restore, so a stale
+restore was expressible, and correctness rested on a doc comment: "callers must
+stay on the goroutine that serializes their other resizes." couch broke it in
+the same round — `switchTo` is reached from the operationQueue goroutine as well
+as the Run loop, and that path is the operator's primary gesture.
+
+**Rule.** When safety depends on which goroutine a caller is on, delete the
+parameter that makes the unsafe call expressible and let the owner read its own
+state under its own lock. Then check the sibling claims: the same function's doc
+still said "Run-goroutine-only, like every other writer", which was false for
+the writer too — a claim like that is what lets the next reader believe the rule
+is already kept.
+
+## Optional work must not gate — or outrace — the mandatory kind (pair#209)
+
+**What happened.** The repaint nudge held the child's geometry lock across a
+20 ms settle, so an ordinary resize blocked for a measured 20.8 ms, on the
+goroutine that is a pane's sole writer. Releasing the lock alone would have let
+the nudge's restore leg overwrite the resize instead.
+
+**Rule.** Release the lock and carry a generation: on waking, if the counter
+moved, the world changed and the optional work SKIPS. And restate the operating
+envelope for every path the mechanism can block, not only the path that invokes
+it — "costs the event loop zero" was true only of the caller that requested it.
+
+## The double must model the state the fix reads (pair#209)
+
+**What happened.** `Start` sizes a pty before the process runs, so a real child
+always has geometry. `NewFakeChild` had none, so it silently declined every
+repaint request until a test remembered to resize it — and every test that
+worked around that was green for a path production would have taken. Separately,
+only the fake branch of `resizeLocked` refused a dead child, so the real one
+walked into `pty.Setsize` during teardown; `-race` found it after a review had
+judged it harmless on the strength of the fake's behaviour.
+
+**Rule.** A fake that is stricter than production hides bugs just as surely as
+one that is laxer. When a fix reads a piece of state, that state joins the
+conformance stimulus set — and check the fixtures that build the type by literal
+rather than through its constructor, which is where the disallowed shape
+survives.
+
+## Comments naming deleted symbols: sweep them, but do not guard them (pair#209)
+
+**What happened.** Deleting three exported identifiers left seven comments
+teaching the removed rule, `atlas/architecture.md` included, and two mutation
+recipes naming a flag no reader could find — which reads as "this test is
+unpinned". A guard was written to check that symbols named in comments resolve.
+It found 13 citations and **7 were legitimate**: this repo deliberately records
+what it deleted (`Ported from X, which this scanner absorbs`, `Was Y, which
+asserted the pre-#199 contract`).
+
+**Rule.** Deleting an identifier obliges a `grep` sweep of the prose, including
+the atlas — the compiler helps with none of it. But do not automate it the
+obvious way: naming a dead symbol is the house style for explaining history, and
+a ~70% false-positive guard gets muted. What separates the cases is tense, not
+syntax. The idea worth trying next is resolving the citation against **git
+history** — a symbol that once existed is a reference, one that never existed is
+a stale rename — which classified all 13 correctly in this sample.

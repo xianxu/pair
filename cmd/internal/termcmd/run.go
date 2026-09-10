@@ -699,6 +699,12 @@ type ptyChunk struct {
 	// scan resets and any owed paint is dropped rather than flushed against a
 	// screen that no longer exists. couch's third gate rule.
 	takeover bool
+	// child is whose screen this takeover is repainting. It carries BOTH halves
+	// of the takeover — the modes the composition reads, and the repaint
+	// request that follows the write — so a site cannot compose without asking
+	// (#209 I2: removeTab hands the screen to a different child and did not
+	// ask). Nil when the surface being taken over is not a child's at all.
+	child *ptychild.Child
 	// rowDirty means the child may have destroyed the reserved row -- a margin
 	// reset, RIS, an alt-screen transition, or an ERASE. DECSTBM restricts
 	// scrolling, not erasing, so a full-screen app's startup clear takes the row
@@ -842,7 +848,7 @@ func (m *terminalMux) newTab() error {
 	// read bytes, but its sink is gated until the tab is registered and the
 	// screen is ready; replaying that same buffer here would duplicate it when
 	// the queued live copy arrives (BR-9).
-	m.redrawTab(nil)
+	m.clearTab()
 	close(ready)
 
 	// The child's own pump feeds Sink; when it ends, the tab is gone.
@@ -888,7 +894,7 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		m.removeTab(chunk.id)
 
 	case chunk.takeover:
-		m.applyTakeover(chunk.replay)
+		m.applyTakeover(chunk.replay, chunk.child)
 
 	case chunk.diag != nil:
 		m.writeDiag(chunk.diag)
@@ -960,7 +966,7 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 // applyTakeover replaces the whole screen: clear, replay, then settle the gate.
 // Runs on the writer goroutine, whether reached through the channel or called
 // inline by another handler already on it (see removeTab).
-func (m *terminalMux) applyTakeover(replay []byte) {
+func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child) {
 	// couch's THIRD gate rule (console.go:992-995): the screen is being replaced
 	// wholesale, so whatever partial sequence the old content left is no longer
 	// on screen to be corrupted. Reset the scan, and DROP the owed paint rather
@@ -978,14 +984,35 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	// existing. The reset above is what earns the exemption -- it happens
 	// BEFORE these writes, so nothing downstream reads a stale mid-sequence.
 	//
-	// Enumerated and enforced by TestEveryConsoleWriteIsGatedOrExplicitlyExempt.
-	m.pane.rawString("takeover: resets colour and clears the screen the old scan described", hostty.HomeAndClear)
-	m.pane.raw("takeover: replay, fed to the gate immediately below", replay)
-	// The replay is CHILD bytes and the terminal has now seen them, so the gate
-	// must too -- it is replay-safe (ptychild strips queries and cuts at
-	// ReplaySafeEnd) but "usually ends at a boundary" is an assumption, and the
-	// gate exists so nothing has to assume.
-	m.hostScan.FeedFraming(replay)
+	// The enumeration is the TYPE, not a test: paneWriter is not an io.Writer,
+	// so a door that skips this reasoning does not compile. (A scanning test
+	// held this job for one commit and was retired in #199 M2's close for being
+	// narrower than its claim; #223 went looking for it on the strength of a
+	// citation left here, so the citation now says where the guarantee lives.)
+	// Composed by hostty (#209): blank, then draw what the child retained. It
+	// ALWAYS blanks -- see repaint's doc for why the "emit nothing when the
+	// replay is empty" branch had zero correct callers and took the intent enum
+	// with it when it went.
+	composed := hostty.RepaintFor(child, replay)
+	m.pane.raw("takeover: composed clear and replay", composed)
+	// FEED THE COMPOSED BYTES, not just the replay (#209 BR-6). The replay is
+	// CHILD bytes and the terminal has now seen them, so the gate must too --
+	// it is replay-safe (ptychild strips queries and cuts at ReplaySafeEnd) but
+	// "usually ends at a boundary" is an assumption, and the gate exists so
+	// nothing has to assume.
+	//
+	// The console-originated prefix goes in WITH them, which is the one place
+	// the field's "child bytes only" rule is suspended, and the reset above is
+	// what earns it: there is no child partial left for our bytes to be framed
+	// against. It matters because a repaint's prefix is mode-bearing by
+	// design -- it exists precisely to assert what the tail LACKS -- so feeding
+	// the tail alone leaves the scanner believing a screen state the terminal
+	// is not in. Today that prefix is HomeAndClear alone (the buffer assertion
+	// is withdrawn), so this changes no behaviour; it is written now so the day
+	// `?1047` lands, neither console has to remember. couch's takeOverScreen
+	// feeds the composed bytes for the same reason, and the two diverging on a
+	// shared primitive is BR-77 and BR-82 both.
+	m.hostScan.FeedFraming(composed)
 
 	// Diagnostics survive a takeover -- unlike a paint, an error is not made
 	// obsolete by the screen being replaced. But they go through writeDiag, NOT
@@ -1002,6 +1029,18 @@ func (m *terminalMux) applyTakeover(replay []byte) {
 	// debt was against.
 	m.stripOwed = false
 	m.paintStripInline()
+
+	// AND ASK THE CHILD TO REPAINT. Here, not at the call sites, because a
+	// takeover and its repaint request are one act: the replay above is the
+	// immediate paint, and this is what makes the result correct rather than
+	// probable once the last full frame has aged out of the bounded ring.
+	// Splitting them left removeTab handing the screen to a surviving tab with
+	// no way to recover a frame the ring no longer held (#209 I2) — the issue's
+	// own symptom, reached by the one takeover site that forgot.
+	//
+	// Nil for a surface that is not a child's, which is the only case that
+	// should not ask.
+	child.RequestRepaint()
 }
 
 // unsafeToPaint asks the SHARED door (ptychild.Screen.SafeToPaint), which both
@@ -1310,10 +1349,15 @@ func (m *terminalMux) switchRelative(delta int) {
 		return
 	}
 	m.active = (m.active + delta + len(m.tabs)) % len(m.tabs)
-	snapshot := replaySnapshotLocked(m.activeTabLocked())
+	tab := m.activeTabLocked()
+	snapshot := replaySnapshotLocked(tab)
 	m.mu.Unlock()
 	m.renamePane()
-	m.redrawTab(snapshot)
+	// The repaint request rides WITH the takeover (see applyTakeover), so a
+	// switch cannot compose a screen without asking the child for the frame
+	// the ring may no longer hold. The nudge used to be a second chunk queued
+	// here; that let removeTab take the screen over without one.
+	m.redrawTab(snapshot, childOf(tab))
 }
 
 func (m *terminalMux) appMouseMode() bool {
@@ -1386,7 +1430,11 @@ func (m *terminalMux) removeTab(id int) {
 	}
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
-		m.applyTakeover(activeSnapshot)
+		// The destroyed tab's pixels must not survive the close, and since
+		// #209 C-1 that needs no argument at the call site: a takeover always
+		// blanks. BR-4 was this site opting out of a rule that turned out to
+		// have no correct instances anywhere.
+		m.applyTakeover(activeSnapshot, childOf(active))
 		return
 	}
 	// A rename is open, so the screen is NOT taken over -- the operator is mid
@@ -1640,7 +1688,12 @@ func (m *terminalMux) paneTitleLocked() string {
 	return "terminal " + name
 }
 
-// redrawTab is the WHOLESALE TAKEOVER: clear the screen, replay the tab.
+// redrawTab is the WHOLESALE TAKEOVER: repaint the tab from its retained output.
+//
+// The composition belongs to hostty (#209), and it ALWAYS blanks: the frame on
+// screen belongs to the tab being left, not to the one arriving, so "nothing
+// retained" is no reason to keep it. clearTab is this with nothing to draw and
+// nobody to ask — a name for a call site, not a second behaviour.
 //
 // It repaints from a REPLAY taken by the CALLER under m.mu, and never touches
 // the mutex itself. Callers already hold the lock immediately before calling, so
@@ -1655,8 +1708,30 @@ func (m *terminalMux) paneTitleLocked() string {
 // composed at this site while Replay went uncalled -- two places holding one
 // decision about what a repaint may contain, and couch's attach path in M3
 // would have made it three (BR-20).
-func (m *terminalMux) redrawTab(replay []byte) {
-	m.enqueue(ptyChunk{replay: replay, takeover: true})
+func (m *terminalMux) redrawTab(replay []byte, child *ptychild.Child) {
+	m.enqueue(ptyChunk{replay: replay, takeover: true, child: child})
+}
+
+// childOf is the nil-safe read of a tab's child, spelled once because both
+// takeover call sites want it and a missing guard here is a panic on the
+// keystroke path rather than a wrong pixel.
+func childOf(tab *terminalTab) *ptychild.Child {
+	if tab == nil {
+		return nil
+	}
+	return tab.child
+}
+
+// clearTab blanks the screen with no child behind it: a new tab, before its
+// startup output is released, so the queued live copy is not duplicated.
+//
+// It is redrawTab with nothing to draw and nobody to ask, and saying that
+// rather than keeping a second path is the point. The two used to differ — a
+// repaint with an empty replay emitted nothing while a deliberate clear
+// blanked — and #209 C-1 removed the difference, because the keep-stale branch
+// had no correct caller. A named door for readability, not a second behaviour.
+func (m *terminalMux) clearTab() {
+	m.redrawTab(nil, nil)
 }
 
 // replaySnapshotLocked is what a repaint of this tab should write. Caller must

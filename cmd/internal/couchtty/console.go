@@ -495,7 +495,12 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 	// capability queries the child emitted at startup, and re-asking the host
 	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
 	// arriving at a new site.
-	c.takeOverScreen(p.child.ReplayThrough(p.replayCutoff))
+	// The repaint request rides WITH the takeover (see takeOverScreen): the
+	// replay is the immediate paint, and the request is what makes the result
+	// correct rather than probable once the last full frame has aged out of the
+	// ring (#209). It used to be a separate call here, which is how the SAME
+	// enumeration got swept for the composition and not for the request.
+	c.takeOverScreen(p.child, p.child.ReplayThrough(p.replayCutoff))
 	c.flushDeferredNotifications()
 	c.paintNow()
 }
@@ -988,15 +993,36 @@ func (c *Console) writeChild(p []byte) {
 // reason: whatever partial sequence the old child left is no longer on screen
 // to be corrupted.
 //
-// It is still Run-goroutine-only, like every other writer.
-func (c *Console) takeOverScreen(body []byte) {
+// NOT Run-goroutine-only, and the sentence that said so was false rather than
+// aspirational (#209 I-2). `switchTo` reaches here from the operationQueue
+// goroutine too — `ExecuteConsoleOperation`'s `switch`, which is the switcher's
+// Enter and the status-chip click, the operator's primary gesture. That is what
+// #209 C2 discovered while fixing the nudge's ordering, and the nudge's half is
+// now a mechanism: `Child` owns its geometry, so no caller has an ordering
+// obligation there.
+//
+// The WRITER's half is not, and this comment is where it gets said out loud
+// instead of being asserted away: `c.host` is a bare `io.Writer` with no
+// serialization, and couch has several unsynchronized write sites. termcmd
+// already has the answer next door — `paneWriter` is deliberately not an
+// `io.Writer`, so a door that skips the reasoning does not compile — and couch
+// wants the same typed single-writer door. That is #224, not this issue: the
+// change is couch-wide and #209 has no business growing into it. What #209 owes
+// is not leaving a false claim behind, because a claim like this one is exactly
+// what lets the next reader believe the rule is already kept.
+func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 	c.mu.Lock()
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
 	c.mu.Unlock()
 
-	_, _ = io.WriteString(c.host, hostty.HomeAndClear)
-	_, _ = c.host.Write(body)
+	// Composed by hostty (#209): blank, then draw the body. It ALWAYS blanks —
+	// the version that emitted nothing for an empty body left the PANEL's own
+	// surface standing under a new thread's label, which is C-1. The
+	// composition also owned a buffer assertion, withdrawn for now because
+	// `?1049` moves the cursor; hostty's repaint holds both reasons.
+	composed := hostty.RepaintFor(child, body)
+	_, _ = c.host.Write(composed)
 
 	// And FEED it back. The reset above drops the old child's partial sequence,
 	// which is right, but it also drops everything the scanner knew about the
@@ -1010,8 +1036,24 @@ func (c *Console) takeOverScreen(body []byte) {
 	// termcmd's applyTakeover has done this since M3; couch resetting without
 	// feeding is the same shared-primitive divergence as BR-77.
 	c.mu.Lock()
-	c.hostScan.FeedFraming(body)
+	// The COMPOSED bytes, not just the body (#209 BR-6). A repaint's prefix is
+	// mode-bearing BY DESIGN — it exists to assert what the tail LACKS — so
+	// feeding the tail alone would leave the scanner believing a screen state
+	// the terminal is not in: with a `?1048h` in the tail that closes
+	// SafeToPaint's carve-out for the session, which is BR-79's frozen strip
+	// arriving by the road BR-82's comment was written to close. Today the
+	// prefix is HomeAndClear alone, so this changes nothing; it is written now
+	// so the `?1047` candidate does not need either console to remember.
+	c.hostScan.FeedFraming(composed)
 	c.mu.Unlock()
+
+	// AND ASK THE CHILD TO REPAINT. Here, not at the call sites, because a
+	// takeover and its repaint request are one act: the body above is the
+	// immediate paint, and this is what makes the result correct rather than
+	// probable once the child's last full frame has aged out of the bounded
+	// ring. Nil for couch's own surfaces — the panel is not a child's screen
+	// and has nobody to ask.
+	child.RequestRepaint()
 }
 
 // writeOwn emits the console's OWN bytes, and is the only way they reach the

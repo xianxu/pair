@@ -1,0 +1,5 @@
+layout {
+    pane command="sh" {
+        args "PROBE_SH"
+    }
+}

@@ -279,3 +279,42 @@ func TestFakeAndRealChildAgreeAfterTheChildHasEnded(t *testing.T) {
 		}
 	}
 }
+
+// GEOMETRY IS A CONFORMANCE SURFACE, because it is the state #209's repaint
+// request reads (BR-17). `Start` sizes the pty before the process runs, so a
+// real child ALWAYS has geometry and a nudge always nudges; a fake that began
+// at 0x0 declined silently until a test remembered to resize it, and every test
+// that worked around it was green for a path production would have taken.
+// Production cannot reach the zero-geometry state, so neither may the double.
+//
+// This is the red-on-revert test the last two rounds shipped without: deleting
+// `size: fakeChildSize` from NewFakeChild fails it.
+func TestFakeAndRealChildAgreeOnGeometryBeforeAnyoneResizes(t *testing.T) {
+	real := startSh(t, "sleep 5")
+	t.Cleanup(func() { _ = real.Close() })
+	fake := NewFakeChild(nil)
+	t.Cleanup(func() { _ = fake.Close() })
+
+	for name, c := range map[string]*Child{"real": real, "fake": fake} {
+		if got := c.Size(); got.Rows < 2 || got.Cols == 0 {
+			t.Fatalf("%s: a fresh child reports Size() = %v — a child with no geometry "+
+				"declines every repaint request, and production has no such state", name, got)
+		}
+	}
+	if got, want := real.Size(), (Size{Rows: 24, Cols: 80}); got != want {
+		t.Fatalf("real child started at %v, want %v — the size startSh asked for", got, want)
+	}
+
+	// And the request that geometry exists to serve fires on a fresh fake,
+	// unprompted. The real child has no recorder behind its pty, so its half is
+	// Size() above plus cmd/probes/zellijrepaint — stated rather than faked.
+	before := len(fake.Resizes())
+	fake.RequestRepaint()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) && len(fake.Resizes()) < before+2 {
+		time.Sleep(time.Millisecond)
+	}
+	if got := fake.Resizes(); len(got) < before+2 {
+		t.Fatalf("RequestRepaint on a fresh fake issued %v, want a shrink-and-restore pair", got)
+	}
+}

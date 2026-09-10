@@ -191,7 +191,7 @@ func TestATakeoverRepaintsTheStrip(t *testing.T) {
 	m, rec := stripMux(t)
 	defer close(m.done)
 
-	m.redrawTab([]byte("replayed"))
+	m.redrawTab([]byte("replayed"), nil)
 	m.drainForTest()
 	if !strings.Contains(rec.String(), "[two]") {
 		t.Fatalf("the strip was not restored after a takeover: %q", rec.String())

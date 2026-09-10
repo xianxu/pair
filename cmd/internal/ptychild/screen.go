@@ -36,8 +36,17 @@ type Screen struct {
 	pending []byte
 
 	altScreen bool
-	mouse     bool
-	sgrMouse  bool
+	// altScreenObserved records that this Screen has SEEN the child say
+	// something about the alternate buffer, so "never witnessed" is
+	// distinguishable from "witnessed off" (#209).
+	//
+	// Without it a repaint composing `?1049l` from `altScreen == false` would
+	// drop a child OUT of an alt screen it is really in, whenever the Screen
+	// did not cover the enter — the shape #196 named for mouse modes, one field
+	// away from mouseObserved and for the same reason.
+	altScreenObserved bool
+	mouse             bool
+	sgrMouse          bool
 	// mouseObserved records that this Screen has SEEN a mouse DECSET or DECRST
 	// at all. Without it, `mouse == false` conflates "the child asked for no
 	// tracking" with "this Screen has never been in a position to know" -- and a
@@ -111,6 +120,11 @@ const (
 
 // AltScreen reports whether the child is currently on the alternate screen.
 func (s *Screen) AltScreen() bool { return s.altScreen }
+
+// AltScreenObserved reports whether this Screen has seen the child say anything
+// about the alternate buffer. A consumer must not assert a buffer state it has
+// never been told about.
+func (s *Screen) AltScreenObserved() bool { return s.altScreenObserved }
 
 // Mouse reports whether the child has asked for mouse TRACKING (1000/1002/1003).
 // It deliberately excludes 1006, which is an encoding rather than a request for
@@ -485,6 +499,9 @@ func (s *Screen) classify(seq []byte) {
 		// SAFETY input obliges an audit of every writer and every reset of that
 		// field, and this one was promoted without it.
 		s.altScreen = false
+		// RIS is the child SAYING primary, not silence about it, so the
+		// observed bit latches here too — the same audit this comment demands.
+		s.altScreenObserved = true
 		// And every other MODE the child can turn on. The reset arm's field set
 		// is derived from the terminal state RIS clears -- not from whichever
 		// predicate is currently load-bearing. BR-81's guard is scoped to
@@ -570,6 +587,7 @@ func (s *Screen) classify(seq []byte) {
 			//   ESC c                  RIS                    release
 			case "1049":
 				s.altScreen = on
+				s.altScreenObserved = true
 				// 1049 = 1048 + 1047: it saves on entry and restores on exit.
 				s.cursorSaved = on
 				s.rowDirty = true
@@ -579,6 +597,7 @@ func (s *Screen) classify(seq []byte) {
 				// here would hand a console permission to paint inside a save
 				// the child still holds.
 				s.altScreen = on
+				s.altScreenObserved = true
 				s.rowDirty = true
 			case "1048":
 				// The save half on its own.

@@ -634,7 +634,7 @@ func TestConsoleNeverSplicesFromAnyPath(t *testing.T) {
 	// The hotkey is deliberately not hammered here -- since M3 it opens the
 	// panel, which is a screen TAKEOVER rather than an interleaved paint, and a
 	// takeover legitimately ends the child's stream's claim on the screen.
-	// TestPanelIsNotPaintedOverByABackgroundChild covers that path instead.
+	// TestOpeningThePanelBlanksTheChildsScreenDeliberately covers that path.
 	f.child.Feed([]byte("\x1b[2J\x1b[38;2;76"))
 	for i := 0; i < 20; i++ {
 		f.host.SetSize(ptychild.Size{Rows: uint16(24 + i%3), Cols: 80})
@@ -949,7 +949,7 @@ func TestATakeoverRelearnsTheChildsModesFromTheBodyItDraws(t *testing.T) {
 	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
 
 	// nvim's screen: it entered the alt screen, and that is what the replay says.
-	c.takeOverScreen([]byte("\x1b[?1049hnvim's screen\x1b[1;1H"))
+	c.takeOverScreen(nil, []byte("\x1b[?1049hnvim's screen\x1b[1;1H"))
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -1047,5 +1047,188 @@ func TestTheNotificationDrainAndItsEntryGuardAskOneQuestion(t *testing.T) {
 	}
 	if n := strings.Count(body, "SafeToPaint()"); n < 2 {
 		t.Errorf("expected the entry guard AND the loop to ask SafeToPaint; found %d", n)
+	}
+}
+
+// The operator's reported bug is couch's, and the boundary review measured that
+// couch's half of the fix was pinned by NOTHING: deleting the repaint request
+// left this suite green (#209 BR-2). This is its mutation test — dropping
+// `child.RequestRepaint()` from `takeOverScreen` gives resizes = [] and fails
+// here with the message below. (The request moved there in C2, so it is one act
+// with the takeover and no site can compose a screen without asking; a recipe
+// naming the old call site sends a reader looking for code that is not there.)
+//
+// The nudge is what makes a switch CORRECT rather than probable: the replay is
+// the immediate paint, but the retained tail is bounded, so a thread whose last
+// full frame has aged out can only be repainted by the child that still holds
+// it. Rows and not columns, because a column change reflows wrapped lines; and
+// restored to the size the console already owns, so no new authority over child
+// geometry is introduced.
+func TestSwitchAsksTheIncomingChildToRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	incoming := ptychild.NewFakeChild(nil)
+	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	f.con.AttachTree("c2", "/w/pair", "pair", incoming)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(incoming.Resizes())
+	f.con.switchTo("c2", false, arrivalOrdinary)
+
+	waitFor(t, "the incoming child to be asked to repaint", func() bool {
+		return len(incoming.Resizes()) >= before+2
+	})
+	got := incoming.Resizes()[before:]
+	want := f.con.ChildSize()
+	if len(got) != 2 {
+		t.Fatalf("switch issued %d resizes %v, want exactly the shrink-and-restore pair", len(got), got)
+	}
+	if got[0].Rows != want.Rows-1 || got[0].Cols != want.Cols {
+		t.Errorf("shrank to %v, want one row shorter than %v with the columns untouched", got[0], want)
+	}
+	if got[1] != want {
+		t.Errorf("restored to %v, want the size the console already owns, %v", got[1], want)
+	}
+}
+
+// A switch must not nudge the pane the operator is ALREADY on. The tracker
+// ignores a landing on the current actor, and a resize round-trip on a
+// full-screen child is a whole reflow — 19,317 bytes on a single-pane zellij,
+// measured by cmd/probes/zellijrepaint — so paying it for a no-op switch is exactly
+// the keystroke-path cost ARCH-CONSTRAINTS asks to be deliberate about.
+func TestSwitchingToTheActiveThreadAsksForNoRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(f.child.Resizes())
+	f.con.switchTo("c1", false, arrivalOrdinary)
+	time.Sleep(20 * time.Millisecond)
+
+	if got := f.child.Resizes(); len(got) != before {
+		t.Fatalf("a switch to the already-active thread resized it: %v", got[before:])
+	}
+}
+
+// couch's leg of the differential (#209 BR-9): what the console WRITES on a
+// takeover is exactly what hostty.RepaintFor composes — no prefix of its own,
+// no byte dropped. termcmd's leg asserts the same thing against the same
+// function, which is what makes the two consoles byte-identical for the same
+// child state; hostty's golden fixes what that function emits.
+func TestSwitchWritesExactlyTheComposedRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	incoming := ptychild.NewFakeChild(nil)
+	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	f.con.AttachTree("c2", "/w/pair", "pair", incoming)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	incoming.Feed([]byte("\x1b[?1049hretained frame"))
+	waitFor(t, "the incoming child's output to reach its ring", func() bool {
+		return len(incoming.Snapshot()) > 0
+	})
+	f.host.Reset()
+
+	f.con.mu.Lock()
+	body := incoming.ReplayThrough(f.con.panes["c2"].replayCutoff)
+	f.con.mu.Unlock()
+	want := hostty.RepaintFor(incoming, body)
+	if len(want) == 0 {
+		t.Fatal("fixture produced nothing to compose; the assertion below would be vacuous")
+	}
+
+	f.con.switchTo("c2", false, arrivalOrdinary)
+	waitFor(t, "the takeover to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), string(want))
+	})
+}
+
+// BR-8's INTENT is byte-inert today, and saying so is better than a test that
+// pretends otherwise (#209 I1).
+//
+// The close review measured BR-8's fix as silently revertible and asked for a
+// test. I wrote one, and it stayed green under the revert — because the two
+// intents differed in exactly one case, an EMPTY body, and the panel always
+// renders something. That was the same disposition BR-6 got: correct by
+// construction, unpinnable until the case it governs is reachable.
+//
+// C-1 then established that the empty-body case had no correct caller anywhere
+// and deleted both the branch and the intent enum, which retires the question:
+// every takeover blanks, so there is no longer a distinction here to drift.
+//
+// What this test DOES pin is worth keeping and is not the same claim: opening
+// the panel blanks what was on the screen, so a child's frame cannot show
+// through couch's own surface. Deleting the takeover fails it.
+func TestOpeningThePanelBlanksTheChildsScreenDeliberately(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	f.child.Feed([]byte("the child's frame"))
+	waitFor(t, "the child's frame to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), "the child's frame")
+	})
+	f.host.Reset()
+
+	f.con.showMenu()
+
+	if got := f.host.Written(); !strings.Contains(got, hostty.HomeAndClear) {
+		t.Fatalf("opening the panel wrote %q, want the screen blanked first — the panel "+
+			"is couch's own surface and must not have a child's frame showing through it", got)
+	}
+}
+
+// And the panel asks NOBODY to repaint. The repaint request rides with the
+// takeover so no site can forget it, which makes the converse worth pinning:
+// there is no child behind couch's own surface, and nudging the outgoing one
+// would resize a child whose screen is not on the terminal.
+func TestOpeningThePanelAsksNoChildToRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(f.child.Resizes())
+	f.con.showMenu()
+	time.Sleep(2 * ptychild.RepaintSettle)
+
+	if got := f.child.Resizes(); len(got) != before {
+		t.Fatalf("opening the panel resized the child: %v", got[before:])
+	}
+}
+
+// C2's consumer half: couch's switch is reached from TWO goroutines — the Run
+// loop, and the operationQueue for the switcher's Enter and the status-chip
+// click, which is the operator's primary gesture. The first version of the
+// nudge took a size and documented a rule ("callers must stay on the goroutine
+// that serializes their other resizes"); this path broke it immediately.
+//
+// The rule is gone and the mechanism replaced it: RequestRepaint takes no size
+// and reads its restore under the child's own geometry lock. So the property to
+// pin here is that the OPERATION path nudges exactly like the Run path — no
+// caller has an ordering obligation left to get wrong.
+func TestASwitchThroughTheOperationQueueNudgesLikeAnyOther(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	incoming := ptychild.NewFakeChild(nil)
+	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	f.con.attachThreadActor("c2", "c2", menuAddress("c2"), "c1", "brain", incoming)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(incoming.Resizes())
+	// The switcher's Enter, not con.Switch: this is the dispatcher path that
+	// runs off the Run goroutine.
+	if _, err := f.con.Ops()(couchcore.OperationCall{
+		Name: "switch", Implicit: true,
+		Args: map[string]string{
+			"repo-scope": menuAddress("c2").RepoScope,
+			"tag":        string(menuAddress("c2").Tag),
+		},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	waitFor(t, "the incoming child to be asked to repaint", func() bool {
+		return len(incoming.Resizes()) >= before+2
+	})
+	got := incoming.Resizes()[before:]
+	want := f.con.ChildSize()
+	if got[0].Rows != want.Rows-1 || got[1] != want {
+		t.Fatalf("operation-path switch resized %v, want a shrink-and-restore around %v", got, want)
+	}
+	if size := incoming.Size(); size != want {
+		t.Fatalf("child left at %v, want %v", size, want)
 	}
 }

@@ -1024,8 +1024,8 @@ func TestRenderThreadsQualifiesCollidingDirectoryLabels(t *testing.T) {
 	}
 }
 
-// TestCLIAcceptsExactlyTheDeclaredOperations replaces an audit that compared
-// two views of one source and therefore could not fail.
+// TestTypedRegistryResolvesExactlyDeclaredOperations replaces an audit that
+// compared two views of one source and therefore could not fail.
 //
 // A reviewer added an undeclared `couch nuke` branch ahead of the table lookup
 // The in-process registry is closed independently from the public argv parser.

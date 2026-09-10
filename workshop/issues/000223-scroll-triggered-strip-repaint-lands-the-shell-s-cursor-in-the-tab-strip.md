@@ -237,3 +237,85 @@ lands in the strip — the strip is pushed off-screen and returns at the next
 strip repaint, at the cost of the oldest visible line. The bottom edge loses the
 output and the cursor. The price is origin mode: every paint must re-assert
 `?6h` itself, and a child that sets or clears DECOM breaks the arrangement.
+
+**The top edge is ruled out, by measurement.** The last condition on moving the
+strip up was a probe of full-screen children under origin mode:
+
+| top edge + origin mode | result |
+|---|---|
+| a child sets its own region in its own coordinates (`ESC[1;10r`) | row 1 overwritten — DECSTBM parameters are ABSOLUTE even under DECOM, so the child's rows 1..10 include the strip |
+| real `nvim -u NONE`, half-pages down/up and a jump | row 1 overwritten with the buffer's line `94` |
+
+At the bottom edge the child's rows and the pane's rows are one coordinate
+system, so nvim is correct there today; at the top they are offset by one, and
+every full-screen app draws over the strip. Making the top work means rewriting
+the child's DECSTBM parameters (and policing its DECOM, RIS and buffer switches)
+in flight — the compositing-lite project `hostty/reserve.go` declined, to work
+around a bug that is not pair's.
+
+**Decision:** the strip stays at the bottom, and the fix goes where the bug is —
+zellij. The pre-fix state is tagged `repro/223-bottom-strip-zellij-wrap` (at
+`0baacfa7`) so the defect stays reproducible through pair.
+
+**Already fixed upstream — the fix is an upgrade, not a patch.** Reading
+zellij's source for the fix: `v0.44.3`'s `line_wrap()` never consults
+`self.scroll_region`. On the last screen row it scrolls the WHOLE viewport
+(which is exactly the top-edge reading); anywhere else it does `cursor.y += 1`
+(exactly the bottom-edge one). Both measurements fall straight out of those ten
+lines. `zellij-org/zellij#5357` — *"fix(grid): scroll the region when a line
+wraps at its bottom margin"*, merged 2026-07-17 — makes `line_wrap()` mirror
+`add_canonical_line()`, and it shipped in **v0.45.0**. Homebrew offers v0.45.1.
+
+Verified before recommending it, against the official v0.45.1 release binary
+run from a scratch directory (the system zellij and the operator's live
+sessions untouched), with every zellij behaviour pair depends on:
+
+| probe | v0.44.3 | v0.45.1 |
+|---|---|---|
+| `zellijwrapmargin` — this issue | wrap escapes the region | **wrap scrolls the region**; top edge also survives |
+| `zellijrepaint` — `#209`'s repaint request | repainted (20 ms settle) | repainted |
+| `zellijscrollregion` — the strip's region | honoured | honoured |
+| `zellijpark` — couch's session outlives its client | park | park |
+
+A v0.45.1 client lists the same sessions as the v0.44.3 one (same socket
+contract directory). Not verified: `zellij action` from a new client against a
+still-running old server, and the zellij-0.44.3-measured constants elsewhere in
+pair (`layoutcmd`'s resize fraction, couch's ctrl+wheel handling). The single-
+pane probe layout also came up 24×80 on v0.45.1 against 22×78 on v0.44.3, so a
+default around pane frames moved; worth watching in the real layout.
+
+### 2026-09-10 — live on zellij 0.45.1
+
+**The operator smoke-tested it: the wrap bug is gone.** A long `ls -la` in the
+right pane after the screen has filled now prints in full — `Makefile.workflow`
+wraps onto its own row, every later entry follows, and the strip holds the
+bottom row with the cursor at the prompt.
+
+**The upgrade moved one thing: the first line of the layout vanished.** zellij
+0.45 split `pane_frames true` into a STYLE and made the default `titles` — a
+title row above each pane and no border (zellij#5318). pair's layout was built
+on the full frame, whose top border is the agent pane's first line and carries
+its scroll indicator. Measured in a two-pane 30×100 session: 29×49 per pane
+under `titles`, 28×48 under `full`. `zellij/config.kdl` now states
+`pane_frame_style "full"`. It is harmless on 0.44.x — `zellij setup --check` on
+the official 0.44.3 binary reports the file well defined, because 0.44 looks
+options up by name and never rejects an unknown one.
+
+**A second, one-off glitch is not explained and is recorded as such.** After
+the operator moved focus to the right pane, one `ls` ended with the prompt
+reprinted a row lower, on the strip row, with a duplicated separator above it —
+the look of a shell redrawing a two-line prompt after a SIGWINCH. It did not
+recur over many further `ls` runs. Ruled out by measurement: focus changes do
+not resize panes under either frame style (a probe moved focus four times; no
+pane received a single SIGWINCH). Also ruled out, each against the
+current `pair term` in zellij 0.45.1 with zsh on a two-line prompt (full-width
+separator, then the path), reading where a typed marker lands:
+
+| trigger | result |
+|---|---|
+| three Alt+→ tab "switches" with one tab — each a takeover plus `#209`'s SIGWINCH nudge | cursor at the prompt |
+| session resized 24→20→24→22→24 rows (a window resize or layout rung) | cursor at the prompt, twice |
+
+So it is not `#209`'s nudge and not a plain resize. It stays unexplained rather
+than guessed at; if it recurs, what the operator did just before is the evidence
+to collect. The probes were throwaways and are not kept.

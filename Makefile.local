@@ -91,7 +91,7 @@ test-couch-zellij-live:
 test-perf-capture: $(BIN_DIR)/pair
 	sh doctor/perf_test.sh
 
-.PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows test-couch-nested-rows
+.PHONY: test-couch-start-recovery test-term-ctrlc test-term-rows test-couch-nested-rows test-zellij-repaint
 test-term-ctrlc: $(BIN_DIR)/pair
 	go run ./cmd/probes/termctrlc $(CURDIR)/$(BIN_DIR)/pair
 
@@ -106,6 +106,17 @@ test-term-rows: $(BIN_DIR)/pair
 
 test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
 	go run ./cmd/probes/couchstartrecovery $(CURDIR)/$(BIN_DIR)/pair-launch-helper
+
+# Does zellij repaint a pane from its own buffer on SIGWINCH? #209's fix for the
+# dominant failure mode rests on it. Its own target rather than test-smoke: it
+# starts a real zellij session and takes ~40s, and it lives under cmd/probes/
+# because it imports ptychild.RepaintSettle rather than restating the settle it
+# is meant to verify (#209 C1 -- the default was 0 for one commit, which is the
+# sequence the probe's own table measures at 6-of-12).
+#
+#   PAIR_PROBE_SETTLE=0s make test-zellij-repaint   # re-measure the table
+test-zellij-repaint:
+	go run ./cmd/probes/zellijrepaint
 
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 

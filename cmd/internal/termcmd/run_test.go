@@ -1323,3 +1323,177 @@ func TestCurrentRightTerminalPaneFastPathAnswersWhatTheSlowPathWould(t *testing.
 		t.Errorf("id = %q, want 4", fastPane.ID)
 	}
 }
+
+// #209's counted invariant, and #204's: a switch issues a REPAINT REQUEST, not
+// only a replay write. The replay is the immediate paint; the nudge is what
+// makes the result correct rather than probable when the last full frame has
+// aged out of the 128 KiB ring.
+//
+// The fake records resizes, which is the in-process half of the ARCH-MOCK pair;
+// the other half is cmd/probes/zellijrepaint, which drives a real zellij and
+// confirms it actually repaints from its own buffer on SIGWINCH.
+//
+// The child is sized first, because that is what production does (children are
+// spawned at childSizeLocked) and because the nudge restores the size the CHILD
+// remembers rather than one a caller hands it — a child with no geometry has
+// nothing to restore and correctly declines (#209 C2).
+func TestTabSwitchIssuesARepaintRequestAndRestoresTheSize(t *testing.T) {
+	var stdout bytes.Buffer
+	incoming := ptychild.NewFakeChild([]byte("two"))
+	mux := &terminalMux{
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   &fakeRuntime{},
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
+			{id: 2, name: "work", child: incoming},
+		},
+		active: 0,
+		cols:   40,
+		rows:   24,
+	}
+	mux.mu.Lock()
+	want := mux.childSizeLocked()
+	mux.mu.Unlock()
+	if err := incoming.Resize(want); err != nil {
+		t.Fatal(err)
+	}
+
+	mux.nextTab()
+
+	resizes := waitForChildResizes(t, incoming, 3)[1:]
+	if len(resizes) != 2 {
+		t.Fatalf("resizes = %v, want exactly 2 — a nudge is a change AND a restore", resizes)
+	}
+	if resizes[0].Rows >= resizes[1].Rows {
+		t.Errorf("resizes = %v, want the first to shrink rows and the second to restore", resizes)
+	}
+	if resizes[0].Cols != resizes[1].Cols {
+		t.Errorf("resizes = %v, want columns untouched — a column change reflows wrapped lines", resizes)
+	}
+	if resizes[1] != want {
+		t.Errorf("restored to %v, want the child's own size %v", resizes[1], want)
+	}
+}
+
+// waitForChildResizes polls until the child has recorded n resizes. The nudge
+// is asynchronous — it holds the child's geometry lock across a 20 ms settle
+// rather than blocking the console's event loop for it (#209 C2).
+func waitForChildResizes(t *testing.T, child *ptychild.Child, n int) []ptychild.Size {
+	t.Helper()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if got := child.Resizes(); len(got) >= n {
+			return got
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for %d resizes; got %v", n, child.Resizes())
+	return nil
+}
+
+// termcmd's leg of the differential (#209 BR-9): what the console WRITES on a
+// takeover is exactly what hostty.RepaintFor composes, with no prefix of its
+// own and no byte dropped. couchtty's TestSwitchWritesExactlyTheComposedRepaint
+// asserts the same thing about the same function, which is what makes the two
+// consoles byte-identical for the same child state without a test that can
+// drive both; hostty's golden fixes what that function emits.
+func TestTakeoverWritesExactlyTheComposedRepaint(t *testing.T) {
+	var stdout bytes.Buffer
+	incoming := ptychild.NewFakeChild([]byte("\x1b[?1049hretained frame"))
+	mux := &terminalMux{
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   &fakeRuntime{},
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
+			{id: 2, name: "work", child: incoming},
+		},
+		active: 0,
+		cols:   40,
+		rows:   24,
+	}
+
+	mux.mu.Lock()
+	replay := replaySnapshotLocked(mux.tabs[1])
+	mux.mu.Unlock()
+	want := hostty.RepaintFor(incoming, replay)
+	if len(want) == 0 {
+		t.Fatal("fixture produced nothing to compose; the assertion below would be vacuous")
+	}
+
+	mux.nextTab()
+
+	if !strings.Contains(stdout.String(), string(want)) {
+		t.Fatalf("takeover wrote %q, want it to contain hostty.RepaintFor's exact composition %q",
+			stdout.String(), want)
+	}
+}
+
+// BR-4's fix reverted SILENTLY — the close review measured it — and a
+// disposition of "addressed" that no test defends is a claim, so this is the
+// test that should have shipped with it (#209 I1).
+//
+// The scenario is the operator's: close a tab while the SURVIVING tab's ring
+// still holds nothing. The frame standing on the pane belongs to a tab that no
+// longer exists, so leaving it there is showing the operator a window into a
+// closed thing. C-1 later established that this is true of EVERY takeover, not
+// just this one, and made blanking unconditional — so the mutation that reds
+// this test is now "make hostty's composition skip HomeAndClear when the replay
+// is empty", not a flag at this call site.
+func TestClosingATabBlanksTheDeadTabsScreenEvenWithNothingToDraw(t *testing.T) {
+	var stdout bytes.Buffer
+	survivor := ptychild.NewFakeChild(nil) // ring empty: nothing retained to draw
+	mux := &terminalMux{
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   &fakeRuntime{},
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("doomed tab content"))},
+			{id: 2, name: "terminal 2", child: survivor},
+		},
+		active: 0,
+		cols:   40,
+		rows:   24,
+	}
+
+	if snap := replaySnapshotLocked(mux.tabs[1]); len(snap) != 0 {
+		t.Fatalf("fixture retained %q for the survivor; this test needs an empty ring", snap)
+	}
+	mux.removeTab(1)
+
+	if !strings.Contains(stdout.String(), hostty.HomeAndClear) {
+		t.Fatalf("closing a tab wrote %q, want the screen blanked — the closed tab's "+
+			"content must not survive it, and there is nothing retained to overwrite it with",
+			stdout.String())
+	}
+}
+
+// The same enumeration swept for the REPAINT REQUEST rather than the intent
+// (#209 I2). removeTab hands the screen to a different child, which is exactly
+// the condition the nudge exists for: the survivor's last full frame may have
+// aged out of the ring, and only the child still holds it. Binding the request
+// to the takeover is what makes this true at every site rather than at the one
+// site somebody remembered.
+func TestClosingATabAsksTheSurvivingChildToRepaint(t *testing.T) {
+	var stdout bytes.Buffer
+	survivor := ptychild.NewFakeChild(nil)
+	if err := survivor.Resize(ptychild.Size{Rows: 23, Cols: 40}); err != nil {
+		t.Fatal(err)
+	}
+	mux := &terminalMux{
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   &fakeRuntime{},
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("doomed"))},
+			{id: 2, name: "terminal 2", child: survivor},
+		},
+		active: 0,
+		cols:   40,
+		rows:   24,
+	}
+
+	before := len(survivor.Resizes())
+	mux.removeTab(1)
+	got := waitForChildResizes(t, survivor, before+2)
+	if got[before].Rows != 22 || got[before+1].Rows != 23 {
+		t.Fatalf("resizes = %v, want a shrink-and-restore pair around 23 rows", got[before:])
+	}
+}
