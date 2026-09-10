@@ -19,8 +19,8 @@ import (
 func TestRepaintEmitsNoCursorMovingBufferAssertion(t *testing.T) {
 	for _, alt := range []bool{false, true} {
 		for _, observed := range []bool{false, true} {
-			got := Repaint(ChildModes{AltScreen: alt, AltScreenObserved: observed}, []byte("PAINT"), RepaintReplace)
-			for _, forbidden := range []string{EnterAltScreen, LeaveAltScreen} {
+			got := repaint(ChildModes{AltScreen: alt, AltScreenObserved: observed}, []byte("PAINT"))
+			for _, forbidden := range []string{enterAltScreen, LeaveAltScreen} {
 				if bytes.Contains(got, []byte(forbidden)) {
 					t.Fatalf("AltScreen=%v observed=%v: repaint = %q, which moves the cursor via the 1049 save slot",
 						alt, observed, got)
@@ -30,30 +30,36 @@ func TestRepaintEmitsNoCursorMovingBufferAssertion(t *testing.T) {
 	}
 }
 
-// The two intents differ in exactly one case, and it is not inferable from the
-// slice: `pair term` deliberately repaints with nil to blank a new tab before
-// releasing its startup output, while a replace with nothing retained means the
-// ring could not answer — where blanking is strictly worse than a stale frame.
-func TestRepaintCarriesIntentRatherThanInferringItFromAnEmptyReplay(t *testing.T) {
-	replace := Repaint(ChildModes{}, nil, RepaintReplace)
-	if bytes.Contains(replace, []byte(HomeAndClear)) {
-		t.Errorf("replace with nothing retained = %q, want no clear — a blank screen is worse than a stale one", replace)
-	}
-	if len(replace) != 0 {
-		t.Errorf("replace with nothing retained = %q, want no output at all", replace)
-	}
-
-	deliberate := Repaint(ChildModes{}, nil, RepaintClear)
-	if !bytes.Contains(deliberate, []byte(HomeAndClear)) {
-		t.Errorf("deliberate clear = %q, want HomeAndClear", deliberate)
-	}
-}
-
-func TestRepaintCarriesTheRetainedTailVerbatim(t *testing.T) {
-	replay := []byte("\x1b[32mgreen\x1b[0m tail")
-	got := Repaint(ChildModes{AltScreenObserved: true}, replay, RepaintReplace)
-	if !bytes.HasSuffix(got, replay) {
-		t.Fatalf("repaint = %q, want it to end with the tail verbatim", got)
+// A TAKEOVER ALWAYS BLANKS, whatever it has to draw (#209 C-1).
+//
+// The version this replaces emitted nothing for an empty replay, on the theory
+// that a stale frame beats a blank one. The premise was that the stale frame
+// belongs to the child being repainted, and not one of the five takeover sites
+// is that case — so what it actually preserved was the PREVIOUS thread's screen,
+// or the panel's own body, under the new thread's label. A blank frame for one
+// settle while the child redraws is honest; a foreign frame is not.
+//
+// This is the pin, because the argument for the other behaviour was persuasive
+// enough to ship twice.
+func TestATakeoverAlwaysBlanksEvenWithNothingToDraw(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		replay []byte
+	}{
+		{"nothing retained", nil},
+		{"empty rather than nil", []byte{}},
+		{"a retained tail", []byte("frame")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := repaint(ChildModes{}, tt.replay)
+			if !bytes.HasPrefix(got, []byte(HomeAndClear)) {
+				t.Fatalf("repaint = %q, want it to begin by blanking — the frame on screen "+
+					"belongs to whatever was there before, not to this child", got)
+			}
+			if !bytes.HasSuffix(got, tt.replay) {
+				t.Fatalf("repaint = %q, want it to end with the tail verbatim", got)
+			}
+		})
 	}
 }
 
@@ -80,8 +86,8 @@ func TestRepaintForReadsTheChildsObservedModesRatherThanAssuming(t *testing.T) {
 	// And a nil child contributes no modes rather than panicking or asserting
 	// the zero value as fact — couch's panel takes the screen over with its own
 	// surface, and there is no child behind it.
-	if got := RepaintFor(nil, []byte("panel"), RepaintClear); !bytes.HasSuffix(got, []byte("panel")) {
-		t.Fatalf("RepaintFor(nil, ...) = %q, want the body composed as a deliberate clear", got)
+	if got := RepaintFor(nil, []byte("panel")); !bytes.HasSuffix(got, []byte("panel")) {
+		t.Fatalf("RepaintFor(nil, ...) = %q, want the body composed", got)
 	}
 }
 
@@ -104,21 +110,19 @@ func TestRepaintForComposesExactlyHomeAndClearPlusTheTail(t *testing.T) {
 		name   string
 		seed   string
 		replay []byte
-		intent RepaintIntent
 		want   []byte
 	}{
-		{"alt-screen child, tail retained", "\x1b[?1049hfull-screen", replay, RepaintReplace,
+		{"alt-screen child, tail retained", "\x1b[?1049hfull-screen", replay,
 			append([]byte(HomeAndClear), replay...)},
-		{"primary-screen child, tail retained", "on the primary screen", replay, RepaintReplace,
+		{"primary-screen child, tail retained", "on the primary screen", replay,
 			append([]byte(HomeAndClear), replay...)},
-		{"child that said nothing, tail retained", "", replay, RepaintReplace,
+		{"child that said nothing, tail retained", "", replay,
 			append([]byte(HomeAndClear), replay...)},
-		{"nothing retained is not a blank screen", "\x1b[?1049hfull-screen", nil, RepaintReplace, nil},
-		{"a deliberate clear still clears", "\x1b[?1049hfull-screen", nil, RepaintClear,
+		{"nothing retained still blanks", "\x1b[?1049hfull-screen", nil,
 			[]byte(HomeAndClear)},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RepaintFor(ptychild.NewFakeChild([]byte(tt.seed)), tt.replay, tt.intent)
+			got := RepaintFor(ptychild.NewFakeChild([]byte(tt.seed)), tt.replay)
 			if !bytes.Equal(got, tt.want) {
 				t.Fatalf("RepaintFor = %q, want %q", got, tt.want)
 			}

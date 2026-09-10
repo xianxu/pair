@@ -192,8 +192,11 @@ func TestAResizeDuringANudgeWinsWhicheverGoroutineItComesFrom(t *testing.T) {
 
 	child.RequestRepaint()
 	// Land the competing resize INSIDE the settle window, from a goroutine that
-	// knows nothing about the nudge.
-	time.Sleep(RepaintSettle / 4)
+	// knows nothing about the nudge. WAIT for the shrink rather than sleeping
+	// toward it: a sleep assumes the spawned nudge has already run, which is
+	// the same "did not wait for the other party" mistake this test's own
+	// comment is about, and it fails spuriously under -race or load.
+	waitForResizes(t, child, 2)
 	done := make(chan error, 1)
 	go func() { done <- child.Resize(grown) }()
 	if err := <-done; err != nil {
@@ -202,17 +205,27 @@ func TestAResizeDuringANudgeWinsWhicheverGoroutineItComesFrom(t *testing.T) {
 	// WAIT FOR THE NUDGE TO FINISH before asking. Reading the size while the
 	// restore leg is still pending passes either way — the first version of
 	// this test did exactly that and was measured green against the defect it
-	// names. Four resizes: the setup, the shrink, and the restore and the race
-	// in whichever order the implementation puts them.
-	waitForResizes(t, child, 4)
+	// names.
+	//
+	// The restore leg is SKIPPED here rather than reordered: the racing Resize
+	// bumped the generation, so the nudge sees the world moved and declines to
+	// write back a size nobody asked for (#209 I-1). Three resizes total, and
+	// then a settle's grace to catch a restore that should not come.
+	waitForResizes(t, child, 3)
+	time.Sleep(2 * RepaintSettle)
 
 	if got := child.Size(); got != grown {
 		t.Fatalf("child left at %v after a resize raced a nudge, want the newest size %v — "+
 			"the restore leg overwrote a size it did not read", got, grown)
 	}
-	// And the nudge still did its job rather than being skipped.
-	if got := child.Resizes(); len(got) < 3 || got[1].Rows != before.Rows-1 {
+	// And the nudge still did its job rather than being skipped wholesale.
+	got := child.Resizes()
+	if len(got) < 3 || got[1].Rows != before.Rows-1 {
 		t.Fatalf("resizes = %v, want the shrink still issued before the race", got)
+	}
+	if len(got) != 3 {
+		t.Fatalf("resizes = %v, want exactly three — a superseded restore must not "+
+			"be written at all, not written and then corrected", got)
 	}
 }
 
@@ -244,15 +257,14 @@ func TestASecondRepaintRequestDuringOneInFlightIsDropped(t *testing.T) {
 func TestRequestRepaintDeclinesWhenThereIsNoRowToGive(t *testing.T) {
 	for _, rows := range []uint16{0, 1} {
 		child := NewFakeChild(nil)
-		if rows > 0 {
-			if err := child.Resize(Size{Rows: rows, Cols: 80}); err != nil {
-				t.Fatal(err)
-			}
+		if err := child.Resize(Size{Rows: rows, Cols: 80}); err != nil {
+			t.Fatal(err)
 		}
+		before := len(child.Resizes())
 		child.RequestRepaint()
 		time.Sleep(2 * RepaintSettle)
-		if got := child.Resizes(); len(got) > int(rows) {
-			t.Errorf("rows=%d issued %v, want no nudge at all", rows, got)
+		if got := child.Resizes(); len(got) != before {
+			t.Errorf("rows=%d issued %v, want no nudge at all", rows, got[before:])
 		}
 	}
 }

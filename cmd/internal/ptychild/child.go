@@ -89,6 +89,11 @@ type Child struct {
 	// nudging says a repaint request is already in flight, so a second is
 	// dropped rather than queued behind the first one's settle.
 	nudging bool
+	// geomGen counts SIZE CHANGES THE CALLER ASKED FOR, so a nudge can tell
+	// whether the world moved under it while it was settling (#209 I-1). The
+	// nudge's own shrink does not bump it: the shrink is the nudge's business,
+	// and counting it would make every nudge supersede itself.
+	geomGen uint64
 
 	// fake is non-nil only for NewFakeChild. Every method that would touch a
 	// pty branches on it, so one type serves both paths and a test cannot be
@@ -246,6 +251,16 @@ func (c *Child) Write(p []byte) (int, error) {
 // nudges produce one repaint, and holding a key on tab-switch would otherwise
 // spend the settle once per keystroke.
 //
+// And it RELEASES the lock while it settles, so an ordinary Resize never waits
+// on it (#209 I-1). Holding it was the first version and it inverted the
+// priority: a real resize is mandatory and a nudge is optional, but a SIGWINCH
+// landing inside a switch blocked for a measured 20.8 ms — on termcmd's writer
+// goroutine, which is the sole writer of the pane, so all output stalled with
+// it. The generation counter is what keeps that safe: if a caller resized while
+// this nudge slept, the world has moved and the restore leg SKIPS rather than
+// writing back a size nobody asked for. Optional work must never gate the
+// mandatory kind, and must never win a race against it.
+//
 // Rows, not columns: a column change reflows wrapped lines, which is an edit
 // rather than a repaint.
 //
@@ -270,22 +285,54 @@ func (c *Child) RequestRepaint() {
 
 func (c *Child) nudge() {
 	c.geom.Lock()
-	defer func() {
+	size := c.size
+	gen := c.geomGen
+	if size.Rows < 2 {
+		// Below two rows a "shrink" is a resize to zero, which is a different
+		// event with different consequences. (c.size is already the size the
+		// console gives the CHILD, with any reserved row subtracted, so this
+		// floor is about the child's own rows and nothing else.)
 		c.nudging = false
 		c.geom.Unlock()
-	}()
-	size := c.size
-	if size.Rows < 2 {
-		// One row for the child plus the reserved row is the floor; below it a
-		// "shrink" is a resize to zero rows, which is a different event.
 		return
 	}
 	shrunk := size
 	shrunk.Rows--
-	if err := c.resizeLocked(shrunk); err != nil {
+	err := c.resizeLocked(shrunk)
+	c.geom.Unlock()
+	if err != nil {
+		c.geom.Lock()
+		c.nudging = false
+		c.geom.Unlock()
 		return
 	}
-	time.Sleep(RepaintSettle)
+
+	// Cancellable, not a bare Sleep. A nudge is a goroutine the caller does not
+	// join, so a bare sleep left it holding a stale intent to resize for a full
+	// settle after the child was closed — and `-race` caught the consequence:
+	// pty.Setsize reading the fd while the pump's teardown destroyed it. Optional
+	// work must not outlive the thing it is optional about.
+	select {
+	case <-time.After(RepaintSettle):
+	case <-c.done:
+		c.geom.Lock()
+		c.nudging = false
+		c.geom.Unlock()
+		return
+	}
+
+	c.geom.Lock()
+	defer func() {
+		c.nudging = false
+		c.geom.Unlock()
+	}()
+	if c.geomGen != gen {
+		// A caller resized while we settled. Its size is the current one and
+		// ours is stale, so restoring would undo it — the exact "permanently
+		// mis-sized" failure this mechanism exists to prevent, arriving from
+		// the other direction.
+		return
+	}
 	_ = c.resizeLocked(size)
 }
 
@@ -322,16 +369,24 @@ const RepaintSettle = 20 * time.Millisecond
 func (c *Child) Resize(s Size) error {
 	c.geom.Lock()
 	defer c.geom.Unlock()
+	// Bumped even when the ioctl fails: the caller ASKED, and an in-flight
+	// nudge restoring a pre-request size afterwards would be answering a
+	// question nobody is still asking.
+	c.geomGen++
 	return c.resizeLocked(s)
 }
 
 // resizeLocked is the one place a size reaches the pty, and the one place the
 // remembered size is written. Caller holds geom.
 func (c *Child) resizeLocked(s Size) error {
+	// The dead-child refusal is FIRST and applies to both branches. It used to
+	// guard only the fake, so the double refused a resize the real Child
+	// happily attempted against a closing pty — a conformance gap in the
+	// direction that hides bugs, and the one the nudge's goroutine walked into.
+	if c.Done() {
+		return fmt.Errorf("ptychild: resize a child that has exited")
+	}
 	if c.fake != nil {
-		if c.Done() {
-			return fmt.Errorf("ptychild: resize a child that has exited")
-		}
 		c.fake.mu.Lock()
 		c.fake.resizes = append(c.fake.resizes, s)
 		c.fake.mu.Unlock()
@@ -525,7 +580,12 @@ func (c *Child) Close() error {
 			c.Exit(0)
 			return
 		}
+		// Under geom, so an in-flight Setsize finishes before the fd goes.
+		// The nudge releases this lock while it settles, so the wait here is a
+		// syscall long, not a settle long.
+		c.geom.Lock()
 		err = c.ptmx.Close()
+		c.geom.Unlock()
 		if c.cmd.Process != nil {
 			_ = c.cmd.Process.Kill()
 		}

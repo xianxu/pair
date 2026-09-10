@@ -949,7 +949,7 @@ func TestATakeoverRelearnsTheChildsModesFromTheBodyItDraws(t *testing.T) {
 	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
 
 	// nvim's screen: it entered the alt screen, and that is what the replay says.
-	c.takeOverScreen(nil, []byte("\x1b[?1049hnvim's screen\x1b[1;1H"), hostty.RepaintReplace)
+	c.takeOverScreen(nil, []byte("\x1b[?1049hnvim's screen\x1b[1;1H"))
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -1053,8 +1053,10 @@ func TestTheNotificationDrainAndItsEntryGuardAskOneQuestion(t *testing.T) {
 // The operator's reported bug is couch's, and the boundary review measured that
 // couch's half of the fix was pinned by NOTHING: deleting the repaint request
 // left this suite green (#209 BR-2). This is its mutation test — dropping
-// `p.child.RequestRepaint(c.ChildSize())` from switchTo gives resizes = [] and
-// fails here with the message below.
+// `child.RequestRepaint()` from `takeOverScreen` gives resizes = [] and fails
+// here with the message below. (The request moved there in C2, so it is one act
+// with the takeover and no site can compose a screen without asking; a recipe
+// naming the old call site sends a reader looking for code that is not there.)
 //
 // The nudge is what makes a switch CORRECT rather than probable: the replay is
 // the immediate paint, but the retained tail is bounded, so a thread whose last
@@ -1127,7 +1129,7 @@ func TestSwitchWritesExactlyTheComposedRepaint(t *testing.T) {
 	f.con.mu.Lock()
 	body := incoming.ReplayThrough(f.con.panes["c2"].replayCutoff)
 	f.con.mu.Unlock()
-	want := hostty.RepaintFor(incoming, body, hostty.RepaintReplace)
+	want := hostty.RepaintFor(incoming, body)
 	if len(want) == 0 {
 		t.Fatal("fixture produced nothing to compose; the assertion below would be vacuous")
 	}

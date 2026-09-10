@@ -11,23 +11,6 @@ import "github.com/xianxu/pair/cmd/internal/ptychild"
 // Pure: it returns bytes and writes nothing, so the ordering below — which is
 // the whole difficulty — is unit-testable without a terminal.
 
-// RepaintIntent distinguishes the two things a takeover can mean. They differ
-// in exactly one case and it is not inferable from the byte slice.
-type RepaintIntent int
-
-const (
-	// RepaintReplace repaints from a child's retained output. When there is
-	// nothing retained it must NOT blank the screen: an empty replay means the
-	// ring could not answer, and a stale frame beats a blank one while the
-	// child is asked to repaint.
-	RepaintReplace RepaintIntent = iota
-	// RepaintClear deliberately blanks. `pair term` does this when registering a
-	// new tab, to clear before releasing startup output so the queued live copy
-	// is not duplicated. An empty replay HERE means "blank it", which is why
-	// intent is carried rather than derived from len(replay).
-	RepaintClear
-)
-
 // ChildModes is what the composer needs to know about the child's terminal
 // state. Taken as a value rather than a *ptychild.Screen so the composition
 // stays pure and a test can state a mode directly.
@@ -40,48 +23,62 @@ type ChildModes struct {
 	AltScreenObserved bool
 }
 
-// Repaint returns the takeover byte sequence.
+// repaint returns the takeover byte sequence: blank the screen, then draw
+// whatever the child has retained.
 //
-// As SHIPPED it is two steps — clear only when there is something to draw or
-// the caller asked for one, then the retained tail. The buffer assertion that
-// used to lead is WITHDRAWN; see the body for why, and note that the ORDER is
-// still the design when it returns: buffer state must go FIRST, before the
-// clear, because `?1049`/`?1047` switch buffers and a paint belongs to
-// whichever buffer was active when it was written, so asserting afterwards
-// discards everything just painted. Three earlier versions got that wrong.
+// IT ALWAYS BLANKS, and that is the third and final answer to a question this
+// issue got wrong twice (#209 C-1, family `absent-data-is-not-intent`).
 //
-// Mouse state is deliberately NOT asserted here. couch re-asserts its own mouse
-// mode on every paint and ptychild's replay feeds the child's own bytes back
-// through the scanner; a third writer would be two authorities for one terminal
-// mode, which is the thing #172 spent its rounds separating. Cursor-save is not
-// asserted either — it cannot be: `\x1b7` saves the CURRENT cursor, and no
-// sequence injects a previously-saved position.
-func Repaint(modes ChildModes, replay []byte, intent RepaintIntent) []byte {
-	out := make([]byte, 0, len(replay)+len(HomeAndClear)+len(LeaveAltScreen))
-
-	// BUFFER ASSERTION TEMPORARILY WITHDRAWN (#209).
-	//
-	// `?1049h`/`?1049l` are not pure buffer switches: the `1049` pair SAVES and
-	// RESTORES the cursor as part of switching. Emitting `?1049l` on every
-	// switch therefore performs a cursor restore from a slot that, per this
-	// repo's own probes/cursorsaveslots question, may ALIAS DECSC (`\x1b7`) —
-	// which is exactly what pair's tab strip paints with. Observed live: typed
-	// characters landed mid-screen after a repaint, because the strip's
-	// save/restore pairing had been consumed.
-	//
-	// Mode 4 is therefore unfixed for now. The candidate is `?1047h`/`?1047l`,
-	// which switch buffers WITHOUT touching the cursor — but that is exactly the
-	// kind of terminal-behaviour assumption #209 already had to measure once
-	// (cmd/probes/zellijrepaint), so it gets a probe before it ships, not a guess.
-	if intent == RepaintClear || len(replay) > 0 {
-		out = append(out, HomeAndClear...)
-	}
+// The middle version emitted NOTHING when the replay was empty, reasoning that
+// "a stale frame beats a blank one while the child is asked to repaint". That
+// reasoning has a hidden premise: it holds only when the stale frame belongs to
+// the CHILD BEING REPAINTED. Enumerate the five takeover sites and not one is —
+// couch's switchTo shows the previous thread or the panel, termcmd's
+// switchRelative shows the previous tab, and the three deliberate-clear sites
+// were carve-outs invented to escape the rule rather than instances of it. So
+// the branch had zero correct callers, and its cost was worse than the blank it
+// avoided: starting a thread from the panel left the PANEL's body on screen
+// under the new thread's label, which is the misleading version of the same
+// wrong.
+//
+// What actually answers "the ring could not tell us what to draw" is asking the
+// CHILD, which is measured to work (cmd/probes/zellijrepaint). A blank frame
+// for one settle while the authority redraws is honest; a foreign frame under
+// the wrong label is not.
+//
+// The RepaintIntent enum went with the branch. It existed only to let three
+// sites opt out of the keep-stale rule, so with the rule gone it distinguished
+// nothing — an intent parameter that changes no bytes is a trap, because a site
+// can pass the wrong one and nothing says so.
+//
+// Buffer state is NOT asserted, and that is a withdrawal rather than a
+// simplification. `?1049h`/`?1049l` are not pure buffer switches: the 1049 pair
+// SAVES and RESTORES the cursor, and the save slot is shared with DECSC —
+// which is what pair's tab strip paints with (#199). Emitting `?1049l` on every
+// switch consumed the strip's save/restore pairing, and typed characters landed
+// mid-screen. The candidate is `?1047h`/`?1047l`, which switch buffers WITHOUT
+// the cursor half, and it gets a probe before it ships rather than a second
+// guess. When it returns, ORDER is the design: the buffer must be asserted
+// BEFORE the clear, because a paint belongs to whichever buffer was active when
+// it was written, so asserting afterwards discards everything just painted.
+// Three earlier versions got that wrong.
+//
+// Mouse state is deliberately not asserted either. couch re-asserts its own
+// mouse mode on every paint and ptychild's replay feeds the child's own bytes
+// back through the scanner; a third writer would be two authorities for one
+// terminal mode, which is the thing #172 spent its rounds separating.
+// Cursor-save cannot be asserted at all: `\x1b7` saves the CURRENT cursor, and
+// no sequence injects a previously-saved position.
+func repaint(modes ChildModes, replay []byte) []byte {
+	_ = modes // read by the ?1047 assertion when it lands; see above.
+	out := make([]byte, 0, len(replay)+len(HomeAndClear))
+	out = append(out, HomeAndClear...)
 	return append(out, replay...)
 }
 
-// RepaintFor is Repaint for a child: read the modes the composition needs, then
+// RepaintFor is repaint for a child: read the modes the composition needs, then
 // compose. One entry point, because the read was copy-pasted at both consumers
-// and NEITHER copy was pinned — `ChildModes` has no observable effect while the
+// and NEITHER copy was pinned — ChildModes has no observable effect while the
 // buffer assertion is withdrawn, so a test at a consumer could not tell a
 // correct literal from the zero value (#209 BR-2, BR-12).
 //
@@ -92,10 +89,10 @@ func Repaint(modes ChildModes, replay []byte, intent RepaintIntent) []byte {
 // A nil child is not a child at all — couch's panel takes the screen over with
 // its OWN surface — so it contributes no modes rather than a zero-valued
 // assertion.
-func RepaintFor(child *ptychild.Child, replay []byte, intent RepaintIntent) []byte {
+func RepaintFor(child *ptychild.Child, replay []byte) []byte {
 	var modes ChildModes
 	if child != nil {
 		modes.AltScreen, modes.AltScreenObserved = child.RepaintModes()
 	}
-	return Repaint(modes, replay, intent)
+	return repaint(modes, replay)
 }

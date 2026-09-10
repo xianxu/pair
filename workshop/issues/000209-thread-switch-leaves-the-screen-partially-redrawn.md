@@ -437,6 +437,94 @@ emit identical bytes for any NON-empty body, and the panel always renders
 something, so the intent is byte-inert exactly as BR-6 is. The test kept there
 pins what it can — opening the panel blanks the child's frame — and says so.
 
+### 2026-09-10 (third pass) — the empty-replay rule had a hidden premise
+
+**C-1: "a stale frame beats a blank one" is only true when the stale frame is
+the SAME CHILD's, and no takeover site is that case.** This is the third finding
+in the `absent-data-is-not-intent` family, and the first two fixed instances:
+PQ-1 gave `newTab` its own door, BR-4 gave `removeTab` a clear. Both were sites
+opting OUT of the keep-stale rule — which should have been the tell. Enumerate
+all five and the rule has no correct instance:
+
+| site | what is on screen | wanted |
+|---|---|---|
+| couch `switchTo` | the previous thread, or the panel | blank |
+| couch `showMenu` | a child | blank |
+| termcmd `switchRelative` | the previous tab | blank |
+| termcmd `removeTab` | the destroyed tab | blank |
+| termcmd `newTab` | the previous tab | blank |
+
+Even `forceSwitch` — the one candidate, since it repaints an actor that is
+already active — is "returning from the panel, where the SCREEN changed but the
+active actor did not", so the frame standing there is the panel's.
+
+The failure it caused was on the primary flow: start a thread from the panel,
+and the attach seeds `replayCutoff` from `ReplaySafeEnd()` before `Run` has
+drained anything, so `ReplayThrough` returns nothing, the composition returns
+zero bytes, and **the panel's own menu body stays on the terminal under the new
+thread's label**. Before this issue touched it, that was `HomeAndClear` and
+nothing: blank, which is honest. A foreign frame under the wrong label is the
+misleading version of the same wrong.
+
+So the branch is deleted rather than re-pointed, and `RepaintIntent` went with
+it: the enum existed only to let three sites escape the rule, so with the rule
+gone it distinguished nothing — and an intent parameter that changes no bytes is
+a trap, because a site can pass the wrong one and nothing says so. `clearTab`
+survives as a NAME (`redrawTab(nil, nil)`) because the call site reads better,
+not as a second behaviour.
+
+Worth stating plainly: mode 2's answer was never the empty-replay carve-out. It
+is the repaint request, which is now measured to work. A blank frame for one
+settle while the child redraws is the honest version.
+
+**I-1: the optional nudge was gating the mandatory resize.** Holding `geom`
+across the settle blocked a concurrent `Resize` for a measured 20.8 ms — and in
+`termcmd` that resize runs on the writer goroutine, the sole writer of the pane,
+so a SIGWINCH landing inside a switch stalled all output for a settle. `#204`
+said the nudge costs the event loop zero, which was true only of the caller that
+*requests* it. The nudge now releases the lock while it settles and carries a
+generation: if a caller resized meanwhile, the restore leg SKIPS rather than
+writing back a size nobody asked for. Optional work must never gate the
+mandatory kind — and must never win a race against it either.
+
+**I-2: `takeOverScreen` still claimed "Run-goroutine-only, like every other
+writer", and this round's own test drives it from the operationQueue.** C2's
+whole discovery was that `switchTo` has two calling goroutines; the nudge's half
+became a mechanism and the writer's half stayed a sentence. couch's `c.host` is
+a bare `io.Writer` with no serialization where `termcmd`'s `paneWriter` is
+deliberately not one. The false sentence is gone and the divergence is filed as
+`#224` — a couch-wide change `#209` has no business growing into. What `#209`
+owed was not leaving the claim behind, because a claim like that is what lets
+the next reader believe the rule is already kept.
+
+**I-3: the fake and the real `Child` disagreed about the state the fix reads.**
+`Start` records `opts.Size`, so a real child always has geometry; `NewFakeChild`
+had none, so it declined every repaint request until a test remembered to resize
+it — a green test for a path production would have nudged. Production cannot
+reach the zero-geometry state the fake started in. Fakes now start at
+`FakeChildSize`.
+
+**And `-race` found the sub-point of I-2 that the review called harmless.** The
+reviewer noted `go c.nudge()` has no tie to `c.done`, so the goroutine outlives
+`Close` by a settle, and judged it harmless because "both branches of
+`resizeLocked` error on a dead child". Only the FAKE branch did. Under `-race`:
+`pty.Setsize` reading the fd while the pump's teardown destroyed it. Three
+things now, and each is the general form rather than the instance — the settle
+is cancellable on `c.done` (optional work must not outlive the thing it is
+optional about), the dead-child refusal moved AHEAD of the fake/real split
+(where the double was stricter than production, which is the direction that
+hides bugs), and `Close` takes `geom` so an in-flight ioctl finishes before the
+fd goes. Clean over `-count=3 -race` on all four packages.
+
+Minors: `hostty.EnterAltScreen` is unexported (its only consumer is this
+package's own withdrawal test — exported surface needs a consumer outside its
+own package's tests); the mutation recipe in `console_test.go` named a signature
+and call site that C2 deleted; the race test slept toward the nudge instead of
+waiting for it, which is the same "did not wait for the other party" mistake its
+own comment teaches; the capacity hint budgeted bytes the withdrawal guarantees
+are never emitted; and `nudge`'s floor comment counted a reserved row that is
+already subtracted from `c.size`.
+
 ## Revisions
 
 ### 2026-09-09 — "same guarantee" qualified to "same mechanism"
@@ -553,3 +641,26 @@ plan-level rather than code-level.
    event loop nothing, and a request arriving while one is in flight is dropped.
    Held key-repeat switching therefore costs ONE settle for the whole burst, and
    the bound is one in-flight nudge per child.
+
+### 2026-09-10 (third pass) — the empty-replay carve-out is withdrawn
+
+**Reason.** `RepaintReplace`'s "emit nothing rather than blank" turned out to
+have no correct call site (see `## Log`, C-1), so the plan rows that specify it
+describe a behaviour the tree no longer has and should not get back.
+
+**Delta.**
+
+1. *Mode-2 row* — read "carry INTENT, do not infer it from an empty slice
+   (PQ-1)", and specified that "a repaint that has nothing to draw must NOT
+   blank (a stale frame beats a blank one)". **Withdrawn.** The premise was that
+   the stale frame belongs to the child being repainted; none of the five
+   takeover sites is that case. A takeover always blanks, and mode 2's real
+   answer is the repaint request. `clearTab` remains as a name, not a second
+   behaviour.
+2. *Tests row, "Intent"* — asked for "a table over the two call intents". There
+   is one intent now; the table asserts that a takeover blanks whatever it has
+   to draw, which is the property that was got wrong twice.
+3. *Nudge-envelope row* — the "costs the event loop zero" claim was true only
+   for the requesting caller. Restated: the nudge releases the child's geometry
+   lock while it settles, so a mandatory resize never waits on it, and a resize
+   during a settle supersedes the restore rather than being undone by it.

@@ -699,11 +699,6 @@ type ptyChunk struct {
 	// scan resets and any owed paint is dropped rather than flushed against a
 	// screen that no longer exists. couch's third gate rule.
 	takeover bool
-	// intent distinguishes a DELIBERATE blank (registering a new tab, so its
-	// startup output is not duplicated) from a repaint that simply had nothing
-	// retained — where blanking is worse than a stale frame (#209). Carried as
-	// the enum itself rather than a bool the handler converts back.
-	intent hostty.RepaintIntent
 	// child is whose screen this takeover is repainting. It carries BOTH halves
 	// of the takeover — the modes the composition reads, and the repaint
 	// request that follows the write — so a site cannot compose without asking
@@ -899,7 +894,7 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		m.removeTab(chunk.id)
 
 	case chunk.takeover:
-		m.applyTakeover(chunk.replay, chunk.child, chunk.intent)
+		m.applyTakeover(chunk.replay, chunk.child)
 
 	case chunk.diag != nil:
 		m.writeDiag(chunk.diag)
@@ -971,7 +966,7 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 // applyTakeover replaces the whole screen: clear, replay, then settle the gate.
 // Runs on the writer goroutine, whether reached through the channel or called
 // inline by another handler already on it (see removeTab).
-func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child, intent hostty.RepaintIntent) {
+func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child) {
 	// couch's THIRD gate rule (console.go:992-995): the screen is being replaced
 	// wholesale, so whatever partial sequence the old content left is no longer
 	// on screen to be corrupted. Reset the scan, and DROP the owed paint rather
@@ -994,9 +989,11 @@ func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child, intent
 	// held this job for one commit and was retired in #199 M2's close for being
 	// narrower than its claim; #223 went looking for it on the strength of a
 	// citation left here, so the citation now says where the guarantee lives.)
-	// Composed by hostty (#209): a repaint with nothing retained emits nothing
-	// rather than blanking, while a deliberate clear still clears.
-	composed := hostty.RepaintFor(child, replay, intent)
+	// Composed by hostty (#209): blank, then draw what the child retained. It
+	// ALWAYS blanks -- see repaint's doc for why the "emit nothing when the
+	// replay is empty" branch had zero correct callers and took the intent enum
+	// with it when it went.
+	composed := hostty.RepaintFor(child, replay)
 	m.pane.raw("takeover: composed clear and replay", composed)
 	// FEED THE COMPOSED BYTES, not just the replay (#209 BR-6). The replay is
 	// CHILD bytes and the terminal has now seen them, so the gate must too --
@@ -1433,11 +1430,11 @@ func (m *terminalMux) removeTab(id int) {
 	}
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
-		// clear=true: this takeover replaces a tab that no longer EXISTS, so an
-		// empty snapshot means "blank it", not "nothing to draw". Routing it
-		// through RepaintReplace left a destroyed tab's content on the pane
-		// whenever the surviving tab's ring was still empty (#209 BR-4).
-		m.applyTakeover(activeSnapshot, childOf(active), hostty.RepaintClear)
+		// The destroyed tab's pixels must not survive the close, and since
+		// #209 C-1 that needs no argument at the call site: a takeover always
+		// blanks. BR-4 was this site opting out of a rule that turned out to
+		// have no correct instances anywhere.
+		m.applyTakeover(activeSnapshot, childOf(active))
 		return
 	}
 	// A rename is open, so the screen is NOT taken over -- the operator is mid
@@ -1712,7 +1709,7 @@ func (m *terminalMux) paneTitleLocked() string {
 // decision about what a repaint may contain, and couch's attach path in M3
 // would have made it three (BR-20).
 func (m *terminalMux) redrawTab(replay []byte, child *ptychild.Child) {
-	m.enqueue(ptyChunk{replay: replay, takeover: true, child: child, intent: hostty.RepaintReplace})
+	m.enqueue(ptyChunk{replay: replay, takeover: true, child: child})
 }
 
 // childOf is the nil-safe read of a tab's child, spelled once because both
@@ -1725,10 +1722,16 @@ func childOf(tab *terminalTab) *ptychild.Child {
 	return tab.child
 }
 
-// clearTab blanks the screen deliberately. Separate from redrawTab because the
-// two differ in exactly one case that a nil slice cannot express (#209).
+// clearTab blanks the screen with no child behind it: a new tab, before its
+// startup output is released, so the queued live copy is not duplicated.
+//
+// It is redrawTab with nothing to draw and nobody to ask, and saying that
+// rather than keeping a second path is the point. The two used to differ — a
+// repaint with an empty replay emitted nothing while a deliberate clear
+// blanked — and #209 C-1 removed the difference, because the keep-stale branch
+// had no correct caller. A named door for readability, not a second behaviour.
 func (m *terminalMux) clearTab() {
-	m.enqueue(ptyChunk{takeover: true, intent: hostty.RepaintClear})
+	m.redrawTab(nil, nil)
 }
 
 // replaySnapshotLocked is what a repaint of this tab should write. Caller must

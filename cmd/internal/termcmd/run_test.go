@@ -1415,7 +1415,7 @@ func TestTakeoverWritesExactlyTheComposedRepaint(t *testing.T) {
 	mux.mu.Lock()
 	replay := replaySnapshotLocked(mux.tabs[1])
 	mux.mu.Unlock()
-	want := hostty.RepaintFor(incoming, replay, hostty.RepaintReplace)
+	want := hostty.RepaintFor(incoming, replay)
 	if len(want) == 0 {
 		t.Fatal("fixture produced nothing to compose; the assertion below would be vacuous")
 	}

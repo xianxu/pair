@@ -161,6 +161,177 @@ rounds:
       agent: claude
       blocked: true
       protocol_error: no valid findings block
+    - "n": 4
+      timestamp: "2026-09-09T22:57:58-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Tests row now names the two replacement tests; no cross-product remains.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: 'Verified by revert: dropping RequestRepaint from takeOverScreen reds 2 couchtty tests.'
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Probe drives the production sequence and reads ptychild.RepaintSettle; own target, not test-smoke.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: 'Verified by revert: RepaintClear -> RepaintReplace reds TestClosingATabBlanksTheDeadTabsScreen...'
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: Child.RequestRepaint is the single home; both consumers call it, no copy remains.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: Both consoles feed the composed bytes; byte-inert today and honestly recorded as such.
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: 'Verified by revert: unlocking geom across the settle reds the goroutine-independence test.'
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: Intent parameter landed and showMenu passes RepaintClear; byte-inert exception recorded, not papered over.
+          round: 4
+        - id: BR-9
+          disposition: addressed
+          note: 204's invariant row and envelope table landed; the four reproductions carry answer tests; differential closes transitively.
+          round: 4
+        - id: BR-10
+          disposition: addressed
+          note: Doc restored AND a mechanical guard added; I confirmed the guard fires on a synthetic recurrence.
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: No chr(39) artifact anywhere in cmd/.
+          round: 4
+        - id: BR-12
+          disposition: addressed
+          note: Child.AltScreenObserved is gone; RepaintModes is the only door. New instances raised separately.
+          round: 4
+        - id: BR-13
+          disposition: addressed
+          note: 6.6 KB back-to-back / 19.3 KB with a gap now sit in 204's table beside the counted invariant.
+          round: 4
+      findings:
+        - id: BR-14
+          severity: Critical
+          title: An empty replay leaves the OUTGOING surface on screen, and no takeover site wants that
+          detail: |-
+            3rd in this family, so the deliverable is the rule, not the row. The rule:
+            what an empty body means is a property of whose frame is already on the
+            screen, not of the call site's name. "A stale frame beats a blank one"
+            (repaint.go:26-29) holds only for a same-child repaint, and the enumeration
+            of takeover sites contains none - switchTo, switchRelative, showMenu,
+            newTab and removeTab all replace a DIFFERENT surface. Reachable on the
+            primary flow: starting a thread from the panel attaches (console.go:366
+            seeds replayCutoff = ReplaySafeEnd) and dispatches switch on the same
+            operationQueue goroutine before Run drains a batch, so ReplayThrough
+            returns nothing, Repaint emits zero bytes, and the PANEL'S OWN MENU BODY
+            stays on the terminal under the new thread's label until zellij's first
+            frame. Before this diff it was HomeAndClear plus nothing - blank, which is
+            honest. This is BR-4's shape at the sites BR-4 did not name. Fix: make the
+            enum name the question the site must answer, and record that the
+            keep-stale branch currently has zero correct callers.
+          family: absent-data-is-not-intent
+          round: 4
+        - id: BR-15
+          severity: Important
+          title: A mandatory Resize waits a full settle on the nudge's lock, while 204 states the cost as zero
+          detail: |-
+            2nd in this family, so state the rule. nudge() holds geom across
+            time.Sleep(RepaintSettle) (child.go:277-290) and Resize takes the same
+            lock; measured in a scratch copy, a concurrent Resize blocked 20.8 ms.
+            termcmd's resizeAll (run.go:1600) runs on the WRITER goroutine via
+            resizeThroughWriter, so a SIGWINCH landing inside a switch stalls all pane
+            output for a settle. 204's table says "event-loop time per nudge | 0",
+            which is true only for the caller that requests the nudge. The rule: an
+            envelope must be stated for every path the mechanism can block, not only
+            the path that invokes it - the contention sibling of the rule 204 already
+            writes for cost. Enumerate the geom contenders (Console.applyLayout,
+            terminalMux.resizeAll, teardown) and give each a row, or let Resize
+            preempt an in-flight nudge via a generation the restore leg checks.
+          family: operating-envelope-unstated
+          round: 4
+        - id: BR-16
+          severity: Important
+          title: takeOverScreen still claims Run-goroutine-only, and this round's own test drives it from the operationQueue
+          detail: |-
+            2nd in this family, so state the rule: a goroutine-ownership claim in a
+            comment is not a mechanism - which is exactly what C2 concluded for the
+            nudge and did not apply to the writer. console.go:996 asserts "still
+            Run-goroutine-only, like every other writer", but switchTo is reached from
+            ExecuteConsoleOperation (console.go:1862) and
+            TestASwitchThroughTheOperationQueueNudgesLikeAnyOther exercises that path.
+            takeOverScreen writes c.host directly; hostty.Host is a bare io.Writer and
+            couch has five unsynchronized write sites (console.go:915,983,1009,1058;
+            console_menu.go:193,199,202). termcmd already solved this next door -
+            paneWriter is deliberately not an io.Writer so a door that skips the
+            reasoning does not compile (run.go:993). Either give couch the same typed
+            single-writer door or delete the false sentence and file the divergence;
+            leaving it is what lets C2's rule read as satisfied. Same lens, smaller:
+            go c.nudge() has no tie to c.done, so the goroutine outlives Close by a
+            settle with no cancellation path.
+          family: nudge-ordering-and-extent
+          round: 4
+        - id: BR-17
+          severity: Important
+          title: NewFakeChild starts with no geometry while Start records opts.Size, and geometry is what the nudge reads
+          detail: |-
+            Start sets size: opts.Size (child.go:129-135) so a real child always
+            nudges; NewFakeChild (fake.go:37-46) sets nothing, so a fake silently
+            declines via size.Rows < 2 until a test resizes it. run_test.go:1341
+            rationalises the workaround as "what production does", but production
+            cannot reach the zero-geometry state the fake starts in - a consumer that
+            forgot to size a child would be invisible in tests and would nudge in
+            production. TestFakeAndRealChildAgreeAfterTheChildHasEnded drives
+            Write/Resize/Signal and does not cover Size or RequestRepaint. ARCH-MOCK:
+            give NewFakeChild a starting size mirroring Start, and add both to the
+            conformance stimulus set.
+          family: fake-diverges-from-real
+          round: 4
+        - id: BR-18
+          severity: Minor
+          title: Three newly-exported identifiers have no consumer outside their own package's tests
+          detail: |-
+            2nd in this family, so fix the rule rather than the three. hostty.EnterAltScreen
+            (control.go:68) is referenced only by repaint_test.go's forbidden list IN
+            THE SAME PACKAGE, so it never needed exporting; Child.Size() (child.go:346)
+            has zero production callers and two test ones; hostty.Repaint is reachable
+            only through RepaintFor and its own package's tests. Measured prevalence:
+            three instances this round plus BR-12 last round. The rule - exported
+            surface needs a consumer outside its own package's tests - is AST-checkable,
+            and this repo already writes that kind of guard (doccomment_test.go).
+          family: dead-exported-surface
+          round: 4
+        - id: BR-19
+          severity: Minor
+          title: The mutation recipe in console_test.go names a signature and a call site that do not exist at HEAD
+          detail: |-
+            console_test.go:1056 says the test reds on "dropping
+            p.child.RequestRepaint(c.ChildSize()) from switchTo". RequestRepaint takes
+            no argument since C2 and the call moved into takeOverScreen. A reader
+            following the recipe finds nothing to delete and may conclude the test is
+            unpinned - the precise failure mode this issue's ledger exists to prevent.
+          family: comment-cites-code-that-moved
+          round: 4
+        - id: BR-20
+          severity: Minor
+          title: The goroutine-independence race test sleeps to let the nudge take the lock, so it can fail spuriously
+          detail: |-
+            replay_insufficiency_test.go:196 sleeps RepaintSettle/4 after
+            RequestRepaint, assuming the spawned nudge has taken geom. Under load or
+            -race it may not have; the racing Resize then lands first and the
+            assertion got[1].Rows != before.Rows-1 fails on a correct tree. Wait on
+            waitForResizes(t, child, 2) instead - the same lesson the test's own
+            comment teaches about the other party.
+          family: test-sleeps-instead-of-synchronizing
+          round: 4
+      blocked: true
 ---
 
 # Gate ledger — pair#209 (boundary-review)
@@ -259,18 +430,111 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 4 — 2026-09-09T22:57:58-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Tests row now names the two replacement tests; no cross-product remains.
+- BR-2 — addressed — Verified by revert: dropping RequestRepaint from takeOverScreen reds 2 couchtty tests.
+- BR-3 — addressed — Probe drives the production sequence and reads ptychild.RepaintSettle; own target, not test-smoke.
+- BR-4 — addressed — Verified by revert: RepaintClear -> RepaintReplace reds TestClosingATabBlanksTheDeadTabsScreen...
+- BR-5 — addressed — Child.RequestRepaint is the single home; both consumers call it, no copy remains.
+- BR-6 — addressed — Both consoles feed the composed bytes; byte-inert today and honestly recorded as such.
+- BR-7 — addressed — Verified by revert: unlocking geom across the settle reds the goroutine-independence test.
+- BR-8 — addressed — Intent parameter landed and showMenu passes RepaintClear; byte-inert exception recorded, not papered over.
+- BR-9 — addressed — 204's invariant row and envelope table landed; the four reproductions carry answer tests; differential closes transitively.
+- BR-10 — addressed — Doc restored AND a mechanical guard added; I confirmed the guard fires on a synthetic recurrence.
+- BR-11 — addressed — No chr(39) artifact anywhere in cmd/.
+- BR-12 — addressed — Child.AltScreenObserved is gone; RepaintModes is the only door. New instances raised separately.
+- BR-13 — addressed — 6.6 KB back-to-back / 19.3 KB with a gap now sit in 204's table beside the counted invariant.
+
+### Raised
+
+- **BR-14** [Critical] `absent-data-is-not-intent` An empty replay leaves the OUTGOING surface on screen, and no takeover site wants that
+  3rd in this family, so the deliverable is the rule, not the row. The rule:
+  what an empty body means is a property of whose frame is already on the
+  screen, not of the call site's name. "A stale frame beats a blank one"
+  (repaint.go:26-29) holds only for a same-child repaint, and the enumeration
+  of takeover sites contains none - switchTo, switchRelative, showMenu,
+  newTab and removeTab all replace a DIFFERENT surface. Reachable on the
+  primary flow: starting a thread from the panel attaches (console.go:366
+  seeds replayCutoff = ReplaySafeEnd) and dispatches switch on the same
+  operationQueue goroutine before Run drains a batch, so ReplayThrough
+  returns nothing, Repaint emits zero bytes, and the PANEL'S OWN MENU BODY
+  stays on the terminal under the new thread's label until zellij's first
+  frame. Before this diff it was HomeAndClear plus nothing - blank, which is
+  honest. This is BR-4's shape at the sites BR-4 did not name. Fix: make the
+  enum name the question the site must answer, and record that the
+  keep-stale branch currently has zero correct callers.
+- **BR-15** [Important] `operating-envelope-unstated` A mandatory Resize waits a full settle on the nudge's lock, while 204 states the cost as zero
+  2nd in this family, so state the rule. nudge() holds geom across
+  time.Sleep(RepaintSettle) (child.go:277-290) and Resize takes the same
+  lock; measured in a scratch copy, a concurrent Resize blocked 20.8 ms.
+  termcmd's resizeAll (run.go:1600) runs on the WRITER goroutine via
+  resizeThroughWriter, so a SIGWINCH landing inside a switch stalls all pane
+  output for a settle. 204's table says "event-loop time per nudge | 0",
+  which is true only for the caller that requests the nudge. The rule: an
+  envelope must be stated for every path the mechanism can block, not only
+  the path that invokes it - the contention sibling of the rule 204 already
+  writes for cost. Enumerate the geom contenders (Console.applyLayout,
+  terminalMux.resizeAll, teardown) and give each a row, or let Resize
+  preempt an in-flight nudge via a generation the restore leg checks.
+- **BR-16** [Important] `nudge-ordering-and-extent` takeOverScreen still claims Run-goroutine-only, and this round's own test drives it from the operationQueue
+  2nd in this family, so state the rule: a goroutine-ownership claim in a
+  comment is not a mechanism - which is exactly what C2 concluded for the
+  nudge and did not apply to the writer. console.go:996 asserts "still
+  Run-goroutine-only, like every other writer", but switchTo is reached from
+  ExecuteConsoleOperation (console.go:1862) and
+  TestASwitchThroughTheOperationQueueNudgesLikeAnyOther exercises that path.
+  takeOverScreen writes c.host directly; hostty.Host is a bare io.Writer and
+  couch has five unsynchronized write sites (console.go:915,983,1009,1058;
+  console_menu.go:193,199,202). termcmd already solved this next door -
+  paneWriter is deliberately not an io.Writer so a door that skips the
+  reasoning does not compile (run.go:993). Either give couch the same typed
+  single-writer door or delete the false sentence and file the divergence;
+  leaving it is what lets C2's rule read as satisfied. Same lens, smaller:
+  go c.nudge() has no tie to c.done, so the goroutine outlives Close by a
+  settle with no cancellation path.
+- **BR-17** [Important] `fake-diverges-from-real` NewFakeChild starts with no geometry while Start records opts.Size, and geometry is what the nudge reads
+  Start sets size: opts.Size (child.go:129-135) so a real child always
+  nudges; NewFakeChild (fake.go:37-46) sets nothing, so a fake silently
+  declines via size.Rows < 2 until a test resizes it. run_test.go:1341
+  rationalises the workaround as "what production does", but production
+  cannot reach the zero-geometry state the fake starts in - a consumer that
+  forgot to size a child would be invisible in tests and would nudge in
+  production. TestFakeAndRealChildAgreeAfterTheChildHasEnded drives
+  Write/Resize/Signal and does not cover Size or RequestRepaint. ARCH-MOCK:
+  give NewFakeChild a starting size mirroring Start, and add both to the
+  conformance stimulus set.
+- **BR-18** [Minor] `dead-exported-surface` Three newly-exported identifiers have no consumer outside their own package's tests
+  2nd in this family, so fix the rule rather than the three. hostty.EnterAltScreen
+  (control.go:68) is referenced only by repaint_test.go's forbidden list IN
+  THE SAME PACKAGE, so it never needed exporting; Child.Size() (child.go:346)
+  has zero production callers and two test ones; hostty.Repaint is reachable
+  only through RepaintFor and its own package's tests. Measured prevalence:
+  three instances this round plus BR-12 last round. The rule - exported
+  surface needs a consumer outside its own package's tests - is AST-checkable,
+  and this repo already writes that kind of guard (doccomment_test.go).
+- **BR-19** [Minor] `comment-cites-code-that-moved` The mutation recipe in console_test.go names a signature and a call site that do not exist at HEAD
+  console_test.go:1056 says the test reds on "dropping
+  p.child.RequestRepaint(c.ChildSize()) from switchTo". RequestRepaint takes
+  no argument since C2 and the call moved into takeOverScreen. A reader
+  following the recipe finds nothing to delete and may conclude the test is
+  unpinned - the precise failure mode this issue's ledger exists to prevent.
+- **BR-20** [Minor] `test-sleeps-instead-of-synchronizing` The goroutine-independence race test sleeps to let the nudge take the lock, so it can fail spuriously
+  replay_insufficiency_test.go:196 sleeps RepaintSettle/4 after
+  RequestRepaint, assuming the spawned nudge has taken geom. Under load or
+  -race it may not have; the racing Resize then lands first and the
+  assertion got[1].Rows != before.Rows-1 fails on a correct tree. Wait on
+  waitForResizes(t, child, 2) instead - the same lesson the test's own
+  comment teaches about the other party.
+
 ## Open findings
 
-- **BR-1** [Minor] `asserted-state-must-be-reconstructible` Tests row still lists cursor-save in the mode-assertion cross-product the design just dropped
-- **BR-2** [Critical] `claimed-fix-unpinned-by-test` couch's repaint request and both consumers' ChildModes wiring are pinned by no test — deleting them leaves the suite green
-- **BR-3** [Critical] `external-behavior-unverified` The zellij conformance probe measures a resize sequence with a 1.5s gap that production never issues
-- **BR-4** [Critical] `absent-data-is-not-intent` removeTab lost its unconditional clear and has no nudge, so a closed tab's screen can persist
-- **BR-5** [Important] `shared-mechanism-duplicated` The resize nudge is copy-pasted into couchtty and termcmd, contradicting the plan's "one answer, not two"
-- **BR-6** [Important] `scanner-must-see-what-was-written` The composed alt-screen assertion is written to the host but never fed back to hostScan
-- **BR-7** [Important] `nudge-ordering-and-extent` In termcmd the nudge's shrink/restore races resizeAll across two goroutines
-- **BR-8** [Important] `absent-data-is-not-intent` couch's menu takeover is documented as a deliberate clear but wired as a replace
-- **BR-9** [Important] `plan-row-ticked-not-delivered` Three ticked Plan rows are not delivered: the #204 counted invariant, the four regression conversions, and the differential row
-- **BR-10** [Minor] `godoc-attached-to-wrong-symbol` requestRepaint was inserted between takeOverScreen's doc comment and its func
-- **BR-11** [Minor] `escaping-artifact-in-source` A botched shell escape left literal '+chr(39)+' in a test failure message
-- **BR-12** [Minor] `dead-exported-surface` Child.AltScreenObserved has zero callers, production or test
-- **BR-13** [Minor] `operating-envelope-unstated` The nudge's cost is stated as "one extra repaint" but the probe measured 19,317 bytes on a single-pane session
+- **BR-14** [Critical] `absent-data-is-not-intent` An empty replay leaves the OUTGOING surface on screen, and no takeover site wants that
+- **BR-15** [Important] `operating-envelope-unstated` A mandatory Resize waits a full settle on the nudge's lock, while 204 states the cost as zero
+- **BR-16** [Important] `nudge-ordering-and-extent` takeOverScreen still claims Run-goroutine-only, and this round's own test drives it from the operationQueue
+- **BR-17** [Important] `fake-diverges-from-real` NewFakeChild starts with no geometry while Start records opts.Size, and geometry is what the nudge reads
+- **BR-18** [Minor] `dead-exported-surface` Three newly-exported identifiers have no consumer outside their own package's tests
+- **BR-19** [Minor] `comment-cites-code-that-moved` The mutation recipe in console_test.go names a signature and a call site that do not exist at HEAD
+- **BR-20** [Minor] `test-sleeps-instead-of-synchronizing` The goroutine-independence race test sleeps to let the nudge take the lock, so it can fail spuriously

@@ -191,9 +191,9 @@ func (c *Console) showMenu() {
 	c.menuExtents = view.Extents
 	c.mu.Unlock()
 	_, _ = c.host.Write([]byte(hostty.HideCursor))
-	// couch's OWN surface, not a child's: a deliberate clear, and no child
-	// modes to assert (#209).
-	c.takeOverScreen(nil, []byte(view.Body), hostty.RepaintClear)
+	// couch's OWN surface, not a child's: nobody to ask for a repaint, and no
+	// child modes to assert (#209).
+	c.takeOverScreen(nil, []byte(view.Body))
 	c.paintNow()
 	if view.Cursor == nil {
 		_, _ = c.host.Write([]byte(hostty.HideCursor))

@@ -20,6 +20,11 @@ import (
 // TestFakeChildConformsToRealChildLifecycle now pins the pairing:
 //
 //   - Feed(p) appends to the ring and the screen, exactly as the real pump does.
+//   - It HAS GEOMETRY from the start, like a real child: Start sizes the pty
+//     before the process runs, so production can never reach the zero-size
+//     state (#209 I-3). A fake that started at 0x0 declined every repaint
+//     request until a test remembered to resize it, which is a green test for
+//     a path production would have nudged.
 //   - Write records into Writes() instead of reaching a pty.
 //   - Resize records into Resizes().
 //   - A fresh fake is RUNNING: Done() is false and Wait() BLOCKS, exactly as a
@@ -39,12 +44,19 @@ func NewFakeChild(output []byte) *Child {
 		screen: &Screen{},
 		done:   make(chan struct{}),
 		fake:   &fakeState{},
+		size:   FakeChildSize,
 	}
 	if len(output) > 0 {
 		c.Feed(output)
 	}
 	return c
 }
+
+// FakeChildSize is the geometry a fake child starts with, standing in for the
+// opts.Size a real Start writes to the pty before the process runs. An ordinary
+// terminal, so a test that does not care about size gets a child that behaves
+// like one; a test that does calls Resize.
+var FakeChildSize = Size{Rows: 24, Cols: 80}
 
 type fakeState struct {
 	mu      sync.Mutex

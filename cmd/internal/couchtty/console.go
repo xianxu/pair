@@ -500,7 +500,7 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 	// correct rather than probable once the last full frame has aged out of the
 	// ring (#209). It used to be a separate call here, which is how the SAME
 	// enumeration got swept for the composition and not for the request.
-	c.takeOverScreen(p.child, p.child.ReplayThrough(p.replayCutoff), hostty.RepaintReplace)
+	c.takeOverScreen(p.child, p.child.ReplayThrough(p.replayCutoff))
 	c.flushDeferredNotifications()
 	c.paintNow()
 }
@@ -993,19 +993,35 @@ func (c *Console) writeChild(p []byte) {
 // reason: whatever partial sequence the old child left is no longer on screen
 // to be corrupted.
 //
-// It is still Run-goroutine-only, like every other writer.
-func (c *Console) takeOverScreen(child *ptychild.Child, body []byte, intent hostty.RepaintIntent) {
+// NOT Run-goroutine-only, and the sentence that said so was false rather than
+// aspirational (#209 I-2). `switchTo` reaches here from the operationQueue
+// goroutine too — `ExecuteConsoleOperation`'s `switch`, which is the switcher's
+// Enter and the status-chip click, the operator's primary gesture. That is what
+// #209 C2 discovered while fixing the nudge's ordering, and the nudge's half is
+// now a mechanism: `Child` owns its geometry, so no caller has an ordering
+// obligation there.
+//
+// The WRITER's half is not, and this comment is where it gets said out loud
+// instead of being asserted away: `c.host` is a bare `io.Writer` with no
+// serialization, and couch has several unsynchronized write sites. termcmd
+// already has the answer next door — `paneWriter` is deliberately not an
+// `io.Writer`, so a door that skips the reasoning does not compile — and couch
+// wants the same typed single-writer door. That is #224, not this issue: the
+// change is couch-wide and #209 has no business growing into it. What #209 owes
+// is not leaving a false claim behind, because a claim like this one is exactly
+// what lets the next reader believe the rule is already kept.
+func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 	c.mu.Lock()
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
 	c.mu.Unlock()
 
-	// Composed, not clear-then-write (#209): an empty body must not blank —
-	// that means the ring could not answer, and a stale frame beats a blank one
-	// while the child is asked to repaint. The composition also OWNED the
-	// buffer assertion, which is withdrawn for now (`?1049` moves the cursor);
-	// hostty.Repaint holds the reason and the `?1047` candidate.
-	composed := hostty.RepaintFor(child, body, intent)
+	// Composed by hostty (#209): blank, then draw the body. It ALWAYS blanks —
+	// the version that emitted nothing for an empty body left the PANEL's own
+	// surface standing under a new thread's label, which is C-1. The
+	// composition also owned a buffer assertion, withdrawn for now because
+	// `?1049` moves the cursor; hostty's repaint holds both reasons.
+	composed := hostty.RepaintFor(child, body)
 	_, _ = c.host.Write(composed)
 
 	// And FEED it back. The reset above drops the old child's partial sequence,
