@@ -1,11 +1,12 @@
 ---
 id: 000183
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-04
-updated: 2026-09-04
+updated: 2026-09-10
 estimate_hours:
+started: 2026-09-10T16:57:25-07:00
 ---
 
 # Attach drops PAIR_SCOPE_KEY, so the context meter vanishes after reattach
