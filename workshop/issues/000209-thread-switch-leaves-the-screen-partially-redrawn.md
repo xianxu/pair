@@ -1,11 +1,12 @@
 ---
 id: 000209
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-09-09
 estimate_hours:
+started: 2026-09-09T18:28:51-07:00
 ---
 
 # thread switch leaves the screen partially redrawn
