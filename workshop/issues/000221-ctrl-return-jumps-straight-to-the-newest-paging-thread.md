@@ -238,23 +238,23 @@ doc `[stale]`, #127.)
 ## Plan
 
 - [x] Decide the two behaviour cases above; record them in `## Spec`.
-- [ ] `keys.go`: `newestPageSequence` (legacy note in its doc comment) +
+- [x] `keys.go`: `newestPageSequence` (legacy note in its doc comment) +
       `seqNewestPage` declared BEFORE the `seqHotkey = seqSwitch` alias + `hit()`
       case + `knownSequences` row + `HitNewestPage` in `AllInterceptorHits`.
-- [ ] `console.go`: `onNewestPageHotkey` (the five-arm table above) +
+- [x] `console.go`: `onNewestPageHotkey` (the five-arm table above) +
       `hitHandlers()` entry.
-- [ ] Interceptor: the existing walkers
+- [x] Interceptor: the existing walkers
       (`TestInterceptorRecognisesEverySequenceAtEverySplit`,
       `TestEveryInterceptedChordHasAHandler`) cover splits and the handler for
       free. The new test is the codepoint-13 neighbour class passing through
       untouched, plus content inside a paste. Seed `FuzzInterceptorFeed` with
       the row and its neighbours.
-- [ ] `onNewestPageHotkey`: a differential test through the production input
+- [x] `onNewestPageHotkey`: a differential test through the production input
       path, with ids chosen so that newest ≠ first paging ≠ first row. Compare
       `active`, the whole `SwitchTracker`, and every attention projection
       against `ctrl-space` + Return. One test per remaining arm. Proven by the
       mutation sweep, and every mutation is asserted to have applied.
-- [ ] Docs: `atlas/couch.md` Navigation; `menuControls`; the README sentences
+- [x] Docs: `atlas/couch.md` Navigation; `menuControls`; the README sentences
       named in the Spec.
 - [ ] `make test` green (scrub `PAIR_SESSION_ID`/`PAIR_TAG`); operator smoke on
       the live Ghostty → couch → pair stack.
@@ -294,6 +294,54 @@ Claimed and designed. What reading the code turned up:
   Revisions).
 - Nothing else binds ctrl+return: `git grep` for `13;5u`, `<C-CR>`,
   `ctrl+enter`, `ctrl+return` and friends matched only this issue.
+
+### 2026-09-10 — implemented (`9868976e`, `8e94de40`)
+
+- **Code.** `keys.go` gets `newestPageSequence`, `seqNewestPage` (above the
+  alias), a `hit()` case, a `knownSequences` row and `HitNewestPage`.
+  `console.go` gets `onNewestPageHotkey` (the five-arm table) and its
+  `hitHandlers()` entry. `menuControls` gains `Ctrl-Return`.
+- **Tests.** `TestInterceptorClaimsCtrlReturnAndNoOtherReturn` covers the chord,
+  eight Return neighbours (the six Pair consumes, plus the chord's key release
+  and ctrl+shift) and a paste. The fuzz corpus is seeded. The existing walkers
+  cover splits and the handler. `console_newest_page_test.go` has the
+  production-path differential against `ctrl-space` + Return, which compares the
+  whole landing (`active`, `focus`, `SwitchTracker`, three attention
+  projections). It then chases the second page and returns home with
+  `ctrl+backspace`, which is the "pressed again" sentence README states. There
+  is one test per remaining arm. All pass under `-race -count=3`.
+- **Mutation sweep.** Script `mutate221.py`: every needle is asserted to occur
+  once, restores come from saved bytes, and the tree is checked clean after.
+  All 10 mutations were killed:
+
+  | mutation | killed by |
+  |---|---|
+  | `arrivalOrdinary` | the differential |
+  | first paging actor in pane order | the differential |
+  | `force=true` | the stay test |
+  | panel arm dropped | the switcher test |
+  | nothing-paging falls back to `ActiveAddress` | the nothing-paging test |
+  | stay notice removed | the stay test |
+  | not-attached arm removed | the exited-child test |
+  | row removed | 4 tests |
+  | `hit()` case removed | 4 tests |
+  | `seqNewestPage` below the alias | the build (duplicate case) |
+
+  The last one falsified my own comment, which claimed it would "silently open
+  the switcher". It was corrected in `8e94de40` to say what the compiler
+  actually does.
+- **Honestly unpinned.** The panel arm uses `DecodePanelKeys` rather than a
+  literal `KeyEnter`. The two produce identical keys for every input today, so
+  no behaviour test can tell them apart. The switcher test pins the behaviour
+  (Return on the selected row), not the derivation.
+- **Suite.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test`, run unsandboxed:
+  exit 0, 197 packages `ok`, no failures. Sandboxed runs fail only on the known
+  pty tests ("operation not permitted").
+- **Doc sweep.** `git grep` for enumerations of couch's chords found the four
+  README sites the gate named, and all four are updated. `atlas/couch.md:507` and
+  `:589` call `Alt+n` the "third" chord *relative to the `Alt+x`/`Alt+d` grid*,
+  which stays true, so they are left alone. #190's "couch intercepts only six" is
+  a dated working note and is also left alone.
 
 ## Revisions
 
