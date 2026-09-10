@@ -134,3 +134,124 @@ findings:
     detail: |
       main.go:99 lists only wrap, plain and decom modes; layout.kdl:4 names writeLayout, now zellijprobe.WriteLayout; the recorded 0.45.1 region 1..23 predates the full-frame config. Also probe.sh is mode 100644 while probe_top.sh is 100755.
 ```
+
+---
+
+## Re-review — 2026-09-10T10:19:08-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 223 — scroll-triggered strip repaint lands the shell's cursor in the tab strip |
+| repo | pair |
+| issue file | workshop/issues/000223-scroll-triggered-strip-repaint-lands-the-shell-s-cursor-in-the-tab-strip.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 81a8c88eac2b3c531a1f6636676f453c15f65430..b4e23f15d2def09b5ce004af3dc190681454f711 |
+| command | sdlc close --issue 223 |
+| reviewer | claude |
+| timestamp | 2026-09-10T10:19:08-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All three Important findings from round 1 are fixed, and I checked each one against the code rather than the commit message. BR-1's new table test fails against the old parser (6 of 8 subtests) and against a variant with no default branch (2 subtests). BR-5's new check fails when the key is removed, commented out, or missing from only the runtime-bundle copy. BR-3's replacement commit `0baacfa7` is on `origin/main`. Everything left is Minor and cheap:
+- **BR-7:** its four named sites are fixed, but not the copied sibling the review also named.
+- **Unchecked claims:** the fix round wrote four claims that git, the Homebrew source, or the probe itself contradicts or doesn't support. One is in the README install section.
+- **Duplicated fact:** the atlas now states one measurement twice.
+
+None of these blocks the gate. I'd fix them in the close so a false install statement doesn't ship.
+
+**1. Strengths**
+- **The parser only accepts rows the setup can produce.** `verdict()` accepts `wrapRow == rows - 1` or `wrapRow == rows`, and treats everything else as inconclusive, including a row past the screen (`probes/zellijwrapmargin/main.go:228-252`). This is stricter than the `>` the round-1 fix sketch suggested.
+- **The test covers failure inputs, not just the happy path** (`main_test.go:8-29`). `make test`'s `go test ./...` reaches it.
+- **The config check can't be fooled by comments** (`paneframestyle_test.go:27-38`). It strips `//` comments before matching, so documentation that names the key can't satisfy it. It checks both the source config and the runtime-bundle copy.
+- **#226 names its blocker instead of deleting the filter early.** Deleting `stripWheelResizeModifier` waits until the 0.45 floor is enforced.
+- **The lessons are written as rules** a later round can apply: a measurement has three outcomes, and durable docs cite refs that exist on origin.
+
+**2. Critical findings**
+None.
+
+**3. Important findings**
+None.
+
+**4. Minor findings**
+- **N-1: four checkable claims don't match their sources** (new family `prose-claim-unchecked-against-source`). This is adjacent to BR-2 and BR-3 but a different rule: those were a missing statement and an unpublished ref; these are statements that exist but weren't checked.
+  - `README.md:257-258` says "`brew install` skips a present dependency". That's false for pair's formula. It builds from source with no bottle, so there is no bottle minimum version. `dependency.rb:82-84` then treats any zellij older than the latest as unsatisfied, and `formula_installer.rb:951` upgrades it. A pinned zellij makes the install refuse loudly. The advice to check the version and `brew upgrade zellij` is still right. The real gaps are:
+    - a zellij installed outside brew that comes first on `PATH`;
+    - a pair install that `brew upgrade` finds already current, so the installer never runs.
+  - `atlas/architecture.md:594` says `0baacfa7` "is the last one before the frame-style change". `git rev-parse 5fdaf32e^` is `4e62e04a`, and `603fc8f0` and `4e62e04a` both sit in between. Either drop the clause or cite `4e62e04a`.
+  - `hostty/reserve.go:40` says nvim overwrote the strip "on its first half-page", and `atlas:573` and `:599` say "at once". The nvim mode sends six keystroke groups and then takes one `dump-screen` (`main.go:159-189`). The issue Log records only that end state (row 1 showing line `94`).
+  - `paneframestyle_test.go:18-19` says it reads "the same pair of files" as `TestEveryTerminalPaneRungIsBorderless`. That test reads `zellij/layouts/main-3.kdl`, not `config.kdl`. It's the same pair of *locations*.
+- **N-2: the atlas states the top-edge measurement twice, 25 lines apart** (ARCH-DRY). BR-4's sweep added it at `architecture.md:570-574`, and `:596-601` (from `ef8cdb34`) says nearly the same thing, including "real nvim overwrote it at once". Fixing that phrase under N-1 already needs two edits. Keep one copy and point to it.
+- **BR-7 remainder:** `probes/zellijscrollregion/layout.kdl:3-4` still says "see writeLayout there". Round 1 named this file as where the stale line was copied from.
+
+**5. Test coverage notes**
+- **BR-1** is proved by the scratch mutation runs above. The glue in `run()` that turns inconclusive into exit 2 isn't unit-tested, but it's a three-arm switch, so that's acceptable.
+- **BR-5** is proved by the three mutations above, all of which failed.
+- **Other packages:** `go vet ./probes/...` is clean. `go test` passes for `./probes/...` and `./cmd/internal/runtimebundle/...`. `zellij --config zellij/config.kdl setup --check` on 0.45.1 reports "Well defined". `hostty` fails only `TestOSHostConformsToTheFakeOnSizeAndRawMode`, on `pty.Open: operation not permitted` from the sandbox; that test was not changed in this window.
+- **Not run:** the live probe needs a zellij server, so I relied on the readings recorded in the issue.
+
+**6. Architectural notes**
+- **ARCH-DRY: flag, Minor (N-2).** The duplicated shell `q()` helper across the two probe scripts is still trivial.
+- **ARCH-PURE: pass.** `verdict()` is pure and table-tested; `run()` is thin IO glue.
+- **ARCH-PURPOSE: flag, Minor.** The BR-7 fix covered only the sites that were named; the copied sibling round 1 pointed at is still stale. The issue's purpose is delivered: the zellij 0.45 upgrade, the regression probe, and the frame style. I checked the other probes for the BR-1 pattern: `zellijscrollregion`, `cursorsaveslots`, `termctrlc`, `termrows` and `zellijrepaint` all refuse to report a verdict from nothing.
+- **ARCH-MOCK: pass.** The probe is the live check of the zellij-emulator seam, and pair doesn't model the cursor.
+- **ARCH-CONSTRAINTS: pass.** The probe's waits are bounded. The "~20s" estimate for `test-smoke` in `Makefile.local` is probably stale.
+- **ARCH-SECURE: pass.** The readings file crosses a process boundary and is now parsed into typed values with ok flags. A bad reading fails visibly with exit 2.
+- **ARCH-ORDER: pass.** `DONE` is written last, which guards against partial reads, and `verdict()` only sees a complete file. The nvim mode depends on sleeps, but it's manual-only and outside `test-smoke`.
+- **Going forward:** the README now declares 0.45.0 as the floor, but many constants were measured on zellij 0.44.3. Examples: `layoutcmd/resizeplan.go:6`, `workbenchshortcut/shortcut.go:537`, `termcmd/run.go:599`, `ptychild/child.go:347`. Re-measure them when #226 enforces the floor.
+
+**7. Plan revision recommendations**
+- Add a `## Revisions` entry. `probes/zellijwrapmargin` now has a third outcome, PROBE-INCONCLUSIVE with exit 2, and `test-smoke` fails on it. So the Log's "reports rather than fails" now holds only for the two verdicts. Round 1 recommended this revision too, and it hasn't been made.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Mutation-checked in a scratch copy: the old parser fails 6 of 8 subtests, a variant with no default branch fails 2; make test's go test ./... reaches the test.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Floor stated at README.md:216 and :257; the Homebrew reason it gives is wrong, raised as the new prose-claim finding.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      0baacfa7 is reachable from origin/main (the tag is still local-only, correctly not cited); the atlas's description of the commit is wrong, raised in the new finding.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      reserve.go comment, error message, test name and atlas:570-574 now give the DECSTBM-absolute reason; no stale DECOM-arbitration premise left outside workshop/.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Mutation-checked: key removed, commented out, or missing from only the runtime-bundle copy - all three fail TestConfigStatesFullPaneFrames.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Filed as 226 with the blocker (0.45 not enforced) stated; grep finds no other DELETE THIS tripwire.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Four named sites fixed; the copied sibling round 1 named, probes/zellijscrollregion/layout.kdl:3-4, still says see writeLayout there. Rule: when fixing a copied comment, grep the copied phrase across the tree in the same commit.
+findings:
+  - id: new
+    severity: Minor
+    family: prose-claim-unchecked-against-source
+    title: |
+      Fix-round prose states four checkable facts that git, the Homebrew source or the probe contradicts or does not support
+    detail: |
+      (1) README.md:257-258 says brew install skips a present dependency; for pair's bottle-less formula Homebrew treats an outdated dep as unsatisfied (dependency.rb:82-84) and upgrades it (formula_installer.rb:951) - the real gaps are a non-brew zellij earlier on PATH and a pair that brew upgrade finds current. (2) atlas/architecture.md:594 calls 0baacfa7 the last commit before the frame-style change; 5fdaf32e^ is 4e62e04a. (3) reserve.go:40 (first half-page) and atlas:573/:599 (at once): the nvim mode takes one dump-screen after six keystroke groups (main.go:159-189), and the Log records only that end state. (4) paneframestyle_test.go:18-19 says TestEveryTerminalPaneRungIsBorderless reads the same files; it reads layouts/main-3.kdl. Rule: run the check (git, tool source, the probe's actual reading) before committing a checkable claim.
+  - id: new
+    severity: Minor
+    family: doc-fact-single-home
+    title: |
+      atlas states the top-edge DECSTBM-under-DECOM measurement twice, at architecture.md:570-574 and :596-601
+    detail: |
+      BR-4's sweep added it to the Edge asymmetry paragraph, and ef8cdb34's strip-stays-at-the-BOTTOM paragraph already said nearly the same, including real nvim overwrote it at once, so correcting that phrase now needs two edits. Keep one copy and point to it (ARCH-DRY).
+```

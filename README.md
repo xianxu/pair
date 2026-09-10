@@ -254,9 +254,11 @@ brew update; brew upgrade pair
 
 That installs `zellij`, `neovim`, `fzf`, `jq`, and `par` if they aren't already present. The agent (`claude`, `codex`, `agy`) you install separately.
 
-**zellij must be 0.45.0 or newer**, and Homebrew will not upgrade one you
-already have: `brew install` skips a present dependency. Check with
-`zellij --version`, and `brew upgrade zellij` if it is older. On 0.44.x the
+**zellij must be 0.45.0 or newer.** An existing installation can be older than
+that — `brew upgrade pair` does nothing while pair itself is current, and a
+zellij installed outside Homebrew is not Homebrew's to upgrade. Check with
+`zellij --version`, and upgrade it if it is below 0.45.0 (`brew upgrade zellij`
+for a Homebrew one). On 0.44.x the
 right pane's tab strip breaks as soon as a long line wraps at the bottom of the
 pane — the shell's cursor lands on the strip row and later output overprints it
 (a zellij bug, fixed in 0.45.0; `#223`). Restart your pair sessions after

@@ -15,8 +15,8 @@ import (
 // indicator — and on 0.45 without the explicit style the operator watched that
 // line vanish. Deleting the key is silent on 0.44 (which ignores it) and
 // silently wrong on 0.45, so it is pinned here, in both the source config and
-// the runtime bundle's mirror, the same pair of files
-// TestEveryTerminalPaneRungIsBorderless reads.
+// the runtime bundle's mirror — the same source-plus-mirror pairing
+// TestEveryTerminalPaneRungIsBorderless uses for main-3.kdl.
 func TestConfigStatesFullPaneFrames(t *testing.T) {
 	for _, path := range []string{
 		filepath.Join("..", "..", "..", "zellij", "config.kdl"),

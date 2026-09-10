@@ -570,8 +570,10 @@ mechanism sits in two packages that both drive:
   absolute rows, so its row 1 *is* the strip, and any absolute positioning it
   does lands on top. Origin mode (DECOM) does not rescue it — measured in
   `#223`: DECSTBM parameters stay absolute under DECOM, so a full-screen child's
-  own region includes the strip, and real nvim overwrote it at once. A top edge
-  would need the child's DECSTBM rewritten in flight.
+  own region includes the strip. Real nvim, after a few half-page scrolls and a
+  jump, left its own buffer line on the strip row (`probes/zellijwrapmargin`,
+  `top:nvim`, one screen dump at the end). A top edge would need the child's
+  DECSTBM rewritten in flight.
   `NewReservation` refuses it and the methods fail closed if a caller bypasses
   the constructor — emitting a region computed for an unimplemented edge is a
   silently corrupted screen, whereas drawing nothing costs only the strip.
@@ -590,15 +592,11 @@ mechanism sits in two packages that both drive:
   correct, which is why it hid for a day. Fixed upstream in zellij 0.45.0
   (zellij#5357); `probes/zellijwrapmargin` measures it and runs in
   `make test-smoke`. To reproduce through pair itself, run `pair term` on
-  zellij 0.44.x at any commit — the strip code is unchanged by the fix; commit
-  `0baacfa7` is the last one before the frame-style change.
+  zellij 0.44.x at any commit: the fix changed zellij, not the strip.
 
-  **The strip stays at the BOTTOM, and that was measured too.** The obvious
-  workaround — reserve the top row — fails worse: DECSTBM parameters are
-  absolute even under origin mode, so a full-screen child's own region (nvim's,
-  on every scroll) includes a top strip, and real nvim overwrote it at once.
-  At the bottom the child's rows and the pane's rows are one coordinate system,
-  which is the asymmetry `hostty/reserve.go` records when it refuses `EdgeTop`.
+  **The strip stays at the BOTTOM**, where the child's rows and the pane's rows
+  are one coordinate system. Reserving the top row instead was measured and
+  fails worse — see the `Edge` asymmetry above.
 
   **And two reservations NEST**, which is the arrangement couch actually
   produces: couch holds the HOST terminal's bottom row, `pair term` holds its

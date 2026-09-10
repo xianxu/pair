@@ -1,12 +1,13 @@
 ---
 id: 000223
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-09
 updated: 2026-09-10
 estimate_hours:
 started: 2026-09-10T08:59:25-07:00
+actual_hours: 1.51
 ---
 
 # scroll-triggered strip repaint lands the shell's cursor in the tab strip
@@ -125,6 +126,7 @@ consulted the scroll region). Fixed upstream in zellij 0.45.0 (zellij#5357).
 ### 2026-09-09
 
 ### 2026-09-10 — question 1 answered, and the premise it rested on corrected
+- 2026-09-10: closed — Round-1 findings fixed in b4e23f15. BR-1: zellijwrapmargin verdict() now maps only the rows the setup can produce (wrap row == bottom margin -> scrolls, == rows -> escapes) and returns inconclusive (exit 2) for unparsed, missing, zero or out-of-range readings; TestVerdictRefusesToReadAnUnparsedMeasurementAsFixed table covers empty CPR, failed tput, missing wrap line, row above margin, row past screen, empty input; mutation-verified (default arm -> wrapScrolls fails the table). Live reading on the installed zellij 0.45.1 with full frames: region 1..21, after-wrapping-line row=21, VERDICT WRAP SCROLLS. BR-2: README requirements table and install section state zellij >= 0.45.0, that brew keeps an existing older zellij, and to restart sessions after upgrading. BR-3: atlas and issue cite commit 0baacfa7 (verified on origin/main via git branch -r --contains) instead of the local-only tag. Minors: reserve.go EdgeTop doc + error message, reserve_test and atlas give the measured reason (DECSTBM absolute under DECOM); TestConfigStatesFullPaneFrames pins pane_frame_style full in config.kdl and the runtime-bundle mirror, mutation-verified (commenting the key fails it); ctrl+wheel tripwire filed as #226, blocked on enforcing the 0.45 floor; stale probe comments fixed, probe.sh executable. make test green unsandboxed (exit 0, zero FAIL). Original evidence: operator smoke-tested live on zellij 0.45.1 (long ls -la prints in full, strip holds, cursor at prompt; first line back after pane_frame_style full); mechanism measured by DSR probe and located in zellij 0.44.3 line_wrap(), fixed upstream by zellij#5357 in v0.45.0.; review verdict: FIX-THEN-SHIP
 
 **The test this issue's Plan named does not exist, and that is deliberate rather
 than rot.** `TestEveryConsoleWriteIsGatedOrExplicitlyExempt` was added by

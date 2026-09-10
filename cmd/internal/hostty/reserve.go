@@ -36,8 +36,9 @@ const (
 	// Origin mode (DECOM, `\x1b[?6h`) is NOT enough, and that is measured
 	// (#223, probes/zellijwrapmargin top:*): it moves the child's CUP, but
 	// DECSTBM parameters stay ABSOLUTE under it, so a full-screen child's own
-	// scroll region — nvim's, on every scroll — includes a top strip, and real
-	// nvim overwrote one on its first half-page. A top edge would have to
+	// scroll region — nvim's, when it scrolls — includes a top strip; real nvim,
+	// after a few half-page scrolls and a jump, left its own buffer line on the
+	// strip row. A top edge would have to
 	// rewrite the child's DECSTBM parameters in flight, and police its DECOM,
 	// RIS and buffer switches too; zellij's DECRC does not even restore DECOM.
 	// Named rather than omitted so the asymmetry is discoverable instead of

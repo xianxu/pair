@@ -4375,3 +4375,20 @@ that resolves to nothing.
 **Rule.** In atlas, README and issue text, cite a commit that is on `origin`
 (or a pushed tag), not a local convenience ref. A local tag is fine as a
 shortcut in conversation; the durable record names the commit it points at.
+
+## A fix-round sentence is a claim — check it before committing it (pair#223)
+
+**What happened.** The round that fixed #223's close-review findings introduced
+four new sentences, each stating a checkable fact, and none was checked: that
+`brew install` skips a present dependency (pair's bottle-less formula lists
+zellij and Homebrew treats an outdated one as unsatisfied); that commit
+`0baacfa7` was the last before the frame-style change (`git log -1 5fdaf32e^`
+says `4e62e04a`); that nvim overwrote a top strip "at once" (the probe took one
+dump after six keystroke groups); and that a new test read "the same files" as
+a sibling (it read a different file, in the same source-plus-mirror pairing).
+
+**Rule.** Prose written to close a finding is held to the evidence standard of
+the code it describes. Before committing a sentence that names a commit, a
+tool's behaviour, or what a measurement showed, run the check — `git log`, the
+tool's source or `--help`, the probe's actual output. And say only what the
+reading supports: an end-state dump does not say when.
