@@ -165,6 +165,9 @@ func FuzzInterceptorFeed(f *testing.F) {
 	for _, s := range []string{
 		"", "\x00", "x\x00y", "\x1b[200~\x00\x1b[201~", "\x1b[2~", "\x1b[20",
 		"\x1b", "\x1b[201~", "\x00\x00", "\x1b[200~",
+		// ctrl+return and the Return neighbours it must not claim.
+		newestPageSequence, "\x1b[13;5", "\x1b[13;5:3u", "\x1b[13u", "\x1b[13;1u", "\x1b[13;3u",
+		"\x1b[200~" + newestPageSequence + "\x1b[201~",
 	} {
 		f.Add([]byte(s))
 	}
@@ -452,6 +455,48 @@ func TestInterceptorIgnoresCtrlBackspaceInsideAPaste(t *testing.T) {
 		if !bytes.Contains(before, chord) {
 			t.Fatalf("chord %q was eaten from paste content: %q", chord, before)
 		}
+	}
+}
+
+// ctrl+return is claimed in exactly ONE encoding, and every neighbour it could
+// be confused with reaches the child byte for byte. Return is the most common
+// key there is; taking any other form of it would be far worse than never adding
+// the chord. The neighbour class is every codepoint-13 encoding Pair consumes --
+// the legacy CR, Kitty with no modifier (implicit, and explicit `;1` as wrap.go
+// parses it), shift, alt (Pair's own chord) and alt+shift (shortcut.go) -- plus
+// two that differ from the claimed bytes by one field: the chord's own key
+// release, and ctrl+shift. Splits and the handler are covered by the walkers
+// over knownSequences; this is the part a table walk cannot see.
+func TestInterceptorClaimsCtrlReturnAndNoOtherReturn(t *testing.T) {
+	var it Interceptor
+	before, hit, rest := it.FeedHit([]byte("x" + newestPageSequence + "y"))
+	if hit != HitNewestPage || string(before) != "x" || string(rest) != "y" {
+		t.Fatalf("FeedHit(ctrl+return) = (%q, %v, %q), want (\"x\", HitNewestPage, \"y\")", before, hit, rest)
+	}
+
+	for _, neighbour := range []string{
+		"\r",
+		"\x1b[13u",
+		"\x1b[13;1u",
+		"\x1b[13;2u",
+		"\x1b[13;3u",
+		"\x1b[13;4u",
+		"\x1b[13;5:3u",
+		"\x1b[13;6u",
+	} {
+		var it Interceptor
+		before, hit, rest := it.FeedHit([]byte(neighbour))
+		if hit != HitNone || len(rest) != 0 || string(before) != neighbour {
+			t.Errorf("FeedHit(%q) = (%q, %v, %q), want it forwarded untouched", neighbour, before, hit, rest)
+		}
+	}
+
+	// Inside a bracketed paste it is content, like every other chord.
+	paste := "\x1b[200~a" + newestPageSequence + "b\x1b[201~"
+	var pasted Interceptor
+	before, hit, rest = pasted.FeedHit([]byte(paste))
+	if hit != HitNone || len(rest) != 0 || string(before) != paste {
+		t.Fatalf("pasted ctrl+return = (%q, %v, %q), want the paste forwarded whole", before, hit, rest)
 	}
 }
 

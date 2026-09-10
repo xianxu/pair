@@ -375,25 +375,38 @@ selection, cancellation, fork failure, and registration failure do not. For
 now, change a repository default by launching Pair directly in that repo with
 `pair -- <agent-arguments>` before returning to Couch.
 
-**`Ctrl-Space` and `Ctrl-Backspace` belong to couch while a session is hosted.**
-Both are intercepted before the child sees them, in both encodings a terminal
-may send them (the legacy bytes and the Kitty protocol's `CSI 32;5u` and
-`CSI 127;5u`), so they will not reach your editor or agent inside a
-couch-hosted session. In legacy encoding `Ctrl-Backspace` is `^H`, so that
-chord is taken from the child too; under the Kitty protocol, which zellij
-enables, the two separate cleanly. Every other chord — `Alt+j`, `Alt+k`,
-`Alt+t` and the rest — passes through untouched.
+**`Ctrl-Space`, `Ctrl-Backspace` and `Ctrl-Return` belong to couch while a
+session is hosted.** They are intercepted before the child sees them, so they
+will not reach your editor or agent inside a couch-hosted session. `Ctrl-Space`
+and `Ctrl-Backspace` are recognised in both encodings a terminal may send them
+(the legacy bytes and the Kitty protocol's `CSI 32;5u` and `CSI 127;5u`). In
+legacy encoding `Ctrl-Backspace` is `^H`, so that chord is taken from the child
+too; under the Kitty protocol, which zellij enables, the two separate cleanly.
+`Ctrl-Return` is recognised **only** as the Kitty protocol's `CSI 13;5u`: in
+legacy encoding it is byte for byte a plain `Return`, and couch will not take
+every `Return` from the child to catch it, so with the protocol off `Ctrl-Return`
+simply reaches the child as `Return`. Apart from those three and the `Alt`
+chords below (`Alt+x`, `Alt+d`, `Alt+n`), every chord — `Alt+j`, `Alt+k`,
+`Alt+t`, `Alt+Return` and the rest — passes through untouched.
 
 `Ctrl-Space` means one thing: **open the switcher**, from any actor, focused on
 the actor with the most recent notification (or on the thread you are leaving
-when nothing is paging). There is no focus ladder and no home actor — following
-a page is one key plus `Enter`.
+when nothing is paging). There is no focus ladder and no home actor. Following a
+page through the switcher is one key plus `Enter`; `Ctrl-Return` does it in one.
 
 `Ctrl-Backspace` means **previous**: return to the actor you were working in.
 One slot, not a stack, and a notification hop never spends it — so chasing two
 pages, or detouring manually to check a third thread, still brings you back to
 where you actually were. Returning home twice is deliberately a no-op: you are
 home, and there is nowhere to bounce to.
+
+`Ctrl-Return` means **answer the newest page**: from an actor, it lands on the
+thread `Ctrl-Space` would have opened the switcher on, with no switcher in
+between. It is the same landing as `Ctrl-Space` then `Enter`, so it counts as a
+notification hop, and `Ctrl-Backspace` afterwards still brings you back to where
+you were working. Pressed again, it goes to the next page. With nothing paging it
+stays put and says so on the status row. Inside the switcher it is not claimed
+and acts as the switcher's own `Enter`.
 
 Printable input filters the current list from memory (typeahead). Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
@@ -416,8 +429,8 @@ when the actor was paging. couch enables click reporting for itself and withhold
 every report from a child that never asked for one, so mouse selection and scroll
 inside an attached Pair session are unaffected.
 
-`Alt+n` (or `Ctrl+Alt+n`) is couch's third intercepted chord and does not follow
-that grid: it **relaunches** — a genuinely new Pair process running the current
+`Alt+n` (or `Ctrl+Alt+n`) is a third `Alt` chord couch intercepts, and it does not
+follow that grid: it **relaunches** — a genuinely new Pair process running the current
 binary, keeping the agent conversation — which is how you pick up a rebuilt Pair
 without losing the session you are developing inside. Pair's own in-place reload
 cannot do it, because it re-enters its loop in the same process image. In the

@@ -1410,6 +1410,67 @@ func (c *Console) onPreviousHotkey() {
 	c.switchTo(target, true, arrivalPrevious)
 }
 
+// onNewestPageHotkey handles ctrl+return: land on the thread ctrl-space would
+// have opened the switcher on, without the switcher.
+//
+// onPreviousHotkey's mirror image rather than a switcher gesture: a target
+// computed from console-local state, then straight into switchTo. The menu's
+// `switch` operation, which a status-chip click dispatches, would add the
+// operation-queue hop and a dependency on the inventory having loaded, and this
+// key has no inventory row to act on -- the answer is a live pane.
+//
+// Runs on the Run goroutine.
+func (c *Console) onNewestPageHotkey() {
+	c.mu.Lock()
+	panel := c.focus.IsPanel()
+	// The SAME call ctrl-space focuses the switcher with, so the two answers to
+	// "who paged most recently" cannot drift. No ActiveAddress fallback: that is
+	// a browser's default, and a jump to where you already are is a no-op that
+	// reads as a dropped key.
+	newest := c.attention.NewestActor()
+	target := ""
+	if newest != (couchcore.ThreadAddress{}) {
+		target = c.switchTargetForAddressLocked(newest)
+	}
+	stay := target != "" && target == c.active
+	c.mu.Unlock()
+
+	switch {
+	case panel:
+		// Not claimed here: the switcher already has Return. Whatever the
+		// panel's own decoder makes of the chord is what it does -- Return,
+		// today, since decodeCSIu drops modifiers for codepoint 13 -- so the
+		// meaning is derived rather than restated. Decoded directly instead of
+		// through onMenuInput, which would consume the panel's held partial
+		// without stopping Run's escape timer.
+		keys, _ := DecodePanelKeys([]byte(newestPageSequence))
+		for _, key := range keys {
+			c.onMenuKey(key)
+		}
+	case newest == (couchcore.ThreadAddress{}):
+		c.setNotice("nothing is paging")
+	case target == "":
+		// Durable but without a live pane: its child is done and the exit has not
+		// been reduced yet. ctrl+backspace refuses the same state the same way.
+		c.setNotice("the paging thread is no longer attached")
+	default:
+		// arrivalNotification because the target is paging by construction --
+		// the value the switcher's Return derives from a non-zero capture -- so
+		// ctrl+backspace still goes back to where the operator was working.
+		//
+		// force=false: for another actor it is identical to force=true; for the
+		// active one switchTo acknowledges and stays, with no takeover of a
+		// screen that did not change.
+		c.switchTo(target, false, arrivalNotification)
+		if stay {
+			// The acknowledgement alone is invisible from here: the status row
+			// never draws the active actor's bell. Without a word the key would
+			// look dropped.
+			c.setNotice("already on the paging thread")
+		}
+	}
+}
+
 // reportPrevious puts a ctrl+backspace refusal where the operator is actually
 // looking. The status row is behind the panel while the switcher owns the
 // screen, so a setNotice there would make the key silently do nothing -- which
@@ -1694,11 +1755,12 @@ func (c *Console) switchToThread(thread couchcore.ThreadAddress) {
 // flow it can only execute.
 func (c *Console) hitHandlers() map[InterceptorHit]func() {
 	return map[InterceptorHit]func(){
-		HitSwitch:   c.onHotkey,
-		HitPark:     c.onParkHotkey,
-		HitPrevious: c.onPreviousHotkey,
-		HitDetach:   c.onDetachHotkey,
-		HitRelaunch: c.onRelaunchHotkey,
+		HitSwitch:     c.onHotkey,
+		HitPark:       c.onParkHotkey,
+		HitPrevious:   c.onPreviousHotkey,
+		HitNewestPage: c.onNewestPageHotkey,
+		HitDetach:     c.onDetachHotkey,
+		HitRelaunch:   c.onRelaunchHotkey,
 		// HitMouse carries coordinates, which func() cannot, so it is dispatched
 		// from processInput with the payload rather than through this table. The
 		// entry is the CONSOLE's handler for it -- a real call, not a placeholder
