@@ -256,3 +256,30 @@ around a bug that is not pair's.
 **Decision:** the strip stays at the bottom, and the fix goes where the bug is —
 zellij. The pre-fix state is tagged `repro/223-bottom-strip-zellij-wrap` (at
 `0baacfa7`) so the defect stays reproducible through pair.
+
+**Already fixed upstream — the fix is an upgrade, not a patch.** Reading
+zellij's source for the fix: `v0.44.3`'s `line_wrap()` never consults
+`self.scroll_region`. On the last screen row it scrolls the WHOLE viewport
+(which is exactly the top-edge reading); anywhere else it does `cursor.y += 1`
+(exactly the bottom-edge one). Both measurements fall straight out of those ten
+lines. `zellij-org/zellij#5357` — *"fix(grid): scroll the region when a line
+wraps at its bottom margin"*, merged 2026-07-17 — makes `line_wrap()` mirror
+`add_canonical_line()`, and it shipped in **v0.45.0**. Homebrew offers v0.45.1.
+
+Verified before recommending it, against the official v0.45.1 release binary
+run from a scratch directory (the system zellij and the operator's live
+sessions untouched), with every zellij behaviour pair depends on:
+
+| probe | v0.44.3 | v0.45.1 |
+|---|---|---|
+| `zellijwrapmargin` — this issue | wrap escapes the region | **wrap scrolls the region**; top edge also survives |
+| `zellijrepaint` — `#209`'s repaint request | repainted (20 ms settle) | repainted |
+| `zellijscrollregion` — the strip's region | honoured | honoured |
+| `zellijpark` — couch's session outlives its client | park | park |
+
+A v0.45.1 client lists the same sessions as the v0.44.3 one (same socket
+contract directory). Not verified: `zellij action` from a new client against a
+still-running old server, and the zellij-0.44.3-measured constants elsewhere in
+pair (`layoutcmd`'s resize fraction, couch's ctrl+wheel handling). The single-
+pane probe layout also came up 24×80 on v0.45.1 against 22×78 on v0.44.3, so a
+default around pane frames moved; worth watching in the real layout.

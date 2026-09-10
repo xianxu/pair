@@ -50,6 +50,16 @@
 // So the wrap ignores the region at BOTH edges; only the failure differs. And
 // zellij reports CPR relative to the region's top, so row=0 is absolute row 1.
 //
+// FIXED UPSTREAM in zellij v0.45.0 — zellij-org/zellij#5357, "fix(grid): scroll
+// the region when a line wraps at its bottom margin". v0.44.3's line_wrap()
+// never consulted the scroll region: on the last screen row it scrolled the
+// whole screen (the top-edge reading above), anywhere else it moved the cursor
+// down a row (the bottom-edge one). Re-measured against the official v0.45.1
+// release, 2026-09-10:
+//
+//	after-wrapping-line   row=23 col=11   (region 1..23): stays on the margin
+//	VERDICT: WRAP SCROLLS THE REGION      and top:wrap — TOP STRIP SURVIVED
+//
 // Windows Terminal shipped the same class of bug (microsoft/terminal#19016).
 //
 // A session that never appears is a PRECONDITION failure, never a verdict
