@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-09
-estimate_hours:
+estimate_hours: 1.72
 started: 2026-09-09T18:28:51-07:00
 ---
 
@@ -127,16 +127,142 @@ assumption, and the memory cost is per-child across a fleet of 10+.
 - A counted invariant lands in `#204`: a switch issues a repaint request, not
   only a replay write.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: pensive              design=0.15 impl=0.05
+item: smaller-go-module    design=0.20 impl=0.24
+item: smaller-go-module    design=0.10 impl=0.16
+item: smaller-go-module    design=0.10 impl=0.16
+item: smaller-go-module    design=0.05 impl=0.16
+item: atlas-docs           design=0.05 impl=0.04
+item: milestone-review     design=0.00 impl=0.20
+design-buffer: 0.15
+total: 1.72
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Rows: the reproduction (done) and its Log;
+the shared `ptychild` repaint including `ReplaySafeStart`; wiring both consumers
+plus the nudge; the regression suite and the `#196`/latch verification; atlas;
+one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
+#127; the last three pair closes ran 0.89/1.01/0.69 against it.)
+
 ## Plan
 
-- [ ] Reproduce deliberately: idle a thread until its last full paint is outside
-      128 KiB, switch to it, capture the result. Identify which of the four modes
-      fires.
-- [ ] Settle plan items 2–4 (nudge safety, zellij repaint action, shared home).
-- [ ] Implement for both `couchtty` and `termcmd` through one seam.
-- [ ] Verify `#196`'s test unmodified; verify the composer resize latch is
-      untouched.
-- [ ] Add the counted invariant to `#204`.
+- [x] **Reproduce deliberately — done, all four, deterministically** at the
+      `ptychild` seam rather than as "sometimes" in a live session
+      (`replay_insufficiency_test.go`). A live repro would have shown ONE mode;
+      the seam shows that each is reachable, which is what the fix has to
+      answer for. See `## Log` 2026-09-09.
+- [x] **Settle items 2–4.** (3) zellij 0.44.3 has **no** repaint action —
+      `clear` destroys buffers and `dump-screen` writes to a file — so a
+      SIGWINCH nudge via `Child.Resize` is the mechanism. (4) The shared home is **`hostty`**, NOT
+      `ptychild`: `hostty` imports `ptychild` and not the reverse
+      (`hostty/fake.go:8`), and the composition emits host-side sequences, so
+      `ptychild` cannot hold it without inverting the split `#146` drew
+      (PQ-10). Both consumers already depend on `hostty`. (2)
+      Nudge safety is checked against `#196`'s reattach test and the composer
+      resize latch as its own plan row below.
+- [ ] **Correct the Problem section's citations first (PQ-3).** The quoted code
+      and file:line cites were accurate when filed on 2026-09-06 and are not
+      now: `takeOverScreen` is `console.go:992` and does more than two writes
+      (it resets `hostScan`, writes, then FEEDS THE BODY BACK so the scanner
+      re-learns the new child's modes), and `redrawTab` is `run.go:1658` and no
+      longer writes at all — it enqueues `ptyChunk{takeover: true}`, consumed at
+      `run.go:890`/`:982-983`. The mechanism the issue describes is unchanged;
+      the code it points at is stale, and a plan that quotes it wrongly cannot
+      be checked.
+- [ ] **Mode 4: an ORDERED composition, in `hostty`, over only the modes that
+      can actually be restored (PQ-2, PQ-8, PQ-9, PQ-10, PQ-11).** Three
+      successive versions of this row were wrong, each in a different way, and
+      the constraints that survive are:
+
+      1. **Order by side effect (PQ-8).** `?1049h`/`?1049l` switch buffers, so a
+         paint belongs to whichever buffer was active when it was written.
+         Buffer state is asserted BEFORE the clear; buffer-independent modes
+         AFTER the tail, where they cannot be undone by it.
+      2. **Cursor-save is NOT re-assertable and is dropped (PQ-11).** `\x1b7`
+         and `\x1b[s` save the CURRENT cursor; no sequence injects a
+         previously-saved position. `Screen.HoldsCursorSave()` is a belief about
+         the child, not a state the host can restore. Listing it was a category
+         error.
+      3. **Never assert a mode from absence of evidence (PQ-9).** Only `mouse`
+         carries an observed bit (`screen.go:47`); alt-screen and SGR-mouse do
+         not, so "never witnessed" and "witnessed off" are the same value — and
+         asserting `?1049l` from that would drop a child out of an alt screen it
+         is really in. Add `altScreenObserved` / `sgrMouseObserved` mirroring
+         `mouseObserved`, and assert a mode only on positive evidence.
+      4. **Say why absence is admissible when it is.** `Screen` scans a child's
+         whole stream from `Start`, so for a child we spawned an unobserved mode
+         really is off. That is the exact opposite of the ring, where `#196`
+         established absence proves nothing — and the two live two fields apart
+         in the same struct, so the distinction is written down rather than
+         assumed.
+
+      Composition: assert buffer -> clear (or not, per intent) -> tail ->
+      buffer-independent modes -> repaint request.
+- [ ] **Mode 3 is cosmetic once modes are asserted, and the plan says so rather
+      than over-building.** A bisected tail prints an orphaned fragment as text.
+      It cannot corrupt terminal STATE, because the mode assertion above runs
+      after it and the repaint request overwrites the frame. Deterministically
+      trimming it needs a boundary index `Screen` does not keep, and with the
+      repaint landing that buys a few milliseconds of cleaner garbage. Recorded
+      as an accepted limitation with its reason, not silently dropped.
+- [ ] **Mode 2: carry INTENT, do not infer it from an empty slice (PQ-1).**
+      `m.redrawTab(nil)` at `run.go:845` is a DELIBERATE clear — it blanks the
+      screen before releasing a new tab's startup output so the queued live copy
+      is not duplicated (BR-9). "Do not clear when the replay is empty" would
+      regress exactly that. The two callers want different things, so the seam
+      states which: a repaint that has nothing to draw must NOT blank (a stale
+      frame beats a blank one), while a deliberate clear still clears. Express
+      it in the type — separate entry points, or an explicit field — so a future
+      caller cannot get the default wrong.
+- [ ] **Mode 1: the repaint request, fully specified (PQ-4).** `Child.Resize`
+      twice: to `Size{Cols: cols, Rows: rows - 1}` then back to the size the
+      caller already owns — the console tracks `c.size`, the mux
+      `childSizeLocked()`, so no new authority is introduced and there is no
+      "restore size" to lose. Rows, not cols, because a column change reflows
+      wrapped lines. **Failure path:** `Resize` returning an error is logged and
+      dropped — the replay has already painted, so a failed nudge degrades to
+      today's behaviour rather than to a blank screen; it must never propagate
+      and abort a switch. **Rapid switches:** each switch nudges its own target
+      once and nothing is coalesced, because a nudge is idempotent and two
+      SIGWINCHes cost one extra repaint, not a wrong screen.
+- [ ] **The SIGWINCH assumption needs a double and a conformance check
+      (PQ-5, `ARCH-MOCK`).** "zellij repaints its pane on SIGWINCH" carries the
+      whole of mode 1 and is currently an assertion. `ptychild` already has
+      `fake.go`; the fake models the behaviour we depend on — a resize produces
+      a full repaint — so the repaint path is testable without a pty. Separately
+      a live conformance check drives a real `zellij` child, nudges it, and
+      asserts a full frame arrives; that is what tells us the model still
+      matches the binary after an upgrade, and `#213` is a standing reminder
+      that this zellij version's documented behaviour and actual behaviour
+      diverge.
+- [ ] **Nudge safety (plan item 2).** `#196`'s reattach test passes UNMODIFIED,
+      and the composer resize latch — "authorization stays closed from
+      validation until a complete successful resize commits" — is untouched by a
+      size-restoring nudge. If the latch is perturbed, that is a finding to
+      report, not a workaround to route around.
+- [ ] **Tests, named, one strategy line per risky surface (PQ-6).**
+      *Shared repaint:* the four `replay_insufficiency_test.go` reproductions
+      become regression rows against the new path — each asserts the mode it
+      demonstrates is now handled (2 and 4 fixed, 1 fixed given a repainting
+      child, 3 documented). *Intent:* a table over the two call intents
+      asserting a nothing-to-draw repaint emits no `HomeAndClear` while a
+      deliberate clear still does. *Mode assertion:* the emitted bytes end with
+      the modes `Screen` reports, over the cross-product
+      {alt-screen, mouse, SGR-mouse, cursor-save} x {set, unset}. *Both
+      consumers:* a differential row per `#220`'s lesson — assert the ANSWER,
+      that `couchtty` and `termcmd` produce byte-identical repaint output for
+      the same child state, not merely that both call the function.
+- [ ] **Counted invariant into `#204`:** a switch issues a repaint request, not
+      only a replay write.
+- [ ] **Atlas:** the reconstruction rule — the replay is the immediate paint,
+      the child is the authority — on the `ptychild`/`hostty` split, with the
+      guarantee's dependence on what the child is.
 
 ## Log
 
@@ -156,3 +282,22 @@ This is `#196`'s shape a second time: a bounded ring cannot re-derive state that
 was established before its window, and the component acted as though absence of
 evidence were evidence of absence. There it was mouse-mode tracking; here it is
 the screen itself.
+
+## Revisions
+
+### 2026-09-09 — "same guarantee" qualified to "same mechanism"
+
+**Reason.** Done-when says *"`pair term` tab switching gets the same guarantee,
+from the same code."* The same code is right and stays. The same **guarantee**
+is not achievable, and the reason is what the two children are: couch's child is
+zellij, which holds a complete screen buffer and repaints all of it on SIGWINCH;
+a `pair term` tab's child is a **shell**, which has no screen model at all. When
+a shell's output has scrolled out of the ring, those bytes exist nowhere —
+neither pair nor the shell can produce them. Nudging a bare prompt repaints the
+prompt, not the history.
+
+**Delta.** Done-when's `pair term` clause now reads: the same mechanism, with
+modes 2–4 fixed for every child type and mode 1 fixed wherever the child has a
+screen to repaint from (zellij, or a foreground TUI) and best-effort for a bare
+shell. Operator chose this over building a per-tab VT emulator, which would fix
+mode 1 everywhere at the cost of a screen model per tab across the fleet.
