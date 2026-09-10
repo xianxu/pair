@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-09
 updated: 2026-09-10
-estimate_hours:
+estimate_hours: 0.81
 started: 2026-09-10T10:28:19-07:00
 ---
 
@@ -132,26 +132,40 @@ Why each argument is what it is:
 - **`force=false`.** Different target ⇒ identical to `force=true` (`already` is
   false). Same target ⇒ `switchTo` acknowledges, the tracker ignores a landing on
   `current`, and there is no takeover. That is the Spec's "acknowledge and stay"
-  with no special case -- and no clear-and-replay plus child repaint nudge for a
-  screen that did not change. No row repaint is owed either: `RenderStatusRow`
-  never draws a bell on the active actor (`reserve.go:124`), so the acknowledged
-  attention is visible only in the switcher, which repaints when opened.
+  through the same call, with no clear-and-replay or child repaint nudge for a
+  screen that did not change.
+- **The stay arm still says something.** Its original rationale, "so the badge
+  clears", does not hold: `RenderStatusRow` never draws a bell on the active
+  actor (`reserve.go:124`), so the acknowledgement is invisible from the actor.
+  Left silent, the key would look dropped, which is the failure the
+  nothing-paging arm adds a notice to avoid. So it gets a notice too. It is
+  reachable only through the `focusedAtDelivery` snapshot race: `Deliver` reads
+  focus at `console.go:276`, and `onChunk` marks attention later, at `:1181`.
 
-The four outcomes, as the handler's one `switch`:
+The five outcomes, as the handler's one `switch`:
 
 | focus | `NewestActor()` | live pane | does |
 |---|---|---|---|
-| panel | — | — | the panel's own Return (`onMenuKey(KeyEnter)`), which is what `decodeCSIu` already made `\x1b[13;5u` -- unchanged behaviour, not a second meaning |
+| panel | — | — | whatever `DecodePanelKeys` makes of the chord's own bytes, fed to `onMenuKey`. That is Return today (`decodeCSIu` drops modifiers for codepoint 13), so behaviour is unchanged and there is no second meaning. It is derived at runtime, not restated as `KeyEnter`, and it bypasses `onMenuInput` because that would consume the panel's held partial without stopping Run's escape timer |
 | actor | zero | — | status notice `nothing is paging`; no switch |
 | actor | set | none (child done, exit not yet reduced) | status notice `the paging thread is no longer attached`; no switch (`ctrl+backspace`'s refusal, same reason) |
-| actor | set | found | `switchTo(target, false, arrivalNotification)` |
+| actor | set | the active one | `switchTo(target, false, arrivalNotification)` acknowledges and stays; status notice `already on the paging thread` |
+| actor | set | another | `switchTo(target, false, arrivalNotification)` |
+
+One named constant, `newestPageSequence = "\x1b[13;5u"`, feeds both the
+`knownSequences` row and the panel arm. Its doc comment carries the
+legacy-encoding note, beside `previousByte`'s.
 
 **Operator docs are a consumer too.** `menuControls` (`menu.go`) is the key
 inventory `TestREADMEDocumentsEveryPanelControl` walks so "a new key cannot ship
 undocumented"; `Ctrl-Backspace` is already in it though it is an actor chord. So
-`Ctrl-Return` joins it, and README's couch section documents it next to
-`Ctrl-Backspace` -- including the line that says following a page is "one key
-plus `Enter`", which this issue makes false.
+`Ctrl-Return` joins it. README's couch section documents it, and the sweep takes
+every sentence that enumerates couch's chords:
+`README.md:378-381` ("`Ctrl-Space` and `Ctrl-Backspace` belong to couch… in both
+encodings"), `:384-385` ("every other chord… passes through untouched"), `:390`
+("one key plus `Enter`"), `:419` ("couch's third intercepted chord"). README,
+not only `keys.go`, says `Ctrl-Return` is recognised only under the Kitty
+protocol.
 
 **ARCH notes.**
 - `ARCH-DRY`: target from `NewestActor()`, lookup from
@@ -169,11 +183,13 @@ plus `Enter`", which this issue makes false.
   goroutine like every hotkey. The interleaving that reaches it: a status-chip
   click queues a `switch` on the operation goroutine, then `ctrl+return` lands
   first. The later landing wins `active`. That is already true of
-  `ctrl+backspace` and this issue does not change it. A page that arrives
-  between the lookup and the landing is acknowledged by `switchTo`'s capture at
-  landing time. The event most likely to be mishandled is a plain Return, so a
-  negative test pins that `\r`, `\x1b[13u`, `\x1b[13;2u` (shift) and
-  `\x1b[13;3u` (alt, Pair's own chord) all pass through untouched.
+  `ctrl+backspace` and this issue does not change it. No page can arrive between
+  the lookup and the landing: `attention.Mark` runs only in `onChunk`, on this
+  same goroutine. The event most likely to be mishandled is a plain Return. So
+  the negative test covers every codepoint-13 encoding Pair consumes, and each
+  must pass through untouched: `\r`, `\x1b[13u`, `\x1b[13;1u` (explicit no
+  modifier, `wrap.go:1322`), `\x1b[13;2u` (shift), `\x1b[13;3u` (alt, Pair's own
+  chord), `\x1b[13;4u` (alt+shift, `shortcut.go:375`).
 - `ARCH-SECURE`, `ARCH-MOCK`: N/A. The input is operator keystrokes, framed by
   the interceptor's existing exact-string match. No persisted input, no secrets,
   no external dependency; the tests use the existing `FakeHost`/`FakeChild`
@@ -187,7 +203,8 @@ plus `Enter`", which this issue makes false.
   have reached — asserted by a test that drives both paths against one attention
   state and compares the result, so the two cannot drift.
 - Nothing paging ⇒ no switch, and the operator sees why.
-- Current thread is the newest pager ⇒ attention is acknowledged, no switch.
+- Current thread is the newest pager ⇒ attention is acknowledged, no switch,
+  and a notice says so (the acknowledgement alone is invisible from the actor).
 - Acknowledgement, switch-tracker, and `previous` behave as they do for a
   panel switch — asserted, since the whole point is that this is not a second
   switch path.
@@ -196,31 +213,49 @@ plus `Enter`", which this issue makes false.
 - `atlas/couch.md` lists the chord.
 - `Ctrl-Return` is in `menuControls` and README's couch section documents it.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module    design=0.10 impl=0.12
+item: smaller-go-module    design=0.10 impl=0.16
+item: atlas-docs           design=0.05 impl=0.04
+item: milestone-review     design=0.00 impl=0.20
+design-buffer: 0.15
+total: 0.81
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. The rows are: the chord row plus the handler,
+where the design weight is the route decision (direct `switchTo` or the menu
+operation); the differential test, edge tests and mutation sweep; the atlas,
+README sweep and `menuControls`; one close review. Frequency, per `#201`'s
+lesson: this runs once per deliberate gesture, and the saving is a keystroke and
+a panel paint, not milliseconds. (`sdlc estimate-source` reports the calibration
+doc `[stale]`, #127.)
+
 ## Plan
 
 - [x] Decide the two behaviour cases above; record them in `## Spec`.
-- [ ] `keys.go`: `seqNewestPage` + `hit()` case + `knownSequences` row
-      (`\x1b[13;5u`) + `HitNewestPage` in `AllInterceptorHits`; legacy-encoding
-      note beside `previousByte`.
-- [ ] `console.go`: `onNewestPageHotkey` (the four-arm table above) +
+- [ ] `keys.go`: `newestPageSequence` (legacy note in its doc comment) +
+      `seqNewestPage` declared BEFORE the `seqHotkey = seqSwitch` alias + `hit()`
+      case + `knownSequences` row + `HitNewestPage` in `AllInterceptorHits`.
+- [ ] `console.go`: `onNewestPageHotkey` (the five-arm table above) +
       `hitHandlers()` entry.
-- [ ] Interceptor tests (`keys_test.go`): recognised with a clean split;
-      held across every read cut; content inside a bracketed paste; `\r`,
-      `\x1b[13u`, `\x1b[13;2u`, `\x1b[13;3u` forwarded untouched.
-- [ ] Differential test through the production input path: three live
-      threads, two paging in an order where newest ≠ first-paging ≠ first row.
-      Path A `ctrl-space` + `\r`, path B `\x1b[13;5u`, from identical fixtures;
-      compare `active`, the whole `SwitchTracker`, and every thread's attention.
-      Path B draws no switcher frame.
-- [ ] Edge tests: nothing paging (notice, no switch, tracker untouched);
-      current is the newest pager (acknowledged, no takeover, tracker
-      untouched); paging thread's child done (notice, no switch); panel focus
-      (acts as Return on the *selected* row, not the newest pager).
-- [ ] Mutation sweep, each mutation asserted to apply: `arrivalOrdinary`,
-      target = first paging in pane order, `force=true`, panel arm dropped,
-      nothing-paging arm falling back to `ActiveAddress`. Each must turn a test
-      red.
-- [ ] Docs: `atlas/couch.md` Navigation, `menuControls` + README couch section.
+- [ ] Interceptor: the existing walkers
+      (`TestInterceptorRecognisesEverySequenceAtEverySplit`,
+      `TestEveryInterceptedChordHasAHandler`) cover splits and the handler for
+      free. The new test is the codepoint-13 neighbour class passing through
+      untouched, plus content inside a paste. Seed `FuzzInterceptorFeed` with
+      the row and its neighbours.
+- [ ] `onNewestPageHotkey`: a differential test through the production input
+      path, with ids chosen so that newest ≠ first paging ≠ first row. Compare
+      `active`, the whole `SwitchTracker`, and every attention projection
+      against `ctrl-space` + Return. One test per remaining arm. Proven by the
+      mutation sweep, and every mutation is asserted to have applied.
+- [ ] Docs: `atlas/couch.md` Navigation; `menuControls`; the README sentences
+      named in the Spec.
 - [ ] `make test` green (scrub `PAIR_SESSION_ID`/`PAIR_TAG`); operator smoke on
       the live Ghostty → couch → pair stack.
 
@@ -268,3 +303,24 @@ Reason: `menuControls` exists so that no new couch key ships without README
 documentation. `Ctrl-Backspace` is already in it, and this chord is its twin.
 Delta: one Done-when bullet (`Ctrl-Return` in `menuControls` + README couch
 section) and the matching Plan step. No behaviour changes.
+
+### 2026-09-10 — plan-quality round 1 advisories folded in (PQ-1..PQ-4)
+
+Reason: round 1 passed with no blocking findings, but raised four Minor ones,
+and all four were right.
+Delta:
+- **PQ-1.** The stay arm gets a notice (`already on the paging thread`). Its
+  "badge clears" rationale is withdrawn, because the row never draws the active
+  actor's bell. There is a matching Done-when edit.
+- **PQ-2.** The panel arm derives its keys from `DecodePanelKeys` of the chord's
+  own bytes through a shared `newestPageSequence` constant, instead of
+  restating `KeyEnter`.
+- **PQ-3.** The README sweep enumerates `:378-381`, `:384-385`, `:390` and
+  `:419`, plus a Kitty-only note.
+- **PQ-4.** The test plan is compressed to function plus strategy. The negative
+  class is now every codepoint-13 encoding Pair consumes (it adds `13;1u` and
+  `13;4u`), and the fuzz corpus is seeded.
+
+The ARCH-ORDER "page arriving between lookup and landing" sentence was wrong
+and is replaced with the reason it cannot happen: `Mark` runs only on the Run
+goroutine.
