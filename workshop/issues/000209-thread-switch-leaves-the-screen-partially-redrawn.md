@@ -596,6 +596,25 @@ correctly. `hostty.ChildModes` and `ptychild.fakeChildSize` are unexported for
 the BR-18 rule — exported surface needs a consumer outside its own package's
 tests.
 
+### 2026-09-10 — operator sign-off
+
+Closed on the operator's word after a live session, which is the step the first
+`sdlc close` skipped: the boundary review passed on 2026-09-09 and the issue was
+reported "closed" without anyone restarting `couch` / `pair term` and trying it.
+The operator's reply — *"why didn't you ask me to smoke test again before you
+declare things done?"* — is the reason this entry exists separately from the
+close trailer.
+
+What the live session DID turn up was `#223`, not a `#209` defect: a line
+wrapping at the bottom margin of `pair term`'s scroll region escaped onto the
+strip row. It was A/B'd against the pre-`#209` binary and is identical there
+(zellij 0.44.3's `line_wrap()` never consulted the scroll region; fixed upstream
+in 0.45.0). The operator upgraded zellij, confirmed the wrap fix and — after
+`pane_frame_style "full"` restored the frame 0.45 had dropped — signed off on
+`#209`. A one-off prompt glitch seen once afterwards was tested against `#209`'s
+repaint nudge specifically (three tab-switch takeovers with a two-line zsh
+prompt) and did not reproduce; see `#223`'s Log.
+
 ## Revisions
 
 ### 2026-09-09 — "same guarantee" qualified to "same mechanism"
