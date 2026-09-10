@@ -29,6 +29,21 @@ const hotkeyByte = 0x00
 // protocol, so this only bites with the protocol off.
 const previousByte = 0x08
 
+// newestPageSequence is ctrl+return under the Kitty protocol: codepoint 13 with
+// modifier bitmask 4 encoded as 4+1, the same construction as ctrl-space's row.
+//
+// It has NO legacy form, and that is accepted rather than discovered. In legacy
+// encoding ctrl+return is a bare CR, byte-identical to plain Return, so
+// intercepting it there would take every Return from the child. previousByte
+// makes the opposite trade because ^H is a rarely-typed key; CR is the most
+// common key there is. With the protocol off the chord therefore reaches the
+// child as a plain Return -- and zellij pushes the protocol, so that is the
+// documented edge, not the ordinary case.
+//
+// Named because two sites need the same bytes: the knownSequences row, and the
+// panel arm of onNewestPageHotkey, which hands them to the panel's decoder.
+const newestPageSequence = "\x1b[13;5u"
+
 // escapeAmbiguity is the one deadline used by both terminal-input framers to
 // distinguish an ESC key from the first byte of a split escape sequence.
 const escapeAmbiguity = 35 * time.Millisecond
@@ -45,6 +60,11 @@ const (
 	seqPrevious
 	seqDetach
 	seqRelaunch
+	seqNewestPage
+	// Every new kind goes ABOVE this line. An omitted expression in a const block
+	// repeats the previous one, so a kind appended below would EQUAL seqSwitch.
+	// With a hit() case that is a duplicate-case compile error; without one -- a
+	// marker rather than a chord -- its sequence would silently open the switcher.
 	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
 )
 
@@ -67,6 +87,8 @@ func (k seqKind) hit() InterceptorHit {
 		return HitDetach
 	case seqRelaunch:
 		return HitRelaunch
+	case seqNewestPage:
+		return HitNewestPage
 	}
 	return HitNone
 }
@@ -85,6 +107,10 @@ const (
 	// SwitchTracker. The key labelled `delete` on an Apple keyboard, not
 	// forward-delete -- no fn in the chord.
 	HitPrevious
+	// HitNewestPage is ctrl+return: jump straight to the thread ctrl-space would
+	// have opened the switcher on, with no switcher in between. HitPrevious's
+	// mirror image -- that one goes home, this one goes to the page.
+	HitNewestPage
 	// HitDetach is alt+d: stop this thread's pair client without tearing down
 	// its zellij session.
 	HitDetach
@@ -126,7 +152,7 @@ type MouseHit struct {
 // HitNone is deliberately absent: it is the ABSENCE of a hit, and giving it a
 // handler would be inventing an action for "nothing happened".
 func AllInterceptorHits() []InterceptorHit {
-	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitDetach, HitRelaunch, HitMouse}
+	return []InterceptorHit{HitSwitch, HitPark, HitPrevious, HitNewestPage, HitDetach, HitRelaunch, HitMouse}
 }
 
 // knownSequences is every multi-byte sequence the console must recognise in the
@@ -159,6 +185,8 @@ var knownSequences = func() []struct {
 		// bitmask 4 encoded as 4+1. Its legacy form is the bare byte handled
 		// above, not a sequence.
 		{[]byte("\x1b[127;5u"), seqPrevious},
+		// ctrl+return, Kitty-only by necessity; see newestPageSequence.
+		{[]byte(newestPageSequence), seqNewestPage},
 	}
 	for _, chord := range []struct {
 		chord workbenchshortcut.Chord

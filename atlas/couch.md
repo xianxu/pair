@@ -294,6 +294,36 @@ then ignored it for backspace, so the CSI-u form decoded as a plain backspace;
 that is fixed as defence in depth, since the interceptor claims both encodings
 before the panel sees them but forwards paste content verbatim.
 
+`ctrl+return` **answers the newest page** (`pair#221`). From an actor it lands on
+`attention.NewestActor()` -- the thread `ctrl-space` would have opened the
+switcher on -- with no switcher in between. In code it is `ctrl+backspace`'s
+mirror image: `onNewestPageHotkey` computes a target from console-local state and
+calls `switchTo` directly. It does not dispatch the switcher's queued `switch`
+operation, which would add the queue hop, a dependency on the inventory having
+loaded, and `ctrl-space`'s first-visible-row fallback for a thread missing from
+a stale inventory. The arrival is `arrivalNotification`, because the target is
+paging by construction, and that is exactly what the switcher's Return derives
+from a non-zero capture. So the jump is non-pinning: a second press answers the
+next page, and `ctrl+backspace` still goes home. One test,
+`TestNewestPageLandsWhereCtrlSpaceThenReturnWould`, drives both paths from one
+attention state and compares the whole landing, `SwitchTracker` included.
+
+Three edge cases:
+
+- **Nothing paging.** It stays put and says so on the status row. There is no
+  `ActiveAddress` fallback: a jump to where you already are reads as a dropped
+  key.
+- **Paging thread's child done, exit not yet reduced.** It refuses the same way.
+- **The newest pager is the actor already in use.** Reachable only through the
+  `focusedAtDelivery` race. `switchTo(..., force=false, ...)` acknowledges and
+  stays, with no takeover. It also shows a notice, because the row never draws
+  the active actor's bell, so the acknowledgement alone would be invisible.
+
+The chord is Kitty-only (`newestPageSequence`, `\x1b[13;5u`). In legacy
+encoding ctrl+return is a bare CR, and taking every Return from the child is not
+a trade worth making. Inside the switcher it is unclaimed: the handler feeds the
+chord's own bytes to `DecodePanelKeys`, which makes it the panel's Return.
+
 `SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
 slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the
 funnel, and it owes two rules on every landing -- record it in the tracker, and

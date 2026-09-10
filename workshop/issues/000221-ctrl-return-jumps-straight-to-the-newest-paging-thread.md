@@ -1,12 +1,13 @@
 ---
 id: 000221
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-09
 updated: 2026-09-10
 estimate_hours: 0.81
 started: 2026-09-10T10:28:19-07:00
+actual_hours: 0.85
 ---
 
 # ctrl+return jumps straight to the newest paging thread
@@ -183,9 +184,13 @@ protocol.
   goroutine like every hotkey. The interleaving that reaches it: a status-chip
   click queues a `switch` on the operation goroutine, then `ctrl+return` lands
   first. The later landing wins `active`. That is already true of
-  `ctrl+backspace` and this issue does not change it. No page can arrive between
-  the lookup and the landing: `attention.Mark` runs only in `onChunk`, on this
-  same goroutine. The event most likely to be mishandled is a plain Return. So
+  `ctrl+backspace` and this issue does not change it. A page CAN arrive between
+  the lookup and the landing. `attention.Mark` runs only in `onChunk`, but
+  `onChunk` is reached from `flushDeferredNotifications`, which `switchTo` calls,
+  and `switchTo` also runs on the operation goroutine (a queued chip-click
+  switch). A page for the target is acknowledged by `switchTo`'s capture at
+  landing time; a page for any other thread stays lit for the next press. Both
+  are harmless. The event most likely to be mishandled is a plain Return. So
   the negative test covers every codepoint-13 encoding Pair consumes, and each
   must pass through untouched: `\r`, `\x1b[13u`, `\x1b[13;1u` (explicit no
   modifier, `wrap.go:1322`), `\x1b[13;2u` (shift), `\x1b[13;3u` (alt, Pair's own
@@ -238,25 +243,25 @@ doc `[stale]`, #127.)
 ## Plan
 
 - [x] Decide the two behaviour cases above; record them in `## Spec`.
-- [ ] `keys.go`: `newestPageSequence` (legacy note in its doc comment) +
+- [x] `keys.go`: `newestPageSequence` (legacy note in its doc comment) +
       `seqNewestPage` declared BEFORE the `seqHotkey = seqSwitch` alias + `hit()`
       case + `knownSequences` row + `HitNewestPage` in `AllInterceptorHits`.
-- [ ] `console.go`: `onNewestPageHotkey` (the five-arm table above) +
+- [x] `console.go`: `onNewestPageHotkey` (the five-arm table above) +
       `hitHandlers()` entry.
-- [ ] Interceptor: the existing walkers
+- [x] Interceptor: the existing walkers
       (`TestInterceptorRecognisesEverySequenceAtEverySplit`,
       `TestEveryInterceptedChordHasAHandler`) cover splits and the handler for
       free. The new test is the codepoint-13 neighbour class passing through
       untouched, plus content inside a paste. Seed `FuzzInterceptorFeed` with
       the row and its neighbours.
-- [ ] `onNewestPageHotkey`: a differential test through the production input
+- [x] `onNewestPageHotkey`: a differential test through the production input
       path, with ids chosen so that newest ≠ first paging ≠ first row. Compare
       `active`, the whole `SwitchTracker`, and every attention projection
       against `ctrl-space` + Return. One test per remaining arm. Proven by the
       mutation sweep, and every mutation is asserted to have applied.
-- [ ] Docs: `atlas/couch.md` Navigation; `menuControls`; the README sentences
+- [x] Docs: `atlas/couch.md` Navigation; `menuControls`; the README sentences
       named in the Spec.
-- [ ] `make test` green (scrub `PAIR_SESSION_ID`/`PAIR_TAG`); operator smoke on
+- [x] `make test` green (scrub `PAIR_SESSION_ID`/`PAIR_TAG`); operator smoke on
       the live Ghostty → couch → pair stack.
 
 ## Log
@@ -273,6 +278,7 @@ content is the two behaviour decisions plus keeping the landing identical to the
 two-gesture path.
 
 ### 2026-09-10
+- 2026-09-10: closed — Operator smoke on live Ghostty->couch->pair after make install + couch restart: ctrl+return works. Unsandboxed `env -u PAIR_SESSION_ID -u PAIR_TAG make test` exit 0, 197 ok on 30376a0b. New tests (differential vs ctrl-space+Return comparing active/focus/SwitchTracker/attention, per-arm edge tests, codepoint-13 neighbour class) pass under -race -count=3. Mutation sweep 10/10 killed with apply-asserts (Log table). Screen jump on switch the operator saw is #209 nudge, not this issue (Log).; review verdict: SHIP
 
 Claimed and designed. What reading the code turned up:
 
@@ -294,6 +300,87 @@ Claimed and designed. What reading the code turned up:
   Revisions).
 - Nothing else binds ctrl+return: `git grep` for `13;5u`, `<C-CR>`,
   `ctrl+enter`, `ctrl+return` and friends matched only this issue.
+
+### 2026-09-10 — implemented (`9868976e`, `8e94de40`)
+
+- **Code.** `keys.go` gets `newestPageSequence`, `seqNewestPage` (above the
+  alias), a `hit()` case, a `knownSequences` row and `HitNewestPage`.
+  `console.go` gets `onNewestPageHotkey` (the five-arm table) and its
+  `hitHandlers()` entry. `menuControls` gains `Ctrl-Return`.
+- **Tests.** `TestInterceptorClaimsCtrlReturnAndNoOtherReturn` covers the chord,
+  eight Return neighbours (the six Pair consumes, plus the chord's key release
+  and ctrl+shift) and a paste. The fuzz corpus is seeded. The existing walkers
+  cover splits and the handler. `console_newest_page_test.go` has the
+  production-path differential against `ctrl-space` + Return, which compares the
+  whole landing (`active`, `focus`, `SwitchTracker`, three attention
+  projections). It then chases the second page and returns home with
+  `ctrl+backspace`, which is the "pressed again" sentence README states. There
+  is one test per remaining arm. All pass under `-race -count=3`.
+- **Mutation sweep.** Script `mutate221.py`: every needle is asserted to occur
+  once, restores come from saved bytes, and the tree is checked clean after.
+  All 10 mutations were killed:
+
+  | mutation | killed by |
+  |---|---|
+  | `arrivalOrdinary` | the differential |
+  | first paging actor in pane order | the differential |
+  | `force=true` | the stay test |
+  | panel arm dropped | the switcher test |
+  | nothing-paging falls back to `ActiveAddress` | the nothing-paging test |
+  | stay notice removed | the stay test |
+  | not-attached arm removed | the exited-child test |
+  | row removed | 4 tests |
+  | `hit()` case removed | 4 tests |
+  | `seqNewestPage` below the alias | the build (duplicate case) |
+
+  The last one falsified my own comment, which claimed it would "silently open
+  the switcher". It was corrected in `8e94de40` to say what the compiler
+  actually does.
+- **Honestly unpinned.** The panel arm uses `DecodePanelKeys` rather than a
+  literal `KeyEnter`. The two produce identical keys for every input today, so
+  no behaviour test can tell them apart. The switcher test pins the behaviour
+  (Return on the selected row), not the derivation.
+- **Suite.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test`, run unsandboxed:
+  exit 0, 197 packages `ok`, no failures. Sandboxed runs fail only on the known
+  pty tests ("operation not permitted").
+- **Doc sweep.** `git grep` for enumerations of couch's chords found the four
+  README sites the gate named, and all four are updated. `atlas/couch.md:507` and
+  `:589` call `Alt+n` the "third" chord *relative to the `Alt+x`/`Alt+d` grid*,
+  which stays true, so they are left alone. #190's "couch intercepts only six" is
+  a dated working note and is also left alone.
+
+### 2026-09-10 — operator smoke: working
+
+After `make install` and a couch restart, the operator confirmed `ctrl+return`
+works on the live Ghostty → couch → pair stack.
+
+They also saw the whole screen jump up one line on a thread switch, then fall
+back. That is not this issue. It is `#209`'s repaint nudge: `takeOverScreen`
+→ `RequestRepaint` shrinks the child one row for `RepaintSettle` (20 ms), and
+zellij really renders that shorter frame. Every switch path shows it,
+`ctrl+return` included, because they all land through `switchTo`. Only the
+"nothing is paging" and "already on it" arms take no takeover. It is left for
+its own issue.
+
+### 2026-09-10 — close review (SHIP, 4 Minor), all four fixed in the close commit
+
+- **Stale definitions.** `arrivalNotification`, `ExecuteConsoleOperation`'s
+  switch arm and `SwitchTracker.Switch` defined a notification hop as
+  "ctrl-space + Return". That was a repeat of the plan gate's doc-sweep family,
+  so the class got swept, not the two sites named. `git grep` found every
+  "notification hop" / "ctrl-space + Return" definition in code, atlas and
+  README. Three were exclusive, and those three now define a hop by its
+  PROPERTY: a landing on an actor that was paging when the operator chose it.
+  The rest compare Return with a click, or are generic, and stay correct.
+- **False ARCH-ORDER reason.** The Spec sentence is corrected in place; see
+  Revisions. The call graph is `Mark` ← `onChunk` ← {Run loop, `drainChunks`,
+  `flushDeferredNotifications` ← `switchTo` (Run or operation goroutine)}.
+- **Duplicated `already` check.** `switchTo` now returns `stayed`, decided under
+  its own lock, and the handler's separate `c.active` read is gone.
+- **Nudge jump untracked.** The operator's disposition was *"slightly weird but
+  it's ok"*. So it is not an issue: it is recorded as an accepted trade-off in
+  `atlas/architecture.md` beside `RepaintSettle`, with the two unmeasured fix
+  directions, and that replaces the "left for its own issue" line above.
 
 ## Revisions
 
@@ -324,3 +411,14 @@ Delta:
 The ARCH-ORDER "page arriving between lookup and landing" sentence was wrong
 and is replaced with the reason it cannot happen: `Mark` runs only on the Run
 goroutine.
+
+### 2026-09-10 — the ARCH-ORDER correction was itself wrong (close review)
+
+Reason: the plan gate's round 1 said no page can arrive between the lookup and
+the landing, because `Mark` runs only on the Run goroutine. I folded that in
+without checking it. It is false: `switchTo` → `flushDeferredNotifications` →
+`onChunk` → `Mark` also runs on the operation goroutine. The ORIGINAL sentence,
+that a page for the target is acknowledged at landing, was right, just
+incomplete.
+Delta: the Spec's ARCH-ORDER bullet is restated with the full call graph. There
+is no behaviour change, since both interleavings were already harmless.

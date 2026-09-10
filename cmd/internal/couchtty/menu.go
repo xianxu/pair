@@ -25,6 +25,7 @@ var menuControls = []MenuControl{
 	{Keys: "Right", Action: "forward"},
 	{Keys: "Ctrl-Space", Action: "start"},
 	{Keys: "Ctrl-Backspace", Action: "previous"},
+	{Keys: "Ctrl-Return", Action: "jump to the newest page, from an actor"},
 	{Keys: "Alt+d", Action: "detach this thread · all + leave couch here"},
 	{Keys: "Alt+x", Action: "park this thread · all + leave couch here"},
 	{Keys: "click", Action: "an actor's chip or row switches to it · empty space does nothing"},
