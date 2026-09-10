@@ -62,8 +62,9 @@ const (
 	seqRelaunch
 	seqNewestPage
 	// Every new kind goes ABOVE this line. An omitted expression in a const block
-	// repeats the previous one, so a kind appended below would silently equal
-	// seqSwitch and open the switcher.
+	// repeats the previous one, so a kind appended below would EQUAL seqSwitch.
+	// With a hit() case that is a duplicate-case compile error; without one -- a
+	// marker rather than a chord -- its sequence would silently open the switcher.
 	seqHotkey = seqSwitch // compatibility name for the switch-sequence tests
 )
 
