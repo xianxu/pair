@@ -71,6 +71,18 @@ still feeds `replay` to the scanner as before, and for a non-empty replay
 
 ## Spec
 
+**Resolved by upgrading zellij, not by changing pair.** The mechanism is zellij
+0.44.x's autowrap: a line wrapping at the bottom margin of a DECSTBM region moves
+the cursor below the region instead of scrolling it (`line_wrap()` never
+consulted the scroll region). Fixed upstream in zellij 0.45.0 (zellij#5357).
+
+- pair's strip stays at the BOTTOM; the top edge was measured and ruled out
+  (full-screen children's own DECSTBM includes a top strip).
+- `zellij/config.kdl` states `pane_frame_style "full"`, because 0.45 changed what
+  `pane_frames true` draws by default.
+- `probes/zellijwrapmargin` is the regression check at the seam the bug lives in
+  — zellij's emulator — and runs in `make test-smoke`.
+
 ## Done when
 
 - The mechanism is identified — one of the three questions above answered with
@@ -85,7 +97,12 @@ still feeds `replay` to the scanner as before, and for a non-empty replay
       `termcmd`.** See `## Log` 2026-09-10 for the enumeration and the corrected
       premise — the test this row named was retired on purpose and replaced by a
       type that makes an ungated door a compile error.
-- [ ] So the answer is question 2 or 3. Instrument the live path: log
+- [x] **Superseded — the answer was none of the three.** Before instrumenting,
+      the operator's screenshot showed the output dying on the one line that
+      WRAPS, and a probe that asked zellij for its cursor (DSR) found the
+      mechanism directly: zellij's autowrap escapes the scroll region. See
+      `## Log` 2026-09-10. The row as written is kept below for the record.
+      So the answer is question 2 or 3. Instrument the live path: log
       `SafeToPaint`'s inputs (`cursorSaved`, `altScreen`, `MidSequence`) at each
       strip paint, and reproduce with a scrolling command. Question 2 (the paint
       races the bytes that would have closed the gate) and question 3 (a scroll
@@ -97,7 +114,11 @@ still feeds `replay` to the scanner as before, and for a non-empty replay
       `?1047`/`?47`, mouse modes, DECSTBM and ED). If the strip is nonetheless
       being repainted on a scroll, the trigger is not the row-dirty debt and the
       enumeration above needs to name what it IS.
-- [ ] Fix what the evidence indicts; regression test at that seam.
+- [x] Fix what the evidence indicts; regression test at that seam. The
+      evidence indicted zellij 0.44.x, so the fix is zellij ≥ 0.45.0 (zellij#5357),
+      confirmed live by the operator on 0.45.1; the regression test is
+      `probes/zellijwrapmargin`, at the emulator seam. Pair-side: the frame style
+      0.45 changed, restored with `pane_frame_style "full"`.
 
 ## Log
 
@@ -319,3 +340,26 @@ separator, then the path), reading where a typed marker lands:
 So it is not `#209`'s nudge and not a plain resize. It stays unexplained rather
 than guessed at; if it recurs, what the operator did just before is the evidence
 to collect. The probes were throwaways and are not kept.
+
+### 2026-09-10 — the done-when rows, against what happened
+
+**Reason.** The issue was filed around three hypotheses about pair's paint gate,
+and the mechanism turned out to be none of them. Two done-when rows are phrased
+in those terms.
+
+**Delta.**
+
+1. *"The mechanism is identified — one of the three questions above answered
+   with evidence."* The mechanism IS identified with evidence, and it is not one
+   of the three: zellij's autowrap escapes the scroll region. Question 1 was
+   answered no (every strip write is gated); 2 and 3 were never reached because
+   the direct measurement made them moot. Met in substance, revised in wording.
+2. *"A command whose output scrolls the screen leaves the cursor at the prompt,
+   reproducibly, with the strip still painted."* Met on zellij ≥ 0.45.0 —
+   operator-confirmed on 0.45.1 with a long `ls -la` after the screen filled.
+   Not met on 0.44.x, by design: that is zellij's bug, not pair's.
+3. *"A regression test at the seam it names."* The seam is zellij's emulator,
+   and `probes/zellijwrapmargin` measures it there; it reports rather than
+   fails, so `test-smoke` records the answer without going red on an upstream
+   version. A `pair doctor` floor on the zellij version was offered and not
+   taken up; nothing in pair enforces 0.45 today.

@@ -398,7 +398,7 @@ The panes wrap their command in `sh -c "..."` so the shell expands `$PAIR_AGENT`
 
 The draft pane has `focus=true` (drafting pane gets focus on launch), `borderless=true` (so the `minimized` rung can collapse to 1 row — see "pane frame asymmetry" below), and `name="draft"` — used by zellij in the OSC 0 terminal title (`pair-<tag>: draft`) which propagates to the user's terminal/multiplexer tab title. The draft is borderless so it has no frame title slot; the keybind cheatsheet that used to live in the frame title lives in nvim's statusline (right-aligned, see `nvim/init.lua`).
 
-**Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl`, but since `#199` M4 **only the agent pane is actually framed**. That frame surfaces the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). **Two panes opt out via `borderless=true`, for different reasons.** The **draft pane**, in every layout, because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. The **layout-3 terminal**, at all nine of its rungs, because `pair term` draws its own tab strip in a row it reserves — the frame's title was that pane's only label, and the strip replaces it and says more (every tab, which is active, the live rename field). Cost of a frame: 2 rows + 2 cols of chrome.
+**Pane frame asymmetry.** `pane_frames true` is set globally in `zellij/config.kdl` — together with `pane_frame_style "full"`, which zellij 0.45 requires to keep meaning what `true` meant before: 0.45 made the default style `titles` (a title row, no border, zellij#5318), and without the explicit style the agent pane lost its top border, the operator's "first line" (`#223`). The key is ignored by 0.44.x, which predates it. Since `#199` M4 **only the agent pane is actually framed**. That frame surfaces the scroll-position indicator zellij draws in the top-right of a framed pane (e.g. `500/540`), which is the only way to see scrollback position (zellij doesn't expose scroll offset to plugins or the CLI). **Two panes opt out via `borderless=true`, for different reasons.** The **draft pane**, in every layout, because a framed pane has a ~3-row minimum and the `minimized` rung needs `size=1`. The **layout-3 terminal**, at all nine of its rungs, because `pair term` draws its own tab strip in a row it reserves — the frame's title was that pane's only label, and the strip replaces it and says more (every tab, which is active, the live rename field). Cost of a frame: 2 rows + 2 cols of chrome.
 
 **Swap layouts.** Each draft rung — `minimized` (draft `size=1`) and `third` (draft `size="33%"`) — sits alongside the default layout. Layout 2 gates its two-pane tiled tree with `exact_panes=2`. Layout 3 carries each rung in two variants: `exact_panes=3` (agent/draft/terminal) and a `-split` twin at `exact_panes=4` (right column split into two stacked terminals by `Alt+Shift+d`); zellij skips swap layouts whose constraint doesn't match the live pane count, so rung adjacency is preserved in both states. `nvim/init.lua` drives them via `zellij action next-swap-layout` / `previous-swap-layout`, which re-tile the existing processes without recreation. Cycle from default(small) is `[minimized, third]`: `next-swap-layout` from small → minimized, from minimized → third, from third → wraps to small. The lua side maps Alt+Down to next-swap (smaller rung) and Alt+Up to prev-swap (bigger rung), with a state-machine clamp at the rung extremes.
 
@@ -578,6 +578,24 @@ mechanism sits in two packages that both drive:
   straight to the host tty, but a pane's writes pass through zellij's emulator.
   zellij honors DECSTBM from a pane process — 200 lines scrolled inside the
   region while the reserved row held its paint (`#199` finding 5).
+
+  **It needs zellij ≥ 0.45.0, and the reason is a finding the first probe could
+  not make.** `#199`'s probe printed only SHORT lines. On zellij 0.44.x a line
+  that WRAPS at the region's bottom margin moves the cursor onto the reserved
+  row instead of scrolling the region — `line_wrap()` never consulted the scroll
+  region — so any long output after the screen fills overprints the strip and
+  leaves the shell typing into it (`#223`). A newline at the same spot was always
+  correct, which is why it hid for a day. Fixed upstream in zellij 0.45.0
+  (zellij#5357); `probes/zellijwrapmargin` measures it and runs in
+  `make test-smoke`, and the pre-fix pair state is tagged
+  `repro/223-bottom-strip-zellij-wrap`.
+
+  **The strip stays at the BOTTOM, and that was measured too.** The obvious
+  workaround — reserve the top row — fails worse: DECSTBM parameters are
+  absolute even under origin mode, so a full-screen child's own region (nvim's,
+  on every scroll) includes a top strip, and real nvim overwrote it at once.
+  At the bottom the child's rows and the pane's rows are one coordinate system,
+  which is the asymmetry `hostty/reserve.go` records when it refuses `EdgeTop`.
 
   **And two reservations NEST**, which is the arrangement couch actually
   produces: couch holds the HOST terminal's bottom row, `pair term` holds its
