@@ -103,10 +103,28 @@ func run() int {
 	// that is already back to 24, and re-render nothing. A probe that sleeps
 	// between the two measures a sequence production never issues — and would
 	// report REPAINTED for a fix that is a no-op (BR-3).
+	//
+	// SETTLE is the variable under test. Production issues the pair with
+	// nothing between them (PAIR_PROBE_SETTLE unset, the default): that is the
+	// sequence to measure, and the one BR-3 predicted might coalesce. Set it to
+	// a duration to measure how long zellij needs to OBSERVE the shrink before
+	// the restore erases it — the verdict below then says whether that settle
+	// is enough.
+	settle := time.Duration(0)
+	if raw := os.Getenv("PAIR_PROBE_SETTLE"); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			fmt.Println("PROBE-ERROR PAIR_PROBE_SETTLE:", err)
+			return 1
+		}
+		settle = d
+	}
+	fmt.Printf("--- settle between shrink and restore: %v\n", settle)
 	if err := resize(session.PTY, 23, 80); err != nil {
 		fmt.Println("PROBE-ERROR resize:", err)
 		return 1
 	}
+	time.Sleep(settle)
 	if err := resize(session.PTY, 24, 80); err != nil {
 		fmt.Println("PROBE-ERROR restore:", err)
 		return 1

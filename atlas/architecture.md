@@ -477,15 +477,41 @@ mechanism sits in two packages that both drive:
   zellij 0.44.3 has no repaint action, and `probes/zellijrepaint` confirms
   against the real binary that it re-renders its pane from its own buffer).
 
-  Three things about `Repaint` are load-bearing and each was got wrong first:
-  the buffer assertion (`?1049h`/`?1049l`) goes BEFORE the clear, because those
-  switch buffers and a paint belongs to whichever buffer was active when it was
-  written; a mode is asserted only when it was OBSERVED, since absence of
-  evidence would drop a child out of an alt screen it is really in (`#196`'s
-  shape — `Screen.AltScreenObserved` sits beside `mouseObserved` for the same
-  reason); and cursor-save is not asserted at all, because `\x1b7` saves the
-  CURRENT cursor and no sequence injects a previously-saved one. Mouse is left
-  to the authorities that already own it rather than adding a third writer.
+  **The nudge has a SETTLE, and it is the difference between working and usually
+  working.** `ptychild.repaintSettle` (20 ms) is how long the shrink stands
+  before the restore erases it. Standard signals do not queue: issue both
+  `TIOCSWINSZ` ioctls back-to-back and zellij can take one `SIGWINCH`, read a
+  winsize already restored, and re-render nothing. Measured, not reasoned —
+  `probes/zellijrepaint` with `PAIR_PROBE_SETTLE` puts the no-settle sequence at
+  **6 of 12 runs repainted** and 1 ms at 5 of 5. It blocks the calling
+  goroutine on purpose: the shrink and the restore must be atomic against any
+  other resize, or a host resize landing between them is erased by the restore
+  leg and the child is left permanently mis-sized.
+
+  **What `Repaint` asserts is currently NOTHING, and that is a withdrawal rather
+  than a simplification.** The composition asserted the child's buffer before
+  the clear — right in principle, because `?1049h`/`?1049l` switch buffers and a
+  paint belongs to whichever buffer was active when it was written. But the
+  `1049` pair also SAVES and RESTORES the cursor, and the save slot is shared
+  with `DECSC`, which is what the tab strip paints with (`#199`); emitting
+  `?1049l` on every switch consumed the strip's save/restore pairing and landed
+  typed characters mid-screen. So mode 4 is unfixed, the candidate is
+  `?1047h`/`?1047l` (buffer switch WITHOUT the cursor half), and it gets a probe
+  before it ships rather than a second guess.
+
+  Two rules survive the withdrawal and are what the `?1047` attempt must honour:
+  a mode is asserted only when it was OBSERVED, since absence of evidence would
+  drop a child out of an alt screen it is really in (`#196`'s shape —
+  `Screen.AltScreenObserved` sits beside `mouseObserved` for the same reason);
+  and cursor-save is not asserted at all, because `\x1b7` saves the CURRENT
+  cursor and no sequence injects a previously-saved one. Mouse is left to the
+  authorities that already own it rather than adding a third writer.
+
+  `RepaintFor(child, replay, intent)` is the door both consoles use, and the
+  reason is a testability one: with nothing asserted, `ChildModes` has no
+  observable effect, so a mode read done at each consumer could not be
+  distinguished from the zero value by any test there. One read, pinned once,
+  in the package that owns the composition.
 
   Intent is CARRIED, not inferred from an empty slice: `pair term` deliberately
   blanks a new tab before releasing its startup output, while a repaint with

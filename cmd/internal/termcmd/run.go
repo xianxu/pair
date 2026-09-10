@@ -703,9 +703,11 @@ type ptyChunk struct {
 	// startup output is not duplicated) from a repaint that simply had nothing
 	// retained — where blanking is worse than a stale frame (#209).
 	clear bool
-	// modes is the child's terminal state at takeover time, so the repaint can
-	// put the paint in the buffer the child is actually using.
-	modes hostty.ChildModes
+	// child is whose screen this takeover is repainting, carried so the modes
+	// the composition needs are read at the moment the bytes are composed
+	// rather than sampled earlier by the caller. Nil for a deliberate clear:
+	// there is no child's buffer to land in.
+	child *ptychild.Child
 	// nudge asks a child to repaint from its own state, on the WRITER
 	// goroutine so it cannot interleave with resizeAll (#209 BR-7).
 	nudge     *terminalTab
@@ -904,7 +906,7 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 		}
 
 	case chunk.takeover:
-		m.applyTakeover(chunk.replay, chunk.modes, chunk.clear)
+		m.applyTakeover(chunk.replay, chunk.child, chunk.clear)
 
 	case chunk.diag != nil:
 		m.writeDiag(chunk.diag)
@@ -976,7 +978,7 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 // applyTakeover replaces the whole screen: clear, replay, then settle the gate.
 // Runs on the writer goroutine, whether reached through the channel or called
 // inline by another handler already on it (see removeTab).
-func (m *terminalMux) applyTakeover(replay []byte, modes hostty.ChildModes, clear bool) {
+func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child, clear bool) {
 	// couch's THIRD gate rule (console.go:992-995): the screen is being replaced
 	// wholesale, so whatever partial sequence the old content left is no longer
 	// on screen to be corrupted. Reset the scan, and DROP the owed paint rather
@@ -994,20 +996,37 @@ func (m *terminalMux) applyTakeover(replay []byte, modes hostty.ChildModes, clea
 	// existing. The reset above is what earns the exemption -- it happens
 	// BEFORE these writes, so nothing downstream reads a stale mid-sequence.
 	//
-	// Enumerated and enforced by TestEveryConsoleWriteIsGatedOrExplicitlyExempt.
-	// Composed by hostty (#209): the buffer is asserted BEFORE the clear so the
-	// paint lands where the child actually is, and a repaint with nothing
-	// retained emits nothing rather than blanking.
+	// The enumeration is the TYPE, not a test: paneWriter is not an io.Writer,
+	// so a door that skips this reasoning does not compile. (A scanning test
+	// held this job for one commit and was retired in #199 M2's close for being
+	// narrower than its claim; #223 went looking for it on the strength of a
+	// citation left here, so the citation now says where the guarantee lives.)
+	// Composed by hostty (#209): a repaint with nothing retained emits nothing
+	// rather than blanking, while a deliberate clear still clears.
 	intent := hostty.RepaintReplace
 	if clear {
 		intent = hostty.RepaintClear
 	}
-	m.pane.raw("takeover: composed buffer assertion, clear and replay", hostty.Repaint(modes, replay, intent))
-	// The replay is CHILD bytes and the terminal has now seen them, so the gate
-	// must too -- it is replay-safe (ptychild strips queries and cuts at
-	// ReplaySafeEnd) but "usually ends at a boundary" is an assumption, and the
-	// gate exists so nothing has to assume.
-	m.hostScan.FeedFraming(replay)
+	composed := hostty.RepaintFor(child, replay, intent)
+	m.pane.raw("takeover: composed clear and replay", composed)
+	// FEED THE COMPOSED BYTES, not just the replay (#209 BR-6). The replay is
+	// CHILD bytes and the terminal has now seen them, so the gate must too --
+	// it is replay-safe (ptychild strips queries and cuts at ReplaySafeEnd) but
+	// "usually ends at a boundary" is an assumption, and the gate exists so
+	// nothing has to assume.
+	//
+	// The console-originated prefix goes in WITH them, which is the one place
+	// the field's "child bytes only" rule is suspended, and the reset above is
+	// what earns it: there is no child partial left for our bytes to be framed
+	// against. It matters because a repaint's prefix is mode-bearing by
+	// design -- it exists precisely to assert what the tail LACKS -- so feeding
+	// the tail alone leaves the scanner believing a screen state the terminal
+	// is not in. Today that prefix is HomeAndClear alone (the buffer assertion
+	// is withdrawn), so this changes no behaviour; it is written now so the day
+	// `?1047` lands, neither console has to remember. couch's takeOverScreen
+	// feeds the composed bytes for the same reason, and the two diverging on a
+	// shared primitive is BR-77 and BR-82 both.
+	m.hostScan.FeedFraming(composed)
 
 	// Diagnostics survive a takeover -- unlike a paint, an error is not made
 	// obsolete by the screen being replaced. But they go through writeDiag, NOT
@@ -1337,11 +1356,7 @@ func (m *terminalMux) switchRelative(delta int) {
 	size := m.childSizeLocked()
 	m.mu.Unlock()
 	m.renamePane()
-	var modes hostty.ChildModes
-	if tab != nil && tab.child != nil {
-		modes.AltScreen, modes.AltScreenObserved = tab.child.RepaintModes()
-	}
-	m.redrawTab(snapshot, modes)
+	m.redrawTab(snapshot, childOf(tab))
 	// Queued, not called here (#209 BR-7). This runs on the INPUT goroutine
 	// while resizeAll runs on the writer's; a host resize landing between the
 	// nudge's shrink and restore would be overwritten by the restore leg,
@@ -1426,15 +1441,11 @@ func (m *terminalMux) removeTab(id int) {
 	}
 	_ = m.setPaneTitle(title)
 	if !preserveRename {
-		var modes hostty.ChildModes
-		if active != nil && active.child != nil {
-			modes.AltScreen, modes.AltScreenObserved = active.child.RepaintModes()
-		}
 		// clear=true: this takeover replaces a tab that no longer EXISTS, so an
 		// empty snapshot means "blank it", not "nothing to draw". Routing it
 		// through RepaintReplace left a destroyed tab's content on the pane
 		// whenever the surviving tab's ring was still empty (#209 BR-4).
-		m.applyTakeover(activeSnapshot, modes, true)
+		m.applyTakeover(activeSnapshot, childOf(active), true)
 		return
 	}
 	// A rename is open, so the screen is NOT taken over -- the operator is mid
@@ -1708,8 +1719,18 @@ func (m *terminalMux) paneTitleLocked() string {
 // composed at this site while Replay went uncalled -- two places holding one
 // decision about what a repaint may contain, and couch's attach path in M3
 // would have made it three (BR-20).
-func (m *terminalMux) redrawTab(replay []byte, modes hostty.ChildModes) {
-	m.enqueue(ptyChunk{replay: replay, takeover: true, modes: modes})
+func (m *terminalMux) redrawTab(replay []byte, child *ptychild.Child) {
+	m.enqueue(ptyChunk{replay: replay, takeover: true, child: child})
+}
+
+// childOf is the nil-safe read of a tab's child, spelled once because both
+// takeover call sites want it and a missing guard here is a panic on the
+// keystroke path rather than a wrong pixel.
+func childOf(tab *terminalTab) *ptychild.Child {
+	if tab == nil {
+		return nil
+	}
+	return tab.child
 }
 
 // clearTab blanks the screen deliberately. Separate from redrawTab because the

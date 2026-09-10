@@ -495,9 +495,7 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 	// capability queries the child emitted at startup, and re-asking the host
 	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
 	// arriving at a new site.
-	altScreen, observed := p.child.RepaintModes()
-	c.takeOverScreen(hostty.ChildModes{AltScreen: altScreen, AltScreenObserved: observed},
-		p.child.ReplayThrough(p.replayCutoff), hostty.RepaintReplace)
+	c.takeOverScreen(p.child, p.child.ReplayThrough(p.replayCutoff), hostty.RepaintReplace)
 	// Ask the child to repaint from its own state. The replay above is the
 	// immediate paint; this is what makes the result correct rather than
 	// probable when the last full frame has aged out of the ring (#209).
@@ -995,17 +993,18 @@ func (c *Console) writeChild(p []byte) {
 // to be corrupted.
 //
 // It is still Run-goroutine-only, like every other writer.
-func (c *Console) takeOverScreen(modes hostty.ChildModes, body []byte, intent hostty.RepaintIntent) {
+func (c *Console) takeOverScreen(child *ptychild.Child, body []byte, intent hostty.RepaintIntent) {
 	c.mu.Lock()
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
 	c.mu.Unlock()
 
-	// Composed, not clear-then-write (#209): the buffer must be asserted before
-	// the paint or the paint lands in the wrong one, and an empty body must not
-	// blank — that means the ring could not answer, and a stale frame beats a
-	// blank one while the child is asked to repaint.
-	composed := hostty.Repaint(modes, body, intent)
+	// Composed, not clear-then-write (#209): an empty body must not blank —
+	// that means the ring could not answer, and a stale frame beats a blank one
+	// while the child is asked to repaint. The composition also OWNED the
+	// buffer assertion, which is withdrawn for now (`?1049` moves the cursor);
+	// hostty.Repaint holds the reason and the `?1047` candidate.
+	composed := hostty.RepaintFor(child, body, intent)
 	_, _ = c.host.Write(composed)
 
 	// And FEED it back. The reset above drops the old child's partial sequence,
@@ -1020,12 +1019,14 @@ func (c *Console) takeOverScreen(modes hostty.ChildModes, body []byte, intent ho
 	// termcmd's applyTakeover has done this since M3; couch resetting without
 	// feeding is the same shared-primitive divergence as BR-77.
 	c.mu.Lock()
-	// The COMPOSED bytes, not just the body (#209 BR-6): the `?1049h` prefix
-	// exists precisely because the body lacks it, so feeding the body alone
-	// leaves the scanner believing the primary screen on every switch — and
-	// with a `?1048h` in the tail that closes SafeToPaint's carve-out for the
-	// session, which is BR-79's frozen strip arriving by the road BR-82's
-	// comment was written to close.
+	// The COMPOSED bytes, not just the body (#209 BR-6). A repaint's prefix is
+	// mode-bearing BY DESIGN — it exists to assert what the tail LACKS — so
+	// feeding the tail alone would leave the scanner believing a screen state
+	// the terminal is not in: with a `?1048h` in the tail that closes
+	// SafeToPaint's carve-out for the session, which is BR-79's frozen strip
+	// arriving by the road BR-82's comment was written to close. Today the
+	// prefix is HomeAndClear alone, so this changes nothing; it is written now
+	// so the `?1047` candidate does not need either console to remember.
 	c.hostScan.FeedFraming(composed)
 	c.mu.Unlock()
 }

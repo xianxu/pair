@@ -1362,6 +1362,43 @@ func TestTabSwitchIssuesARepaintRequestAndRestoresTheSize(t *testing.T) {
 	want := mux.childSizeLocked()
 	mux.mu.Unlock()
 	if resizes[1] != want {
-		t.Errorf("restored to %v, want the child'+chr(39)+'s own size %v", resizes[1], want)
+		t.Errorf("restored to %v, want the child's own size %v", resizes[1], want)
+	}
+}
+
+// termcmd's leg of the differential (#209 BR-9): what the console WRITES on a
+// takeover is exactly what hostty.RepaintFor composes, with no prefix of its
+// own and no byte dropped. couchtty's TestSwitchWritesExactlyTheComposedRepaint
+// asserts the same thing about the same function, which is what makes the two
+// consoles byte-identical for the same child state without a test that can
+// drive both; hostty's golden fixes what that function emits.
+func TestTakeoverWritesExactlyTheComposedRepaint(t *testing.T) {
+	var stdout bytes.Buffer
+	incoming := ptychild.NewFakeChild([]byte("\x1b[?1049hretained frame"))
+	mux := &terminalMux{
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   &fakeRuntime{},
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
+			{id: 2, name: "work", child: incoming},
+		},
+		active: 0,
+		cols:   40,
+		rows:   24,
+	}
+
+	mux.mu.Lock()
+	replay := replaySnapshotLocked(mux.tabs[1])
+	mux.mu.Unlock()
+	want := hostty.RepaintFor(incoming, replay, hostty.RepaintReplace)
+	if len(want) == 0 {
+		t.Fatal("fixture produced nothing to compose; the assertion below would be vacuous")
+	}
+
+	mux.nextTab()
+
+	if !strings.Contains(stdout.String(), string(want)) {
+		t.Fatalf("takeover wrote %q, want it to contain hostty.RepaintFor's exact composition %q",
+			stdout.String(), want)
 	}
 }

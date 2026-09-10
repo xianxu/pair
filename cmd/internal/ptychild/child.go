@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	"github.com/creack/pty"
 
@@ -192,7 +193,6 @@ func (c *Child) Write(p []byte) (int, error) {
 	return c.ptmx.Write(p)
 }
 
-// Resize changes the child's terminal dimensions. The child gets SIGWINCH.
 // RequestRepaint asks the child to repaint from its OWN state — the only
 // authority for a frame the bounded replay ring no longer holds (#209).
 //
@@ -210,8 +210,15 @@ func (c *Child) Write(p []byte) (int, error) {
 // degrades to the old behaviour rather than to a blank screen — a switch must
 // never abort because a child would not resize.
 //
-// One home, not one per consumer: any settle delay or coalescing rule added
-// later has to exist once (#209 BR-5).
+// One home, not one per consumer: the settle below had to be written once
+// rather than discovered twice (#209 BR-5).
+//
+// It BLOCKS for repaintSettle, deliberately, and callers must stay on the
+// goroutine that serializes their other resizes. That is not a cost to route
+// around with a timer: the shrink and the restore have to be atomic with
+// respect to any other resize, and a host resize landing between them would be
+// erased by the restore leg, leaving the child permanently mis-sized with no
+// event to correct it (#209 BR-7).
 func (c *Child) RequestRepaint(size Size) {
 	if c == nil || size.Rows < 2 {
 		return
@@ -221,9 +228,39 @@ func (c *Child) RequestRepaint(size Size) {
 	if err := c.Resize(nudged); err != nil {
 		return
 	}
+	time.Sleep(repaintSettle)
 	_ = c.Resize(size)
 }
 
+// repaintSettle is how long the shrink is left standing before the restore
+// erases it, and it is what makes the nudge WORK rather than usually work.
+//
+// MEASURED, not chosen (probes/zellijrepaint, zellij 0.44.3 / macOS). Standard
+// signals do not queue: issue both TIOCSWINSZ ioctls back-to-back and zellij can
+// take a single SIGWINCH, read a winsize already back at 24 rows, and re-render
+// nothing. That is not theoretical — it is what the first version shipped, and
+// the probe caught it:
+//
+//	settle   repainted
+//	none     6 of 12   <- the sequence that shipped: a coin flip
+//	1 ms     5 of 5
+//	2 ms     5 of 5
+//	5 ms     8 of 8
+//	20 ms    3 of 3
+//
+// The floor is under a millisecond and the margin is what is being bought:
+// #204 measured this host's process wake-up delay at 4.92 ms, so 20 ms is about
+// four wake-ups of headroom. It is paid ONCE per switch keystroke, AFTER the
+// replay has already put a frame on the screen, and 20 ms is far below the
+// threshold where a response stops reading as immediate.
+//
+// The probe is the standing conformance check (ARCH-MOCK's live half): if a
+// zellij upgrade changes the SIGWINCH handling, `go run ./probes/zellijrepaint`
+// with PAIR_PROBE_SETTLE says so, and #213 is the standing reminder that this
+// binary's documented and actual behaviour do diverge.
+const repaintSettle = 20 * time.Millisecond
+
+// Resize changes the child's terminal dimensions. The child gets SIGWINCH.
 func (c *Child) Resize(s Size) error {
 	if c.fake != nil {
 		if c.Done() {
@@ -310,17 +347,13 @@ func (c *Child) AltScreen() bool {
 	return c.screen.AltScreen()
 }
 
-// AltScreenObserved reports whether the child has said anything about the
-// alternate buffer. A repaint must not assert a buffer it never witnessed
-// (#209).
-func (c *Child) AltScreenObserved() bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return c.screen.AltScreenObserved()
-}
-
 // RepaintModes is what hostty.Repaint needs from this child, taken in one
 // locked read so the two fields cannot disagree.
+//
+// The pair, not two accessors. `observed` is what stops a repaint asserting a
+// buffer this child never witnessed (#196's shape, #209's field); reading it
+// apart from the state it qualifies is how the two come to disagree, so there
+// is deliberately no exported AltScreenObserved to reach for (#209 BR-12).
 func (c *Child) RepaintModes() (altScreen, observed bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()

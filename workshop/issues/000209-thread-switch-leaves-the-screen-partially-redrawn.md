@@ -193,8 +193,11 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
          carries an observed bit (`screen.go:47`); alt-screen and SGR-mouse do
          not, so "never witnessed" and "witnessed off" are the same value — and
          asserting `?1049l` from that would drop a child out of an alt screen it
-         is really in. Add `altScreenObserved` / `sgrMouseObserved` mirroring
-         `mouseObserved`, and assert a mode only on positive evidence.
+         is really in. Add `altScreenObserved` mirroring `mouseObserved`, and
+         assert a mode only on positive evidence. (This row originally also
+         asked for `sgrMouseObserved`; `mouseObserved` already covers both mouse
+         fields, as PQ-9 itself noted, so only `altScreenObserved` was added —
+         corrected 2026-09-10, BR-9.)
       4. **Say why absence is admissible when it is.** `Screen` scans a child's
          whole stream from `Start`, so for a child we spawned an unobserved mode
          really is off. That is the exact opposite of the ring, where `#196`
@@ -202,8 +205,12 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
          in the same struct, so the distinction is written down rather than
          assumed.
 
-      Composition: assert buffer -> clear (or not, per intent) -> tail ->
-      buffer-independent modes -> repaint request.
+      Composition, as SHIPPED: clear (or not, per intent) -> tail -> repaint
+      request. The buffer assertion at the head was withdrawn (`?1049` moves the
+      cursor), and no buffer-independent modes are emitted at all — mouse would
+      be a third writer for one terminal mode, which `hostty/repaint.go` states
+      as the reason. Corrected 2026-09-10 (BR-9) from a line describing a
+      composition the code never had.
 - [x] **Mode 3 is cosmetic once modes are asserted, and the plan says so rather
       than over-building.** A bisected tail prints an orphaned fragment as text.
       It cannot corrupt terminal STATE, because the mode assertion above runs
@@ -283,6 +290,82 @@ was established before its window, and the component acted as though absence of
 evidence were evidence of absence. There it was mouse-mode tracking; here it is
 the screen itself.
 
+### 2026-09-10 — the nudge was a coin flip, and the probe caught it
+
+**The boundary review's BR-3 was right, and the number is worse than "unmeasured".**
+It refused the conformance evidence on the grounds that
+`probes/zellijrepaint` slept 1.5 s between the shrink and the restore while
+production issues both `TIOCSWINSZ` ioctls back-to-back — signals do not queue,
+so zellij can take a single `SIGWINCH`, read a winsize already restored to 24
+rows, and re-render nothing. The probe now drives the production sequence, and
+against the real binary (zellij 0.44.3 / macOS):
+
+| settle between shrink and restore | repainted |
+|---|---|
+| **none — the sequence that shipped** | **6 of 12** |
+| 1 ms | 5 of 5 |
+| 2 ms | 5 of 5 |
+| 5 ms | 8 of 8 |
+| 20 ms | 3 of 3 |
+| 50 ms | 3 of 3 |
+
+So mode 1's fix worked about half the time, and every test in the tree was green
+for it: the fake records that `Resize` was CALLED, which is not the property the
+fix depends on. This is `ARCH-MOCK`'s point stated as a measurement — the
+in-process double models the request, only the live check models the answer.
+
+**Fixed with a measured settle, not a guessed one.** `ptychild.repaintSettle` is
+20 ms: the observed floor is under a millisecond, and 20 ms is about four of
+this host's process wake-ups (`#204` measured 4.92 ms) of headroom. It is paid
+once per switch keystroke, after the replay has already put a frame on screen,
+and it BLOCKS on the goroutine that already serializes resizes — deliberately,
+because a timer would reopen exactly the interleaving BR-7 closed. Pinned by
+`TestRequestRepaintLeavesTheShrinkStandingLongEnoughToBeSeen`, verified by
+mutation (dropping the sleep gives 666 ns and fails).
+
+`PAIR_PROBE_SETTLE` now parameterises the probe, so the table above is
+reproducible rather than a claim.
+
+**The nudge cost is also now a number, not a prose assurance (BR-13).** The
+back-to-back sequence re-renders **6.6 KB** on a single-pane session, against
+19.3 KB for the sequence with a gap. Both are in `#204`'s table alongside the
+counted invariant, which is where BR-9 said the invariant belonged and where it
+now is.
+
+**couch's half is pinned at last (BR-2).** The review measured that deleting
+`RequestRepaint` from `switchTo` left this suite green, and couch is the
+operator's report. `TestSwitchAsksTheIncomingChildToRepaint` now fails on that
+deletion (verified: "timed out waiting for the incoming child to be asked to
+repaint"), and `TestSwitchingToTheActiveThreadAsksForNoRepaint` pins the other
+side — a landing on the actor already current pays no reflow.
+
+**The `ChildModes` wiring could not be pinned where it was, so it moved.**
+Both consumers built a `ChildModes` literal from their child, and neither could
+be defended by a test: with the buffer assertion withdrawn, `ChildModes` has no
+effect on the emitted bytes, so a correct literal and the zero value are
+indistinguishable downstream. `hostty.RepaintFor(child, replay, intent)` is now
+the one read, tested once in `hostty` against the VALUES rather than the bytes,
+and it retires `Child.AltScreenObserved` (BR-12's dead exported surface) by
+leaving `RepaintModes` as the only door.
+
+**The differential row is honest about how it closes (BR-9).** Nothing in this
+tree can drive both consoles in one test, so it closes transitively and each leg
+asserts something real: `hostty`'s golden fixes the exact composition, and each
+console asserts that what it WROTE equals `RepaintFor`'s output for that child
+and replay (`TestSwitchWritesExactlyTheComposedRepaint`,
+`TestTakeoverWritesExactlyTheComposedRepaint`). If either console adds or drops
+a byte of its own, that console's test fails.
+
+**Remaining findings.** BR-6's second half landed: `termcmd` fed the gate only
+the replay while couch fed the composed bytes — a divergence in a shared
+primitive, which is BR-77 and BR-82 both. Both now feed the composition. It
+changes no behaviour today (the prefix is `HomeAndClear`, framing-complete and
+mode-neutral) and is written now so the `?1047` candidate does not need either
+console to remember. BR-10 had also RECURRED one function over: `RequestRepaint`
+was inserted between `Child.Resize`'s doc comment and its func, so godoc
+attributed the resize line to the nudge and left `Resize` bare. BR-11's
+`'+chr(39)+'` escape artifact is gone.
+
 ## Revisions
 
 ### 2026-09-09 — "same guarantee" qualified to "same mechanism"
@@ -341,3 +424,29 @@ unlike `#220` a rebuild does NOT reach a running session: the couch half needs
 because the failure needs a full frame to have aged out of a 128 KiB ring, a
 freshly relaunched session cannot exercise it at all — absence of the symptom
 right after a restart is close to no evidence either way.
+
+### 2026-09-10 — three plan rows corrected to what shipped (BR-1, BR-9)
+
+**Reason.** The boundary review found three ticked rows describing a design the
+code does not have. A plan that misdescribes the tree cannot be checked against
+it, which is the whole point of ticking a row.
+
+**Delta.**
+
+1. *Tests row, mode-assertion cross-product* — asked for
+   {alt-screen, mouse, SGR-mouse, cursor-save} × {set, unset}. The design
+   asserts no mode at all since the `?1049` withdrawal, so there is no
+   cross-product; the row now names the two tests that replaced it. This is
+   BR-1, carried from PQ-12 and never disposed until now.
+2. *Mode-4 item 3* — claimed `altScreenObserved` **and** `sgrMouseObserved` were
+   added. Only `altScreenObserved` exists; `mouseObserved` already covers both
+   mouse fields, as PQ-9 itself said.
+3. *Mode-4 composition line* — read "assert buffer → clear → tail →
+   buffer-independent modes → repaint request". No buffer-independent modes were
+   ever emitted, and the buffer assertion is withdrawn. It now states the
+   composition as shipped.
+
+The two Tests rows the review found delivered-short are the exception and are
+NOT rewritten, because they were delivered this round instead: the four
+`replay_insufficiency_test.go` reproductions now carry their answers, and the
+differential row exists (see the Log entry above for how it closes).

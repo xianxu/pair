@@ -949,7 +949,7 @@ func TestATakeoverRelearnsTheChildsModesFromTheBodyItDraws(t *testing.T) {
 	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
 
 	// nvim's screen: it entered the alt screen, and that is what the replay says.
-	c.takeOverScreen(hostty.ChildModes{}, []byte("\x1b[?1049hnvim's screen\x1b[1;1H"), hostty.RepaintReplace)
+	c.takeOverScreen(nil, []byte("\x1b[?1049hnvim's screen\x1b[1;1H"), hostty.RepaintReplace)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -1048,4 +1048,92 @@ func TestTheNotificationDrainAndItsEntryGuardAskOneQuestion(t *testing.T) {
 	if n := strings.Count(body, "SafeToPaint()"); n < 2 {
 		t.Errorf("expected the entry guard AND the loop to ask SafeToPaint; found %d", n)
 	}
+}
+
+// The operator's reported bug is couch's, and the boundary review measured that
+// couch's half of the fix was pinned by NOTHING: deleting the repaint request
+// left this suite green (#209 BR-2). This is its mutation test — dropping
+// `p.child.RequestRepaint(c.ChildSize())` from switchTo gives resizes = [] and
+// fails here with the message below.
+//
+// The nudge is what makes a switch CORRECT rather than probable: the replay is
+// the immediate paint, but the retained tail is bounded, so a thread whose last
+// full frame has aged out can only be repainted by the child that still holds
+// it. Rows and not columns, because a column change reflows wrapped lines; and
+// restored to the size the console already owns, so no new authority over child
+// geometry is introduced.
+func TestSwitchAsksTheIncomingChildToRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	incoming := ptychild.NewFakeChild(nil)
+	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	f.con.AttachTree("c2", "/w/pair", "pair", incoming)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(incoming.Resizes())
+	f.con.switchTo("c2", false, arrivalOrdinary)
+
+	waitFor(t, "the incoming child to be asked to repaint", func() bool {
+		return len(incoming.Resizes()) >= before+2
+	})
+	got := incoming.Resizes()[before:]
+	want := f.con.ChildSize()
+	if len(got) != 2 {
+		t.Fatalf("switch issued %d resizes %v, want exactly the shrink-and-restore pair", len(got), got)
+	}
+	if got[0].Rows != want.Rows-1 || got[0].Cols != want.Cols {
+		t.Errorf("shrank to %v, want one row shorter than %v with the columns untouched", got[0], want)
+	}
+	if got[1] != want {
+		t.Errorf("restored to %v, want the size the console already owns, %v", got[1], want)
+	}
+}
+
+// A switch must not nudge the pane the operator is ALREADY on. The tracker
+// ignores a landing on the current actor, and a resize round-trip on a
+// full-screen child is a whole reflow — 19,317 bytes on a single-pane zellij,
+// measured by probes/zellijrepaint — so paying it for a no-op switch is exactly
+// the keystroke-path cost ARCH-CONSTRAINTS asks to be deliberate about.
+func TestSwitchingToTheActiveThreadAsksForNoRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	before := len(f.child.Resizes())
+	f.con.switchTo("c1", false, arrivalOrdinary)
+	time.Sleep(20 * time.Millisecond)
+
+	if got := f.child.Resizes(); len(got) != before {
+		t.Fatalf("a switch to the already-active thread resized it: %v", got[before:])
+	}
+}
+
+// couch's leg of the differential (#209 BR-9): what the console WRITES on a
+// takeover is exactly what hostty.RepaintFor composes — no prefix of its own,
+// no byte dropped. termcmd's leg asserts the same thing against the same
+// function, which is what makes the two consoles byte-identical for the same
+// child state; hostty's golden fixes what that function emits.
+func TestSwitchWritesExactlyTheComposedRepaint(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	incoming := ptychild.NewFakeChild(nil)
+	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	f.con.AttachTree("c2", "/w/pair", "pair", incoming)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+
+	incoming.Feed([]byte("\x1b[?1049hretained frame"))
+	waitFor(t, "the incoming child's output to reach its ring", func() bool {
+		return len(incoming.Snapshot()) > 0
+	})
+	f.host.Reset()
+
+	f.con.mu.Lock()
+	body := incoming.ReplayThrough(f.con.panes["c2"].replayCutoff)
+	f.con.mu.Unlock()
+	want := hostty.RepaintFor(incoming, body, hostty.RepaintReplace)
+	if len(want) == 0 {
+		t.Fatal("fixture produced nothing to compose; the assertion below would be vacuous")
+	}
+
+	f.con.switchTo("c2", false, arrivalOrdinary)
+	waitFor(t, "the takeover to reach the host", func() bool {
+		return strings.Contains(f.host.Written(), string(want))
+	})
 }

@@ -1,5 +1,7 @@
 package hostty
 
+import "github.com/xianxu/pair/cmd/internal/ptychild"
+
 // Repaint composes the bytes that hand the host screen over to a child.
 //
 // It lives HERE and not in ptychild (#209): the composition emits host-side
@@ -40,14 +42,13 @@ type ChildModes struct {
 
 // Repaint returns the takeover byte sequence.
 //
-// The ORDER is the design, and three earlier versions of it were wrong:
-//
-//  1. Buffer state FIRST, before the clear. `?1049h`/`?1049l` switch buffers,
-//     so a paint belongs to whichever buffer was active when it was written —
-//     asserting the buffer afterwards discards everything just painted.
-//  2. Clear only when there is something to draw, or when the caller asked for
-//     a clear outright.
-//  3. The retained tail.
+// As SHIPPED it is two steps — clear only when there is something to draw or
+// the caller asked for one, then the retained tail. The buffer assertion that
+// used to lead is WITHDRAWN; see the body for why, and note that the ORDER is
+// still the design when it returns: buffer state must go FIRST, before the
+// clear, because `?1049`/`?1047` switch buffers and a paint belongs to
+// whichever buffer was active when it was written, so asserting afterwards
+// discards everything just painted. Three earlier versions got that wrong.
 //
 // Mouse state is deliberately NOT asserted here. couch re-asserts its own mouse
 // mode on every paint and ptychild's replay feeds the child's own bytes back
@@ -76,4 +77,25 @@ func Repaint(modes ChildModes, replay []byte, intent RepaintIntent) []byte {
 		out = append(out, HomeAndClear...)
 	}
 	return append(out, replay...)
+}
+
+// RepaintFor is Repaint for a child: read the modes the composition needs, then
+// compose. One entry point, because the read was copy-pasted at both consumers
+// and NEITHER copy was pinned — `ChildModes` has no observable effect while the
+// buffer assertion is withdrawn, so a test at a consumer could not tell a
+// correct literal from the zero value (#209 BR-2, BR-12).
+//
+// Reading here rather than at each caller also means the modes are read at the
+// moment the bytes are composed, not at whatever earlier point a caller
+// happened to sample them.
+//
+// A nil child is not a child at all — couch's panel takes the screen over with
+// its OWN surface — so it contributes no modes rather than a zero-valued
+// assertion.
+func RepaintFor(child *ptychild.Child, replay []byte, intent RepaintIntent) []byte {
+	var modes ChildModes
+	if child != nil {
+		modes.AltScreen, modes.AltScreenObserved = child.RepaintModes()
+	}
+	return Repaint(modes, replay, intent)
 }

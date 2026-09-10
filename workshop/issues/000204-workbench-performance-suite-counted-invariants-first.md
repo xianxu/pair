@@ -46,6 +46,25 @@ names its defect directly rather than a symptom:
 | `#201` | `alt+Return` performs **one** zellij round-trip | two |
 | `#202` | the agent span file is read **once per change** | once per keystroke |
 | `#203` | build fan-out is bounded by **cores**, not sessions | sessions × cores |
+| `#209` | a thread/tab switch issues a **repaint request**, not only a replay write | landed 2026-09-09 |
+
+`#209`'s row is the fourth, and it arrives with the operating envelope
+`ARCH-CONSTRAINTS` asks for rather than a prose assurance. The request is a
+SIGWINCH nudge (shrink one row, settle, restore), and `probes/zellijrepaint`
+measured what it costs and what it needs on zellij 0.44.3 / macOS:
+
+| | measured |
+|---|---|
+| bytes zellij re-renders per nudge, single pane | 6.6 KB back-to-back, 19.3 KB after a 1.5 s gap |
+| repaint rate with NO settle between the two ioctls | **6 of 12 runs** — a coin flip |
+| repaint rate with a 1 ms settle | 5 of 5 |
+| nudges per switch | 1, on the keystroke path |
+
+The first two rows are the ones worth a tier-1 count. The byte figure is a
+single-pane session and couch runs 10+ panes, so it is a floor rather than the
+number; and the coin-flip row is why the count must be of a nudge that ACTUALLY
+repaints, not of a `Resize` call — a counted invariant over the call would have
+been green for a fix that worked half the time.
 
 ## Spec
 

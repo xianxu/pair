@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
 )
 
 // #209 plan step 1: reproduce, deliberately, the four ways byte-replay-only
@@ -134,5 +135,50 @@ func TestAnEmptyReplayIsReachableAndDistinguishableFromNoOutput(t *testing.T) {
 	child.Feed([]byte(strings.Repeat("a", 100)))
 	if child.ReplayThrough(4) != nil {
 		t.Fatal("a cutoff older than the ring no longer yields an empty replay; hostty.Repaint's empty case is unreachable")
+	}
+}
+
+// The settle is the load-bearing half of the repaint request, and the boundary
+// review was right to refuse it on a probe that measured a different sequence
+// (#209 BR-3). Re-measured against the real binary with the PRODUCTION
+// sequence, back-to-back ioctls repainted 6 of 12 runs — signals do not queue,
+// so zellij can take one SIGWINCH, read a winsize already restored, and
+// re-render nothing.
+//
+// A fake cannot tell us zellij repaints; that is probes/zellijrepaint's job.
+// What it CAN pin is the property the probe measured the fix needs: the shrink
+// is left standing, not erased in the same instant. Verified by mutation —
+// dropping the sleep from RequestRepaint gives an elapsed of microseconds and
+// fails here.
+func TestRequestRepaintLeavesTheShrinkStandingLongEnoughToBeSeen(t *testing.T) {
+	child := NewFakeChild(nil)
+	size := Size{Rows: 24, Cols: 80}
+
+	start := time.Now()
+	child.RequestRepaint(size)
+	elapsed := time.Since(start)
+
+	if elapsed < repaintSettle {
+		t.Errorf("RequestRepaint returned after %v, want at least the measured settle %v — "+
+			"a restore issued in the same instant as the shrink is coalesced away",
+			elapsed, repaintSettle)
+	}
+	got := child.Resizes()
+	want := []Size{{Rows: size.Rows - 1, Cols: size.Cols}, size}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("resizes = %v, want %v — shrink by a row, restore, columns untouched", got, want)
+	}
+}
+
+// A pane with no room to shrink is not nudged at all. One row for the child
+// plus the reserved row is the floor; below it a "shrink" would be a resize to
+// zero rows, which is a different event with different consequences.
+func TestRequestRepaintDeclinesWhenThereIsNoRowToGive(t *testing.T) {
+	for _, rows := range []uint16{0, 1} {
+		child := NewFakeChild(nil)
+		child.RequestRepaint(Size{Rows: rows, Cols: 80})
+		if got := child.Resizes(); len(got) != 0 {
+			t.Errorf("rows=%d issued %v, want no nudge at all", rows, got)
+		}
 	}
 }
