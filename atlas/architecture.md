@@ -468,6 +468,35 @@ mechanism sits in two packages that both drive:
   `FakeHost`, and the terminal-control constants. `\x1b[r` lives here and only
   here; it was about to exist in two packages.
 
+  Since `#209` it also owns **`Repaint`** — how a switch hands the screen to a
+  child. The rule it encodes: **the replay is the immediate paint, the child is
+  the authority.** A switch used to be clear-then-replay, which is correct only
+  if the bounded ring happens to still hold a full frame — and four ways that
+  fails are reproduced in `ptychild/replay_insufficiency_test.go`. So a switch
+  now composes, then asks the child to repaint (a rows-only SIGWINCH nudge;
+  zellij 0.44.3 has no repaint action, and `probes/zellijrepaint` confirms
+  against the real binary that it re-renders its pane from its own buffer).
+
+  Three things about `Repaint` are load-bearing and each was got wrong first:
+  the buffer assertion (`?1049h`/`?1049l`) goes BEFORE the clear, because those
+  switch buffers and a paint belongs to whichever buffer was active when it was
+  written; a mode is asserted only when it was OBSERVED, since absence of
+  evidence would drop a child out of an alt screen it is really in (`#196`'s
+  shape — `Screen.AltScreenObserved` sits beside `mouseObserved` for the same
+  reason); and cursor-save is not asserted at all, because `\x1b7` saves the
+  CURRENT cursor and no sequence injects a previously-saved one. Mouse is left
+  to the authorities that already own it rather than adding a third writer.
+
+  Intent is CARRIED, not inferred from an empty slice: `pair term` deliberately
+  blanks a new tab before releasing its startup output, while a repaint with
+  nothing retained means the ring could not answer — where a stale frame beats a
+  blank one. `redrawTab` and `clearTab` are separate doors for that reason.
+
+  The guarantee differs by what the child IS, deliberately: zellij repaints its
+  whole pane, a foreground TUI repaints, and a bare shell has no screen model at
+  all, so a frame that scrolled out of the ring exists nowhere and mode 1 is
+  best-effort there. Same mechanism, different guarantee, said out loud.
+
   Since `#199` it also owns **`Reservation`** — the row-reservation primitive:
   `Reservation{Rows, Edge}` answering `ChildRows` / `Reserve` / `Release` /
   `Paint`. This is the same argument as `\x1b[r`, one level up. Reserving a row

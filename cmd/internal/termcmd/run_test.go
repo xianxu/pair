@@ -1323,3 +1323,45 @@ func TestCurrentRightTerminalPaneFastPathAnswersWhatTheSlowPathWould(t *testing.
 		t.Errorf("id = %q, want 4", fastPane.ID)
 	}
 }
+
+// #209's counted invariant, and #204's: a switch issues a REPAINT REQUEST, not
+// only a replay write. The replay is the immediate paint; the nudge is what
+// makes the result correct rather than probable when the last full frame has
+// aged out of the 128 KiB ring.
+//
+// The fake records resizes, which is the in-process half of the ARCH-MOCK pair;
+// the other half is probes/zellijrepaint, which drives a real zellij and
+// confirms it actually repaints from its own buffer on SIGWINCH.
+func TestTabSwitchIssuesARepaintRequestAndRestoresTheSize(t *testing.T) {
+	var stdout bytes.Buffer
+	incoming := ptychild.NewFakeChild([]byte("two"))
+	mux := &terminalMux{
+		pane: paneWriter{w: stdoutWriter{&stdout}},
+		rt:   &fakeRuntime{},
+		tabs: []*terminalTab{
+			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
+			{id: 2, name: "work", child: incoming},
+		},
+		active: 0,
+		cols:   40,
+		rows:   24,
+	}
+	mux.nextTab()
+
+	resizes := incoming.Resizes()
+	if len(resizes) != 2 {
+		t.Fatalf("resizes = %v, want exactly 2 — a nudge is a change AND a restore", resizes)
+	}
+	if resizes[0].Rows >= resizes[1].Rows {
+		t.Errorf("resizes = %v, want the first to shrink rows and the second to restore", resizes)
+	}
+	if resizes[0].Cols != resizes[1].Cols {
+		t.Errorf("resizes = %v, want columns untouched — a column change reflows wrapped lines", resizes)
+	}
+	mux.mu.Lock()
+	want := mux.childSizeLocked()
+	mux.mu.Unlock()
+	if resizes[1] != want {
+		t.Errorf("restored to %v, want the child'+chr(39)+'s own size %v", resizes[1], want)
+	}
+}

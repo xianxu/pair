@@ -166,7 +166,7 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
       (PQ-10). Both consumers already depend on `hostty`. (2)
       Nudge safety is checked against `#196`'s reattach test and the composer
       resize latch as its own plan row below.
-- [ ] **Correct the Problem section's citations first (PQ-3).** The quoted code
+- [x] **Correct the Problem section's citations first (PQ-3).** The quoted code
       and file:line cites were accurate when filed on 2026-09-06 and are not
       now: `takeOverScreen` is `console.go:992` and does more than two writes
       (it resets `hostScan`, writes, then FEEDS THE BODY BACK so the scanner
@@ -175,7 +175,7 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
       `run.go:890`/`:982-983`. The mechanism the issue describes is unchanged;
       the code it points at is stale, and a plan that quotes it wrongly cannot
       be checked.
-- [ ] **Mode 4: an ORDERED composition, in `hostty`, over only the modes that
+- [x] **Mode 4: an ORDERED composition, in `hostty`, over only the modes that
       can actually be restored (PQ-2, PQ-8, PQ-9, PQ-10, PQ-11).** Three
       successive versions of this row were wrong, each in a different way, and
       the constraints that survive are:
@@ -204,14 +204,14 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
 
       Composition: assert buffer -> clear (or not, per intent) -> tail ->
       buffer-independent modes -> repaint request.
-- [ ] **Mode 3 is cosmetic once modes are asserted, and the plan says so rather
+- [x] **Mode 3 is cosmetic once modes are asserted, and the plan says so rather
       than over-building.** A bisected tail prints an orphaned fragment as text.
       It cannot corrupt terminal STATE, because the mode assertion above runs
       after it and the repaint request overwrites the frame. Deterministically
       trimming it needs a boundary index `Screen` does not keep, and with the
       repaint landing that buys a few milliseconds of cleaner garbage. Recorded
       as an accepted limitation with its reason, not silently dropped.
-- [ ] **Mode 2: carry INTENT, do not infer it from an empty slice (PQ-1).**
+- [x] **Mode 2: carry INTENT, do not infer it from an empty slice (PQ-1).**
       `m.redrawTab(nil)` at `run.go:845` is a DELIBERATE clear — it blanks the
       screen before releasing a new tab's startup output so the queued live copy
       is not duplicated (BR-9). "Do not clear when the replay is empty" would
@@ -220,7 +220,7 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
       frame beats a blank one), while a deliberate clear still clears. Express
       it in the type — separate entry points, or an explicit field — so a future
       caller cannot get the default wrong.
-- [ ] **Mode 1: the repaint request, fully specified (PQ-4).** `Child.Resize`
+- [x] **Mode 1: the repaint request, fully specified (PQ-4).** `Child.Resize`
       twice: to `Size{Cols: cols, Rows: rows - 1}` then back to the size the
       caller already owns — the console tracks `c.size`, the mux
       `childSizeLocked()`, so no new authority is introduced and there is no
@@ -231,7 +231,7 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
       and abort a switch. **Rapid switches:** each switch nudges its own target
       once and nothing is coalesced, because a nudge is idempotent and two
       SIGWINCHes cost one extra repaint, not a wrong screen.
-- [ ] **The SIGWINCH assumption needs a double and a conformance check
+- [x] **The SIGWINCH assumption needs a double and a conformance check
       (PQ-5, `ARCH-MOCK`).** "zellij repaints its pane on SIGWINCH" carries the
       whole of mode 1 and is currently an assertion. `ptychild` already has
       `fake.go`; the fake models the behaviour we depend on — a resize produces
@@ -241,12 +241,12 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
       matches the binary after an upgrade, and `#213` is a standing reminder
       that this zellij version's documented behaviour and actual behaviour
       diverge.
-- [ ] **Nudge safety (plan item 2).** `#196`'s reattach test passes UNMODIFIED,
+- [x] **Nudge safety (plan item 2).** `#196`'s reattach test passes UNMODIFIED,
       and the composer resize latch — "authorization stays closed from
       validation until a complete successful resize commits" — is untouched by a
       size-restoring nudge. If the latch is perturbed, that is a finding to
       report, not a workaround to route around.
-- [ ] **Tests, named, one strategy line per risky surface (PQ-6).**
+- [x] **Tests, named, one strategy line per risky surface (PQ-6).**
       *Shared repaint:* the four `replay_insufficiency_test.go` reproductions
       become regression rows against the new path — each asserts the mode it
       demonstrates is now handled (2 and 4 fixed, 1 fixed given a repainting
@@ -258,9 +258,9 @@ one close review. (`sdlc estimate-source` reports the calibration doc `[stale]`,
       consumers:* a differential row per `#220`'s lesson — assert the ANSWER,
       that `couchtty` and `termcmd` produce byte-identical repaint output for
       the same child state, not merely that both call the function.
-- [ ] **Counted invariant into `#204`:** a switch issues a repaint request, not
+- [x] **Counted invariant into `#204`:** a switch issues a repaint request, not
       only a replay write.
-- [ ] **Atlas:** the reconstruction rule — the replay is the immediate paint,
+- [x] **Atlas:** the reconstruction rule — the replay is the immediate paint,
       the child is the authority — on the `ptychild`/`hostty` split, with the
       guarantee's dependence on what the child is.
 
@@ -301,3 +301,43 @@ modes 2–4 fixed for every child type and mode 1 fixed wherever the child has a
 screen to repaint from (zellij, or a foreground TUI) and best-effort for a bare
 shell. Operator chose this over building a per-tab VT emulator, which would fix
 mode 1 everywhere at the cost of a screen model per tab across the fleet.
+
+### 2026-09-09 — implementation, and the assumption measured
+
+**The SIGWINCH assumption is confirmed against the real binary, not asserted.**
+`probes/zellijrepaint` starts a throwaway zellij session in a pty, has its pane
+print a marker ONCE and go quiet, drains what the pty saw, then resizes rows
+only. Result on zellij 0.44.3 / macOS: **the resize produced 19,317 bytes and
+the marker returned** while the child emitted nothing — so zellij re-rendered
+the pane from its own buffer, which is exactly the property mode 1's fix rests
+on. Worth having measured: `#213` established that this zellij version's
+documented and actual behaviour diverge, and the whole fix would have been built
+on a sentence otherwise.
+
+That is the live half of `ARCH-MOCK`. The in-process half is
+`ptychild`'s fake, which records resizes, so
+`TestTabSwitchIssuesARepaintRequestAndRestoresTheSize` pins the nudge without a
+pty — verified by mutation: dropping the request gives `resizes = []`.
+
+**Three versions of the mode composition were wrong before this one**, each
+caught by the plan gate rather than by me, and each for a different reason —
+they are recorded in the `hostty.Repaint` doc comment because the ORDER is the
+design: assert the buffer before the clear (asserting after discards the paint);
+assert only what was OBSERVED (`Screen.AltScreenObserved` now sits beside
+`mouseObserved`); and never list cursor-save, which no sequence can restore.
+
+**`redrawTab(nil)` was a deliberate clear**, not an accident — it blanks a new
+tab before releasing startup output so the queued live copy is not duplicated
+(BR-9). "Do not clear when the replay is empty" would have regressed exactly
+that, which is why intent is carried and `clearTab` is its own door.
+
+**`#196`'s reattach test passes unmodified** — no test of it was touched, and the
+composer deliberately does not assert mouse state, leaving that to the
+authorities that already own it rather than adding a third writer.
+
+**Deployment note.** These paths are compiled into long-lived processes, so
+unlike `#220` a rebuild does NOT reach a running session: the couch half needs
+`couch` restarted, the right-pane half needs that `pair term` restarted. And
+because the failure needs a full frame to have aged out of a 128 KiB ring, a
+freshly relaunched session cannot exercise it at all — absence of the symptom
+right after a restart is close to no evidence either way.
