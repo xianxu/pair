@@ -193,7 +193,7 @@ func (c *Console) showMenu() {
 	_, _ = c.host.Write([]byte(hostty.HideCursor))
 	// couch's OWN surface, not a child's: a deliberate clear, and no child
 	// modes to assert (#209).
-	c.takeOverScreen(hostty.ChildModes{}, []byte(view.Body))
+	c.takeOverScreen(hostty.ChildModes{}, []byte(view.Body), hostty.RepaintClear)
 	c.paintNow()
 	if view.Cursor == nil {
 		_, _ = c.host.Write([]byte(hostty.HideCursor))

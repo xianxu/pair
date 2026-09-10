@@ -58,13 +58,20 @@ type ChildModes struct {
 func Repaint(modes ChildModes, replay []byte, intent RepaintIntent) []byte {
 	out := make([]byte, 0, len(replay)+len(HomeAndClear)+len(LeaveAltScreen))
 
-	if modes.AltScreenObserved {
-		if modes.AltScreen {
-			out = append(out, EnterAltScreen...)
-		} else {
-			out = append(out, LeaveAltScreen...)
-		}
-	}
+	// BUFFER ASSERTION TEMPORARILY WITHDRAWN (#209).
+	//
+	// `?1049h`/`?1049l` are not pure buffer switches: the `1049` pair SAVES and
+	// RESTORES the cursor as part of switching. Emitting `?1049l` on every
+	// switch therefore performs a cursor restore from a slot that, per this
+	// repo's own probes/cursorsaveslots question, may ALIAS DECSC (`\x1b7`) —
+	// which is exactly what pair's tab strip paints with. Observed live: typed
+	// characters landed mid-screen after a repaint, because the strip's
+	// save/restore pairing had been consumed.
+	//
+	// Mode 4 is therefore unfixed for now. The candidate is `?1047h`/`?1047l`,
+	// which switch buffers WITHOUT touching the cursor — but that is exactly the
+	// kind of terminal-behaviour assumption #209 already had to measure once
+	// (probes/zellijrepaint), so it gets a probe before it ships, not a guess.
 	if intent == RepaintClear || len(replay) > 0 {
 		out = append(out, HomeAndClear...)
 	}

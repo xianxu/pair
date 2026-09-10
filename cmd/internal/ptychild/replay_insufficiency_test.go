@@ -82,3 +82,57 @@ func TestReplayCannotCarryModeStateSetBeforeTheWindow(t *testing.T) {
 	}
 	t.Log("mode 4 reproduced: the alt-screen enter is outside the window, so a replay cannot restore the mode")
 }
+
+// Where each reproduced mode is ANSWERED. The four above are reproductions —
+// they demonstrate the defect. These assert the new path handles it, so the
+// reproductions cannot quietly become decoration (#209 BR-9).
+//
+// Mode 1 is deliberately not asserted here: no composition can restore a frame
+// the ring no longer holds, which is the whole reason a switch asks the child
+// to repaint. It is pinned where it happens —
+// termcmd's TestTabSwitchIssuesARepaintRequestAndRestoresTheSize and couchtty's
+// TestSwitchAsksTheIncomingChildToRepaint — and the assumption that the request
+// produces a frame is measured against a real zellij by probes/zellijrepaint.
+func TestTheAgedOutPaintIsNotRecoverableFromBytesAlone(t *testing.T) {
+	// The premise of the repaint request, stated as a test so it cannot rot:
+	// once the paint is out of the ring, no consumer of ReplayThrough can get
+	// it back, however it composes what remains.
+	const paint = "\x1b[H\x1b[2JFULL-FRAME-CONTENT"
+	child := replayChild(64)
+	child.Feed([]byte(paint))
+	child.Feed([]byte(strings.Repeat("x", 200)))
+
+	if bytes.Contains(child.ReplayThrough(child.ReplaySafeEnd()), []byte("FULL-FRAME-CONTENT")) {
+		t.Fatal("the paint survived the ring; this premise no longer holds and the repaint request needs re-justifying")
+	}
+}
+
+// Mode 4's answer: Screen tracks the mode across the WHOLE stream, so the
+// buffer is known even when the sequence that set it has aged out.
+func TestScreenStillKnowsTheBufferAfterTheModeSetAgesOut(t *testing.T) {
+	const enterAlt = "\x1b[?1049h"
+	child := replayChild(32)
+	child.Feed([]byte(enterAlt))
+	child.Feed([]byte(strings.Repeat("y", 100)))
+
+	if bytes.Contains(child.ReplayThrough(child.ReplaySafeEnd()), []byte(enterAlt)) {
+		t.Fatal("fixture did not age the mode set out")
+	}
+	alt, observed := child.RepaintModes()
+	if !observed {
+		t.Fatal("Screen did not observe the alt-screen enter, so a repaint could not assert it")
+	}
+	if !alt {
+		t.Fatal("Screen lost the alt-screen state once the sequence aged out — mode 4 is not answered")
+	}
+}
+
+// Mode 2's answer lives in hostty.Repaint (an empty replay emits nothing rather
+// than blanking); this asserts the input half that makes it reachable.
+func TestAnEmptyReplayIsReachableAndDistinguishableFromNoOutput(t *testing.T) {
+	child := replayChild(16)
+	child.Feed([]byte(strings.Repeat("a", 100)))
+	if child.ReplayThrough(4) != nil {
+		t.Fatal("a cutoff older than the ring no longer yields an empty replay; hostty.Repaint's empty case is unreachable")
+	}
+}

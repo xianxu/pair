@@ -193,6 +193,37 @@ func (c *Child) Write(p []byte) (int, error) {
 }
 
 // Resize changes the child's terminal dimensions. The child gets SIGWINCH.
+// RequestRepaint asks the child to repaint from its OWN state — the only
+// authority for a frame the bounded replay ring no longer holds (#209).
+//
+// SIGWINCH is the mechanism: zellij 0.44.3 has no repaint action (`clear`
+// destroys buffers, `dump-screen` writes to a file), and probes/zellijrepaint
+// confirms against the real binary that zellij re-renders its pane from its own
+// buffer on this exact sequence. It is the same thing the operator's mouse
+// click achieved, issued deliberately.
+//
+// Rows, not columns: a column change reflows wrapped lines, which is an edit
+// rather than a repaint. Restored to the size the CALLER already owns, so no
+// new authority over child geometry is introduced here.
+//
+// Fire and forget. The replay has already painted, so a nudge that fails
+// degrades to the old behaviour rather than to a blank screen — a switch must
+// never abort because a child would not resize.
+//
+// One home, not one per consumer: any settle delay or coalescing rule added
+// later has to exist once (#209 BR-5).
+func (c *Child) RequestRepaint(size Size) {
+	if c == nil || size.Rows < 2 {
+		return
+	}
+	nudged := size
+	nudged.Rows--
+	if err := c.Resize(nudged); err != nil {
+		return
+	}
+	_ = c.Resize(size)
+}
+
 func (c *Child) Resize(s Size) error {
 	if c.fake != nil {
 		if c.Done() {

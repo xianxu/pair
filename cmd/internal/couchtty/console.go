@@ -497,11 +497,11 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 	// arriving at a new site.
 	altScreen, observed := p.child.RepaintModes()
 	c.takeOverScreen(hostty.ChildModes{AltScreen: altScreen, AltScreenObserved: observed},
-		p.child.ReplayThrough(p.replayCutoff))
+		p.child.ReplayThrough(p.replayCutoff), hostty.RepaintReplace)
 	// Ask the child to repaint from its own state. The replay above is the
 	// immediate paint; this is what makes the result correct rather than
 	// probable when the last full frame has aged out of the ring (#209).
-	c.requestRepaint(p.child)
+	p.child.RequestRepaint(c.ChildSize())
 	c.flushDeferredNotifications()
 	c.paintNow()
 }
@@ -995,37 +995,7 @@ func (c *Console) writeChild(p []byte) {
 // to be corrupted.
 //
 // It is still Run-goroutine-only, like every other writer.
-// requestRepaint asks a child to repaint from its OWN state, which is the only
-// authority for a frame the retained ring no longer holds (#209).
-//
-// A resize nudge — SIGWINCH — is the mechanism, because zellij 0.44.3 has no
-// repaint action (`clear` destroys buffers, `dump-screen` writes to a file) and
-// couch's children are zellij. It is the same thing the operator's mouse click
-// achieved, issued deliberately.
-//
-// Rows, not columns: a column change reflows wrapped lines, which is a visible
-// edit rather than a repaint.
-//
-// Fire and forget. The replay has already painted, so a nudge that fails
-// degrades to the old behaviour rather than to a blank screen — and a switch
-// must never abort because a child would not resize.
-func (c *Console) requestRepaint(child *ptychild.Child) {
-	if child == nil {
-		return
-	}
-	size := c.ChildSize()
-	if size.Rows < 2 {
-		return // nothing to shrink; the nudge would be a no-op resize
-	}
-	nudged := size
-	nudged.Rows--
-	if err := child.Resize(nudged); err != nil {
-		return
-	}
-	_ = child.Resize(size)
-}
-
-func (c *Console) takeOverScreen(modes hostty.ChildModes, body []byte) {
+func (c *Console) takeOverScreen(modes hostty.ChildModes, body []byte, intent hostty.RepaintIntent) {
 	c.mu.Lock()
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
@@ -1035,7 +1005,8 @@ func (c *Console) takeOverScreen(modes hostty.ChildModes, body []byte) {
 	// the paint or the paint lands in the wrong one, and an empty body must not
 	// blank — that means the ring could not answer, and a stale frame beats a
 	// blank one while the child is asked to repaint.
-	_, _ = c.host.Write(hostty.Repaint(modes, body, hostty.RepaintReplace))
+	composed := hostty.Repaint(modes, body, intent)
+	_, _ = c.host.Write(composed)
 
 	// And FEED it back. The reset above drops the old child's partial sequence,
 	// which is right, but it also drops everything the scanner knew about the
@@ -1049,7 +1020,13 @@ func (c *Console) takeOverScreen(modes hostty.ChildModes, body []byte) {
 	// termcmd's applyTakeover has done this since M3; couch resetting without
 	// feeding is the same shared-primitive divergence as BR-77.
 	c.mu.Lock()
-	c.hostScan.FeedFraming(body)
+	// The COMPOSED bytes, not just the body (#209 BR-6): the `?1049h` prefix
+	// exists precisely because the body lacks it, so feeding the body alone
+	// leaves the scanner believing the primary screen on every switch — and
+	// with a `?1048h` in the tail that closes SafeToPaint's carve-out for the
+	// session, which is BR-79's frozen strip arriving by the road BR-82's
+	// comment was written to close.
+	c.hostScan.FeedFraming(composed)
 	c.mu.Unlock()
 }
 

@@ -97,16 +97,21 @@ func run() int {
 
 	// SIGWINCH: rows only, exactly as the fix nudges (a column change would
 	// reflow wrapped lines rather than repaint).
+	// BACK-TO-BACK, exactly as production issues them (console.go and run.go
+	// both call Resize twice with nothing in between). The gap matters: standard
+	// signals do not queue, so zellij may take a single SIGWINCH, read a winsize
+	// that is already back to 24, and re-render nothing. A probe that sleeps
+	// between the two measures a sequence production never issues — and would
+	// report REPAINTED for a fix that is a no-op (BR-3).
 	if err := resize(session.PTY, 23, 80); err != nil {
 		fmt.Println("PROBE-ERROR resize:", err)
 		return 1
 	}
-	time.Sleep(1500 * time.Millisecond)
 	if err := resize(session.PTY, 24, 80); err != nil {
 		fmt.Println("PROBE-ERROR restore:", err)
 		return 1
 	}
-	time.Sleep(2500 * time.Millisecond)
+	time.Sleep(4 * time.Second)
 
 	after := session.Seen.String()
 	if len(after) <= mark {

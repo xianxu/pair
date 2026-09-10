@@ -949,7 +949,7 @@ func TestATakeoverRelearnsTheChildsModesFromTheBodyItDraws(t *testing.T) {
 	c := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), strings.NewReader(""))
 
 	// nvim's screen: it entered the alt screen, and that is what the replay says.
-	c.takeOverScreen(hostty.ChildModes{}, []byte("\x1b[?1049hnvim's screen\x1b[1;1H"))
+	c.takeOverScreen(hostty.ChildModes{}, []byte("\x1b[?1049hnvim's screen\x1b[1;1H"), hostty.RepaintReplace)
 
 	c.mu.Lock()
 	defer c.mu.Unlock()

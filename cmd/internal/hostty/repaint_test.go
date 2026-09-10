@@ -2,45 +2,28 @@ package hostty
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 )
 
-// The ORDER is the design (#209). Asserting the buffer after the paint discards
-// it, because ?1049h/l switch buffers and the paint belongs to whichever buffer
-// was active when it was written.
-func TestRepaintAssertsTheBufferBeforeItPaints(t *testing.T) {
-	for _, test := range []struct {
-		name string
-		alt  bool
-		want string
-	}{
-		{"child is on the alternate buffer", true, EnterAltScreen},
-		{"child is on the primary buffer", false, LeaveAltScreen},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			got := string(Repaint(ChildModes{AltScreen: test.alt, AltScreenObserved: true}, []byte("PAINT"), RepaintReplace))
-			if !strings.HasPrefix(got, test.want) {
-				t.Fatalf("repaint = %q, want it to open with %q", got, test.want)
-			}
-			buffer := strings.Index(got, test.want)
-			clear := strings.Index(got, HomeAndClear)
-			paint := strings.Index(got, "PAINT")
-			if !(buffer < clear && clear < paint) {
-				t.Fatalf("order buffer=%d clear=%d paint=%d, want buffer < clear < paint", buffer, clear, paint)
-			}
-		})
-	}
-}
-
-// Absence of evidence is not evidence of absence. A Screen that never witnessed
-// the child say anything about the buffer must not be used to assert one —
-// #196's shape, one field over.
-func TestRepaintAssertsNoBufferItNeverObserved(t *testing.T) {
+// The buffer assertion is WITHDRAWN (#209), and this pins the withdrawal so it
+// cannot be quietly re-added without the probe that would justify it.
+//
+// `?1049h`/`?1049l` save and restore the cursor as part of switching buffers.
+// Emitting `?1049l` on every switch therefore restored the cursor from a slot
+// that may alias DECSC (`\x1b7`) — which pair's tab strip paints with. Observed
+// live: typed characters landed mid-screen after a repaint. Mode 4 stays unfixed
+// until `?1047h`/`?1047l` (buffer switch WITHOUT cursor side effects) is
+// measured the way probes/zellijrepaint measured the repaint assumption.
+func TestRepaintEmitsNoCursorMovingBufferAssertion(t *testing.T) {
 	for _, alt := range []bool{false, true} {
-		got := Repaint(ChildModes{AltScreen: alt, AltScreenObserved: false}, []byte("PAINT"), RepaintReplace)
-		if bytes.Contains(got, []byte(EnterAltScreen)) || bytes.Contains(got, []byte(LeaveAltScreen)) {
-			t.Fatalf("AltScreen=%v unobserved: repaint = %q, want no buffer assertion at all", alt, got)
+		for _, observed := range []bool{false, true} {
+			got := Repaint(ChildModes{AltScreen: alt, AltScreenObserved: observed}, []byte("PAINT"), RepaintReplace)
+			for _, forbidden := range []string{EnterAltScreen, LeaveAltScreen} {
+				if bytes.Contains(got, []byte(forbidden)) {
+					t.Fatalf("AltScreen=%v observed=%v: repaint = %q, which moves the cursor via the 1049 save slot",
+						alt, observed, got)
+				}
+			}
 		}
 	}
 }

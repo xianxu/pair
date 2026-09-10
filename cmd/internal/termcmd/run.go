@@ -706,6 +706,10 @@ type ptyChunk struct {
 	// modes is the child's terminal state at takeover time, so the repaint can
 	// put the paint in the buffer the child is actually using.
 	modes hostty.ChildModes
+	// nudge asks a child to repaint from its own state, on the WRITER
+	// goroutine so it cannot interleave with resizeAll (#209 BR-7).
+	nudge     *terminalTab
+	nudgeSize ptychild.Size
 	// rowDirty means the child may have destroyed the reserved row -- a margin
 	// reset, RIS, an alt-screen transition, or an ERASE. DECSTBM restricts
 	// scrolling, not erasing, so a full-screen app's startup clear takes the row
@@ -893,6 +897,11 @@ func (m *terminalMux) handleChunk(chunk ptyChunk) {
 	switch {
 	case chunk.err != nil:
 		m.removeTab(chunk.id)
+
+	case chunk.nudge != nil:
+		if chunk.nudge.child != nil {
+			chunk.nudge.child.RequestRepaint(chunk.nudgeSize)
+		}
 
 	case chunk.takeover:
 		m.applyTakeover(chunk.replay, chunk.modes, chunk.clear)
@@ -1333,27 +1342,18 @@ func (m *terminalMux) switchRelative(delta int) {
 		modes.AltScreen, modes.AltScreenObserved = tab.child.RepaintModes()
 	}
 	m.redrawTab(snapshot, modes)
-	// The replay is the immediate paint; this is what makes the result correct
-	// rather than probable when the last full frame has aged out (#209). A
+	// Queued, not called here (#209 BR-7). This runs on the INPUT goroutine
+	// while resizeAll runs on the writer's; a host resize landing between the
+	// nudge's shrink and restore would be overwritten by the restore leg,
+	// leaving the child permanently mis-sized with no event to correct it.
+	// Routed through the same queue as every other write so the two cannot
+	// interleave.
+	//
+	// The replay is the immediate paint; the nudge is what makes the result
+	// correct rather than probable once the last full frame has aged out. A
 	// foreground TUI repaints on SIGWINCH; a bare shell has no screen model, so
-	// here the guarantee is best-effort by construction, not by omission.
-	requestChildRepaint(tab, size)
-}
-
-// requestChildRepaint nudges a child to repaint from its own state: SIGWINCH via
-// a rows-only resize and back. Rows, not columns, because a column change
-// reflows wrapped lines. Fire and forget — the replay has already painted, so a
-// failed nudge degrades to the old behaviour rather than to a blank screen.
-func requestChildRepaint(tab *terminalTab, size ptychild.Size) {
-	if tab == nil || tab.child == nil || size.Rows < 2 {
-		return
-	}
-	nudged := size
-	nudged.Rows--
-	if err := tab.child.Resize(nudged); err != nil {
-		return
-	}
-	_ = tab.child.Resize(size)
+	// the guarantee is best-effort there by construction, not by omission.
+	m.enqueue(ptyChunk{nudge: tab, nudgeSize: size})
 }
 
 func (m *terminalMux) appMouseMode() bool {
@@ -1430,7 +1430,11 @@ func (m *terminalMux) removeTab(id int) {
 		if active != nil && active.child != nil {
 			modes.AltScreen, modes.AltScreenObserved = active.child.RepaintModes()
 		}
-		m.applyTakeover(activeSnapshot, modes, false)
+		// clear=true: this takeover replaces a tab that no longer EXISTS, so an
+		// empty snapshot means "blank it", not "nothing to draw". Routing it
+		// through RepaintReplace left a destroyed tab's content on the pane
+		// whenever the surviving tab's ring was still empty (#209 BR-4).
+		m.applyTakeover(activeSnapshot, modes, true)
 		return
 	}
 	// A rename is open, so the screen is NOT taken over -- the operator is mid
