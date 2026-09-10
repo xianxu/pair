@@ -27,8 +27,9 @@ type SwitchTracker struct {
 
 // Switch records a landing.
 //
-// viaNotification is true only when the operator arrived by ctrl-space + Return
-// on an actor that had a pending notification. Such an actor never becomes
+// viaNotification is true only when the operator landed on an actor that had a
+// pending notification when they chose it -- ctrl-space + Return on a paging
+// row, or ctrl+return. Such an actor never becomes
 // `previous`, so chasing two pages -- or detouring manually to spot-check a
 // third actor -- still leaves ctrl+backspace pointing at the actor the operator
 // was actually working in.

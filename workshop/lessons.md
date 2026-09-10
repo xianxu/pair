@@ -4392,3 +4392,42 @@ the code it describes. Before committing a sentence that names a commit, a
 tool's behaviour, or what a measurement showed, run the check — `git log`, the
 tool's source or `--help`, the probe's actual output. And say only what the
 reading supports: an end-state dump does not say when.
+
+## A reviewer's factual claim is a claim — check it before folding it in (pair#221)
+
+**What happened.** The plan gate said "no page can arrive between the lookup and
+the landing: `attention.Mark` runs only on the Run goroutine". I replaced a
+correct sentence with that one and never checked it. The close review found the
+path it missed: `switchTo` → `flushDeferredNotifications` → `onChunk` → `Mark`,
+where `switchTo` also runs on the operation goroutine.
+
+**Rule.** pair#223's evidence standard applies to sentences you ADOPT from a
+reviewer, not only to the ones you write. For "X runs only on goroutine G",
+enumerate X's transitive callers up to their goroutine roots. A grep for the
+direct call site is not the call graph, and the missed caller is always one hop
+up.
+
+## Define a category by its property, not by the gestures that produce it today (pair#221)
+
+**What happened.** Three comments defined a notification hop as "ctrl-space +
+Return". Adding ctrl+return, a second gesture that produces one, made all three
+false. The README sweep did not find them, because they do not list chords:
+they define a concept by its only instance at the time.
+
+**Rule.** When a comment defines a category (an arrival kind, a state, a
+classification), state the property that puts a case in it, and name today's
+instances as examples at most. When adding a new instance, grep for the
+category's NAME, not only the old instance's keys, since that is where the
+exclusive definitions live.
+
+## A comment that predicts what a mistake does belongs in the mutation sweep (pair#221)
+
+**What happened.** I wrote "a kind appended below the alias would silently
+equal seqSwitch and open the switcher". The sweep included that exact mistake
+and got a duplicate-case compile error instead. The silent failure applies only
+to a kind with no `hit()` case.
+
+**Rule.** When you write a warning comment ("doing X silently causes Y"), add X
+to the mutation sweep and let its result write the sentence. A warning that is
+wrong about the failure mode sends the next reader looking for the wrong
+symptom.

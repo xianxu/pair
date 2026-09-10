@@ -489,6 +489,18 @@ mechanism sits in two packages that both drive:
   itself, and this one defaulted to the condemned sequence for exactly one
   commit.
 
+  **The settle is visible, and that is accepted.** zellij really renders the
+  one-row-shorter frame while the shrink stands. So on every switch the screen
+  shifts up a line and falls back when the restore lands, as the operator
+  observed on the live stack on 2026-09-10 (`pair#221` Log). The shift is the
+  mechanism working, not a failure of it, and the operator accepted it as-is.
+  Two directions are unmeasured if it ever matters. One is a `SIGWINCH` to the
+  child's foreground process group with no size change, which helps only if
+  zellij repaints on an unchanged winsize: the probe can answer that. The other
+  is bracketing shrink-to-restore in synchronized output (DEC `?2026`), which
+  depends on how zellij's own `?2026` brackets nest inside it. Shrinking
+  columns instead is out, because it reflows wrapped lines.
+
   **`Child` owns its geometry, and that is what makes the nudge safe rather than
   a rule someone has to keep.** `RequestRepaint` takes NO size: it reads what to
   restore under the same lock it holds for the whole shrink-settle-restore, so a

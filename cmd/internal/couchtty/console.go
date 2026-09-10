@@ -444,8 +444,11 @@ const (
 	// arrivalOrdinary is a switch that is not a notification hop: the switcher's
 	// Enter on an unpaged row, a post-start attach, a programmatic Switch.
 	arrivalOrdinary arrival = iota
-	// arrivalNotification is ctrl-space + Return on an actor that HAD a pending
-	// notification. Only this one is non-pinning.
+	// arrivalNotification is a landing on an actor that HAD a pending
+	// notification when the operator chose it -- today ctrl-space + Return on a
+	// paging row, or ctrl+return. Defined by that property rather than by the
+	// keys, so the next gesture that produces one does not make this false.
+	// Only this one is non-pinning.
 	arrivalNotification
 	// arrivalPrevious is ctrl+backspace. Never a notification hop even when the
 	// actor happens to be paging, because the operator is going home.
@@ -468,7 +471,13 @@ func (a arrival) viaNotification() bool { return a == arrivalNotification }
 // is still lit, NewestActor() then names the actor the operator is SITTING IN,
 // and the next ctrl-space opens the switcher on it instead of on whoever paged
 // -- the headline behaviour, inverted.
-func (c *Console) switchTo(id string, force bool, how arrival) {
+//
+// stayed reports that the actor was already current and force was false: the
+// landing was recorded and acknowledged, and the screen was left alone. It is
+// returned rather than left for a caller to re-derive, because this function
+// decides it under its own lock, and a caller's separate read of c.active is a
+// second authority that another goroutine's switch can falsify in between.
+func (c *Console) switchTo(id string, force bool, how arrival) (stayed bool) {
 	c.mu.Lock()
 	p, known := c.panes[id]
 	already := c.active == id && !force
@@ -486,9 +495,12 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 		c.syncAttentionLocked()
 	}
 	c.mu.Unlock()
-	if !known || already {
+	if !known {
 		// An unknown actor is not a reason to blank the operator's screen.
-		return
+		return false
+	}
+	if already {
+		return true
 	}
 
 	// The replay is Replay(), not Snapshot(): a raw one still carries whatever
@@ -503,6 +515,7 @@ func (c *Console) switchTo(id string, force bool, how arrival) {
 	c.takeOverScreen(p.child, p.child.ReplayThrough(p.replayCutoff))
 	c.flushDeferredNotifications()
 	c.paintNow()
+	return false
 }
 
 // Stop tears the console down. Safe to call more than once, and from any
@@ -1432,7 +1445,6 @@ func (c *Console) onNewestPageHotkey() {
 	if newest != (couchcore.ThreadAddress{}) {
 		target = c.switchTargetForAddressLocked(newest)
 	}
-	stay := target != "" && target == c.active
 	c.mu.Unlock()
 
 	switch {
@@ -1460,9 +1472,9 @@ func (c *Console) onNewestPageHotkey() {
 		//
 		// force=false: for another actor it is identical to force=true; for the
 		// active one switchTo acknowledges and stays, with no takeover of a
-		// screen that did not change.
-		c.switchTo(target, false, arrivalNotification)
-		if stay {
+		// screen that did not change -- and says which it did, so the notice
+		// below keys on switchTo's own decision rather than a second read.
+		if c.switchTo(target, false, arrivalNotification) {
 			// The acknowledgement alone is invisible from here: the status row
 			// never draws the active actor's bell. Without a word the key would
 			// look dropped.
@@ -1923,8 +1935,9 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 	case "switch":
 		c.mu.Lock()
 		target := c.switchTargetForAddressLocked(address)
-		// A notification hop is ctrl-space + Return on an actor that HAD a
-		// pending notification. runMenuOperation captured that set before
+		// A notification hop is a landing on an actor that HAD a pending
+		// notification when the operator chose it; on this path that means
+		// Return on a paging row. runMenuOperation captured that set before
 		// dispatch, so a nonzero capture is exactly "the target was paging when
 		// the operator chose it" -- the value that was true when they chose,
 		// not after.
