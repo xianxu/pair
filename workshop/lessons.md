@@ -4541,3 +4541,32 @@ state the deciding package owns, not from what the caller hands back — and
 check which way the zero value points. To prove such a guard, one test must
 relay the zeroed field on purpose; a test that round-trips the real object
 cannot fail.
+
+## Derive a stale-claim sweep from the diff, not from the finding's examples (pair#230)
+
+**What happened.** A review found stale comments restating a design decision the
+commit had reversed. I swept the eight sites it listed. The next round found
+seven more, in the same families, including the reversed name inside the very
+Revision that said "all corrected". The sweep had inherited the finding's
+examples as its search list.
+
+**Rule.** Build the list from what the change REMOVED or re-scoped, not from
+what a reviewer happened to cite: `git diff -U0 BASE HEAD -- '*.go' | grep '^-'`
+for deleted identifiers and branch arms, plus every function whose callers
+changed. Then grep code comments, test comments, the atlas and the plan for
+each term. A retired branch arm (`if !resume`) and a function that lost scope
+(`failPostAckStart`) are invisible to a list of names somebody else noticed.
+
+## Fixing a finding is a change with its own blast radius (pair#230)
+
+**What happened.** Told that a shared helper swallowed an error, I made it
+return one — on every path. One of those paths never reads the value, so a
+spawn's cleanup gained a zellij round trip and surfaced an error where none had
+existed. The same fix also broke a spawn's claim-phase disposition, because I
+restructured the fallback without re-deriving which arms the phases reach.
+
+**Rule.** A review fix is a change, so it gets the change discipline: name the
+paths it newly touches, run the tests that own them, and ask whether the fix is
+now doing work on a path that never asked for it. And pin it where the decision
+is CONSUMED — a predicate test next to the rule survived "call it everywhere",
+because a predicate cannot see its caller.

@@ -483,3 +483,137 @@ findings:
     detail: |
       2nd finding in this family. Rule: at the live-record phase, every applyStartCleanup exit that has not retired the incarnation falls through to markLiveRecordUnknown, as one structural fallback after the switch rather than per arm. Measured prevalence: 1 remaining site, couch.go:537-540, which contradicts atlas/couch.md:685-686.
 ```
+
+---
+
+## Re-review — 2026-09-11T12:25:26-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 230 — A failed warm reattach deletes the session it was reattaching |
+| repo | pair |
+| issue file | workshop/issues/000230-a-failed-warm-reattach-deletes-the-session-it-was-reattaching.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d8dc14f60276d2dd708fea794e5e390abce9c9c4..87fea1c4cc5e3a2bbe219c9233b76865749dc925 |
+| command | sdlc close --issue 230 |
+| reviewer | claude |
+| timestamp | 2026-09-11T12:25:26-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The fix does what the issue asks: a failed warm reattach no longer deletes its session. I checked this by running the code, not by reading the commit messages. In a scratch copy, re-enabling the quiesce on the warm path turns four tests red. Making `AbortStarted` trust the caller's shape turns the registry test red. The fake's new quiesce effect matches production: `QuiesceThreadSession` deletes the session but keeps the index entry, and production `PairSession` then reports `Present=false` with the name, not an error. So the rewritten `TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone` pins a branch production really takes. The spawn and cold-resume cleanup paths still behave as before, and the round-3 fixes for BR-13 and BR-14 hold. Nothing blocks. The rest are all Minor: BR-15's fix is structural but no test pins it, the rollback arm still makes one atlas sentence false, BR-2 and BR-4 are still open, and I found four small new items.
+
+## 1. Strengths
+- **The pure decider is exhaustively tested.** `DecideStartCleanup` (`startcleanup.go:98-131`) has a 36-row table with the expected values written out, a duplicate-row guard and three property tests. The three-valued `StartShape` keeps the spawn and cold-resume cleanup paths separate.
+- **The fake now models the deletion, and it matches production.** `artifactcollision_fake.go:239-270` matches `thread_claim.go:257-281` plus `artifactcollision.go:149-183`. It exposed a test that had been passing for the wrong reason.
+- **Ownership is read from couch's own record.** `AbortStarted` takes the shape from the registry (`couch.go:634-659`). The test deliberately relays an owning shape, so it can fail, and it does (M6).
+- **The retire-failure test proves it reached its branch.** `TestAFailedRetireStillLeavesTheRecordRecoverable` counts the session reads in order and asserts the retire's own error (M4 killed).
+- **BR-14 is pinned in two places**: against the decider for the rule, and at the shell (M1 killed).
+
+## 2. Critical
+None.
+
+## 3. Important
+None open. BR-13 is addressed; see the dispositions block.
+
+## 4. Minor
+- **Rollback arm (3rd finding in `fail-closed-fallback-missing`).**
+  - `couch.go:548-549` returns `rollbackTrackedStart`'s error with no fallback. That makes `atlas/couch.md:686-688` ("every exit… falls through") and the comment at `couch.go:561-566` ("structural rather than per-arm") false.
+  - **The rule:** only a completed undo may return early, and the docs claim exactly the exits the fallback covers.
+  - **Impact is low.** `ReconcileStart` later rolls back or promotes a leftover claim whose recorded helper is dead.
+  - **Fix:** scope both claims to the live-record phase.
+- **Fake quiesce has no live conformance check (ARCH-MOCK).** The transition "`PairSession` reads `Present=false` with the name kept after quiesce" has no couchcore live test. Launcher's live tests only pin `DeleteSession`'s own post-condition.
+- **Error text says "detach" for a failed reattach.** `detach.go:127,130` produce "…during detach" on the cleanup path too, and the test asserts that misleading wording. Make the messages neutral, or have each caller wrap them.
+- **Unrelated commit on the branch.** Commit `966e31fd` (the `zellijrepainttiming` probe, plus `manifest.go:729` and `.gitignore`) has nothing to do with #230. It has no `side-quest:` verb and the issue doesn't mention it.
+
+## 5. Test coverage notes
+- **Targeted tests** (real repo, sandboxed, `env -u PAIR_SESSION_ID -u PAIR_TAG`): all pass except the pty-child tests, which the sandbox blocks.
+- **Reverting each fix in a scratch copy** (`git archive`, compared against a baseline; the real repo was untouched):
+
+| Mutation | Result |
+|---|---|
+| M1: observe session presence for every shape | killed |
+| M2: swallow the observation error | killed |
+| M3: retire-arm `GetThread` error returns early (BR-15) | **survived** |
+| M4: retire failure returns early | killed |
+| M5: warm path quiesces again | killed by 4 tests |
+| M6: `AbortStarted` trusts the relayed shape | killed |
+
+- `gofmt` and `go vet` are clean.
+- I did not run the unsandboxed `make test`; the issue Log reports 197 packages ok.
+
+## 6. Architecture principles and upcoming work
+- **ARCH-DRY: pass.** `retireDetachedIncarnation` is shared by `Detach` and cleanup, and there is one cleanup shell. `startCleanupReadsPresence` restates the decider's branches, but a test derived from the decider keeps the two in step.
+- **ARCH-PURE: pass.**
+- **ARCH-PURPOSE: pass.** I swept every session-deleting call. `Artifacts.Quiesce` has two callers: `ArchiveThread` (deliberate) and `quiescePostAckStart` (fixed). `TriggerQuit` is the operator's quit gesture. Launcher's `createflow` deletions happen inside the pair child, and the warm argv omits the layout flag that would reach them. No route is missing.
+- **ARCH-MOCK: flag (Minor)**, the missing live check above.
+- **ARCH-CONSTRAINTS: pass.** Session observation is now scoped, and the retire is bounded at 32 attempts.
+- **ARCH-SECURE: pass.** An unrecognised persisted shape answers non-owning, and the registry decode tolerates the new field.
+- **ARCH-ORDER: pass, with one gap.** The transition table is written out explicitly, and cleanup runs on `Background` so a cancellation can't strand it. The `GetThread`-failure ordering has no injection seam, because `Threads` is a concrete `*ThreadStore` (this is why BR-15 is unpinned).
+- **Upcoming:** #206 M2's background pass will mostly hit route 6. A new `StartShape` defaults to non-owning, so the decider table has to grow with it.
+
+## 7. Plan revision recommendations
+- **Task 3:** compress it to one strategy line. Drop the "owning Spawn for routes 5–6" claim, which the tests don't contain. Note that route 3 is warm-only.
+- **Non-goals:** add BR-2's items (1) and (3).
+- **Rollback arm:** if you scope the claim, add a Revisions line saying the fallback covers the live-record phase only.
+- **Issue:** add a Revision correcting "Reachable today" bullet 2 (`issue.md:48-50`), which `plan.md:54-61` refutes.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      A Non-goals section now exists (plan.md:224-235) but lists other behaviours. Item (2) is stated at plan.md:54-61. Items (1), a warm-labelled start owning a session that pair resume created, and (3), couch dying between helper kill and durable write, are still unstated. issue.md:48-50 still claims a slow pair resume reaches the warm registration timeout.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Task 3 (plan.md:295-317) still enumerates per-row injections. It also claims an owning Spawn half for routes 5-6 (plan.md:307-308) that TestAFailedOwningStartStillQuiescesItsSession does not contain; spawn is covered by pre-existing tests.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      All eight named sites are corrected (atlas/couch.md:677-680 and 692-694, the single AbortStarted comment at couch.go:652-658, the test relaying StartColdResume, detach.go:149-151, plan.md:193-200). The remaining plan-body mentions are covered by the Revisions at plan.md:379-423, and a grep finds no stale code or test comments.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      The observation is gated at couch.go:531. M1 (observe for every shape) turns TestASpawnsCleanupNeverAsksAboutTheSession red, and M2 (swallow the error) turns TestResumeUnobservableSessionKeepsUnknownOccupied red.
+  - id: BR-15
+    disposition: not-addressed
+    note: |
+      The fallthrough is structural (couch.go:546-547), but reverting only this arm to an early return leaves the package green (M3, scratch copy). No test pins it, and pinning needs a one-shot GetThread fault seam because Threads is a concrete ThreadStore.
+findings:
+  - id: new
+    severity: Minor
+    family: fail-closed-fallback-missing
+    title: |
+      The rollback arm still returns before any disposition, so the atlas claim that every exit falls through remains false
+    detail: |
+      This is the 3rd finding in the family. The rule: in applyStartCleanup only a completed undo may return early; a failed undo joins its error and reaches the phase's disposition, and the atlas and code comment claim exactly the exits that structure covers. One site remains: couch.go:548-549 returns rollbackTrackedStart's error directly, which contradicts atlas/couch.md:686-688 and the comment at couch.go:561-566 ("structural rather than per-arm"). Impact is low, because ReconcileStart later rolls back or promotes a claim whose recorded helper is dead, and cold resume behaved this way before pair#230. The simplest fix is to scope both claims to the live-record phase and name the claim-phase rollback as left to reconcileInterruptedStarts. Making the return conditional would change cold resume, which the Spec says stays unchanged.
+  - id: new
+    severity: Minor
+    family: fake-effect-needs-live-conformance
+    title: |
+      The fake's new Quiesce effect has no live conformance row, though the warm table and the rewritten cold test rest on it
+    detail: |
+      By code reading the fake agrees with production: QuiesceThreadSession deletes the session but keeps the index entry (thread_claim.go:257-281), and PairSession then reports Present=false with the name kept (artifactcollision.go:149-183). Launcher live-tests only DeleteSession's own post-condition. Add a couchcore live row: quiesce a real session, then assert PairSession returns the name with Present=false (not an error) and DetachedSessions returns none. That locks the transition TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone now depends on (ARCH-MOCK).
+  - id: new
+    severity: Minor
+    family: extracted-helper-caller-specific-text
+    title: |
+      retireDetachedIncarnation's errors say "detach" when the caller is start cleanup
+    detail: |
+      detach.go:127 and :130 give "observe Pair session after detach" and "lost its Pair session during detach". A failed reattach whose cleanup retire fails shows that message to an operator who never detached, and TestAFailedRetireStillLeavesTheRecordRecoverable asserts the misleading string. Make the messages operation-neutral, or have each caller wrap them, and update the assertion.
+  - id: new
+    severity: Minor
+    family: undeclared-scope-creep
+    title: |
+      Commit 966e31fd (zellijrepainttiming probe) is unrelated to pair#230 but rides this branch undeclared
+    detail: |
+      It measures repaint timing for a transition-animation question, and adds manifest.go:729 and a .gitignore line. It has neither a side-quest verb (AGENTS.md section 12) nor a mention in the issue. Move it to its own branch, or record it in the issue Log as a side-quest so the PR does not carry it silently.
+```

@@ -1,12 +1,13 @@
 ---
 id: 000230
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-11
 updated: 2026-09-11
 estimate_hours: 1.25
 started: 2026-09-11T09:55:31-07:00
+actual_hours: 2.42
 ---
 
 # A failed warm reattach deletes the session it was reattaching
@@ -141,6 +142,7 @@ has already cleared the gate.
 ## Log
 
 ### 2026-09-11
+- 2026-09-11: closed — Six post-ack failure routes driven for warm and owning starts at the fake seam: no warm route quiesces, each ends its helper, undoes its own durable write, and leaves the thread ThreadDetached (route 3, session died, unusable/session-gone). BR-5 a failed retire falls through to a structural mark-unknown fallback, pinned by a test that counts all three PairSession reads and asserts the retire error. BR-6 OwnsSession is the single consumed authority; DecideStartCleanup returns DurableAction only; both entries meet in applyStartCleanup. BR-12 observeSessionPresence returns its error, joined by the shell, pinned on a path whose disposition depends on it. BR-13 swept from the diff (deleted identifiers/branch arms + functions whose callers changed), 7 remaining sites incl. failPostAckStart doc and atlas. Presence observed only where the decision reads it, pinned by both a decider table and TestASpawnsCleanupNeverAsksAboutTheSession. 36-row literal table + whole-space properties. Mutation sweeps 6/6, 1/1, 6/6, 1/1 killed as named, tree verified identical to pre-sweep each time. Unsandboxed make test: exit 0, 197 packages ok.; review verdict: FIX-THEN-SHIP
 
 Found while designing #206's background reattach pass. The pass runs warm
 reattaches behind the operator's back, and the question was what quitting
@@ -369,3 +371,38 @@ table.
 pre-sweep snapshot): reconcile losing its tail at claim phase; the structural
 fallback removed; presence observed for every shape; presence never observed;
 the observation error swallowed; and the predicate inverted.
+
+### 2026-09-11 — close review round 4: converged, four advisory Minors taken
+
+The gate converged with no blocking findings. All four Minors were fixed
+rather than deferred:
+
+- **The live conformance row the fake now needs (ARCH-MOCK).** The warm table
+  and the rewritten cold test both rest on what a quiesce LEAVES BEHIND -- the
+  session gone, its index entry kept, so `PairSession` answers "recorded, not
+  present" rather than erroring. That was true by code reading only.
+  `TestQuiesceLeavesTheBindingAndEndsTheSessionLive` (`PAIR_LIVE_COUCH=1`) now
+  drives it against real zellij 0.45.1 and passes; stubbing production's
+  quiesce to a no-op fails it, so the row can falsify.
+- **`retireDetachedIncarnation`'s messages said "detach".** Start cleanup
+  reaches that helper too, so a failed reattach told an operator who never
+  pressed detach that a detach had failed. The messages are operation-neutral
+  now, and the assertion that pinned the misleading string moved with them.
+- **The rollback arm's claim was scoped, not the code changed.** A failed
+  rollback at CLAIM phase leaves a claim, not a live incarnation, and
+  `reconcileInterruptedStarts` settles it on the next startup -- which is what
+  cold resume did before this issue and what the Spec keeps. The atlas and the
+  code comment now say "at the live-record phase", which is the scope the
+  structure actually covers. Making the return conditional would have changed
+  cold resume.
+- **`966e31fd` is declared.** A parallel session committed
+  `cmd/probes/zellijrepainttiming` onto this branch mid-review. It is unrelated
+  to this issue and rides the PR; it had also registered neither in the
+  artifact manifest nor `.gitignore`, which failed two repo guards. Registered
+  here as a `side-quest:` and recorded so the PR does not carry it silently.
+  **The operator was asked whether to move it to its own branch; no answer yet,
+  so nothing was rewritten.**
+
+**Estimate.** est 1.25 / actual 2.42 (ratio 0.5x). The plan and code were close
+to the estimate; the four close-review rounds were not, and they are where the
+time went -- three of them on my own stale prose rather than on behaviour.

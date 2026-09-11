@@ -110,6 +110,9 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 // hand the thread back to the session it borrowed, under the same proofs. One
 // copy, because two would drift on the retry policy first.
 //
+// Its messages are operation-neutral: start cleanup reaches it too, and an
+// operator who never pressed detach should not be told a detach failed.
+//
 // detachedAt is the caller's, read ONCE before any attempt: reading the clock
 // per attempt would make the recorded activity time a function of how much
 // revision contention there was, which measures the store rather than the
@@ -124,10 +127,10 @@ func (c *Couch) retireDetachedIncarnation(
 	}
 	after, err := sessions.PairSession(address)
 	if err != nil {
-		return ThreadRecord{}, fmt.Errorf("observe Pair session after detach: %w", err)
+		return ThreadRecord{}, fmt.Errorf("observe Pair session before retiring its incarnation: %w", err)
 	}
 	if !after.Present {
-		return ThreadRecord{}, fmt.Errorf("thread %+v lost its Pair session during detach", address)
+		return ThreadRecord{}, fmt.Errorf("thread %+v has no live Pair session to retire onto", address)
 	}
 
 	// Retry on a revision conflict rather than giving up. The revision was read

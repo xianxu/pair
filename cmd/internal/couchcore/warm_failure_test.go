@@ -341,7 +341,7 @@ func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 	if reads < 3 {
 		t.Fatalf("only %d Pair session reads; cleanup never reached the retire", reads)
 	}
-	if !strings.Contains(err.Error(), "lost its Pair session during detach") {
+	if !strings.Contains(err.Error(), "no live Pair session to retire onto") {
 		t.Fatalf("error = %v, want the retire's own failure", err)
 	}
 	if quiesced := env.Artifacts.Quiesces(); containsAddress(quiesced, address) {

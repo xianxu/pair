@@ -564,6 +564,12 @@ func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce
 		// returning here is what leaves an IncarnationLive behind an
 		// already-dead helper: the stale state pair#171 describes, reached from
 		// an ordinary failure path.
+		//
+		// A failed rollback at CLAIM phase is deliberately not covered by that
+		// reasoning: it leaves a claim, not a live incarnation, and
+		// reconcileInterruptedStarts later rolls back or promotes a claim whose
+		// recorded helper is dead. Cold resume behaved this way before pair#230
+		// and the Spec keeps it unchanged.
 	}
 	// DurableReconcile is the reconcile-and-mark tail whichever phase asked for
 	// it: a spawn takes it at claim phase too, where it reconciles the start

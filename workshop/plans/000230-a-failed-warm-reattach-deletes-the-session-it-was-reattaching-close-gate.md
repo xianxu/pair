@@ -235,6 +235,56 @@ rounds:
           family: fail-closed-fallback-missing
           round: 4
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-11T12:25:26-07:00"
+      agent: claude
+      dispose:
+        - id: BR-2
+          disposition: not-addressed
+          note: A Non-goals section now exists (plan.md:224-235) but lists other behaviours. Item (2) is stated at plan.md:54-61. Items (1), a warm-labelled start owning a session that pair resume created, and (3), couch dying between helper kill and durable write, are still unstated. issue.md:48-50 still claims a slow pair resume reaches the warm registration timeout.
+          round: 5
+        - id: BR-4
+          disposition: not-addressed
+          note: Task 3 (plan.md:295-317) still enumerates per-row injections. It also claims an owning Spawn half for routes 5-6 (plan.md:307-308) that TestAFailedOwningStartStillQuiescesItsSession does not contain; spawn is covered by pre-existing tests.
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: All eight named sites are corrected (atlas/couch.md:677-680 and 692-694, the single AbortStarted comment at couch.go:652-658, the test relaying StartColdResume, detach.go:149-151, plan.md:193-200). The remaining plan-body mentions are covered by the Revisions at plan.md:379-423, and a grep finds no stale code or test comments.
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          note: The observation is gated at couch.go:531. M1 (observe for every shape) turns TestASpawnsCleanupNeverAsksAboutTheSession red, and M2 (swallow the error) turns TestResumeUnobservableSessionKeepsUnknownOccupied red.
+          round: 5
+        - id: BR-15
+          disposition: not-addressed
+          note: The fallthrough is structural (couch.go:546-547), but reverting only this arm to an early return leaves the package green (M3, scratch copy). No test pins it, and pinning needs a one-shot GetThread fault seam because Threads is a concrete ThreadStore.
+          round: 5
+      findings:
+        - id: BR-16
+          severity: Minor
+          title: The rollback arm still returns before any disposition, so the atlas claim that every exit falls through remains false
+          detail: 'This is the 3rd finding in the family. The rule: in applyStartCleanup only a completed undo may return early; a failed undo joins its error and reaches the phase''s disposition, and the atlas and code comment claim exactly the exits that structure covers. One site remains: couch.go:548-549 returns rollbackTrackedStart''s error directly, which contradicts atlas/couch.md:686-688 and the comment at couch.go:561-566 ("structural rather than per-arm"). Impact is low, because ReconcileStart later rolls back or promotes a claim whose recorded helper is dead, and cold resume behaved this way before pair#230. The simplest fix is to scope both claims to the live-record phase and name the claim-phase rollback as left to reconcileInterruptedStarts. Making the return conditional would change cold resume, which the Spec says stays unchanged.'
+          family: fail-closed-fallback-missing
+          round: 5
+        - id: BR-17
+          severity: Minor
+          title: The fake's new Quiesce effect has no live conformance row, though the warm table and the rewritten cold test rest on it
+          detail: 'By code reading the fake agrees with production: QuiesceThreadSession deletes the session but keeps the index entry (thread_claim.go:257-281), and PairSession then reports Present=false with the name kept (artifactcollision.go:149-183). Launcher live-tests only DeleteSession''s own post-condition. Add a couchcore live row: quiesce a real session, then assert PairSession returns the name with Present=false (not an error) and DetachedSessions returns none. That locks the transition TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone now depends on (ARCH-MOCK).'
+          family: fake-effect-needs-live-conformance
+          round: 5
+        - id: BR-18
+          severity: Minor
+          title: retireDetachedIncarnation's errors say "detach" when the caller is start cleanup
+          detail: detach.go:127 and :130 give "observe Pair session after detach" and "lost its Pair session during detach". A failed reattach whose cleanup retire fails shows that message to an operator who never detached, and TestAFailedRetireStillLeavesTheRecordRecoverable asserts the misleading string. Make the messages operation-neutral, or have each caller wrap them, and update the assertion.
+          family: extracted-helper-caller-specific-text
+          round: 5
+        - id: BR-19
+          severity: Minor
+          title: Commit 966e31fd (zellijrepainttiming probe) is unrelated to pair#230 but rides this branch undeclared
+          detail: It measures repaint timing for a transition-animation question, and adds manifest.go:729 and a .gitignore line. It has neither a side-quest verb (AGENTS.md section 12) nor a mention in the issue. Move it to its own branch, or record it in the issue Log as a side-quest so the PR does not carry it silently.
+          family: undeclared-scope-creep
+          round: 5
+      blocked: false
 ---
 
 # Gate ledger — pair#230 (boundary-review)
@@ -358,10 +408,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Minor] `fail-closed-fallback-missing` The DurableRetire arm returns on a GetThread error before any disposition, so the atlas "no path" claim overclaims
   2nd finding in this family. Rule: at the live-record phase, every applyStartCleanup exit that has not retired the incarnation falls through to markLiveRecordUnknown, as one structural fallback after the switch rather than per arm. Measured prevalence: 1 remaining site, couch.go:537-540, which contradicts atlas/couch.md:685-686.
 
+## Round 5 — 2026-09-11T12:25:26-07:00 (claude) — passed
+
+### Disposed
+
+- BR-2 — not-addressed — A Non-goals section now exists (plan.md:224-235) but lists other behaviours. Item (2) is stated at plan.md:54-61. Items (1), a warm-labelled start owning a session that pair resume created, and (3), couch dying between helper kill and durable write, are still unstated. issue.md:48-50 still claims a slow pair resume reaches the warm registration timeout.
+- BR-4 — not-addressed — Task 3 (plan.md:295-317) still enumerates per-row injections. It also claims an owning Spawn half for routes 5-6 (plan.md:307-308) that TestAFailedOwningStartStillQuiescesItsSession does not contain; spawn is covered by pre-existing tests.
+- BR-13 — addressed — All eight named sites are corrected (atlas/couch.md:677-680 and 692-694, the single AbortStarted comment at couch.go:652-658, the test relaying StartColdResume, detach.go:149-151, plan.md:193-200). The remaining plan-body mentions are covered by the Revisions at plan.md:379-423, and a grep finds no stale code or test comments.
+- BR-14 — addressed — The observation is gated at couch.go:531. M1 (observe for every shape) turns TestASpawnsCleanupNeverAsksAboutTheSession red, and M2 (swallow the error) turns TestResumeUnobservableSessionKeepsUnknownOccupied red.
+- BR-15 — not-addressed — The fallthrough is structural (couch.go:546-547), but reverting only this arm to an early return leaves the package green (M3, scratch copy). No test pins it, and pinning needs a one-shot GetThread fault seam because Threads is a concrete ThreadStore.
+
+### Raised
+
+- **BR-16** [Minor] `fail-closed-fallback-missing` The rollback arm still returns before any disposition, so the atlas claim that every exit falls through remains false
+  This is the 3rd finding in the family. The rule: in applyStartCleanup only a completed undo may return early; a failed undo joins its error and reaches the phase's disposition, and the atlas and code comment claim exactly the exits that structure covers. One site remains: couch.go:548-549 returns rollbackTrackedStart's error directly, which contradicts atlas/couch.md:686-688 and the comment at couch.go:561-566 ("structural rather than per-arm"). Impact is low, because ReconcileStart later rolls back or promotes a claim whose recorded helper is dead, and cold resume behaved this way before pair#230. The simplest fix is to scope both claims to the live-record phase and name the claim-phase rollback as left to reconcileInterruptedStarts. Making the return conditional would change cold resume, which the Spec says stays unchanged.
+- **BR-17** [Minor] `fake-effect-needs-live-conformance` The fake's new Quiesce effect has no live conformance row, though the warm table and the rewritten cold test rest on it
+  By code reading the fake agrees with production: QuiesceThreadSession deletes the session but keeps the index entry (thread_claim.go:257-281), and PairSession then reports Present=false with the name kept (artifactcollision.go:149-183). Launcher live-tests only DeleteSession's own post-condition. Add a couchcore live row: quiesce a real session, then assert PairSession returns the name with Present=false (not an error) and DetachedSessions returns none. That locks the transition TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone now depends on (ARCH-MOCK).
+- **BR-18** [Minor] `extracted-helper-caller-specific-text` retireDetachedIncarnation's errors say "detach" when the caller is start cleanup
+  detach.go:127 and :130 give "observe Pair session after detach" and "lost its Pair session during detach". A failed reattach whose cleanup retire fails shows that message to an operator who never detached, and TestAFailedRetireStillLeavesTheRecordRecoverable asserts the misleading string. Make the messages operation-neutral, or have each caller wrap them, and update the assertion.
+- **BR-19** [Minor] `undeclared-scope-creep` Commit 966e31fd (zellijrepainttiming probe) is unrelated to pair#230 but rides this branch undeclared
+  It measures repaint timing for a transition-animation question, and adds manifest.go:729 and a .gitignore line. It has neither a side-quest verb (AGENTS.md section 12) nor a mention in the issue. Move it to its own branch, or record it in the issue Log as a side-quest so the PR does not carry it silently.
+
 ## Open findings
 
 - **BR-2** [Minor] `missing-non-goals` No non-goals section; three adjacent behaviours are left unstated
 - **BR-4** [Minor] `test-prose-enumeration` Task 1 enumerates per-row injections and assertions in prose; compress to one strategy line per risky function
-- **BR-13** [Important] `stale-artifact-claim` Eight comment and doc passages still restate design decisions this issue reversed, including the atlas
-- **BR-14** [Minor] `diagnostic-scoped-to-decision` applyStartCleanup joins the session-observation error for shapes whose decision never reads presence
 - **BR-15** [Minor] `fail-closed-fallback-missing` The DurableRetire arm returns on a GetThread error before any disposition, so the atlas "no path" claim overclaims
+- **BR-16** [Minor] `fail-closed-fallback-missing` The rollback arm still returns before any disposition, so the atlas claim that every exit falls through remains false
+- **BR-17** [Minor] `fake-effect-needs-live-conformance` The fake's new Quiesce effect has no live conformance row, though the warm table and the rewritten cold test rest on it
+- **BR-18** [Minor] `extracted-helper-caller-specific-text` retireDetachedIncarnation's errors say "detach" when the caller is start cleanup
+- **BR-19** [Minor] `undeclared-scope-creep` Commit 966e31fd (zellijrepainttiming probe) is unrelated to pair#230 but rides this branch undeclared

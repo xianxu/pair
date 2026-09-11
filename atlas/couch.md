@@ -683,9 +683,11 @@ claim-vs-live-record)` -- rollback, retire, mark-unknown, or the pre-existing
 reconcile tail -- and the session's absence after cleanup is one of its inputs,
 which is why it cannot also decide the first question. Its whole input space is
 table-tested, and the session is observed only where that answer reads it -- a
-spawn reconciles regardless, so its cleanup asks zellij nothing. Every exit that
-has not undone the start falls through to the mark-unknown disposition as one
-structural fallback, so no path leaves a live incarnation behind a dead helper. Two properties hold everywhere: a start never ends a session it
+spawn reconciles regardless, so its cleanup asks zellij nothing. At the live-record phase every exit that has not retired the incarnation falls
+through to the mark-unknown disposition as one structural fallback, so no path
+leaves a live incarnation behind a dead helper. A failed rollback at claim phase
+leaves only a claim, which `reconcileInterruptedStarts` settles on the next
+startup. Two properties hold everywhere: a start never ends a session it
 did not create, and nothing durable is undone while the helper is unaccounted
 for. A warm reattach that fails therefore leaves its thread **detached and
 reattachable**, using the same `retireDetachedIncarnation` rule `Detach` uses.
