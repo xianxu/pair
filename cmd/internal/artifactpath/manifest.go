@@ -726,6 +726,7 @@ var NonArtifactSources = []string{
 	"cmd/probes/zellijrepaint/layout.kdl",
 	"cmd/probes/zellijrepaint/main.go",
 	"cmd/probes/zellijrepaint/probe.sh",
+	"cmd/probes/zellijrepainttiming/main.go",
 	"doctor/doctor.sh",
 	"doctor/emitter-health.sh",
 	"doctor/perf.sh",

@@ -176,6 +176,14 @@ func TestResumeUnobservableSessionKeepsUnknownOccupied(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "ack transport closed") {
 		t.Fatalf("Resume error = %v", err)
 	}
+	// The diagnostic travels with the refusal. This path's disposition DEPENDS
+	// on the session observation -- absent would have rolled the start back --
+	// so why it could not be made is the operator's only account of why the
+	// thread was left occupied instead of tidied up. Folding the observation
+	// into a bare PresenceUnobserved silently dropped it (pair#230 BR-12).
+	if !strings.Contains(err.Error(), "zellij unreachable") {
+		t.Fatalf("error = %v, want it to carry why the session could not be observed", err)
+	}
 	kept, getErr := env.Couch.Threads.GetThread(parked.Address)
 	if getErr != nil {
 		t.Fatal(getErr)

@@ -201,6 +201,40 @@ rounds:
           family: stale-artifact-claim
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-11T11:57:29-07:00"
+      agent: claude
+      dispose:
+        - id: BR-2
+          disposition: not-addressed
+          note: The new Non-goals (plan.md:223-234) lists other items; (1) the ActionCreate fallthrough after confirmStillDetached (resume.go:425, launcher/decision.go:74,103) and (3) couch dying between helper kill and durable write are still unstated anywhere.
+          round: 4
+        - id: BR-4
+          disposition: not-addressed
+          note: 'Task 3 (plan.md:294-316) is still per-row prose and stale again: it promises Spawn owning rows for routes 5-6 and an owning route 3; the shipped owning table is cold-resume only and skips route 3, with no Revisions line.'
+          round: 4
+        - id: BR-12
+          disposition: addressed
+          note: 'Verified by reverting: dropping the error in observeSessionPresence, or the join at couch.go:522, turns TestCleanupSurfacesWhyItCouldNotObserveTheSession red.'
+          round: 4
+        - id: BR-13
+          disposition: not-addressed
+          note: 'The 8 named sites are fixed but 7 remain in 4 files: plan.md:216-217 still names StartResult.Warm (on the rule''s own list), and startcleanup.go:20-21,102-103,106-107, startcleanup_test.go:27-28,43-44 and couch.go:498-501 describe the deleted if-!resume arm and failPostAckStart as the spawn/owning tail. Rule, 3rd time in this family: derive the grep list from what the diff deleted or re-scoped, not from the finding''s examples.'
+          round: 4
+      findings:
+        - id: BR-14
+          severity: Minor
+          title: applyStartCleanup joins the session-observation error for shapes whose decision never reads presence
+          detail: 'couch.go:521-522 observes and joins for every shape; probe: a spawn whose acknowledge fails now also returns "exact Pair session binding is absent", which base never produced. The comments at couch.go:519-520, launch_existing.go:192-195 and warm_failure_test.go:362-364 say it explains why the thread was left occupied, yet the pinning test''s warm claim rolls back. Observe only where the decider reads presence (cold claim, warm live record), and move the assertion to TestResumeUnobservableSessionKeepsUnknownOccupied.'
+          family: diagnostic-scoped-to-decision
+          round: 4
+        - id: BR-15
+          severity: Minor
+          title: The DurableRetire arm returns on a GetThread error before any disposition, so the atlas "no path" claim overclaims
+          detail: '2nd finding in this family. Rule: at the live-record phase, every applyStartCleanup exit that has not retired the incarnation falls through to markLiveRecordUnknown, as one structural fallback after the switch rather than per arm. Measured prevalence: 1 remaining site, couch.go:537-540, which contradicts atlas/couch.md:685-686.'
+          family: fail-closed-fallback-missing
+          round: 4
+      blocked: true
 ---
 
 # Gate ledger — pair#230 (boundary-review)
@@ -308,9 +342,26 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   but it passes context.Background() (couch.go:540); plan.md:194-200 and its Task 5 row still describe
   WithoutCancel with no Revisions entry covering it.
 
+## Round 4 — 2026-09-11T11:57:29-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-2 — not-addressed — The new Non-goals (plan.md:223-234) lists other items; (1) the ActionCreate fallthrough after confirmStillDetached (resume.go:425, launcher/decision.go:74,103) and (3) couch dying between helper kill and durable write are still unstated anywhere.
+- BR-4 — not-addressed — Task 3 (plan.md:294-316) is still per-row prose and stale again: it promises Spawn owning rows for routes 5-6 and an owning route 3; the shipped owning table is cold-resume only and skips route 3, with no Revisions line.
+- BR-12 — addressed — Verified by reverting: dropping the error in observeSessionPresence, or the join at couch.go:522, turns TestCleanupSurfacesWhyItCouldNotObserveTheSession red.
+- BR-13 — not-addressed — The 8 named sites are fixed but 7 remain in 4 files: plan.md:216-217 still names StartResult.Warm (on the rule's own list), and startcleanup.go:20-21,102-103,106-107, startcleanup_test.go:27-28,43-44 and couch.go:498-501 describe the deleted if-!resume arm and failPostAckStart as the spawn/owning tail. Rule, 3rd time in this family: derive the grep list from what the diff deleted or re-scoped, not from the finding's examples.
+
+### Raised
+
+- **BR-14** [Minor] `diagnostic-scoped-to-decision` applyStartCleanup joins the session-observation error for shapes whose decision never reads presence
+  couch.go:521-522 observes and joins for every shape; probe: a spawn whose acknowledge fails now also returns "exact Pair session binding is absent", which base never produced. The comments at couch.go:519-520, launch_existing.go:192-195 and warm_failure_test.go:362-364 say it explains why the thread was left occupied, yet the pinning test's warm claim rolls back. Observe only where the decider reads presence (cold claim, warm live record), and move the assertion to TestResumeUnobservableSessionKeepsUnknownOccupied.
+- **BR-15** [Minor] `fail-closed-fallback-missing` The DurableRetire arm returns on a GetThread error before any disposition, so the atlas "no path" claim overclaims
+  2nd finding in this family. Rule: at the live-record phase, every applyStartCleanup exit that has not retired the incarnation falls through to markLiveRecordUnknown, as one structural fallback after the switch rather than per arm. Measured prevalence: 1 remaining site, couch.go:537-540, which contradicts atlas/couch.md:685-686.
+
 ## Open findings
 
 - **BR-2** [Minor] `missing-non-goals` No non-goals section; three adjacent behaviours are left unstated
 - **BR-4** [Minor] `test-prose-enumeration` Task 1 enumerates per-row injections and assertions in prose; compress to one strategy line per risky function
-- **BR-12** [Important] `swallowed-error-context` The shared cleanup shell drops the session-observation error that the old cold-resume tail returned
 - **BR-13** [Important] `stale-artifact-claim` Eight comment and doc passages still restate design decisions this issue reversed, including the atlas
+- **BR-14** [Minor] `diagnostic-scoped-to-decision` applyStartCleanup joins the session-observation error for shapes whose decision never reads presence
+- **BR-15** [Minor] `fail-closed-fallback-missing` The DurableRetire arm returns on a GetThread error before any disposition, so the atlas "no path" claim overclaims

@@ -329,3 +329,43 @@ cleanup function receives the caller's context in the first place. It is plain
 `context.Background()` now, and `Detach` keeps its own `ctx.Err()` interrupt.
 
 **Suite:** unsandboxed `make test` exit 0, 197 packages ok.
+
+### 2026-09-11 — close review round 3
+
+**BR-13, third appearance, and the reviewer named the rule I had failed to
+apply.** My round-2 sweep list was copied from the finding's own examples
+instead of derived from the diff, so it fixed eight sites and left seven. The
+rule: build the list from what the range REMOVED or re-scoped --
+`git diff -U0 BASE HEAD -- '*.go' | grep '^-'` for deleted identifiers and
+branch arms, plus every function whose callers changed -- then grep code
+comments, test comments, the atlas and the plan for each. Applied here it
+yields `if !resume` and `failPostAckStart`-as-the-owning-tail, both retired by
+the shell refactor, which is exactly what the copied list missed. All seven
+corrected, including `failPostAckStart`'s own doc comment, which still claimed
+to own every post-ack exit when it now owns two.
+
+**Two Minors, both real.**
+- The shell observed the session for every shape. A spawn's disposition never
+  reads it, so that was a zellij round trip nobody consumes and -- when the
+  observer refuses -- an error surfaced on a path that never produced one.
+  `startCleanupReadsPresence` now gates it, pinned twice: a table test against
+  the decider for the RULE, and `TestASpawnsCleanupNeverAsksAboutTheSession`
+  for the shell's use of it. The second is the one that matters; the first
+  survived the "observe everywhere" mutation, because a predicate test cannot
+  see its caller.
+- The retire arm returned on a `GetThread` error before any disposition. The
+  fallback is now structural -- one path after the decision rather than one per
+  arm -- which is what the atlas claim required.
+
+**Consequences I had to unpick.** Scoping the observation moved BR-12's
+assertion onto a path that no longer observes anything (a warm claim-phase
+failure), so it moved to `TestResumeUnobservableSessionKeepsUnknownOccupied`,
+whose disposition genuinely depends on the observation. And the structural
+fallback initially sent a spawn's CLAIM phase to the wrong tail; `DurableReconcile`
+now takes the reconcile tail in either phase, caught by the existing spawn
+table.
+
+**Mutation sweep, 6 of 6 killed as named** (tree verified identical to the
+pre-sweep snapshot): reconcile losing its tail at claim phase; the structural
+fallback removed; presence observed for every shape; presence never observed;
+the observation error swallowed; and the predicate inverted.

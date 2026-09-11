@@ -17,8 +17,8 @@ package couchcore
 // boolean, because the two owning shapes already had different tails and this
 // rule must not merge them:
 //
-//   - a spawn's post-ack failure goes to failPostAckStart for BOTH phases
-//     (launch_existing.go's `if !resume` arm);
+//   - a spawn reconciles its record in BOTH phases, never rolling back on the
+//     session's absence;
 //   - a cold resume's claim-phase failure rolls back or marks unknown on the
 //     session's absence;
 //   - a warm reattach is the one that must not quiesce.
@@ -99,13 +99,13 @@ func DecideStartCleanup(in StartCleanupInput) DurableAction {
 	out := DurableMarkUnknown
 	switch {
 	case in.Shape == StartSpawn:
-		// Unchanged, both phases: failPostAckStart reconciles against
-		// registration evidence and marks a live incarnation unknown.
+		// Unchanged, both phases: reconcile every interrupted start against its
+		// registration evidence, then mark a live incarnation unknown.
 		out = DurableReconcile
 	case in.LiveRecord:
-		// Routes 5-6 for either resume shape. An owning one keeps
-		// failPostAckStart's tail; a warm one gives the thread back to
-		// detached, under the same two proofs Detach requires.
+		// Routes 5-6 for either resume shape. An owning one keeps the reconcile
+		// tail; a warm one gives the thread back to detached, under the same two
+		// proofs Detach requires.
 		if in.Shape.OwnsSession() {
 			out = DurableReconcile
 		} else if in.HelperDead && in.Presence == PresencePresent {

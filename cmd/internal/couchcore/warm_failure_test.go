@@ -359,27 +359,27 @@ func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 	}
 }
 
-// The diagnostic, not the decision: when the session cannot be observed at all,
-// cleanup still refuses to treat unobserved as absent, AND the operator is told
-// why the thread was left occupied.
+// A spawn's cleanup asks zellij nothing about the session.
 //
-// The cold-resume tail this shell replaced joined that error into its return.
-// Folding the observation into a bare PresenceUnobserved silently dropped it
-// (pair#230 close review BR-12), which leaves an occupied thread with no
-// account of itself.
-func TestCleanupSurfacesWhyItCouldNotObserveTheSession(t *testing.T) {
-	env, address := warmDetachedThread(t)
+// Its disposition is reconcile-and-mark whatever the session is doing, so an
+// observation on its behalf is a round trip nobody reads -- and, when the
+// observer refuses, an error surfaced on a path that never produced one. The
+// predicate test next to the decider pins the RULE; this pins the shell's use
+// of it, which is the half a "read presence everywhere" change would break
+// silently (pair#230 close review).
+func TestASpawnsCleanupNeverAsksAboutTheSession(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	reads := 0
+	env.Artifacts.BeforePairSession = func(ThreadAddress) error {
+		reads++
+		return nil
+	}
 	env.Runner.BeforeAcknowledge = func(string) error { return errors.New("ack transport closed") }
-	env.Artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("zellij socket refused") }
 
-	_, _, err := env.Couch.ResumeContext(context.Background(), address)
-	if err == nil {
-		t.Fatal("route 1 did not fail")
+	if _, _, err := env.Couch.Spawn(StartArgs{Worktree: "/repo"}); err == nil {
+		t.Fatal("the spawn did not fail")
 	}
-	if !strings.Contains(err.Error(), "zellij socket refused") {
-		t.Fatalf("error = %v, want it to carry why the session could not be observed", err)
-	}
-	if quiesced := env.Artifacts.Quiesces(); containsAddress(quiesced, address) {
-		t.Fatalf("quiesced %+v despite never observing its session", address)
+	if reads != 0 {
+		t.Fatalf("a spawn's cleanup made %d Pair session observation(s); its disposition reads none", reads)
 	}
 }

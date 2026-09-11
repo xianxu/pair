@@ -214,7 +214,8 @@ mid-reattach, so presence never returns), and the fix is one rule for all six.
 - **`ARCH-PURE`.** The decision is a pure function with an exhaustive table;
   the IO shell only gathers the three observations and performs one action.
 - **`ARCH-SECURE`.** Ownership is couch's own record. The one caller-relayed
-  copy (`StartResult.Warm`) is read by nothing destructive.
+  copy is `StartResult` itself, whose `Record` is re-looked-up in the registry
+  before anything destructive reads it.
 - **`ARCH-ORDER`.** The Start transaction's states do not change. This fixes
   which cleanup effect a failure event takes in the creating and live phases.
 - **`ARCH-MOCK`.** The fake models the deletion, so the guard can fail.
@@ -320,7 +321,7 @@ SIGKILL case is reasoned, not pinned, and the Log says so.
 ### Task 4: carry ownership, apply the decision
 
 **Files:**
-- Modify: `registry.go` (`ActorRecord.Warm`)
+- Modify: `registry.go` (`ActorRecord.Shape`)
 - Modify: `launch_existing.go` (routes 1–5 pass `!in.Warm`; `launchTrackedThread` records `Warm` on the `ActorRecord`)
 - Modify: `couch.go` (`quiescePostAckStart`, `applyStartCleanup`, `failPostAckStart`, `AbortStarted`)
 - Modify: `detach.go` (extract `retireDetachedIncarnation`)
@@ -346,7 +347,7 @@ SIGKILL case is reasoned, not pinned, and the Log says so.
     and cold-resume tests;
   - `owns` forced true at each of the six routes → that row;
   - `AbortStarted` reading the relayed `StartResult` instead of the registry's
-    `ActorRecord.Warm` → route 6 with a zeroed relayed struct;
+    `ActorRecord.Shape` → route 6 with an owning shape in the relayed struct;
   - the decider ignoring `HelperDead` → the live-helper rows;
   - `DurableRetire` substituted by `DurableMarkUnknown` → the Detached-again
     assertion;

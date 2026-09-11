@@ -24,8 +24,8 @@ func TestDecideStartCleanupTable(t *testing.T) {
 		want DurableAction
 		why  string
 	}{
-		// A spawn reconciles in every cell: launch_existing.go's `if !resume`
-		// arm sends both phases to failPostAckStart. Unchanged by pair#230.
+		// A spawn reconciles in every cell, in both phases. Unchanged by
+		// pair#230.
 		{"sp/live/?/claim", StartCleanupInput{StartSpawn, false, PresenceUnobserved, false}, DurableReconcile, "spawn tail"},
 		{"sp/live/-/claim", StartCleanupInput{StartSpawn, false, PresenceAbsent, false}, DurableReconcile, "spawn tail"},
 		{"sp/live/+/claim", StartCleanupInput{StartSpawn, false, PresencePresent, false}, DurableReconcile, "spawn tail"},
@@ -41,7 +41,7 @@ func TestDecideStartCleanupTable(t *testing.T) {
 
 		// A cold resume owns its session too. At claim phase it rolls back only
 		// once that session is gone and the helper with it; at record phase it
-		// takes failPostAckStart's tail. Unchanged by pair#230.
+		// takes the reconcile tail. Unchanged by pair#230.
 		{"cr/live/?/claim", StartCleanupInput{StartColdResume, false, PresenceUnobserved, false}, DurableMarkUnknown, "helper unaccounted for"},
 		{"cr/live/-/claim", StartCleanupInput{StartColdResume, false, PresenceAbsent, false}, DurableMarkUnknown, "helper unaccounted for"},
 		{"cr/live/+/claim", StartCleanupInput{StartColdResume, false, PresencePresent, false}, DurableMarkUnknown, "helper unaccounted for"},
@@ -136,6 +136,41 @@ func forEachStartCleanupInput(t *testing.T, check func(*testing.T, StartCleanupI
 			for _, presence := range []SessionPresence{PresenceUnobserved, PresenceAbsent, PresencePresent} {
 				for _, live := range []bool{false, true} {
 					check(t, StartCleanupInput{Shape: shape, HelperDead: dead, Presence: presence, LiveRecord: live})
+				}
+			}
+		}
+	}
+}
+
+// The shell asks zellij about the session only where the decision reads it.
+// This pins the shell's predicate against the decider itself: for every input,
+// flipping presence must change the answer exactly when the predicate says the
+// observation is worth making. Otherwise the shell either pays for a round trip
+// nobody reads, or skips one the decision depends on.
+func TestPresenceIsObservedExactlyWhereTheDecisionReadsIt(t *testing.T) {
+	for _, shape := range []StartShape{StartSpawn, StartColdResume, StartWarmReattach} {
+		for _, liveRecord := range []bool{false, true} {
+			for _, helperDead := range []bool{false, true} {
+				base := StartCleanupInput{Shape: shape, HelperDead: helperDead, LiveRecord: liveRecord}
+				matters := false
+				for _, presence := range []SessionPresence{PresenceAbsent, PresencePresent} {
+					probe := base
+					probe.Presence = presence
+					unobserved := base
+					unobserved.Presence = PresenceUnobserved
+					if DecideStartCleanup(probe) != DecideStartCleanup(unobserved) {
+						matters = true
+					}
+				}
+				if matters && !startCleanupReadsPresence(shape, liveRecord) {
+					t.Errorf("%+v: the decision reads presence, but the shell does not observe it", base)
+				}
+				// The converse holds only where a dead helper makes presence
+				// decisive; with a live helper every shape answers mark-unknown,
+				// and the shell still observes because it cannot know that
+				// without duplicating the decider.
+				if !matters && helperDead && startCleanupReadsPresence(shape, liveRecord) {
+					t.Errorf("%+v: the shell observes presence the decision ignores", base)
 				}
 			}
 		}
