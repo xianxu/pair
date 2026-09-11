@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-11
 updated: 2026-09-11
-estimate_hours:
+estimate_hours: 1.25
 started: 2026-09-11T09:55:31-07:00
 ---
 
@@ -87,6 +87,45 @@ runs.
   pinned, not changed.
 - Reintroducing the quiesce on the warm path fails the test (a mutation check).
 - Unsandboxed `make test` passes.
+
+## Estimate
+
+Derived after the plan cleared plan-quality (2 rounds). Sized against `#228`,
+the nearest comparable in this repo: same package, same
+counted-invariant-plus-mutation-sweep shape, est 1.98 / actual 1.26. This is
+less exploratory — the design is settled and the route table is enumerated —
+but more test-heavy, so it lands near #228's actual rather than its estimate.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+design-buffer: 0.15
+item: greenfield-go-module   design=0.10 impl=0.16
+item: smaller-go-module      design=0.03 impl=0.08
+item: smaller-go-module      design=0.05 impl=0.20
+item: smaller-go-module      design=0.08 impl=0.24
+item: atlas-docs             design=0.03 impl=0.04
+item: milestone-review       design=0.00 impl=0.20
+total: 1.25
+```
+
+- **greenfield-go-module** — `startcleanup.go`: the pure decider plus its
+  24-row exhaustive table. New file, one concern, no IO.
+- **smaller-go-module** — the fake's `Quiesce` made stateful, with its own
+  test. Small, but it is what makes every later assertion falsifiable.
+- **smaller-go-module** — the six-route × {warm, owning} table at the fake
+  seam. The largest test item: each row needs its own injection.
+- **smaller-go-module** — carrying `ActorRecord.Warm`, `applyStartCleanup`,
+  and extracting `retireDetachedIncarnation` from `Detach` without disturbing
+  its tests.
+- **atlas-docs** — the lifecycle paragraph and the `quiescePostAckStart`
+  comment.
+- **milestone-review** — one boundary review at close.
+
+Design buffer is 0.15 rather than 0.30: the work has a thorough plan doc that
+has already cleared the gate.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 
