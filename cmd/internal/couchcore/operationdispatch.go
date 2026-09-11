@@ -337,7 +337,7 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			if err != nil {
 				return nil, err
 			}
-			record, handle, err := c.ResumeContext(ctx, address)
+			record, handle, err := c.ResumeContextWith(ctx, address, ResumeOptions{WarmOnly: a["warm-only"] == "true"})
 			if err != nil {
 				return nil, err
 			}

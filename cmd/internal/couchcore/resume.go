@@ -33,7 +33,22 @@ const (
 	// the OPPOSITE of ResumeLive, which the two used to share, so a parked row
 	// was told "resume-live" -- a code naming the state it is not in.
 	ResumeNotRunning ResumeDiagnosticCode = "resume-not-running"
+	// ResumeNotDetached refuses a WARM-ONLY resume of a thread that is not warm
+	// (pair#206): parked, or with no surviving session. It is raised before any
+	// effect, so the caller -- the background reattach pass -- can skip the
+	// thread without anything to undo.
+	ResumeNotDetached ResumeDiagnosticCode = "resume-not-detached"
 )
+
+// ResumeOptions narrows what a resume is allowed to do.
+//
+// The zero value is today's resume: warm if the thread is detached, cold if it
+// is parked. WarmOnly restricts it to reattaching a thread whose agent is still
+// running, and refuses everything else BEFORE any effect -- which is what makes
+// it safe to run behind the operator's back.
+type ResumeOptions struct {
+	WarmOnly bool
+}
 
 type ResumeRefusal struct {
 	Code       ResumeDiagnosticCode
@@ -326,6 +341,11 @@ func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 }
 
 func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (ActorRecord, Handle, error) {
+	return c.ResumeContextWith(ctx, address, ResumeOptions{})
+}
+
+// ResumeContextWith is ResumeContext narrowed by opts.
+func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (ActorRecord, Handle, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -355,6 +375,10 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 	// on the warm path refused the thread here, before DecideResume could decide
 	// anything -- which is how a detached thread became unreachable.)
 	pathExists := c.workingPathExists(thread)
+	if opts.WarmOnly && thread.VerifiedPark != nil {
+		return ActorRecord{}, nil, refuseResume(ResumeNotDetached,
+			"thread is parked; a warm-only resume reattaches running agents and never starts one")
+	}
 	var binding NativeBindingResolution
 	if thread.VerifiedPark != nil {
 		resolved, err := c.resumeEvidence(ctx, thread)
@@ -378,6 +402,10 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 			}
 			detached = len(observed) == 1 && observed[0].Address == address
 		}
+	}
+	if opts.WarmOnly && !detached {
+		return ActorRecord{}, nil, refuseResume(ResumeNotDetached,
+			"thread has no detached session to reattach to; a warm-only resume never starts an agent")
 	}
 	eligible, err := DecideResume(ResumeEligibilityInput{
 		Thread: thread, WorkingPathExists: pathExists, Binding: binding, Detached: detached,

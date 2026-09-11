@@ -583,7 +583,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "leave": 1, "resume": 3, "archive": 3, "archived": 0, "relaunch": 3}
+	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -1590,5 +1590,25 @@ func TestARefusalsNamedCommandsActuallyWork(t *testing.T) {
 	}
 	if listOut, _, _ := runTypedRT(rt, couchcore.OperationCall{Name: "list"}); strings.Contains(listOut, "could not be read") {
 		t.Fatalf("the retire gesture left the row in place: %q", listOut)
+	}
+}
+
+// warm-only is couch's own background pass asking for a resume that can never
+// start an agent (pair#206). It is Implicit so only trusted owner context can
+// set it; what actually keeps it off the command line is bindArgs skipping every
+// implicit argument, so the CLI rejects it as an unknown flag.
+func TestWarmOnlyIsUnreachableFromTheCommandLine(t *testing.T) {
+	var resume couchcore.Operation
+	for _, op := range couchcore.Operations() {
+		if op.Name == "resume" {
+			resume = op
+		}
+	}
+	if resume.Name == "" {
+		t.Fatal("resume is not a declared operation")
+	}
+	_, err := bindArgs(resume, []string{"some-tag", "--warm-only"})
+	if err == nil || !strings.Contains(err.Error(), "unknown flag --warm-only") {
+		t.Fatalf("bindArgs(--warm-only) = %v, want the unknown-flag refusal", err)
 	}
 }
