@@ -679,10 +679,14 @@ observation carries it back, so `detachedResumeProofMatches` — the pure twin o
 the shell. The inventory passes only candidates (no incarnation, no verified
 park, a saved profile, an established binding), which bounds
 *whether* the zellij snapshot runs -- a couch with nothing detachable pays
-nothing. It does not bound the snapshot's own cost: that is two `list-sessions`
-runs plus one `action list-clients` per non-exited session **on the host** --
-**measured at 1.49 s** on a 13-live-session host (~100 ms per session, serially),
-2026-09-02.
+nothing -- and, since `pair#228`, its fan-out too: two `list-sessions` runs plus
+one `action list-clients` per *candidate* session, not per session on the host.
+Before that it asked every live pair session, **measured at 1.49 s** on a
+13-live-session host (2026-09-02). `list-clients` is the expensive call, about
+250 ms against a real detached session, so the whole reattach path now asks it
+of two sessions: the detached proof and its re-proof. `pair resume`'s launcher
+and couch's registration poll read liveness only (`SessionLive`). See
+`cmd/probes/reattachcost` for before and after.
 
 Where that lands differs by caller, and both matter:
 

@@ -84,6 +84,10 @@ func zj(args ...string) string {
 
 func (OSRuntime) Sessions() ([]Session, error) { return ZellijSource{}.Snapshot() }
 
+func (OSRuntime) SessionLiveness() ([]Session, error) {
+	return ZellijSource{}.LivenessContext(context.Background())
+}
+
 func (OSRuntime) SessionBlocksReuse(session string) bool {
 	present, exited := sessionRowState(zj("list-sessions", "--no-formatting"), session)
 	if !present {
@@ -104,6 +108,9 @@ func (OSRuntime) SessionBlocksReuse(session string) bool {
 	return true // running/detached — still occupied.
 }
 
+// ProbeSessionName asks zellij whether it accepts session's length, at the cost
+// of one list-clients. AssignSessionName skips it for a name a live session
+// already runs under (acceptingLiveNames, pair#228): that session is the proof.
 func (OSRuntime) ProbeSessionName(session string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), zjTimeout)
 	defer cancel()
@@ -194,6 +201,9 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read session-name index: %w", err)
 	}
+	// One list-clients per pair session, deliberately: each row renders
+	// "attached (N clients)", so every count IS the output: a justified full
+	// scan, like bare pair's picker (pair#228).
 	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
 		return parseClientCount(zj("--session", session, "action", "list-clients"))
 	}), nil

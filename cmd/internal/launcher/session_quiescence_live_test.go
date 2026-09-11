@@ -164,11 +164,10 @@ func TestSessionDetachLive(t *testing.T) {
 	fixture := controlledZellijFixture(t, fmt.Sprintf("pair-detach-live-%d", os.Getpid()))
 	session := fixture.Session
 
-	state := func() (SessionState, bool) {
+	find := func(form string, sessions []Session, err error) (SessionState, bool) {
 		t.Helper()
-		sessions, err := (ZellijSource{}).Snapshot()
 		if err != nil {
-			t.Fatalf("snapshot zellij sessions: %v", err)
+			t.Fatalf("%s snapshot of zellij sessions: %v", form, err)
 		}
 		for _, candidate := range sessions {
 			if candidate.Name == session {
@@ -177,10 +176,31 @@ func TestSessionDetachLive(t *testing.T) {
 		}
 		return "", false
 	}
+	state := func() (SessionState, bool) {
+		t.Helper()
+		sessions, err := (ZellijSource{}).Snapshot()
+		return find("full", sessions, err)
+	}
+	// The narrowed forms (pair#228) against the real binary, at each stable
+	// stage: the named form classifies exactly as the full form does and returns
+	// only the session it was asked about; the liveness form reports the session
+	// live without classifying it. Elsewhere they are checked against StubZellij.
+	narrowedFormsAgree := func(want SessionState) {
+		t.Helper()
+		named, err := (ZellijSource{}).SnapshotSessionsContext(t.Context(), []string{session})
+		if got, ok := find("named", named, err); !ok || got != want || len(named) != 1 {
+			t.Fatalf("named snapshot = %+v, want only %s, %s", named, session, want)
+		}
+		live, err := (ZellijSource{}).LivenessContext(t.Context())
+		if got, ok := find("liveness", live, err); !ok || got != SessionLive {
+			t.Fatalf("liveness snapshot: state = %q present = %v, want live", got, ok)
+		}
+	}
 
 	if got, ok := state(); !ok || got != SessionAttached {
 		t.Fatalf("before detach: state = %q present = %v, want attached", got, ok)
 	}
+	narrowedFormsAgree(SessionAttached)
 
 	if err := fixture.KillClient(); err != nil {
 		t.Fatalf("kill the zellij client: %v", err)
@@ -190,6 +210,7 @@ func TestSessionDetachLive(t *testing.T) {
 	for {
 		got, ok := state()
 		if ok && got == SessionDetached {
+			narrowedFormsAgree(SessionDetached)
 			return
 		}
 		if !ok {

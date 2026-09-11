@@ -5,14 +5,14 @@ import (
 	"time"
 )
 
-// BenchmarkZellijSnapshotLive measures what a Couch inventory refresh -- and,
-// since pair#170 M3, a `couch` STARTUP with any detach candidate -- actually
-// pays to observe zellij.
-//
-// The cost is two `list-sessions` runs plus one `action list-clients` per
-// non-exited session on the host, so it scales with the operator's whole
-// session set rather than with the threads couch cares about. Opt-in because it
-// spawns real subprocesses and its number depends on live host state.
+// BenchmarkZellijSnapshotLive measures the FULL snapshot: two `list-sessions`
+// runs plus one `action list-clients` per non-exited pair session on the host,
+// so it scales with the operator's whole session set. Since pair#228 that is
+// what only bare `pair`'s picker and `pair list` pay -- they render every
+// session's attach state. Couch's refresh and startup ask only their
+// candidates' sessions (SnapshotSessionsContext), and `pair resume` reads
+// liveness (LivenessContext). Opt-in because it spawns real subprocesses and its
+// number depends on live host state.
 func BenchmarkZellijSnapshotLive(b *testing.B) {
 	if testing.Short() {
 		b.Skip("spawns real zellij subprocesses")

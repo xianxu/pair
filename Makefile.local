@@ -118,6 +118,15 @@ test-couch-start-recovery: $(BIN_DIR)/pair-launch-helper
 test-zellij-repaint:
 	go run ./cmd/probes/zellijrepaint
 
+# What does reattaching a detached session cost, and what does couch's own
+# zellij work around it cost -- before and after pair#228's narrowing? Its own
+# target, not test-smoke: it creates N+1 real zellij sessions (sandbox off) and
+# its numbers depend on host co-tenancy, which it prints first.
+#
+#   PAIR_PROBE_N=11 make test-reattach-cost
+test-reattach-cost:
+	go run ./cmd/probes/reattachcost
+
 build: $(addprefix $(BIN_DIR)/,$(GO_BINS)) $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS))
 
 install: build

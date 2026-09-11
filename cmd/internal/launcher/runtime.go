@@ -22,6 +22,11 @@ type ZellijOps interface {
 	// Sessions returns the pair-* zellij sessions with their reuse state
 	// (the ZellijSource classification: attached/detached/exited).
 	Sessions() ([]Session, error)
+	// SessionLiveness returns the pair-* zellij sessions WITHOUT asking any of
+	// them for clients: non-exited sessions are SessionLive (pair#228). Use it
+	// wherever the caller reads only exited-versus-not -- each client query
+	// costs about 250 ms against a real detached session.
+	SessionLiveness() ([]Session, error)
 	// SessionBlocksReuse reports whether a live zellij session named session
 	// blocks reuse of its tag, clearing a stale EXITED resurrect record as a
 	// side effect (#67) so a create can reclaim the name.

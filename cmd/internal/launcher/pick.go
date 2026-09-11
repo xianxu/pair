@@ -190,6 +190,12 @@ func resolvePick(rt Runtime, snap SessionSnapshot, base string, nowEpoch int64) 
 }
 
 func resolvePickWithPolicy(rt Runtime, snap SessionSnapshot, base string, nowEpoch int64, policy PickPolicy, stderr io.Writer) (LaunchDecision, bool, int) {
+	// The rows sort and colour sessions by attached-versus-detached, so a
+	// snapshot that never asked would offer a detached session as unavailable.
+	if err := RequireAttachState(snap.Sessions); err != nil {
+		fmt.Fprintf(stderr, "pair: picker: %v\n", err)
+		return LaunchDecision{}, true, 1
+	}
 	display, byPlain := buildPickRowsWithPolicy(snap, base, nowEpoch, policy)
 	picked := rt.PickFromList("pick a pair session", display, 10)
 	if picked == "" {

@@ -438,8 +438,9 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	// detachedCandidates are the ONLY records that could be detached: no
 	// incarnation, no verified park, and a saved profile to reattach with.
 	// Passing candidates bounds WHETHER the zellij snapshot runs at all -- a
-	// couch with nothing detachable pays nothing -- though not the snapshot's
-	// own fan-out, which is per session on the host.
+	// couch with nothing detachable pays nothing -- and, since pair#228, its
+	// fan-out too: only the candidates' own sessions are asked for their
+	// clients, not every session on the host.
 	var detachedCandidates []DetachedCandidate
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	for i := range snapshot.Records {

@@ -4,7 +4,7 @@ status: open
 deps: []
 github_issue:
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-11
 estimate_hours:
 ---
 
@@ -76,6 +76,17 @@ Filed from `pair#170` M3's boundary review, which asked for the startup envelope
 to be measured rather than asserted. The measurement is what surfaced this: the
 review's finding was that the claim was stale, and the number behind it turned
 out to be worth its own issue.
+
+### 2026-09-11
+
+**This Problem section is stale since `pair#228`; rewrite it before
+estimating.** The measured motivation was couch's blocking startup inventory
+paying a full `list-clients` fan-out. #228 narrowed that path: couch's detached
+proof now asks only its candidates' sessions (`SnapshotSessionsContext`), and
+the paths that need only "not exited" ask none (`LivenessContext`). The real
+remainder is the genuine full scans: bare `pair`'s picker and `pair list`. On
+real detached sessions, `list-clients` measures about 250 ms each (#228 Log),
+not the ~100 ms above.
 
 ## Revisions
 

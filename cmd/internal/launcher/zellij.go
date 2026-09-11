@@ -28,12 +28,43 @@ func (s ZellijSource) Snapshot() ([]Session, error) {
 	return s.SnapshotContext(context.Background())
 }
 
-// SnapshotContext is Snapshot with the caller's cancellation.
+// SnapshotContext is Snapshot with the caller's cancellation: every pair
+// session, each classified attached / detached / exited.
 //
-// Cost, stated because Couch's refresh depends on it: two `list-sessions` runs
-// plus one `action list-clients` per non-exited session ON THE HOST -- N is
-// every pair session, not just the ones the caller cares about.
+// Cost, stated because it is the expensive form: two `list-sessions` runs plus
+// one `action list-clients` per non-exited pair session ON THE HOST, and
+// list-clients costs about 250 ms against a real detached session (pair#228).
+// A caller asking about particular sessions wants SnapshotSessionsContext; one
+// that needs only "not exited" wants LivenessContext.
 func (s ZellijSource) SnapshotContext(ctx context.Context) ([]Session, error) {
+	return s.snapshot(ctx, func(string) bool { return true }, func(string) bool { return true })
+}
+
+// SnapshotSessionsContext classifies only the named sessions: one list-clients
+// per named session that is live, however many sessions the host has. Names
+// that are absent from zellij's listing are absent from the result.
+func (s ZellijSource) SnapshotSessionsContext(ctx context.Context, names []string) ([]Session, error) {
+	wanted := make(map[string]bool, len(names))
+	for _, name := range names {
+		wanted[name] = true
+	}
+	in := func(name string) bool { return wanted[name] }
+	return s.snapshot(ctx, in, in)
+}
+
+// LivenessContext lists every pair session without asking any of them for
+// clients: non-exited sessions are SessionLive. Two list-sessions runs, and
+// nothing that scales with the host's session count.
+func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
+	return s.snapshot(ctx, func(string) bool { return false }, func(string) bool { return true })
+}
+
+// snapshot is the one call pattern and parser behind all three forms. keep
+// decides which pair sessions appear in the result; ask decides which of the
+// kept, non-exited ones are asked for their clients -- a kept session not asked
+// is SessionLive, because an attach state that was not asked must not be
+// guessed.
+func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) bool) ([]Session, error) {
 	short, err := s.runContext(ctx, "list-sessions", "--short")
 	if err != nil {
 		short = nil
@@ -45,14 +76,19 @@ func (s ZellijSource) SnapshotContext(ctx context.Context) ([]Session, error) {
 	exited := exitedSessions(string(raw))
 	var out []Session
 	for _, name := range lines(string(short)) {
-		if !isPairSessionName(name) {
+		if !isPairSessionName(name) || !keep(name) {
 			continue
 		}
-		state := SessionDetached
-		if exited[name] {
+		var state SessionState
+		switch {
+		case exited[name]:
 			state = SessionExited
-		} else if s.clientCountContext(ctx, name) > 0 {
+		case !ask(name):
+			state = SessionLive
+		case s.clientCountContext(ctx, name) > 0:
 			state = SessionAttached
+		default:
+			state = SessionDetached
 		}
 		out = append(out, Session{Name: name, State: state})
 	}

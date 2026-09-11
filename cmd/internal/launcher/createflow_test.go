@@ -65,6 +65,8 @@ type fakeRuntime struct {
 	listRows            []ListRow // ListSessions rows (for `pair list`)
 	listErr             error
 	sessionsErr         error // Sessions() error (defensive exit-1 path)
+	sessionsCalls       int   // full snapshots taken (pair#228: each costs a list-clients per session)
+	livenessCalls       int   // liveness snapshots taken
 	liveLayouts         map[string]LayoutMode
 	liveLayoutErr       error
 	confirmLayout       bool
@@ -164,7 +166,25 @@ func newFakeRuntime() *fakeRuntime {
 }
 
 // ZellijOps
-func (f *fakeRuntime) Sessions() ([]Session, error)           { return f.sessions, f.sessionsErr }
+func (f *fakeRuntime) Sessions() ([]Session, error) {
+	f.sessionsCalls++
+	return f.sessions, f.sessionsErr
+}
+
+// SessionLiveness models the real one faithfully: every non-exited session is
+// SessionLive, because a liveness snapshot never asked -- a fake that kept
+// attached/detached here would let a test pass that production cannot.
+func (f *fakeRuntime) SessionLiveness() ([]Session, error) {
+	f.livenessCalls++
+	out := make([]Session, len(f.sessions))
+	for i, s := range f.sessions {
+		out[i] = s
+		if s.State != SessionExited {
+			out[i].State = SessionLive
+		}
+	}
+	return out, f.sessionsErr
+}
 func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksReuse[session] }
 func (f *fakeRuntime) ProbeSessionName(session string) error {
 	f.probeCount++ // #215: every probe is a subprocess; some tests bound the count

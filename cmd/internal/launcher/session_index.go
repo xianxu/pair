@@ -339,6 +339,29 @@ func withCollisionSuffix(base string, suffix int) string {
 	return base
 }
 
+// acceptingLiveNames wraps a length acceptor: a name that is a non-exited
+// session in live is accepted WITHOUT asking, because zellij already created a
+// socket under it -- the budget it would test is proven. That spares a
+// list-clients probe (about 250 ms against a real detached session) on every
+// reattach of a live thread (pair#228).
+//
+// It wraps rather than feeds the acceptor's length bracket, so every bound the
+// bracket records is still a real probe result. An exited session proves
+// nothing -- its socket is gone -- so it is still probed. Intended consequence:
+// a probe FALSE NEGATIVE on a live name (a timeout reads as a refusal) no longer
+// sends the ladder to mint a shorter name and `pair resume` to create a second
+// session; it attaches to the live one.
+func acceptingLiveNames(live []Session, accepts func(string) bool) func(string) bool {
+	return func(name string) bool {
+		for _, s := range live {
+			if s.Name == name && s.State != SessionExited {
+				return true
+			}
+		}
+		return accepts(name)
+	}
+}
+
 // trimOneRune drops the last rune, keeping the result valid UTF-8.
 func trimOneRune(s string) string {
 	if s == "" {
@@ -366,6 +389,7 @@ func AssignSessionName(index SessionNameIndex, live []Session, scope RepoScope, 
 	if accepts == nil {
 		accepts = func(string) bool { return true }
 	}
+	accepts = acceptingLiveNames(live, accepts)
 	superseded := ""
 	if prior, ok := index.latestFor(scope.Key, tag); ok && accepts(prior.SessionName) {
 		if strings.HasPrefix(prior.SessionName, sessionPrefix) {

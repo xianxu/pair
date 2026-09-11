@@ -4494,3 +4494,18 @@ defended against a stale pane environment. It did for one field, not the other.
 field comes from, not just the one that motivated it. Either give every field
 the same authority, or scope the claim to the fields that have it and name the
 source of the others.
+
+## A new enum value needs a guard at every reader, not the one in view (pair#228)
+
+**What happened.** `SessionLive` joined `SessionState` to mean "not asked".
+`DecideLaunch` got a guard that refuses to read attach state from such a
+snapshot. Two other readers of attached-versus-detached did not: couch's
+`ProjectDetachedSessions` and the picker. Each would have read an unasked
+session as "not detached" without error. The close review caught one. Grepping
+every comparison against the other values found the second.
+
+**Rule.** When you add a value that changes what an existing enum means, grep
+every comparison against its sibling values, and list each reader. Put the
+guard in one shared function that every reader calls, and give each reader its
+own failing test. If the list is long, the value probably wants its own type,
+so the compiler does the enumeration.
