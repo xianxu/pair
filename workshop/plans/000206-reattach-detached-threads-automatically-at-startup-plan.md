@@ -140,8 +140,8 @@ disagreement in.
   on it and fixes it first.
   - **The unit of counting is a THREAD, at its effective binding.** The index
     is append-only and merged across files, so a thread has many entries and
-    only its NEWEST one binds. `sessionNameClaims` reduces the index to one
-    current name per address and counts distinct addresses per name. Counting
+    only its NEWEST one binds. `effectiveBindings` reduces the reads to one
+    current name per address, and `claimsFromBindings` counts distinct addresses per name. Counting
     raw lines would be wrong in both directions: a thread that re-registered
     under one name would contest its own session, and a name a thread has since
     moved off would contest the thread that holds it now. Both are pinned
@@ -409,7 +409,7 @@ reach a cell.
   built by the IO shell from the index it already reads. The pure function
   keeps taking data.
 - [x] **Step 3: the unit of counting is a THREAD at its effective binding.**
-  `sessionNameClaims` reduces the index to one CURRENT name per address --
+  `effectiveBindings` reduces the reads to one CURRENT name per address --
   entries are append-only and merged, so a thread's binding is its newest
   entry -- then counts distinct addresses per name. Counting raw lines is
   wrong in both directions, and both are pinned:
@@ -425,22 +425,22 @@ reach a cell.
   (`TestProjectDetachedSessionsRefusesAContestedName`); three mutations killed
   as named.
 
-### Task 2: Red — startup's work is independent of the other threads
+### Task 2: Red — startup's work is independent of the other threads — DONE
 
 **Files:**
 - Create: `cmd/internal/couchcore/startup_proof_test.go`
 
-- [ ] **Step 1: count.** A detached thread at the cwd and `k` detached threads
+- [x] **Step 1: count.** A detached thread at the cwd and `k` detached threads
   elsewhere, all in couch's layout, sessions indexed, host also holding
   `withOthers(…, 3)`. `list-clients` is 3 at k=2 and k=12 (startup's proof,
   `DetachedSessions`, `confirmStillDetached`).
-- [ ] **Step 2: binding resolutions.** A counter on the fake resolver:
+- [x] **Step 2: binding resolutions.** A counter on the fake resolver:
   `ResolveEstablished` is called only for the asked candidates, so it does not
   grow with k.
-- [ ] **Step 3: the guard keeps its reach.** One other-path detached thread in
+- [x] **Step 3: the guard keeps its reach.** One other-path detached thread in
   a different layout → `StartInteractive` refuses, and that thread's session
   was asked.
-- [ ] **Step 4: equivalence.** Over a record table, compute startup's rows
+- [x] **Step 4: equivalence.** Over a record table, compute startup's rows
   both ways and assert `ResolveLayoutConflicts`, `SelectResumableRoot`,
   `PathHoldsUsableThread` and `PathHoldsUnreadableThread` answer identically.
   Rows: detached at cwd; parked at cwd; detached elsewhere same layout;
@@ -448,23 +448,23 @@ reach a cell.
   gone; **and a cwd thread sharing a session name with an unasked thread**
   (the case Task 1 makes safe), run at `sandboxedChecker` because the fake
   does not model the duplicate-name rule.
-- [ ] **Step 5:** run; Steps 1, 2 and 4 fail.
+- [x] **Step 5:** run; Steps 1, 2 and 4 fail.
 
-### Task 3: Implement the narrowing
+### Task 3: Implement the narrowing — DONE
 
 **Files:**
 - Modify: `cmd/internal/couchcore/actionableinventory.go`, `startup.go`
 
-- [ ] **Step 1:** `gatherThreadEvidence` gains `ask func(ThreadRecord) bool`
+- [x] **Step 1:** `gatherThreadEvidence` gains `ask func(ThreadRecord) bool`
   (nil = every candidate, as today), applied **before** `ResolveEstablished`,
   reading `snapshot.Records[i]` after physicalization. A skipped candidate
   keeps `ProofUnresolved`. `ActionableThreadInventoryContext` passes nil.
-- [ ] **Step 2:** add `startupAsks` beside `SelectResumableRoot`, its comment
+- [x] **Step 2:** add `startupAsks` beside `SelectResumableRoot`, its comment
   naming the four readers and the equivalence test.
-- [ ] **Step 3:** `StartInteractive` builds its rows through
+- [x] **Step 3:** `StartInteractive` builds its rows through
   `startupInventory(ctx, startupAsks(...))`, and the guard's comment says
   which candidates were asked and why that is exactly its set.
-- [ ] **Step 4:** Tasks 1–2 green, then `go test ./cmd/internal/couchcore/`.
+- [x] **Step 4:** Tasks 1–2 green, then `go test ./cmd/internal/couchcore/`.
 
 ### Task 4: M1 measure, docs, mutations, close
 
@@ -694,3 +694,33 @@ store sizes, plus the operator's real-stack smoke. The trace stays in M2 Task
 - **Dropped:** setting `ProjectionPending` on a background success. No row
   reader consults it; it would only have put "refresh pending" on the notice
   line for the whole pass.
+
+### 2026-09-11 — M1 milestone review: what the tests actually cover
+
+**Reason.** The M1 review (FIX-THEN-SHIP) found the equivalence test shipped
+four of this plan's seven rows and three of its four readers, plus three places
+the plan's prose had not followed the code.
+
+**Delta.**
+- **The equivalence test now has all seven rows and all four readers**,
+  including `PathHoldsUnreadableThread`, and compares layout conflicts by WHICH
+  addresses conflict rather than how many. The added rows are the cwd thread
+  parked, the cwd thread's session gone, and the cwd thread sharing its session
+  name with an unasked thread.
+- **The shared-name row runs through the fake, not `sandboxedChecker` as Task 2
+  Step 4 said.** That was written before the fake answered through production's
+  `ProjectDetachedSessions` and `claimsFromBindings` (PQ-8). It does now, so the
+  row composes the narrowing with the duplicate-name rule end to end. The
+  index-file merge that feeds those claims in production is pinned at the real
+  checker by `TestDetachedSessionsCountsALegacyThreadOnceAcrossScopes`.
+- **The "conflicting layout" row tested nothing new.** It used `layout1`, which
+  `ParseLayoutMode` rejects, so it was the unreadable row twice. It uses
+  `layout3` now, and the refusal test covers both a valid different layout and
+  an unreadable one.
+- **An equivalence test cannot catch a predicate that asks too much**, because
+  over-asking never changes an answer, only its cost. A mutation dropping the
+  scope half of the cwd arm survived it for exactly that reason.
+  `TestStartupDoesNotProveAForeignScopeRecordAtTheCwdPath` is a count, and it
+  kills the mutation.
+- `sessionNameClaims` is now `effectiveBindings` plus `claimsFromBindings`;
+  Tasks 2 and 3 are ticked.

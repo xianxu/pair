@@ -320,9 +320,15 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 			continue
 		}
 		reads = append(reads, scopedIndexRead{scope: scope, index: index})
-		for _, address := range scoped {
-			name := lookupSessionName(index, address)
-			if name != "" {
+	}
+	// One derivation of "this thread's current session name", used for both the
+	// candidate's own binding and the claim count, so the name a candidate is
+	// judged by and the name its claim is counted under are the same value by
+	// construction rather than by two lookups agreeing.
+	current := effectiveBindings(reads)
+	for _, scope := range scopes {
+		for _, address := range byScope[scope] {
+			if name := current[address]; name != "" {
 				candidate := proof[address]
 				bindings = append(bindings, SessionNameBinding{
 					Address: address, SessionName: name,
@@ -348,7 +354,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("observe zellij sessions: %w", err)
 	}
-	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(effectiveBindings(reads)))
+	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(current))
 }
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {
