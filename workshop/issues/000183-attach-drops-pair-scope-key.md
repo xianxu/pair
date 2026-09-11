@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-10
-estimate_hours:
+estimate_hours: 1.10
 started: 2026-09-10T16:57:25-07:00
 ---
 
@@ -107,6 +107,35 @@ They legitimately differ: `PAIR_LAUNCH_ORDINAL`, `PAIR_SESSION_ID` and
   supplied" rather than returning the same silent zero for both — a caller that
   forgot to pass scope should be diagnosable. (`pair doctor` is the natural
   home if a surface is wanted; a non-silent internal return is the minimum.)
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module    design=0.05 impl=0.12
+item: smaller-go-module    design=0.10 impl=0.12
+item: smaller-go-module    design=0.20 impl=0.16
+item: atlas-docs           design=0.05 impl=0.04
+item: milestone-review     design=0.00 impl=0.20
+design-buffer: 0.15
+total: 1.10
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. The rows, in order:
+
+1. `contextcmd`'s names plus the no-scope status and the dispatcher's stderr.
+2. `titlepoller.SessionEnv` and the observed-reads test.
+3. The launcher wiring on both paths, the regression test and the spawn pin.
+   Its design weight is the contract shape: positional constructor, env over
+   argv, attach's scope fallback.
+4. The atlas.
+5. One close review.
+
+The design buffer is +15% because a thorough plan doc exists. Frequency, per
+`#201`: this runs once per launch or reattach, and cost is not a concern.
+(`sdlc estimate-source` reports the calibration doc `[stale]`, #127.)
 
 ## Plan
 
