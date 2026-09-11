@@ -130,11 +130,13 @@ has already cleared the gate.
 ## Plan
 
 - [x] Design: `workshop/plans/000230-a-failed-warm-reattach-deletes-the-session-it-was-reattaching-plan.md`.
-- [ ] Red: the warm post-ack failure table at the fake seam.
-- [ ] Carry `Warm` into the post-ack failure path. For warm: end the helper,
-      skip the quiesce, then roll back or mark unknown on observed presence.
-- [ ] Pin the cold path's quiesce in the same table.
-- [ ] Mutation check; full suite.
+- [x] Red: the warm post-ack failure table at the fake seam, over all six
+      routes.
+- [x] Carry the start's SHAPE (not a warm boolean) into the post-ack failure
+      path, decided by the pure `DecideStartCleanup`. For warm: end the helper,
+      skip the quiesce, then roll back or retire on the observed presence.
+- [x] Pin the owning paths' quiesce in the same table.
+- [x] Mutation check (8/8); unsandboxed full suite (197 ok).
 
 ## Log
 
@@ -233,3 +235,68 @@ non-goals), PQ-7 (taken: the shared retire helper KEEPS `Detach`'s `ctx.Err()`
 interrupt, and cleanup passes `context.WithoutCancel` instead), PQ-10 (stale
 task prose), PQ-11 (taken: the SIGKILL reaches only the helper's process
 group, which the zellij server and its agent predate).
+
+### 2026-09-11 — three claims in the Revisions above are wrong (PQ-5, BR-8)
+
+The plan gate raised these as PQ-5 and I left them undisposed for three rounds
+while fixing the code they described. The close review raised them again. They
+are corrected here rather than edited in place, per the append-don't-overwrite
+rule:
+
+- **"`StartResult` carries `Warm`"** — it does not, and deliberately. Ownership
+  is read from `ActorRecord.Shape`, couch's own registry record. A struct the
+  caller relays back has a zero value, and that value must not be able to mean
+  "you may delete this session".
+- **"`quiescePostAckStart` is the only caller of `Artifacts.Quiesce`"** — it is
+  one of two. `ArchiveThread` is the other, and it is deliberate and unchanged:
+  archiving a thread means removing it, so ending its session is the point.
+- **"a 24-row exhaustive table"** — 36 rows shipped. The input is three-valued
+  (spawn / cold resume / warm reattach), not a warm boolean; that was PQ-12.
+
+The close review's own findings are dispositioned in the implementation Log
+below.
+
+### 2026-09-11 — close review fixes (verdict FIX-THEN-SHIP)
+
+**BR-5, the one real defect (Important).** A retire that failed returned
+immediately, leaving an `IncarnationLive` behind a helper that was already
+dead -- the stale state `pair#171` names, reached from an ordinary failure
+path. The reviewer probe-confirmed it on warm route 5. Cleanup now falls
+through to the recoverable disposition on any retire failure.
+
+Its first test passed without exercising anything: the presence hook counted
+`awaitResumeRegistration`'s own poll, so the session read absent at decision
+time and cleanup chose mark-unknown, never attempting a retire. The test now
+counts all three reads in order and asserts both that it reached the third and
+that the returned error is the retire's own -- so it cannot pass without
+entering the branch it is named for.
+
+**BR-6 (Important).** `StartCleanup.Quiesce` was never read: production asked
+`shape.OwnsSession()` at three call sites, so forcing the field true left the
+whole seam suite green. The two halves are answered at different moments -- the
+session is ended first, and its absence afterwards is an input to the record's
+disposition -- so they are now two functions. `OwnsSession` is the named
+authority, consumed once by `quiescePostAckStart`, and `DecideStartCleanup`
+returns a `DurableAction`.
+
+**BR-7, BR-8 (Important, both documentation).** The plan's Core-concepts tables
+named `applyStartCleanup`, which the first implementation had not built, and
+filed an IO helper under Pure entities. Both corrected, and
+`applyStartCleanup` now exists as the single shell both entry points use. The
+issue's stale Revisions claims are corrected above.
+
+**Minors.** `AbortStarted` no longer labels every non-warm start a cold resume
+-- `ActorRecord.Shape` records which it was, and the identity loop supplies it
+without a second registry scan. Route 3's warm assertion now requires
+`unusable/session-gone` rather than merely "not detached". The unreachable
+retire arm at claim phase and the no-op `context.WithoutCancel(Background())`
+are gone.
+
+**Mutation sweep after the fixes, 6 of 6 killed as named** (apply-asserted,
+tree verified identical to the pre-sweep snapshot): `OwnsSession` always true;
+an unrecognised shape treated as owning; the retire fallback removed; the
+quiesce ignoring ownership; `AbortStarted` trusting the relayed shape; a warm
+start never labelled warm. Two of these survived their first run -- the
+fallback row for the reason above, and the `AbortStarted` row because the test
+relayed an empty shape, which `OwnsSession` already answers no to. It now
+relays `StartColdResume`, the value a caller would plausibly fill in.

@@ -12,12 +12,12 @@ type ActorRecord struct {
 	StartedAt time.Time     `json:"started_at"`
 	PID       int           `json:"pid"`
 	Identity  string        `json:"identity"`
-	// Warm records that this start ATTACHED to a zellij session that already
-	// existed, rather than creating one. Cleanup reads it to decide whether it
-	// may end that session (pair#230), and it is read from HERE -- couch's own
-	// record of what it started -- never from a StartResult a caller relays
-	// back, whose zero value is the destructive answer.
-	Warm bool `json:"warm,omitempty"`
+	// Shape records WHICH kind of start this was: a spawn, a cold resume, or a
+	// warm reattach onto a session that already existed. Cleanup reads it to
+	// decide whether it may end that session (pair#230), and it is read from
+	// HERE -- couch's own record of what it started -- never from a StartResult
+	// a caller relays back, whose zero value must not answer "may delete".
+	Shape StartShape `json:"shape,omitempty"`
 }
 
 // Registry maps a worktree to the actors on it.

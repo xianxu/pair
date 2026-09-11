@@ -69,7 +69,6 @@ mid-reattach, so presence never returns), and the fix is one rule for all six.
 | `StartShape`, `DurableAction`, `SessionPresence` | `cmd/internal/couchcore/startcleanup.go` | new |
 | `StartCleanupInput`, `StartCleanup` | `cmd/internal/couchcore/startcleanup.go` | new |
 | `DecideStartCleanup` | `cmd/internal/couchcore/startcleanup.go` | new |
-| `retireDetachedIncarnation` | `cmd/internal/couchcore/detach.go` | new |
 | `ActorRecord.Warm` | `cmd/internal/couchcore/registry.go` | modified |
 
 - **`DecideStartCleanup(StartCleanupInput) StartCleanup`** is the whole rule,
@@ -168,8 +167,9 @@ mid-reattach, so presence never returns), and the fix is one rule for all six.
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `quiescePostAckStart(address, h, owns)` | `couch.go` | modified | helper signalling, `Artifacts.Quiesce` |
-| `applyStartCleanup` | `couch.go` | new | thread store, `PairSession` |
+| `quiescePostAckStart(address, h, shape)` | `couch.go` | modified | helper signalling, `Artifacts.Quiesce` |
+| `applyStartCleanup`, `markLiveRecordUnknown` | `couch.go` | new | thread store, `PairSession` |
+| `retireDetachedIncarnation` | `detach.go` | new | thread store, `PairSession` |
 | `failTrackedPostAckStart`, `failPostAckStart` | `launch_existing.go`, `couch.go` | modified | the above |
 | `AbortStarted` | `couch.go` | modified | reads the registry's `Warm` |
 | `FakeThreadArtifactCollisionChecker.Quiesce` | `artifactcollision_fake.go` | modified | the fake's session state |
@@ -367,3 +367,31 @@ SIGKILL case is reasoned, not pinned, and the Log says so.
 ## Estimate
 
 Derived at `sdlc change-code`, after plan-quality.
+
+## Revisions
+
+### 2026-09-11 — what shipped, against what this plan described
+
+**Reason.** The close review (BR-6, BR-7) found three places where this plan
+and the tree disagree. Recorded here rather than left for the archive.
+
+- **`StartCleanup` is gone; the decider returns a `DurableAction` only.** The
+  plan had one function answering two questions. In the shell they are answered
+  at different MOMENTS -- the session is ended first, and its absence
+  afterwards is an input to the record's disposition -- so a single return
+  value meant the `Quiesce` half was computed before it could be used and then
+  never read. `StartShape.OwnsSession()` is now the named single authority for
+  the session question, consumed once by `quiescePostAckStart`.
+- **`applyStartCleanup` was built, and is where both entry points meet.** The
+  plan named it; the first implementation instead left two ad-hoc tails, each
+  consulting the decider differently. `failTrackedPostAckStart` and
+  `failPostAckStart` are now one line each over the shared shell, and the
+  live-record tail is the named `markLiveRecordUnknown`.
+- **`retireDetachedIncarnation` is an INTEGRATION point, not a pure entity.**
+  It observes `PairSession` and writes the thread store. The Core concepts
+  table listed it under Pure entities, which is exactly the misclassification
+  the table exists to catch.
+- **`StartShape` is a string, and `ActorRecord.Shape` records it.** The plan
+  carried a `Warm bool`. A string persists legibly and, more importantly, makes
+  an unrecognised value answer "does not own" -- the direction that leaves a
+  session behind rather than killing an agent.

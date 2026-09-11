@@ -18,60 +18,56 @@ import "testing"
 //	?  - +        = presence unobserved / absent / present
 //	claim / rec   = a start claim / a live incarnation
 func TestDecideStartCleanupTable(t *testing.T) {
-	const (
-		q  = true  // quiesce: this start created the session
-		nq = false // never: it borrowed one
-	)
 	tests := []struct {
 		name string
 		in   StartCleanupInput
-		want StartCleanup
+		want DurableAction
 		why  string
 	}{
 		// A spawn reconciles in every cell: launch_existing.go's `if !resume`
 		// arm sends both phases to failPostAckStart. Unchanged by pair#230.
-		{"sp/live/?/claim", StartCleanupInput{StartSpawn, false, PresenceUnobserved, false}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/live/-/claim", StartCleanupInput{StartSpawn, false, PresenceAbsent, false}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/live/+/claim", StartCleanupInput{StartSpawn, false, PresencePresent, false}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/dead/?/claim", StartCleanupInput{StartSpawn, true, PresenceUnobserved, false}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/dead/-/claim", StartCleanupInput{StartSpawn, true, PresenceAbsent, false}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/dead/+/claim", StartCleanupInput{StartSpawn, true, PresencePresent, false}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/live/?/rec", StartCleanupInput{StartSpawn, false, PresenceUnobserved, true}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/live/-/rec", StartCleanupInput{StartSpawn, false, PresenceAbsent, true}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/live/+/rec", StartCleanupInput{StartSpawn, false, PresencePresent, true}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/dead/?/rec", StartCleanupInput{StartSpawn, true, PresenceUnobserved, true}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/dead/-/rec", StartCleanupInput{StartSpawn, true, PresenceAbsent, true}, StartCleanup{q, DurableReconcile}, "spawn tail"},
-		{"sp/dead/+/rec", StartCleanupInput{StartSpawn, true, PresencePresent, true}, StartCleanup{q, DurableReconcile}, "spawn tail"},
+		{"sp/live/?/claim", StartCleanupInput{StartSpawn, false, PresenceUnobserved, false}, DurableReconcile, "spawn tail"},
+		{"sp/live/-/claim", StartCleanupInput{StartSpawn, false, PresenceAbsent, false}, DurableReconcile, "spawn tail"},
+		{"sp/live/+/claim", StartCleanupInput{StartSpawn, false, PresencePresent, false}, DurableReconcile, "spawn tail"},
+		{"sp/dead/?/claim", StartCleanupInput{StartSpawn, true, PresenceUnobserved, false}, DurableReconcile, "spawn tail"},
+		{"sp/dead/-/claim", StartCleanupInput{StartSpawn, true, PresenceAbsent, false}, DurableReconcile, "spawn tail"},
+		{"sp/dead/+/claim", StartCleanupInput{StartSpawn, true, PresencePresent, false}, DurableReconcile, "spawn tail"},
+		{"sp/live/?/rec", StartCleanupInput{StartSpawn, false, PresenceUnobserved, true}, DurableReconcile, "spawn tail"},
+		{"sp/live/-/rec", StartCleanupInput{StartSpawn, false, PresenceAbsent, true}, DurableReconcile, "spawn tail"},
+		{"sp/live/+/rec", StartCleanupInput{StartSpawn, false, PresencePresent, true}, DurableReconcile, "spawn tail"},
+		{"sp/dead/?/rec", StartCleanupInput{StartSpawn, true, PresenceUnobserved, true}, DurableReconcile, "spawn tail"},
+		{"sp/dead/-/rec", StartCleanupInput{StartSpawn, true, PresenceAbsent, true}, DurableReconcile, "spawn tail"},
+		{"sp/dead/+/rec", StartCleanupInput{StartSpawn, true, PresencePresent, true}, DurableReconcile, "spawn tail"},
 
 		// A cold resume owns its session too. At claim phase it rolls back only
 		// once that session is gone and the helper with it; at record phase it
 		// takes failPostAckStart's tail. Unchanged by pair#230.
-		{"cr/live/?/claim", StartCleanupInput{StartColdResume, false, PresenceUnobserved, false}, StartCleanup{q, DurableMarkUnknown}, "helper unaccounted for"},
-		{"cr/live/-/claim", StartCleanupInput{StartColdResume, false, PresenceAbsent, false}, StartCleanup{q, DurableMarkUnknown}, "helper unaccounted for"},
-		{"cr/live/+/claim", StartCleanupInput{StartColdResume, false, PresencePresent, false}, StartCleanup{q, DurableMarkUnknown}, "helper unaccounted for"},
-		{"cr/dead/?/claim", StartCleanupInput{StartColdResume, true, PresenceUnobserved, false}, StartCleanup{q, DurableMarkUnknown}, "presence unproven"},
-		{"cr/dead/-/claim", StartCleanupInput{StartColdResume, true, PresenceAbsent, false}, StartCleanup{q, DurableRollback}, "its session is gone"},
-		{"cr/dead/+/claim", StartCleanupInput{StartColdResume, true, PresencePresent, false}, StartCleanup{q, DurableMarkUnknown}, "a session it created survived"},
-		{"cr/live/?/rec", StartCleanupInput{StartColdResume, false, PresenceUnobserved, true}, StartCleanup{q, DurableReconcile}, "live-record tail"},
-		{"cr/live/-/rec", StartCleanupInput{StartColdResume, false, PresenceAbsent, true}, StartCleanup{q, DurableReconcile}, "live-record tail"},
-		{"cr/live/+/rec", StartCleanupInput{StartColdResume, false, PresencePresent, true}, StartCleanup{q, DurableReconcile}, "live-record tail"},
-		{"cr/dead/?/rec", StartCleanupInput{StartColdResume, true, PresenceUnobserved, true}, StartCleanup{q, DurableReconcile}, "live-record tail"},
-		{"cr/dead/-/rec", StartCleanupInput{StartColdResume, true, PresenceAbsent, true}, StartCleanup{q, DurableReconcile}, "live-record tail"},
-		{"cr/dead/+/rec", StartCleanupInput{StartColdResume, true, PresencePresent, true}, StartCleanup{q, DurableReconcile}, "live-record tail"},
+		{"cr/live/?/claim", StartCleanupInput{StartColdResume, false, PresenceUnobserved, false}, DurableMarkUnknown, "helper unaccounted for"},
+		{"cr/live/-/claim", StartCleanupInput{StartColdResume, false, PresenceAbsent, false}, DurableMarkUnknown, "helper unaccounted for"},
+		{"cr/live/+/claim", StartCleanupInput{StartColdResume, false, PresencePresent, false}, DurableMarkUnknown, "helper unaccounted for"},
+		{"cr/dead/?/claim", StartCleanupInput{StartColdResume, true, PresenceUnobserved, false}, DurableMarkUnknown, "presence unproven"},
+		{"cr/dead/-/claim", StartCleanupInput{StartColdResume, true, PresenceAbsent, false}, DurableRollback, "its session is gone"},
+		{"cr/dead/+/claim", StartCleanupInput{StartColdResume, true, PresencePresent, false}, DurableMarkUnknown, "a session it created survived"},
+		{"cr/live/?/rec", StartCleanupInput{StartColdResume, false, PresenceUnobserved, true}, DurableReconcile, "live-record tail"},
+		{"cr/live/-/rec", StartCleanupInput{StartColdResume, false, PresenceAbsent, true}, DurableReconcile, "live-record tail"},
+		{"cr/live/+/rec", StartCleanupInput{StartColdResume, false, PresencePresent, true}, DurableReconcile, "live-record tail"},
+		{"cr/dead/?/rec", StartCleanupInput{StartColdResume, true, PresenceUnobserved, true}, DurableReconcile, "live-record tail"},
+		{"cr/dead/-/rec", StartCleanupInput{StartColdResume, true, PresenceAbsent, true}, DurableReconcile, "live-record tail"},
+		{"cr/dead/+/rec", StartCleanupInput{StartColdResume, true, PresencePresent, true}, DurableReconcile, "live-record tail"},
 
 		// The warm column: never quiesce. This is what pair#230 changes.
-		{"wr/live/?/claim", StartCleanupInput{StartWarmReattach, false, PresenceUnobserved, false}, StartCleanup{nq, DurableMarkUnknown}, "helper unaccounted for"},
-		{"wr/live/-/claim", StartCleanupInput{StartWarmReattach, false, PresenceAbsent, false}, StartCleanup{nq, DurableMarkUnknown}, "helper unaccounted for"},
-		{"wr/live/+/claim", StartCleanupInput{StartWarmReattach, false, PresencePresent, false}, StartCleanup{nq, DurableMarkUnknown}, "helper unaccounted for"},
-		{"wr/dead/?/claim", StartCleanupInput{StartWarmReattach, true, PresenceUnobserved, false}, StartCleanup{nq, DurableRollback}, "the claim is all this start wrote"},
-		{"wr/dead/-/claim", StartCleanupInput{StartWarmReattach, true, PresenceAbsent, false}, StartCleanup{nq, DurableRollback}, "session died on its own; reads session-gone"},
-		{"wr/dead/+/claim", StartCleanupInput{StartWarmReattach, true, PresencePresent, false}, StartCleanup{nq, DurableRollback}, "session survived; reads detached"},
-		{"wr/live/?/rec", StartCleanupInput{StartWarmReattach, false, PresenceUnobserved, true}, StartCleanup{nq, DurableMarkUnknown}, "helper unaccounted for"},
-		{"wr/live/-/rec", StartCleanupInput{StartWarmReattach, false, PresenceAbsent, true}, StartCleanup{nq, DurableMarkUnknown}, "helper unaccounted for"},
-		{"wr/live/+/rec", StartCleanupInput{StartWarmReattach, false, PresencePresent, true}, StartCleanup{nq, DurableMarkUnknown}, "helper unaccounted for"},
-		{"wr/dead/?/rec", StartCleanupInput{StartWarmReattach, true, PresenceUnobserved, true}, StartCleanup{nq, DurableMarkUnknown}, "cannot prove the session to retire onto"},
-		{"wr/dead/-/rec", StartCleanupInput{StartWarmReattach, true, PresenceAbsent, true}, StartCleanup{nq, DurableMarkUnknown}, "nothing to reattach to"},
-		{"wr/dead/+/rec", StartCleanupInput{StartWarmReattach, true, PresencePresent, true}, StartCleanup{nq, DurableRetire}, "give the thread back to detached"},
+		{"wr/live/?/claim", StartCleanupInput{StartWarmReattach, false, PresenceUnobserved, false}, DurableMarkUnknown, "helper unaccounted for"},
+		{"wr/live/-/claim", StartCleanupInput{StartWarmReattach, false, PresenceAbsent, false}, DurableMarkUnknown, "helper unaccounted for"},
+		{"wr/live/+/claim", StartCleanupInput{StartWarmReattach, false, PresencePresent, false}, DurableMarkUnknown, "helper unaccounted for"},
+		{"wr/dead/?/claim", StartCleanupInput{StartWarmReattach, true, PresenceUnobserved, false}, DurableRollback, "the claim is all this start wrote"},
+		{"wr/dead/-/claim", StartCleanupInput{StartWarmReattach, true, PresenceAbsent, false}, DurableRollback, "session died on its own; reads session-gone"},
+		{"wr/dead/+/claim", StartCleanupInput{StartWarmReattach, true, PresencePresent, false}, DurableRollback, "session survived; reads detached"},
+		{"wr/live/?/rec", StartCleanupInput{StartWarmReattach, false, PresenceUnobserved, true}, DurableMarkUnknown, "helper unaccounted for"},
+		{"wr/live/-/rec", StartCleanupInput{StartWarmReattach, false, PresenceAbsent, true}, DurableMarkUnknown, "helper unaccounted for"},
+		{"wr/live/+/rec", StartCleanupInput{StartWarmReattach, false, PresencePresent, true}, DurableMarkUnknown, "helper unaccounted for"},
+		{"wr/dead/?/rec", StartCleanupInput{StartWarmReattach, true, PresenceUnobserved, true}, DurableMarkUnknown, "cannot prove the session to retire onto"},
+		{"wr/dead/-/rec", StartCleanupInput{StartWarmReattach, true, PresenceAbsent, true}, DurableMarkUnknown, "nothing to reattach to"},
+		{"wr/dead/+/rec", StartCleanupInput{StartWarmReattach, true, PresencePresent, true}, DurableRetire, "give the thread back to detached"},
 	}
 	if len(tests) != 36 {
 		t.Fatalf("table has %d rows, want 36 -- the input space is 3x2x3x2", len(tests))
@@ -88,16 +84,25 @@ func TestDecideStartCleanupTable(t *testing.T) {
 	}
 }
 
-// The property pair#230 exists to establish, asserted over the whole input
-// space independently of the table: a start never ends a session it did not
-// create. This is the one a later branch is most likely to break.
-func TestDecideStartCleanupNeverQuiescesABorrowedSession(t *testing.T) {
-	forEachStartCleanupInput(t, func(t *testing.T, in StartCleanupInput) {
-		if got := DecideStartCleanup(in); got.Quiesce != in.Shape.OwnsSession() {
-			t.Errorf("DecideStartCleanup(%+v).Quiesce = %v, want %v: quiesce follows ownership and nothing else",
-				in, got.Quiesce, in.Shape.OwnsSession())
+// The property pair#230 exists to establish, and the single question the whole
+// fix turns on: a start may end only a session it created. It is asserted here
+// over every shape, including values no constant names -- an unrecognised shape
+// must answer NO, because guessing wrong in that direction kills an agent.
+func TestOnlyAnOwningShapeMayEndItsSession(t *testing.T) {
+	for _, tt := range []struct {
+		shape StartShape
+		want  bool
+	}{
+		{StartSpawn, true},
+		{StartColdResume, true},
+		{StartWarmReattach, false},
+		{StartShape(""), false},
+		{StartShape("something-a-later-version-wrote"), false},
+	} {
+		if got := tt.shape.OwnsSession(); got != tt.want {
+			t.Errorf("StartShape(%q).OwnsSession() = %v, want %v", string(tt.shape), got, tt.want)
 		}
-	})
+	}
 }
 
 // Nothing durable is undone while the helper may still be writing. Unknown is
@@ -107,9 +112,9 @@ func TestDecideStartCleanupUndoesNothingWhileTheHelperIsUnaccountedFor(t *testin
 		if in.HelperDead || in.Shape == StartSpawn {
 			return // a spawn's reconcile reads registration evidence, not the helper
 		}
-		switch got := DecideStartCleanup(in); got.Durable {
+		switch got := DecideStartCleanup(in); got {
 		case DurableRollback, DurableRetire:
-			t.Errorf("DecideStartCleanup(%+v).Durable = %q with a live helper", in, got.Durable)
+			t.Errorf("DecideStartCleanup(%+v) = %q with a live helper", in, got)
 		}
 	})
 }
@@ -118,8 +123,8 @@ func TestDecideStartCleanupUndoesNothingWhileTheHelperIsUnaccountedFor(t *testin
 // it belongs to the warm shape alone.
 func TestDecideStartCleanupRetiresOnlyOnTheWarmPath(t *testing.T) {
 	forEachStartCleanupInput(t, func(t *testing.T, in StartCleanupInput) {
-		if got := DecideStartCleanup(in); got.Durable == DurableRetire && in.Shape.OwnsSession() {
-			t.Errorf("DecideStartCleanup(%+v).Durable = %q: an owning start has no surviving session to go back to", in, got.Durable)
+		if got := DecideStartCleanup(in); got == DurableRetire && in.Shape.OwnsSession() {
+			t.Errorf("DecideStartCleanup(%+v) = %q: an owning start has no surviving session to go back to", in, got)
 		}
 	})
 }

@@ -72,11 +72,11 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		env[len(env)-1] = "PAIR_USE_REPO_DEFAULT=1"
 	}
 	shape := StartSpawn
-	if in.Resume {
+	switch {
+	case in.Resume && in.Warm:
+		shape = StartWarmReattach
+	case in.Resume:
 		shape = StartColdResume
-		if in.Warm {
-			shape = StartWarmReattach
-		}
 	}
 	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {
@@ -151,7 +151,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	record := ActorRecord{
 		ID: c.IDs.NewID(), Thread: thread.Address, Args: in.Args,
 		StartedAt: in.StartedAt, PID: h.PID(), Identity: h.Identity(),
-		Warm: in.Warm,
+		Shape: shape,
 	}
 	c.reg = c.reg.Insert(record)
 	if err := c.Store.Save(c.reg, c.names); err != nil {
@@ -177,38 +177,12 @@ func (c *Couch) failTrackedPreAckStart(thread ThreadRecord, nonce string, h Bloc
 // was acknowledged, while the record still holds a start CLAIM.
 //
 // What it may destroy depends on the start's shape, which is why the shape --
-// not a warm boolean -- is the input (pair#230): a spawn takes
-// failPostAckStart's tail, a cold resume ends the session it created, and a
-// warm reattach must end only its helper, because the session it attached to
-// predates it and holds the agent the reattach exists to preserve.
+// not a warm boolean -- travels here (pair#230): a spawn takes the reconcile
+// tail, a cold resume may end the session it created, and a warm reattach must
+// end only its helper, because the session it attached to predates it and holds
+// the agent the reattach exists to preserve.
 func (c *Couch) failTrackedPostAckStart(shape StartShape, thread ThreadRecord, nonce string, h Handle, cause error) error {
-	if shape == StartSpawn {
-		return c.failPostAckStart(thread.Address, h, shape, cause)
-	}
-	// Cleanup must complete precisely when the thing that failed WAS a
-	// cancellation, so it does not inherit the caller's cancelled context.
-	ctx := context.WithoutCancel(context.Background())
-	cleanupErr := c.quiescePostAckStart(thread.Address, h, shape.OwnsSession())
-	current, getErr := c.Threads.GetThread(thread.Address)
-	if getErr != nil {
-		return errors.Join(cause, cleanupErr, getErr)
-	}
-	decision := DecideStartCleanup(StartCleanupInput{
-		Shape:      shape,
-		HelperDead: !h.Alive(),
-		Presence:   c.observeSessionPresence(thread.Address),
-		LiveRecord: false,
-	})
-	switch decision.Durable {
-	case DurableRollback:
-		return errors.Join(cause, cleanupErr, c.rollbackTrackedStart(current, nonce))
-	case DurableRetire:
-		_, retireErr := c.retireDetachedIncarnation(ctx, thread.Address,
-			ProcessIdentity{PID: h.PID(), Identity: h.Identity()}, current.LastActiveAt)
-		return errors.Join(cause, cleanupErr, retireErr)
-	default:
-		return errors.Join(cause, cleanupErr, c.markResumeStartUnknown(current, nonce))
-	}
+	return errors.Join(cause, c.applyStartCleanup(shape, thread.Address, nonce, h, false))
 }
 
 // observeSessionPresence answers the decider's Presence input. An observer that

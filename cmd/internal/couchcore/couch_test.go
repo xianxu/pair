@@ -1014,7 +1014,7 @@ func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
 	h := newDelayedQuiescenceHandle()
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 
-	if err := env.Couch.quiescePostAckStart(address, h, true); err == nil {
+	if err := env.Couch.quiescePostAckStart(address, h, StartSpawn); err == nil {
 		t.Fatal("transient handle cleanup errors were not retained")
 	}
 	h.mu.Lock()
@@ -1037,7 +1037,7 @@ func TestPostAckCleanupEndsItsHelperWithoutOwningTheSession(t *testing.T) {
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 	env.Artifacts.SetDetachedSession(address, "pair-couch-0102030405060708")
 
-	if err := env.Couch.quiescePostAckStart(address, h, false); err == nil {
+	if err := env.Couch.quiescePostAckStart(address, h, StartWarmReattach); err == nil {
 		t.Fatal("transient handle cleanup errors were not retained")
 	}
 	h.mu.Lock()

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -164,8 +165,8 @@ func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
 				if row.State != ThreadDetached {
 					t.Fatalf("row = %+v, want ThreadDetached: its session survived, so it is reattachable again", row)
 				}
-			} else if row.State == ThreadDetached {
-				t.Fatalf("row = %+v claims detached, but this route's session died", row)
+			} else if row.State != ThreadUnusable || row.Reason != ReasonSessionGone {
+				t.Fatalf("row = %+v, want unusable/session-gone: this route's session died mid-reattach", row)
 			}
 		})
 	}
@@ -280,16 +281,80 @@ func TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller(t *testing.T) {
 	if err != nil {
 		t.Fatalf("warm reattach: %v", err)
 	}
-	if !record.Warm {
-		t.Fatal("the reattach was not recorded warm; this test would prove nothing")
+	if record.Shape != StartWarmReattach {
+		t.Fatalf("the reattach was recorded %q, not warm; this test would prove nothing", record.Shape)
 	}
 	relayed := record
-	relayed.Warm = false // a caller that dropped the field
+	// An OWNING shape, which is what a caller that rebuilt the record from its
+	// own notion of the start would plausibly fill in -- and the value that
+	// makes cleanup delete the session. An empty string would prove nothing,
+	// since OwnsSession already answers no to that.
+	relayed.Shape = StartColdResume
 
 	if err := env.Couch.AbortStarted(StartResult{Record: relayed, Handle: handle}, errors.New("attach terminal has already exited")); err == nil {
 		t.Fatal("AbortStarted returned nil, want the abort cause")
 	}
 	if quiesced := env.Artifacts.Quiesces(); containsAddress(quiesced, address) {
 		t.Fatalf("AbortStarted quiesced %+v on a caller-supplied zero value -- ownership must come from the registry", address)
+	}
+}
+
+// A retire can fail after the decision to retire was made: the retire re-proves
+// the session for itself, and that proof can come back negative, or the record
+// can lose a revision race.
+//
+// It must not return there. The helper is already dead, so returning would
+// leave an IncarnationLive with nothing behind it -- the stale state pair#171
+// describes, reached from an ordinary failure path rather than a crash, and
+// rendered in the switcher as unusable/stale-incarnation forever.
+func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
+	env, address := warmDetachedThread(t)
+	name := "pair-" + string(address.Tag)
+	blocked := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(blocked, []byte("occupied"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env.Couch.Store = NewStore(blocked) // route 5: fails at a LIVE incarnation
+
+	// The session is present when cleanup DECIDES (so it decides to retire) and
+	// gone when the retire re-proves it for itself. Three reads reach here, in
+	// order: awaitResumeRegistration's poll, cleanup's observeSessionPresence,
+	// and the retire's own proof. Counting them is how the test reaches the
+	// branch it is named for -- an earlier version flipped on read 2, which made
+	// cleanup decide mark-unknown and never attempt a retire at all, so it
+	// passed without exercising anything.
+	reads := 0
+	env.Artifacts.BeforePairSession = func(ThreadAddress) error {
+		reads++
+		if reads >= 3 {
+			env.Artifacts.SetPairSession(address, name, false)
+		}
+		return nil
+	}
+
+	_, _, err := env.Couch.ResumeContext(context.Background(), address)
+	if err == nil {
+		t.Fatal("route 5 did not fail")
+	}
+	// Proof that the retire was actually attempted and actually failed, rather
+	// than the decision having quietly gone elsewhere.
+	if reads < 3 {
+		t.Fatalf("only %d Pair session reads; cleanup never reached the retire", reads)
+	}
+	if !strings.Contains(err.Error(), "lost its Pair session during detach") {
+		t.Fatalf("error = %v, want the retire's own failure", err)
+	}
+	if quiesced := env.Artifacts.Quiesces(); containsAddress(quiesced, address) {
+		t.Fatalf("a failed WARM reattach quiesced %+v", address)
+	}
+
+	thread, getErr := env.Couch.Threads.GetThread(address)
+	if getErr != nil {
+		t.Fatal(getErr)
+	}
+	for _, incarnation := range thread.Incarnations {
+		if incarnation.State == IncarnationLive {
+			t.Fatalf("thread = %+v keeps a LIVE incarnation behind a dead helper", thread)
+		}
 	}
 }

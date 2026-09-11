@@ -500,33 +500,72 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 // that exact handle is reaped; only then may durable state be reconciled. If
 // quiescence cannot be proved, the creating/live record remains occupied.
 func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, shape StartShape, cause error) error {
-	cleanupErr := c.quiescePostAckStart(address, h, shape.OwnsSession())
+	return errors.Join(cause, c.applyStartCleanup(shape, address, "", h, true))
+}
 
-	// A warm reattach past registration hands the thread back to the session it
-	// borrowed, rather than reconciling a start it no longer owns (pair#230).
-	if !shape.OwnsSession() {
-		decision := DecideStartCleanup(StartCleanupInput{
-			Shape:      shape,
-			HelperDead: !h.Alive(),
-			Presence:   c.observeSessionPresence(address),
-			LiveRecord: true,
-		})
-		if decision.Durable == DurableRetire {
-			current, getErr := c.Threads.GetThread(address)
-			if getErr != nil {
-				return errors.Join(cause, cleanupErr, getErr)
-			}
-			// Cleanup must complete precisely when the thing that failed WAS a
-			// cancellation, so it runs uncancellable.
-			_, retireErr := c.retireDetachedIncarnation(
-				context.WithoutCancel(context.Background()), address,
-				ProcessIdentity{PID: h.PID(), Identity: h.Identity()}, current.LastActiveAt)
-			return errors.Join(cause, cleanupErr, retireErr)
+// applyStartCleanup is the one shell behind every post-acknowledgement failure.
+//
+// It ends the helper (and, when this start owns it, the session), observes what
+// is left, and applies the single durable action DecideStartCleanup names. Both
+// entry points route through here so the rule has one consumer rather than a
+// tail per call site.
+//
+// nonce identifies the start transaction to undo and is empty for the
+// live-record phase, which undoes an incarnation instead.
+func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce string, h Handle, liveRecord bool) error {
+	cleanupErr := c.quiescePostAckStart(address, h, shape)
+	action := DecideStartCleanup(StartCleanupInput{
+		Shape:      shape,
+		HelperDead: !h.Alive(),
+		// Observed AFTER the helper is quiet and after any quiesce, because the
+		// state the record's disposition reasons about is the one left behind.
+		Presence:   c.observeSessionPresence(address),
+		LiveRecord: liveRecord,
+	})
+	switch action {
+	case DurableRollback:
+		current, getErr := c.Threads.GetThread(address)
+		if getErr != nil {
+			return errors.Join(cleanupErr, getErr)
 		}
-		// Fall through to the mark-unknown tail below: recoverable, which a
-		// deleted session would not be.
+		return errors.Join(cleanupErr, c.rollbackTrackedStart(current, nonce))
+	case DurableRetire:
+		current, getErr := c.Threads.GetThread(address)
+		if getErr != nil {
+			return errors.Join(cleanupErr, getErr)
+		}
+		// A failed reattach is not activity, so the recorded time does not move.
+		// Background, not the caller's context: cleanup must finish precisely
+		// when the thing that failed was a cancellation.
+		_, retireErr := c.retireDetachedIncarnation(context.Background(), address,
+			ProcessIdentity{PID: h.PID(), Identity: h.Identity()}, current.LastActiveAt)
+		if retireErr == nil {
+			return cleanupErr
+		}
+		// The retire re-proves the session and can lose a revision race, and
+		// returning here would leave an IncarnationLive behind a helper that is
+		// already dead -- the stale state pair#171 describes, reached from an
+		// ordinary failure path. Fall through to the recoverable disposition.
+		return errors.Join(cleanupErr, retireErr, c.markLiveRecordUnknown(address, h))
+	case DurableReconcile:
+		return errors.Join(cleanupErr, c.markLiveRecordUnknown(address, h))
+	default:
+		if liveRecord {
+			return errors.Join(cleanupErr, c.markLiveRecordUnknown(address, h))
+		}
+		current, getErr := c.Threads.GetThread(address)
+		if getErr != nil {
+			return errors.Join(cleanupErr, getErr)
+		}
+		return errors.Join(cleanupErr, c.markResumeStartUnknown(current, nonce))
 	}
+}
 
+// markLiveRecordUnknown is the disposition for a start that had already reached
+// a live incarnation: reconcile every interrupted start against its registration
+// evidence, then flag this exact incarnation as unproven. It predates pair#230
+// and is unchanged.
+func (c *Couch) markLiveRecordUnknown(address ThreadAddress, h Handle) error {
 	reconcileErr := c.reconcileInterruptedStarts()
 	current, getErr := c.Threads.GetThread(address)
 	var markErr error
@@ -541,7 +580,7 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, shape StartSha
 	} else if !errors.Is(getErr, ErrThreadNotFound) {
 		markErr = getErr
 	}
-	return errors.Join(cause, cleanupErr, reconcileErr, markErr)
+	return errors.Join(reconcileErr, markErr)
 }
 
 // AbortStarted is the corresponding failure half after Spawn HAS transferred
@@ -561,6 +600,7 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 		return errors.Join(cause, errors.New("abort started: record/handle process identity mismatch"))
 	}
 	registered := false
+	var registeredShape StartShape
 	for _, record := range c.reg.Records() {
 		if record.ID != start.Record.ID {
 			continue
@@ -570,6 +610,10 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 			return errors.Join(cause, errors.New("abort started: registered actor identity mismatch"))
 		}
 		registered = true
+		// The shape comes from the REGISTRY's own record, written when couch made
+		// this start -- not from the StartResult the caller relayed back, whose
+		// zero value would answer "owns the session" and delete it (pair#230).
+		registeredShape = record.Shape
 		break
 	}
 	if !registered {
@@ -580,14 +624,7 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 	// this start -- not from the StartResult the caller relayed back, whose zero
 	// value is the destructive branch (pair#230). The identity match above has
 	// already proved the relayed record is this registered actor.
-	shape := StartColdResume
-	for _, record := range c.reg.Records() {
-		if record.ID == start.Record.ID && record.Warm {
-			shape = StartWarmReattach
-			break
-		}
-	}
-	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, shape, cause)
+	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, registeredShape, cause)
 	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
 	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))
 }
@@ -595,10 +632,10 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 // quiescePostAckStart ends the start's helper and, when the start OWNS the
 // session, the session too.
 //
-// owns is the whole of pair#230: a warm reattach attached to a session that
-// predates it, whose agent is the thing the reattach exists to preserve, so
-// ending that session is never this path's business. The helper half runs for
-// every shape -- the helper belongs to this start either way.
+// shape.OwnsSession() is the whole of pair#230: a warm reattach attached to a
+// session that predates it, whose agent is the thing the reattach exists to
+// preserve, so ending that session is never this path's business. The helper
+// half runs for every shape -- the helper belongs to this start either way.
 //
 // It retains the live Handle on this call stack and retries every unproven
 // cleanup class. It deliberately has no bounded "give up" path: returning would
@@ -606,7 +643,7 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 // to discard handles on error. A persistent external failure therefore leaves
 // the owning start operation blocked and retrying, not a workspace writer
 // merely represented by an occupied durable record.
-func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, owns bool) error {
+func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape StartShape) error {
 	var firstErr error
 	handleQuiet := false
 	handleCleanup := newHandleCleanup(h)
@@ -621,7 +658,7 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, owns bool) 
 			}
 			handleQuiet = true
 		}
-		if !owns {
+		if !shape.OwnsSession() {
 			return firstErr
 		}
 		if err := c.Artifacts.Quiesce(address); err != nil {

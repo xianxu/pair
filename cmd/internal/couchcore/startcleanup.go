@@ -22,20 +22,26 @@ package couchcore
 //   - a cold resume's claim-phase failure rolls back or marks unknown on the
 //     session's absence;
 //   - a warm reattach is the one that must not quiesce.
-type StartShape uint8
+type StartShape string
 
 const (
 	// StartSpawn created both the thread and its session.
-	StartSpawn StartShape = iota
+	StartSpawn StartShape = "spawn"
 	// StartColdResume relaunched a parked thread, creating a new session.
-	StartColdResume
+	StartColdResume StartShape = "cold-resume"
 	// StartWarmReattach attached to a session that predates it.
-	StartWarmReattach
+	StartWarmReattach StartShape = "warm-reattach"
 )
 
-// OwnsSession reports whether this start created the session, and so may end
-// it. Only a warm reattach does not.
-func (s StartShape) OwnsSession() bool { return s != StartWarmReattach }
+// OwnsSession is THE authority on whether cleanup may end this start's zellij
+// session, and the only question `Quiesce` ever was: a start ends the session
+// it created and never one it borrowed.
+//
+// It is written as a positive test of the two owning shapes so that an
+// unrecognised value -- an empty string from a record some other version wrote
+// -- answers NO. Guessing wrong in that direction leaves a session behind;
+// guessing wrong in the other kills somebody's agent.
+func (s StartShape) OwnsSession() bool { return s == StartSpawn || s == StartColdResume }
 
 // SessionPresence is what could be observed about the thread's zellij session.
 // Unobserved is not absent: the question could not be asked, which is the case
@@ -81,40 +87,35 @@ type StartCleanupInput struct {
 	LiveRecord bool
 }
 
-// StartCleanup is the decision: whether to delete the session, and what to do
-// with the record.
-type StartCleanup struct {
-	Quiesce bool
-	Durable DurableAction
-}
-
-// DecideStartCleanup is the whole rule.
+// DecideStartCleanup answers what happens to the RECORD. The session question
+// is StartShape.OwnsSession, answered earlier and separately, because the two
+// are decided at different moments: the session is ended first, and its absence
+// afterwards is an input here.
 //
-// Quiesce follows ownership and nothing else: a start ends the session it
-// created and never one it borrowed. Every branch for an owning shape
-// reproduces the behaviour that predates pair#230 exactly, so the existing
-// spawn and cold-resume tests are what prove they did not change.
-func DecideStartCleanup(in StartCleanupInput) StartCleanup {
-	out := StartCleanup{Quiesce: in.Shape.OwnsSession(), Durable: DurableMarkUnknown}
+// Every branch for an owning shape reproduces the behaviour that predates
+// pair#230 exactly, so the existing spawn and cold-resume tests are what prove
+// they did not change.
+func DecideStartCleanup(in StartCleanupInput) DurableAction {
+	out := DurableMarkUnknown
 	switch {
 	case in.Shape == StartSpawn:
 		// Unchanged, both phases: failPostAckStart reconciles against
 		// registration evidence and marks a live incarnation unknown.
-		out.Durable = DurableReconcile
+		out = DurableReconcile
 	case in.LiveRecord:
 		// Routes 5-6 for either resume shape. An owning one keeps
 		// failPostAckStart's tail; a warm one gives the thread back to
 		// detached, under the same two proofs Detach requires.
 		if in.Shape.OwnsSession() {
-			out.Durable = DurableReconcile
+			out = DurableReconcile
 		} else if in.HelperDead && in.Presence == PresencePresent {
-			out.Durable = DurableRetire
+			out = DurableRetire
 		}
 	case in.Shape == StartColdResume:
 		// Unchanged: roll back only once the session it created is gone AND
 		// its helper is dead; otherwise leave the record recoverable.
 		if in.HelperDead && in.Presence == PresenceAbsent {
-			out.Durable = DurableRollback
+			out = DurableRollback
 		}
 	default:
 		// Warm, still a claim. Presence is deliberately NOT consulted:
@@ -123,7 +124,7 @@ func DecideStartCleanup(in StartCleanupInput) StartCleanup {
 		// died on its own (it reads session-gone). Demanding presence here
 		// would strand a thread whose session died for unrelated reasons.
 		if in.HelperDead {
-			out.Durable = DurableRollback
+			out = DurableRollback
 		}
 	}
 	return out
