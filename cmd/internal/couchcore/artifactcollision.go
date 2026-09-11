@@ -70,6 +70,11 @@ func (NoThreadArtifactCollisions) Quiesce(ThreadAddress) error { return nil }
 type ScopedThreadArtifactCollisionChecker struct {
 	GlobalDataDir string
 	Sessions      launcher.SessionDeleter
+	// Zellij is how the checker observes sessions. The zero value is the real
+	// zellij on PATH; tests point Path at a stub and count the calls, because
+	// "a reattach asks two sessions for their clients" is a count, not a timing
+	// (pair#228).
+	Zellij launcher.ZellijSource
 }
 
 func NewScopedThreadArtifactCollisionChecker(globalDataDir string) ScopedThreadArtifactCollisionChecker {
@@ -160,7 +165,10 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 	if name == "" {
 		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
 	}
-	sessions, err := runtime.Sessions()
+	// Liveness, not a full snapshot: Present is "listed and not exited", so no
+	// session needs asking for its clients. This is couch's registration poll on
+	// every reattach, and detach and park call it too (pair#228).
+	sessions, err := c.Zellij.LivenessContext(context.Background())
 	if err != nil {
 		return PairSessionBinding{}, fmt.Errorf("observe exact Pair session: %w", err)
 	}
@@ -198,11 +206,13 @@ type DetachedCandidate struct {
 // takes ONE zellij snapshot for all of them -- the snapshot ignores scope, so a
 // snapshot per scope would be the same query repeated.
 //
-// Cost, stated honestly: the snapshot is two `list-sessions` runs plus one
-// `action list-clients` per non-exited session ON THE HOST. Passing candidates
-// bounds WHETHER the snapshot runs -- a couch with nothing detachable pays
-// nothing -- but it does not bound N once it does. Each query carries
-// SnapshotContext's timeout so a hung zellij cannot wedge the refresh worker.
+// Cost: two `list-sessions` runs plus one `action list-clients` per candidate
+// session that is live -- the candidates' OWN sessions, not every session on the
+// host (pair#228). It used to ask every live pair session, about 250 ms each
+// against a real detached one, so proving one thread detached scaled with the
+// operator's whole session set. Candidates also bound WHETHER the snapshot runs:
+// a couch with nothing detachable pays nothing. Each query carries the zellij
+// query timeout, so a hung zellij cannot wedge the refresh worker.
 //
 // Index reads fail closed per scope: a scope whose index cannot be read
 // contributes no bindings rather than an empty answer that would silently hide
@@ -263,7 +273,15 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if len(bindings) == 0 {
 		return nil, nil
 	}
-	sessions, err := (launcher.ZellijSource{}).SnapshotContext(ctx)
+	names := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		names = append(names, binding.SessionName)
+	}
+	// Only the bindings' names are asked for clients. ProjectDetachedSessions
+	// reads state for exactly those names, so the answer is the one a full
+	// snapshot gives -- including its duplicate-row check, since both rows of a
+	// duplicated name pass the same filter.
+	sessions, err := c.Zellij.SnapshotSessionsContext(ctx, names)
 	if err != nil {
 		return nil, fmt.Errorf("observe zellij sessions: %w", err)
 	}
