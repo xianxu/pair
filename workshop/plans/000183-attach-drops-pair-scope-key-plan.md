@@ -540,3 +540,16 @@ Delta:
 - **Row 8's needle occurred 5 times.** It is now anchored to the context route; the reviewer ran it and it applies once and fails the named test.
 
 Both fixes are the replacements the reviewer itself executed, so there is no round 3. Advisories taken: the Task 4 gofmt gate (`test -z`), `go vet` for `couchcore` (the sandbox kills its pty tests), row 6's anchor, absolute template paths, and the `adapt.DataDir()` note in the doc comment.
+
+### 2026-09-10 — plan-quality gate advisories, folded in during implementation
+
+Reason: `sdlc change-code` passed the plan with two Minor findings (PQ-1, PQ-2 in
+the gate ledger). Folding them in during implementation kept the gate's
+byte-identical pass-through for the estimate re-run.
+Delta:
+- **PQ-1:** `TestOptionsFromCLIRefusesAnArgvWithoutTagAndAgent` pins the
+  extracted parse's refusal. `RunCLI` had no test, and that path fails silently.
+- **PQ-2:** `SessionEnv`'s doc comment says why the contract travels by
+  environment when the session watcher's scope travels by argv. The poller's
+  readers are environment-shaped, and an appended entry beats a stale inherited
+  `PAIR_SCOPE_KEY`.
