@@ -198,6 +198,9 @@ func (r OSRuntime) ListSessions() ([]ListRow, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read session-name index: %w", err)
 	}
+	// One list-clients per pair session, deliberately: each row renders
+	// "attached (N clients)", so every count IS the output. The one justified
+	// full scan among the tree's list-clients producers (pair#228).
 	return buildListRowsForScope(names, raw, index, scopeKeyFromDataDir(r.GlobalDataDir, r.DataDir), r.InferAgent, func(session string) int {
 		return parseClientCount(zj("--session", session, "action", "list-clients"))
 	}), nil

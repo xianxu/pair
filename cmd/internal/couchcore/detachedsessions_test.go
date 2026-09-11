@@ -97,9 +97,10 @@ func TestProjectDetachedSessions(t *testing.T) {
 	}
 }
 
-// The refresh's detached observation costs 2 + N zellij subprocesses
-// (list-sessions twice, plus one list-clients per pair session), so what keeps
-// it proportional is asking ONLY about records that could be detached. This
+// The refresh's detached observation costs 2 + C zellij subprocesses
+// (list-sessions twice, plus one list-clients per CANDIDATE session since
+// pair#228), so what keeps it proportional is asking ONLY about records that
+// could be detached. This
 // pins that bound directly, because a benchmark of the pure reducer cannot see
 // it -- the query lives on the refresh worker, not the keystroke path.
 func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {

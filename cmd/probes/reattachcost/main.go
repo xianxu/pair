@@ -19,10 +19,12 @@
 //	make test-reattach-cost            # N=8
 //	PAIR_PROBE_N=11 make test-reattach-cost
 //
-// It does NOT time couch's own overhead around the attach (the pair launcher,
-// the detached-session proof). Those are counted from the code in #206's Log,
-// because a count is portable and a timing of them here would be one more
-// number without a procedure.
+// It also times couch's zellij work around each attach, as two couch-shaped
+// passes built from production's own calls: the critical path as it ran before
+// pair#228 (five full snapshots and a name probe), and after it (two targeted
+// snapshots and three liveness ones). The count those calls make is proved by
+// the stub tests; this is the timing that goes with it. It does not time the
+// process spawns (pair-launch-helper, pair) or the registration poll interval.
 //
 // A timing is meaningless without its co-tenancy, so the report leads with it:
 // the load average, and how many agent processes were running.
@@ -55,14 +57,17 @@ const (
 	rows, cols    = 50, 200
 	attachTimeout = 20 * time.Second
 
-	// snapshotsPerReattach is how many zellij session snapshots ONE couch
-	// reattach takes, counted from the code: couchcore's ResumeContext proves
-	// the thread detached (DetachedSessions) and confirmStillDetached re-proves
-	// it; `pair resume`'s launcher snapshots at the top of its loop and again in
-	// runOnce; and the console refreshes its inventory when the operation
-	// completes. Each snapshot is two list-sessions plus one list-clients per
-	// non-exited pair session on the host (launcher.ZellijSource.SnapshotContext).
-	snapshotsPerReattach = 5
+	// The couch reattach's critical path, site by site (pair#228's table):
+	//   1-2 couchcore's detached proof, and its re-proof before the child effect
+	//   3   couchcore's registration poll (PairSession)
+	//   4-5 `pair resume`'s launcher: the orphan-nvim sweep, and runOnce
+	//   6   the launcher's session-name acceptance probe (one list-clients)
+	// The inventory refresh on completion (site 7) is async and off the path,
+	// so neither pattern includes it.
+	//
+	// oldFullSnapshots is sites 1-5 as they ran before pair#228: each a full
+	// snapshot, two list-sessions plus one list-clients per live pair session.
+	oldFullSnapshots = 5
 )
 
 func main() { os.Exit(run()) }
@@ -110,7 +115,11 @@ func run() int {
 	// only ever delete what this run created.
 	names := make([]string, n+1)
 	for i := range names {
-		names[i] = fmt.Sprintf("reattachcost-%d-%d", os.Getpid(), i)
+		// `pair-` prefixed: every snapshot filters to pair session names
+		// (isPairSessionName), so a probe session named otherwise would be
+		// invisible to the very calls being measured. They show in `pair list`
+		// while the probe runs.
+		names[i] = fmt.Sprintf("pair-rc%d-%d", os.Getpid(), i)
 	}
 	defer func() {
 		for _, name := range names {
@@ -207,20 +216,44 @@ func run() int {
 		}
 		return true
 	})
-	// The couch-shaped pass: each reattach preceded by the zellij snapshots
-	// couch's real path takes, through production's own SnapshotContext against
-	// this host's real session list. The attach column here includes them.
-	couchShaped := fmt.Sprintf("%d couch-shaped", n)
-	phase(couchShaped, func() bool {
+	// The couch-shaped passes: each reattach preceded by the zellij work couch's
+	// real critical path does, through PRODUCTION's own calls against this host's
+	// real session list -- first as it ran before pair#228, then after. One run,
+	// so both see the same co-tenancy. The column includes that work.
+	bounded := func(f func(ctx context.Context)) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		f(ctx)
+	}
+	oldShaped := fmt.Sprintf("%d old pattern", n)
+	phase(oldShaped, func() bool {
 		for _, name := range names[1:] {
 			began := time.Now()
-			for k := 0; k < snapshotsPerReattach; k++ {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				_, _ = (launcher.ZellijSource{}).SnapshotContext(ctx)
-				cancel()
+			for k := 0; k < oldFullSnapshots; k++ { // sites 1-5
+				bounded(func(ctx context.Context) { _, _ = (launcher.ZellijSource{}).SnapshotContext(ctx) })
 			}
+			_ = launcher.OSRuntime{}.ProbeSessionName(name) // site 6: one list-clients
 			_, ok := attach(config, name, env)
-			results[couchShaped] = append(results[couchShaped], result{name, time.Since(began), ok})
+			results[oldShaped] = append(results[oldShaped], result{name, time.Since(began), ok})
+		}
+		return true
+	})
+	time.Sleep(time.Second)
+	newShaped := fmt.Sprintf("%d new pattern", n)
+	phase(newShaped, func() bool {
+		for _, name := range names[1:] {
+			began := time.Now()
+			for k := 0; k < 2; k++ { // sites 1-2: the proof asks only this session
+				bounded(func(ctx context.Context) {
+					_, _ = (launcher.ZellijSource{}).SnapshotSessionsContext(ctx, []string{name})
+				})
+			}
+			for k := 0; k < 3; k++ { // sites 3-5: liveness only
+				bounded(func(ctx context.Context) { _, _ = (launcher.ZellijSource{}).LivenessContext(ctx) })
+			}
+			// site 6: skipped -- a live session under the name proves acceptance.
+			_, ok := attach(config, name, env)
+			results[newShaped] = append(results[newShaped], result{name, time.Since(began), ok})
 		}
 		return true
 	})
@@ -282,16 +315,21 @@ func run() int {
 		fmt.Printf("%-18s %8s %s   %s\n", w.name, ms(w.end.Sub(w.start)), attachCols, latency)
 	}
 	fmt.Printf("\nattach = spawn of `zellij attach` until the session's own marker renders (%dx%d, pair-shaped layout, repo config).\n", cols, rows)
-	live := 0
-	if sessions, err := (launcher.ZellijSource{}).SnapshotContext(context.Background()); err == nil {
+	// S = live pair sessions the full snapshots asked; the probe's own n+1 are
+	// counted separately because they are synthetic.
+	hostLive := 0
+	if sessions, err := (launcher.ZellijSource{}).LivenessContext(context.Background()); err == nil {
 		for _, s := range sessions {
-			if s.State != launcher.SessionExited {
-				live++
+			if s.State != launcher.SessionExited && !strings.HasPrefix(s.Name, fmt.Sprintf("pair-rc%d-", os.Getpid())) {
+				hostLive++
 			}
 		}
 	}
-	fmt.Printf("couch-shaped = %d snapshots + the attach, per thread. Counted: %d live pair sessions here, so each reattach makes %d x (2 + %d) = %d zellij CLI calls before it attaches -- a pass over N threads makes N x that.\n",
-		snapshotsPerReattach, live, snapshotsPerReattach, live, snapshotsPerReattach*(2+live))
+	s := hostLive + n + 1
+	fmt.Printf("old pattern = %d full snapshots + 1 name probe + the attach: %d x (2 + S) + 1 list-clients per thread; S = %d (host %d + probe %d), so %d zellij calls before each attach.\n",
+		oldFullSnapshots, oldFullSnapshots, s, hostLive, n+1, oldFullSnapshots*(2+s)+1)
+	fmt.Printf("new pattern = 2 targeted snapshots + 3 liveness + the attach: 2 x (2 + 1) + 3 x 2 = 12 zellij calls before each attach, whatever S is.\n")
+	fmt.Println("caveat: synthetic sessions answer list-clients in ~53ms where a real detached pair session takes ~250ms, so the OLD column understates the real before-cost; the count is the promise.")
 	if failed > 0 {
 		fmt.Printf("PROBE-INCONCLUSIVE: %d attach(es) never rendered their marker; the phases that include them are not measurements.\n", failed)
 		return 2
