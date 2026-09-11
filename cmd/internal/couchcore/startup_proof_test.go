@@ -2,10 +2,9 @@ package couchcore
 
 // pair#206 M1: what startup PROVES before the first frame.
 //
-// StartInteractive takes one inventory, and three readers consume it:
-// ResolveLayoutConflicts, SelectResumableRoot, and the one-thread-per-path
-// guards inside spawnResolved. Each filters before it reads -- the selectors to
-// the cwd, the layout guard to rows whose layout differs -- so proving anything
+// StartInteractive takes one inventory, and the readers listed on startupAsks
+// consume it (that comment is the list's one home). Each filters before it
+// reads -- to the cwd, or to rows whose layout differs -- so proving anything
 // about a thread outside both sets is work whose answer nobody looks at.
 //
 // It is charged twice over: one `list-clients` per detach candidate (about

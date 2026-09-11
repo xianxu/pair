@@ -120,12 +120,18 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 
 // startupAsks decides which resume-shaped candidates startup's blocking
 // inventory resolves. It is the union of what the readers of startup's rows
-// filter on, and it is the whole of pair#206 M1:
+// filter on, and it is the whole of pair#206 M1.
 //
-//   - SelectResumableRoot and the one-thread-per-path guards inside
-//     spawnResolved read only rows at the cwd (this repo scope AND this
-//     working path);
-//   - ResolveLayoutConflicts reads only rows whose layout differs from the one
+// THE READERS OF STARTUP'S ROWS -- this list is their one home; other comments
+// and docs point here rather than restating it, because every restated copy
+// has drifted (pair#206 M1 review):
+//
+//   - SelectResumableRoot, PathHoldsUsableThread (inside spawnResolved): read
+//     only rows at the cwd (this repo scope AND this working path);
+//   - PathHoldsUnreadableThread: scans the whole scope, but only for records
+//     the store could not decode, which never reach the resume-shaped branch
+//     this predicate gates -- so it is unaffected by the narrowing;
+//   - ResolveLayoutConflicts: reads only rows whose layout differs from the one
 //     couch was asked to start in, at any path.
 //
 // A candidate outside both sets keeps ProofUnresolved and classifies
@@ -136,8 +142,9 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 // review closed off.
 //
 // TestNarrowedStartupAnswersAsAFullProofWould is the guard: it computes both
-// inventories and asserts all three readers answer identically. A fourth reader
-// widens this predicate, and that test is where the omission shows.
+// inventories and asserts every reader in the list above answers identically. A
+// new reader joins that list and that test, and widens this predicate if it
+// filters differently.
 func startupAsks(requested Layout, repoScope, workingPath string) func(ThreadRecord) bool {
 	return func(record ThreadRecord) bool {
 		if record.Address.RepoScope == repoScope && record.WorkingPath == workingPath {

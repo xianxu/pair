@@ -732,10 +732,9 @@ Where that lands differs by caller, and both matter:
   cost before the first frame -- and `leave` detaching rather than parking makes
   a detach candidate the normal case.
 - **Startup proves only the threads its readers consume** (`pair#206` M1).
-  Three readers take those rows: `ResolveLayoutConflicts`, `SelectResumableRoot`
-  and the one-thread-per-path guards. Each filters before it reads -- the
-  selectors to the cwd, the layout guard to rows whose layout differs -- so
-  `startupAsks` resolves exactly that union and leaves every other candidate
+  The readers of those rows are listed on `startupAsks` in `startup.go`, which
+  is the list's one home. Each filters before it reads -- to the cwd, or to rows
+  whose layout differs -- so `startupAsks` resolves exactly that union and leaves every other candidate
   `ProofUnresolved`, which classifies `unknown`: a row no reader here can act
   on. Those rows never leave `StartInteractive` (`StartResult` carries none),
   so unasked state cannot reach the switcher.
@@ -744,8 +743,8 @@ Where that lands differs by caller, and both matter:
   each resolution reads that thread's own ledger -- narrowing only the
   `list-clients` calls would leave time-to-first-frame growing with the store
   while looking fixed. `TestNarrowedStartupAnswersAsAFullProofWould` computes
-  the inventory both ways and asserts all three readers agree; a fourth reader
-  widens the predicate, and that test is where the omission shows.
+  the inventory both ways and asserts every listed reader agrees; a new reader
+  joins that list and that test.
 
 Resume accepts verified park **or proved detachment**. A detached thread has no
 verified park because nothing was torn down; its authority is the surviving

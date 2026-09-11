@@ -356,3 +356,48 @@ func indexLegacySession(t *testing.T, dataDir string, address ThreadAddress, nam
 		t.Fatal(err)
 	}
 }
+
+// The reach rule in DetachedSessions' doc, pinned: a scope whose own index file
+// will not decode binds NONE of its threads -- not even from the legacy rows
+// another scope's successful read replayed.
+//
+// The unreadable file may hold a newer row that supersedes the legacy one, so
+// using the legacy name would judge a thread by a session it has left. The
+// union-of-reads refactor briefly did exactly that: it iterated scopes rather
+// than reads, and took a failed scope's threads' names from elsewhere.
+func TestDetachedSessionsBindsNothingForAnUnreadableScope(t *testing.T) {
+	dataDir := t.TempDir()
+	const legacyName = "📁repo-legacy"
+	// The thread's only readable binding is a legacy row.
+	broken := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000aa"}
+	healthy := ThreadAddress{RepoScope: "fedcba9876543210", Tag: "couch-00000000000000bb"}
+	indexLegacySession(t, dataDir, broken, legacyName)
+	indexSession(t, dataDir, healthy, "📁repo-healthy")
+
+	// broken's OWN scope file exists but will not decode.
+	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: broken.RepoScope}, string(broken.Tag))
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.SessionBindings(), []byte("{not json\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	checker, _ := sandboxedChecker(t, dataDir, map[string]string{legacyName: "detached", "📁repo-healthy": "detached"})
+
+	observed, err := checker.DetachedSessions(context.Background(), []DetachedCandidate{
+		{Address: broken, Agent: "claude"},
+		{Address: healthy, Agent: "claude"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, observation := range observed {
+		if observation.Address == broken {
+			t.Fatalf("observed %+v for a thread whose own index could not be read; its current binding is unknown", observation)
+		}
+	}
+	// And the readable scope is unaffected by its neighbour's failure.
+	if len(observed) != 1 || observed[0].Address != healthy {
+		t.Fatalf("observed %+v, want only the healthy scope's thread", observed)
+	}
+}

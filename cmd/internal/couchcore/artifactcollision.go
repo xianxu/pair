@@ -133,9 +133,6 @@ func (c ScopedThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) err
 	return launcher.QuiesceThreadSession(c.GlobalDataDir, address.RepoScope, string(address.Tag), c.Sessions)
 }
 
-// lookupSessionName finds the zellij session name bound to one address,
-// scanning the index backwards so the newest binding wins. One implementation
-// for PairSession and DetachedSessions, which asked the same question twice.
 // scopedIndexRead is one ReadSessionNameIndex result: the shared legacy file's
 // rows, then one scope's own rows.
 type scopedIndexRead struct {
@@ -144,7 +141,9 @@ type scopedIndexRead struct {
 }
 
 // effectiveBindings is every thread's CURRENT session name over the union of the
-// files the reads saw -- each thread once, at its newest binding.
+// files the reads saw -- each thread once, at its newest binding. It is the ONLY
+// derivation of that fact: PairSession and DetachedSessions both call it, so
+// the name a thread is judged by cannot differ between them.
 //
 // The union is the whole difficulty. Every scoped read replays the legacy file
 // before its own, so a thread bound only by a legacy row appears in EVERY read.
@@ -193,16 +192,6 @@ func claimsFromBindings(bindings map[ThreadAddress]string) map[string]int {
 	return claims
 }
 
-func lookupSessionName(index launcher.SessionNameIndex, address ThreadAddress) string {
-	for i := len(index.Entries) - 1; i >= 0; i-- {
-		entry := index.Entries[i]
-		if entry.ScopeKey == address.RepoScope && entry.Tag == string(address.Tag) {
-			return entry.SessionName
-		}
-	}
-	return ""
-}
-
 func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return PairSessionBinding{}, err
@@ -218,7 +207,7 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 	if err != nil {
 		return PairSessionBinding{}, fmt.Errorf("read exact Pair session index: %w", err)
 	}
-	name := lookupSessionName(index, address)
+	name := effectiveBindings([]scopedIndexRead{{scope: address.RepoScope, index: index}})[address]
 	if name == "" {
 		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
 	}
@@ -271,10 +260,13 @@ type DetachedCandidate struct {
 // a couch with nothing detachable pays nothing. Each query carries the zellij
 // query timeout, so a hung zellij cannot wedge the refresh worker.
 //
-// Index reads fail closed per scope: a scope whose index cannot be read
-// contributes no bindings rather than an empty answer that would silently hide
-// its detached threads. A snapshot failure is returned, because that one IS the
-// whole answer.
+// Index reads fail closed per scope: a scope whose index cannot be read binds
+// none of its threads -- not even from legacy rows that another scope's read
+// replayed, because the unreadable file may hold a NEWER row that supersedes
+// them, and judging a thread by a name it has left is the wrong-answer failure
+// this rule exists to prevent. Its rows still count as claims where another read
+// saw them. Pinned by TestDetachedSessionsBindsNothingForAnUnreadableScope. A
+// snapshot failure is returned, because that one IS the whole answer.
 func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
 	addresses := make([]ThreadAddress, 0, len(candidates))
 	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))
@@ -304,6 +296,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	// Every read is kept, so claims can be counted ONCE over their union rather
 	// than summed per read -- see effectiveBindings for why summing was wrong.
 	var reads []scopedIndexRead
+	readable := make(map[string]bool, len(scopes))
 	for _, scope := range scopes {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -320,6 +313,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 			continue
 		}
 		reads = append(reads, scopedIndexRead{scope: scope, index: index})
+		readable[scope] = true
 	}
 	// One derivation of "this thread's current session name", used for both the
 	// candidate's own binding and the claim count, so the name a candidate is
@@ -327,6 +321,9 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	// construction rather than by two lookups agreeing.
 	current := effectiveBindings(reads)
 	for _, scope := range scopes {
+		if !readable[scope] {
+			continue // fail closed: see the reach rule above
+		}
 		for _, address := range byScope[scope] {
 			if name := current[address]; name != "" {
 				candidate := proof[address]

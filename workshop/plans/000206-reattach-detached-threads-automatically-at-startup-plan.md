@@ -151,15 +151,9 @@ disagreement in.
     own map, so the rule is not invisible to fake-backed tests (`ARCH-MOCK`).
 - **`startupAsks(requested Layout, repoScope, workingPath string) func(ThreadRecord) bool`**
   decides which resume-shaped candidates startup's blocking inventory
-  resolves. It is the union of what the readers of startup's rows filter on:
-  - `SelectResumableRoot`, `PathHoldsUsableThread` and
-    read only rows at the cwd (`Address.RepoScope == repoScope &&
-    WorkingPath == workingPath`). `PathHoldsUnreadableThread` scans the whole
-    scope rather than one path, but only for records the store could not
-    decode -- which never reach the resume-shaped branch this predicate gates,
-    so it is unaffected;
-  - `ResolveLayoutConflicts` reads only rows whose
-    `NormalizeLayout(string(record.Layout)) != requested`.
+  resolves. It is the union of what the readers of startup's rows filter on.
+  **The reader list lives on `startupAsks`' doc comment in `startup.go`** and
+  is not restated here: every restated copy of it drifted (M1 review, round 2).
 
   A candidate outside both sets is left `ProofUnresolved` → `unknown`. No
   reader of startup's rows can act on it, and the rows never leave
@@ -376,9 +370,11 @@ reach a cell.
   takes the in-flight slot except by adoption.
 - **Time to first frame (M1).** Before: `ResolveEstablished` per resume-shaped
   record plus C `list-clients`, plus the cwd resume. After: the cwd candidate
-  and any layout-conflicting candidate only. M1 closes on both a zellij call
-  count **and** a measured first-frame time, since a count alone would miss
-  the ledger reads.
+  and any layout-conflicting candidate only. M1 closed on the counted invariant
+  -- zellij candidates AND binding resolutions, which covers the ledger reads a
+  zellij count alone would miss -- plus the operator's real-stack smoke (~1.5x).
+  A measured first frame waits for M2's `COUCH_TRACE`; see the M1 timing
+  Revision.
 - **The whole pass** is N sequential reattaches at #228's constant
   `list-clients` cost — roughly 7 s for 10 threads, off the critical path.
 
@@ -724,3 +720,32 @@ the plan's prose had not followed the code.
   kills the mutation.
 - `sessionNameClaims` is now `effectiveBindings` plus `claimsFromBindings`;
   Tasks 2 and 3 are ticked.
+
+### 2026-09-11 — M1 review round 2: three rules, applied as rules
+
+**Reason.** The review converged (SHIP) but raised three advisory families, each
+its second instance. Each is fixed as a rule, not at the named sites.
+
+- **Do not restate, point.** "Grep every restatement in the same edit" was
+  stated in round 1, and the next two commits still produced six stale copies:
+  "three readers" in code, the test header and the atlas while the test
+  asserted four, plus a dangling "and" and a promised measurement that had been
+  replaced. So the reader list now has ONE home, `startupAsks`' doc comment,
+  and every other site names it instead of repeating a number.
+  - Swept: `startup.go`, `startup_proof_test.go`, `atlas/couch.md`, and this
+    plan's Core concepts entry and envelope.
+- **A reach claim is pinned by the test the comment names.** `DetachedSessions`'
+  doc said an unreadable scope "contributes no bindings", and after the
+  union-of-reads refactor the code no longer did that: it iterated scopes
+  rather than reads, so a failed scope's threads took their names from legacy
+  rows another read replayed. The comment stated the right rule -- the
+  unreadable file may hold a newer row, so the legacy name could be one the
+  thread has left -- so the code now follows it.
+  `TestDetachedSessionsBindsNothingForAnUnreadableScope` pins it, the comment
+  names that test, and removing the guard fails it.
+- **One derivation of a thread's current session name.** `lookupSessionName`
+  and `effectiveBindings` computed the same fact, for `PairSession` and
+  `DetachedSessions` respectively. `lookupSessionName` is deleted and
+  `PairSession` calls `effectiveBindings` over its one read, so the two cannot
+  judge a thread by different names. The test helper `claimsOf`, a third copy
+  of the counting rule, now counts through `claimsFromBindings`.

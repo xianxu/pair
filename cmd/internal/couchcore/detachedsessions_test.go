@@ -249,17 +249,17 @@ func TestProjectDetachedSessionsRefusesAttachStateItWasNotGiven(t *testing.T) {
 }
 
 // claimsOf is the identity case for these pure tests: every claimant is among
-// the bindings passed. The case that needs the WIDER index -- a claimant the
-// caller did not ask about -- is TestProjectDetachedSessionsRefusesAContestedName
-// and, at the IO seam, TestDetachedSessionsRefusesANameTwoThreadsClaim.
+// the bindings passed. It counts through claimsFromBindings -- the one counting
+// rule -- rather than restating it, so a change to the rule cannot leave these
+// tests asserting the old one. The case that needs the WIDER index is
+// TestProjectDetachedSessionsRefusesAContestedName and, at the IO seam,
+// TestDetachedSessionsRefusesANameTwoThreadsClaim.
 func claimsOf(bindings []SessionNameBinding) map[string]int {
-	claims := map[string]int{}
+	byThread := make(map[ThreadAddress]string, len(bindings))
 	for _, binding := range bindings {
-		if binding.SessionName != "" {
-			claims[binding.SessionName]++
-		}
+		byThread[binding.Address] = binding.SessionName
 	}
-	return claims
+	return claimsFromBindings(byThread)
 }
 
 // The rule the narrowed ask depends on: a name some OTHER thread also binds
