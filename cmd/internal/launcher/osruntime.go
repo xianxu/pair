@@ -84,6 +84,10 @@ func zj(args ...string) string {
 
 func (OSRuntime) Sessions() ([]Session, error) { return ZellijSource{}.Snapshot() }
 
+func (OSRuntime) SessionLiveness() ([]Session, error) {
+	return ZellijSource{}.LivenessContext(context.Background())
+}
+
 func (OSRuntime) SessionBlocksReuse(session string) bool {
 	present, exited := sessionRowState(zj("list-sessions", "--no-formatting"), session)
 	if !present {

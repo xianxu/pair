@@ -65,8 +65,10 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 
 	// Startup nvim hygiene (shell 1243): reap embeds whose Pair session is
 	// gone (an external kill / reboot leaves no quit marker). Once, up front — a
-	// clean restart below leaves nothing new to sweep.
-	if sessions, err := rt.Sessions(); err == nil {
+	// clean restart below leaves nothing new to sweep. Liveness, not a full
+	// snapshot: liveTagsForSweep reads names only, and a full one would ask every
+	// live session for its clients (pair#228).
+	if sessions, err := rt.SessionLiveness(); err == nil {
 		index, err := rt.ReadSessionNameIndex()
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: read session-name index: %v\n", err)
@@ -159,7 +161,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	scopeRoot := envScopeRoot(env)
 	base := DefaultTag(scopeRoot)
 	cutoff := env.Now.Add(-time.Duration(env.HistoryD) * 24 * time.Hour)
-	sessions, err := rt.Sessions()
+	sessions, err := sessionsFor(rt, opts.Args)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: failed to query zellij sessions: %v\n", err)
 		return launchStep{code: 1}, nil
@@ -865,6 +867,18 @@ func normalizeEnv(env Env) Env {
 		env.Now = time.Now()
 	}
 	return env
+}
+
+// sessionsFor takes the snapshot the launch decision for args actually needs:
+// a full one (every live session asked for its clients) only when the decision
+// distinguishes attached from detached, which decisionNeedsAttachState -- the
+// same switch DecideLaunch branches on -- says. `pair resume <tag>`, couch's
+// reattach, reads liveness only (pair#228).
+func sessionsFor(rt Runtime, args LaunchArgs) ([]Session, error) {
+	if decisionNeedsAttachState(args) {
+		return rt.Sessions()
+	}
+	return rt.SessionLiveness()
 }
 
 func envScopeRoot(env Env) string {
