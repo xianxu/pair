@@ -1,11 +1,12 @@
 ---
 id: 000206
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-09-10
 estimate_hours:
+started: 2026-09-10T20:16:19-07:00
 ---
 
 # reattach detached threads automatically at startup
