@@ -479,3 +479,28 @@ code from co-tenancy.
 single-thread detach end to end, several runs, with a per-phase breakdown and
 co-tenancy recorded. This observation is carried there as input.
 
+### 2026-09-11 — the operator's UX for pending threads
+
+**Reason.** Mid-M2, the operator specified how threads look while the pass
+brings them back:
+
+> *"ideally, when we attempt to start a thread, we would add placeholder of it
+> in the couch status bar, with a spinner: brain [spinner], while the thread is
+> being started. during this state of being reattached, it's not clickable,
+> and when user click on it, we won't switch to it as it's not yet ready. if
+> user do search in switcher, same thing, that line is grayed, and not
+> selectable."*
+
+Asked how QUEUED threads (pending, not yet starting) should appear, they chose
+**all pending, none selectable**: every thread the pass will reattach appears
+at once, greyed, with a spinner on the one currently starting, and none can be
+clicked or selected until it attaches.
+
+**Delta.** This settles the Spec's open cell -- "what does a switch to a
+not-yet-attached thread do?" -- as **refuse, visibly**: the row and the chip are
+present but inert until ready. The Spec's strategy-B idea of jumping the queue
+is dropped, and so is the plan's "adopt the loading row". Since #228 each
+reattach takes about 0.3-0.7 s, so ten threads fill in within seconds, and
+reordering them would buy little. Done-when's "a switch to a pending row
+behaves as specified" now means *it is not selectable*. The plan's Decisions,
+pass view, transitions and Tasks 6-12 are rewritten to match.

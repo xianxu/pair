@@ -16,7 +16,7 @@ the background, without taking the operator's operation slot or their focus.
   - One attempt at a time, through the existing operation queue, with a
     background origin, and never while an operator operation is in flight.
   - Its resume carries `warm-only`, so the pass can never start an agent.
-  - A background attach adopts a pane without touching focus.
+  - A background attach adds its pane without touching focus.
 
 **Tech Stack:** Go. `couchcore` (inventory, resume), `couchtty` (menu reducer,
 console), `couchcmd` (wiring).
@@ -47,8 +47,9 @@ asked for it on 2026-09-11; the #206 Revision of that date put it here).
 - **An opt-out flag.** The Spec says "with no operator action". Add one when
   somebody asks.
 - **#214's per-thread guard.** The pass keeps at most one attempt of its own;
-  an operator resume of the loading thread is adopted, not duplicated; and
-  `DecideResume` still refuses an occupied incarnation.
+  a thread it owns is not selectable, so the operator cannot dispatch a second
+  resume of it from the switcher; and `DecideResume` still refuses an occupied
+  incarnation for any other route.
 - **The first inventory's O(C) cost.** It runs on the refresh worker, off the
   critical path. #229 owns post-mutation refresh cost.
 
@@ -64,12 +65,16 @@ unavailable", exactly as today.
 Seeding the switcher from startup's rows instead was rejected: after M1 those
 rows deliberately carry unasked candidates, and feeding unasked state to a
 reader of attach state is what #228's close review closed off
-(`launcher.RequireAttachState`). **Put to the operator before M2 starts, not
-at the close** — it is a Done-when bullet, and building M2 against an
-interpretation they have not accepted is the expensive order to discover a
-disagreement in.
+(`launcher.RequireAttachState`). **Decided by the operator before M2 started:
+first inventory is fine** (2026-09-11). No first-frame seeding.
 
 ## Decisions (the Spec's open cells, answered)
+
+**The operator's UX for pending threads (2026-09-11), which decisions 3-5
+implement:** *"when we attempt to start a thread, we would add placeholder of
+it in the couch status bar, with a spinner ... it's not clickable ... if user do
+search in switcher, same thing, that line is grayed, and not selectable."* And,
+asked about queued threads: **all pending, none selectable.**
 
 1. **Order.** Most recently active first (`LastActiveAt` descending), ties by
    `(RepoScope, Tag)`.
@@ -79,15 +84,24 @@ disagreement in.
    asked", not "not detached" (see cell 4). `warm-only` decides at attempt
    time, so an `unknown` row that is not really detached is skipped, not
    started.
-3. **Enter or click on a queued row: jump.** It leaves the queue and
-   dispatches as an ordinary operator resume.
-4. **Enter or click on the row being reattached: adopt.** No second attempt.
-   The in-flight slot takes the pass's attempt identity; on completion it
-   lands focus and reports like an operator resume.
-5. **A reattach that fails** marks its row `reattach failed: <code>`. The pass
-   moves on. Enter on that row is an ordinary resume and clears the mark.
-6. **A thread that is no longer warm** when its turn comes — parked, attached
-   elsewhere, or its session gone — is **skipped silently**, not marked
+3. **Every pending thread appears at once, as a placeholder, and none is
+   selectable.** When the pass seeds, each thread it will reattach shows up
+   greyed in the status bar and in the switcher; the one currently starting
+   carries a spinner. A placeholder cannot be clicked (it records no chip span)
+   and a pending switcher row cannot be selected (the cursor and auto-select
+   skip it). There is no queue-jumping and no adoption: since #228 each
+   reattach takes about 0.3-0.7 s, so ten threads fill in within seconds, and
+   the operator chose simplicity over reordering.
+4. **A placeholder resolves when its thread does.** On success it becomes an
+   ordinary chip and row, in place: attached chips are drawn in attach order
+   and placeholders after them in pass order, so the thread that just attached
+   takes the column its placeholder held. On a skip (cell 6) the placeholder
+   disappears and the row returns to whatever the inventory says.
+5. **A reattach that fails** drops its placeholder from the status bar, and its
+   switcher row reads `reattach failed: <code>` -- no longer pending, so
+   selectable. Enter on it is an ordinary manual resume and clears the mark.
+6. **A thread that is no longer warm** when its turn comes -- parked, attached
+   elsewhere, or its session gone -- is **skipped silently**, not marked
    failed. That is the `resume-not-detached` refusal, and `resume-session-gone`
    from `confirmStillDetached` joins it.
 7. **A thread detached by the operator during the pass is not reattached.**
@@ -101,19 +115,19 @@ disagreement in.
    through `runConsole` like a bare `couch`, so it would otherwise inherit the
    pass. Arming belongs to the startup gesture: an operator who named one
    thread asked for that thread. Only the bare-start path arms.
-10. **Cell 14 covers archive, park and relaunch, not rename.** Renaming a
-   queued thread changes its label, not its resumability, so its queue entry
-   stays — the pass holds addresses, not rows. Done-when bullet 2 is satisfied
-   because the thread is still reattached.
+10. **Cell 14 covers archive, park and relaunch, not rename.** A pending row is
+   not selectable in the switcher, so these reach a queued thread only from the
+   CLI (`couch park <tag>`); the queue entry goes, and the ordinary effect runs.
+   Renaming changes a label, not resumability, so the entry stays.
 11. **Every pass failure carries a diagnostic code.** `ResumeDiagnosticOf`
    returns empty for failures that are not refusals (a spawn error, a
    registration timeout), so the row would read `reattach failed: `. Those get
    a generic `reattach-failed` code, and the row shows the error's first line
    beneath it.
 12. **Rows are rendered from the pass while its own mutation is in flight**
-   (cell 13), because the inventory passes through states — stale incarnation,
-   then Busy, then Live-but-unhosted — that would otherwise show as
-   "stale…"/"parking…" and refuse Enter.
+   (cell 13), because the inventory passes through states -- stale incarnation,
+   then Busy, then Live-but-unhosted -- that would otherwise show as
+   "stale..."/"parking..." for a thread the pass is still bringing back.
 
 ## Core concepts
 
@@ -128,6 +142,8 @@ disagreement in.
 | `ReduceMenu` (pass branches) | `cmd/internal/couchtty/menu.go` | modified |
 | `MenuOperationOrigin.Background`, `MenuEffect.Background`, `MenuEvent.Background`, `MenuEvent.Diagnostic` | `cmd/internal/couchtty/menu.go` | modified |
 | `rootStateText` | `cmd/internal/couchtty/menu_render.go` | modified |
+| `StatusActor.Placeholder`, `RenderStatusRow` (no chip span for a placeholder) | `cmd/internal/couchtty/reserve.go` | modified |
+| `menuRowSelectable` (cursor and auto-select skip pending rows) | `cmd/internal/couchtty/menu.go` | new |
 | `ResumeNotDetached` (diagnostic) | `cmd/internal/couchcore/resume.go` | new |
 
 - **`ProjectDetachedSessions`'s duplicate-name rule counts claims over the
@@ -187,10 +203,12 @@ disagreement in.
   }
   ```
 
-  Attempt identities come from `MenuState.OperationSequence`, so an adopted
-  attempt matches the in-flight slot through the existing
-  `menuOperationMatches`. `cloneMenuState` deep-copies `Queue`, `Attached` and
-  `Failed`, keeping a nil map nil, because tests compare whole `MenuState`
+  Attempt identities come from `MenuState.OperationSequence`, the counter the
+  operator's own operations draw from, so a pass completion can never be
+  mistaken for one of theirs; `finishReattach` matches it against
+  `LoadingAttempt`. There is no adoption, so a pass attempt never occupies the
+  operator's in-flight slot. `cloneMenuState` deep-copies `Queue`, `Attached`
+  and `Failed`, keeping a nil map nil, because tests compare whole `MenuState`
   values with `DeepEqual`.
   - **`Attached`** is what makes cell 13 work: the pass, not the lagging
     inventory, is the authority for a row it just mutated. It maps an address
@@ -212,6 +230,8 @@ disagreement in.
 | `Console.ArmReattachPass` | `couchtty/console_reattach.go` | new | menu reducer |
 | `runMenuOperation` (background) | `couchtty/console.go` | modified | `operationQueue` |
 | `installObservedThreadActor` (background) | `couchtty/console.go` | modified | pane adoption |
+| `paintNow` (placeholder chips from the pass) | `couchtty/console.go` | modified | status bar model |
+| status-row spinner tick | `couchtty/console.go` (Run loop) | new | a timer, repaint |
 | `finishMenuRefresh`, `finishOperation` (dispatch pass effects) | `couchtty/console_menu.go`, `console.go` | modified | menu effects |
 | `runConsole` arms the pass | `couchcmd/run.go` | modified | console lifecycle |
 | `COUCH_TRACE` timing trace | `couchtty/inputtrace.go` (extended), `couchcmd/run.go` | modified | append-only file |
@@ -237,8 +257,17 @@ disagreement in.
     `installObservedThreadActor` only by dispatching `attach` through the
     declared table — it holds no direct call — so without this arg the flag has
     no way across, and the guard above cannot be reached. `finishOperation`
-    sets it from `completed.origin.Background && !adopted`: an ADOPTED
-    completion is the operator's own landing and takes focus normally.
+    sets it from `completed.origin.Background`, and a background completion
+    NEVER takes focus: with no adoption, there is no background completion
+    that is the operator's own landing.
+- **The status-row spinner needs its own tick.** The existing spinner runs
+  only while the switcher is focused AND a progress notice shows, but the
+  operator spends the pass in their own thread. So the Run loop gets a second
+  timer, armed only while the pass has a `Loading` thread, that advances a
+  status-row spinner phase and requests a repaint of that row -- coalesced
+  through the existing `paintPending`, and stopped with the console. It is the
+  same seam #231's clock needs (a periodic status-row repaint while the
+  operator is in a thread); #231 extends it rather than adding another.
 - **The console seam** is the existing fixture. Cancellation tests use
   `SetOperationDispatcher`, not `setTestOps`, because `setTestOps` drops
   `call.Context`.
@@ -252,75 +281,49 @@ disagreement in.
 
 ## The pass view: one authority, every reader (`ARCH-DRY`, `ARCH-PURPOSE`)
 
-While the pass owns a row, the inventory is BEHIND — a thread mid-reattach
+While the pass owns a row, the inventory is BEHIND -- a thread mid-reattach
 reads Detached, then stale-incarnation, then Busy, then Live-but-unhosted, and
-an attached one reads Detached until the next refresh lands. Five readers ask
-about a row, and every one of them that consults the inventory first gets a
-stale answer:
-
-| reader | stale answer without the view |
-|---|---|
-| `rootStateText` | `detached · 3m` for a row that is loading, `live` for one that is gone |
-| `reduceRootKey` (Enter) | verb `switch` on a loading row, so adoption never fires; a second `resume` on an attached one, which `DecideResume` refuses as occupied |
-| `MenuEventMouseSwitch` (click) | the same, by the same route |
-| `menuThreadActionable` | refuses Enter entirely while the row reads Busy or stale |
-| `menuActionItems` (Tab) | returns its Busy branch before the actionable check |
+an attached one reads Detached until the next refresh lands. Every reader that
+consulted the inventory first would get a stale answer, and three plan-review
+rounds each found another such reader.
 
 So there is **one pure function**, `passViewOf(pass, address) (PassView, bool)`,
 the only place that knows what the pass means for a row.
 
-**It is applied where rows are LOOKED UP, not in each reader.** The table above
-names five readers, but that list is not the class: the confirmation's Enter
-checks `!thread.Live()`, reconcile makes the same check, the leave
-confirmation counts live rows, Escape reads state, and the age colouring reads
-`LastActiveAt`. Patching five named functions leaves a sixth reading the stale
-row -- and three plan-review rounds in a row found another one. So the view is
+**It is applied where rows are LOOKED UP, not in each reader.** The view is
 overlaid inside the lookups every reader already goes through
-(`findMenuThread`, `selectedMenuThread`, `visibleRootThreads`), which return
-a row with the pass's state applied.
+(`findMenuThread`, `selectedMenuThread`, `visibleRootThreads`), which return a
+menu-local row carrying the pass's state alongside the inventory row.
 
-**And a guard makes "a sixth reader fails" true rather than hoped for:** a test
+**And a guard makes "a new reader fails" true rather than hoped for:** a test
 that parses `couchtty`'s non-test sources and fails on any read of
-`state.Inventory` outside those lookups. Without the guard the lookup
-convention is a comment; with it, a new reader that goes around the view fails
-the build's tests.
+`state.Inventory` outside those lookups.
 
-The view's contract, per pass state:
+The view's contract, per pass state -- this table is the contract's one home:
 
-| pass state | text | Enter/click verb | actionable | Tab items |
+| pass state | switcher row | selectable | status bar | clickable |
 |---|---|---|---|---|
-| Queued | `queued` | `resume` (jumps the queue) | yes | resume, park, archive |
-| Loading | `reattaching…` | **adopt** — claim the attempt, dispatch nothing | yes | name, describe (the Busy items) |
-| Failed | `reattach failed: <code>` | `resume` (and clears the mark) | yes | resume, park, archive |
-| Attached | `live` | `switch` | yes | the live-row items |
-| not in the pass | today's `rootStateText` | today's `enterOperationFor` | today's rule | today's items |
+| Queued | `queued`, greyed | no -- the cursor and auto-select skip it | the label, greyed | no |
+| Loading | `reattaching...`, greyed, with the spinner | no | the label, greyed, with the spinner | no |
+| Failed | `reattach failed: <code>` | yes -- Enter is an ordinary resume and clears the mark | nothing (not attached, not pending) | -- |
+| Attached | `live` | yes -- Enter switches | the ordinary chip, from its pane | yes |
+| not in the pass | today's | today's | today's | today's |
 
-**Post-conditions every overridden reader keeps**, because the callers rely on
-them and a violation is a crash on the Run loop, not a wrong row:
-- **Tab items are never empty.** `reduceRootKey`'s Tab branch does
-  `SelectedItem: items[0]` unguarded, and every branch of `menuActionItems`
-  returns at least two items today. An earlier draft of this table gave the
-  Loading row none, which would have panicked the Run loop and taken couch down
-  on one keypress. Loading therefore gets the Busy items, which are the ones
-  that make sense while an operation is in flight.
-- **The verb is one `enterOperationFor` could return** ("resume" or "switch"),
-  or the adopt sentinel the reducer handles before dispatch.
+**Post-conditions, because the callers rely on them:**
+- **A pending row is never the selection.** `menuRowSelectable` is the one
+  predicate `moveRootSelection` and `reconcileRootSelection` both consult, so
+  Enter, click and Tab never reach a pending row. That also keeps
+  `reduceRootKey`'s unguarded `items[0]` out of reach for it.
+- **If every visible row is pending** -- a filter that matches only pending
+  threads -- there is no selection, and Enter reports "no selection" as it
+  does today.
+- **A placeholder records no chip span**, so `ColumnToActor` cannot resolve a
+  click on it: unclickable by construction, not by a check at the click site.
 
-The generated-sequence test's alphabet includes Tab and actions-menu selection,
-so a future empty list fails there rather than at the operator's keyboard.
-
-Two consequences worth stating, because they are what the table buys:
-- **Adoption can actually fire.** It hangs off the resume verb, and the
-  loading row is never `Resumable()` in the inventory, so without the view the
-  one row adoption exists for would always dispatch `switch`.
-- **An attached row is switchable immediately**, rather than offering a resume
-  that couchcore refuses. `Attached` expires on a generation (cell 13), so the
-  view yields back to the inventory within one refresh whatever happened to the
-  pane.
-
-The generated-sequence test (Task 6 Step 0) drives Enter and click through this
-table rather than asserting rendered strings, so a reader added later that
-forgets the view is a failing invariant, not a visual regression nobody notices.
+The generated-sequence test (Task 6 Step 0) asserts after every step that no
+pending address is the selection and that no Enter, click or Tab ever
+dispatches for one -- so a reader added later that forgets the view is a
+failing invariant, not a visual regression nobody notices.
 
 ## The pass's transitions (`ARCH-ORDER`)
 
@@ -334,15 +337,17 @@ forgets the view is a failing invariant, not a visual regression nobody notices.
 | 6 | Running | Result for `Loading`, `resume-not-detached` or `resume-session-gone` | head popped, no mark | advance |
 | 7 | Running | Result for `Loading`, other failure | `Failed[X] = code`; head popped | advance |
 | 8 | Running | Result for another attempt | unchanged | none |
-| 9 | Running | Operator resume of `Loading` | in-flight slot := the pass's attempt | none dispatched; the pass's own effects still returned |
-| 10 | Running | Operator resume of a queued X | X removed from Queue | the ordinary resume effect |
-| 11 | any | Operator resume of a failed X | `Failed[X]` cleared | the ordinary resume effect |
-| 12 | Running | any operator operation in flight | **advance holds** | none until the slot clears |
-| 13 | Running | Inventory newer than `Attached[X]`'s generation | `Attached[X]` dropped, whatever that inventory says about X | advance |
-| 14 | any | Operator archive/park/relaunch/rename of a queued X | X removed from Queue | the ordinary effect |
-| 15 | any | Stop (leave, SIGHUP, SIGTERM, last pane) | the console ends | attempt in flight cancelled; queue dropped |
+| 9 | any | Operator resume of a failed X | `Failed[X]` cleared | the ordinary resume effect |
+| 10 | Running | any operator operation in flight | **advance holds** | none until the slot clears |
+| 11 | Running | Inventory newer than `Attached[X]`'s generation | `Attached[X]` dropped, whatever that inventory says about X | advance |
+| 12 | any | Operator archive/park/relaunch of a queued X (CLI only) | X removed from Queue | the ordinary effect |
+| 13 | any | Stop (leave, SIGHUP, SIGTERM, last pane) | the console ends | attempt in flight cancelled; queue dropped |
 
-**Cell 12 is what makes quitting safe.** The queue worker starts the next
+There is no "operator resume of a pending X" cell, because the view makes a
+pending row unselectable: that event cannot arise from the switcher. The
+generated-sequence invariants assert it does not.
+
+**Cell 10 is what makes quitting safe.** The queue worker starts the next
 request as soon as it pushes the previous result, before `Run` has handled the
 completion. Without the hold, a leave dispatched mid-pass would be followed by
 one more reattach that is then cancelled. `advanceReattach` therefore emits
@@ -355,10 +360,11 @@ seeded once; `warm-only` re-proves each thread at attempt time, which is the
 authority that cannot go stale.
 
 **Extent.** One pass attempt in the queue at a time, on the queue's single
-worker under `WithCancel(c.lifetime)`. The pass spawns no goroutine.
-Worst-case wait for an operator operation behind one attempt: `StartBlocked`'s
-10 s spawn bound plus zellij's 5 s query bound; the ordinary case is about
-0.3 s in the probe, roughly 0.7 s on real detached sessions.
+worker under `WithCancel(c.lifetime)`. The pass spawns no goroutine; the
+status-row spinner is a timer on the Run loop, armed only while a thread is
+`Loading`. Worst-case wait for an operator operation behind one attempt:
+`StartBlocked`'s 10 s spawn bound plus zellij's 5 s query bound; the ordinary
+case is about 0.3 s in the probe, roughly 0.7 s on real detached sessions.
 
 **Nondeterminism** enters at the Run loop's `select`. The reducer is pure, so
 each order is reproduced by feeding events in that order; no test races to
@@ -367,7 +373,7 @@ reach a cell.
 ## Operating envelope (`ARCH-CONSTRAINTS`)
 
 - **Keystroke path unchanged.** The pass holds no lock across IO and never
-  takes the in-flight slot except by adoption.
+  takes the in-flight slot: a pass attempt is never the operator's operation.
 - **Time to first frame (M1).** Before: `ResolveEstablished` per resume-shaped
   record plus C `list-clients`, plus the cwd resume. After: the cwd candidate
   and any layout-conflicting candidate only. M1 closed on the counted invariant
@@ -481,81 +487,63 @@ reach a cell.
 
 ## M2 — The background reattach pass
 
-### Task 5: `warm-only` resume
+### Task 5: `warm-only` resume -- DONE (`01de3aa7`)
 
-**Files:** `couchcore/resume.go`, `ops.go`, `operationdispatch.go`; test `warmresume_test.go`
-
-- [ ] **Step 1: red.** `TestWarmOnlyResumeNeverStartsAnAgent`, a table:
-  verified-parked; parked **with a provisional binding** (so a late refusal
-  would surface a binding error instead of the warm-only code); detached-shaped
-  with its session gone; detached-shaped attached elsewhere. Each expects
-  `ResumeDiagnosticOf(err) == ResumeNotDetached`, an unchanged revision, and
-  no child. A genuinely detached thread still resumes warm.
-- [ ] **Step 2:** add `ResumeNotDetached`; add `ResumeOptions` to
-  `ResumeContext`; refuse `WarmOnly && VerifiedPark != nil` **before**
-  `resumeEvidence`, and `WarmOnly && !detached` before `CommitStartClaim`.
-- [ ] **Step 3:** declare the `warm-only` implicit arg in `ops.go`; pass it
-  from `operationdispatch.go`.
-- [ ] **Step 4:** `couchcmd` tests — update `TestOperationArityMatchesExpectation`
-  (resume gains an argument) and assert `couch resume <tag> --warm-only`
-  fails with "unknown flag".
-- [ ] **Step 5:** `go test ./cmd/internal/couchcore/ ./cmd/internal/couchcmd/`.
+- [x] `ResumeNotDetached`; `ResumeOptions{WarmOnly}` on `ResumeContextWith`,
+  refusing a verified park BEFORE the binding is resolved and a thread with no
+  detached session BEFORE `CommitStartClaim`; the `warm-only` implicit arg,
+  dispatched through the operation table; the CLI refuses it as an unknown
+  flag. Pinned directly AND through the operation table -- a direct-call test
+  survived the dispatcher dropping the argument. 5 of 5 mutations killed.
 
 ### Task 6: the pure pass
 
 **Files:** create `couchtty/menu_reattach.go`, `menu_reattach_test.go`
 
 - [ ] **Step 0: the invariants, as properties over generated event
-  sequences.** The hand-written cells below each sample one interleaving;
-  these hold over all of them. Drive a few thousand random sequences of
-  {inventory ok, inventory error, completion success/refusal/failure, operator
-  resume, operator op start/finish, arm, tick} through `ReduceMenu` and assert
-  after every step: at most one `Loading`; `Root` never in `Queue`; `Queue`
-  never longer than at seeding; no effect emitted while `InFlight.Operation !=
-  ""`; and `Queue`, `Attached` and `Failed` pairwise disjoint.
-  - **Enter and click go through `passViewOf`, not through rendered text.**
-    After each step, for every address the pass owns, assert the verb the
-    reducer would pick equals the view's — which is what makes a stale reader
-    a failing invariant rather than a visual regression.
-- [ ] **Step 1: red.** `TestReattachPassTransitions`, one row per cell 1–15,
-  each applying one event through `ReduceMenu` and asserting the next
-  `Reattach` and the effects. Named extras:
-  `TestReattachPassNeverExtendsItsQueue` (cell 4, including an inventory whose
-  rows all read `session-gone`), `TestReattachPassExcludesTheRoot`,
+  sequences.** Drive a few thousand random sequences of {inventory ok,
+  inventory error, completion success/refusal/failure, operator resume of a
+  failed row, operator op start/finish, cursor up/down, filter keystroke,
+  Enter, click, Tab, arm, tick} through `ReduceMenu` and assert after every
+  step:
+  - at most one `Loading`; `Root` never in `Queue`; `Queue` never longer than
+    at seeding; `Queue`, `Attached` and `Failed` pairwise disjoint;
+  - no effect emitted while `InFlight.Operation != ""`;
+  - **no pending address is ever the selection, and no Enter, click or Tab
+    ever dispatches for one.**
+- [ ] **Step 1: red.** `TestReattachPassTransitions`, one row per cell 1-13.
+  Named extras: `TestReattachPassNeverExtendsItsQueue` (cell 4, including an
+  inventory whose rows all read `session-gone`), `TestReattachPassExcludesTheRoot`,
   `TestReattachPassOrdersMostRecentFirst`,
-  `TestReattachPassHoldsWhileAnOperatorOperationIsInFlight` (cell 12).
+  `TestReattachPassHoldsWhileAnOperatorOperationIsInFlight` (cell 10).
 - [ ] **Step 2:** implement `seedReattach`, `advanceReattach` (holds on cell
-  12), `finishReattach`, `claimReattach`, `expireAttached`, and `passViewOf`. All
-  take and return `MenuState` by value, following the clone discipline; add
-  the deep copies to `cloneMenuState`.
+  10), `finishReattach`, `expireAttached`, `passViewOf`, and
+  `pendingPlaceholders` (Loading then Queue, in pass order, for the status
+  bar). All take and return `MenuState` by value; add the deep copies to
+  `cloneMenuState`.
 
 ### Task 7: route the pass through `ReduceMenu`
 
 **Files:** modify `couchtty/menu.go`
 
-- [ ] **Step 1: red.** Pure tests: Enter adopts on the loading row (and the
-  adopted branch **still returns the pass's own effects**, so the pass does
-  not stall); click adopts through `MenuEventMouseSwitch`; Enter jumps on a
-  queued row; a background result that matches the adopted slot clears it and
-  advances; one that does not leaves `InFlight` and the notice alone.
-  **A background success does NOT set `ProjectionPending`.** No row reader
-  consults it -- only the notice line and the row budget do -- so setting it
-  would put "refresh pending" on the operator's notice line for the whole pass,
-  while `Attached` is what actually keeps the row correct.
-- [ ] **Step 2:** `MenuEventInventory` seeds (Armed) or clears `Attached`
+- [ ] **Step 1: red.** Pure tests: the cursor skips a pending row in both
+  directions; a filter that leaves only pending rows selects nothing, and Enter
+  then reports "no selection"; Enter on a failed row dispatches an ordinary
+  resume and clears the mark; a background result advances the pass and leaves
+  `InFlight` and the notice alone. **A background success does NOT set
+  `ProjectionPending`:** no row reader consults it, so it would only put
+  "refresh pending" on the notice line for the whole pass.
+- [ ] **Step 2:** `MenuEventInventory` seeds (Armed) or expires `Attached`
   (Running), then advances, returning the effects. `MenuEventOperationResult`
-  with `event.Background` routes to `finishReattach` **before** the in-flight
-  early return, and continues into `reduceOperationResult` only when adopted.
-- [ ] **Step 3:** `dispatchMenuOperation` calls `claimReattach` for a resume,
-  after the in-flight refusal check so a refused dispatch claims nothing.
-  Enter, click and the actions menu all reach it.
-- [ ] **Step 4:** **apply `passViewOf` inside the row lookups** —
-  `findMenuThread`, `selectedMenuThread`, `visibleRootThreads` — so every
-  reader gets the pass's view without knowing the pass exists. Then add the
-  guard: a test parsing `couchtty`'s non-test sources that fails on any read of
-  `state.Inventory` outside those lookups. The guard is what stops a future
-  reader from going around the view.
-- [ ] **Step 5:** add `MenuEventReattachArm`, `MenuEvent.Background`,
+  with `event.Background` goes to `finishReattach` and never into
+  `reduceOperationResult` -- a pass attempt never held the operator's slot.
+- [ ] **Step 3: apply `passViewOf` inside the row lookups** --
+  `findMenuThread`, `selectedMenuThread`, `visibleRootThreads` -- and add
+  `menuRowSelectable`, consulted by `moveRootSelection` and
+  `reconcileRootSelection`. Then the guard: a test parsing `couchtty`'s
+  non-test sources that fails on any read of `state.Inventory` outside those
+  lookups.
+- [ ] **Step 4:** add `MenuEventReattachArm`, `MenuEvent.Background`,
   `MenuEvent.Diagnostic`.
 
 ### Task 8: console wiring
@@ -565,16 +553,21 @@ reach a cell.
 - [ ] **Step 1: red.** Fixture tests:
   1. the first inventory produces exactly one queued resume with
      `warm-only=true`; completing it attaches a pane and queues the next;
-  2. **a background attach never takes focus** — drive `onExit` of the last
+  2. **a background attach never takes focus** -- drive `onExit` of the last
      pane with the switcher focused (so `c.active == ""`), then complete a
      background attempt: `c.focus` is still the panel and `c.tracker` was not
      seeded;
   3. an operator switch waits behind at most the running attempt;
-  4. adoption lands focus, with one attach rather than two;
-  5. a failure marks the row and the pass continues;
-  6. `Stop` mid-attempt cancels it (via `SetOperationDispatcher`) and runs no
+  4. **placeholders:** after seeding, the status model carries one placeholder
+     per pending thread, the loading one flagged; a click on a placeholder's
+     columns resolves to no actor; when the loading thread attaches, its chip
+     occupies the column its placeholder held;
+  5. **the status-row tick** runs only while a thread is `Loading`, repaints,
+     and stops when the pass finishes and when the console stops;
+  6. a failure drops the placeholder and marks the row, and the pass continues;
+  7. `Stop` mid-attempt cancels it (via `SetOperationDispatcher`) and runs no
      further attempt;
-  7. an unarmed console emits no background effect.
+  8. an unarmed console emits no background effect and draws no placeholder.
 - [ ] **Step 2:** `ArmReattachPass`; `finishMenuRefresh` and `finishOperation`
   dispatch the effects `ReduceMenu` returns (both discard them today, and
   neither event kind produced any before, so nothing else starts dispatching).
@@ -582,42 +575,46 @@ reach a cell.
   before the attention-capture block and the no-dispatcher path, both of which
   address the operator's in-flight slot. Key: `reattach\x00<attempt>`.
 - [ ] **Step 4:** declare the `background` implicit arg on `attach` in
-  `ops.go` (and bump the expected attach arity from 2 to 3 in
-  `couchcmd/run_test.go`'s `TestOperationArityMatchesExpectation`).
-  `ExecuteConsoleOperation` reads it; `installObservedThreadActor` takes
-  `background` and skips focus and tracker seeding. `finishOperation` computes `adopted` under `c.mu`
-  before reducing; the focus steal becomes `origin.Operation == "resume" &&
-  err == nil && startedHandleID != "" && (!origin.Background || adopted)`.
-- [ ] **Step 5:** `TestAReattachedChildKeepsItsTrackingMode` and the whole
+  `ops.go` (bump the expected attach arity from 2 to 3 in `couchcmd`'s
+  `TestOperationArityMatchesExpectation`). `ExecuteConsoleOperation` reads it;
+  `installObservedThreadActor` takes `background` and skips focus and tracker
+  seeding. `finishOperation`'s focus steal becomes
+  `origin.Operation == "resume" && err == nil && startedHandleID != "" && !origin.Background`.
+- [ ] **Step 5:** `paintNow` appends `pendingPlaceholders` after the attached
+  chips; the status-row spinner timer joins the Run loop's `select`.
+- [ ] **Step 6:** `TestAReattachedChildKeepsItsTrackingMode` and the whole
   `./cmd/internal/couchtty/` suite still pass.
 
 ### Task 9: rendering
 
-**Files:** modify `couchtty/menu_render.go`; test `menu_render_test.go`
+**Files:** modify `couchtty/menu_render.go`, `reserve.go`; tests `menu_render_test.go`, `reserve_test.go`
 
-- [ ] **Step 1: red.** Queued → `queued`; loading → `reattaching…`; failed →
-  `reattach failed: <code>`; attached-but-not-yet-in-inventory → `live`;
-  a Detached row outside the pass → `detached · <age>`.
+- [ ] **Step 1: red.**
+  - Switcher: queued renders `queued` greyed; loading renders
+    `reattaching...` greyed with the current spinner frame; failed renders
+    `reattach failed: <code>`; attached-but-not-yet-in-inventory renders
+    `live`; a Detached row outside the pass renders `detached · <age>`.
+  - Status bar: a placeholder renders its label greyed, the loading one with
+    the spinner frame; **no placeholder contributes a `ChipSpan`**; attached
+    chips keep exactly the columns they had without placeholders present.
 - [ ] **Step 2:** implement, reading the pass **before** the inventory state
   for rows the pass owns. Keep the vocabulary guard green.
-- [ ] **Step 3:** the `reattaching…` row is static unless a progress notice is
-  showing (the spinner only advances then) — either render it without a
-  spinner or drive the tick; decide and state which.
 
 ### Task 10: `couchcmd` arms the pass
 
 **Files:** modify `couchcmd/run.go`; test `run_test.go`
 
 - [ ] `runConsole` arms with `start.Record.Thread` after
-  `dispatchInitialAttach` succeeds, never when it fails.
+  `dispatchInitialAttach` succeeds, never when it fails, and never for
+  `couch resume <tag>` (decision 9).
 
 ### Task 11: the trace
 
 **Files:** modify `couchtty/inputtrace.go`, `couchcmd/run.go`
 
-- [ ] Extend the existing trace plumbing with the five events; `couchcmd`
-  reads `COUCH_TRACE`. (Pulled forward for M1's timing; only the pass events
-  land here.)
+- [ ] Extend the existing trace plumbing with `startup`, `first-frame`,
+  `pass-seeded`, `reattach-start` and `reattach-done`; `couchcmd` reads
+  `COUCH_TRACE`.
 
 ### Task 12: measure, document, smoke, close
 
@@ -625,22 +622,24 @@ reach a cell.
   the rest of the probe.
 - [ ] **Measurement (operator-assisted: couch needs a real terminal).** With
   N detached threads and co-tenancy recorded: run the sampler for 30 s while
-  the operator starts `COUCH_TRACE=… couch`. Record first-frame time, pass
-  duration, per-attempt times, and `zellij action` p50/p95/max against the
-  quiet baseline.
+  the operator starts `COUCH_TRACE=... couch`. Record first-frame time, pass
+  duration, per-attempt times, the refresh count during the pass, and
+  `zellij action` p50/p95/max against the quiet baseline -- with the
+  status-row spinner running, since it is a new periodic repaint.
 - [ ] `atlas/couch.md`: the pass under the switcher's operation model (its
-  decisions, not its cells), plus the `COUCH_TRACE` format. Fix the stale
-  "Resume an exact verified-parked work thread" summary.
-- [ ] **Mutation sweep:** one row per cell with a named test, plus the focus
+  decisions, not its cells), the placeholders, and the `COUCH_TRACE` format.
+- [ ] **Mutation sweep:** one row per cell with a named test, plus: the focus
   steal ignoring `Background`; `installObservedThreadActor` seeding focus on a
-  background attach; the pass emitting without `warm-only`; cell 12's hold
-  removed; the Root exclusion removed; the adopted branch returning nil
-  effects.
+  background attach; the pass emitting without `warm-only`; cell 10's hold
+  removed; the Root exclusion removed; a placeholder recording a `ChipSpan`;
+  the cursor landing on a pending row; the status-row tick running with
+  nothing `Loading`.
 - [ ] Unsandboxed `make test`.
-- [ ] **Operator smoke.** `make install`, restart couch with several detached
-  threads: they come back unasked; the cwd thread is typeable at once; a
-  switch to a queued row lands on it; quit mid-pass leaves the rest detached.
-- [ ] **Ask the operator** to accept or reject the Done-when deviation above.
+- [ ] **Operator smoke.** Restart couch with several detached threads: every
+  pending thread appears at once, greyed, in the status bar and the switcher;
+  the starting one spins; none can be clicked or selected; they fill in within
+  seconds without moving the cwd thread's focus or screen; quitting mid-pass
+  leaves the rest detached.
 - [ ] `sdlc close --issue 206`.
 
 ## Estimate
@@ -749,3 +748,38 @@ its second instance. Each is fixed as a rule, not at the named sites.
   `PairSession` calls `effectiveBindings` over its one read, so the two cannot
   judge a thread by different names. The test helper `claimsOf`, a third copy
   of the counting rule, now counts through `claimsFromBindings`.
+
+
+### 2026-09-11 — the operator's UX for pending threads: placeholders, none selectable
+
+**Reason.** The operator specified how pending threads look and behave: a
+placeholder in the status bar with a spinner while a thread starts, not
+clickable; the same row greyed and not selectable in the switcher. Asked about
+queued threads, they chose **all pending shown at once, none selectable.**
+
+**Delta, applied to the body rather than only recorded here** (the gate has
+flagged stale bodies three times):
+- **Dropped: adoption and queue-jumping** -- old decisions 3-4 and cells 9-10.
+  This removes the most intricate part of M2: the verb that claimed the
+  in-flight attempt, the `adopted` focus rule, and the review findings that
+  kept finding readers that bypassed it. A background completion now never
+  takes focus, full stop.
+- **Added: placeholders.** `StatusActor.Placeholder`, drawn greyed after the
+  attached chips in pass order, with the spinner on the loading one, and no
+  chip span -- unclickable by construction. A resolved placeholder becomes its
+  chip in the same column.
+- **Added: non-selectable rows.** `menuRowSelectable`, the one predicate the
+  cursor and auto-select consult.
+- **Added: a status-row spinner tick** on the Run loop, armed only while a
+  thread is `Loading`. The existing spinner cannot serve: it runs only while
+  the switcher is focused. This is also the seam #231's clock would extend.
+- The transitions table is renumbered 1-13; the Decisions, the pass view and
+  Tasks 6-12 are rewritten whole.
+- **Swept:** Scope (#214 bullet), the Done-when deviation (now decided), the
+  Decisions, `ReattachPass`'s attempt-identity note, the pure-entity and
+  integration tables, the `finishOperation` focus note, the pass view, the
+  transitions, and Tasks 5-12.
+
+**Estimate unchanged at 3.13.** Removing adoption shrinks Task 7; placeholders
+and the tick grow Tasks 8-9. The two are about even, and re-costing a settled
+estimate to match a design change would be back-fitting.
