@@ -46,6 +46,12 @@ what has to change is on the terminal's side, and it differs per terminal. For
 WezTerm the default `Alt+Enter → ToggleFullScreen` binding has to go. Verified
 by the operator 2026-09-11: with that one line, `Alt+Return` sends.
 
+**Timing — before the next release.** pair has no release checklist (the
+homebrew tap is the release artifact, and nothing gates it on docs), so this
+issue carries the reminder itself: the README *Terminal setup* rows for
+WezTerm (here) and kitty (pair#233) are a release gate. Do not tag a release
+that ships to a terminal the table doesn't cover.
+
 Two halves; the second is what stops the next terminal from being a report.
 
 1. **Document it.** Add a WezTerm row to the *Terminal setup* table. Option

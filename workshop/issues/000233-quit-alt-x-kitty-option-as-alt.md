@@ -44,6 +44,17 @@ should cover both.
 
 ## Spec
 
+**The fix is documentation, per terminal — not code.** pair's chords are
+right; kitty needs `macos_option_as_alt yes`. Verified by the operator
+2026-09-11: with that line in `~/.config/kitty/kitty.conf`, `Alt+x` works.
+
+**Timing — before the next release.** pair has no release checklist (the
+homebrew tap is the release artifact, and nothing gates it on docs), so this
+issue carries the reminder itself: the README *Terminal setup* rows for kitty
+(here) and WezTerm (pair#232) are a release gate. Do not tag a release that
+ships to a terminal the table doesn't cover. If a release checklist ever
+exists, these two rows are its first entries.
+
 1. **Document it.** Add a kitty row to the *Terminal setup* table:
 
    | **kitty** | `macos_option_as_alt yes` in `~/.config/kitty/kitty.conf` | `no` | set it; `left` if the right Option should keep composing |
@@ -92,3 +103,8 @@ would misfire on anyone who types them on purpose.
   and doc text from the bundled `kitty.conf` under
   `kitty.app/Contents/Resources/doc/`; `--debug-config` is not a flag on
   0.48.2. No user config present.
+- **Operator verified the fix** (2026-09-11): `macos_option_as_alt yes` in
+  `~/.config/kitty/kitty.conf`, and `Alt+x` quits. Confirms root cause and
+  fix shape — a per-terminal note; nothing in pair changes for the chord.
+  Operator also asked that the compatibility rows be treated as a
+  before-release item (see Spec, *Timing*).
