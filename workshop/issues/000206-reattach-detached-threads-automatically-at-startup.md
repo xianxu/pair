@@ -5,7 +5,7 @@ deps: [000228]
 github_issue:
 created: 2026-09-06
 updated: 2026-09-11
-estimate_hours:
+estimate_hours: 3.13
 started: 2026-09-10T20:16:19-07:00
 ---
 
@@ -132,6 +132,55 @@ that fails to reattach, and the operator quitting mid-load.
   latency during startup is measured, not assumed (`workshop/targets/workbench-latency.md`).
 - If B or C: the switcher shows every known thread immediately, and a switch to a
   pending row behaves as specified.
+
+## Estimate
+
+Derived after the plan cleared its fresh-context review (verdict rework, then
+reworked: 2 Critical and 9 Important folded in). Two milestones, three
+packages, and one new state machine.
+
+Sized against two closes in this repo: `#228` (est 1.98 / actual 1.26, same
+couchcore snapshot surface) and `#230` (est 1.25 / actual **2.42**, where four
+boundary-review rounds were the whole overrun). The review items below are
+written up rather than down because of #230's evidence, not despite it.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+design-buffer: 0.15
+item: smaller-go-module      design=0.05 impl=0.12
+item: smaller-go-module      design=0.08 impl=0.20
+item: smaller-go-module      design=0.08 impl=0.20
+item: atlas-docs             design=0.03 impl=0.04
+item: milestone-review       design=0.00 impl=0.20
+item: smaller-go-module      design=0.05 impl=0.16
+item: greenfield-go-module   design=0.12 impl=0.24
+item: smaller-go-module      design=0.08 impl=0.20
+item: tui-screen             design=0.15 impl=0.28
+item: smaller-go-module      design=0.03 impl=0.10
+item: smaller-go-module      design=0.02 impl=0.06
+item: smaller-go-module      design=0.03 impl=0.08
+item: atlas-docs             design=0.05 impl=0.06
+item: milestone-review       design=0.00 impl=0.30
+total: 3.13
+```
+
+**M1** (first five items) — the `ProjectDetachedSessions` claim-count
+hardening M1 depends on; the red count/equivalence tests; the `startupAsks`
+narrowing itself; atlas; one milestone review.
+
+**M2** (the rest) — `warm-only` resume; the pure `ReattachPass` reducer
+(greenfield, its own file, all transitions table-tested); routing it through
+`ReduceMenu`; the console wiring (`tui-screen`: goroutines, the operation
+queue, the focus rule, and the background-attach guard that must not seed
+focus); rendering; `couchcmd` arming; the `COUCH_TRACE` events; atlas plus
+the operator-assisted measurement; one close review.
+
+The M2 close review is 0.30 rather than 0.20: it spans a state machine across
+three packages, and #230's four rounds are the measured reason to expect more
+than one.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
 ## Plan
 
@@ -299,3 +348,48 @@ same rows, and its comment says they are startup's only session enumeration.
 Narrowing the blocking step has to say where that guard's rows come from.
 
 **Delta.** Status `working`. `deps: [000228]` stays, now satisfied.
+
+### 2026-09-11 — M1 implemented (startup narrowing)
+
+**Startup proves only what its readers consume.** `startupAsks` is the union of
+the cwd filter (the two selectors and the one-thread-per-path guards) and the
+layout filter (`ResolveLayoutConflicts`, which reads rows at ANY path whose
+layout differs). A candidate outside both keeps `ProofUnresolved` and
+classifies `unknown` -- a row no reader here can act on. The rows never leave
+`StartInteractive`, so unasked state cannot reach the switcher.
+
+**The filter is applied before `ResolveEstablished`, not just before the zellij
+query.** Each resolution reads that thread's own ledger, so filtering only the
+`list-clients` calls would have left time-to-first-frame growing with the
+store, looking fixed. A mutation that moves the filter after the resolution is
+in the sweep.
+
+**Counted at the seam:** 3 detach candidates and 1 binding resolution,
+identical with 2 other threads or 12. Candidates, not calls -- the fan-out is
+batched into one call, so a call count cannot see it grow.
+
+**The prerequisite (Task 1):** `ProjectDetachedSessions`' duplicate-name rule
+counted claims across the bindings passed in, so a narrowed ask made a
+contested session look unique and startup would resume a thread whose session
+belongs to something else. It now counts over the scope's whole index, per
+thread at its effective (newest) binding. The fake goes through the same
+function rather than its own map (`ARCH-MOCK`).
+
+**Two fixture bugs that made tests pass for the wrong reason**, both the same
+shape as #230's:
+- the fixture used a hand-written repo-scope key that never matched what
+  `StartInteractive` resolves, so the narrowing predicate matched nothing at
+  the cwd and the count test passed on a coincidence (the unnarrowed count
+  happened to equal the expected number at that thread count);
+- without a native binding every row classified `binding-lost`, so the
+  detached proof was never exercised.
+
+**Mutations, 7 of 7 killed as named** across Task 1 and the narrowing: claims
+counted over the ask rather than the index; every index entry counted rather
+than each thread once; contested names admitted; `ask` ignored; the layout arm
+dropped; the cwd arm dropped; `ask` applied after `ResolveEstablished`. Two of
+them survived a first attempt -- the index-entry one needed the "moved off a
+name" case, and the harness itself reported a false SURVIVED because a
+pipeline's exit status came from `head` rather than `grep`.
+
+**Suite:** unsandboxed `make test` exit 0, 197 packages.
