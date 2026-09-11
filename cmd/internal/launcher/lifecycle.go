@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 // The attach + quit-cleanup orchestrators behind RunLaunch's in-process restart
@@ -39,8 +40,11 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 		// attach was invoked without one (#130).
 		session = legacySessionPrefix + tag
 	}
-	// Export what the spawned poller inherits (pair-shell exports these globally
-	// before the branch; the attach branch itself only re-exports PAIR_TAG).
+	// What zellij's attach client inherits. The title poller does NOT rely on
+	// these: its contract is titlepoller.SessionEnv, handed to the spawn below.
+	// Relying on them was pair#183 -- this list was a hand-copied subset of
+	// create's, it lacked PAIR_SCOPE_KEY, and every reattached thread lost its
+	// context meter without a word.
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
 	rt.SetEnv("PAIR_DATA_DIR", env.DataDir)
 	rt.SetEnv("PAIR_TAG", tag)
@@ -59,7 +63,27 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 	// <tag>` (ParseArgs leaves Agent=="") or a live-session pick (runOnce clears
 	// Agent) — either way runOnce sets it via InferAgent(tag), so the poller
 	// matches the running pane's agent regardless of any bare-`pair` default.
-	rt.SpawnTitlePoller(tag, agent, session)
+	//
+	// The scope from the repo root, the way runCreate resolves it -- the key the
+	// ledger was written under -- not parsed back out of the data dir's path
+	// shape. Failing that (a cwd of `/`), couch's own record of THIS thread:
+	// COUCH_THREAD_SCOPE when COUCH_THREAD_TAG names this tag, the same guard
+	// runCreate's couchOwned uses.
+	//
+	// Failing both, the contract carries an explicit EMPTY key rather than
+	// letting the child inherit one. The launcher is the only authority for
+	// which scope this session is, and an inherited PAIR_SCOPE_KEY belongs to
+	// whatever ran pair: from inside another thread's pane it names that
+	// thread, whose ledger may hold the same tag and paint another session's
+	// count here. No meter beats a wrong one. The attach itself never refuses
+	// over this -- the meter is optional, the handoff is not.
+	scopeKey := ""
+	if scope, err := ResolveRepoScope(envScopeRoot(env)); err == nil {
+		scopeKey = scope.Key
+	} else if env.CouchThreadTag == tag && ValidateRepoScopeKey(env.CouchThreadScope) == nil {
+		scopeKey = env.CouchThreadScope
+	}
+	rt.SpawnTitlePoller(tag, agent, session, titlepoller.NewSessionEnv(env.DataDir, scopeKey))
 
 	return rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))
 }

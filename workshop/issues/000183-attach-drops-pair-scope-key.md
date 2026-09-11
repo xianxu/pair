@@ -1,12 +1,13 @@
 ---
 id: 000183
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-10
-estimate_hours: 1.10
+estimate_hours: 1.62
 started: 2026-09-10T16:57:25-07:00
+actual_hours: 1.28
 ---
 
 # Attach drops PAIR_SCOPE_KEY, so the context meter vanishes after reattach
@@ -113,25 +114,32 @@ They legitimately differ: `PAIR_LAUNCH_ORDINAL`, `PAIR_SESSION_ID` and
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
+item: issue-spec           design=0.35 impl=0.05
+item: milestone-review     design=0.00 impl=0.20
+item: milestone-review     design=0.00 impl=0.10
 item: smaller-go-module    design=0.05 impl=0.12
-item: smaller-go-module    design=0.10 impl=0.12
-item: smaller-go-module    design=0.20 impl=0.16
+item: smaller-go-module    design=0.05 impl=0.12
+item: smaller-go-module    design=0.05 impl=0.16
 item: atlas-docs           design=0.05 impl=0.04
 item: milestone-review     design=0.00 impl=0.20
 design-buffer: 0.15
-total: 1.10
+total: 1.62
 ```
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only. The rows, in order:
 
-1. `contextcmd`'s names plus the no-scope status and the dispatcher's stderr.
-2. `titlepoller.SessionEnv` and the observed-reads test.
-3. The launcher wiring on both paths, the regression test and the spawn pin.
-   Its design weight is the contract shape: positional constructor, env over
-   argv, attach's scope fallback.
-4. The atlas.
-5. One close review.
+1. The in-window design already spent: claim, then the plan doc. Anchored on
+   the measured 0.79h at change-code, because claiming early puts design inside
+   the window.
+2. Plan-review round 1.
+3. Plan-review round 2.
+4. `contextcmd`'s names plus the no-scope status and the dispatcher's stderr.
+5. `titlepoller.SessionEnv` and the observed-reads test.
+6. The launcher wiring on both paths, the regression test and the spawn pin.
+   Module design is thin because the plan carries literal code.
+7. The atlas.
+8. One close review.
 
 The design buffer is +15% because a thorough plan doc exists. Frequency, per
 `#201`: this runs once per launch or reattach, and cost is not a concern.
@@ -144,21 +152,21 @@ holds the code, commands, and mutation table, and has had two fresh-context
 review rounds. It is single-pass, with one review boundary at `sdlc close`, so
 there are no `Mx` tags.
 
-- [ ] Task 0: `sdlc change-code` (branch, plan gate, estimate).
-- [ ] Task 1: `contextcmd` names its variables (`EnvDataDir`, `EnvScopeKey`,
+- [x] Task 0: `sdlc change-code` (branch, plan gate, estimate).
+- [x] Task 1: `contextcmd` names its variables (`EnvDataDir`, `EnvScopeKey`,
       `EnvFrom`), and a missing scope key gets its own status
       (`ExitNoScopeKey`, with a stderr reason), distinct from an unbound owner.
-- [ ] Task 2: `titlepoller.SessionEnv` / positional `NewSessionEnv` /
+- [x] Task 2: `titlepoller.SessionEnv` / positional `NewSessionEnv` /
       `Environ`, beside the `optionsFromCLI` parse it inverts, tied to the
       observed reads.
-- [ ] Task 3: the regression test, red first, fails on attach's
+- [x] Task 3: the regression test, red first, fails on attach's
       `PAIR_SCOPE_KEY` and is measured against the contract's own names.
-- [ ] Task 4: both launch paths hand the poller its contract; attach resolves
+- [x] Task 4: both launch paths hand the poller its contract; attach resolves
       scope like create; the stale `lifecycle.go:42-43` comment goes;
       `titlePollerArgv` becomes `titlePollerSpawn`.
-- [ ] Task 5: atlas (the poller's launch contract, and a missing scope is not
+- [x] Task 5: atlas (the poller's launch contract, and a missing scope is not
       an unbound owner).
-- [ ] Task 6: mutation sweep (8 rows, each matched to its named failure), an
+- [x] Task 6: mutation sweep (8 rows, each matched to its named failure), an
       unsandboxed `make test`, and real-stack detach/reattach by the operator.
 
 ## Log
@@ -191,6 +199,7 @@ time — pid 26570 on `--resume 765a05dd…` (19h) and 54360 on `--session-id
 8af77697…` (11h). May be intentional; not investigated.
 
 ### 2026-09-10
+- 2026-09-10: closed — Operator real-stack: detached + reattached a thread in couch, context window showed right up in the frame title via the production pair-launch-helper -> pair resume -> AttachExistingSession path. Unsandboxed `env -u PAIR_SESSION_ID -u PAIR_TAG make test` exit 0, 197 ok on fda117fb. Regression red on /attach before the wiring, green on both paths after. Close-review round 1 (BR-3 Important + 4 Minor) fixed in fda117fb: attach scope authority order (root -> couch record of this thread -> explicit empty) pinned by TestTitlePollerScopeWhenAttachCannotResolveARoot; exec last-duplicate-wins checked against a real child. Mutation sweep 12/12 killed as named (apply-asserted, named --- FAIL line or build error, tree identical to pre-sweep snapshot).; review verdict: SHIP
 
 Claimed. The code was re-read against the issue's diagnosis, and it still
 holds: `lifecycle.go:44-47` exports four variables and no `PAIR_SCOPE_KEY`.
@@ -223,3 +232,103 @@ receives `scopeKey` as an argument. Facts that shaped it:
   unused-variable compile error.
 
 Both rounds are recorded in the plan's `## Revisions`.
+
+### 2026-09-10: implemented (`9a571264`, `978de28c`, `b786c70e`, `b03c0419`)
+
+- **Regression, red first.**
+  `TestTitlePollerStartsWithItsWholeContractOnBothPaths` failed on `/attach`
+  with `the poller starts without PAIR_SCOPE_KEY` and scope `""`, and passed on
+  `/create`. After the wiring, both subtests pass.
+- **Mutation sweep.** Script `mutate183.py`. Every needle is asserted to occur
+  once, restores come from saved bytes, and a row counts as killed only when
+  its named `--- FAIL` line or build error appears. All 8 rows were killed as
+  named:
+  - rows 1–3 left `/create` (or `/attach`) green as designed;
+  - row 6 (a new `PAIR_AGENT` read) failed the observed-reads test;
+  - row 7 (a new `NewSessionEnv` parameter) broke the build at exactly
+    `createflow.go` and `lifecycle.go`.
+
+  The tree was clean after the sweep.
+- **Suite.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test`, unsandboxed:
+  exit 0, 197 packages `ok`.
+- **Installed.**
+  - `~/.local/bin/pair` is a symlink to `bin/pair`, which `make test` rebuilt,
+    and the new code is in it.
+  - `make install` refreshed `couch` and `pair-launch-helper`, both built at
+    `vcs.revision=b03c0419`, unmodified.
+  - couch reattaches by exec'ing `pair-launch-helper … pair resume`, a fresh
+    `pair` process, so the fix takes effect on the next reattach with no couch
+    restart.
+- **Plan-gate advisories.** PQ-1 and PQ-2 are both taken; see the plan's
+  Revisions.
+
+### 2026-09-10: operator real-stack check passed
+
+In couch, the operator detached a thread and reattached it. The context window
+showed right up in the frame title (`claude (NNk)`), which satisfies the first
+Done-when bullet. It went through the production reattach path:
+`pair-launch-helper … pair resume` → `AttachExistingSession` → a poller spawned
+with its `SessionEnv`.
+
+### 2026-09-10: close review round 1, FIX-THEN-SHIP; close not finalized on BR-3
+
+- **BR-3 (Important), fixed.** When attach could not resolve a root, it
+  rendered an explicit empty key. The comment defending that was circular ("no
+  session could match regardless" was only true because of the empty render),
+  and the branch was untested.
+  - The fallback is now: repo root, then couch's record of *this* thread, then
+    an explicit empty key.
+  - The empty key is kept, with its real reason: an inherited key belongs to
+    whatever ran `pair`. Arguing it from first principles changed my mind about
+    what the reviewer framed as "a correct inherited key": no production path
+    makes the inherited key known-correct for the attached session, and one
+    path (a pane of another thread with a common tag like `main`) makes it
+    wrong.
+  - Each step is pinned by its own subtest.
+- **BR-4, fixed.** A real-child conformance test now covers os/exec's
+  last-duplicate-wins rule, through the extracted `childEnviron`.
+- **BR-5, scoped.** The constants are the contract's spelling, not the repo's;
+  there are five other literal sites.
+- **BR-6, accepted.** The Done-when accepts it.
+- **BR-7, fixed.** The stale `cmd/pair-title` is gone, and a line citation is
+  replaced by a symbol.
+- **Sweep.** Rows 9–12 added, one revert per fix; 12 of 12 killed as named.
+  Full details are in the plan's Revisions.
+
+### 2026-09-10: close review round 2, SHIP; two advisories folded into the close commit
+
+- **Conditions, not steps.** This was the third finding in the
+  silent-degradation-untested family. The attach-scope test is now a table over
+  branch *conditions*: the root resolves or not; couch's record names this tag
+  or not; its key validates or not; a key would be inherited or not. That adds
+  the two cells no row entered:
+  - an invalid couch key is not trusted, which is the validation arm round 2
+    measured deletable with the suite green;
+  - the resolved root outranks a matching couch record, a precedence nothing
+    pinned.
+
+  Sweep rows 13 (validation arm deleted) and 14 (order swapped) are both killed
+  as named; 14 of 14 overall.
+- **One authority for both fields: narrowed, not fixed here.**
+  `SessionEnv`'s scope key is authoritative, but its data dir is the launcher's
+  `env.DataDir`, and `launcher/runcli.go:89-91` lets an inherited
+  `PAIR_DATA_DIR` override the derived scoped dir. From a Pair pane of repo A
+  with cwd in repo B, `pair resume` hands the poller A's data dir and B's key.
+  Before this change the poller got A's dir and A's key, which does not fit a
+  session created from B either, so the frame was bare then too; the halves
+  just no longer diverge silently in the comment.
+  - The doc comment now claims only the scope-key half.
+  - The cause is runcli's override: an inherited `PAIR_DATA_DIR` is not an
+    explicit one. That is a launcher-wide behaviour affecting create too, so it
+    is recorded here as a candidate follow-up rather than widened into #183.
+
+## Revisions
+
+### 2026-09-10 — estimate re-derived per the estimate-quality judge (1.10 → 1.62)
+
+Reason: the first derivation had no row for the design and the two plan-review
+rounds already spent inside the measured window (0.79h at change-code). Claiming
+early puts that time in the window, and the judge showed recent pair v3.1 rows
+running around 0.6× for this reason. The judge suggested 1.6–1.8h.
+Delta: added an `issue-spec` row and two `milestone-review` rows; module design
+cut to 0.05 each. The implementation rows are unchanged.

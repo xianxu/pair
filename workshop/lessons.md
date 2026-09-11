@@ -4431,3 +4431,66 @@ to a kind with no `hit()` case.
 to the mutation sweep and let its result write the sentence. A warning that is
 wrong about the failure mode sends the next reader looking for the wrong
 symptom.
+
+## Cite the symbol, not the line, in a code comment (pair#183)
+
+**What happened.** A new comment cited `createflow.go:386`. The same change then
+added an import to that file, and the call moved to `:387` before the commit
+landed. The close review caught it. The citation was already wrong when it was
+written, and nothing would ever update it.
+
+**Rule.** In code comments, cite the function (`runCreate's couchOwned`), which
+survives edits, and grep finds it. Put `file:line` only in dated records, such
+as an issue Log or a review, where the commit pins what the line meant.
+
+## A justification true only because of the choice it justifies is circular (pair#183)
+
+**What happened.** Attach's fallback rendered an explicit empty scope key, and
+the comment defending it said "no session could match regardless". That was
+true only *because* of the empty render: an inherited key could have matched.
+The branch had no test, so nothing challenged the sentence.
+
+**Rule.** When writing down why a degraded branch behaves as it does, check that
+the reason is not a consequence of the behaviour itself. Argue from what is true
+outside the branch. Here that was: the launcher is the only authority for a
+session's scope, and an inherited key belongs to whatever ran the command. Then
+pin the branch with a test for each answer it gives. Degraded branches are where
+circular reasoning goes unchallenged, because nobody runs them.
+
+## A check that fires on every run is a check you stop reading (pair#183)
+
+**What happened.** The mutation sweep's "tree restored" check compared against
+HEAD. With uncommitted fixes in the tree, it reported DIRTY on every run, whether
+or not a restore had actually failed.
+
+**Rule.** A restore check compares against a snapshot taken before the run, not
+against HEAD. More generally, when a guard's alarm can fire for reasons
+unrelated to what it guards, fix the guard at once. The first false alarm
+trains the reader to skip the true one.
+
+## Enumerate branch conditions, not fallback steps (pair#183)
+
+**What happened.** A fallback chain (repo root, then couch's record, then
+empty) was tested one row per *step*, and three review findings in one family
+followed. The step list hid two cells:
+- the `&& ValidateRepoScopeKey(...)` half of a compound condition, deletable
+  with the whole suite green;
+- the precedence between the first two steps, since no row had both available.
+
+**Rule.** Test a branchy decision from the table of its conditions: each
+boolean in each condition, and each pair of sources that can both be present.
+A compound condition is two branches, and "first available wins" is only
+pinned by a row where more than one is available. Write the table first, then
+check every mutation (delete an arm, swap an order) against a named row.
+
+## A contract's fields need one authority, or it claims more than it delivers (pair#183)
+
+**What happened.** The poller's launch contract resolved its scope key
+authoritatively, but took its data dir from the launcher's environment, which
+an inherited `PAIR_DATA_DIR` can override. The doc comment claimed the contract
+defended against a stale pane environment. It did for one field, not the other.
+
+**Rule.** When a value object claims to be authoritative, check where *each*
+field comes from, not just the one that motivated it. Either give every field
+the same authority, or scope the claim to the fields that have it and name the
+source of the others.

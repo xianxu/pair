@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 // RunLaunch is the native launcher's in-process driver (#99 M2 create + M3
@@ -605,7 +606,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag)
 	rt.CmuxRename(chosenTag, session)
-	rt.SpawnTitlePoller(chosenTag, agent, session)
+	rt.SpawnTitlePoller(chosenTag, agent, session, titlepoller.NewSessionEnv(dataDir, scope.Key))
 	rt.DevRebuild(opts.PairHome)
 
 	configDir := filepath.Join(opts.PairHome, "zellij")

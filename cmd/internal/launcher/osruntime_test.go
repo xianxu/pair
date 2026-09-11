@@ -3,6 +3,7 @@ package launcher
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -11,7 +12,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 func TestOSRuntimeStartProofMigrationUpgradesPersistedOwner(t *testing.T) {
@@ -488,6 +491,24 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 	}
 }
 
+// The poller's contract only wins because os/exec keeps the LAST value of a
+// duplicate key and childEnviron puts the contract last. Asserted against a real
+// child rather than assumed (close review BR-4, ARCH-MOCK): the fake's overlay
+// encodes the same rule, so without this the double and the dependency could
+// disagree with nothing to say so.
+func TestChildEnvironLetsTheContractBeatAnInheritedKey(t *testing.T) {
+	t.Setenv(contextcmd.EnvScopeKey, "stale-inherited")
+	cmd := exec.Command("/bin/sh", "-c", `printf %s "$`+contextcmd.EnvScopeKey+`"`)
+	cmd.Env = childEnviron(titlepoller.NewSessionEnv("/data/repos/k", "contract").Environ())
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "contract" {
+		t.Fatalf("the child saw %s=%q, want the contract's %q -- an inherited value won", contextcmd.EnvScopeKey, out, "contract")
+	}
+}
+
 // The sidecar spawn argv must self-exec the single `pair` binary as a
 // subcommand — #104 M2 folded pair-title/pair-session-watch into `pair title` /
 // `pair session-watch`. spawnDetached swallows a start error, so a regression in
@@ -495,10 +516,14 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 // poller's "<…>/pair title <tag> <agent>" prefix the single-instance guard matches.
 func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 	const exe = "/pair/bin/pair"
-	tp := titlePollerArgv(exe, "work", "claude", "📁pair-work")
+	contract := titlepoller.NewSessionEnv("/data/repos/k", "k")
+	tp, tpEnv := titlePollerSpawn(exe, "work", "claude", "📁pair-work", contract)
 	wantTP := []string{exe, "title", "work", "claude", "📁pair-work"}
 	if !reflect.DeepEqual(tp, wantTP) {
 		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
+	}
+	if !reflect.DeepEqual(tpEnv, contract.Environ()) {
+		t.Fatalf("title poller env = %v, want its contract %v -- a dropped env is silent, exactly as pair#183 was", tpEnv, contract.Environ())
 	}
 
 	bound := time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC)

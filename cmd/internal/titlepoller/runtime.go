@@ -3,6 +3,7 @@ package titlepoller
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -97,7 +98,14 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 // #92-landed contextcmd.Run, captured to a buffer. Empty when unresolved.
 func (OSRuntime) ContextCount(tag, agent string) string {
 	var buf bytes.Buffer
-	contextcmd.Run([]string{tag, agent}, contextcmd.EnvFromOS(), &buf)
+	// io.Discard: the poller's stdio is /dev/null. Since pair#183 its scope is
+	// handed over by the spawn contract (SessionEnv), so an empty key reaches
+	// here only when the launcher could not name this session's scope at all --
+	// no resolvable repo root and no couch record of the thread. Showing no
+	// count is then the intended degradation, because a count read under a
+	// borrowed scope could be another session's. `pair context`, run by hand,
+	// reports why.
+	contextcmd.Run([]string{tag, agent}, contextcmd.EnvFromOS(), &buf, io.Discard)
 	return strings.TrimSpace(buf.String())
 }
 
