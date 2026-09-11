@@ -23,6 +23,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
 
@@ -352,8 +353,8 @@ func sessionWatcherSpawnArgv(exe, agent, tag, scopeKey, cwd, repoRoot, repoName 
 	return sessionwatch.CommandArgs(exe, agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, bound, agentArgs)
 }
 
-func (r OSRuntime) SpawnTitlePoller(tag, agent, session string) {
-	spawnDetached(titlePollerArgv(runningPairExe(r.PairHome), tag, agent, session), nil)
+func (r OSRuntime) SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv) {
+	spawnDetached(titlePollerSpawn(runningPairExe(r.PairHome), tag, agent, session, env))
 }
 
 // runningPairExe resolves the running `pair` executable for the self-exec
@@ -371,15 +372,17 @@ func runningPairExe(pairHome string) string {
 	return filepath.Join(pairHome, "bin", "pair")
 }
 
-// titlePollerArgv builds the detached-spawn argv for the title sidecar, now
-// self-execing `pair` (#104 M2). Pure (exe injected) so a
-// test can pin the shape: spawnDetached swallows a start error, so a silent
-// regression in the argv would otherwise go uncaught until the poller/watcher
-// simply never started. The title poller's process must start with
-// "<…>/pair title <tag> <agent>", the exact shape titlepoller's single-instance
-// argv guard matches.
-func titlePollerArgv(exe, tag, agent, session string) []string {
-	return []string{exe, "title", tag, agent, session}
+// titlePollerSpawn builds the detached spawn for the title sidecar, self-execing
+// `pair` (#104 M2): its argv and the environment it is handed. Pure (exe
+// injected) so a test pins both halves -- spawnDetached swallows a start error,
+// so a regression in the argv would go uncaught until the poller simply never
+// started, and a dropped environment is silent in exactly the way pair#183 was.
+// The argv must start "<…>/pair title <tag> <agent>", the exact shape
+// titlepoller's single-instance argv guard matches. The env entries are appended
+// after os.Environ(), and exec keeps the LAST duplicate, so the contract wins
+// over any stale inherited value.
+func titlePollerSpawn(exe, tag, agent, session string, env titlepoller.SessionEnv) ([]string, []string) {
+	return []string{exe, "title", tag, agent, session}, env.Environ()
 }
 
 func (OSRuntime) DevRebuild(pairHome string) {

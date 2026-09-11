@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"reflect"
 	"regexp"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 
 	"github.com/xianxu/pair/cmd/internal/readiness"
 )
@@ -99,9 +101,10 @@ type fakeRuntime struct {
 	launchCode      int
 	launchCount     int // number of create handoffs (restart-loop iterations)
 	defaultReads    int
-	watchers        []string // "agent|tag|cwd|args"
-	pollers         []string // "tag|agent"
-	cmux            []string // "tag|title"
+	watchers        []string            // "agent|tag|cwd|args"
+	pollers         []string            // "tag|agent"
+	pollerEnvs      []map[string]string // the environment each title poller started with
+	cmux            []string            // "tag|title"
 	ttyRecorded     []string
 	titles          []string
 	removed         []string
@@ -235,8 +238,16 @@ func (f *fakeRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
 func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, agentArgs []string) {
 	f.watchers = append(f.watchers, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%s", agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, strings.Join(agentArgs, " ")))
 }
-func (f *fakeRuntime) SpawnTitlePoller(tag, agent, session string) {
+func (f *fakeRuntime) SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv) {
 	f.pollers = append(f.pollers, tag+"|"+agent)
+	// What the child starts with: everything exported so far, overlaid by what
+	// the spawn hands it -- the precedence exec gives a later duplicate key.
+	started := maps.Clone(f.env)
+	for _, kv := range env.Environ() {
+		name, value, _ := strings.Cut(kv, "=")
+		started[name] = value
+	}
+	f.pollerEnvs = append(f.pollerEnvs, started)
 }
 func (f *fakeRuntime) DevRebuild(pairHome string) { f.devRebuilt = true }
 

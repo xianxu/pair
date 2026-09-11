@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 func TestOSRuntimeStartProofMigrationUpgradesPersistedOwner(t *testing.T) {
@@ -495,10 +496,14 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 // poller's "<…>/pair title <tag> <agent>" prefix the single-instance guard matches.
 func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 	const exe = "/pair/bin/pair"
-	tp := titlePollerArgv(exe, "work", "claude", "📁pair-work")
+	contract := titlepoller.NewSessionEnv("/data/repos/k", "k")
+	tp, tpEnv := titlePollerSpawn(exe, "work", "claude", "📁pair-work", contract)
 	wantTP := []string{exe, "title", "work", "claude", "📁pair-work"}
 	if !reflect.DeepEqual(tp, wantTP) {
 		t.Fatalf("title poller argv = %v, want %v", tp, wantTP)
+	}
+	if !reflect.DeepEqual(tpEnv, contract.Environ()) {
+		t.Fatalf("title poller env = %v, want its contract %v -- a dropped env is silent, exactly as pair#183 was", tpEnv, contract.Environ())
 	}
 
 	bound := time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC)

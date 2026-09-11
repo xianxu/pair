@@ -12,6 +12,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
 // The attach + quit-cleanup orchestrators behind RunLaunch's in-process restart
@@ -39,8 +40,11 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 		// attach was invoked without one (#130).
 		session = legacySessionPrefix + tag
 	}
-	// Export what the spawned poller inherits (pair-shell exports these globally
-	// before the branch; the attach branch itself only re-exports PAIR_TAG).
+	// What zellij's attach client inherits. The title poller does NOT rely on
+	// these: its contract is titlepoller.SessionEnv, handed to the spawn below.
+	// Relying on them was pair#183 -- this list was a hand-copied subset of
+	// create's, it lacked PAIR_SCOPE_KEY, and every reattached thread lost its
+	// context meter without a word.
 	rt.SetEnv("PAIR_HOME", opts.PairHome)
 	rt.SetEnv("PAIR_DATA_DIR", env.DataDir)
 	rt.SetEnv("PAIR_TAG", tag)
@@ -59,7 +63,17 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 	// <tag>` (ParseArgs leaves Agent=="") or a live-session pick (runOnce clears
 	// Agent) — either way runOnce sets it via InferAgent(tag), so the poller
 	// matches the running pane's agent regardless of any bare-`pair` default.
-	rt.SpawnTitlePoller(tag, agent, session)
+	//
+	// The scope the way create resolves it (createflow.go:386), not parsed back
+	// out of the data dir's path shape. A root that will not resolve (cwd `/`)
+	// leaves the key empty rather than refusing the attach -- the meter is
+	// optional, the handoff is not -- and contextcmd reports an empty key as its
+	// own status (ExitNoScopeKey).
+	scopeKey := ""
+	if scope, err := ResolveRepoScope(envScopeRoot(env)); err == nil {
+		scopeKey = scope.Key
+	}
+	rt.SpawnTitlePoller(tag, agent, session, titlepoller.NewSessionEnv(env.DataDir, scopeKey))
 
 	return rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))
 }
