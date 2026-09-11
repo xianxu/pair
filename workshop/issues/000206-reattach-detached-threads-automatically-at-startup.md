@@ -429,3 +429,51 @@ on one -- but not on the literal first frame, which still reads "thread
 inventory unavailable" as it does today. The operator chose **first inventory
 is fine**. No first-frame seeding and no "checking" row state; M2 builds as
 planned.
+
+### 2026-09-11 — M1 operator smoke
+
+After `make install` (pair rebuilt 15:19, carrying #230 and M1), the operator
+detached and restarted couch: **"start up seems faster, not 10x, maybe 1.5x."**
+
+Read honestly, that says the proof work M1 removed -- a `list-clients` per
+other detach candidate and a ledger read per resume-shaped record -- was about a
+third of startup on this store. The counted invariant holds (3 candidates and 1
+resolution whatever else the store holds), so what remains is NOT proportional
+to the other threads: it is the cwd thread's own reattach (`ResumeContext`'s two
+detached proofs, the spawn, the registration wait) plus fixed setup (git
+resolution, `reconcileInterruptedStarts`, the supervisor lease). None of that is
+measured yet. M2 Task 11's `COUCH_TRACE` is what would show where it goes, and
+further startup work should start from that trace rather than from a guess.
+
+**The operator also reported "detach became 10x faster though."** Nothing in M1
+or #230 is on the detach success path: M1 changed startup's inventory and the
+detached-proof's claim count, and #230 changed only post-acknowledgement
+failure cleanup (its `retireDetachedIncarnation` extraction is behaviour-
+identical). So this is recorded as UNEXPLAINED rather than credited. The likely
+explanation was the gesture (`leave` never waits on the post-detach refresh),
+but the operator confirmed **the same gesture both times**, so that is ruled
+out.
+
+**What was checked, and ruled out.** The `couch` shell function rebuilds from
+the working tree on every launch (`go build -o bin/couch ./cmd/couch`), so each
+smoke ran exactly its branch's code: #228's then, #228+#230+M1 now. Between
+those two points only `couchcore` changed, and on every function the detach
+touches or triggers:
+- `Detach` itself only MOVED code into `retireDetachedIncarnation`
+  (behaviour-identical; error text changed);
+- the post-detach refresh passes `ask == nil`, so M1's filter never applies;
+- `DetachedSessions` and `PairSession` make exactly the same zellij calls;
+- no leftover reattachcost probe sessions (26 sessions, as #228 recorded).
+
+**So there is no code cause I can find, and none is claimed.** The likeliest
+explanation is zellij's own variance under load: #228 measured `list-clients`
+against real detached sessions anywhere from 190 ms to 971 ms for the same call,
+a 5x spread on one call, and a post-detach refresh chains several of them.
+Earlier today the host ran the reattachcost probe, repeated test suites and
+builds. A single number from each of two different-load moments cannot separate
+code from co-tenancy.
+
+**Settling it is #229's first plan step**, not a reason to detour #206: time a
+single-thread detach end to end, several runs, with a per-phase breakdown and
+co-tenancy recorded. This observation is carried there as input.
+
