@@ -280,12 +280,14 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	// Only the bindings' names are asked for clients. ProjectDetachedSessions
 	// reads state for exactly those names, so the answer is the one a full
 	// snapshot gives -- including its duplicate-row check, since both rows of a
-	// duplicated name pass the same filter.
+	// duplicated name pass the same filter. It refuses a snapshot that did not
+	// ask, so a liveness form swapped in here fails loudly instead of proving
+	// every thread "not detached".
 	sessions, err := c.Zellij.SnapshotSessionsContext(ctx, names)
 	if err != nil {
 		return nil, fmt.Errorf("observe zellij sessions: %w", err)
 	}
-	return ProjectDetachedSessions(bindings, sessions), nil
+	return ProjectDetachedSessions(bindings, sessions)
 }
 
 func (c ScopedThreadArtifactCollisionChecker) TriggerQuit(session string, intent launcher.QuitIntent) error {

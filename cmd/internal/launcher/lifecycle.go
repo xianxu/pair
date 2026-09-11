@@ -385,7 +385,9 @@ func readSavedConfig(rt Runtime, configPath string) savedConfig {
 
 // liveTagsForSweep projects live public session names to repo-local tags for
 // SweepOrphanNvim. Indexed scoped names only count for the current repo scope;
-// legacy unindexed pair-<tag> names still count as their bare tag.
+// legacy unindexed pair-<tag> names still count as their bare tag. It reads
+// names only, never State, which is why its caller may pass a liveness
+// snapshot (pair#228); a State read here needs a snapshot that asked.
 func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey string) []string {
 	tags := make([]string, 0, len(sessions))
 	for _, s := range sessions {

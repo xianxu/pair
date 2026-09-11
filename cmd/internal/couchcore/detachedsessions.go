@@ -1,6 +1,10 @@
 package couchcore
 
-import "github.com/xianxu/pair/cmd/internal/launcher"
+import (
+	"fmt"
+
+	"github.com/xianxu/pair/cmd/internal/launcher"
+)
 
 // SessionNameBinding is one {thread address -> zellij session name} row, read
 // from a repo scope's session-name index.
@@ -36,9 +40,16 @@ type SessionNameBinding struct {
 //     that session belongs to, so neither gets a row.
 //   - two zellij rows sharing one name: the snapshot itself is contradictory,
 //     so that name proves nothing.
-func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.Session) []DetachedSessionObservation {
+//
+// A snapshot that never asked for clients (launcher.SessionLive) is refused,
+// not read: every thread would come back "not detached", and couch would show
+// that as a proof (pair#228).
+func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.Session) ([]DetachedSessionObservation, error) {
+	if err := launcher.RequireAttachState(sessions); err != nil {
+		return nil, fmt.Errorf("detached proof: %w", err)
+	}
 	if len(bindings) == 0 || len(sessions) == 0 {
-		return nil
+		return nil, nil
 	}
 	state := make(map[string]launcher.SessionState, len(sessions))
 	ambiguousSession := make(map[string]bool, len(sessions))
@@ -73,5 +84,5 @@ func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.
 			Agent: binding.Agent, NativeID: binding.NativeID,
 		})
 	}
-	return out
+	return out, nil
 }

@@ -1,13 +1,14 @@
 ---
 id: 000228
-status: working
+status: codecomplete
 deps: []
 github_issue:
 target: workbench-latency
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-11
 estimate_hours: 1.98
 started: 2026-09-10T21:58:26-07:00
+actual_hours: 1.26
 ---
 
 # A reattach asks every pair session for its clients
@@ -128,13 +129,15 @@ becomes a startup pass of N. That is why the promise is a count.
 
 ## Plan
 
-- [ ] Baseline: done (#206 Log, 2026-09-10).
+- [x] Baseline: done (#206 Log, 2026-09-10).
 - [x] Establish what each of sites 1–4 reads from its snapshot; record it.
 - [x] Design the narrowing: `workshop/plans/000228-a-reattach-asks-every-pair-session-for-its-clients-plan.md`.
-- [ ] Implement with the count-based tests.
-- [ ] Re-measure with the probe; record before/after with co-tenancy.
+- [x] Implement with the count-based tests.
+- [x] Re-measure with the probe; record before/after with co-tenancy.
 
 ## Log
+
+- 2026-09-11: closed — Operator real-stack smoke after make install + couch restart: detach then reattach of a thread is "way much faster". Counted at the seam: warm ResumeContext = 2 list-clients + 6 list-sessions at S=3 and S=22; forced-tag pair resume = 0 full snapshots, 2 liveness, 0 name probes. Mutation sweep 12/12 killed as named (apply-asserted, named failures only, tree identical to pre-sweep snapshot; incl. two sandbox-guard rows). Probe before/after same co-tenancy (N=8): old pattern 7.7-8.7 s/thread, new 272-282 ms/thread, zellij action p95 24 vs 25 ms. Unsandboxed make test exit 0, 197 ok on 0979584e.; review verdict: FIX-THEN-SHIP
 
 ### 2026-09-10
 
@@ -168,6 +171,134 @@ The design is in the durable plan:
 
 After the change, a reattach makes `list-clients` twice, independent of the
 session count.
+
+### 2026-09-10: implemented (`8dfaee41` … `0979584e`)
+
+**The seven sites, with what each reads and its cost before and after** (the
+Done-when's table, recounted by the plan review):
+
+| # | site | reads | before | after |
+|---|---|---|---|---|
+| 1 | couchcore `ResumeContext` → `DetachedSessions` | this thread's session: live and zero clients | 2 ls + S lc | 2 ls + 1 lc |
+| 2 | couchcore `confirmStillDetached` | the same, re-proved | 2 ls + S lc | 2 ls + 1 lc |
+| 3 | couchcore `awaitResumeRegistration` → `PairSession` | not exited | 2 ls + S lc per poll | 2 ls per poll |
+| 4 | launcher orphan-nvim sweep | names only | 2 ls + S lc | 2 ls |
+| 5 | launcher `runOnce`, forced tag | exited-versus-not | 2 ls + S lc | 2 ls |
+| 6 | launcher name-acceptance probe | "is this length accepted" | 1 lc | 0 when the name is live |
+| 7 | couchtty inventory refresh (async) | the whole candidate set | 2 ls + S lc | 2 ls + C lc |
+
+`pair list`'s `ListSessions` stays a full scan, justified because each row
+renders "attached (N clients)". It is commented as the one justified full scan
+among the three `list-clients` producers.
+
+**Counted at the seam.** A warm `ResumeContext` through the real checker makes
+**2 `list-clients` + 6 `list-sessions` at S=3 and at S=22**
+(`TestWarmResumeAsksTwoSessionsForClientsWhateverTheHostHas`). A forced-tag
+`pair resume` takes 0 full snapshots, 2 liveness snapshots and 0 name probes.
+
+**Mutation sweep.** Script `mutate228.py`: apply-asserted, named failures only,
+tree identical to a pre-sweep snapshot. **12 of 12 killed as named**, including
+two sandbox guards:
+- a tested path asking zellij `kill-session` fails the stub-log assertion;
+- dropping the PATH shim fails the new `LookPath` assertion. That is the guard
+  for the guard: with correct code, no route execs a bare zellij, so a dropped
+  shim was otherwise unobservable.
+
+On its first run, row 12 failed on a compile error (an unused import), and the
+sweep refused to count that as a kill, as designed.
+
+**Probe, before and after under one co-tenancy.** `PAIR_PROBE_N=8 make
+test-reattach-cost`: load 1.98, 8 agent processes, 26 zellij sessions listed,
+12 cores. S=17 in the old pattern: host 8 live plus probe 9.
+
+| phase | per thread | pass of 8 | `zellij action` p95 |
+|---|---|---|---|
+| raw attach | 54–64 ms | 475 ms | 22 ms |
+| **old pattern** (5 full snapshots + name probe + attach) | **7.7–8.7 s** | 66 s | 24 ms |
+| **new pattern** (2 targeted + 3 liveness + attach) | **272–282 ms** | 2.2 s | 25 ms |
+
+Caveat, recorded with the numbers: the probe's own sessions answer
+`list-clients` in about 53 ms, where real detached pair sessions take about
+250 ms.
+- **Old column:** it understates the real before-cost.
+- **New column, on real sessions:** add about 2 × 200 ms, so roughly 0.7 s per
+  reattach.
+- **The promise is the count, not either timing.**
+
+**Suite.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test`, unsandboxed: exit 0,
+197 packages `ok`. The whole existing suite passes unmodified.
+
+### 2026-09-11: close review, fixed before the close commit
+
+**Verdict FIX-THEN-SHIP.** The review's findings block was malformed, so the
+gate recorded 0 findings and converged. The prose findings bind anyway; each
+is dispositioned here.
+
+**Important (`ARCH-PURPOSE`, `ARCH-ORDER`): the `SessionLive` guard reached one
+reader of attach state, not the class.** `DecideLaunch` refused a snapshot
+that never asked; couch's `ProjectDetachedSessions` did not. Fed a liveness
+snapshot, it would read every thread "not detached", and couch would present
+that as a proof. The review named two readers. Enumerating every comparison
+against `SessionDetached` and `SessionAttached` found a third: the picker,
+guarded only because its one caller runs after `DecideLaunch`.
+
+- **One rule.** `launcher.RequireAttachState(sessions)` refuses any
+  `SessionLive` row, and all three readers apply it first:
+  - `DecideLaunch`'s bare branch (its inline loop is gone);
+  - the picker's entry, `resolvePickWithPolicy`, which aborts with exit 1 and
+    names the missing attach state;
+  - `ProjectDetachedSessions`, which now returns an error that
+    `DetachedSessions` propagates.
+- **One red-first test per reader.** `TestDecideLaunchRefusesAttachStateItWasNotGiven`,
+  `TestThePickerRefusesAttachStateItWasNotGiven`,
+  `TestProjectDetachedSessionsRefusesAttachStateItWasNotGiven`.
+- **Mutations, 5 of 5 killed as named.** The rule returning nil fails the
+  launcher and couchcore tests. Each call site handed `nil` instead of its
+  sessions fails that site's own test.
+
+**Minors fixed.**
+- `atlas/architecture.md`: the three-forms line named `pair list` as a user of
+  the full form. It is a separate scan (`OSRuntime.ListSessions`). The line now
+  names every full-form caller, including `pair rename`'s gate and the create
+  flow's re-check, and names the `RequireAttachState` rule.
+- `liveTagsForSweep`'s doc comment now says it reads names only. Before, only
+  its caller said so.
+- `ProbeSessionName` points at the short-circuit that skips it for a live name.
+- **Live conformance.** `TestSessionDetachLive` (`PAIR_LIVE_COUCH=1`) now
+  checks the named and liveness forms against real zellij 0.45.1, at both the
+  attached and the detached stage. It passes. Two mutations each fail it: the
+  named form keeping every session, and the liveness form asking every session.
+
+**Not taken, with reasons.**
+- **`LivenessContext` runs a redundant `list-sessions --short`.** The reviewer
+  says `--no-formatting` carries the names too, so every form could run one
+  `list-sessions`, not two. Unverified here. It changes the parser's input for
+  all three forms, and it is outside this issue's promise, which is a
+  `list-clients` count. The obvious place for it is #229, which measures the
+  path that pays it.
+- **The duplicate-row claim cannot be falsified with `StubZellij`**, which takes
+  a map and so cannot emit two rows under one name. The claim holds by
+  inspection of `snapshot`'s per-line filter. Testing it needs a raw-lines stub.
+- **`SnapshotSessionsContext` with no names** still runs two `list-sessions`.
+  That is unreachable today, since `DetachedSessions` returns before calling it.
+- **The probe derives its marker from the session-name shape.** That is
+  probe-only code.
+
+**Architectural notes for later work.**
+- **`SessionState` now mixes two kinds of fact.** `attached`, `detached` and
+  `exited` are observations; `live` means the observation was not made.
+  `RequireAttachState` is a runtime stop-gap. The structural fix is two types,
+  a liveness row and a classified row, so passing a liveness snapshot to a
+  reader of attach state fails to compile. Worth doing before a fourth reader
+  or a fourth form appears.
+- **#191 is stale.** Its motivation was couch's blocking startup inventory
+  paying a full `list-clients` fan-out, which this issue removed. Its real
+  remainder is bare `pair`'s picker and `pair list`. A note is in its Log.
+- **`launcher.Run` (`run.go`) is reachable only from tests.** It calls
+  `DecideLaunch` outside `runOnce`'s snapshot choice. It belongs with #192.
+
+**Suite after the fixes.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test`,
+unsandboxed: exit 0, 197 packages `ok`.
 
 ## Revisions
 

@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -91,5 +92,24 @@ func TestAssignSessionNameAcceptsALiveNameWithoutProbing(t *testing.T) {
 	}
 	if probes == 0 {
 		t.Fatal("a new tag's candidate name was accepted without a probe")
+	}
+}
+
+// Every reader of attached-versus-detached refuses a liveness snapshot, through
+// one rule (pair#228 close review: the guard had reached one reader of the
+// class, not all three). This is the picker's member; DecideLaunch's is
+// TestDecideLaunchRefusesAttachStateItWasNotGiven and couchcore's is
+// TestProjectDetachedSessionsRefusesAttachStateItWasNotGiven.
+func TestThePickerRefusesAttachStateItWasNotGiven(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.pickFunc = func(string, []string) string {
+		t.Fatal("the picker opened on sessions whose attach state was never asked")
+		return ""
+	}
+	var stderr strings.Builder
+	snap := SessionSnapshot{BaseTag: "work", Sessions: []Session{{Name: "📁work-live", State: SessionLive}}}
+	_, aborted, code := resolvePickWithPolicy(rt, snap, "work", 0, PickPolicy{}, &stderr)
+	if !aborted || code != 1 || !strings.Contains(stderr.String(), "attach state") {
+		t.Fatalf("aborted=%v code=%d stderr=%q, want an abort naming the missing attach state", aborted, code, stderr.String())
 	}
 }

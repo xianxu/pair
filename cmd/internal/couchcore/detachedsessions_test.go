@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,7 +85,10 @@ func TestProjectDetachedSessions(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := ProjectDetachedSessions(test.bindings, test.sessions)
+			got, err := ProjectDetachedSessions(test.bindings, test.sessions)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if len(got) != len(test.want) {
 				t.Fatalf("ProjectDetachedSessions() = %+v, want %+v", got, test.want)
 			}
@@ -202,10 +206,13 @@ func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
 // functions is the guard.
 func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
-	observed := ProjectDetachedSessions(
+	observed, err := ProjectDetachedSessions(
 		[]SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
 		[]launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(observed) != 1 {
 		t.Fatalf("ProjectDetachedSessions() = %+v, want one observation", observed)
 	}
@@ -219,5 +226,20 @@ func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.
 	rows := actionableRows([]ThreadRecord{record}, nil, nil, observed)
 	if len(rows) != 1 || rows[0].State != ThreadDetached {
 		t.Fatalf("rows = %+v, want the projector to accept its own upstream's output", rows)
+	}
+}
+
+// The couch member of RequireAttachState's class (pair#228 close review): a
+// snapshot that never asked for clients is refused, not read as "no thread is
+// detached". Launcher's members are TestDecideLaunchRefusesAttachStateItWasNotGiven
+// and TestThePickerRefusesAttachStateItWasNotGiven.
+func TestProjectDetachedSessionsRefusesAttachStateItWasNotGiven(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	observed, err := ProjectDetachedSessions(
+		[]SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
+		[]launcher.Session{{Name: "pair-one", State: launcher.SessionLive}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "attach state") {
+		t.Fatalf("observed = %+v, err = %v; want a refusal naming the missing attach state", observed, err)
 	}
 }

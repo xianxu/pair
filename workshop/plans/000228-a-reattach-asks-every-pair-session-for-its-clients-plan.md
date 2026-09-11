@@ -367,3 +367,22 @@ Delta:
   three). `pair list`'s `ListSessions` is named as a justified full scan.
 - **PQ-3.** The failure-path `PairSession` calls are recorded as inheriting
   site 3's narrowing, not as left alone.
+
+### 2026-09-11 — close review (FIX-THEN-SHIP): the guard's class, and two names
+
+**Reason.** The boundary review found the Core-concepts entry for `launchShape`
+reads as if `DecideLaunch`'s `SessionLive` guard closed the hazard tree-wide.
+It guarded one reader of attach state out of three. It also found two places
+where the tree and this plan disagree.
+
+**Delta.**
+- **The guard is a shared rule now.** New pure entity
+  `launcher.RequireAttachState` (`cmd/internal/launcher/session.go`). The
+  class has three members, and each applies it first: `DecideLaunch`'s bare
+  branch, the picker's entry (`resolvePickWithPolicy`), and couchcore's
+  `ProjectDetachedSessions`, which gains an error return.
+- **Task 3's helper shipped as `sessionsFor`, not `snapshotFor`.**
+- **Task 3 Step 2's doc line** first landed at the caller (`createflow.go`), not
+  on `liveTagsForSweep`. It is on the function now as well.
+
+The issue Log (2026-09-11) records the tests, the mutations, and the minors.

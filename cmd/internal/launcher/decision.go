@@ -83,13 +83,10 @@ func DecideLaunch(args LaunchArgs, snap SessionSnapshot) (LaunchDecision, error)
 		return createDecision(tag, sessionNameForTag(snap, tag), true), nil
 	}
 	// shapeBare: the only branch that reads attach state. A snapshot that never
-	// asked (SessionLive) cannot answer hasDetached -- it would read "not
-	// detached", skip the picker, and mint a new session -- so refuse loudly.
+	// asked would read "not detached", skip the picker, and mint a new session.
 	// runOnce takes a full snapshot for this shape, so this fires only on drift.
-	for _, sess := range snap.Sessions {
-		if sess.State == SessionLive {
-			return LaunchDecision{}, fmt.Errorf("launch decision needs attach state, but session %q was observed for liveness only", sess.Name)
-		}
+	if err := RequireAttachState(snap.Sessions); err != nil {
+		return LaunchDecision{}, fmt.Errorf("launch decision: %w", err)
 	}
 	if hasDetached(snap) || len(snap.Historical) > 0 {
 		return LaunchDecision{Action: ActionPick}, nil

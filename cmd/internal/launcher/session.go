@@ -1,6 +1,9 @@
 package launcher
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // SessionState describes whether a zellij session blocks tag reuse.
 type SessionState string
@@ -14,10 +17,26 @@ const (
 	// exists because asking costs a list-clients per session -- about 250 ms
 	// each against a real detached one (pair#228) -- and most callers only need
 	// "not exited". A consumer that needs attached-versus-detached must take a
-	// full snapshot; DecideLaunch refuses to read attach state from a liveness
-	// one.
+	// snapshot that asked, and refuses one that did not via RequireAttachState.
 	SessionLive SessionState = "live"
 )
+
+// RequireAttachState is the one rule every reader of attached-versus-detached
+// applies before reading it: a SessionLive row was never asked, so a reader
+// that took it would see "not detached" and act on a fabrication -- skip the
+// picker, list no detached row, refuse a resume. The callers take a snapshot
+// that asked, so this fires only on drift; it is loud so drift is found.
+//
+// Readers today: DecideLaunch's bare branch, the picker (resolvePickWithPolicy),
+// and couchcore's ProjectDetachedSessions.
+func RequireAttachState(sessions []Session) error {
+	for _, sess := range sessions {
+		if sess.State == SessionLive {
+			return fmt.Errorf("attach state is needed, but session %q was observed for liveness only", sess.Name)
+		}
+	}
+	return nil
+}
 
 // Session is a zellij session row projected into launcher decision space.
 type Session struct {
