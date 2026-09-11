@@ -37,14 +37,19 @@ type SessionNameBinding struct {
 // row in the switcher whose Enter cannot work:
 //
 //   - two addresses bound to one session name: Couch cannot tell which thread
-//     that session belongs to, so neither gets a row.
+//     that session belongs to, so neither gets a row. claims counts those
+//     bindings across the SCOPE'S WHOLE INDEX, not across the bindings passed
+//     in: a caller that asks about a subset -- which is every caller since
+//     pair#228 narrowed the fan-out -- would otherwise see a contested name as
+//     unique, and startup would resume a thread whose session belongs to
+//     something else (pair#206).
 //   - two zellij rows sharing one name: the snapshot itself is contradictory,
 //     so that name proves nothing.
 //
 // A snapshot that never asked for clients (launcher.SessionLive) is refused,
 // not read: every thread would come back "not detached", and couch would show
 // that as a proof (pair#228).
-func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.Session) ([]DetachedSessionObservation, error) {
+func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.Session, claims map[string]int) ([]DetachedSessionObservation, error) {
 	if err := launcher.RequireAttachState(sessions); err != nil {
 		return nil, fmt.Errorf("detached proof: %w", err)
 	}
@@ -62,13 +67,6 @@ func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.
 			continue
 		}
 		state[session.Name] = session.State
-	}
-
-	claims := make(map[string]int, len(bindings))
-	for _, binding := range bindings {
-		if binding.SessionName != "" {
-			claims[binding.SessionName]++
-		}
 	}
 
 	var out []DetachedSessionObservation

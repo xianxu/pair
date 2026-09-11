@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
@@ -215,5 +216,143 @@ func TestWarmResumeAsksTwoSessionsForClientsWhateverTheHostHas(t *testing.T) {
 				t.Fatalf("list-clients = %d, list-sessions = %d; want 2 and 6 at every S (the proof twice, then registration's liveness)", lc, ls)
 			}
 		})
+	}
+}
+
+// The duplicate-name rule must survive being asked about a SUBSET.
+//
+// Two addresses bound to one session name is the case ProjectDetachedSessions
+// fails closed on: couch cannot tell whose session that is, so neither thread
+// gets a row. But the claim count was taken over the bindings the caller
+// passed, so asking about only one of the two made its name look unique and
+// the ambiguous thread was reported detached -- and startup would resume it.
+//
+// Narrowing the candidate set is exactly what pair#228 introduced and what
+// pair#206's startup narrowing leans on, so the count has to come from the
+// scope's whole index, which is already read.
+func TestDetachedSessionsRefusesANameTwoThreadsClaim(t *testing.T) {
+	dataDir := t.TempDir()
+	const shared = "📁repo-shared"
+	indexSession(t, dataDir, addressA, shared)
+	indexSession(t, dataDir, addressB, shared)
+	checker, _ := sandboxedChecker(t, dataDir, map[string]string{shared: "detached"})
+
+	// Asked about ONE of the two claimants, which is all a narrowed caller has.
+	observed, err := checker.DetachedSessions(context.Background(), []DetachedCandidate{{Address: addressA, Agent: "claude"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 0 {
+		t.Fatalf("observed %+v; a session two threads claim proves nothing about either", observed)
+	}
+}
+
+// A name a thread has MOVED OFF claims nothing.
+//
+// The index is append-only, so a thread's binding is its last entry. Counting
+// every entry a name ever had would let a retired binding contest the thread
+// that holds the name now -- refusing a reattach that is perfectly valid. That
+// is the inverse of the bug the count exists to prevent, and the commoner
+// state, since an ordinary relaunch appends.
+func TestDetachedSessionsIgnoresANameItsThreadHasLeft(t *testing.T) {
+	dataDir := t.TempDir()
+	const contested = "📁repo-contested"
+	// addressA held the name once, then moved to its own; addressB holds it now.
+	indexSession(t, dataDir, addressA, contested)
+	indexSession(t, dataDir, addressA, "📁repo-a-current")
+	indexSession(t, dataDir, addressB, contested)
+	checker, _ := sandboxedChecker(t, dataDir, map[string]string{contested: "detached", "📁repo-a-current": "detached"})
+
+	observed, err := checker.DetachedSessions(context.Background(), []DetachedCandidate{{Address: addressB, Agent: "claude"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 1 || observed[0].Address != addressB {
+		t.Fatalf("observed %+v; addressB holds that name now, and addressA left it", observed)
+	}
+}
+
+// And the same thread registering repeatedly is still one claim.
+func TestDetachedSessionsCountsAThreadOnceHoweverOftenItRegistered(t *testing.T) {
+	dataDir := t.TempDir()
+	const name = "📁repo-a"
+	indexSession(t, dataDir, addressA, name)
+	indexSession(t, dataDir, addressA, name)
+	indexSession(t, dataDir, addressA, name)
+	checker, _ := sandboxedChecker(t, dataDir, map[string]string{name: "detached"})
+
+	observed, err := checker.DetachedSessions(context.Background(), []DetachedCandidate{{Address: addressA, Agent: "claude"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 1 {
+		t.Fatalf("observed %+v; three registrations by one thread are still one claim", observed)
+	}
+}
+
+// A thread bound ONLY by a legacy row is one claimant, however many scopes a
+// single call reads -- asserted where the count is consumed, not on the merge
+// helper alone.
+//
+// Every scoped read replays the shared legacy file before its own rows, so the
+// legacy thread appears once per scope asked. Summing per-read counts made its
+// own session look contested whenever a call spanned two scopes: no detached
+// observation, session-gone, and the pass would never seed it (pair#206 PQ-1;
+// 56 legacy-only bindings on the operator's host). A test of the merge helper
+// alone survived reintroducing exactly that bug, because every other seam test
+// here reads one scope, where summing and not summing agree.
+func TestDetachedSessionsCountsALegacyThreadOnceAcrossScopes(t *testing.T) {
+	dataDir := t.TempDir()
+	const legacyName = "📁repo-legacy"
+	legacyThread := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000aa"}
+	otherScope := ThreadAddress{RepoScope: "fedcba9876543210", Tag: "couch-00000000000000bb"}
+
+	indexLegacySession(t, dataDir, legacyThread, legacyName)
+	indexSession(t, dataDir, otherScope, "📁repo-other")
+	checker, _ := sandboxedChecker(t, dataDir, map[string]string{legacyName: "detached", "📁repo-other": "detached"})
+
+	// Two scopes in ONE call, which is what makes the legacy file replay twice.
+	observed, err := checker.DetachedSessions(context.Background(), []DetachedCandidate{
+		{Address: legacyThread, Agent: "claude"},
+		{Address: otherScope, Agent: "claude"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, observation := range observed {
+		if observation.Address == legacyThread {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("observed %+v; the legacy-bound thread's session is its own and uncontested", observed)
+	}
+}
+
+// indexLegacySession writes a binding into the shared legacy-global index,
+// which every scoped read replays before its own rows.
+func indexLegacySession(t *testing.T, dataDir string, address ThreadAddress, name string) {
+	t.Helper()
+	legacy, err := artifactpath.ResolveLegacyRoot(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(legacy.SessionBindings()), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	line, err := launcher.BuildSessionNameIndexLine(launcher.SessionNameEntry{
+		SessionName: name, ScopeKey: address.RepoScope, RepoRoot: "/repo", RepoName: "repo", Tag: string(address.Tag),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.OpenFile(legacy.SessionBindings(), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(line + "\n"); err != nil {
+		t.Fatal(err)
 	}
 }

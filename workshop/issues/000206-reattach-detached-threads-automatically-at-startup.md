@@ -184,13 +184,19 @@ than one.
 
 ## Plan
 
-- [ ] **Measure first.** Time one warm reattach, then N concurrent, on a quiet
+- [x] **Measure first.** Time one warm reattach, then N concurrent, on a quiet
       host: total wall-clock and `zellij action` latency during the burst. This
-      decides A vs B vs C and nothing should be built before it.
-- [ ] Decide the interleaving cells; record them in `## Spec`.
-- [ ] Implement the chosen strategy.
-- [ ] Test the failure path and the pending-row switch.
-- [ ] Re-measure startup end to end, recording the agent count.
+      decides A vs B vs C and nothing should be built before it. (Log
+      2026-09-10; it moved the problem to #228, now merged.)
+- [x] Decide the interleaving cells; recorded in the durable plan's
+      "Decisions" and "The pass's transitions" (`workshop/plans/000206-*-plan.md`).
+- [ ] M1 — startup proves only the threads its readers consume (`startupAsks`),
+      and the duplicate-name rule counts each thread once over the union of
+      index files it reads.
+- [ ] M2 — the background reattach pass: `warm-only` resume, the pure
+      `ReattachPass` in `MenuState`, the pass view applied at the row lookups,
+      console wiring that never takes focus, rendering, arming, the trace, the
+      operator-assisted measurement, and the smoke.
 
 ## Log
 
@@ -393,3 +399,23 @@ name" case, and the harness itself reported a false SURVIVED because a
 pipeline's exit status came from `head` rather than `grep`.
 
 **Suite:** unsandboxed `make test` exit 0, 197 packages.
+
+### 2026-09-11 — the Plan's boundaries, and the plan gate converged
+
+The original Plan rows predated the design, so they are restated as the two
+review boundaries the durable plan actually has: **M1** (startup narrowing, in
+`couchcore`) and **M2** (the pass, across `couchtty` and `couchcmd`). The
+measure-first and decide-the-cells rows are done and ticked, with pointers.
+
+**Plan gate, four rounds.** Beyond the rounds already logged, round 3 found a
+real bug in Task 1's shipped code -- per-scope claim counts were summed, so a
+thread bound only by the legacy index file counted once per scope asked and
+read session-gone (56 such bindings on the operator's host). Fixed by merging
+over the union of reads; pinned at the seam by a two-scope test, because the
+pure helper's own test survived reintroducing the bug.
+
+**Estimate-quality: INFO, no refusal.** Its main note is that Task 12 is
+under-slotted (the probe's sample mode, the 30 s sampler run, the smoke and the
+Done-when conversation are more than an atlas slot) -- expect 0.1-0.2h over on
+M2's close-out. It also notes M1's items were costed after M1 was built, so
+they are retrospective; the ledger's actual will say how far off they were.

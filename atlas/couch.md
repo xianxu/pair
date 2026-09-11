@@ -730,9 +730,22 @@ Where that lands differs by caller, and both matter:
 - **Startup: blocking** (`pair#170` M3). `StartInteractive` must decide
   resume-vs-new before it attaches anything, so a detach candidate adds that
   cost before the first frame -- and `leave` detaching rather than parking makes
-  a detach candidate the normal case. `pair#172` parallelizes the per-session
-  queries, which are independent; the candidate filter decides only *whether*
-  the snapshot runs.
+  a detach candidate the normal case.
+- **Startup proves only the threads its readers consume** (`pair#206` M1).
+  Three readers take those rows: `ResolveLayoutConflicts`, `SelectResumableRoot`
+  and the one-thread-per-path guards. Each filters before it reads -- the
+  selectors to the cwd, the layout guard to rows whose layout differs -- so
+  `startupAsks` resolves exactly that union and leaves every other candidate
+  `ProofUnresolved`, which classifies `unknown`: a row no reader here can act
+  on. Those rows never leave `StartInteractive` (`StartResult` carries none),
+  so unasked state cannot reach the switcher.
+
+  The predicate gates `ResolveEstablished` as well as the zellij query, because
+  each resolution reads that thread's own ledger -- narrowing only the
+  `list-clients` calls would leave time-to-first-frame growing with the store
+  while looking fixed. `TestNarrowedStartupAnswersAsAFullProofWould` computes
+  the inventory both ways and asserts all three readers agree; a fourth reader
+  widens the predicate, and that test is where the omission shows.
 
 Resume accepts verified park **or proved detachment**. A detached thread has no
 verified park because nothing was torn down; its authority is the surviving

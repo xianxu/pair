@@ -118,6 +118,50 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 	return ThreadAddress{}, false
 }
 
+// startupAsks decides which resume-shaped candidates startup's blocking
+// inventory resolves. It is the union of what the readers of startup's rows
+// filter on, and it is the whole of pair#206 M1:
+//
+//   - SelectResumableRoot and the one-thread-per-path guards inside
+//     spawnResolved read only rows at the cwd (this repo scope AND this
+//     working path);
+//   - ResolveLayoutConflicts reads only rows whose layout differs from the one
+//     couch was asked to start in, at any path.
+//
+// A candidate outside both sets keeps ProofUnresolved and classifies
+// `unknown`. No reader of startup's rows can act on such a row: it is not at
+// the cwd, and its layout agrees, so it is neither selectable nor a conflict.
+// The rows never leave StartInteractive -- StartResult carries none -- so the
+// unasked state cannot reach the switcher, which is what pair#228's close
+// review closed off.
+//
+// TestNarrowedStartupAnswersAsAFullProofWould is the guard: it computes both
+// inventories and asserts all three readers answer identically. A fourth reader
+// widens this predicate, and that test is where the omission shows.
+func startupAsks(requested Layout, repoScope, workingPath string) func(ThreadRecord) bool {
+	return func(record ThreadRecord) bool {
+		if record.Address.RepoScope == repoScope && record.WorkingPath == workingPath {
+			return true
+		}
+		return NormalizeLayout(string(record.Layout)) != requested
+	}
+}
+
+// startupInventory is the blocking inventory StartInteractive reads, narrowed
+// to what its readers consume.
+//
+// It takes the scope key its caller already resolved rather than resolving one
+// of its own: the narrowing predicate has to agree EXACTLY with the selectors
+// that read its rows, and two independent resolutions of the same path are two
+// chances to disagree.
+func (c *Couch) startupInventory(ctx context.Context, scopeKey, workingPath string) ([]ActionableThreadSummary, error) {
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil, startupAsks(c.Layout, scopeKey, workingPath))
+	if err != nil {
+		return nil, err
+	}
+	return ProjectActionableThreads(FromSnapshot(snapshot, evidence)), nil
+}
+
 // StartInteractive chooses the root/home actor for one interactive Couch
 // startup before performing either resume or new-thread effects.
 func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResult, error) {
@@ -129,7 +173,7 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	if err != nil {
 		return StartResult{}, err
 	}
-	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
+	rows, err := c.startupInventory(ctx, scope.Key, resolution.CanonicalPath)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -137,6 +181,10 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	// these rows are the only session enumeration startup performs, and the
 	// guard must add none of its own. It runs before any effect, so a refusal
 	// starts no child.
+	//
+	// startupAsks proved exactly two sets: the cwd's candidates, and every
+	// candidate whose layout differs -- which is this guard's own set. A row
+	// left `unknown` is one no reader here can act on (pair#206 M1).
 	//
 	// It is a predictability feature, not a safety one -- #179 keeps a warm
 	// reattach safe on its own by sending no layout flag at all -- so a startup
