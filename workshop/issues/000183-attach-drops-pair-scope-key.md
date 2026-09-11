@@ -151,19 +151,19 @@ holds the code, commands, and mutation table, and has had two fresh-context
 review rounds. It is single-pass, with one review boundary at `sdlc close`, so
 there are no `Mx` tags.
 
-- [ ] Task 0: `sdlc change-code` (branch, plan gate, estimate).
-- [ ] Task 1: `contextcmd` names its variables (`EnvDataDir`, `EnvScopeKey`,
+- [x] Task 0: `sdlc change-code` (branch, plan gate, estimate).
+- [x] Task 1: `contextcmd` names its variables (`EnvDataDir`, `EnvScopeKey`,
       `EnvFrom`), and a missing scope key gets its own status
       (`ExitNoScopeKey`, with a stderr reason), distinct from an unbound owner.
-- [ ] Task 2: `titlepoller.SessionEnv` / positional `NewSessionEnv` /
+- [x] Task 2: `titlepoller.SessionEnv` / positional `NewSessionEnv` /
       `Environ`, beside the `optionsFromCLI` parse it inverts, tied to the
       observed reads.
-- [ ] Task 3: the regression test, red first, fails on attach's
+- [x] Task 3: the regression test, red first, fails on attach's
       `PAIR_SCOPE_KEY` and is measured against the contract's own names.
-- [ ] Task 4: both launch paths hand the poller its contract; attach resolves
+- [x] Task 4: both launch paths hand the poller its contract; attach resolves
       scope like create; the stale `lifecycle.go:42-43` comment goes;
       `titlePollerArgv` becomes `titlePollerSpawn`.
-- [ ] Task 5: atlas (the poller's launch contract, and a missing scope is not
+- [x] Task 5: atlas (the poller's launch contract, and a missing scope is not
       an unbound owner).
 - [ ] Task 6: mutation sweep (8 rows, each matched to its named failure), an
       unsandboxed `make test`, and real-stack detach/reattach by the operator.
@@ -230,6 +230,35 @@ receives `scopeKey` as an argument. Facts that shaped it:
   unused-variable compile error.
 
 Both rounds are recorded in the plan's `## Revisions`.
+
+### 2026-09-10: implemented (`9a571264`, `978de28c`, `b786c70e`, `b03c0419`)
+
+- **Regression, red first.**
+  `TestTitlePollerStartsWithItsWholeContractOnBothPaths` failed on `/attach`
+  with `the poller starts without PAIR_SCOPE_KEY` and scope `""`, and passed on
+  `/create`. After the wiring, both subtests pass.
+- **Mutation sweep.** Script `mutate183.py`. Every needle is asserted to occur
+  once, restores come from saved bytes, and a row counts as killed only when
+  its named `--- FAIL` line or build error appears. All 8 rows were killed as
+  named:
+  - rows 1–3 left `/create` (or `/attach`) green as designed;
+  - row 6 (a new `PAIR_AGENT` read) failed the observed-reads test;
+  - row 7 (a new `NewSessionEnv` parameter) broke the build at exactly
+    `createflow.go` and `lifecycle.go`.
+
+  The tree was clean after the sweep.
+- **Suite.** `env -u PAIR_SESSION_ID -u PAIR_TAG make test`, unsandboxed:
+  exit 0, 197 packages `ok`.
+- **Installed.**
+  - `~/.local/bin/pair` is a symlink to `bin/pair`, which `make test` rebuilt,
+    and the new code is in it.
+  - `make install` refreshed `couch` and `pair-launch-helper`, both built at
+    `vcs.revision=b03c0419`, unmodified.
+  - couch reattaches by exec'ing `pair-launch-helper … pair resume`, a fresh
+    `pair` process, so the fix takes effect on the next reattach with no couch
+    restart.
+- **Plan-gate advisories.** PQ-1 and PQ-2 are both taken; see the plan's
+  Revisions.
 
 ## Revisions
 
