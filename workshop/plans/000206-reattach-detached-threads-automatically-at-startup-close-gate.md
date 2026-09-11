@@ -76,6 +76,67 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-11T15:55:21-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Task 6 Step 0 adds the generated-sequence invariants in this window; the enumerated prose lists in Tasks 5.1, 8.1 and 9.1 remain, which is the stylistic half.
+          round: 3
+        - id: BR-2
+          disposition: not-addressed
+          note: Nothing in the window touched the envelope; M2 Task 12 scope, carry to the M2 close review and name the per-completion refresh and both 5 s bounds in its measurement bullet.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: Struct block, Task 6 Step 2, Task 8 Step 4 and the PathHoldsUnreadableThread prose are swept; Task 2 Step 4's sandboxedChecker clause is superseded by the M1-review Revisions entry. The family recurred, see the new finding.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: 'Seven rows and four readers; revert-verified: counting the fake''s claims over asked candidates only turns the shared-name row red.'
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: Log entry "M1 operator smoke" records the 1.5x report, what it implies, and what remains unmeasured.
+          round: 3
+        - id: BR-6
+          disposition: addressed
+          note: DetachedSessions derives bindings from effectiveBindings(reads)[address]; lookupSessionName remains only for PairSession.
+          round: 3
+        - id: BR-7
+          disposition: addressed
+          note: The ProjectDetachedSessions comment now states legacy plus asked scopes and both theoretical gaps.
+          round: 3
+        - id: BR-8
+          disposition: addressed
+          note: layout3 row with the refusal test covering both kinds; threadCounter is used; cwd is asserted; strings.Contains; conflicts compared by address.
+          round: 3
+        - id: BR-9
+          disposition: not-addressed
+          note: Tasks 2-3 ticked and sessionNameClaims renamed, but Task 2 Step 1 still describes withOthers and a zellij-seam list-clients count no test takes, with no Revisions line; Task 4's delivered rows (smoke, atlas, mutation sweep, make test) are unticked while the Log records each.
+          round: 3
+      findings:
+        - id: BR-10
+          severity: Minor
+          title: 'Round-2 decisions left six restatements unswept: the reader count, the M1 close criterion, and lookupSessionName''s orphaned doc comment'
+          detail: 'This is the 2nd finding in family decision-restated-not-swept. Sites: startup.go:139-140 and atlas/couch.md:747 say three readers and a fourth would widen the predicate while the test asserts four (startup_proof_test.go:155; its header at line 5 still says three); plan lines 379-381 promise a measured first-frame time the Revisions entry replaced with the smoke; plan line 150 has a dangling "and"; artifactcollision.go:136-140 is lookupSessionName''s doc comment now heading scopedIndexRead and claiming DetachedSessions still calls it. BR-3''s rule (grep every restatement in the same edit) was stated in round 1 and the next two commits produced these six, so the rule as written is not holding. The rule that covers all of them: do not restate, point. A count or list lives in one place (the test''s row table, the reader list in startupAsks'' comment) and every other site names it rather than repeating a number; and each Revisions entry ends with a swept line listing every site changed, which a reviewer diffs against a grep of the old term. Measured prevalence this round: six sites across code, atlas and plan.'
+          family: decision-restated-not-swept
+          round: 3
+        - id: BR-11
+          severity: Minor
+          title: DetachedSessions' comment says a scope whose index cannot be read contributes no bindings; after the union its legacy-bound threads are bound and counted from other reads
+          detail: 'This is the 2nd finding in family documented-rule-reach. artifactcollision.go:275-278 states the old reach; the bindings loop at 329-336 iterates scopes rather than reads, so a failed scope''s threads take current[address] from legacy rows replayed in another scope''s successful read. A scope read fails only when its own file exists but will not read or decode (launcher/session_index.go:225-235), so this is rare and arguably the better answer, but it is unstated and no test pins either behaviour. The rule that covers BR-7 and this: a comment that names a reach (per scope, the whole index, fail closed) is a claim about which data the code consults, and it is pinned by a test the comment names. The class fix is a test per reach claim in DetachedSessions and ProjectDetachedSessions, including one for a scope whose file will not decode, rather than rewording this comment. Prevalence: two reach claims in the same two functions, neither pinned when raised.'
+          family: documented-rule-reach
+          round: 3
+        - id: BR-12
+          severity: Minor
+          title: lookupSessionName and effectiveBindings are two derivations of a thread's newest binding in one read; PairSession uses one, DetachedSessions the other
+          detail: 'This is the 2nd finding in family dry-duplicate-derivation. artifactcollision.go:196-204 scans one index backwards for one address; effectiveBindings'' per-read latest map at 165-168 computes the same fact for every address. If the single-read semantics ever diverge, PairSession and DetachedSessions judge the same thread by different names. The rule: a thread''s current session name has exactly one derivation and every reader calls it. The class fix is to delete lookupSessionName and have PairSession call effectiveBindings over its single read, so the rule is enforced by there being one function rather than by two agreeing. The test helper claimsOf (detachedsessions_test.go:253-261) is a third copy of the counting rule and can call claimsFromBindings. Prevalence: three derivations, two production readers.'
+          family: dry-duplicate-derivation
+          round: 3
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — pair#206 (boundary-review)
@@ -114,14 +175,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Minor] `plan-drift-from-code` Durable plan lags the code: Tasks 2-3 unticked, prose names sessionNameClaims, Task 2 Step 1 describes a zellij-seam count the test takes at the fake seam
   Tick the delivered steps, rename the helper in the Core concepts prose to effectiveBindings plus claimsFromBindings, and record the seam deviation in a Revisions entry.
 
+## Round 3 — 2026-09-11T15:55:21-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — addressed — Task 6 Step 0 adds the generated-sequence invariants in this window; the enumerated prose lists in Tasks 5.1, 8.1 and 9.1 remain, which is the stylistic half.
+- BR-2 — not-addressed — Nothing in the window touched the envelope; M2 Task 12 scope, carry to the M2 close review and name the per-completion refresh and both 5 s bounds in its measurement bullet.
+- BR-3 — addressed — Struct block, Task 6 Step 2, Task 8 Step 4 and the PathHoldsUnreadableThread prose are swept; Task 2 Step 4's sandboxedChecker clause is superseded by the M1-review Revisions entry. The family recurred, see the new finding.
+- BR-4 — addressed — Seven rows and four readers; revert-verified: counting the fake's claims over asked candidates only turns the shared-name row red.
+- BR-5 — addressed — Log entry "M1 operator smoke" records the 1.5x report, what it implies, and what remains unmeasured.
+- BR-6 — addressed — DetachedSessions derives bindings from effectiveBindings(reads)[address]; lookupSessionName remains only for PairSession.
+- BR-7 — addressed — The ProjectDetachedSessions comment now states legacy plus asked scopes and both theoretical gaps.
+- BR-8 — addressed — layout3 row with the refusal test covering both kinds; threadCounter is used; cwd is asserted; strings.Contains; conflicts compared by address.
+- BR-9 — not-addressed — Tasks 2-3 ticked and sessionNameClaims renamed, but Task 2 Step 1 still describes withOthers and a zellij-seam list-clients count no test takes, with no Revisions line; Task 4's delivered rows (smoke, atlas, mutation sweep, make test) are unticked while the Log records each.
+
+### Raised
+
+- **BR-10** [Minor] `decision-restated-not-swept` Round-2 decisions left six restatements unswept: the reader count, the M1 close criterion, and lookupSessionName's orphaned doc comment
+  This is the 2nd finding in family decision-restated-not-swept. Sites: startup.go:139-140 and atlas/couch.md:747 say three readers and a fourth would widen the predicate while the test asserts four (startup_proof_test.go:155; its header at line 5 still says three); plan lines 379-381 promise a measured first-frame time the Revisions entry replaced with the smoke; plan line 150 has a dangling "and"; artifactcollision.go:136-140 is lookupSessionName's doc comment now heading scopedIndexRead and claiming DetachedSessions still calls it. BR-3's rule (grep every restatement in the same edit) was stated in round 1 and the next two commits produced these six, so the rule as written is not holding. The rule that covers all of them: do not restate, point. A count or list lives in one place (the test's row table, the reader list in startupAsks' comment) and every other site names it rather than repeating a number; and each Revisions entry ends with a swept line listing every site changed, which a reviewer diffs against a grep of the old term. Measured prevalence this round: six sites across code, atlas and plan.
+- **BR-11** [Minor] `documented-rule-reach` DetachedSessions' comment says a scope whose index cannot be read contributes no bindings; after the union its legacy-bound threads are bound and counted from other reads
+  This is the 2nd finding in family documented-rule-reach. artifactcollision.go:275-278 states the old reach; the bindings loop at 329-336 iterates scopes rather than reads, so a failed scope's threads take current[address] from legacy rows replayed in another scope's successful read. A scope read fails only when its own file exists but will not read or decode (launcher/session_index.go:225-235), so this is rare and arguably the better answer, but it is unstated and no test pins either behaviour. The rule that covers BR-7 and this: a comment that names a reach (per scope, the whole index, fail closed) is a claim about which data the code consults, and it is pinned by a test the comment names. The class fix is a test per reach claim in DetachedSessions and ProjectDetachedSessions, including one for a scope whose file will not decode, rather than rewording this comment. Prevalence: two reach claims in the same two functions, neither pinned when raised.
+- **BR-12** [Minor] `dry-duplicate-derivation` lookupSessionName and effectiveBindings are two derivations of a thread's newest binding in one read; PairSession uses one, DetachedSessions the other
+  This is the 2nd finding in family dry-duplicate-derivation. artifactcollision.go:196-204 scans one index backwards for one address; effectiveBindings' per-read latest map at 165-168 computes the same fact for every address. If the single-read semantics ever diverge, PairSession and DetachedSessions judge the same thread by different names. The rule: a thread's current session name has exactly one derivation and every reader calls it. The class fix is to delete lookupSessionName and have PairSession call effectiveBindings over its single read, so the rule is enforced by there being one function rather than by two agreeing. The test helper claimsOf (detachedsessions_test.go:253-261) is a third copy of the counting rule and can call claimsFromBindings. Prevalence: three derivations, two production readers.
+
 ## Open findings
 
-- **BR-1** [Minor] `test-plan-enumerates-cases` Compress the prose test-case lists into per-function strategy lines, and add generated event-sequence invariant tests for ReattachPass
 - **BR-2** [Minor] `envelope-omits-cost-source` Worst-case attempt bound and pass duration omit repeated 5 s zellij queries and the O(N squared) per-completion inventory refresh
-- **BR-3** [Minor] `decision-restated-not-swept` Revisions changed the prose but not the code block, the task steps and the file lists that restate them
-- **BR-4** [Important] `plan-test-traceability` TestNarrowedStartupAnswersAsAFullProofWould ships 4 of the plan's 7 rows and 3 of its 4 readers
-- **BR-5** [Important] `operator-smoke-before-close` Task 4's M1 close criterion, the operator smoke, has no Log entry
-- **BR-6** [Minor] `dry-duplicate-derivation` DetachedSessions derives each candidate's newest binding twice (lookupSessionName and effectiveBindings)
-- **BR-7** [Minor] `documented-rule-reach` ProjectDetachedSessions' comment says "the scope's whole index"; the reach is legacy plus asked scopes
-- **BR-8** [Minor] `test-fixture-honesty` The "conflicting layout elsewhere" row uses layout1, which ParseLayoutMode rejects, so it duplicates the unreadable row
 - **BR-9** [Minor] `plan-drift-from-code` Durable plan lags the code: Tasks 2-3 unticked, prose names sessionNameClaims, Task 2 Step 1 describes a zellij-seam count the test takes at the fake seam
+- **BR-10** [Minor] `decision-restated-not-swept` Round-2 decisions left six restatements unswept: the reader count, the M1 close criterion, and lookupSessionName's orphaned doc comment
+- **BR-11** [Minor] `documented-rule-reach` DetachedSessions' comment says a scope whose index cannot be read contributes no bindings; after the union its legacy-bound threads are bound and counted from other reads
+- **BR-12** [Minor] `dry-duplicate-derivation` lookupSessionName and effectiveBindings are two derivations of a thread's newest binding in one read; PairSession uses one, DetachedSessions the other

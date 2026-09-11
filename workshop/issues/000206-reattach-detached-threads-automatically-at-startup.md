@@ -190,7 +190,7 @@ than one.
       2026-09-10; it moved the problem to #228, now merged.)
 - [x] Decide the interleaving cells; recorded in the durable plan's
       "Decisions" and "The pass's transitions" (`workshop/plans/000206-*-plan.md`).
-- [ ] M1 — startup proves only the threads its readers consume (`startupAsks`),
+- [x] M1 — startup proves only the threads its readers consume (`startupAsks`),
       and the duplicate-name rule counts each thread once over the union of
       index files it reads.
 - [ ] M2 — the background reattach pass: `warm-only` resume, the pure
@@ -200,6 +200,8 @@ than one.
 
 ## Log
 
+
+- 2026-09-11: closed M1 — startupAsks resolves only the union its readers consume; gates ResolveEstablished and the zellij query. Counted at the seam: 3 detach candidates, 1 binding resolution at 2 and 12 other threads. Equivalence test now covers all 7 plan rows and all 4 readers (conflicts compared by address; layout3 for a valid conflict, layout1 for unreadable); a count test kills the dropped-scope-arm mutation the equivalence test structurally cannot. Duplicate-name rule counts each thread once at its effective binding over the union of index files read, pinned by a two-scope legacy seam test. Mutations 13/13 killed as named. Unsandboxed make test exit 0, 197 packages. OPERATOR SMOKE: startup ~1.5x faster on the real stack. Actual 5.06h = measured #206 share since claim, incl. measure-first probe and 4 plan-gate rounds.; review verdict: SHIP
 ### 2026-09-06
 
 Operator request, split from `#205` at their instruction. The two share a
