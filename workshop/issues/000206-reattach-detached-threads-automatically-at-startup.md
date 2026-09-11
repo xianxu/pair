@@ -183,3 +183,75 @@ threads are not resumed, and required the cwd thread to be excluded from step 2.
 cwd-first ordering takes the background reattaches off the critical path, which
 resolves the A/B/C strategy question toward B; the options are kept below for the
 record.
+
+### 2026-09-10: Plan step 1, the measurement (it moves the problem)
+
+Claimed. A read-only exploration mapped the startup and reattach paths. Three
+structural facts shape any design:
+
+- **One operation at a time.** The switcher holds a single in-flight slot and
+  silently refuses operator dispatches while it is taken (`menu.go`
+  `dispatchMenuOperation`).
+- **One worker.** The operation queue is serial (`operation_queue.go`).
+- **Resume takes focus.** Every successful resume force-switches
+  (`finishOperation`, `completed.origin.Operation == "resume"`).
+
+A background reattach can therefore neither hold the in-flight slot nor steal
+focus. Also found: `#214`'s per-thread guard was never built.
+
+**Procedure.** `PAIR_PROBE_N=8 go run ./cmd/probes/reattachcost` (new; sandbox
+off for zellij). The probe:
+
+- creates N+1 detached sessions under the repo's `zellij/config.kdl`, with a
+  pair-shaped layout (framed agent pane that has printed 120 wide rows, over a
+  fixed 12-row borderless draft) at 200x50;
+- times real `zellij attach` clients until the session's own marker renders;
+- samples `zellij action query-tab-names` against a never-attached control
+  session throughout.
+
+**Co-tenancy:** load 2.19; 7 agent processes; 26 zellij sessions listed, of
+which 8 are live pair sessions (5 detached); 12 cores; zellij 0.45.1.
+
+| phase (N=8) | per thread | total | action p50 / p95 / max |
+|---|---|---|---|
+| quiet baseline | — | — | 19 / 26 / 47 ms |
+| one attach (x3) | 52–55 ms | — | 19 / 21 / 21 ms |
+| 8 sequential attaches | 51–57 ms | 447 ms | 19 / 21 / 21 ms |
+| 8 concurrent attaches | 69–120 ms | 121 ms | 25 ms (1 sample) |
+| **8 couch-shaped** (5 snapshots + attach) | **5.3–5.7 s** | **44 s** | 19 / 21 / 50 ms (n=626) |
+
+**What it says.**
+
+1. **`zellij attach` is cheap:** about 55 ms. Concurrency barely costs anything
+   and does not move `zellij action` latency. The analogy with #203 was wrong
+   in the direction the Log already suspected.
+2. **The cost is couch's own proof work.** One couch reattach takes 5 session
+   snapshots, counted from the code:
+   - couchcore `ResumeContext`'s `DetachedSessions`, and `confirmStillDetached`;
+   - `pair resume`'s launcher, at `createflow.go`'s loop top and in `runOnce`;
+   - the console's inventory refresh on completion.
+
+   Each snapshot is 2 `list-sessions` calls plus one `list-clients` for *every*
+   live pair session on the host.
+3. **`list-clients` is the expensive call, and only against real sessions.**
+   Timed singly:
+   - about 190–350 ms against a real **detached** pair session (one took 971 ms);
+   - about 38 ms against an attached one;
+   - about 53 ms against a fresh, empty detached session;
+   - `query-tab-names` against the same real detached session: about 55 ms.
+
+   A startup pass is therefore **O(N × S)** calls at about 250 ms each for
+   detached S. With 10 threads all detached, that estimates to about 80 s for
+   the pass, and about 13 s for the first reattach (the one a queue-jump
+   waits on).
+4. **The sequential pass does not hurt interactive latency** (p95 21 ms, max
+   50 ms), so strategy B is *safe*. It is *slow in wall-clock*, and the
+   queue-jump would be slow too, because each reattach is dominated by proof
+   snapshots that ask every session about its clients.
+
+This is the target's defect shape exactly (`workbench-latency`: "a cost that
+scales with the wrong thing"). Proving that ONE thread is detached costs
+O(all sessions). It also taxes every manual reattach today: about 5 s here.
+`zellij list-sessions` in 0.45.1 carries no client information, so the lever is
+how many sessions each snapshot asks, and how many snapshots each reattach
+takes.
