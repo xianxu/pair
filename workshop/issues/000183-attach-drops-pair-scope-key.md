@@ -110,25 +110,27 @@ They legitimately differ: `PAIR_LAUNCH_ORDINAL`, `PAIR_SESSION_ID` and
 
 ## Plan
 
-Single-pass: one plumbing fix plus the declaration that prevents its class. No
-`Mx` tags — one review boundary (AGENTS.md §3).
+Durable plan: `workshop/plans/000183-attach-drops-pair-scope-key-plan.md`. It
+holds the code, commands, and mutation table, and has had two fresh-context
+review rounds. It is single-pass, with one review boundary at `sdlc close`, so
+there are no `Mx` tags.
 
-- [ ] Failing test first: assert the attach path's exported env satisfies the
-      title poller's declared requirement. Red on `PAIR_SCOPE_KEY`.
-- [ ] Extract the poller's environment requirement to one declaration; have
-      `createflow` and `AttachExistingSession` both consume it. Resolve the
-      scope key on the attach path the way `createflow` does rather than
-      deriving it from `env.DataDir`'s basename — a path-shape coupling is how
-      this becomes a second silent failure.
-- [ ] Make an absent scope key non-silent inside `contextcmd`, distinct from a
-      binding that is genuinely not established.
-- [ ] Delete the stale comment at `lifecycle.go:42-43` — the "pair-shell
-      exports these globally" premise is no longer true and is what made the
-      subset look complete.
-- [ ] Real-stack verification: detach and reattach a live thread; confirm the
-      count returns to the frame title.
-- [ ] Atlas: the poller's env contract beside the create/attach split, if the
-      surface warrants a line.
+- [ ] Task 0: `sdlc change-code` (branch, plan gate, estimate).
+- [ ] Task 1: `contextcmd` names its variables (`EnvDataDir`, `EnvScopeKey`,
+      `EnvFrom`), and a missing scope key gets its own status
+      (`ExitNoScopeKey`, with a stderr reason), distinct from an unbound owner.
+- [ ] Task 2: `titlepoller.SessionEnv` / positional `NewSessionEnv` /
+      `Environ`, beside the `optionsFromCLI` parse it inverts, tied to the
+      observed reads.
+- [ ] Task 3: the regression test, red first, fails on attach's
+      `PAIR_SCOPE_KEY` and is measured against the contract's own names.
+- [ ] Task 4: both launch paths hand the poller its contract; attach resolves
+      scope like create; the stale `lifecycle.go:42-43` comment goes;
+      `titlePollerArgv` becomes `titlePollerSpawn`.
+- [ ] Task 5: atlas (the poller's launch contract, and a missing scope is not
+      an unbound owner).
+- [ ] Task 6: mutation sweep (8 rows, each matched to its named failure), an
+      unsandboxed `make test`, and real-stack detach/reattach by the operator.
 
 ## Log
 
@@ -158,3 +160,37 @@ Unrelated observation, low confidence, recorded so it is not lost: the
 `📁brain-couch-19` zellij server had two live `pair wrap` panes at diagnosis
 time — pid 26570 on `--resume 765a05dd…` (19h) and 54360 on `--session-id
 8af77697…` (11h). May be intentional; not investigated.
+
+### 2026-09-10
+
+Claimed. The code was re-read against the issue's diagnosis, and it still
+holds: `lifecycle.go:44-47` exports four variables and no `PAIR_SCOPE_KEY`.
+
+**Design.** The poller no longer inherits its session variables. The spawn
+hands it `titlepoller.SessionEnv`, the way `SpawnSessionWatcher` already
+receives `scopeKey` as an argument. Facts that shaped it:
+
+- **An empty scope key is never legitimate.** `sessionledger.validateRecord`
+  rejects scope-less records (`record.go:357`), so `contextcmd` can treat an
+  empty key as a caller error.
+- **Attach cannot refuse on a missing scope the way create does**
+  (`createflow.go:386-389`). The meter is optional; the handoff is not.
+- **A scope-less poller already running outlives the upgrade.** The
+  single-instance guard keeps the first one (`titlepoller/run.go:95-100`), so
+  the real-stack check is detach, then reattach.
+
+**Plan review, two rounds**, each applying Tasks 1–4 to a scratch clone:
+
+- **Round 1** found three problems:
+  - A new production file would have failed `artifactpath`'s exhaustive source
+    inventory.
+  - The regression test was itself a second hand-kept list. It also exposed a
+    worse hazard: an unfilled future field would render an empty `PAIR_X=`
+    that overrides a good inherited value, because exec keeps the last
+    duplicate key.
+  - One mutation expectation was false.
+- **Round 2** confirmed the design, ran every mutation, and found two needles
+  that did not do what their rows claimed. One would have "passed" on an
+  unused-variable compile error.
+
+Both rounds are recorded in the plan's `## Revisions`.
