@@ -95,3 +95,6 @@ default, fixable in one line on that terminal.
   taken from `wezterm show-keys` on the operator's machine (no `~/.wezterm.lua`
   or `~/.config/wezterm/wezterm.lua` present), not from documentation. Full
   bare-`ALT` default list checked: `Enter` is the only normal-mode collision.
+- Sibling: pair#233 (kitty) is the other dimension — Option not Alt at all.
+  The doctor probe in Spec 2 should be one chord-delivery check with a reader
+  per terminal, covering both.
