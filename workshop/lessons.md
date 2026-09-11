@@ -4431,3 +4431,39 @@ to a kind with no `hit()` case.
 to the mutation sweep and let its result write the sentence. A warning that is
 wrong about the failure mode sends the next reader looking for the wrong
 symptom.
+
+## Cite the symbol, not the line, in a code comment (pair#183)
+
+**What happened.** A new comment cited `createflow.go:386`. The same change then
+added an import to that file, and the call moved to `:387` before the commit
+landed. The close review caught it. The citation was already wrong when it was
+written, and nothing would ever update it.
+
+**Rule.** In code comments, cite the function (`runCreate's couchOwned`), which
+survives edits, and grep finds it. Put `file:line` only in dated records, such
+as an issue Log or a review, where the commit pins what the line meant.
+
+## A justification true only because of the choice it justifies is circular (pair#183)
+
+**What happened.** Attach's fallback rendered an explicit empty scope key, and
+the comment defending it said "no session could match regardless". That was
+true only *because* of the empty render: an inherited key could have matched.
+The branch had no test, so nothing challenged the sentence.
+
+**Rule.** When writing down why a degraded branch behaves as it does, check that
+the reason is not a consequence of the behaviour itself. Argue from what is true
+outside the branch. Here that was: the launcher is the only authority for a
+session's scope, and an inherited key belongs to whatever ran the command. Then
+pin the branch with a test for each answer it gives. Degraded branches are where
+circular reasoning goes unchallenged, because nobody runs them.
+
+## A check that fires on every run is a check you stop reading (pair#183)
+
+**What happened.** The mutation sweep's "tree restored" check compared against
+HEAD. With uncommitted fixes in the tree, it reported DIRTY on every run, whether
+or not a restore had actually failed.
+
+**Rule.** A restore check compares against a snapshot taken before the run, not
+against HEAD. More generally, when a guard's alarm can fire for reasons
+unrelated to what it guards, fix the guard at once. The first false alarm
+trains the reader to skip the true one.

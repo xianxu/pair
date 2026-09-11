@@ -405,13 +405,23 @@ func spawnDetached(argv []string, extraEnv []string) {
 	}
 	defer devNull.Close()
 	cmd := exec.Command(argv[0], argv[1:]...)
-	cmd.Env = append(os.Environ(), extraEnv...)
+	cmd.Env = childEnviron(extraEnv)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devNull, devNull, devNull
 	cmd.SysProcAttr = sidecarProcessAttributes(os.Getenv("COUCH_THREAD_SCOPE"), os.Getenv("COUCH_THREAD_TAG"))
 	if err := cmd.Start(); err != nil {
 		return
 	}
 	go func() { _ = cmd.Wait() }() // reap our bookkeeping when the sidecar exits.
+}
+
+// childEnviron is a sidecar's environment: everything this process has, then
+// what the spawn hands it explicitly. The explicit entries come LAST because
+// os/exec keeps the last value of a duplicate key -- that is what lets a
+// launch contract (titlepoller.SessionEnv) override a stale inherited value.
+// TestChildEnvironLetsTheContractBeatAnInheritedKey checks it against a real
+// child rather than assuming it.
+func childEnviron(extraEnv []string) []string {
+	return append(os.Environ(), extraEnv...)
 }
 
 // A Couch-launched Pair already runs in an actor-owned process group. Its

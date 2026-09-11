@@ -553,3 +553,41 @@ Delta:
   environment when the session watcher's scope travels by argv. The poller's
   readers are environment-shaped, and an appended entry beats a stale inherited
   `PAIR_SCOPE_KEY`.
+
+### 2026-09-10 — close review round 1 (FIX-THEN-SHIP, BR-3 blocking), dispositions
+
+Reason: the boundary review found one Important issue and four Minor ones.
+Task 4's literal code for `lifecycle.go` no longer matches the tree.
+Delta:
+- **BR-3, fixed.** Attach's scope fallback order is now:
+  1. the resolved repo root;
+  2. `COUCH_THREAD_SCOPE`, when `COUCH_THREAD_TAG` names this tag (runCreate's
+     `couchOwned` guard) and the key validates;
+  3. an explicit empty key.
+
+  The third step is kept by design, and the reason is no longer circular. The
+  launcher is the only authority for which scope a session is. An inherited
+  `PAIR_SCOPE_KEY` belongs to whatever ran `pair`, and from another thread's
+  pane it could paint another session's count. Pinned by
+  `TestTitlePollerScopeWhenAttachCannotResolveARoot`, one subtest per step.
+  The `ContextCount` comment is rewritten to match.
+- **BR-4, fixed.** `childEnviron` is extracted from `spawnDetached`, and
+  `TestChildEnvironLetsTheContractBeatAnInheritedKey` checks the
+  last-duplicate-wins dependency against a real `/bin/sh` child.
+- **BR-5, scoped.** The ARCH-DRY note above overstates it. The `contextcmd`
+  constants are the single spelling *for the poller's contract*. Five other
+  packages still spell `PAIR_SCOPE_KEY` as a literal (`opener`, `reviewcmd`,
+  `sessioninventory`, `slugcmd`, `wrapcmd`). A repo-wide env-name registry is
+  out of scope.
+- **BR-6, accepted.** The poller discards `ExitNoScopeKey`, and the Done-when
+  accepts that: the minimum is a non-silent return, and `pair doctor` is the
+  named home for a surface. The degraded path it covers is now tested (BR-3),
+  and the comment states the intent.
+- **BR-7, fixed.** The atlas says `pair title`, not the deleted
+  `cmd/pair-title`. The `lifecycle.go` comment cites `runCreate` by name, not
+  `createflow.go:386`: my own import insertion in this change had already moved
+  that call to `:387`.
+- **Sweep.** Four rows added (9–12), one revert per fix above. All 12 were
+  killed as named. The script's restore check now compares against the
+  pre-sweep tree; checking against HEAD reported "dirty" on every run while
+  this round's fixes were uncommitted.

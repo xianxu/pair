@@ -64,14 +64,24 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 	// Agent) — either way runOnce sets it via InferAgent(tag), so the poller
 	// matches the running pane's agent regardless of any bare-`pair` default.
 	//
-	// The scope the way create resolves it (createflow.go:386), not parsed back
-	// out of the data dir's path shape. A root that will not resolve (cwd `/`)
-	// leaves the key empty rather than refusing the attach -- the meter is
-	// optional, the handoff is not -- and contextcmd reports an empty key as its
-	// own status (ExitNoScopeKey).
+	// The scope from the repo root, the way runCreate resolves it -- the key the
+	// ledger was written under -- not parsed back out of the data dir's path
+	// shape. Failing that (a cwd of `/`), couch's own record of THIS thread:
+	// COUCH_THREAD_SCOPE when COUCH_THREAD_TAG names this tag, the same guard
+	// runCreate's couchOwned uses.
+	//
+	// Failing both, the contract carries an explicit EMPTY key rather than
+	// letting the child inherit one. The launcher is the only authority for
+	// which scope this session is, and an inherited PAIR_SCOPE_KEY belongs to
+	// whatever ran pair: from inside another thread's pane it names that
+	// thread, whose ledger may hold the same tag and paint another session's
+	// count here. No meter beats a wrong one. The attach itself never refuses
+	// over this -- the meter is optional, the handoff is not.
 	scopeKey := ""
 	if scope, err := ResolveRepoScope(envScopeRoot(env)); err == nil {
 		scopeKey = scope.Key
+	} else if env.CouchThreadTag == tag && ValidateRepoScopeKey(env.CouchThreadScope) == nil {
+		scopeKey = env.CouchThreadScope
 	}
 	rt.SpawnTitlePoller(tag, agent, session, titlepoller.NewSessionEnv(env.DataDir, scopeKey))
 

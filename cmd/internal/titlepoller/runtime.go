@@ -98,10 +98,13 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 // #92-landed contextcmd.Run, captured to a buffer. Empty when unresolved.
 func (OSRuntime) ContextCount(tag, agent string) string {
 	var buf bytes.Buffer
-	// io.Discard: the poller's stdio is /dev/null anyway, and after pair#183 it
-	// is handed its scope by the spawn contract (SessionEnv) -- an empty key here
-	// means the launcher could not resolve a repo root at all, where no session
-	// could match regardless.
+	// io.Discard: the poller's stdio is /dev/null. Since pair#183 its scope is
+	// handed over by the spawn contract (SessionEnv), so an empty key reaches
+	// here only when the launcher could not name this session's scope at all --
+	// no resolvable repo root and no couch record of the thread. Showing no
+	// count is then the intended degradation, because a count read under a
+	// borrowed scope could be another session's. `pair context`, run by hand,
+	// reports why.
 	contextcmd.Run([]string{tag, agent}, contextcmd.EnvFromOS(), &buf, io.Discard)
 	return strings.TrimSpace(buf.String())
 }

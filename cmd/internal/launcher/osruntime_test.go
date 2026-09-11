@@ -3,6 +3,7 @@ package launcher
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
@@ -486,6 +488,24 @@ func TestOSRuntimeReapAndPollerRemovePidfiles(t *testing.T) {
 	rt.KillTitlePoller("work")
 	if _, err := os.Stat(filepath.Join(dataDir, "title-pid-work")); !os.IsNotExist(err) {
 		t.Fatal("KillTitlePoller should clear the title pidfile")
+	}
+}
+
+// The poller's contract only wins because os/exec keeps the LAST value of a
+// duplicate key and childEnviron puts the contract last. Asserted against a real
+// child rather than assumed (close review BR-4, ARCH-MOCK): the fake's overlay
+// encodes the same rule, so without this the double and the dependency could
+// disagree with nothing to say so.
+func TestChildEnvironLetsTheContractBeatAnInheritedKey(t *testing.T) {
+	t.Setenv(contextcmd.EnvScopeKey, "stale-inherited")
+	cmd := exec.Command("/bin/sh", "-c", `printf %s "$`+contextcmd.EnvScopeKey+`"`)
+	cmd.Env = childEnviron(titlepoller.NewSessionEnv("/data/repos/k", "contract").Environ())
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(out) != "contract" {
+		t.Fatalf("the child saw %s=%q, want the contract's %q -- an inherited value won", contextcmd.EnvScopeKey, out, "contract")
 	}
 }
 
