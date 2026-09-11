@@ -6,7 +6,7 @@ github_issue:
 target: workbench-latency
 created: 2026-09-10
 updated: 2026-09-10
-estimate_hours:
+estimate_hours: 1.98
 started: 2026-09-10T21:58:26-07:00
 ---
 
@@ -85,6 +85,46 @@ sessions beside the full one. It must keep one parser and one call pattern
   is re-run after the change with co-tenancy recorded. The couch-shaped phase's
   per-thread time is compared with #206's baseline.
 - `#206` is unblocked.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec           design=0.25 impl=0.05
+item: milestone-review     design=0.00 impl=0.20
+item: milestone-review     design=0.00 impl=0.10
+item: smaller-go-module    design=0.05 impl=0.16
+item: smaller-go-module    design=0.05 impl=0.12
+item: smaller-go-module    design=0.05 impl=0.16
+item: smaller-go-module    design=0.05 impl=0.20
+item: smaller-go-module    design=0.05 impl=0.12
+item: atlas-docs           design=0.05 impl=0.04
+item: milestone-review     design=0.00 impl=0.20
+design-buffer: 0.15
+total: 1.98
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. The rows, in order:
+
+1. The in-window design already spent: the site analysis, the plan, and two
+   plan-gate rounds. Anchored on the measured 0.39h at change-code (#183's
+   judge asked for this row).
+2. Plan review round 1 (it found the missed snapshot).
+3. Plan review round 2.
+4. Plan Task 1 (filtered snapshot, `SessionLive`, shared stub).
+5. Task 2 (`launchShape`).
+6. Task 3 (launcher liveness and the name rule).
+7. Task 4 (couchcore narrowing plus the sandboxed end-to-end count test).
+8. Task 5 (probe before/after, make target, guards).
+9. Docs.
+10. The close review.
+
+The design buffer is +15% because a thorough plan doc exists. Frequency, per
+`#201`: this runs once per reattach, which today is a gesture and in #206
+becomes a startup pass of N. That is why the promise is a count.
+(`sdlc estimate-source` reports the calibration doc `[stale]`, #127.)
 
 ## Plan
 
