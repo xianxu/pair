@@ -61,9 +61,12 @@ runs.
   durable session is not quiesced. Killing a client leaves its session and
   agent running: that is the behaviour `TestSessionDetachLive` pins against
   real zellij.
-- **The thread returns to detached.** Once the helper is proven dead and the
-  session proven still present, the start claim rolls back, so the thread has
-  no incarnation and reads as Detached again, resumable by hand.
+- **The thread returns to detached.** Once the helper is proven dead, the
+  start's own durable write is undone: a start claim rolls back, a live
+  incarnation is retired. The thread then has no incarnation and reads as
+  Detached again, resumable by hand. Session presence gates only the retire
+  (the proof `Detach` already requires); a rollback removes nothing but this
+  start's claim, so it does not need one.
 - **Fail closed, but never destructively.** If the session's presence cannot
   be observed, mark the start unknown, as the cold path does today. Deleting
   the session is never the answer to not knowing.
@@ -87,6 +90,7 @@ runs.
 
 ## Plan
 
+- [x] Design: `workshop/plans/000230-a-failed-warm-reattach-deletes-the-session-it-was-reattaching-plan.md`.
 - [ ] Red: the warm post-ack failure table at the fake seam.
 - [ ] Carry `Warm` into the post-ack failure path. For warm: end the helper,
       skip the quiesce, then roll back or mark unknown on observed presence.
@@ -100,3 +104,49 @@ runs.
 Found while designing #206's background reattach pass. The pass runs warm
 reattaches behind the operator's back, and the question was what quitting
 mid-reattach does to one. The answer was that it deletes the session.
+
+## Revisions
+
+### 2026-09-11 — the class has six routes, not four
+
+**Reason.** Designing the fix enumerated the callers of
+`quiescePostAckStart`, which is the only caller of `Artifacts.Quiesce`. Four
+exits of `launchTrackedThread` reach it through `failTrackedPostAckStart`, as
+filed. Two more reach it through `failPostAckStart`, and both destroy a warm
+session the same way:
+- **route 5**, the registry persistence failure at the end of
+  `launchTrackedThread`;
+- **route 6**, `AbortStarted`, which `couchcmd` calls when the console cannot
+  attach a started child. It covers startup's initial attach and every
+  switcher resume.
+
+`reconcileInterruptedStarts` never quiesces, so it is not a member.
+
+**Delta.**
+- The fix is a property every route reads: whether the start **owns** its
+  session. A spawn and a cold resume created theirs; a warm reattach did not.
+- `StartResult` carries `Warm`, so route 6 can read it.
+- Routes 5–6 retire the live incarnation under Detach's two proofs, instead
+  of rolling back a start.
+- Done-when's failure table covers all six routes. The plan file has the
+  table.
+
+### 2026-09-11 — the rollback rule, stated once
+
+**Reason.** The plan gate (PQ-2) found the Spec and the plan disagreeing on
+whether session presence gates the routes-1–4 rollback. The Spec said it did;
+the plan said it did not. One of them had to be wrong in writing.
+
+**Delta.** The rule is now stated once, above, and is the plan's:
+- **Rollback** (a start claim, routes 1–4) needs only a dead helper. It
+  removes this start's own claim and nothing else. If the session survived,
+  the thread reads Detached; if it died independently, `session-gone` — which
+  is the honest answer either way.
+- **Retire** (a live incarnation, routes 5–6) needs the dead helper *and* an
+  observed present session, which is exactly what `Detach` requires before it
+  retires an incarnation.
+- Neither is reached while the helper is unaccounted for: that stays
+  `mark-unknown`.
+
+The pure decider `DecideStartCleanup` is where the rule lives, so the two
+documents cannot drift again.
