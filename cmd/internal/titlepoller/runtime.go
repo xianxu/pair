@@ -3,6 +3,7 @@ package titlepoller
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -97,7 +98,11 @@ func (OSRuntime) PaneFiles(dataDir, tag string) []PaneInfo {
 // #92-landed contextcmd.Run, captured to a buffer. Empty when unresolved.
 func (OSRuntime) ContextCount(tag, agent string) string {
 	var buf bytes.Buffer
-	contextcmd.Run([]string{tag, agent}, contextcmd.EnvFromOS(), &buf)
+	// io.Discard: the poller's stdio is /dev/null anyway, and after pair#183 it
+	// is handed its scope by the spawn contract (SessionEnv) -- an empty key here
+	// means the launcher could not resolve a repo root at all, where no session
+	// could match regardless.
+	contextcmd.Run([]string{tag, agent}, contextcmd.EnvFromOS(), &buf, io.Discard)
 	return strings.TrimSpace(buf.String())
 }
 

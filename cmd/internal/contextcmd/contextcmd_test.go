@@ -14,19 +14,35 @@ import (
 func TestRunUsesEstablishedInventoryRoot(t *testing.T) {
 	t.Parallel()
 	runtime := contextRuntime(t, true)
-	var stdout bytes.Buffer
-	code := RunWithRuntime([]string{"T", "codex"}, Env{PairScopeKey: "scope"}, runtime, &stdout)
+	var stdout, stderr bytes.Buffer
+	code := RunWithRuntime([]string{"T", "codex"}, Env{PairScopeKey: "scope"}, runtime, &stdout, &stderr)
 	if code != 0 || strings.TrimSpace(stdout.String()) != "60" {
-		t.Fatalf("code=%d stdout=%q", code, stdout.String())
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
 }
 
+// The other half of the distinction below: a session that has not bound yet is
+// an ordinary state, so it prints nothing and says nothing.
 func TestRunProvisionalBindingPrintsNothing(t *testing.T) {
 	t.Parallel()
 	runtime := contextRuntime(t, false)
-	var stdout bytes.Buffer
-	if code := RunWithRuntime([]string{"T", "codex"}, Env{PairScopeKey: "scope"}, runtime, &stdout); code != 0 || stdout.Len() != 0 {
-		t.Fatalf("code=%d stdout=%q", code, stdout.String())
+	var stdout, stderr bytes.Buffer
+	if code := RunWithRuntime([]string{"T", "codex"}, Env{PairScopeKey: "scope"}, runtime, &stdout, &stderr); code != 0 || stdout.Len() != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+}
+
+// An absent scope key is its own status, not the silent zero an unbound session
+// gets (pair#183). Against the ESTABLISHED fixture, so the only reason nothing
+// can print is the missing key.
+func TestRunWithoutAScopeKeyIsItsOwnStatus(t *testing.T) {
+	t.Parallel()
+	runtime := contextRuntime(t, true)
+	var stdout, stderr bytes.Buffer
+	code := RunWithRuntime([]string{"T", "codex"}, Env{}, runtime, &stdout, &stderr)
+	if code != ExitNoScopeKey || stdout.Len() != 0 || !strings.Contains(stderr.String(), EnvScopeKey) {
+		t.Fatalf("code=%d stdout=%q stderr=%q, want ExitNoScopeKey and a reason naming %s",
+			code, stdout.String(), stderr.String(), EnvScopeKey)
 	}
 }
 

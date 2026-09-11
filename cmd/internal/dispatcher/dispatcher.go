@@ -237,9 +237,9 @@ func Dispatch(args []string) Result {
 }
 
 func dispatchContext(args []string) Result {
-	var stdout bytes.Buffer
-	code := contextcmd.Run(args, contextcmd.EnvFromOS(), &stdout)
-	return Result{Stdout: stdout.String(), ExitCode: code}
+	var stdout, stderr bytes.Buffer
+	code := contextcmd.Run(args, contextcmd.EnvFromOS(), &stdout, &stderr)
+	return Result{Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code}
 }
 
 func dispatchKeys(args []string) Result {

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
@@ -237,6 +238,20 @@ func TestDispatchContextReturnsHelperOutput(t *testing.T) {
 	}
 	if strings.TrimSpace(res.Stdout) != "398k" {
 		t.Fatalf("Stdout = %q, want 398k", res.Stdout)
+	}
+}
+
+// The CLI surface for a missing scope: a reason on stderr and a non-zero status,
+// where it used to print nothing and exit 0 -- which is how pair#183 hid.
+func TestDispatchContextWithoutAScopeKeySaysWhy(t *testing.T) {
+	home, data := writeContextFixture(t)
+	t.Setenv("HOME", home)
+	t.Setenv("PAIR_DATA_DIR", data)
+	t.Setenv("PAIR_SCOPE_KEY", "")
+
+	res := Dispatch([]string{"context", "T", "claude"})
+	if res.ExitCode != contextcmd.ExitNoScopeKey || res.Stdout != "" || !strings.Contains(res.Stderr, "PAIR_SCOPE_KEY") {
+		t.Fatalf("Dispatch(context) = %+v, want ExitNoScopeKey with a stderr reason", res)
 	}
 }
 
