@@ -664,6 +664,37 @@ driven to completion under both, and one carrying an `unknown` incarnation is
 SKIPPED and reported under both -- Couch cannot vouch for that state, so neither
 killing it nor claiming to have safely detached it is honest.
 
+**A failed start ends only what it created (`pair#230`).** Every failure after
+a start's helper is acknowledged runs `quiescePostAckStart`, which ends the
+helper and -- only when the start OWNS the session -- quiesces it, meaning
+`zellij delete-session --force` plus a kill of that session's server. A warm
+reattach owns nothing: it attached to a session that predates it, and that
+session is running the agent the reattach exists to preserve. Deleting it was
+the defect. Ownership is three-valued (`StartShape`: spawn, cold resume, warm
+reattach) rather than a warm boolean, because spawn and cold resume already had
+different durable tails and merging them would have changed spawn.
+
+Two questions, answered at different moments. Whether the session may be ended
+is `StartShape.OwnsSession`, consumed once by `quiescePostAckStart`; an
+unrecognised shape answers no, so the failure direction leaves a session behind
+rather than killing an agent. What happens to the RECORD is the pure
+`DecideStartCleanup`, over `(shape, helper-dead, session-presence,
+claim-vs-live-record)` -- rollback, retire, mark-unknown, or the pre-existing
+reconcile tail -- and the session's absence after cleanup is one of its inputs,
+which is why it cannot also decide the first question. Its whole input space is
+table-tested, and the session is observed only where that answer reads it -- a
+spawn reconciles regardless, so its cleanup asks zellij nothing. At the live-record phase every exit that has not retired the incarnation falls
+through to the mark-unknown disposition as one structural fallback, so no path
+leaves a live incarnation behind a dead helper. A failed rollback at claim phase
+leaves only a claim, which `reconcileInterruptedStarts` settles on the next
+startup. Two properties hold everywhere: a start never ends a session it
+did not create, and nothing durable is undone while the helper is unaccounted
+for. A warm reattach that fails therefore leaves its thread **detached and
+reattachable**, using the same `retireDetachedIncarnation` rule `Detach` uses.
+Ownership is read from couch's own registry record (`ActorRecord.Shape`), never
+from a `StartResult` a caller relays back, which carries whatever that caller
+believes about a start it did not make.
+
 **Detached is a derived actionable state, not a persisted one.** `launcher`
 already classifies a live zellij session with zero clients as `SessionDetached`,
 and `pair resume` already reattaches onto one, so `ProjectDetachedSessions`

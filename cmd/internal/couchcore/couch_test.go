@@ -1014,7 +1014,7 @@ func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
 	h := newDelayedQuiescenceHandle()
 	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
 
-	if err := env.Couch.quiescePostAckStart(address, h); err == nil {
+	if err := env.Couch.quiescePostAckStart(address, h, StartSpawn); err == nil {
 		t.Fatal("transient handle cleanup errors were not retained")
 	}
 	h.mu.Lock()
@@ -1022,6 +1022,32 @@ func TestPostAckHandleRetriesReuseOneWaiterUntilReap(t *testing.T) {
 	h.mu.Unlock()
 	if waits != 1 || kills != 3 || h.Alive() {
 		t.Fatalf("cleanup ownership = waits:%d kills:%d alive:%v", waits, kills, h.Alive())
+	}
+}
+
+// The helper half of cleanup is the SAME work whether or not the start owns its
+// session: the helper belongs to this start either way. Only the session half
+// is ownership-gated (pair#230), so a non-owning cleanup must still drive the
+// child all the way to reaped -- and must ask for no quiesce at all.
+func TestPostAckCleanupEndsItsHelperWithoutOwningTheSession(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Couch.postAckQuiesceTimeout = 2 * time.Millisecond
+	env.Couch.postAckRetryDelay = time.Millisecond
+	h := newDelayedQuiescenceHandle()
+	address := ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	env.Artifacts.SetDetachedSession(address, "pair-couch-0102030405060708")
+
+	if err := env.Couch.quiescePostAckStart(address, h, StartWarmReattach); err == nil {
+		t.Fatal("transient handle cleanup errors were not retained")
+	}
+	h.mu.Lock()
+	waits, kills := h.waits, h.kills
+	h.mu.Unlock()
+	if waits != 1 || kills != 3 || h.Alive() {
+		t.Fatalf("cleanup ownership = waits:%d kills:%d alive:%v, want the same helper work as an owning cleanup", waits, kills, h.Alive())
+	}
+	if quiesced := env.Artifacts.Quiesces(); len(quiesced) != 0 {
+		t.Fatalf("a non-owning cleanup quiesced %v", quiesced)
 	}
 }
 

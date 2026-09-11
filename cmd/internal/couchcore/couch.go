@@ -495,13 +495,115 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	})
 }
 
-// failPostAckStart owns every error exit after the helper has executed the
-// target and before Spawn transfers the handle to its caller. It first proves
-// that exact handle is reaped; only then may durable state be reconciled. If
-// quiescence cannot be proved, the creating/live record remains occupied.
-func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) error {
-	cleanupErr := c.quiescePostAckStart(address, h)
+// failPostAckStart is the LIVE-RECORD entry to post-acknowledgement cleanup:
+// the registry-persist failure at the end of launchTrackedThread, and
+// AbortStarted, which fires after the handle has already been transferred to
+// the console. Routes that still hold a start CLAIM enter through
+// failTrackedPostAckStart instead; both meet in applyStartCleanup.
+//
+// It first proves that exact handle is reaped; only then may durable state be
+// reconciled. If quiescence cannot be proved, the live record remains occupied.
+func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, shape StartShape, cause error) error {
+	return errors.Join(cause, c.applyStartCleanup(shape, address, "", h, true))
+}
 
+// applyStartCleanup is the one shell behind every post-acknowledgement failure.
+//
+// It ends the helper (and, when this start owns it, the session), observes what
+// is left, and applies the single durable action DecideStartCleanup names. Both
+// entry points route through here so the rule has one consumer rather than a
+// tail per call site.
+//
+// nonce identifies the start transaction to undo and is empty for the
+// live-record phase, which undoes an incarnation instead.
+func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce string, h Handle, liveRecord bool) error {
+	cleanupErr := c.quiescePostAckStart(address, h, shape)
+	helperDead := !h.Alive()
+
+	// Observed AFTER the helper is quiet and after any quiesce, because the
+	// state the record's disposition reasons about is the one left behind.
+	//
+	// Asked ONLY where the decision actually reads it -- a cold resume's claim
+	// phase and a warm live record. A spawn reconciles regardless, so asking on
+	// its behalf would add a zellij round trip to a path that never had one and
+	// surface a session-binding error in cases that never produced one.
+	presence := PresenceUnobserved
+	if startCleanupReadsPresence(shape, liveRecord) {
+		observed, presenceErr := c.observeSessionPresence(address)
+		presence = observed
+		// The error joins the return: it is the operator's only account of why
+		// a thread whose disposition DEPENDED on that observation was left
+		// occupied rather than tidied up.
+		cleanupErr = errors.Join(cleanupErr, presenceErr)
+	}
+
+	action := DecideStartCleanup(StartCleanupInput{
+		Shape: shape, HelperDead: helperDead, Presence: presence, LiveRecord: liveRecord,
+	})
+	if action == DurableRollback || action == DurableRetire {
+		current, getErr := c.Threads.GetThread(address)
+		switch {
+		case getErr != nil:
+			cleanupErr = errors.Join(cleanupErr, getErr)
+		case action == DurableRollback:
+			return errors.Join(cleanupErr, c.rollbackTrackedStart(current, nonce))
+		default:
+			// A failed reattach is not activity, so the recorded time does not
+			// move. A fresh Background context, not the caller's: cleanup must
+			// finish precisely when the thing that failed was a cancellation.
+			if _, retireErr := c.retireDetachedIncarnation(context.Background(), address,
+				ProcessIdentity{PID: h.PID(), Identity: h.Identity()}, current.LastActiveAt); retireErr == nil {
+				return cleanupErr
+			} else {
+				cleanupErr = errors.Join(cleanupErr, retireErr)
+			}
+		}
+		// Fell out of an undo that did not happen -- a retire that lost its
+		// re-proof or a revision race, or a record that could not be read. The
+		// fallback below is structural rather than per-arm precisely because
+		// returning here is what leaves an IncarnationLive behind an
+		// already-dead helper: the stale state pair#171 describes, reached from
+		// an ordinary failure path.
+		//
+		// A failed rollback at CLAIM phase is deliberately not covered by that
+		// reasoning: it leaves a claim, not a live incarnation, and
+		// reconcileInterruptedStarts later rolls back or promotes a claim whose
+		// recorded helper is dead. Cold resume behaved this way before pair#230
+		// and the Spec keeps it unchanged.
+	}
+	// DurableReconcile is the reconcile-and-mark tail whichever phase asked for
+	// it: a spawn takes it at claim phase too, where it reconciles the start
+	// against its registration evidence and finds no live incarnation to mark.
+	if liveRecord || action == DurableReconcile {
+		return errors.Join(cleanupErr, c.markLiveRecordUnknown(address, h))
+	}
+	current, getErr := c.Threads.GetThread(address)
+	if getErr != nil {
+		return errors.Join(cleanupErr, getErr)
+	}
+	return errors.Join(cleanupErr, c.markResumeStartUnknown(current, nonce))
+}
+
+// startCleanupReadsPresence reports whether DecideStartCleanup's answer for
+// this shape and phase depends on the session observation. It mirrors the
+// decider's own branches, and the table test below pins the two together: an
+// observation the decision cannot read is a zellij round trip, and an error,
+// that the path never had.
+func startCleanupReadsPresence(shape StartShape, liveRecord bool) bool {
+	if shape == StartSpawn {
+		return false
+	}
+	if liveRecord {
+		return shape == StartWarmReattach
+	}
+	return shape == StartColdResume
+}
+
+// markLiveRecordUnknown is the disposition for a start that had already reached
+// a live incarnation: reconcile every interrupted start against its registration
+// evidence, then flag this exact incarnation as unproven. It predates pair#230
+// and is unchanged.
+func (c *Couch) markLiveRecordUnknown(address ThreadAddress, h Handle) error {
 	reconcileErr := c.reconcileInterruptedStarts()
 	current, getErr := c.Threads.GetThread(address)
 	var markErr error
@@ -516,7 +618,7 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) e
 	} else if !errors.Is(getErr, ErrThreadNotFound) {
 		markErr = getErr
 	}
-	return errors.Join(cause, cleanupErr, reconcileErr, markErr)
+	return errors.Join(reconcileErr, markErr)
 }
 
 // AbortStarted is the corresponding failure half after Spawn HAS transferred
@@ -536,6 +638,7 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 		return errors.Join(cause, errors.New("abort started: record/handle process identity mismatch"))
 	}
 	registered := false
+	var registeredShape StartShape
 	for _, record := range c.reg.Records() {
 		if record.ID != start.Record.ID {
 			continue
@@ -545,24 +648,40 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 			return errors.Join(cause, errors.New("abort started: registered actor identity mismatch"))
 		}
 		registered = true
+		registeredShape = record.Shape
 		break
 	}
 	if !registered {
 		return errors.Join(cause, errors.New("abort started: actor is not registered by this Couch"))
 	}
 
-	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, cause)
+	// The shape comes from the REGISTRY's record, written when couch made this
+	// start -- not from the StartResult the caller relayed back (pair#230). A
+	// relayed shape is whatever the caller believes, and a caller that rebuilt
+	// the record could believe "cold resume" about a warm reattach, which would
+	// delete a session holding somebody's agent. The identity match above has
+	// already proved the relayed record is this registered actor, so the
+	// registry can answer for it.
+	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, registeredShape, cause)
 	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
 	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))
 }
 
-// quiescePostAckStart retains the live Handle on this call stack and retries
-// every unproven cleanup class. It deliberately has no bounded "give up" path:
-// returning would transfer an error without a supervisor, and the operation
-// caller is allowed to discard handles on error. A persistent external failure
-// therefore leaves the owning start operation blocked and retrying, not a
-// workspace writer merely represented by an occupied durable record.
-func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle) error {
+// quiescePostAckStart ends the start's helper and, when the start OWNS the
+// session, the session too.
+//
+// shape.OwnsSession() is the whole of pair#230: a warm reattach attached to a
+// session that predates it, whose agent is the thing the reattach exists to
+// preserve, so ending that session is never this path's business. The helper
+// half runs for every shape -- the helper belongs to this start either way.
+//
+// It retains the live Handle on this call stack and retries every unproven
+// cleanup class. It deliberately has no bounded "give up" path: returning would
+// transfer an error without a supervisor, and the operation caller is allowed
+// to discard handles on error. A persistent external failure therefore leaves
+// the owning start operation blocked and retrying, not a workspace writer
+// merely represented by an occupied durable record.
+func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape StartShape) error {
 	var firstErr error
 	handleQuiet := false
 	handleCleanup := newHandleCleanup(h)
@@ -576,6 +695,9 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle) error {
 				continue
 			}
 			handleQuiet = true
+		}
+		if !shape.OwnsSession() {
+			return firstErr
 		}
 		if err := c.Artifacts.Quiesce(address); err != nil {
 			if firstErr == nil {

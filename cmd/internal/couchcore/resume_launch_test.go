@@ -132,7 +132,21 @@ func TestResumeForkFailureRestoresVerifiedPark(t *testing.T) {
 	assertVerifiedParkRestored(t, env.Couch.Threads, parked)
 }
 
-func TestResumeAmbiguousAckKeepsUnknownOccupied(t *testing.T) {
+// An ambiguous acknowledgement on a COLD resume: the helper may or may not have
+// execed, so cleanup ends it and quiesces the session this resume created.
+//
+// It then ROLLS BACK to the verified park. Both of that rule's preconditions
+// hold by the time it is read -- the helper has been driven quiet, and the
+// session was just deleted -- so there is nothing left to be uncertain about,
+// and the thread is resumable again rather than stranded Unknown.
+//
+// This test asserted Unknown until pair#230 made the fake's Quiesce model the
+// deletion it performs. With a blind Quiesce the session still read present, so
+// the test took a branch production cannot reach: production had quiesced the
+// very session whose presence it was about to consult. The Unknown arm is still
+// live for the case the session CANNOT be observed -- see
+// TestResumeUnobservableSessionKeepsUnknownOccupied.
+func TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
@@ -145,12 +159,37 @@ func TestResumeAmbiguousAckKeepsUnknownOccupied(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "ack transport closed") {
 		t.Fatalf("Resume error = %v", err)
 	}
+	assertVerifiedParkRestored(t, env.Couch.Threads, parked)
+}
+
+// The other arm of the same rule: when the session cannot be OBSERVED, the
+// record stays occupied and Unknown. Unproven is not absent, and only an
+// observation may retire a claim.
+func TestResumeUnobservableSessionKeepsUnknownOccupied(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
+	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
+	env.Runner.AfterAcknowledge = func(string) error { return errors.New("ack transport closed") }
+	env.Artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("zellij unreachable") }
+
+	_, _, err := env.Couch.Resume(parked.Address)
+	if err == nil || !strings.Contains(err.Error(), "ack transport closed") {
+		t.Fatalf("Resume error = %v", err)
+	}
+	// The diagnostic travels with the refusal. This path's disposition DEPENDS
+	// on the session observation -- absent would have rolled the start back --
+	// so why it could not be made is the operator's only account of why the
+	// thread was left occupied instead of tidied up. Folding the observation
+	// into a bare PresenceUnobserved silently dropped it (pair#230 BR-12).
+	if !strings.Contains(err.Error(), "zellij unreachable") {
+		t.Fatalf("error = %v, want it to carry why the session could not be observed", err)
+	}
 	kept, getErr := env.Couch.Threads.GetThread(parked.Address)
 	if getErr != nil {
 		t.Fatal(getErr)
 	}
 	if kept.VerifiedPark == nil || len(kept.Incarnations) != 1 || kept.Incarnations[0].State != IncarnationUnknown {
-		t.Fatalf("ambiguous resume state = %+v", kept)
+		t.Fatalf("unobservable resume state = %+v, want one Unknown incarnation kept", kept)
 	}
 }
 

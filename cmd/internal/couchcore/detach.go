@@ -94,12 +94,43 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	}
 
 	// And after: the whole point is that it survived its client.
+	detached, err := c.retireDetachedIncarnation(ctx, address, identity, c.Clock.Now())
+	if err != nil {
+		return ThreadRecord{}, err
+	}
+	return detached, nil
+}
+
+// retireDetachedIncarnation is the shared half of "the client is gone, the
+// session is not": prove the session present, then retire that exact
+// incarnation so the thread reads detached again.
+//
+// Detach owns this rule, and pair#230's warm-reattach cleanup needs exactly the
+// same one -- a reattach that failed after its helper was acknowledged has to
+// hand the thread back to the session it borrowed, under the same proofs. One
+// copy, because two would drift on the retry policy first.
+//
+// Its messages are operation-neutral: start cleanup reaches it too, and an
+// operator who never pressed detach should not be told a detach failed.
+//
+// detachedAt is the caller's, read ONCE before any attempt: reading the clock
+// per attempt would make the recorded activity time a function of how much
+// revision contention there was, which measures the store rather than the
+// thread. A cleanup caller passes the thread's EXISTING LastActiveAt, since a
+// failed reattach is not activity.
+func (c *Couch) retireDetachedIncarnation(
+	ctx context.Context, address ThreadAddress, identity ProcessIdentity, detachedAt time.Time,
+) (ThreadRecord, error) {
+	sessions, ok := c.Artifacts.(PairSessionIO)
+	if !ok {
+		return ThreadRecord{}, errors.New("retiring a detached incarnation requires Pair session observation")
+	}
 	after, err := sessions.PairSession(address)
 	if err != nil {
-		return ThreadRecord{}, fmt.Errorf("observe Pair session after detach: %w", err)
+		return ThreadRecord{}, fmt.Errorf("observe Pair session before retiring its incarnation: %w", err)
 	}
 	if !after.Present {
-		return ThreadRecord{}, fmt.Errorf("thread %+v lost its Pair session during detach", address)
+		return ThreadRecord{}, fmt.Errorf("thread %+v has no live Pair session to retire onto", address)
 	}
 
 	// Retry on a revision conflict rather than giving up. The revision was read
@@ -112,16 +143,15 @@ func (c *Couch) Detach(ctx context.Context, address ThreadAddress) (ThreadRecord
 	// The loop shape is MarkIncarnationUnknown's: re-read, re-attempt, and let
 	// RetireIncarnation's own preconditions refuse if the record genuinely
 	// stopped being retirable.
-	// ONCE, before the loop. Reading the clock per attempt would make the
-	// recorded activity time a function of how much revision contention there
-	// was, which is a measurement of the store rather than of the thread.
-	detachedAt := c.Clock.Now()
+	//
 	// Bounded, and it checks the context. The loop retries a revision conflict,
 	// which is a contended-store condition and not one that resolves by trying
 	// forever: an unbounded retry against a store that keeps losing the race
 	// spins a detach that has already SIGTERMed its client, with no way for the
 	// operator to interrupt it. The cap is generous because a real conflict
-	// clears in one attempt.
+	// clears in one attempt. A CLEANUP caller passes a fresh context.Background
+	// rather than its own, because cleanup must complete precisely when the
+	// thing that failed was a cancellation.
 	const maxRetireAttempts = 32
 	for attempt := 1; ; attempt++ {
 		if err := ctx.Err(); err != nil {

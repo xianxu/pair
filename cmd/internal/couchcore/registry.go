@@ -12,6 +12,14 @@ type ActorRecord struct {
 	StartedAt time.Time     `json:"started_at"`
 	PID       int           `json:"pid"`
 	Identity  string        `json:"identity"`
+	// Shape records WHICH kind of start this was: a spawn, a cold resume, or a
+	// warm reattach onto a session that already existed. Cleanup reads it to
+	// decide whether it may end that session (pair#230), and it is read from
+	// HERE -- couch's own record of what it started -- never from a StartResult
+	// a caller relays back, which carries whatever that caller believes.
+	// An unrecognised value answers "does not own" (StartShape.OwnsSession), so
+	// the failure direction leaves a session behind rather than killing an agent.
+	Shape StartShape `json:"shape,omitempty"`
 }
 
 // Registry maps a worktree to the actors on it.

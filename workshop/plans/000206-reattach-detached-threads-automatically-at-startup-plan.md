@@ -28,9 +28,10 @@ registration check is satisfied by the pre-existing session, so a `pair resume`
 client that dies early is first noticed when the console's attach fails, which
 calls `AbortStarted`, which quiesces. M2 does not start until #230 has merged.
 
-**#230 also moves the seam M2 builds on:** `ResumeStart` becomes the full-start
-entry point, so M2's `ResumeOptions{WarmOnly}` attaches to `ResumeStart`, not
-`ResumeContext`.
+**#230 does not move the seam M2 builds on.** An earlier #230 draft introduced
+`ResumeStart`; its plan gate showed nothing would read the field that motivated
+it, so it was dropped. M2's `ResumeOptions{WarmOnly}` attaches to
+`ResumeContext`, unchanged.
 
 ---
 
@@ -178,7 +179,7 @@ accept or reject.**
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `warm-only` on resume | `couchcore/resume.go`, `ops.go`, `operationdispatch.go` | modified | `ResumeStart` (post-#230) |
+| `warm-only` on resume | `couchcore/resume.go`, `ops.go`, `operationdispatch.go` | modified | `ResumeContext` |
 | `Console.ArmReattachPass` | `couchtty/console_reattach.go` | new | menu reducer |
 | `runMenuOperation` (background) | `couchtty/console.go` | modified | `operationQueue` |
 | `installObservedThreadActor` (background) | `couchtty/console.go` | modified | pane adoption |
@@ -363,7 +364,7 @@ reach a cell.
   `ResumeDiagnosticOf(err) == ResumeNotDetached`, an unchanged revision, and
   no child. A genuinely detached thread still resumes warm.
 - [ ] **Step 2:** add `ResumeNotDetached`; add `ResumeOptions` to
-  `ResumeStart`; refuse `WarmOnly && VerifiedPark != nil` **before**
+  `ResumeContext`; refuse `WarmOnly && VerifiedPark != nil` **before**
   `resumeEvidence`, and `WarmOnly && !detached` before `CommitStartClaim`.
 - [ ] **Step 3:** declare the `warm-only` implicit arg; pass it from
   `operationdispatch.go`.

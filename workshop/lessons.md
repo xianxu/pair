@@ -4509,3 +4509,64 @@ every comparison against its sibling values, and list each reader. Put the
 guard in one shared function that every reader calls, and give each reader its
 own failing test. If the list is long, the value probably wants its own type,
 so the compiler does the enumeration.
+
+## A claim that code "already does X" must be read off every branch of X (pair#230)
+
+**What happened.** Three plan-gate findings in three rounds were all the same
+mistake: a claim about existing behaviour written from the function I had read,
+not from the whole call graph. The costly one said `quiescePostAckStart`'s
+owning path was "today's tail, unchanged" — but `failTrackedPostAckStart` opens
+`if !resume { return c.failPostAckStart(...) }`, so a spawn and a cold resume
+already took different tails. A two-valued input would have merged them and
+broken spawn's tests. One in roughly fifteen such claims that round was wrong.
+
+**Rule.** When a plan says it preserves or restates existing behaviour, derive
+that from the branch table of every function it replaces: each `if`/`switch`
+arm with its file:line, and every condition the code branches on either becomes
+an input to the new rule or is named as deliberately dropped. An enum that
+turns out to need three values usually announces itself as a branch you did not
+list.
+
+## Relaying a struct back makes its zero value the default answer (pair#230)
+
+**What happened.** Cleanup needed to know whether a start had created its zellij
+session or borrowed one. The first design put a `Warm` flag on the `StartResult`
+the console relays back — so a caller that rebuilt or copied the record without
+that field would silently request the destructive branch. Worse, the mutation
+that dropped the guard SURVIVED, because every test relayed the record couch
+itself had built: the field was correct by accident and the guard was invisible.
+
+**Rule.** When a decision crosses a package boundary and back, read it from the
+state the deciding package owns, not from what the caller hands back — and
+check which way the zero value points. To prove such a guard, one test must
+relay the zeroed field on purpose; a test that round-trips the real object
+cannot fail.
+
+## Derive a stale-claim sweep from the diff, not from the finding's examples (pair#230)
+
+**What happened.** A review found stale comments restating a design decision the
+commit had reversed. I swept the eight sites it listed. The next round found
+seven more, in the same families, including the reversed name inside the very
+Revision that said "all corrected". The sweep had inherited the finding's
+examples as its search list.
+
+**Rule.** Build the list from what the change REMOVED or re-scoped, not from
+what a reviewer happened to cite: `git diff -U0 BASE HEAD -- '*.go' | grep '^-'`
+for deleted identifiers and branch arms, plus every function whose callers
+changed. Then grep code comments, test comments, the atlas and the plan for
+each term. A retired branch arm (`if !resume`) and a function that lost scope
+(`failPostAckStart`) are invisible to a list of names somebody else noticed.
+
+## Fixing a finding is a change with its own blast radius (pair#230)
+
+**What happened.** Told that a shared helper swallowed an error, I made it
+return one — on every path. One of those paths never reads the value, so a
+spawn's cleanup gained a zellij round trip and surfaced an error where none had
+existed. The same fix also broke a spawn's claim-phase disposition, because I
+restructured the fallback without re-deriving which arms the phases reach.
+
+**Rule.** A review fix is a change, so it gets the change discipline: name the
+paths it newly touches, run the tests that own them, and ask whether the fix is
+now doing work on a path that never asked for it. And pin it where the decision
+is CONSUMED — a predicate test next to the rule survived "call it everywhere",
+because a predicate cannot see its caller.
