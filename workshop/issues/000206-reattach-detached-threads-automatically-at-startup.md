@@ -28,6 +28,39 @@ this issue deliberately does not pre-commit to one — see Spec.
 
 ## Spec
 
+### The sequence (operator, 2026-09-10)
+
+1. **Start the cwd thread exactly as today.** `StartInteractive` resolves the thread
+   for the directory `couch` was run in — resume or new (`couchcmd/run.go:319`) — and
+   `dispatchInitialAttach` attaches it (`:406`). The operator lands in it immediately.
+   **Unchanged.**
+2. **Then reattach every other *running* thread** — those whose agent is still alive
+   behind a client-less zellij session (`ThreadDetached`, *"no client attached; the
+   agent is still running"*).
+
+**Parked threads are not touched.** A parked thread's agent was torn down; bringing it
+back is a *resume* that starts an agent, which is a different and costlier action than
+reattaching one that is already running. Startup reattaches warm threads only.
+
+**Skip the cwd thread in step 2.** If the cwd thread was itself detached, step 1
+already attached it. Step 2 must exclude it explicitly rather than rely on `#214`'s
+per-thread guard to refuse the second launch.
+
+### What the ordering settles
+
+Because the operator is already working in the cwd thread after step 1, the step-2
+reattaches are **off the critical path** — nobody is waiting on them. That largely
+decides the strategy question below in favour of **B (sequential, in the
+background)**: parallel loading buys speed nobody is waiting for, at the cost of the
+spawn contention `#203` measured. The measurement in Plan step 1 still runs, but its
+job shrinks to confirming sequential is fast enough, not choosing between strategies.
+
+The greyed-row and queue-jump parts of B still apply: switching to a thread that has
+not attached yet should move it to the front of the queue.
+
+### Strategy options (kept for the record; see above)
+
+
 **At startup, couch reattaches every detached thread without being asked.**
 
 The load strategy is the open question, and the plan chooses it **after** the
@@ -83,7 +116,11 @@ that fails to reattach, and the operator quitting mid-load.
 
 ## Done when
 
-- Starting couch reattaches every detached thread with no operator action.
+- Starting `couch` in a directory attaches that directory's thread first, exactly as
+  today, and the operator can type in it before any other thread has attached.
+- Every other running (detached) thread is then reattached with no operator action.
+- Parked threads are not resumed at startup.
+- The cwd thread is attached once, never twice, when it was itself detached.
 - Step 1's measurement is recorded in `## Log` — single reattach vs N concurrent,
   with wall-clock and the resulting `zellij action` latency — and the chosen
   strategy cites it.
@@ -129,3 +166,19 @@ Whatever strategy is chosen, `TestAReattachedChildKeepsItsTrackingMode` must
 still pass unmodified, and a parallel variant should be checked against it
 specifically: that fix reasons about a fresh `Screen` for a still-running child,
 and N of those arriving at once is a case it was not written against.
+
+## Revisions
+
+### 2026-09-10 — the startup sequence is specified
+
+**Reason.** The operator clarified the intended behaviour: *"normal start up of a
+thread in cwd, and then reattach to all running/live threads."* The original Spec said
+only "reattach every detached thread at startup" and left both the ordering and the
+cold/warm distinction implicit.
+
+**Delta.** Added the two-step sequence (cwd thread first via the unchanged
+`StartInteractive` path, then every other detached thread), made explicit that parked
+threads are not resumed, and required the cwd thread to be excluded from step 2. The
+cwd-first ordering takes the background reattaches off the critical path, which
+resolves the A/B/C strategy question toward B; the options are kept below for the
+record.
