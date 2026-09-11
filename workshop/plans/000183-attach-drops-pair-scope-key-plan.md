@@ -591,3 +591,14 @@ Delta:
   killed as named. The script's restore check now compares against the
   pre-sweep tree; checking against HEAD reported "dirty" on every run while
   this round's fixes were uncommitted.
+
+### 2026-09-10 — close review round 2 (SHIP), advisories
+
+Delta:
+- The attach-scope test is now a condition table, adding the "invalid couch
+  key" and "root outranks couch" cells. Sweep rows 13–14 were added; 14 of 14
+  were killed as named.
+- `SessionEnv`'s doc claims only the scope-key half. The data dir can still be
+  an inherited `PAIR_DATA_DIR` through `launcher.RunCLI`'s override, a
+  pre-existing, launcher-wide behaviour recorded in the issue Log as a
+  candidate follow-up.

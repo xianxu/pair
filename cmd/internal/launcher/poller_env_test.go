@@ -36,50 +36,55 @@ func TestTitlePollerStartsWithItsWholeContractOnBothPaths(t *testing.T) {
 	})
 }
 
-// Attach with no resolvable repo root (close review BR-3). Three answers, each
-// pinned: couch's record of THIS thread is the authority; couch's record of a
-// different thread is not borrowed; and a key the child would merely inherit is
-// overridden with an explicit empty one -- it belongs to whatever ran pair, and
-// from another thread's pane it would name the wrong session.
+// Attach's scope, one row per branch CONDITION rather than per fallback step
+// (close review BR-3, then round 2): the root resolves or not; couch's record
+// names this tag or not; that record's key validates or not; a key would be
+// inherited or not. A compound condition is two branches, and the arm no row
+// enters is where an unverified claim survives -- round 2 measured the
+// validation arm deletable with the suite green.
+//
+// The answers: the repo root wins, being the key the ledger was written under;
+// failing it, couch's record of THIS thread, if its key validates; failing
+// that, an explicit empty key, never an inherited one -- that belongs to
+// whatever ran pair, and from another thread's pane it would name the wrong
+// session.
 func TestTitlePollerScopeWhenAttachCannotResolveARoot(t *testing.T) {
 	const couchScope = "c0ffee0123456789"
-	attach := func(t *testing.T, couchTag, inherited string) string {
-		t.Helper()
-		rt := newFakeRuntime()
-		if inherited != "" {
-			rt.env[contextcmd.EnvScopeKey] = inherited
-		}
-		opts := baseOpts(LaunchArgs{})
-		opts.Env.Cwd = "/" // ResolveRepoScope refuses "/"
-		opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = couchScope, couchTag
-		if _, err := AttachExistingSession(opts, opts.Env, rt, "live", "📁x-live", "claude"); err != nil {
-			t.Fatal(err)
-		}
-		if len(rt.pollerEnvs) != 1 {
-			t.Fatalf("title pollers spawned = %d, want 1", len(rt.pollerEnvs))
-		}
-		started := rt.pollerEnvs[0]
-		if _, present := started[contextcmd.EnvScopeKey]; !present {
-			t.Fatalf("the poller starts with no %s at all -- the contract must say something", contextcmd.EnvScopeKey)
-		}
-		return started[contextcmd.EnvScopeKey]
+	rootScope := mustScope(t, "/home/u/work").Key
+	for _, c := range []struct {
+		name                           string
+		cwd, couchScope, couchTag, inh string
+		want                           string
+	}{
+		{"the resolved root outranks couch's record", "/home/u/work", couchScope, "live", "", rootScope},
+		{"couch's record of this thread", "/", couchScope, "live", "", couchScope},
+		{"couch's record of another thread is not borrowed", "/", couchScope, "other", "", ""},
+		{"couch's record that does not validate is not trusted", "/", "../not a key", "live", "", ""},
+		{"an inherited key is overridden, not trusted", "/", couchScope, "other", "f00dfeed01234567", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			rt := newFakeRuntime()
+			if c.inh != "" {
+				rt.env[contextcmd.EnvScopeKey] = c.inh
+			}
+			opts := baseOpts(LaunchArgs{})
+			opts.Env.Cwd = c.cwd // ResolveRepoScope refuses "/"
+			opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = c.couchScope, c.couchTag
+			if _, err := AttachExistingSession(opts, opts.Env, rt, "live", "📁x-live", "claude"); err != nil {
+				t.Fatal(err)
+			}
+			if len(rt.pollerEnvs) != 1 {
+				t.Fatalf("title pollers spawned = %d, want 1", len(rt.pollerEnvs))
+			}
+			got, present := rt.pollerEnvs[0][contextcmd.EnvScopeKey]
+			if !present {
+				t.Fatalf("the poller starts with no %s at all -- the contract must say something", contextcmd.EnvScopeKey)
+			}
+			if got != c.want {
+				t.Fatalf("scope = %q, want %q", got, c.want)
+			}
+		})
 	}
-
-	t.Run("couch's record of this thread", func(t *testing.T) {
-		if got := attach(t, "live", ""); got != couchScope {
-			t.Fatalf("scope = %q, want couch's %q", got, couchScope)
-		}
-	})
-	t.Run("couch's record of another thread is not borrowed", func(t *testing.T) {
-		if got := attach(t, "other", ""); got != "" {
-			t.Fatalf("scope = %q, want empty: that record names a different thread", got)
-		}
-	})
-	t.Run("an inherited key is overridden, not trusted", func(t *testing.T) {
-		if got := attach(t, "other", "f00dfeed01234567"); got != "" {
-			t.Fatalf("scope = %q, want an explicit empty key: an inherited one belongs to whatever ran pair", got)
-		}
-	})
 }
 
 func assertPollerStartsWith(t *testing.T, rt *fakeRuntime, scopeKey, dataDir string) {

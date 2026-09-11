@@ -1,12 +1,13 @@
 ---
 id: 000183
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-04
 updated: 2026-09-10
 estimate_hours: 1.62
 started: 2026-09-10T16:57:25-07:00
+actual_hours: 1.28
 ---
 
 # Attach drops PAIR_SCOPE_KEY, so the context meter vanishes after reattach
@@ -165,7 +166,7 @@ there are no `Mx` tags.
       `titlePollerArgv` becomes `titlePollerSpawn`.
 - [x] Task 5: atlas (the poller's launch contract, and a missing scope is not
       an unbound owner).
-- [ ] Task 6: mutation sweep (8 rows, each matched to its named failure), an
+- [x] Task 6: mutation sweep (8 rows, each matched to its named failure), an
       unsandboxed `make test`, and real-stack detach/reattach by the operator.
 
 ## Log
@@ -198,6 +199,7 @@ time — pid 26570 on `--resume 765a05dd…` (19h) and 54360 on `--session-id
 8af77697…` (11h). May be intentional; not investigated.
 
 ### 2026-09-10
+- 2026-09-10: closed — Operator real-stack: detached + reattached a thread in couch, context window showed right up in the frame title via the production pair-launch-helper -> pair resume -> AttachExistingSession path. Unsandboxed `env -u PAIR_SESSION_ID -u PAIR_TAG make test` exit 0, 197 ok on fda117fb. Regression red on /attach before the wiring, green on both paths after. Close-review round 1 (BR-3 Important + 4 Minor) fixed in fda117fb: attach scope authority order (root -> couch record of this thread -> explicit empty) pinned by TestTitlePollerScopeWhenAttachCannotResolveARoot; exec last-duplicate-wins checked against a real child. Mutation sweep 12/12 killed as named (apply-asserted, named --- FAIL line or build error, tree identical to pre-sweep snapshot).; review verdict: SHIP
 
 Claimed. The code was re-read against the issue's diagnosis, and it still
 holds: `lifecycle.go:44-47` exports four variables and no `PAIR_SCOPE_KEY`.
@@ -259,6 +261,66 @@ Both rounds are recorded in the plan's `## Revisions`.
     restart.
 - **Plan-gate advisories.** PQ-1 and PQ-2 are both taken; see the plan's
   Revisions.
+
+### 2026-09-10: operator real-stack check passed
+
+In couch, the operator detached a thread and reattached it. The context window
+showed right up in the frame title (`claude (NNk)`), which satisfies the first
+Done-when bullet. It went through the production reattach path:
+`pair-launch-helper … pair resume` → `AttachExistingSession` → a poller spawned
+with its `SessionEnv`.
+
+### 2026-09-10: close review round 1, FIX-THEN-SHIP; close not finalized on BR-3
+
+- **BR-3 (Important), fixed.** When attach could not resolve a root, it
+  rendered an explicit empty key. The comment defending that was circular ("no
+  session could match regardless" was only true because of the empty render),
+  and the branch was untested.
+  - The fallback is now: repo root, then couch's record of *this* thread, then
+    an explicit empty key.
+  - The empty key is kept, with its real reason: an inherited key belongs to
+    whatever ran `pair`. Arguing it from first principles changed my mind about
+    what the reviewer framed as "a correct inherited key": no production path
+    makes the inherited key known-correct for the attached session, and one
+    path (a pane of another thread with a common tag like `main`) makes it
+    wrong.
+  - Each step is pinned by its own subtest.
+- **BR-4, fixed.** A real-child conformance test now covers os/exec's
+  last-duplicate-wins rule, through the extracted `childEnviron`.
+- **BR-5, scoped.** The constants are the contract's spelling, not the repo's;
+  there are five other literal sites.
+- **BR-6, accepted.** The Done-when accepts it.
+- **BR-7, fixed.** The stale `cmd/pair-title` is gone, and a line citation is
+  replaced by a symbol.
+- **Sweep.** Rows 9–12 added, one revert per fix; 12 of 12 killed as named.
+  Full details are in the plan's Revisions.
+
+### 2026-09-10: close review round 2, SHIP; two advisories folded into the close commit
+
+- **Conditions, not steps.** This was the third finding in the
+  silent-degradation-untested family. The attach-scope test is now a table over
+  branch *conditions*: the root resolves or not; couch's record names this tag
+  or not; its key validates or not; a key would be inherited or not. That adds
+  the two cells no row entered:
+  - an invalid couch key is not trusted, which is the validation arm round 2
+    measured deletable with the suite green;
+  - the resolved root outranks a matching couch record, a precedence nothing
+    pinned.
+
+  Sweep rows 13 (validation arm deleted) and 14 (order swapped) are both killed
+  as named; 14 of 14 overall.
+- **One authority for both fields: narrowed, not fixed here.**
+  `SessionEnv`'s scope key is authoritative, but its data dir is the launcher's
+  `env.DataDir`, and `launcher/runcli.go:89-91` lets an inherited
+  `PAIR_DATA_DIR` override the derived scoped dir. From a Pair pane of repo A
+  with cwd in repo B, `pair resume` hands the poller A's data dir and B's key.
+  Before this change the poller got A's dir and A's key, which does not fit a
+  session created from B either, so the frame was bare then too; the halves
+  just no longer diverge silently in the comment.
+  - The doc comment now claims only the scope-key half.
+  - The cause is runcli's override: an inherited `PAIR_DATA_DIR` is not an
+    explicit one. That is a launcher-wide behaviour affecting create too, so it
+    is recorded here as a candidate follow-up rather than widened into #183.
 
 ## Revisions
 

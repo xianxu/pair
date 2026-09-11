@@ -64,8 +64,11 @@ func optionsFromCLI(args []string, getenv func(string) string) (Options, bool) {
 // (sessionwatch.CommandArgs), for two reasons. The poller's readers are
 // environment-shaped: contextcmd.EnvFromOS reads the process environment on
 // every poll. And an entry appended to the child's environment wins over an
-// inherited duplicate, so the contract overrides a stale PAIR_SCOPE_KEY from a
-// Pair pane that `pair resume` was run inside.
+// inherited duplicate, so the contract's scope key overrides a stale
+// PAIR_SCOPE_KEY from a Pair pane that `pair resume` was run inside. Its data
+// dir is only as right as the launcher's own: launcher.RunCLI honours an
+// inherited PAIR_DATA_DIR over the one it derives, so from another repo's pane
+// the two halves can still name different repos (pair#183 close review).
 //
 // Its reach is the reads made through contextcmd.EnvFrom and optionsFromCLI --
 // every env read in this package and contextcmd today. A direct os.Getenv added
