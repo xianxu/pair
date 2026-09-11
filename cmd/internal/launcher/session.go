@@ -9,6 +9,14 @@ const (
 	SessionAttached SessionState = "attached"
 	SessionDetached SessionState = "detached"
 	SessionExited   SessionState = "exited"
+	// SessionLive is a session that has not exited, whose attach state was NOT
+	// ASKED: a liveness snapshot reports it instead of guessing detached. It
+	// exists because asking costs a list-clients per session -- about 250 ms
+	// each against a real detached one (pair#228) -- and most callers only need
+	// "not exited". A consumer that needs attached-versus-detached must take a
+	// full snapshot; DecideLaunch refuses to read attach state from a liveness
+	// one.
+	SessionLive SessionState = "live"
 )
 
 // Session is a zellij session row projected into launcher decision space.

@@ -1,9 +1,14 @@
 package launcher
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
 
 func TestZellijSourceClassifiesSessions(t *testing.T) {
@@ -40,5 +45,44 @@ esac
 		if got[i] != want[i] {
 			t.Fatalf("Snapshot[%d] = %#v, want %#v", i, got[i], want[i])
 		}
+	}
+}
+
+// The counted invariant, at the seam: asking about named sessions costs one
+// list-clients per NAMED live session, however many sessions the host has
+// (pair#228). Exited and absent names cost none.
+func TestSnapshotSessionsAsksOnlyTheNamedSessions(t *testing.T) {
+	sessions := map[string]string{"pair-a": "detached", "pair-b": "detached", "pair-c": "attached", "pair-d": "exited"}
+	for i := 0; i < 20; i++ {
+		sessions[fmt.Sprintf("pair-x%02d", i)] = "detached"
+	}
+	path, log := pairlifecycletest.StubZellij(t, sessions)
+	got, err := ZellijSource{Path: path}.SnapshotSessionsContext(context.Background(), []string{"pair-a", "pair-c", "pair-d", "pair-absent"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Session{{Name: "pair-a", State: SessionDetached}, {Name: "pair-c", State: SessionAttached}, {Name: "pair-d", State: SessionExited}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	if n := pairlifecycletest.CountCalls(t, log, "list-clients"); n != 2 {
+		t.Fatalf("list-clients calls = %d, want 2 (a and c) regardless of the 20 other sessions", n)
+	}
+}
+
+// Liveness asks nobody for clients, and says so in the state it reports: a
+// live session is SessionLive, never a guess at attached or detached.
+func TestLivenessAsksNoSessionForClients(t *testing.T) {
+	path, log := pairlifecycletest.StubZellij(t, map[string]string{"pair-a": "detached", "pair-b": "attached", "pair-c": "exited"})
+	got, err := ZellijSource{Path: path}.LivenessContext(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Session{{Name: "pair-a", State: SessionLive}, {Name: "pair-b", State: SessionLive}, {Name: "pair-c", State: SessionExited}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	if n := pairlifecycletest.CountCalls(t, log, "list-clients"); n != 0 {
+		t.Fatalf("list-clients calls = %d, want 0", n)
 	}
 }
