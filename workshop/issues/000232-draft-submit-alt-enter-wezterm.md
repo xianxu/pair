@@ -41,6 +41,11 @@ one of pair's chords for itself.
 
 ## Spec
 
+**The fix is documentation, per terminal — not code.** pair's chord is right;
+what has to change is on the terminal's side, and it differs per terminal. For
+WezTerm the default `Alt+Enter → ToggleFullScreen` binding has to go. Verified
+by the operator 2026-09-11: with that one line, `Alt+Return` sends.
+
 Two halves; the second is what stops the next terminal from being a report.
 
 1. **Document it.** Add a WezTerm row to the *Terminal setup* table. Option
@@ -98,3 +103,7 @@ default, fixable in one line on that terminal.
 - Sibling: pair#233 (kitty) is the other dimension — Option not Alt at all.
   The doctor probe in Spec 2 should be one chord-delivery check with a reader
   per terminal, covering both.
+- **Operator verified the fix** (2026-09-11): `DisableDefaultAssignment` on
+  `ALT+Enter` in `~/.wezterm.lua`, and the draft sends. Confirms the root
+  cause and the shape of the fix — a per-terminal note, WezTerm's being
+  "remove the default binding". Nothing in pair changes for the chord itself.
