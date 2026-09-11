@@ -268,12 +268,12 @@ func rowFor(rows []ActionableThreadSummary, address ThreadAddress) (ActionableTh
 // AbortStarted must take ownership from couch's OWN registry, not from the
 // StartResult handed back to it (pair#230 plan gate PQ-3).
 //
-// The console relays a struct across a package boundary, and the destructive
-// branch is that struct's ZERO value: a caller that rebuilds or copies the
-// record without carrying Warm would silently ask couch to delete a session it
-// borrowed. Every other test here relays the record couch itself built, so Warm
-// is correct by accident and the protection is invisible -- this one clears the
-// field to make the registry the only source that can answer.
+// The console relays a struct across a package boundary, so its Shape is
+// whatever the caller believes about a start it did not make: a caller that
+// rebuilt the record could believe "cold resume" about a warm reattach, and
+// couch would delete a session holding somebody's agent. Every other test here
+// relays the record couch itself built, so the shape is correct by accident and
+// the protection is invisible -- this one overwrites it.
 func TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller(t *testing.T) {
 	env, address := warmDetachedThread(t)
 
@@ -295,7 +295,7 @@ func TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller(t *testing.T) {
 		t.Fatal("AbortStarted returned nil, want the abort cause")
 	}
 	if quiesced := env.Artifacts.Quiesces(); containsAddress(quiesced, address) {
-		t.Fatalf("AbortStarted quiesced %+v on a caller-supplied zero value -- ownership must come from the registry", address)
+		t.Fatalf("AbortStarted quiesced %+v on a caller-supplied shape -- ownership must come from the registry", address)
 	}
 }
 
@@ -356,5 +356,30 @@ func TestAFailedRetireStillLeavesTheRecordRecoverable(t *testing.T) {
 		if incarnation.State == IncarnationLive {
 			t.Fatalf("thread = %+v keeps a LIVE incarnation behind a dead helper", thread)
 		}
+	}
+}
+
+// The diagnostic, not the decision: when the session cannot be observed at all,
+// cleanup still refuses to treat unobserved as absent, AND the operator is told
+// why the thread was left occupied.
+//
+// The cold-resume tail this shell replaced joined that error into its return.
+// Folding the observation into a bare PresenceUnobserved silently dropped it
+// (pair#230 close review BR-12), which leaves an occupied thread with no
+// account of itself.
+func TestCleanupSurfacesWhyItCouldNotObserveTheSession(t *testing.T) {
+	env, address := warmDetachedThread(t)
+	env.Runner.BeforeAcknowledge = func(string) error { return errors.New("ack transport closed") }
+	env.Artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("zellij socket refused") }
+
+	_, _, err := env.Couch.ResumeContext(context.Background(), address)
+	if err == nil {
+		t.Fatal("route 1 did not fail")
+	}
+	if !strings.Contains(err.Error(), "zellij socket refused") {
+		t.Fatalf("error = %v, want it to carry why the session could not be observed", err)
+	}
+	if quiesced := env.Artifacts.Quiesces(); containsAddress(quiesced, address) {
+		t.Fatalf("quiesced %+v despite never observing its session", address)
 	}
 }

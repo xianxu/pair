@@ -16,7 +16,9 @@ type ActorRecord struct {
 	// warm reattach onto a session that already existed. Cleanup reads it to
 	// decide whether it may end that session (pair#230), and it is read from
 	// HERE -- couch's own record of what it started -- never from a StartResult
-	// a caller relays back, whose zero value must not answer "may delete".
+	// a caller relays back, which carries whatever that caller believes.
+	// An unrecognised value answers "does not own" (StartShape.OwnsSession), so
+	// the failure direction leaves a session behind rather than killing an agent.
 	Shape StartShape `json:"shape,omitempty"`
 }
 

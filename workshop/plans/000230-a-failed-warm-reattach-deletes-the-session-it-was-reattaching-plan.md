@@ -69,7 +69,7 @@ mid-reattach, so presence never returns), and the fix is one rule for all six.
 | `StartShape`, `DurableAction`, `SessionPresence` | `cmd/internal/couchcore/startcleanup.go` | new |
 | `StartCleanupInput`, `StartCleanup` | `cmd/internal/couchcore/startcleanup.go` | new |
 | `DecideStartCleanup` | `cmd/internal/couchcore/startcleanup.go` | new |
-| `ActorRecord.Warm` | `cmd/internal/couchcore/registry.go` | modified |
+| `ActorRecord.Shape` | `cmd/internal/couchcore/registry.go` | modified |
 
 - **`DecideStartCleanup(StartCleanupInput) StartCleanup`** is the whole rule,
   in one pure function:
@@ -148,9 +148,8 @@ mid-reattach, so presence never returns), and the fix is one rule for all six.
     `couch_test.go`'s post-acknowledgement table in particular.
   - **Future extensions:** a park-shaped cleanup would add a phase, not a
     branch at each call site.
-- **`ActorRecord.Warm`** is couch's own record that this start attached to a
-  pre-existing session. `launchTrackedThread` sets it from `in.Warm`, which it
-  derives from its own detached proof. **`AbortStarted` reads the registry's
+- **`ActorRecord.Shape`** is couch's own record of WHICH kind of start this
+  was. `launchTrackedThread` sets it from the launch it is performing. **`AbortStarted` reads the registry's
   record, not the `StartResult` the caller hands back**, so a caller that
   relays a zero value cannot select the destructive branch. `AbortStarted`
   already refuses a record whose identity does not match the registry, so the
@@ -195,8 +194,9 @@ mid-reattach, so presence never returns), and the fix is one rule for all six.
     which is that loop's only interrupt and is pinned by nothing — removing it
     would be an unobserved regression in `Detach`. The cancelled-context
     problem at route 5 is the caller's to solve: cleanup runs
-    `context.WithoutCancel(ctx)`, because cleanup must complete precisely when
-    the thing that failed was a cancellation. A cancelled context must not be
+    a fresh `context.Background()`, because cleanup must complete precisely
+    when the thing that failed was a cancellation. (An earlier draft said
+    `context.WithoutCancel`; see the 2026-09-11 round-2 Revision.) A cancelled context must not be
     able to turn a provable retire into a `DurableMarkUnknown`.
 - **`FakeThreadArtifactCollisionChecker.Quiesce`** keeps its call log **and
   now models the effect**: it clears the address's detached session and marks
@@ -350,8 +350,8 @@ SIGKILL case is reasoned, not pinned, and the Log says so.
   - the decider ignoring `HelperDead` → the live-helper rows;
   - `DurableRetire` substituted by `DurableMarkUnknown` → the Detached-again
     assertion;
-  - cleanup's `context.WithoutCancel` removed → route 2, whose context is
-    cancelled by construction;
+  - cleanup inheriting the caller's cancelled context → route 2, whose context
+    is cancelled by construction;
   - the extracted helper's `ctx.Err()` check removed → `Detach`'s own
     interrupt test;
   - the fake's `Quiesce` reverted to log-only → Task 2.
@@ -395,3 +395,28 @@ and the tree disagree. Recorded here rather than left for the archive.
   carried a `Warm bool`. A string persists legibly and, more importantly, makes
   an unrecognised value answer "does not own" -- the direction that leaves a
   session behind rather than killing an agent.
+
+### 2026-09-11 — close review round 2: the cleanup context, and the error it swallowed
+
+**Reason.** Two findings (BR-12, BR-13). One is a behaviour regression this
+plan's own prose helped cause.
+
+- **`context.WithoutCancel` is not what shipped, and this plan said it twice.**
+  It was written as `context.WithoutCancel(context.Background())`, which is a
+  no-op wrapper: neither cleanup function receives the caller's context, so the
+  uncancellability comes from `Background` alone. The code now says
+  `context.Background()` plainly, and `retireDetachedIncarnation`'s comment
+  names that rather than the wrapper. The substance is unchanged -- cleanup
+  must complete precisely when the thing that failed was a cancellation --
+  and `Detach` keeps its own `ctx.Err()` interrupt.
+- **The shared shell swallowed the session-observation error.** The
+  cold-resume tail it replaced joined `bindingErr` into its return, so an
+  operator could see WHY a thread was left occupied.
+  `observeSessionPresence` had folded that into `PresenceUnobserved` and
+  dropped it. It now returns `(SessionPresence, error)` and
+  `applyStartCleanup` joins it. The decision is unchanged -- unobserved is
+  still never treated as absent -- only the diagnostic is restored.
+- **BR-13 is a rule, not a site.** A commit that reverses a design decision
+  has to sweep every restatement of the old one: eight passages across five
+  files still described `StartResult.Warm`, a destructive zero value, and
+  `WithoutCancel`. All corrected in the same commit.

@@ -300,3 +300,32 @@ start never labelled warm. Two of these survived their first run -- the
 fallback row for the reason above, and the `AbortStarted` row because the test
 relayed an empty shape, which `OwnsSession` already answers no to. It now
 relays `StartColdResume`, the value a caller would plausibly fill in.
+
+### 2026-09-11 — close review round 2
+
+**BR-12, a regression my own refactor introduced (Important).** The
+cold-resume tail that `applyStartCleanup` replaced joined the
+session-observation error into its return, so an operator could see WHY a
+thread was left occupied. `observeSessionPresence` folded that into a bare
+`PresenceUnobserved` and dropped it. It now returns `(SessionPresence, error)`
+and the shell joins it. The DECISION is unchanged -- unobserved is still never
+treated as absent -- only the diagnostic is restored, pinned by
+`TestCleanupSurfacesWhyItCouldNotObserveTheSession` and its mutation.
+
+Worth recording as a pattern: consolidating several tails into one shell is a
+deletion of behaviour unless each tail's outputs are enumerated first. I
+checked what the tails DECIDED and missed what they REPORTED.
+
+**BR-13, a rule rather than a site (Important).** Eight passages across five
+files still described design decisions this issue had reversed:
+`StartResult.Warm`, a destructive zero value, `context.WithoutCancel`, and the
+decider answering whether to quiesce. Two of them were the same paragraph
+duplicated. All corrected in one sweep, including `atlas/couch.md` and this
+plan's prose.
+
+The `WithoutCancel` one had substance behind it: the code said
+`context.WithoutCancel(context.Background())`, a no-op wrapper, because neither
+cleanup function receives the caller's context in the first place. It is plain
+`context.Background()` now, and `Detach` keeps its own `ctx.Err()` interrupt.
+
+**Suite:** unsandboxed `make test` exit 0, 197 packages ok.

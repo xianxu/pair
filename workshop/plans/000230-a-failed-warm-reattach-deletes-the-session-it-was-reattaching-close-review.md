@@ -163,3 +163,193 @@ findings:
       both own their session, but the name is false); couch.go:584 runs a second full c.reg.Records() scan
       immediately after the identity loop found the same record, which the plan said would be reused.
 ```
+
+---
+
+## Re-review — 2026-09-11T11:39:13-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 230 — A failed warm reattach deletes the session it was reattaching |
+| repo | pair |
+| issue file | workshop/issues/000230-a-failed-warm-reattach-deletes-the-session-it-was-reattaching.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d8dc14f60276d2dd708fea794e5e390abce9c9c4..a6b66189265fed26055574b795f34572e6876469 |
+| command | sdlc close --issue 230 |
+| reviewer | claude |
+| timestamp | 2026-09-11T11:39:13-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The round-2 fixes hold. I checked each one by mutation or by reading the code, not the commit message. Reverting the retire fallback turns `TestAFailedRetireStillLeavesTheRecordRecoverable` red by name: the record keeps a live incarnation. Making the quiesce ignore ownership turns all six warm rows red. Labelling a spawn as a cold resume turns three spawn tests red. `applyStartCleanup` now exists and is the one cleanup path both entry points share. Build and vet pass, and the four affected packages pass unsandboxed. Two things keep this from SHIP:
+
+- **A regression the refactor introduced.** The session-observation error that the old cold-resume code returned is now dropped. A probe test passes at base and fails at HEAD.
+- **A second stale-claim finding.** Eight passages still describe decisions this issue reversed, and one of them is in the atlas.
+
+## 1. Strengths
+
+- **`couch.go:515` `applyStartCleanup`.** One cleanup path now serves both entry points (`failTrackedPostAckStart` and `failPostAckStart` are one line each). The pure decider is called once, and a failed retire falls through to `markLiveRecordUnknown` (`couch.go:549`). The prior round's main defect (BR-5) is closed and pinned by a test.
+- **`warm_failure_test.go:326-346`.** The retire-failure test counts the session reads and asserts it reached the third one. It also asserts that the returned error is the retire's own error. That makes the race reproducible, and the test cannot pass without entering the branch it is named for. This is the ARCH-ORDER shape done right.
+- **`startcleanup.go:44` `OwnsSession`.** It explicitly tests for the two owning shapes, so an empty or unrecognised shape counts as not owning. The table test includes a value no constant names.
+- **`warm_failure_test.go:292`.** The test hands back `StartColdResume`, a plausible wrong value, rather than an empty field that would prove nothing. A test like this can actually catch the guard missing.
+- **`startcleanup_test.go`.** All 36 rows are written out as literals, with a count check and a duplicate check, and three property tests cover the whole input space.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I1: the session-observation error is dropped (`launch_existing.go:191-204`, `couch.go:515-561`).**
+- `observeSessionPresence` turns a `PairSession` error, or a missing `PairSessionIO`, into `PresenceUnobserved` and throws the error away. Nothing in `applyStartCleanup` reports it.
+- The base code joined both `bindingErr` and `"exact Pair session observer is unavailable"` into the returned error.
+- **Measured:** I ran a probe test (cold resume, acknowledgement fails, `BeforePairSession` returns "zellij unreachable"):
+  - on a `git archive` of the base, the returned error is `…ack transport closed\nzellij unreachable` and the probe passes;
+  - at HEAD, the error is only `…ack transport closed` and the probe fails.
+- **Why Important and not Critical:** the operation still fails, and the record still ends up Unknown, which is the safe state. What's lost is the reason it couldn't be rolled back. The new warm live-record branch has the same gap. This goes against ARCH-SECURE's "degrade visibly".
+- **Fix:** make `observeSessionPresence` return `(SessionPresence, error)` and join that error in `applyStartCleanup`. Then assert `"zellij unreachable"` in `TestResumeUnobservableSessionKeepsUnknownOccupied`; that assertion fails without the fix.
+
+**I2: stale claims, the 2nd finding in family `stale-artifact-claim`.**
+The first round fixed instances, so this finding states the rule instead. **Rule:** a commit that reverses a design decision must remove every restatement of the old decision in the same commit. Grep for the retired names and claims (`Warm`, "zero value", `WithoutCancel`, "whether to quiesce", `StartCleanup`) across code comments, test comments, atlas and plan. Fix each hit, or record it in a plan or issue `## Revisions` entry.
+
+Measured prevalence is **8 sites in 5 files**:
+- `atlas/couch.md:679` says the decider returns "whether to quiesce". It returns only a `DurableAction`. This is the part of BR-6 that was not done.
+- `atlas/couch.md:686`, `couch.go:613-616` and `couch.go:623-626` say the zero value of the handed-back struct is the destructive branch. The `couch.go` comment is duplicated about ten lines apart. In fact an empty `Shape` counts as not owning, which is the safe side. The real risk is a wrong *non-empty* value, which `warm_failure_test.go:287-292` itself says.
+- `warm_failure_test.go:271-276` and `:298` still describe the risk as a zeroed `Warm` field, but the test hands back `StartColdResume`.
+- `detach.go:149-151` says cleanup callers pass `context.WithoutCancel`. The only cleanup caller passes `context.Background()` (`couch.go:540`).
+- `plan.md:194-200` and the Task 5 mutation row (`:353`) still describe `WithoutCancel`, and no Revisions entry covers that change.
+
+## 4. Minor findings
+
+- `observeSessionPresence` now also runs for a spawn, even though the decider ignores presence for spawns. That adds one zellij query to each spawn failure. It only affects failure paths.
+- `applyStartCleanup`'s switch doesn't cover every action and phase pair: `DurableRollback` with `liveRecord` would call `rollbackTrackedStart` with an empty nonce. The decider never produces that pair today.
+- The plan's task checkboxes are still `- [ ]`. The issue's Plan checkboxes are ticked.
+
+## 5. Test coverage notes
+
+- **Sandboxed run:** the `pty` variants fail with `ptychild: … operation not permitted`, which is the known sandbox limit. The `stdio` variants pass.
+- **Unsandboxed run** (`env -u PAIR_SESSION_ID -u PAIR_TAG`): `couchcore`, `couchcmd`, `couchtty` and `artifactpath` all pass.
+- **Mutations** (applied with `go test -overlay`, repository untouched; each confirmed applied before running):
+
+  | Mutation | Tests that went red |
+  |---|---|
+  | Retire fallback reverted | `TestAFailedRetireStillLeavesTheRecordRecoverable` |
+  | Quiesce ignores ownership | all 6 warm rows, `TestPostAckCleanupEndsItsHelperWithoutOwningTheSession`, `TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller` |
+  | Spawn labelled as cold resume | `…NeverLeaveWorkspaceWriter/registration_evidence_failure`, `TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback`, `TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback` |
+
+- **Gap:** no test pins the observation error in the returned error (I1). The probe's assertion is ready to use.
+
+## 6. Architectural notes
+
+- **ARCH-DRY: pass.** There is one shared retire, one cleanup path and one registry scan. The only duplication left is the doubled `AbortStarted` comment, which is part of I2.
+- **ARCH-PURE: pass.** `DecideStartCleanup` is pure and tested without IO. `applyStartCleanup` gathers the observations, calls the decider once and acts on the result.
+- **ARCH-PURPOSE:** pass on the code, flag on the prose.
+  - All three places that decide ownership read it from the same source. `quiescePostAckStart` and `DecideStartCleanup` call `OwnsSession`; `AbortStarted` reads the shape from couch's own registry record. All six routes share that path.
+  - The prose sweep is I2.
+- **ARCH-MOCK: pass.**
+  - The fake now models both a successful deletion and a refused one, through the same interface production uses.
+  - A live check against the real binary exists: `TestSessionQuiescenceLive` in `launcher/session_quiescence_live_test.go:56`.
+- **ARCH-CONSTRAINTS: pass.** The change only touches failure paths.
+- **ARCH-SECURE:** flag for I1.
+  - The trust side passes. The shape is read from couch's own registry, and an empty or unknown shape counts as not owning.
+  - Old registry files decode `shape` as empty, but they can never reach `AbortStarted`, because a handle only comes from a start made by this process.
+  - An older binary ignores the new field, since `json.Unmarshal` is used without strict decoding (`store.go:70`).
+- **ARCH-ORDER: pass.**
+  - The decider table enumerates every state and event.
+  - A retire that fails partway now has a defined outcome (mark-unknown), and its race is reproduced deterministically.
+  - The decider's live-helper rows can't happen in production, because `quiescePostAckStart` loops until the helper is quiet. They document the rule rather than test reachable behaviour.
+- **For #206:** a burst of failed background reattaches will now leave rows that are detached again or Unknown. Until I1 is fixed, Unknown rows caused by an unreachable zellij won't say why.
+
+## 7. Plan revision recommendations
+
+1. Add a `## Revisions` entry saying cleanup passes `context.Background()`, since `applyStartCleanup` never receives the caller's context. It supersedes `:194-200` and the Task 5 `WithoutCancel` mutation row.
+2. Add BR-2's missing non-goals:
+   - `pair resume` can fall through to creating a session, which a warm cleanup then leaves behind.
+   - If couch dies between killing the helper and writing the record, recovery is left to `reconcileInterruptedStarts`.
+3. If I1 is fixed by changing `observeSessionPresence`'s signature, add one line recording it.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan "The class, enumerated" names both Quiesce callers and why ArchiveThread (detach.go:246) is out of class; the issue's PQ-5/BR-8 Revision corrects the sole-caller claim.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      The new Non-goals lists three different items; the pair resume create fall-through and couch dying between helper kill and durable write appear nowhere in plan or issue.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      retireDetachedIncarnation is shared by Detach (detach.go:97) and applyStartCleanup (couch.go:540); ctx.Err() kept, and cleanup passes Background so cancellation cannot interrupt it.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Task 3 still enumerates rows in prose and still promises Spawn rows for routes 5-6 that the table does not have; archival, never blocks.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      couch.go:549 falls through to markLiveRecordUnknown; reverting it reddens TestAFailedRetireStillLeavesTheRecordRecoverable by name (record keeps state=live).
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Quiesce field gone, OwnsSession is the single source, and the ownership-ignoring mutation reddens all warm rows; the stale atlas sentence is carried in the new stale-artifact-claim finding.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      applyStartCleanup exists (couch.go:515) as the single shell, retireDetachedIncarnation sits under Integration points, and the plan Revisions records StartCleanup removed and Shape as a string.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      The issue Revision titled three-claims-are-wrong (PQ-5, BR-8) corrects StartResult.Warm, the sole-caller claim and the row count, and names PQ-5.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      failTrackedPostAckStart is one line; the retire arm lives only in the shared shell at live-record phase; the WithoutCancel no-op is gone (its detach.go comment is in the new finding).
+  - id: BR-10
+    disposition: addressed
+    note: |
+      warm_failure_test.go:168 now requires ThreadUnusable with ReasonSessionGone, and passes.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      ActorRecord.Shape records spawn/cold/warm and AbortStarted reads it in the identity loop with no second scan; labelling a spawn cold reddens three spawn tests.
+findings:
+  - id: new
+    severity: Important
+    family: swallowed-error-context
+    title: |
+      The shared cleanup shell drops the session-observation error that the old cold-resume tail returned
+    detail: |
+      observeSessionPresence (launch_existing.go:191-204) collapses a PairSession error, or a missing PairSessionIO,
+      into PresenceUnobserved and discards it; applyStartCleanup (couch.go:515-561) never reports it. The base tail
+      joined bindingErr and "exact Pair session observer is unavailable" into the returned error. Overlay probe
+      (cold resume, ack fails, BeforePairSession returns "zellij unreachable"): base returns the ack cause plus
+      "zellij unreachable" and passes; head returns only the ack cause and fails. The record still lands Unknown,
+      hence Important not Critical, but the operator loses why it was not rolled back, and the new warm live-record
+      arm inherits the silence (ARCH-SECURE, degrade visibly). Fix: return (SessionPresence, error), join it in
+      applyStartCleanup, and assert "zellij unreachable" in TestResumeUnobservableSessionKeepsUnknownOccupied.
+  - id: new
+    severity: Important
+    family: stale-artifact-claim
+    title: |
+      Eight comment and doc passages still restate design decisions this issue reversed, including the atlas
+    detail: |
+      2nd finding in family stale-artifact-claim, so this states the rule rather than one site. Rule: a commit that
+      reverses a design decision sweeps every restatement of the old one in the same commit; grep the retired names
+      and claims (Warm, zero value, WithoutCancel, whether to quiesce, StartCleanup) across code comments, test
+      comments, atlas and plan, and fix each hit or record a Revisions line. Measured prevalence, 8 sites in 5 files:
+      atlas/couch.md:679 says the decider returns whether to quiesce (BR-6 residue); atlas/couch.md:686,
+      couch.go:613-616 and couch.go:623-626 (duplicated) say the relayed struct's zero value is destructive, but an
+      empty Shape answers non-owning, the safe side; warm_failure_test.go:271-276 and :298 keep the Warm/zero-value
+      framing though the test relays StartColdResume; detach.go:149-151 says cleanup passes context.WithoutCancel
+      but it passes context.Background() (couch.go:540); plan.md:194-200 and its Task 5 row still describe
+      WithoutCancel with no Revisions entry covering it.
+```

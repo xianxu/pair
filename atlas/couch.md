@@ -674,17 +674,22 @@ the defect. Ownership is three-valued (`StartShape`: spawn, cold resume, warm
 reattach) rather than a warm boolean, because spawn and cold resume already had
 different durable tails and merging them would have changed spawn.
 
-The rule is one pure function, `DecideStartCleanup`, over
-`(shape, helper-dead, session-presence, claim-vs-live-record)`, returning
-whether to quiesce and which durable action to take -- rollback, retire,
-mark-unknown, or the pre-existing reconcile tail. Its whole input space is
-table-tested. Two properties hold everywhere: a start never ends a session it
+Two questions, answered at different moments. Whether the session may be ended
+is `StartShape.OwnsSession`, consumed once by `quiescePostAckStart`; an
+unrecognised shape answers no, so the failure direction leaves a session behind
+rather than killing an agent. What happens to the RECORD is the pure
+`DecideStartCleanup`, over `(shape, helper-dead, session-presence,
+claim-vs-live-record)` -- rollback, retire, mark-unknown, or the pre-existing
+reconcile tail -- and the session's absence after cleanup is one of its inputs,
+which is why it cannot also decide the first question. Its whole input space is
+table-tested. A retire that fails falls through to mark-unknown rather than
+returning, so no path leaves a live incarnation behind a dead helper. Two properties hold everywhere: a start never ends a session it
 did not create, and nothing durable is undone while the helper is unaccounted
 for. A warm reattach that fails therefore leaves its thread **detached and
 reattachable**, using the same `retireDetachedIncarnation` rule `Detach` uses.
-Ownership is read from couch's own registry record, never from a `StartResult`
-a caller relays back, because that struct's zero value is the destructive
-branch.
+Ownership is read from couch's own registry record (`ActorRecord.Shape`), never
+from a `StartResult` a caller relays back, which carries whatever that caller
+believes about a start it did not make.
 
 **Detached is a derived actionable state, not a persisted one.** `launcher`
 already classifies a live zellij session with zero clients as `SessionDetached`,

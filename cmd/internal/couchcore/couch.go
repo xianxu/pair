@@ -514,12 +514,16 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, shape StartSha
 // live-record phase, which undoes an incarnation instead.
 func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce string, h Handle, liveRecord bool) error {
 	cleanupErr := c.quiescePostAckStart(address, h, shape)
+	// Observed AFTER the helper is quiet and after any quiesce, because the
+	// state the record's disposition reasons about is the one left behind.
+	// A failure to observe joins the returned error: it is the operator's only
+	// account of why the thread was left occupied.
+	presence, presenceErr := c.observeSessionPresence(address)
+	cleanupErr = errors.Join(cleanupErr, presenceErr)
 	action := DecideStartCleanup(StartCleanupInput{
 		Shape:      shape,
 		HelperDead: !h.Alive(),
-		// Observed AFTER the helper is quiet and after any quiesce, because the
-		// state the record's disposition reasons about is the one left behind.
-		Presence:   c.observeSessionPresence(address),
+		Presence:   presence,
 		LiveRecord: liveRecord,
 	})
 	switch action {
@@ -610,9 +614,6 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 			return errors.Join(cause, errors.New("abort started: registered actor identity mismatch"))
 		}
 		registered = true
-		// The shape comes from the REGISTRY's own record, written when couch made
-		// this start -- not from the StartResult the caller relayed back, whose
-		// zero value would answer "owns the session" and delete it (pair#230).
 		registeredShape = record.Shape
 		break
 	}
@@ -620,10 +621,13 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 		return errors.Join(cause, errors.New("abort started: actor is not registered by this Couch"))
 	}
 
-	// Ownership comes from the REGISTRY's record, which couch wrote when it made
-	// this start -- not from the StartResult the caller relayed back, whose zero
-	// value is the destructive branch (pair#230). The identity match above has
-	// already proved the relayed record is this registered actor.
+	// The shape comes from the REGISTRY's record, written when couch made this
+	// start -- not from the StartResult the caller relayed back (pair#230). A
+	// relayed shape is whatever the caller believes, and a caller that rebuilt
+	// the record could believe "cold resume" about a warm reattach, which would
+	// delete a session holding somebody's agent. The identity match above has
+	// already proved the relayed record is this registered actor, so the
+	// registry can answer for it.
 	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, registeredShape, cause)
 	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
 	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))

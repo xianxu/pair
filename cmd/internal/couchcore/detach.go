@@ -146,9 +146,9 @@ func (c *Couch) retireDetachedIncarnation(
 	// forever: an unbounded retry against a store that keeps losing the race
 	// spins a detach that has already SIGTERMed its client, with no way for the
 	// operator to interrupt it. The cap is generous because a real conflict
-	// clears in one attempt. A CLEANUP caller whose own context is already
-	// cancelled passes context.WithoutCancel, because cleanup must complete
-	// precisely when the thing that failed was a cancellation.
+	// clears in one attempt. A CLEANUP caller passes a fresh context.Background
+	// rather than its own, because cleanup must complete precisely when the
+	// thing that failed was a cancellation.
 	const maxRetireAttempts = 32
 	for attempt := 1; ; attempt++ {
 		if err := ctx.Err(); err != nil {

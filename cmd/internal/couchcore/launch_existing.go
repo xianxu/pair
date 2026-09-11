@@ -185,22 +185,27 @@ func (c *Couch) failTrackedPostAckStart(shape StartShape, thread ThreadRecord, n
 	return errors.Join(cause, c.applyStartCleanup(shape, thread.Address, nonce, h, false))
 }
 
-// observeSessionPresence answers the decider's Presence input. An observer that
-// is unavailable, or an error, is UNOBSERVED -- never absent. "We could not
-// ask" must not be answered destructively.
-func (c *Couch) observeSessionPresence(address ThreadAddress) SessionPresence {
+// observeSessionPresence answers the decider's Presence input, and returns WHY
+// when it cannot.
+//
+// An observer that is unavailable, or an error, is UNOBSERVED -- never absent.
+// "We could not ask" must not be answered destructively. The error travels back
+// rather than being swallowed: it is the operator's only account of why a
+// thread was left occupied rather than tidied up, and the cold-resume tail this
+// shell replaced did surface it.
+func (c *Couch) observeSessionPresence(address ThreadAddress) (SessionPresence, error) {
 	sessions, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
-		return PresenceUnobserved
+		return PresenceUnobserved, errors.New("exact Pair session observer is unavailable")
 	}
 	binding, err := sessions.PairSession(address)
 	if err != nil {
-		return PresenceUnobserved
+		return PresenceUnobserved, err
 	}
 	if binding.Present {
-		return PresencePresent
+		return PresencePresent, nil
 	}
-	return PresenceAbsent
+	return PresenceAbsent, nil
 }
 
 func (c *Couch) markResumeStartUnknown(thread ThreadRecord, nonce string) error {
