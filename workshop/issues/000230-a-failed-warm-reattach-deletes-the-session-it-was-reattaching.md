@@ -1,11 +1,12 @@
 ---
 id: 000230
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-11
 updated: 2026-09-11
 estimate_hours:
+started: 2026-09-11T09:55:31-07:00
 ---
 
 # A failed warm reattach deletes the session it was reattaching
