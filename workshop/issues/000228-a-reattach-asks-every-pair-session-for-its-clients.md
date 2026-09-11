@@ -128,3 +128,24 @@ The design is in the durable plan:
 
 After the change, a reattach makes `list-clients` twice, independent of the
 session count.
+
+## Revisions
+
+### 2026-09-10 — the site table was two short (plan review round 1)
+
+**Reason.** A fresh-context plan review applied the plan in a scratch clone and
+counted the reattach path end to end. It found two sites this issue's table
+missed:
+
+- **A sixth full snapshot on the critical path.** Couch's
+  `awaitResumeRegistration` polls `PairSession`, which reads only "not exited".
+  The reviewer measured 22 `list-clients` calls with 22 live sessions.
+- **A standalone `list-clients`.** The launcher's session-name acceptance probe
+  (`ProbeSessionName`) runs one on the thread's own session.
+
+**Delta.** The authoritative table is now the seven-site one in the plan
+(`workshop/plans/000228-…-plan.md`, "Sites after the change"). Done-when
+bullet 3 ("every snapshot site in the table above") refers to that table. The
+invariant is unchanged; the enumeration was incomplete. That is why the plan
+adds an end-to-end count test over the whole couchcore path, not just
+per-function tests.
