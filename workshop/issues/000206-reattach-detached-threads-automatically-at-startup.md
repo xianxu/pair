@@ -1,7 +1,7 @@
 ---
 id: 000206
-status: working
-deps: []
+status: blocked
+deps: [000228]
 github_issue:
 created: 2026-09-06
 updated: 2026-09-10
@@ -255,3 +255,17 @@ O(all sessions). It also taxes every manual reattach today: about 5 s here.
 `zellij list-sessions` in 0.45.1 carries no client information, so the lever is
 how many sessions each snapshot asks, and how many snapshots each reattach
 takes.
+
+### 2026-09-10 — blocked on #228, the reattach cost, at the operator's direction
+
+**Reason.** Plan step 1's measurement (Log, 2026-09-10) showed that a reattach
+costs about 5.5 s, dominated by proof snapshots that ask every live pair session
+for its clients, not by `zellij attach` (about 55 ms). As specified, the
+background pass would take about 80 s for 10 threads, and a queue-jumped thread
+about 13 s. The operator chose to fix the cost first, as its own issue.
+
+**Delta.** `deps: [pair#228]`, status `blocked`. The strategy is unchanged: B,
+sequential in the background. The measurement confirms it is safe for
+interactive latency (p95 21 ms during the pass). #228 makes it fast. The probe
+(`cmd/probes/reattachcost`) ships with #228, and #206's end-to-end re-measure
+uses it.
