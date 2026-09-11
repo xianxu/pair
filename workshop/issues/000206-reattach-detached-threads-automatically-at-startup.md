@@ -419,3 +419,13 @@ under-slotted (the probe's sample mode, the 30 s sampler run, the smoke and the
 Done-when conversation are more than an atlas slot) -- expect 0.1-0.2h over on
 M2's close-out. It also notes M1's items were costed after M1 was built, so
 they are retrospective; the ledger's actual will say how far off they were.
+
+### 2026-09-11 — the Done-when deviation, decided by the operator
+
+**Asked before M2, as the plan gate required.** Done-when says the switcher
+shows every known thread "immediately". The plan shows them when the first
+inventory lands -- before any background reattach starts, so no row ever waits
+on one -- but not on the literal first frame, which still reads "thread
+inventory unavailable" as it does today. The operator chose **first inventory
+is fine**. No first-frame seeding and no "checking" row state; M2 builds as
+planned.
