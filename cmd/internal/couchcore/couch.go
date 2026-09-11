@@ -499,8 +499,33 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 // target and before Spawn transfers the handle to its caller. It first proves
 // that exact handle is reaped; only then may durable state be reconciled. If
 // quiescence cannot be proved, the creating/live record remains occupied.
-func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, cause error) error {
-	cleanupErr := c.quiescePostAckStart(address, h)
+func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, shape StartShape, cause error) error {
+	cleanupErr := c.quiescePostAckStart(address, h, shape.OwnsSession())
+
+	// A warm reattach past registration hands the thread back to the session it
+	// borrowed, rather than reconciling a start it no longer owns (pair#230).
+	if !shape.OwnsSession() {
+		decision := DecideStartCleanup(StartCleanupInput{
+			Shape:      shape,
+			HelperDead: !h.Alive(),
+			Presence:   c.observeSessionPresence(address),
+			LiveRecord: true,
+		})
+		if decision.Durable == DurableRetire {
+			current, getErr := c.Threads.GetThread(address)
+			if getErr != nil {
+				return errors.Join(cause, cleanupErr, getErr)
+			}
+			// Cleanup must complete precisely when the thing that failed WAS a
+			// cancellation, so it runs uncancellable.
+			_, retireErr := c.retireDetachedIncarnation(
+				context.WithoutCancel(context.Background()), address,
+				ProcessIdentity{PID: h.PID(), Identity: h.Identity()}, current.LastActiveAt)
+			return errors.Join(cause, cleanupErr, retireErr)
+		}
+		// Fall through to the mark-unknown tail below: recoverable, which a
+		// deleted session would not be.
+	}
 
 	reconcileErr := c.reconcileInterruptedStarts()
 	current, getErr := c.Threads.GetThread(address)
@@ -551,18 +576,37 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 		return errors.Join(cause, errors.New("abort started: actor is not registered by this Couch"))
 	}
 
-	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, cause)
+	// Ownership comes from the REGISTRY's record, which couch wrote when it made
+	// this start -- not from the StartResult the caller relayed back, whose zero
+	// value is the destructive branch (pair#230). The identity match above has
+	// already proved the relayed record is this registered actor.
+	shape := StartColdResume
+	for _, record := range c.reg.Records() {
+		if record.ID == start.Record.ID && record.Warm {
+			shape = StartWarmReattach
+			break
+		}
+	}
+	cleanupErr := c.failPostAckStart(start.Record.Thread, start.Handle, shape, cause)
 	c.reg = c.reg.RemoveActor(start.Record.Args.Worktree, start.Record.ID)
 	return errors.Join(cleanupErr, c.Store.Save(c.reg, c.names))
 }
 
-// quiescePostAckStart retains the live Handle on this call stack and retries
-// every unproven cleanup class. It deliberately has no bounded "give up" path:
-// returning would transfer an error without a supervisor, and the operation
-// caller is allowed to discard handles on error. A persistent external failure
-// therefore leaves the owning start operation blocked and retrying, not a
-// workspace writer merely represented by an occupied durable record.
-func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle) error {
+// quiescePostAckStart ends the start's helper and, when the start OWNS the
+// session, the session too.
+//
+// owns is the whole of pair#230: a warm reattach attached to a session that
+// predates it, whose agent is the thing the reattach exists to preserve, so
+// ending that session is never this path's business. The helper half runs for
+// every shape -- the helper belongs to this start either way.
+//
+// It retains the live Handle on this call stack and retries every unproven
+// cleanup class. It deliberately has no bounded "give up" path: returning would
+// transfer an error without a supervisor, and the operation caller is allowed
+// to discard handles on error. A persistent external failure therefore leaves
+// the owning start operation blocked and retrying, not a workspace writer
+// merely represented by an occupied durable record.
+func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, owns bool) error {
 	var firstErr error
 	handleQuiet := false
 	handleCleanup := newHandleCleanup(h)
@@ -576,6 +620,9 @@ func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle) error {
 				continue
 			}
 			handleQuiet = true
+		}
+		if !owns {
+			return firstErr
 		}
 		if err := c.Artifacts.Quiesce(address); err != nil {
 			if firstErr == nil {

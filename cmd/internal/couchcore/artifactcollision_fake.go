@@ -236,13 +236,35 @@ func (f *FakeThreadArtifactCollisionChecker) Registration(address ThreadAddress)
 	return RegistrationAbsent, nil
 }
 
+// Quiesce models what production quiescing DOES, not merely that it was asked
+// for: launcher.QuiesceThreadSession runs `zellij delete-session --force` and
+// kills that session's server, so the session stops existing.
+//
+// Recording the call alone made every later observation blind to it (pair#230):
+// a test could quiesce a thread's session and still observe the thread as
+// detached and resumable, so an assertion that a failed warm reattach LEFT its
+// session alone passed whether or not the session had been deleted. A fake that
+// is laxer than production hides exactly the bug it is standing in for.
+//
+// The call log is kept -- some callers assert the request, not the effect.
 func (f *FakeThreadArtifactCollisionChecker) Quiesce(address ThreadAddress) error {
 	f.mu.Lock()
 	f.quiesced = append(f.quiesced, address)
 	hook := f.QuiesceHook
 	f.mu.Unlock()
 	if hook != nil {
-		return hook(address)
+		// A hook that refuses models a quiesce that did not take effect, so the
+		// session survives -- the retry loop's whole reason for existing.
+		if err := hook(address); err != nil {
+			return err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.detachedSessions, address)
+	if binding, ok := f.pairSessions[address]; ok {
+		binding.Present = false
+		f.pairSessions[address] = binding
 	}
 	return nil
 }

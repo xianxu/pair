@@ -71,6 +71,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if in.UseRepoDefault && !in.Warm {
 		env[len(env)-1] = "PAIR_USE_REPO_DEFAULT=1"
 	}
+	shape := StartSpawn
+	if in.Resume {
+		shape = StartColdResume
+		if in.Warm {
+			shape = StartWarmReattach
+		}
+	}
 	h, err := c.Runner.StartBlocked(ctx, in.Args.WorkingDir(), argv, env, 10*time.Second)
 	if err != nil {
 		return ActorRecord{}, nil, errors.Join(
@@ -103,10 +110,10 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	if err := h.Acknowledge(); err != nil {
 		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)
+		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
 	}
 	if err := ctx.Err(); err != nil {
-		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, err)
+		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, err)
 	}
 	registrationTimeout := pairRegistrationTimeout
 	if in.Resume && c.resumeRegistrationTimeout > 0 {
@@ -122,7 +129,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if err != nil {
 		cause := fmt.Errorf("await Pair registration %+v: %w%s", thread.Address, err,
 			c.diagnoseRegistrationFailure(err, thread.Address, registrationTimeout))
-		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)
+		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
 	}
 	// The layout witness rides this transaction, and only at a cold boundary:
 	// `in.Warm` chose no layout (see the argv above), so it records none -- nil,
@@ -137,18 +144,19 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	})
 	if err != nil {
 		cause := fmt.Errorf("promote registered thread %+v: %w", thread.Address, err)
-		return ActorRecord{}, h, c.failTrackedPostAckStart(in.Resume, thread, in.Nonce, h, cause)
+		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
 	}
 	thread = registeredThread
 
 	record := ActorRecord{
 		ID: c.IDs.NewID(), Thread: thread.Address, Args: in.Args,
 		StartedAt: in.StartedAt, PID: h.PID(), Identity: h.Identity(),
+		Warm: in.Warm,
 	}
 	c.reg = c.reg.Insert(record)
 	if err := c.Store.Save(c.reg, c.names); err != nil {
 		c.reg = c.reg.RemoveActor(in.Args.Worktree, record.ID)
-		return record, h, c.failPostAckStart(thread.Address, h, fmt.Errorf("persist registry: %w", err))
+		return record, h, c.failPostAckStart(thread.Address, h, shape, fmt.Errorf("persist registry: %w", err))
 	}
 	return record, h, nil
 }
@@ -165,24 +173,60 @@ func (c *Couch) failTrackedPreAckStart(thread ThreadRecord, nonce string, h Bloc
 	return errors.Join(cause, cancelErr, rollbackErr)
 }
 
-func (c *Couch) failTrackedPostAckStart(resume bool, thread ThreadRecord, nonce string, h Handle, cause error) error {
-	if !resume {
-		return c.failPostAckStart(thread.Address, h, cause)
+// failTrackedPostAckStart owns routes 1-4: a start that failed after its helper
+// was acknowledged, while the record still holds a start CLAIM.
+//
+// What it may destroy depends on the start's shape, which is why the shape --
+// not a warm boolean -- is the input (pair#230): a spawn takes
+// failPostAckStart's tail, a cold resume ends the session it created, and a
+// warm reattach must end only its helper, because the session it attached to
+// predates it and holds the agent the reattach exists to preserve.
+func (c *Couch) failTrackedPostAckStart(shape StartShape, thread ThreadRecord, nonce string, h Handle, cause error) error {
+	if shape == StartSpawn {
+		return c.failPostAckStart(thread.Address, h, shape, cause)
 	}
-	cleanupErr := c.quiescePostAckStart(thread.Address, h)
+	// Cleanup must complete precisely when the thing that failed WAS a
+	// cancellation, so it does not inherit the caller's cancelled context.
+	ctx := context.WithoutCancel(context.Background())
+	cleanupErr := c.quiescePostAckStart(thread.Address, h, shape.OwnsSession())
 	current, getErr := c.Threads.GetThread(thread.Address)
 	if getErr != nil {
 		return errors.Join(cause, cleanupErr, getErr)
 	}
+	decision := DecideStartCleanup(StartCleanupInput{
+		Shape:      shape,
+		HelperDead: !h.Alive(),
+		Presence:   c.observeSessionPresence(thread.Address),
+		LiveRecord: false,
+	})
+	switch decision.Durable {
+	case DurableRollback:
+		return errors.Join(cause, cleanupErr, c.rollbackTrackedStart(current, nonce))
+	case DurableRetire:
+		_, retireErr := c.retireDetachedIncarnation(ctx, thread.Address,
+			ProcessIdentity{PID: h.PID(), Identity: h.Identity()}, current.LastActiveAt)
+		return errors.Join(cause, cleanupErr, retireErr)
+	default:
+		return errors.Join(cause, cleanupErr, c.markResumeStartUnknown(current, nonce))
+	}
+}
+
+// observeSessionPresence answers the decider's Presence input. An observer that
+// is unavailable, or an error, is UNOBSERVED -- never absent. "We could not
+// ask" must not be answered destructively.
+func (c *Couch) observeSessionPresence(address ThreadAddress) SessionPresence {
 	sessions, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
-		return errors.Join(cause, cleanupErr, c.markResumeStartUnknown(current, nonce), errors.New("exact Pair session observer is unavailable"))
+		return PresenceUnobserved
 	}
-	binding, bindingErr := sessions.PairSession(thread.Address)
-	if bindingErr == nil && !binding.Present && !h.Alive() {
-		return errors.Join(cause, cleanupErr, c.rollbackTrackedStart(current, nonce))
+	binding, err := sessions.PairSession(address)
+	if err != nil {
+		return PresenceUnobserved
 	}
-	return errors.Join(cause, cleanupErr, bindingErr, c.markResumeStartUnknown(current, nonce))
+	if binding.Present {
+		return PresencePresent
+	}
+	return PresenceAbsent
 }
 
 func (c *Couch) markResumeStartUnknown(thread ThreadRecord, nonce string) error {

@@ -532,6 +532,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/runner.go",
 	"cmd/internal/couchcore/runner_fake.go",
 	"cmd/internal/couchcore/startargs.go",
+	"cmd/internal/couchcore/startcleanup.go",
 	"cmd/internal/couchcore/startresolution.go",
 	"cmd/internal/couchcore/startup.go",
 	"cmd/internal/couchcore/starttransaction.go",

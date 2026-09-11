@@ -189,3 +189,47 @@ the plan said it did not. One of them had to be wrong in writing.
 
 The pure decider `DecideStartCleanup` is where the rule lives, so the two
 documents cannot drift again.
+
+### 2026-09-11 — implemented
+
+**The class was six routes; the input was three-valued, not two.** The plan
+gate (PQ-12) caught the design error: `failTrackedPostAckStart` opens with `if
+!resume { return c.failPostAckStart(...) }`, so a spawn's claim-phase failure
+already took a different tail from a cold resume's. Modelling ownership as a
+warm boolean would have merged them and broken spawn. `StartShape` is
+therefore spawn / cold-resume / warm-reattach, and `DecideStartCleanup`'s
+36-row table is its enumeration.
+
+**The honest fake found a test that had been green for the wrong reason.**
+Making `FakeThreadArtifactCollisionChecker.Quiesce` model the deletion it
+performs immediately failed `TestResumeAmbiguousAckKeepsUnknownOccupied`. That
+test set a session present, let the acknowledgement fail, and asserted the
+thread stayed Unknown. Production quiesces the session *before* consulting its
+presence, so the branch the test pinned is unreachable there: with a faithful
+fake the path rolls back to the verified park instead. The test is now
+`TestResumeAmbiguousAckRollsBackOnceItsSessionIsGone`, and
+`TestResumeUnobservableSessionKeepsUnknownOccupied` pins the arm that really
+does keep the record Unknown -- when the session cannot be observed at all.
+This is the ARCH-MOCK failure mode in miniature: a fake laxer than production
+hides the bug it stands in for.
+
+**Mutation sweep, 8 of 8 killed as named** (apply-asserted, named failures
+only, tree verified identical to the pre-sweep snapshot):
+the rule always quiescing; spawn folded into cold resume; routes 5-6 ignoring
+the shape; `AbortStarted` trusting the relayed `StartResult`; routes 1-4
+inverting the spawn branch; presence assumed absent; the fake's quiesce
+logging only; and the fake's quiesce modelling one of its two effects.
+
+Two of those needed a second attempt, and the reason is worth recording: the
+first `AbortStarted` mutation SURVIVED because every route-6 test relayed the
+record couch itself built, so `Warm` was correct by accident and the guard was
+invisible. `TestAbortStartedReadsOwnershipFromTheRegistryNotTheCaller` clears
+the field to make the registry the only source that can answer. A first sweep
+attempt also produced a false kill, where the only failing test was one the
+sandbox fails anyway (`pty`); the row was re-run against a non-pty filter.
+
+**Advisory findings carried to the close review:** PQ-6 (three unstated
+non-goals), PQ-7 (taken: the shared retire helper KEEPS `Detach`'s `ctx.Err()`
+interrupt, and cleanup passes `context.WithoutCancel` instead), PQ-10 (stale
+task prose), PQ-11 (taken: the SIGKILL reaches only the helper's process
+group, which the zellij server and its agent predate).

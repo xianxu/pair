@@ -664,6 +664,28 @@ driven to completion under both, and one carrying an `unknown` incarnation is
 SKIPPED and reported under both -- Couch cannot vouch for that state, so neither
 killing it nor claiming to have safely detached it is honest.
 
+**A failed start ends only what it created (`pair#230`).** Every failure after
+a start's helper is acknowledged runs `quiescePostAckStart`, which ends the
+helper and -- only when the start OWNS the session -- quiesces it, meaning
+`zellij delete-session --force` plus a kill of that session's server. A warm
+reattach owns nothing: it attached to a session that predates it, and that
+session is running the agent the reattach exists to preserve. Deleting it was
+the defect. Ownership is three-valued (`StartShape`: spawn, cold resume, warm
+reattach) rather than a warm boolean, because spawn and cold resume already had
+different durable tails and merging them would have changed spawn.
+
+The rule is one pure function, `DecideStartCleanup`, over
+`(shape, helper-dead, session-presence, claim-vs-live-record)`, returning
+whether to quiesce and which durable action to take -- rollback, retire,
+mark-unknown, or the pre-existing reconcile tail. Its whole input space is
+table-tested. Two properties hold everywhere: a start never ends a session it
+did not create, and nothing durable is undone while the helper is unaccounted
+for. A warm reattach that fails therefore leaves its thread **detached and
+reattachable**, using the same `retireDetachedIncarnation` rule `Detach` uses.
+Ownership is read from couch's own registry record, never from a `StartResult`
+a caller relays back, because that struct's zero value is the destructive
+branch.
+
 **Detached is a derived actionable state, not a persisted one.** `launcher`
 already classifies a live zellij session with zero clients as `SessionDetached`,
 and `pair resume` already reattaches onto one, so `ProjectDetachedSessions`

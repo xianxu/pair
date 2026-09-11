@@ -4509,3 +4509,35 @@ every comparison against its sibling values, and list each reader. Put the
 guard in one shared function that every reader calls, and give each reader its
 own failing test. If the list is long, the value probably wants its own type,
 so the compiler does the enumeration.
+
+## A claim that code "already does X" must be read off every branch of X (pair#230)
+
+**What happened.** Three plan-gate findings in three rounds were all the same
+mistake: a claim about existing behaviour written from the function I had read,
+not from the whole call graph. The costly one said `quiescePostAckStart`'s
+owning path was "today's tail, unchanged" — but `failTrackedPostAckStart` opens
+`if !resume { return c.failPostAckStart(...) }`, so a spawn and a cold resume
+already took different tails. A two-valued input would have merged them and
+broken spawn's tests. One in roughly fifteen such claims that round was wrong.
+
+**Rule.** When a plan says it preserves or restates existing behaviour, derive
+that from the branch table of every function it replaces: each `if`/`switch`
+arm with its file:line, and every condition the code branches on either becomes
+an input to the new rule or is named as deliberately dropped. An enum that
+turns out to need three values usually announces itself as a branch you did not
+list.
+
+## Relaying a struct back makes its zero value the default answer (pair#230)
+
+**What happened.** Cleanup needed to know whether a start had created its zellij
+session or borrowed one. The first design put a `Warm` flag on the `StartResult`
+the console relays back — so a caller that rebuilt or copied the record without
+that field would silently request the destructive branch. Worse, the mutation
+that dropped the guard SURVIVED, because every test relayed the record couch
+itself had built: the field was correct by accident and the guard was invisible.
+
+**Rule.** When a decision crosses a package boundary and back, read it from the
+state the deciding package owns, not from what the caller hands back — and
+check which way the zero value points. To prove such a guard, one test must
+relay the zeroed field on purpose; a test that round-trips the real object
+cannot fail.
