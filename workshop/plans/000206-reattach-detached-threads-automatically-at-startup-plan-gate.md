@@ -187,7 +187,24 @@ rounds:
           note: Task 7 Step 1 now says a background success does not set ProjectionPending, with the notice-line reason.
           round: 4
       blocked: false
-content_hash: bcc608b9601f96502a73f88a171126c0948e4367d331cb7bfca8a76c9d6374ad
+    - "n": 5
+      timestamp: "2026-09-11T16:42:24-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-5
+          disposition: addressed
+          note: Generated-sequence invariants landed as Task 6 Step 0; the remaining prose lists were rewritten whole for the placeholder UX, so compressing them now is sunk cost.
+          round: 5
+        - id: PQ-6
+          disposition: not-addressed
+          note: 'Task 12 now counts refreshes and #229 owns their cost, but the Extent names one 5 s query where a warm attempt runs DetachedSessions twice (resume.go:397, :495): worst case is about 20 s, not 15 s. Minor, one-line fix.'
+          round: 5
+        - id: PQ-10
+          disposition: addressed
+          note: Struct, expireAttached, Task 8 arity and the reader-list pointer are swept; Task 2 Step 4's residual is a done task corrected by the M1-review revision.
+          round: 5
+      blocked: false
+content_hash: b3a5e1e71a2e903aa334178935c4d4bd309d6d6c73255cdad5b45f2fa7c65229
 ---
 
 # Gate ledger — pair#206 (plan-quality)
@@ -268,8 +285,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-12 — addressed — Rule stated as overlay-in-lookup plus a source-parsing guard; feasible, since only the setters, clone, leave count, reconcile snapshot and LabelsFor read Inventory outside the two lookups.
 - PQ-13 — addressed — Task 7 Step 1 now says a background success does not set ProjectionPending, with the notice-line reason.
 
+## Round 5 — 2026-09-11T16:42:24-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-5 — addressed — Generated-sequence invariants landed as Task 6 Step 0; the remaining prose lists were rewritten whole for the placeholder UX, so compressing them now is sunk cost.
+- PQ-6 — not-addressed — Task 12 now counts refreshes and #229 owns their cost, but the Extent names one 5 s query where a warm attempt runs DetachedSessions twice (resume.go:397, :495): worst case is about 20 s, not 15 s. Minor, one-line fix.
+- PQ-10 — addressed — Struct, expireAttached, Task 8 arity and the reader-list pointer are swept; Task 2 Step 4's residual is a done task corrected by the M1-review revision.
+
 ## Open findings
 
-- **PQ-5** [Minor] `test-plan-enumerates-cases` Compress the prose test-case lists into per-function strategy lines, and add generated event-sequence invariant tests for ReattachPass
 - **PQ-6** [Minor] `envelope-omits-cost-source` Worst-case attempt bound and pass duration omit repeated 5 s zellij queries and the O(N squared) per-completion inventory refresh
-- **PQ-10** [Minor] `decision-restated-not-swept` Revisions changed the prose but not the code block, the task steps and the file lists that restate them

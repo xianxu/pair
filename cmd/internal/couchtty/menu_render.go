@@ -271,7 +271,7 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 		// A global frame: it names couch, not a thread.
 		return "threads › leave couch"
 	}
-	thread, ok := findMenuThread(state.Inventory, frame.Thread)
+	thread, ok := menuThread(state, frame.Thread)
 	if !ok {
 		return "threads"
 	}
@@ -297,13 +297,13 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 	case MenuFrameRoot:
 		return renderRootMenuFrame(state, frame, width, height, now, color256)
 	case MenuFrameActions:
-		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		thread, _ := menuThread(state, frame.Thread)
 		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height), nil
 	case MenuFrameConfirmation:
 		// The title argument is vestigial at every call site: RenderMenuView
 		// overwrites line 0 with the breadcrumb. What the operator reads is the
 		// ITEM, which is why the item names the action's cost.
-		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		thread, _ := menuThread(state, frame.Thread)
 		title := "park " + thread.Label() + "?"
 		if frame.Action == "archive" {
 			title = "archive " + thread.Label() + "?"
@@ -396,11 +396,11 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 // actor was drawn WITHIN those lines. The caller re-bases the extents, because
 // only the caller knows what it inserts above them.
 func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) ([]string, []ActorExtent) {
-	visible := visibleRootThreads(state.Inventory, frame)
+	visible := visibleMenuRows(state, frame)
 	// Labels are disambiguated against the WHOLE inventory, not the filtered
 	// view: a name that is unique only because the filter hid its twin would
 	// change as the operator types.
-	labels := couchcore.LabelsFor(state.Inventory,
+	labels := couchcore.LabelsFor(menuRows(state),
 		func(t couchcore.ActionableThreadSummary) couchcore.ThreadAddress { return t.Address },
 		func(t couchcore.ActionableThreadSummary) string { return t.Label() })
 	lines := []string{"threads", ""}

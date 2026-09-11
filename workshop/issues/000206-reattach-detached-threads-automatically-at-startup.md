@@ -504,3 +504,64 @@ reattach takes about 0.3-0.7 s, so ten threads fill in within seconds, and
 reordering them would buy little. Done-when's "a switch to a pending row
 behaves as specified" now means *it is not selectable*. The plan's Decisions,
 pass view, transitions and Tasks 6-12 are rewritten to match.
+
+### 2026-09-11 — M2 Tasks 5-7: warm-only, the pure pass, and its routing
+
+**Task 5 (`01de3aa7`).** A warm-only resume refuses a verified park before the
+binding is resolved, and a thread with no detached session before
+`CommitStartClaim` (`ResumeNotDetached`). `warm-only` is an Implicit arg the CLI
+refuses as unknown. It is pinned through the operation table as well as
+directly: a direct-call test survived the dispatcher dropping the argument.
+
+**Task 6: the pure pass** (`couchtty/menu_reattach.go`).
+- Four explicit phases: Idle, Armed, Running, and Done. Done is separate from
+  Idle so a second arm cannot re-seed.
+- It seeds from detached and resume-shaped unknown rows, most recent first.
+- It advances one attempt at a time, and holds while the operator has an
+  operation in flight (cell 10).
+- `finishReattach` resolves an attempt as attached, skipped or failed.
+- `passViewOf` is the only function that knows what the pass means for a row.
+- `pendingPlaceholders` drives the status bar.
+
+**Task 7: routed through `ReduceMenu`, with the view applied at the lookups.**
+- **The lookups.** Every inventory read goes through `menuRows`, `menuThread`
+  or `visibleMenuRows`. An attached thread is overlaid as live while the
+  inventory lags.
+- **Selection.** The cursor and auto-select skip pending rows, through one
+  predicate (`menuRowSelectable`), and a click on a pending row lands nowhere.
+- **Background results** are routed BEFORE the in-flight match, which would
+  otherwise drop them, because the pass never holds the operator's slot.
+- **Hold and retry.** A held pass resumes when the operator's slot clears.
+- **Cell 9.** Resuming a failed row by hand clears its mark.
+- **The guard.** A source-parsing test,
+  `TestMenuCodeReadsTheInventoryOnlyThroughTheViewedLookups`, fails any menu
+  code that reads the inventory around the view.
+
+**Tests:**
+- cell tests;
+- routing tests;
+- generated-sequence invariants: 60 seeds of 120 steps each, over inventory,
+  results, operator operations, cursor, Enter, Tab and click. After every step
+  they assert:
+  - no pending address is ever the selection;
+  - the operator never dispatches on a pending row;
+  - the pass never emits under an operator operation;
+  - the queue never grows;
+  - the pass's sets stay disjoint.
+
+**One test of mine was wrong, not the code.** The held-pass test started the
+operator's operation AFTER the pass attempt finished, by which point the pass
+had already advanced. Nothing was held for the cleared slot to release. It now
+starts the operation while the attempt is in flight, which is the only way a
+hold arises.
+
+**Mutations: 12 of 12 killed, each by a test that names it.**
+- One first attempt was a BUILD-ERR: `return true` left variables unused. The
+  harness correctly refused to count it, and it was re-run in a compiling
+  form.
+- The harness's whole-tree hash reported "not restored". A per-line check
+  proved every original line intact, so that was the hash, not a leak.
+
+**Suite:** unsandboxed `make test` exit 0, 197 packages. The one sandboxed
+failure, `TestNotificationPTYConformance`, is the sandbox blocking PTY tests; it
+passes unsandboxed.

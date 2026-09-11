@@ -362,9 +362,10 @@ authority that cannot go stale.
 **Extent.** One pass attempt in the queue at a time, on the queue's single
 worker under `WithCancel(c.lifetime)`. The pass spawns no goroutine; the
 status-row spinner is a timer on the Run loop, armed only while a thread is
-`Loading`. Worst-case wait for an operator operation behind one attempt:
-`StartBlocked`'s 10 s spawn bound plus zellij's 5 s query bound; the ordinary
-case is about 0.3 s in the probe, roughly 0.7 s on real detached sessions.
+`Loading`. How long an operator operation can wait behind one attempt is
+stated once, under "Operating envelope" below -- not restated here, because the
+last restatement of it drifted (it named one zellij query where a warm attempt
+makes two, PQ-6).
 
 **Nondeterminism** enters at the Run loop's `select`. The reducer is pure, so
 each order is reproduced by feeding events in that order; no test races to
@@ -374,6 +375,16 @@ reach a cell.
 
 - **Keystroke path unchanged.** The pass holds no lock across IO and never
   takes the in-flight slot: a pass attempt is never the operator's operation.
+- **Worst-case wait behind one reattach** -- the ONE statement of it; the
+  transitions section's Extent points here rather than restating it. An
+  operator operation queued behind a pass attempt waits for that attempt, and
+  the attempt's bounds add up: `StartBlocked`'s 10 s spawn bound, the
+  registration wait, and TWO `DetachedSessions` queries -- `ResumeContext`'s and
+  `confirmStillDetached`'s -- each bounded at zellij's 5 s query timeout. About
+  20 s. The ordinary case is about 0.3 s in the probe and roughly 0.7 s on real
+  detached sessions. Task 12 measures the real distribution rather than
+  asserting this. (Only switcher-dispatched operations queue; typing into the
+  operator's own thread, ctrl+return and ctrl+backspace never do.)
 - **Time to first frame (M1).** Before: `ResolveEstablished` per resume-shaped
   record plus C `list-clients`, plus the cwd resume. After: the cwd candidate
   and any layout-conflicting candidate only. M1 closed on the counted invariant
@@ -783,3 +794,26 @@ flagged stale bodies three times):
 **Estimate unchanged at 3.13.** Removing adoption shrinks Task 7; placeholders
 and the tick grow Tasks 8-9. The two are about even, and re-costing a settled
 estimate to match a design change would be back-fitting.
+
+### 2026-09-11 — estimate calibration evidence at M2's start
+
+**Reason.** The estimate-quality judge (INFO, no refusal) asked that M1's
+measured actual be recorded against its items, and the M2-forward remainder
+stated. That is calibration evidence, not re-costing, so `estimate_hours`
+stays 3.13.
+
+**The numbers, and why they do not compare directly.**
+- **M1's items** summed to about 1.04 h: design 0.24 x 1.15 plus impl 0.76.
+- **M1 closed at a measured 5.06 h.** That is #206's whole share since the
+  2026-09-10 claim, so it carries all of the issue's up-front design: the
+  measure-first probe, the durable plan, and five plan-gate rounds that
+  covered BOTH milestones. The estimate's items were implementation. Most of
+  the gap is design the items did not cost, not M1 running five times over.
+- **M2's items** are the remaining 2.09 h. The judge expects two of them to
+  run over:
+  - Task 8, the console wiring, slotted at 0.43 h: expect 0.8-1.2 h. It is the
+    wiring shape that produced #230's four review rounds.
+  - Task 12, the close-out, slotted at 0.11 h: expect 0.4-0.6 h.
+
+  So M2 will likely land about 1 h over its items, and that should be visible
+  in the ledger at close rather than a surprise.
