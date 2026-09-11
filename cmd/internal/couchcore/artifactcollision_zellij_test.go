@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -28,6 +29,12 @@ func sandboxedChecker(t *testing.T, dataDir string, sessions map[string]string) 
 	t.Helper()
 	path, log := pairlifecycletest.StubZellij(t, sessions)
 	t.Setenv("PATH", filepath.Dir(path)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	// The guard for the guard: with correct code no tested route execs a bare
+	// `zellij`, so dropping the shim would change nothing observable -- until a
+	// later route did, and reached the host silently. Assert it is in force.
+	if got, err := exec.LookPath("zellij"); err != nil || got != path {
+		t.Fatalf("zellij resolves to %q (%v), want the stub %q -- the PATH shim is not in force", got, err, path)
+	}
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", t.TempDir())
 
