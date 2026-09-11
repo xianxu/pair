@@ -89,8 +89,8 @@ sessions beside the full one. It must keep one parser and one call pattern
 ## Plan
 
 - [ ] Baseline: done (#206 Log, 2026-09-10).
-- [ ] Establish what each of sites 1–4 reads from its snapshot; record it.
-- [ ] Design the narrowing (durable plan if it crosses packages).
+- [x] Establish what each of sites 1–4 reads from its snapshot; record it.
+- [x] Design the narrowing: `workshop/plans/000228-a-reattach-asks-every-pair-session-for-its-clients-plan.md`.
 - [ ] Implement with the count-based tests.
 - [ ] Re-measure with the probe; record before/after with co-tenancy.
 
@@ -101,3 +101,30 @@ sessions beside the full one. It must keep one parser and one call pattern
 Split out of `#206` at the operator's direction, after #206's Plan step 1
 measurement showed the reattach cost is couch's and pair's proof snapshots, not
 `zellij attach`. `#206` depends on this and is blocked on it.
+
+Claimed. What each snapshot site reads, from the code, which is Plan step 2:
+
+- **Sites 1–2.** `DetachedSessions` resolves the candidates' session names
+  from the index *before* it snapshots (`artifactcollision.go`), and
+  `ProjectDetachedSessions` reads state only for binding names. So asking only
+  those names gives the same answer.
+- **Site 3.** `liveTagsForSweep` never reads `Session.State`; names are enough.
+- **Site 4.** `DecideLaunch`'s forced-tag branch reads only
+  `sessionBlocksReuse`, which is attached-or-detached, meaning not exited.
+  `hasDetached` and `pick.go` read attach state, and they are reached only by
+  bare `pair`, never by `pair resume <tag>`. Every other state read in the
+  launcher is exited-versus-not (`legacy_live.go`, `session_index.go`), apart
+  from `list.go`, which is the separate `pair list`.
+- **The zellij CLI has no cheaper client probe:** `list-sessions` in 0.45.1
+  carries no client information.
+
+The design is in the durable plan:
+- one filtered snapshot routine, with `SnapshotSessionsContext` and
+  `LivenessContext`;
+- a new `SessionLive` state;
+- `decisionNeedsAttachState`, owned by `DecideLaunch`;
+- the checker gains a `Zellij` field;
+- counted invariants at the `ZellijSource.Path` stub seam.
+
+After the change, a reattach makes `list-clients` twice, independent of the
+session count.
