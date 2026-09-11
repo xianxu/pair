@@ -1,6 +1,9 @@
 package launcher
 
-import "strconv"
+import (
+	"fmt"
+	"strconv"
+)
 
 // LaunchAction is the guarded prototype's next launcher action.
 type LaunchAction string
@@ -24,25 +27,69 @@ type LaunchDecision struct {
 	SourceAgent  string
 }
 
+// launchShape is which family of branch DecideLaunch takes for an args shape.
+// It is the ONE switch both DecideLaunch and runOnce read (pair#228): runOnce
+// takes a liveness snapshot -- no list-clients -- exactly when the shape's
+// branch reads nothing but liveness, and only shapeBare reads attach state
+// (hasDetached, then the picker). Two conditions that merely agree would drift;
+// DecideLaunch's branches are this switch's arms.
+type launchShape uint8
+
+const (
+	shapeBare launchShape = iota
+	shapeSelected
+	shapeForced
+	shapeExplicitArgs
+)
+
+// launchShapeOf tests in the order DecideLaunch always has. The explicit-args
+// arm keys on AgentArgsExplicit, NOT AgentExplicit: `pair -- x` defaults the
+// agent but types the args, and must create rather than pick.
+func launchShapeOf(args LaunchArgs) launchShape {
+	switch {
+	case args.SelectedTag != "":
+		return shapeSelected
+	case args.ForcedTag != "":
+		return shapeForced
+	case args.Agent != "" && args.AgentArgsExplicit:
+		return shapeExplicitArgs
+	default:
+		return shapeBare
+	}
+}
+
+// decisionNeedsAttachState reports whether DecideLaunch's branch for args
+// distinguishes attached from detached sessions -- the only reason to pay for
+// a full snapshot's list-clients calls.
+func decisionNeedsAttachState(args LaunchArgs) bool { return launchShapeOf(args) == shapeBare }
+
 // DecideLaunch decides the launch action without touching zellij, fzf, or disk.
 func DecideLaunch(args LaunchArgs, snap SessionSnapshot) (LaunchDecision, error) {
-	if args.SelectedTag != "" {
+	switch launchShapeOf(args) {
+	case shapeSelected:
 		return createDecision(args.SelectedTag, sessionNameForTag(snap, args.SelectedTag), false), nil
-	}
-	if args.ForcedTag != "" {
+	case shapeForced:
 		name := sessionNameForTag(snap, args.ForcedTag)
 		if sessionBlocksReuse(snap, name) {
 			return LaunchDecision{Action: ActionAttach, Tag: args.ForcedTag, SessionName: name}, nil
 		}
 		return createDecision(args.ForcedTag, name, false), nil
-	}
-	if args.Agent != "" && args.AgentArgsExplicit {
+	case shapeExplicitArgs:
 		tag := snap.BaseTag
 		if tag == "" {
 			tag = "pair"
 		}
 		tag = nextFreeTag(tag, snap)
 		return createDecision(tag, sessionNameForTag(snap, tag), true), nil
+	}
+	// shapeBare: the only branch that reads attach state. A snapshot that never
+	// asked (SessionLive) cannot answer hasDetached -- it would read "not
+	// detached", skip the picker, and mint a new session -- so refuse loudly.
+	// runOnce takes a full snapshot for this shape, so this fires only on drift.
+	for _, sess := range snap.Sessions {
+		if sess.State == SessionLive {
+			return LaunchDecision{}, fmt.Errorf("launch decision needs attach state, but session %q was observed for liveness only", sess.Name)
+		}
 	}
 	if hasDetached(snap) || len(snap.Historical) > 0 {
 		return LaunchDecision{Action: ActionPick}, nil
@@ -92,7 +139,9 @@ func sessionBlocksReuse(snap SessionSnapshot, name string) bool {
 		if sess.Name != name {
 			continue
 		}
-		return sess.State == SessionAttached || sess.State == SessionDetached
+		// SessionLive is "not exited, attach state not asked": it blocks reuse
+		// exactly as attached or detached do, which is all this reads.
+		return sess.State == SessionAttached || sess.State == SessionDetached || sess.State == SessionLive
 	}
 	return false
 }
