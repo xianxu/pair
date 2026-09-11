@@ -1,10 +1,10 @@
 ---
 id: 000206
-status: blocked
+status: working
 deps: [000228]
 github_issue:
 created: 2026-09-06
-updated: 2026-09-10
+updated: 2026-09-11
 estimate_hours:
 started: 2026-09-10T20:16:19-07:00
 ---
@@ -269,3 +269,33 @@ sequential in the background. The measurement confirms it is safe for
 interactive latency (p95 21 ms during the pass). #228 makes it fast. The probe
 (`cmd/probes/reattachcost`) ships with #228, and #206's end-to-end re-measure
 uses it.
+
+### 2026-09-11 — unblocked: #228 is done (PR #123)
+
+**Reason.** #228 made one reattach's zellij cost independent of the host's
+session count. A warm reattach now asks exactly 2 sessions for their clients,
+whatever S is. `pair resume`'s launcher takes liveness snapshots only, and
+skips the name probe for a live name.
+
+**What it changes here.**
+- **Per reattach.** The probe measured 272–282 ms per thread, against
+  7.7–8.7 s before, under one co-tenancy (N=8, #228 Log). On real detached
+  sessions, whose `list-clients` takes about 250 ms, expect roughly 0.7 s.
+- **The background pass (strategy B)** for 10 detached threads becomes roughly
+  7 s, not about 80 s. A queue-jumped thread waits about one reattach, not
+  about 13 s.
+- **Startup's blocking inventory is now O(C), not O(S).**
+  `StartInteractive` (`couchcore/startup.go`) runs
+  `ActionableThreadInventoryContext` before the first frame. Since #228 that
+  asks only the detach candidates' sessions, but it still asks every
+  candidate. With 10 detached threads that is about 2.5 s before the cwd
+  thread attaches. The operator felt this as "the initial startup attach is
+  still slow" after #228.
+
+**For the plan.** Startup's blocking step should prove only what the first
+frame needs, the cwd thread, and hand every other candidate to the background
+pass. One constraint: the mixed-layout guard in `StartInteractive` reads these
+same rows, and its comment says they are startup's only session enumeration.
+Narrowing the blocking step has to say where that guard's rows come from.
+
+**Delta.** Status `working`. `deps: [000228]` stays, now satisfied.
