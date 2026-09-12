@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-12
 updated: 2026-09-12
-estimate_hours:
+estimate_hours: 0.79
 started: 2026-09-12T15:41:35-07:00
 ---
 
@@ -96,8 +96,9 @@ in this repo does).
 ## Done when
 
 - In the right pane, one ESC leaves insert mode in nvim.
-- ESC followed within a keystroke by `j`/`k` reaches nvim as two keys; the
-  Alt chords still fire when typed as chords.
+- ESC followed by `j`/`k` after the deadline reaches nvim as two keys; the
+  Alt chords still fire when typed as chords. (`ESC`,`j` typed inside the
+  deadline still decodes as a chord — that residual is #227's.)
 - `escapeAmbiguity` has one definition, used by all four framers.
 - The generated split tests pass; the two regressions above are explicit.
 
@@ -110,6 +111,28 @@ Durable plan: `workshop/plans/000234-right-pane-bare-esc-held-without-timer-plan
 - [ ] Arm/expire the timer in the main loop; flush `held` on expiry
 - [ ] Table-generated split tests + the two explicit regressions
 - [ ] Manual: nvim in the right pane — single ESC, ESC+j, Alt+j
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Design at ×0.2 (the plan pre-resolves the timer ownership, the constant's home, and the test oracle); impl at 40% of the v2 ranges; +15% buffer for a thorough plan doc.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module  design=0.03 impl=0.08
+item: smaller-go-module  design=0.06 impl=0.16
+item: smaller-go-module  design=0.04 impl=0.20
+item: atlas-docs         design=0.02 impl=0.04
+item: milestone-review   design=0.00 impl=0.14
+design-buffer: 0.15
+total: 0.79
+```
+
+- lift `EscapeAmbiguity` + re-point three sites (mirror of couch's arm) — 0.03 / 0.08
+- main-loop arm + expiry branch + timer-type rename — 0.06 / 0.16
+- generated split tests, two regressions, fake hook, deterministic split test — 0.04 / 0.20
+- atlas paragraph — 0.02 / 0.04
+- close review — 0.00 / 0.14
 
 ## Log
 
