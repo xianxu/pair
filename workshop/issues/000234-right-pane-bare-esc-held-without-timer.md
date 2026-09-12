@@ -1,11 +1,12 @@
 ---
 id: 000234
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-12
 updated: 2026-09-12
 estimate_hours:
+started: 2026-09-12T15:41:35-07:00
 ---
 
 # A bare ESC in the right pane is held until the next keystroke: pair term treats it as an unfinished Alt chord and has no ambiguity timer outside rename
