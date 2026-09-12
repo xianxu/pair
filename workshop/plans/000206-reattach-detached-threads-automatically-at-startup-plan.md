@@ -152,9 +152,8 @@ asked about queued threads: **all pending, none selectable.**
 | `ReattachPass` | `cmd/internal/couchtty/menu_reattach.go` | new |
 | `ReduceMenu` (pass branches) | `cmd/internal/couchtty/menu.go` | modified |
 | `MenuOperationOrigin.Background`, `MenuEffect.Background`, `MenuEvent.Background`, `MenuEvent.Diagnostic` | `cmd/internal/couchtty/menu.go` | modified |
-| `rootStateText` | `cmd/internal/couchtty/menu_render.go` | modified |
 | `StatusActor.Placeholder`, `RenderStatusRow` (no chip span for a placeholder) | `cmd/internal/couchtty/reserve.go` | modified |
-| `menuRowSelectable` (cursor and auto-select skip pending rows) | `cmd/internal/couchtty/menu.go` | new |
+| `menuRowSelectable` (cursor and auto-select skip pending rows) | `cmd/internal/couchtty/menu_reattach.go` | new |
 | `ResumeNotDetached` (diagnostic) | `cmd/internal/couchcore/resume.go` | new |
 
 - **`ProjectDetachedSessions`'s duplicate-name rule counts claims over the
@@ -230,7 +229,7 @@ asked about queued threads: **all pending, none selectable.**
 | status-row spinner tick | `couchtty/console.go` (Run loop) | new | a timer, repaint |
 | `finishMenuRefresh`, `finishOperation` (dispatch pass effects) | `couchtty/console_menu.go`, `console.go` | modified | menu effects |
 | `runConsole` arms the pass | `couchcmd/run.go` | modified | console lifecycle |
-| `COUCH_TRACE` timing trace | `couchtty/inputtrace.go` (extended), `couchcmd/run.go` | modified | append-only file |
+| `COUCH_TRACE` timing trace | `couchtty/trace.go`, `couchcmd/run.go` | new | append-only file |
 | reattachcost `sample` mode | `cmd/probes/reattachcost/main.go` | modified | zellij CLI |
 
 - **`warm-only`** is an `Implicit` `ArgSpec` on `resume`. What keeps it off
@@ -269,8 +268,9 @@ asked about queued threads: **all pending, none selectable.**
   `call.Context`.
 - **`COUCH_TRACE=<path>`** appends `<unix-ms>\t<event>\t<scope>/<tag>\t<detail>`
   for `startup`, `first-frame`, `pass-seeded`, `reattach-start`,
-  `reattach-done`. It reuses `inputtrace.go`'s file plumbing rather than
-  opening its own (`ARCH-DRY`).
+  `reattach-done`. It shares one file plumbing, `traceFile` in `trace.go`, with
+  the keystroke probe rather than opening its own (`ARCH-DRY`), and it also
+  writes `inventory`.
 - **The reattachcost `sample` mode** (`PAIR_PROBE_SAMPLE_SECS=N`) creates only
   the control session and samples `zellij action query-tab-names` for N
   seconds, printing p50/p95/max/n.
@@ -386,8 +386,8 @@ reach a cell.
   and any layout-conflicting candidate only. M1 closed on the counted invariant
   -- zellij candidates AND binding resolutions, which covers the ledger reads a
   zellij count alone would miss -- plus the operator's real-stack smoke (~1.5x).
-  A measured first frame waits for M2's `COUCH_TRACE`; see the M1 timing
-  Revision.
+  M2's `COUCH_TRACE` then measured it: the first frame painted 0.72 s after
+  launch on the operator's host (Task 12).
 - **The whole pass** is N sequential reattaches at #228's constant
   `list-clients` cost — roughly 7 s for 10 threads, off the critical path.
 
@@ -628,7 +628,7 @@ reach a cell.
 
 ### Task 11: the trace -- DONE
 
-**Files:** modify `couchtty/inputtrace.go`, `couchcmd/run.go`
+**Files:** create `couchtty/trace.go`; modify `couchtty/inputtrace.go`, `couchcmd/run.go`
 
 - [x] Extend the existing trace plumbing with `startup`, `first-frame`,
   `pass-seeded`, `reattach-start` and `reattach-done`; `couchcmd` reads
@@ -677,13 +677,15 @@ reach a cell.
   leaves the rest detached. **Done**, live on the real stack, including a quit
   mid-pass. It found the last reattached thread still spinning on the status
   bar, which is now fixed (`e8b96961`). The re-check: "seems working".
-- [ ] `sdlc milestone-close --issue 206 --milestone M2`, then `sdlc close
+- [x] `sdlc milestone-close --issue 206 --milestone M2`, then `sdlc close
   --issue 206`: M2 is a milestone, so it gets its own boundary review before
   the whole-issue one.
 
 ## Estimate
 
 Derived at `sdlc change-code`, after plan-quality.
+
+## Revisions
 
 ### 2026-09-11 — M1's timing evidence: operator smoke, not a pulled-forward trace
 
@@ -988,3 +990,31 @@ Three still cited cells by their numbers from before the table was renumbered
   - `tests/plan-superseded-facts-test.sh` fails if the declaration is pasted
     back.
 - Advisory: `advanceReattach`'s counter guard now says why it exists.
+
+### 2026-09-12 — the issue close's review (SHIP): the entity tables, a heading, and a liveness assumption
+
+**Reason.** The whole-issue review returned SHIP, disposed BR-9 to BR-12 as
+addressed, and raised three advisory Minors.
+
+**Delta.**
+- **Plan drift, the third finding in the family: the Core concepts tables
+  held claims nothing checks.**
+  - `rootStateText` was marked modified but never changed, so its row is gone.
+  - `menuRowSelectable` was placed in `menu.go`, but lives in
+    `menu_reattach.go`.
+  - The `COUCH_TRACE` row, its plumbing sentence and Task 11's file list named
+    `inputtrace.go`, where the plumbing is `trace.go`.
+  - The envelope still said the first frame "waits for M2's trace", though
+    Task 12 measured it.
+
+  The sites are fixed and their stale lines registered as dead tokens. The
+  rule-level fix, a checker that verifies each table row against the code,
+  is filed as #235, because it is tooling for every plan.
+- **Revisions convention.** The dated revision entries sat under
+  `## Estimate`. A `## Revisions` heading now leads them, and the
+  superseded-facts script's #206 block anchors on it like every other plan's.
+- **Every attempt must complete.** `runBackgroundOperation` ignored
+  Enqueue's `accepted` result. That result is false only for an exact key
+  already pending, which the shared counter makes impossible for a pass key.
+  The assumption is now stated at the call, as the reviewer offered, rather
+  than resting there silently.

@@ -4593,6 +4593,12 @@ goes stale the moment the code grows a case: #206's Core-concepts block listed
 three `ReattachPhase` constants after the code had four. Name the file and the
 type; do not paste the block.
 
+**Tables of entities at paths are claims too** (#206's issue close, the third
+finding in the family). Its Core concepts tables marked an unchanged function
+"modified", put a function in the wrong file, and named a file the plumbing
+had since left. Nothing checks such a row. Until #235's checker does,
+re-verify each row against the milestone's diff at every milestone close.
+
 ## A comment that states a reach is a claim a test must pin (pair#206)
 
 **What happened.** A doc comment said an unreadable index scope "contributes

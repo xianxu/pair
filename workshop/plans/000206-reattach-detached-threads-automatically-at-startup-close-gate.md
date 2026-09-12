@@ -174,6 +174,46 @@ rounds:
           round: 5
       boundary: M2
       blocked: false
+    - "n": 6
+      timestamp: "2026-09-12T13:21:29-07:00"
+      agent: claude
+      dispose:
+        - id: BR-9
+          disposition: not-addressed
+          note: Tasks 2-4 are ticked and sessionNameClaims is renamed, but Task 2 Step 1 (plan.md:442-445) still describes withOthers and a zellij-seam list-clients count; the test counts candidates and binding resolutions at the fake seam, and no Revisions line records that.
+          round: 6
+        - id: BR-10
+          disposition: addressed
+          note: All six sites point at startupAsks' comment or are gone (no "three readers" in any Go, atlas or plan body; lookupSessionName's comment deleted); the lesson is written. The one residual forward pointer (plan.md:389) is folded into the new plan-drift finding.
+          round: 6
+        - id: BR-11
+          disposition: addressed
+          note: The comment states the fail-closed reach and names TestDetachedSessionsBindsNothingForAnUnreadableScope; reverting the readable[scope] guard in a scratch copy turns that test red.
+          round: 6
+        - id: BR-12
+          disposition: addressed
+          note: lookupSessionName is deleted; PairSession calls effectiveBindings over its one read; claimsOf counts through claimsFromBindings.
+          round: 6
+      findings:
+        - id: BR-15
+          severity: Minor
+          title: The Core concepts tables misplace three entities and the envelope still waits for a measurement Task 12 delivered
+          detail: 'This is the 3rd finding in family plan-drift-from-code. rootStateText is marked modified (plan.md:155) but is identical at base and head; menuRowSelectable is placed in menu.go (plan.md:157) but lives in menu_reattach.go:357; the COUCH_TRACE row (plan.md:233) and Task 11''s file list (plan.md:631) name inputtrace.go where the plumbing is trace.go; plan.md:389 says the first frame waits for M2''s trace after Task 12 measured 0.72 s. Do not fix the sites alone. The rule: a table of entities at paths is a set of claims nothing checks; extend tests/plan-superseded-facts-test.sh to parse the Core concepts rows and assert each name is declared in its stated file and each modified row''s file is in the window''s name-status. Prevalence: 5 sites, all in the plan.'
+          family: plan-drift-from-code
+          round: 6
+        - id: BR-16
+          severity: Minor
+          title: The plan's dated revision entries live under the Estimate heading, not a Revisions section
+          detail: 'plan.md:684 is a one-line Estimate stub followed by every revision entry; the constitution asks for a Revisions section, and tests/plan-superseded-facts-test.sh:222-224 already special-cases #206 by anchoring on Estimate. Insert the heading before the first dated entry and re-anchor the script.'
+          family: plan-revisions-section-convention
+          round: 6
+        - id: BR-17
+          severity: Minor
+          title: runBackgroundOperation discards Enqueue's accepted result, so a refused duplicate key would strand the pass on Loading
+          detail: console_reattach.go:51 handles only the error return; a (false, nil) return produces no completion and finishReattach never runs. Unreachable today because attempt keys come from a monotonic counter, but the pass's liveness silently rests on that. Treat !accepted like the error path, or state the assumption at the call.
+          family: attempt-always-completes
+          round: 6
+      blocked: false
 ---
 
 # Gate ledger — pair#206 (boundary-review)
@@ -255,9 +295,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-13 — addressed — README.md:331-339 describes the pass; each claim (ordering, one-at-a-time, placeholder/switcher text, non-selectable rows, failure mark, start-only arm, parked never resumed, quit leaves the rest detached) traces to a code site.
 - BR-14 — addressed — Block replaced by a pointer to menu_reattach.go; lesson extended to declarations; pasting either stale token back into the plan body fails tests/plan-superseded-facts-test.sh (verified in a scratch copy).
 
+## Round 6 — 2026-09-12T13:21:29-07:00 (claude) — passed
+
+### Disposed
+
+- BR-9 — not-addressed — Tasks 2-4 are ticked and sessionNameClaims is renamed, but Task 2 Step 1 (plan.md:442-445) still describes withOthers and a zellij-seam list-clients count; the test counts candidates and binding resolutions at the fake seam, and no Revisions line records that.
+- BR-10 — addressed — All six sites point at startupAsks' comment or are gone (no "three readers" in any Go, atlas or plan body; lookupSessionName's comment deleted); the lesson is written. The one residual forward pointer (plan.md:389) is folded into the new plan-drift finding.
+- BR-11 — addressed — The comment states the fail-closed reach and names TestDetachedSessionsBindsNothingForAnUnreadableScope; reverting the readable[scope] guard in a scratch copy turns that test red.
+- BR-12 — addressed — lookupSessionName is deleted; PairSession calls effectiveBindings over its one read; claimsOf counts through claimsFromBindings.
+
+### Raised
+
+- **BR-15** [Minor] `plan-drift-from-code` The Core concepts tables misplace three entities and the envelope still waits for a measurement Task 12 delivered
+  This is the 3rd finding in family plan-drift-from-code. rootStateText is marked modified (plan.md:155) but is identical at base and head; menuRowSelectable is placed in menu.go (plan.md:157) but lives in menu_reattach.go:357; the COUCH_TRACE row (plan.md:233) and Task 11's file list (plan.md:631) name inputtrace.go where the plumbing is trace.go; plan.md:389 says the first frame waits for M2's trace after Task 12 measured 0.72 s. Do not fix the sites alone. The rule: a table of entities at paths is a set of claims nothing checks; extend tests/plan-superseded-facts-test.sh to parse the Core concepts rows and assert each name is declared in its stated file and each modified row's file is in the window's name-status. Prevalence: 5 sites, all in the plan.
+- **BR-16** [Minor] `plan-revisions-section-convention` The plan's dated revision entries live under the Estimate heading, not a Revisions section
+  plan.md:684 is a one-line Estimate stub followed by every revision entry; the constitution asks for a Revisions section, and tests/plan-superseded-facts-test.sh:222-224 already special-cases #206 by anchoring on Estimate. Insert the heading before the first dated entry and re-anchor the script.
+- **BR-17** [Minor] `attempt-always-completes` runBackgroundOperation discards Enqueue's accepted result, so a refused duplicate key would strand the pass on Loading
+  console_reattach.go:51 handles only the error return; a (false, nil) return produces no completion and finishReattach never runs. Unreachable today because attempt keys come from a monotonic counter, but the pass's liveness silently rests on that. Treat !accepted like the error path, or state the assumption at the call.
+
 ## Open findings
 
 - **BR-9** [Minor] `plan-drift-from-code` Durable plan lags the code: Tasks 2-3 unticked, prose names sessionNameClaims, Task 2 Step 1 describes a zellij-seam count the test takes at the fake seam
-- **BR-10** [Minor] `decision-restated-not-swept` Round-2 decisions left six restatements unswept: the reader count, the M1 close criterion, and lookupSessionName's orphaned doc comment
-- **BR-11** [Minor] `documented-rule-reach` DetachedSessions' comment says a scope whose index cannot be read contributes no bindings; after the union its legacy-bound threads are bound and counted from other reads
-- **BR-12** [Minor] `dry-duplicate-derivation` lookupSessionName and effectiveBindings are two derivations of a thread's newest binding in one read; PairSession uses one, DetachedSessions the other
+- **BR-15** [Minor] `plan-drift-from-code` The Core concepts tables misplace three entities and the envelope still waits for a measurement Task 12 delivered
+- **BR-16** [Minor] `plan-revisions-section-convention` The plan's dated revision entries live under the Estimate heading, not a Revisions section
+- **BR-17** [Minor] `attempt-always-completes` runBackgroundOperation discards Enqueue's accepted result, so a refused duplicate key would strand the pass on Loading

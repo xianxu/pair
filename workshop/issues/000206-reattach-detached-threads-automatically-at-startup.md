@@ -1,12 +1,13 @@
 ---
 id: 000206
-status: working
+status: codecomplete
 deps: [000228]
 github_issue:
 created: 2026-09-06
-updated: 2026-09-11
+updated: 2026-09-12
 estimate_hours: 3.13
 started: 2026-09-10T20:16:19-07:00
+actual_hours: 8.96
 ---
 
 # reattach detached threads automatically at startup
@@ -202,6 +203,8 @@ than one.
 
 
 
+
+- 2026-09-12: closed — pair#206, both milestones. M1: startup proves only the threads its readers consume (startupAsks), and the duplicate-name rule counts each thread once over the union of index files; 13 of 13 mutations; operator smoke about 1.5x faster startup. M2: every other detached thread reattaches in the background after the cwd thread, one at a time, through warm-only resume that can only reattach; greyed placeholders that cannot be clicked or selected; failures marked with their reason; start-only arming; never takes focus; COUCH_TRACE. M2 sweep 38 of 38 killed; boundary review converged to SHIP in round 5. Unsandboxed make test exit 0 across 197 packages. Operator smoke live, including a quit mid-pass, which found and fixed a stale final placeholder. Measured from the operator traced restart: first frame 0.72 s, a 5-thread pass in 2.34 s, zellij action at most 35 ms during startup against a quiet max of 36 ms.; review verdict: SHIP
 - 2026-09-12: closed M2 — M2 background reattach pass: warm-only resume, the pure pass in MenuState, the pass view at every row lookup, console wiring that never takes focus, greyed unclickable placeholders, start-only arming, COUCH_TRACE. Tests: cells 1-13 plus generated-sequence routing invariants; M2 mutation sweep 38 of 38 killed; Task 11 sweep 23 of 23; unsandboxed make test exit 0 across 197 packages. Operator smoke live on the real stack, including a quit mid-pass; it found the last placeholder still spinning, fixed with a test red before and green after. Measured from the operator traced restart: first frame 0.72 s, a 5-thread pass in 2.34 s (median attempt 302 ms), zellij action at most 35 ms during startup against a quiet max of 36 ms. Round 4 fixes in 4d331487: BR-13 README paragraph on the pass; BR-14 plan points at menu_reattach.go instead of restating it, lesson extended, re-paste guarded. Actual 3.80 h = measured 8.86 h cumulative minus the measured 5.06 h M1 closed at.; review verdict: SHIP
 - 2026-09-11: closed M1 — startupAsks resolves only the union its readers consume; gates ResolveEstablished and the zellij query. Counted at the seam: 3 detach candidates, 1 binding resolution at 2 and 12 other threads. Equivalence test now covers all 7 plan rows and all 4 readers (conflicts compared by address; layout3 for a valid conflict, layout1 for unreadable); a count test kills the dropped-scope-arm mutation the equivalence test structurally cannot. Duplicate-name rule counts each thread once at its effective binding over the union of index files read, pinned by a two-scope legacy seam test. Mutations 13/13 killed as named. Unsandboxed make test exit 0, 197 packages. OPERATOR SMOKE: startup ~1.5x faster on the real stack. Actual 5.06h = measured #206 share since claim, incl. measure-first probe and 4 plan-gate rounds.; review verdict: SHIP
 ### 2026-09-06
@@ -846,3 +849,25 @@ and every named test went red. It passed every ARCH principle. It raised:
 - **Advisory, noted:** this branch also carries docs-only commits from a
   parallel session. They are the #232, #233 and #234 issue files, and the
   `couch-slots` project file (`1cc55d99`). They ride the PR unchanged.
+
+### 2026-09-12 — the issue close: SHIP
+
+The whole-issue review returned SHIP. It disposed the four older Minors, BR-9
+to BR-12, as addressed, having checked each against the code. It raised three
+advisory Minors, handled in the close commit:
+- **The Core concepts tables held claims nothing checks**, the third finding
+  in the plan-drift family. An unchanged function was marked modified, a
+  function was placed in the wrong file, `inputtrace.go` was named where the
+  plumbing is `trace.go`, and one line was still waiting for a measurement
+  Task 12 made. The sites are fixed and guarded by dead tokens. The
+  rule-level checker is filed as #235.
+- **The plan's revisions sat under `## Estimate`.** They now have a
+  `## Revisions` heading, and the superseded-facts script no longer
+  special-cases #206.
+- **`runBackgroundOperation` ignored Enqueue's `accepted` result.** A refused
+  duplicate would strand the pass on Loading. That is unreachable while
+  attempt keys come from the shared counter, and the assumption is now
+  stated at the call.
+
+Creating #235 synced only that issue to main. On main, #206 still reads
+`working`, so its done-flip reaches main through the PR.

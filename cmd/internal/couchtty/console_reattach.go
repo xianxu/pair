@@ -48,6 +48,13 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 	}
 	requestArgs := cloneOperationArgs(effect.Args)
 	key := fmt.Sprintf("reattach\x00%d", effect.Attempt)
+	// Every attempt must complete, or the pass waits on Loading forever.
+	// Enqueue refuses an exact request that is already pending, returning
+	// accepted=false with no error, and then nothing completes this attempt.
+	// That cannot happen here, because the shared counter never repeats an
+	// attempt number, so a pass key is never pending twice. If keys ever stop
+	// being unique, finish a refused attempt here, as the error path below
+	// does (#206 close review).
 	_, err := c.operationQueue.Enqueue(operationRequest{key: key, name: effect.Operation, origin: origin, run: func() (any, error) {
 		operationContext, cancelOperation := context.WithCancel(c.lifetime)
 		defer cancelOperation()
