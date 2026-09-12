@@ -583,7 +583,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 2, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
+	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -1206,7 +1206,7 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
 
 	provider := console.ActionableProvider()
 	if provider == nil {
@@ -1342,7 +1342,7 @@ func TestConsoleGetsAnActionDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
 
 	ops := console.Ops()
 	if ops == nil {
@@ -1425,7 +1425,7 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 		t.Fatal("test setup has no registered actor")
 	}
 
-	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{})
+	runConsole(console, c, couchcore.StartResult{Record: rec, Handle: h}, &bytes.Buffer{}, false)
 
 	if got := rt.registryRecords(t); len(got) != 0 {
 		t.Fatalf("registry after terminal child exit = %+v, want empty", got)
@@ -1610,5 +1610,56 @@ func TestWarmOnlyIsUnreachableFromTheCommandLine(t *testing.T) {
 	_, err := bindArgs(resume, []string{"some-tag", "--warm-only"})
 	if err == nil || !strings.Contains(err.Error(), "unknown flag --warm-only") {
 		t.Fatalf("bindArgs(--warm-only) = %v, want the unknown-flag refusal", err)
+	}
+}
+
+// pair#206 decision 9: a start arms the background reattach pass; a resume of
+// one named thread does not.
+func TestOnlyAStartArmsTheReattachPass(t *testing.T) {
+	for operation, want := range map[string]bool{"start": true, "resume": false, "show": false} {
+		if got := armsReattachPass(operation); got != want {
+			t.Errorf("armsReattachPass(%q) = %v, want %v", operation, got, want)
+		}
+	}
+}
+
+// beginConsole is where the ordering lives: the startup child attaches, THEN
+// the pass is armed, and a failed attach never arms. It is tested with a fake
+// dispatcher, the way TestInitialConsoleAttachDispatchesDeclaredOperation tests
+// the attach itself.
+//
+// An earlier version drove runConsole with a child that had already exited, so
+// Run would return at once. But the initial attach refuses an exited child, so
+// runConsole returned before arming anything: the "arms" test failed, and the
+// "never arms on a failed attach" test passed for the wrong reason, since the
+// exited child failed the attach rather than the mismatch it meant to test.
+func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
+	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	start := couchcore.StartResult{Record: couchcore.ActorRecord{Thread: address}}
+	for _, tt := range []struct {
+		name      string
+		attachErr error
+		armPass   bool
+		wantArmed bool
+	}{
+		{"a start whose attach succeeds is armed", nil, true, true},
+		{"a failed attach never arms", errors.New("attach refused"), true, false},
+		{"a console that is not a start is not armed", nil, false, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil)
+			if console == nil {
+				t.Fatal("no console")
+			}
+			console.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) {
+				return address, tt.attachErr
+			})
+			if err := beginConsole(console, start, tt.armPass); (err != nil) != (tt.attachErr != nil) {
+				t.Fatalf("beginConsole err = %v, want the attach's error %v", err, tt.attachErr)
+			}
+			if got := console.ReattachPassArmed(); got != tt.wantArmed {
+				t.Fatalf("armed = %v, want %v", got, tt.wantArmed)
+			}
+		})
 	}
 }

@@ -507,11 +507,11 @@ reach a cell.
   flag. Pinned directly AND through the operation table -- a direct-call test
   survived the dispatcher dropping the argument. 5 of 5 mutations killed.
 
-### Task 6: the pure pass
+### Task 6: the pure pass -- DONE
 
 **Files:** create `couchtty/menu_reattach.go`, `menu_reattach_test.go`
 
-- [ ] **Step 0: the invariants, as properties over generated event
+- [x] **Step 0: the invariants, as properties over generated event
   sequences.** Drive a few thousand random sequences of {inventory ok,
   inventory error, completion success/refusal/failure, operator resume of a
   failed row, operator op start/finish, cursor up/down, filter keystroke,
@@ -522,46 +522,46 @@ reach a cell.
   - no effect emitted while `InFlight.Operation != ""`;
   - **no pending address is ever the selection, and no Enter, click or Tab
     ever dispatches for one.**
-- [ ] **Step 1: red.** `TestReattachPassTransitions`, one row per cell 1-13.
+- [x] **Step 1: red.** `TestReattachPassTransitions`, one row per cell 1-13.
   Named extras: `TestReattachPassNeverExtendsItsQueue` (cell 4, including an
   inventory whose rows all read `session-gone`), `TestReattachPassExcludesTheRoot`,
   `TestReattachPassOrdersMostRecentFirst`,
   `TestReattachPassHoldsWhileAnOperatorOperationIsInFlight` (cell 10).
-- [ ] **Step 2:** implement `seedReattach`, `advanceReattach` (holds on cell
+- [x] **Step 2:** implement `seedReattach`, `advanceReattach` (holds on cell
   10), `finishReattach`, `expireAttached`, `passViewOf`, and
   `pendingPlaceholders` (Loading then Queue, in pass order, for the status
   bar). All take and return `MenuState` by value; add the deep copies to
   `cloneMenuState`.
 
-### Task 7: route the pass through `ReduceMenu`
+### Task 7: route the pass through `ReduceMenu` -- DONE
 
 **Files:** modify `couchtty/menu.go`
 
-- [ ] **Step 1: red.** Pure tests: the cursor skips a pending row in both
+- [x] **Step 1: red.** Pure tests: the cursor skips a pending row in both
   directions; a filter that leaves only pending rows selects nothing, and Enter
   then reports "no selection"; Enter on a failed row dispatches an ordinary
   resume and clears the mark; a background result advances the pass and leaves
   `InFlight` and the notice alone. **A background success does NOT set
   `ProjectionPending`:** no row reader consults it, so it would only put
   "refresh pending" on the notice line for the whole pass.
-- [ ] **Step 2:** `MenuEventInventory` seeds (Armed) or expires `Attached`
+- [x] **Step 2:** `MenuEventInventory` seeds (Armed) or expires `Attached`
   (Running), then advances, returning the effects. `MenuEventOperationResult`
   with `event.Background` goes to `finishReattach` and never into
   `reduceOperationResult` -- a pass attempt never held the operator's slot.
-- [ ] **Step 3: apply `passViewOf` inside the row lookups** --
+- [x] **Step 3: apply `passViewOf` inside the row lookups** --
   `findMenuThread`, `selectedMenuThread`, `visibleRootThreads` -- and add
   `menuRowSelectable`, consulted by `moveRootSelection` and
   `reconcileRootSelection`. Then the guard: a test parsing `couchtty`'s
   non-test sources that fails on any read of `state.Inventory` outside those
   lookups.
-- [ ] **Step 4:** add `MenuEventReattachArm`, `MenuEvent.Background`,
+- [x] **Step 4:** add `MenuEventReattachArm`, `MenuEvent.Background`,
   `MenuEvent.Diagnostic`.
 
-### Task 8: console wiring
+### Task 8: console wiring -- DONE
 
 **Files:** create `couchtty/console_reattach.go`; modify `console.go`, `console_menu.go`; test `console_reattach_test.go`
 
-- [ ] **Step 1: red.** Fixture tests:
+- [x] **Step 1: red.** Fixture tests:
   1. the first inventory produces exactly one queued resume with
      `warm-only=true`; completing it attaches a pane and queues the next;
   2. **a background attach never takes focus** -- drive `onExit` of the last
@@ -579,28 +579,28 @@ reach a cell.
   7. `Stop` mid-attempt cancels it (via `SetOperationDispatcher`) and runs no
      further attempt;
   8. an unarmed console emits no background effect and draws no placeholder.
-- [ ] **Step 2:** `ArmReattachPass`; `finishMenuRefresh` and `finishOperation`
+- [x] **Step 2:** `ArmReattachPass`; `finishMenuRefresh` and `finishOperation`
   dispatch the effects `ReduceMenu` returns (both discard them today, and
   neither event kind produced any before, so nothing else starts dispatching).
-- [ ] **Step 3:** `runMenuOperation`'s background branch goes **first**,
+- [x] **Step 3:** `runMenuOperation`'s background branch goes **first**,
   before the attention-capture block and the no-dispatcher path, both of which
   address the operator's in-flight slot. Key: `reattach\x00<attempt>`.
-- [ ] **Step 4:** declare the `background` implicit arg on `attach` in
+- [x] **Step 4:** declare the `background` implicit arg on `attach` in
   `ops.go` (bump the expected attach arity from 2 to 3 in `couchcmd`'s
   `TestOperationArityMatchesExpectation`). `ExecuteConsoleOperation` reads it;
   `installObservedThreadActor` takes `background` and skips focus and tracker
   seeding. `finishOperation`'s focus steal becomes
   `origin.Operation == "resume" && err == nil && startedHandleID != "" && !origin.Background`.
-- [ ] **Step 5:** `paintNow` appends `pendingPlaceholders` after the attached
+- [x] **Step 5:** `paintNow` appends `pendingPlaceholders` after the attached
   chips; the status-row spinner timer joins the Run loop's `select`.
-- [ ] **Step 6:** `TestAReattachedChildKeepsItsTrackingMode` and the whole
+- [x] **Step 6:** `TestAReattachedChildKeepsItsTrackingMode` and the whole
   `./cmd/internal/couchtty/` suite still pass.
 
-### Task 9: rendering
+### Task 9: rendering -- DONE
 
 **Files:** modify `couchtty/menu_render.go`, `reserve.go`; tests `menu_render_test.go`, `reserve_test.go`
 
-- [ ] **Step 1: red.**
+- [x] **Step 1: red.**
   - Switcher: queued renders `queued` greyed; loading renders
     `reattaching...` greyed with the current spinner frame; failed renders
     `reattach failed: <code>`; attached-but-not-yet-in-inventory renders
@@ -608,16 +608,19 @@ reach a cell.
   - Status bar: a placeholder renders its label greyed, the loading one with
     the spinner frame; **no placeholder contributes a `ChipSpan`**; attached
     chips keep exactly the columns they had without placeholders present.
-- [ ] **Step 2:** implement, reading the pass **before** the inventory state
+- [x] **Step 2:** implement, reading the pass **before** the inventory state
   for rows the pass owns. Keep the vocabulary guard green.
 
-### Task 10: `couchcmd` arms the pass
+### Task 10: `couchcmd` arms the pass -- DONE
 
 **Files:** modify `couchcmd/run.go`; test `run_test.go`
 
-- [ ] `runConsole` arms with `start.Record.Thread` after
+- [x] `runConsole` arms with `start.Record.Thread` after
   `dispatchInitialAttach` succeeds, never when it fails, and never for
   `couch resume <tag>` (decision 9).
+  Done in `beginConsole`, which is split out of `runConsole` so the ordering
+  can be tested with a fake dispatcher. With a real child the ordering is
+  untestable: an exited child fails the attach first. 4 of 4 mutations killed.
 
 ### Task 11: the trace
 
@@ -817,3 +820,31 @@ stays 3.13.
 
   So M2 will likely land about 1 h over its items, and that should be visible
   in the ledger at close rather than a surprise.
+
+### 2026-09-11 — Tasks 8-9 as built: two decisions and one extraction
+
+**Reason.** Implementation settled three things the plan left open or got
+wrong.
+
+- **A successful leave ends the pass.** The leave's result clears the
+  operator's slot, and the pass would then advance: it enqueues one more
+  reattach only for `Stop` to cancel it, which is the outcome cell 10 exists to
+  prevent. The rule is in the pure reducer (`ReattachDone` on a successful
+  leave), pinned by `TestASuccessfulLeaveEndsThePass`. The transitions table
+  gains it implicitly under cell 13's "Stop".
+- **The switcher's "reattaching..." row carries no spinner.** The switcher's
+  spinner advances only while a progress notice shows, and the pass shows
+  none, so a glyph would sit frozen. The ellipsis says "in progress"; the live
+  animation is on the status bar, where the operator is while the pass runs.
+  Both surfaces share one spinner table (`spinnerGlyph`) and one grey
+  (`placeholderSGR`).
+- **`statusModelLocked` is split out of `paintNow`.** The model is where a
+  placeholder either appears or silently does not. Without the split, nothing
+  checked that `paintNow` adds them from the pass: the placeholder test handed
+  `RenderStatusRow` a model built by hand.
+
+**One equivalent mutant.** Moving the pass's queue key from `reattach\x00<n>`
+into the operator's namespace survives. The pass and the operator draw attempt
+numbers from one counter, so keys cannot collide whatever the prefix. The
+comment on `runBackgroundOperation` that claimed the prefix "can never
+collide" was corrected to say where uniqueness actually comes from.

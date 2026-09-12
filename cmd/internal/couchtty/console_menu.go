@@ -117,15 +117,19 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	if c.refreshSchedule.Running != result.generation {
 		return
 	}
+	var effects []MenuEffect
 	c.mu.Lock()
 	if c.menuReady {
 		event := MenuEvent{Kind: MenuEventInventory, Inventory: result.inventory, Generation: result.generation}
 		if result.err != nil {
 			event.Error = result.err.Error()
 		}
-		c.menu, _ = ReduceMenu(c.menu, event)
+		c.menu, effects = ReduceMenu(c.menu, event)
 	}
 	c.mu.Unlock()
+	// An inventory can seed the reattach pass and start its first attempt
+	// (pair#206). Nothing else this event produces is an effect.
+	c.dispatchMenuEffects(effects)
 	c.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshFinished, Generation: result.generation})
 	c.mu.Lock()
 	panelFocused := c.focus.IsPanel()

@@ -287,3 +287,28 @@ func assertReattachInvariants(t *testing.T, before, after MenuState, effects []M
 		}
 	}
 }
+
+// A successful leave ends the console, so it ends the pass. Without this, the
+// leave's result clears the operator's slot, the pass advances, and one more
+// reattach is enqueued only for Stop to cancel it -- the outcome cell 10 exists
+// to prevent.
+func TestASuccessfulLeaveEndsThePass(t *testing.T) {
+	state, effects := passMenu(t, passInventory()) // couch-a reattaching, couch-b queued
+	// The operator leaves while couch-a is in flight; the pass holds.
+	state, started := dispatchMenuOperation(state, MenuEffect{Operation: "leave"}, couchcore.ThreadAddress{})
+	if len(started) != 1 {
+		t.Fatalf("leave did not dispatch: %+v", started)
+	}
+	state, held := ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
+		Attempt: effects[0].Attempt, Address: menuAddress("couch-a"), Success: true})
+	if len(held) != 0 {
+		t.Fatalf("the pass advanced under the leave: %+v", held)
+	}
+	state, after := ReduceMenu(state, correlatedMenuResult(state, MenuEvent{Operation: "leave", Success: true}))
+	if len(after) != 0 {
+		t.Fatalf("a successful leave was followed by %+v; the console is ending", after)
+	}
+	if state.Reattach.Phase != ReattachDone {
+		t.Fatalf("pass phase = %d after a leave, want Done", state.Reattach.Phase)
+	}
+}

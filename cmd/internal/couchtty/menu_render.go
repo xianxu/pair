@@ -222,8 +222,7 @@ func renderedMenuNotice(state MenuState) string {
 		return "error: " + notice.Text
 	}
 	if notice.Level == MenuNoticeProgress {
-		frames := [...]string{"◐", "◓", "◑", "◒"}
-		return frames[int(state.SpinnerPhase)%len(frames)] + " " + notice.Text + "…"
+		return spinnerGlyph(state.SpinnerPhase) + " " + notice.Text + "…"
 	}
 	return notice.Text
 }
@@ -431,7 +430,13 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			marker = "▸ "
 		}
+		// The reattach pass is the authority on a row it owns (pair#206): a
+		// pending thread reads queued or reattaching, a failed one says why.
+		view, owned := passViewOf(state.Reattach, thread.Address)
 		suffix := "  " + rootStateText(thread, now)
+		if text := passStateText(view); owned && text != "" {
+			suffix = "  " + text
+		}
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
 			prefixWidth = 0
@@ -439,6 +444,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, labels[thread.Address], thread.WorkingPath), prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
+		} else if owned && view.Pending() && color256 {
+			// Greyed with the status bar's placeholder grey, so "not ready yet"
+			// looks the same in both places. Never selected: the cursor skips it.
+			plain = placeholderSGR + plain + "\x1b[0m"
 		} else if !thread.Live() && color256 {
 			plain = ageColor(AgeBandFor(now, thread.LastActiveAt)) + plain + "\x1b[0m"
 		}
@@ -634,4 +643,23 @@ func clipStyledMenuLine(line string, width int) string {
 
 func styledMenuWidth(line string) int {
 	return textwidth.Width(string(ansi.Strip([]byte(line))))
+}
+
+// passStateText is a pass-owned row's state column. An attached row has none of
+// its own: the lookup overlays it as live, so rootStateText already says so.
+//
+// "reattaching..." carries no spinner here. The switcher's spinner advances
+// only while a progress notice shows, and the pass shows none, so a glyph would
+// sit frozen. The ellipsis says "in progress"; the live animation is on the
+// status bar, where the operator is while the pass runs.
+func passStateText(view PassView) string {
+	switch view.State {
+	case PassQueued:
+		return "queued"
+	case PassLoading:
+		return "reattaching…"
+	case PassFailed:
+		return "reattach failed: " + view.Diagnostic
+	}
+	return ""
 }

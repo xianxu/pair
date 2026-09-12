@@ -565,3 +565,58 @@ hold arises.
 **Suite:** unsandboxed `make test` exit 0, 197 packages. The one sandboxed
 failure, `TestNotificationPTYConformance`, is the sandbox blocking PTY tests; it
 passes unsandboxed.
+
+### 2026-09-11 — M2 Tasks 8-10: the console runs the pass, placeholders, and only a start arms
+
+**Task 8: the console runs the pass.**
+- A Background effect goes to `runBackgroundOperation`. Its origin is marked
+  Background, and it never takes the operator's `InFlight` slot.
+- A background attach (the Implicit `background` arg on `attach`) sets neither
+  focus nor the tracker, and a background success never steals focus. That is
+  the operator's requirement that the pass not disturb the startup thread.
+- A finished attempt dispatches the pass's next effect after the console
+  unlocks.
+- **A successful leave ends the pass.** This is a pure rule. It was found
+  because a leave was followed by one more reattach.
+- The sweep found one equivalent mutant: the queue-key prefix. Keys are unique
+  because of the shared operation counter, not the prefix. The comment that
+  claimed otherwise was corrected.
+- `TestSwitchAsksTheIncomingChildToRepaint` failed once in a full run. It then
+  passed 20 of 20 times on both trees, including the tree before Task 8. It is
+  a race inside the test that predates #206.
+
+**Task 9: placeholders, per the operator's UX.**
+- The status row shows one greyed `<repo>` placeholder per pending thread, with
+  the spinner on the one that is loading. A placeholder records no ChipSpan, so
+  it is unclickable by construction.
+- The status-row tick runs at 120 ms and is armed only while a thread is
+  loading.
+- In the switcher, pending rows are greyed and read `queued` or
+  `reattaching…`. A failed row reads `reattach failed: <diagnostic>`.
+- The cursor, auto-select and clicks skip pending rows through
+  `menuRowSelectable`.
+
+**Task 10: only a start arms the pass.**
+- `armsReattachPass`: a start arms it, and a resume of one named thread does
+  not (decision 9).
+- `beginConsole`, split out of `runConsole`, runs the attach, then the arm,
+  then `Run`. A console that never came up reattaches nothing behind it.
+- **My first tests were wrong, not the code.** They drove `runConsole` with a
+  child that had already exited. The initial attach refuses such a child, so:
+  - the "arms" test failed;
+  - the "never arms on a failed attach" test passed for the wrong reason: the
+    exited child, not the failure it meant to test.
+
+  The tests now run at `beginConsole` with a fake dispatcher, in three cases.
+- My doc comment quoted the old argv and tripped
+  `TestNoCurrentSourcesAdvertiseObsoleteCouchArgv`. It is reworded.
+
+**Task 10 mutations: 4 of 4 killed**, each by the case that names it:
+- the arm moved before the attach check;
+- always arm;
+- never arm;
+- a resume arms too.
+
+The M2-wide sweep is Task 12.
+
+**Suite:** unsandboxed `make test` exits 0 across 197 packages.

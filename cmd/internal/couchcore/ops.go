@@ -231,6 +231,9 @@ func Operations() []Operation {
 			Args: []ArgSpec{
 				{Name: "repo-scope", Summary: "exact started thread scope", Required: true, Implicit: true},
 				{Name: "tag", Summary: "exact started thread tag", Required: true, Implicit: true},
+				// Implicit: only couch's own reattach pass sets it (pair#206). A
+				// background attach adds its pane without taking focus.
+				{Name: "background", Summary: "attach without taking focus (the reattach pass)", Implicit: true},
 			},
 		},
 		{

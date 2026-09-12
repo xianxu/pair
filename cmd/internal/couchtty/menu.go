@@ -431,9 +431,17 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 			next, previous = replaceMenuInventory(next, event.Inventory)
 			next = reconcileMenuFrames(next, previous)
 		}
-		// The operator's slot clears here, which is when a pass held behind it
-		// may resume (pair#206 cell 10).
-		return advanceReattach(reduceOperationResult(next, event))
+		next = reduceOperationResult(next, event)
+		// A successful leave ends the console, so it ends the pass: advancing
+		// here would enqueue one more reattach only for Stop to cancel it, which
+		// is the exact outcome cell 10 exists to prevent (pair#206). Otherwise
+		// the operator's slot has just cleared, which is when a pass held behind
+		// it may resume.
+		if event.Operation == "leave" && event.Success {
+			next.Reattach.Phase = ReattachDone
+			return next, nil
+		}
+		return advanceReattach(next)
 	}
 	if event.Kind == MenuEventPreviewResult {
 		return reducePreviewResult(next, event)
