@@ -351,7 +351,13 @@ type ptyWriter interface {
 	reportError(error)
 }
 
-type RenameTimer interface {
+// EscapeTimer is the stdin pump's one escape-ambiguity deadline. Whoever owns
+// the pending bytes owns the timer: a rename session arms it for a lone
+// pending ESC (expiry cancels the rename); the plain path arms it for any
+// held chord/mouse prefix (expiry forwards the prefix to the child). The two
+// owners are exclusive — held is drained before a read is processed and a
+// read that begins a rename never refills it — so one timer serves both (#234).
+type EscapeTimer interface {
 	C() <-chan time.Time
 	Reset(time.Duration)
 	StopAndDrain()
@@ -402,7 +408,7 @@ func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
 	pumpStdinWithTimer(stdin, mux, rt, stdout, newRealEscapeTimer())
 }
 
-func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer RenameTimer) {
+func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer EscapeTimer) {
 	results := make(chan stdinResult, 1)
 	go func() {
 		buf := make([]byte, 4096)

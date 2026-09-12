@@ -109,16 +109,13 @@ func TestEveryChordSplitAtEveryByteResolvesAgainstTheDeadline(t *testing.T) {
 			})
 
 			t.Run("deadline first forwards the prefix as typed/"+name, func(t *testing.T) {
-				mux := &fakeMux{}
-				timer := newFiringEscapeTimer()
-				pumpStdinWithTimer(&splitReader{chunks: [][]byte{head}}, mux, &fakeRuntime{}, io.Discard, timer)
-				if got := strings.Join(mux.ops, ","); got != "write:"+string(head) {
-					t.Fatalf("ops = %q, want the prefix forwarded once", got)
-				}
-				// Same as the bare-ESC regression: the EOF flush writes the
-				// same bytes, so only the arm proves the deadline was in play.
-				if timer.resets == 0 {
-					t.Fatal("held prefix never armed the deadline")
+				// EOF is gated behind the observed write, so the write can only
+				// have come from the expiry branch — not from the EOF flush,
+				// which forwards the same bytes and would otherwise mask a
+				// deleted expiry branch.
+				flushed := forwardedOnTheDeadline(t, head)
+				if got := strings.Join(flushed, ","); got != "write:"+string(head) {
+					t.Fatalf("ops = %q, want the prefix forwarded once, on the deadline", got)
 				}
 			})
 
@@ -131,6 +128,62 @@ func TestEveryChordSplitAtEveryByteResolvesAgainstTheDeadline(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// forwardedOnTheDeadline feeds head as one read, lets the fake deadline fire,
+// waits for the pump to write something, and only THEN releases EOF. The ops
+// it returns therefore contain whatever the expiry branch forwarded before
+// EOF could — the EOF flush cannot be what produced the first write.
+func forwardedOnTheDeadline(t *testing.T, head []byte) []string {
+	t.Helper()
+	wrote := make(chan string, 4)
+	mux := &fakeMux{wrote: wrote}
+	release := make(chan struct{})
+	reader := &gatedEOFReader{data: head, release: release}
+	timer := newFiringEscapeTimer()
+	done := make(chan struct{})
+	go func() {
+		pumpStdinWithTimer(reader, mux, &fakeRuntime{}, io.Discard, timer)
+		close(done)
+	}()
+	select {
+	case <-wrote:
+	case <-time.After(time.Second):
+		t.Fatalf("held %q was never forwarded on the deadline", head)
+	}
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("pump did not finish after EOF")
+	}
+	if timer.resets == 0 {
+		t.Fatal("held prefix never armed the deadline")
+	}
+	return mux.ops
+}
+
+// A torn SGR mouse report is held by the same buffer as a chord prefix, so it
+// meets the same deadline. Chosen, not incidental (#234 BR-5): couch arms only
+// for a lone ESC, but pair term's stdin is a local zellij pty where a report
+// torn across reads is re-joined within microseconds, and a prefix left
+// pending with no deadline is the stuck keyboard this issue fixed.
+func TestATornMousePrefixMeetsTheSameDeadline(t *testing.T) {
+	head, tail := []byte("\x1b[<0;8"), []byte(";1M")
+	if workbenchshortcut.IsChordPrefix(head) || !isSGRMousePrefix(head) {
+		t.Fatalf("%q must be a mouse prefix and not a chord prefix for this test to mean anything", head)
+	}
+
+	flushed := forwardedOnTheDeadline(t, head)
+	if got := strings.Join(flushed, ","); got != "write:"+string(head) {
+		t.Fatalf("deadline first: ops = %q, want the torn report forwarded raw", got)
+	}
+
+	mux := &fakeMux{}
+	pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{}, io.Discard, beforeDeadline())
+	if got := strings.Join(mux.ops, ","); got != "write:"+string(head)+string(tail) {
+		t.Fatalf("tail before deadline: ops = %q, want the whole press delivered once", got)
 	}
 }
 

@@ -386,9 +386,11 @@ var chordSequences = []struct {
 // between "the user pressed Escape" and "the first byte of a chord whose
 // tail is in the next read". The chord table is what creates the ambiguity,
 // so it owns the one deadline: couch's two framers, termcmd's rename
-// decoder and termcmd's main loop all read it (#234). 35 ms sits under
-// nvim's own default ttimeoutlen (50 ms), so a child that resolves the same
-// ambiguity one hop downstream never sees a slower ESC than it budgets for.
+// decoder and termcmd's main loop all read it (#234). The cost is up to 35 ms
+// on a bare ESC before the child sees it; a child that then runs its own
+// escape timeout (nvim's default ttimeoutlen is 50 ms) adds it on top, so the
+// worst case from keypress to mode change is about 85 ms — the same budget
+// couch already imposes on the same keystroke.
 const EscapeAmbiguity = 35 * time.Millisecond
 
 func ChordSequences() []string {

@@ -88,10 +88,11 @@ read, then `r`): `applyRename` must own the timer from that read onward, so
 the plain tail runs only when `rename == nil` at the end of the read.
 
 **Latency budget (ARCH-CONSTRAINTS).** The fix costs a bare ESC up to 35 ms
-before it reaches the child. Basis: it is the deadline couch's two framers
-already impose on the same keystroke, and it sits under nvim's own default
-`ttimeoutlen` of 50 ms — so nvim, which resolves the same ambiguity one hop
-downstream, never sees a slower ESC than it budgets for itself.
+before it reaches the child. A child that runs its own escape timeout adds it
+on top — nvim's default `ttimeoutlen` is 50 ms — so the worst case from
+keypress to mode change is about 85 ms. Basis for accepting that: it is the
+deadline couch's two framers already impose on the same keystroke, and 85 ms
+is under the ~100 ms threshold at which a keystroke reads as laggy.
 
 Plain arms for **any** non-empty `held`, not only a lone ESC. Couch arms only
 for the lone ESC; the difference is deliberate: `pair term`'s stdin is a local
