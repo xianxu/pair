@@ -471,3 +471,41 @@ func TestABackgroundSuccessWithNothingActiveLeavesTheSwitcherFocused(t *testing.
 		t.Fatalf("focus = %+v, want the switcher still focused: the operator never chose this pane", f.con.focus)
 	}
 }
+
+// The frame the pass leaves behind is painted (found in the operator's smoke
+// test, 2026-09-12). While a thread loads, the status tick is the only thing
+// that repaints the status row. So when the last attempt landed and the tick
+// stopped, the row kept showing that thread's spinning placeholder until
+// something else repainted it, such as opening the switcher.
+//
+// statusChips is what the last paint made clickable, so the attached thread's
+// chip appears there only once a frame is painted after its attach.
+func TestTheFrameThePassLeavesBehindIsPainted(t *testing.T) {
+	f := newFixture(t, 24, 100)
+	root := consoleThread(f, "c1")
+	started := resumeSucceeds(t, f, "couch-first")
+	f.con.ArmReattachPass(root)
+	now := time.Now()
+	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		return []couchcore.ActionableThreadSummary{
+			{Address: root, State: couchcore.ThreadLive, LastActiveAt: now},
+			{Address: menuAddress("couch-first"), State: couchcore.ThreadDetached, LastActiveAt: now.Add(-time.Minute)},
+		}, nil
+	})
+	waitUpTo(t, 2*time.Second, "the pass to attach couch-first and finish", func() bool {
+		f.con.mu.Lock()
+		_, attached := f.con.panes[started.Handle.ID()]
+		f.con.mu.Unlock()
+		return attached && f.con.menuSnapshot().Reattach.Phase == ReattachDone
+	})
+	waitUpTo(t, time.Second, "a status row painted with couch-first's chip", func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		for _, chip := range f.con.statusChips {
+			if chip.Thread == menuAddress("couch-first") {
+				return true
+			}
+		}
+		return false
+	})
+}

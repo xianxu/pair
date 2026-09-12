@@ -730,3 +730,38 @@ neither did the older repaint race.
 **Left:**
 - the operator-assisted measurement and smoke;
 - `sdlc milestone-close --milestone M2`, then the issue close.
+
+### 2026-09-12 — M2 operator smoke: it works, with one status-bar bug, now fixed
+
+**The operator's smoke test**, live on the real stack rather than the
+scripted measurement:
+- they detached and restarted couch to check the speed;
+- they quit while threads were being reattached;
+- "everything seems to work well".
+
+**One bug.** The last thread the pass reattached (brain) stayed on the status
+bar as a loading placeholder, spinning, for a long time. Opening the switcher
+showed it live, and repainted the status bar.
+
+**Cause, read off every branch.**
+- While a thread loads, the status tick is the only thing that repaints the
+  status row.
+- When the last attempt lands, nothing is loading, so `syncStatusTick`
+  stopped the timer without painting.
+- `finishOperation` repaints only when the switcher is focused, and so does
+  the inventory refresh it requests.
+
+So the last frame the tick painted, with the spinning placeholder, stayed
+until something else repainted. My test of the tick checked that it stops,
+not the frame it leaves behind.
+
+**Fix.** A stopping tick now paints one final frame, the one without the
+placeholder (`syncStatusTick`). `TestTheFrameThePassLeavesBehindIsPainted`
+waits for a painted status row that carries the attached thread's chip.
+- Before the fix it failed, timing out: the symptom, reproduced.
+- After the fix it passed 5 of 5 runs, alongside the tick test.
+- A mutant that drops the final paint is killed by it.
+
+**Left:**
+- the operator's re-check of the status bar;
+- the Task 12 measurement.

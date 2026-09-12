@@ -637,10 +637,20 @@ func (c *Console) Run() int {
 		loading := c.menu.Reattach.Loading != (couchcore.ThreadAddress{})
 		c.mu.Unlock()
 		if !loading {
+			ticking := statusC != nil
 			if statusTimer != nil {
 				stopTimer(statusTimer)
 			}
 			statusC = nil
+			if ticking {
+				// While a thread loads, this tick is the only thing that repaints
+				// the status row, so the frame it last painted still shows that
+				// thread's spinning placeholder. A stopping tick owes the frame
+				// without it (pair#206, found in the operator's smoke test: the
+				// last reattached thread kept spinning until something else
+				// repainted).
+				c.repaint()
+			}
 			return
 		}
 		if statusC != nil {

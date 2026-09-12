@@ -4601,3 +4601,18 @@ claim needs a test that the comment names by function. Then a refactor that
 changes the reach fails a test instead of silently contradicting the prose.
 Prefer the comment's rule over the code's when they disagree and the comment
 states the safer direction.
+
+## A test that a periodic repaint stops must also check the frame it leaves (pair#206)
+
+**What happened.** While a thread reattached, the status row's spinner tick was
+the only thing repainting that row. Its test checked that the tick stopped once
+nothing was loading, and it did. But the row still showed the last frame the
+tick had painted: the thread's spinning placeholder. The operator saw it in the
+smoke test, and only opening the switcher repainted it.
+
+**Rule.** When a timer drives the repaints of a view derived from state, the
+transition that stops the timer is itself a state change, and it owes a paint.
+So test the frame on screen after the timer stops, for example the clickable
+spans its last paint recorded, not only that the timer stopped. More
+generally: for any derived view, ask what repaints it after the LAST change,
+not only during the changes.
