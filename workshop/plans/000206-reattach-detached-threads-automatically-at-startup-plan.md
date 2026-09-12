@@ -657,12 +657,21 @@ reach a cell.
   the rest of the probe. The window is 1-600 s, and the probe prints it in unix
   ms so it lines up with a `COUCH_TRACE` file. A live 3 s run cleaned up its
   own session.
-- [ ] **Measurement (operator-assisted: couch needs a real terminal).** With
+- [x] **Measurement (operator-assisted: couch needs a real terminal).** With
   N detached threads and co-tenancy recorded: run the sampler for 30 s while
   the operator starts `COUCH_TRACE=... couch`. Record first-frame time, pass
   duration, per-attempt times, the refresh count during the pass, and
   `zellij action` p50/p95/max against the quiet baseline -- with the
   status-row spinner running, since it is a new periodic repaint.
+  **Done 2026-09-12**, from the operator's traced restart:
+  - first frame at 0.72 s;
+  - a 2.34 s pass over 5 attempts, median 302 ms;
+  - 2 refreshes during the pass;
+  - `zellij action` at most 35 ms during startup, against a quiet maximum of
+    36 ms.
+
+  The latency is a bound read from the probe's phase windows, not a cut of
+  raw samples; see the Log.
 - [x] `atlas/couch.md`: the pass under the switcher's operation model (its
   decisions, not its cells), the placeholders, and the `COUCH_TRACE` format.
   The `COUCH_INPUT_TRACE` paragraph also claimed to describe "the one env var"
@@ -676,11 +685,13 @@ reach a cell.
   needed reducer-level tests first: cell 11's call and cell 2. See the
   close-out Revisions entry.
 - [x] Unsandboxed `make test`: exit 0 across 197 packages, at load 2-3.
-- [ ] **Operator smoke.** Restart couch with several detached threads: every
+- [x] **Operator smoke.** Restart couch with several detached threads: every
   pending thread appears at once, greyed, in the status bar and the switcher;
   the starting one spins; none can be clicked or selected; they fill in within
   seconds without moving the cwd thread's focus or screen; quitting mid-pass
-  leaves the rest detached.
+  leaves the rest detached. **Done**, live on the real stack, including a quit
+  mid-pass. It found the last reattached thread still spinning on the status
+  bar, which is now fixed (`e8b96961`). The re-check: "seems working".
 - [ ] `sdlc milestone-close --issue 206 --milestone M2`, then `sdlc close
   --issue 206`: M2 is a milestone, so it gets its own boundary review before
   the whole-issue one.

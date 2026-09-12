@@ -765,3 +765,64 @@ waits for a painted status row that carries the attached thread's chip.
 **Left:**
 - the operator's re-check of the status bar;
 - the Task 12 measurement.
+
+### 2026-09-12 — M2 Task 12: the measurement, the re-check, and a fixture race found at the close
+
+**The measurement**, from the operator's traced restart (`COUCH_TRACE`, at
+12:35). Five threads were detached; load was about 1.0-1.4, with 27 zellij
+sessions.
+- **The first frame painted 0.72 s after the process started**, so the
+  startup thread could be typed in from then.
+- **The first inventory landed at 2.65 s**, and the pass seeded from it with
+  `pending=5`.
+- **All 5 attempts succeeded, one at a time:** 249, 1179, 271, 302 and
+  343 ms, a median of 302 ms.
+- **The pass took 2.34 s.** Everything, pass included, was done 5.0 s after
+  launch.
+- **2 inventory refreshes landed during the pass**, 4 in all.
+
+**`zellij action` latency during startup was at most 35 ms.** The sampler ran
+the probe's phased run rather than sample mode, so there are no raw samples.
+The phases can still be placed on the clock, walking each phase's printed
+duration back from the report file's modification time. couch's whole
+startup, from launch to its last event, falls inside the probe's "8 old
+pattern" phase, with 18.6 s and 20.9 s to spare against about 1 s of
+uncertainty. That phase had 633 samples (p50 19 ms, p95 23 ms, max 35 ms, no
+errors), so no sample during startup exceeded 35 ms. The 9-minute quiet
+baseline measured 7,528 samples: p50 21 ms, p95 23 ms, max 36 ms.
+
+That meets the done-when's "measured, not assumed". The bound is
+conservative, because the probe was driving zellij hard at the same time.
+
+**Why the sampler went phased: not reproduced.**
+- `make` passes the variables: sample mode refuses `0` through
+  `make test-reattach-cost`.
+- The same zsh one-liner shape passes both variables to `make`.
+- The branch never switched, and the source had sample mode before the run.
+
+The cause is unknown. The bound above does not depend on it.
+
+**The re-check of the status-bar fix.** The operator restarted with the fix
+and reports it "seems working", though they were unsure what to look for. The
+fix's own evidence is the test that reproduced the symptom before it.
+
+**A fixture race found at the close** (side-quest `dad4de14`). The full
+suite failed twice on switch-nudge tests:
+`TestASwitchThroughTheOperationQueueNudgesLikeAnyOther`, and earlier
+`TestSwitchAsksTheIncomingChildToRepaint`.
+- **An A/B at low load (200 runs per tree) found no failures anywhere**, so
+  the race predates #206 and appears only under load.
+- **The mechanism.** A fake pty child starts at the host's full height, while
+  production children are born at the console's child size. The tests
+  attached the fake while `Run` was starting, so whether the one startup
+  layout resized it was a race. When the race was lost, the switch's nudge
+  restored the child to the fake's own height. Production cannot lose that
+  race.
+- **Pinned.** Attached after the console starts, as production does, the old
+  fake fails 5 of 5. Born at the console's size, all three tests with that
+  setup pass 200 of 200.
+- **A lesson was added.** The A/B said "pre-existing", but only the mechanism
+  said "the fixture, not couch".
+
+**Suite.** Unsandboxed `make test` exits 0 across 197 packages, at load
+1-2.7.
