@@ -24,6 +24,9 @@
 // times `zellij action` against it for N seconds, printing the window in unix
 // ms so it lines up with a COUCH_TRACE file. It measures latency while
 // something real runs elsewhere, such as couch's startup reattach pass.
+// PAIR_PROBE_SAMPLE_TSV=<path> also writes every sample, one per line as
+// <unix-ms>\t<ms>\t<ok>, so a narrower window can be cut from a long run
+// afterwards: #206 cuts the reattach pass out of it.
 //
 // It also times couch's zellij work around each attach, as two couch-shaped
 // passes built from production's own calls: the critical path as it ran before
@@ -118,6 +121,11 @@ func run() int {
 		}
 		sampleSecs = v
 	}
+	sampleTSV := os.Getenv("PAIR_PROBE_SAMPLE_TSV")
+	if sampleTSV != "" && sampleSecs == 0 {
+		fmt.Println("PROBE-ERROR PAIR_PROBE_SAMPLE_TSV: only sample mode writes samples; set PAIR_PROBE_SAMPLE_SECS too")
+		return 1
+	}
 
 	env := zellijprobe.Scrub([]string{"ZELLIJ"}, "TERM=xterm-256color")
 	layout, err := writeLayout()
@@ -187,6 +195,13 @@ func run() int {
 		samples := stopSampler()
 		fmt.Printf("sample mode: %ds, unix ms %d to %d\n", sampleSecs, began.UnixMilli(), ended.UnixMilli())
 		fmt.Printf("zellij action query-tab-names (control session): %s\n", latency(samples, began, ended))
+		if sampleTSV != "" {
+			if err := writeSamples(sampleTSV, samples); err != nil {
+				fmt.Println("PROBE-ERROR PAIR_PROBE_SAMPLE_TSV:", err)
+				return 1
+			}
+			fmt.Printf("samples: %s\n", sampleTSV)
+		}
 		return 0
 	}
 
@@ -361,6 +376,15 @@ func startSampler(control string, env []string) (stop func() []sample) {
 		defer mu.Unlock()
 		return samples
 	}
+}
+
+// writeSamples writes one line per sample: <unix-ms>\t<ms>\t<ok>.
+func writeSamples(path string, samples []sample) error {
+	var b strings.Builder
+	for _, s := range samples {
+		fmt.Fprintf(&b, "%d\t%d\t%t\n", s.at.UnixMilli(), s.dur.Milliseconds(), s.ok)
+	}
+	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
 
 // latency summarises the samples that began within [start, end].
