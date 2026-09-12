@@ -312,3 +312,66 @@ func TestASuccessfulLeaveEndsThePass(t *testing.T) {
 		t.Fatalf("pass phase = %d after a leave, want Done", state.Reattach.Phase)
 	}
 }
+
+// Cell 11 through the reducer: an inventory newer than an attach is
+// authoritative for that thread again. The pure test drives expireAttached
+// directly, so the M2 sweep's mutant that dropped the reducer's call to it
+// survived. Without the call the pass never lets go of the row, and a thread
+// whose pane exited would read live forever.
+func TestANewerInventoryTakesBackARowThePassAttached(t *testing.T) {
+	inventory := []couchcore.ActionableThreadSummary{
+		reattachRow("couch-root", couchcore.ThreadLive, 0),
+		reattachRow("couch-a", couchcore.ThreadDetached, 1),
+	}
+	state, effects := passMenu(t, inventory)
+	if len(effects) != 1 {
+		t.Fatalf("setup: %d effects, want the one attempt for couch-a", len(effects))
+	}
+	live := func(when string) bool {
+		t.Helper()
+		row, ok := menuThread(state, menuAddress("couch-a"))
+		if !ok {
+			t.Fatalf("%s: couch-a is not in the inventory", when)
+		}
+		return row.Live()
+	}
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "resume", Background: true,
+		Attempt: effects[0].Attempt, Address: menuAddress("couch-a"), Success: true, ProjectionAfterGeneration: 50})
+	if !live("after the attach") {
+		t.Fatal("the pass does not read couch-a live after attaching it")
+	}
+	// Not newer than the attach: the lagging inventory still says detached, and
+	// the pass still owns the row.
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: inventory, Generation: 50})
+	if !live("at the attach's own generation") {
+		t.Fatal("an inventory from the attach's own generation took the row back")
+	}
+	// Newer: authoritative again, whatever it says.
+	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: inventory, Generation: 51})
+	if live("after a newer inventory") {
+		t.Fatal("a newer inventory saying detached left couch-a live: the pass never let go of the row")
+	}
+}
+
+// Cell 2 through the reducer: a failed first refresh leaves the pass armed.
+// Seeding from it would read "no threads" and end the pass before it ever saw a
+// real inventory. The M2 sweep's cell-2 mutant did exactly that and survived,
+// because nothing drove an error inventory into an armed pass.
+func TestAFailedFirstInventoryLeavesThePassArmed(t *testing.T) {
+	root := menuAddress("couch-root")
+	state, _ := ReduceMenu(NewMenuState(nil, root), MenuEvent{Kind: MenuEventReattachArm, Address: root})
+	state, effects := ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Error: "refresh failed", Generation: 1})
+	if state.Reattach.Phase != ReattachArmed || len(state.Reattach.Queue) != 0 || len(effects) != 0 {
+		t.Fatalf("after a failed inventory: phase %v, queue %v, effects %v; want still armed and nothing started",
+			state.Reattach.Phase, state.Reattach.Queue, effects)
+	}
+	inventory := []couchcore.ActionableThreadSummary{
+		reattachRow("couch-root", couchcore.ThreadLive, 0),
+		reattachRow("couch-a", couchcore.ThreadDetached, 1),
+	}
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventInventory, Inventory: inventory, Generation: 2})
+	if state.Reattach.Loading != menuAddress("couch-a") || len(effects) != 1 {
+		t.Fatalf("after the first good inventory: loading %v, effects %v; want the pass seeded and couch-a started",
+			state.Reattach.Loading, effects)
+	}
+}

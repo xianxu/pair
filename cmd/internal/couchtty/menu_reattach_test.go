@@ -165,11 +165,22 @@ func TestReattachFinishResolvesTheAttempt(t *testing.T) {
 			t.Fatalf("failed = %v", state.Reattach.Failed)
 		}
 	})
-	t.Run("cell 7: a failure with no code still says it failed", func(t *testing.T) {
+	t.Run("cell 7: a failure with no code shows its error's first line", func(t *testing.T) {
 		state, attempt := loadingPass(t)
-		state = finishReattach(state, passResult(attempt, "couch-a"))
+		event := passResult(attempt, "couch-a")
+		event.Error = "spawn pair: exec: \"pair\": executable file not found in $PATH\nwhile starting couch-a"
+		state = finishReattach(state, event)
+		if got, want := state.Reattach.Failed[menuAddress("couch-a")], `spawn pair: exec: "pair": executable file not found in $PATH`; got != want {
+			t.Fatalf("failed = %q, want the error's first line %q", got, want)
+		}
+	})
+	t.Run("cell 7: a failure with neither a code nor text still says it failed", func(t *testing.T) {
+		state, attempt := loadingPass(t)
+		event := passResult(attempt, "couch-a")
+		event.Error = ""
+		state = finishReattach(state, event)
 		if got := state.Reattach.Failed[menuAddress("couch-a")]; got != reattachFailedCode {
-			t.Fatalf("failed = %v; an empty code would render as \"reattach failed: \"", state.Reattach.Failed)
+			t.Fatalf("failed = %v; an empty mark would render as \"reattach failed: \"", state.Reattach.Failed)
 		}
 	})
 }

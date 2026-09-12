@@ -107,7 +107,7 @@ asked about queued threads: **all pending, none selectable.**
 7. **A thread detached by the operator during the pass is not reattached.**
    The queue is never added to after seeding.
 8. **Quit mid-pass.** The pass never advances while an operator operation is
-   in flight (cell 12), so a queued leave is never followed by a new attempt.
+   in flight (cell 10), so a queued leave is never followed by a new attempt.
    SIGHUP, SIGTERM and a last-pane exit cancel the attempt in flight; after
    #230 that leaves its session detached. Everything not yet reattached stays
    detached.
@@ -115,17 +115,28 @@ asked about queued threads: **all pending, none selectable.**
    through `runConsole` like a bare `couch`, so it would otherwise inherit the
    pass. Arming belongs to the startup gesture: an operator who named one
    thread asked for that thread. Only the bare-start path arms.
-10. **Cell 14 covers archive, park and relaunch, not rename.** A pending row is
+10. **Cell 12 covers archive, park and relaunch, not rename.** A pending row is
    not selectable in the switcher, so these reach a queued thread only from the
-   CLI (`couch park <tag>`); the queue entry goes, and the ordinary effect runs.
-   Renaming changes a label, not resumability, so the entry stays.
-11. **Every pass failure carries a diagnostic code.** `ResumeDiagnosticOf`
-   returns empty for failures that are not refusals (a spawn error, a
-   registration timeout), so the row would read `reattach failed: `. Those get
-   a generic `reattach-failed` code, and the row shows the error's first line
-   beneath it.
+   CLI (`couch park <tag>`), where the ordinary effect runs. The queue entry
+   STAYS, because cell 4 never prunes the queue, and the thread's own turn
+   resolves it:
+   - a thread that was parked, or is live again after a relaunch, is refused
+     `resume-not-detached` and skipped (cell 6);
+   - an archived one no longer loads, so its attempt fails (cell 7). It has
+     also left the inventory, so the mark has no row to show on, and its
+     placeholder drops with the failure.
+
+   Renaming changes a label, not resumability.
+11. **Every failed row says why.** A refusal carries its diagnostic code. A
+   failure that is not a refusal, such as a spawn error or a registration
+   timeout, has no code (`ResumeDiagnosticOf` returns empty). Its row shows the
+   error's first line after the colon instead, because switcher rows are one
+   line. `passSuffix` sanitizes the text and fits it to the row, leaving the
+   label its columns. Only a failure with neither a code nor text falls back
+   to the generic `reattach-failed`. The trace records the code alone, or
+   `error`, never the text.
 12. **Rows are rendered from the pass while its own mutation is in flight**
-   (cell 13), because the inventory passes through states -- stale incarnation,
+   (the pass view, below), because the inventory passes through states -- stale incarnation,
    then Busy, then Live-but-unhosted -- that would otherwise show as
    "stale..."/"parking..." for a thread the pass is still bringing back.
 
@@ -210,7 +221,7 @@ asked about queued threads: **all pending, none selectable.**
   operator's in-flight slot. `cloneMenuState` deep-copies `Queue`, `Attached`
   and `Failed`, keeping a nil map nil, because tests compare whole `MenuState`
   values with `DeepEqual`.
-  - **`Attached`** is what makes cell 13 work: the pass, not the lagging
+  - **`Attached`** is what makes cells 5 and 11 work: the pass, not the lagging
     inventory, is the authority for a row it just mutated. It maps an address
     to the refresh GENERATION current when its attach landed, and an entry is
     dropped by the first inventory admitted after that generation — the same
@@ -340,7 +351,7 @@ failing invariant, not a visual regression nobody notices.
 | 9 | any | Operator resume of a failed X | `Failed[X]` cleared | the ordinary resume effect |
 | 10 | Running | any operator operation in flight | **advance holds** | none until the slot clears |
 | 11 | Running | Inventory newer than `Attached[X]`'s generation | `Attached[X]` dropped, whatever that inventory says about X | advance |
-| 12 | any | Operator archive/park/relaunch of a queued X (CLI only) | X removed from Queue | the ordinary effect |
+| 12 | any | Operator archive/park/relaunch of a queued X (CLI only) | unchanged: X's own turn re-proves it (cells 6-7) | the ordinary effect |
 | 13 | any | Stop (leave, SIGHUP, SIGTERM, last pane) | the console ends | attempt in flight cancelled; queue dropped |
 
 There is no "operator resume of a pending X" cell, because the view makes a
@@ -481,20 +492,28 @@ reach a cell.
 
 ### Task 4: M1 measure, docs, mutations, close
 
-- [ ] **Timing evidence is the operator's smoke, not a new trace.** M1's
+- [x] **Timing evidence is the operator's smoke, not a new trace.** M1's
   promise is the counted invariant, which Task 2 already asserts at two store
   sizes (`workbench-latency`: prefer counts to timings). The `COUCH_TRACE`
   facility stays in M2 Task 11, where the background pass needs it; building
   it here only for M1 would be scope with no reader. The operator installs M1,
   restarts couch with ≥10 threads in the store, and reports whether startup
   feels faster -- which is the complaint M1 answers.
-- [ ] `atlas/couch.md`: startup proves the cwd candidate and any
+- [x] `atlas/couch.md`: startup proves the cwd candidate and any
   layout-conflicting candidate, and nothing else.
-- [ ] **Mutation sweep**, each killed by name: `ask` ignored; the layout arm
+- [x] **Mutation sweep**, each killed by name: `ask` ignored; the layout arm
   dropped; the path arm dropped; `ask` applied after `ResolveEstablished`
   (Step 2's counter); `WorkingPath` compared before physicalization; the
   claim count reverted to the candidate list (Task 1).
-- [ ] Unsandboxed `make test`; `sdlc milestone-close --issue 206 --milestone M1`.
+- [x] Unsandboxed `make test`; `sdlc milestone-close --issue 206 --milestone M1`.
+  All four Task 4 items are evidenced on the issue's `closed M1` Log line:
+  - the operator's smoke, "startup ~1.5x faster";
+  - "Mutations 13/13 killed as named";
+  - `make test` exit 0 over 197 packages;
+  - the review verdict, SHIP.
+
+  The atlas bullet is `atlas/couch.md`'s "Startup proves only the threads its
+  readers consume".
 
 ## M2 — The background reattach pass
 
@@ -634,29 +653,37 @@ reach a cell.
 
 ### Task 12: measure, document, smoke, close
 
-- [ ] Add `PAIR_PROBE_SAMPLE_SECS` to `cmd/probes/reattachcost`, bounded like
-  the rest of the probe.
+- [x] Add `PAIR_PROBE_SAMPLE_SECS` to `cmd/probes/reattachcost`, bounded like
+  the rest of the probe. The window is 1-600 s, and the probe prints it in unix
+  ms so it lines up with a `COUCH_TRACE` file. A live 3 s run cleaned up its
+  own session.
 - [ ] **Measurement (operator-assisted: couch needs a real terminal).** With
   N detached threads and co-tenancy recorded: run the sampler for 30 s while
   the operator starts `COUCH_TRACE=... couch`. Record first-frame time, pass
   duration, per-attempt times, the refresh count during the pass, and
   `zellij action` p50/p95/max against the quiet baseline -- with the
   status-row spinner running, since it is a new periodic repaint.
-- [ ] `atlas/couch.md`: the pass under the switcher's operation model (its
+- [x] `atlas/couch.md`: the pass under the switcher's operation model (its
   decisions, not its cells), the placeholders, and the `COUCH_TRACE` format.
-- [ ] **Mutation sweep:** one row per cell with a named test, plus: the focus
+  The `COUCH_INPUT_TRACE` paragraph also claimed to describe "the one env var"
+  couch reads for itself, so that claim was corrected in the same edit.
+- [x] **Mutation sweep:** one row per cell with a named test, plus: the focus
   steal ignoring `Background`; `installObservedThreadActor` seeding focus on a
   background attach; the pass emitting without `warm-only`; cell 10's hold
   removed; the Root exclusion removed; a placeholder recording a `ChipSpan`;
   the cursor landing on a pending row; the status-row tick running with
-  nothing `Loading`.
-- [ ] Unsandboxed `make test`.
+  nothing `Loading`. **Done:** 38 mutants over the final code, all killed. Two
+  needed reducer-level tests first: cell 11's call and cell 2. See the
+  close-out Revisions entry.
+- [x] Unsandboxed `make test`: exit 0 across 197 packages, at load 2-3.
 - [ ] **Operator smoke.** Restart couch with several detached threads: every
   pending thread appears at once, greyed, in the status bar and the switcher;
   the starting one spins; none can be clicked or selected; they fill in within
   seconds without moving the cwd thread's focus or screen; quitting mid-pass
   leaves the rest detached.
-- [ ] `sdlc close --issue 206`.
+- [ ] `sdlc milestone-close --issue 206 --milestone M2`, then `sdlc close
+  --issue 206`: M2 is a milestone, so it gets its own boundary review before
+  the whole-issue one.
 
 ## Estimate
 
@@ -874,3 +901,69 @@ pass", and none of the five planned events measures it.
     Run loop;
   - `startup`, stamped with the process start that couchcmd reads before the
     console exists.
+
+### 2026-09-11 — M2 close-out: the plan's body checked against the code
+
+**Reason.** Before the close, the Decisions were read against what was built.
+Three still cited cells by their numbers from before the table was renumbered
+1-13, and one described behaviour the code does not have.
+
+**Delta, applied to the body:**
+- Decision 8 cited cell 12 for the hold; it is cell 10.
+- Decision 12 cited cell 13 for rendering from the pass. That is the pass view;
+  cell 13 is now Stop.
+- The `Attached` entry in Core concepts cited cell 13 too; it is cells 5 and 11.
+- **Decision 10 and cell 12 described a queue prune that was never built.**
+  They said the queue entry of a thread archived, parked or relaunched from the
+  CLI "goes". No code removes it, and none should: pruning on an inventory is
+  exactly what cell 4 rules out, because a failed refresh reads as "no sessions
+  at all". The entry stays, and the thread's own turn resolves it:
+  - parked, or live again after a relaunch: `resume-not-detached`, skipped
+    (cell 6);
+  - archived: the record has left the working set, so the load fails and the
+    attempt is marked failed (cell 7). The thread has also left the inventory,
+    so the mark has no row to show on, and its placeholder drops with the
+    failure.
+
+  The cost is that the thread's placeholder shows until its turn, which is a
+  matter of seconds. Table row 12 now says this.
+- **Decision 11 promised text the code never showed.** A failure with no
+  refusal code (a spawn error, a registration timeout) stored the generic
+  `reattach-failed`, so its row said nothing useful. The row now shows the
+  error's first line after the colon, because switcher rows are one line.
+  `passSuffix` sanitizes it and fits it to the row, leaving the label
+  `menuLabelFloor` columns. The same fitting caps the codes too: a long one,
+  such as `resume-binding-root-missing`, made the suffix wider than a
+  40-column row before.
+- **Task 6's named tests landed under other names.** The "one row per cell"
+  table became one test or more per cell:
+
+  | Cell | Test |
+  |---|---|
+  | 1 | `TestReattachArmIsOnce` |
+  | 2 | `TestAFailedFirstInventoryLeavesThePassArmed` (added at close-out) |
+  | 3 | `TestReattachSeedTakesWarmAndUnknownThreadsMostRecentFirst`, which also holds the Root exclusion and the ordering |
+  | 4 | `TestReattachSeedsOnlyFromArmed` |
+  | 5-7 | `TestReattachFinishResolvesTheAttempt` |
+  | 8 | `TestReattachFinishIgnoresOtherAttempts` |
+  | 9 | `TestReattachFailureClearsOnManualResume`, and `TestEnterOnAFailedRowResumesAndClearsTheMark` through the reducer |
+  | 10 | `TestReattachHoldsWhileAnOperatorOperationIsInFlight`, and `TestReduceMenuResumesAHeldPassWhenTheOperatorsSlotClears` |
+  | 11 | `TestReattachAttachedExpiresOnANewerGeneration`, and `TestANewerInventoryTakesBackARowThePassAttached` through the reducer (added at close-out) |
+  | 12 | none of its own: it is realised by cells 6-7 (above) |
+  | 13 | `TestStopCancelsAnInFlightPassAttemptAndRunsNoMore` |
+- **The M2 sweep, over the final code: 38 mutants, all killed in the end.**
+  - The first pass ran 33: one per transitions cell, the console wiring, the
+    rendering, and every extra Task 12 names. 32 died.
+  - Two gaps surfaced, both at the reducer:
+    - Dropping the reducer's call to `expireAttached` survived, because the
+      pure cell-11 test drove the function directly.
+      `TestANewerInventoryTakesBackARowThePassAttached` now kills it.
+    - Seeding from a failed first inventory (cell 2) missed the first pass,
+      because its needle was found late, and then survived.
+      `TestAFailedFirstInventoryLeavesThePassArmed` now kills it.
+  - Decision 11's four mutants were killed by the tests written with it.
+- **M1's Task 4 items were done but never ticked.** The M1 close recorded all
+  four: the smoke, 13 of 13 mutations, the suite and the SHIP verdict. They are
+  ticked now, with a pointer to that Log line.
+- **The last item said `sdlc close` alone.** M2 is a milestone, so it closes
+  through `sdlc milestone-close` first, which runs its own boundary review.

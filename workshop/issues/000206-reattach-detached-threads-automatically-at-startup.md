@@ -670,3 +670,63 @@ four tests outside this change:
   The race predates #206.
 
 The full suite reruns before close.
+
+### 2026-09-11 — M2 Task 12, before the operator's part: the probe, the atlas, the sweep, and the plan checked against the code
+
+**The probe's sample mode** (`64d297a7`).
+`PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` creates only the control
+session and samples `zellij action query-tab-names` for N seconds (1-600). It
+prints the window in unix ms, so it lines up with a `COUCH_TRACE` file. The
+sampler and the latency summary are now functions the phased run shares.
+
+A live 3-second run cleaned up its own session. It measured a median of
+1954 ms, at load 5.8 with 27 zellij sessions. That is three calls, too few to
+trust; the operator's 30-second run will settle it.
+
+**The atlas.** `atlas/couch.md` gains:
+- the pass, as a bullet in the startup costs: its decisions, not its cells;
+- the placeholders, in the reserved-row section;
+- `COUCH_TRACE`, beside `COUCH_INPUT_TRACE`.
+
+The `COUCH_INPUT_TRACE` paragraph called it "the one env var" couch reads for
+itself, which is no longer true. The claim is corrected and now guarded.
+
+**The M2 sweep: 38 mutants over the final code, all killed in the end.** The
+first pass ran 33 and killed 32. It found two gaps at the reducer, each of
+which would have shipped silently. Each now has its own test:
+- **Nothing checked that an inventory calls `expireAttached`.** Without the
+  call, a thread whose pane exited reads live forever. Now pinned by
+  `TestANewerInventoryTakesBackARowThePassAttached`.
+- **Nothing checked that a failed first inventory leaves the pass armed.**
+  Seeding from it ends the pass before it ever sees a real inventory. Now
+  pinned by `TestAFailedFirstInventoryLeavesThePassArmed`.
+
+**The plan, read against the code.**
+- Four places still cited cells by their numbers from before the
+  renumbering: decisions 8, 10 and 12, and the `Attached` entry.
+- **Cell 12 described a queue prune that was never built, and should not
+  be.** Cell 4 rules pruning out. At its turn, a queued thread that was
+  parked, or relaunched from the CLI, is skipped. An archived one fails, with
+  no row left to show the mark on. The table now says so.
+- **Decision 11 promised the error's first line on a failed row; the row
+  showed `reattach-failed`.** Now built:
+  - the pass stores the error's first line;
+  - `passSuffix` sanitizes it and fits it to the row, leaving the label
+    `menuLabelFloor` columns;
+  - the same fitting stops a long code overflowing a 40-column row, which it
+    did before.
+- Task 6's named tests landed under other names, so the plan now maps each
+  cell to its test.
+- M1's Task 4 items were done at M1's close but never ticked. They are ticked
+  now, pointing at that Log line.
+- The corrected prose is registered as dead tokens in
+  `tests/plan-superseded-facts-test.sh`, so it cannot come back. The script
+  also checks each token was really in the file before it was corrected.
+
+**Suite.** Unsandboxed `make test` exits 0 across 197 packages, at load 2-3.
+The earlier loaded run's three zellij-timing failures did not recur, and
+neither did the older repaint race.
+
+**Left:**
+- the operator-assisted measurement and smoke;
+- `sdlc milestone-close --milestone M2`, then the issue close.

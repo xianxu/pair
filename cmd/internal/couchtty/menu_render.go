@@ -434,8 +434,8 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		// pending thread reads queued or reattaching, a failed one says why.
 		view, owned := passViewOf(state.Reattach, thread.Address)
 		suffix := "  " + rootStateText(thread, now)
-		if text := passStateText(view); owned && text != "" {
-			suffix = "  " + text
+		if pass := passSuffix(view, owned, width); pass != "" {
+			suffix = pass
 		}
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
@@ -662,4 +662,20 @@ func passStateText(view PassView) string {
 		return "reattach failed: " + view.Diagnostic
 	}
 	return ""
+}
+
+// menuLabelFloor is the columns a switcher row keeps for its label and path
+// however long the pass's state text is.
+const menuLabelFloor = 16
+
+// passSuffix is the state column of a row the pass owns, or "" for a row it
+// does not. A failed row can carry an error's own text (pair#206 decision 11),
+// which is neither short nor trustworthy, so the text is sanitized and fitted
+// here, where the width is known, leaving the label menuLabelFloor columns.
+func passSuffix(view PassView, owned bool, width int) string {
+	text := passStateText(view)
+	if !owned || text == "" {
+		return ""
+	}
+	return "  " + clipMenuLine(text, width-2-menuLabelFloor)
 }

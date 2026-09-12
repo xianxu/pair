@@ -56,13 +56,15 @@ type ReattachPass struct {
 	// generation drops it: expiring on "the inventory shows it live" instead
 	// would strand the row forever if the pane exited before the next refresh.
 	Attached map[couchcore.ThreadAddress]uint64
-	// Failed maps a thread whose attempt failed to its diagnostic code.
+	// Failed maps a thread whose attempt failed to what its row says after
+	// "reattach failed: ": the refusal's code, or the first line of a failure
+	// that has none (decision 11).
 	Failed map[couchcore.ThreadAddress]string
 }
 
-// reattachFailedCode is the diagnostic for a failure that is not a refusal --
-// a spawn error, a registration timeout -- which ResumeDiagnosticOf reports as
-// empty. Without it the row would read "reattach failed: " with nothing after.
+// reattachFailedCode is what a failed row says when the failure carried neither
+// a refusal code nor any text. Without it the row would read "reattach failed: "
+// with nothing after.
 const reattachFailedCode = "reattach-failed"
 
 func cloneReattachPass(pass ReattachPass) ReattachPass {
@@ -233,8 +235,13 @@ func finishReattach(state MenuState, event MenuEvent) MenuState {
 		// Cell 6: the thread stopped being warm before its turn. Skipped
 		// silently -- it was never going to be reattached, so it did not fail.
 	default:
-		// Cell 7.
+		// Cell 7. A refusal carries a code. A failure that is not one (a spawn
+		// error, a registration timeout) carries only its text, so its row
+		// shows that text's first line (decision 11).
 		code := string(event.Diagnostic)
+		if code == "" {
+			code = firstErrorLine(event.Error)
+		}
 		if code == "" {
 			code = reattachFailedCode
 		}
@@ -244,6 +251,14 @@ func finishReattach(state MenuState, event MenuEvent) MenuState {
 		state.Reattach.Failed[address] = code
 	}
 	return state
+}
+
+// firstErrorLine is the part of an error a one-line switcher row can show. It
+// is stored as the error wrote it; the renderer sanitizes it and fits it to the
+// row (passSuffix).
+func firstErrorLine(text string) string {
+	line, _, _ := strings.Cut(text, "\n")
+	return strings.TrimSpace(line)
 }
 
 // expireAttached is cell 11: an inventory newer than the generation a thread
