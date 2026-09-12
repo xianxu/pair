@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -378,6 +379,17 @@ var chordSequences = []struct {
 	{"\x1b[1;4D", ChordAltShiftLeft}, {"\x1b[1;10D", ChordAltShiftLeft},
 	{"\x1b[1;4C", ChordAltShiftRight}, {"\x1b[1;10C", ChordAltShiftRight},
 }
+
+// EscapeAmbiguity is how long an ESC-led prefix may stay pending before a
+// framer resolves it as typed bytes. Every legacy chord in chordSequences
+// begins with ESC, so a lone ESC on any Pair-owned stdin is ambiguous
+// between "the user pressed Escape" and "the first byte of a chord whose
+// tail is in the next read". The chord table is what creates the ambiguity,
+// so it owns the one deadline: couch's two framers, termcmd's rename
+// decoder and termcmd's main loop all read it (#234). 35 ms sits under
+// nvim's own default ttimeoutlen (50 ms), so a child that resolves the same
+// ambiguity one hop downstream never sees a slower ESC than it budgets for.
+const EscapeAmbiguity = 35 * time.Millisecond
 
 func ChordSequences() []string {
 	sequences := make([]string, 0, len(chordSequences))

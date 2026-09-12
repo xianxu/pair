@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // chunk is one child write on its way to the screen.
@@ -597,9 +598,9 @@ func (c *Console) Run() int {
 			return
 		}
 		if inputEscapeTimer == nil {
-			inputEscapeTimer = time.NewTimer(escapeAmbiguity)
+			inputEscapeTimer = time.NewTimer(workbenchshortcut.EscapeAmbiguity)
 		} else {
-			inputEscapeTimer.Reset(escapeAmbiguity)
+			inputEscapeTimer.Reset(workbenchshortcut.EscapeAmbiguity)
 		}
 		inputEscapeC = inputEscapeTimer.C
 	}
@@ -609,9 +610,9 @@ func (c *Console) Run() int {
 			return
 		}
 		if panelEscapeTimer == nil {
-			panelEscapeTimer = time.NewTimer(escapeAmbiguity)
+			panelEscapeTimer = time.NewTimer(workbenchshortcut.EscapeAmbiguity)
 		} else {
-			panelEscapeTimer.Reset(escapeAmbiguity)
+			panelEscapeTimer.Reset(workbenchshortcut.EscapeAmbiguity)
 		}
 		panelEscapeC = panelEscapeTimer.C
 	}

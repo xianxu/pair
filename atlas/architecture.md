@@ -446,6 +446,19 @@ opposite directions, and the asymmetry is deliberate:
   the release as an unfinished press parked it, and then every following
   keystroke, in the `held` buffer: a dead keyboard plus a child stuck in an
   unmatched mouse drag (nvim: stuck in visual mode).
+  A chord or mouse *prefix* — every legacy Alt chord begins with ESC — is
+  held for one `workbenchshortcut.EscapeAmbiguity` (35 ms) and then forwarded
+  as typed. That constant is the one deadline all four framers in the tree
+  read (couch's input and panel framers, the rename decoder, and this main
+  loop); the chord table owns it because the chord table is what makes a lone
+  ESC ambiguous. Whoever owns the pending bytes owns the pump's single
+  `EscapeTimer`: a rename session arms it for a lone pending ESC (expiry
+  cancels the rename), the plain path for any held prefix (expiry forwards
+  it). Before #234 the main path had no deadline at all: a bare ESC sat in
+  `held` until the next keystroke, so nvim in the right pane needed two
+  presses to leave insert mode, and `ESC`,`j` arrived as Alt+j. The residual
+  — `ESC`,`j` typed inside 35 ms still decodes as a chord — is what #227's
+  alt-screen passthrough closes.
 - *Output, replay only.* `redrawTab` repaints a tab from its stored output. That
   buffer still holds the app's **capability queries** (DA1, DECRQM, Kitty flags,
   DSR, OSC colour), so replaying re-ASKED the host terminal and its answers were

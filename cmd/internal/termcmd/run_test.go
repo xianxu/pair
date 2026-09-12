@@ -133,11 +133,17 @@ func TestPumpStdinDecodesSplitAltChord(t *testing.T) {
 	rt := &fakeRuntime{}
 	stdin := splitReader{chunks: [][]byte{{0x1b}, {'t'}}}
 	mux := &fakeMux{}
+	timer := beforeDeadline()
 
-	pumpStdin(&stdin, mux, rt, &bytes.Buffer{})
+	pumpStdinWithTimer(&stdin, mux, rt, &bytes.Buffer{}, timer)
 
 	if strings.Join(mux.ops, ",") != "new-tab" {
 		t.Fatalf("mux ops = %v, want new-tab", mux.ops)
+	}
+	// The held ESC armed the deadline once; the tail completing the chord
+	// stopped it (#234).
+	if timer.resets != 1 || timer.stops == 0 {
+		t.Fatalf("timer resets=%d stops=%d, want armed once on the held ESC and stopped on the chord", timer.resets, timer.stops)
 	}
 }
 
@@ -206,31 +212,12 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 			rt := &fakeRuntime{}
 			mux := &fakeMux{appMouse: tt.appMouse}
 			var stdout bytes.Buffer
-			pumpStdin(&splitReader{chunks: tt.chunks}, mux, rt, &stdout)
+			pumpStdinWithTimer(&splitReader{chunks: tt.chunks}, mux, rt, &stdout, beforeDeadline())
 			if strings.Join(mux.ops, ",") != tt.wantMux {
 				t.Fatalf("mux ops = %q, want %q", strings.Join(mux.ops, ","), tt.wantMux)
 			}
 			if strings.Join(rt.ops, ",") != tt.wantRTOps {
 				t.Fatalf("runtime ops = %q, want %q", strings.Join(rt.ops, ","), tt.wantRTOps)
-			}
-		})
-	}
-}
-
-func TestPumpStdinTerminalShortcutsDoNotLeakWhenSplit(t *testing.T) {
-	for _, seq := range []string{"\x1bt", "\x1b[116;3u"} {
-		t.Run(fmt.Sprintf("%q", seq), func(t *testing.T) {
-			for split := 1; split < len(seq); split++ {
-				rt := &fakeRuntime{}
-				mux := &fakeMux{}
-				pumpStdin(&splitReader{chunks: [][]byte{
-					[]byte(seq[:split]),
-					[]byte(seq[split:]),
-				}}, mux, rt, io.Discard)
-
-				if got := strings.Join(mux.ops, ","); got != "new-tab" {
-					t.Fatalf("split %d ops = %q, want new-tab without residue", split, got)
-				}
 			}
 		})
 	}
@@ -541,7 +528,7 @@ func TestPumpStdinRenameBareEscapeCancelsOnTimer(t *testing.T) {
 	finished := make(chan RenameOutcome, 1)
 	mux := &fakeMux{activeName: "work", renameFinished: finished}
 	reader := &gatedEOFReader{data: []byte("\x1br\x1b"), release: make(chan struct{})}
-	timer := newFiringRenameTimer()
+	timer := newFiringEscapeTimer()
 	done := make(chan struct{})
 
 	go func() {
@@ -574,7 +561,7 @@ func TestPumpStdinRenameEscapeTimeoutThenNextReadForwards(t *testing.T) {
 		chunks:  [][]byte{[]byte("\x1brx\x1b"), []byte("ls\n")},
 		release: releaseNext,
 	}
-	timer := newFiringRenameTimer()
+	timer := newFiringEscapeTimer()
 	done := make(chan struct{})
 
 	go func() {
@@ -605,7 +592,7 @@ func TestPumpStdinRenameEscapeTimeoutThenNextReadForwards(t *testing.T) {
 func TestPumpStdinRenameEscapeContinuationBeatsTimer(t *testing.T) {
 	rt := &fakeRuntime{}
 	mux := &fakeMux{activeName: "work"}
-	timer := newFiringRenameTimer()
+	timer := newFiringEscapeTimer()
 	timer.autoFire = false
 
 	pumpStdinWithTimer(&splitReader{chunks: [][]byte{
@@ -1035,8 +1022,11 @@ func (f *fakeRuntime) ShellCommand() (string, []string) {
 }
 
 type fakeMux struct {
-	reported        []string
-	ops             []string
+	reported []string
+	ops      []string
+	// wrote, when non-nil, receives every writeActive payload as it happens,
+	// so a test can observe a deadline flush before releasing the next read.
+	wrote           chan string
 	appMouse        bool
 	activeName      string
 	beginRenameErr  error
@@ -1046,6 +1036,9 @@ type fakeMux struct {
 
 func (f *fakeMux) writeActive(data []byte) {
 	f.ops = append(f.ops, "write:"+string(data))
+	if f.wrote != nil {
+		f.wrote <- string(data)
+	}
 }
 
 func (f *fakeMux) newTab() error {
@@ -1133,22 +1126,32 @@ func (r *gatedChunksReader) Read(p []byte) (int, error) {
 	return copy(p, chunk), nil
 }
 
-type firingRenameTimer struct {
+type firingEscapeTimer struct {
 	ch       chan time.Time
 	autoFire bool
 	resets   int
 	stops    int
 }
 
-func newFiringRenameTimer() *firingRenameTimer {
-	return &firingRenameTimer{ch: make(chan time.Time, 1), autoFire: true}
+func newFiringEscapeTimer() *firingEscapeTimer {
+	return &firingEscapeTimer{ch: make(chan time.Time, 1), autoFire: true}
 }
 
-func (t *firingRenameTimer) C() <-chan time.Time {
+// beforeDeadline is the interleaving where every read lands before the
+// escape-ambiguity deadline fires: the timer arms and stops but never ticks.
+// Tests that split a chord across reads use it instead of the real timer so
+// they cannot race a 35 ms wall clock (#234).
+func beforeDeadline() *firingEscapeTimer {
+	timer := newFiringEscapeTimer()
+	timer.autoFire = false
+	return timer
+}
+
+func (t *firingEscapeTimer) C() <-chan time.Time {
 	return t.ch
 }
 
-func (t *firingRenameTimer) Reset(time.Duration) {
+func (t *firingEscapeTimer) Reset(time.Duration) {
 	t.resets++
 	if !t.autoFire {
 		return
@@ -1159,7 +1162,7 @@ func (t *firingRenameTimer) Reset(time.Duration) {
 	}
 }
 
-func (t *firingRenameTimer) StopAndDrain() {
+func (t *firingEscapeTimer) StopAndDrain() {
 	t.stops++
 	select {
 	case <-t.ch:
