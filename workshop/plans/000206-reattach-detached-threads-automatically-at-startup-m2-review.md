@@ -83,3 +83,64 @@ findings:
     detail: |
       This is the 2nd finding in family plan-drift-from-code. The rule, not the instance: a plan never restates a declaration the code owns (the lessons.md "one home" rule extended from counts to types); replace the block with a pointer to menu_reattach.go, or register its stale line in tests/plan-superseded-facts-test.sh.
 ```
+
+---
+
+## Re-review — 2026-09-12T13:12:17-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 206 — reattach detached threads automatically at startup |
+| repo | pair |
+| issue file | workshop/issues/000206-reattach-detached-threads-automatically-at-startup.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 4d331487734ad39e62ea1e76befcba24c2bef83e..4d331487734ad39e62ea1e76befcba24c2bef83e |
+| command | sdlc milestone-close --issue 206 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-12T13:12:17-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+**Summary.** The pinned window is empty (base and head are both `4d331487`), so this round is the disposal check on the two findings left open by round 4, verified against the tree at HEAD rather than the commit message. Both are addressed. The README now carries a paragraph on the startup reattach pass, and every sentence in it traces to code: ordering by `LastActiveAt` descending with a deterministic tiebreak (`menu_reattach.go:170-178`), one attempt in flight at a time (`advanceReattach`, the `Loading` guard at line 195), the `queued` / `reattaching…` / `reattach failed: ` row text (`menu_render.go:658-662`), pending rows refused by `menuRowSelectable` on both the Enter path and the click path (`menu.go:377`), a `warm-only` resume that refuses a parked thread before any effect (`resume.go:378`), the arm restricted to the `start` operation (`run.go:404`, pinned in `run_test.go:1620`), and the pass's attempt context derived from the console lifetime so quitting cancels it (`console_reattach.go:52`). The plan's Core-concepts block is gone, replaced by a pointer to `menu_reattach.go`, and the class fix is real: I pasted the two stale tokens back into a scratch copy of the plan body and `tests/plan-superseded-facts-test.sh` went red on both lines, then green on the committed tree. Nothing in the window is new code, so there is nothing new to raise.
+
+**1. Strengths**
+- The README paragraph (`README.md:331-339`) is written in operator terms and stops where the atlas takes over: env vars and the trace stay atlas-only, matching the `COUCH_INPUT_TRACE` precedent.
+- BR-14 was answered as a class, not a site: the lesson now covers declarations (`workshop/lessons.md:4590-4595`), and the guard is a failing test rather than a promise (`tests/plan-superseded-facts-test.sh:235-238`).
+- The plan's replacement text names why the copy drifted (three phases vs four, `Failed` semantics after decision 11), so the next reader learns the rule from the artifact itself.
+- The advisory counter-guard comment landed (`menu_reattach.go:198-202`), closing round 4's third Minor note without being asked.
+
+**2. Critical findings** — none.
+
+**3. Important findings** — none.
+
+**4. Minor findings** — none new. The four prior Minors (BR-9 through BR-12) remain in the ledger's open list and are outside this boundary's window; BR-12's consolidation was confirmed done in round 4's revert check.
+
+**5. Test coverage notes**
+- `plan-superseded-facts-test.sh` passes on HEAD and fails on a scratch copy with the declaration pasted back into the body above `## Estimate`. Both new `check` lines fire independently.
+- No Go code changed in this window beyond a comment, so the package suites were not re-run here. Round 4's revert checks on the four claimed fixes stand.
+
+**6. Architectural notes**
+- ARCH-DRY: pass. The plan no longer holds a second copy of `ReattachPhase` or `ReattachPass`.
+- ARCH-PURE, ARCH-MOCK, ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-ORDER: pass, unchanged from round 4; the window contains a comment and docs only.
+- ARCH-PURPOSE: pass. The README gap was the last consumer of the M2 surface that did not describe it; it now does.
+
+**7. Plan revision recommendations** — none. The round-4 Revisions entry already records the BR-13 and BR-14 deltas and matches the code.
+
+```findings
+dispose:
+  - id: BR-13
+    disposition: addressed
+    note: |
+      README.md:331-339 describes the pass; each claim (ordering, one-at-a-time, placeholder/switcher text, non-selectable rows, failure mark, start-only arm, parked never resumed, quit leaves the rest detached) traces to a code site.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Block replaced by a pointer to menu_reattach.go; lesson extended to declarations; pasting either stale token back into the plan body fails tests/plan-superseded-facts-test.sh (verified in a scratch copy).
+```

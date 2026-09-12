@@ -193,7 +193,7 @@ than one.
 - [x] M1 — startup proves only the threads its readers consume (`startupAsks`),
       and the duplicate-name rule counts each thread once over the union of
       index files it reads.
-- [ ] M2 — the background reattach pass: `warm-only` resume, the pure
+- [x] M2 — the background reattach pass: `warm-only` resume, the pure
       `ReattachPass` in `MenuState`, the pass view applied at the row lookups,
       console wiring that never takes focus, rendering, arming, the trace, the
       operator-assisted measurement, and the smoke.
@@ -201,6 +201,8 @@ than one.
 ## Log
 
 
+
+- 2026-09-12: closed M2 — M2 background reattach pass: warm-only resume, the pure pass in MenuState, the pass view at every row lookup, console wiring that never takes focus, greyed unclickable placeholders, start-only arming, COUCH_TRACE. Tests: cells 1-13 plus generated-sequence routing invariants; M2 mutation sweep 38 of 38 killed; Task 11 sweep 23 of 23; unsandboxed make test exit 0 across 197 packages. Operator smoke live on the real stack, including a quit mid-pass; it found the last placeholder still spinning, fixed with a test red before and green after. Measured from the operator traced restart: first frame 0.72 s, a 5-thread pass in 2.34 s (median attempt 302 ms), zellij action at most 35 ms during startup against a quiet max of 36 ms. Round 4 fixes in 4d331487: BR-13 README paragraph on the pass; BR-14 plan points at menu_reattach.go instead of restating it, lesson extended, re-paste guarded. Actual 3.80 h = measured 8.86 h cumulative minus the measured 5.06 h M1 closed at.; review verdict: SHIP
 - 2026-09-11: closed M1 — startupAsks resolves only the union its readers consume; gates ResolveEstablished and the zellij query. Counted at the seam: 3 detach candidates, 1 binding resolution at 2 and 12 other threads. Equivalence test now covers all 7 plan rows and all 4 readers (conflicts compared by address; layout3 for a valid conflict, layout1 for unreadable); a count test kills the dropped-scope-arm mutation the equivalence test structurally cannot. Duplicate-name rule counts each thread once at its effective binding over the union of index files read, pinned by a two-scope legacy seam test. Mutations 13/13 killed as named. Unsandboxed make test exit 0, 197 packages. OPERATOR SMOKE: startup ~1.5x faster on the real stack. Actual 5.06h = measured #206 share since claim, incl. measure-first probe and 4 plan-gate rounds.; review verdict: SHIP
 ### 2026-09-06
 

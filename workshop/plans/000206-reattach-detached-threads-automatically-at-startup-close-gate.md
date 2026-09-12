@@ -160,6 +160,20 @@ rounds:
           round: 4
       boundary: M2
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-12T13:12:17-07:00"
+      agent: claude
+      dispose:
+        - id: BR-13
+          disposition: addressed
+          note: README.md:331-339 describes the pass; each claim (ordering, one-at-a-time, placeholder/switcher text, non-selectable rows, failure mark, start-only arm, parked never resumed, quit leaves the rest detached) traces to a code site.
+          round: 5
+        - id: BR-14
+          disposition: addressed
+          note: Block replaced by a pointer to menu_reattach.go; lesson extended to declarations; pasting either stale token back into the plan body fails tests/plan-superseded-facts-test.sh (verified in a scratch copy).
+          round: 5
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#206 (boundary-review)
@@ -234,11 +248,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Minor] `plan-drift-from-code` The plan's Core-concepts code block restates ReattachPhase with three constants where the code has four
   This is the 2nd finding in family plan-drift-from-code. The rule, not the instance: a plan never restates a declaration the code owns (the lessons.md "one home" rule extended from counts to types); replace the block with a pointer to menu_reattach.go, or register its stale line in tests/plan-superseded-facts-test.sh.
 
+## Round 5 — 2026-09-12T13:12:17-07:00 (claude) — passed
+
+### Disposed
+
+- BR-13 — addressed — README.md:331-339 describes the pass; each claim (ordering, one-at-a-time, placeholder/switcher text, non-selectable rows, failure mark, start-only arm, parked never resumed, quit leaves the rest detached) traces to a code site.
+- BR-14 — addressed — Block replaced by a pointer to menu_reattach.go; lesson extended to declarations; pasting either stale token back into the plan body fails tests/plan-superseded-facts-test.sh (verified in a scratch copy).
+
 ## Open findings
 
 - **BR-9** [Minor] `plan-drift-from-code` Durable plan lags the code: Tasks 2-3 unticked, prose names sessionNameClaims, Task 2 Step 1 describes a zellij-seam count the test takes at the fake seam
 - **BR-10** [Minor] `decision-restated-not-swept` Round-2 decisions left six restatements unswept: the reader count, the M1 close criterion, and lookupSessionName's orphaned doc comment
 - **BR-11** [Minor] `documented-rule-reach` DetachedSessions' comment says a scope whose index cannot be read contributes no bindings; after the union its legacy-bound threads are bound and counted from other reads
 - **BR-12** [Minor] `dry-duplicate-derivation` lookupSessionName and effectiveBindings are two derivations of a thread's newest binding in one read; PairSession uses one, DetachedSessions the other
-- **BR-13** [Important] `readme-tracks-user-facing-surface` README update appears missing for the startup reattach pass and its placeholders
-- **BR-14** [Minor] `plan-drift-from-code` The plan's Core-concepts code block restates ReattachPhase with three constants where the code has four
