@@ -49,3 +49,32 @@ func TestFakeQuiesceThatFailsLeavesTheSessionAlone(t *testing.T) {
 		t.Fatalf("DetachedSessions() = %+v after a REFUSED quiesce, want the session still observed", observed)
 	}
 }
+
+// The fake answers through production's rule, not around it. A session two
+// threads claim proves nothing -- and a fake that skipped that refusal would
+// let every fake-backed test pass on a proof production rejects (ARCH-MOCK).
+func TestFakeDetachedSessionsAppliesTheDuplicateNameRule(t *testing.T) {
+	a := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000001"}
+	b := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0000000000000002"}
+	f := NewFakeThreadArtifactCollisionChecker()
+	f.SetDetachedSession(a, "pair-shared")
+	f.SetDetachedSession(b, "pair-shared")
+
+	observed, err := f.DetachedSessions(t.Context(), []DetachedCandidate{{Address: a, Agent: "claude"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 0 {
+		t.Fatalf("observed %+v; two threads claim that session, so it proves nothing", observed)
+	}
+
+	// And the uncontested case still resolves.
+	f.SetDetachedSession(b, "")
+	observed, err = f.DetachedSessions(t.Context(), []DetachedCandidate{{Address: a, Agent: "claude"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 1 || observed[0].Address != a {
+		t.Fatalf("observed %+v, want the one uncontested observation", observed)
+	}
+}

@@ -231,6 +231,9 @@ func Operations() []Operation {
 			Args: []ArgSpec{
 				{Name: "repo-scope", Summary: "exact started thread scope", Required: true, Implicit: true},
 				{Name: "tag", Summary: "exact started thread tag", Required: true, Implicit: true},
+				// Implicit: only couch's own reattach pass sets it (pair#206). A
+				// background attach adds its pane without taking focus.
+				{Name: "background", Summary: "attach without taking focus (the reattach pass)", Implicit: true},
 			},
 		},
 		{
@@ -305,13 +308,17 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name: "resume", Summary: "Resume an exact verified-parked work thread",
+			Name: "resume", Summary: "Reattach a detached work thread, or resume a verified-parked one",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
 				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+				// Implicit, so the CLI can never send it: only couch's own background
+				// reattach pass may ask for a resume that refuses to start an agent
+				// (pair#206). Its absence is today's behaviour.
+				{Name: "warm-only", Summary: "refuse unless the thread is detached; never start an agent", Implicit: true},
 			},
 		},
 	}

@@ -327,6 +327,17 @@ return to. Ranking replaced an exactness rule that was a ratchet -- two
 resumable rows at one path created a third, guaranteeing the next startup
 created a fourth -- and wanting a fresh agent instead costs one chord inside
 Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
+
+**Every other detached thread comes back too, behind you** (pair#206). Once the
+thread you land on is up, couch reattaches the rest in the background, one at a
+time, most recently active first, without moving your keyboard or your screen.
+Until a thread is ready it is greyed out: a placeholder on the status row, with
+a spinner on the one starting now, and a `queued` or `reattaching…` row in the
+switcher. Neither can be clicked or selected. A thread that fails to come back
+reads `reattach failed:` with its reason, and you can resume it by hand.
+Quitting part-way leaves the rest detached for next time. Only a bare start
+does this, and it never resumes a parked thread.
+
 Resume does not allocate a temporary actor first or add a full native inventory
 scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
 it would leave Couch with a dead child and a stale incarnation, and the thread

@@ -222,8 +222,7 @@ func renderedMenuNotice(state MenuState) string {
 		return "error: " + notice.Text
 	}
 	if notice.Level == MenuNoticeProgress {
-		frames := [...]string{"◐", "◓", "◑", "◒"}
-		return frames[int(state.SpinnerPhase)%len(frames)] + " " + notice.Text + "…"
+		return spinnerGlyph(state.SpinnerPhase) + " " + notice.Text + "…"
 	}
 	return notice.Text
 }
@@ -271,7 +270,7 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 		// A global frame: it names couch, not a thread.
 		return "threads › leave couch"
 	}
-	thread, ok := findMenuThread(state.Inventory, frame.Thread)
+	thread, ok := menuThread(state, frame.Thread)
 	if !ok {
 		return "threads"
 	}
@@ -297,13 +296,13 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 	case MenuFrameRoot:
 		return renderRootMenuFrame(state, frame, width, height, now, color256)
 	case MenuFrameActions:
-		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		thread, _ := menuThread(state, frame.Thread)
 		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height), nil
 	case MenuFrameConfirmation:
 		// The title argument is vestigial at every call site: RenderMenuView
 		// overwrites line 0 with the breadcrumb. What the operator reads is the
 		// ITEM, which is why the item names the action's cost.
-		thread, _ := findMenuThread(state.Inventory, frame.Thread)
+		thread, _ := menuThread(state, frame.Thread)
 		title := "park " + thread.Label() + "?"
 		if frame.Action == "archive" {
 			title = "archive " + thread.Label() + "?"
@@ -396,11 +395,11 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 // actor was drawn WITHIN those lines. The caller re-bases the extents, because
 // only the caller knows what it inserts above them.
 func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) ([]string, []ActorExtent) {
-	visible := visibleRootThreads(state.Inventory, frame)
+	visible := visibleMenuRows(state, frame)
 	// Labels are disambiguated against the WHOLE inventory, not the filtered
 	// view: a name that is unique only because the filter hid its twin would
 	// change as the operator types.
-	labels := couchcore.LabelsFor(state.Inventory,
+	labels := couchcore.LabelsFor(menuRows(state),
 		func(t couchcore.ActionableThreadSummary) couchcore.ThreadAddress { return t.Address },
 		func(t couchcore.ActionableThreadSummary) string { return t.Label() })
 	lines := []string{"threads", ""}
@@ -431,7 +430,13 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			marker = "▸ "
 		}
+		// The reattach pass is the authority on a row it owns (pair#206): a
+		// pending thread reads queued or reattaching, a failed one says why.
+		view, owned := passViewOf(state.Reattach, thread.Address)
 		suffix := "  " + rootStateText(thread, now)
+		if pass := passSuffix(view, owned, width); pass != "" {
+			suffix = pass
+		}
 		prefixWidth := width - textwidth.Width(suffix)
 		if prefixWidth < 0 {
 			prefixWidth = 0
@@ -439,6 +444,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, labels[thread.Address], thread.WorkingPath), prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
+		} else if owned && view.Pending() && color256 {
+			// Greyed with the status bar's placeholder grey, so "not ready yet"
+			// looks the same in both places. Never selected: the cursor skips it.
+			plain = placeholderSGR + plain + "\x1b[0m"
 		} else if !thread.Live() && color256 {
 			plain = ageColor(AgeBandFor(now, thread.LastActiveAt)) + plain + "\x1b[0m"
 		}
@@ -634,4 +643,39 @@ func clipStyledMenuLine(line string, width int) string {
 
 func styledMenuWidth(line string) int {
 	return textwidth.Width(string(ansi.Strip([]byte(line))))
+}
+
+// passStateText is a pass-owned row's state column. An attached row has none of
+// its own: the lookup overlays it as live, so rootStateText already says so.
+//
+// "reattaching..." carries no spinner here. The switcher's spinner advances
+// only while a progress notice shows, and the pass shows none, so a glyph would
+// sit frozen. The ellipsis says "in progress"; the live animation is on the
+// status bar, where the operator is while the pass runs.
+func passStateText(view PassView) string {
+	switch view.State {
+	case PassQueued:
+		return "queued"
+	case PassLoading:
+		return "reattaching…"
+	case PassFailed:
+		return "reattach failed: " + view.Diagnostic
+	}
+	return ""
+}
+
+// menuLabelFloor is the columns a switcher row keeps for its label and path
+// however long the pass's state text is.
+const menuLabelFloor = 16
+
+// passSuffix is the state column of a row the pass owns, or "" for a row it
+// does not. A failed row can carry an error's own text (pair#206 decision 11),
+// which is neither short nor trustworthy, so the text is sanitized and fitted
+// here, where the width is known, leaving the label menuLabelFloor columns.
+func passSuffix(view PassView, owned bool, width int) string {
+	text := passStateText(view)
+	if !owned || text == "" {
+		return ""
+	}
+	return "  " + clipMenuLine(text, width-2-menuLabelFloor)
 }

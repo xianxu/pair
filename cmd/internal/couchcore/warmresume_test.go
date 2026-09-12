@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"strings"
@@ -165,5 +166,117 @@ func TestStartupResumeRefusalPassesThroughOtherErrors(t *testing.T) {
 	}
 	if startupResumeRefusal(ThreadAddress{}, nil) != nil {
 		t.Fatal("startupResumeRefusal invented an error")
+	}
+}
+
+// pair#206 M2: the background pass's resume can only REATTACH, never start.
+//
+// The pass runs behind the operator's back, so a thread that has stopped being
+// warm by the time its turn comes -- parked in the meantime, its session gone,
+// or attached elsewhere -- must be refused before any effect. A resume without
+// warm-only would cold-start a parked thread's agent, which is exactly what the
+// Spec rules out ("parked threads are not resumed at startup").
+//
+// Each row asserts the refusal comes BEFORE CommitStartClaim (the revision is
+// unchanged) and before any child is spawned.
+func TestWarmOnlyResumeNeverStartsAnAgent(t *testing.T) {
+	for _, tt := range []struct {
+		name  string
+		build func(t *testing.T, env *testEnv) ThreadAddress
+	}{
+		{"verified-parked", func(t *testing.T, env *testEnv) ThreadAddress {
+			parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
+			env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-1")
+			return parked.Address
+		}},
+		{"verified-parked with a provisional binding", func(t *testing.T, env *testEnv) ThreadAddress {
+			// A LATE refusal would surface the binding error instead of the
+			// warm-only code, so this row is what proves the refusal is first.
+			parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
+			env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingProvisional, "native-1")
+			return parked.Address
+		}},
+		{"detached-shaped with its session gone", func(t *testing.T, env *testEnv) ThreadAddress {
+			// Resume-shaped -- no incarnation, no park, a usable profile -- but
+			// nothing is running: the thread a pass reaches after the session
+			// died on its own. Without warm-only this would cold-start it.
+			profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+			record := validThreadRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo"
+			record.Reservation = false
+			record.LatestLaunchProfile = &profile
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return created.Address
+		}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			address := tt.build(t, env)
+			before, err := env.Couch.Threads.GetThread(address)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			_, handle, err := env.Couch.ResumeContextWith(context.Background(), address, ResumeOptions{WarmOnly: true})
+			if code := ResumeDiagnosticOf(err); code != ResumeNotDetached {
+				t.Fatalf("diagnostic = %q (err %v), want %q", code, err, ResumeNotDetached)
+			}
+			if handle != nil {
+				t.Fatal("a warm-only resume spawned a child")
+			}
+			after, err := env.Couch.Threads.GetThread(address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Revision != before.Revision {
+				t.Fatalf("revision %d -> %d: a warm-only refusal wrote the record", before.Revision, after.Revision)
+			}
+		})
+	}
+}
+
+// And a thread that IS warm still reattaches under warm-only -- the flag
+// narrows what may happen, it does not change the happy path.
+func TestWarmOnlyResumeStillReattachesADetachedThread(t *testing.T) {
+	env, address := warmDetachedThread(t)
+	env.Runner.AfterAcknowledge = func(string) error {
+		env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true)
+		return nil
+	}
+	record, handle, err := env.Couch.ResumeContextWith(context.Background(), address, ResumeOptions{WarmOnly: true})
+	if err != nil {
+		t.Fatalf("warm-only refused a detached thread: %v", err)
+	}
+	if handle == nil || record.Shape != StartWarmReattach {
+		t.Fatalf("record = %+v, want a warm reattach", record)
+	}
+}
+
+// warm-only through the DECLARED operation, which is the only way the pass can
+// ask for it: the console dispatches `resume` by name through the operation
+// table. A test that calls ResumeContextWith directly would pass even if the
+// dispatcher dropped the argument, and the pass would then cold-start a parked
+// thread's agent -- exactly the outcome warm-only exists to prevent.
+func TestWarmOnlyReachesTheResumeThroughTheOperationTable(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
+	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-1")
+
+	_, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch)}, OperationCall{
+		Name: "resume", Implicit: true, Context: context.Background(),
+		Args: map[string]string{
+			"repo-scope": parked.Address.RepoScope,
+			"tag":        string(parked.Address.Tag),
+			"warm-only":  "true",
+		},
+	})
+	if code := ResumeDiagnosticOf(err); code != ResumeNotDetached {
+		t.Fatalf("dispatched warm-only resume of a parked thread: diagnostic %q (err %v), want %q", code, err, ResumeNotDetached)
+	}
+	if children := env.Runner.Ops; len(children) != 0 {
+		t.Fatalf("runner ops %v: the parked thread's agent was started", children)
 	}
 }

@@ -4570,3 +4570,84 @@ paths it newly touches, run the tests that own them, and ask whether the fix is
 now doing work on a path that never asked for it. And pin it where the decision
 is CONSUMED — a predicate test next to the rule survived "call it everywhere",
 because a predicate cannot see its caller.
+
+## Do not restate a count or a list — point at its one home (pair#206)
+
+**What happened.** A review found a stale restatement. I adopted the rule "grep
+every restatement in the same edit". The next two commits still produced six
+stale copies: "three readers" in a code comment, a test header and the atlas,
+while the test itself asserted four. Each sweep found the copies I thought to
+grep for and missed the ones I had written in different words.
+
+**Rule.** A count or a list gets exactly ONE home — usually the doc comment on
+the code that owns it — and every other site names that home instead of
+repeating the number or the items. "Three readers" in five places is five
+chances to be wrong; "the readers listed on `startupAsks`" is zero. When you
+catch yourself writing a number that some other file also states, stop and
+point. A sweep rule is a promise about future diligence; a single home is a
+structure that makes the diligence unnecessary.
+
+**The same holds for declarations** (#206's M2 review, the second finding in
+the family). A plan that pastes a type or an enum restates code, and the paste
+goes stale the moment the code grows a case: #206's Core-concepts block listed
+three `ReattachPhase` constants after the code had four. Name the file and the
+type; do not paste the block.
+
+**Tables of entities at paths are claims too** (#206's issue close, the third
+finding in the family). Its Core concepts tables marked an unchanged function
+"modified", put a function in the wrong file, and named a file the plumbing
+had since left. Nothing checks such a row. Until #235's checker does,
+re-verify each row against the milestone's diff at every milestone close.
+
+## A comment that states a reach is a claim a test must pin (pair#206)
+
+**What happened.** A doc comment said an unreadable index scope "contributes
+no bindings". A refactor then iterated scopes rather than reads, and a failed
+scope's threads quietly took their names from rows another read had replayed —
+the opposite of the comment. Nothing failed, because no test pinned the
+comment's claim. The comment was right and the code had drifted from it.
+
+**Rule.** When a comment says which data the code consults — "per scope", "the
+whole index", "fails closed" — it is making a claim about behaviour, and that
+claim needs a test that the comment names by function. Then a refactor that
+changes the reach fails a test instead of silently contradicting the prose.
+Prefer the comment's rule over the code's when they disagree and the comment
+states the safer direction.
+
+## A test that a periodic repaint stops must also check the frame it leaves (pair#206)
+
+**What happened.** While a thread reattached, the status row's spinner tick was
+the only thing repainting that row. Its test checked that the tick stopped once
+nothing was loading, and it did. But the row still showed the last frame the
+tick had painted: the thread's spinning placeholder. The operator saw it in the
+smoke test, and only opening the switcher repainted it.
+
+**Rule.** When a timer drives the repaints of a view derived from state, the
+transition that stops the timer is itself a state change, and it owes a paint.
+So test the frame on screen after the timer stops, for example the clickable
+spans its last paint recorded, not only that the timer stopped. More
+generally: for any derived view, ask what repaints it after the LAST change,
+not only during the changes.
+
+## A fake must be born the way production's object is (pair#206)
+
+**What happened.** Two switch-nudge tests failed rarely, and only under load.
+They reddened #206's close twice. An A/B across trees said the flake predated
+#206, which was true, but only the mechanism showed where the bug was.
+
+A fake pty child starts at `fakeChildSize`, the host's full height, while
+production spawns children at the console's child size. The tests attached the
+fake while the console was starting, so whether the one startup layout resized
+it was a race. When the race was lost, the switch's nudge restored the child to
+the fake's own height. Production cannot lose that race, because its children
+are born at the right size.
+
+**Rule.** A fake's initial state must match what production's constructor gives
+the real object, or the test depends on an ordering production never has. When
+a fake has a default, such as a size or a zero value, check it against how
+production creates the real thing, and set it explicitly in the fixture when
+they differ.
+
+When a flake predates your change, still find its mechanism before calling it
+someone else's. The mechanism decides whether the bug is in the product or in
+the test.

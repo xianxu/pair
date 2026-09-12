@@ -22,16 +22,18 @@ type FakeThreadArtifactCollisionChecker struct {
 	// BUDGET rather than only a result -- #198's guard is required to add no
 	// session enumeration of its own, and a budget nothing measures is a rule
 	// that cannot fail.
-	detachedQueries int
-	released        []ThreadAddress
-	registrations   map[ThreadAddress]fakeRegistration
-	autoEstablish   bool
-	quiesced        []ThreadAddress
-	QuiesceHook     func(ThreadAddress) error
-	pairSessions    map[ThreadAddress]PairSessionBinding
-	nativeBindings  map[nativeBindingKey]NativeBindingResolution
-	triggeredQuit   []TriggeredQuit
-	TriggerQuitHook func(string, launcher.QuitIntent) error
+	detachedQueries    int
+	released           []ThreadAddress
+	registrations      map[ThreadAddress]fakeRegistration
+	autoEstablish      bool
+	quiesced           []ThreadAddress
+	bindingResolutions int
+	detachedCandidates int
+	QuiesceHook        func(ThreadAddress) error
+	pairSessions       map[ThreadAddress]PairSessionBinding
+	nativeBindings     map[nativeBindingKey]NativeBindingResolution
+	triggeredQuit      []TriggeredQuit
+	TriggerQuitHook    func(string, launcher.QuitIntent) error
 	// BeforeRegistration lets an integration test interleave a durable state
 	// change at the registration boundary. It is called outside mu because the
 	// hook may consult another stateful fake or call back into this one.
@@ -90,6 +92,7 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 	}
 	f.mu.Lock()
 	f.detachedQueries++
+	f.detachedCandidates += len(candidates)
 	f.mu.Unlock()
 	if hook := f.DetachedSessionsHook; hook != nil {
 		addresses := make([]ThreadAddress, 0, len(candidates))
@@ -102,17 +105,28 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	var out []DetachedSessionObservation
+
+	// Through the SAME pure rule production uses, rather than a map lookup that
+	// answers whatever the test set up (ARCH-MOCK). The duplicate-name refusal
+	// lives in ProjectDetachedSessions, so a fake that skipped it would let
+	// every fake-backed test pass on a proof production would refuse.
+	bindings := make([]SessionNameBinding, 0, len(candidates))
+	sessions := make([]launcher.Session, 0, len(candidates))
 	for _, candidate := range candidates {
-		if name := f.detachedSessions[candidate.Address]; name != "" {
-			// Echo the caller's proof, exactly as the real resolver does.
-			out = append(out, DetachedSessionObservation{
-				Address: candidate.Address, SessionName: name,
-				Agent: candidate.Agent, NativeID: candidate.NativeID,
-			})
+		name := f.detachedSessions[candidate.Address]
+		if name == "" {
+			continue
 		}
+		bindings = append(bindings, SessionNameBinding{
+			Address: candidate.Address, SessionName: name,
+			Agent: candidate.Agent, NativeID: candidate.NativeID,
+		})
+		sessions = append(sessions, launcher.Session{Name: name, State: launcher.SessionDetached})
 	}
-	return out, nil
+	// Claims come from every thread this fake knows about, not just the ones
+	// asked for, counted by the same function production uses. The fake's map is
+	// already one binding per thread, so it has no union to take.
+	return ProjectDetachedSessions(bindings, sessions, claimsFromBindings(f.detachedSessions))
 }
 
 func (f *FakeThreadArtifactCollisionChecker) SetNativeBinding(address ThreadAddress, agent string, status sessioninventory.BindingStatus, nativeID string) {
@@ -124,6 +138,7 @@ func (f *FakeThreadArtifactCollisionChecker) SetNativeBinding(address ThreadAddr
 func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(_ context.Context, repoScope, tag, agent string) (NativeBindingResolution, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.bindingResolutions++
 	resolution, ok := f.nativeBindings[nativeBindingKey{Address: ThreadAddress{RepoScope: repoScope, Tag: ThreadTag(tag)}, Agent: agent}]
 	if !ok {
 		resolution.Status = sessioninventory.BindingUnbound
@@ -282,6 +297,26 @@ func (f *FakeThreadArtifactCollisionChecker) Releases() []ThreadAddress {
 }
 
 // DetachedQueries is how many times the detached-session question was asked.
+// BindingResolutions counts ResolveEstablished calls. Startup's cost is not
+// only its zellij queries: each resolution reads that thread's own ledger, so a
+// count that grows with the store is the same defect shape in a different
+// currency (pair#206 M1).
+func (f *FakeThreadArtifactCollisionChecker) BindingResolutions() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.bindingResolutions
+}
+
+// DetachedCandidatesAsked counts the CANDIDATES passed across every call, which
+// is what the cost scales with: each becomes one `list-clients`, about 250 ms
+// against a real detached session. DetachedQueries counts batched calls and so
+// cannot see a fan-out growing (pair#206 M1).
+func (f *FakeThreadArtifactCollisionChecker) DetachedCandidatesAsked() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.detachedCandidates
+}
+
 func (f *FakeThreadArtifactCollisionChecker) DetachedQueries() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

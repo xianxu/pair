@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -210,7 +211,11 @@ func terminalFiles(stdin io.Reader, stdout io.Writer) (*os.File, *os.File, bool)
 }
 
 func runTypedOperation(op couchcore.Operation, parsed, prepareArgs map[string]string, forceConsole bool, layout couchcore.Layout, inFile, outFile *os.File, stdin io.Reader, stdout, stderr io.Writer, rt Runtime) int {
-	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, runConsole)
+	armPass := armsReattachPass(op.Name)
+	finish := func(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, out io.Writer) int {
+		return runConsole(console, c, start, out, armPass)
+	}
+	return runTypedOperationWithConsole(op, parsed, prepareArgs, forceConsole, layout, inFile, outFile, stdin, stdout, stderr, rt, finish)
 }
 
 type consoleFinisher func(*couchtty.Console, *couchcore.Couch, couchcore.StartResult, io.Writer) int
@@ -380,16 +385,28 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	// itself on the status row; it must never take the console down, and it must
 	// never be mistaken for "the terminal sent nothing".
 	_ = console.SetInputTrace(os.Getenv("COUCH_INPUT_TRACE"))
+	_ = console.SetEventTrace(os.Getenv("COUCH_TRACE"), processStartedAt)
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,
 		Sink: console.Deliver,
 	}
 }
 
+// processStartedAt is when this couch process began: package initialisation,
+// before Run. It stamps COUCH_TRACE's startup event (pair#206), so the trace
+// measures the whole startup, not only the part after the console exists.
+var processStartedAt = time.Now()
+
+// armsReattachPass is pair#206's decision 9: a start arms the background
+// reattach pass, and a resume of one named thread does not. An operator who
+// named one thread asked for that thread, not for every other detached thread
+// to come back behind it.
+func armsReattachPass(operation string) bool { return operation == "start" }
+
 // runConsole attaches the spawned child and hands the terminal over. This
 // displaces render's StartResult branch, which printed a line and then blocked
 // on Handle.Wait for the child's lifetime.
-func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer) int {
+func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.StartResult, stdout io.Writer, armPass bool) int {
 	// Wire the switcher's actionable projection HERE, on the path that actually
 	// runs a console. Typeahead stays pure over the resulting in-memory rows.
 	wireResolver(console, c)
@@ -403,11 +420,27 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	if err := dispatchInitialAttach(console, start); err != nil {
+	if err := beginConsole(console, start, armPass); err != nil {
 		renderError(stdout, err)
 		return 1
 	}
 	return console.Run()
+}
+
+// beginConsole attaches the startup child and, only once that has committed,
+// arms the background reattach pass (pair#206). After the attach, because a
+// console that never came up must reattach nothing behind it; before Run,
+// because the Run loop is what admits inventories and the first one it reduces
+// is the one the pass seeds from. Split from runConsole so that ordering is
+// testable without a live terminal.
+func beginConsole(console *couchtty.Console, start couchcore.StartResult, armPass bool) error {
+	if err := dispatchInitialAttach(console, start); err != nil {
+		return err
+	}
+	if armPass {
+		console.ArmReattachPass(start.Record.Thread)
+	}
+	return nil
 }
 
 func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResult) error {

@@ -85,7 +85,7 @@ func TestProjectDetachedSessions(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := ProjectDetachedSessions(test.bindings, test.sessions)
+			got, err := ProjectDetachedSessions(test.bindings, test.sessions, claimsOf(test.bindings))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -206,9 +206,11 @@ func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
 // functions is the guard.
 func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}}
 	observed, err := ProjectDetachedSessions(
-		[]SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
+		bindings,
 		[]launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}},
+		claimsOf(bindings),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -235,11 +237,88 @@ func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.
 // and TestThePickerRefusesAttachStateItWasNotGiven.
 func TestProjectDetachedSessionsRefusesAttachStateItWasNotGiven(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}}
 	observed, err := ProjectDetachedSessions(
-		[]SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
+		bindings,
 		[]launcher.Session{{Name: "pair-one", State: launcher.SessionLive}},
+		claimsOf(bindings),
 	)
 	if err == nil || !strings.Contains(err.Error(), "attach state") {
 		t.Fatalf("observed = %+v, err = %v; want a refusal naming the missing attach state", observed, err)
+	}
+}
+
+// claimsOf is the identity case for these pure tests: every claimant is among
+// the bindings passed. It counts through claimsFromBindings -- the one counting
+// rule -- rather than restating it, so a change to the rule cannot leave these
+// tests asserting the old one. The case that needs the WIDER index is
+// TestProjectDetachedSessionsRefusesAContestedName and, at the IO seam,
+// TestDetachedSessionsRefusesANameTwoThreadsClaim.
+func claimsOf(bindings []SessionNameBinding) map[string]int {
+	byThread := make(map[ThreadAddress]string, len(bindings))
+	for _, binding := range bindings {
+		byThread[binding.Address] = binding.SessionName
+	}
+	return claimsFromBindings(byThread)
+}
+
+// The rule the narrowed ask depends on: a name some OTHER thread also binds
+// proves nothing, even when the caller passed only one claimant.
+func TestProjectDetachedSessionsRefusesAContestedName(t *testing.T) {
+	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
+	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}}
+	sessions := []launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}}
+
+	if observed, err := ProjectDetachedSessions(bindings, sessions, map[string]int{"pair-one": 1}); err != nil || len(observed) != 1 {
+		t.Fatalf("uncontested: observed %+v, err %v; want the one observation", observed, err)
+	}
+	observed, err := ProjectDetachedSessions(bindings, sessions, map[string]int{"pair-one": 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(observed) != 0 {
+		t.Fatalf("contested: observed %+v; a name two threads bind proves nothing", observed)
+	}
+}
+
+// effectiveBindings is each thread's current binding over the UNION of the
+// index files a call reads -- and the union is where summing went wrong.
+//
+// Every scoped read replays the shared legacy file before its own, so a thread
+// bound only by a legacy row appears in every read. Summing per-read counts
+// charged it once per scope asked: two scopes made its own session look
+// contested, it got no detached observation, and it read session-gone
+// (pair#206 PQ-1, measured on the operator's host at 56 legacy-only bindings).
+func TestEffectiveBindingsCountsEachThreadOnceAcrossReads(t *testing.T) {
+	entry := func(scope, tag, name string) launcher.SessionNameEntry {
+		return launcher.SessionNameEntry{ScopeKey: scope, Tag: tag, SessionName: name}
+	}
+	legacyOnly := entry("scope-x", "couch-legacy", "pair-legacy")
+	legacyThenScoped := entry("scope-a", "couch-moved", "pair-old")
+	scopedNewer := entry("scope-a", "couch-moved", "pair-new")
+
+	// Two reads, as DetachedSessions makes for two scopes: each is the legacy
+	// rows followed by that scope's own.
+	reads := []scopedIndexRead{
+		{scope: "scope-a", index: launcher.SessionNameIndex{Entries: []launcher.SessionNameEntry{legacyOnly, legacyThenScoped, scopedNewer}}},
+		{scope: "scope-b", index: launcher.SessionNameIndex{Entries: []launcher.SessionNameEntry{legacyOnly, legacyThenScoped}}},
+	}
+
+	for _, order := range [][]scopedIndexRead{reads, {reads[1], reads[0]}} {
+		current := effectiveBindings(order)
+		claims := claimsFromBindings(current)
+
+		if claims["pair-legacy"] != 1 {
+			t.Fatalf("pair-legacy claimed %d times; a legacy-only thread is ONE claimant however many scopes replay it", claims["pair-legacy"])
+		}
+		// The thread's own scope read is authoritative, and it holds the
+		// newer scope row -- whatever order the reads arrive in.
+		moved := ThreadAddress{RepoScope: "scope-a", Tag: "couch-moved"}
+		if current[moved] != "pair-new" {
+			t.Fatalf("couch-moved binds %q, want pair-new: its own scope's newer row wins over the legacy row replayed elsewhere", current[moved])
+		}
+		if claims["pair-old"] != 0 {
+			t.Fatalf("pair-old claimed %d times; a name the thread moved off claims nothing", claims["pair-old"])
+		}
 	}
 }

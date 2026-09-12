@@ -29,6 +29,9 @@ type testEnv struct {
 	Artifacts *FakeThreadArtifactCollisionChecker
 	Dir       string
 	Now       time.Time
+	// cwd is the thread at the test's working directory, for fixtures that
+	// build a startup store around one (startup_proof_test.go).
+	cwd ThreadAddress
 }
 
 // nameTree gives a worktree an operator label the way the data would actually

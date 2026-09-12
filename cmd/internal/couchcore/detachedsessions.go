@@ -37,14 +37,27 @@ type SessionNameBinding struct {
 // row in the switcher whose Enter cannot work:
 //
 //   - two addresses bound to one session name: Couch cannot tell which thread
-//     that session belongs to, so neither gets a row.
+//     that session belongs to, so neither gets a row. claims counts those
+//     bindings over every index file the call READ -- the shared legacy file
+//     plus the scope file of each scope asked -- not just the bindings passed
+//     in. A caller that asks about a subset, which is every caller since
+//     pair#228 narrowed the fan-out, would otherwise see a contested name as
+//     unique, and startup would resume a thread whose session belongs to
+//     something else (pair#206).
+//
+//     The reach is those files, not the world: a claimant whose only row is in
+//     a scope file this call did not read is invisible to it, and a thread that
+//     migrated off the legacy file still counts under its old legacy name
+//     wherever no newer row supersedes it. Both are theoretical for couch
+//     threads, whose tags are random 8-byte values, but the count is exactly
+//     as wide as the reads and no wider.
 //   - two zellij rows sharing one name: the snapshot itself is contradictory,
 //     so that name proves nothing.
 //
 // A snapshot that never asked for clients (launcher.SessionLive) is refused,
 // not read: every thread would come back "not detached", and couch would show
 // that as a proof (pair#228).
-func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.Session) ([]DetachedSessionObservation, error) {
+func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.Session, claims map[string]int) ([]DetachedSessionObservation, error) {
 	if err := launcher.RequireAttachState(sessions); err != nil {
 		return nil, fmt.Errorf("detached proof: %w", err)
 	}
@@ -62,13 +75,6 @@ func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.
 			continue
 		}
 		state[session.Name] = session.State
-	}
-
-	claims := make(map[string]int, len(bindings))
-	for _, binding := range bindings {
-		if binding.SessionName != "" {
-			claims[binding.SessionName]++
-		}
 	}
 
 	var out []DetachedSessionObservation

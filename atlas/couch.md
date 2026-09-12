@@ -263,6 +263,15 @@ real pty child (`console_live_test.go`, `PAIR_LIVE_COUCH=1`), and confirmed by
 operator smoke on the full Ghostty -> couch -> pair -> zellij -> claude stack
 2026-08-23.
 
+**Placeholders** (`pair#206`). While the reattach pass runs, each pending
+thread is drawn after the attached chips as a greyed placeholder
+(`placeholderSGR`). The thread starting now carries the spinner, from the
+`spinnerGlyph` table the switcher shares. A placeholder records no `ChipSpan`,
+so it cannot be clicked, and the attached chips keep their columns. A thread
+that attaches takes the column its placeholder held, because attached chips
+are drawn in attach order. The spinner's tick is a Run-loop timer, armed only
+while a thread is loading.
+
 ## Navigation
 
 `ctrl-space` is intercepted before the child sees it. It arrives in TWO
@@ -730,9 +739,54 @@ Where that lands differs by caller, and both matter:
 - **Startup: blocking** (`pair#170` M3). `StartInteractive` must decide
   resume-vs-new before it attaches anything, so a detach candidate adds that
   cost before the first frame -- and `leave` detaching rather than parking makes
-  a detach candidate the normal case. `pair#172` parallelizes the per-session
-  queries, which are independent; the candidate filter decides only *whether*
-  the snapshot runs.
+  a detach candidate the normal case.
+- **Startup proves only the threads its readers consume** (`pair#206` M1).
+  The readers of those rows are listed on `startupAsks` in `startup.go`, which
+  is the list's one home. Each filters before it reads -- to the cwd, or to rows
+  whose layout differs -- so `startupAsks` resolves exactly that union and leaves every other candidate
+  `ProofUnresolved`, which classifies `unknown`: a row no reader here can act
+  on. Those rows never leave `StartInteractive` (`StartResult` carries none),
+  so unasked state cannot reach the switcher.
+
+  The predicate gates `ResolveEstablished` as well as the zellij query, because
+  each resolution reads that thread's own ledger -- narrowing only the
+  `list-clients` calls would leave time-to-first-frame growing with the store
+  while looking fixed. `TestNarrowedStartupAnswersAsAFullProofWould` computes
+  the inventory both ways and asserts every listed reader agrees; a new reader
+  joins that list and that test.
+- **Every other detached thread comes back in the background** (`pair#206`
+  M2). A start arms the reattach pass once its own thread has attached; a
+  resume of one named thread does not. The pass is pure state in `MenuState`
+  (`menu_reattach.go`), so the switcher's one transition authority orders it
+  against every operator operation. Its specification is the transitions table
+  in the #206 plan. The decisions:
+  - **Seeded once**, from the first successful inventory: threads whose agent
+    still runs behind a client-less session, plus threads whose proof could not
+    be asked (`unknown`), minus the startup thread, most recently active first.
+    The queue is never pruned or extended afterwards, because a failed refresh
+    reads as "no sessions at all".
+  - **One attempt at a time**, as a `resume` with the implicit `warm-only` arg.
+    It re-proves the thread at its turn, and refuses one that stopped being
+    warm, parked meanwhile or its session gone, before any effect. The pass
+    skips such a thread silently. So it can only reattach an agent, never start
+    one. Any other failure marks the row `reattach failed:` with its code, or
+    with the error's first line when it has none. The row stays selectable,
+    and resuming it by hand clears the mark.
+  - **Behind the operator.** An attempt never takes the operator's in-flight
+    slot, a background attach moves neither focus nor the tracker, and no
+    background success steals focus.
+  - **It yields.** The pass holds while the operator has an operation in
+    flight, so a leave mid-pass is never followed by one more reattach. A
+    successful leave ends it, and Stop cancels the attempt in flight and drops
+    the queue, which leaves the rest detached.
+  - **Pending rows are not ready.** Queued and loading threads show as
+    placeholders on the reserved row, and as greyed `queued` or `reattaching…`
+    rows in the switcher. The cursor, auto-select and clicks all skip them
+    (`menuRowSelectable`). A thread the pass attached reads live until an
+    inventory newer than its attach lands. Menu code reads rows only through
+    `menuRows`, `menuThread` and `visibleMenuRows`, which apply that view, and
+    `TestMenuCodeReadsTheInventoryOnlyThroughTheViewedLookups` fails any other
+    read.
 
 Resume accepts verified park **or proved detachment**. A detached thread has no
 verified park because nothing was torn down; its authority is the surviving
@@ -969,8 +1023,8 @@ The child receives `COUCH_TREE`, `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --<couch's
 layout>`.
 
-`COUCH_INPUT_TRACE=<path>` (`pair#182`) is the one env var couch reads for
-ITSELF rather than passing down: it appends every operator keystroke couch
+`COUCH_INPUT_TRACE=<path>` (`pair#182`) is one of the two env vars couch reads
+for ITSELF rather than passing down (the other is `COUCH_TRACE`, below): it appends every operator keystroke couch
 receives to that file. It exists because "the chord had no effect" has two
 indistinguishable causes — couch consumed it and dispatched nothing, or the
 terminal never sent the bytes couch watches for — and only the wire separates
@@ -985,6 +1039,24 @@ instrument for a session you own, not something to leave on. If it cannot open
 its file it says so on the status row at control priority rather than tracing
 nothing: an empty trace would otherwise read as "no bytes arrived", which is the
 exact ambiguity the probe exists to remove.
+
+`COUCH_TRACE=<path>` (`pair#206`) is a timing trace of startup and the
+reattach pass. It writes one line per event,
+`<unix-ms>\t<event>\t<scope>/<tag>\t<detail>`, with `-` for an absent field.
+The events:
+- `startup`, stamped with the process start;
+- `first-frame`;
+- `inventory`, with `rows=N` or `error`;
+- `pass-seeded`, with `pending=N`;
+- `reattach-start`, with `attempt=N`;
+- `reattach-done`, with `ok`, a resume diagnostic code, or `error`.
+
+Unlike the keystroke trace, it records addresses, counts and timings, never
+content. Both traces write through one `traceFile` (`trace.go`): opened 0600,
+at a path the composition root passes in, and reported on the status row when
+it cannot open. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
+`zellij action` latency and prints its window in unix ms, so the sampler's
+output lines up with the trace.
 Except for matching the scope/tag to establish Pair's reserved address claim,
 Pair treats these Couch-owned values as opaque pass-through context for the
 hosted child: it does not resolve Couch names or paths and never reads or

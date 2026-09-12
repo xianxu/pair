@@ -124,6 +124,7 @@ test-zellij-repaint:
 # its numbers depend on host co-tenancy, which it prints first.
 #
 #   PAIR_PROBE_N=11 make test-reattach-cost
+#   PAIR_PROBE_SAMPLE_SECS=30 make test-reattach-cost   # sample mode: zellij action latency only
 test-reattach-cost:
 	go run ./cmd/probes/reattachcost
 

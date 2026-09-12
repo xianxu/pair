@@ -209,6 +209,41 @@ check "$ISSUE" 'going borderless is a \*\*follow-on\*\*' 'M4 of this issue' "$IR
 # after that milestone has landed. BR-67 names this instance explicitly.
 check "cmd/internal/termcmd/run.go" 'becomes a writer in M3' 'writes the row on every resize (M3, tested)'
 
+# ---------------------------------------------------------------- pair#206
+#
+# The M2 close-out read the plan's Decisions against the code. Each token below
+# is prose the plan carried until that close-out corrected it:
+#   - four cell numbers from before the table was renumbered 1-13;
+#   - a queue prune that cell 4 rules out;
+#   - a failed-row detail the code never showed.
+#
+# The body ends at `## Revisions`, as for every other plan. #206's plan once
+# kept its dated entries under `## Estimate`; the issue close's review gave it
+# the heading.
+PLAN206="$(resolve_plan 000206-reattach-detached-threads-automatically-at-startup-plan.md)"
+if [ -z "$PLAN206" ]; then
+	bad "000206 plan is in neither workshop/plans nor workshop/history"
+	PLAN206="workshop/plans/000206-reattach-detached-threads-automatically-at-startup-plan.md"
+fi
+REV206=$(grep -n "^## Revisions" "$ROOT/$PLAN206" 2>/dev/null | cut -d: -f1)
+REV206=${REV206:-0}
+check "$PLAN206" 'Cell 14 covers' 'cell 12 (decision 10); the table has 13 cells' "$REV206"
+check "$PLAN206" 'X removed from Queue' "unchanged: X's own turn re-proves it (cells 6-7)" "$REV206"
+check "$PLAN206" 'the queue entry goes' 'the entry stays; cell 4 never prunes the queue' "$REV206"
+check "$PLAN206" 'a generic `reattach-failed` code, and the row shows' "the error's first line after the colon (decision 11)" "$REV206"
+check "$PLAN206" 'in flight (cell 12)' 'cell 10 is the hold' "$REV206"
+check "$PLAN206" 'makes cell 13 work' 'cells 5 and 11' "$REV206"
+# BR-14: the plan restated ReattachPhase and ReattachPass as a code block, and
+# the copy drifted. A declaration lives in the code; pasting it back fails here.
+check "$PLAN206" 'type ReattachPhase uint8' 'point at couchtty/menu_reattach.go' "$REV206"
+check "$PLAN206" 'diagnostic code per row' "a code or an error's first line; point at menu_reattach.go" "$REV206"
+# The issue close's review: Core concepts rows that named the wrong file, and an
+# envelope still waiting for a measurement Task 12 delivered. #235 is the rule.
+check "$PLAN206" 'waits for M2.s `COUCH_TRACE`' 'Task 12 measured it: 0.72 s' "$REV206"
+check "$PLAN206" '`couchtty/inputtrace.go` (extended)' 'the plumbing is trace.go' "$REV206"
+# note: COUCH_TRACE (pair#206) is the second env var couch reads for itself.
+check_atlas 'is the one env var couch reads' 'one of the two env vars couch reads for itself'
+
 if [ "$fails" -ne 0 ]; then
 	echo "plan-superseded-facts-test: $fails failure(s)"
 	exit 1

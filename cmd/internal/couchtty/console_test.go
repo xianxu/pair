@@ -53,6 +53,13 @@ type consoleFixture struct {
 
 func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 	t.Helper()
+	return newFixtureBeforeRun(t, rows, cols, nil)
+}
+
+// newFixtureBeforeRun is newFixture with a hook that runs on the console before
+// its Run loop starts, for wiring that has to precede the first paint.
+func newFixtureBeforeRun(t *testing.T, rows, cols uint16, beforeRun func(*Console)) *consoleFixture {
+	t.Helper()
 	host := hostty.NewFakeHost(ptychild.Size{Rows: rows, Cols: cols})
 	pr, pw := io.Pipe()
 	con := New(host, pr)
@@ -63,12 +70,30 @@ func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 	setTestOps(con, func(string, map[string]string) (any, error) { return nil, nil })
 
 	f := &consoleFixture{host: host, child: child, con: con, stdin: pw, done: make(chan int, 1)}
+	if beforeRun != nil {
+		beforeRun(con)
+	}
 	go func() { f.done <- con.Run() }()
 	t.Cleanup(func() {
 		con.Stop()
 		_ = pw.Close()
 	})
 	return f
+}
+
+// newLaidOutFakeChild is a fake child born at the console's child size, the way
+// PtyRunner spawns production children. A bare fake starts at fakeChildSize,
+// the host's full height, and nothing resizes a child attached after Run's one
+// startup layout. So a switch's repaint nudge restored such a child to the
+// fake's own height. That was a rare, load-sensitive flake in the switch tests,
+// which attached the fake while Run was starting (found at #206's close).
+func newLaidOutFakeChild(t *testing.T, con *Console) *ptychild.Child {
+	t.Helper()
+	child := ptychild.NewFakeChild(nil)
+	if err := child.Resize(con.ChildSize()); err != nil {
+		t.Fatal(err)
+	}
+	return child
 }
 
 func setTestOps(con *Console, effect func(string, map[string]string) (any, error)) {
@@ -1066,10 +1091,12 @@ func TestTheNotificationDrainAndItsEntryGuardAskOneQuestion(t *testing.T) {
 // geometry is introduced.
 func TestSwitchAsksTheIncomingChildToRepaint(t *testing.T) {
 	f := newFixture(t, 24, 80)
-	incoming := ptychild.NewFakeChild(nil)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	// Attached after the console has started, as production attaches are, and
+	// born at the console's child size, as production children are.
+	incoming := newLaidOutFakeChild(t, f.con)
 	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.AttachTree("c2", "/w/pair", "pair", incoming)
-	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 
 	before := len(incoming.Resizes())
 	f.con.switchTo("c2", false, arrivalOrdinary)
@@ -1115,10 +1142,12 @@ func TestSwitchingToTheActiveThreadAsksForNoRepaint(t *testing.T) {
 // child state; hostty's golden fixes what that function emits.
 func TestSwitchWritesExactlyTheComposedRepaint(t *testing.T) {
 	f := newFixture(t, 24, 80)
-	incoming := ptychild.NewFakeChild(nil)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	// Attached after the console has started, as production attaches are, and
+	// born at the console's child size, as production children are.
+	incoming := newLaidOutFakeChild(t, f.con)
 	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.AttachTree("c2", "/w/pair", "pair", incoming)
-	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 
 	incoming.Feed([]byte("\x1b[?1049hretained frame"))
 	waitFor(t, "the incoming child's output to reach its ring", func() bool {
@@ -1202,10 +1231,12 @@ func TestOpeningThePanelAsksNoChildToRepaint(t *testing.T) {
 // caller has an ordering obligation left to get wrong.
 func TestASwitchThroughTheOperationQueueNudgesLikeAnyOther(t *testing.T) {
 	f := newFixture(t, 24, 80)
-	incoming := ptychild.NewFakeChild(nil)
+	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
+	// Attached after the console has started, as production attaches are, and
+	// born at the console's child size, as production children are.
+	incoming := newLaidOutFakeChild(t, f.con)
 	incoming.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
 	f.con.attachThreadActor("c2", "c2", menuAddress("c2"), "c1", "brain", incoming)
-	waitFor(t, "the console to start", func() bool { return len(f.child.Resizes()) > 0 })
 
 	before := len(incoming.Resizes())
 	// The switcher's Enter, not con.Switch: this is the dispatcher path that

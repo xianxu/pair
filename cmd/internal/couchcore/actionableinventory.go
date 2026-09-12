@@ -385,7 +385,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	snapshot, evidence, err := c.gatherThreadEvidence(ctx, observations)
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, observations, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -396,9 +396,16 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 // nothing. Both inventories consume it, so the switcher and the diagnostic view
 // cannot derive different states from the same store (ARCH-DRY).
 //
+// ask narrows the RESOLUTION, not the record set: a candidate it rejects keeps
+// ProofUnresolved and classifies `unknown`, so it appears as a row nobody can
+// act on rather than vanishing. nil asks about every candidate, which is what
+// the switcher's refresh wants. Startup passes a predicate, because its readers
+// filter before they read and proving anything else is work whose answer is
+// never consulted (pair#206 M1).
+//
 // It returns the snapshot too, because physicalizing a working path mutates the
 // record the caller projects.
-func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTYObservation) (ThreadSnapshot, map[ThreadAddress]ThreadEvidence, error) {
+func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTYObservation, ask func(ThreadRecord) bool) (ThreadSnapshot, map[ThreadAddress]ThreadEvidence, error) {
 	if err := ctx.Err(); err != nil {
 		return ThreadSnapshot{}, nil, err
 	}
@@ -477,6 +484,14 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			}
 		}
 		if item.PathError != nil || resolver == nil {
+			evidence[record.Address] = item
+			continue
+		}
+		// Applied AFTER physicalization, because the predicate compares working
+		// paths and an alias would otherwise miss its own thread -- and BEFORE
+		// ResolveEstablished, which reads this thread's ledger and is half of
+		// what startup was paying for.
+		if ask != nil && !ask(snapshot.Records[i]) {
 			evidence[record.Address] = item
 			continue
 		}

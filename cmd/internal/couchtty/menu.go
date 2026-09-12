@@ -161,12 +161,16 @@ type MenuState struct {
 	RootAgent                 string
 	Attention                 map[couchcore.ThreadAddress][]AttentionMessage
 	InFlight                  MenuOperationOrigin
-	PreviewSequence           uint64
-	CompletionSequence        uint64
-	OperationSequence         uint64
-	FrameSequence             uint64
-	SpinnerPhase              uint8
-	Notice                    MenuNotice
+	// Reattach is couch's own background reattach pass (pair#206). It lives in
+	// MenuState so the one transition authority owns every interleaving with
+	// the operator's own operations.
+	Reattach           ReattachPass
+	PreviewSequence    uint64
+	CompletionSequence uint64
+	OperationSequence  uint64
+	FrameSequence      uint64
+	SpinnerPhase       uint8
+	Notice             MenuNotice
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -176,6 +180,10 @@ type MenuOperationOrigin struct {
 	// arrivalOrdinary even on a paging actor. A click is always a manual switch;
 	// Enter on a paging actor is not.
 	Manual bool
+	// Background marks an attempt couch dispatched on its own, not the
+	// operator: the reattach pass (pair#206). It never occupies InFlight, and
+	// its completion never takes focus.
+	Background bool
 
 	Operation        string
 	Attempt          uint64
@@ -210,6 +218,9 @@ const (
 	// The status row is behind the panel while the switcher owns the screen, so
 	// a refusal sent there would read to the operator as the key doing nothing.
 	MenuEventNotice
+	// MenuEventReattachArm arms the background reattach pass with the startup
+	// root it must never reattach (pair#206).
+	MenuEventReattachArm
 )
 
 type MenuEvent struct {
@@ -231,6 +242,12 @@ type MenuEvent struct {
 	ProjectionAfterGeneration uint64
 	Prepared                  *couchcore.PreparedStart
 	Completion                *CompletionResult
+	// Background marks the completion of a reattach-pass attempt (pair#206),
+	// which is routed to the pass and never to the operator's in-flight slot.
+	Background bool
+	// Diagnostic is ResumeDiagnosticOf(err) for an operation result, so the pass
+	// tells a skip from a failure by code rather than by matching error text.
+	Diagnostic couchcore.ResumeDiagnosticCode
 }
 
 // MenuEffect is an operation request for the thin Console shell.
@@ -240,6 +257,9 @@ type MenuEffect struct {
 	Args       map[string]string
 	Preview    *PreviewRequest
 	Completion *CompletionRequest
+	// Background marks a reattach-pass effect (pair#206): enqueued without the
+	// operator's in-flight slot, and attached without taking focus.
+	Background bool
 }
 
 func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcore.ThreadAddress) MenuState {
@@ -265,7 +285,7 @@ func VisibleMenuThreads(state MenuState) []couchcore.ActionableThreadSummary {
 	if frame.Kind != MenuFrameRoot {
 		return nil
 	}
-	return visibleRootThreads(state.Inventory, frame)
+	return visibleMenuRows(state, frame)
 }
 
 func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame MenuFrame) []couchcore.ActionableThreadSummary {
@@ -332,6 +352,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		}
 		return next, nil
 	}
+	if event.Kind == MenuEventOperationResult && event.Background {
+		return advanceReattach(finishReattach(next, event))
+	}
 	if event.Kind == MenuEventOperationResult && !menuOperationMatches(next.InFlight, event) {
 		return next, nil
 	}
@@ -349,8 +372,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return reduceParkHotkey(next, event)
 	}
 	if event.Kind == MenuEventMouseSwitch {
-		thread, ok := findMenuThread(next.Inventory, event.Address)
-		if !ok || !menuThreadActionable(thread) {
+		thread, ok := menuThread(next, event.Address)
+		// A pending row is not ready: a click on it lands nowhere (pair#206).
+		if !ok || !menuThreadActionable(thread) || !menuRowSelectable(next, event.Address) {
 			return next, nil
 		}
 		next.Frames = next.Frames[:1]
@@ -364,6 +388,9 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		}
 		return state, effects
 	}
+	if event.Kind == MenuEventReattachArm {
+		return armReattach(next, event.Address), nil
+	}
 	if event.Kind == MenuEventRefreshStarted {
 		next.RefreshPending = true
 		if !next.InventoryReady && next.Notice.Level != MenuNoticeProgress {
@@ -375,26 +402,46 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		next.RefreshPending = false
 		if event.Error != "" {
 			next.Notice = errorMenuNotice("thread inventory unavailable: " + event.Error)
-			return next, nil
+			// An armed pass stays armed until an inventory it can seed from
+			// (cell 2); a running one carries on, since warm-only re-proves each
+			// thread at attempt time (cell 4).
+			return advanceReattach(next)
 		}
 		if !next.ProjectionPending || event.Generation > next.ProjectionAfterGeneration {
 			next.ProjectionPending = false
 			next.ProjectionAfterGeneration = 0
 		}
-		previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
-		next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
+		var previous []couchcore.ActionableThreadSummary
+		next, previous = replaceMenuInventory(next, event.Inventory)
 		next.InventoryReady = true
-		return reconcileMenuFrames(next, previous), nil
+		// The pass seeds from the first inventory after arming, and an inventory
+		// newer than an attach is authoritative for that thread again (pair#206
+		// cells 3 and 11). Both BEFORE reconciling, so the selection already
+		// skips rows that just became pending.
+		next = seedReattach(next, event.Inventory)
+		next = expireAttached(next, event.Generation)
+		next = reconcileMenuFrames(next, previous)
+		return advanceReattach(next)
 	}
 	if event.Kind == MenuEventOperationResult {
 		if event.InventorySet {
 			next.ProjectionPending = false
 			next.ProjectionAfterGeneration = 0
-			previous := append([]couchcore.ActionableThreadSummary(nil), next.Inventory...)
-			next.Inventory = append([]couchcore.ActionableThreadSummary(nil), event.Inventory...)
+			var previous []couchcore.ActionableThreadSummary
+			next, previous = replaceMenuInventory(next, event.Inventory)
 			next = reconcileMenuFrames(next, previous)
 		}
-		return reduceOperationResult(next, event), nil
+		next = reduceOperationResult(next, event)
+		// A successful leave ends the console, so it ends the pass: advancing
+		// here would enqueue one more reattach only for Stop to cancel it, which
+		// is the exact outcome cell 10 exists to prevent (pair#206). Otherwise
+		// the operator's slot has just cleared, which is when a pass held behind
+		// it may resume.
+		if event.Operation == "leave" && event.Success {
+			next.Reattach.Phase = ReattachDone
+			return next, nil
+		}
+		return advanceReattach(next)
 	}
 	if event.Kind == MenuEventPreviewResult {
 		return reducePreviewResult(next, event)
@@ -488,7 +535,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			reconcileRootSelection(&state, selected)
 			return state, nil
 		}
-		active, ok := findMenuThread(state.Inventory, state.ActiveAddress)
+		active, ok := menuThread(state, state.ActiveAddress)
 		if !ok || !active.Live() {
 			state.Notice = errorMenuNotice("no live thread can receive focus")
 			return state, nil
@@ -553,7 +600,7 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 		}
 	}
 	if event.Operation == "detach" {
-		thread, ok := findMenuThread(state.Inventory, event.Address)
+		thread, ok := menuThread(state, event.Address)
 		if !ok || !thread.Live() {
 			state.Notice = errorMenuNotice("active thread is no longer actionable")
 			return state, nil
@@ -563,7 +610,7 @@ func reduceParkHotkey(state MenuState, event MenuEvent) (MenuState, []MenuEffect
 		return dispatchThreadOperation(state, "detach", event.Address)
 	}
 	if event.Operation == "park" || event.Operation == "relaunch" {
-		thread, ok := findMenuThread(state.Inventory, event.Address)
+		thread, ok := menuThread(state, event.Address)
 		if !ok || !thread.Live() {
 			state.Notice = errorMenuNotice("only a running thread can be " + pastParticiple(event.Operation))
 			return state, nil
@@ -612,7 +659,7 @@ func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
 func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	key = hierarchyNavigationKey(key, KeyEnter)
 	frame := &state.Frames[len(state.Frames)-1]
-	thread, ok := findMenuThread(state.Inventory, frame.Thread)
+	thread, ok := menuThread(state, frame.Thread)
 	if !ok {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
@@ -676,7 +723,7 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 	binds := menuFrameBindsThread(*frame)
 	var thread couchcore.ActionableThreadSummary
 	if binds {
-		found, ok := findMenuThread(state.Inventory, frame.Thread)
+		found, ok := menuThread(state, frame.Thread)
 		if !ok {
 			return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 		}
@@ -727,7 +774,7 @@ func reduceTextKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		key.Kind = KeyEscape
 	}
 	frame := &state.Frames[len(state.Frames)-1]
-	thread, ok := findMenuThread(state.Inventory, frame.Thread)
+	thread, ok := menuThread(state, frame.Thread)
 	if !ok {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
@@ -1152,7 +1199,7 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 	if frame.Action == "leave" {
 		live := 0
-		for _, thread := range state.Inventory {
+		for _, thread := range menuRows(state) {
 			if thread.Live() {
 				live++
 			}
@@ -1165,7 +1212,7 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		}
 		return []string{"cancel", "leave couch, parking " + strconv.Itoa(live) + " live threads"}
 	}
-	thread, _ := findMenuThread(state.Inventory, frame.Thread)
+	thread, _ := menuThread(state, frame.Thread)
 	// The item's FIRST WORD is its id (menuItemID), and Enter dispatches only
 	// when that id equals frame.Action. So the action name is prepended
 	// STRUCTURALLY rather than written out per case: relaunch shipped with
@@ -1266,29 +1313,33 @@ func discardThreadFrames(state MenuState, address couchcore.ThreadAddress, notic
 	return state
 }
 
+// reconcileRootSelection and moveRootSelection consider only SELECTABLE rows.
+// A row the reattach pass has not finished with is drawn, greyed, but it is
+// not ready, so the cursor and auto-select both skip it (pair#206). If every
+// visible row is pending there is no selection, and Enter reports so.
 func reconcileRootSelection(state *MenuState, preferred couchcore.ThreadAddress) {
-	visible := visibleRootThreads(state.Inventory, state.Frames[0])
+	selectable := selectableRootRows(*state)
 	frame := &state.Frames[0]
 	frame.SelectedAddress = couchcore.ThreadAddress{}
-	for _, thread := range visible {
+	for _, thread := range selectable {
 		if thread.Address == preferred {
 			frame.SelectedAddress = preferred
 			return
 		}
 	}
-	if len(visible) > 0 {
-		frame.SelectedAddress = visible[0].Address
+	if len(selectable) > 0 {
+		frame.SelectedAddress = selectable[0].Address
 	}
 }
 
 func moveRootSelection(state *MenuState, delta int) {
-	visible := visibleRootThreads(state.Inventory, state.Frames[0])
-	if len(visible) == 0 {
+	selectable := selectableRootRows(*state)
+	if len(selectable) == 0 {
 		state.Frames[0].SelectedAddress = couchcore.ThreadAddress{}
 		return
 	}
 	current := 0
-	for i, thread := range visible {
+	for i, thread := range selectable {
 		if thread.Address == state.Frames[0].SelectedAddress {
 			current = i
 			break
@@ -1298,10 +1349,21 @@ func moveRootSelection(state *MenuState, delta int) {
 	if current < 0 {
 		current = 0
 	}
-	if current >= len(visible) {
-		current = len(visible) - 1
+	if current >= len(selectable) {
+		current = len(selectable) - 1
 	}
-	state.Frames[0].SelectedAddress = visible[current].Address
+	state.Frames[0].SelectedAddress = selectable[current].Address
+}
+
+func selectableRootRows(state MenuState) []couchcore.ActionableThreadSummary {
+	visible := visibleMenuRows(state, state.Frames[0])
+	selectable := make([]couchcore.ActionableThreadSummary, 0, len(visible))
+	for _, row := range visible {
+		if menuRowSelectable(state, row.Address) {
+			selectable = append(selectable, row)
+		}
+	}
+	return selectable
 }
 
 func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThreadSummary) MenuState {
@@ -1335,7 +1397,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 		if invalidThreadFrame {
 			continue
 		}
-		thread, ok := findMenuThread(state.Inventory, frame.Thread)
+		thread, ok := menuThread(state, frame.Thread)
 		if !ok {
 			invalidThreadFrame = true
 			setBookkeepingNotice(&state, hiddenThreadNotice(priorInventory, frame.Thread))
@@ -1406,7 +1468,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 	state.InFlight = MenuOperationOrigin{}
 	if origin.Address != (couchcore.ThreadAddress{}) {
-		if _, stillActionable := findMenuThread(state.Inventory, origin.Address); !stillActionable {
+		if _, stillActionable := menuThread(state, origin.Address); !stillActionable {
 			return state
 		}
 	}
@@ -1556,6 +1618,11 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	}
 	state.OperationSequence++
 	effect.Attempt = state.OperationSequence
+	if effect.Operation == "resume" {
+		// The operator resuming a failed thread by hand clears its mark
+		// (pair#206 cell 9).
+		state = clearReattachFailure(state, address)
+	}
 	state.InFlight = MenuOperationOrigin{
 		Operation:     effect.Operation,
 		Attempt:       effect.Attempt,
@@ -1575,7 +1642,7 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 
 func menuOperationProgressText(state MenuState, operation string, address couchcore.ThreadAddress) string {
 	label := string(address.Tag)
-	if thread, ok := findMenuThread(state.Inventory, address); ok {
+	if thread, ok := menuThread(state, address); ok {
 		label = thread.Label()
 	}
 	switch operation {
@@ -1637,7 +1704,7 @@ func (s MenuState) SelectedThreadAddress() couchcore.ThreadAddress {
 }
 
 func selectedMenuThread(state MenuState) (couchcore.ActionableThreadSummary, bool) {
-	return findMenuThread(state.Inventory, state.CurrentFrame().SelectedAddress)
+	return menuThread(state, state.CurrentFrame().SelectedAddress)
 }
 
 func findMenuThread(inventory []couchcore.ActionableThreadSummary, address couchcore.ThreadAddress) (couchcore.ActionableThreadSummary, bool) {
@@ -1680,6 +1747,7 @@ func cloneMenuState(state MenuState) MenuState {
 		next.Frames[i].CompletionCandidates = append([]string(nil), state.Frames[i].CompletionCandidates...)
 	}
 	next.Agents = append([]string(nil), state.Agents...)
+	next.Reattach = cloneReattachPass(state.Reattach)
 	if state.Attention != nil {
 		next.Attention = make(map[couchcore.ThreadAddress][]AttentionMessage, len(state.Attention))
 		for address, messages := range state.Attention {

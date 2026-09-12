@@ -1,12 +1,13 @@
 ---
 id: 000206
-status: working
+status: codecomplete
 deps: [000228]
 github_issue:
 created: 2026-09-06
-updated: 2026-09-11
+updated: 2026-09-12
 estimate_hours: 3.13
 started: 2026-09-10T20:16:19-07:00
+actual_hours: 8.96
 ---
 
 # reattach detached threads automatically at startup
@@ -184,16 +185,28 @@ than one.
 
 ## Plan
 
-- [ ] **Measure first.** Time one warm reattach, then N concurrent, on a quiet
+- [x] **Measure first.** Time one warm reattach, then N concurrent, on a quiet
       host: total wall-clock and `zellij action` latency during the burst. This
-      decides A vs B vs C and nothing should be built before it.
-- [ ] Decide the interleaving cells; record them in `## Spec`.
-- [ ] Implement the chosen strategy.
-- [ ] Test the failure path and the pending-row switch.
-- [ ] Re-measure startup end to end, recording the agent count.
+      decides A vs B vs C and nothing should be built before it. (Log
+      2026-09-10; it moved the problem to #228, now merged.)
+- [x] Decide the interleaving cells; recorded in the durable plan's
+      "Decisions" and "The pass's transitions" (`workshop/plans/000206-*-plan.md`).
+- [x] M1 — startup proves only the threads its readers consume (`startupAsks`),
+      and the duplicate-name rule counts each thread once over the union of
+      index files it reads.
+- [x] M2 — the background reattach pass: `warm-only` resume, the pure
+      `ReattachPass` in `MenuState`, the pass view applied at the row lookups,
+      console wiring that never takes focus, rendering, arming, the trace, the
+      operator-assisted measurement, and the smoke.
 
 ## Log
 
+
+
+
+- 2026-09-12: closed — pair#206, both milestones. M1: startup proves only the threads its readers consume (startupAsks), and the duplicate-name rule counts each thread once over the union of index files; 13 of 13 mutations; operator smoke about 1.5x faster startup. M2: every other detached thread reattaches in the background after the cwd thread, one at a time, through warm-only resume that can only reattach; greyed placeholders that cannot be clicked or selected; failures marked with their reason; start-only arming; never takes focus; COUCH_TRACE. M2 sweep 38 of 38 killed; boundary review converged to SHIP in round 5. Unsandboxed make test exit 0 across 197 packages. Operator smoke live, including a quit mid-pass, which found and fixed a stale final placeholder. Measured from the operator traced restart: first frame 0.72 s, a 5-thread pass in 2.34 s, zellij action at most 35 ms during startup against a quiet max of 36 ms.; review verdict: SHIP
+- 2026-09-12: closed M2 — M2 background reattach pass: warm-only resume, the pure pass in MenuState, the pass view at every row lookup, console wiring that never takes focus, greyed unclickable placeholders, start-only arming, COUCH_TRACE. Tests: cells 1-13 plus generated-sequence routing invariants; M2 mutation sweep 38 of 38 killed; Task 11 sweep 23 of 23; unsandboxed make test exit 0 across 197 packages. Operator smoke live on the real stack, including a quit mid-pass; it found the last placeholder still spinning, fixed with a test red before and green after. Measured from the operator traced restart: first frame 0.72 s, a 5-thread pass in 2.34 s (median attempt 302 ms), zellij action at most 35 ms during startup against a quiet max of 36 ms. Round 4 fixes in 4d331487: BR-13 README paragraph on the pass; BR-14 plan points at menu_reattach.go instead of restating it, lesson extended, re-paste guarded. Actual 3.80 h = measured 8.86 h cumulative minus the measured 5.06 h M1 closed at.; review verdict: SHIP
+- 2026-09-11: closed M1 — startupAsks resolves only the union its readers consume; gates ResolveEstablished and the zellij query. Counted at the seam: 3 detach candidates, 1 binding resolution at 2 and 12 other threads. Equivalence test now covers all 7 plan rows and all 4 readers (conflicts compared by address; layout3 for a valid conflict, layout1 for unreadable); a count test kills the dropped-scope-arm mutation the equivalence test structurally cannot. Duplicate-name rule counts each thread once at its effective binding over the union of index files read, pinned by a two-scope legacy seam test. Mutations 13/13 killed as named. Unsandboxed make test exit 0, 197 packages. OPERATOR SMOKE: startup ~1.5x faster on the real stack. Actual 5.06h = measured #206 share since claim, incl. measure-first probe and 4 plan-gate rounds.; review verdict: SHIP
 ### 2026-09-06
 
 Operator request, split from `#205` at their instruction. The two share a
@@ -393,3 +406,468 @@ name" case, and the harness itself reported a false SURVIVED because a
 pipeline's exit status came from `head` rather than `grep`.
 
 **Suite:** unsandboxed `make test` exit 0, 197 packages.
+
+### 2026-09-11 — the Plan's boundaries, and the plan gate converged
+
+The original Plan rows predated the design, so they are restated as the two
+review boundaries the durable plan actually has: **M1** (startup narrowing, in
+`couchcore`) and **M2** (the pass, across `couchtty` and `couchcmd`). The
+measure-first and decide-the-cells rows are done and ticked, with pointers.
+
+**Plan gate, four rounds.** Beyond the rounds already logged, round 3 found a
+real bug in Task 1's shipped code -- per-scope claim counts were summed, so a
+thread bound only by the legacy index file counted once per scope asked and
+read session-gone (56 such bindings on the operator's host). Fixed by merging
+over the union of reads; pinned at the seam by a two-scope test, because the
+pure helper's own test survived reintroducing the bug.
+
+**Estimate-quality: INFO, no refusal.** Its main note is that Task 12 is
+under-slotted (the probe's sample mode, the 30 s sampler run, the smoke and the
+Done-when conversation are more than an atlas slot) -- expect 0.1-0.2h over on
+M2's close-out. It also notes M1's items were costed after M1 was built, so
+they are retrospective; the ledger's actual will say how far off they were.
+
+### 2026-09-11 — the Done-when deviation, decided by the operator
+
+**Asked before M2, as the plan gate required.** Done-when says the switcher
+shows every known thread "immediately". The plan shows them when the first
+inventory lands -- before any background reattach starts, so no row ever waits
+on one -- but not on the literal first frame, which still reads "thread
+inventory unavailable" as it does today. The operator chose **first inventory
+is fine**. No first-frame seeding and no "checking" row state; M2 builds as
+planned.
+
+### 2026-09-11 — M1 operator smoke
+
+After `make install` (pair rebuilt 15:19, carrying #230 and M1), the operator
+detached and restarted couch: **"start up seems faster, not 10x, maybe 1.5x."**
+
+Read honestly, that says the proof work M1 removed -- a `list-clients` per
+other detach candidate and a ledger read per resume-shaped record -- was about a
+third of startup on this store. The counted invariant holds (3 candidates and 1
+resolution whatever else the store holds), so what remains is NOT proportional
+to the other threads: it is the cwd thread's own reattach (`ResumeContext`'s two
+detached proofs, the spawn, the registration wait) plus fixed setup (git
+resolution, `reconcileInterruptedStarts`, the supervisor lease). None of that is
+measured yet. M2 Task 11's `COUCH_TRACE` is what would show where it goes, and
+further startup work should start from that trace rather than from a guess.
+
+**The operator also reported "detach became 10x faster though."** Nothing in M1
+or #230 is on the detach success path: M1 changed startup's inventory and the
+detached-proof's claim count, and #230 changed only post-acknowledgement
+failure cleanup (its `retireDetachedIncarnation` extraction is behaviour-
+identical). So this is recorded as UNEXPLAINED rather than credited. The likely
+explanation was the gesture (`leave` never waits on the post-detach refresh),
+but the operator confirmed **the same gesture both times**, so that is ruled
+out.
+
+**What was checked, and ruled out.** The `couch` shell function rebuilds from
+the working tree on every launch (`go build -o bin/couch ./cmd/couch`), so each
+smoke ran exactly its branch's code: #228's then, #228+#230+M1 now. Between
+those two points only `couchcore` changed, and on every function the detach
+touches or triggers:
+- `Detach` itself only MOVED code into `retireDetachedIncarnation`
+  (behaviour-identical; error text changed);
+- the post-detach refresh passes `ask == nil`, so M1's filter never applies;
+- `DetachedSessions` and `PairSession` make exactly the same zellij calls;
+- no leftover reattachcost probe sessions (26 sessions, as #228 recorded).
+
+**So there is no code cause I can find, and none is claimed.** The likeliest
+explanation is zellij's own variance under load: #228 measured `list-clients`
+against real detached sessions anywhere from 190 ms to 971 ms for the same call,
+a 5x spread on one call, and a post-detach refresh chains several of them.
+Earlier today the host ran the reattachcost probe, repeated test suites and
+builds. A single number from each of two different-load moments cannot separate
+code from co-tenancy.
+
+**Settling it is #229's first plan step**, not a reason to detour #206: time a
+single-thread detach end to end, several runs, with a per-phase breakdown and
+co-tenancy recorded. This observation is carried there as input.
+
+### 2026-09-11 — the operator's UX for pending threads
+
+**Reason.** Mid-M2, the operator specified how threads look while the pass
+brings them back:
+
+> *"ideally, when we attempt to start a thread, we would add placeholder of it
+> in the couch status bar, with a spinner: brain [spinner], while the thread is
+> being started. during this state of being reattached, it's not clickable,
+> and when user click on it, we won't switch to it as it's not yet ready. if
+> user do search in switcher, same thing, that line is grayed, and not
+> selectable."*
+
+Asked how QUEUED threads (pending, not yet starting) should appear, they chose
+**all pending, none selectable**: every thread the pass will reattach appears
+at once, greyed, with a spinner on the one currently starting, and none can be
+clicked or selected until it attaches.
+
+**Delta.** This settles the Spec's open cell -- "what does a switch to a
+not-yet-attached thread do?" -- as **refuse, visibly**: the row and the chip are
+present but inert until ready. The Spec's strategy-B idea of jumping the queue
+is dropped, and so is the plan's "adopt the loading row". Since #228 each
+reattach takes about 0.3-0.7 s, so ten threads fill in within seconds, and
+reordering them would buy little. Done-when's "a switch to a pending row
+behaves as specified" now means *it is not selectable*. The plan's Decisions,
+pass view, transitions and Tasks 6-12 are rewritten to match.
+
+### 2026-09-11 — M2 Tasks 5-7: warm-only, the pure pass, and its routing
+
+**Task 5 (`01de3aa7`).** A warm-only resume refuses a verified park before the
+binding is resolved, and a thread with no detached session before
+`CommitStartClaim` (`ResumeNotDetached`). `warm-only` is an Implicit arg the CLI
+refuses as unknown. It is pinned through the operation table as well as
+directly: a direct-call test survived the dispatcher dropping the argument.
+
+**Task 6: the pure pass** (`couchtty/menu_reattach.go`).
+- Four explicit phases: Idle, Armed, Running, and Done. Done is separate from
+  Idle so a second arm cannot re-seed.
+- It seeds from detached and resume-shaped unknown rows, most recent first.
+- It advances one attempt at a time, and holds while the operator has an
+  operation in flight (cell 10).
+- `finishReattach` resolves an attempt as attached, skipped or failed.
+- `passViewOf` is the only function that knows what the pass means for a row.
+- `pendingPlaceholders` drives the status bar.
+
+**Task 7: routed through `ReduceMenu`, with the view applied at the lookups.**
+- **The lookups.** Every inventory read goes through `menuRows`, `menuThread`
+  or `visibleMenuRows`. An attached thread is overlaid as live while the
+  inventory lags.
+- **Selection.** The cursor and auto-select skip pending rows, through one
+  predicate (`menuRowSelectable`), and a click on a pending row lands nowhere.
+- **Background results** are routed BEFORE the in-flight match, which would
+  otherwise drop them, because the pass never holds the operator's slot.
+- **Hold and retry.** A held pass resumes when the operator's slot clears.
+- **Cell 9.** Resuming a failed row by hand clears its mark.
+- **The guard.** A source-parsing test,
+  `TestMenuCodeReadsTheInventoryOnlyThroughTheViewedLookups`, fails any menu
+  code that reads the inventory around the view.
+
+**Tests:**
+- cell tests;
+- routing tests;
+- generated-sequence invariants: 60 seeds of 120 steps each, over inventory,
+  results, operator operations, cursor, Enter, Tab and click. After every step
+  they assert:
+  - no pending address is ever the selection;
+  - the operator never dispatches on a pending row;
+  - the pass never emits under an operator operation;
+  - the queue never grows;
+  - the pass's sets stay disjoint.
+
+**One test of mine was wrong, not the code.** The held-pass test started the
+operator's operation AFTER the pass attempt finished, by which point the pass
+had already advanced. Nothing was held for the cleared slot to release. It now
+starts the operation while the attempt is in flight, which is the only way a
+hold arises.
+
+**Mutations: 12 of 12 killed, each by a test that names it.**
+- One first attempt was a BUILD-ERR: `return true` left variables unused. The
+  harness correctly refused to count it, and it was re-run in a compiling
+  form.
+- The harness's whole-tree hash reported "not restored". A per-line check
+  proved every original line intact, so that was the hash, not a leak.
+
+**Suite:** unsandboxed `make test` exit 0, 197 packages. The one sandboxed
+failure, `TestNotificationPTYConformance`, is the sandbox blocking PTY tests; it
+passes unsandboxed.
+
+### 2026-09-11 — M2 Tasks 8-10: the console runs the pass, placeholders, and only a start arms
+
+**Task 8: the console runs the pass.**
+- A Background effect goes to `runBackgroundOperation`. Its origin is marked
+  Background, and it never takes the operator's `InFlight` slot.
+- A background attach (the Implicit `background` arg on `attach`) sets neither
+  focus nor the tracker, and a background success never steals focus. That is
+  the operator's requirement that the pass not disturb the startup thread.
+- A finished attempt dispatches the pass's next effect after the console
+  unlocks.
+- **A successful leave ends the pass.** This is a pure rule. It was found
+  because a leave was followed by one more reattach.
+- The sweep found one equivalent mutant: the queue-key prefix. Keys are unique
+  because of the shared operation counter, not the prefix. The comment that
+  claimed otherwise was corrected.
+- `TestSwitchAsksTheIncomingChildToRepaint` failed once in a full run. It then
+  passed 20 of 20 times on both trees, including the tree before Task 8. It is
+  a race inside the test that predates #206.
+
+**Task 9: placeholders, per the operator's UX.**
+- The status row shows one greyed `<repo>` placeholder per pending thread, with
+  the spinner on the one that is loading. A placeholder records no ChipSpan, so
+  it is unclickable by construction.
+- The status-row tick runs at 120 ms and is armed only while a thread is
+  loading.
+- In the switcher, pending rows are greyed and read `queued` or
+  `reattaching…`. A failed row reads `reattach failed: <diagnostic>`.
+- The cursor, auto-select and clicks skip pending rows through
+  `menuRowSelectable`.
+
+**Task 10: only a start arms the pass.**
+- `armsReattachPass`: a start arms it, and a resume of one named thread does
+  not (decision 9).
+- `beginConsole`, split out of `runConsole`, runs the attach, then the arm,
+  then `Run`. A console that never came up reattaches nothing behind it.
+- **My first tests were wrong, not the code.** They drove `runConsole` with a
+  child that had already exited. The initial attach refuses such a child, so:
+  - the "arms" test failed;
+  - the "never arms on a failed attach" test passed for the wrong reason: the
+    exited child, not the failure it meant to test.
+
+  The tests now run at `beginConsole` with a fake dispatcher, in three cases.
+- My doc comment quoted the old argv and tripped
+  `TestNoCurrentSourcesAdvertiseObsoleteCouchArgv`. It is reworded.
+
+**Task 10 mutations: 4 of 4 killed**, each by the case that names it:
+- the arm moved before the attach check;
+- always arm;
+- never arm;
+- a resume arms too.
+
+The M2-wide sweep is Task 12.
+
+**Suite:** unsandboxed `make test` exits 0 across 197 packages.
+
+### 2026-09-11 — M2 Task 11: the `COUCH_TRACE` timing trace
+
+**What it records.** One line per event,
+`<unix-ms>\t<event>\t<scope>/<tag>\t<detail>`:
+- `startup`, stamped with the process start that couchcmd reads at package
+  init;
+- `first-frame`, `Run`'s first paint;
+- `inventory`, for every inventory that lands. This event was added because
+  Task 12 counts the refreshes during the pass;
+- `pass-seeded`, with `pending=N`;
+- `reattach-start`, with `attempt=N`;
+- `reattach-done`, with `ok`, a diagnostic code, or `error`.
+
+The trace holds addresses, counts and timings, never content.
+
+**Shape.** `traceFile`, in the new `couchtty/trace.go`, is the one
+append-only file plumbing. The keystroke probe now writes through it too
+(`ARCH-DRY`). Each event is recorded at its single source in the console, not
+derived from every `ReduceMenu` call.
+
+**Mutations: 23 of 23 killed, 3 of them only after tests were added.**
+- **`first-frame` on every paint survived at first.** The end-to-end test
+  paints only once, because the attempts finish inside the spinner's 120 ms
+  tick. `TestTheFirstFrameIsTracedOnce` now paints twice.
+- **`reattach-done` for every operation survived at first.** No test finished
+  an operator operation with a trace open. `TestOnlyAPassAttemptsEndIsTraced`
+  now does.
+- **`pass-seeded` on every inventory didn't compile at first.** In a compiling
+  form, `TestAnUnarmedConsoleTracesNoSeeding` kills it. It is deterministic
+  because it stops the console and joins `Run` before reading the trace.
+- **The refactor exposed an older gap.** No test checked that the keystroke
+  probe writes anything at all. `TestAClosedTracerStopsRecording` now checks
+  that the record made before `Close` lands.
+
+**The suite, under heavy load.** Unsandboxed `make test` ran at a 5-minute
+load average of 77, with 31 agent processes and 27 zellij sessions. It failed
+four tests outside this change:
+- **Three zellij-timing tests**, in couchcore and launcher. Each returned an
+  empty result at its deadline. Each passes in isolation, and all three
+  packages pass in full once the load fell to about 10-16.
+- **`TestSwitchAsksTheIncomingChildToRepaint`**, the race noted at Task 8.
+  An A/B ran 40 runs per tree, interleaved under the same load:
+  - the merge-base, before #206 touched couchtty: 1 failure;
+  - HEAD before Task 11: 0;
+  - the current tree: 0.
+
+  The race predates #206.
+
+The full suite reruns before close.
+
+### 2026-09-11 — M2 Task 12, before the operator's part: the probe, the atlas, the sweep, and the plan checked against the code
+
+**The probe's sample mode** (`64d297a7`).
+`PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` creates only the control
+session and samples `zellij action query-tab-names` for N seconds (1-600). It
+prints the window in unix ms, so it lines up with a `COUCH_TRACE` file. The
+sampler and the latency summary are now functions the phased run shares.
+
+A live 3-second run cleaned up its own session. It measured a median of
+1954 ms, at load 5.8 with 27 zellij sessions. That is three calls, too few to
+trust; the operator's 30-second run will settle it.
+
+**The atlas.** `atlas/couch.md` gains:
+- the pass, as a bullet in the startup costs: its decisions, not its cells;
+- the placeholders, in the reserved-row section;
+- `COUCH_TRACE`, beside `COUCH_INPUT_TRACE`.
+
+The `COUCH_INPUT_TRACE` paragraph called it "the one env var" couch reads for
+itself, which is no longer true. The claim is corrected and now guarded.
+
+**The M2 sweep: 38 mutants over the final code, all killed in the end.** The
+first pass ran 33 and killed 32. It found two gaps at the reducer, each of
+which would have shipped silently. Each now has its own test:
+- **Nothing checked that an inventory calls `expireAttached`.** Without the
+  call, a thread whose pane exited reads live forever. Now pinned by
+  `TestANewerInventoryTakesBackARowThePassAttached`.
+- **Nothing checked that a failed first inventory leaves the pass armed.**
+  Seeding from it ends the pass before it ever sees a real inventory. Now
+  pinned by `TestAFailedFirstInventoryLeavesThePassArmed`.
+
+**The plan, read against the code.**
+- Four places still cited cells by their numbers from before the
+  renumbering: decisions 8, 10 and 12, and the `Attached` entry.
+- **Cell 12 described a queue prune that was never built, and should not
+  be.** Cell 4 rules pruning out. At its turn, a queued thread that was
+  parked, or relaunched from the CLI, is skipped. An archived one fails, with
+  no row left to show the mark on. The table now says so.
+- **Decision 11 promised the error's first line on a failed row; the row
+  showed `reattach-failed`.** Now built:
+  - the pass stores the error's first line;
+  - `passSuffix` sanitizes it and fits it to the row, leaving the label
+    `menuLabelFloor` columns;
+  - the same fitting stops a long code overflowing a 40-column row, which it
+    did before.
+- Task 6's named tests landed under other names, so the plan now maps each
+  cell to its test.
+- M1's Task 4 items were done at M1's close but never ticked. They are ticked
+  now, pointing at that Log line.
+- The corrected prose is registered as dead tokens in
+  `tests/plan-superseded-facts-test.sh`, so it cannot come back. The script
+  also checks each token was really in the file before it was corrected.
+
+**Suite.** Unsandboxed `make test` exits 0 across 197 packages, at load 2-3.
+The earlier loaded run's three zellij-timing failures did not recur, and
+neither did the older repaint race.
+
+**Left:**
+- the operator-assisted measurement and smoke;
+- `sdlc milestone-close --milestone M2`, then the issue close.
+
+### 2026-09-12 — M2 operator smoke: it works, with one status-bar bug, now fixed
+
+**The operator's smoke test**, live on the real stack rather than the
+scripted measurement:
+- they detached and restarted couch to check the speed;
+- they quit while threads were being reattached;
+- "everything seems to work well".
+
+**One bug.** The last thread the pass reattached (brain) stayed on the status
+bar as a loading placeholder, spinning, for a long time. Opening the switcher
+showed it live, and repainted the status bar.
+
+**Cause, read off every branch.**
+- While a thread loads, the status tick is the only thing that repaints the
+  status row.
+- When the last attempt lands, nothing is loading, so `syncStatusTick`
+  stopped the timer without painting.
+- `finishOperation` repaints only when the switcher is focused, and so does
+  the inventory refresh it requests.
+
+So the last frame the tick painted, with the spinning placeholder, stayed
+until something else repainted. My test of the tick checked that it stops,
+not the frame it leaves behind.
+
+**Fix.** A stopping tick now paints one final frame, the one without the
+placeholder (`syncStatusTick`). `TestTheFrameThePassLeavesBehindIsPainted`
+waits for a painted status row that carries the attached thread's chip.
+- Before the fix it failed, timing out: the symptom, reproduced.
+- After the fix it passed 5 of 5 runs, alongside the tick test.
+- A mutant that drops the final paint is killed by it.
+
+**Left:**
+- the operator's re-check of the status bar;
+- the Task 12 measurement.
+
+### 2026-09-12 — M2 Task 12: the measurement, the re-check, and a fixture race found at the close
+
+**The measurement**, from the operator's traced restart (`COUCH_TRACE`, at
+12:35). Five threads were detached; load was about 1.0-1.4, with 27 zellij
+sessions.
+- **The first frame painted 0.72 s after the process started**, so the
+  startup thread could be typed in from then.
+- **The first inventory landed at 2.65 s**, and the pass seeded from it with
+  `pending=5`.
+- **All 5 attempts succeeded, one at a time:** 249, 1179, 271, 302 and
+  343 ms, a median of 302 ms.
+- **The pass took 2.34 s.** Everything, pass included, was done 5.0 s after
+  launch.
+- **2 inventory refreshes landed during the pass**, 4 in all.
+
+**`zellij action` latency during startup was at most 35 ms.** The sampler ran
+the probe's phased run rather than sample mode, so there are no raw samples.
+The phases can still be placed on the clock, walking each phase's printed
+duration back from the report file's modification time. couch's whole
+startup, from launch to its last event, falls inside the probe's "8 old
+pattern" phase, with 18.6 s and 20.9 s to spare against about 1 s of
+uncertainty. That phase had 633 samples (p50 19 ms, p95 23 ms, max 35 ms, no
+errors), so no sample during startup exceeded 35 ms. The 9-minute quiet
+baseline measured 7,528 samples: p50 21 ms, p95 23 ms, max 36 ms.
+
+That meets the done-when's "measured, not assumed". The bound is
+conservative, because the probe was driving zellij hard at the same time.
+
+**Why the sampler went phased: not reproduced.**
+- `make` passes the variables: sample mode refuses `0` through
+  `make test-reattach-cost`.
+- The same zsh one-liner shape passes both variables to `make`.
+- The branch never switched, and the source had sample mode before the run.
+
+The cause is unknown. The bound above does not depend on it.
+
+**The re-check of the status-bar fix.** The operator restarted with the fix
+and reports it "seems working", though they were unsure what to look for. The
+fix's own evidence is the test that reproduced the symptom before it.
+
+**A fixture race found at the close** (side-quest `dad4de14`). The full
+suite failed twice on switch-nudge tests:
+`TestASwitchThroughTheOperationQueueNudgesLikeAnyOther`, and earlier
+`TestSwitchAsksTheIncomingChildToRepaint`.
+- **An A/B at low load (200 runs per tree) found no failures anywhere**, so
+  the race predates #206 and appears only under load.
+- **The mechanism.** A fake pty child starts at the host's full height, while
+  production children are born at the console's child size. The tests
+  attached the fake while `Run` was starting, so whether the one startup
+  layout resized it was a race. When the race was lost, the switch's nudge
+  restored the child to the fake's own height. Production cannot lose that
+  race.
+- **Pinned.** Attached after the console starts, as production does, the old
+  fake fails 5 of 5. Born at the console's size, all three tests with that
+  setup pass 200 of 200.
+- **A lesson was added.** The A/B said "pre-existing", but only the mechanism
+  said "the fixture, not couch".
+
+**Suite.** Unsandboxed `make test` exits 0 across 197 packages, at load
+1-2.7.
+
+### 2026-09-12 — M2 boundary review, round 4: FIX-THEN-SHIP
+
+The review checked four claimed fixes by reverting each in a scratch overlay,
+and every named test went red. It passed every ARCH principle. It raised:
+- **BR-13 (Important, blocking): the README did not describe the pass.**
+  Fixed: a README paragraph covers the pass, its placeholders and its
+  non-selectable rows, the failure mark, and quitting part-way.
+- **BR-14 (Minor): the plan restated `ReattachPhase` and `ReattachPass`, and
+  the copy drifted.** Fixed as the rule:
+  - the block is replaced by a pointer to `menu_reattach.go`;
+  - the "one home" lesson now covers declarations;
+  - the superseded-facts test fails on a re-paste.
+- **Advisory, done:** a comment on `advanceReattach`'s counter guard. The
+  guard stops the attempt counter wrapping to 0, the "no attempt" identity.
+- **Advisory, noted:** this branch also carries docs-only commits from a
+  parallel session. They are the #232, #233 and #234 issue files, and the
+  `couch-slots` project file (`1cc55d99`). They ride the PR unchanged.
+
+### 2026-09-12 — the issue close: SHIP
+
+The whole-issue review returned SHIP. It disposed the four older Minors, BR-9
+to BR-12, as addressed, having checked each against the code. It raised three
+advisory Minors, handled in the close commit:
+- **The Core concepts tables held claims nothing checks**, the third finding
+  in the plan-drift family. An unchanged function was marked modified, a
+  function was placed in the wrong file, `inputtrace.go` was named where the
+  plumbing is `trace.go`, and one line was still waiting for a measurement
+  Task 12 made. The sites are fixed and guarded by dead tokens. The
+  rule-level checker is filed as #235.
+- **The plan's revisions sat under `## Estimate`.** They now have a
+  `## Revisions` heading, and the superseded-facts script no longer
+  special-cases #206.
+- **`runBackgroundOperation` ignored Enqueue's `accepted` result.** A refused
+  duplicate would strand the pass on Loading. That is unreachable while
+  attempt keys come from the shared counter, and the assumption is now
+  stated at the call.
+
+Creating #235 synced only that issue to main. On main, #206 still reads
+`working`, so its done-flip reaches main through the PR.

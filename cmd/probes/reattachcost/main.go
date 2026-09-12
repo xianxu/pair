@@ -18,6 +18,15 @@
 //
 //	make test-reattach-cost            # N=8
 //	PAIR_PROBE_N=11 make test-reattach-cost
+//	PAIR_PROBE_SAMPLE_SECS=30 make test-reattach-cost
+//
+// The last is SAMPLE MODE (pair#206). It creates only the control session and
+// times `zellij action` against it for N seconds, printing the window in unix
+// ms so it lines up with a COUCH_TRACE file. It measures latency while
+// something real runs elsewhere, such as couch's startup reattach pass.
+// PAIR_PROBE_SAMPLE_TSV=<path> also writes every sample, one per line as
+// <unix-ms>\t<ms>\t<ok>, so a narrower window can be cut from a long run
+// afterwards: #206 cuts the reattach pass out of it.
 //
 // It also times couch's zellij work around each attach, as two couch-shaped
 // passes built from production's own calls: the critical path as it ran before
@@ -101,6 +110,22 @@ func run() int {
 		}
 		n = v
 	}
+	// Bounded like every other wait here: a window longer than ten minutes is a
+	// typo, not a measurement.
+	sampleSecs := 0
+	if raw := os.Getenv("PAIR_PROBE_SAMPLE_SECS"); raw != "" {
+		v, err := strconv.Atoi(raw)
+		if err != nil || v < 1 || v > 600 {
+			fmt.Println("PROBE-ERROR PAIR_PROBE_SAMPLE_SECS: want an integer from 1 to 600")
+			return 1
+		}
+		sampleSecs = v
+	}
+	sampleTSV := os.Getenv("PAIR_PROBE_SAMPLE_TSV")
+	if sampleTSV != "" && sampleSecs == 0 {
+		fmt.Println("PROBE-ERROR PAIR_PROBE_SAMPLE_TSV: only sample mode writes samples; set PAIR_PROBE_SAMPLE_SECS too")
+		return 1
+	}
 
 	env := zellijprobe.Scrub([]string{"ZELLIJ"}, "TERM=xterm-256color")
 	layout, err := writeLayout()
@@ -120,6 +145,9 @@ func run() int {
 		// invisible to the very calls being measured. They show in `pair list`
 		// while the probe runs.
 		names[i] = fmt.Sprintf("pair-rc%d-%d", os.Getpid(), i)
+	}
+	if sampleSecs > 0 {
+		names = names[:1] // sample mode: the control session only
 	}
 	defer func() {
 		for _, name := range names {
@@ -159,31 +187,23 @@ func run() int {
 	}
 	time.Sleep(2 * time.Second) // let every agent pane print its screen and marker
 
-	var mu sync.Mutex
-	var samples []sample
-	stop := make(chan struct{})
-	var sampler sync.WaitGroup
-	sampler.Add(1)
-	go func() {
-		defer sampler.Done()
-		for {
-			select {
-			case <-stop:
-				return
-			default:
+	stopSampler := startSampler(names[0], env)
+	if sampleSecs > 0 {
+		began := time.Now()
+		time.Sleep(time.Duration(sampleSecs) * time.Second)
+		ended := time.Now()
+		samples := stopSampler()
+		fmt.Printf("sample mode: %ds, unix ms %d to %d\n", sampleSecs, began.UnixMilli(), ended.UnixMilli())
+		fmt.Printf("zellij action query-tab-names (control session): %s\n", latency(samples, began, ended))
+		if sampleTSV != "" {
+			if err := writeSamples(sampleTSV, samples); err != nil {
+				fmt.Println("PROBE-ERROR PAIR_PROBE_SAMPLE_TSV:", err)
+				return 1
 			}
-			began := time.Now()
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			cmd := exec.CommandContext(ctx, "zellij", "--session", names[0], "action", "query-tab-names")
-			cmd.Env = env
-			err := cmd.Run()
-			cancel()
-			mu.Lock()
-			samples = append(samples, sample{at: began, dur: time.Since(began), ok: err == nil})
-			mu.Unlock()
-			time.Sleep(50 * time.Millisecond)
+			fmt.Printf("samples: %s\n", sampleTSV)
 		}
-	}()
+		return 0
+	}
 
 	var windows []window
 	phase := func(name string, body func() bool) bool {
@@ -275,8 +295,7 @@ func run() int {
 		return true
 	})
 	phase("quiet after", func() bool { time.Sleep(2 * time.Second); return true })
-	close(stop)
-	sampler.Wait()
+	samples := stopSampler()
 
 	failed := 0
 	fmt.Printf("\n%-18s %8s %8s %8s %8s   %s\n", "phase", "wall", "attach", "attach", "attach", "zellij action query-tab-names (control session)")
@@ -291,28 +310,11 @@ func run() int {
 			}
 			ds = append(ds, r.dur)
 		}
-		mu.Lock()
-		var lat []time.Duration
-		errs := 0
-		for _, s := range samples {
-			if s.at.Before(w.start) || s.at.After(w.end) {
-				continue
-			}
-			if !s.ok {
-				errs++
-			}
-			lat = append(lat, s.dur)
-		}
-		mu.Unlock()
 		attachCols := "       -        -        -"
 		if len(ds) > 0 {
 			attachCols = fmt.Sprintf("%8s %8s %8s", ms(minOf(ds)), ms(pct(ds, 50)), ms(maxOf(ds)))
 		}
-		latency := "no samples"
-		if len(lat) > 0 {
-			latency = fmt.Sprintf("n=%d p50=%s p95=%s max=%s errors=%d", len(lat), ms(pct(lat, 50)), ms(pct(lat, 95)), ms(maxOf(lat)), errs)
-		}
-		fmt.Printf("%-18s %8s %s   %s\n", w.name, ms(w.end.Sub(w.start)), attachCols, latency)
+		fmt.Printf("%-18s %8s %s   %s\n", w.name, ms(w.end.Sub(w.start)), attachCols, latency(samples, w.start, w.end))
 	}
 	fmt.Printf("\nattach = spawn of `zellij attach` until the session's own marker renders (%dx%d, pair-shaped layout, repo config).\n", cols, rows)
 	// S = live pair sessions the full snapshots asked; the probe's own n+1 are
@@ -335,6 +337,73 @@ func run() int {
 		return 2
 	}
 	return 0
+}
+
+// startSampler times `zellij action query-tab-names` against the control
+// session, one call at a time, each bounded at 5 s, until the returned stop is
+// called. Stop returns every sample taken. Both the phased run and sample mode
+// read latency through it.
+func startSampler(control string, env []string) (stop func() []sample) {
+	var mu sync.Mutex
+	var samples []sample
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			began := time.Now()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			cmd := exec.CommandContext(ctx, "zellij", "--session", control, "action", "query-tab-names")
+			cmd.Env = env
+			err := cmd.Run()
+			cancel()
+			mu.Lock()
+			samples = append(samples, sample{at: began, dur: time.Since(began), ok: err == nil})
+			mu.Unlock()
+			time.Sleep(50 * time.Millisecond)
+		}
+	}()
+	return func() []sample {
+		close(done)
+		wg.Wait()
+		mu.Lock()
+		defer mu.Unlock()
+		return samples
+	}
+}
+
+// writeSamples writes one line per sample: <unix-ms>\t<ms>\t<ok>.
+func writeSamples(path string, samples []sample) error {
+	var b strings.Builder
+	for _, s := range samples {
+		fmt.Fprintf(&b, "%d\t%d\t%t\n", s.at.UnixMilli(), s.dur.Milliseconds(), s.ok)
+	}
+	return os.WriteFile(path, []byte(b.String()), 0o600)
+}
+
+// latency summarises the samples that began within [start, end].
+func latency(samples []sample, start, end time.Time) string {
+	var lat []time.Duration
+	errs := 0
+	for _, s := range samples {
+		if s.at.Before(start) || s.at.After(end) {
+			continue
+		}
+		if !s.ok {
+			errs++
+		}
+		lat = append(lat, s.dur)
+	}
+	if len(lat) == 0 {
+		return "no samples"
+	}
+	return fmt.Sprintf("n=%d p50=%s p95=%s max=%s errors=%d", len(lat), ms(pct(lat, 50)), ms(pct(lat, 95)), ms(maxOf(lat)), errs)
 }
 
 // attach spawns a real client and times it until this session's marker renders,

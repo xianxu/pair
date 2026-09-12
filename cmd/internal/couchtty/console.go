@@ -72,6 +72,9 @@ type Console struct {
 	actionable ActionableThreadProvider
 	menu       MenuState
 	menuReady  bool
+	// statusSpinner is the status row's spinner frame, advanced while the
+	// reattach pass has a thread loading (pair#206).
+	statusSpinner uint8
 
 	// tracker is where ctrl+backspace goes. Ephemeral by design: `previous` is
 	// a property of this sitting, not of the durable thread store.
@@ -128,6 +131,10 @@ type Console struct {
 	input     chan []byte
 	// trace is nil unless COUCH_INPUT_TRACE names a file; see inputtrace.go.
 	trace *inputTracer
+	// events is the COUCH_TRACE timing trace, nil unless the composition root
+	// named a file; see trace.go. framePainted gates its first-frame event.
+	events       *eventTracer
+	framePainted bool
 	// menuExtents is where each actor was drawn by the LAST menu paint, so a
 	// click resolves against what the operator saw rather than a re-render,
 	// which a refresh or a notice could have changed in between.
@@ -313,14 +320,14 @@ func (c *Console) attachThreadActor(handleID string, actorID couchcore.ActorID, 
 }
 
 func (c *Console) attachObservedThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity) {
-	_ = c.installObservedThreadActor(c.lifetime, handleID, actorID, thread, tree, label, child, process)
+	_ = c.installObservedThreadActor(c.lifetime, handleID, actorID, thread, tree, label, child, process, false)
 }
 
 // installObservedThreadActor commits a complete pane or no pane. The worker
 // count is reserved under the same mutex as routing state, so teardown's mutex
 // barrier cannot begin its final Wait between a partial map insertion and the
 // exit watcher becoming owned.
-func (c *Console) installObservedThreadActor(ctx context.Context, handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity) error {
+func (c *Console) installObservedThreadActor(ctx context.Context, handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity, background bool) error {
 	if ctx == nil {
 		ctx = c.lifetime
 	}
@@ -368,12 +375,20 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	c.order = append(c.order, handleID)
 	if c.active == "" {
 		c.active = handleID
-		c.focus = FocusActor(handleID)
-		// The first attach lands the operator on an actor WITHOUT going through
-		// switchTo, so the tracker has to be seeded here or the actor they
-		// started in is never recorded -- and the first notification hop would
-		// then pin nothing instead of pinning it.
-		c.tracker.Switch(thread, false)
+		// A BACKGROUND attach -- the reattach pass (pair#206) -- never moves focus
+		// or seeds the tracker. c.active is empty whenever the last pane exited
+		// while the switcher was focused, and a background completion arriving
+		// then would otherwise hand the keyboard to a pane the operator never
+		// chose, with no screen takeover, so their typing reached an invisible
+		// agent.
+		if !background {
+			c.focus = FocusActor(handleID)
+			// The first attach lands the operator on an actor WITHOUT going
+			// through switchTo, so the tracker has to be seeded here or the actor
+			// they started in is never recorded -- and the first notification hop
+			// would then pin nothing instead of pinning it.
+			c.tracker.Switch(thread, false)
+		}
 	}
 	if !c.menuReady {
 		c.menu = NewMenuState(nil, thread)
@@ -610,6 +625,49 @@ func (c *Console) Run() int {
 		spinnerC = nil
 		spinnerOwner = MenuProgressOwner{}
 	}
+	// The status row's own spinner (pair#206). The one above runs only while the
+	// switcher is focused AND a progress notice shows, but the operator spends
+	// the reattach pass in their own thread -- so this is a second timer, armed
+	// only while a thread is loading, that repaints the status row. It is the
+	// seam #231's clock would extend rather than adding another.
+	var statusTimer *time.Timer
+	var statusC <-chan time.Time
+	syncStatusTick := func() {
+		c.mu.Lock()
+		loading := c.menu.Reattach.Loading != (couchcore.ThreadAddress{})
+		c.mu.Unlock()
+		if !loading {
+			ticking := statusC != nil
+			if statusTimer != nil {
+				stopTimer(statusTimer)
+			}
+			statusC = nil
+			if ticking {
+				// While a thread loads, this tick is the only thing that repaints
+				// the status row, so the frame it last painted still shows that
+				// thread's spinning placeholder. A stopping tick owes the frame
+				// without it (pair#206, found in the operator's smoke test: the
+				// last reattached thread kept spinning until something else
+				// repainted).
+				c.repaint()
+			}
+			return
+		}
+		if statusC != nil {
+			return
+		}
+		if statusTimer == nil {
+			statusTimer = time.NewTimer(statusSpinnerInterval)
+		} else {
+			statusTimer.Reset(statusSpinnerInterval)
+		}
+		statusC = statusTimer.C
+	}
+	defer func() {
+		if statusTimer != nil {
+			stopTimer(statusTimer)
+		}
+	}()
 	defer stopSpinner()
 	syncSpinner := func() {
 		c.mu.Lock()
@@ -758,6 +816,12 @@ func (c *Console) Run() int {
 			noticeC = nil
 			noticeExpiry = time.Time{}
 			c.repaint()
+		case <-statusC:
+			statusC = nil
+			c.mu.Lock()
+			c.statusSpinner++
+			c.mu.Unlock()
+			c.repaint()
 		case <-spinnerC:
 			owner := spinnerOwner
 			spinnerC = nil
@@ -792,6 +856,7 @@ func (c *Console) Run() int {
 			return 0
 		}
 		syncSpinner()
+		syncStatusTick()
 		syncNoticeExpiry()
 	}
 }
@@ -815,6 +880,8 @@ func (c *Console) teardown(restore func() error) {
 	c.mu.Lock()
 	tracer := c.trace
 	c.trace = nil
+	events := c.events
+	c.events = nil
 	// The terminal is being handed back, so a publish must stop painting into
 	// it. This CLOSES the window rather than sealing it: publishNotice reads
 	// started under the lock and paints after releasing it, so a publish that
@@ -825,6 +892,9 @@ func (c *Console) teardown(restore func() error) {
 	c.mu.Unlock()
 	if err := tracer.Close(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: close input trace: %v\n", err)
+	}
+	if err := events.Close(); err != nil {
+		fmt.Fprintf(c.errw(), "couch: close timing trace: %v\n", err)
 	}
 	if err := restore(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: restore terminal: %v\n", err)
@@ -978,6 +1048,40 @@ func (c *Console) applyLayout() {
 // spliced into the middle of `\x1b[38;2;76;82;88m`, corrupting the child's
 // colours and losing the row. The debt is remembered and paid by the next chunk
 // that leaves the stream at a sequence boundary.
+// statusModelLocked builds the status row's model: the attached chips, then a
+// placeholder for each thread the reattach pass has not attached yet
+// (pair#206). Callers hold c.mu. Separate from paintNow so the model -- which is
+// where a placeholder either appears or silently does not -- is testable without
+// rendering to a terminal.
+func (c *Console) statusModelLocked() StatusModel {
+	model := StatusModel{Notice: c.feed.Row().Body}
+	for _, id := range c.order {
+		p := c.panes[id]
+		model.Actors = append(model.Actors, StatusActor{
+			Label:  p.label,
+			Thread: p.thread,
+			Active: id == c.active,
+			Bell:   len(c.attention.Projection(p.thread)) > 0,
+		})
+	}
+	// Placeholders for threads the reattach pass has not attached yet, after
+	// the attached chips and in pass order (pair#206), so a thread that attaches
+	// takes the column its placeholder held. The label is the one its chip will
+	// carry -- the repository of the thread's starting path -- so it does not
+	// change when the thread arrives.
+	model.Spinner = c.statusSpinner
+	for _, pending := range pendingPlaceholders(c.menu.Reattach) {
+		label := string(pending.Address.Tag)
+		if row, ok := menuThread(c.menu, pending.Address); ok {
+			label = couchcore.Worktree(row.StartingPath).Repo()
+		}
+		model.Actors = append(model.Actors, StatusActor{
+			Label: label, Thread: pending.Address, Placeholder: true, Loading: pending.Loading,
+		})
+	}
+	return model
+}
+
 func (c *Console) repaint() { c.paintNow() }
 
 // writeChild passes the active child's output through, tracking where the
@@ -1097,16 +1201,7 @@ func (c *Console) paintNow() {
 	c.paintPending = false
 	rows := c.size.Rows
 	cols := int(c.size.Cols)
-	model := StatusModel{Notice: c.feed.Row().Body}
-	for _, id := range c.order {
-		p := c.panes[id]
-		model.Actors = append(model.Actors, StatusActor{
-			Label:  p.label,
-			Thread: p.thread,
-			Active: id == c.active,
-			Bell:   len(c.attention.Projection(p.thread)) > 0,
-		})
-	}
+	model := c.statusModelLocked()
 	c.mu.Unlock()
 
 	// Re-asserted on every paint, but ONLY while no child holds tracking of its
@@ -1131,9 +1226,19 @@ func (c *Console) paintNow() {
 	row := RenderStatusRow(cols, model)
 	c.mu.Lock()
 	c.statusChips = row.Chips
+	first := !c.framePainted
+	c.framePainted = true
+	var shown couchcore.ThreadAddress
+	if p, ok := c.panes[c.active]; ok {
+		shown = p.thread
+	}
 	c.mu.Unlock()
 	res := bottomReservation(rows)
 	c.writeOwn(res.ReserveAndPaint(row.Body))
+	if first {
+		// The operator's first sight of couch (pair#206's COUCH_TRACE).
+		c.traceEvent(traceFirstFrame, shown, "")
+	}
 }
 
 func (c *Console) syncAttentionLocked() {
@@ -1629,6 +1734,14 @@ func (c *Console) onParkHotkey() {
 }
 
 func (c *Console) runMenuOperation(effect MenuEffect) {
+	// A background effect -- the reattach pass (pair#206) -- goes FIRST, before
+	// anything that addresses the operator's in-flight slot: the attention
+	// capture below reads InFlight, and the match further down would drop this
+	// effect, because the pass never holds InFlight.
+	if effect.Background {
+		c.runBackgroundOperation(effect)
+		return
+	}
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
@@ -1814,9 +1927,16 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 				if fn == nil {
 					err = errors.New("no action dispatcher wired")
 				} else {
+					args := map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)}
+					if completed.origin.Background {
+						// The reattach pass's child is adopted without taking
+						// focus (pair#206); only the declared arg carries that
+						// across the operation table to the installer.
+						args["background"] = "true"
+					}
 					_, err = fn(couchcore.OperationCall{
 						Name: "attach", Context: c.lifetime, Implicit: true, TypedPayload: started,
-						Args: map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)},
+						Args: args,
 					})
 				}
 			}
@@ -1825,9 +1945,15 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	event := MenuEvent{
 		Kind: MenuEventOperationResult, Operation: completed.origin.Operation,
 		Attempt: completed.origin.Attempt, Address: address, Success: err == nil,
+		Background: completed.origin.Background,
 	}
 	if err != nil {
 		event.Error = err.Error()
+		// A code, so the pass tells a skip from a failure without matching text.
+		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)
+	}
+	if completed.origin.Background {
+		c.traceEvent(traceReattachDone, address, reattachDoneDetail(event.Success, event.Diagnostic))
 	}
 	c.mu.Lock()
 	if completed.origin.Operation == "switch" {
@@ -1863,11 +1989,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 			}
 		}
 	}
+	var menuEffects []MenuEffect
 	if c.menuReady {
-		c.menu, _ = ReduceMenu(c.menu, event)
+		c.menu, menuEffects = ReduceMenu(c.menu, event)
 	}
 	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()
+	// A completion can start the reattach pass's next attempt (pair#206).
+	c.dispatchMenuEffects(menuEffects)
 	if completed.origin.Operation == "leave" && err == nil {
 		// Report what leave actually did before the terminal goes. Skipped
 		// threads are the ones that matter: Couch could not prove them
@@ -1880,7 +2009,10 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.Stop()
 		return true
 	}
-	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" {
+	// Never for a background completion: the pass reattaches behind the
+	// operator, and there is no adoption, so no background completion is ever
+	// the operator's own landing (pair#206).
+	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false
@@ -1973,7 +2105,8 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		}
 		if err := c.installObservedThreadActor(ctx, start.Handle.ID(), start.Record.ID, start.Record.Thread,
 			start.Record.Args.Worktree, start.Record.Args.Worktree.Repo(), th.Terminal(),
-			couchcore.ProcessIdentity{PID: start.Handle.PID(), Identity: start.Handle.Identity()}); err != nil {
+			couchcore.ProcessIdentity{PID: start.Handle.PID(), Identity: start.Handle.Identity()},
+			call.Args["background"] == "true"); err != nil {
 			return nil, err
 		}
 		return address, nil

@@ -30,13 +30,28 @@ type StatusActor struct {
 	// looked at it. Before #147's transport it is the only real activity
 	// signal available, which is why the row carries it at all.
 	Bell bool
+	// Placeholder marks a thread the reattach pass has not attached yet
+	// (pair#206). It is drawn greyed, and it records NO chip span, so a click on
+	// it resolves to no actor: unclickable by construction, not by a check at
+	// the click site.
+	Placeholder bool
+	// Loading marks the one placeholder currently starting; it carries the
+	// spinner.
+	Loading bool
 }
 
 // StatusModel is everything the row shows.
 type StatusModel struct {
 	Actors []StatusActor
 	Notice string
+	// Spinner is the loading placeholder's spinner frame (pair#206).
+	Spinner uint8
 }
+
+const (
+	attentionSGR   = "\x1b[38;5;220m"
+	placeholderSGR = "\x1b[38;5;240m"
+)
 
 // ChipSpan is the column range one actor occupies on the drawn row, and the
 // actor a click there lands on. Half-open: [Start, End).
@@ -91,7 +106,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	}
 	var row strings.Builder
 	used := 0
-	appendText := func(text string, attention bool) {
+	appendText := func(text, sgr string) {
 		if used >= width || text == "" {
 			return
 		}
@@ -99,11 +114,11 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if clipped == "" {
 			return
 		}
-		if attention {
-			row.WriteString("\x1b[38;5;220m")
+		if sgr != "" {
+			row.WriteString(sgr)
 		}
 		row.WriteString(clipped)
-		if attention {
+		if sgr != "" {
 			row.WriteString("\x1b[0m")
 		}
 		used += textwidth.Width(clipped)
@@ -111,26 +126,36 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 	var chips []ChipSpan
 	for _, a := range m.Actors {
 		label := rowtext.Sanitize(a.Label)
+		if a.Placeholder && a.Loading {
+			label += " " + spinnerGlyph(m.Spinner)
+		}
 		if a.Active {
 			label = "[" + label + "]"
 		}
 		if used > 0 {
-			appendText("  ", false)
+			appendText("  ", "")
 		}
 		// Recorded from the SAME appendText that clips, so a chip the width
 		// dropped contributes no span and a chip the width truncated contributes
 		// the columns it actually drew.
 		start := used
-		appendText(label, a.Bell && !a.Active)
-		if used > start && a.Thread != (couchcore.ThreadAddress{}) {
+		style := ""
+		switch {
+		case a.Placeholder:
+			style = placeholderSGR
+		case a.Bell && !a.Active:
+			style = attentionSGR
+		}
+		appendText(label, style)
+		if used > start && !a.Placeholder && a.Thread != (couchcore.ThreadAddress{}) {
 			chips = append(chips, ChipSpan{Thread: a.Thread, Start: start, End: used})
 		}
 	}
 	if n := rowtext.Sanitize(m.Notice); n != "" {
 		if used > 0 {
-			appendText("  · ", false)
+			appendText("  · ", "")
 		}
-		appendText(n, false)
+		appendText(n, "")
 	}
 	return RenderedStatusRow{Body: row.String(), Chips: chips}
 }
@@ -144,3 +169,11 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 // truncate cuts to width in terminal COLUMNS, not bytes or runes -- an emoji in
 // an agent's description is one rune and two columns, and the row must not wrap
 // onto the child's area.
+
+// spinnerGlyph is couch's one spinner. The switcher's progress notice and the
+// status row's loading placeholder both draw from it, so the same idea never
+// shows two different animations.
+func spinnerGlyph(phase uint8) string {
+	frames := [...]string{"◐", "◓", "◑", "◒"}
+	return frames[int(phase)%len(frames)]
+}

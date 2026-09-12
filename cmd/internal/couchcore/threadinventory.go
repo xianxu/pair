@@ -95,7 +95,7 @@ func (c *Couch) ThreadInventoryContext(ctx context.Context) ([]ThreadSummary, er
 	// No observations to pass: gatherThreadEvidence derives OS liveness for
 	// every caller now, so the CLI and the console read the same proof and this
 	// no longer needs its own snapshot to build one from.
-	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil)
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, nil, nil)
 	if err != nil {
 		return nil, err
 	}
