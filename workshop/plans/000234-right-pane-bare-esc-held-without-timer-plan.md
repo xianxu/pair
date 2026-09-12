@@ -449,3 +449,18 @@ failure, per memory).
 ```
 
 Then `sdlc close --issue 234 --verified '<the test names + the manual result>'`.
+
+## Revisions
+
+- **2026-09-12, after close round 1 (FIX-THEN-SHIP).** Delta from the approved
+  plan: (1) `probes/escsmoke` added — a live oracle the plan did not have: the
+  real `pair term` under a pty with a real nvim child, mode read over nvim's
+  RPC socket; the operator's in-pane check stays in Task 5 but is no longer
+  the only pane-level evidence. (2) Task 4 case (b) now runs through a
+  `forwardedOnTheDeadline` helper that gates EOF behind the observed write,
+  because the EOF flush produces the same bytes as the expiry flush and a
+  deleted expiry branch stayed green. (3) `TestATornMousePrefixMeetsTheSameDeadline`
+  pins the "any held prefix, not only a lone ESC" decision. (4) The latency
+  budget was corrected: the 35 ms deadline and nvim's 50 ms `ttimeoutlen` add
+  (~85 ms worst case); they do not nest. (5) `/escsmoke` added to `.gitignore`
+  for the repo-root binary guard. Reason: close-review findings BR-3..BR-7.
