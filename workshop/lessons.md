@@ -4616,3 +4616,26 @@ So test the frame on screen after the timer stops, for example the clickable
 spans its last paint recorded, not only that the timer stopped. More
 generally: for any derived view, ask what repaints it after the LAST change,
 not only during the changes.
+
+## A fake must be born the way production's object is (pair#206)
+
+**What happened.** Two switch-nudge tests failed rarely, and only under load.
+They reddened #206's close twice. An A/B across trees said the flake predated
+#206, which was true, but only the mechanism showed where the bug was.
+
+A fake pty child starts at `fakeChildSize`, the host's full height, while
+production spawns children at the console's child size. The tests attached the
+fake while the console was starting, so whether the one startup layout resized
+it was a race. When the race was lost, the switch's nudge restored the child to
+the fake's own height. Production cannot lose that race, because its children
+are born at the right size.
+
+**Rule.** A fake's initial state must match what production's constructor gives
+the real object, or the test depends on an ordering production never has. When
+a fake has a default, such as a size or a zero value, check it against how
+production creates the real thing, and set it explicitly in the fixture when
+they differ.
+
+When a flake predates your change, still find its mechanism before calling it
+someone else's. The mechanism decides whether the bug is in the product or in
+the test.
