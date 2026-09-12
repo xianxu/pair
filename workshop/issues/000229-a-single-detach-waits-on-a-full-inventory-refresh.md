@@ -1,11 +1,11 @@
 ---
 id: 000229
-status: open
+status: wontfix
 deps: []
 github_issue:
 target: workbench-latency
 created: 2026-09-11
-updated: 2026-09-11
+updated: 2026-09-12
 estimate_hours:
 ---
 
@@ -108,3 +108,13 @@ Operator request after #228 landed: *"can you make a task to improve detach
 performance?"* The same session had just established that the switcher's
 post-mutation refresh is O(detach candidates) `list-clients` calls. That makes
 it the lead suspect for the wait the operator sees, but it is unmeasured.
+
+### 2026-09-12
+
+- wontfix — moot as written. The operator reports detach is very fast now.
+  They first saw it after #206's M1, about 10x faster (recorded in #206's Log,
+  `a57fba6a`), and the speedup was never tied to a code change. The suspect
+  this issue names is still in the code: the switcher's post-detach inventory
+  refresh costs one `list-clients` call per detached thread. #206's reattach
+  pass now leaves few threads detached, which keeps that cheap. If detach
+  slows again, start from this issue's analysis, and measure first.
