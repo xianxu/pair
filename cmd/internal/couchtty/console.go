@@ -131,6 +131,10 @@ type Console struct {
 	input     chan []byte
 	// trace is nil unless COUCH_INPUT_TRACE names a file; see inputtrace.go.
 	trace *inputTracer
+	// events is the COUCH_TRACE timing trace, nil unless the composition root
+	// named a file; see trace.go. framePainted gates its first-frame event.
+	events       *eventTracer
+	framePainted bool
 	// menuExtents is where each actor was drawn by the LAST menu paint, so a
 	// click resolves against what the operator saw rather than a re-render,
 	// which a refresh or a notice could have changed in between.
@@ -866,6 +870,8 @@ func (c *Console) teardown(restore func() error) {
 	c.mu.Lock()
 	tracer := c.trace
 	c.trace = nil
+	events := c.events
+	c.events = nil
 	// The terminal is being handed back, so a publish must stop painting into
 	// it. This CLOSES the window rather than sealing it: publishNotice reads
 	// started under the lock and paints after releasing it, so a publish that
@@ -876,6 +882,9 @@ func (c *Console) teardown(restore func() error) {
 	c.mu.Unlock()
 	if err := tracer.Close(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: close input trace: %v\n", err)
+	}
+	if err := events.Close(); err != nil {
+		fmt.Fprintf(c.errw(), "couch: close timing trace: %v\n", err)
 	}
 	if err := restore(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: restore terminal: %v\n", err)
@@ -1207,9 +1216,19 @@ func (c *Console) paintNow() {
 	row := RenderStatusRow(cols, model)
 	c.mu.Lock()
 	c.statusChips = row.Chips
+	first := !c.framePainted
+	c.framePainted = true
+	var shown couchcore.ThreadAddress
+	if p, ok := c.panes[c.active]; ok {
+		shown = p.thread
+	}
 	c.mu.Unlock()
 	res := bottomReservation(rows)
 	c.writeOwn(res.ReserveAndPaint(row.Body))
+	if first {
+		// The operator's first sight of couch (pair#206's COUCH_TRACE).
+		c.traceEvent(traceFirstFrame, shown, "")
+	}
 }
 
 func (c *Console) syncAttentionLocked() {
@@ -1922,6 +1941,9 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		event.Error = err.Error()
 		// A code, so the pass tells a skip from a failure without matching text.
 		event.Diagnostic = couchcore.ResumeDiagnosticOf(err)
+	}
+	if completed.origin.Background {
+		c.traceEvent(traceReattachDone, address, reattachDoneDetail(event.Success, event.Diagnostic))
 	}
 	c.mu.Lock()
 	if completed.origin.Operation == "switch" {

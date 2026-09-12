@@ -36,6 +36,9 @@ func (c *Console) runBackgroundOperation(effect MenuEffect) {
 		Operation: effect.Operation, Attempt: effect.Attempt, Background: true,
 		Address: couchcore.ThreadAddress{RepoScope: effect.Args["repo-scope"], Tag: couchcore.ThreadTag(effect.Args["tag"])},
 	}
+	// Traced whether or not a dispatcher is wired: an attempt that cannot run
+	// still finishes, through finishOperation, which traces its end.
+	c.traceEvent(traceReattachStart, origin.Address, fmt.Sprintf("attempt=%d", effect.Attempt))
 	c.mu.Lock()
 	fn := c.ops
 	c.mu.Unlock()

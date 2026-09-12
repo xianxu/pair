@@ -2,9 +2,7 @@ package couchtty
 
 import (
 	"fmt"
-	"os"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -47,10 +45,7 @@ func renderInputBytes(chunk []byte) string {
 // Deliberately NOT a visual affordance. The console hosts a child terminal;
 // a probe that painted anything would corrupt the child's screen, which is a
 // worse bug than the one being chased.
-type inputTracer struct {
-	mu sync.Mutex
-	f  *os.File
-}
+type inputTracer struct{ file *traceFile }
 
 // newInputTracer returns a nil tracer when the path is empty, and an ERROR when
 // a path was given and could not be opened.
@@ -67,14 +62,11 @@ type inputTracer struct {
 // arrived", which is precisely the ambiguity the probe exists to resolve. The
 // INABILITY to observe must never be presentable as an observation.
 func newInputTracer(path string) (*inputTracer, error) {
-	if path == "" {
-		return nil, nil
+	file, err := openTraceFile("COUCH_INPUT_TRACE", path)
+	if file == nil {
+		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return nil, fmt.Errorf("COUCH_INPUT_TRACE: %w", err)
-	}
-	return &inputTracer{f: f}, nil
+	return &inputTracer{file: file}, nil
 }
 
 // Close releases the trace file. Nil-safe, like record.
@@ -82,24 +74,12 @@ func (t *inputTracer) Close() error {
 	if t == nil {
 		return nil
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.f == nil {
-		return nil
-	}
-	err := t.f.Close()
-	t.f = nil
-	return err
+	return t.file.Close()
 }
 
 func (t *inputTracer) record(chunk []byte) {
 	if t == nil {
 		return
 	}
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.f == nil {
-		return
-	}
-	fmt.Fprintf(t.f, "%s %s\n", time.Now().Format("15:04:05.000"), renderInputBytes(chunk))
+	t.file.writeLine(time.Now().Format("15:04:05.000") + " " + renderInputBytes(chunk))
 }

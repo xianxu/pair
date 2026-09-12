@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strconv"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -118,17 +119,32 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 		return
 	}
 	var effects []MenuEffect
+	seeded, pending := false, 0
+	var root couchcore.ThreadAddress
 	c.mu.Lock()
 	if c.menuReady {
 		event := MenuEvent{Kind: MenuEventInventory, Inventory: result.inventory, Generation: result.generation}
 		if result.err != nil {
 			event.Error = result.err.Error()
 		}
+		armed := c.menu.Reattach.Phase == ReattachArmed
 		c.menu, effects = ReduceMenu(c.menu, event)
+		if armed && c.menu.Reattach.Phase != ReattachArmed {
+			seeded, root, pending = true, c.menu.Reattach.Root, len(pendingPlaceholders(c.menu.Reattach))
+		}
 	}
 	c.mu.Unlock()
+	landed := "rows=" + strconv.Itoa(len(result.inventory))
+	if result.err != nil {
+		landed = "error"
+	}
+	c.traceEvent(traceInventory, couchcore.ThreadAddress{}, landed)
+	if seeded {
+		c.traceEvent(tracePassSeeded, root, "pending="+strconv.Itoa(pending))
+	}
 	// An inventory can seed the reattach pass and start its first attempt
-	// (pair#206). Nothing else this event produces is an effect.
+	// (pair#206). Nothing else this event produces is an effect. It is traced
+	// above, before dispatch, so the seeding precedes the first attempt's start.
 	c.dispatchMenuEffects(effects)
 	c.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshFinished, Generation: result.generation})
 	c.mu.Lock()

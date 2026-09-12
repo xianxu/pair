@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 
@@ -384,11 +385,17 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	// itself on the status row; it must never take the console down, and it must
 	// never be mistaken for "the terminal sent nothing".
 	_ = console.SetInputTrace(os.Getenv("COUCH_INPUT_TRACE"))
+	_ = console.SetEventTrace(os.Getenv("COUCH_TRACE"), processStartedAt)
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,
 		Sink: console.Deliver,
 	}
 }
+
+// processStartedAt is when this couch process began: package initialisation,
+// before Run. It stamps COUCH_TRACE's startup event (pair#206), so the trace
+// measures the whole startup, not only the part after the console exists.
+var processStartedAt = time.Now()
 
 // armsReattachPass is pair#206's decision 9: a start arms the background
 // reattach pass, and a resume of one named thread does not. An operator who

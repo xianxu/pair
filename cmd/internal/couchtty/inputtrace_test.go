@@ -98,21 +98,25 @@ func TestATraceThatCannotStartSaysSoInsteadOfTracingNothing(t *testing.T) {
 // per test run, and reading os.Getenv from the constructor meant an exported
 // COUCH_INPUT_TRACE leaked one fd per Console plus fixture bytes into a real
 // operator file -- the same shape as the PAIR_SESSION_ID leak this repo already
-// hit in `make test`.
+// hit in `make test`. The same holds for the COUCH_TRACE timing trace (pair#206).
 func TestAConsoleOpensNoTraceUnlessAskedTo(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "keys.log")
-	t.Setenv("COUCH_INPUT_TRACE", path)
+	keys := filepath.Join(t.TempDir(), "keys.log")
+	t.Setenv("COUCH_INPUT_TRACE", keys)
+	timings := filepath.Join(t.TempDir(), "trace.tsv")
+	t.Setenv("COUCH_TRACE", timings)
 
 	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
 	t.Cleanup(con.Stop)
 	con.mu.Lock()
-	tracer := con.trace
+	tracer, events := con.trace, con.events
 	con.mu.Unlock()
-	if tracer != nil {
-		t.Fatal("the constructor read ambient env and opened a trace file")
+	if tracer != nil || events != nil {
+		t.Fatalf("the constructor read ambient env and opened a trace: input %v, timing %v", tracer, events)
 	}
-	if _, err := os.Stat(path); err == nil {
-		t.Fatal("the constructor created the trace file named by ambient env")
+	for _, path := range []string{keys, timings} {
+		if _, err := os.Stat(path); err == nil {
+			t.Fatalf("the constructor created %s, named by ambient env", path)
+		}
 	}
 }
 
@@ -139,6 +143,11 @@ func TestAClosedTracerStopsRecording(t *testing.T) {
 	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// The record before Close landed. Without this check, a tracer that writes
+	// nothing at all passes this test.
+	if !strings.Contains(string(body), " a\n") {
+		t.Fatalf("the record before Close never landed: %q", body)
 	}
 	if strings.Contains(string(body), "b") {
 		t.Fatalf("a closed tracer kept recording: %q", body)

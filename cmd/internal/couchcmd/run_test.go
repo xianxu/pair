@@ -1663,3 +1663,27 @@ func TestBeginConsoleArmsThePassOnlyAfterASuccessfulAttach(t *testing.T) {
 		})
 	}
 }
+
+// The composition root opens COUCH_TRACE, and stamps its startup event with the
+// process start rather than the moment the console was built (pair#206). The
+// start is pinned: run alone, the real one can fall in the same millisecond as
+// the open, and a mutation that stamps the open time would survive.
+func TestTheConsoleRunnerOpensTheTimingTraceFromTheEnvironment(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "trace.tsv")
+	t.Setenv("COUCH_TRACE", path)
+	t.Setenv("COUCH_INPUT_TRACE", "")
+	saved := processStartedAt
+	processStartedAt = time.UnixMilli(1757600000000)
+	t.Cleanup(func() { processStartedAt = saved })
+
+	if console, _ := consoleRunnerFor("start", strings.NewReader(""), true, nil, nil); console == nil {
+		t.Fatal("no console")
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(body), "1757600000000\tstartup\t-\t-\n"; got != want {
+		t.Fatalf("trace = %q, want %q", got, want)
+	}
+}

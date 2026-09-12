@@ -620,3 +620,53 @@ passes unsandboxed.
 The M2-wide sweep is Task 12.
 
 **Suite:** unsandboxed `make test` exits 0 across 197 packages.
+
+### 2026-09-11 — M2 Task 11: the `COUCH_TRACE` timing trace
+
+**What it records.** One line per event,
+`<unix-ms>\t<event>\t<scope>/<tag>\t<detail>`:
+- `startup`, stamped with the process start that couchcmd reads at package
+  init;
+- `first-frame`, `Run`'s first paint;
+- `inventory`, for every inventory that lands. This event was added because
+  Task 12 counts the refreshes during the pass;
+- `pass-seeded`, with `pending=N`;
+- `reattach-start`, with `attempt=N`;
+- `reattach-done`, with `ok`, a diagnostic code, or `error`.
+
+The trace holds addresses, counts and timings, never content.
+
+**Shape.** `traceFile`, in the new `couchtty/trace.go`, is the one
+append-only file plumbing. The keystroke probe now writes through it too
+(`ARCH-DRY`). Each event is recorded at its single source in the console, not
+derived from every `ReduceMenu` call.
+
+**Mutations: 23 of 23 killed, 3 of them only after tests were added.**
+- **`first-frame` on every paint survived at first.** The end-to-end test
+  paints only once, because the attempts finish inside the spinner's 120 ms
+  tick. `TestTheFirstFrameIsTracedOnce` now paints twice.
+- **`reattach-done` for every operation survived at first.** No test finished
+  an operator operation with a trace open. `TestOnlyAPassAttemptsEndIsTraced`
+  now does.
+- **`pass-seeded` on every inventory didn't compile at first.** In a compiling
+  form, `TestAnUnarmedConsoleTracesNoSeeding` kills it. It is deterministic
+  because it stops the console and joins `Run` before reading the trace.
+- **The refactor exposed an older gap.** No test checked that the keystroke
+  probe writes anything at all. `TestAClosedTracerStopsRecording` now checks
+  that the record made before `Close` lands.
+
+**The suite, under heavy load.** Unsandboxed `make test` ran at a 5-minute
+load average of 77, with 31 agent processes and 27 zellij sessions. It failed
+four tests outside this change:
+- **Three zellij-timing tests**, in couchcore and launcher. Each returned an
+  empty result at its deadline. Each passes in isolation, and all three
+  packages pass in full once the load fell to about 10-16.
+- **`TestSwitchAsksTheIncomingChildToRepaint`**, the race noted at Task 8.
+  An A/B ran 40 runs per tree, interleaved under the same load:
+  - the merge-base, before #206 touched couchtty: 1 failure;
+  - HEAD before Task 11: 0;
+  - the current tree: 0.
+
+  The race predates #206.
+
+The full suite reruns before close.

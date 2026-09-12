@@ -622,13 +622,15 @@ reach a cell.
   can be tested with a fake dispatcher. With a real child the ordering is
   untestable: an exited child fails the attach first. 4 of 4 mutations killed.
 
-### Task 11: the trace
+### Task 11: the trace -- DONE
 
 **Files:** modify `couchtty/inputtrace.go`, `couchcmd/run.go`
 
-- [ ] Extend the existing trace plumbing with `startup`, `first-frame`,
+- [x] Extend the existing trace plumbing with `startup`, `first-frame`,
   `pass-seeded`, `reattach-start` and `reattach-done`; `couchcmd` reads
-  `COUCH_TRACE`.
+  `COUCH_TRACE`. It also gained `inventory`, and the shared plumbing is now in
+  `couchtty/trace.go`; see the Revisions entry for Task 11. Mutations: 23 of 23
+  killed, 3 of them only after tests were added for them.
 
 ### Task 12: measure, document, smoke, close
 
@@ -848,3 +850,27 @@ into the operator's namespace survives. The pass and the operator draw attempt
 numbers from one counter, so keys cannot collide whatever the prefix. The
 comment on `runBackgroundOperation` that claimed the prefix "can never
 collide" was corrected to say where uniqueness actually comes from.
+
+### 2026-09-11 — Task 11: the trace gains an `inventory` event, and a `trace.go`
+
+**Reason.** Task 12's measurement records "the refresh count during the
+pass", and none of the five planned events measures it.
+
+**Delta.**
+- `COUCH_TRACE` also writes `inventory` for every inventory that lands, as
+  `rows=N` or `error`. That is a count, never content, as Trust requires.
+- The shared file plumbing is `traceFile`, in a new `couchtty/trace.go`
+  alongside the event tracer. `inputtrace.go` keeps the keystroke probe, now
+  built on `traceFile` (`ARCH-DRY`).
+- Each event is recorded at its one source in the console, rather than derived
+  from every `ReduceMenu` call site:
+  - `pass-seeded` in `finishMenuRefresh`, the only place an inventory is
+    reduced;
+  - `reattach-start` in `runBackgroundOperation`, which every background
+    effect passes through;
+  - `reattach-done` in `finishOperation`, for a Background origin;
+  - `first-frame` at the first `paintNow`. Nothing paints before `Run`: no
+    attach path calls `paintNow`, and `switchTo`'s callers are all on the
+    Run loop;
+  - `startup`, stamped with the process start that couchcmd reads before the
+    console exists.

@@ -53,6 +53,13 @@ type consoleFixture struct {
 
 func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 	t.Helper()
+	return newFixtureBeforeRun(t, rows, cols, nil)
+}
+
+// newFixtureBeforeRun is newFixture with a hook that runs on the console before
+// its Run loop starts, for wiring that has to precede the first paint.
+func newFixtureBeforeRun(t *testing.T, rows, cols uint16, beforeRun func(*Console)) *consoleFixture {
+	t.Helper()
 	host := hostty.NewFakeHost(ptychild.Size{Rows: rows, Cols: cols})
 	pr, pw := io.Pipe()
 	con := New(host, pr)
@@ -63,6 +70,9 @@ func newFixture(t *testing.T, rows, cols uint16) *consoleFixture {
 	setTestOps(con, func(string, map[string]string) (any, error) { return nil, nil })
 
 	f := &consoleFixture{host: host, child: child, con: con, stdin: pw, done: make(chan int, 1)}
+	if beforeRun != nil {
+		beforeRun(con)
+	}
 	go func() { f.done <- con.Run() }()
 	t.Cleanup(func() {
 		con.Stop()
