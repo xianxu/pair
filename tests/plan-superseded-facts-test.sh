@@ -232,6 +232,10 @@ check "$PLAN206" 'the queue entry goes' 'the entry stays; cell 4 never prunes th
 check "$PLAN206" 'a generic `reattach-failed` code, and the row shows' "the error's first line after the colon (decision 11)" "$REV206"
 check "$PLAN206" 'in flight (cell 12)' 'cell 10 is the hold' "$REV206"
 check "$PLAN206" 'makes cell 13 work' 'cells 5 and 11' "$REV206"
+# BR-14: the plan restated ReattachPhase and ReattachPass as a code block, and
+# the copy drifted. A declaration lives in the code; pasting it back fails here.
+check "$PLAN206" 'type ReattachPhase uint8' 'point at couchtty/menu_reattach.go' "$REV206"
+check "$PLAN206" 'diagnostic code per row' "a code or an error's first line; point at menu_reattach.go" "$REV206"
 # note: COUCH_TRACE (pair#206) is the second env var couch reads for itself.
 check_atlas 'is the one env var couch reads' 'one of the two env vars couch reads for itself'
 

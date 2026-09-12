@@ -4587,6 +4587,12 @@ catch yourself writing a number that some other file also states, stop and
 point. A sweep rule is a promise about future diligence; a single home is a
 structure that makes the diligence unnecessary.
 
+**The same holds for declarations** (#206's M2 review, the second finding in
+the family). A plan that pastes a type or an enum restates code, and the paste
+goes stale the moment the code grows a case: #206's Core-concepts block listed
+three `ReattachPhase` constants after the code had four. Name the file and the
+type; do not paste the block.
+
 ## A comment that states a reach is a claim a test must pin (pair#206)
 
 **What happened.** A doc comment said an unreadable index scope "contributes

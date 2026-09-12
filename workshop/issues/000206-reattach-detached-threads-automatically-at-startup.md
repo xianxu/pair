@@ -826,3 +826,21 @@ suite failed twice on switch-nudge tests:
 
 **Suite.** Unsandboxed `make test` exits 0 across 197 packages, at load
 1-2.7.
+
+### 2026-09-12 — M2 boundary review, round 4: FIX-THEN-SHIP
+
+The review checked four claimed fixes by reverting each in a scratch overlay,
+and every named test went red. It passed every ARCH principle. It raised:
+- **BR-13 (Important, blocking): the README did not describe the pass.**
+  Fixed: a README paragraph covers the pass, its placeholders and its
+  non-selectable rows, the failure mark, and quitting part-way.
+- **BR-14 (Minor): the plan restated `ReattachPhase` and `ReattachPass`, and
+  the copy drifted.** Fixed as the rule:
+  - the block is replaced by a pointer to `menu_reattach.go`;
+  - the "one home" lesson now covers declarations;
+  - the superseded-facts test fails on a re-paste.
+- **Advisory, done:** a comment on `advanceReattach`'s counter guard. The
+  guard stops the attempt counter wrapping to 0, the "no attempt" identity.
+- **Advisory, noted:** this branch also carries docs-only commits from a
+  parallel session. They are the #232, #233 and #234 issue files, and the
+  `couch-slots` project file (`1cc55d99`). They ride the PR unchanged.

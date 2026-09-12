@@ -195,6 +195,11 @@ func advanceReattach(state MenuState) (MenuState, []MenuEffect) {
 	if pass.Phase != ReattachRunning || pass.Loading != (couchcore.ThreadAddress{}) || state.InFlight.Operation != "" {
 		return state, nil
 	}
+	// The counter guard is unreachable in practice, since it takes 2^64
+	// operations. It is there because the increment below would wrap to 0,
+	// which is the "no attempt" identity finishReattach refuses, and the pass
+	// would then hang on an attempt it can never finish. Ending the pass is
+	// the safe answer.
 	if len(pass.Queue) == 0 || state.OperationSequence == ^uint64(0) {
 		state.Reattach.Phase = ReattachDone
 		return state, nil

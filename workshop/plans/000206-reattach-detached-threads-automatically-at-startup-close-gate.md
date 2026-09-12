@@ -137,6 +137,29 @@ rounds:
           round: 3
       boundary: M1
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-12T13:04:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: 'Operating envelope now names both DetachedSessions queries (about 20 s worst case), and Task 12 measured the real distribution: 5 attempts, median 302 ms, and 2 coalesced refreshes during the pass, so the per-completion refresh is bounded by the schedule rather than N squared.'
+          round: 4
+      findings:
+        - id: BR-13
+          severity: Important
+          title: README update appears missing for the startup reattach pass and its placeholders
+          detail: README.md:323-326 still describes a bare couch as returning only to the cwd thread. M2 reattaches every other detached thread behind it, shows greyed placeholders and non-selectable switcher rows, and marks failures; none of that is in README, and atlas/couch.md alone does not reach a reader who runs couch.
+          family: readme-tracks-user-facing-surface
+          round: 4
+        - id: BR-14
+          severity: Minor
+          title: The plan's Core-concepts code block restates ReattachPhase with three constants where the code has four
+          detail: 'This is the 2nd finding in family plan-drift-from-code. The rule, not the instance: a plan never restates a declaration the code owns (the lessons.md "one home" rule extended from counts to types); replace the block with a pointer to menu_reattach.go, or register its stale line in tests/plan-superseded-facts-test.sh.'
+          family: plan-drift-from-code
+          round: 4
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#206 (boundary-review)
@@ -198,10 +221,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `dry-duplicate-derivation` lookupSessionName and effectiveBindings are two derivations of a thread's newest binding in one read; PairSession uses one, DetachedSessions the other
   This is the 2nd finding in family dry-duplicate-derivation. artifactcollision.go:196-204 scans one index backwards for one address; effectiveBindings' per-read latest map at 165-168 computes the same fact for every address. If the single-read semantics ever diverge, PairSession and DetachedSessions judge the same thread by different names. The rule: a thread's current session name has exactly one derivation and every reader calls it. The class fix is to delete lookupSessionName and have PairSession call effectiveBindings over its single read, so the rule is enforced by there being one function rather than by two agreeing. The test helper claimsOf (detachedsessions_test.go:253-261) is a third copy of the counting rule and can call claimsFromBindings. Prevalence: three derivations, two production readers.
 
+## Round 4 — 2026-09-12T13:04:47-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-2 — addressed — Operating envelope now names both DetachedSessions queries (about 20 s worst case), and Task 12 measured the real distribution: 5 attempts, median 302 ms, and 2 coalesced refreshes during the pass, so the per-completion refresh is bounded by the schedule rather than N squared.
+
+### Raised
+
+- **BR-13** [Important] `readme-tracks-user-facing-surface` README update appears missing for the startup reattach pass and its placeholders
+  README.md:323-326 still describes a bare couch as returning only to the cwd thread. M2 reattaches every other detached thread behind it, shows greyed placeholders and non-selectable switcher rows, and marks failures; none of that is in README, and atlas/couch.md alone does not reach a reader who runs couch.
+- **BR-14** [Minor] `plan-drift-from-code` The plan's Core-concepts code block restates ReattachPhase with three constants where the code has four
+  This is the 2nd finding in family plan-drift-from-code. The rule, not the instance: a plan never restates a declaration the code owns (the lessons.md "one home" rule extended from counts to types); replace the block with a pointer to menu_reattach.go, or register its stale line in tests/plan-superseded-facts-test.sh.
+
 ## Open findings
 
-- **BR-2** [Minor] `envelope-omits-cost-source` Worst-case attempt bound and pass duration omit repeated 5 s zellij queries and the O(N squared) per-completion inventory refresh
 - **BR-9** [Minor] `plan-drift-from-code` Durable plan lags the code: Tasks 2-3 unticked, prose names sessionNameClaims, Task 2 Step 1 describes a zellij-seam count the test takes at the fake seam
 - **BR-10** [Minor] `decision-restated-not-swept` Round-2 decisions left six restatements unswept: the reader count, the M1 close criterion, and lookupSessionName's orphaned doc comment
 - **BR-11** [Minor] `documented-rule-reach` DetachedSessions' comment says a scope whose index cannot be read contributes no bindings; after the union its legacy-bound threads are bound and counted from other reads
 - **BR-12** [Minor] `dry-duplicate-derivation` lookupSessionName and effectiveBindings are two derivations of a thread's newest binding in one read; PairSession uses one, DetachedSessions the other
+- **BR-13** [Important] `readme-tracks-user-facing-surface` README update appears missing for the startup reattach pass and its placeholders
+- **BR-14** [Minor] `plan-drift-from-code` The plan's Core-concepts code block restates ReattachPhase with three constants where the code has four

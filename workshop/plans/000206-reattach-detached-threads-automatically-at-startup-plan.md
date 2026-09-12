@@ -192,27 +192,12 @@ asked about queued threads: **all pending, none selectable.**
   - **DRY rationale:** one predicate beside the readers it serves, pinned by
     an equivalence test so a new reader cannot silently need more.
 - **`ReattachPass`** lives in `MenuState`, so the menu's single transition
-  authority owns every interleaving:
-
-  ```go
-  type ReattachPhase uint8
-
-  const (
-      ReattachIdle    ReattachPhase = iota // no pass (not armed, or finished)
-      ReattachArmed                        // waiting for the first inventory
-      ReattachRunning                      // seeded
-  )
-
-  type ReattachPass struct {
-      Phase          ReattachPhase
-      Root           couchcore.ThreadAddress
-      Queue          []couchcore.ThreadAddress            // ordered, not yet attempted
-      Loading        couchcore.ThreadAddress              // zero when no attempt runs
-      LoadingAttempt uint64
-      Attached       map[couchcore.ThreadAddress]uint64   // landed -> the refresh generation current at the time
-      Failed         map[couchcore.ThreadAddress]string   // diagnostic code per row
-  }
-  ```
+  authority owns every interleaving. Its declaration, and `ReattachPhase`'s,
+  live in `couchtty/menu_reattach.go` and are not restated here. A copy of
+  them stood here and drifted. It listed three phases after the code had four
+  (`ReattachDone`, which stops a second arm re-seeding), and it called
+  `Failed` a code after decision 11 made it a code or an error's first line
+  (BR-14).
 
   Attempt identities come from `MenuState.OperationSequence`, the counter the
   operator's own operations draw from, so a pass completion can never be
@@ -978,3 +963,28 @@ Three still cited cells by their numbers from before the table was renumbered
   ticked now, with a pointer to that Log line.
 - **The last item said `sdlc close` alone.** M2 is a milestone, so it closes
   through `sdlc milestone-close` first, which runs its own boundary review.
+
+### 2026-09-12 — M2 review round 4 (FIX-THEN-SHIP): the README, and a restated declaration
+
+**Reason.** The boundary review raised BR-13 (Important) and BR-14 (Minor).
+
+**Delta.**
+- **BR-13: the README did not describe the pass.** It still said a bare start
+  returns only to the cwd thread. It now has a paragraph on the pass:
+  - every other detached thread reattached in the background;
+  - the greyed placeholders and switcher rows that cannot be clicked or
+    selected;
+  - the failure mark;
+  - that quitting part-way leaves the rest detached.
+
+  Env vars stay atlas-only, as `COUCH_INPUT_TRACE` does.
+- **BR-14: the Core-concepts block restated two declarations the code owns,
+  and the copy drifted.** It listed three `ReattachPhase` constants after the
+  code had four, and it called `Failed` a code after decision 11. The block is
+  gone, and the entry points at `couchtty/menu_reattach.go`. This was the
+  second finding in the plan-drift family, so the rule was fixed, not only
+  the site:
+  - the "one home" lesson now covers declarations;
+  - `tests/plan-superseded-facts-test.sh` fails if the declaration is pasted
+    back.
+- Advisory: `advanceReattach`'s counter guard now says why it exists.
