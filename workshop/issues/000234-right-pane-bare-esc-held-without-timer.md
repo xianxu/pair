@@ -103,6 +103,8 @@ in this repo does).
 
 ## Plan
 
+Durable plan: `workshop/plans/000234-right-pane-bare-esc-held-without-timer-plan.md`.
+
 - [ ] Reproduce ESC-then-`j` in the right pane (does focus jump? record it)
 - [ ] Move `escapeAmbiguity` to `workbenchshortcut`; re-point couch's framers and termcmd's rename decoder
 - [ ] Arm/expire the timer in the main loop; flush `held` on expiry
