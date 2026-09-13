@@ -55,17 +55,19 @@ back with mouse OFF after a round trip.
 incoming child's.** It is the proxy for its children toward zellij; the
 pane's modes must equal the active child's, and nothing else writes them.
 
-- `ptychild.Screen` records WHICH tracking modes a child holds (`1000`,
-  `1002`, `1003` as a small set) alongside `1006`, instead of collapsing
-  them to one bool. `Mouse()`/`SGRMouse()`/`MouseObserved()` keep their
-  meaning; a new accessor returns the set. Additive; couch is unaffected.
-- `applyTakeover` computes the delta between the outgoing child's modes
-  (what the pane holds, because the outgoing child's output was what flowed
-  to it) and the incoming child's, and prefixes the composed repaint with
-  the DECRSTs for modes to drop and DECSETs for modes to raise. The prefix
-  is fed to `hostScan` with the rest of the composition, as the existing
-  mode-bearing-prefix rule requires. A nil outgoing (first takeover) or an
-  incoming with the same modes writes nothing.
+- `ptychild.Screen` models mouse tracking as ONE slot (`off | 1000 | 1002 |
+  1003`) plus the SGR-encoding bit, matching what xterm and zellij do with
+  the bytes: raising one tracking mode replaces another, and a DECRST of any
+  of the three turns tracking off. `Mouse()`/`SGRMouse()`/`MouseObserved()`
+  keep their meaning; `MouseModes()` returns the codes held. Additive; couch
+  is unaffected.
+- `applyTakeover` reads the modes `hostScan` holds — it is fed exactly what
+  the pane was shown, live chunks and composed takeovers alike, so it IS the
+  pane's state — before the scan reset, and prefixes the composed repaint
+  with `mouseReconcile(held, want)`: one write per axis (a `l` of the held
+  tracking mode or a `h` of the wanted one; a `h`/`l` of 1006), nothing for
+  equal states. The prefix is fed to `hostScan` with the rest of the
+  composition, which is also what makes the next takeover's read correct.
 - The policy lives in `termcmd`, not `hostty.repaint`: the two consoles
   differ here by design (couch asserts its OWN mouse mode on its host;
   `pair term` has none of its own and mirrors its children), and the
@@ -76,12 +78,16 @@ pane's modes must equal the active child's, and nothing else writes them.
 
 ## Done when
 
-- The probe table above shows `?1002l`, `?1006l` on Alt+t to the shell tab
-  and `?1002h`, `?1006h` on the way back, on a fresh child whose replay ring
-  no longer holds its startup DECSET (asserted, not replayed).
+- `probes/mousemodesmoke` (in tree) shows a DECRST of nvim's modes on Alt+t
+  to the shell tab and the grouped DECSET on the way back. The grouped form
+  is the reconcile prefix; nvim's own replayed startup bytes are two
+  separate writes, so the probe distinguishes "asserted" from "replayed".
+- `mouseReconcile` is tested over the full held × want product (4 tracking
+  values × SGR bit, squared), with `ptychild.Screen` as the oracle: feed the
+  held state, feed the prefix, the Screen must hold the wanted state.
 - Unit test on `terminalMux`: outgoing child holding `1002+1006`, incoming
-  child silent → pane receives the DECRSTs before the repaint; the reverse
-  switch receives the DECSETs; silent → silent writes no mode bytes.
+  child silent → pane receives the DECRST before the repaint; the reverse
+  switch receives the grouped DECSET; silent → silent writes no mode bytes.
 - Closing the nvim tab (`removeTab` takeover to the survivor) releases the
   mode the same way.
 - Live: the operator selects text at the shell tab with nvim alive in the
@@ -89,10 +95,24 @@ pane's modes must equal the active child's, and nothing else writes them.
 
 ## Plan
 
-- [ ] `Screen`: track the tracking-mode set; accessor + tests
-- [ ] `applyTakeover`: mode delta prefix from outgoing → incoming; feed hostScan
+- [ ] `Screen`: one tracking slot + SGR bit; `MouseModes()` + tests
+- [ ] `applyTakeover`: `mouseReconcile(hostScan's modes, incoming's)` as the prefix; feed hostScan
 - [ ] Mux tests for the three transitions + the closed-tab case
-- [ ] Re-run the probe (both directions), then the operator's live check
+- [ ] `probes/mousemodesmoke` in tree; run it both directions, then the operator's live check
+
+## Revisions
+
+### 2026-09-12 — plan-quality round 1
+
+**Reason.** PQ-1: diff against `hostScan`, not a new outgoing-child record —
+`hostScan` is already fed exactly what the pane was shown, so it is the pane's
+state with no race to name. PQ-2: 1000/1002/1003 are one variable in xterm
+and zellij; a set-diff would emit wrong bytes after `?1002h` then `?1000l`.
+**Delta.** Spec bullets 1–2 rewritten to the one-slot model and the
+`hostScan` baseline; the pure function is `mouseReconcile(held, want)`,
+tested over the full product with `Screen` as the oracle (PQ-3); the probe is
+landed in tree as `probes/mousemodesmoke` (PQ-4); `hostty.repaint`'s comment
+now points at the reconciliation (PQ-5).
 
 ## Estimate
 
