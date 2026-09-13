@@ -316,3 +316,40 @@ Live checks required orientation-specific exclusions for transient loading
 screens and menus, while preserving existing Return-remapping semantics. Plain
 composers under `NO_COLOR` must satisfy the same positive ready-state contract.
 These are observed startup surfaces, not added timing guesses (ARCH-PURPOSE).
+
+### 2026-09-13 — Boundary review round 1
+
+The gate returned REWORK with BR-1 (consumed settle deadline when a terminal
+reply wins input priority) and BR-2 (full-chain acceptance starts after park).
+Preserve the due submit event across forwarding of solicited replies and add a
+deterministic simultaneous-readiness regression. Extend acceptance from an owned
+live source through real archive preservation, verified park and the actual
+launch envelope into the wrapper. No product scope changed; both complete the
+existing event-order and lifecycle acceptance contracts.
+
+- [x] BR-1: preserve due submission across protocol replies and verify the actual scheduler under simultaneous readiness.
+- [x] BR-2: prove a successful owned-live-source switch through exact archive transfer and wrapper delivery.
+
+### 2026-09-13 — Operator acceptance before close
+
+The operator requested a live smoke test before issue closure. Finish BR-1 and
+BR-2, run automated verification, and build the candidate. Then provide concrete
+smoke steps and wait for the operator's result before re-running `sdlc close` or
+publishing. The first close attempt returned REWORK and did not change working
+status; this new acceptance checkpoint precedes the next close attempt.
+
+- [ ] Operator live smoke completed and accepted before issue closure.
+
+### 2026-09-13 — Review fixes verified; smoke candidate built
+
+BR-1 retains the consumed settle event until queued input drains. A deterministic
+scheduler regression forces a solicited reply after timer receipt and proves
+one submission; its operator-text companion proves cancellation preserves input.
+The full wrapper race suite passes. BR-2 now starts through actual Couch ownership,
+uses production cleanup/archive and durable completion, and verifies exact source
+exit and descriptor persistence before launching through the existing wrapper
+acceptance path. Parked and live variants pass under race testing.
+
+Final root verification: couchcmd, launcher and wrapcmd suites pass uncached;
+`git diff main --check` passes; `make build` succeeds for the live candidate.
+The boundary review has not been rerun: operator live acceptance remains pending.

@@ -16,6 +16,8 @@ import (
 // owner. Only that owner advances state or writes automatic input. Overlay and
 // child-exit observations are sticky, so coalescing wakeups cannot lose them.
 type orientationDelivery struct {
+	// Observes timer arbitration in deterministic input-scheduler tests.
+	settleReadyHook            func()
 	request                    orientation.Request
 	profile                    harnessTTYProfile
 	mu                         sync.Mutex

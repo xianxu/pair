@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
 // Invoked only by couchcmd's acceptance test with the producer's original JSON.
@@ -42,9 +44,12 @@ func TestCouchOrientationTransportHelper(t *testing.T) {
 	if code, err := run(t, opts, rt); err != nil || code != 0 {
 		t.Fatalf("create %d %v", code, err)
 	}
-	binary := filepath.Join(dir, "pair-real")
-	if out, err := exec.Command("go", "build", "-o", binary, "../../pair-go").CombinedOutput(); err != nil {
-		t.Fatalf("build %v %s", err, out)
+	binary := os.Getenv("PAIR184_ACCEPT_BINARY")
+	if binary == "" {
+		binary = filepath.Join(dir, "pair-real")
+		if out, err := exec.Command("go", "build", "-o", binary, "../../pair-go").CombinedOutput(); err != nil {
+			t.Fatalf("build %v %s", err, out)
+		}
 	}
 	executable, err := os.Executable()
 	if err != nil {
@@ -117,7 +122,7 @@ func TestOrientationCaptureChild(t *testing.T) {
 		t.Skip("wrapper child helper")
 	}
 	// Resolved Codex startup card and empty composer, cursor after the prompt.
-	fmt.Print("\x1b[2J\x1b[1;1Hmodel: test-model\r\ndirectory: /fixture\x1b[20;1H\x1b[1m›\x1b[22m \x1b[?25h\x1b[20;3H")
+	fmt.Print("\x1b[2J\x1b[1;1HOpenAI Codex (v0.154.0)\r\nmodel: test-model\r\ndirectory: /synthetic\x1b[20;1H\x1b[1m›\x1b[22m \x1b[?25h\x1b[20;3H")
 	var received bytes.Buffer
 	one := make([]byte, 1)
 	for {
@@ -133,4 +138,74 @@ func TestOrientationCaptureChild(t *testing.T) {
 		os.Exit(3)
 	}
 	os.Exit(0)
+}
+
+// Only host-process edges are faked. The normal cleanup constructor chooses
+// paths, archives through OSRuntime, constructs the descriptor, and publishes
+// the actual durable completion consumed by Couch's controller.
+type liveAcceptanceCleanupRuntime struct {
+	*fakeRuntime
+	real          *OSRuntime
+	intent        QuitIntent
+	removalErrors []error
+}
+
+func (r *liveAcceptanceCleanupRuntime) TakeQuitIntent(string) (QuitIntent, bool, error) {
+	return r.intent, true, nil
+}
+func (r *liveAcceptanceCleanupRuntime) WriteQuitIntent(_ string, intent QuitIntent) error {
+	r.intent = intent
+	return nil
+}
+func (r *liveAcceptanceCleanupRuntime) InferAgent(string) string { return "claude" }
+func (r *liveAcceptanceCleanupRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
+	if len(r.sessions) != 0 || len(r.reaped) != 1 || r.reaped[0] != tag {
+		return "", false
+	}
+	return r.real.ParkScrollback(tag, agent, move)
+}
+func (r *liveAcceptanceCleanupRuntime) FileSize(path string) (int64, bool) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return 0, false
+	}
+	return info.Size(), true
+}
+func (r *liveAcceptanceCleanupRuntime) Remove(path string) {
+	r.fakeRuntime.Remove(path)
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		r.removalErrors = append(r.removalErrors, err)
+	}
+}
+
+func TestCouchLiveCleanupHelper(t *testing.T) {
+	raw := os.Getenv("PAIR184_CLEANUP_INTENT")
+	if raw == "" {
+		t.Skip("cross-package live cleanup helper")
+	}
+	var intent QuitIntent
+	if err := json.Unmarshal([]byte(raw), &intent); err != nil {
+		t.Fatal(err)
+	}
+	if intent.Request == nil {
+		t.Fatal("missing actual quit reference")
+	}
+	ref := intent.Request
+	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: ref.DataDir, RepoScope: ref.RepoScope, Tag: ref.Tag})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime := &liveAcceptanceCleanupRuntime{fakeRuntime: newFakeRuntime(), real: NewOSRuntime(paths.ScopeDir(), "/pair"), intent: intent}
+	runtime.sessions = []Session{{Name: os.Getenv("PAIR184_CLEANUP_SESSION")}}
+	result, handled := runCleanupContext(context.Background(), Env{DataDir: paths.ScopeDir()}, runtime, launchStep{tag: ref.Tag, session: os.Getenv("PAIR184_CLEANUP_SESSION"), agent: "claude"}, ref.RepoScope, 0, io.Discard)
+	if !handled || result.Outcome != pairlifecycle.CompletionSuccess || result.Scrollback == nil || len(runtime.removalErrors) != 0 {
+		t.Fatalf("cleanup result %+v, filesystem errors %v", result, runtime.removalErrors)
+	}
+	encoded, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("PAIR184_CLEANUP_OUTPUT"), encoded, 0600); err != nil {
+		t.Fatal(err)
+	}
 }

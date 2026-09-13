@@ -4752,3 +4752,12 @@ in the composer. Test both event orders through the production scheduler.
 - Composer recognition for generated multiline input needs both empty and
   populated live captures. Startup/loading screens and post-paste footer changes
   are different from ordinary newline-remapping eligibility (ARCH-PURPOSE).
+
+### 2026-09-13 — #184 boundary review
+
+- Giving input priority over a timer must preserve the consumed timer event.
+  Test simultaneous readiness with non-cancelling protocol input; checking only
+  ordinary user input hides lost-deadline states (BR-1, ARCH-ORDER).
+- A lifecycle feature's full-chain acceptance must start before the lifecycle
+  transition. Seeding its completed state tests transport but omits teardown,
+  metadata transfer and preservation through that transition (BR-2, ARCH-PURPOSE).

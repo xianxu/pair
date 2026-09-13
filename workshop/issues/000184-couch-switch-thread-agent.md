@@ -335,6 +335,22 @@ app's automatic input. Exact attempts, PIDs and captures are retained locally in
 `/tmp/pair-184-orientation-smoke.hWzQJL/summary.json`; direct-wrapper smoke does
 not create a Pair native-binding ledger. Boundary acceptance remains pending.
 
+
+### 2026-09-13 — Live conformance and first boundary verdict
+
+All four installed agents completed context-reading responses. Agy's final
+1,784-byte/25-line attempt completed in81.27s and returned to its empty composer;
+two one-time native approvals covered only the synthetic renderer command and
+its generated temporary-output cleanup, after automatic orientation submission.
+All smoke processes were stopped. Final local evidence is in the previously
+recorded `summary.json`, including `agy/longcomplete`.
+
+The mandatory boundary gate returned REWORK (window065929e5..445bbefe): BR-1
+requires retaining a consumed settle event when a solicited terminal reply wins
+input priority; BR-2 requires successful live-source teardown/archive transfer
+in the full-chain acceptance. Both are being addressed under the existing plan.
+The gate did not finalize close; status remains working.
+
 ## Revisions
 
 ### 2026-09-13 12:04 PDT — Target owns context reconstruction
@@ -428,3 +444,20 @@ earlier conflicting prose and Plan steps are historical.
    and orientation flow. Do not remap Alt+Shift+N: it now invokes an agent-only
    restart that promises to retain the running workbench, unlike this action.
    This supersedes the absorbed #176 shortcut/subsystem assertion.
+
+
+### 2026-09-13 — Operator live acceptance required
+
+Operator instruction: ask them to live-smoke the feature before closing the
+issue. Finish review fixes and automated checks, prepare a built candidate and
+smoke steps, then wait for their result. Do not rerun close or publish before
+that acceptance. The issue remains working after the first review's REWORK.
+
+### 2026-09-13 — Review fixes and candidate verification
+
+BR-1 and BR-2 are implemented with deterministic scheduler and owned-live-source
+acceptance regressions. Full wrapper race tests and parked/live acceptance race
+tests pass. Root reran uncached couchcmd/launcher/wrapcmd suites successfully
+(`/tmp/pair-184-review-fixes-test.log`), checked the diff, and built the candidate
+with `make build` (`/tmp/pair-184-smoke-build.log`). Awaiting operator live smoke;
+issue stays working and the next close/review is deferred until that result.

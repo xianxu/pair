@@ -1482,9 +1482,22 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		disarmTimer()
 	}
 
+	// Timer receipt and deadline dispatch are separate: giving queued input
+	// priority must not discard the consumed deadline (BR-1, ARCH-ORDER).
+	settleDue := false
 	for {
 		var ev readEv
 		var ok bool
+		if settleDue {
+			select {
+			case ev, ok = <-ch:
+				goto ordinaryInput
+			default:
+			}
+			settleDue = false
+			p.dispatchOrientationObservation(out, settleTimer, true)
+			continue
+		}
 		select {
 		case <-orientationWake:
 			// An admitted operator chunk wins over a composer observation.
@@ -1496,13 +1509,10 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			p.dispatchOrientationObservation(out, settleTimer, false)
 			continue
 		case <-settleTimer.C:
-			// Drain admitted operator input before a due automatic submission.
-			select {
-			case ev, ok = <-ch:
-				goto ordinaryInput
-			default:
+			settleDue = true
+			if p.orientation.settleReadyHook != nil {
+				p.orientation.settleReadyHook()
 			}
-			p.dispatchOrientationObservation(out, settleTimer, true)
 			continue
 		case <-orientationDeadline:
 			p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.DeadlineElapsed}, out, settleTimer)
