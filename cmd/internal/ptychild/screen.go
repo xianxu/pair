@@ -45,7 +45,7 @@ type Screen struct {
 	// did not cover the enter — the shape #196 named for mouse modes, one field
 	// away from mouseObserved and for the same reason.
 	altScreenObserved bool
-	mouse             bool
+	tracking          mouseTracking
 	sgrMouse          bool
 	// mouseObserved records that this Screen has SEEN a mouse DECSET or DECRST
 	// at all. Without it, `mouse == false` conflates "the child asked for no
@@ -126,10 +126,52 @@ func (s *Screen) AltScreen() bool { return s.altScreen }
 // never been told about.
 func (s *Screen) AltScreenObserved() bool { return s.altScreenObserved }
 
+// mouseTracking is the child's mouse TRACKING mode. ONE variable, not a set:
+// xterm and zellij hold 1000/1002/1003 in a single slot, so raising one
+// replaces another and a DECRST of ANY of them turns tracking off, whichever
+// was on. Modelled the same way so a proxy writing the state back out
+// (pair term switching tabs, #240) emits what the terminal will actually do.
+type mouseTracking uint8
+
+const (
+	trackingOff    mouseTracking = iota
+	trackingNormal               // ?1000: press and release
+	trackingButton               // ?1002: plus motion while a button is held
+	trackingAny                  // ?1003: plus all motion
+)
+
+func (t mouseTracking) code() int {
+	switch t {
+	case trackingNormal:
+		return 1000
+	case trackingButton:
+		return 1002
+	case trackingAny:
+		return 1003
+	}
+	return 0
+}
+
 // Mouse reports whether the child has asked for mouse TRACKING (1000/1002/1003).
 // It deliberately excludes 1006, which is an encoding rather than a request for
 // events -- see the DECSET switch for what collapsing them cost.
-func (s *Screen) Mouse() bool { return s.mouse }
+func (s *Screen) Mouse() bool { return s.tracking != trackingOff }
+
+// MouseModes returns the DEC private mouse modes the child currently holds,
+// ascending: its tracking mode (1000, 1002 or 1003; at most one, see
+// mouseTracking) and 1006 if it asked for SGR encoding. This is the state a
+// proxy must put a terminal into to show this child (#240); Mouse() alone
+// cannot be written back out.
+func (s *Screen) MouseModes() []int {
+	var modes []int
+	if code := s.tracking.code(); code != 0 {
+		modes = append(modes, code)
+	}
+	if s.sgrMouse {
+		modes = append(modes, 1006)
+	}
+	return modes
+}
 
 // MouseObserved reports whether this Screen has seen the child say anything
 // about mouse mode. False means UNKNOWN, not "no": a supervisor that writes a
@@ -507,7 +549,7 @@ func (s *Screen) classify(seq []byte) {
 		// predicate is currently load-bearing. BR-81's guard is scoped to
 		// SafeToPaint's inputs by design, so it cannot see this direction, and
 		// the mouse modes sat unreset behind it.
-		s.mouse = false
+		s.tracking = trackingOff
 		s.sgrMouse = false
 		// mouseObserved DELIBERATELY survives. It is not a mode -- it latches
 		// that the child has expressed a tracking state at all, and RIS IS such
@@ -603,7 +645,15 @@ func (s *Screen) classify(seq []byte) {
 				// The save half on its own.
 				s.cursorSaved = on
 			case "1000", "1002", "1003":
-				s.mouse = on
+				// One slot (see mouseTracking): a DECSET replaces whatever
+				// tracking was on, and a DECRST of any of the three turns
+				// tracking off regardless of which was set -- that is what
+				// xterm and zellij do with the bytes, so it is what a proxy
+				// replaying the state must believe.
+				s.tracking = trackingOff
+				if on {
+					s.tracking = map[string]mouseTracking{"1000": trackingNormal, "1002": trackingButton, "1003": trackingAny}[mode]
+				}
 				s.mouseObserved = true
 				// A mouse-mode change is an EVENT, not just a fact to read
 				// later. Mouse reporting is terminal-global, so a supervisor

@@ -521,6 +521,15 @@ func (c *Child) MouseObserved() bool {
 	return c.screen.MouseObserved()
 }
 
+// MouseModes is Screen.MouseModes under the child's lock: the private mouse
+// modes this child holds, which a proxy switching a terminal to this child
+// must put that terminal into (#240).
+func (c *Child) MouseModes() []int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.screen.MouseModes()
+}
+
 // SGRMouse reports whether the child asked for SGR-encoded mouse coordinates.
 func (c *Child) SGRMouse() bool {
 	c.mu.Lock()

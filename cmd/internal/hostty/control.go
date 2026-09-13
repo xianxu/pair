@@ -14,7 +14,11 @@
 // termcmd and couch.
 package hostty
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 const (
 	// ResetRegion clears DECSTBM, restoring the full-screen scrolling region.
@@ -87,6 +91,26 @@ const (
 	// which is a wrong answer rather than a refused one.
 	EnableMouseClicks = "\x1b[?1000;1006h"
 )
+
+// PrivateModes is one DECSET (on) or DECRST (off) over the given DEC private
+// modes -- `\x1b[?1002;1006h` -- or the empty string for no modes, so a caller
+// composing a prefix can append it unconditionally. Pure formatting: which modes
+// to raise or drop is the caller's policy, and the two consoles differ on it
+// (couch asserts its own; pair term mirrors its children, #240).
+func PrivateModes(modes []int, on bool) string {
+	if len(modes) == 0 {
+		return ""
+	}
+	parts := make([]string, len(modes))
+	for i, mode := range modes {
+		parts[i] = strconv.Itoa(mode)
+	}
+	final := "l"
+	if on {
+		final = "h"
+	}
+	return "\x1b[?" + strings.Join(parts, ";") + final
+}
 
 // SetRegion pins the scrolling region to rows top..bottom (1-based, inclusive).
 // This is how a row is RESERVED without compositing: a child scrolling at the

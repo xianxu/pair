@@ -66,7 +66,11 @@ type ChildModes struct {
 // Mouse state is deliberately not asserted either. couch re-asserts its own
 // mouse mode on every paint and ptychild's replay feeds the child's own bytes
 // back through the scanner; a third writer would be two authorities for one
-// terminal mode, which is the thing #172 spent its rounds separating.
+// terminal mode, which is the thing #172 spent its rounds separating. pair
+// term, which has no mouse mode of its own, reconciles its pane to the
+// incoming child's modes as a PREFIX to this composition (termcmd
+// applyTakeover, #240) -- a policy that differs per console and so lives at
+// the consumer, with PrivateModes as the shared formatter.
 // Cursor-save cannot be asserted at all: `\x1b7` saves the CURRENT cursor, and
 // no sequence injects a previously-saved position.
 func repaint(modes ChildModes, replay []byte) []byte {
