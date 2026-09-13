@@ -20,6 +20,10 @@
 #   FeedFraming(...)         -- a WRITE into the scanner, not a read of the gate
 #   = ptychild.Screen{}      -- the reset on child swap; zero value is safe
 #   SafeToPaint()            -- the shared question, the whole point
+#   MouseModes()             -- a read of the pane's MODE state, which the same
+#                               scanner models; not a paint-safety question at
+#                               all (pair term's takeover reconciles the pane's
+#                               mouse modes from it, #240)
 #   ...ForTest / ...forTest  -- probes that deliberately observe one half
 #
 # Anything else -- notably a bare MidSequence() or HoldsCursorSave() in
@@ -60,7 +64,7 @@ for rel in $FILES; do
       /^func / { fn = $0 }
       index($0, scanner ".") {
         if (fn ~ /ForTest|forTest/) next
-        if ($0 ~ /FeedFraming|= ptychild\.Screen\{\}|SafeToPaint\(\)/) next
+        if ($0 ~ /FeedFraming|= ptychild\.Screen\{\}|SafeToPaint\(\)|MouseModes\(\)/) next
         printf "%d: %s\n", NR, $0
       }
     ' "$f")"

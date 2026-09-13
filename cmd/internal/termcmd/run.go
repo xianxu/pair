@@ -793,9 +793,13 @@ type terminalMux struct {
 	// THE GATE. Owned by the writer loop alone, so it needs no lock: every
 	// mutation happens in copyActiveOutput.
 	//
-	// hostScan is fed CHILD bytes ONLY. Feeding our own escapes in would let it
-	// frame our bytes with the child's partial and report safe precisely when
-	// it is not -- the half couch got wrong first (atlas/couch.md).
+	// hostScan is fed CHILD bytes ONLY on the live path. Feeding our own
+	// escapes in there would let it frame our bytes with the child's partial
+	// and report safe precisely when it is not -- the half couch got wrong
+	// first (atlas/couch.md). The one suspension is the takeover's composed
+	// prefix, fed right after the reset that earns it (see applyTakeover):
+	// mode-bearing bytes the pane was shown, which is also what lets the NEXT
+	// takeover read the pane's mouse modes from here (#240).
 	hostScan ptychild.Screen
 	// owed is a PAINT deferred because the child's stream was mid-sequence.
 	// Deferred and OWED: dropping it leaves a stale row nothing repaints.
@@ -997,6 +1001,10 @@ func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child) {
 	// on screen to be corrupted. Reset the scan, and DROP the owed paint rather
 	// than flushing it against a screen that is gone.
 	pendingDiag := m.owedDiag
+	// Read BEFORE the reset below: hostScan is fed exactly what the pane was
+	// shown, so its mouse modes are the pane's -- the baseline the
+	// reconciliation prefix moves from (#240).
+	held := m.hostScan.MouseModes()
 	m.hostScan = ptychild.Screen{}
 	m.owed = nil
 	m.owedDiag = nil
@@ -1018,7 +1026,20 @@ func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child) {
 	// ALWAYS blanks -- see repaint's doc for why the "emit nothing when the
 	// replay is empty" branch had zero correct callers and took the intent enum
 	// with it when it went.
-	composed := hostty.RepaintFor(child, replay)
+	// MOUSE MODES ARE RECONCILED HERE, not in hostty.repaint (#240). The pane
+	// holds whatever the outgoing child last set; the incoming child's replay
+	// re-asserts its own `h` only if its ring still holds it, and never says
+	// `l` for a mode it never held. So a shell tab following an nvim tab kept
+	// nvim's ?1002h in zellij's view of the pane, zellij forwarded every click
+	// to the shell instead of selecting, and the operator could not select at
+	// all. mouseReconcile puts the pane INTO the incoming child's state, both
+	// directions, whatever the ring retained. It is the prefix of the
+	// composition -- mode-bearing, so hostScan is fed it with the rest, which
+	// is also what makes the next takeover's `held` read correct -- and it is
+	// termcmd's policy, not the shared primitive's: couch asserts its OWN
+	// mouse mode on its host, and a mirror there would be a second authority
+	// (#172).
+	composed := append([]byte(mouseReconcile(held, childMouseModes(child))), hostty.RepaintFor(child, replay)...)
 	m.pane.raw("takeover: composed clear and replay", composed)
 	// FEED THE COMPOSED BYTES, not just the replay (#209 BR-6). The replay is
 	// CHILD bytes and the terminal has now seen them, so the gate must too --
@@ -1032,11 +1053,11 @@ func (m *terminalMux) applyTakeover(replay []byte, child *ptychild.Child) {
 	// against. It matters because a repaint's prefix is mode-bearing by
 	// design -- it exists precisely to assert what the tail LACKS -- so feeding
 	// the tail alone leaves the scanner believing a screen state the terminal
-	// is not in. Today that prefix is HomeAndClear alone (the buffer assertion
-	// is withdrawn), so this changes no behaviour; it is written now so the day
-	// `?1047` lands, neither console has to remember. couch's takeOverScreen
-	// feeds the composed bytes for the same reason, and the two diverging on a
-	// shared primitive is BR-77 and BR-82 both.
+	// is not in. Since #240 that prefix carries the mouse-mode reconciliation
+	// (the buffer assertion is still withdrawn), so feeding it is what keeps
+	// hostScan's MouseModes() equal to the pane's for the next takeover.
+	// couch's takeOverScreen feeds the composed bytes for the same reason, and
+	// the two diverging on a shared primitive is BR-77 and BR-82 both.
 	m.hostScan.FeedFraming(composed)
 
 	// Diagnostics survive a takeover -- unlike a paint, an error is not made
@@ -1735,6 +1756,54 @@ func (m *terminalMux) paneTitleLocked() string {
 // would have made it three (BR-20).
 func (m *terminalMux) redrawTab(replay []byte, child *ptychild.Child) {
 	m.enqueue(ptyChunk{replay: replay, takeover: true, child: child})
+}
+
+// mouseReconcile is the DECRST/DECSET that moves a terminal holding `held`
+// to holding `want`, one write per axis (#240):
+//
+//   - tracking (1000/1002/1003) is ONE slot in the terminal, so the axis is
+//     "off" or "this mode": a `l` when want has none and held had one, a `h`
+//     of want's mode when it differs from held's (raising replaces, so no
+//     `l` is needed first);
+//   - SGR encoding (1006) is a bit: `h` or `l` when it differs.
+//
+// Equal states write nothing. Pure; the takeover's prefix.
+func mouseReconcile(held, want []int) string {
+	heldTracking, heldSGR := splitMouseModes(held)
+	wantTracking, wantSGR := splitMouseModes(want)
+	var out string
+	switch {
+	case wantTracking == heldTracking:
+	case wantTracking == 0:
+		out += hostty.PrivateModes([]int{heldTracking}, false)
+	default:
+		out += hostty.PrivateModes([]int{wantTracking}, true)
+	}
+	if wantSGR != heldSGR {
+		out += hostty.PrivateModes([]int{1006}, wantSGR)
+	}
+	return out
+}
+
+// splitMouseModes reads a Screen.MouseModes value back into its two axes.
+func splitMouseModes(modes []int) (tracking int, sgr bool) {
+	for _, mode := range modes {
+		if mode == 1006 {
+			sgr = true
+		} else {
+			tracking = mode
+		}
+	}
+	return tracking, sgr
+}
+
+// childMouseModes is the nil-safe read of a child's mouse modes: no child, no
+// modes -- a takeover to nothing puts the pane in the neutral state.
+func childMouseModes(child *ptychild.Child) []int {
+	if child == nil {
+		return nil
+	}
+	return child.MouseModes()
 }
 
 // childOf is the nil-safe read of a tab's child, spelled once because both

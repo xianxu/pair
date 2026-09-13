@@ -880,7 +880,9 @@ func TestRISClearsEveryModeTheChildCanSet(t *testing.T) {
 	if i < 0 {
 		t.Fatal("classify not found in screen.go; this guard is checking nothing")
 	}
-	modes := regexp.MustCompile(`s\.([a-z][A-Za-z0-9]*) = on\b`).
+	// `= on` for the boolean modes; `= tracking…` for the one-slot tracking
+	// mode, which is assigned a named value rather than the DECSET's bit.
+	modes := regexp.MustCompile(`s\.([a-z][A-Za-z0-9]*) = (?:on\b|tracking[A-Z])`).
 		FindAllStringSubmatch(string(raw)[i:], -1)
 	seen := map[string]bool{}
 	var derived []string
@@ -896,7 +898,7 @@ func TestRISClearsEveryModeTheChildCanSet(t *testing.T) {
 
 	var sc Screen
 	// Every mode arm classify has: alt screen + save slot, and both mouse forms.
-	sc.FeedFraming([]byte("\x1b[?1049h\x1b[?1000h\x1b[?1006h"))
+	sc.FeedFraming([]byte("\x1b[?1049h\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h"))
 
 	v := reflect.ValueOf(&sc).Elem()
 	for _, name := range derived {
@@ -924,5 +926,43 @@ func TestRISClearsEveryModeTheChildCanSet(t *testing.T) {
 		t.Error("mouseObserved must SURVIVE RIS: the reset is itself an observation " +
 			"that tracking is off, and clearing it makes a supervisor refrain from a " +
 			"mouse it may correctly own (pair#172 I1)")
+	}
+}
+
+// The tracking mode is one slot plus the SGR encoding bit (#240): a proxy
+// that must put a terminal into this child's state needs WHICH mode, which the
+// one-bool Mouse() cannot say -- and a set would be wrong the other way, since
+// the terminal holds one tracking mode at a time.
+func TestScreenMouseModesIsOneTrackingSlotPlusEncoding(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		data string
+		want []int
+	}{
+		{"nothing", "", nil},
+		{"nvim", "\x1b[?1002h\x1b[?1006h", []int{1002, 1006}},
+		// A grouped DECSET applies in order, and the slot keeps the last one.
+		{"grouped", "\x1b[?1000;1002;1006h", []int{1002, 1006}},
+		// xterm and zellij keep ONE tracking slot: a DECRST of any of the
+		// three turns tracking off, whichever was set.
+		{"dropping any tracking mode turns tracking off", "\x1b[?1002h\x1b[?1000l", nil},
+		{"raising a second tracking mode replaces the first", "\x1b[?1000h\x1b[?1002h", []int{1002}},
+		{"encoding dropped, tracking kept", "\x1b[?1002;1006h\x1b[?1006l", []int{1002}},
+		{"RIS clears every mode", "\x1b[?1002;1006h\x1bc", nil},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := feedWhole(tt.data).MouseModes()
+			if len(got) != len(tt.want) {
+				t.Fatalf("MouseModes() = %v, want %v", got, tt.want)
+			}
+			for i := range got {
+				if got[i] != tt.want[i] {
+					t.Fatalf("MouseModes() = %v, want %v", got, tt.want)
+				}
+			}
+			if wantTracking := len(tt.want) > 0 && tt.want[0] != 1006; feedWhole(tt.data).Mouse() != wantTracking {
+				t.Fatalf("Mouse() = %v, want %v for %v", feedWhole(tt.data).Mouse(), wantTracking, tt.want)
+			}
+		})
 	}
 }
