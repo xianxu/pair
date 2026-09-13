@@ -43,7 +43,7 @@ each survives #227's passthrough and pair term always acts on it:
 - `TabChordFor` returns the GLOBAL chord for each action: `ActionTerminalPrevTab`
   -> `ChordAltShiftLeft`, `ActionTerminalNextTab` -> `ChordAltShiftRight` (the
   fix), and a new `ActionTerminalNewTab` -> `ChordAltShiftT`.
-- New chord `ChordAltShiftT` (`ESC T`, `ESC[116;4u`), action
+- New chord `ChordAltShiftT` (`ESC T`, `ESC[84;4u`), action
   `ActionTerminalNewTab`, and a `globalBindings` row: `ChordAltShiftT` ->
   `PairTermNewTab`, `<S-M-t>`, `HandledInPane`. The nvim keymap
   (`workbench_actions.lua`) is REGENERATED from `globalBindings`.
@@ -74,7 +74,7 @@ each survives #227's passthrough and pair term always acts on it:
 
 Durable plan: `workshop/plans/000243-from-anywhere-right-terminal-control-set-plan.md`.
 
-- [ ] `ChordAltShiftT` (`\x1bT`, `\x1b[84;4u`) + `ActionTerminalNewTab` + `ChordName`
+- [ ] `ChordAltShiftT` (`\x1b[84;4u` (KKP only)) + `ActionTerminalNewTab` + `ChordName`
 - [ ] `TabChordFor` returns the GLOBAL chord for prev/next/new; test pins `IsGlobalChord`
 - [ ] `globalBindings` row for `M-S-t`; regenerate `nvim/workbench_actions.lua`
 - [ ] `handleTerminalChord` `ChordAltShiftT` -> `newTab`; pump test (three globals switch/create under fullscreen, no passthrough)
