@@ -121,6 +121,22 @@ threads versus age-based expiry is the first operator decision pending.
 
 ## Revisions
 
+### 2026-09-13 — durable technical plan drafted
+
+The implementation plan is [storage GC](../plans/000239-storage-gc-plan.md).
+It proposes two actual review boundaries: M1 adds ownership, explicit use
+clocks, live protection and archive grace without deletion; M2 adds
+recoverable collection, preview/apply and bounded automatic sweeps. The
+original Plan above is historical; its writer-cap and immediate real-store
+apply steps are superseded by this design, subject to plan approval.
+
+Fresh review identified cross-filesystem custom Couch archives and detached
+children surviving their launcher as ordering gaps. The plan now specifies
+store-local journal coordination and actual-process lifetime registrations,
+with fault/race tests (ARCH-ORDER). A one-time migration completeness check
+for custom Couch stores is proposed before destructive GC can be enabled.
+No production files have been deleted and implementation has not begun.
+
 ### 2026-09-13 — approved feature policy
 
 Reason: settle feature scope with the operator before implementation. This
