@@ -1,11 +1,12 @@
 ---
 id: 000184
-status: open
+status: working
 deps: [pair#182]
 github_issue:
 created: 2026-09-04
-updated: 2026-09-04
+updated: 2026-09-13
 estimate_hours:
+started: 2026-09-13T12:04:32-07:00
 ---
 
 # couch: switch a thread's agent
