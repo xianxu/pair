@@ -1,11 +1,12 @@
 ---
 id: 000242
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-13
 estimate_hours:
+started: 2026-09-13T15:55:46-07:00
 ---
 
 # couch defaults to --layout3: every thread gets pair's right-hand terminal unless --layout2 is asked for
@@ -25,7 +26,7 @@ record in the store is layout3 —
 — so the default is the one thing nobody uses. The operator has not hit a
 failure here; the ask is simply that the default match how couch is used, so
 `couch` means the workbench that is actually run. (A consequence worth
-knowing, not the motivation: with one layout per couch process and a startup
+knowing, not the motivatio with one layout per couch process and a startup
 guard that refuses to mix, a flagless `couch` next to layout3 threads refuses
 to start — `atlas/couch.md:1075-1083`.)
 
