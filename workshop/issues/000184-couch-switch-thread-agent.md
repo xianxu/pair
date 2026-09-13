@@ -260,3 +260,33 @@ and resolve the path-default question; implementation design remains in discussi
 - The Plan's continuation-on-health step is superseded by target-side inspection
   of the outgoing session's transcript or Pair TTY log. Artifact selection and
   target boot behavior remain to be designed.
+
+### 2026-09-13 12:17 PDT — Shared path parameters and orientation prompt
+
+Reason: operator refined the target selection flow and clarified that "thread
+preference" meant the existing path preference. These decisions extend the
+previous revision and supersede suggestions of separate per-thread storage or
+a one-click bypass of parameter review.
+
+- Select the target agent from claude, codex, agy, and muse. Always present a
+  startup-parameter screen, prepopulated with that agent's remembered parameters
+  for the working path, or its existing defaults when none are remembered.
+  The operator can edit the parameters or accept them unchanged.
+- Reuse the existing path preference store for both the default agent and each
+  agent's startup parameters (ARCH-DRY). These preferences are shared by threads
+  at that path; add no per-thread preference storage. Record the selected agent
+  and parameters after a successful launch.
+- After switching, send the fresh target session a prepared orientation prompt
+  identifying the outgoing agent/session and the locations of its Pair log and,
+  when available, its native transcript. Prefer the Pair log for its level of
+  information. The target reads the prior session's context and replies with an
+  orientation summary; it is not instructed to resume unfinished work.
+- Bind the prompt's artifact references to the session just replaced, including
+  on switches back to a previously used agent. Never resume that target agent's
+  old native conversation and never require a source-authored continuation.
+- Preserve the thread identity, working path, metadata, draft, sent-prompt
+  history, queue, and artifact state as already specified.
+
+Planning still needs to establish the exact log artifact and its lifetime,
+target readiness and prompt delivery, and behavior when context artifacts are
+unavailable. These are not reasons to reintroduce a dependency on source health.
