@@ -69,3 +69,8 @@ Whichever lands, old ledgers with full-root snapshots must still parse.
 ### 2026-09-12
 
 - Filed while fixing #237 from the row profile of the operator's ledger: 14 launch rows × ~600 KB. Snapshot source traced to `sessionwatch.prepareRuntimeLaunch`.
+- From #237's close review: `OSRuntime.ReadAt` opens the file per 64 KiB
+  chunk, so one owner query on this 8.5 MB ledger is ~130 opens, multiplied
+  by `titlepoller`'s cadence. The row shrink is the bound on that too; if it
+  is not enough, the reader keeping one handle across chunks is the next
+  lever.

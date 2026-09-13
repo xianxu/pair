@@ -20,6 +20,10 @@ func FuzzReadJSONLArtifactAgreesWithTheLineFramer(f *testing.F) {
 	f.Add([]byte(`{"long":"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"}`+"\n"), int64(16))
 	f.Add([]byte("\r\n\r\n"), int64(1))
 	f.Add([]byte(""), int64(0))
+	// Exactly one read chunk: the final ReadAt returns zero bytes with eof, and
+	// the framer must hand back the pending tail rather than misread the empty
+	// final range (close review, #237).
+	f.Add(bytes.Repeat([]byte("x"), 64<<10), int64(1<<16))
 	f.Fuzz(func(t *testing.T, content []byte, recordLimit int64) {
 		if recordLimit < 0 || recordLimit > 1<<16 || len(content) > 1<<16 {
 			t.Skip()
