@@ -4710,3 +4710,26 @@ reference) can trip cross-cutting guards in packages you did not touch —
 FULL `env -u PAIR_SESSION_ID -u PAIR_TAG make test` before every push to main,
 including "obviously safe" log-only or doc-adjacent commits. A partial package
 run cannot see a guard that lives elsewhere.
+
+## Plan new metadata through persistence and partial failures (#184)
+
+The switch-agent plan initially carried a parked-log descriptor into the wire
+record but omitted Couch's separate model, conversion functions and finalizing
+store call. It also assumed a successful preservation meant successful cleanup;
+a later cleanup-stage failure leaves the source file moved before a retry.
+
+**Rule.** Trace a new field from its producer through every conversion, commit,
+reload and final consumer. Test save/reopen as well as the in-memory path. When
+an early stage creates or moves an artifact, specify how a later failure and
+retry recover its identity, including a crash before the identity is committed.
+
+## Automatic paste and submit are separate input boundaries (#184)
+
+The switch-agent plan canceled automatic sending for input before paste but
+left a settle interval in which operator text could join the generated prompt
+and be automatically submitted.
+
+**Rule.** Enumerate input and overlay arrivals before paste, between paste and
+submit, and after submit. Let one input owner order them; canceling after paste
+must preserve operator text and acknowledge that generated text may already be
+in the composer. Test both event orders through the production scheduler.
