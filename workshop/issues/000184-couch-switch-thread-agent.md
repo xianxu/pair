@@ -5,7 +5,7 @@ deps: [pair#182]
 github_issue:
 created: 2026-09-04
 updated: 2026-09-13
-estimate_hours:
+estimate_hours: 6.65
 started: 2026-09-13T12:04:32-07:00
 ---
 
@@ -227,6 +227,47 @@ concrete ones.
 - [ ] Restart = same call, target == current; assert **one** code path, and pin
       subsystem-identity change (zellij/nvim/pair-wrap), not just agent liveness.
 - [ ] Failure path: assert the thread is still startable after a failed switch.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only.* Calibration is marked stale by
+`sdlc estimate-source`, so these are provisional focused ship-hours.
+
+The rows below follow the work in order: issue/spec discussion; bounded argv
+parser; structured command transport; park descriptor integration; switch
+orchestrator; wrapper delivery state; Couch form; complete-chain acceptance;
+operator docs; boundary review; and discovery of each supported harness.
+Implementation values are 40% of v2/v2.1 primitives, with familiar-stack factor
+1.0. Settled implementation designs use the 0.2 design discount; the issue/spec
+row retains the design conversation cost. Thorough-plan design buffer is 15%.
+The library check found reusable JSON, terminal recognition, lifecycle, inventory
+and runner implementations in the current stack. The small parameter parser is
+deliberately limited to quoting without expansion; no new dependency is needed.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.00 impl=0.08
+item: smaller-go-module design=0.04 impl=0.16
+item: cross-cutting-refactor design=0.12 impl=0.20
+item: api-integration design=0.40 impl=0.60
+item: greenfield-go-module design=0.20 impl=0.32
+item: tui-screen design=0.40 impl=0.40
+item: tui-screen design=0.20 impl=0.40
+item: api-integration design=0.20 impl=0.60
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.00 impl=0.20
+item: real-api-discovery design=0.00 impl=0.16
+item: real-api-discovery design=0.00 impl=0.16
+item: real-api-discovery design=0.00 impl=0.16
+item: real-api-discovery design=0.00 impl=0.16
+design-buffer: 0.15
+total: 6.65
+```
+
+Design subtotal 2.58 × 1.15 + implementation subtotal 3.68 = 6.647 hours,
+rounded to 6.65. This is an estimate, not a limit or a measured actual.
 
 ## Log
 
