@@ -97,6 +97,10 @@ type ArtifactPaths interface {
 // stable advisory lock.
 type Store struct{ Runtime StoreRuntime }
 
+// A persisted attempt counter must not control unbounded work under the lock.
+// Normal retries carry their descriptor forward; gaps use this fixed budget.
+const priorCompletionReadLimit = 32
+
 type LockedAttempt struct {
 	store   Store
 	paths   ArtifactPaths
@@ -132,6 +136,9 @@ func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt 
 		return QuitCompletion{}, err
 	}
 	raw, err := s.Runtime.ReadFile(requestPath)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return QuitCompletion{}, ctxErr
+	}
 	if err != nil {
 		return QuitCompletion{}, fmt.Errorf("read committed quit request: %w", err)
 	}
@@ -148,7 +155,14 @@ func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt 
 	if err != nil {
 		return QuitCompletion{}, err
 	}
-	if completionRaw, readErr := s.Runtime.ReadFile(completionPath); readErr == nil {
+	if err := ctx.Err(); err != nil {
+		return QuitCompletion{}, err
+	}
+	completionRaw, readErr := s.Runtime.ReadFile(completionPath)
+	if err := ctx.Err(); err != nil {
+		return QuitCompletion{}, err
+	}
+	if readErr == nil {
 		completion, decodeErr := decodeQuitCompletion(completionRaw, paths, attempt)
 		if decodeErr != nil {
 			outcome = Conflict
@@ -171,12 +185,21 @@ func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt 
 	// Read only committed completions from this locked park identity. A crash
 	// before publication intentionally leaves no recoverable descriptor.
 	var prior *PreservedScrollback
-	for previous := uint64(1); previous < attempt; previous++ {
+	for previous, reads := attempt-1, 0; attempt > 1 && previous > 0; previous, reads = previous-1, reads+1 {
+		if err := ctx.Err(); err != nil {
+			return QuitCompletion{}, err
+		}
+		if reads == priorCompletionReadLimit {
+			return QuitCompletion{}, errors.New("retry history lookup limit exceeded before finding preserved scrollback")
+		}
 		path, pathErr := paths.Completion(previous)
 		if pathErr != nil {
 			return QuitCompletion{}, pathErr
 		}
 		raw, readErr := s.Runtime.ReadFile(path)
+		if err := ctx.Err(); err != nil {
+			return QuitCompletion{}, err
+		}
 		if errors.Is(readErr, os.ErrNotExist) {
 			continue
 		}
@@ -192,9 +215,15 @@ func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt 
 		}
 		if old.Scrollback != nil {
 			prior = ClonePreservedScrollback(old.Scrollback)
+			break
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return QuitCompletion{}, err
+	}
 	result := cleanup(ctx, locked, request)
+	// Once cleanup may have moved raw capture, publish its result even if the
+	// context was canceled during cleanup; the descriptor must remain durable.
 	if result.Scrollback == nil {
 		result.Scrollback = prior
 	}

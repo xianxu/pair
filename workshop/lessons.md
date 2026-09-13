@@ -4771,3 +4771,10 @@ in the composer. Test both event orders through the production scheduler.
   terminal stack. Capture the real launch's input/output before diagnosing
   operator cancellation; match protocol replies to their outstanding queries
   and preserve cancellation for actual edits and unsolicited reports.
+
+### 2026-09-13 — Persisted counters cannot set work budgets (#184 BR-3)
+
+Never enumerate all integers below a stored counter to discover history. Bound
+lookup independently of counter magnitude, test sparse huge counters, and check
+cancellation on missing-record paths before the next read or cleanup effect.
+A transaction lock protects ordering but makes unbounded recovery work worse.

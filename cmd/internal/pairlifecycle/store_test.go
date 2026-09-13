@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -522,5 +524,173 @@ func TestParkCapturePublicationCrashDoesNotGuessArchive(t *testing.T) {
 	})
 	if err != nil || completion.Scrollback != nil {
 		t.Fatalf("uncommitted capture became authority: %+v %v", completion, err)
+	}
+}
+
+// boundedReadRuntime keeps the actual immutable-record store while detecting
+// excess work deterministically, without a timeout or billion-iteration test.
+type boundedReadRuntime struct {
+	*memoryRuntime
+	reads     int
+	afterRead func(int)
+}
+
+func (r *boundedReadRuntime) ReadFile(path string) ([]byte, error) {
+	r.reads++
+	if r.reads > 40 {
+		return nil, errors.New("test read fuse")
+	}
+	raw, err := r.memoryRuntime.ReadFile(path)
+	if r.afterRead != nil {
+		r.afterRead(r.reads)
+	}
+	return raw, err
+}
+
+func TestConsumeAttemptSparseHistoryBoundsWork(t *testing.T) {
+	for _, attempt := range []uint64{1000000000, ^uint64(0)} {
+		t.Run(fmt.Sprint(attempt), func(t *testing.T) {
+			paths := lifecyclePaths(t)
+			runtime := &boundedReadRuntime{memoryRuntime: newMemoryRuntime()}
+			store := Store{Runtime: runtime}
+			request := validQuitRequest()
+			request.Attempt = attempt
+			request.CompletionKey, _ = paths.CompletionKey(attempt)
+			if err := store.PublishRequest(paths, request); err != nil {
+				t.Fatal(err)
+			}
+			runtime.reads = 0
+			_, err := store.ConsumeAttempt(context.Background(), paths, attempt, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+				t.Fatal("cleanup ran after unbounded history gap")
+				return CleanupResult{}
+			})
+			if err == nil || !strings.Contains(err.Error(), "retry history lookup limit") {
+				t.Fatalf("error=%v", err)
+			}
+			if runtime.reads > 34 {
+				t.Fatalf("read %d records for sparse history", runtime.reads)
+			}
+			if runtime.locked {
+				t.Fatal("lock retained")
+			}
+		})
+	}
+}
+
+func TestConsumeAttemptCancellationStopsHistoryReads(t *testing.T) {
+	for _, cancelRead := range []int{1, 2, 3} {
+		for _, priorExists := range []bool{false, true} {
+			t.Run(fmt.Sprintf("read%d/prior%v", cancelRead, priorExists), func(t *testing.T) {
+				paths := lifecyclePaths(t)
+				runtime := &boundedReadRuntime{memoryRuntime: newMemoryRuntime()}
+				store := Store{Runtime: runtime}
+				request := validQuitRequest()
+				if priorExists {
+					if err := store.PublishCompletion(paths, validQuitCompletion()); err != nil {
+						t.Fatal(err)
+					}
+				}
+				request.Attempt = 2
+				request.CompletionKey, _ = paths.CompletionKey(2)
+				if err := store.PublishRequest(paths, request); err != nil {
+					t.Fatal(err)
+				}
+				runtime.reads = 0
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				runtime.afterRead = func(n int) {
+					if n == cancelRead {
+						cancel()
+					}
+				}
+				called := false
+				_, err := store.ConsumeAttempt(ctx, paths, 2, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+					called = true
+					return CleanupResult{Outcome: CompletionSuccess, CompletedAt: time.Now()}
+				})
+				if !errors.Is(err, context.Canceled) || called || runtime.reads != cancelRead {
+					t.Fatalf("err=%v cleanup=%v reads=%d want=%d", err, called, runtime.reads, cancelRead)
+				}
+				if runtime.locked {
+					t.Fatal("lock retained")
+				}
+			})
+		}
+	}
+}
+
+func TestConsumeAttemptLargeCounterUsesNearestCommittedResult(t *testing.T) {
+	for _, capture := range []bool{false, true} {
+		t.Run(fmt.Sprint(capture), func(t *testing.T) {
+			paths := lifecyclePaths(t)
+			runtime := &boundedReadRuntime{memoryRuntime: newMemoryRuntime()}
+			store := Store{Runtime: runtime}
+			old := validQuitCompletion()
+			old.Attempt = 1000000000
+			old.CompletionKey, _ = paths.CompletionKey(old.Attempt)
+			if capture {
+				old.Scrollback = &PreservedScrollback{Agent: "codex", Token: "exact-prior"}
+			}
+			if err := store.PublishCompletion(paths, old); err != nil {
+				t.Fatal(err)
+			}
+			newer := old
+			newer.Attempt++
+			newer.CompletionKey, _ = paths.CompletionKey(newer.Attempt)
+			newer.Scrollback = nil
+			if err := store.PublishCompletion(paths, newer); err != nil {
+				t.Fatal(err)
+			}
+			// A newer nil completion must not hide an earlier delayed capture.
+			request := validQuitRequest()
+			request.Attempt = old.Attempt + 3
+			request.CompletionKey, _ = paths.CompletionKey(request.Attempt)
+			if err := store.PublishRequest(paths, request); err != nil {
+				t.Fatal(err)
+			}
+			runtime.reads = 0
+			got, err := store.ConsumeAttempt(context.Background(), paths, request.Attempt, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+				return CleanupResult{Outcome: CompletionSuccess, CompletedAt: time.Now()}
+			})
+			if !capture {
+				if err == nil || !strings.Contains(err.Error(), "retry history lookup limit") {
+					t.Fatalf("error=%v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Scrollback == nil || *got.Scrollback != *old.Scrollback {
+				t.Fatalf("lost exact prior: %+v", got)
+			}
+		})
+	}
+}
+
+func TestConsumeAttemptPublishesCaptureAfterCleanupCancellation(t *testing.T) {
+	paths := lifecyclePaths(t)
+	store := Store{Runtime: newMemoryRuntime()}
+	request := validQuitRequest()
+	if err := store.PublishRequest(paths, request); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	descriptor := &PreservedScrollback{Agent: "codex", Token: "captured-before-cancel"}
+	got, err := store.ConsumeAttempt(ctx, paths, 1, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+		cancel()
+		return CleanupResult{Outcome: CompletionFailure, CompletedAt: time.Now(), Scrollback: descriptor,
+			Failures: []StageFailure{{Code: FailureCleanupFailed, Stage: StageSidecarCleanup}}}
+	})
+	if err != nil || got.Scrollback == nil || *got.Scrollback != *descriptor {
+		t.Fatalf("completion=%+v err=%v", got, err)
+	}
+	replay, err := store.ConsumeAttempt(context.Background(), paths, 1, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+		t.Fatal("cleanup reran instead of reading durable result")
+		return CleanupResult{}
+	})
+	if err != nil || replay.Scrollback == nil || *replay.Scrollback != *descriptor {
+		t.Fatalf("replay=%+v err=%v", replay, err)
 	}
 }

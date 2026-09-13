@@ -190,7 +190,9 @@ the current agent also starts fresh. Successful registration changes the path's
 default agent and its argv; other agents' parameters remain available.
 
 The outgoing Pair TTY archive is carried through cleanup completion into
-`VerifiedPark`, using the exact collision-safe artifact token. The context
+`VerifiedPark`, using the exact collision-safe artifact token. Retry recovery
+checks at most 32 prior completions, newest first, and honors cancellation; an
+unresolved history beyond that budget fails explicitly before cleanup. The context
 resolver captures the native session before park and adds readable supporting
 transcript and sent-prompt paths. Missing evidence is reported in the generated
 orientation prompt. The target renders and reads the TTY log, summarizes the

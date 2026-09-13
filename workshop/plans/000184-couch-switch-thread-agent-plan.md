@@ -398,3 +398,27 @@ Operator confirmed Copy orientation prompt works and explicitly accepted live
 smoke as passed, authorizing issue closure. Startup trust dialogs retain the
 approved cancellation plus manual-copy recovery behavior. No change to delayed
 delivery through dialogs is included. Resume the normal close/publish gates.
+
+### 2026-09-13 — Boundary review round 2
+
+Review disposed BR-1/BR-2 as addressed, including mutation checks, and raised
+BR-3: retry capture recovery scans every integer below a persisted attempt and
+ignores cancellation while holding the cleanup lock. Bound the history lookup
+independently of the counter, preserve exact committed descriptor authority,
+and honor cancellation before further reads or cleanup. Add huge sparse-counter
+and cancellation regressions (ARCH-CONSTRAINTS, ARCH-ORDER). Related Couch loops
+iterate actual stored attempts rather than generating work from a numeric count.
+
+- [x] BR-3: bound retry history lookup and honor cancellation; verify sparse history and descriptor preservation.
+
+### 2026-09-13 — BR-3 verified
+
+Lookup reads at most 32 prior completions in descending order, stops on an exact
+validated descriptor, and checks context after reads and before cleanup. It
+fails explicitly if the budget cannot establish prior context. A newer nil
+completion cannot hide an older delayed capture. Once cleanup has run, result
+publication still preserves its capture even if cancellation occurred inside
+cleanup. Regression tests cover billion/MaxUint64 counters, missing slots,
+read cancellation and durable capture after cleanup cancellation. Lifecycle race
+passes; uncached lifecycle/core/command/launcher integration passes
+(`/tmp/pair-184-br3-test.log`); build and diff checks pass.

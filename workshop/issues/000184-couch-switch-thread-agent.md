@@ -513,3 +513,16 @@ Operator confirmed manual Copy orientation prompt recovery works and stated:
 Parameter editing, corrected Codex startup, Claude/Agy switching and orientation
 recovery are accepted. Startup trust dialogs continue to cancel automatic
 delivery as designed; waiting through them is outside this accepted change.
+
+### 2026-09-13 — Boundary review round 2 REWORK
+
+BR-1/BR-2 were accepted as fixed. New BR-3 requires bounded retry-history lookup
+and cancellation: a large persisted counter can cause arbitrary missing-file
+reads under the cleanup lock. Fixing this internal recovery path and adding
+regressions before rerunning close. Operator smoke acceptance remains recorded.
+
+BR-3 fixed with 32-read descending lookup, explicit budget failure and prompt
+cancellation. Nil newer completions do not mask older captures; cancellation
+after cleanup still publishes moved capture metadata. Lifecycle regressions
+and race suite pass; root uncached lifecycle/core/command/launcher suites pass
+and candidate rebuilt. Atlas and lessons updated; rerunning close.
