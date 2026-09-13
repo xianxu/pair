@@ -239,3 +239,24 @@ while filing: `couchcore/launchprofile.go` (agent/argv independent axes),
 `couchcore/resume.go` (`CheckResumePreconditions`, `isBindingDiagnostic`),
 `sessionledger/record.go` (binding keyed per agent -- the reason a switch is
 cold).
+
+## Revisions
+
+### 2026-09-13 12:04 PDT — Target owns context reconstruction
+
+Reason: operator clarified the switching behavior during the feature discussion.
+These decisions supersede the earlier continuation/source-health carrier rules
+and resolve the path-default question; implementation design remains in discussion.
+
+- Every switch starts a fresh target-agent context. Claude → Codex → Claude
+  starts a new Claude session that inspects the outgoing Codex session, never
+  resumes the earlier Claude conversation.
+- The target agent always inspects the source session's transcript or Pair TTY
+  log for context. Do not ask the source agent to write a continuation, even
+  when healthy. Source health does not select a different handover mechanism.
+- Switching changes the default agent for future starts at that working path,
+  until it is changed again. This is deliberately shared path preference state,
+  not a thread-only setting.
+- The Plan's continuation-on-health step is superseded by target-side inspection
+  of the outgoing session's transcript or Pair TTY log. Artifact selection and
+  target boot behavior remain to be designed.
