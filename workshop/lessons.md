@@ -4785,3 +4785,10 @@ A constructor default may be overridden by a CLI parser's independent fallback.
 Share the process default and verify it through the public command to emitted
 argv and stored witness. Keep historical empty-field normalization separate;
 legacy-session tests must select their recorded layout explicitly.
+
+### 2026-09-13 — #239 GC plan review
+
+Retention protection must follow actual detached readers/writers, not their
+launcher's lifetime. Test a child surviving its parent. When configurable
+storage roots participate in deletion, assume different filesystems: keep
+quarantine local and specify recoverable cross-store ordering before coding.
