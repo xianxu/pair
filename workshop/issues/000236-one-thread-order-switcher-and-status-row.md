@@ -31,7 +31,16 @@ rule is one a person can predict.
 So the bar says one thing, `ctrl-space` says another, and neither survives a
 relaunch. With slots (pair project `couch-slots`) a repo becomes a *group* —
 `pair :1 :2` — and the group has to be a unit on both surfaces or the slot
-model reads as noise. The switcher also lists parked and detached threads the
+model reads as noise.
+
+**`couch-slots` is `defined`, not committed** (as of 2026-09-12): no
+deadline, no planned finish, and the operator is undecided on it. This issue
+does not depend on it. Everything here is worth doing with today's one
+thread per repo — the hash-order switcher, the pane-handle bar, and the
+relaunch jump are all present now. Where the text says "slot" or ":1", read
+"a second thread of the same repo, if and when one exists"; with one thread
+per repo every group is one row and the slot-specific parts (within-group
+order, the second highlight level) are simply inert. The switcher also lists parked and detached threads the
 bar never shows, so "same list" is impossible; "same order" has to mean
 something stricter.
 
@@ -122,5 +131,6 @@ is arrival, not order, and stays).
   group highlight are the operator's; the end-insertion rule for new threads
   is theirs too.
 - Related: `#197` (label derivation → `pair :1 :2`), `#225` (shared bar
-  style), project `couch-slots` (defines slots and the occupancy rule this
-  ordering assumes).
+  style), project `couch-slots` (defines slots and the occupancy rule the
+  within-group order assumes — **not committed**; listed in its scope so the
+  two stay consistent, not because this waits on it).
