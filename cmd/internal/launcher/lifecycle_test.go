@@ -69,8 +69,8 @@ func TestRunLaunchAttach(t *testing.T) {
 	if len(rt.watchers) != 0 {
 		t.Fatalf("attach must not spawn a session watcher: %v", rt.watchers)
 	}
-	if _, ok := rt.env["PAIR_AGENT_ARGS"]; ok {
-		t.Fatalf("attach exported create args: %q", rt.env["PAIR_AGENT_ARGS"])
+	if _, ok := rt.env[AgentCommandEnv]; ok {
+		t.Fatalf("attach exported create args: %q", launchArgsText(t, rt.env))
 	}
 	if rt.files[savedPath] != savedBefore || rt.files[defaultPath] != defaultBefore {
 		t.Fatalf("attach mutated create inputs: saved=%q default=%q", rt.files[savedPath], rt.files[defaultPath])
@@ -221,6 +221,9 @@ func TestDirectAndCouchShareCleanupEffects(t *testing.T) {
 	if !ran || result.Outcome != pairlifecycle.CompletionSuccess {
 		t.Fatalf("ran=%v result=%#v", ran, result)
 	}
+	if result.Scrollback == nil || result.Scrollback.Agent != "claude" || result.Scrollback.Token != "TS" || result.Scrollback.Events {
+		t.Fatalf("lost exact archive descriptor: %+v", result.Scrollback)
+	}
 	if len(base.parkPrompts) != 0 || !reflect.DeepEqual(base.parked, []string{"work|claude|true"}) {
 		t.Fatalf("Couch policy prompts=%v parked=%v", base.parkPrompts, base.parked)
 	}
@@ -243,7 +246,7 @@ func TestDirectAndCouchShareCleanupEffects(t *testing.T) {
 		t.Fatal(err)
 	}
 	var completion pairlifecycle.QuitCompletion
-	if err := json.Unmarshal(raw, &completion); err != nil || pairlifecycle.MatchQuitCompletion(request, completion) != nil || completion.Outcome != pairlifecycle.CompletionSuccess {
+	if err := json.Unmarshal(raw, &completion); err != nil || pairlifecycle.MatchQuitCompletion(request, completion) != nil || completion.Outcome != pairlifecycle.CompletionSuccess || !reflect.DeepEqual(completion.Scrollback, result.Scrollback) {
 		t.Fatalf("completion=%#v decode=%v", completion, err)
 	}
 }
@@ -317,8 +320,8 @@ func TestRunLaunchRestartLoopAltN(t *testing.T) {
 	if rt.launchCount != 2 {
 		t.Fatalf("restart loop should hand off twice, got %d", rt.launchCount)
 	}
-	if rt.env["PAIR_SESSION_ID"] != "" || strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--resume MINT") {
-		t.Fatalf("pre-round restart claimed recovery: id=%q args=%q", rt.env["PAIR_SESSION_ID"], rt.env["PAIR_AGENT_ARGS"])
+	if rt.env["PAIR_SESSION_ID"] != "" || strings.Contains(launchArgsText(t, rt.env), "--resume MINT") {
+		t.Fatalf("pre-round restart claimed recovery: id=%q args=%q", rt.env["PAIR_SESSION_ID"], launchArgsText(t, rt.env))
 	}
 }
 
@@ -337,8 +340,8 @@ func TestRunLaunchRestartLoopAltNCodexUsesMarkerSessionID(t *testing.T) {
 	if rt.env["PAIR_SESSION_ID"] != "SID-LIVE" {
 		t.Fatalf("resumed session id = %q, want SID-LIVE", rt.env["PAIR_SESSION_ID"])
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "resume SID-LIVE --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q, want codex resume marker id", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "resume SID-LIVE --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q, want codex resume marker id", launchArgsText(t, rt.env))
 	}
 }
 
@@ -362,8 +365,8 @@ func TestRunLaunchRestartLoopNewSession(t *testing.T) {
 	if rt.env["PAIR_SESSION_ID"] != "MINT2" {
 		t.Fatalf("fresh session id = %q, want the second mint MINT2", rt.env["PAIR_SESSION_ID"])
 	}
-	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--resume") {
-		t.Fatalf("fresh conversation must carry no resume token: %q", rt.env["PAIR_AGENT_ARGS"])
+	if strings.Contains(launchArgsText(t, rt.env), "--resume") {
+		t.Fatalf("fresh conversation must carry no resume token: %q", launchArgsText(t, rt.env))
 	}
 }
 
@@ -520,5 +523,27 @@ func TestLiveTagsForSweep(t *testing.T) {
 	got := liveTagsForSweep([]Session{{Name: "📁work-x"}, {Name: "📁work-y"}, {Name: "pair-legacy"}, {Name: "other"}}, index, "scope1")
 	if !reflect.DeepEqual(got, []string{"x", "legacy"}) {
 		t.Fatalf("liveTagsForSweep = %v", got)
+	}
+}
+
+type capturePathRuntime struct {
+	*fakeRuntime
+	base string
+}
+
+func (r *capturePathRuntime) ParkScrollback(string, string, bool) (string, bool) { return r.base, true }
+
+func TestCleanupBindsCaptureToExpectedScopeAndTag(t *testing.T) {
+	for _, base := range []string{"/other/parked-scrollback-work-TS", "/data/parked-scrollback-other-TS", "/data/parked-scrollback-work-../escape"} {
+		t.Run(base, func(t *testing.T) {
+			runtime := &capturePathRuntime{fakeRuntime: newFakeRuntime(), base: base}
+			runtime.files["/data/scrollback-work-codex.raw"] = "bytes"
+			paths, _ := artifactpath.ResolveScoped("/data", "work")
+			raw, _ := paths.ScrollbackArtifacts("codex")
+			ops := &launcherCleanupOps{rt: runtime, env: Env{DataDir: "/data"}, step: launchStep{tag: "work"}, quitAgent: "codex", scrollback: raw, out: &strings.Builder{}}
+			if err := ops.PreserveScrollback(context.Background(), pairlifecycle.CleanupCouch); err == nil || ops.PreservedScrollback() != nil {
+				t.Fatalf("wrong archive accepted: %+v %v", ops.PreservedScrollback(), err)
+			}
+		})
 	}
 }

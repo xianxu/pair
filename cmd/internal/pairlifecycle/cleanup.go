@@ -32,6 +32,7 @@ type StageFailure struct {
 }
 
 type CleanupResult struct {
+	Scrollback  *PreservedScrollback
 	Outcome     CompletionOutcome
 	Failures    []StageFailure
 	CompletedAt time.Time
@@ -88,6 +89,9 @@ func RunCleanup(ctx context.Context, intent CleanupIntent, ops QuitLifecycleOps)
 		if err := stage.run(ctx); err != nil {
 			result.Failures = append(result.Failures, stageFailure(stage.stage, err))
 		}
+	}
+	if source, ok := ops.(interface{ PreservedScrollback() *PreservedScrollback }); ok {
+		result.Scrollback = ClonePreservedScrollback(source.PreservedScrollback())
 	}
 	result.CompletedAt = ops.Now()
 	if len(result.Failures) == 0 {

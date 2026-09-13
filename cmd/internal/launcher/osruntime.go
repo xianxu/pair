@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -891,39 +892,63 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	if size, ok := r.FileSize(scrollback.Raw); !ok || size == 0 {
 		return "", false
 	}
-	parked, err := paths.ParkedScrollbackArtifacts(time.Now().Format("20060102T150405"))
-	if err != nil {
-		return "", false
+	// Exclusive destination creation protects earlier captures, including concurrent
+	// parks and copies in the same second. The suffix remains a family component.
+	stamp := time.Now().Format("20060102T150405")
+	for collision := 0; ; collision++ {
+		token := stamp
+		if collision > 0 {
+			token = fmt.Sprintf("%s-%d", stamp, collision)
+		}
+		parked, err := paths.ParkedScrollbackArtifacts(token)
+		if err != nil {
+			return "", false
+		}
+		// An orphan sidecar must not become metadata for this new raw capture.
+		if _, err := os.Lstat(parked.Events); err == nil {
+			continue
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", false
+		}
+		err = transferFile(scrollback.Raw, parked.Raw, move)
+		if errors.Is(err, os.ErrExist) {
+			continue
+		}
+		if err != nil {
+			return "", false
+		}
+		// Events are optional; failed copies remove their incomplete destination.
+		_ = transferFile(scrollback.Events, parked.Events, move)
+		_ = r.Touch(paths.Parked())
+		return parked.Base, true
 	}
-	if !transferFile(scrollback.Raw, parked.Raw, move) {
-		return "", false
-	}
-	if _, ok := r.FileSize(scrollback.Events); ok {
-		transferFile(scrollback.Events, parked.Events, move)
-	}
-	_ = r.Touch(paths.Parked())
-	return parked.Base, true
 }
 
-// transferFile moves (rename, with a cross-device copy+remove fallback) or copies
-// src to dst; the Go analogue of the shell's `mv`/`cp`.
-func transferFile(src, dst string, move bool) bool {
-	if move {
-		if os.Rename(src, dst) == nil {
-			return true
-		}
-	}
-	data, err := os.ReadFile(src)
+// transferFile streams to an exclusive destination and only removes the source
+// after the complete capture has been synced and closed.
+func transferFile(src, dst string, move bool) error {
+	source, err := os.Open(src)
 	if err != nil {
-		return false
+		return err
 	}
-	if os.WriteFile(dst, data, 0o644) != nil {
-		return false
+	defer source.Close()
+	destination, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	_, copyErr := io.Copy(destination, source)
+	if copyErr == nil {
+		copyErr = destination.Sync()
+	}
+	closeErr := destination.Close()
+	if err := errors.Join(copyErr, closeErr); err != nil {
+		_ = os.Remove(dst)
+		return err
 	}
 	if move {
-		_ = os.Remove(src)
+		return os.Remove(src)
 	}
-	return true
+	return nil
 }
 
 // ConfirmParkNudge shows the [y/N] preserve prompt on /dev/tty, bounded by

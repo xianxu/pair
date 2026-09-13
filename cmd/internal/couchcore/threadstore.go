@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -403,7 +404,10 @@ func (s *ThreadStore) AppendParkAttempt(address ThreadAddress, expectedRevision 
 	})
 }
 
-func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity, attempt uint64, parkedAt time.Time) (ThreadRecord, error) {
+func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity, attempt uint64, parkedAt time.Time, scrollback ...*pairlifecycle.PreservedScrollback) (ThreadRecord, error) {
+	if len(scrollback) > 1 {
+		return ThreadRecord{}, errors.New("only one preserved scrollback is allowed")
+	}
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity || next.Park.Tombstoned || next.Park.Closed {
 			return errors.New("park success does not match an active non-tombstoned transaction")
@@ -435,6 +439,9 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 		next.Park = nil
 		next.ParkHistory = append(next.ParkHistory, closed)
 		next.VerifiedPark = &VerifiedPark{Identity: identity, Attempt: attempt, ParkedAt: parkedAt}
+		if len(scrollback) == 1 {
+			next.VerifiedPark.Scrollback = pairlifecycle.ClonePreservedScrollback(scrollback[0])
+		}
 		next.LastActiveAt = MonotonicLastActiveAt(next.LastActiveAt, parkedAt)
 		return nil
 	})

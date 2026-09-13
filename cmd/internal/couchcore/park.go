@@ -618,7 +618,7 @@ func (c *PairLifecycleController) applyCompletion(result ParkResult, current Thr
 	if observeExactProcess(c.Proc, ProcessIdentity{PID: current.Park.Identity.PID, Identity: current.Park.Identity.ProcessIdentity}) != Dead {
 		return result, errParkChildNotGone
 	}
-	finalized, err := c.Threads.FinalizePark(current.Address, current.Revision, current.Park.Identity, request.Attempt, completion.CompletedAt)
+	finalized, err := c.Threads.FinalizePark(current.Address, current.Revision, current.Park.Identity, request.Attempt, completion.CompletedAt, completion.Scrollback)
 	if err != nil {
 		latest, getErr := c.Threads.GetThread(current.Address)
 		if getErr != nil {

@@ -55,16 +55,40 @@ type QuitRequest struct {
 	CompletionKey string      `json:"completion_key"`
 }
 
+// PreservedScrollback names one exact archive in the park identity's scoped directory.
+// Token is the parked artifact family component, never a path or glob.
+type PreservedScrollback struct {
+	Agent  string `json:"agent"`
+	Token  string `json:"token"`
+	Events bool   `json:"events,omitempty"`
+}
+
+func ValidatePreservedScrollback(value *PreservedScrollback) error {
+	if value != nil && (!safeComponent.MatchString(value.Agent) || !safeComponent.MatchString(value.Token)) {
+		return fmt.Errorf("preserved scrollback agent and token must be safe components")
+	}
+	return nil
+}
+
+func ClonePreservedScrollback(value *PreservedScrollback) *PreservedScrollback {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
 type QuitCompletion struct {
-	SchemaVersion int               `json:"schema_version"`
-	Identity      Identity          `json:"identity"`
-	Attempt       uint64            `json:"attempt"`
-	Session       string            `json:"session"`
-	Mode          CleanupMode       `json:"mode"`
-	CompletionKey string            `json:"completion_key"`
-	Outcome       CompletionOutcome `json:"outcome"`
-	FailureCode   FailureCode       `json:"failure_code,omitempty"`
-	CompletedAt   time.Time         `json:"completed_at"`
+	Scrollback    *PreservedScrollback `json:"scrollback,omitempty"`
+	SchemaVersion int                  `json:"schema_version"`
+	Identity      Identity             `json:"identity"`
+	Attempt       uint64               `json:"attempt"`
+	Session       string               `json:"session"`
+	Mode          CleanupMode          `json:"mode"`
+	CompletionKey string               `json:"completion_key"`
+	Outcome       CompletionOutcome    `json:"outcome"`
+	FailureCode   FailureCode          `json:"failure_code,omitempty"`
+	CompletedAt   time.Time            `json:"completed_at"`
 }
 
 var safeComponent = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -92,6 +116,9 @@ func ValidateQuitRequest(request QuitRequest) error {
 }
 
 func ValidateQuitCompletion(completion QuitCompletion) error {
+	if err := ValidatePreservedScrollback(completion.Scrollback); err != nil {
+		return err
+	}
 	requestFields := QuitRequest{
 		SchemaVersion: completion.SchemaVersion,
 		Identity:      completion.Identity,

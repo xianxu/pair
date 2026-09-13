@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
 var testValidators = Validators{
@@ -271,6 +273,12 @@ func TestValidateVerifiedParkRequiresClosedSuccessHistoryAndNoIncarnation(t *tes
 	}
 
 	for name, mutate := range map[string]func(*Record){
+		"unsafe archive token": func(r *Record) {
+			r.VerifiedPark.Scrollback = &pairlifecycle.PreservedScrollback{Agent: "codex", Token: "../other"}
+		},
+		"unsafe archive agent": func(r *Record) {
+			r.VerifiedPark.Scrollback = &pairlifecycle.PreservedScrollback{Agent: "../codex", Token: "valid"}
+		},
 		"missing history": func(r *Record) { r.ParkHistory = nil },
 		"wrong attempt":   func(r *Record) { r.VerifiedPark.Attempt = 2 },
 		"zero parked time": func(r *Record) {

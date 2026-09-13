@@ -108,3 +108,27 @@ func (o *cleanupOps) CleanupSidecars(context.Context) error { return o.run(Stage
 func (o *cleanupOps) CleanupPoller(context.Context) error   { return o.run(StagePollerCleanup) }
 func (o *cleanupOps) CleanupCmux(context.Context) error     { return o.run(StageCmuxCleanup) }
 func (o *cleanupOps) Now() time.Time                        { return o.now }
+
+type preservingCleanupOps struct {
+	*cleanupOps
+	capture *PreservedScrollback
+}
+
+func (o *preservingCleanupOps) PreservedScrollback() *PreservedScrollback { return o.capture }
+
+func TestCleanupRetainsCaptureThroughLaterFailures(t *testing.T) {
+	for _, stage := range []CleanupStage{StageEditorReap, StageSidecarCleanup, StagePollerCleanup, StageCmuxCleanup} {
+		t.Run(string(stage), func(t *testing.T) {
+			ops := &preservingCleanupOps{cleanupOps: newCleanupOps(), capture: &PreservedScrollback{Agent: "codex", Token: "exact-capture", Events: true}}
+			ops.failures[stage] = errors.New("injected")
+			result := RunCleanup(context.Background(), CleanupCouch, ops)
+			if result.Outcome != CompletionFailure || !reflect.DeepEqual(result.Scrollback, ops.capture) {
+				t.Fatalf("capture lost: %+v", result)
+			}
+			result.Scrollback.Token = "mutated"
+			if ops.capture.Token != "exact-capture" {
+				t.Fatal("capture aliases cleanup operations")
+			}
+		})
+	}
+}

@@ -186,6 +186,7 @@ func ConsumeCouchAttempt(ctx context.Context, store pairlifecycle.Store, paths a
 			cleanupResult.Failures = []pairlifecycle.StageFailure{{Stage: pairlifecycle.StageSessionQuiescence, Code: completion.FailureCode, Err: errors.New("previous cleanup attempt failed")}}
 		}
 	}
+	cleanupResult.Scrollback = pairlifecycle.ClonePreservedScrollback(completion.Scrollback)
 	return cleanupResult, nil
 }
 
@@ -236,6 +237,7 @@ type launcherCleanupOps struct {
 	parkTimeout                                             int
 	out                                                     io.Writer
 	quitAgent                                               string
+	preserved                                               *pairlifecycle.PreservedScrollback
 	parked                                                  bool
 	now                                                     func() time.Time
 	scrollback                                              artifactpath.ScrollbackArtifactSet
@@ -285,6 +287,28 @@ func (o *launcherCleanupOps) PreserveScrollback(ctx context.Context, intent pair
 	if !ok {
 		return errors.New("preserve scrollback failed")
 	}
+	paths, err := artifactpath.ResolveScoped(o.env.DataDir, o.step.tag)
+	if err != nil {
+		return err
+	}
+	template, err := paths.ParkedScrollbackArtifacts("TOKEN")
+	if err != nil {
+		return err
+	}
+	prefix := strings.TrimSuffix(template.Base, "TOKEN")
+	if !strings.HasPrefix(base, prefix) {
+		return errors.New("parked scrollback is outside expected scope and tag")
+	}
+	descriptor := &pairlifecycle.PreservedScrollback{Agent: o.quitAgent, Token: strings.TrimPrefix(base, prefix)}
+	if err := pairlifecycle.ValidatePreservedScrollback(descriptor); err != nil {
+		return err
+	}
+	actual, err := paths.ParkedScrollbackArtifacts(descriptor.Token)
+	if err != nil || actual.Base != base {
+		return errors.New("parked scrollback path does not match descriptor")
+	}
+	_, descriptor.Events = o.rt.FileSize(actual.Events)
+	o.preserved = descriptor
 	o.parked = true
 	fmt.Fprintf(o.out, "pair: scrollback preserved at\n        %s.raw\n      open a session and \"park %s\" to distill it into a continuation.\n", base, o.step.session)
 	return nil
@@ -405,4 +429,8 @@ func liveTagsForSweep(sessions []Session, index SessionNameIndex, scopeKey strin
 		}
 	}
 	return tags
+}
+
+func (o *launcherCleanupOps) PreservedScrollback() *pairlifecycle.PreservedScrollback {
+	return o.preserved
 }

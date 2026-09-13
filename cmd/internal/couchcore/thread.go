@@ -122,6 +122,7 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		out.VerifiedPark = &threadrecord.VerifiedPark{
 			Identity: toPersistedParkIdentity(record.VerifiedPark.Identity),
 			Attempt:  record.VerifiedPark.Attempt, ParkedAt: record.VerifiedPark.ParkedAt,
+			Scrollback: pairlifecycle.ClonePreservedScrollback(record.VerifiedPark.Scrollback),
 		}
 	}
 	if record.ParkHistory != nil {
@@ -176,6 +177,7 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		out.VerifiedPark = &VerifiedPark{
 			Identity: fromPersistedParkIdentity(record.VerifiedPark.Identity),
 			Attempt:  record.VerifiedPark.Attempt, ParkedAt: record.VerifiedPark.ParkedAt,
+			Scrollback: pairlifecycle.ClonePreservedScrollback(record.VerifiedPark.Scrollback),
 		}
 	}
 	if record.ParkHistory != nil {
@@ -246,6 +248,7 @@ func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	}
 	if record.VerifiedPark != nil {
 		verified := *record.VerifiedPark
+		verified.Scrollback = pairlifecycle.ClonePreservedScrollback(record.VerifiedPark.Scrollback)
 		copy.VerifiedPark = &verified
 	}
 	if record.ParkHistory != nil {

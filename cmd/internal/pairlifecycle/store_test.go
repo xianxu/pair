@@ -467,3 +467,60 @@ func (f *memoryFile) Close() error {
 func (f *memoryFile) Name() string { return f.name }
 
 var _ io.Writer = (*memoryFile)(nil)
+
+func TestPreservedScrollbackSurvivesFailedCleanupRetry(t *testing.T) {
+	paths := lifecyclePaths(t)
+	store := Store{Runtime: newMemoryRuntime()}
+	request := validQuitRequest()
+	descriptor := &PreservedScrollback{Agent: "codex", Token: "20260913T120000-1", Events: true}
+	for attempt := uint64(1); attempt <= 2; attempt++ {
+		request.Attempt = attempt
+		request.CompletionKey = fmt.Sprintf("quit-completion-%d", attempt)
+		if err := store.PublishRequest(paths, request); err != nil {
+			t.Fatal(err)
+		}
+		completion, err := store.ConsumeAttempt(context.Background(), paths, attempt, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+			result := CleanupResult{Outcome: CompletionSuccess, CompletedAt: time.Now()}
+			if attempt == 1 {
+				result.Outcome = CompletionFailure
+				result.Failures = []StageFailure{{Code: FailureCleanupFailed, Stage: StageSidecarCleanup}}
+				result.Scrollback = descriptor
+			}
+			return result
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if completion.Scrollback == nil || *completion.Scrollback != *descriptor {
+			t.Fatalf("attempt %d lost exact capture: %#v", attempt, completion)
+		}
+	}
+}
+
+func TestParkCapturePublicationCrashDoesNotGuessArchive(t *testing.T) {
+	paths := lifecyclePaths(t)
+	runtime := newMemoryRuntime()
+	store := Store{Runtime: runtime}
+	request := validQuitRequest()
+	if err := store.PublishRequest(paths, request); err != nil {
+		t.Fatal(err)
+	}
+	runtime.fail["create"] = 1
+	_, err := store.ConsumeAttempt(context.Background(), paths, 1, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+		return CleanupResult{Outcome: CompletionSuccess, CompletedAt: time.Now(), Scrollback: &PreservedScrollback{Agent: "codex", Token: "moved-before-crash"}}
+	})
+	if err == nil {
+		t.Fatal("publication should fail")
+	}
+	request.Attempt = 2
+	request.CompletionKey = "quit-completion-2"
+	if err := store.PublishRequest(paths, request); err != nil {
+		t.Fatal(err)
+	}
+	completion, err := store.ConsumeAttempt(context.Background(), paths, 2, func(context.Context, *LockedAttempt, QuitRequest) CleanupResult {
+		return CleanupResult{Outcome: CompletionSuccess, CompletedAt: time.Now()}
+	})
+	if err != nil || completion.Scrollback != nil {
+		t.Fatalf("uncommitted capture became authority: %+v %v", completion, err)
+	}
+}

@@ -2,9 +2,13 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -837,5 +841,118 @@ func TestLeaveRefusesAnUnknownDisposition(t *testing.T) {
 	}
 	if len(result.Detached) != 0 || len(result.Parked) != 0 {
 		t.Fatalf("refused Leave still acted: %+v", result)
+	}
+}
+
+// Captures with the real Pair archive writer while keeping session effects in
+// the lifecycle state machine fake.
+type capturedParkOps struct {
+	*pairlifecycletest.Fake
+	rt         *launcher.OSRuntime
+	paths      artifactpath.Paths
+	agent      string
+	descriptor *pairlifecycle.PreservedScrollback
+}
+
+func (o *capturedParkOps) PreserveScrollback(ctx context.Context, intent pairlifecycle.CleanupIntent) error {
+	if err := o.Fake.PreserveScrollback(ctx, intent); err != nil {
+		return err
+	}
+	base, ok := o.rt.ParkScrollback(o.paths.Tag(), o.agent, true)
+	if !ok {
+		return errors.New("archive failed")
+	}
+	template, _ := o.paths.ParkedScrollbackArtifacts("TOKEN")
+	token := strings.TrimPrefix(base, strings.TrimSuffix(template.Base, "TOKEN"))
+	archived, _ := o.paths.ParkedScrollbackArtifacts(token)
+	_, err := os.Stat(archived.Events)
+	o.descriptor = &pairlifecycle.PreservedScrollback{Agent: o.agent, Token: token, Events: err == nil}
+	return nil
+}
+func (o *capturedParkOps) PreservedScrollback() *pairlifecycle.PreservedScrollback {
+	return o.descriptor
+}
+
+func TestExactParkCaptureSurvivesCompletionAndReopen(t *testing.T) {
+	store, namespace, thread := createControllerThread(t)
+	dataDir := t.TempDir()
+	paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: dataDir, RepoScope: thread.Address.RepoScope, Tag: string(thread.Address.Tag)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	live, _ := paths.ScrollbackArtifacts("codex")
+	if err := os.MkdirAll(filepath.Dir(live.Raw), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for path, body := range map[string]string{live.Raw: "exact outgoing transcript", live.Events: "{\"offset\":0}\n"} {
+		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	now := time.Now().UTC()
+	model := pairlifecycletest.New(now)
+	model.SetSession("pair-exact", true)
+	lifecycle := &fakeControllerLifecycle{model: model, store: store}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-exact", true)
+	var want *pairlifecycle.PreservedScrollback
+	artifacts.TriggerQuitHook = func(_ string, intent launcher.QuitIntent) error {
+		request := lifecycle.lastRequest
+		if err := model.DeliverTrigger(request); err != nil {
+			return err
+		}
+		lifecyclePaths, err := paths.Lifecycle(request.Identity.Nonce)
+		if err != nil {
+			return err
+		}
+		durable := pairlifecycle.Store{Runtime: pairlifecycle.OSRuntime{}}
+		if err := durable.PublishRequest(lifecyclePaths, request); err != nil {
+			return err
+		}
+		ops := &capturedParkOps{Fake: model, rt: launcher.NewOSRuntime(filepath.Dir(live.Raw), "/pair"), paths: paths, agent: "codex"}
+		result, err := launcher.ConsumeCouchAttempt(context.Background(), durable, lifecyclePaths, *intent.Request, request.Session, ops)
+		if err != nil {
+			return err
+		}
+		completionPath, _ := lifecyclePaths.Completion(request.Attempt)
+		raw, err := os.ReadFile(completionPath)
+		if err != nil {
+			return err
+		}
+		var completion pairlifecycle.QuitCompletion
+		if err := json.Unmarshal(raw, &completion); err != nil {
+			return err
+		}
+		if err := pairlifecycle.MatchQuitCompletion(request, completion); err != nil {
+			return fmt.Errorf("completion mismatch: %w", err)
+		}
+		if !reflect.DeepEqual(completion.Scrollback, result.Scrollback) {
+			return errors.New("completion lost capture")
+		}
+		want = pairlifecycle.ClonePreservedScrollback(result.Scrollback)
+		lifecycle.completion = &completion
+		return model.CommitCompletion(request, result)
+	}
+	controller := PairLifecycleController{Threads: store, DataDir: dataDir, Lifecycle: lifecycle, Sessions: artifacts, Proc: NewFakeProcOps(), Clock: FixedClock{T: now}, Nonce: func() (string, error) { return "capture-nonce", nil }}
+	result, err := controller.Park(context.Background(), thread.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewThreadStore(namespace).GetThread(thread.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want == nil || !want.Events || reopened.VerifiedPark == nil || !reflect.DeepEqual(reopened.VerifiedPark.Scrollback, want) {
+		t.Fatalf("capture lost after reopen: %+v want %+v", reopened.VerifiedPark, want)
+	}
+	archived, _ := paths.ParkedScrollbackArtifacts(want.Token)
+	raw, err := os.ReadFile(archived.Raw)
+	if err != nil || string(raw) != "exact outgoing transcript" {
+		t.Fatalf("archive = %q, %v", raw, err)
+	}
+	result.Thread.VerifiedPark.Scrollback.Token = "mutated"
+	again, err := store.GetThread(thread.Address)
+	if err != nil || !reflect.DeepEqual(again.VerifiedPark.Scrollback, want) {
+		t.Fatal("returned descriptor aliases stored record", err)
 	}
 }
