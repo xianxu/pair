@@ -129,10 +129,16 @@ from input to disposition today, and keeping it pure keeps it table-testable
 - Every handled and swallowed right-terminal chord above passes through under a
   full-screen app, and behaves as today at a shell — a table test over all three
   states for each chord.
-- The unknown state intercepts, asserted.
-- Global chords (`<M-n>` restart, etc.) are unchanged in every state.
-- `Decide` stays pure; alt-screen state arrives as an input field.
-- The escape-chord decision is recorded, whichever way it goes.
+- The unknown alt-screen state intercepts, asserted.
+- `<M-k>` (focus-left) still returns to the left stack under a full-screen app —
+  it does NOT pass through, so the operator is never trapped in nvim.
+- Global chords (`<M-n>` restart, from-anywhere tab switch, etc.) are unchanged
+  in every state.
+- `Decide` stays pure and untouched; the passthrough gate lives in the pump
+  (the one place all chord-dispatch paths funnel through), keyed on a pure
+  `RightTerminalChordPassesThrough` predicate.
+- The escape-chord decision is recorded (see Revisions): none added; switching
+  stays global and focus-left survives.
 - `atlas/` records the rule, and `pair keys` / help reflects that right-pane chords are
   conditional.
 
@@ -140,14 +146,41 @@ Durable plan: `workshop/plans/000227-right-pane-chords-pass-through-to-a-full-sc
 
 ## Plan
 
-- [ ] Add alt-screen state (from `RepaintModes()`) to `ShortcutInput`; populate it in
-      `pair term` from the active tab.
-- [ ] In `Decide`, right-terminal role: pass through role-scoped chords when observed +
-      on.
-- [ ] Table test: each chord × {on, off, unknown}; globals unaffected.
-- [ ] Decide the escape chord; record it.
-- [ ] Update help text and `atlas/`.
-- [ ] Manual: parley `<M-t>` in right-pane nvim; `<M-t>` at the shell.
+- [x] `IsGlobalChord` + `RightTerminalChordPassesThrough` (pure predicates, `M-k` excluded)
+- [x] `activeChildOwnsScreen()` on the mux (from `RepaintModes()`); `activeChildOwnsScreen` on the `ptyWriter` interface + `fakeMux`
+- [x] Pump gate: forward a pass-through chord's raw bytes to a full-screen child; dispatch as today otherwise
+- [x] Table test: each chord × {fullscreen, shell}; the tri-state accessor test covers unknown; the ESC-then-j, focus-left, and global regressions
+- [x] Escape-chord decision recorded (none; switching + focus-left survive) — see Revisions
+- [x] Update help text (keyhelp `groupTerminal` heading) and `atlas/`
+- [ ] Manual: parley `<M-t>` in right-pane nvim; `<M-k>` back to the agent; ESC+`j` reaches nvim; `<M-t>` at the shell
+
+## Revisions
+
+### 2026-09-13 — pump gate, not a ShortcutInput field (plan-quality round 1)
+
+**Reason.** The Spec sketched adding an alt-screen field to `ShortcutInput` and
+having `Decide` return pass-through. That covers only the chords dispatched
+through `Decide`; the tab chords (`M-t`/`M-w`/`M-r`/`M-S-d`/`M-Left`/`M-Right`)
+go through `handleTerminalChord`, bypassing `Decide` — the very chords the
+operator reported. **Delta:** the gate lives in the pump (the one place all
+dispatch paths funnel through), keyed on the pure `RightTerminalChordPassesThrough`
+predicate; `Decide` stays pure and untouched (ARCH-PURE).
+
+### 2026-09-13 — M-k excluded from passthrough (plan-quality PQ-1)
+
+**Reason.** The gate first passed through every non-global role chord. The
+plan-quality review found `M-k` (focus-left) is the ONLY keyboard bridge from
+the right terminal back to the left stack, with no global equivalent (zellij's
+MoveFocus defaults are unbound). Passing it through would trap an operator with
+nvim focused on the right. **Delta:** `RightTerminalChordPassesThrough` excludes
+`ChordAltK`, so `M-k` always fires focus-left; a regression test asserts it.
+
+### 2026-09-13 — escape-chord decision: none
+
+Switching tabs survives via the global from-anywhere `M-S-←/→`, and focus-left
+survives via the `M-k` exclusion. Only tab create (`M-t`) / close (`M-w`)
+require leaving the full-screen app. Per #227's default, no always-available
+escape chord is added until that restriction is felt.
 
 ## Estimate
 
