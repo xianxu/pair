@@ -212,7 +212,11 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 ### pair#181 — one honest inventory: every thread gets a row and a reason
 
 **est:** 8.64
-**status:** M1-M3 closed; plan at `workshop/plans/000181-one-honest-inventory-every-thread-gets-a-row-and-a-reason-plan.md`
+**status:** administratively closed 2026-09-13; M1-M3 shipped and closed.
+**actual:** N/A — historical measurement unavailable; excluded from calibration.
+**closed:** 2026-09-13
+
+Plan and review records archive with pair#181 under `workshop/history/plans/`.
 **started:** 2026-09-03
 
 The switcher showed 4 rows over a store of 13, and `couch --list` showed all 13,
@@ -1394,3 +1398,12 @@ a typed operation cannot accidentally grow the public CLI (`ARCH-PURPOSE`,
 [pair#181 M3]: #pair-181-m3
 [pair#151 M1]: #pair-151-m1
 [pair#151 M2]: #pair-151-m2
+
+## Revisions
+
+### 2026-09-13 — close pair#181 bookkeeping
+
+Operator requested administrative closure of the shipped M1-M3 work. Updated
+the detail block to agree with the completed task rows. The issue records the
+authorized renewed-review and historical-ledger bypass; old findings remain
+preserved, without a new claim of correctness. Historical actuals remain N/A.

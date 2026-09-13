@@ -1,12 +1,13 @@
 ---
 id: 000181
-status: working
+status: codecomplete
 deps: [pair#168, pair#171, pair#179, pair#180]
 github_issue:
 created: 2026-09-03
-updated: 2026-09-03
+updated: 2026-09-13
 estimate_hours: 8.64
 started: 2026-09-03T16:38:51-07:00
+actual_hours: N/A
 ---
 
 # One honest inventory: every thread gets a row and a reason
@@ -218,6 +219,25 @@ Plan doc to follow. Three review boundaries:
 
 ## Revisions
 
+### 2026-09-13 — administrative closure of shipped Couch-lite work
+
+Operator requested closure for bookkeeping and authorized skipping the close
+gate if reconstructing it was too complex. M1-M3 are recorded as shipped and
+closed in the issue and project. The September 3 revisions are the final scope:
+one usable thread per repo path, ordered startup selection, directory labels,
+warm reattach, and operator-driven archive. Native-binding debris recovery and
+the retirement predicate were dropped; their original tasks remain historical
+intent, not outstanding implementation.
+
+The renewed whole-issue review and historical open-finding ledger are bypassed
+with `--no-judge --no-ledger`: the review window now includes extensive later
+work, and this closure makes no claim that the old findings were revalidated or
+fixed. The ledger is preserved for provenance. `--no-actual` records N/A and
+excludes the issue from calibration because its historical logs report missing
+measurement. Remaining unchecked detailed-plan rows are stale execution and
+closure bookkeeping, superseded by the milestone logs and this disposition.
+
+
 ### 2026-09-03 — one thread per repo, and startup stops guessing
 
 Reason: the operator looked at the honest inventory M1 produced and named what
@@ -294,6 +314,8 @@ Delta:
 
 
 
+
+- 2026-09-13: closed — Administrative closure authorized by operator on 2026-09-13: M1-M3 shipped and project marks complete; historical logs record total inventory, live warm reattach and archive verification. Original binding repair and retirement predicate superseded by September 3 revisions. Historical actuals unavailable, excluded from calibration. Whole-issue window now includes extensive later work; skip renewed review and unresolved historical ledger, preserving findings without claiming revalidation.; review verdict: not-run
 - 2026-09-04: closed M2 — M2 (warm reattach) — closing the BOOKKEEPING only; the code shipped in 88232cf6..bafe3801 and was verified then. Behaviour: reattaching a detached session works on the operator real stack — tools-couch-2 reattached with its Pair ledger unchanged at 6 rows (Pair appends a launch row only on the create path, so no new row proves no relaunch) and its zellij session still the one created 8h56m earlier; the couch restart auto-reattached the operator into the live pair session. Three sites had to agree that reattaching is not resuming: DecideResume applies the native-binding diagnostic only to a verified park, ResumeContext no longer resolves a binding on the warm path (ResolveEstablished refuses a provisional one before any decision, which is why relaxing DecideResume alone would not have reached the operator thread), and launchTrackedThread sends neither the trusted resume profile nor --layout2 — the profile carries ResumeRequired which Pair honours only at a create boundary, and --layout2 to a live session sends Pair down a path that offers to DELETE it. Each shape rechecks its own authority before any child effect (confirmStillDetached mirrors RequireNativeResumeBinding). TestDetachedResumeStillRequiresAnEstablishedBinding was inverted in place rather than deleted, following pair#170s precedent for a superseded claim. --no-judge is the PRECISE flag, not a waiver: M2s code has already been through five fresh-context boundary reviews, because the M3 window starts at M1s close (8e6f1af0) and therefore contains every M2 commit; rounds 2 and 3 examined the warm-reattach code directly. Dispatching a judge now would review 5be12bb9..HEAD, which contains none of M2s code — a real-looking verdict over an empty window, which is worse than the honest record. The missing boundary is recorded as a process deviation in workshop/projects/couch.md rather than papered over. actual: labeled judgment estimate, NOT measured — sdlc actual --issue 181 reports no measurable activity for this issue though it works for #170; bounded by commit timestamps 18:47 (M1 close) to 20:34, minus the design discussion in that window. Excluded from calibration on that basis.; review verdict: not-run
 - 2026-09-04: closed M3 — M3 (archive as the only exit) — fourth REWORK round; both blocking findings were mine and the same shape one level in. BR-12: the unreadable-record start guard, which the previous round ADDED, was entered by zero tests — deleting the whole block changed no test outcome. I had fixed its message and pinned every command that message names, which is testing the message, not the guard. TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository drives Spawn (the seam all three creation entries funnel through) and is mutation-verified: removing the block fails it with "started a second thread while a record in this repository could not be read". BR-6: the split made to prevent a harm was routing into it — menuActionItems offered archive on unreadable AND busy rows, and Couch.ArchiveThread called Quiesce BEFORE any guard, so archiving an unreadable record killed an agent couch could not identify and filed the record, while a park-in-flight row had its session killed and was then refused (agent dead, record still listed). The guard now runs before any effect; an unreadable record is never quiesced, because the guard proving a thread is not live needs the record that could not be read; it archives, leaves the session alone, and returns UnreadableArchiveWarning. Pinned by TestArchivingAnUnreadableRecordNeverStopsItsSession and TestARefusedArchiveStopsNothing — the property is "refuses AND nothing happened", not "refuses". BR-1: the busy-row test found the same offer one state over (archive on ThreadBusy would file a record mid-park); busy now offers metadata only. BR-15: three unbacked claims corrected rather than restated — "never archive-eligible" had three positions across four artifacts including a test asserting the opposite, and "the next omission is a compile error" was false since a struct literal can omit the field; the struct buys a NAMED omission and FromSnapshot is the form that cannot forget. Also: address-only records no longer borrow Reservation, which ClassifyThread reads as never-started. Three further rules in workshop/lessons.md. Full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` exits 0, zero FAIL lines. actual: labeled judgment estimate, NOT measured — `sdlc actual --issue 181` reports no measurable activity for this issue though it works for #170; bounded by commit timestamps across the M3 span including four rework rounds. Excluded from calibration on that basis.; review verdict: FIX-THEN-SHIP
 ### 2026-09-03

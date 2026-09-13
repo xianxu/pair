@@ -984,6 +984,25 @@ issue exists because the system already did that once by hiding rows.
 
 ## Revisions
 
+### 2026-09-13 — administrative closure of shipped Couch-lite work
+
+Operator requested closure for bookkeeping and authorized skipping the close
+gate if reconstructing it was too complex. M1-M3 are recorded as shipped and
+closed in the issue and project. The September 3 revisions are the final scope:
+one usable thread per repo path, ordered startup selection, directory labels,
+warm reattach, and operator-driven archive. Native-binding debris recovery and
+the retirement predicate were dropped; their original tasks remain historical
+intent, not outstanding implementation.
+
+The renewed whole-issue review and historical open-finding ledger are bypassed
+with `--no-judge --no-ledger`: the review window now includes extensive later
+work, and this closure makes no claim that the old findings were revalidated or
+fixed. The ledger is preserved for provenance. `--no-actual` records N/A and
+excludes the issue from calibration because its historical logs report missing
+measurement. Remaining unchecked detailed-plan rows are stale execution and
+closure bookkeeping, superseded by the milestone logs and this disposition.
+
+
 ### 2026-09-03 — M3 as shipped: an action, not a predicate
 
 Reason: the operator's decisions replaced M3's rule with an affordance, and
