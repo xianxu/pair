@@ -29,16 +29,42 @@ func visitJSONLines(runtime Runtime, artifact Artifact, lineLimit int64, visit f
 }
 
 func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, visit func([]byte, uint64) bool) error {
+	tail, stopped, err := frameJSONLArtifact(runtime, artifact, lineLimit, func(line []byte, start uint64) bool {
+		if len(line) > 0 && line[len(line)-1] == '\r' {
+			line = line[:len(line)-1]
+		}
+		return visit(line, start)
+	})
+	if err != nil {
+		return err
+	}
+	if !stopped && len(tail) != 0 {
+		return errTruncatedRecord
+	}
+	return nil
+}
+
+// frameJSONLArtifact is the one chunked reader under every consumer of an
+// append-only JSONL artifact. It reads in readChunkSize ranges, calls line for
+// each newline-terminated record (CR kept — a consumer that wants it gone
+// strips it) with the record's byte offset, and enforces the ONE bound such an
+// artifact has: no record longer than recordLimit. The file itself is
+// unbounded — its length is defined to grow. What an unterminated tail MEANS
+// is the consumer's call, so it comes back rather than being judged here:
+// the transcript framer treats it as a truncated record, the ledger reader
+// hands it to ParseLedger, which records a malformed ordinal (#237).
+// stopped reports that line returned true before the end.
+func frameJSONLArtifact(runtime Runtime, artifact Artifact, recordLimit int64, line func([]byte, uint64) bool) (tail []byte, stopped bool, err error) {
 	var pending []byte
 	var readOffset int64
 	var pendingOffset uint64
 	for {
 		chunk, eof, err := runtime.ReadAt(artifact, readOffset, readChunkSize)
 		if err != nil {
-			return err
+			return nil, false, err
 		}
 		if len(chunk) == 0 && !eof {
-			return errors.New("session inventory runtime returned an empty non-final range")
+			return nil, false, errors.New("session inventory runtime returned an empty non-final range")
 		}
 		readOffset += int64(len(chunk))
 		pending = append(pending, chunk...)
@@ -47,27 +73,21 @@ func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, visit
 			if newline < 0 {
 				break
 			}
-			if int64(newline) > lineLimit {
-				return ErrReadLimit
+			if int64(newline) > recordLimit {
+				return nil, false, ErrReadLimit
 			}
-			line := pending[:newline]
-			if len(line) > 0 && line[len(line)-1] == '\r' {
-				line = line[:len(line)-1]
-			}
+			record := pending[:newline]
 			pending = pending[newline+1:]
-			if visit(line, pendingOffset) {
-				return nil
+			if line(record, pendingOffset) {
+				return nil, true, nil
 			}
 			pendingOffset += uint64(newline + 1)
 		}
-		if int64(len(pending)) > lineLimit {
-			return ErrReadLimit
+		if int64(len(pending)) > recordLimit {
+			return nil, false, ErrReadLimit
 		}
 		if eof {
-			if len(pending) != 0 {
-				return errTruncatedRecord
-			}
-			return nil
+			return pending, false, nil
 		}
 	}
 }
@@ -146,4 +166,24 @@ func edgeProvenance(role Role, schema string, artifact Artifact) []EdgeProvenanc
 		return nil
 	}
 	return []EdgeProvenance{{Schema: schema, Artifact: artifact}}
+}
+
+// readJSONLArtifact returns the whole body of an append-only JSONL artifact,
+// bounded PER RECORD rather than per file — the bound frameJSONLArtifact
+// enforces, and the one visitJSONLinesAt already applied to transcripts. The
+// owner ledger was read with a whole-file cap instead, so a thread that had
+// been relaunched often enough became unresumable the moment its ledger
+// crossed 8 MiB (#237). The body comes back byte for byte, partial last line
+// included: ParseLedger owns the unterminated-tail rule (a malformed ordinal,
+// not an error), and a ledger mid-append must stay readable.
+func readJSONLArtifact(runtime Runtime, artifact Artifact, recordLimit int64) ([]byte, error) {
+	var body []byte
+	tail, _, err := frameJSONLArtifact(runtime, artifact, recordLimit, func(record []byte, _ uint64) bool {
+		body = append(append(body, record...), '\n')
+		return false
+	})
+	if err != nil {
+		return nil, err
+	}
+	return append(body, tail...), nil
 }
