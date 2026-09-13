@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -134,7 +135,10 @@ type Console struct {
 	trace *inputTracer
 	// events is the COUCH_TRACE timing trace, nil unless the composition root
 	// named a file; see trace.go. framePainted gates its first-frame event.
-	events       *eventTracer
+	events *eventTracer
+	// mouseTrace is nil unless COUCH_MOUSE_TRACE names a file; see
+	// mousetrace.go. It records couch's host mouse-mode decisions for #207.
+	mouseTrace   *mouseTracer
 	framePainted bool
 	// menuExtents is where each actor was drawn by the LAST menu paint, so a
 	// click resolves against what the operator saw rather than a re-render,
@@ -220,6 +224,23 @@ func (c *Console) SetInputTrace(path string) error {
 	c.mu.Lock()
 	previous := c.trace
 	c.trace = tracer
+	c.mu.Unlock()
+	_ = previous.Close()
+	if err != nil {
+		c.publishNotice(Notice{Kind: "trace", Control: true, Body: err.Error()})
+	}
+	return err
+}
+
+// SetMouseTrace opens the host mouse-mode probe at path, or turns it off when
+// path is empty (#207). Same shape as SetInputTrace: the composition root
+// passes the environment's value so a constructor never reaches for ambient env
+// and a test never opens a file it did not ask for.
+func (c *Console) SetMouseTrace(path string) error {
+	tracer, err := newMouseTracer(path)
+	c.mu.Lock()
+	previous := c.mouseTrace
+	c.mouseTrace = tracer
 	c.mu.Unlock()
 	_ = previous.Close()
 	if err != nil {
@@ -883,6 +904,8 @@ func (c *Console) teardown(restore func() error) {
 	c.trace = nil
 	events := c.events
 	c.events = nil
+	mouseTrace := c.mouseTrace
+	c.mouseTrace = nil
 	// The terminal is being handed back, so a publish must stop painting into
 	// it. This CLOSES the window rather than sealing it: publishNotice reads
 	// started under the lock and paints after releasing it, so a publish that
@@ -896,6 +919,9 @@ func (c *Console) teardown(restore func() error) {
 	}
 	if err := events.Close(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: close timing trace: %v\n", err)
+	}
+	if err := mouseTrace.Close(); err != nil {
+		fmt.Fprintf(c.errw(), "couch: close mouse trace: %v\n", err)
 	}
 	if err := restore(); err != nil {
 		fmt.Fprintf(c.errw(), "couch: restore terminal: %v\n", err)
@@ -1096,8 +1122,17 @@ func (c *Console) repaint() { c.paintNow() }
 // of it.
 func (c *Console) writeChild(p []byte) {
 	c.mu.Lock()
+	before := c.hostScan.MouseModes()
 	c.hostScan.FeedFraming(p)
+	after := c.hostScan.MouseModes()
+	tracer := c.mouseTrace
 	c.mu.Unlock()
+	// A mouse-mode change in the CHILD's teed stream is one of the two events
+	// that decide the host's mode (#207). Logged only on a change, so a busy
+	// stream does not flood the trace.
+	if tracer != nil && formatMouseModes(before) != formatMouseModes(after) {
+		tracer.record("child-mode", formatMouseModes(before)+" -> "+formatMouseModes(after))
+	}
 	_, _ = c.host.Write(p)
 }
 
@@ -1223,6 +1258,22 @@ func (c *Console) paintNow() {
 	// their editor is not recoverable by any keystroke.
 	if c.couchMayOwnTheMouse() {
 		c.writeOwn(hostty.EnableMouseClicks)
+		// The OTHER event that decides the host's mode (#207): couch asserting
+		// its own clicks-only mode. Logged with the host's mode BEFORE this
+		// write and the active child's belief, so a trace shows whether this
+		// assert raised a floor over an empty host or clobbered a live 1002.
+		c.mu.Lock()
+		tracer := c.mouseTrace
+		host := c.hostScan.MouseModes()
+		var childMouse, childObserved bool
+		if pane, ok := c.panes[c.active]; ok && pane != nil {
+			childMouse = pane.child.Mouse()
+			childObserved = pane.child.MouseObserved()
+		}
+		c.mu.Unlock()
+		tracer.record("assert-clicks", "host-before="+formatMouseModes(host)+
+			" child-mouse="+strconv.FormatBool(childMouse)+
+			" child-observed="+strconv.FormatBool(childObserved))
 	}
 	row := RenderStatusRow(cols, model)
 	c.mu.Lock()

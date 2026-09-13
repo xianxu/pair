@@ -386,6 +386,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	// never be mistaken for "the terminal sent nothing".
 	_ = console.SetInputTrace(os.Getenv("COUCH_INPUT_TRACE"))
 	_ = console.SetEventTrace(os.Getenv("COUCH_TRACE"), processStartedAt)
+	_ = console.SetMouseTrace(os.Getenv("COUCH_MOUSE_TRACE"))
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,
 		Sink: console.Deliver,
