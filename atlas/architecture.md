@@ -468,8 +468,15 @@ opposite directions, and the asymmetry is deliberate:
   of dispatching it, gated by `workbenchshortcut.RightTerminalChordPassesThrough`:
   true for the role-scoped chords (tab management + the swallowed ones) EXCEPT
   `M-k`, which is the only keyboard bridge back to the left stack and always
-  fires. Globals (`M-n` restart, `M-d` detach, from-anywhere tab switch
-  `M-S-←/→`, …) are workbench-wide and fire in every state. `Decide` is
+  fires. Globals (`M-n` restart, `M-d` detach, and the from-anywhere right-terminal
+  set `M-S-←`/`M-S-→`/`M-S-t`) are workbench-wide and fire in every state. The
+  from-anywhere set is delivered to the right terminal AS the global chords
+  (`TabChordFor` → `ChordAltShiftLeft/Right/T`), not the role-scoped
+  `Alt+←/→`: #227 passes a role-scoped chord THROUGH to a full-screen child, so
+  delivering `Alt+←` ate the tab switch (#243). A global is never passed
+  through, and `handleTerminalChord` acts on it (prev/next/new tab). A test asserts
+  `TabChordFor` returns a chord for which `IsGlobalChord` holds, so this class
+  cannot regress. `Decide` is
   untouched — the gate is a pure predicate over the chord table plus the one
   `RepaintModes()` read — because the tab chords dispatch through
   `handleTerminalChord`, bypassing `Decide`, so the pump is the one place all

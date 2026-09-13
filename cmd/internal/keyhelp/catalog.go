@@ -91,6 +91,7 @@ var Catalog = catalog{
 		// Draft/history occupants (nav_boundary), deleted by operator decision.
 		{Key: "<S-M-Left>", Display: "Shift+Alt+←", Group: groupTerminal, Order: 7, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<S-M-Right>", Display: "Shift+Alt+→", Group: groupTerminal, Order: 8, Context: ContextGlobal, Source: SourceGlobal},
+		{Key: "<M-T>", Display: "Shift+Alt+t", Group: groupTerminal, Order: 9, Context: ContextGlobal, Source: SourceGlobal},
 
 		// --- Session ------------------------------------------------------
 		{Key: "Alt h", Display: "Alt+h", Group: groupSession, Order: 10, Context: ContextGlobal, Source: SourceZellij,

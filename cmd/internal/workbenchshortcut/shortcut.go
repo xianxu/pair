@@ -52,6 +52,7 @@ const (
 	ChordAltShiftEnter
 	ChordAltShiftLeft
 	ChordAltShiftRight
+	ChordAltShiftT
 	// chordMax is one past the last chord. Enumerations over the chord space
 	// derive their bound from it, so a chord appended above is covered without
 	// editing the consumer. Both documentation guards previously stopped at
@@ -100,6 +101,10 @@ const (
 	// call into the draft — see GlobalBinding.HandledInPane.
 	ActionTerminalPrevTab
 	ActionTerminalNextTab
+	// ActionTerminalNewTab creates a right-terminal tab from any pane, without
+	// moving focus (#243). Like Prev/Next it is a HandledInPane global, so it
+	// survives #227's passthrough when the right pane shows a full-screen app.
+	ActionTerminalNewTab
 )
 
 type ShortcutInput struct {
@@ -165,6 +170,8 @@ var globalBindings = []GlobalBinding{
 		Help: "previous terminal tab, from any pane, without moving focus"},
 	{Chord: ChordAltShiftRight, Action: ActionTerminalNextTab, LuaFunction: "PairTermNextTab", NvimKey: "<S-M-Right>", FocusDraft: false, HandledInPane: true,
 		Help: "next terminal tab, from any pane, without moving focus"},
+	{Chord: ChordAltShiftT, Action: ActionTerminalNewTab, LuaFunction: "PairTermNewTab", NvimKey: "<M-T>", FocusDraft: false, HandledInPane: true,
+		Help: "new terminal tab in the right pane, from any pane"},
 }
 
 // RoleBinding describes a chord whose behaviour is PANE-LOCAL — it does something
@@ -400,6 +407,10 @@ var chordSequences = []struct {
 	// ChordAltUp's \x1b[1;3A (alt) — both of which are proven live.
 	{"\x1b[1;4D", ChordAltShiftLeft}, {"\x1b[1;10D", ChordAltShiftLeft},
 	{"\x1b[1;4C", ChordAltShiftRight}, {"\x1b[1;10C", ChordAltShiftRight},
+	// KKP only (uppercase T=84 + mod 4 shift+alt), the ChordAltShiftN/D pattern;
+	// no legacy \x1bT, which a global (never passed through) would fire inside
+	// the escape deadline as new-tab in the child (#243).
+	{"\x1b[84;4u", ChordAltShiftT},
 }
 
 // EscapeAmbiguity is how long an ESC-led prefix may stay pending before a
@@ -512,6 +523,8 @@ func ChordName(chord Chord) string {
 		return "Alt+Shift+Left"
 	case ChordAltShiftRight:
 		return "Alt+Shift+Right"
+	case ChordAltShiftT:
+		return "Alt+Shift+T"
 	default:
 		return ""
 	}
@@ -758,11 +771,18 @@ func DeliverChordArgs(paneID string, chord Chord) ([]string, bool) {
 // One fact: the mapping was restated at each executor, which is the shape that
 // lets two of them drift (#216 BR-6).
 func TabChordFor(action ShortcutAction) (Chord, bool) {
+	// GLOBAL chords, not the role-scoped Alt+Left/Right: the delivery writes
+	// these bytes to the right terminal, and #227 passes a role-scoped chord
+	// THROUGH to a full-screen child (which ate the tab switch, #243). A global
+	// is never passed through and is always handled by handleTerminalChord.
+	// TestTabChordForDeliversGlobalChords pins IsGlobalChord on every row.
 	switch action {
 	case ActionTerminalPrevTab:
-		return ChordAltLeft, true
+		return ChordAltShiftLeft, true
 	case ActionTerminalNextTab:
-		return ChordAltRight, true
+		return ChordAltShiftRight, true
+	case ActionTerminalNewTab:
+		return ChordAltShiftT, true
 	default:
 		return ChordUnknown, false
 	}

@@ -186,7 +186,7 @@ func SwitchRightTerminalTab(rt Runtime, chord workbenchshortcut.Chord) error {
 // Lua (ARCH-DRY).
 func RunSwitchTerminalTab(args []string, rt Runtime, stderr io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprintln(stderr, "usage: pair layout switch-terminal-tab prev|next")
+		fmt.Fprintln(stderr, "usage: pair layout switch-terminal-tab prev|next|new")
 		return 2
 	}
 	var action workbenchshortcut.ShortcutAction
@@ -195,8 +195,10 @@ func RunSwitchTerminalTab(args []string, rt Runtime, stderr io.Writer) int {
 		action = workbenchshortcut.ActionTerminalPrevTab
 	case "next":
 		action = workbenchshortcut.ActionTerminalNextTab
+	case "new":
+		action = workbenchshortcut.ActionTerminalNewTab
 	default:
-		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: unknown direction %q (want prev|next)\n", args[0])
+		fmt.Fprintf(stderr, "pair layout switch-terminal-tab: unknown direction %q (want prev|next|new)\n", args[0])
 		return 2
 	}
 	// Through the same mapping the pane executors use, so the CLI cannot drift

@@ -10,4 +10,5 @@ return {
   ["<M-c>"] = { fn = "PairReviewToggle", focus = false },
   ["<S-M-Left>"] = { fn = "PairTermPrevTab", focus = false },
   ["<S-M-Right>"] = { fn = "PairTermNextTab", focus = false },
+  ["<M-T>"] = { fn = "PairTermNewTab", focus = false },
 }

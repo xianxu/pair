@@ -112,6 +112,8 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 		return workbenchshortcut.ChordAltShiftLeft, true
 	case "alt+shift+right", "alt+shift+right-arrow":
 		return workbenchshortcut.ChordAltShiftRight, true
+	case "alt+shift+t":
+		return workbenchshortcut.ChordAltShiftT, true
 	default:
 		return workbenchshortcut.ChordUnknown, false
 	}
@@ -240,7 +242,7 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
-	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab:
+	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab, workbenchshortcut.ActionTerminalNewTab:
 		chord, ok := workbenchshortcut.TabChordFor(decision.Action)
 		if !ok {
 			return nil
@@ -599,7 +601,13 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 
 func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime) bool {
 	switch chord {
-	case workbenchshortcut.ChordAltT:
+	case workbenchshortcut.ChordAltT, workbenchshortcut.ChordAltShiftT:
+		// ChordAltShiftT is the from-anywhere new-tab (#243), delivered here as
+		// a global that #227 never passes through, so a full-screen child cannot
+		// eat it. Same action as the local ChordAltT (ARCH-DRY). newTab's error
+		// is discarded as at the local ChordAltT: a failed spawn surfaces on the
+		// child's own EOF path, and reporting it here posts into the writer loop
+		// a test driving handleTerminalChord directly has not started.
 		_ = mux.newTab()
 		return true
 	case workbenchshortcut.ChordAltW:
