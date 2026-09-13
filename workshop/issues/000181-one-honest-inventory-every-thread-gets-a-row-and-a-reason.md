@@ -324,3 +324,10 @@ Delta:
 - Filed to hold one design across pair#168, #171, #179 and #180 after the
   operator named the rule: everything in the directory is displayed, and
   whatever cannot be displayed is archived rather than dropped.
+
+### 2026-09-13 — publish validation exception
+
+Issue validation passes. Publish uses `--no-validate` only because the existing
+Couch project lacks `deadline` and `planned_finish`, already tracked by #189.
+This administrative closure does not invent a project schedule to satisfy that
+unrelated pre-existing failure. Diff whitespace validation passes.
