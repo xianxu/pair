@@ -45,7 +45,7 @@ each survives #227's passthrough and pair term always acts on it:
   fix), and a new `ActionTerminalNewTab` -> `ChordAltShiftT`.
 - New chord `ChordAltShiftT` (`ESC T`, `ESC[84;4u`), action
   `ActionTerminalNewTab`, and a `globalBindings` row: `ChordAltShiftT` ->
-  `PairTermNewTab`, `<S-M-t>`, `HandledInPane`. The nvim keymap
+  `PairTermNewTab`, `<M-T>`, `HandledInPane`. The nvim keymap
   (`workbench_actions.lua`) is REGENERATED from `globalBindings`.
 - pair term's `handleTerminalChord` gains `ChordAltShiftT` -> `newTab`.
 - The agent pane (`wrapcmd`) and the CLI (`RunSwitchTerminalTab`, `new`
