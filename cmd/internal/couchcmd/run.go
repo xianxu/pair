@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -100,6 +101,25 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		return nil, err
 	}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
+	renderer, _ := exec.LookPath("pair")
+	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
+	c.SwitchLaunchCheck = func(agent string) error {
+		if !launcher.IsSupportedAgent(agent) {
+			return fmt.Errorf("switch-agent: unsupported agent %q", agent)
+		}
+		for _, executable := range []string{"pair", agent} {
+			if _, err := exec.LookPath(executable); err != nil {
+				return fmt.Errorf("switch-agent: required executable %s is unavailable: %w", executable, err)
+			}
+		}
+		return nil
+	}
+	if sessions, ok := c.Artifacts.(couchcore.PairSessionIO); ok {
+		status := couchcore.OSOrientationStatusReader{DataDir: dataDir, Session: sessions.PairSession, Proc: c.Proc}
+		c.OrientationStatus = status.Read
+		c.FreshRegistration = status.Registered
+	}
+
 	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
 		scopeDir := launcher.ScopedLaunchDataDir(dataDir, repoRoot)
 		raw, err := os.ReadFile(launcher.AgentDefaultPath(scopeDir, agent))

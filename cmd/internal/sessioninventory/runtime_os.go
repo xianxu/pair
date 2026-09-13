@@ -313,3 +313,9 @@ func (b *boundedBuffer) Write(content []byte) (int, error) {
 func (b *boundedBuffer) Bytes() []byte { return b.buffer.Bytes() }
 
 func (b *boundedBuffer) String() string { return b.buffer.String() }
+
+// ResolveArtifactPath exposes the same root and symlink authorization used by
+// artifact reads for consumers that pass a transcript reference to another tool.
+func (r OSRuntime) ResolveArtifactPath(artifact Artifact) (string, error) {
+	return r.resolveArtifact(artifact)
+}
