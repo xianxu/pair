@@ -22,10 +22,12 @@ record in the store is layout3 —
       7 × "layout": "layout3"     (tools, parley.nvim, pair, arc-agi-3, brain, astro, ariadne)
       0 × pre-#198 (no field)
 
-— so the default is the one thing nobody uses, and forgetting the flag is the
-failure mode: with one layout per couch process and a startup guard that
-refuses to mix, a flagless `couch` next to seven layout3 threads refuses to
-start (`atlas/couch.md:1075-1083`).
+— so the default is the one thing nobody uses. The operator has not hit a
+failure here; the ask is simply that the default match how couch is used, so
+`couch` means the workbench that is actually run. (A consequence worth
+knowing, not the motivation: with one layout per couch process and a startup
+guard that refuses to mix, a flagless `couch` next to layout3 threads refuses
+to start — `atlas/couch.md:1075-1083`.)
 
 The reasons layout2 was the default are recorded and gone: the 2026-08-22 pin
 ("couch owns terminal switching, so layout3's third pane is the layer couch
@@ -84,7 +86,9 @@ Out of scope: per-thread layouts (a couch process has one layout by design,
 
 ### 2026-09-13
 
-- Filed from the brain advisor session on the operator's request. Migration
+- Filed from the brain advisor session on the operator's request — a default
+  that matches usage, not a failure report; the first draft framed it as
+  "forgetting the flag", which the operator corrected. Migration
   cost measured, not assumed: all 7 thread records on the operator's machine
   are layout3, none pre-#198, so the flip changes nothing for existing
   threads here. The pre-#198 normalization is the one place a careless flip
