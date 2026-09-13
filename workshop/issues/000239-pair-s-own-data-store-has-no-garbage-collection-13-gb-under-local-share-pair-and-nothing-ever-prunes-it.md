@@ -118,3 +118,54 @@ files; scrollback 1.003 / 130; parked-scrollback 0.682 / 300; ledger 0.086 /
 8.547 GiB. These figures replace the old sizing baseline, not the proposed
 policies. Consumer/lifecycle audit is in progress; protection of drafts and
 threads versus age-based expiry is the first operator decision pending.
+
+## Revisions
+
+### 2026-09-13 — approved feature policy
+
+Reason: settle feature scope with the operator before implementation. This
+revision supersedes the speculative retention rules in the original Spec and
+its derived Done-when/Plan wherever they disagree. The operator approved this
+policy and said to proceed.
+
+- Couch and standalone Pair have different retention authorities. A thread
+  still accessible in Couch's switcher, including a parked thread, protects
+  its associated Pair data indefinitely. Background visibility is protection,
+  not an access-timestamp update.
+- Standalone Pair session data is eligible after 60 days without meaningful
+  use. Saved drafts, sent prompt history, queues, scrollback and recovery
+  records are within that policy; the earlier tentative keep-forever rule
+  was explicitly replaced in discussion.
+- Archiving a Couch thread removes switcher protection and explicitly starts
+  a fresh 60-day grace. Later meaningful use refreshes it. File-move times
+  do not define the policy.
+- Meaningful use includes a selected open/resume, viewing session history or
+  scrollback through Pair, and a meaningful content write. It is not merely
+  last write or filesystem atime. Background inventory, passive redraws,
+  polling, diagnostics, and unchanged autosaves do not refresh it.
+- Retain data being used by a live session or reader. Unknown liveness,
+  uncertain ownership, malformed retention state, or incomplete inventory
+  must prevent collection rather than imply expiry.
+- Scope is Pair-owned storage and Couch's archived records. Agent-native
+  conversation stores and repository working files are outside this GC.
+
+### 2026-09-13 — source corrections and implementation proposals
+
+The consumer audit corrected initial assumptions: live raw scrollback is an
+unbounded append stream, not a ring; raw/event files are paired by byte
+offsets. Both raw scrollback and wrapper diagnostics truncate at wrapper
+startup, but can grow within an incarnation. A resumed park capture can still
+be consumed by an incoming agent, so resume alone is not a disposal event.
+History discovery reads drafts/logs/ledgers independently of Couch records;
+absence from Couch alone does not prove orphanhood. The artifact manifest
+enumerates tag-bearing vocabulary, not every physical data-directory entry.
+
+Proposals for the implementation plan, distinguished from the agreed policy:
+existing data without explicit use metadata gets a full 60-day onboarding
+grace; preview is read-only; applied/on-startup GC initializes missing
+metadata. Managed open/view paths refresh use, while arbitrary external file
+reads cannot be observed. A bounded daily opportunistic sweep plus explicit
+preview/apply commands will implement expiry. Writer size caps from the
+original sketch are deferred: deleting history inside its approved 60-day
+window requires a separate policy, and this work promises retention, not a
+global disk-space ceiling.
