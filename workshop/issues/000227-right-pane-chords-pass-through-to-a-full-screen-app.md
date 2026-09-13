@@ -136,6 +136,8 @@ from input to disposition today, and keeping it pure keeps it table-testable
 - `atlas/` records the rule, and `pair keys` / help reflects that right-pane chords are
   conditional.
 
+Durable plan: `workshop/plans/000227-right-pane-chords-pass-through-to-a-full-screen-app-plan.md`.
+
 ## Plan
 
 - [ ] Add alt-screen state (from `RepaintModes()`) to `ShortcutInput`; populate it in
