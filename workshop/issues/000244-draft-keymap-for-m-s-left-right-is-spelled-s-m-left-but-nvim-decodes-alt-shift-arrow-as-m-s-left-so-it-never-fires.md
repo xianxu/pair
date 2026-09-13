@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-13
-estimate_hours:
+estimate_hours: 0.35
 started: 2026-09-13T11:29:36-07:00
 ---
 
@@ -61,6 +61,20 @@ on the bytes the terminal sends.
 - [ ] Regenerate the embedded bundle; `TestEmbeddedSourcesMatchTree` green
 - [ ] Probe: a bare nvim fires the GENERATED keymaps on the Alt+Shift+arrow bytes
 - [ ] Full make test; live check from the draft
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Diagnosed spelling fix + a verifying probe.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module  design=0.02 impl=0.10
+item: lua-neovim         design=0.02 impl=0.10
+item: milestone-review   design=0.00 impl=0.10
+design-buffer: 0.15
+total: 0.35
+```
 
 ## Log
 
