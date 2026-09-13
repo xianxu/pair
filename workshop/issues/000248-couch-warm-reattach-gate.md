@@ -84,3 +84,47 @@ switcher screenshot. Evidence lives under
 scrollback, and `~/.local/share/pair/couch/threadstore/records/434128d5ad68b26e/`.
 These are historical observations; recheck process identities before any repair.
 No implementation started.
+
+Follow-up on disconnection cause: all eight current thread records have
+LastActiveAt between 16:13:54.437 and 16:13:55.184 on 2026-09-13, with Tools at
+16:13:54.549. The other seven have new live incarnations started 16:14:04.968
+through 16:14:07.794; Tools alone has none. The current supervisor-owner records
+PID 5316 with process identity corresponding to 16:14:04.532. This strongly
+supports a Couch-wide detach/restart followed by reattachment of every thread
+except Tools, rather than an isolated Tools agent crash. Detach updates
+LastActiveAt through RetireIncarnation; its agent and Zellij server survive.
+The evidence does not identify what initiated the Couch exit/restart.
+
+## Revisions
+
+### 2026-09-13T16:52:14-07:00 — Clarify native binding and warm-attachment limits
+
+Operator requested preserving the explanation and constraints after confirming
+that warm attachment should be offered. This supplements the Spec above.
+
+A native binding is Pair's verified association between its thread and the
+agent's own conversation ID/transcript. For a fresh launch, Pair normally
+establishes it by uniquely matching a submitted operator prompt and subsequent
+agent progress. Opening the agent alone is insufficient. An explicitly
+authorized native resume can establish the binding at launch instead; see
+`atlas/session-identity.md` for the scanner/authorization contract.
+
+Warm reattachment uses the surviving terminal session, not the transcript.
+Removing the native-binding gate must retain these constraints:
+
+- Prove exact, unambiguous ownership of the live detached Zellij session and
+  that it has no attached client. Missing transcript evidence does not waive
+  session ownership or liveness checks.
+- Recheck at execution. If the session dies or becomes occupied after the
+  inventory snapshot, refuse visibly; never fall back to starting a fresh
+  agent or conversation under a warm-attachment action.
+- Successful attachment does not establish or repair the native binding.
+  Restarting the agent or recovering its conversation after process death
+  still requires an established binding on the cold-resume path.
+- Transcript-dependent features may remain unavailable until Pair establishes
+  the binding through its normal evidence flow. Present warm attachment as
+  restoration of access to the running session, not proof of durable recovery.
+
+Regression coverage must demonstrate both successful warm attachment without a
+binding and preservation of these limits, including no fabricated binding and
+no fresh-agent launch after the surviving session disappears.
