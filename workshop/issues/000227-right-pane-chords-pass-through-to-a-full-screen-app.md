@@ -218,3 +218,19 @@ fixes `<M-t>` and the eleven other right-pane chords at once with no moves. The
 alt-screen definition turned out to be already implemented with the `#196` tri-state,
 because `#209` needed it — so the observed/unknown distinction the design depends on
 exists and is enforced as a locked pair.
+
+### 2026-09-13 (close)
+
+- **Live verification (BR-4).** `probes/escsmoke` drives a real `pair term`
+  under a pty with a real `nvim --clean` (which enters the alt screen) and asks
+  nvim over its RPC socket. On this build: "Alt+j passes through to the
+  full-screen nvim (cursor moves down)" PASSES and "Alt+k does NOT pass through
+  (cursor unmoved)" PASSES — the mechanism works with a real editor. On an
+  origin/main control build (no #227) the Alt+j step FAILS (cursor stays on
+  line 1, Alt+j swallowed) — the delta. The operator's in-workbench parley
+  check (`M-t` opens parley's outline; `M-k` returns to the agent; `M-t` at a
+  shell still opens a tab) is the one remaining manual step, unticked because
+  it needs the running workbench.
+- BR-2: the `pair keys` terminal heading now names the two exceptions
+  (`Alt+k`, `Shift+Alt+←/→`) rather than claiming universal passthrough.
+- BR-3: README's layout-3 section now describes the conditional passthrough.
