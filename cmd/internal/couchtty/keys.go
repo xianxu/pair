@@ -9,7 +9,6 @@ package couchtty
 
 import (
 	"bytes"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -43,10 +42,6 @@ const previousByte = 0x08
 // Named because two sites need the same bytes: the knownSequences row, and the
 // panel arm of onNewestPageHotkey, which hands them to the panel's decoder.
 const newestPageSequence = "\x1b[13;5u"
-
-// escapeAmbiguity is the one deadline used by both terminal-input framers to
-// distinguish an ESC key from the first byte of a split escape sequence.
-const escapeAmbiguity = 35 * time.Millisecond
 
 type seqKind uint8
 

@@ -4651,3 +4651,16 @@ they differ.
 When a flake predates your change, still find its mechanism before calling it
 someone else's. The mechanism decides whether the bug is in the product or in
 the test.
+
+## A mechanical rename is not done until the old name greps to zero
+
+#234's plan promised to rename `RenameTimer` → `EscapeTimer`. The sed used
+`\bRenameTimer\b`; BSD sed has no `\b`, so the interface kept its name while
+the concrete types (which matched other patterns) moved, and the build stayed
+green because nothing referenced the new interface name. The close review
+caught the plan, the atlas and the code disagreeing about a symbol's name.
+
+**Rule.** After any scripted rename, grep the tree for the OLD identifier and
+require zero hits before moving on — the build passing proves nothing when the
+old name is still self-consistent. On macOS, write `[[:<:]]`/`[[:>:]]` or use
+`perl -pe 's/\bOld\b/New/g'`, never `\b` in sed.

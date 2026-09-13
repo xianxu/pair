@@ -351,34 +351,40 @@ type ptyWriter interface {
 	reportError(error)
 }
 
-type RenameTimer interface {
+// EscapeTimer is the stdin pump's one escape-ambiguity deadline. Whoever owns
+// the pending bytes owns the timer: a rename session arms it for a lone
+// pending ESC (expiry cancels the rename); the plain path arms it for any
+// held chord/mouse prefix (expiry forwards the prefix to the child). The two
+// owners are exclusive — held is drained before a read is processed and a
+// read that begins a rename never refills it — so one timer serves both (#234).
+type EscapeTimer interface {
 	C() <-chan time.Time
 	Reset(time.Duration)
 	StopAndDrain()
 }
 
-type realRenameTimer struct {
+type realEscapeTimer struct {
 	timer *time.Timer
 }
 
-func newRealRenameTimer() *realRenameTimer {
+func newRealEscapeTimer() *realEscapeTimer {
 	timer := time.NewTimer(time.Hour)
 	if !timer.Stop() {
 		<-timer.C
 	}
-	return &realRenameTimer{timer: timer}
+	return &realEscapeTimer{timer: timer}
 }
 
-func (t *realRenameTimer) C() <-chan time.Time {
+func (t *realEscapeTimer) C() <-chan time.Time {
 	return t.timer.C
 }
 
-func (t *realRenameTimer) Reset(after time.Duration) {
+func (t *realEscapeTimer) Reset(after time.Duration) {
 	t.StopAndDrain()
 	t.timer.Reset(after)
 }
 
-func (t *realRenameTimer) StopAndDrain() {
+func (t *realEscapeTimer) StopAndDrain() {
 	if !t.timer.Stop() {
 		select {
 		case <-t.timer.C:
@@ -399,10 +405,10 @@ type renameSession struct {
 }
 
 func pumpStdin(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer) {
-	pumpStdinWithTimer(stdin, mux, rt, stdout, newRealRenameTimer())
+	pumpStdinWithTimer(stdin, mux, rt, stdout, newRealEscapeTimer())
 }
 
-func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer RenameTimer) {
+func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Writer, timer EscapeTimer) {
 	results := make(chan stdinResult, 1)
 	go func() {
 		buf := make([]byte, 4096)
@@ -451,7 +457,7 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 			return
 		}
 		if len(rename.decoder.Pending) == 1 && rename.decoder.Pending[0] == 0x1b {
-			timer.Reset(50 * time.Millisecond)
+			timer.Reset(workbenchshortcut.EscapeAmbiguity)
 		} else {
 			timer.StopAndDrain()
 		}
@@ -460,7 +466,15 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 	for {
 		select {
 		case <-timer.C():
-			applyRename(nil, true, false)
+			if rename != nil {
+				applyRename(nil, true, false)
+			} else if len(held) > 0 {
+				// The deadline passed with a chord/mouse prefix still pending:
+				// it was a keystroke (a bare ESC, most often), not the head of
+				// a chord. Before #234 nothing released it until the NEXT read.
+				mux.writeActive(held)
+				held = nil
+			}
 		case result := <-results:
 			if len(result.data) > 0 {
 				if rename != nil {
@@ -543,6 +557,17 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 					}
 					mux.writeActive(data)
 					data = nil
+				}
+				// Tail of the plain handler: arm for whatever is still pending,
+				// stop otherwise (draining a tick that fired while this read was
+				// processed). Skipped when this read began a rename — applyRename
+				// owns the timer from then on.
+				if rename == nil {
+					if len(held) > 0 {
+						timer.Reset(workbenchshortcut.EscapeAmbiguity)
+					} else {
+						timer.StopAndDrain()
+					}
 				}
 			}
 			if result.err != nil {
