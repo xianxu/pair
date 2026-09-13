@@ -4,10 +4,10 @@ name: "couch-slots"
 goal: "Let one repo host several concurrent couch threads — a small, rigid set of numbered worktree slots per work repo, co-tenancy for brain — without the two-agents-in-one-repo gaps that today's tooling tolerates only because they are rare."
 done_when: "The operator runs two threads in pair (primary + slot1) through a full issue lifecycle each — claim, plan, change-code, close, merge — in parallel, with no silent double-claim, no multi-minute stall on issue new, slot1's tree intact and reset after merge, and both threads distinguishable in the status row and switcher; and brain admits a second thread at its primary path."
 status: defined
-mvp_scope: [ariadne#223, ariadne#222, ariadne#214, pair#197]
+mvp_scope: [ariadne#223, ariadne#222, ariadne#214, pair#197, pair#236]
 explicitly_out: [pair#153]
 created: 2026-09-11
-updated: 2026-09-11
+updated: 2026-09-12
 sources: [brain/workshop/pensive/2026-09-11-01-pensive-couch-slots.md, pair/workshop/projects/couch.md, pair/workshop/history/issues/000153-couch-managed-worktree-lifecycle.md]
 ---
 
@@ -150,6 +150,7 @@ Issues for tasks without a ref are filed when the project moves to
 - [ ] measure slot start: worktree add + peer symlink + weave compile
 - [ ] survey parked-thread trees: how many are dirty today, and with what
 - [ ] one label derivation for status row and switcher: `pair :1 :2` [pair#197]
+- [ ] one thread order for switcher and status row: repo load order, groups, Alt+Up/Down, projection [pair#236]
 - [ ] couch reads `.sdlc/fleet.json` again: bounded / unbounded / offer-slot [ariadne#214]
 - [ ] the slot offer at the refusal site: resume the slot's parked thread first, else provision the lowest free slot (v0 prints the commands)
 - [ ] AGENTS.md: the ownership rule, and how an agent learns which tree it is in
