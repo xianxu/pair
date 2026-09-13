@@ -144,3 +144,76 @@ findings:
    - **ARCH-FUNERAL — pass:** Orientation reuses existing artifact lifecycles and bounded watcher ownership.
 
 7. **Plan revision recommendation:** Append a `## Revisions` entry defining the retry-history lookup bound, cancellation behavior, and sparse-history regression evidence.
+
+---
+
+## Re-review — 2026-09-13T14:21:57-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 184 — couch: switch a thread's agent |
+| repo | pair |
+| issue file | workshop/issues/000184-couch-switch-thread-agent.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 065929e5b5f744802881ae25bd927fcc37c98fb4..2f2f3dbbd8d78c7646d1b90081592ab962e0d305 |
+| command | sdlc close --issue 184 |
+| reviewer | codex |
+| timestamp | 2026-09-13T14:21:57-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation matches the revised switch-agent contract. BR-3 is addressed with bounded, cancellation-aware recovery and regression tests that fail against the previous implementation. No new blocking findings emerged. README, atlas, and plan revisions cover the delivered surface.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      store.go:188-223 limits prior-completion reads to 32 and checks cancellation before further reads or cleanup. Sparse-counter and cancellation regressions pass at HEAD and fail using the parent store.go through a scratch Go overlay. Lifecycle race tests pass.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained prior disposition. Pending submission survives solicited terminal replies; scheduler regression coverage remains present and the wrapper suite passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained prior disposition. Full-chain acceptance includes owned live-source cleanup, exact archive transfer, verified park, and delivery through launcher/layout/wrapper; acceptance passes.
+```
+
+1. **Strengths**
+   - Retry recovery preserves validated archive identity while bounding work independently of persisted counters (`cmd/internal/pairlifecycle/store.go:188`).
+   - Fresh launch registration correlates the new nonce with readiness before committing preferences; uncertain ownership preserves competing sessions.
+   - Structured argv survives the layout/wrapper boundary, including empty arguments and shell metacharacters.
+   - Acceptance verifies preservation of draft, queue, prompt history, and exact outgoing archive bytes.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Uncached suites passed: pairlifecycle, couchcore, couchtty, couchcmd, launcher, orientation, readiness, threadrecord, and wrapcmd.
+   - Lifecycle race suite passed.
+   - BR-3 mutation check: both sparse-counter cases and all six cancellation cases failed with the previous `store.go`.
+   - Pinned-range `git diff --check` passed.
+   - Live harness conformance was not repeated during this read-only review.
+
+6. **Architectural notes**
+   - **ARCH-DRY — pass:** Reuses lifecycle, registration, inventory, and artifact-path authorities.
+   - **ARCH-PURE — pass:** Parameter parsing, prompt construction, and delivery transitions have direct pure tests.
+   - **ARCH-PURPOSE — pass:** Covers fresh switching, exact outgoing context, and successful live-source composition.
+   - **ARCH-MOCK — pass:** Stateful lifecycle/runtime fakes and recorded terminal fixtures exercise production seams.
+   - **ARCH-CONSTRAINTS — pass:** Recovery reads, prompt size, native lookup, and orientation watching have explicit bounds.
+   - **ARCH-SECURE — pass:** Structured argv, strict decoding, scoped artifact tokens, and readiness identity checks preserve trust boundaries.
+   - **ARCH-ORDER — pass:** Revision checks, serialized input, sticky cancellation, and pending-timer preservation cover consequential orderings.
+   - **ARCH-FUNERAL — pass:** Orientation remains launch-scoped; existing readiness and archive lifecycles carry the added metadata.
+
+7. **Plan revision recommendations:** None required. Existing revisions reconcile renamed concepts and implementation responsibilities.

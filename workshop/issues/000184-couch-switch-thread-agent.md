@@ -1,12 +1,13 @@
 ---
 id: 000184
-status: working
+status: codecomplete
 deps: [pair#182]
 github_issue:
 created: 2026-09-04
 updated: 2026-09-13
 estimate_hours: 6.65
 started: 2026-09-13T12:04:32-07:00
+actual_hours: 6.03
 ---
 
 # couch: switch a thread's agent
@@ -282,6 +283,7 @@ while filing: `couchcore/launchprofile.go` (agent/argv independent axes),
 cold).
 
 ### 2026-09-13 — Feature discussion and implementation plan
+- 2026-09-13: closed — Operator accepted live smoke: parameter cursor edits, corrected Codex startup, Claude/Agy switching and Copy orientation prompt recovery. Full make test and go test ./... passed before final fixes; final affected package integration and wrapper/lifecycle race suites passed after fixes. Owned live-source acceptance traverses real cleanup/archive metadata through actual launcher/layout/wrapper delivery and preserves draft/log/queue. BR1 simultaneous terminal reply scheduler, BR2 live lifecycle composition and BR3 huge sparse retry counters/cancellation regressions pass. Four-agent disposable live conformance completed. make build and git diff main --check pass; README, atlas, plan and lessons updated.; review verdict: SHIP
 
 Claimed the issue and ran `sdlc start-plan`. Operator decisions are captured in
 the revisions below. The current durable implementation plan is

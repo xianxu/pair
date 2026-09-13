@@ -40,6 +40,23 @@ rounds:
           family: persisted-counters-bound-work
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-13T14:21:57-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: store.go:188-223 limits prior-completion reads to 32 and checks cancellation before further reads or cleanup. Sparse-counter and cancellation regressions pass at HEAD and fail using the parent store.go through a scratch Go overlay. Lifecycle race tests pass.
+          round: 3
+        - id: BR-1
+          disposition: addressed
+          note: Retained prior disposition. Pending submission survives solicited terminal replies; scheduler regression coverage remains present and the wrapper suite passes.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Retained prior disposition. Full-chain acceptance includes owned live-source cleanup, exact archive transfer, verified park, and delivery through launcher/layout/wrapper; acceptance passes.
+          round: 3
+      blocked: false
 ---
 
 # Gate ledger — pair#184 (boundary-review)
@@ -68,6 +85,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `persisted-counters-bound-work` Retry-history lookup is unbounded and ignores cancellation
   cmd/internal/pairlifecycle/store.go:174 scans every integer below the persisted attempt while holding the cleanup lock; missing files continue the scan without checking context. Any positive attempt is accepted. A bounded scratch test with attempt 1000000000 confirmed ten reads after cancellation before an injected error stopped it. Bound history discovery independently of the numeric counter, honor cancellation throughout, and add sparse-history/cancellation regressions (ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-ORDER).
 
+## Round 3 — 2026-09-13T14:21:57-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — store.go:188-223 limits prior-completion reads to 32 and checks cancellation before further reads or cleanup. Sparse-counter and cancellation regressions pass at HEAD and fail using the parent store.go through a scratch Go overlay. Lifecycle race tests pass.
+- BR-1 — addressed — Retained prior disposition. Pending submission survives solicited terminal replies; scheduler regression coverage remains present and the wrapper suite passes.
+- BR-2 — addressed — Retained prior disposition. Full-chain acceptance includes owned live-source cleanup, exact archive transfer, verified park, and delivery through launcher/layout/wrapper; acceptance passes.
+
 ## Open findings
 
-- **BR-3** [Important] `persisted-counters-bound-work` Retry-history lookup is unbounded and ignores cancellation
+(none — every finding has been disposed)
