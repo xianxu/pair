@@ -1,8 +1,13 @@
 package couchtty
 
+import "github.com/xianxu/pair/cmd/internal/couchcore"
+
 // PreviewRequest is one immutable start-form generation submitted to the
 // asynchronous owner boundary.
 type PreviewRequest struct {
+	SwitchAddress couchcore.ThreadAddress
+	SwitchArgv    string
+
 	Generation uint64
 	Path       string
 	Agent      string

@@ -442,6 +442,16 @@ how you quit: everything keeps running, you land back in your shell, and a later
 `couch` reattaches. `Alt+x` there parks every live thread first, behind a
 confirmation that names how many agents it stops. Confirmation follows the key,
 not the surface — park is confirmed at both scopes and detach at neither.
+In a live or verified parked thread's actions, **switch coding agent** opens the coding
+agent switch form. Choose an agent, edit its prefilled startup parameters (an
+empty value is allowed), then review the source and target and select **Switch**
+or **Cancel**. Switching keeps the thread and working path, launches a fresh
+conversation, and asks the new agent to read the outgoing context and summarize
+its orientation. The switcher stays open. If orientation delivery fails, the
+thread's **Copy orientation prompt** action requests clipboard copy without changing the
+draft; terminal clipboard support is required. Inspect any existing composer
+text before pasting or submitting again.
+
 The status row and the switcher are **clickable**: a click on an actor's chip, or
 anywhere in its rows in the switcher, switches to it, and empty space does
 nothing. A click is always a manual switch, so `Ctrl-Backspace` undoes it even

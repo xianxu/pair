@@ -157,6 +157,8 @@ type Console struct {
 	refreshRequests    chan struct{}
 	refreshResults     chan menuRefreshResult
 	refreshSchedule    RefreshSchedule
+	orientationResults chan orientationWatchResult
+	orientationWatches map[couchcore.ThreadAddress]orientationWatch
 	previewResults     chan menuPreviewResult
 	previewSchedule    PreviewSchedule
 	previewCancel      context.CancelFunc
@@ -185,25 +187,26 @@ func (c *Console) errw() io.Writer {
 func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
-		host:              host,
-		stdin:             stdin,
-		panes:             map[string]*pane{},
-		chunks:            make(chan chunk, 256),
-		resized:           make(chan struct{}, 1),
-		switching:         make(chan string, 8),
-		input:             make(chan []byte, 64),
-		exited:            make(chan childExit, 64),
-		operationQueue:    newOperationQueue(16),
-		refreshRequests:   make(chan struct{}, 1),
-		refreshResults:    make(chan menuRefreshResult, 1),
-		previewResults:    make(chan menuPreviewResult, 1),
-		directoryReader:   OSDirectoryBatchReader{},
-		completionResults: make(chan menuCompletionResult, 1),
-		expectedExits:     map[string]bool{},
-		lifetime:          lifetime,
-		cancelLifetime:    cancelLifetime,
-		stop:              make(chan struct{}),
-		feed:              NewFeed(8, time.Now, NoticeLifetime),
+		host:               host,
+		stdin:              stdin,
+		panes:              map[string]*pane{},
+		chunks:             make(chan chunk, 256),
+		resized:            make(chan struct{}, 1),
+		switching:          make(chan string, 8),
+		input:              make(chan []byte, 64),
+		exited:             make(chan childExit, 64),
+		operationQueue:     newOperationQueue(16),
+		refreshRequests:    make(chan struct{}, 1),
+		refreshResults:     make(chan menuRefreshResult, 1),
+		orientationResults: make(chan orientationWatchResult, 8),
+		previewResults:     make(chan menuPreviewResult, 1),
+		directoryReader:    OSDirectoryBatchReader{},
+		completionResults:  make(chan menuCompletionResult, 1),
+		expectedExits:      map[string]bool{},
+		lifetime:           lifetime,
+		cancelLifetime:     cancelLifetime,
+		stop:               make(chan struct{}),
+		feed:               NewFeed(8, time.Now, NoticeLifetime),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -864,6 +867,8 @@ func (c *Console) Run() int {
 			c.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshRequested})
 		case result := <-c.refreshResults:
 			c.finishMenuRefresh(result)
+		case result := <-c.orientationResults:
+			c.finishOrientation(result)
 		case result := <-c.previewResults:
 			c.finishMenuPreview(result)
 		case result := <-c.completionResults:
@@ -1797,6 +1802,15 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
+	if effect.Operation == "switch-agent" {
+		if previous, ok := c.orientationWatches[origin.Address]; ok {
+			previous.cancel()
+			delete(c.orientationWatches, origin.Address)
+		}
+		delete(c.menu.Orientation, origin.Address)
+		origin.PanelOrigin = c.focus.IsPanel()
+		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
+	}
 	if origin.Operation == "switch" && origin.AttentionCapture == 0 && !origin.Manual {
 		origin.AttentionCapture = c.attention.Capture(origin.Address)
 		c.menu.InFlight.AttentionCapture = origin.AttentionCapture
@@ -1980,7 +1994,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 					err = errors.New("no action dispatcher wired")
 				} else {
 					args := map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)}
-					if completed.origin.Background {
+					if completed.origin.Background || completed.origin.Operation == "switch-agent" && completed.origin.PanelOrigin {
 						// The reattach pass's child is adopted without taking
 						// focus (pair#206); only the declared arg carries that
 						// across the operation table to the installer.
@@ -2068,6 +2082,14 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false
+	}
+	if result, ok := completed.value.(couchcore.SwitchAgentResult); ok && err == nil {
+		if result.Warning != "" {
+			c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: result.Warning})
+		}
+		if result.Orientation != nil {
+			c.watchOrientation(address, startedHandleID, *result.Orientation)
+		}
 	}
 	c.requestMenuRefresh()
 	if panelFocused {

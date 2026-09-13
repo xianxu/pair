@@ -235,6 +235,11 @@ func menuCursorIntent(frame MenuFrame, lines []string, width int) *MenuCursorInt
 			return nil
 		}
 		prefix = "filter: "
+	case MenuFrameSwitchAgent:
+		if frame.SwitchStage != 1 {
+			return nil
+		}
+		prefix = "▸ parameters  "
 	case MenuFrameText:
 		prefix = "> "
 	case MenuFrameStart:
@@ -262,6 +267,9 @@ func menuCursorIntent(frame MenuFrame, lines []string, width int) *MenuCursorInt
 func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	if frame.Kind == MenuFrameRoot {
 		return "threads"
+	}
+	if frame.Kind == MenuFrameSwitchAgent {
+		return "couch › switch coding agent"
 	}
 	if frame.Kind == MenuFrameStart {
 		return "start thread"
@@ -293,11 +301,13 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 // there mean something.
 func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now time.Time, color256 bool) ([]string, []ActorExtent) {
 	switch frame.Kind {
+	case MenuFrameSwitchAgent:
+		return renderSwitchAgentMenu(frame, width, height), nil
 	case MenuFrameRoot:
 		return renderRootMenuFrame(state, frame, width, height, now, color256)
 	case MenuFrameActions:
 		thread, _ := menuThread(state, frame.Thread)
-		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionItems(thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height), nil
+		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionsFor(state, thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height), nil
 	case MenuFrameConfirmation:
 		// The title argument is vestigial at every call site: RenderMenuView
 		// overwrites line 0 with the breadcrumb. What the operator reads is the

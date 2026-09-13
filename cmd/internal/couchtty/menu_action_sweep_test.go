@@ -47,7 +47,7 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 					// form. Anything else is the silent fall-through.
 					dispatched := len(effects) > 0 || next.InFlight.Operation != ""
 					descended := len(next.Frames) > len(state.Frames) &&
-						(next.CurrentFrame().Kind == MenuFrameConfirmation || next.CurrentFrame().Kind == MenuFrameText)
+						(next.CurrentFrame().Kind == MenuFrameConfirmation || next.CurrentFrame().Kind == MenuFrameText || next.CurrentFrame().Kind == MenuFrameSwitchAgent)
 					if !dispatched && !descended {
 						t.Fatalf("Enter on %q did nothing: frames %d→%d, notice %q",
 							action, len(state.Frames), len(next.Frames), next.Notice.Text)
@@ -55,7 +55,7 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 					// And what it did must match the DECLARATION, so the two
 					// cannot drift apart again.
 					if confirms, declared := couchcore.OperationConfirms(action); declared && confirms {
-						if next.CurrentFrame().Kind != MenuFrameConfirmation {
+						if next.CurrentFrame().Kind != MenuFrameConfirmation && next.CurrentFrame().Kind != MenuFrameSwitchAgent {
 							t.Errorf("%q declares ConfirmRequired but Enter did not confirm: %v",
 								action, next.CurrentFrame().Kind)
 						}
