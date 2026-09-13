@@ -1,11 +1,12 @@
 ---
 id: 000239
-status: open
+status: working
 deps: [ariadne#224]
 github_issue:
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-13
 estimate_hours:
+started: 2026-09-13T16:20:21-07:00
 ---
 
 # Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it
