@@ -1,11 +1,12 @@
 ---
 id: 000227
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-10
-updated: 2026-09-10
+updated: 2026-09-13
 estimate_hours:
+started: 2026-09-13T09:18:29-07:00
 ---
 
 # right-pane chords pass through to a full-screen app
