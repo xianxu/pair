@@ -290,3 +290,46 @@ a one-click bypass of parameter review.
 Planning still needs to establish the exact log artifact and its lifetime,
 target readiness and prompt delivery, and behavior when context artifacts are
 unavailable. These are not reasons to reintroduce a dependency on source health.
+
+### 2026-09-13 — Approved feature contract and current-code corrections
+
+Reason: operator approved the feature summary and missing-log recovery rule.
+Source inspection also found that two assumptions in the original issue have
+been superseded by subsequent work. This is the current contract for planning;
+earlier conflicting prose and Plan steps are historical.
+
+1. Offer an explicit switch-agent action on a selected live or verified parked
+   thread. A detached/ambiguous owner must first be resolved through the existing
+   attach/recovery flow; never take over an unverified foreign live owner.
+2. Select a supported agent, then always review editable startup parameters.
+   Prefill from that agent's existing path preference, otherwise its repository
+   defaults. Canceling either screen leaves the thread and preferences unchanged.
+   The final submit names the source and target and explains that this starts a
+   fresh conversation; it is the confirmation before destructive work.
+3. Revalidate the accepted target, parameters, path, ownership, and launch
+   prerequisites before parking. Park an owned live source and observe its exit;
+   an already verified parked source needs no second park. Start a fresh target
+   on the existing address, with the same tag-owned data. No target native binding
+   is required, even when switching back to a previously used agent.
+4. After successful launch, update the existing shared path preference for the
+   default agent and that agent's parameters. Other agents' parameters remain.
+5. Automatically submit a prepared orientation prompt to the fresh target. Name
+   the outgoing agent/session and exact available source artifacts. Prefer the
+   readable Pair TTY scrollback (includes replies); the shared sent-prompt log
+   and native transcript are supporting context. Request a summary of objective,
+   progress, decisions, and remaining work, then wait for operator direction.
+   Do not involve the source in preparing a continuation, mutate the existing
+   draft, consume the future queue, or label this generated prompt as operator
+   authored text. The operation does not wait for the model's summary to finish.
+6. Missing context artifacts are explicitly reported but do not block switching.
+   A preflight refusal parks nothing. Incomplete park uses existing park recovery.
+   Failed launch reports the actual parked/occupied state. Failed or uncertain
+   prompt delivery leaves the launched session usable with a manual recovery
+   instruction; never blindly resend an uncertain submission or relaunch again.
+7. Keep panel-origin actions on the panel and return actor-origin actions to
+   their replacement, using existing progress notices. A persistent holding
+   pane has NOT landed with #182; it belongs to open #186 and is not a dependency.
+8. Choosing the current agent in this explicit action uses the same fresh launch
+   and orientation flow. Do not remap Alt+Shift+N: it now invokes an agent-only
+   restart that promises to retain the running workbench, unlike this action.
+   This supersedes the absorbed #176 shortcut/subsystem assertion.
