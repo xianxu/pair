@@ -4677,3 +4677,20 @@ body. A global zero conflated two roots that happen to share a syscall.
 A "zero reads" oracle is only as precise as its scope; scope it to the
 storage root the claim names (`FakeRuntime.OperationCountForRoot`), so a
 legitimate read elsewhere does not masquerade as a regression.
+
+## Probe the whole mode family before closing a one-mode fix
+
+#240 reconciled a pane's MOUSE modes across a tab switch and its Spec claimed
+"the pane's modes equal the active child's." The close review widened the
+probe's regex from mouse-only to every DEC private mode and measured that
+focus reporting (`?1004`), bracketed paste (`?2004`), and cursor-key mode also
+leaked across the switch. The one-family fix was correct; the claim was too
+broad, and the siblings were invisible because the probe only looked for the
+one family being fixed.
+
+**Rule.** When a fix reconciles or filters ONE member of a terminal-mode
+family (a DEC private mode, an SGR attribute, a CSI class), point the probe at
+the WHOLE family — a regex over every mode in the class, not just the one you
+changed — before closing. Either handle the siblings or scope the Spec to the
+one you fixed and file the sweep. A probe that only asserts the mode you
+touched cannot see the ones you left behind.

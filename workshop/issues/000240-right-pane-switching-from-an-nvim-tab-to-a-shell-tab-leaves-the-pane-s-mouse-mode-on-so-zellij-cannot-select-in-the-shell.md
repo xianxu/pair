@@ -1,12 +1,13 @@
 ---
 id: 000240
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-12
 updated: 2026-09-12
 estimate_hours: 0.47
 started: 2026-09-12T19:05:00-07:00
+actual_hours: 1.47
 ---
 
 # right pane: switching from an nvim tab to a shell tab leaves the pane's mouse mode on, so zellij cannot select in the shell
@@ -142,6 +143,7 @@ total: 0.47
 ## Log
 
 ### 2026-09-12
+- 2026-09-12: closed — Mouse reconcile on takeover. Red on main then green: TestSwitchingTabsReconcilesThePanesMouseModesToTheIncomingChild, TestClosingATabReleasesTheDeadChildsMouseModes, TestMouseReconcileReachesEveryWantedStateFromEveryHeldState (full 8x8 product, ptychild.Screen as oracle), TestScreenMouseModesIsOneTrackingSlotPlusEncoding, TestPrivateModesFormatsOneDECSETOrDECRST. Full make test green incl the paint-gate consumer guard. LIVE: probes/mousemodesmoke on real pair term + nvim under a pty writes ?1002l ?1006l on Alt+t to the shell and ?1002h ?1006h back; control from main writes nothing there. Operator confirmed shell selection works after restart (logged, BR-2). SCOPE: narrowed to mouse modes (the reported symptom); the full pane-mode sweep (focus 1004, bracketed paste 2004, cursor-key mode) and the removeTab-rename-open path are filed as #241 per the review dispositions of BR-1/BR-3.; review verdict: SHIP
 
 - Filed from the operator's report. First ruled out today's #234 change
   (a drag through `pair term` reaches nvim live on both builds, mode `v`
