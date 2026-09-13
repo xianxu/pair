@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-10
 updated: 2026-09-13
-estimate_hours:
+estimate_hours: 0.75
 started: 2026-09-13T09:18:29-07:00
 ---
 
@@ -148,6 +148,28 @@ Durable plan: `workshop/plans/000227-right-pane-chords-pass-through-to-a-full-sc
 - [ ] Decide the escape chord; record it.
 - [ ] Update help text and `atlas/`.
 - [ ] Manual: parley `<M-t>` in right-pane nvim; `<M-t>` at the shell.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Design at ×0.2 (the plan resolves the gate, the predicate and the M-k exclusion); impl at 40% of v2; +15% buffer.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module  design=0.02 impl=0.08
+item: smaller-go-module  design=0.06 impl=0.16
+item: smaller-go-module  design=0.04 impl=0.16
+item: atlas-docs         design=0.02 impl=0.05
+item: milestone-review   design=0.00 impl=0.14
+design-buffer: 0.15
+total: 0.75
+```
+
+- `IsGlobalChord` + `RightTerminalChordPassesThrough` (pure) — 0.02 / 0.08
+- `activeChildOwnsScreen` + pump gate + `ptyWriter` method — 0.06 / 0.16
+- table test + 3 regressions + harness seam — 0.04 / 0.16
+- keyhelp heading + atlas — 0.02 / 0.05
+- close review — 0.00 / 0.14
 
 ## Log
 
