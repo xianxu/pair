@@ -160,3 +160,43 @@ so it wants a couch reattach test (a fresh `Screen` for a live child that held
 This resolves plan step 1 ("confirm the diagnosis") and step 2's fork leans
 toward the assert path, not the relaunch path: the relaunch/reattach is only
 the trigger; the defect is the unconditional assert.
+
+### 2026-09-12 — correction: the demotion is mid-session, not the startup assert
+
+The operator caught the hole: if a couch reattach FIXES the bad state, then
+couch startup cannot be what creates it — a reattach re-runs startup and would
+reproduce it. So the previous entry's "candidate minimal fix: drop the :564
+startup assert" is WRONG. Withdrawn.
+
+Corrected mechanism, from `paintNow` (`console.go:1224`) + `takeOverScreen`
+(`:1131`):
+
+- couch keeps its hands off the host mouse mode while it believes the child
+  (the `pair`/zellij actor) holds tracking: `couchMayOwnTheMouse()` =
+  `MouseObserved() && !Mouse()`. While zellij holds `?1002`, `Mouse()` is
+  true, so couch never asserts, and the host sits at `?1002` (zellij's own
+  DECSET, teed to the host). Motion works.
+- **Mid-session**, `hostScan` observes a mouse-OFF in the actor stream:
+  `Mouse()` flips to false with `MouseObserved()` still true, so
+  `couchMayOwnTheMouse()` becomes true and the NEXT `paintNow()` (every
+  status-row redraw) writes `EnableMouseClicks` = `?1000;1006h` to the host.
+  `?1000` REPLACES `?1002` (the modes are one mutually-exclusive slot, as the
+  :1213 comment already notes), so the host drops to click-only: press and
+  release, no motion. It sticks because every subsequent paint re-writes it.
+- **A reattach fixes it** because `takeOverScreen` replays the child's current
+  mode-bearing bytes (and/or a fresh zellij client re-emits `?1002h` on
+  attach), which raises `?1002` on the host again and flips `Mouse()` back to
+  true so couch stands down.
+
+So the defect is real and is #207's, but the trigger is a mid-session
+observation of mouse-OFF, and the standing bug is that couch SEIZES clicks-only
+and holds it with no path back until a fresh attach. What is NOT yet caught:
+**what emits the mouse-OFF that couch's `hostScan` sees.** Candidates: a pane
+app that enables then disables mouse on exit (the original #207 reproducer),
+zellij changing its own host mode on a focus/pane-state change, or — worth
+ruling out explicitly — `pair term`'s own `?1002l` reconcile from #240 if it
+reaches couch's stream (my zellij-relay probe says pane modes do NOT propagate
+up, so this should be ruled out, not assumed). Next step is instrumentation:
+log every mouse DECSET/DECRST couch writes to the host AND every one its
+`hostScan` observes, capture one real occurrence, and fix the exact trigger —
+not another inferred mechanism.
