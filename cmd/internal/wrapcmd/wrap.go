@@ -66,6 +66,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -190,6 +191,7 @@ var (
 // loop don't need locking; the few touched from signal goroutines (capture
 // window, notify-mode flags) are guarded explicitly.
 type proxy struct {
+	orientation *orientationDelivery
 	// Real stdio, injected by Run so the proxy is testable without touching
 	// the process globals. In production stdin/stdout ARE os.Stdin/os.Stdout,
 	// so stdinFile/stdoutFile (the *os.File view needed for raw-mode, winsize
@@ -506,6 +508,9 @@ func (p *proxy) resolvePaths() {
 }
 
 func (p *proxy) publishAgentReady(pid int) error {
+	return p.publishAgentReadyStatus(pid, nil)
+}
+func (p *proxy) publishAgentReadyStatus(pid int, status *orientation.DeliveryState) error {
 	tag := os.Getenv("PAIR_TAG")
 	session := os.Getenv("PAIR_SESSION_NAME")
 	nonce := os.Getenv("PAIR_LAUNCH_NONCE")
@@ -513,11 +518,12 @@ func (p *proxy) publishAgentReady(pid int) error {
 		return nil
 	}
 	raw, err := readiness.Encode(readiness.ReadyRecord{
-		Tag:     tag,
-		Agent:   p.agentBasename,
-		Session: session,
-		Nonce:   nonce,
-		PID:     pid,
+		Orientation: status,
+		Tag:         tag,
+		Agent:       p.agentBasename,
+		Session:     session,
+		Nonce:       nonce,
+		PID:         pid,
 	})
 	if err != nil {
 		return err
@@ -1395,6 +1401,9 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		for {
 			n, err := stdin.Read(buf)
 			if n > 0 {
+				if p.orientation != nil {
+					p.orientation.admitOperatorInput(buf[:n])
+				}
 				cp := make([]byte, n)
 				copy(cp, buf[:n])
 				ch <- readEv{data: cp}
@@ -1409,6 +1418,21 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 
 	var pending []byte
 	inPaste := false
+	var orientationWake <-chan struct{}
+	var orientationDeadline <-chan time.Time
+	var deadlineTimer *time.Timer
+	settleTimer := time.NewTimer(time.Hour)
+	if !settleTimer.Stop() {
+		<-settleTimer.C
+	}
+	defer settleTimer.Stop()
+	if p.orientation != nil {
+		orientationWake = p.orientation.wake
+		deadlineTimer = time.NewTimer(p.orientation.deadlineAfter)
+		orientationDeadline = deadlineTimer.C
+		defer deadlineTimer.Stop()
+		defer p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.ChildExited}, out, settleTimer)
+	}
 
 	// Timer for flushing pending. Starts in a stopped+drained state so
 	// the select can wait on it without an immediate spurious fire.
@@ -1458,80 +1482,128 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 		disarmTimer()
 	}
 
+	// Timer receipt and deadline dispatch are separate: giving queued input
+	// priority must not discard the consumed deadline (BR-1, ARCH-ORDER).
+	settleDue := false
 	for {
+		var ev readEv
+		var ok bool
+		if settleDue {
+			select {
+			case ev, ok = <-ch:
+				goto ordinaryInput
+			default:
+			}
+			settleDue = false
+			p.dispatchOrientationObservation(out, settleTimer, true)
+			continue
+		}
 		select {
-		case ev, ok := <-ch:
-			if !ok || ev.err != nil {
-				if ev.err != nil {
-					p.traceWrap("stdin-read-end", map[string]any{"error": ev.err.Error()})
-				} else {
-					p.traceWrap("stdin-read-end", nil)
-				}
-				// EOF / read error: flush whatever was held over —
-				// nothing more is coming to complete the sequence.
-				flushPending()
-				return
+		case <-orientationWake:
+			// An admitted operator chunk wins over a composer observation.
+			select {
+			case ev, ok = <-ch:
+				goto ordinaryInput
+			default:
 			}
-			data := ev.data
-			p.traceWrap("stdin-read", map[string]any{
-				"raw_len":       len(data),
-				"raw_sha256_12": shortSHA256(data),
-				"mode":          "translate",
-			})
-			if len(pending) > 0 {
-				data = append(pending, data...)
-				pending = nil
+			p.dispatchOrientationObservation(out, settleTimer, false)
+			continue
+		case <-settleTimer.C:
+			settleDue = true
+			if p.orientation.settleReadyHook != nil {
+				p.orientation.settleReadyHook()
 			}
-			for len(data) > 0 {
-				before, chord, rawChord, rest, found := workbenchshortcut.FindChord(data)
-				segment := data
-				if found {
-					segment = before
-				}
-				var outBytes, leftover []byte
-				if p.hasReturnRemap() {
-					outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
-				} else {
-					outBytes, leftover, inPaste = p.passThroughChunk(segment, inPaste)
-				}
-				if len(outBytes) > 0 {
-					wn, werr := out.Write(outBytes)
-					p.traceWrap("stdin-write-pty", map[string]any{
-						"write_len":        wn,
-						"translated_len":   len(outBytes),
-						"translated_sha12": shortSHA256(outBytes),
-						"leftover_len":     len(leftover),
-						"in_paste":         inPaste,
-						"error":            errorString(werr),
-						"mode":             "translate",
-					})
-					if werr != nil {
-						return
-					}
-				}
-				if len(leftover) > 0 {
-					pending = append(leftover, data[len(segment):]...)
-					break
-				}
-				if !found {
-					data = nil
-					break
-				}
-				if !p.handleWorkbenchChord(chord) {
-					if _, err := out.Write(rawChord); err != nil {
-						return
-					}
-				}
-				data = rest
-			}
-			if len(pending) > 0 {
-				armTimer()
-			} else {
-				disarmTimer()
-			}
+			continue
+		case <-orientationDeadline:
+			p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.DeadlineElapsed}, out, settleTimer)
+			orientationDeadline = nil
+			continue
 		case <-flushTimer.C:
+			p.cancelIncompleteOrientationReply(out, settleTimer)
 			timerArmed = false
 			flushPending()
+			continue
+		case ev, ok = <-ch:
+		}
+	ordinaryInput:
+		if !ok || ev.err != nil {
+			if ev.err != nil {
+				p.traceWrap("stdin-read-end", map[string]any{"error": ev.err.Error()})
+			} else {
+				p.traceWrap("stdin-read-end", nil)
+			}
+			// EOF / read error: flush whatever was held over —
+			// nothing more is coming to complete the sequence.
+			flushPending()
+			return
+		}
+		if p.orientation != nil {
+			p.orientation.mu.Lock()
+			if p.orientation.operator {
+				p.advanceOrientation(orientation.DeliveryEvent{Kind: orientation.OperatorInput}, out, settleTimer)
+			}
+			p.orientation.mu.Unlock()
+		}
+		data := ev.data
+		p.traceWrap("stdin-read", map[string]any{
+			"raw_len":       len(data),
+			"raw_sha256_12": shortSHA256(data),
+			"mode":          "translate",
+		})
+		if len(pending) > 0 {
+			data = append(pending, data...)
+			pending = nil
+		}
+		for len(data) > 0 {
+			before, chord, rawChord, rest, found := workbenchshortcut.FindChord(data)
+			segment := data
+			if found {
+				segment = before
+			}
+			var outBytes, leftover []byte
+			if p.hasReturnRemap() {
+				outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
+			} else {
+				outBytes, leftover, inPaste = p.passThroughChunk(segment, inPaste)
+			}
+			if len(outBytes) > 0 {
+				wn, werr := out.Write(outBytes)
+				p.traceWrap("stdin-write-pty", map[string]any{
+					"write_len":        wn,
+					"translated_len":   len(outBytes),
+					"translated_sha12": shortSHA256(outBytes),
+					"leftover_len":     len(leftover),
+					"in_paste":         inPaste,
+					"error":            errorString(werr),
+					"mode":             "translate",
+				})
+				if werr != nil {
+					return
+				}
+			}
+			if len(leftover) > 0 {
+				pending = append(leftover, data[len(segment):]...)
+				break
+			}
+			if !found {
+				data = nil
+				break
+			}
+			if !p.handleWorkbenchChord(chord) {
+				if _, err := out.Write(rawChord); err != nil {
+					return
+				}
+			}
+			data = rest
+		}
+		orientationPending := false
+		if p.orientation != nil {
+			orientationPending = p.orientation.inputForwarded()
+		}
+		if len(pending) > 0 || orientationPending {
+			armTimer()
+		} else {
+			disarmTimer()
 		}
 	}
 }
@@ -1543,12 +1615,15 @@ func (p *proxy) hasReturnRemap() bool {
 func (p *proxy) configureHarnessTTY(remapEnabled bool, cols, rows int) error {
 	// Every early return clears the terminal too: a live terminal paired with a
 	// nil profile would keep consuming output nothing consults.
-	profile, ok := profileForHarness(p.agentBasename, remapEnabled)
+	profile, ok := profileForHarness(p.agentBasename, remapEnabled || p.orientation != nil)
 	if !ok {
 		p.ttyProfile = nil
 		return p.releaseTerminal()
 	}
-	p.ttyProfile = &profile
+	p.ttyProfile = nil
+	if remapEnabled {
+		p.ttyProfile = &profile
+	}
 	if profile.composerGate != composerGatePositive {
 		return p.releaseTerminal()
 	}
@@ -1744,8 +1819,17 @@ type overlayDetection struct {
 // checkOverlayOpen flips pickerActive when the current agent's output
 // indicates that a blocking overlay opened. Idempotent — repeated
 // rerenders within one overlay don't re-debug-log.
+func (p *proxy) observationProfile() *harnessTTYProfile {
+	if p.ttyProfile != nil {
+		return p.ttyProfile
+	}
+	if p.orientation != nil {
+		return &p.orientation.profile
+	}
+	return nil
+}
 func (p *proxy) checkOverlayOpen(data, rolling []byte) {
-	if p.ttyProfile == nil || p.ttyProfile.overlay == nil {
+	if p.observationProfile() == nil || p.observationProfile().overlay == nil {
 		return
 	}
 	detection := p.detectOverlayOpen(data, rolling)
@@ -1765,7 +1849,7 @@ func (p *proxy) detectOverlayOpen(data, rolling []byte) overlayDetection {
 	p.overlayMu.Lock()
 	defer p.overlayMu.Unlock()
 
-	open, reason := p.ttyProfile.overlay(p, data, rolling)
+	open, reason := p.observationProfile().overlay(p, data, rolling)
 	if open {
 		wasActive := p.pickerActive.Swap(true)
 		return overlayDetection{
@@ -2273,8 +2357,12 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		launchOrdinal = prepared.Launch.Ordinal
 	}
 
-	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
-	nextEnv = setEnv(nextEnv, "PAIR_AGENT_ARGS", strings.Join(freshArgs, " "))
+	nextEnv := setEnv(withoutOrientation(env), "PAIR_SESSION_ID", sessionID)
+	command, err := launcher.EncodeAgentCommand(launcher.AgentCommand{Executable: currentArgv[0], Argv: append([]string{}, freshArgs...)})
+	if err != nil {
+		return nil, err
+	}
+	nextEnv = setEnv(nextEnv, launcher.AgentCommandEnv, command)
 	nextEnv = setEnv(nextEnv, "PAIR_SCOPE_KEY", scopeKey)
 	nextEnv = setEnv(nextEnv, "PAIR_LAUNCH_ORDINAL", strconv.FormatUint(launchOrdinal, 10))
 	nextArgv := []string{wrapperExecutable, "wrap"}
@@ -2399,11 +2487,18 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 	// Argv: strip our own flags before resolving the command. argparse
 	// would be heavier than needed; this matches the Python loop shape.
 	argv := args
+	fromLaunchEnv := false
 	for len(argv) > 0 && strings.HasPrefix(argv[0], "-") {
 		switch {
 		case argv[0] == "--scrollback-log" && len(argv) > 1:
 			p.scrollbackLog = argv[1]
 			argv = argv[2:]
+		case argv[0] == "--from-launch-env":
+			if fromLaunchEnv {
+				return 0, errors.New("duplicate --from-launch-env")
+			}
+			fromLaunchEnv = true
+			argv = argv[1:]
 		case argv[0] == "--":
 			argv = argv[1:]
 			goto argsDone
@@ -2412,11 +2507,32 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 		}
 	}
 argsDone:
+	if fromLaunchEnv {
+		if len(argv) != 0 {
+			return 0, errors.New("--from-launch-env cannot accompany a command")
+		}
+		command, err := launcher.DecodeAgentCommand(os.Getenv(launcher.AgentCommandEnv))
+		if err != nil {
+			return 0, err
+		}
+		argv = append([]string{command.Executable}, command.Argv...)
+	}
 	if len(argv) == 0 {
 		return 0, errors.New("usage: pair-wrap [--scrollback-log <path>] <command> [args...]")
 	}
 
 	p.agentBasename = filepath.Base(argv[0])
+	childEnv := withoutOrientation(os.Environ())
+	if fromLaunchEnv {
+		request, clean, err := consumeOrientation(os.Environ(), p.agentBasename)
+		if err != nil {
+			return 0, err
+		}
+		childEnv = clean
+		if request != nil {
+			p.orientation = newOrientationDelivery(*request)
+		}
+	}
 	p.scrollbackEvents = os.Getenv("PAIR_SCROLLBACK_EVENTS_PATH")
 	p.codexSyncPassthrough = envFlag("PAIR_CODEX_SYNC_PASSTHROUGH")
 	p.resolvePaths()
@@ -2485,7 +2601,7 @@ argsDone:
 
 	// Spawn child in a fresh PTY.
 	cmd := exec.Command(argv[0], argv[1:]...)
-	cmd.Env = os.Environ()
+	cmd.Env = childEnv
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		return 0, fmt.Errorf("cannot exec %s: %w", argv[0], err)
@@ -2508,6 +2624,13 @@ argsDone:
 		"child_pid": cmd.Process.Pid,
 	})
 	defer ptmx.Close()
+	if p.orientation != nil {
+		p.orientation.publish = func(state orientation.DeliveryState) {
+			if err := p.publishAgentReadyStatus(cmd.Process.Pid, &state); err != nil {
+				p.debug("ORIENTATION-status-fail", err.Error())
+			}
+		}
+	}
 	if err := p.publishAgentReady(cmd.Process.Pid); err != nil {
 		p.debug("AGENT-READY-write-fail", err.Error())
 	}
@@ -2629,6 +2752,10 @@ argsDone:
 	}()
 
 	p.masterPump()
+	if p.orientation != nil {
+		p.orientation.observe(false, false, true)
+		<-p.orientation.finalized
+	}
 	p.traceWrap("master-pump-return", nil)
 
 	// Wait for the child and propagate its exit code. The pre-extraction
@@ -2812,6 +2939,12 @@ func (p *proxy) masterPump() {
 // Each step is wrapped so a single failure can't take down the proxy —
 // matches the Python's try/except pattern.
 func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
+	if p.orientation != nil {
+		p.orientation.mu.Lock()
+		p.orientation.replies.observeQueries(data)
+		p.orientation.mu.Unlock()
+	}
+	defer p.observeOrientationTerminal()
 	offsetBefore := p.scrollbackBytes
 	p.traceWrap("master-chunk", map[string]any{
 		"raw_len":              len(data),

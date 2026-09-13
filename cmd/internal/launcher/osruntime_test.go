@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -596,4 +597,100 @@ func TestSidecarProcessGroupProbe(t *testing.T) {
 		os.Exit(2)
 	}
 	time.Sleep(30 * time.Second)
+}
+
+func TestParkScrollbackRepeatedCopiesNeverOverwrite(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	raw := filepath.Join(dataDir, "scrollback-work-claude.raw")
+	seen := map[string]string{}
+	for i := 0; i < 5; i++ {
+		content := fmt.Sprintf("capture %d", i)
+		if err := os.WriteFile(raw, []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		base, ok := rt.ParkScrollback("work", "claude", false)
+		if !ok {
+			t.Fatal("park failed")
+		}
+		if _, exists := seen[base]; exists {
+			t.Fatal("archive overwritten", base)
+		}
+		seen[base] = content
+	}
+	for base, want := range seen {
+		got, err := os.ReadFile(base + ".raw")
+		if err != nil || string(got) != want {
+			t.Fatalf("archive %s: %q %v", base, got, err)
+		}
+	}
+}
+
+func TestParkScrollbackEventsFailureRetainsRawWithoutEvents(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	raw := filepath.Join(dataDir, "scrollback-work-codex.raw")
+	events := filepath.Join(dataDir, "scrollback-work-codex.events.jsonl")
+	if err := os.WriteFile(raw, []byte("raw survives"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// An unreadable-as-file sidecar deterministically fails transfer even as root.
+	if err := os.Mkdir(events, 0700); err != nil {
+		t.Fatal(err)
+	}
+	base, ok := rt.ParkScrollback("work", "codex", true)
+	if !ok {
+		t.Fatal("optional events failure rejected raw capture")
+	}
+	if got, err := os.ReadFile(base + ".raw"); err != nil || string(got) != "raw survives" {
+		t.Fatalf("raw = %q %v", got, err)
+	}
+	if _, err := os.Stat(base + ".events.jsonl"); !os.IsNotExist(err) {
+		t.Fatalf("failed sidecar still looks present: %v", err)
+	}
+}
+
+func TestScrollbackTransferCannotOverwriteDestination(t *testing.T) {
+	dir := t.TempDir()
+	source, destination := filepath.Join(dir, "source"), filepath.Join(dir, "destination")
+	if err := os.WriteFile(source, []byte("new"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destination, []byte("old"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := transferFile(source, destination, true); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("expected exclusive collision: %v", err)
+	}
+	for path, want := range map[string]string{source: "new", destination: "old"} {
+		got, err := os.ReadFile(path)
+		if err != nil || string(got) != want {
+			t.Fatalf("%s changed: %q %v", path, got, err)
+		}
+	}
+}
+
+func TestParkScrollbackSkipsOrphanedEventsArchive(t *testing.T) {
+	dataDir := t.TempDir()
+	rt := NewOSRuntime(dataDir, "/pair")
+	raw := filepath.Join(dataDir, "scrollback-work-codex.raw")
+	if err := os.WriteFile(raw, []byte("new raw"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Cover the clock boundary while forcing the first family candidate to collide.
+	now := time.Now()
+	for offset := -2; offset <= 2; offset++ {
+		token := now.Add(time.Duration(offset) * time.Second).Format("20060102T150405")
+		orphan := filepath.Join(dataDir, "parked-scrollback-work-"+token+".events.jsonl")
+		if err := os.WriteFile(orphan, []byte("unrelated events"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	base, ok := rt.ParkScrollback("work", "codex", true)
+	if !ok {
+		t.Fatal("park failed")
+	}
+	if _, err := os.Stat(base + ".events.jsonl"); !os.IsNotExist(err) {
+		t.Fatalf("adopted unrelated events: %s %v", base, err)
+	}
 }

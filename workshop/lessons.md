@@ -4733,3 +4733,48 @@ and be automatically submitted.
 submit, and after submit. Let one input owner order them; canceling after paste
 must preserve operator text and acknowledge that generated text may already be
 in the composer. Test both event orders through the production scheduler.
+
+### 2026-09-13 — Fresh launch ownership and terminal input (#184)
+
+- A pre-existing session name or address marker cannot prove a fresh launch
+  succeeded. Correlate its new nonce with live readiness before committing
+  preferences; before that proof, cleanup may stop its helper but cannot delete
+  a session that could belong to a competing launch (ARCH-SECURE, ARCH-ORDER).
+- Process recovery marked unknown must not pass through a successful-launch
+  preference writer. Recovery evidence and startup-policy acceptance have
+  different meanings even when both retire a start claim (ARCH-PURE).
+- Terminal protocol replies are input bytes but are not operator edits. An
+  automatic-prompt cancellation gate must distinguish them, including fragmented
+  replies, and test real terminal startup negotiation (ARCH-PURPOSE).
+- A final asynchronous form resolution must compare the original source
+  revision independently of edited parameters. Comparing only source labels
+  misses replacement by another session of the same agent (ARCH-ORDER).
+- Composer recognition for generated multiline input needs both empty and
+  populated live captures. Startup/loading screens and post-paste footer changes
+  are different from ordinary newline-remapping eligibility (ARCH-PURPOSE).
+
+### 2026-09-13 — #184 boundary review
+
+- Giving input priority over a timer must preserve the consumed timer event.
+  Test simultaneous readiness with non-cancelling protocol input; checking only
+  ordinary user input hides lost-deadline states (BR-1, ARCH-ORDER).
+- A lifecycle feature's full-chain acceptance must start before the lifecycle
+  transition. Seeding its completed state tests transport but omits teardown,
+  metadata transfer and preservation through that transition (BR-2, ARCH-PURPOSE).
+
+### 2026-09-13 — #184 operator smoke
+
+- An editable startup-parameter field must support interior cursor movement,
+  insertion and deletion. Test correcting a quoted saved argument through actual
+  key events; append-only text entry does not satisfy an editable prefill.
+- Direct wrapper conformance misses negotiation introduced by the enclosing
+  terminal stack. Capture the real launch's input/output before diagnosing
+  operator cancellation; match protocol replies to their outstanding queries
+  and preserve cancellation for actual edits and unsolicited reports.
+
+### 2026-09-13 — Persisted counters cannot set work budgets (#184 BR-3)
+
+Never enumerate all integers below a stored counter to discover history. Bound
+lookup independently of counter magnitude, test sparse huge counters, and check
+cancellation on missing-record paths before the next read or cleanup effect.
+A transaction lock protects ordering but makes unbounded recovery work worse.

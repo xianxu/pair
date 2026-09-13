@@ -1,12 +1,13 @@
 ---
 id: 000184
-status: working
+status: codecomplete
 deps: [pair#182]
 github_issue:
 created: 2026-09-04
 updated: 2026-09-13
 estimate_hours: 6.65
 started: 2026-09-13T12:04:32-07:00
+actual_hours: 6.03
 ---
 
 # couch: switch a thread's agent
@@ -214,19 +215,19 @@ precondition-before-park ordering) has **landed**, so this issue's stated
 precondition is cleared. Steps below are `#176`'s, kept because they are the
 concrete ones.
 
-- [ ] Decide the path-vs-thread keying question above; record the answer in
+- [x] Decide the path-vs-thread keying question above; record the answer in
       `## Spec`.
-- [ ] Declare `switch-agent` in `ops.go` + the declaration table, with the
+- [x] Declare `switch-agent` in `ops.go` + the declaration table, with the
       `ConfirmRequired` shape.
-- [ ] Quiesce-and-observe on couch's side; test a source that dies silently.
-- [ ] Skip `CheckResumePreconditions`' binding rule for the target agent via the
+- [x] Quiesce-and-observe on couch's side; test a source that dies silently.
+- [x] Skip `CheckResumePreconditions`' binding rule for the target agent via the
       existing `isBindingDiagnostic` factoring; assert its absence is not an
       error.
-- [ ] Carrier selection on source health: continuation when available,
+- [x] Carrier selection on source health: continuation when available,
       `ParkedScrollbackArtifacts` transcript path when not.
-- [ ] Restart = same call, target == current; assert **one** code path, and pin
+- [x] Restart = same call, target == current; assert **one** code path, and pin
       subsystem-identity change (zellij/nvim/pair-wrap), not just agent liveness.
-- [ ] Failure path: assert the thread is still startable after a failed switch.
+- [x] Failure path: assert the thread is still startable after a failed switch.
 
 ## Estimate
 
@@ -282,6 +283,7 @@ while filing: `couchcore/launchprofile.go` (agent/argv independent axes),
 cold).
 
 ### 2026-09-13 — Feature discussion and implementation plan
+- 2026-09-13: closed — Operator accepted live smoke: parameter cursor edits, corrected Codex startup, Claude/Agy switching and Copy orientation prompt recovery. Full make test and go test ./... passed before final fixes; final affected package integration and wrapper/lifecycle race suites passed after fixes. Owned live-source acceptance traverses real cleanup/archive metadata through actual launcher/layout/wrapper delivery and preserves draft/log/queue. BR1 simultaneous terminal reply scheduler, BR2 live lifecycle composition and BR3 huge sparse retry counters/cancellation regressions pass. Four-agent disposable live conformance completed. make build and git diff main --check pass; README, atlas, plan and lessons updated.; review verdict: SHIP
 
 Claimed the issue and ran `sdlc start-plan`. Operator decisions are captured in
 the revisions below. The current durable implementation plan is
@@ -295,6 +297,61 @@ and received an approved re-review. Prevention rules were added to
 Validation: `git diff --check` passed; this is documentation only, so no runtime
 test result is claimed. Awaiting operator plan approval before `change-code`,
 estimate derivation, or implementation.
+
+
+### 2026-09-13 — Implementation and integration
+
+Operator approved the plan and implementation. `sdlc change-code --issue 184`
+passed the plan-quality and estimate gates; branch is
+`000184-couch-switch-thread-agent`. Commits `670ea514`, `4a0d0ced`, `41e46549`,
+`75eac627` and `fd4b9ec8` carry exact park metadata, fresh argv transport,
+Couch UI, source resolution and the full launch-chain test. Root integration
+adds exact nonce readiness before preference commit and source revision CAS.
+
+Focused switch, UI, renderer, lifecycle, readiness and context tests pass. The
+Couch → launcher → real layout → wrapper → PTY test receives the exact generated
+prompt once and preserves source files. Full integrated tests found a stale
+launcher environment expectation and an internal-operation presentation mismatch;
+corrected both. Live smoke found terminal capability replies incorrectly
+cancelling orientation; the wrapper correction and live recheck are in progress.
+Final full-suite and boundary review remain pending; this is not completion.
+
+
+### 2026-09-13 — Verification complete; entering boundary review
+
+Implemented the approved revised contract. Historical Plan checkboxes denote
+resolution under those revisions: no source-authored continuation is used, and
+the existing agent-only restart chord is preserved. The durable plan records
+the delivered flow and integration details.
+
+Verification: `env -u PAIR_SESSION_ID -u PAIR_TAG make test` passed, followed by
+`go test ./... -count=1` and a final full integration-package run after the last
+changes. Full `-race` orientation/wrapcmd/readiness suites passed (wrapper80.697s).
+The actual Couch-profile → launcher → layout → wrapper → PTY acceptance passes.
+`git diff --check` is clean. Live disposable-project checks confirmed automatic
+orientation submission for Claude2.1.270, Codex0.154.0, Agy1.1.25 and
+Muse0.1.0-R708.1. Claude/Codex/Muse read context and replied; Agy's long1,784-byte
+prompt submitted once and reached its native permission request for the exact
+synthetic log-render command. Manual test setup/approval is distinct from the
+app's automatic input. Exact attempts, PIDs and captures are retained locally in
+`/tmp/pair-184-orientation-smoke.hWzQJL/summary.json`; direct-wrapper smoke does
+not create a Pair native-binding ledger. Boundary acceptance remains pending.
+
+
+### 2026-09-13 — Live conformance and first boundary verdict
+
+All four installed agents completed context-reading responses. Agy's final
+1,784-byte/25-line attempt completed in81.27s and returned to its empty composer;
+two one-time native approvals covered only the synthetic renderer command and
+its generated temporary-output cleanup, after automatic orientation submission.
+All smoke processes were stopped. Final local evidence is in the previously
+recorded `summary.json`, including `agy/longcomplete`.
+
+The mandatory boundary gate returned REWORK (window065929e5..445bbefe): BR-1
+requires retaining a consumed settle event when a solicited terminal reply wins
+input priority; BR-2 requires successful live-source teardown/archive transfer
+in the full-chain acceptance. Both are being addressed under the existing plan.
+The gate did not finalize close; status remains working.
 
 ## Revisions
 
@@ -389,3 +446,85 @@ earlier conflicting prose and Plan steps are historical.
    and orientation flow. Do not remap Alt+Shift+N: it now invokes an agent-only
    restart that promises to retain the running workbench, unlike this action.
    This supersedes the absorbed #176 shortcut/subsystem assertion.
+
+
+### 2026-09-13 — Operator live acceptance required
+
+Operator instruction: ask them to live-smoke the feature before closing the
+issue. Finish review fixes and automated checks, prepare a built candidate and
+smoke steps, then wait for their result. Do not rerun close or publish before
+that acceptance. The issue remains working after the first review's REWORK.
+
+### 2026-09-13 — Review fixes and candidate verification
+
+BR-1 and BR-2 are implemented with deterministic scheduler and owned-live-source
+acceptance regressions. Full wrapper race tests and parked/live acceptance race
+tests pass. Root reran uncached couchcmd/launcher/wrapcmd suites successfully
+(`/tmp/pair-184-review-fixes-test.log`), checked the diff, and built the candidate
+with `make build` (`/tmp/pair-184-smoke-build.log`). Awaiting operator live smoke;
+issue stays working and the next close/review is deferred until that result.
+
+### 2026-09-13 — Operator smoke findings
+
+Operator reports accepting Codex defaults failed with unexpected argument
+`--sandbox danger-full-access`; switching back to Claude worked, and Agy also
+started. Read-only inspection of brain's repository default and shared path
+preference confirms Codex argv is stored as one combined element. The editable
+form preserves that boundary by quoting it. Correct entry is two unquoted tokens
+`--sandbox danger-full-access`; do not globally split stored argv elements since
+values may legitimately contain spaces. No user preference files changed.
+
+Agy's orientation reports cancellation from operator input. Investigating actual
+readiness/terminal evidence and whether the operator pressed a key before
+orientation completed. Live acceptance remains pending; no close or publication.
+
+Agy diagnosis: captured first stdin packet matches the synchronized-output
+DECRQM response and Kitty keyboard reply; preceding output contains their
+queries. Unsupported DECRQM admission caused false operator-input cancellation
+before prompt paste. Implement query-correlated support and regressions; the
+initial cancellation does not require a human keypress to explain it.
+
+Exact read-only evidence: attempt `start-d99e8470336e52a8`, child PID 82019;
+ready state cancelled with body not written. Initial stdout bytes 0–1224 include
+queries for modes 2026/2027 and Kitty keyboard support. Input sequence 17 at
+13:54:25.613931 is the 16-byte response with SHA256 prefix `9aed9bfbb79c`,
+`ESC[?2026;2$yESC[?1u`; the old classifier rejects it deterministically.
+
+Both smoke defects are fixed: parameter cursor editing and solicited DECRQM
+recognition. Focused regressions, uncached couchtty/couchcmd/wrapcmd suites, and
+full wrapper race tests pass (81.834s). Candidate rebuilt successfully. Codex's
+existing combined argument remains editable without mutating preferences behind
+the operator's back. Awaiting fresh operator smoke before close.
+
+### 2026-09-13 — Codex smoke after parameter correction
+
+Operator confirms Left/Right editing works and removing the saved surrounding
+quotes permits Claude→Codex startup. Orientation was absent. Exact current ready
+record `start-394daa428e9b4b4b` reports cancelled before body with reason
+“a dialog interrupted automatic orientation”. Raw bytes 2025–2630, master chunk
+95 at 14:04:05.120869, contain the actual directory trust dialog; the resolved
+composer appears after an input event at 14:04:09.151182. This is the approved
+sticky dialog cancellation, not another false protocol classification. Explain
+manual recovery and discuss whether startup-dialog waiting should replace this
+behavior. No production change or acceptance/closure inferred from this smoke.
+
+### 2026-09-13 — Operator accepted live smoke
+
+Operator confirmed manual Copy orientation prompt recovery works and stated:
+“we can consider smoke test passed. we can move to close this issue now.”
+Parameter editing, corrected Codex startup, Claude/Agy switching and orientation
+recovery are accepted. Startup trust dialogs continue to cancel automatic
+delivery as designed; waiting through them is outside this accepted change.
+
+### 2026-09-13 — Boundary review round 2 REWORK
+
+BR-1/BR-2 were accepted as fixed. New BR-3 requires bounded retry-history lookup
+and cancellation: a large persisted counter can cause arbitrary missing-file
+reads under the cleanup lock. Fixing this internal recovery path and adding
+regressions before rerunning close. Operator smoke acceptance remains recorded.
+
+BR-3 fixed with 32-read descending lookup, explicit budget failure and prompt
+cancellation. Nil newer completions do not mask older captures; cancellation
+after cleanup still publishes moved capture metadata. Lifecycle regressions
+and race suite pass; root uncached lifecycle/core/command/launcher suites pass
+and candidate rebuilt. Atlas and lessons updated; rerunning close.

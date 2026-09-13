@@ -18,6 +18,7 @@ const (
 type ArgvSource string
 
 const (
+	ArgvSourceExplicit    ArgvSource = "explicit"
 	ArgvSourcePath        ArgvSource = "path"
 	ArgvSourceRepoDefault ArgvSource = "repo-default"
 )
@@ -42,6 +43,7 @@ type PathLaunchPreference struct {
 
 type LaunchProfileInputs struct {
 	ExplicitAgent string
+	ExplicitArgv  *[]string
 	Path          *PathLaunchPreference
 	RootAgent     string
 	RepoDefault   *LaunchProfile
@@ -72,6 +74,11 @@ func ResolveLaunchProfile(in LaunchProfileInputs) (LaunchProfileResolution, erro
 		return LaunchProfileResolution{}, fmt.Errorf("launch profile has no agent source")
 	}
 
+	if in.ExplicitArgv != nil {
+		out.Profile.Argv = cloneArgv(*in.ExplicitArgv)
+		out.ArgvSource = ArgvSourceExplicit
+		return out, nil
+	}
 	if in.Path != nil {
 		if argv, ok := in.Path.ArgvByAgent[out.Profile.Agent]; ok {
 			out.Profile.Argv = cloneArgv(argv)

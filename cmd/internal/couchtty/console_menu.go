@@ -22,9 +22,10 @@ type menuRefreshResult struct {
 }
 
 type menuPreviewResult struct {
-	generation uint64
-	prepared   *couchcore.PreparedStart
-	err        error
+	generation     uint64
+	prepared       *couchcore.PreparedStart
+	switchPrepared *couchcore.PreparedAgentSwitch
+	err            error
 }
 
 func (c *Console) SetActionableProvider(provider ActionableThreadProvider) {
@@ -227,6 +228,10 @@ func (c *Console) showMenu() {
 // Console's one sequential operation queue.
 func (c *Console) dispatchMenuEffects(effects []MenuEffect) {
 	for _, effect := range effects {
+		if effect.CopyOrientation != nil {
+			c.copyOrientation(*effect.CopyOrientation)
+			continue
+		}
 		if effect.Completion != nil {
 			c.advanceMenuCompletion(latestScheduleEvent[CompletionRequest, CompletionIdentity]{Kind: latestRequested, Request: *effect.Completion})
 			continue
@@ -276,6 +281,15 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 		if request.Agent != "" {
 			args["agent"] = request.Agent
 		}
+		var switchPrepared *couchcore.PreparedAgentSwitch
+		operation := "prepare-start"
+		if request.SwitchAddress != (couchcore.ThreadAddress{}) {
+			operation = "prepare-switch-agent"
+			args = map[string]string{"repo-scope": request.SwitchAddress.RepoScope, "tag": string(request.SwitchAddress.Tag), "agent": request.Agent}
+			if request.SwitchArgv != "" {
+				args["argv"] = request.SwitchArgv
+			}
+		}
 		var prepared *couchcore.PreparedStart
 		var err error
 		if fn == nil {
@@ -283,9 +297,16 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 		} else {
 			var value any
 			value, err = fn(couchcore.OperationCall{
-				Name: "prepare-start", Args: args, Implicit: true, Context: ctx,
+				Name: operation, Args: args, Implicit: true, Context: ctx,
 			})
-			if err == nil {
+			if err == nil && operation == "prepare-switch-agent" {
+				accepted, ok := value.(couchcore.PreparedAgentSwitch)
+				if !ok {
+					err = errors.New("invalid switch preview result")
+				} else {
+					switchPrepared = &accepted
+				}
+			} else if err == nil {
 				accepted, ok := value.(couchcore.PreparedStart)
 				if !ok {
 					err = errors.New("prepare-start returned an invalid result")
@@ -294,7 +315,7 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 				}
 			}
 		}
-		result := menuPreviewResult{generation: request.Generation, prepared: prepared, err: err}
+		result := menuPreviewResult{generation: request.Generation, prepared: prepared, switchPrepared: switchPrepared, err: err}
 		select {
 		case c.previewResults <- result:
 		case <-c.stop:
@@ -313,7 +334,7 @@ func (c *Console) finishMenuPreview(result menuPreviewResult) {
 	}
 	var menuEffects []MenuEffect
 	if c.menuReady {
-		event := MenuEvent{Kind: MenuEventPreviewResult, Generation: result.generation, Prepared: result.prepared}
+		event := MenuEvent{Kind: MenuEventPreviewResult, Generation: result.generation, Prepared: result.prepared, SwitchPrepared: result.switchPrepared}
 		if result.err != nil {
 			event.Error = result.err.Error()
 		}

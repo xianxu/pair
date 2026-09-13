@@ -257,10 +257,35 @@ func (c *PairLifecycleController) Park(ctx context.Context, address ThreadAddres
 	})
 }
 
+// ParkExpected refuses if the source changed after a switch preview. The
+// revision is checked inside the serialized worker and again by BeginPark's CAS.
+func (c *PairLifecycleController) ParkExpected(ctx context.Context, address ThreadAddress, revision uint64) (ParkResult, error) {
+	if err := c.validate(); err != nil {
+		return ParkResult{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return ParkResult{}, err
+	}
+	nonce, err := c.Nonce()
+	if err != nil {
+		return ParkResult{}, err
+	}
+	return c.submit(ctx, address, nonce, func(workCtx context.Context) (ParkResult, error) {
+		return c.parkExpected(workCtx, address, nonce, revision)
+	})
+}
+
 func (c *PairLifecycleController) park(ctx context.Context, address ThreadAddress, nonce string) (ParkResult, error) {
+	return c.parkExpected(ctx, address, nonce, 0)
+}
+
+func (c *PairLifecycleController) parkExpected(ctx context.Context, address ThreadAddress, nonce string, revision uint64) (ParkResult, error) {
 	current, err := c.Threads.GetThread(address)
 	if err != nil {
 		return ParkResult{}, err
+	}
+	if revision != 0 && current.Revision != revision {
+		return ParkResult{}, &ThreadRevisionError{Address: address, Want: revision, Got: current.Revision}
 	}
 	if current.Park != nil {
 		return c.retry(ctx, address)
@@ -618,7 +643,7 @@ func (c *PairLifecycleController) applyCompletion(result ParkResult, current Thr
 	if observeExactProcess(c.Proc, ProcessIdentity{PID: current.Park.Identity.PID, Identity: current.Park.Identity.ProcessIdentity}) != Dead {
 		return result, errParkChildNotGone
 	}
-	finalized, err := c.Threads.FinalizePark(current.Address, current.Revision, current.Park.Identity, request.Attempt, completion.CompletedAt)
+	finalized, err := c.Threads.FinalizePark(current.Address, current.Revision, current.Park.Identity, request.Attempt, completion.CompletedAt, completion.Scrollback)
 	if err != nil {
 		latest, getErr := c.Threads.GetThread(current.Address)
 		if getErr != nil {

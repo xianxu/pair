@@ -97,6 +97,10 @@ type ArtifactPaths interface {
 // stable advisory lock.
 type Store struct{ Runtime StoreRuntime }
 
+// A persisted attempt counter must not control unbounded work under the lock.
+// Normal retries carry their descriptor forward; gaps use this fixed budget.
+const priorCompletionReadLimit = 32
+
 type LockedAttempt struct {
 	store   Store
 	paths   ArtifactPaths
@@ -132,6 +136,9 @@ func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt 
 		return QuitCompletion{}, err
 	}
 	raw, err := s.Runtime.ReadFile(requestPath)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return QuitCompletion{}, ctxErr
+	}
 	if err != nil {
 		return QuitCompletion{}, fmt.Errorf("read committed quit request: %w", err)
 	}
@@ -148,7 +155,14 @@ func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt 
 	if err != nil {
 		return QuitCompletion{}, err
 	}
-	if completionRaw, readErr := s.Runtime.ReadFile(completionPath); readErr == nil {
+	if err := ctx.Err(); err != nil {
+		return QuitCompletion{}, err
+	}
+	completionRaw, readErr := s.Runtime.ReadFile(completionPath)
+	if err := ctx.Err(); err != nil {
+		return QuitCompletion{}, err
+	}
+	if readErr == nil {
 		completion, decodeErr := decodeQuitCompletion(completionRaw, paths, attempt)
 		if decodeErr != nil {
 			outcome = Conflict
@@ -168,7 +182,51 @@ func (s Store) ConsumeAttempt(ctx context.Context, paths ArtifactPaths, attempt 
 	}
 
 	locked := &LockedAttempt{store: s, paths: paths, request: request}
+	// Read only committed completions from this locked park identity. A crash
+	// before publication intentionally leaves no recoverable descriptor.
+	var prior *PreservedScrollback
+	for previous, reads := attempt-1, 0; attempt > 1 && previous > 0; previous, reads = previous-1, reads+1 {
+		if err := ctx.Err(); err != nil {
+			return QuitCompletion{}, err
+		}
+		if reads == priorCompletionReadLimit {
+			return QuitCompletion{}, errors.New("retry history lookup limit exceeded before finding preserved scrollback")
+		}
+		path, pathErr := paths.Completion(previous)
+		if pathErr != nil {
+			return QuitCompletion{}, pathErr
+		}
+		raw, readErr := s.Runtime.ReadFile(path)
+		if err := ctx.Err(); err != nil {
+			return QuitCompletion{}, err
+		}
+		if errors.Is(readErr, os.ErrNotExist) {
+			continue
+		}
+		if readErr != nil {
+			return QuitCompletion{}, readErr
+		}
+		old, decodeErr := decodeQuitCompletion(raw, paths, previous)
+		if decodeErr != nil {
+			return QuitCompletion{}, decodeErr
+		}
+		if old.Identity != request.Identity || old.Session != request.Session || old.Mode != request.Mode {
+			return QuitCompletion{}, errors.New("prior completion does not match park identity")
+		}
+		if old.Scrollback != nil {
+			prior = ClonePreservedScrollback(old.Scrollback)
+			break
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return QuitCompletion{}, err
+	}
 	result := cleanup(ctx, locked, request)
+	// Once cleanup may have moved raw capture, publish its result even if the
+	// context was canceled during cleanup; the descriptor must remain durable.
+	if result.Scrollback == nil {
+		result.Scrollback = prior
+	}
 	completion, err := locked.PublishCompletion(result)
 	outcome = PublicationOutcomeOf(err)
 	return completion, err
@@ -181,7 +239,7 @@ func (a *LockedAttempt) PublishCompletion(result CleanupResult) (QuitCompletion,
 	completion := QuitCompletion{
 		SchemaVersion: a.request.SchemaVersion, Identity: a.request.Identity, Attempt: a.request.Attempt,
 		Session: a.request.Session, Mode: a.request.Mode, CompletionKey: a.request.CompletionKey,
-		Outcome: result.Outcome, CompletedAt: result.CompletedAt,
+		Outcome: result.Outcome, CompletedAt: result.CompletedAt, Scrollback: ClonePreservedScrollback(result.Scrollback),
 	}
 	if result.Outcome == CompletionFailure {
 		if len(result.Failures) == 0 {

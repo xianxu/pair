@@ -7,6 +7,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 // MenuControl is one operator-entered switcher surface. README checks consume
@@ -55,10 +56,17 @@ const (
 	MenuFrameConfirmation
 	MenuFrameText
 	MenuFrameStart
+	MenuFrameSwitchAgent
 )
 
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
+	SwitchPrepared *couchcore.PreparedAgentSwitch
+	SwitchStage    int
+	SwitchEdited   bool
+	// Rune distance from the end; zero keeps newly prefilled parameters at end.
+	SwitchCursorFromEnd int
+
 	Instance        uint64
 	Kind            MenuFrameKind
 	Filter          string
@@ -148,6 +156,7 @@ func setBookkeepingNotice(state *MenuState, text string) {
 // MenuState is immutable-by-copy reducer state. Frames retain identities and
 // text; the inventory remains one separately owned slice.
 type MenuState struct {
+	Orientation       map[couchcore.ThreadAddress]orientation.Request
 	Inventory         []couchcore.ActionableThreadSummary
 	InventoryReady    bool
 	RefreshPending    bool
@@ -176,6 +185,7 @@ type MenuState struct {
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
+	PanelOrigin bool
 	// Manual suppresses the attention capture, so the landing is classified
 	// arrivalOrdinary even on a paging actor. A click is always a manual switch;
 	// Enter on a paging actor is not.
@@ -240,6 +250,7 @@ type MenuEvent struct {
 	// ProjectionAfterGeneration records the newest inventory generation that
 	// predates a committed operation mutation.
 	ProjectionAfterGeneration uint64
+	SwitchPrepared            *couchcore.PreparedAgentSwitch
 	Prepared                  *couchcore.PreparedStart
 	Completion                *CompletionResult
 	// Background marks the completion of a reattach-pass attempt (pair#206),
@@ -252,11 +263,12 @@ type MenuEvent struct {
 
 // MenuEffect is an operation request for the thin Console shell.
 type MenuEffect struct {
-	Operation  string
-	Attempt    uint64
-	Args       map[string]string
-	Preview    *PreviewRequest
-	Completion *CompletionRequest
+	CopyOrientation *orientation.Request
+	Operation       string
+	Attempt         uint64
+	Args            map[string]string
+	Preview         *PreviewRequest
+	Completion      *CompletionRequest
 	// Background marks a reattach-pass effect (pair#206): enqueued without the
 	// operator's in-flight slot, and attached without taking focus.
 	Background bool
@@ -464,6 +476,8 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return reduceConfirmationKey(next, event.Key)
 	case MenuFrameText:
 		return reduceTextKey(next, event.Key)
+	case MenuFrameSwitchAgent:
+		return reduceSwitchAgentKey(next, event.Key)
 	case MenuFrameStart:
 		return reduceStartKey(next, event.Key)
 	default:
@@ -524,7 +538,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = errorMenuNotice("no selection")
 			return state, nil
 		}
-		items := menuActionItems(thread)
+		items := menuActionsFor(state, thread)
 		appendMenuFrame(&state, MenuFrame{
 			Kind: MenuFrameActions, Thread: thread.Address, SelectedItem: items[0],
 		})
@@ -563,7 +577,7 @@ func menuFrameBindsThread(frame MenuFrame) bool {
 	if frame.Kind == MenuFrameConfirmation && frame.Action == "leave" {
 		return false
 	}
-	return frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
+	return frame.Kind == MenuFrameSwitchAgent || frame.Kind == MenuFrameActions || frame.Kind == MenuFrameConfirmation || frame.Kind == MenuFrameText
 }
 
 // reduceParkHotkey handles the Alt+x/Alt+d ownership-boundary chords.
@@ -663,7 +677,7 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	if !ok {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
-	items := menuActionItems(thread)
+	items := menuActionsFor(state, thread)
 	switch key.Kind {
 	case KeyRune:
 		candidate := frame.Filter + string(key.Rune)
@@ -686,6 +700,11 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return state, nil
 		}
 		switch frame.SelectedItem {
+		case "copy-orientation":
+			request := state.Orientation[thread.Address]
+			return state, []MenuEffect{{CopyOrientation: &request}}
+		case "switch-agent":
+			return openSwitchAgent(state, thread.Address)
 		case "name", "describe":
 			// The genuine special case: these collect text before they can run,
 			// which no declaration expresses.
@@ -1077,6 +1096,9 @@ func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
 }
 
 func reducePreviewResult(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
+	if state.CurrentFrame().Kind == MenuFrameSwitchAgent {
+		return reduceSwitchAgentPreview(state, event)
+	}
 	if state.CurrentFrame().Kind != MenuFrameStart {
 		return state, nil
 	}
@@ -1181,11 +1203,14 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		// Detach first: it is the safe, everyday gesture -- the agent keeps
 		// running and only the client goes. Park is destructive and sits
 		// behind it, in the position the operator has to travel to.
-		return []string{"detach", "relaunch", "park", "name", "describe"}
+		return []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
 	}
 	// Archive is offered wherever couch is not hosting the thread. It refuses a
 	// live one in the store anyway, and offering an action that always fails is
 	// how a switcher teaches an operator to distrust it.
+	if thread.State == couchcore.ThreadParked {
+		return []string{"resume", "switch-agent", "archive", "name", "describe"}
+	}
 	return []string{"resume", "archive", "name", "describe"}
 }
 
@@ -1251,6 +1276,12 @@ func filterMenuItems(items []string, query string) []string {
 }
 
 func menuItemLabel(item string) string {
+	if item == "switch-agent" {
+		return "switch coding agent"
+	}
+	if item == "copy-orientation" {
+		return "Copy orientation prompt"
+	}
 	if item == "name" {
 		return "rename"
 	}
@@ -1410,7 +1441,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 				setBookkeepingNotice(&state, "thread action is no longer applicable")
 				continue
 			}
-			reconcileItemSelection(&frame, filterMenuItems(menuActionItems(thread), frame.Filter))
+			reconcileItemSelection(&frame, filterMenuItems(menuActionsFor(state, thread), frame.Filter))
 			bound = frame.Thread
 		case MenuFrameConfirmation:
 			// Archive is the exception to the live requirement: it is the
@@ -1437,6 +1468,11 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 				continue
 			}
 			reconcileItemSelection(&frame, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter))
+		case MenuFrameSwitchAgent:
+			if bound != frame.Thread || (!containsMenuItem(menuActionItems(thread), "switch-agent") && state.InFlight.Operation != "switch-agent") {
+				invalidThreadFrame = true
+				continue
+			}
 		case MenuFrameText:
 			if bound != frame.Thread || (frame.Action != "name" && frame.Action != "describe") {
 				invalidThreadFrame = true
@@ -1474,6 +1510,12 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 	}
 	originFrame, originVisible := menuOperationOriginFrame(state, origin)
 	if !event.Success {
+		if event.Operation == "switch-agent" && originVisible && origin.FrameKind == MenuFrameSwitchAgent {
+			frame := &state.Frames[origin.Depth-1]
+			frame.SwitchStage = 1
+			frame.SelectedItem = "parameters"
+			frame.PreviewPending = 0
+		}
 		// park and leave CLOSE their confirmation on failure: both are terminal
 		// dispositions, and a failed one leaves nothing to retry from that
 		// screen. relaunch and archive deliberately keep theirs -- relaunch's
@@ -1509,7 +1551,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "detach", "resume", "leave", "archive", "relaunch":
+	case "park", "detach", "resume", "leave", "archive", "relaunch", "switch-agent":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -1531,7 +1573,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // it is what stops the next one being added to one list only (ARCH-DRY).
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch":
+	case "park", "detach", "relaunch", "switch-agent":
 		return true
 	}
 	return false
@@ -1543,7 +1585,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch":
+	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent":
 		return true
 	case "switch", "leave":
 		return false
@@ -1741,6 +1783,12 @@ func hierarchyNavigationKey(key PanelKey, forward PanelKeyKind) PanelKey {
 
 func cloneMenuState(state MenuState) MenuState {
 	next := state
+	if state.Orientation != nil {
+		next.Orientation = make(map[couchcore.ThreadAddress]orientation.Request, len(state.Orientation))
+		for k, v := range state.Orientation {
+			next.Orientation[k] = v
+		}
+	}
 	next.Inventory = append([]couchcore.ActionableThreadSummary(nil), state.Inventory...)
 	next.Frames = append([]MenuFrame(nil), state.Frames...)
 	for i := range next.Frames {

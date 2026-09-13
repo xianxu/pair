@@ -3,6 +3,8 @@ package threadrecord
 import (
 	"fmt"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 )
 
 type ParkIdentity struct {
@@ -36,9 +38,10 @@ type ParkTransaction struct {
 }
 
 type VerifiedPark struct {
-	Identity ParkIdentity `json:"identity"`
-	Attempt  uint64       `json:"attempt"`
-	ParkedAt time.Time    `json:"parked_at"`
+	Scrollback *pairlifecycle.PreservedScrollback `json:"scrollback,omitempty"`
+	Identity   ParkIdentity                       `json:"identity"`
+	Attempt    uint64                             `json:"attempt"`
+	ParkedAt   time.Time                          `json:"parked_at"`
 }
 
 func validateLifecycle(record Record) error {
@@ -92,6 +95,9 @@ func validateLifecycle(record Record) error {
 	}
 
 	if record.VerifiedPark != nil {
+		if err := pairlifecycle.ValidatePreservedScrollback(record.VerifiedPark.Scrollback); err != nil {
+			return err
+		}
 		if err := validateParkIdentity(record.VerifiedPark.Identity, record.Address); err != nil {
 			return fmt.Errorf("verified park: %w", err)
 		}

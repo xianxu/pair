@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 type trackedThreadLaunch struct {
@@ -19,6 +21,8 @@ type trackedThreadLaunch struct {
 	ProfileRaw     string
 	UseRepoDefault bool
 	Resume         bool
+	Fresh          bool
+	Orientation    *orientation.Request
 	// Warm marks a REATTACH: the agent is alive behind a client-less zellij
 	// session and Pair only has to attach to it.
 	Warm bool
@@ -59,8 +63,25 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
 		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
 	}
-	if in.Resume {
+	if in.Resume || in.Fresh {
 		env = append(env, "COUCH_THREAD_RESUME=1")
+	}
+	if in.Orientation != nil {
+		err := in.Orientation.Validate()
+		var raw []byte
+		if err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		}
+		var profile launcher.TrustedLaunchProfile
+		if err := json.Unmarshal([]byte(in.ProfileRaw), &profile); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		}
+		profile.Orientation = in.Orientation
+		raw, err = json.Marshal(profile)
+		if err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		}
+		in.ProfileRaw = string(raw)
 	}
 	if !in.Warm {
 		env = append(env,
@@ -73,6 +94,8 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	}
 	shape := StartSpawn
 	switch {
+	case in.Fresh:
+		shape = StartFreshExisting
 	case in.Resume && in.Warm:
 		shape = StartWarmReattach
 	case in.Resume:
@@ -116,11 +139,13 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, err)
 	}
 	registrationTimeout := pairRegistrationTimeout
-	if in.Resume && c.resumeRegistrationTimeout > 0 {
+	if (in.Resume || in.Fresh) && c.resumeRegistrationTimeout > 0 {
 		registrationTimeout = c.resumeRegistrationTimeout
 	}
 	registrationContext, cancelRegistration := context.WithTimeout(ctx, registrationTimeout)
-	if in.Resume {
+	if in.Fresh {
+		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
+	} else if in.Resume {
 		err = c.awaitResumeRegistration(registrationContext, thread.Address)
 	} else {
 		err = c.awaitThreadRegistration(registrationContext, thread.Address)
@@ -268,6 +293,28 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	for {
 		binding, err := sessions.PairSession(address)
 		if err == nil && binding.Present {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (c *Couch) awaitFreshRegistration(ctx context.Context, address ThreadAddress, agent, attempt string) error {
+	if c.FreshRegistration == nil {
+		return errors.New("fresh launch registration observer unavailable")
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		registered, err := c.FreshRegistration(ctx, address, agent, attempt)
+		if err != nil {
+			return err
+		}
+		if registered {
 			return nil
 		}
 		select {

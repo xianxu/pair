@@ -133,8 +133,10 @@ argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
 `--archived`; the hosted-agent hook `publish-description` projects only through
 hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
-`attach`, `switch`, `park`, `resume`, `relaunch`, `leave`, `stop`, `name`,
-`describe` and `archive` are TUI/in-process operations.
+`attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
+`switch-agent`, `leave`, `stop`, `name`,
+`describe` and `archive` are TUI/in-process operations. `orientation-status` is
+an internal owner operation for one launch attempt.
 
 `relaunch` (`pair#182`) is detailed under **Exit, detach, and terminal
 lifecycle**; the one thing worth knowing at this level is that its commonest
@@ -178,6 +180,31 @@ invokes exactly one injected direct-store or live-owner executor; missing owner
 capability returns the typed cross-actor routing refusal and never falls back
 to a second process. No caller produces that refusal today: cross-actor routing
 was punted with `pair#147`.
+
+Switch agent (`pair#184`) uses the highlighted thread's action menu. The form
+selects claude, codex, agy or muse, then edits parameters loaded from the shared
+starting-path preference. Confirming `switch-agent` revalidates the accepted
+`prepare-switch-agent` fingerprint, parks the exact outgoing incarnation and
+starts a fresh context at the same thread address and working path. Selecting
+the current agent also starts fresh. Successful registration changes the path's
+default agent and its argv; other agents' parameters remain available.
+
+The outgoing Pair TTY archive is carried through cleanup completion into
+`VerifiedPark`, using the exact collision-safe artifact token. Retry recovery
+checks at most 32 prior completions, newest first, and honors cancellation; an
+unresolved history beyond that budget fails explicitly before cleanup. The context
+resolver captures the native session before park and adds readable supporting
+transcript and sent-prompt paths. Missing evidence is reported in the generated
+orientation prompt. The target renders and reads the TTY log, summarizes the
+work and waits. No draft or operator-authored log is seeded by the switch.
+
+Fresh registration requires a ready record matching the new launch nonce,
+agent, session and process. Until then a failed launch cannot establish the path
+default or authorize deletion of a session that raced for the same name.
+`orientation-status` separately reports prompt delivery after adoption. The
+wrapper owns paste and submit alongside normal input; operator input cancels
+automatic delivery. Failed or uncertain delivery offers manual recovery without
+resending. The panel retains focus for a panel-origin switch.
 
 Start is a two-operation owner contract. Agent-facing `prepare-start` resolves
 canonical path, selected agent/argv and provenance, preference revision,

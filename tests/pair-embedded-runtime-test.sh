@@ -99,7 +99,7 @@ export GOMODCACHE="$gomodcache"
 export GOCACHE="$gocache"
 export ZELLIJ_LOG="$tmp/zellij.log"
 export PAIR_SMOKE_ROOT="$tmp/root"
-unset PAIR_DEV PAIR_HOME PAIR_TAG PAIR_AGENT PAIR_AGENT_ARGS ZELLIJ_SESSION_NAME ZELLIJ ZELLIJ_PANE_ID
+unset PAIR_DEV PAIR_HOME PAIR_TAG PAIR_AGENT PAIR_AGENT_COMMAND ZELLIJ_SESSION_NAME ZELLIJ ZELLIJ_PANE_ID
 
 help_out="$("$pairbin/pair" --help)"
 case "$help_out" in

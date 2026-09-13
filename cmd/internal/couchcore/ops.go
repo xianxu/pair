@@ -73,6 +73,7 @@ const (
 	ResultThread
 	ResultDescription
 	ResultConsole
+	ResultOrientationStatus
 )
 
 // OperationPresentation assigns every typed operation exactly one UI/process
@@ -150,6 +151,29 @@ func Operations() []Operation {
 			Args: []ArgSpec{
 				{Name: "path", Summary: "repo or subdirectory to start in (default: .)", Required: false},
 				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true, ValueRequired: true},
+			},
+		},
+		{
+			Name: "prepare-switch-agent", Summary: "Preview fresh agent startup parameters for a thread",
+			Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultStartResolution,
+			Presentation: PresentationTUI,
+			Args:         switchAgentArguments(false),
+		},
+		{
+			Name: "switch-agent", Summary: "Start a fresh agent context using the outgoing thread's evidence",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: switchAgentArguments(true),
+		},
+		{
+			Name: "orientation-status", Summary: "Read delivery status for one fresh agent launch",
+			Execution: ExecuteLiveOwner, Effect: EffectRead, Confirmation: ConfirmNone, Result: ResultOrientationStatus,
+			Presentation: PresentationTUI,
+			Args: []ArgSpec{
+				{Name: "repo-scope", Summary: "exact thread repository scope", Required: true, Implicit: true},
+				{Name: "tag", Summary: "exact thread tag", Required: true, Implicit: true},
+				{Name: "agent", Summary: "target coding agent", Required: true, Implicit: true},
+				{Name: "attempt", Summary: "unique fresh launch attempt", Required: true, Implicit: true},
 			},
 		},
 		{
@@ -335,4 +359,17 @@ func OperationNames() []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func switchAgentArguments(accepted bool) []ArgSpec {
+	args := []ArgSpec{
+		{Name: "repo-scope", Summary: "exact thread repository scope", Required: true, Implicit: true},
+		{Name: "tag", Summary: "exact thread tag", Required: true, Implicit: true},
+		{Name: "agent", Summary: "selected coding agent", Required: true, Implicit: true},
+		{Name: "argv", Summary: "JSON array of startup parameters; empty array selects no parameters", Required: accepted, Implicit: true},
+	}
+	if accepted {
+		args = append(args, ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true})
+	}
+	return args
 }

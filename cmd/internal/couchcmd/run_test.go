@@ -583,7 +583,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
+	want := map[string]int{"prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -1685,5 +1685,40 @@ func TestTheConsoleRunnerOpensTheTimingTraceFromTheEnvironment(t *testing.T) {
 	}
 	if got, want := string(body), "1757600000000\tstartup\t-\t-\n"; got != want {
 		t.Fatalf("trace = %q, want %q", got, want)
+	}
+}
+
+func TestOSCompositionChecksSwitchExecutablesAndWiresExactStatus(t *testing.T) {
+	home, data, bin := t.TempDir(), t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", data)
+	t.Setenv("PATH", bin)
+	for _, name := range []string{"pair", "codex"} {
+		if err := os.WriteFile(filepath.Join(bin, name), []byte("#!/bin/sh\nexit 0\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c, err := (OSRuntime{}).NewCouchWith(couchcore.NewFakeRunner(), ns)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.SwitchContext == nil || c.OrientationStatus == nil || c.FreshRegistration == nil || c.SwitchLaunchCheck == nil {
+		t.Fatal("production switch seams not composed")
+	}
+	if err := c.SwitchLaunchCheck("codex"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SwitchLaunchCheck("claude"); err == nil {
+		t.Fatal("missing target executable accepted")
+	}
+	if err := os.Chmod(filepath.Join(bin, "pair"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.SwitchLaunchCheck("codex"); err == nil {
+		t.Fatal("nonexecutable pair accepted")
 	}
 }

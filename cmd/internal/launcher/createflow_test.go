@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"slices"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 
@@ -443,8 +445,8 @@ func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.
 	if len(rt.existingThreads) != 1 || len(rt.threadClaims) != 0 {
 		t.Fatalf("address validation: existing=%v create=%v", rt.existingThreads, rt.threadClaims)
 	}
-	if rt.env["PAIR_SESSION_ID"] != "native-root-1" || rt.env["PAIR_AGENT_ARGS"] != "resume native-root-1 --sandbox workspace-write --no-alt-screen" {
-		t.Fatalf("resume env: id=%q args=%q", rt.env["PAIR_SESSION_ID"], rt.env["PAIR_AGENT_ARGS"])
+	if rt.env["PAIR_SESSION_ID"] != "native-root-1" || launchArgsText(t, rt.env) != "resume native-root-1 --sandbox workspace-write --no-alt-screen" {
+		t.Fatalf("resume env: id=%q args=%q", rt.env["PAIR_SESSION_ID"], launchArgsText(t, rt.env))
 	}
 }
 
@@ -590,7 +592,14 @@ func (f *fakeRuntime) SweepOrphanNvim(liveTags []string) {
 }
 func (f *fakeRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	f.parked = append(f.parked, fmt.Sprintf("%s|%s|%t", tag, agent, move))
-	return "/data/parked-scrollback-" + tag + "-TS", f.parkOK
+	dir := "/data"
+	for path := range f.files {
+		if filepath.Base(path) == "scrollback-"+tag+"-"+agent+".raw" {
+			dir = filepath.Dir(path)
+			break
+		}
+	}
+	return filepath.Join(dir, "parked-scrollback-"+tag+"-TS"), f.parkOK
 }
 func (f *fakeRuntime) ConfirmParkNudge(session string, timeoutSecs int) bool {
 	f.parkPrompts = append(f.parkPrompts, session)
@@ -718,8 +727,8 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if rt.env["PAIR_SESSION_ID"] != "MINTED-1" {
 		t.Fatalf("PAIR_SESSION_ID = %q", rt.env["PAIR_SESSION_ID"])
 	}
-	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--session-id MINTED-1") {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if !strings.Contains(launchArgsText(t, rt.env), "--session-id MINTED-1") {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 	// The STARTUP pane title (#133): the agent name and nothing more. zellij shows
 	// "<session name> | <pane title>" and the session half is already 📁work-bugfix,
@@ -1019,8 +1028,8 @@ func TestRunLaunchFailedPreflightDoesNotAppendLedgerOrSessionIndex(t *testing.T)
 	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
 		t.Fatalf("preflight failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
 	}
-	if len(rt.env) != 1 { // PATH is set at RunLaunch entry.
-		t.Fatalf("preflight failure should only set PATH env, got %+v", rt.env)
+	if len(rt.env) != 2 || rt.env[orientation.Env] != "" { // Entry establishes PATH and clears stale launch-only orientation.
+		t.Fatalf("preflight failure should only set PATH and clear orientation, got %+v", rt.env)
 	}
 }
 
@@ -1111,8 +1120,8 @@ func TestRunLaunchCodexAltScreen(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "--no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "--no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 	// Codex does not mint a claude session id.
 	if rt.env["PAIR_SESSION_ID"] != "" {
@@ -1135,8 +1144,8 @@ func TestRunLaunchUsesRepoAgentDefaultWhenNoTagConfig(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "--model gpt-5 --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "--model gpt-5 --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 }
 
@@ -1162,8 +1171,8 @@ func TestRunLaunchIgnoresMismatchedTagConfigWithWarning(t *testing.T) {
 	if pickerCalled {
 		t.Fatalf("mismatched config must not be offered in the restart picker")
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "--model gpt-5 --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "--model gpt-5 --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 	if !strings.Contains(stderr.String(), `saved config agent "claude" does not match requested agent "codex"; ignoring it`) {
 		t.Fatalf("stderr missing mismatch warning: %s", stderr.String())
@@ -1191,8 +1200,8 @@ func TestRunLaunchLayoutOnlyNewPickUsesRepoAgentDefault(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "--model opus" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q, want repo default", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "--model opus" {
+		t.Fatalf("AgentCommand = %q, want repo default", launchArgsText(t, rt.env))
 	}
 	if got := rt.files["/data/workbench-layout-work"]; got != "layout2\n" {
 		t.Fatalf("layout record = %q, want layout2", got)
@@ -1303,8 +1312,8 @@ func TestRunLaunchTagRestartPickerResume(t *testing.T) {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
 	// codex resume subcommand LEADS, --no-alt-screen appended idempotently.
-	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --search --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "resume CX-9 --search --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 }
 
@@ -1333,8 +1342,8 @@ func TestRunLaunchSkipConfigPickerUsesRepoDefaultOverSavedConfig(t *testing.T) {
 	if pickerCalled {
 		t.Fatal("saved-config picker opened despite SkipConfigPicker")
 	}
-	if got := rt.env["PAIR_AGENT_ARGS"]; got != "--model sonnet --session-id NEW" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", got)
+	if got := launchArgsText(t, rt.env); got != "--model sonnet --session-id NEW" {
+		t.Fatalf("AgentCommand = %q", got)
 	}
 	if !contains(rt.removed, "/data/config-cx-claude.json") || rt.files["/data/config-cx-claude.json"] != "" {
 		t.Fatalf("fresh provisional launch retained config: removed=%v files=%v", rt.removed, rt.files)
@@ -1360,8 +1369,8 @@ func TestRunLaunchSkipConfigPickerWithoutRepoDefaultUsesNoUserArgs(t *testing.T)
 	if pickerCalled {
 		t.Fatal("saved-config picker opened despite SkipConfigPicker")
 	}
-	if got := rt.env["PAIR_AGENT_ARGS"]; got != "--no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", got)
+	if got := launchArgsText(t, rt.env); got != "--no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", got)
 	}
 }
 
@@ -1378,8 +1387,8 @@ func TestRunLaunchTagRestartPickerResumeStripsCodexResumeAfterGlobals(t *testing
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v", code, err)
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --sandbox danger-full-access --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "resume CX-9 --sandbox danger-full-access --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 }
 
@@ -1400,8 +1409,8 @@ func TestRunLaunchTagRestartPickerWarnsWhenSavedSessionIsStale(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "--search --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "--search --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 	if !strings.Contains(stderr.String(), `saved session "CX-9" for codex is not available; starting fresh`) {
 		t.Fatalf("stderr missing stale-session warning: %s", stderr.String())
@@ -1584,8 +1593,8 @@ func TestRunLaunchResumeUsesLedgerAgentAndArgsWhenConfigMissing(t *testing.T) {
 	if rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("PAIR_AGENT = %q, want codex", rt.env["PAIR_AGENT"])
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "resume CX-9 --search --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "resume CX-9 --search --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 }
 
@@ -1611,11 +1620,11 @@ func TestRunLaunchRejectsInvalidLedgerCodexSession(t *testing.T) {
 	if err != nil || code != 0 {
 		t.Fatalf("code=%d err=%v stderr=%s", code, err, stderr.String())
 	}
-	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "SUBAGENT") {
-		t.Fatalf("PAIR_AGENT_ARGS = %q, must not resume rejected session", rt.env["PAIR_AGENT_ARGS"])
+	if strings.Contains(launchArgsText(t, rt.env), "SUBAGENT") {
+		t.Fatalf("AgentCommand = %q, must not resume rejected session", launchArgsText(t, rt.env))
 	}
-	if rt.env["PAIR_AGENT_ARGS"] != "--search --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", rt.env["PAIR_AGENT_ARGS"])
+	if launchArgsText(t, rt.env) != "--search --no-alt-screen" {
+		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
 	}
 	if !slices.Contains(rt.removed, "/data/config-work-codex.json") {
 		t.Fatalf("removed = %v, want canonical config quarantine", rt.removed)
@@ -1640,8 +1649,8 @@ func TestRunLaunchAltNRestartRejectsInvalidSavedCodexSession(t *testing.T) {
 	if rt.launchCount != 2 {
 		t.Fatalf("launchCount = %d, want initial launch plus Alt+n relaunch", rt.launchCount)
 	}
-	if strings.Contains(rt.env["PAIR_AGENT_ARGS"], "SUBAGENT") {
-		t.Fatalf("PAIR_AGENT_ARGS = %q, must not resume rejected session", rt.env["PAIR_AGENT_ARGS"])
+	if strings.Contains(launchArgsText(t, rt.env), "SUBAGENT") {
+		t.Fatalf("AgentCommand = %q, must not resume rejected session", launchArgsText(t, rt.env))
 	}
 	if !slices.Contains(rt.removed, "/data/config-cx-codex.json") {
 		t.Fatalf("removed = %v, want stale Codex config quarantined", rt.removed)
@@ -1729,8 +1738,8 @@ func TestRunLaunchPickInferredAgentMustNotInheritCliArgs(t *testing.T) {
 	if rt.env["PAIR_AGENT"] != "codex" {
 		t.Fatalf("PAIR_AGENT = %q, want codex", rt.env["PAIR_AGENT"])
 	}
-	if !strings.Contains(rt.env["PAIR_AGENT_ARGS"], "--sandbox") {
-		t.Fatalf("codex args were not preserved: PAIR_AGENT_ARGS=%q", rt.env["PAIR_AGENT_ARGS"])
+	if !strings.Contains(launchArgsText(t, rt.env), "--sandbox") {
+		t.Fatalf("codex args were not preserved: AgentCommand=%q", launchArgsText(t, rt.env))
 	}
 	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)

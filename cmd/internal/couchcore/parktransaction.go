@@ -47,9 +47,10 @@ type ParkTransaction struct {
 }
 
 type VerifiedPark struct {
-	Identity ParkIdentity `json:"identity"`
-	Attempt  uint64       `json:"attempt"`
-	ParkedAt time.Time    `json:"parked_at"`
+	Scrollback *pairlifecycle.PreservedScrollback `json:"scrollback,omitempty"`
+	Identity   ParkIdentity                       `json:"identity"`
+	Attempt    uint64                             `json:"attempt"`
+	ParkedAt   time.Time                          `json:"parked_at"`
 }
 
 type ParkEventKind string

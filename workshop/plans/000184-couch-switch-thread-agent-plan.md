@@ -81,7 +81,7 @@ Add explicit argv presence to profile resolution and `ArgvSourceExplicit`; do no
 
 `ValidateFreshAgentArgs` centralizes the harness-specific resume/continue/native-session selector grammar already understood by the launcher. Reject conflicting parameters visibly before park and revalidate at the Pair boundary. Do not silently strip values the operator reviewed. Include `--flag=value`, split values, shorthand and command forms known to the actual launchers; inspect installed harness help during implementation for gaps and document the tested versions. Pair's internally minted fresh native ID remains allowed after user-argv validation. Tests must exercise the real `RunLaunch` path with old target config and ledger entries present.
 
-Represent the existing-address fresh start explicitly in `StartShape` and tracked launch input. It owns the new session for cleanup just as cold resume does, but has no native-resume requirement. Await a new matching live Pair session rather than the address marker: that marker predates the switch. Registration updates profile and path preferences through the existing transaction. A failed start preserves the source profile and verified park when absence is proved; uncertainty stays occupied. Never call the success-recording `StartRecoveredUnknown` merely to clean up a failed launch.
+Represent the existing-address fresh start explicitly in `StartShape` and tracked launch input. It owns the new session for cleanup just as cold resume does, but has no native-resume requirement. Await a new matching live Pair session rather than the address marker: that marker predates the switch. Registration updates profile and path preferences through the existing transaction. The other default writer, `startAgentDefaultPersistence` (`createflow.go`), must not run for a fresh Couch-owned launch: `AgentArgsExplicit` alone currently enables it before registration. Separate launch nonce/readiness setup from repository-default persistence, retain nonce publication for orientation, and leave repository defaults untouched on both successful and failed Couch switches. Audit every `WriteAgentDefault`/path-preference writer against this ownership rule; direct shell launches retain their existing persistence behavior. A failed start preserves the source profile and verified park when absence is proved; uncertainty stays occupied. Never call the success-recording `StartRecoveredUnknown` merely to clean up a failed launch.
 
 ### Exact context and prepared prompt
 
@@ -151,7 +151,7 @@ Extend the existing ready record with optional orientation attempt/status metada
 
 ### Implementation tasks
 
-Single atomic issue close, with plain checkboxes rather than artificial milestone tags. Each task follows red → green → refactor; commit the coherent change with `#184` and the authoring-model trailer. Do not execute until the operator approves this plan and `sdlc change-code --issue 184` clears its gates.
+One atomic issue close with plain checkboxes; the binary owns the single boundary review. The operator approved implementation on 2026-09-13. First clear `sdlc change-code --issue 184`; derive the estimate only after plan-quality accepts. Every task uses failing behavioral tests before production changes, then the focused verification below. Commit coherent changes with `#184` and the authoring-model trailer. The architecture sections above own the behavior; this section owns file scope and test strategy.
 
 #### Task 1 — Parameter editing and fresh launch policy
 
@@ -161,11 +161,17 @@ Also create `cmd/internal/launcher/agent_command.go`, `agent_command_test.go`; m
 
 Update `tests/pair-embedded-runtime-test.sh` to clear the new command environment in its isolation setup. Update transport descriptions in `atlas/architecture.md` and `atlas/go-migration-inventory.md`; these consume the same launch boundary.
 
-- [ ] Write parser roundtrip/error tests and fresh-policy rejection tests. Include quoted empty argv, Unicode, literal `$()`/backticks, no expansion, explicit empty versus missing, old saved target config, resume flags and wrong-target native identity.
-- [ ] Run `go test ./cmd/internal/launcher ./cmd/internal/couchcore -run 'LaunchParameters|Fresh|LaunchProfile' -count=1`; prove the new cases fail for the missing behavior.
-- [ ] Implement the pure parser/formatter, explicit argv provenance, strict fresh envelope, and create-only policy. Add tests through actual launcher execution for A→B→A and same-agent fresh launch, with saved config/ledger populated.
-- [ ] Replace the lossy joined-argv KDL boundary with the single structured command export/decoder. Run production layout shell stanzas against a recording stub, then pass their actual exported bytes to wrapper decoding and a fake agent; require exact argv. Cover wrapper restart and direct invocation without inherited-profile overrides.
-- [ ] Run the focused tests again; require exact argv/native-ID behavior and untouched ordinary resume/relaunch behavior. Commit.
+`ParseLaunchParameters`/`FormatLaunchParameters`: fuzz arbitrary Unicode/quoting and enforce exact vector roundtrip or a typed parse failure; shell metacharacters remain inert.
+
+`DecodeAgentCommand`: fuzz untrusted JSON and execute decoded vectors through the actual layout/wrapper boundary, comparing final process argv byte-for-byte.
+
+`ValidateFreshAgentArgs`: generate conflicting native-context selectors from the supported harness grammar and require refusal before any source effect.
+
+`runCreate`/`ResolveLaunchProfile`: drive fresh launches against populated stateful saved-config/default stores, then inject registration failures; require a new context, exact accepted argv and zero writes outside successful Couch path registration.
+
+- [x] Establish failing behavioral proof for the named strategies.
+- [x] Deliver this task under the contracts above; refactor only with tests green.
+- [x] Verify with `go test ./cmd/internal/launcher ./cmd/internal/couchcore ./cmd/internal/wrapcmd -run 'LaunchParameters|AgentCommand|Fresh|LaunchProfile' -count=1`; expected result: all selected tests pass. Commit and update the issue Log.
 
 #### Task 2 — Exact outgoing context survives park
 
@@ -173,55 +179,73 @@ Update `tests/pair-embedded-runtime-test.sh` to clear the new command environmen
 
 Also modify `cmd/internal/couchcore/parktransaction.go`, `thread.go`, `thread_test.go`, `threadstore.go`, and `threadstore_test.go` for the explicit in-memory/persisted route and `FinalizePark` argument.
 
-- [ ] Write failure-first tests transporting the actual park result through completion and verified park to the context resolver. Cover same-second archives, retry, optional events loss, old metadata absent, tampered scope/tag, unreadable native inventory and exact source selection after A→B→A.
-- [ ] Run `go test ./cmd/internal/launcher ./cmd/internal/pairlifecycle ./cmd/internal/threadrecord ./cmd/internal/couchcore -run 'Scrollback|Park|SwitchContext|Orientation' -count=1` and capture failures.
-- [ ] Carry the optional artifact descriptor and fix name collision without another snapshot family. Strictly validate metadata and retain backwards reads. Use `QuerySession` and `RootTranscript` through an injected runtime; bound lookup and report unavailable evidence.
-- [ ] Prove preserve-success/later-cleanup-failure/retry retains the same descriptor, and move-before-completion crash reports unavailable context without an archive guess. Exercise `FinalizePark`, both conversions, save/reopen and parked-source switch using the producer's actual completion metadata.
-- [ ] Implement and test `BuildPrompt`, including missing-all-sources, safe path encoding, no source continuation, native fallback, summary-and-wait instruction, and prompt size limits. Verify renderer behavior for missing events with `go test ./cmd/internal/scrollbackcmd -count=1`; add a focused regression if unsupported and make the prompt's fallback truthful.
-- [ ] Run focused suites and artifact inventory guard; commit.
+`SwitchContextResolver`/`BuildPrompt`: feed scanner-authorized and unavailable context through bounded fake storage; assert exact provenance, safe encoding, size bounds and summary-and-wait semantics.
+
+`ParkScrollback`/`ConsumeAttempt`/`FinalizePark`: fault each preservation/publication boundary, retry under the same identity and reopen persisted state; require the producer's exact descriptor or explicit unavailability, never an archive guess.
+
+`RunCleanup`: inject later-stage failures after an earlier successful preservation and require retry to retain the committed descriptor.
+
+- [x] Establish failing behavioral proof for the named strategies.
+- [x] Deliver this task under the contracts above; refactor only with tests green.
+- [x] Verify with `go test ./cmd/internal/launcher ./cmd/internal/pairlifecycle ./cmd/internal/threadrecord ./cmd/internal/couchcore ./cmd/internal/orientation ./cmd/internal/scrollbackcmd -count=1`; expected result: all selected tests pass. Commit and update the issue Log.
 
 #### Task 3 — Switch orchestration on the existing address
 
 **Files:** create `cmd/internal/couchcore/switchagent.go`, `switchagent_test.go`; modify `launch_existing.go`, `startcleanup.go`, `startcleanup_test.go`, `resume_launch_test.go`, `ops.go`, `ops_declarations_test.go`, `operationdispatch.go`, and operation routing tests in the same package. Extend `cmd/internal/launcher/launch_args_policy.go` for the orientation request and `createflow.go` for one-shot export.
 
-- [ ] Use `envWithLiveThread` and `createParkedThreadInCouch` fixtures for refusal-before-park, parked-source switch, silent death, park failure, concurrent claimant, fork/ack/registration failure, cancellation and ambiguous cleanup. Assert source profile/park/preferences and sentinel tag files at every outcome.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'SwitchAgent|StartCleanup|ResumeLaunch|Relaunch' -count=1`; prove new switch cases fail.
-- [ ] Implement prepare/commit with revision-bound accepted profile; perform all knowable refusal checks and prompt-envelope validation before park. Reuse `CommitStartClaim` and `launchTrackedThread` with explicit fresh-existing shape, register actual target session, and carry `StartedChild` plus independent orientation status.
-- [ ] Declare and route `switch-agent` with target agent, structured argv, accepted fingerprint and implicit exact address. Keep native resume requirements unchanged. Test `OperationCall` through the real dispatcher rather than only calling the method.
-- [ ] Confirm successful registration updates only target parameters/default, failed launch preserves source recoverability, and no draft/queue/history is overwritten. Run focused suites; commit.
+`PrepareAgentSwitch`/`SwitchAgent`: perturb authoritative revisions and every lifecycle effect using real store/controller plus stateful runner; assert refusal-before-park or the exact recoverable partial outcome.
+
+`launchTrackedThread`/`DecideStartCleanup`: inject process/session observations across claim and registration boundaries; require cleanup to act only on the owned launch and preserve tag state.
+
+`DispatchOperation`: enter through declared operation arguments and compare the resulting real launch profile/address with the accepted preview.
+
+- [x] Establish failing behavioral proof for the named strategies.
+- [x] Deliver this task under the contracts above; refactor only with tests green.
+- [x] Verify with `go test ./cmd/internal/couchcore -run 'SwitchAgent|StartCleanup|ResumeLaunch|Relaunch' -count=1`; expected result: all selected tests pass. Commit and update the issue Log.
 
 #### Task 4 — One automatic orientation submission
 
 **Files:** extend `cmd/internal/orientation/model.go`, `model_test.go`; create `cmd/internal/wrapcmd/orientation.go`, `orientation_test.go`; modify `cmd/internal/wrapcmd/wrap.go`, `harness_tty.go`, `translate_stdin_test.go`, `agent_restart_test.go`, `cmd/internal/readiness/record.go`, `record_test.go`, `cmd/internal/launcher/readiness.go`, `createflow.go`, `createflow_test.go`, `cmd/internal/artifactpath/manifest.go`.
 
-- [ ] Write table tests for delivery transitions and scheduling tests using existing four-harness terminal fixtures. Include startup banner, trust dialog, no composer, ready-then-overlay, partial paste/submit, user input, paste settle, duplicate readiness, timeout, restart and child death.
-- [ ] Specifically race input and overlay observations with the post-paste submit timer in both orders. Prove input is preserved, no user text is automatically submitted after cancellation, and recovery distinguishes a possibly pasted body from an untouched composer.
-- [ ] Run `go test ./cmd/internal/orientation ./cmd/internal/wrapcmd ./cmd/internal/readiness -run 'Orientation|Ready' -count=1`; observe missing behavior.
-- [ ] Consume and clear the launch-only request, reuse composer recognition independent of Return remap, serialize PTY input, and submit once. Preserve user keystrokes and generated-versus-operator provenance. Update existing submission notification observations only when the submit reached the child.
-- [ ] Publish identity-bound optional ready status and avoid inheriting the request into the agent or wrapper restart. Tests prove no auto-send on later restart/resume and no automatic retry of uncertain bytes.
-- [ ] Run focused tests plus `go test -race ./cmd/internal/wrapcmd ./cmd/internal/readiness -count=1`; commit.
+`AdvanceDelivery`: exhaust the state/event product with a deterministic clock and require at-most-once automatic submit with truthful partial-write outcomes.
+
+`proxy` orientation adapter: drive real input/output scheduling with recorded harness terminals and a faulting PTY sink; permute input/overlay/timeout/death around paste and submit and assert byte ownership, cancellation and lifecycle observations.
+
+`ReadyRecord` decoding/publication: fuzz optional cross-process status and bind it to the exact attempt; wrapper re-exec tests prove consumed orientation cannot replay.
+
+- [x] Establish failing behavioral proof for the named strategies.
+- [x] Deliver this task under the contracts above; refactor only with tests green.
+- [x] Verify with `go test -race ./cmd/internal/orientation ./cmd/internal/wrapcmd ./cmd/internal/readiness -count=1`; expected result: all selected tests pass. Commit and update the issue Log.
 
 #### Task 5 — Couch form, progress, adoption and manual recovery
 
 **Files:** create `cmd/internal/couchtty/menu_switchagent.go`, `menu_switchagent_test.go`, `console_switchagent.go`, `console_switchagent_test.go`; modify `menu.go`, `menu_render.go`, `menu_async.go`, `console.go`, `menu_action_sweep_test.go`, `menu_recovery_notice_test.go`, `console_relaunch_chord_test.go`.
 
-- [ ] Write reducer/render tests for agent selection → prepopulated editable args → explicit Switch; cancel/back; same-agent choice; empty args; async preview identity; input bounds; thread disappearing; exact warning before effect dispatch.
-- [ ] Run `go test ./cmd/internal/couchtty -run 'SwitchAgent|OfferedAction|RecoveryNotice' -count=1` and observe failures.
-- [ ] Implement the form in its focused file and add minimal dispatch/render hooks to existing large menu/console files. Reuse bounded preview scheduling. Extend the exhaustive action, projection-refresh, frame-validation and expected-child-exit policies.
-- [ ] Adopt registered target before waiting for orientation. Watch status with cancellation/attempt identity; render submitted/unavailable/indeterminate correctly and offer Copy orientation prompt for explicit manual recovery without changing the draft or queue. Preserve panel/actor origin and ignore stale results after another target starts.
-- [ ] Drive production input → dispatcher → child adoption for success and all partial outcomes. Assert the rendered frame after the final state change, not only internal state. Run focused tests; commit.
+`ReduceSwitchForm`: property-test frame/event transitions against accepted preview identity, bounded input and cancel-without-effects.
+
+`Console` switch adapter: drive production input through dispatcher, adoption and status watch using controlled completions; assert correct final rendered frame, focus origin and manual recovery without draft/queue mutation.
+
+`MenuActionItems` reachability/operation policies: extend the existing exhaustive offered-action and child-exit/projection sweeps so a declaration cannot remain unreachable.
+
+- [x] Establish failing behavioral proof for the named strategies.
+- [x] Deliver this task under the contracts above; refactor only with tests green.
+- [x] Verify with `go test ./cmd/internal/couchtty -count=1`; expected result: all selected tests pass. Commit and update the issue Log.
 
 #### Task 6 — Full-chain proof, docs and close
 
 **Files:** create `cmd/internal/couchcmd/switchagent_acceptance_test.go`; modify `README.md`, `atlas/couch.md`, and `workshop/issues/000184-couch-switch-thread-agent.md`. Update `atlas/index.md` only if a new atlas page is introduced. Update `workshop/lessons.md` for concrete review findings.
 
-- [ ] Build an isolated acceptance stack using production operation dispatch/launch-envelope encoding, stateful park/runner/filesystem fakes, real wrapper delivery with recorded terminal fixtures, and no external model requests. Transport actual output between producer and consumer; assert target input bytes and submission count.
-- [ ] Cover every supported target, A→B→A, same-agent fresh switch, missing sources, source death, unavailable executable, stale preference, unsupported/resume args, ownership race, failed registration, missing composer, uncertain submission, and old completion/status schemas.
-- [ ] Seed draft/queue/sent-history/name/description/artifact sentinels and assert preservation. Check fresh target native identity and updated path default/argv. Check relaunch retains its binding and Alt+Shift+N keeps its existing subsystem behavior.
-- [ ] Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test` and `git diff --check`. Expected: all suites and cross-cutting inventories pass. Repeat affected race tests only for changed scheduling code or new failures.
-- [ ] Run an isolated live smoke with rebuilt binaries and disposable thread/data directories for installed supported harnesses: verify parameter preview, full process replacement, new native context, readable source log, one orientation summary, and preserved tag data. Record unavailable harnesses explicitly; deterministic fixtures are not live conformance evidence. Never switch the development session itself as a smoke test.
-- [ ] Document the action, shared path preferences, fresh-context behavior, orientation recovery, and existing shortcut distinction. Reconcile concepts/file table against delivered diff and append any plan revisions; record verification and review findings in issue Log.
-- [ ] Run `sdlc close --issue 184 --verified '<actual commands and behavior evidence>'`; the binary owns the single mandatory boundary review. Fix its findings, log verdict and rerun the precise checks. Publish once through `sdlc pr` and `sdlc merge` within the authorized implementation scope.
+Full-chain acceptance transports actual production output from Couch selection through park, launch encoding, layout shell, wrapper and final fake agent. Use stateful storage/process fakes to assert fresh context, preserved tag-owned artifacts, path preference ownership and honest recovery; do not reconstruct boundary inputs independently.
+
+Live conformance uses rebuilt binaries and disposable data/thread directories for each installed harness, recording exact argv, process/native identity and one orientation response. Report unavailable harnesses explicitly and never use the development session itself as the smoke target.
+
+- [x] Establish failing behavioral proof for the named strategies.
+- [x] Deliver this task under the contracts above; refactor only with tests green.
+- [x] Verify with `env -u PAIR_SESSION_ID -u PAIR_TAG make test`; expected result: all selected tests pass. Commit and update the issue Log.
+
+- [x] Reconcile the delivered concept/file table and operator documentation; append plan revisions and concrete review lessons.
+- [x] Run `git diff --check`, record complete automated/live verification and any unavailable live dependencies.
+- [ ] Run `sdlc close --issue 184 --verified '<actual evidence>'`, fix the binary's boundary findings, then publish once through `sdlc pr` and `sdlc merge`.
 
 ## Revisions
 
@@ -239,3 +263,162 @@ Fresh-context re-review approved the complete chunk with no blocking findings.
 Included its advisory follow-through for embedded-runtime environment isolation
 and the existing architecture/transport documentation. Awaiting operator approval
 before implementation.
+
+### 2026-09-13 — SDLC plan gate PQ-1/PQ-2
+
+PQ-1: explicitly separated fresh Couch launch nonce/readiness setup from the
+repository-default writer; successful registration remains the path-preference
+authority, with failure injection at every writer boundary. PQ-2: compressed
+Tasks 1–6 into named function strategies (adversarial class plus mechanical
+guard), retaining file scopes and verification commands. Prior revisions remain
+in Git history; no approved product behavior changed. Operator authorized
+implementation before this gate refinement.
+
+### 2026-09-13 — Implementation boundary refinements
+
+The delivered parser policy file is `launcher/fresh_args.go`. Fresh registration
+now correlates the wrapper's ready record with the new launch nonce, agent,
+session and live process, because session presence alone can accept a competing
+launch. Before that proof, cleanup stops only its helper and preserves any live
+session as occupied recovery state. `ParkExpected` checks the accepted revision
+inside the existing serialized park worker and at its store CAS (ARCH-ORDER).
+
+`StartRecoveredUnknown` now updates the thread through the ordinary transition,
+without the successful-start preference transaction. Unknown process state is
+not evidence that a preferred startup policy succeeded; the source profile and
+verified park remain intact. The prepared request is embedded in the strict
+fresh profile and exported once by the launcher. The actual renderer command
+is the unified `pair scrollback render`, passed as a JSON argv vector.
+
+The full-chain test crosses the package import boundary through a test
+subprocess: Couch produces the actual profile, and the launcher test consumes
+those exact bytes using its existing runtime fake before executing the layout
+and wrapper. No production test hook or duplicated launch policy is added.
+
+### 2026-09-13 — Delivered concepts and live conformance refinements
+
+The parameter screen contains the editable field and Switch/Cancel controls;
+there is no additional confirmation screen. A final asynchronous resolution
+follows explicit Switch selection, and the core rechecks the accepted fingerprint.
+Prefill may display remembered resume selectors for correction; explicit
+acceptance still rejects them before parking. An unavailable delivery status
+says delivery is unconfirmed and asks the operator to inspect the target.
+
+The implementation reuses `MenuFrame` rather than introducing `MenuSwitchForm`;
+`reduceSwitchAgentKey` and `reduceSwitchAgentPreview` are its pure transitions.
+`orientationDelivery` is the wrapper adapter; `orientationReplies` in
+`wrapcmd/orientation_replies.go` frames only replies to observed terminal queries,
+so startup capability negotiation does not masquerade as operator input.
+`OSOrientationStatusReader` in `couchcore/switchcontext.go` shares exact-ready
+validation between launch registration and the later delivery watcher.
+
+Live checks required orientation-specific exclusions for transient loading
+screens and menus, while preserving existing Return-remapping semantics. Plain
+composers under `NO_COLOR` must satisfy the same positive ready-state contract.
+These are observed startup surfaces, not added timing guesses (ARCH-PURPOSE).
+
+### 2026-09-13 — Boundary review round 1
+
+The gate returned REWORK with BR-1 (consumed settle deadline when a terminal
+reply wins input priority) and BR-2 (full-chain acceptance starts after park).
+Preserve the due submit event across forwarding of solicited replies and add a
+deterministic simultaneous-readiness regression. Extend acceptance from an owned
+live source through real archive preservation, verified park and the actual
+launch envelope into the wrapper. No product scope changed; both complete the
+existing event-order and lifecycle acceptance contracts.
+
+- [x] BR-1: preserve due submission across protocol replies and verify the actual scheduler under simultaneous readiness.
+- [x] BR-2: prove a successful owned-live-source switch through exact archive transfer and wrapper delivery.
+
+### 2026-09-13 — Operator acceptance before close
+
+The operator requested a live smoke test before issue closure. Finish BR-1 and
+BR-2, run automated verification, and build the candidate. Then provide concrete
+smoke steps and wait for the operator's result before re-running `sdlc close` or
+publishing. The first close attempt returned REWORK and did not change working
+status; this new acceptance checkpoint precedes the next close attempt.
+
+- [x] Operator live smoke completed and accepted before issue closure.
+
+### 2026-09-13 — Review fixes verified; smoke candidate built
+
+BR-1 retains the consumed settle event until queued input drains. A deterministic
+scheduler regression forces a solicited reply after timer receipt and proves
+one submission; its operator-text companion proves cancellation preserves input.
+The full wrapper race suite passes. BR-2 now starts through actual Couch ownership,
+uses production cleanup/archive and durable completion, and verifies exact source
+exit and descriptor persistence before launching through the existing wrapper
+acceptance path. Parked and live variants pass under race testing.
+
+Final root verification: couchcmd, launcher and wrapcmd suites pass uncached;
+`git diff main --check` passes; `make build` succeeds for the live candidate.
+The boundary review has not been rerun: operator live acceptance remains pending.
+
+### 2026-09-13 — Operator smoke: parameter cursor editing
+
+Operator found Left/Right changes form focus rather than moving within startup
+parameters. Add cursor-aware insertion/deletion and Left/Right movement while
+the parameter field is focused; retain Tab/Up/Down for control focus. Reuse
+existing cursor rendering and test actual reducer/render transitions, including
+Unicode boundaries. This completes the approved editable parameter form.
+
+- [x] Parameter field supports Left/Right cursor edits and regression checks.
+
+The Codex failure traced to an existing combined argument in the saved policy,
+not a transport merge. Preserve exact argv semantics; the operator can correct
+it by removing the quotes in this field. Agy orientation cancellation is still
+under investigation; do not declare live acceptance complete.
+
+### 2026-09-13 — Operator smoke: solicited DECRQM reply
+
+Captured startup proves Agy requested synchronized-output mode status with
+`ESC[?2026$p`; its solicited `ESC[?2026;2$y` reply arrived with a supported
+Kitty keyboard reply and was classified as operator input. Add query-correlated
+DECRQM response admission, including fragmented/mixed-input regressions. Do not
+ignore arbitrary escape input or authorize unsolicited mode reports (ARCH-ORDER).
+
+- [x] Recognize solicited DECRQM replies without cancelling orientation.
+
+### 2026-09-13 — Smoke fixes verified and rebuilt
+
+Parameter editing uses a rune cursor offset within the existing MenuFrame, with
+cell-width rendering. Tests reproduce quote correction into separate argv and
+Unicode insertion/deletion. Query tracking admits only outstanding 2026/2027
+mode reports with valid status, bounded to these observed modes. Exact captured
+packet, fragmentation, duplicate/mismatch and mixed-text regressions pass.
+
+Root uncached couchtty/couchcmd/wrapcmd suites and full wrapper race suite pass;
+`make build` succeeds. Logs: `/tmp/pair-184-smoke-fixes-test.log` and
+`/tmp/pair-184-smoke-fixes-build.log`. Request another operator smoke; closure
+and publication remain deferred.
+
+### 2026-09-13 — Operator acceptance
+
+Operator confirmed Copy orientation prompt works and explicitly accepted live
+smoke as passed, authorizing issue closure. Startup trust dialogs retain the
+approved cancellation plus manual-copy recovery behavior. No change to delayed
+delivery through dialogs is included. Resume the normal close/publish gates.
+
+### 2026-09-13 — Boundary review round 2
+
+Review disposed BR-1/BR-2 as addressed, including mutation checks, and raised
+BR-3: retry capture recovery scans every integer below a persisted attempt and
+ignores cancellation while holding the cleanup lock. Bound the history lookup
+independently of the counter, preserve exact committed descriptor authority,
+and honor cancellation before further reads or cleanup. Add huge sparse-counter
+and cancellation regressions (ARCH-CONSTRAINTS, ARCH-ORDER). Related Couch loops
+iterate actual stored attempts rather than generating work from a numeric count.
+
+- [x] BR-3: bound retry history lookup and honor cancellation; verify sparse history and descriptor preservation.
+
+### 2026-09-13 — BR-3 verified
+
+Lookup reads at most 32 prior completions in descending order, stops on an exact
+validated descriptor, and checks context after reads and before cleanup. It
+fails explicitly if the budget cannot establish prior context. A newer nil
+completion cannot hide an older delayed capture. Once cleanup has run, result
+publication still preserves its capture even if cancellation occurred inside
+cleanup. Regression tests cover billion/MaxUint64 counters, missing slots,
+read cancellation and durable capture after cleanup cancellation. Lifecycle race
+passes; uncached lifecycle/core/command/launcher integration passes
+(`/tmp/pair-184-br3-test.log`); build and diff checks pass.

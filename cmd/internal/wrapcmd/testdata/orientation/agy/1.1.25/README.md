@@ -1,0 +1,2 @@
+Captured 2026-09-13 from an isolated 120×38 live Pair wrapper smoke. Agy executable --version is 1.1.25; its UI header reports 1.2.2. NO_COLOR=1 was inherited. Account and temporary path labels are anonymized with equal-length bytes.
+pasted-no-color.raw captures the expanded multiline composer after bracketed paste. Agy removes its shortcuts hint when the composer contains text; the same model footer remains.
