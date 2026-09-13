@@ -139,6 +139,20 @@ func run() int {
 		send("\x1b[107;3u")
 	})
 
+	// #227's stated purpose: a full-screen app can BIND a passthrough chord and
+	// receive it. parley binds M-t to its outline; this stands in for that with
+	// a real nvim keymap on <M-t>. Under passthrough, Alt+t's raw bytes \x1bt
+	// reach nvim as <M-t> and the map fires; a build without #227 swallows them
+	// and g:mt stays 0.
+	if out, err := exec.Command("nvim", "--server", sock, "--remote-expr",
+		`execute("nnoremap <M-t> :let g:mt=1<CR>")`).CombinedOutput(); err != nil {
+		fmt.Printf("FAIL  could not define the <M-t> map: %v %s\n", err, out)
+		failures++
+	}
+	step("Alt+t reaches the full-screen nvim and fires its <M-t> map (#227, parley's M-t)", map[string]string{"get(g:,'mt',0)": "1"}, func() {
+		send("\x1bt")
+	})
+
 	fmt.Println()
 	if failures > 0 {
 		fmt.Printf("%d step(s) failed\n", failures)

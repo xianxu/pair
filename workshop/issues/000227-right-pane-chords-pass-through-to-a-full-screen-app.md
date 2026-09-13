@@ -234,3 +234,20 @@ exists and is enforced as a locked pair.
 - BR-2: the `pair keys` terminal heading now names the two exceptions
   (`Alt+k`, `Shift+Alt+←/→`) rather than claiming universal passthrough.
 - BR-3: README's layout-3 section now describes the conditional passthrough.
+
+### 2026-09-13 (close round 2)
+
+- **BR-4 — M-t under nvim verified live.** Extended `probes/escsmoke` to bind a
+  real nvim keymap on `<M-t>` (standing in for parley's outline binding) and
+  send Alt+t through the full-screen pane: `get(g:, 'mt', 0) == 1` — Alt+t's
+  raw bytes reach nvim and fire its `<M-t>` map. This is the issue's stated
+  purpose (a full-screen app receives the chords it binds), proven with a real
+  editor rather than deferred to the operator. The operator's parley-specific
+  outline check remains a nice-to-have manual confirmation, not the gate.
+- **Heading drift (advisory).** Rephrased the `pair keys` terminal heading to
+  "tab keys reach a full-screen app; focus & switch still work" — a generic
+  true statement rather than a hand-maintained key list, so it cannot drift
+  from `RightTerminalChordPassesThrough`. A row→chord drift test was considered
+  and rejected: keyhelp Display strings use arrow glyphs that do not map cleanly
+  to the `Chord` enum, so the test would be fragile; removing the enumeration
+  removes the drift surface entirely.

@@ -109,3 +109,116 @@ findings:
     detail: |
       workshop/plans/000227-...-plan.md steps remain "- [ ]"; tick them or note the issue Plan is authoritative before archival.
 ```
+
+---
+
+## Re-review — 2026-09-13T09:57:13-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 227 — right-pane chords pass through to a full-screen app |
+| repo | pair |
+| issue file | workshop/issues/000227-right-pane-chords-pass-through-to-a-full-screen-app.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3acb6790f77e7fa7734983445d512b63099d21fe..6eca5d936378f61275e38476eea65d0be3cf2092 |
+| command | sdlc close --issue 227 |
+| reviewer | claude |
+| timestamp | 2026-09-13T09:57:13-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Verification is complete. Writing the verdict now.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The code is right and I verified it beyond the unit tests. The pump gate at `cmd/internal/termcmd/run.go:502-514` sits above all three dispatch paths, the predicate at `cmd/internal/workbenchshortcut/shortcut.go:361` derives "global" from the one binding table and excludes M-k, and the mux accessor consumes the #196 tri-state through `RepaintModes()` with nil-safe intercept defaults. I ran the escsmoke probe myself against a fresh head build and a base-commit control build with a real nvim. Head passes both #227 steps. Base fails the Alt+j step with the cursor stuck on line 1, which is exactly the delta the Log claims. The three termcmd failures in this sandbox are the documented pty-spawn class, not this diff. What keeps this off SHIP is the same thing round 2 named: the issue's stated purpose, parley opening its outline on `M-t` under nvim in the running workbench, is still the operator's unticked manual row. Everything else that remains is Minor.
+
+**Strengths**
+
+- **Gate placement** (`run.go:502-514`): `chordBefore` flushes before the gate, so bytes ahead of a chord are never reordered, and the rename, tab, and `handleChord` paths all sit below it.
+- **Tri-state consumed correctly** (`run.go:1437-1446`): `altScreen && observed`, nil tab or nil child reads as intercept. `TestActiveChildOwnsScreenTriState` drives the real `ptychild.Screen` parser with `?1049h` / `?1049l` bytes.
+- **Table oracle derives from the classifier** (`passthrough_test.go:91`): 79 subtests over both encodings of every chord ask `RightTerminalChordPassesThrough` for the expectation, so BR-1 is closed in the code.
+- **Honest probe flip** (`probes/escsmoke/main.go:125-140`): the old "Alt+j is consumed" step was inverted rather than deleted, and I confirmed it distinguishes head from base.
+- **README and atlas** now both describe the conditional passthrough and the two chords that survive, matching the predicate as it stands today.
+
+**Critical findings**
+
+None.
+
+**Important findings**
+
+None new. BR-4 stays open, narrowed: the escsmoke evidence is now logged and independently reproduced by this review. What remains is the operator's in-workbench parley check and the tick on the Manual row. Do not bypass plan-unchecked for it.
+
+**Minor findings**
+
+- **Heading is now the widest line by 20 columns** (`catalog.go:10`, 97 columns vs the next line at 81). `keyhelp.Center` drops centering for the whole block when any line exceeds the terminal, and `less` wraps the heading, so terminals between 82 and 96 columns regress. The Alt+h float is 100% width so wide displays are unaffected.
+- **Heading restates the classifier by hand.** This is the 2nd finding in family `help-derives-from-classifier`. Earlier rounds fixed instances. The rule: any help text that names which chords pass through must be derived from, or drift-tested against, `RightTerminalChordPassesThrough`. Fix the rule with one keyhelp drift test: for every `groupTerminal` row, if its chord is global or fails the predicate, its Display must appear in the heading. Then adding a second must-survive chord fails a test instead of silently lying.
+- **BR-5 not addressed**: `activeChildOwnsScreen` still repeats `appMouseMode`'s lock/nil triple. The nil-safe `childOf` at `run.go:1844` already exists; an `activeChild()` wrapper collapses both.
+- **BR-6 not addressed**: the durable plan has 21 unticked steps, no `## Revisions`, and Task 4 at line 379 still says "iff `!IsGlobalChord`".
+
+**Test coverage notes**
+
+Revert-verified by round 2 and still holding: gate removal reds two pump tests, exclusion removal reds three. The unknown alt-screen state is covered at the accessor only, which the test file states. The live conformance check is the probe, now run on both sides of the change.
+
+**Architecture**
+
+- ARCH-DRY: flag, Minor. BR-5 residual; the heading duplicates the exclusion set.
+- ARCH-PURE: pass. `Decide` untouched; predicate pure; one locked read behind the mux.
+- ARCH-PURPOSE: pass for code, flag for verification. Every dispatch path derives from the predicate. The purpose-level live check remains the operator's.
+- ARCH-MOCK: pass. `NewFakeChild` is a stateful fake fed real escape bytes; escsmoke is the live conformance check and it discriminates head from base.
+- ARCH-CONSTRAINTS: pass. One lookup plus one locked read per recognised chord, not per byte.
+- ARCH-SECURE: pass. Forwarded bytes are the terminal's own input, already forwarded verbatim for non-chords.
+- ARCH-ORDER: pass. No new carried state; a chord arriving mid-transition resolves per keystroke to whichever legal outcome the locked read sees.
+- ARCH-FUNERAL: pass. Nothing durable created.
+
+**Plan revision recommendations**
+
+- Add a `## Revisions` entry: Task 4's oracle is `RightTerminalChordPassesThrough`, not `!IsGlobalChord`; Task 5's "one edit site is the heading" needed the exceptions named; README joins the docs list. Tick the steps or state that the issue Plan is authoritative before archival.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      passthrough_test.go:91 derives the oracle from RightTerminalChordPassesThrough; only the plan prose at line 379 still says !IsGlobalChord, folded into BR-6's revision.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      catalog.go:10 heading now names Alt+k and Shift+Alt+←/→ as the exceptions; the rule-level residual is raised below as the family's 2nd finding.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:19-24 layout-3 blurb describes the conditional passthrough and the two survivors; the key-table rows carry no scope note but the blurb governs them.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      escsmoke is now logged and this review reproduced it (head passes, base control fails Alt+j); the operator's parley M-t in-workbench check and the Manual row tick remain.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      run.go:1437 still repeats appMouseMode's triple; childOf at run.go:1844 already exists for an activeChild() wrapper.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      Plan has 21 unticked steps, no Revisions section, and Task 4 line 379 still states the !IsGlobalChord oracle.
+findings:
+  - id: new
+    severity: Minor
+    family: help-fits-render-width
+    title: |
+      Terminal-tabs heading is 97 columns, 20 wider than any other help line, so centering drops and the heading wraps on terminals under 97 columns
+    detail: |
+      keyhelp.Center returns the block unpadded when the widest line exceeds cols, and the heading is now that line (catalog.go:10). Split the exceptions onto a second heading line or shorten to "Terminal tabs (right terminal; a full-screen app gets these, except Alt+k, Shift+Alt+←/→)".
+  - id: new
+    severity: Minor
+    family: help-derives-from-classifier
+    title: |
+      Heading's exception list is a hand-maintained restatement of RightTerminalChordPassesThrough with no drift test
+    detail: |
+      2nd finding in this family; do not patch the heading, fix the rule: add a keyhelp drift test asserting every groupTerminal row whose chord is global or fails the predicate has its Display named in the heading, so a future exclusion fails a test rather than silently misdocumenting.
+```
