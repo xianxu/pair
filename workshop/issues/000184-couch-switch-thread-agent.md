@@ -493,3 +493,23 @@ recognition. Focused regressions, uncached couchtty/couchcmd/wrapcmd suites, and
 full wrapper race tests pass (81.834s). Candidate rebuilt successfully. Codex's
 existing combined argument remains editable without mutating preferences behind
 the operator's back. Awaiting fresh operator smoke before close.
+
+### 2026-09-13 — Codex smoke after parameter correction
+
+Operator confirms Left/Right editing works and removing the saved surrounding
+quotes permits Claude→Codex startup. Orientation was absent. Exact current ready
+record `start-394daa428e9b4b4b` reports cancelled before body with reason
+“a dialog interrupted automatic orientation”. Raw bytes 2025–2630, master chunk
+95 at 14:04:05.120869, contain the actual directory trust dialog; the resolved
+composer appears after an input event at 14:04:09.151182. This is the approved
+sticky dialog cancellation, not another false protocol classification. Explain
+manual recovery and discuss whether startup-dialog waiting should replace this
+behavior. No production change or acceptance/closure inferred from this smoke.
+
+### 2026-09-13 — Operator accepted live smoke
+
+Operator confirmed manual Copy orientation prompt recovery works and stated:
+“we can consider smoke test passed. we can move to close this issue now.”
+Parameter editing, corrected Codex startup, Claude/Agy switching and orientation
+recovery are accepted. Startup trust dialogs continue to cancel automatic
+delivery as designed; waiting through them is outside this accepted change.

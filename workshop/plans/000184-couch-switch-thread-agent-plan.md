@@ -338,7 +338,7 @@ smoke steps and wait for the operator's result before re-running `sdlc close` or
 publishing. The first close attempt returned REWORK and did not change working
 status; this new acceptance checkpoint precedes the next close attempt.
 
-- [ ] Operator live smoke completed and accepted before issue closure.
+- [x] Operator live smoke completed and accepted before issue closure.
 
 ### 2026-09-13 — Review fixes verified; smoke candidate built
 
@@ -391,3 +391,10 @@ Root uncached couchtty/couchcmd/wrapcmd suites and full wrapper race suite pass;
 `make build` succeeds. Logs: `/tmp/pair-184-smoke-fixes-test.log` and
 `/tmp/pair-184-smoke-fixes-build.log`. Request another operator smoke; closure
 and publication remain deferred.
+
+### 2026-09-13 — Operator acceptance
+
+Operator confirmed Copy orientation prompt works and explicitly accepted live
+smoke as passed, authorizing issue closure. Startup trust dialogs retain the
+approved cancellation plus manual-copy recovery behavior. No change to delayed
+delivery through dialogs is included. Resume the normal close/publish gates.
