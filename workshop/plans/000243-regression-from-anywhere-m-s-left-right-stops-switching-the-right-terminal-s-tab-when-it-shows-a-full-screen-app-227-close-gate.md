@@ -60,6 +60,30 @@ rounds:
           family: hand-maintained-restatement
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-13T11:23:21-07:00"
+      agent: claude
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: Plan row split; Log records the bare-nvim encoding proof; the in-workbench operator check is honestly unticked (close needs the operator's smoke test recorded, or an explicit --no-plan-check).
+          round: 3
+        - id: BR-3
+          disposition: not-addressed
+          note: 'The two newTab cases ARE merged (run.go:604). The error half remains discarded, and the new comment''s justification does not hold: a failed ptychild.Start has no child, so no EOF path reports it, and enqueue with a nil output channel is synchronous, so a direct handleTerminalChord test would not hang. One line at the merged site: if err := mux.newTab(); err != nil { mux.reportError(err) }. Minor, pre-existing on ChordAltT.'
+          round: 3
+        - id: BR-5
+          disposition: not-addressed
+          note: Deferred, which the prior round allowed, but the Log says "filed as a follow-up" and no issue in workshop/issues/ exists for it (grep for WriteChars/config.kdl finds only 000226). File it via sdlc issue new or reword the Log.
+          round: 3
+      findings:
+        - id: BR-6
+          severity: Minor
+          title: ChordName(ChordAltShiftT) is "Alt+Shift+T" while ChordAltShiftD names "Alt+Shift+d"
+          detail: shortcut.go:527 vs :495. Cosmetic, but ChordName keys the pump's subtest names and any future help rendering; pick one casing for shifted letters.
+          family: naming-convention-consistency
+          round: 3
+      blocked: false
 ---
 
 # Gate ledger — pair#243 (boundary-review)
@@ -94,8 +118,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Minor] `hand-maintained-restatement` zellij WriteChars byte strings restate chordSequences by hand with no guard tying them together
   config.kdl:146 `Alt T` -> "\u{1b}[84;4u" duplicates shortcut.go:413; a typo breaks typed M-S-t with the suite green. Class covers every letter global (Alt D/N/x/...). One test parsing WriteChars binds and asserting DecodeChord yields a global covers them all; follow-up acceptable.
 
+## Round 3 — 2026-09-13T11:23:21-07:00 (claude) — passed
+
+### Disposed
+
+- BR-2 — addressed — Plan row split; Log records the bare-nvim encoding proof; the in-workbench operator check is honestly unticked (close needs the operator's smoke test recorded, or an explicit --no-plan-check).
+- BR-3 — not-addressed — The two newTab cases ARE merged (run.go:604). The error half remains discarded, and the new comment's justification does not hold: a failed ptychild.Start has no child, so no EOF path reports it, and enqueue with a nil output channel is synchronous, so a direct handleTerminalChord test would not hang. One line at the merged site: if err := mux.newTab(); err != nil { mux.reportError(err) }. Minor, pre-existing on ChordAltT.
+- BR-5 — not-addressed — Deferred, which the prior round allowed, but the Log says "filed as a follow-up" and no issue in workshop/issues/ exists for it (grep for WriteChars/config.kdl finds only 000226). File it via sdlc issue new or reword the Log.
+
+### Raised
+
+- **BR-6** [Minor] `naming-convention-consistency` ChordName(ChordAltShiftT) is "Alt+Shift+T" while ChordAltShiftD names "Alt+Shift+d"
+  shortcut.go:527 vs :495. Cosmetic, but ChordName keys the pump's subtest names and any future help rendering; pick one casing for shifted letters.
+
 ## Open findings
 
-- **BR-2** [Important] `verification-evidence-recorded` Plan row "live check" is ticked but the Log holds no live-run record
 - **BR-3** [Minor] `duplicate-dispatch-case` ChordAltT and ChordAltShiftT are two identical newTab cases in handleTerminalChord
 - **BR-5** [Minor] `hand-maintained-restatement` zellij WriteChars byte strings restate chordSequences by hand with no guard tying them together
+- **BR-6** [Minor] `naming-convention-consistency` ChordName(ChordAltShiftT) is "Alt+Shift+T" while ChordAltShiftD names "Alt+Shift+d"

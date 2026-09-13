@@ -199,3 +199,91 @@ findings:
     detail: |
       config.kdl:146 `Alt T` -> "\u{1b}[84;4u" duplicates shortcut.go:413; a typo breaks typed M-S-t with the suite green. Class covers every letter global (Alt D/N/x/...). One test parsing WriteChars binds and asserting DecodeChord yields a global covers them all; follow-up acceptable.
 ```
+
+---
+
+## Re-review — 2026-09-13T11:23:21-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 243 — regression: from-anywhere M-S-left/right stops switching the right terminal's tab when it shows a full-screen app (#227) |
+| repo | pair |
+| issue file | workshop/issues/000243-regression-from-anywhere-m-s-left-right-stops-switching-the-right-terminal-s-tab-when-it-shows-a-full-screen-app-227.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ec3f63eb163fb2215ad0be4e33676720fc581c4c..c4c564c66519cd3e77a054eb235c70474e178bfc |
+| command | sdlc close --issue 243 |
+| reviewer | claude |
+| timestamp | 2026-09-13T11:23:21-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+Wrapping up: all inspections are done, tests run, and the fix was confirmed pinned by reverting it in a scratch copy. Writing the verdict now.
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Plan row split; Log records the bare-nvim encoding proof; the in-workbench operator check is honestly unticked (close needs the operator's smoke test recorded, or an explicit --no-plan-check).
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      The two newTab cases ARE merged (run.go:604). The error half remains discarded, and the new comment's justification does not hold: a failed ptychild.Start has no child, so no EOF path reports it, and enqueue with a nil output channel is synchronous, so a direct handleTerminalChord test would not hang. One line at the merged site: if err := mux.newTab(); err != nil { mux.reportError(err) }. Minor, pre-existing on ChordAltT.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Deferred, which the prior round allowed, but the Log says "filed as a follow-up" and no issue in workshop/issues/ exists for it (grep for WriteChars/config.kdl finds only 000226). File it via sdlc issue new or reword the Log.
+findings:
+  - id: new
+    severity: Minor
+    family: naming-convention-consistency
+    title: |
+      ChordName(ChordAltShiftT) is "Alt+Shift+T" while ChordAltShiftD names "Alt+Shift+d"
+    detail: |
+      shortcut.go:527 vs :495. Cosmetic, but ChordName keys the pump's subtest names and any future help rendering; pick one casing for shifted letters.
+```
+
+The code delivers the issue's purpose as a class fix, not an instance fix: the from-anywhere delivery now returns global chords from the single mapping function, and a guard test pins that every from-anywhere action yields a global. I reverted the two mapping lines in a scratch copy of the head commit and both guard tests went red with the exact old `;3` bytes, so the pin is real. All three consumers of the mapping (the CLI, the agent pane, the pair term test-shortcut path) plus nvim, the generated keymap, zellij config, keyhelp, README, and atlas carry the new action. Nothing blocks SHIP; the remaining items are Minor. Package tests for workbenchshortcut, layoutcmd, and keyhelp pass. The termcmd and wrapcmd failures I saw are all the documented sandbox pty-spawn class ("operation not permitted" from ptychild), unrelated to this diff, and the registry and pump tests touched by this issue pass.
+
+**Strengths**
+- `TestTabChordForDeliversGlobalChords` (shortcut_test.go:681) encodes the rule rather than the symptom, so the #227 regression cannot recur silently. Verified red without the fix.
+- KKP-only encoding for the new chord (shortcut.go:413) with a test asserting the legacy `ESC T` form does NOT decode. This closes the escape-deadline ambiguity before it exists. ARCH-ORDER pass.
+- `TestFromAnywhereChordsDriveTheRightTerminalUnderFullScreen` exercises the real pump under `ownsScreen=true`, and the enumerating `TestEveryChordAgainstBothAltScreenStates` picks the new chord up automatically through `chordMax`.
+- The delivery-byte test at layoutcmd_test.go:244 covers the draft's only path, and the shell test now asserts the `;4` bytes end to end.
+- Docs are complete: README table row, README layout paragraph, atlas passthrough section, keyhelp catalog row tied to `globalBindings` by the existing drift test.
+
+**Critical findings**
+None.
+
+**Important findings**
+None.
+
+**Minor findings**
+- BR-3 residual: `newTab` error still discarded at run.go:611 and the comment's rationale is inaccurate (see dispose note).
+- BR-5: Log claims a follow-up was filed, but no issue exists.
+- `ChordName` casing differs between `Alt+Shift+d` and `Alt+Shift+T`.
+
+**Test coverage notes**
+- The reverting check confirms BR-1 is pinned by a test that fails without the fix.
+- Live conformance for the nvim decode of `\x1b[84;4u` is recorded in the Log only, not automated. That matches the existing `<M-N>` precedent and is acceptable for a keystroke path.
+- The in-workbench smoke test is the one unverified Done-when bullet. Ask the operator to press the three chords from the draft with nvim full-screen on the right before merging, then tick the row.
+
+**Architecture notes**
+- ARCH-DRY: pass. One mapping (`TabChordFor`), one encoding row, merged `newTab` case.
+- ARCH-PURE: pass. The new entities are pure and tested without IO; delivery stays behind the `Runtime` fake.
+- ARCH-PURPOSE: pass. Shadow-sweep of consumers finds every one deriving from `globalBindings` or `TabChordFor`. The only hand-maintained restatement is the zellij `WriteChars` byte string, already ledgered as BR-5.
+- ARCH-MOCK: pass. zellij delivery runs against the injected fake; nvim decode was checked live.
+- ARCH-CONSTRAINTS: pass. One chord per keystroke, no new work on the input path.
+- ARCH-SECURE: pass. The only input is chord bytes already parsed by `DecodeChord`.
+- ARCH-ORDER: pass. KKP-only avoids the ESC-deadline interleaving.
+- ARCH-FUNERAL: pass. Nothing durable is created.
+
+**Plan revision recommendations**
+None required. The plan's Core concepts table matches the code. Optionally tick the plan file's own step checkboxes, which are all still `- [ ]` while the issue's Plan rows are ticked.

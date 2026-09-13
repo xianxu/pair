@@ -1,12 +1,13 @@
 ---
 id: 000243
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-13
 estimate_hours: 1.00
 started: 2026-09-13T10:35:43-07:00
+actual_hours: 0.88
 ---
 
 # regression: from-anywhere M-S-left/right stops switching the right terminal's tab when it shows a full-screen app (#227)
@@ -110,6 +111,7 @@ total: 1.00
 ## Log
 
 ### 2026-09-13
+- 2026-09-13: closed — Regression fix + M-S-t, mechanically verified: TestTabChordForDeliversGlobalChords, TestFromAnywhereChordsDriveTheRightTerminalUnderFullScreen, TestRunSwitchTerminalTabDeliversTheGlobalBytes, TestChordAltShiftTDecodesAndNames, updated agent+shell delivery tests; full make test green (197 pkgs) incl regenerated keymap+bundle. LIVE encoding proof: a bare nvim decodes the delivered \x1b[84;4u as <M-T> (g:mt=1), the <M-N> precedent confirmed. --no-plan-check: the one unticked row is the operator in-workbench draft->right-pane check (needs a fresh pair term). Advisory config-byte guard deferred to a follow-up per the review.; review verdict: FIX-THEN-SHIP
 
 - Filed after #227 shipped: the operator found `M-S-left/right` no longer switch
   tabs when nvim (full-screen) is in the right pane, and asked for a third
