@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"syscall"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
@@ -141,17 +143,34 @@ func (r OSSwitchContextResolver) ResolveArchive(record ThreadRecord, result *ori
 	return nil
 }
 
+// Open nonblocking and without following the final symlink so a stale artifact
+// cannot stall context/status lookup or redirect it to another file.
+func openSwitchRegularFile(path string) (*os.File, error) {
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		_ = file.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("switch artifact is not a regular file")
+	}
+	return file, nil
+}
+
 func readableSwitchFile(path string) bool {
 	if path == "" {
 		return false
 	}
-	file, err := os.Open(path)
+	file, err := openSwitchRegularFile(path)
 	if err != nil {
 		return false
 	}
 	defer file.Close()
-	info, err := file.Stat()
-	return err == nil && info.Mode().IsRegular()
+	return true
 }
 
 func (c *Couch) ReadOrientationStatus(ctx context.Context, address ThreadAddress, agent, attempt string) (orientation.DeliveryState, error) {
@@ -221,12 +240,20 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 	if err != nil {
 		return nil, err
 	}
-	raw, err := os.ReadFile(path)
+	file, err := openSwitchRegularFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(io.LimitReader(file, 16*1024+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > 16*1024 {
+		return nil, errors.New("orientation ready record exceeds size limit")
 	}
 	ready, err := readiness.Decode(string(raw))
 	if err != nil {
@@ -246,7 +273,7 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 		return nil, fmt.Errorf("%w: Pair session does not match", errObsoleteOrientationReady)
 	}
 	if r.Proc == nil || r.Proc.Exists(ready.PID) != Live {
-		return nil, errors.New("orientation wrapper is not live")
+		return nil, errors.New("orientation agent process is not live")
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err

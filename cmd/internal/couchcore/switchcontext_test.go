@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -107,9 +109,11 @@ func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
 	if err != nil || state.Phase != orientation.DeliveryWaiting {
 		t.Fatalf("missing status = %+v %v", state, err)
 	}
-	for _, change := range []string{"valid", "nonce", "session", "tag", "agent"} {
+	for _, change := range []string{"valid", "nonce", "session", "tag", "agent", "oversized"} {
 		candidate := ready
 		switch change {
+		case "oversized":
+			candidate.Tag = strings.Repeat("x", 20*1024)
 		case "nonce":
 			candidate.Nonce = "other"
 		case "session":
@@ -133,6 +137,9 @@ func TestOrientationStatusRequiresExactReadyIdentity(t *testing.T) {
 			}
 		} else if err == nil {
 			t.Fatalf("accepted obsolete %s", change)
+		}
+		if change == "oversized" && !strings.Contains(err.Error(), "size limit") {
+			t.Fatalf("unbounded ready read: %v", err)
 		}
 	}
 }
@@ -210,5 +217,34 @@ func TestFreshRegistrationWaitsForOldReadyReplacement(t *testing.T) {
 		if err != nil || registered != (nonce == "new-attempt") {
 			t.Fatalf("%s registered=%v err=%v", nonce, registered, err)
 		}
+	}
+}
+
+func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target")
+	if err := os.WriteFile(target, []byte("data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if readableSwitchFile(link) {
+		t.Fatal("symlink accepted as exact archive evidence")
+	}
+	fifo := filepath.Join(dir, "fifo")
+	if err := syscall.Mkfifo(fifo, 0600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan bool, 1)
+	go func() { done <- readableSwitchFile(fifo) }()
+	select {
+	case readable := <-done:
+		if readable {
+			t.Fatal("FIFO accepted")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("context lookup blocked on FIFO")
 	}
 }

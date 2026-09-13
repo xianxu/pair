@@ -4733,3 +4733,22 @@ and be automatically submitted.
 submit, and after submit. Let one input owner order them; canceling after paste
 must preserve operator text and acknowledge that generated text may already be
 in the composer. Test both event orders through the production scheduler.
+
+### 2026-09-13 — Fresh launch ownership and terminal input (#184)
+
+- A pre-existing session name or address marker cannot prove a fresh launch
+  succeeded. Correlate its new nonce with live readiness before committing
+  preferences; before that proof, cleanup may stop its helper but cannot delete
+  a session that could belong to a competing launch (ARCH-SECURE, ARCH-ORDER).
+- Process recovery marked unknown must not pass through a successful-launch
+  preference writer. Recovery evidence and startup-policy acceptance have
+  different meanings even when both retire a start claim (ARCH-PURE).
+- Terminal protocol replies are input bytes but are not operator edits. An
+  automatic-prompt cancellation gate must distinguish them, including fragmented
+  replies, and test real terminal startup negotiation (ARCH-PURPOSE).
+- A final asynchronous form resolution must compare the original source
+  revision independently of edited parameters. Comparing only source labels
+  misses replacement by another session of the same agent (ARCH-ORDER).
+- Composer recognition for generated multiline input needs both empty and
+  populated live captures. Startup/loading screens and post-paste footer changes
+  are different from ordinary newline-remapping eligibility (ARCH-PURPOSE).

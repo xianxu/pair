@@ -1511,7 +1511,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		if event.Operation == "switch-agent" && originVisible && origin.FrameKind == MenuFrameSwitchAgent {
 			frame := &state.Frames[origin.Depth-1]
 			frame.SwitchStage = 1
-			frame.SwitchPrepared = nil
+			frame.SelectedItem = "parameters"
 			frame.PreviewPending = 0
 		}
 		// park and leave CLOSE their confirmation on failure: both are terminal

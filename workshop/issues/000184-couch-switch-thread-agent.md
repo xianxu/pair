@@ -214,19 +214,19 @@ precondition-before-park ordering) has **landed**, so this issue's stated
 precondition is cleared. Steps below are `#176`'s, kept because they are the
 concrete ones.
 
-- [ ] Decide the path-vs-thread keying question above; record the answer in
+- [x] Decide the path-vs-thread keying question above; record the answer in
       `## Spec`.
-- [ ] Declare `switch-agent` in `ops.go` + the declaration table, with the
+- [x] Declare `switch-agent` in `ops.go` + the declaration table, with the
       `ConfirmRequired` shape.
-- [ ] Quiesce-and-observe on couch's side; test a source that dies silently.
-- [ ] Skip `CheckResumePreconditions`' binding rule for the target agent via the
+- [x] Quiesce-and-observe on couch's side; test a source that dies silently.
+- [x] Skip `CheckResumePreconditions`' binding rule for the target agent via the
       existing `isBindingDiagnostic` factoring; assert its absence is not an
       error.
-- [ ] Carrier selection on source health: continuation when available,
+- [x] Carrier selection on source health: continuation when available,
       `ParkedScrollbackArtifacts` transcript path when not.
-- [ ] Restart = same call, target == current; assert **one** code path, and pin
+- [x] Restart = same call, target == current; assert **one** code path, and pin
       subsystem-identity change (zellij/nvim/pair-wrap), not just agent liveness.
-- [ ] Failure path: assert the thread is still startable after a failed switch.
+- [x] Failure path: assert the thread is still startable after a failed switch.
 
 ## Estimate
 
@@ -295,6 +295,45 @@ and received an approved re-review. Prevention rules were added to
 Validation: `git diff --check` passed; this is documentation only, so no runtime
 test result is claimed. Awaiting operator plan approval before `change-code`,
 estimate derivation, or implementation.
+
+
+### 2026-09-13 — Implementation and integration
+
+Operator approved the plan and implementation. `sdlc change-code --issue 184`
+passed the plan-quality and estimate gates; branch is
+`000184-couch-switch-thread-agent`. Commits `670ea514`, `4a0d0ced`, `41e46549`,
+`75eac627` and `fd4b9ec8` carry exact park metadata, fresh argv transport,
+Couch UI, source resolution and the full launch-chain test. Root integration
+adds exact nonce readiness before preference commit and source revision CAS.
+
+Focused switch, UI, renderer, lifecycle, readiness and context tests pass. The
+Couch → launcher → real layout → wrapper → PTY test receives the exact generated
+prompt once and preserves source files. Full integrated tests found a stale
+launcher environment expectation and an internal-operation presentation mismatch;
+corrected both. Live smoke found terminal capability replies incorrectly
+cancelling orientation; the wrapper correction and live recheck are in progress.
+Final full-suite and boundary review remain pending; this is not completion.
+
+
+### 2026-09-13 — Verification complete; entering boundary review
+
+Implemented the approved revised contract. Historical Plan checkboxes denote
+resolution under those revisions: no source-authored continuation is used, and
+the existing agent-only restart chord is preserved. The durable plan records
+the delivered flow and integration details.
+
+Verification: `env -u PAIR_SESSION_ID -u PAIR_TAG make test` passed, followed by
+`go test ./... -count=1` and a final full integration-package run after the last
+changes. Full `-race` orientation/wrapcmd/readiness suites passed (wrapper80.697s).
+The actual Couch-profile → launcher → layout → wrapper → PTY acceptance passes.
+`git diff --check` is clean. Live disposable-project checks confirmed automatic
+orientation submission for Claude2.1.270, Codex0.154.0, Agy1.1.25 and
+Muse0.1.0-R708.1. Claude/Codex/Muse read context and replied; Agy's long1,784-byte
+prompt submitted once and reached its native permission request for the exact
+synthetic log-render command. Manual test setup/approval is distinct from the
+app's automatic input. Exact attempts, PIDs and captures are retained locally in
+`/tmp/pair-184-orientation-smoke.hWzQJL/summary.json`; direct-wrapper smoke does
+not create a Pair native-binding ledger. Boundary acceptance remains pending.
 
 ## Revisions
 

@@ -28,7 +28,8 @@ const (
 	// StartSpawn created both the thread and its session.
 	StartSpawn StartShape = "spawn"
 	// StartColdResume relaunched a parked thread, creating a new session.
-	StartColdResume StartShape = "cold-resume"
+	StartColdResume    StartShape = "cold-resume"
+	StartFreshExisting StartShape = "fresh-existing"
 	// StartWarmReattach attached to a session that predates it.
 	StartWarmReattach StartShape = "warm-reattach"
 )
@@ -41,7 +42,9 @@ const (
 // unrecognised value -- an empty string from a record some other version wrote
 // -- answers NO. Guessing wrong in that direction leaves a session behind;
 // guessing wrong in the other kills somebody's agent.
-func (s StartShape) OwnsSession() bool { return s == StartSpawn || s == StartColdResume }
+func (s StartShape) OwnsSession() bool {
+	return s == StartSpawn || s == StartColdResume || s == StartFreshExisting
+}
 
 // SessionPresence is what could be observed about the thread's zellij session.
 // Unobserved is not absent: the question could not be asked, which is the case
@@ -111,7 +114,7 @@ func DecideStartCleanup(in StartCleanupInput) DurableAction {
 		} else if in.HelperDead && in.Presence == PresencePresent {
 			out = DurableRetire
 		}
-	case in.Shape == StartColdResume:
+	case in.Shape == StartColdResume || in.Shape == StartFreshExisting:
 		// Unchanged: roll back only once the session it created is gone AND
 		// its helper is dead; otherwise leave the record recoverable.
 		if in.HelperDead && in.Presence == PresenceAbsent {

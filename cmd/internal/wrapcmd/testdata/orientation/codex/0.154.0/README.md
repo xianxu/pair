@@ -1,0 +1,2 @@
+Captured 2026-09-13 from an isolated 120×38 live Pair wrapper smoke. Codex --no-alt-screen. loading.raw ends at the first complete composer paint before the trust dialog; trust.raw ends at the later directory-trust dialog. Temporary paths are anonymized with equal-length bytes.
+ready.raw is a subsequent fresh no-request wrapper capture after a separate manual trust setup, with model and directory resolved and no operator input.

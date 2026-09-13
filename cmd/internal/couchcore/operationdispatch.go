@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -248,6 +249,35 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 			ctx = context.Background()
 		}
 		switch call.Operation.Name {
+		case "prepare-switch-agent", "switch-agent":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			var argv *[]string
+			if raw, present := a["argv"]; present {
+				var parameters []string
+				if len(raw) > 32768 {
+					return nil, fmt.Errorf("startup parameters exceed transport limit")
+				}
+				if err := json.Unmarshal([]byte(raw), &parameters); err != nil || parameters == nil {
+					return nil, fmt.Errorf("startup parameters must be a JSON string array")
+				}
+				argv = &parameters
+			}
+			if call.Operation.Name == "prepare-switch-agent" {
+				return c.PrepareAgentSwitch(ctx, address, a["agent"], argv)
+			}
+			if argv == nil {
+				return nil, fmt.Errorf("accepted startup parameters are required")
+			}
+			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
+		case "orientation-status":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.ReadOrientationStatus(ctx, address, a["agent"], a["attempt"])
 		case "prepare-start":
 			path := a["path"]
 			if path == "" {

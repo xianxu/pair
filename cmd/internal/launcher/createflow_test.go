@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 
@@ -1027,8 +1028,8 @@ func TestRunLaunchFailedPreflightDoesNotAppendLedgerOrSessionIndex(t *testing.T)
 	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
 		t.Fatalf("preflight failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
 	}
-	if len(rt.env) != 1 { // PATH is set at RunLaunch entry.
-		t.Fatalf("preflight failure should only set PATH env, got %+v", rt.env)
+	if len(rt.env) != 2 || rt.env[orientation.Env] != "" { // Entry establishes PATH and clears stale launch-only orientation.
+		t.Fatalf("preflight failure should only set PATH and clear orientation, got %+v", rt.env)
 	}
 }
 

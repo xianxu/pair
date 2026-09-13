@@ -1,7 +1,9 @@
 package launcher
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"io"
 	"os"
 	"path/filepath"
@@ -26,6 +28,14 @@ import (
 // user-facing messages are on the writer, the int is the exit code, the returned
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
+	rt.SetEnv(orientation.Env, "")
+	if request := opts.Args.Orientation; request != nil {
+		if !opts.Args.FreshRequired || !request.Matches(opts.Args.ForcedTag, opts.Args.Agent, request.Attempt) {
+			fmt.Fprintln(stderr, "pair: orientation requires a matching fresh launch")
+			return 1, nil
+		}
+	}
+
 	if opts.Args.FreshRequired {
 		if opts.Args.ResumeRequired || opts.Args.RequiredSessionID != "" {
 			fmt.Fprintln(stderr, "pair: fresh launch cannot require resume")
@@ -503,7 +513,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	var defaultReady <-chan error
 	if opts.Args.FreshRequired {
-		if _, err := prepareLaunchReadiness(rt, chosenTag, agent, session); err != nil {
+		nonce := ""
+		if opts.Args.Orientation != nil {
+			nonce = opts.Args.Orientation.Attempt
+		}
+		if _, err := prepareLaunchReadinessWithNonce(rt, chosenTag, agent, session, nonce); err != nil {
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
@@ -613,6 +627,11 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	rt.SetEnv(AgentCommandEnv, command)
+	rt.SetEnv(orientation.Env, "")
+	if opts.Args.FreshRequired && opts.Args.Orientation != nil {
+		raw, _ := json.Marshal(opts.Args.Orientation)
+		rt.SetEnv(orientation.Env, string(raw))
+	}
 	rt.SetEnv("PAIR_SESSION_ID", sessionID)
 	// The pane title is the agent name and nothing more (#133): zellij renders
 	// "<session name> | <focused pane title>", and the session half is already
@@ -651,8 +670,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 }
 
 func prepareLaunchReadiness(rt Runtime, tag, agent, session string) (ReadyExpectation, error) {
+	return prepareLaunchReadinessWithNonce(rt, tag, agent, session, "")
+}
+func prepareLaunchReadinessWithNonce(rt Runtime, tag, agent, session, nonce string) (ReadyExpectation, error) {
 	rt.RemoveReadyRecord(tag, agent)
-	nonce := rt.MintLaunchNonce()
+	if nonce == "" {
+		nonce = rt.MintLaunchNonce()
+	}
 	rt.SetEnv("PAIR_LAUNCH_NONCE", nonce)
 	if nonce == "" {
 		return ReadyExpectation{}, fmt.Errorf("could not mint launch nonce")

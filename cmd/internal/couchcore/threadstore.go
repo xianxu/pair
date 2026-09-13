@@ -597,7 +597,7 @@ func (s *ThreadStore) DeletePristineThread(address ThreadAddress) error {
 }
 
 func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint64, event StartEvent) (ThreadRecord, error) {
-	if event.Kind == StartRegistered || event.Kind == StartRecoveredUnknown {
+	if event.Kind == StartRegistered {
 		return s.advanceSuccessfulStart(address, expectedRevision, event)
 	}
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {

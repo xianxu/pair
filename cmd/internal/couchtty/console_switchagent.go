@@ -97,7 +97,7 @@ func (c *Console) finishOrientation(result orientationWatchResult) {
 	watch.cancel()
 	text := "orientation prompt submitted"
 	if result.err != nil || result.state.Phase != orientation.DeliverySubmitted {
-		text = "Orientation was not submitted. Use Copy orientation prompt in this thread's actions."
+		text = "Orientation delivery was not confirmed. Inspect the target before using Copy orientation prompt in this thread's actions."
 		if result.state.BodyMayBePresent() {
 			text = "Orientation text may already be in the composer; inspect it before submitting. Copy orientation prompt is available in actions."
 		}

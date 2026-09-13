@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
@@ -41,15 +42,16 @@ func RequireNativeResumeBinding(required, actual string, status sessioninventory
 }
 
 type TrustedLaunchProfile struct {
-	SchemaVersion     int      `json:"schema_version"`
-	Tag               string   `json:"tag"`
-	Agent             string   `json:"agent"`
-	Argv              []string `json:"argv"`
-	AgentSource       string   `json:"agent_source"`
-	ArgvSource        string   `json:"argv_source"`
-	FreshRequired     bool     `json:"fresh_required,omitempty"`
-	ResumeRequired    bool     `json:"resume_required,omitempty"`
-	RequiredSessionID string   `json:"required_session_id,omitempty"`
+	Orientation       *orientation.Request `json:"orientation,omitempty"`
+	SchemaVersion     int                  `json:"schema_version"`
+	Tag               string               `json:"tag"`
+	Agent             string               `json:"agent"`
+	Argv              []string             `json:"argv"`
+	AgentSource       string               `json:"agent_source"`
+	ArgvSource        string               `json:"argv_source"`
+	FreshRequired     bool                 `json:"fresh_required,omitempty"`
+	ResumeRequired    bool                 `json:"resume_required,omitempty"`
+	RequiredSessionID string               `json:"required_session_id,omitempty"`
 }
 
 func BuildCouchLaunchProfile(tag, agent string, argv []string, agentSource, argvSource string) (string, error) {
@@ -102,6 +104,12 @@ func BuildCouchFreshLaunchProfile(tag, agent string, argv []string, agentSource,
 }
 
 func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
+	if profile.Orientation != nil {
+		if !profile.FreshRequired || !profile.Orientation.Matches(profile.Tag, profile.Agent, profile.Orientation.Attempt) {
+			return fmt.Errorf("orientation requires a matching fresh launch")
+		}
+	}
+
 	if profile.SchemaVersion != 1 {
 		return fmt.Errorf("unsupported couch launch profile schema %d", profile.SchemaVersion)
 	}
@@ -168,6 +176,7 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	}
 	args.AgentArgsExplicit = true
 	args.AgentArgsFromCouch = true
+	args.Orientation = profile.Orientation
 	args.FreshRequired = profile.FreshRequired
 	args.ResumeRequired = profile.ResumeRequired
 	args.RequiredSessionID = profile.RequiredSessionID

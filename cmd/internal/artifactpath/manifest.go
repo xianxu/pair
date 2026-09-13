@@ -725,6 +725,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/wrapcmd/composer_recognizers.go",
 	"cmd/internal/wrapcmd/codex_working.go",
 	"cmd/internal/wrapcmd/harness_tty.go",
+	"cmd/internal/wrapcmd/orientation.go",
+	"cmd/internal/wrapcmd/orientation_replies.go",
 	"cmd/internal/wrapcmd/notification_lifecycle.go",
 	"cmd/internal/wrapcmd/notification_rewriter.go",
 	"cmd/internal/wrapcmd/lifecycle_journal.go",

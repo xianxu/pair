@@ -48,8 +48,6 @@ func TestConsoleSwitchAgentInputPreviewAndWarningAdoptsOnPanel(t *testing.T) {
 	waitUpTo(t, time.Second, "switch prefill", func() bool {
 		return f.con.menuSnapshot().CurrentFrame().SwitchStage == 1 && f.con.menuSnapshot().CurrentFrame().PreviewPending == 0
 	})
-	_, _ = f.stdin.Write([]byte("\r"))
-	waitUpTo(t, time.Second, "switch final review", func() bool { return f.con.menuSnapshot().CurrentFrame().SwitchStage == 2 })
 	_, _ = f.stdin.Write([]byte("\t\r"))
 	waitUpTo(t, time.Second, "switch adoption", func() bool {
 		f.con.mu.Lock()
@@ -90,5 +88,22 @@ func TestOrientationFailureRetainsExactManualRecoveryAndIgnoresStaleStatus(t *te
 	f.con.finishOrientation(orientationWatchResult{address: address, request: orientation.Request{Attempt: "old"}, state: orientation.DeliveryState{Phase: orientation.DeliverySubmitted}})
 	if f.con.menuSnapshot().Orientation[address].Body != request.Body {
 		t.Fatal("stale delivery removed recovery")
+	}
+}
+
+func TestOrientationStatusErrorDoesNotClaimPromptWasNotSubmitted(t *testing.T) {
+	f := newFixture(t, 24, 80)
+	address := menuAddress("couch-one")
+	request := orientation.Request{Tag: string(address.Tag), Agent: "codex", Attempt: "uncertain", Body: "Read source."}
+	f.con.SetOperationDispatcher(func(couchcore.OperationCall) (any, error) { return nil, fmt.Errorf("status read failed") })
+	f.con.mu.Lock()
+	f.con.menu = NewMenuState(menuThreads(), address)
+	f.con.menuReady = true
+	f.con.mu.Unlock()
+	f.con.watchOrientation(address, "c1", request)
+	waitUpTo(t, time.Second, "status read error", func() bool { return strings.Contains(f.con.menuSnapshot().Notice.Text, "status read failed") })
+	notice := f.con.menuSnapshot().Notice.Text
+	if strings.Contains(notice, "was not submitted") || !strings.Contains(notice, "not confirmed") || !strings.Contains(notice, "Inspect") {
+		t.Fatalf("uncertainty encourages duplicate submission: %s", notice)
 	}
 }

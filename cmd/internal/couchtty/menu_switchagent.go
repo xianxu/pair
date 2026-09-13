@@ -3,10 +3,11 @@ package couchtty
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/launcher"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 )
 
 func openSwitchAgent(state MenuState, address couchcore.ThreadAddress) (MenuState, []MenuEffect) {
@@ -33,53 +34,45 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 			selectStartAgent(frame, launcher.AgentInventory(), 1)
 		case KeyEnter:
 			frame.SwitchStage = 1
+			frame.SelectedItem = "parameters"
 			return requestSwitchAgentPreview(state, false)
 		}
 	case 1:
 		switch key.Kind {
+		case KeyTab, KeyDown, KeyRight:
+			moveSwitchFocus(frame, 1)
+		case KeyUp, KeyLeft:
+			moveSwitchFocus(frame, -1)
 		case KeyRune:
-			if key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && key.Rune >= 32 && key.Rune != 127 && len(frame.Input)+utf8.RuneLen(key.Rune) <= 4096 {
+			if frame.SelectedItem == "parameters" && frame.SwitchPrepared != nil && key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && key.Rune >= 32 && key.Rune != 127 && len(frame.Input)+utf8.RuneLen(key.Rune) <= 4096 {
 				frame.Input += string(key.Rune)
 				frame.SwitchEdited = true
-				frame.SwitchPrepared = nil
 				invalidateSwitchEdit(&state, frame)
 			}
 		case KeyBackspace:
-			frame.Input = removeLastRune(frame.Input)
-			frame.SwitchEdited = true
-			frame.SwitchPrepared = nil
-			invalidateSwitchEdit(&state, frame)
-		case KeyEnter:
-			if frame.PreviewPending != 0 {
-				return state, nil
+			if frame.SelectedItem == "parameters" && frame.SwitchPrepared != nil {
+				frame.Input = removeLastRune(frame.Input)
+				frame.SwitchEdited = true
+				invalidateSwitchEdit(&state, frame)
 			}
-			return requestSwitchAgentPreview(state, true)
-		}
-	case 2:
-		switch key.Kind {
-		case KeyTab, KeyUp, KeyDown, KeyLeft, KeyRight:
-			if frame.SelectedItem == "cancel" {
+		case KeyEnter:
+			switch frame.SelectedItem {
+			case "parameters":
 				frame.SelectedItem = "switch"
-			} else {
-				frame.SelectedItem = "cancel"
-			}
-		case KeyEnter:
-			if frame.SelectedItem != "switch" {
+			case "cancel":
 				state.Frames = state.Frames[:len(state.Frames)-1]
-				return state, nil
+			case "switch":
+				if frame.PreviewPending != 0 {
+					return state, nil
+				}
+				if frame.SwitchPrepared == nil {
+					return requestSwitchAgentPreview(state, false)
+				}
+				return requestSwitchAgentPreview(state, true)
 			}
-			if frame.SwitchPrepared == nil {
-				return state, nil
-			}
-			p := frame.SwitchPrepared
-			effect := threadEffect("switch-agent", frame.Thread)
-			raw, _ := json.Marshal(p.Profile.Argv)
-			effect.Args["agent"] = p.Profile.Agent
-			effect.Args["argv"] = string(raw)
-			effect.Args["fingerprint"] = p.Fingerprint
-			return dispatchMenuOperation(state, effect, frame.Thread)
 		}
 	}
+
 	return state, nil
 }
 
@@ -102,7 +95,6 @@ func requestSwitchAgentPreview(state MenuState, final bool) (MenuState, []MenuEf
 	frame = &state.Frames[len(state.Frames)-1]
 	frame.Generation = generation
 	frame.PreviewPending = generation
-	frame.SwitchPrepared = nil
 	if final {
 		frame.SubmitGeneration = generation
 	} else {
@@ -127,13 +119,25 @@ func reduceSwitchAgentPreview(state MenuState, event MenuEvent) (MenuState, []Me
 		state.Notice = errorMenuNotice("invalid switch preview")
 		return state, nil
 	}
+	previous := frame.SwitchPrepared
+	frame.SwitchPrepared = p
 	if frame.SubmitGeneration == event.Generation {
-		frame.SwitchPrepared = p
-		frame.SwitchStage = 2
-		frame.SelectedItem = "cancel"
-	} else if !frame.SwitchEdited {
+		frame.SubmitGeneration = 0
+		if previous != nil && (previous.SourceRevision != p.SourceRevision || previous.SourceAgent != p.SourceAgent || previous.WorkingPath != p.WorkingPath) {
+			state.Notice = errorMenuNotice("Source changed; review the updated switch details and select Switch again.")
+			return state, nil
+		}
+		effect := threadEffect("switch-agent", frame.Thread)
+		raw, _ := json.Marshal(p.Profile.Argv)
+		effect.Args["agent"] = p.Profile.Agent
+		effect.Args["argv"] = string(raw)
+		effect.Args["fingerprint"] = p.Fingerprint
+		return dispatchMenuOperation(state, effect, frame.Thread)
+	}
+	if !frame.SwitchEdited {
 		frame.Input = launcher.FormatLaunchParameters(p.Profile.Argv)
 	}
+
 	return state, nil
 }
 
@@ -143,24 +147,28 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 	case 0:
 		return renderItemMenuFrame("switch coding agent", launcher.AgentInventory(), frame.Agent, "", width, height)
 	case 1:
-		lines = []string{"switch coding agent", "agent: " + frame.Agent, "Edit startup parameters (empty is allowed)", "▸ parameters  " + frame.Input, "Enter: review switch · Escape: cancel"}
-		if frame.PreviewPending != 0 {
-			lines = append(lines, "loading startup parameters…")
+		source := "loading source"
+		if frame.SwitchPrepared != nil {
+			source = frame.SwitchPrepared.SourceAgent
 		}
-	case 2:
-		p := frame.SwitchPrepared
-		if p == nil {
-			return []string{"switch coding agent", "preview unavailable"}
+		mark := "  "
+		if frame.SelectedItem == "parameters" {
+			mark = "▸ "
 		}
-		lines = []string{"switch coding agent", fmt.Sprintf("%s → %s · same thread", p.SourceAgent, p.Profile.Agent), "Fresh conversation; read source context and summarize orientation.", "parameters: " + launcher.FormatLaunchParameters(p.Profile.Argv)}
+		lines = []string{"switch coding agent", fmt.Sprintf("%s → %s · same thread", source, frame.Agent), "Fresh conversation; read source context and summarize orientation.", "Edit startup parameters (empty is allowed)", mark + "parameters  " + frame.Input}
 		for _, item := range []string{"switch", "cancel"} {
-			mark := "  "
+			mark = "  "
 			if item == frame.SelectedItem {
 				mark = "▸ "
 			}
 			lines = append(lines, mark+strings.ToUpper(item[:1])+item[1:])
 		}
+		if frame.PreviewPending != 0 {
+			lines = append(lines, "resolving startup parameters…")
+		}
+		lines = append(lines, "Tab/↑↓: focus · Enter: select · Escape: cancel")
 	}
+
 	for i, line := range lines {
 		lines[i] = clipMenuLine(line, width)
 	}
@@ -182,4 +190,16 @@ func invalidateSwitchEdit(state *MenuState, frame *MenuFrame) {
 		frame.PreviewPending = 0
 		frame.SubmitGeneration = 0
 	}
+}
+
+func moveSwitchFocus(frame *MenuFrame, delta int) {
+	items := []string{"parameters", "switch", "cancel"}
+	index := 0
+	for i, item := range items {
+		if frame.SelectedItem == item {
+			index = i
+			break
+		}
+	}
+	frame.SelectedItem = items[(index+delta+len(items))%len(items)]
 }

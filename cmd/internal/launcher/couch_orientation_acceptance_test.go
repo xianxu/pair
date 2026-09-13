@@ -116,8 +116,8 @@ func TestOrientationCaptureChild(t *testing.T) {
 	if os.Getenv("PAIR184_CAPTURE_CHILD") != "1" {
 		t.Skip("wrapper child helper")
 	}
-	// Empty Codex composer, cursor immediately after its bold prompt.
-	fmt.Print("\x1b[2J\x1b[20;1H\x1b[1m›\x1b[22m \x1b[?25h\x1b[20;3H")
+	// Resolved Codex startup card and empty composer, cursor after the prompt.
+	fmt.Print("\x1b[2J\x1b[1;1Hmodel: test-model\r\ndirectory: /fixture\x1b[20;1H\x1b[1m›\x1b[22m \x1b[?25h\x1b[20;3H")
 	var received bytes.Buffer
 	one := make([]byte, 1)
 	for {

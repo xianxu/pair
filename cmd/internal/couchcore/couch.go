@@ -14,26 +14,31 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 )
 
 // Couch is the composition root: every seam in one place, every operation a
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	Namespace        CouchNamespace
-	Runner           Runner
-	Path             PathOps
-	Git              GitRunner
-	Proc             ProcOps
-	Store            Store
-	Clock            Clock
-	IDs              IDGen
-	Threads          *ThreadStore
-	Entropy          io.Reader
-	Artifacts        ThreadArtifactController
-	PairLifecycle    *PairLifecycleController
-	RootAgent        string
-	RepoAgentDefault func(repoRoot, agent string) (LaunchProfile, bool, error)
+	Namespace         CouchNamespace
+	Runner            Runner
+	Path              PathOps
+	Git               GitRunner
+	Proc              ProcOps
+	Store             Store
+	Clock             Clock
+	IDs               IDGen
+	Threads           *ThreadStore
+	Entropy           io.Reader
+	Artifacts         ThreadArtifactController
+	PairLifecycle     *PairLifecycleController
+	RootAgent         string
+	RepoAgentDefault  func(repoRoot, agent string) (LaunchProfile, bool, error)
+	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
+	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
+	SwitchContext     SwitchContextResolver
+	SwitchLaunchCheck func(agent string) error
 	// Layout is which pair layout this couch launches its threads in, chosen
 	// once at construction and IMMUTABLE for the process lifetime -- there is
 	// no mid-session layout change, which is what keeps the mixed-state
@@ -517,7 +522,13 @@ func (c *Couch) failPostAckStart(address ThreadAddress, h Handle, shape StartSha
 // nonce identifies the start transaction to undo and is empty for the
 // live-record phase, which undoes an incarnation instead.
 func (c *Couch) applyStartCleanup(shape StartShape, address ThreadAddress, nonce string, h Handle, liveRecord bool) error {
-	cleanupErr := c.quiescePostAckStart(address, h, shape)
+	cleanupShape := shape
+	// Before exact registration, fresh CREATE may have refused because another
+	// session won the name. Stop only our helper; session presence is not ownership.
+	if shape == StartFreshExisting && !liveRecord {
+		cleanupShape = StartWarmReattach
+	}
+	cleanupErr := c.quiescePostAckStart(address, h, cleanupShape)
 	helperDead := !h.Alive()
 
 	// Observed AFTER the helper is quiet and after any quiesce, because the
@@ -596,7 +607,7 @@ func startCleanupReadsPresence(shape StartShape, liveRecord bool) bool {
 	if liveRecord {
 		return shape == StartWarmReattach
 	}
-	return shape == StartColdResume
+	return shape == StartColdResume || shape == StartFreshExisting
 }
 
 // markLiveRecordUnknown is the disposition for a start that had already reached

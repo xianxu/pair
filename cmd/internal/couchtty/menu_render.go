@@ -236,7 +236,7 @@ func menuCursorIntent(frame MenuFrame, lines []string, width int) *MenuCursorInt
 		}
 		prefix = "filter: "
 	case MenuFrameSwitchAgent:
-		if frame.SwitchStage != 1 {
+		if frame.SwitchStage != 1 || frame.SelectedItem != "parameters" {
 			return nil
 		}
 		prefix = "▸ parameters  "

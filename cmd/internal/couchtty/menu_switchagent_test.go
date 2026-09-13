@@ -40,11 +40,13 @@ func TestSwitchAgentEditedEmptyAndStalePreview(t *testing.T) {
 	for range "--foo" {
 		state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
 	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
 	if len(effects) != 1 || effects[0].Preview.SwitchArgv != "[]" {
 		t.Fatalf("empty args inherited: %+v", effects)
 	}
 	latest := effects[0].Preview.Generation
+	state, _ = reduceKey(state, PanelKey{Kind: KeyUp})
 	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'x'})
 	prepared.Profile.Argv = []string{}
 	prepared.Fingerprint = "final"
@@ -54,18 +56,25 @@ func TestSwitchAgentEditedEmptyAndStalePreview(t *testing.T) {
 	}
 }
 
-func TestSwitchAgentFinalButtonsDispatchExactPreview(t *testing.T) {
+func TestSwitchAgentParametersContainFinalButtonsAndDispatchAcceptedPreview(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
 	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--model", "a b"}}, Fingerprint: "accepted"}
-	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, SwitchStage: 2, SwitchPrepared: &p, SelectedItem: "cancel"})
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, Input: "--model 'a b'", SelectedItem: "parameters"})
 	body := RenderMenuView(state, 100, 20, time.Now(), false).Body
-	if !strings.Contains(body, "▸ Cancel") || !strings.Contains(body, "claude → codex") {
-		t.Fatalf("confirmation hidden: %s", body)
+	if !strings.Contains(body, "Cancel") || !strings.Contains(body, "claude → codex") || !strings.Contains(body, "▸ parameters") {
+		t.Fatalf("parameter form omits final action: %s", body)
 	}
-	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
 	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
-	if len(effects) != 1 || effects[0].Args["fingerprint"] != "accepted" || effects[0].Args["argv"] != `["--model","a b"]` {
-		t.Fatalf("dispatch %+v", effects)
+	if len(effects) != 0 || state.CurrentFrame().SelectedItem != "switch" {
+		t.Fatalf("input Enter must only move focus: %+v %+v", state.CurrentFrame(), effects)
+	}
+	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.SwitchArgv != `["--model","a b"]` {
+		t.Fatalf("Switch did not resolve edited argv: %+v", effects)
+	}
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &p})
+	if len(effects) != 1 || effects[0].Args["fingerprint"] != "accepted" || effects[0].Args["argv"] != `["--model","a b"]` || state.CurrentFrame().SwitchStage != 1 {
+		t.Fatalf("accepted Switch requires extra confirmation: %+v %+v", state.CurrentFrame(), effects)
 	}
 }
 
@@ -101,10 +110,66 @@ func TestSwitchAgentLifecyclePolicies(t *testing.T) {
 
 func TestSwitchAgentRefusalReturnsToEditableParameters(t *testing.T) {
 	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
-	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: menuAddress("couch-one"), Action: "switch-agent", SwitchStage: 2, Input: "--model draft"})
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: menuAddress("couch-one"), Action: "switch-agent", SwitchStage: 1, Input: "--model draft"})
 	state, _ = dispatchThreadOperation(state, "switch-agent", menuAddress("couch-one"))
 	state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventOperationResult, Operation: "switch-agent", Address: menuAddress("couch-one"), Attempt: state.InFlight.Attempt, Error: "preferences changed; review again"})
 	if state.CurrentFrame().SwitchStage != 1 || state.CurrentFrame().Input != "--model draft" {
 		t.Fatalf("cannot re-review after refusal: %+v", state.CurrentFrame())
+	}
+}
+
+func TestSwitchAgentParameterFocusCyclesAndCancelDropsPendingSubmit(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "accepted"}
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "parameters"})
+	for _, want := range []string{"switch", "cancel", "parameters"} {
+		state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+		if state.CurrentFrame().SelectedItem != want {
+			t.Fatalf("focus %q want %q", state.CurrentFrame().SelectedItem, want)
+		}
+		view := RenderMenuView(state, 40, 10, time.Now(), false)
+		if (view.Cursor != nil) != (want == "parameters") {
+			t.Fatalf("cursor does not follow %s focus: %+v", want, view.Cursor)
+		}
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	generation := effects[0].Preview.Generation
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 || state.CurrentFrame().Kind != MenuFrameRoot {
+		t.Fatal("Cancel did not leave parameter form untouched")
+	}
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, SwitchPrepared: &p})
+	if len(effects) != 0 || state.InFlight.Operation != "" {
+		t.Fatal("cancelled submit dispatched after preview completion")
+	}
+}
+
+func TestSwitchAgentSourceChangeRequiresReviewOnSameParameterScreen(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "initial"}
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "switch"})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	changed := p
+	changed.SourceAgent = "agy"
+	changed.Fingerprint = "changed"
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &changed})
+	if len(effects) != 0 || state.CurrentFrame().SwitchStage != 1 || !strings.Contains(RenderMenuView(state, 100, 20, time.Now(), false).Body, "agy → codex") {
+		t.Fatal("source changed without updated same-screen review")
+	}
+}
+
+func TestSwitchAgentSameAgentReplacementRequiresAnotherAcceptance(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", SourceRevision: 1, Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{}}, Fingerprint: "initial"}
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, SelectedItem: "switch"})
+	state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	changed := p
+	changed.SourceRevision = 2
+	changed.Fingerprint = "replacement"
+	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &changed})
+	if len(effects) != 0 || state.InFlight.Operation != "" || !strings.Contains(state.Notice.Text, "Source changed") {
+		t.Fatal("silently accepted same-agent replacement", state.Notice)
 	}
 }
