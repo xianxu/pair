@@ -85,7 +85,11 @@ separators round-trip.
 Inventory queries remain the only native-session read authority. Context/token
 usage, title activity, bounded slug text events, review scoping, launcher
 recovery/resume hints, and changelog keying consume an established owner
-projection by reading one ledger and its proof-named artifacts. The selected-
+projection by reading one ledger and its proof-named artifacts. That ledger
+read is bounded per record (`jsonRecordLimit`, through the one chunked JSONL
+framer transcripts use), never per file: the ledger keeps every generation and
+grows with each launch, so a whole-file cap was a cliff every long-lived
+thread reached (#237). The selected-
 scope catalog is the shared persistent advancement owner: an accepted suffix is
 published monotonically through `CatalogStore`, and later unchanged queries
 reuse that parser cursor without rereading body bytes. Catalog loss falls back

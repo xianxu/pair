@@ -5,6 +5,7 @@ package sessioninventorytest
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -159,6 +160,24 @@ func (f *FakeRuntime) OperationCount(operation Operation, key string) int {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 	return f.counts[errorKey(operation, key)]
+}
+
+// OperationCountForRoot sums one operation over every artifact of a storage
+// root. It is how a test says "no transcript body was read" without also
+// forbidding reads of Pair's own artifacts: the owner ledger is read through
+// the same chunked ReadAt as a transcript body, and a bare all-artifacts count
+// could not tell the two apart (#237).
+func (f *FakeRuntime) OperationCountForRoot(operation Operation, storageRoot string) int {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	prefix := errorKey(operation, storageRoot+":")
+	total := 0
+	for key, count := range f.counts {
+		if strings.HasPrefix(key, prefix) {
+			total += count
+		}
+	}
+	return total
 }
 
 func (f *FakeRuntime) SetListingOrder(storageRoot string, relativePaths []string) {

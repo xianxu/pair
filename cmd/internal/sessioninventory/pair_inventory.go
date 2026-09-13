@@ -66,7 +66,7 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 		switch {
 		case historyArtifact && artifactpath.IsLedgerHistorySidecar(name):
 			tag := historyTag
-			raw, readErr := runtime.ReadFile(file.Artifact, pairArtifactReadLimit)
+			raw, readErr := readJSONLArtifact(runtime, file.Artifact, jsonRecordLimit)
 			if readErr != nil {
 				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, "", nil, "ledger:"+tag, "Pair ledger is unreadable"))
 				continue

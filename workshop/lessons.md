@@ -4664,3 +4664,16 @@ caught the plan, the atlas and the code disagreeing about a symbol's name.
 require zero hits before moving on — the build passing proves nothing when the
 old name is still self-consistent. On macOS, write `[[:<:]]`/`[[:>:]]` or use
 `perl -pe 's/\bOld\b/New/g'`, never `\b` in sed.
+
+## An oracle that says "no IO" must name whose IO
+
+Three sessioninventory tests asserted "no transcript body reads" as
+`ReadAt == 0` over every artifact. When the owner ledger moved onto the same
+chunked reader as transcripts (#237), all three went red although the claim
+they made was still true: the ledger is a Pair artifact, not a transcript
+body. A global zero conflated two roots that happen to share a syscall.
+
+**Rule.** Count IO per root, not globally, when the claim is about one root.
+A "zero reads" oracle is only as precise as its scope; scope it to the
+storage root the claim names (`FakeRuntime.OperationCountForRoot`), so a
+legitimate read elsewhere does not masquerade as a regression.

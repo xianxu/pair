@@ -58,8 +58,10 @@ func TestQuerySessionEstablishesProofAfterCatalogLossWithoutTranscriptRead(t *te
 	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, transcript.StorageRoot+":"+transcript.RelativePath); got != 0 {
 		t.Fatalf("transcript ReadAt count=%d, want 0", got)
 	}
-	if got := runtime.OperationCount(sessioninventorytest.OperationReadFile, ledger.StorageRoot+":"+ledger.RelativePath); got != 1 {
-		t.Fatalf("ledger ReadFile count=%d, want 1", got)
+	// The ledger is read through the record-bounded chunked reader, so it
+	// shows up as ReadAt on the Pair root — not as a transcript body read.
+	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, ledger.StorageRoot+":"+ledger.RelativePath); got == 0 {
+		t.Fatal("ledger was never read")
 	}
 }
 
@@ -117,7 +119,7 @@ func TestQuerySessionRevalidatesAndCachesGrowthWithoutGenerationToken(t *testing
 
 func TestOwnerCLIUsesBoundedPersistentQuery(t *testing.T) {
 	const nativeID = "019d1111-1111-7111-8111-111111111111"
-	runtime, _, _ := proofBackedCodexFixture(t, nativeID, nil)
+	runtime, transcript, _ := proofBackedCodexFixture(t, nativeID, nil)
 	getenv := func(key string) string {
 		if key == "PAIR_SCOPE_KEY" {
 			return "scope"
@@ -129,7 +131,7 @@ func TestOwnerCLIUsesBoundedPersistentQuery(t *testing.T) {
 	if code != 0 || stdout.String() != nativeID+"\n" || stderr.Len() != 0 {
 		t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
-	if reads := runtime.OperationCount(sessioninventorytest.OperationReadAt, ""); reads != 0 {
+	if reads := runtime.OperationCountForRoot(sessioninventorytest.OperationReadAt, transcript.StorageRoot); reads != 0 {
 		t.Fatalf("owner query body reads=%d, want 0 for unchanged proof", reads)
 	}
 }
@@ -190,7 +192,11 @@ func TestQuerySessionCatalogLossProofClassCoversEveryAgentWithoutBodyReads(t *te
 			if err != nil || query.Status != sessioninventory.BindingEstablished || query.Root == nil || query.Root.NativeID != id {
 				t.Fatalf("query=%#v err=%v", query, err)
 			}
-			if reads := runtime.OperationCount(sessioninventorytest.OperationReadAt, ""); reads != 0 {
+			reads := 0
+			for _, artifact := range test.artifacts {
+				reads += runtime.OperationCountForRoot(sessioninventorytest.OperationReadAt, artifact.StorageRoot)
+			}
+			if reads != 0 {
 				t.Fatalf("body reads=%d, want 0", reads)
 			}
 			if queries := runtime.OperationCount(sessioninventorytest.OperationSQLite, ""); queries != 0 {
