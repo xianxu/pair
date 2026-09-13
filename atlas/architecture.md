@@ -459,6 +459,23 @@ opposite directions, and the asymmetry is deliberate:
   presses to leave insert mode, and `ESC`,`j` arrived as Alt+j. The residual
   — `ESC`,`j` typed inside 35 ms still decodes as a chord — is what #227's
   alt-screen passthrough closes.
+- *Takeover: the pane's mouse modes follow the active child (#240).* `pair
+  term` is the pane's only application from zellij's point of view, so the
+  active child's mouse DECSETs set the PANE's mode; a tab switch used to
+  compose `HomeAndClear` + the incoming child's replay and assert nothing
+  else, so a shell tab following an nvim tab kept nvim's `?1002h` in zellij's
+  view, zellij forwarded every click to the shell, and selection was dead in
+  that tab. `applyTakeover` now reads the modes `hostScan` holds (it is fed
+  exactly what the pane was shown) before the reset and prefixes the
+  composition with `mouseReconcile(held, want)`: one write per axis, tracking
+  being ONE slot (`off|1000|1002|1003`, as xterm and zellij hold it — a
+  DECRST of any turns tracking off) and SGR encoding a bit, both modelled in
+  `ptychild.Screen.MouseModes()`. `hostty.PrivateModes` is the shared
+  formatter; the policy stays in `termcmd` because couch asserts its OWN
+  mouse mode on its host and must not be mirrored (#172). The prefix is fed
+  to `hostScan` with the rest, which is what keeps the next takeover's read
+  correct. `probes/mousemodesmoke` shows the bytes on both directions of the
+  switch.
 - *Output, replay only.* `redrawTab` repaints a tab from its stored output. That
   buffer still holds the app's **capability queries** (DA1, DECRQM, Kitty flags,
   DSR, OSC colour), so replaying re-ASKED the host terminal and its answers were
