@@ -80,7 +80,3 @@ site).
   symptom; this is the general "pane mirrors the active child's full mode
   set" work it deliberately scoped out. See also #200's "one arbitration,
   two consumers" consolidation and #207 (couch's own mouse assertion).
-
-## Log
-
-### 2026-09-12
