@@ -34,7 +34,7 @@ ARCH-FUNERAL: creates no new persisted artifacts or background work.
 - [x] Run focused tests and observe failures: go test ./cmd/internal/couchcmd ./cmd/internal/couchcore -run 'Layout|ProjectionNormalizes' -count=1.
 - [x] Add DefaultLayout = Layout3 in layout.go; use it in New and ParseCLI. Preserve ParseLayout empty behavior. Reword layoutRemedy's single-known-layout case to explicitly offer keeping that layout or parking before changing.
 - [x] Update legacy comments in actionableinventory.go and layout_projection_test.go; help in run.go, README.md, atlas/couch.md. Make old-layout fixtures explicitly request Layout2 where that is the behavior under test; do not rewrite persisted legacy witnesses to the new default.
-- [ ] Run focused tests, then full env -u PAIR_SESSION_ID -u PAIR_TAG make test and git diff --check. Build/install couch using the repository build target; verify help identifies layout3 as default. Do not restart the operator's live Couch.
+- [x] Run focused tests, then full env -u PAIR_SESSION_ID -u PAIR_TAG make test and git diff --check. Build/install couch using the repository build target; verify help identifies layout3 as default. Do not restart the operator's live Couch.
 - [ ] Close once with the binary-owned review, fix findings, publish via PR and merge.
 
 ## Revisions

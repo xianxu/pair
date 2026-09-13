@@ -1,12 +1,13 @@
 ---
 id: 000242
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-13
 estimate_hours: 0.389
 started: 2026-09-13T15:55:46-07:00
+actual_hours: 0.62
 ---
 
 # couch defaults to --layout3: every thread gets pair's right-hand terminal unless --layout2 is asked for
@@ -86,6 +87,7 @@ Out of scope: per-thread layouts (a couch process has one layout by design,
 ## Log
 
 ### 2026-09-13
+- 2026-09-13: closed — Layout regressions red then green; make test shell/editor suites passed, then final env -u PAIR_SESSION_ID -u PAIR_TAG go test ./... -count=1 passed after correcting obsolete Go fixtures. Installed-command acceptance verifies layout3 argv; constructor verifies persisted witness; explicit override and legacy refusal tests pass. make bin/couch, built help, issue validation and git diff --check pass. Actual 0.62h measured by sdlc actual in canonical Pair checkout; worktree source discovery found no transcripts.; review verdict: SHIP
 
 - Filed from the brain advisor session on the operator's request — a default
   that matches usage, not a failure report; the first draft framed it as
@@ -146,3 +148,14 @@ library. Design subtotal 0.06 × 1.15 + implementation 0.32 = 0.389h.
   Updated default expectations to literal layout3; legacy fixtures now request
   Layout2 explicitly. Corrected cmd/couch and couchcmd suites pass; focused
   couchcore tests for all remaining failed fixtures pass. All-Go rerun pending.
+
+- Final `env -u PAIR_SESSION_ID -u PAIR_TAG go test ./... -count=1` passed.
+  Together with the preceding full make run's passing shell/editor suites,
+  this covers the complete test target after correcting its Go fixtures.
+  `make bin/couch`, built `bin/couch --help`, issue validation and diff check
+  pass; help explicitly identifies layout3 default and layout2 override.
+
+- Close review: SHIP, high confidence, no findings. Reviewer independently
+  passed focused layout tests and complete couch/couchcmd/couchcore suites.
+- The calibration writer used the worktree basename as the repo label; corrected
+  that row to `pair#242` without changing its measured hours or other fields.
