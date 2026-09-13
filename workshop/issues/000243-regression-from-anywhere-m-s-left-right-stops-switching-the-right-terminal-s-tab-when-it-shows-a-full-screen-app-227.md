@@ -74,6 +74,13 @@ each survives #227's passthrough and pair term always acts on it:
 
 Durable plan: `workshop/plans/000243-from-anywhere-right-terminal-control-set-plan.md`.
 
+- [ ] `ChordAltShiftT` (`\x1bT`, `\x1b[84;4u`) + `ActionTerminalNewTab` + `ChordName`
+- [ ] `TabChordFor` returns the GLOBAL chord for prev/next/new; test pins `IsGlobalChord`
+- [ ] `globalBindings` row for `M-S-t`; regenerate `nvim/workbench_actions.lua`
+- [ ] `handleTerminalChord` `ChordAltShiftT` -> `newTab`; pump test (three globals switch/create under fullscreen, no passthrough)
+- [ ] `wrap.go` + `RunSwitchTerminalTab` (`new` direction) gain the action
+- [ ] `init.lua` `PairTermNewTab`; keyhelp + atlas + README; full make test; live check
+
 ## Estimate
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Design at x0.2 (the plan resolves the delivery-chord fix, the new chord/action/binding, and the wiring); impl at 40% of v2; +15% buffer.
