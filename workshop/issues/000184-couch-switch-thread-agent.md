@@ -240,6 +240,21 @@ while filing: `couchcore/launchprofile.go` (agent/argv independent axes),
 `sessionledger/record.go` (binding keyed per agent -- the reason a switch is
 cold).
 
+### 2026-09-13 — Feature discussion and implementation plan
+
+Claimed the issue and ran `sdlc start-plan`. Operator decisions are captured in
+the revisions below. The current durable implementation plan is
+[`000184-couch-switch-thread-agent-plan.md`](../plans/000184-couch-switch-thread-agent-plan.md),
+committed locally as `41dd366f`. It supersedes the historical checklist above.
+Fresh-context spec review approved planning. Initial plan review found gaps in
+park-metadata persistence/retry and operator input between paste and submit;
+fixed those, added the lossy argv transport discovered during local inspection,
+and received an approved re-review. Prevention rules were added to
+`workshop/lessons.md` (ARCH-ORDER, ARCH-DRY, ARCH-PURPOSE).
+Validation: `git diff --check` passed; this is documentation only, so no runtime
+test result is claimed. Awaiting operator plan approval before `change-code`,
+estimate derivation, or implementation.
+
 ## Revisions
 
 ### 2026-09-13 12:04 PDT — Target owns context reconstruction
