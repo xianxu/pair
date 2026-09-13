@@ -51,9 +51,13 @@ back with mouse OFF after a round trip.
 
 ## Spec
 
-**On every takeover, `pair term` reconciles the pane's mouse modes to the
-incoming child's.** It is the proxy for its children toward zellij; the
-pane's modes must equal the active child's, and nothing else writes them.
+**On every takeover, `pair term` reconciles the pane's MOUSE modes to the
+incoming child's.** It is the proxy for its children toward zellij. This issue
+scopes to mouse modes, which is what the reported bug needs; the pane also
+carries the child's OTHER private modes (focus `?1004`, bracketed paste
+`?2004`, cursor-key mode), and reconciling the full set across every takeover
+path is the follow-up #241 (BR-1, BR-3). The excluded set here is alt-screen
+and cursor-save, which the replay/repaint already own.
 
 - `ptychild.Screen` models mouse tracking as ONE slot (`off | 1000 | 1002 |
   1003`) plus the SGR-encoding bit, matching what xterm and zellij do with
@@ -98,10 +102,10 @@ pane's modes must equal the active child's, and nothing else writes them.
 
 ## Plan
 
-- [ ] `Screen`: one tracking slot + SGR bit; `MouseModes()` + tests
-- [ ] `applyTakeover`: `mouseReconcile(hostScan's modes, incoming's)` as the prefix; feed hostScan
-- [ ] Mux tests for the three transitions + the closed-tab case
-- [ ] `probes/mousemodesmoke` in tree; run it both directions, then the operator's live check
+- [x] `Screen`: one tracking slot + SGR bit; `MouseModes()` + tests
+- [x] `applyTakeover`: `mouseReconcile(hostScan's modes, incoming's)` as the prefix; feed hostScan
+- [x] Mux tests for the three transitions + the closed-tab case
+- [x] `probes/mousemodesmoke` in tree; run it both directions, then the operator's live check — probe run both directions on this build and on a control from main (Log); the in-pane check is the operator's step after install
 
 ## Revisions
 
@@ -143,3 +147,33 @@ total: 0.47
   (a drag through `pair term` reaches nvim live on both builds, mode `v`
   mid-drag), then reproduced this with a tab-switch probe: no DECRST is
   written when the active tab changes from nvim to a shell.
+- Fix landed: `ptychild.Screen` holds tracking as one slot (`off|1000|1002|
+  1003`) plus the 1006 bit, `MouseModes()` reads it back; `hostty.PrivateModes`
+  formats one DECSET/DECRST; `termcmd.mouseReconcile(held, want)` is one
+  write per axis, tested over the full 8×8 held×want product with `Screen`
+  as the oracle; `applyTakeover` reads `hostScan.MouseModes()` before the
+  reset and prefixes the composition with it. The paint-gate consumer guard
+  now allows `MouseModes()` as a mode read rather than a gate read.
+- `probes/mousemodesmoke`, this build: Alt+t to the shell writes
+  `?1002l ?1006l`; Alt+Left back writes `?1002h ?1006h` twice (prefix, then
+  nvim's replayed startup). Control build from main: nothing on the way
+  there, the DECSET once on the way back. Full `make test` green outside the
+  sandbox.
+- Plan-quality took three rounds: PQ-1 (diff against `hostScan`, not a new
+  field) and PQ-2 (one tracking slot, not a set — `?1002h` then `?1000l` is
+  tracking OFF in xterm and zellij) both changed the design for the better
+  and are recorded under Revisions.
+
+### 2026-09-12 (close)
+
+- **Operator confirmation (BR-2):** after restarting into this build, the
+  operator reported mouse selection works in the right-pane shell — "able to
+  restart pair (inside couch) after couch restart ... selection in right
+  pane's terminal." The Done-when's live shell-selection check is met.
+- **Scope narrowed (BR-3, BR-1):** the close review measured that a switch
+  from nvim to a shell releases only `?1002l ?1006l`, leaving nvim's `?1004h`
+  (focus), `?2004h` (bracketed paste) and cursor-key mode on the pane, and
+  that `removeTab` with a rename open skips the reconcile. Those are the
+  general "pane mirrors the active child's FULL mode set across ALL paths"
+  work, filed as #241. This issue is deliberately the mouse-on-switch/close
+  slice that fixes the reported symptom; the Spec header is narrowed to say so.
