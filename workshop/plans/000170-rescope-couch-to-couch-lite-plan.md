@@ -517,7 +517,7 @@ It does not have to. The provider's `repo_identity` is the git common dir (verif
 - [x] **Step 1: Update `atlas/couch.md`.** Delete the "Identity and admission" section's policy/admission paragraphs, the start-grant paragraph in "Spawning", the "Actor loop — built, unit-tested, never instantiated" section, and the legacy-migration sentences in "What exists today". Move `pair#170` from "Planned, not built" into the delivered surface. Keep `atlas/index.md` linking every file.
 - [x] **Step 2: Update `workshop/projects/couch.md`** — tick `pair#170`, record `**actual:**`, and append a scope-event line noting `leave` now detaches. (The rescope scope event and the `#147`/`#148`/`#153` dispositions already landed on 2026-09-02 and need no repeat.)
 - [x] **Step 3: Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test` and `git diff --check`.** Record the exact commands and results in the issue `## Log`.
-- [ ] **Step 4: Operator smoke on the real stack** (Ghostty → couch → pair → zellij → claude), because the switch rule, both `ctrl+backspace` encodings, `alt+d` and reattach are terminal behaviours no test proves end to end. Check: ctrl-space opens on the paged actor; ctrl+backspace returns home after two notification hops; alt+d detaches and the row stays listed; `couch` in that tree reattaches it; alt+x on the panel leaves couch without killing the agents.
+- [x] **Step 4: SUPERSEDED by operator acceptance on 2026-09-13; historical script retained below, not asserted as rerun. Operator smoke on the real stack** (Ghostty → couch → pair → zellij → claude), because the switch rule, both `ctrl+backspace` encodings, `alt+d` and reattach are terminal behaviours no test proves end to end. Check: ctrl-space opens on the paged actor; ctrl+backspace returns home after two notification hops; alt+d detaches and the row stays listed; `couch` in that tree reattaches it; alt+x on the panel leaves couch without killing the agents.
 - [x] **Step 5: `sdlc milestone-close --issue 170 --milestone M4`, then `sdlc close --issue 170 --verified '<evidence>'`.** Let `close` measure actuals; do not hand-type `--actual`.
 
 ---
@@ -532,6 +532,33 @@ Carried from the issue `## Log` so they are not silently absorbed:
 ---
 
 ## Revisions
+
+### 2026-09-13 — root usability accepted; close Couch-lite
+
+Reason: the operator reports that Couch-lite is working very well and requests
+closure of this root task. The September 3 hold named two concrete blockers:
+unreattachable detached sessions and nine hidden inventory rows. Both were
+addressed by #181, whose M1-M3 shipped and whose administrative closure is now
+published. #170's own M1-M4 and lifecycle-chord correction are complete.
+
+Delta: accept current operator use as the root usability acceptance. The old
+Task 15 Step 4 manual script is superseded by this acceptance and the September
+3 lifecycle-chord revision; this does not claim every historic gesture or
+terminal encoding was freshly rerun. Other papercuts, including #207's mouse
+trace investigation, remain in their own issues. The original project's
+reminder/deadline ambition and operation-attempt log were explicitly outside
+this plan and do not block completion of the Couch-lite rescope.
+
+Use the operator-authorized administrative approach established for #181:
+`--no-judge --no-ledger` preserves the historical review findings without
+claiming they were revalidated. A new whole-issue review would include extensive
+later work. The full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` just passed in
+this session before publishing #181; all intervening changes are bookkeeping,
+so that verification still covers the unchanged code. Issue validation and
+whitespace checks are run for this closure. Publish uses `--no-validate` for
+the existing project baseline failure (missing deadline/planned_finish, #189),
+not to invent a schedule as part of closing this issue.
+
 
 ### 2026-09-02 — plan review round 1
 

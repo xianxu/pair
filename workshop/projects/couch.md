@@ -187,7 +187,7 @@ gate `#147` and `#148` respectively; `#145` and `#146` do not depend on them.
 - [x] fleet thread inventory [ariadne#200]
 - [-] cluster transport and queries [pair#147]
 - [-] brain advisor role [pair#148]
-- [ ] rescope to couch-lite [pair#170]
+- [x] rescope to couch-lite [pair#170]
 - [x] switch rule and key layer [pair#170 M1]
 - [x] detach, and detached threads that reattach [pair#170 M2]
 - [x] start or resume in a folder [pair#170 M3]
@@ -370,7 +370,12 @@ satisfied by testing at the layer that seems closest to it.
 <a id="pair-170"></a>
 ### pair#170 — rescope to couch-lite
 **est:** 10.69
-**status:** in progress — M1–M4 closed; plan at `workshop/plans/000170-rescope-couch-to-couch-lite-plan.md`
+**status:** root usability accepted by operator; administratively closed 2026-09-13.
+**actual:** 11.01h — measured by sdlc actual in the canonical Pair checkout; mention-fallback attribution warnings apply.
+**closed:** 2026-09-13
+
+M1–M4 shipped; the inventory and warm-reattach blockers shipped in pair#181.
+Plan and review records archive with pair#170 under `workshop/history/plans/`.
 **started:** 2026-09-02
 
 Narrows couch to a switcher over a group of live coding sessions whose unit is a
@@ -1407,3 +1412,12 @@ Operator requested administrative closure of the shipped M1-M3 work. Updated
 the detail block to agree with the completed task rows. The issue records the
 authorized renewed-review and historical-ledger bypass; old findings remain
 preserved, without a new claim of correctness. Historical actuals remain N/A.
+
+### 2026-09-13 — close the Couch-lite root task (pair#170)
+
+Operator reports that Couch-lite works very well and accepts the root usability
+objective. Its four milestones shipped; pair#181 resolved the two blockers
+that kept the root task open on September 3. Tick the root task and close its
+detail block. This completes the Couch-lite rescope issue, without closing the
+broader project or the separately tracked papercuts. The issue records the
+administrative review bypass and the superseded historical smoke checklist.

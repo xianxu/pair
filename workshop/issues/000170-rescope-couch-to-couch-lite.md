@@ -1,12 +1,13 @@
 ---
 id: 000170
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-02
-updated: 2026-09-02
+updated: 2026-09-13
 estimate_hours: 10.69
 started: 2026-09-02T11:03:39-07:00
+actual_hours: 11.01
 ---
 
 # Rescope couch to couch-lite
@@ -430,6 +431,33 @@ Four review boundaries; each is independently operable.
 
 ## Revisions
 
+### 2026-09-13 — root usability accepted; close Couch-lite
+
+Reason: the operator reports that Couch-lite is working very well and requests
+closure of this root task. The September 3 hold named two concrete blockers:
+unreattachable detached sessions and nine hidden inventory rows. Both were
+addressed by #181, whose M1-M3 shipped and whose administrative closure is now
+published. #170's own M1-M4 and lifecycle-chord correction are complete.
+
+Delta: accept current operator use as the root usability acceptance. The old
+Task 15 Step 4 manual script is superseded by this acceptance and the September
+3 lifecycle-chord revision; this does not claim every historic gesture or
+terminal encoding was freshly rerun. Other papercuts, including #207's mouse
+trace investigation, remain in their own issues. The original project's
+reminder/deadline ambition and operation-attempt log were explicitly outside
+this plan and do not block completion of the Couch-lite rescope.
+
+Use the operator-authorized administrative approach established for #181:
+`--no-judge --no-ledger` preserves the historical review findings without
+claiming they were revalidated. A new whole-issue review would include extensive
+later work. The full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` just passed in
+this session before publishing #181; all intervening changes are bookkeeping,
+so that verification still covers the unchanged code. Issue validation and
+whitespace checks are run for this closure. Publish uses `--no-validate` for
+the existing project baseline failure (missing deadline/planned_finish, #189),
+not to invent a schedule as part of closing this issue.
+
+
 ### 2026-09-03 — the lifecycle chords are a 2x2, and leaving is unconditional
 
 Reason: operator smoke on the real stack (the M4 task that was deferred to the
@@ -482,6 +510,8 @@ and the unconfirmed one.
 
 ## Log
 
+
+- 2026-09-13: closed — Operator accepts Couch-lite as working very well on 2026-09-13. M1-M4 shipped; the September 3 root blockers (hidden threads and failed warm reattach) shipped in #181, now done. Full make test passed this session before #181 publication with unchanged code since; issue validation and diff check pass. Supersede old smoke script with current operator acceptance, not a claim every gesture was rerun. Administrative renewed-review and historical-ledger bypass authorized; preserve findings. Actual 11.01h measured by sdlc actual in canonical pair checkout; mention-fallback attribution warnings retained as a measurement limitation.; review verdict: not-run
 ### 2026-09-03
 - Stays OPEN as the root issue for making couch usable, at the operator's
   direction. The chord rebinding landed (see Revisions), but the smoke that
