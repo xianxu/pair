@@ -7,7 +7,7 @@ const (
 	groupDraft    = "Draft — compose and send"
 	groupHistory  = "Draft — history and queue"
 	groupPanes    = "Panes and layout"
-	groupTerminal = "Terminal tabs (right terminal; under a full-screen app like nvim these pass through to it, except Alt+k which still returns to the left)"
+	groupTerminal = "Terminal tabs (right terminal; pass through to a full-screen app)"
 	groupSession  = "Session"
 )
 
