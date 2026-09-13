@@ -79,15 +79,18 @@ pane's modes must equal the active child's, and nothing else writes them.
 ## Done when
 
 - `probes/mousemodesmoke` (in tree) shows a DECRST of nvim's modes on Alt+t
-  to the shell tab and the grouped DECSET on the way back. The grouped form
-  is the reconcile prefix; nvim's own replayed startup bytes are two
-  separate writes, so the probe distinguishes "asserted" from "replayed".
+  to the shell tab and the DECSET twice on the way back: once as the
+  reconcile prefix, once as nvim's replayed startup bytes. A build without
+  the fix writes nothing on the way there and the DECSET once on the way
+  back, and only while the ring still holds it.
 - `mouseReconcile` is tested over the full held × want product (4 tracking
   values × SGR bit, squared), with `ptychild.Screen` as the oracle: feed the
   held state, feed the prefix, the Screen must hold the wanted state.
 - Unit test on `terminalMux`: outgoing child holding `1002+1006`, incoming
-  child silent → pane receives the DECRST before the repaint; the reverse
-  switch receives the grouped DECSET; silent → silent writes no mode bytes.
+  child silent → pane receives the DECRST before the clear; the reverse
+  switch receives the DECSET before the clear (the replay's copy comes
+  after it, which is how the test tells asserted from replayed); silent →
+  silent writes no mode bytes.
 - Closing the nvim tab (`removeTab` takeover to the survivor) releases the
   mode the same way.
 - Live: the operator selects text at the shell tab with nvim alive in the
