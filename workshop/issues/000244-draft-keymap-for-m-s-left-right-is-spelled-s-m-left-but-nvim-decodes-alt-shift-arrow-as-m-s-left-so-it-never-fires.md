@@ -1,6 +1,6 @@
 ---
 id: 000244
-status: working
+status: wontfix
 deps: []
 github_issue:
 created: 2026-09-13
@@ -88,3 +88,29 @@ total: 0.35
 ## Log
 
 ### 2026-09-13
+
+## Revisions
+
+### 2026-09-13 — reject the modifier-order diagnosis
+
+Operator confirms that Alt+Shift+Left/Right and Alt+Shift+T work from the
+left pane to control right-pane tabs regardless of the app in the target tab,
+and requests wontfix. The proposed spelling change is withdrawn.
+
+The existing plan review (PQ-1) already refuted the claimed root cause:
+Neovim canonicalizes both arrow spellings to the same mapping, so installing
+both overwrites the first. Its `a=0, b=1` probe result was an overwrite
+artifact, not proof that the first spelling cannot fire. Rechecked today with
+`nvim --headless -u NONE -l /tmp/pair-244-keymap-check.lua`: both canonicalize
+to `<M-S-Left>` and the second mapping replaces the first.
+
+Close as wontfix with no production changes. Preserve the rejected plan and
+its review findings as evidence; its implementation checklist is intentionally
+unexecuted. No new diagnosis is inferred for the historical report.
+
+### 2026-09-13 — disposition log
+
+Marked wontfix at the operator's request after live acceptance and local
+confirmation of the mapping-overwrite explanation. Current code verification
+remains the passing shell/editor checks and final all-Go run from #242 in this
+session; this disposition changes only issue/review records.
