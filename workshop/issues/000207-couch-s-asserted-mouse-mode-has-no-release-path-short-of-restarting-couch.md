@@ -1,11 +1,12 @@
 ---
 id: 000207
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-09-12
 estimate_hours:
+started: 2026-09-12T23:21:00-07:00
 ---
 
 # couch's asserted mouse mode has no release path short of restarting couch
