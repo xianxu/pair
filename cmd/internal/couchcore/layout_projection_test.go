@@ -37,18 +37,19 @@ func projectOne(t *testing.T, record ThreadRecord, evidence map[ThreadAddress]Th
 	return rows[0]
 }
 
-// The Critical the plan gate caught (PQ-1). Every record written before #198 has
-// no layout field. If the projection carried the raw Layout("") through, it
-// would not equal Layout2 and EVERY existing thread would block a default
-// `couch` startup -- turning this feature into an outage on first run.
-func TestProjectionNormalizesAbsentLayoutAndDoesNotBlockDefaultStartup(t *testing.T) {
+// An absent persisted field is legacy layout2, independent of process defaults.
+func TestProjectionNormalizesAbsentLayoutIndependentlyOfDefault(t *testing.T) {
 	record, evidence := detachedLayoutRecord(t, "")
 	row := projectOne(t, record, evidence)
 	if row.Layout != Layout2 {
-		t.Fatalf("row layout = %q; want Layout2 normalized from an absent field", row.Layout)
+		t.Fatalf("legacy layout = %q; want Layout2", row.Layout)
 	}
 	if got := ResolveLayoutConflicts(Layout2, []ActionableThreadSummary{row}); len(got) != 0 {
-		t.Fatalf("a pre-#198 record blocked a default startup: %+v", got)
+		t.Fatalf("legacy record conflicts with explicit layout2: %+v", got)
+	}
+	env := newTestEnv(t, "/repo")
+	if got := ResolveLayoutConflicts(env.Couch.Layout, []ActionableThreadSummary{row}); len(got) != 1 {
+		t.Fatalf("legacy record must conflict with default layout3: %+v", got)
 	}
 }
 

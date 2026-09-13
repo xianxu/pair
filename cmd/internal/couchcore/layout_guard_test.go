@@ -27,10 +27,9 @@ func seedStartupDetached(t *testing.T, env *testEnv, tag ThreadTag, layout Layou
 	return created
 }
 
-func TestStartInteractiveRefusesWhenASessionHoldsTheOtherLayout(t *testing.T) {
+func TestDefaultStartInteractiveRefusesLegacyLayoutWithRemedies(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	env.Couch.Layout = Layout3
-	held := seedStartupDetached(t, env, "couch-0000000000000001", Layout2)
+	held := seedStartupDetached(t, env, "couch-0000000000000001", "")
 
 	_, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"})
 	if err == nil {
@@ -43,6 +42,8 @@ func TestStartInteractiveRefusesWhenASessionHoldsTheOtherLayout(t *testing.T) {
 		"layout3",                // what was asked for
 		"detached",               // why couch cannot change it
 		"park",                   // the way forward
+		"keep using",
+		"couch --layout2",
 	} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("refusal %q does not mention %q", message, want)

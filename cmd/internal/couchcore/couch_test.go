@@ -280,7 +280,7 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 	}
 	// couch spawns pair, not claude: pair owns zellij, the layout, and the
 	// agent's resume/session-id knowledge.
-	if got := env.Runner.Ops[0]; got != "start /repo: pair resume couch-0102030405060708 --layout2" {
+	if got := env.Runner.Ops[0]; got != "start /repo: pair resume couch-0102030405060708 --layout3" {
 		t.Fatalf("Ops[0] = %q", got)
 	}
 	child := env.Runner.Child(env.Runner.order[0])
@@ -535,7 +535,7 @@ exit 0
 		t.Fatalf("Couch observed Pair before its own promotion = %+v, %v", duringPair, err)
 	}
 	child := runner.Child("couch-fake-1")
-	wantArgv := []string{"pair", "resume", string(address.Tag), "--layout2"}
+	wantArgv := []string{"pair", "resume", string(address.Tag), "--layout3"}
 	if !slices.Equal(child.Argv, wantArgv) {
 		t.Fatalf("argv = %q, want %q", child.Argv, wantArgv)
 	}
@@ -1693,11 +1693,10 @@ func TestSpawnResumesAnOpaqueThreadTag(t *testing.T) {
 		t.Fatalf("argv = %q, want `pair resume <tag>`", got)
 	}
 	// A cold start sends couch's OWN layout, and this env is a default couch,
-	// so that is --layout2. Not a pin: #198 reversed the 2026-08-22 decision
-	// and made it `couch --layout3`'s to choose. What has not changed is why a
+	// so that is --layout3 after #242. What has not changed is why a
 	// layout flag is accepted here at all -- ParseArgs strips layout flags
 	// before the positional guard, so only a stray positional errors.
-	if !strings.Contains(got, "--layout2") {
+	if !strings.Contains(got, "--layout3") {
 		t.Fatalf("a default couch did not send its layout: %q", got)
 	}
 }

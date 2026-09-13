@@ -288,6 +288,8 @@ func TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding(t *testing.T)
 // agent context, so in practice nothing covered it at all.
 func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
 	env := newTestEnv(t, "/repo")
+	// This pre-witness record is layout2; reattach using that explicit layout.
+	env.Couch.Layout = Layout2
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
 	detached := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())

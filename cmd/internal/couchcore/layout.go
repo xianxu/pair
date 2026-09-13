@@ -20,6 +20,8 @@ type Layout = launcher.LayoutMode
 const (
 	Layout2 = launcher.Layout2
 	Layout3 = launcher.Layout3
+	// DefaultLayout is the layout for a new Couch process, not legacy records.
+	DefaultLayout = Layout3
 	// LayoutUnknown is a persisted value this binary does not recognise. It is
 	// never chosen and never formatted: it exists so a row can carry "we cannot
 	// prove this session's layout" instead of a fabricated layout2 the guard
@@ -156,7 +158,8 @@ func layoutRemedy(requested Layout, conflicts []LayoutConflict) string {
 			"  them all. Park each from the couch matching its own layout, then:\n" +
 			"    couch " + requested.Flag()
 	}
-	return "park them first:  couch " + host.Flag() +
+	return "keep using this layout:  couch " + host.Flag() + "\n" +
+		"  or park them first:  couch " + host.Flag() +
 		"   then park each thread from the switcher and quit\n" +
 		"  then:             couch " + requested.Flag()
 }

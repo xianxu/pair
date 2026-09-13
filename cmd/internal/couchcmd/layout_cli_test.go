@@ -23,8 +23,8 @@ func TestParseCLIAcceptsLayoutFlag(t *testing.T) {
 		args []string
 		want cliInvocation
 	}{
-		{"bare defaults to layout2", nil,
-			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout2}},
+		{"bare defaults to layout3", nil,
+			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3}},
 		{"flag alone", []string{"--layout3"},
 			cliInvocation{kind: cliLaunch, path: ".", layout: couchcore.Layout3}},
 		{"flag before path", []string{"--layout3", "../pair"},
@@ -71,8 +71,8 @@ func TestParseCLIRejectsLayoutOnNonLaunchForms(t *testing.T) {
 func TestUsageMentionsTheLayoutFlag(t *testing.T) {
 	var out strings.Builder
 	usage(&out)
-	if !strings.Contains(out.String(), "--layout3") {
-		t.Fatalf("usage does not mention --layout3:\n%s", out.String())
+	if !strings.Contains(out.String(), "default: --layout3") || !strings.Contains(out.String(), "--layout2  use the two-pane workbench") {
+		t.Fatalf("usage does not explain the layout default and override:\n%s", out.String())
 	}
 }
 
@@ -85,7 +85,8 @@ func TestLayoutFlagReachesTheCouch(t *testing.T) {
 		want couchcore.Layout
 	}{
 		{[]string{"--layout3"}, couchcore.Layout3},
-		{nil, couchcore.Layout2},
+		{nil, couchcore.Layout3},
+		{[]string{"--layout2"}, couchcore.Layout2},
 	} {
 		t.Run(string(tc.want), func(t *testing.T) {
 			rt := newRT(t, "/repo")

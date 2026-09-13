@@ -68,7 +68,7 @@ func ParseCLI(args []string, operations []couchcore.Operation) (cliInvocation, e
 		return cliInvocation{}, err
 	}
 	if layout == "" {
-		layout = couchcore.Layout2
+		layout = couchcore.DefaultLayout
 	}
 	// The read-only forms below reject the flag; only a launch carries it.
 	refuseLayout := func(form string) error {

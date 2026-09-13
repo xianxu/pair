@@ -4778,3 +4778,10 @@ Never enumerate all integers below a stored counter to discover history. Bound
 lookup independently of counter magnitude, test sparse huge counters, and check
 cancellation on missing-record paths before the next read or cleanup effect.
 A transaction lock protects ordering but makes unbounded recovery work worse.
+
+### 2026-09-13 — #242 process defaults and persisted provenance
+
+A constructor default may be overridden by a CLI parser's independent fallback.
+Share the process default and verify it through the public command to emitted
+argv and stored witness. Keep historical empty-field normalization separate;
+legacy-session tests must select their recorded layout explicitly.

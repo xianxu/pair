@@ -1092,8 +1092,8 @@ Distinct starts at one path therefore use distinct Pair
 sessions and artifacts.
 
 **Layout is couch-wide and never mixed** (`pair#198`, reversing the 2026-08-22
-pin). `couch --layout3` gives every thread pair's own right-hand terminal;
-`--layout2` (the default) does not. It is a property of the couch PROCESS,
+pin). `couch` defaults to `--layout3`, giving every thread pair's own
+right-hand terminal (`pair#242`); `--layout2` explicitly opts out. It is a property of the couch PROCESS,
 chosen at startup and immutable for its lifetime -- not a per-thread setting.
 
 Two rules carry it:

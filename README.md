@@ -287,8 +287,8 @@ still works. See [atlas/couch.md](atlas/couch.md).
 
 ```
 couch [<repo>]           open the Couch TUI (default: .)
-couch --layout2          threads get pair's two-pane workbench (the default)
-couch --layout3          threads also get pair's right-hand terminal
+couch --layout2          opt into pair's two-pane workbench
+couch --layout3          threads also get pair's right-hand terminal (the default)
 couch --list             every durable work thread across all repositories
 couch --show <ref>       one current-repository thread by tag, path, or name
 couch --archived         threads removed from couch, with their records kept

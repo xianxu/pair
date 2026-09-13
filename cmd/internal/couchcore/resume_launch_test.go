@@ -93,7 +93,7 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 				}
 				child := env.Runner.Child(handle.ID())
 				if record.Thread != parked.Address || child.Dir != "/repo/sub" ||
-					!slices.Equal(child.Argv, []string{"pair", "resume", string(parked.Address.Tag), "--layout2"}) {
+					!slices.Equal(child.Argv, []string{"pair", "resume", string(parked.Address.Tag), "--layout3"}) {
 					t.Fatalf("resume launch = record %+v child %+v", record, child)
 				}
 				raw, err := launcher.BuildCouchResumeLaunchProfile(string(parked.Address.Tag), agent, profile.Argv, "native-root-1")
