@@ -114,6 +114,7 @@ keybinds clear-defaults=false {
         unbind "Alt x"
         unbind "Alt /"
         unbind "Alt D"
+        unbind "Alt T"
         unbind "Alt C"
         unbind "Ctrl Alt c"
         unbind "Alt Shift Enter"
@@ -131,6 +132,7 @@ keybinds clear-defaults=false {
         unbind "Alt x"
         unbind "Alt /"
         unbind "Alt D"
+        unbind "Alt T"
         unbind "Alt C"
         unbind "Ctrl Alt c"
         bind "Alt j" { Write 27; Write 106; }
@@ -141,6 +143,7 @@ keybinds clear-defaults=false {
         bind "Alt x" { WriteChars "\u{1b}[120;3u"; }
         bind "Alt /" { Write 27; Write 47; }
         bind "Alt D" { WriteChars "\u{1b}[68;4u"; }
+        bind "Alt T" { WriteChars "\u{1b}[84;4u"; }
         bind "Alt C" { Write 27; Write 67; }
         bind "Ctrl Alt c" { WriteChars "\u{1b}[99;7u"; }
         bind "Alt Shift Enter" { WriteChars "\u{1b}[13;4u"; }

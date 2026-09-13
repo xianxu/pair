@@ -39,8 +39,13 @@ func TestAgentPaneDeliversTabChordsToTheRightTerminal(t *testing.T) {
 		chord workbenchshortcut.Chord
 		want  workbenchshortcut.Chord
 	}{
-		{"previous", workbenchshortcut.ChordAltShiftLeft, workbenchshortcut.ChordAltLeft},
-		{"next", workbenchshortcut.ChordAltShiftRight, workbenchshortcut.ChordAltRight},
+		// The delivered chord is the GLOBAL, not the role-scoped Alt+Left/Right:
+		// #227 passes a role-scoped chord THROUGH to a full-screen right pane,
+		// so the from-anywhere delivery must use a global pair term always
+		// handles (#243). The delivered chord equals the pressed one.
+		{"previous", workbenchshortcut.ChordAltShiftLeft, workbenchshortcut.ChordAltShiftLeft},
+		{"next", workbenchshortcut.ChordAltShiftRight, workbenchshortcut.ChordAltShiftRight},
+		{"new", workbenchshortcut.ChordAltShiftT, workbenchshortcut.ChordAltShiftT},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			original := switchTerminalTab

@@ -119,3 +119,20 @@ func TestEveryChordAgainstBothAltScreenStates(t *testing.T) {
 		})
 	}
 }
+
+// The from-anywhere set (#243) delivers GLOBAL chords to the right terminal, so
+// they drive its tabs even when it shows a full-screen app — the #227
+// regression that role-scoped Alt+Left/Right delivery caused.
+func TestFromAnywhereChordsDriveTheRightTerminalUnderFullScreen(t *testing.T) {
+	for _, tt := range []struct{ seq, want string }{
+		{"\x1b[1;4D", "prev-tab"}, // Alt+Shift+Left
+		{"\x1b[1;4C", "next-tab"}, // Alt+Shift+Right
+		{"\x1b[84;4u", "new-tab"}, // Alt+Shift+t
+	} {
+		mux := &fakeMux{ownsScreen: true}
+		pumpStdin(&splitReader{chunks: [][]byte{[]byte(tt.seq)}}, mux, &fakeRuntime{}, io.Discard)
+		if got := strings.Join(mux.ops, ","); got != tt.want {
+			t.Errorf("%q under fullscreen -> ops=%q, want %q (must NOT pass through)", tt.seq, got, tt.want)
+		}
+	}
+}

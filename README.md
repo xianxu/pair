@@ -20,7 +20,9 @@ Launches a `zellij` workbench in one of two layouts:
   the alternate screen), those pane chords pass through to it instead of being
   intercepted, so the app can bind `Alt+t` and the rest (#227). Two survive
   regardless, so you are never trapped: `Alt+k` still returns to the left
-  stack, and the global `Shift+Alt+←`/`→` still switch tabs from anywhere. At
+  stack, and the global `Shift+Alt+←`/`→`/`Shift+Alt+t` still switch and create
+  tabs from anywhere (#243 delivers them as globals so they survive the
+  passthrough). At
   a shell prompt every chord is intercepted as before.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
@@ -127,6 +129,7 @@ one-line description can't carry.
 | **Alt+Shift+d** | layout 3 terminal | Split the right terminal downward; the new lower pane takes focus. `Alt+k` from the left returns to the split pane last used. |
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
+| **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
 | **Alt+c** | any pane | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
 | **Ctrl+C** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |

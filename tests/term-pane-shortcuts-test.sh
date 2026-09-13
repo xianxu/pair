@@ -96,18 +96,24 @@ write_panes terminal
 run_shortcut "Alt+Shift+d"
 check_eq "right Alt+Shift+d splits terminal down as a native tiled split" "$(actions)" 'new-pane --direction down --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term'
 
-# #216: the from-any-pane tab chords. Driven from the DRAFT's focus, since the
-# whole point is that they work where the operator is typing. handleTerminalChord
+# #216/#243: the from-any-pane right-terminal chords, driven from the DRAFT's
+# focus. They now deliver the GLOBAL chord bytes (Alt+Shift+Left/Right/t =
+# ESC[1;4D / ESC[1;4C / ESC[84;4u), not the role-scoped Alt+Left/Right (;3):
+# #227 passes a role-scoped chord THROUGH to a full-screen right pane, so the
+# delivery must use a global pair term always handles (#243). handleTerminalChord
 # short-circuits these inside the right pane, so `--test-shortcut` is the only
-# reachable caller of runDecision's case — without these rows, deleting that case
-# left the whole suite green.
+# reachable caller of runDecision's case.
 write_panes draft
 run_shortcut "Alt+Shift+Left"
-check_eq "Alt+Shift+Left delivers previous-tab into the right terminal" "$(actions)" "write --pane-id 4 27 91 49 59 51 68"
+check_eq "Alt+Shift+Left delivers previous-tab into the right terminal" "$(actions)" "write --pane-id 4 27 91 49 59 52 68"
 
 write_panes draft
 run_shortcut "Alt+Shift+Right"
-check_eq "Alt+Shift+Right delivers next-tab into the right terminal" "$(actions)" "write --pane-id 4 27 91 49 59 51 67"
+check_eq "Alt+Shift+Right delivers next-tab into the right terminal" "$(actions)" "write --pane-id 4 27 91 49 59 52 67"
+
+write_panes draft
+run_shortcut "Alt+Shift+t"
+check_eq "Alt+Shift+t delivers new-tab into the right terminal (#243)" "$(actions)" "write --pane-id 4 27 91 56 52 59 52 117"
 
 # No focus action of any kind: the cursor must not move.
 write_panes draft

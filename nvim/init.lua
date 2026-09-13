@@ -3404,6 +3404,7 @@ end
 
 function _G.PairTermPrevTab() pair_switch_terminal_tab('prev') end
 function _G.PairTermNextTab() pair_switch_terminal_tab('next') end
+function _G.PairTermNewTab() pair_switch_terminal_tab('new') end
 
 function _G.PairLayoutSmaller()
   local cur = LAYOUT_LADDER[layout_read()] or 1

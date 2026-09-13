@@ -74,12 +74,12 @@ each survives #227's passthrough and pair term always acts on it:
 
 Durable plan: `workshop/plans/000243-from-anywhere-right-terminal-control-set-plan.md`.
 
-- [ ] `ChordAltShiftT` (`\x1b[84;4u` (KKP only)) + `ActionTerminalNewTab` + `ChordName`
-- [ ] `TabChordFor` returns the GLOBAL chord for prev/next/new; test pins `IsGlobalChord`
-- [ ] `globalBindings` row for `M-S-t`; regenerate `nvim/workbench_actions.lua`
-- [ ] `handleTerminalChord` `ChordAltShiftT` -> `newTab`; pump test (three globals switch/create under fullscreen, no passthrough)
-- [ ] `wrap.go` + `RunSwitchTerminalTab` (`new` direction) gain the action
-- [ ] `init.lua` `PairTermNewTab`; keyhelp + atlas + README; full make test; live check
+- [x] `ChordAltShiftT` (`\x1b[84;4u` (KKP only)) + `ActionTerminalNewTab` + `ChordName`
+- [x] `TabChordFor` returns the GLOBAL chord for prev/next/new; test pins `IsGlobalChord`
+- [x] `globalBindings` row for `M-S-t`; regenerate `nvim/workbench_actions.lua`
+- [x] `handleTerminalChord` `ChordAltShiftT` -> `newTab`; pump test (three globals switch/create under fullscreen, no passthrough)
+- [x] `wrap.go` + `RunSwitchTerminalTab` (`new` direction) gain the action
+- [x] `init.lua` `PairTermNewTab`; keyhelp + atlas + README; full make test; live check
 
 ## Estimate
 

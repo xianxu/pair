@@ -112,6 +112,8 @@ func namedChord(name string) (workbenchshortcut.Chord, bool) {
 		return workbenchshortcut.ChordAltShiftLeft, true
 	case "alt+shift+right", "alt+shift+right-arrow":
 		return workbenchshortcut.ChordAltShiftRight, true
+	case "alt+shift+t":
+		return workbenchshortcut.ChordAltShiftT, true
 	default:
 		return workbenchshortcut.ChordUnknown, false
 	}
@@ -240,7 +242,7 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 			return nil
 		}
 		return rt.RunZellijAction("focus-pane-id", decision.TargetPaneID)
-	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab:
+	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab, workbenchshortcut.ActionTerminalNewTab:
 		chord, ok := workbenchshortcut.TabChordFor(decision.Action)
 		if !ok {
 			return nil
@@ -613,6 +615,11 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 		return true
 	case workbenchshortcut.ChordAltRight, workbenchshortcut.ChordAltShiftRight:
 		mux.nextTab()
+		return true
+	case workbenchshortcut.ChordAltShiftT:
+		// The from-anywhere new-tab (#243): delivered here as a global, which
+		// #227 never passes through, so a full-screen child cannot eat it.
+		_ = mux.newTab()
 		return true
 	case workbenchshortcut.ChordAltShiftD:
 		if err := splitTerminalDown(rt); err != nil {

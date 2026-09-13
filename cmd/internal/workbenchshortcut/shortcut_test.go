@@ -658,3 +658,36 @@ func TestRightTerminalChordPassesThrough(t *testing.T) {
 		}
 	}
 }
+
+func TestChordAltShiftTDecodesAndNames(t *testing.T) {
+	c, ok := DecodeChord([]byte("\x1b[84;4u"))
+	if !ok || c != ChordAltShiftT {
+		t.Fatalf("DecodeChord = %v, %v; want ChordAltShiftT", c, ok)
+	}
+	if got := ChordName(ChordAltShiftT); got != "Alt+Shift+T" {
+		t.Fatalf("ChordName = %q, want Alt+Shift+T", got)
+	}
+	// KKP only: no legacy \x1bT (a global fired inside the escape deadline
+	// would be a new-tab in the child, #243).
+	if _, ok := DecodeChord([]byte("\x1bT")); ok {
+		t.Fatal("ChordAltShiftT must have no legacy \\x1bT form")
+	}
+	if !IsGlobalChord(ChordAltShiftT) {
+		t.Fatal("ChordAltShiftT must be a global (globalBindings row)")
+	}
+}
+
+func TestTabChordForDeliversGlobalChords(t *testing.T) {
+	for _, a := range []ShortcutAction{ActionTerminalPrevTab, ActionTerminalNextTab, ActionTerminalNewTab} {
+		chord, ok := TabChordFor(a)
+		if !ok {
+			t.Fatalf("TabChordFor(%v) not ok", a)
+		}
+		// A role-scoped delivered chord would be passed through to a full-screen
+		// child (#227). Only a global is always handled. This is the guard
+		// against the #227 regression recurring (#243).
+		if !IsGlobalChord(chord) {
+			t.Errorf("TabChordFor(%v) = %v, NOT global — it would pass through a full-screen child", a, ChordName(chord))
+		}
+	}
+}

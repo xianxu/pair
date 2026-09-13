@@ -1671,7 +1671,7 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 		return true
 	}
 	switch decision.Action {
-	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab:
+	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab, workbenchshortcut.ActionTerminalNewTab:
 		if chord, ok := workbenchshortcut.TabChordFor(decision.Action); ok {
 			_ = switchTerminalTab(layoutcmd.OSRuntime{}, chord)
 		}
