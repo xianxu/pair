@@ -101,3 +101,101 @@ findings:
     detail: |
       "The test `TabChordFor` returns a chord for which…" reads as a test named TabChordFor.
 ```
+
+---
+
+## Re-review — 2026-09-13T11:19:00-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 243 — regression: from-anywhere M-S-left/right stops switching the right terminal's tab when it shows a full-screen app (#227) |
+| repo | pair |
+| issue file | workshop/issues/000243-regression-from-anywhere-m-s-left-right-stops-switching-the-right-terminal-s-tab-when-it-shows-a-full-screen-app-227.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | ec3f63eb163fb2215ad0be4e33676720fc581c4c..bb59dc6c304b198ff100ca884ed23ef601558fec |
+| command | sdlc close --issue 243 |
+| reviewer | claude |
+| timestamp | 2026-09-13T11:19:00-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The code is right and the pinning tests are real. In a scratch copy of HEAD I deleted the CLI's `case "new"` and both RunSwitchTerminalTab tests went red; I removed `ChordAltShiftT` from the merged `handleTerminalChord` case and the pump test went red with `ops="" want "new-tab"`. The delivered-chord class is pinned by `IsGlobalChord`, the generated keymap and the embedded bundle match the tree (uncached runs), and the shell test passes its three `;4` / `84;4u` delivery rows against `bin/pair`. What keeps this off SHIP is the same thing as last round: the Done-when's live bullet is still unmet while the plan row stays ticked. The new Log entry is honest about that ("the remaining operator step is the in-workbench check"), but honesty in the Log does not tick the row, and the plan gained no `## Revisions` entry. That is an artifact fix plus one operator smoke test, not a code change.
+
+**1. Strengths**
+
+- `cmd/internal/layoutcmd/layoutcmd_test.go:244` asserts the delivered bytes per direction, not just an op count. This is the draft pane's only path and it is now red-without-fix (verified by revert).
+- `cmd/internal/termcmd/run.go:604` merges `ChordAltT`/`ChordAltShiftT` the same way Left/ShiftLeft are merged at :615 (ARCH-DRY). `TestEveryHandledTerminalChordIsDocumented` still enumerates from `ChordMax()`, so the new chord was swept by the existing guard without edits.
+- `cmd/internal/workbenchshortcut/shortcut_test.go:681` pins the class ("every from-anywhere delivery is a global"), which is what stops the #227 regression recurring for a fourth chord.
+- The Log's BR-2 entry records a concrete, reproducible measurement (bare `nvim --clean` under a pty, `\x1b[84;4u` fires `nnoremap <M-T>`), which is real evidence for the NvimKey spelling rather than the "same pattern as `<M-N>`" argument the plan leaned on.
+- `atlas/architecture.md:471-479` now states the mechanism (delivered AS the global chord, never passed through) and names the guard test correctly.
+
+**2. Critical findings**
+
+None.
+
+**3. Important findings**
+
+- **BR-2 not-addressed.** Issue Plan row 6 ("… full make test; live check") is `[x]`, Done-when's last bullet ("Live: from the draft with nvim in the right pane, M-S-left/right/t drive it") and the typed-`Alt+←/→`-still-reaches-nvim control are unmet, and the Log itself says so. The plan file has no `## Revisions` section (17 unticked boxes, Task 5 Step 5 unchanged). Do one of: run the in-workbench check and record what was pressed and observed, or untick the row and add a `## Revisions` entry deferring the live step to the operator. Not a code change either way.
+
+**4. Minor findings**
+
+- **BR-3 not-addressed on its second half.** The merge is done. The error is still discarded, and the new comment at `run.go:605-610` justifying that is inaccurate on both counts: `enqueue` is documented non-blocking (`run.go:1237`) and `ChordAltShiftD` already calls `mux.reportError` from this same function at `run.go:627`, so the "writer loop not started" hazard does not exist; and a failed `ptychild.Start` (`run.go:875`) spawns no child, so there is no EOF path to surface it. Either report the error or fix the comment so it does not teach a wrong rule.
+- **New (Minor, `hand-maintained-restatement`):** the zellij `WriteChars` byte string for `Alt T` at `zellij/config.kdl:146` is a hand-typed restatement of the `chordSequences` row at `shortcut.go:413`, with no test tying the two. A typo there breaks typed `M-S-t` in every pane with the whole suite green. This is the class for every letter global (`Alt D`, `Alt N`, `Alt x`, …), not this instance: a guard that parses each `WriteChars` bind in `config.kdl` and asserts `DecodeChord` returns a global would cover all of them at once. Pre-existing shape; safe to take as a follow-up row.
+
+**5. Test coverage notes**
+
+- Verified red-without-fix: CLI `new` direction (both layoutcmd tests), pump under full-screen for `ChordAltShiftT`.
+- Passing uncached: workbenchshortcut, layoutcmd, keyhelp (incl. `TestEveryGlobalChordIsClassified` over `GlobalBindings()`), runtimebundle (`TestEmbeddedSourcesMatchTree`), `tests/term-pane-shortcuts-test.sh` (14/14).
+- Not runnable here: three termcmd tests and the wrapcmd harness-TTY tests fail with `operation not permitted`, the documented sandbox pty class. Nothing in this range touches them.
+- Untested but low value: `nvim/workbench_route_test.lua` has no `new` argv row (noted last round, generic passthrough).
+
+**6. Architectural notes**
+
+- ARCH-DRY: pass. Duplicate case merged; one encoding row, one action mapping, all executors derive.
+- ARCH-PURE: pass. `TabChordFor`, `DecodeChord`, `IsGlobalChord` tested without IO; delivery stays in the existing Runtime seam.
+- ARCH-PURPOSE: pass on the issue's purpose (fix + third chord, from-draft path now tested). Shadow-sweep of the chord's consumers: Lua keymap (guarded), catalog (guarded), embedded bundle (guarded), zellij bind (unguarded, the Minor above).
+- ARCH-MOCK: pass. Zellij behind the fake Runtime; shell test's fake `zellij` records delivered bytes.
+- ARCH-CONSTRAINTS: pass. One chord per keystroke, nothing added to the hot path.
+- ARCH-SECURE: pass. New sequence goes through the existing prefix decoder; the no-legacy-`\x1bT` test closes the ESC-ambiguity hole.
+- ARCH-ORDER: pass. No new state between events; the passthrough decision remains a pure predicate plus one screen-state read.
+- ARCH-FUNERAL: pass. Nothing durable created; the spawned tab's lifetime is owned by the mux's existing EOF path.
+- Documented behavior change worth knowing: `Alt+Shift+t` typed into a right-pane app (or the agent) is now consumed workbench-wide, where before it was forwarded as raw bytes. README says so; fine.
+
+**7. Plan revision recommendations**
+
+- Add `## Revisions` to `workshop/plans/000243-from-anywhere-right-terminal-control-set-plan.md`: Task 5 Step 5's in-workbench live check is deferred to the operator (or record its result there and in the issue Log).
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      TestRunSwitchTerminalTabDeliversTheGlobalBytes asserts bytes for prev/next/new; deleting `case "new"` in a scratch copy fails both RunSwitchTerminalTab tests.
+  - id: BR-2
+    disposition: not-addressed
+    note: |
+      Log now records a real pty-level encoding check, but Done-when's in-workbench live bullet and the typed Alt+arrow control are still unmet while plan row 6 stays ticked and the plan has no Revisions entry.
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Cases merged; error still discarded and the justifying comment at run.go:605-610 is wrong (enqueue is non-blocking, ChordAltShiftD reports from the same function, a failed Start has no EOF path).
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Single Log heading; atlas sentence now names the guard test correctly.
+findings:
+  - id: new
+    severity: Minor
+    family: hand-maintained-restatement
+    title: |
+      zellij WriteChars byte strings restate chordSequences by hand with no guard tying them together
+    detail: |
+      config.kdl:146 `Alt T` -> "\u{1b}[84;4u" duplicates shortcut.go:413; a typo breaks typed M-S-t with the suite green. Class covers every letter global (Alt D/N/x/...). One test parsing WriteChars binds and asserting DecodeChord yields a global covers them all; follow-up acceptable.
+```

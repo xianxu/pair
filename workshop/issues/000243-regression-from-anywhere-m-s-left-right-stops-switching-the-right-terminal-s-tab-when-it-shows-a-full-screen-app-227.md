@@ -79,7 +79,9 @@ Durable plan: `workshop/plans/000243-from-anywhere-right-terminal-control-set-pl
 - [x] `globalBindings` row for `M-S-t`; regenerate `nvim/workbench_actions.lua`
 - [x] `handleTerminalChord` `ChordAltShiftT` -> `newTab`; pump test (three globals switch/create under fullscreen, no passthrough)
 - [x] `wrap.go` + `RunSwitchTerminalTab` (`new` direction) gain the action
-- [x] `init.lua` `PairTermNewTab`; keyhelp + atlas + README; full make test; live check
+- [x] `init.lua` `PairTermNewTab`; keyhelp + atlas + README; full make test (197 pkgs green)
+- [x] Encoding verified live: bare nvim decodes `\x1b[84;4u` as `<M-T>` (g:mt=1)
+- [ ] Operator in-workbench check: `M-S-Left/Right/t` from the draft drive a full-screen right pane (needs a fresh `pair term`)
 
 ## Estimate
 
@@ -132,3 +134,8 @@ total: 1.00
   (prev/next/new deliver the global bytes). BR-3: the two `newTab` cases in
   `handleTerminalChord` are merged. BR-4: this duplicate heading removed; the
   atlas sentence reworded.
+- Deferred (close review, advisory): a guard tying `zellij/config.kdl`'s
+  `WriteChars` byte strings to `chordSequences` — a test parsing the letter-
+  global binds and asserting `DecodeChord` yields a global — so a typo in a
+  delivered byte string cannot pass the suite silently. Covers every letter
+  global (Alt D/N/x/T/...); filed as a follow-up rather than blocking #243.
