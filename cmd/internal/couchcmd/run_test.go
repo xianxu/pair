@@ -167,7 +167,7 @@ func TestStartComposesRootAgentAndMatchingRepoDefaultThroughSharedLauncherProfil
 	if len(child.Argv) < 3 {
 		t.Fatalf("child argv = %q", child.Argv)
 	}
-	parsed, err := launcher.ParseArgs([]string{"resume", child.Argv[2], "--layout2"})
+	parsed, err := launcher.ParseArgs(child.Argv[1:])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +300,7 @@ func TestResumeRunsAsTheNewLiveOwner(t *testing.T) {
 	if rt.supervisor.acquired != 1 || rt.supervisor.released != 1 {
 		t.Fatalf("supervisor acquire/release = %d/%d, want 1/1", rt.supervisor.acquired, rt.supervisor.released)
 	}
-	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout2") {
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout3") {
 		t.Fatalf("resume child operations = %v", rt.runner.Ops)
 	}
 }
@@ -343,6 +343,7 @@ func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRe
 // interactive routing all the way to initial Console attach -- not below it,
 // because reducer support is not user reachability.
 func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
+	// This legacy fixture predates layout witnesses; request its layout explicitly.
 	rt := newRT(t, "/repo")
 	detached := seedDetachedThread(t, rt, "/repo")
 	rt.artifacts.SetNativeBinding(detached.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
@@ -371,7 +372,7 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	}
 	op, _ := Resolve("start")
 	var stdout, stderr bytes.Buffer
-	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", slave, slave, slave, &stdout, &stderr, rt, finish)
+	code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, couchcore.Layout2, slave, slave, slave, &stdout, &stderr, rt, finish)
 	if code != 0 {
 		t.Fatalf("interactive launch: code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 	}
@@ -465,7 +466,7 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	if attached.Record.Thread != parked.Address {
 		t.Fatalf("interactive root = %+v, want %+v", attached.Record.Thread, parked.Address)
 	}
-	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout2") {
+	if len(rt.runner.Ops) == 0 || !strings.Contains(rt.runner.Ops[0], "pair resume "+string(parked.Address.Tag)+" --layout3") {
 		t.Fatalf("interactive child operations = %v, want resumed parked root", rt.runner.Ops)
 	}
 	child := rt.runner.Child(attached.Handle.ID())

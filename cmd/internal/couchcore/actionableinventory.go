@@ -231,8 +231,7 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 			LastActiveAt:     record.LastActiveAt,
 			// THE normalization point for the layout witness: the raw persisted
 			// value is untrusted, and "" (a pre-#198 record) must read as
-			// Layout2 here or every existing thread conflicts with a default
-			// startup.
+			// Layout2 here regardless of the default for new Couch processes.
 			Layout: NormalizeLayout(string(record.Layout)),
 		})
 	}

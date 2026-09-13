@@ -284,7 +284,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 	// The one place the CLI's layout choice reaches the domain. Set here rather
 	// than through NewCouchWith so the Runtime interface -- and every fake
 	// implementing it -- stays unchanged. An empty layout is a non-launch form,
-	// which leaves New's Layout2 default alone.
+	// which leaves New's process default alone.
 	if layout != "" {
 		c.Layout = layout
 	}
@@ -732,7 +732,8 @@ func usage(w io.Writer) {
 	// Deliberately free of the words the public-surface test forbids: they are
 	// internal operation names, and the remedy for a refusal belongs in the
 	// refusal itself, where it can name the actual threads.
-	fmt.Fprintln(w, "  --layout3  give every thread pair's right-hand terminal (default: --layout2).")
+	fmt.Fprintln(w, "  --layout3  give every thread pair's right-hand terminal (default: --layout3).")
+	fmt.Fprintln(w, "  --layout2  use the two-pane workbench without the right-hand terminal.")
 	fmt.Fprintln(w, "             One layout per couch: it refuses to run alongside a thread")
 	fmt.Fprintln(w, "             already holding a session in the other layout.")
 }

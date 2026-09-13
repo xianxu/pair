@@ -8,19 +8,23 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
-// A default-constructed Couch is layout2, which is what every caller that never
-// heard of #198 gets. Without this, Couch.Layout's zero value is Layout("") and
-// Flag() would emit a bare "--".
-func TestDefaultCouchIsLayout2(t *testing.T) {
+// The process default must reach both child argv and its persisted witness.
+func TestDefaultCouchIsLayout3(t *testing.T) {
 	env := newTestEnv(t, "/repo")
-	if env.Couch.Layout != Layout2 {
-		t.Fatalf("default Couch.Layout = %q; want Layout2", env.Couch.Layout)
+	if env.Couch.Layout != Layout3 {
+		t.Fatalf("default Couch.Layout = %q; want Layout3", env.Couch.Layout)
 	}
-	if _, _, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"}); err != nil {
-		t.Fatalf("Spawn: %v", err)
+	record, handle, err := env.Couch.Spawn(StartArgs{Cwd: "/repo"})
+	if err != nil {
+		t.Fatal(err)
 	}
-	if got := env.Runner.Ops[0]; !strings.Contains(got, "--layout2") {
-		t.Fatalf("default argv = %q; want --layout2", got)
+	want := []string{"pair", "resume", string(record.Thread.Tag), "--layout3"}
+	if got := env.Runner.Child(handle.ID()).Argv; !slices.Equal(got, want) {
+		t.Fatalf("argv = %q; want %q", got, want)
+	}
+	thread, err := env.Couch.Threads.GetThread(record.Thread)
+	if err != nil || thread.Layout != Layout3 {
+		t.Fatalf("witness = %+v, %v; want Layout3", thread, err)
 	}
 }
 
@@ -54,11 +58,9 @@ func TestColdStartRecordsTheWitness(t *testing.T) {
 	}
 }
 
-// #179 restated at the new mechanism, and the reason this is a separate test
-// from the one in warmresume_test.go: that one runs a DEFAULT couch, so it
-// would still pass if the warm branch started echoing c.Layout. This one runs a
-// layout3 couch, where sending the flag would ask a live layout2 session to
-// change layout -- the path that offers to DELETE it.
+// A warm reattach must not echo the process layout: asking a live layout2
+// session to change to layout3 reaches Pair's destructive conflict path.
+// This also checks that reattachment preserves the existing layout witness.
 func TestWarmReattachSendsNoLayoutEvenInLayout3(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Couch.Layout = Layout3

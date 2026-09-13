@@ -78,10 +78,10 @@ Out of scope: per-thread layouts (a couch process has one layout by design,
 
 ## Plan
 
-- [ ] Flip the default in `New`; make the CLI test for "no flag" expect layout3
-- [ ] Normalization test: `""` → layout2 survives the flip; reword the two comments
-- [ ] Guard message for the flagless-beside-layout2 case; test
-- [ ] Help/README/atlas
+- [x] Flip the default in `New`; make the CLI test for "no flag" expect layout3
+- [x] Normalization test: `""` → layout2 survives the flip; reword the two comments
+- [x] Guard message for the flagless-beside-layout2 case; test
+- [x] Help/README/atlas
 
 ## Log
 
@@ -125,3 +125,24 @@ default, remedy and regression tests), one docs sweep, one close review.
 Design uses 0.2 of the resolved-scope primitive values; implementation uses
 v3.1's 40% factor. Existing parser, guard and stateful fakes require no new
 library. Design subtotal 0.06 × 1.15 + implementation 0.32 = 0.389h.
+
+### 2026-09-13 — implementation and focused verification
+
+- DefaultLayout is shared by New and ParseCLI; ParseLayout empty normalization
+  remains Layout2. The single-layout refusal offers keeping the old layout or
+  parking before switching. Pair's standalone default is unchanged.
+- Red: focused layout tests caught the old constructor/CLI defaults and missing
+  legacy conflict. The worktree needed `make runtimebundle-generate` before its
+  existing embedded-runtime acceptance could build.
+- Green: `go test ./cmd/internal/couchcmd ./cmd/internal/couchcore -run
+  'Layout|ProjectionNormalizes' -count=1` passed after the implementation.
+- Fresh-eyes spec review caught the independent CLI default (ARCH-DRY); the
+  plan-quality gate accepted the function-level test strategies in round 2.
+- Cold launch now checks argv and persisted witness together; legacy-layout
+  projection and startup refusal retain their distinct record provenance.
+
+- Full `make test` completed shell/editor suites successfully and exposed old
+  default-layout assertions plus two legacy warm-reattach fixtures in Go.
+  Updated default expectations to literal layout3; legacy fixtures now request
+  Layout2 explicitly. Corrected cmd/couch and couchcmd suites pass; focused
+  couchcore tests for all remaining failed fixtures pass. All-Go rerun pending.

@@ -109,7 +109,7 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 	threads := NewThreadStore(namespace)
 	result := &Couch{
 		Namespace: namespace,
-		Layout:    Layout2,
+		Layout:    DefaultLayout,
 		Runner:    r, Path: p, Git: g, Proc: proc, Store: s, Clock: c, IDs: ids,
 		Threads: threads, Entropy: entropy,
 		Artifacts: artifacts,
