@@ -5,11 +5,50 @@ deps: [ariadne#224]
 github_issue:
 created: 2026-09-12
 updated: 2026-09-13
-estimate_hours:
+estimate_hours: 6.57
 started: 2026-09-13T16:20:21-07:00
 ---
 
 # Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; calibration currently marked stale.
+
+Mapping: issue/spec discussion; exact artifact ownership extension; five
+single-concern modules (policy, coordinator/use, store registry, recoverable
+collector, scheduler); cross-cutting Go runtime wiring; Lua use integration;
+CLI dispatch; atlas; two milestone reviews plus final close review.
+Library check: reuse artifactpath, procutil, x/sys locks and Couch journals;
+no external library supplies this repository-specific ownership policy.
+Module design uses 1h base times 0.2 thorough-spec discount; smaller module
+0.3 times 0.2; Lua 2 times 0.2; wiring 0.6 times 0.2; dispatcher 0.5 times
+0.2; docs 0.15 times 0.2; reviews 0.2 times 0.2. Spec/design already performed
+uses 0.75h without a second spec discount. Implementation is 40% of v2:
+modules 0.8h, smaller/wiring/dispatcher/review 0.5h, Lua 1.5h, spec 0.3h,
+docs 0.2h. Familiar stack 1.0; thorough-plan design buffer 15%.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.75 impl=0.12
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: lua-neovim design=0.4 impl=0.6
+item: skill-or-dispatcher design=0.1 impl=0.2
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 6.57
+```
 
 ## Problem
 
@@ -90,12 +129,10 @@ Brainstorm first; the questions below are the design, not the answer.
 
 ## Plan
 
-- [ ] Inventory: every family in `artifactpath/manifest.go` × writer × readers × last-needed moment; write the table into the Spec
-- [ ] Brainstorm the policy set and the run trigger with the operator
-- [ ] Manifest lifecycle field + conformance test
-- [ ] `pair gc` dry-run + `--apply`, per-family policies, liveness guard, report
-- [ ] `wrap-events` writer cap + rotation
-- [ ] Run on the operator's store; record before/after bytes in the Log
+- [ ] M1 — Exact ownership, explicit meaningful-use tracking, live protection and Couch archive grace; no deletion
+- [ ] M2 — Recoverable collection, preview/apply, bounded automatic sweep, verification and publication
+
+Implementation details and task checks: [approved plan](../plans/000239-storage-gc-plan.md).
 
 ## Log
 
@@ -185,3 +222,20 @@ preview/apply commands will implement expiry. Writer size caps from the
 original sketch are deferred: deleting history inside its approved 60-day
 window requires a separate policy, and this work promises retention, not a
 global disk-space ceiling.
+
+### 2026-09-13 — implementation authorized
+
+Operator approved the reviewed technical plan and said “go ahead.” The
+active Plan now names its two review boundaries; the original checklist is
+preserved below as historical scope, superseded by the approved policy.
+The operative acceptance criteria are the durable plan's Product contract
+and Acceptance evidence, including no size cap or destructive real-store test.
+
+Original checklist
+
+- Inventory: every family in `artifactpath/manifest.go` × writer × readers × last-needed moment; write the table into the Spec
+- Brainstorm the policy set and the run trigger with the operator
+- Manifest lifecycle field + conformance test
+- `pair gc` dry-run + `--apply`, per-family policies, liveness guard, report
+- `wrap-events` writer cap + rotation
+- Run on the operator's store; record before/after bytes in the Log
