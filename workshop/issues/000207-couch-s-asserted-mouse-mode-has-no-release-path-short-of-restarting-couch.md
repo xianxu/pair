@@ -201,3 +201,26 @@ up, so this should be ruled out, not assumed). Next step is instrumentation:
 log every mouse DECSET/DECRST couch writes to the host AND every one its
 `hostScan` observes, capture one real occurrence, and fix the exact trigger —
 not another inferred mechanism.
+
+### 2026-09-12 — instrumentation landed (step 1)
+
+Rather than change couch's mouse logic on an uncaught trigger, added a
+log-only probe, `COUCH_MOUSE_TRACE=<path>`, mirroring the existing
+`COUCH_INPUT_TRACE`/`COUCH_TRACE` file tracers (`mousetrace.go`,
+`SetMouseTrace`, wired in `couchcmd/run.go`). It records the two events that
+decide the host's mouse mode:
+
+- `child-mode <old> -> <new>` in `writeChild`, when the child's teed stream
+  changes the host's mouse modes (this is where a mode-OFF from below couch
+  shows up);
+- `assert-clicks host-before=<modes> child-mouse=<bool> child-observed=<bool>`
+  in `paintNow`, when couch asserts its own clicks-only mode.
+
+Read together: a `child-mode 1002,1006 -> none` immediately before
+`assert-clicks host-before=none` means the layer below couch dropped motion
+and couch correctly floored; an `assert-clicks host-before=1002,1006` means
+couch clobbered a live motion mode (the downgrade the floor rule targets).
+
+No behavioural change. The fix follows once a live trace names the trigger,
+including the #240 theory (does a right-pane tab switch to a shell cause a
+`child-mode ... -> none` in couch's trace?).
