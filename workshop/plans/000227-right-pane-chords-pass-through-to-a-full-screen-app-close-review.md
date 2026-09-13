@@ -222,3 +222,99 @@ findings:
     detail: |
       2nd finding in this family; do not patch the heading, fix the rule: add a keyhelp drift test asserting every groupTerminal row whose chord is global or fails the predicate has its Display named in the heading, so a future exclusion fails a test rather than silently misdocumenting.
 ```
+
+---
+
+## Re-review — 2026-09-13T10:05:05-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 227 — right-pane chords pass through to a full-screen app |
+| repo | pair |
+| issue file | workshop/issues/000227-right-pane-chords-pass-through-to-a-full-screen-app.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 3acb6790f77e7fa7734983445d512b63099d21fe..269e7365ed9b1cf570d83748ae93f7daf1c6dad0 |
+| command | sdlc close --issue 227 |
+| reviewer | claude |
+| timestamp | 2026-09-13T10:05:05-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The mechanism is unchanged since round 3 and still correct: one gate at the single chord funnel in `pumpStdinWithTimer`, keyed on the pure `RightTerminalChordPassesThrough` predicate and the `RepaintModes()` tri-state, with `Decide` untouched. I re-ran the touched packages (all green outside the sandbox; the three sandbox failures are the documented pty-spawn class) and reproduced the round-2 live claim myself rather than reading it off the commit: against a fresh HEAD build `probes/escsmoke` passes every step including the new "Alt+t fires nvim's `<M-t>` map"; against a scratch build of base 3acb6790 that step fails with `g:mt = 0` (Alt+t swallowed) and Alt+j fails with the cursor stuck on line 1. So the issue's purpose is verified live with a real editor and the proof discriminates head from base. BR-4 is therefore addressed. What stays open is all Minor: BR-5 and BR-6 were not touched in round 2, the heading is still the widest help line (91 columns versus 81 for the next), and the round-2 rationale for rejecting the BR-8 drift test does not hold, because `roleChordKey` at `catalog.go:165` already maps every terminal-group role chord to its catalog key. None of that blocks the boundary.
+
+## 1. Strengths
+
+- **Gate placement** (`cmd/internal/termcmd/run.go:509-513`): sits after the `chordBefore` flush and above all three dispatch paths (rename, `handleTerminalChord`, `handleChord`), so no chord reaches a dispatcher under a full-screen child and no bytes are reordered.
+- **Tri-state consumed as the Spec demands** (`run.go:1437-1446`): `RepaintModes()` locked pair, `altScreen && observed`, nil tab or nil child reads as intercept. `TestActiveChildOwnsScreenTriState` feeds real `?1049h`/`?1049l` bytes through `ptychild.NewFakeChild`, so the parser is exercised, not stubbed.
+- **Table oracle derives from the classifier** (`passthrough_test.go:83-121`): both legacy and CSI-u encodings from `ChordSequences()`, expectation taken from `RightTerminalChordPassesThrough`, so the M-k and global exclusions cannot drift from the test.
+- **Live conformance probe now covers the purpose** (`probes/escsmoke/main.go:143-155`): a real nvim keymap on `<M-t>` stands in for parley's binding, and the step is red on base. Zellij delivers Alt+t as `ESC t` (`zellij/config.kdl:138`), which is exactly what the probe sends, so the live path matches production bytes.
+- **Docs landed in the same window**: README layout-3 blurb and the atlas paragraph both describe the rule, the two survivors, and the #234 residual it closes.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None open after disposition.
+
+## 4. Minor findings
+
+- BR-5 still open: `activeChildOwnsScreen` repeats `appMouseMode`'s lock/`activeTabLocked`/nil triple (`run.go:1424` vs `run.go:1437`); `childOf` at `run.go:1844` already exists for an `activeChild()` wrapper (ARCH-DRY).
+- BR-6 still open: the durable plan is unchanged since 3c5a6691; 21 unticked steps, no `## Revisions`, and Task 4 at line 379 still says "iff `!IsGlobalChord`".
+- BR-7 still open: heading is 91 columns, the next widest rendered line is 81, so `Center` still drops centering and the heading wraps below 91 columns.
+- BR-8 still open: the heading was rephrased rather than derived or drift-tested, and its new wording is already imprecise. "switch still work[s]" is true of the global Shift+Alt arrows but false of the role-scoped Alt+←/→ in the same group, which do pass through.
+
+## 5. Test coverage notes
+
+- Unit: `workbenchshortcut`, `keyhelp`, `artifactpath`, `probes/...` green in the sandbox; `termcmd` green with the sandbox off (pty spawn is the only sandbox failure).
+- Revert-verified by round 3 and code-unchanged since; I did not re-mutate.
+- Live: escsmoke HEAD 8/8 PASS; base control fails the three #227 steps. The base Alt+k "FAIL" is a cascade from Alt+j leaving the cursor on line 1, not an independent signal; the probe's steps share cursor state.
+- The "M-t at a shell still opens a tab" leg is covered only by the unit table (shell/ChordAltT asserts no write), not by the probe.
+
+## 6. Architecture (each marker explicitly)
+
+- **ARCH-DRY**: flag, Minor (BR-5 residual; heading restates the classifier).
+- **ARCH-PURE**: pass. `Decide` untouched; predicate pure and table-tested; one locked read behind the mux.
+- **ARCH-PURPOSE**: pass. Every dispatch path funnels through the gate; purpose verified live with a discriminating control.
+- **ARCH-MOCK**: pass. `NewFakeChild` is a stateful fake fed real escape bytes; escsmoke is the live conformance check.
+- **ARCH-CONSTRAINTS**: pass. One map lookup plus one locked read per recognised chord, off the per-byte path.
+- **ARCH-SECURE**: pass. Forwarded bytes are the terminal's own input, the same bytes zellij would have written to the pane without pair term in between.
+- **ARCH-ORDER**: pass. No new carried state; a chord arriving mid-transition resolves per keystroke to a legal outcome. The read-then-write across two lock acquisitions can route to a newly active tab if the child exits in between, but that race predates this diff and applies to every `writeActive`.
+- **ARCH-FUNERAL**: pass. Nothing durable created.
+
+## 7. Plan revision recommendations
+
+- Add a `## Revisions` entry to the durable plan: Task 4's oracle is `RightTerminalChordPassesThrough`, not `!IsGlobalChord`; README joins Task 5's docs list; tick the steps or state that the issue Plan is authoritative before archival.
+- Reword the issue Plan's Manual row to what escsmoke proves (M-t reaches nvim's own map, M-k intercepted, ESC+j as two keys) and tick it with the probe evidence; leave the parley-outline confirmation as an operator note rather than a gate row, so `plan-unchecked` is satisfied without a bypass.
+
+```findings
+dispose:
+  - id: BR-4
+    disposition: addressed
+    note: |
+      escsmoke binds a real nvim <M-t> map and Alt+t fires it (g:mt=1) on HEAD; this review rebuilt base 3acb6790 and the step fails there (g:mt=0), so the proof discriminates. Log has the entry. Reword and tick the Manual row with the probe evidence rather than bypassing plan-unchecked.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      run.go:1437 unchanged; still repeats appMouseMode's lock/activeTabLocked/nil triple. childOf at run.go:1844 exists for an activeChild() wrapper.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      Plan file untouched since 3c5a6691: 21 unticked steps, no Revisions section, Task 4 line 379 still says the !IsGlobalChord oracle.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Heading shortened 97 to 91 columns but is still the widest rendered line by 10 (next is 81), so Center still drops below 91 columns and the heading wraps there.
+  - id: BR-8
+    disposition: not-addressed
+    note: |
+      The heading was rephrased, not derived or drift-tested. The stated fragility ("Display glyphs do not map to Chord") does not hold: roleChordKey at catalog.go:165 already maps each terminal-group role chord to its catalog Key. The new wording already drifts: "switch still work[s]" is false for role-scoped Alt+←/→, which pass through. Rule fix: derive a per-row suffix in sections.go from RightTerminalChordPassesThrough via roleChordKey, or add a drift test over groupTerminal rows through that map.
+```

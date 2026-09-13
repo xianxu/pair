@@ -4694,3 +4694,19 @@ the WHOLE family — a regex over every mode in the class, not just the one you
 changed — before closing. Either handle the siblings or scope the Spec to the
 one you fixed and file the sweep. A probe that only asserts the mode you
 touched cannot see the ones you left behind.
+
+## Run the full make test before pushing ANY commit to main, even a "safe" one
+
+#207's instrumentation (a log-only `COUCH_MOUSE_TRACE` probe) was committed and
+pushed straight to main after running only the couchtty package tests and the
+paint-gate guard. It added a new production file, `mousetrace.go`, which
+`artifactpath`'s `TestProductionArtifactReferencesAreExactlyClassified`
+requires in its exhaustive inventory — so main went red, caught only by the
+next issue's full suite.
+
+**Rule.** A new production `.go` file (or any change that adds an artifact/env
+reference) can trip cross-cutting guards in packages you did not touch —
+`artifactpath` inventory, keyhelp drift, the paint-gate consumers test. Run the
+FULL `env -u PAIR_SESSION_ID -u PAIR_TAG make test` before every push to main,
+including "obviously safe" log-only or doc-adjacent commits. A partial package
+run cannot see a guard that lives elsewhere.

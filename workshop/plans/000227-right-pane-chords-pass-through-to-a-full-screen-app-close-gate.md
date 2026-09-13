@@ -95,6 +95,31 @@ rounds:
           family: help-derives-from-classifier
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-13T10:05:05-07:00"
+      agent: claude
+      dispose:
+        - id: BR-4
+          disposition: addressed
+          note: escsmoke binds a real nvim <M-t> map and Alt+t fires it (g:mt=1) on HEAD; this review rebuilt base 3acb6790 and the step fails there (g:mt=0), so the proof discriminates. Log has the entry. Reword and tick the Manual row with the probe evidence rather than bypassing plan-unchecked.
+          round: 4
+        - id: BR-5
+          disposition: not-addressed
+          note: run.go:1437 unchanged; still repeats appMouseMode's lock/activeTabLocked/nil triple. childOf at run.go:1844 exists for an activeChild() wrapper.
+          round: 4
+        - id: BR-6
+          disposition: not-addressed
+          note: 'Plan file untouched since 3c5a6691: 21 unticked steps, no Revisions section, Task 4 line 379 still says the !IsGlobalChord oracle.'
+          round: 4
+        - id: BR-7
+          disposition: not-addressed
+          note: Heading shortened 97 to 91 columns but is still the widest rendered line by 10 (next is 81), so Center still drops below 91 columns and the heading wraps there.
+          round: 4
+        - id: BR-8
+          disposition: not-addressed
+          note: 'The heading was rephrased, not derived or drift-tested. The stated fragility ("Display glyphs do not map to Chord") does not hold: roleChordKey at catalog.go:165 already maps each terminal-group role chord to its catalog Key. The new wording already drifts: "switch still work[s]" is false for role-scoped Alt+←/→, which pass through. Rule fix: derive a per-row suffix in sections.go from RightTerminalChordPassesThrough via roleChordKey, or add a drift test over groupTerminal rows through that map.'
+          round: 4
+      blocked: false
 ---
 
 # Gate ledger — pair#227 (boundary-review)
@@ -143,9 +168,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `help-derives-from-classifier` Heading's exception list is a hand-maintained restatement of RightTerminalChordPassesThrough with no drift test
   2nd finding in this family; do not patch the heading, fix the rule: add a keyhelp drift test asserting every groupTerminal row whose chord is global or fails the predicate has its Display named in the heading, so a future exclusion fails a test rather than silently misdocumenting.
 
+## Round 4 — 2026-09-13T10:05:05-07:00 (claude) — passed
+
+### Disposed
+
+- BR-4 — addressed — escsmoke binds a real nvim <M-t> map and Alt+t fires it (g:mt=1) on HEAD; this review rebuilt base 3acb6790 and the step fails there (g:mt=0), so the proof discriminates. Log has the entry. Reword and tick the Manual row with the probe evidence rather than bypassing plan-unchecked.
+- BR-5 — not-addressed — run.go:1437 unchanged; still repeats appMouseMode's lock/activeTabLocked/nil triple. childOf at run.go:1844 exists for an activeChild() wrapper.
+- BR-6 — not-addressed — Plan file untouched since 3c5a6691: 21 unticked steps, no Revisions section, Task 4 line 379 still says the !IsGlobalChord oracle.
+- BR-7 — not-addressed — Heading shortened 97 to 91 columns but is still the widest rendered line by 10 (next is 81), so Center still drops below 91 columns and the heading wraps there.
+- BR-8 — not-addressed — The heading was rephrased, not derived or drift-tested. The stated fragility ("Display glyphs do not map to Chord") does not hold: roleChordKey at catalog.go:165 already maps each terminal-group role chord to its catalog Key. The new wording already drifts: "switch still work[s]" is false for role-scoped Alt+←/→, which pass through. Rule fix: derive a per-row suffix in sections.go from RightTerminalChordPassesThrough via roleChordKey, or add a drift test over groupTerminal rows through that map.
+
 ## Open findings
 
-- **BR-4** [Important] `purpose-verified-live-and-logged` Live verification of the issue's purpose (parley M-t under nvim) is unticked and unlogged
 - **BR-5** [Minor] `shared-accessor-helper` activeChildOwnsScreen repeats appMouseMode's lock/activeTabLocked/nil-check triple
 - **BR-6** [Minor] `plan-artifact-tracks-progress` Durable plan's task checkboxes are all unticked while the issue Plan is ticked
 - **BR-7** [Minor] `help-fits-render-width` Terminal-tabs heading is 97 columns, 20 wider than any other help line, so centering drops and the heading wraps on terminals under 97 columns

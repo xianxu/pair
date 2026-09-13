@@ -1,12 +1,13 @@
 ---
 id: 000227
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-10
 updated: 2026-09-13
 estimate_hours: 0.75
 started: 2026-09-13T09:18:29-07:00
+actual_hours: 2.29
 ---
 
 # right-pane chords pass through to a full-screen app
@@ -220,6 +221,7 @@ because `#209` needed it — so the observed/unknown distinction the design depe
 exists and is enforced as a locked pair.
 
 ### 2026-09-13 (close)
+- 2026-09-13: closed — Unit-tested pump gate (every chord x {fullscreen,shell}, tri-state, ESC-then-j/focus-left/global regressions). Full make test green (197 pkgs). LIVE via probes/escsmoke with real nvim: Alt+j passes through (cursor moves) and Alt+t fires a real nvim <M-t> map = get(g:,mt,0)==1 (parley M-t mechanism, BR-4); Alt+k never reaches nvim; origin/main control fails the Alt+j step. Round-1/2 review fixes landed: keys heading (BR-2 then drift-proofed), README layout-3 conditional passthrough (BR-3), M-t live verification (BR-4). Operator parley-outline check remains a manual nice-to-have (--no-plan-check).; review verdict: FIX-THEN-SHIP
 
 - **Live verification (BR-4).** `probes/escsmoke` drives a real `pair term`
   under a pty with a real `nvim --clean` (which enters the alt screen) and asks
