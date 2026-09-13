@@ -459,6 +459,24 @@ opposite directions, and the asymmetry is deliberate:
   presses to leave insert mode, and `ESC`,`j` arrived as Alt+j. The residual
   — `ESC`,`j` typed inside 35 ms still decodes as a chord — is what #227's
   alt-screen passthrough closes.
+- *Chord passthrough under a full-screen app (#227).* `pair term` is the
+  right terminal's only application from zellij's view, so it intercepts the
+  workbench chords. When the active tab's child is on the alternate screen
+  buffer — nvim, `less`, `htop`: `?1049h`, read through `RepaintModes()`'s
+  #196 tri-state, so the unknown case intercepts — a role-scoped chord is the
+  app's, not pair term's. The pump forwards its raw bytes to the child instead
+  of dispatching it, gated by `workbenchshortcut.RightTerminalChordPassesThrough`:
+  true for the role-scoped chords (tab management + the swallowed ones) EXCEPT
+  `M-k`, which is the only keyboard bridge back to the left stack and always
+  fires. Globals (`M-n` restart, `M-d` detach, from-anywhere tab switch
+  `M-S-←/→`, …) are workbench-wide and fire in every state. `Decide` is
+  untouched — the gate is a pure predicate over the chord table plus the one
+  `RepaintModes()` read — because the tab chords dispatch through
+  `handleTerminalChord`, bypassing `Decide`, so the pump is the one place all
+  paths funnel through. Forwarding the raw bytes is also what closes #234's
+  inside-deadline residual: `ESC`,`j` decodes as `ChordAltJ` whose raw bytes
+  `\x1bj` reach nvim as ESC then j. At a shell (no alt screen) every chord is
+  intercepted as before.
 - *Takeover: the pane's mouse modes follow the active child (#240).* `pair
   term` is the pane's only application from zellij's point of view, so the
   active child's mouse DECSETs set the PANE's mode; a tab switch used to

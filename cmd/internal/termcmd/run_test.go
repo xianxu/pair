@@ -1028,6 +1028,7 @@ type fakeMux struct {
 	// so a test can observe a deadline flush before releasing the next read.
 	wrote           chan string
 	appMouse        bool
+	ownsScreen      bool
 	activeName      string
 	beginRenameErr  error
 	finishRenameErr error
@@ -1040,6 +1041,8 @@ func (f *fakeMux) writeActive(data []byte) {
 		f.wrote <- string(data)
 	}
 }
+
+func (f *fakeMux) activeChildOwnsScreen() bool { return f.ownsScreen }
 
 func (f *fakeMux) newTab() error {
 	f.ops = append(f.ops, "new-tab")

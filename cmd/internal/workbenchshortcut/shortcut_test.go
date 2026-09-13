@@ -625,3 +625,36 @@ func TestEveryArrowChordRegistersBothModifierFamilies(t *testing.T) {
 		}
 	}
 }
+
+func TestIsGlobalChordMatchesTheGlobalTable(t *testing.T) {
+	for _, b := range GlobalBindings() {
+		if !IsGlobalChord(b.Chord) {
+			t.Errorf("IsGlobalChord(%v) = false, want true (in globalBindings)", ChordName(b.Chord))
+		}
+	}
+	for _, c := range []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltJ, ChordAltK, ChordAltShiftEnter, ChordUnknown} {
+		if IsGlobalChord(c) {
+			t.Errorf("IsGlobalChord(%v) = true, want false (role-scoped/unknown)", ChordName(c))
+		}
+	}
+}
+
+func TestRightTerminalChordPassesThrough(t *testing.T) {
+	for _, c := range []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltShiftD, ChordAltShiftEnter, ChordAltLeft, ChordAltRight, ChordAltJ, ChordAltSlash, ChordAltShiftC, ChordCtrlAltC} {
+		if !RightTerminalChordPassesThrough(c) {
+			t.Errorf("%v should pass through to a full-screen child", ChordName(c))
+		}
+	}
+	// M-k is the keyboard escape back to the left stack: never passes through.
+	if RightTerminalChordPassesThrough(ChordAltK) {
+		t.Error("ChordAltK (focus-left) must NOT pass through — it is the only keyboard bridge to the left stack")
+	}
+	if RightTerminalChordPassesThrough(ChordUnknown) {
+		t.Error("ChordUnknown must not pass through")
+	}
+	for _, b := range GlobalBindings() {
+		if RightTerminalChordPassesThrough(b.Chord) {
+			t.Errorf("global %v must not pass through", ChordName(b.Chord))
+		}
+	}
+}

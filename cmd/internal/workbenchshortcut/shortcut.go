@@ -340,6 +340,28 @@ func globalDraftAction(chord Chord) (GlobalBinding, bool) {
 	return GlobalBinding{}, false
 }
 
+// IsGlobalChord reports whether chord is a workbench-wide global — one
+// DecideGlobal resolves. The passthrough gate (#227) forwards a non-global
+// chord to a full-screen child but always lets a global fire; this names that
+// split once so nothing open-codes `_, ok := DecideGlobal(chord)` and reads ok
+// as a classification.
+func IsGlobalChord(chord Chord) bool {
+	_, ok := globalDraftAction(chord)
+	return ok
+}
+
+// RightTerminalChordPassesThrough reports whether a right-terminal chord is
+// forwarded to a FULL-SCREEN child rather than intercepted by pair term (#227).
+// True for the role-scoped chords EXCEPT ChordAltK: M-k in the right terminal
+// is ActionFocusPane, the only keyboard path back to the left stack, and there
+// is no global equivalent — so it must keep firing even under a full-screen app
+// or an operator running nvim on the right is trapped with no way back to the
+// agent pane. Globals are never passed through; they are workbench-wide and
+// fire in every state. ChordUnknown never passes through.
+func RightTerminalChordPassesThrough(chord Chord) bool {
+	return chord != ChordUnknown && !IsGlobalChord(chord) && chord != ChordAltK
+}
+
 func handle(action ShortcutAction) ShortcutDecision {
 	return ShortcutDecision{Disposition: DispositionHandle, Action: action}
 }
