@@ -2274,7 +2274,11 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	}
 
 	nextEnv := setEnv(env, "PAIR_SESSION_ID", sessionID)
-	nextEnv = setEnv(nextEnv, "PAIR_AGENT_ARGS", strings.Join(freshArgs, " "))
+	command, err := launcher.EncodeAgentCommand(launcher.AgentCommand{Executable: currentArgv[0], Argv: append([]string{}, freshArgs...)})
+	if err != nil {
+		return nil, err
+	}
+	nextEnv = setEnv(nextEnv, launcher.AgentCommandEnv, command)
 	nextEnv = setEnv(nextEnv, "PAIR_SCOPE_KEY", scopeKey)
 	nextEnv = setEnv(nextEnv, "PAIR_LAUNCH_ORDINAL", strconv.FormatUint(launchOrdinal, 10))
 	nextArgv := []string{wrapperExecutable, "wrap"}
@@ -2399,11 +2403,18 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 	// Argv: strip our own flags before resolving the command. argparse
 	// would be heavier than needed; this matches the Python loop shape.
 	argv := args
+	fromLaunchEnv := false
 	for len(argv) > 0 && strings.HasPrefix(argv[0], "-") {
 		switch {
 		case argv[0] == "--scrollback-log" && len(argv) > 1:
 			p.scrollbackLog = argv[1]
 			argv = argv[2:]
+		case argv[0] == "--from-launch-env":
+			if fromLaunchEnv {
+				return 0, errors.New("duplicate --from-launch-env")
+			}
+			fromLaunchEnv = true
+			argv = argv[1:]
 		case argv[0] == "--":
 			argv = argv[1:]
 			goto argsDone
@@ -2412,6 +2423,16 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 		}
 	}
 argsDone:
+	if fromLaunchEnv {
+		if len(argv) != 0 {
+			return 0, errors.New("--from-launch-env cannot accompany a command")
+		}
+		command, err := launcher.DecodeAgentCommand(os.Getenv(launcher.AgentCommandEnv))
+		if err != nil {
+			return 0, err
+		}
+		argv = append([]string{command.Executable}, command.Argv...)
+	}
 	if len(argv) == 0 {
 		return 0, errors.New("usage: pair-wrap [--scrollback-log <path>] <command> [args...]")
 	}

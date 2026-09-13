@@ -26,6 +26,17 @@ import (
 // user-facing messages are on the writer, the int is the exit code, the returned
 // error is always nil.
 func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
+	if opts.Args.FreshRequired {
+		if opts.Args.ResumeRequired || opts.Args.RequiredSessionID != "" {
+			fmt.Fprintln(stderr, "pair: fresh launch cannot require resume")
+			return 1, nil
+		}
+		if err := ValidateFreshAgentArgs(opts.Args.Agent, opts.Args.AgentArgs); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return 1, nil
+		}
+		opts.ContinueDoc, opts.ContinueText, opts.ContinueSlug = "", "", ""
+	}
 	env := normalizeEnv(opts.Env)
 	rt.StartProofMigration()
 
@@ -238,7 +249,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if requestedAgent != "" && agent != requestedAgent {
 		opts.Args.AgentArgs = nil
 	}
-	if opts.Args.ResumeRequired && decision.Action != ActionCreate {
+	if (opts.Args.ResumeRequired || opts.Args.FreshRequired) && decision.Action != ActionCreate {
 		fmt.Fprintf(stderr, "pair: %v\n", &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required Couch resume no longer resolves to a create boundary"})
 		return launchStep{code: 1}, nil
 	}
@@ -393,7 +404,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
 	var addressErr error
-	if opts.Args.ResumeRequired {
+	if opts.Args.ResumeRequired || opts.Args.FreshRequired {
 		addressErr = rt.RegisterExistingCouchThread(scope, chosenTag)
 	} else {
 		addressErr = rt.EnsureThreadAddress(scope, chosenTag, couchOwned)
@@ -428,7 +439,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
 	var savedForPicker savedConfig
 	var savedWarnings []string
-	if !opts.Args.ResumeRequired {
+	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired {
 		savedForPicker, savedWarnings = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
 	}
 	if !opts.SkipConfigPicker {
@@ -439,7 +450,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	var agentDefault AgentDefault
 	var defaultFound bool
-	if !opts.Args.ResumeRequired {
+	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired {
 		agentDefault, defaultFound = rt.ReadAgentDefault(agent)
 	}
 	argDecision := DecideLaunchArgs(LaunchArgInputs{
@@ -456,7 +467,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
-	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired {
+	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired {
 		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
 			return launchStep{code: code}, nil
 		}
@@ -491,7 +502,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	var defaultReady <-chan error
-	if opts.Args.AgentArgsExplicit && !opts.Args.ResumeRequired {
+	if opts.Args.FreshRequired {
+		if _, err := prepareLaunchReadiness(rt, chosenTag, agent, session); err != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	} else if opts.Args.AgentArgsExplicit && !opts.Args.ResumeRequired {
 		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
 	} else {
 		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
@@ -591,7 +607,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		rt.Remove(configPath)
 	}
 
-	rt.SetEnv("PAIR_AGENT_ARGS", strings.Join(agentArgs, " "))
+	command, commandErr := EncodeAgentCommand(AgentCommand{Executable: agent, Argv: append([]string{}, agentArgs...)})
+	if commandErr != nil {
+		fmt.Fprintf(stderr, "pair: %v\n", commandErr)
+		return launchStep{code: 1}, nil
+	}
+	rt.SetEnv(AgentCommandEnv, command)
 	rt.SetEnv("PAIR_SESSION_ID", sessionID)
 	// The pane title is the agent name and nothing more (#133): zellij renders
 	// "<session name> | <focused pane title>", and the session half is already
@@ -629,18 +650,26 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	return launchStep{code: code, session: session, tag: chosenTag, agent: agent, handedOff: true}, nil
 }
 
-func startAgentDefaultPersistence(rt Runtime, tag, agent, session string, args []string, timeout time.Duration) <-chan error {
+func prepareLaunchReadiness(rt Runtime, tag, agent, session string) (ReadyExpectation, error) {
 	rt.RemoveReadyRecord(tag, agent)
 	nonce := rt.MintLaunchNonce()
 	rt.SetEnv("PAIR_LAUNCH_NONCE", nonce)
-	ch := make(chan error, 1)
 	if nonce == "" {
-		ch <- fmt.Errorf("could not mint launch nonce")
+		return ReadyExpectation{}, fmt.Errorf("could not mint launch nonce")
+	}
+	return ReadyExpectation{Tag: tag, Agent: agent, Session: session, Nonce: nonce}, nil
+}
+
+func startAgentDefaultPersistence(rt Runtime, tag, agent, session string, args []string, timeout time.Duration) <-chan error {
+	expect, err := prepareLaunchReadiness(rt, tag, agent, session)
+	ch := make(chan error, 1)
+	if err != nil {
+		ch <- err
 		return ch
 	}
 	persistArgs := append([]string(nil), args...)
 	go func() {
-		_, err := rt.WaitReadyRecord(ReadyExpectation{Tag: tag, Agent: agent, Session: session, Nonce: nonce}, timeout)
+		_, err := rt.WaitReadyRecord(expect, timeout)
 		if err != nil {
 			ch <- err
 			return

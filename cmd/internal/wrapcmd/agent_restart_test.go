@@ -3,11 +3,13 @@ package wrapcmd
 import (
 	"bytes"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -35,8 +37,12 @@ func TestFreshAgentInvocationDropsRestoreAndPreservesWrapperAndUserArgs(t *testi
 	if got := envValue(request.env, "PAIR_SESSION_ID"); got != "" {
 		t.Fatalf("PAIR_SESSION_ID = %q, want cleared", got)
 	}
-	if got := envValue(request.env, "PAIR_AGENT_ARGS"); got != "--sandbox danger-full-access --no-alt-screen" {
-		t.Fatalf("PAIR_AGENT_ARGS = %q", got)
+	command, err := launcher.DecodeAgentCommand(envValue(request.env, launcher.AgentCommandEnv))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(command.Argv, " "); got != "--sandbox danger-full-access --no-alt-screen" {
+		t.Fatalf("AgentCommand argv = %q", got)
 	}
 }
 

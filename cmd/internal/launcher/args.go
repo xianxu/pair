@@ -19,6 +19,7 @@ type LaunchArgs struct {
 	AgentArgsFromCouch bool
 	// ResumeRequired carries trusted Couch authority. Pair must revalidate the
 	// exact native root at launch and may never fall back to a fresh session.
+	FreshRequired     bool
 	ResumeRequired    bool
 	RequiredSessionID string
 	Layout            LayoutRequest
