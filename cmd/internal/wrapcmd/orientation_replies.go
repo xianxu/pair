@@ -54,6 +54,12 @@ func (t *orientationReplies) observeQueries(data []byte) {
 		case "\x1b[18t":
 			key = "window"
 		}
+		if strings.HasPrefix(query, "\x1b[?") && strings.HasSuffix(query, "$p") {
+			mode := query[3 : len(query)-2]
+			if mode == "2026" || mode == "2027" {
+				key = "mode" + mode
+			}
+		}
 		for _, color := range []string{"10", "11", "12"} {
 			if query == "\x1b]"+color+";?\x07" || query == "\x1b]"+color+";?\x1b\\" {
 				key = "color" + color
@@ -114,6 +120,16 @@ func (t *orientationReplies) operatorData(data []byte) bool {
 	return false
 }
 func orientationReplyKind(reply string) string {
+	// DECRPM is a response to DECRQM for one exact private mode. Mode
+	// reports are terminal negotiation, but unsolicited reports remain input.
+	// Track only the synchronized-output and grapheme modes observed at startup.
+	if strings.HasPrefix(reply, "\x1b[?") && strings.HasSuffix(reply, "$y") {
+		fields := strings.Split(reply[3:len(reply)-2], ";")
+		if len(fields) == 2 && (fields[0] == "2026" || fields[0] == "2027") && len(fields[1]) == 1 && fields[1][0] >= '0' && fields[1][0] <= '4' {
+			return "mode" + fields[0]
+		}
+		return ""
+	}
 	switch {
 	case strings.HasPrefix(reply, "\x1b[?") && strings.HasSuffix(reply, "c") && decimalFields(reply[3:len(reply)-1], 1):
 		return "da1"

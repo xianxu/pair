@@ -461,3 +461,35 @@ tests pass. Root reran uncached couchcmd/launcher/wrapcmd suites successfully
 (`/tmp/pair-184-review-fixes-test.log`), checked the diff, and built the candidate
 with `make build` (`/tmp/pair-184-smoke-build.log`). Awaiting operator live smoke;
 issue stays working and the next close/review is deferred until that result.
+
+### 2026-09-13 — Operator smoke findings
+
+Operator reports accepting Codex defaults failed with unexpected argument
+`--sandbox danger-full-access`; switching back to Claude worked, and Agy also
+started. Read-only inspection of brain's repository default and shared path
+preference confirms Codex argv is stored as one combined element. The editable
+form preserves that boundary by quoting it. Correct entry is two unquoted tokens
+`--sandbox danger-full-access`; do not globally split stored argv elements since
+values may legitimately contain spaces. No user preference files changed.
+
+Agy's orientation reports cancellation from operator input. Investigating actual
+readiness/terminal evidence and whether the operator pressed a key before
+orientation completed. Live acceptance remains pending; no close or publication.
+
+Agy diagnosis: captured first stdin packet matches the synchronized-output
+DECRQM response and Kitty keyboard reply; preceding output contains their
+queries. Unsupported DECRQM admission caused false operator-input cancellation
+before prompt paste. Implement query-correlated support and regressions; the
+initial cancellation does not require a human keypress to explain it.
+
+Exact read-only evidence: attempt `start-d99e8470336e52a8`, child PID 82019;
+ready state cancelled with body not written. Initial stdout bytes 0–1224 include
+queries for modes 2026/2027 and Kitty keyboard support. Input sequence 17 at
+13:54:25.613931 is the 16-byte response with SHA256 prefix `9aed9bfbb79c`,
+`ESC[?2026;2$yESC[?1u`; the old classifier rejects it deterministically.
+
+Both smoke defects are fixed: parameter cursor editing and solicited DECRQM
+recognition. Focused regressions, uncached couchtty/couchcmd/wrapcmd suites, and
+full wrapper race tests pass (81.834s). Candidate rebuilt successfully. Codex's
+existing combined argument remains editable without mutating preferences behind
+the operator's back. Awaiting fresh operator smoke before close.

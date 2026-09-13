@@ -256,6 +256,10 @@ func menuCursorIntent(frame MenuFrame, lines []string, width int) *MenuCursorInt
 			continue
 		}
 		col := textwidth.Width(plain) + 1
+		if frame.Kind == MenuFrameSwitchAgent {
+			text, cursor := switchParameterCursor(frame)
+			col = textwidth.Width(prefix+string(text[:cursor])) + 1
+		}
 		if col > width {
 			col = width
 		}

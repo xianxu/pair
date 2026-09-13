@@ -353,3 +353,41 @@ acceptance path. Parked and live variants pass under race testing.
 Final root verification: couchcmd, launcher and wrapcmd suites pass uncached;
 `git diff main --check` passes; `make build` succeeds for the live candidate.
 The boundary review has not been rerun: operator live acceptance remains pending.
+
+### 2026-09-13 — Operator smoke: parameter cursor editing
+
+Operator found Left/Right changes form focus rather than moving within startup
+parameters. Add cursor-aware insertion/deletion and Left/Right movement while
+the parameter field is focused; retain Tab/Up/Down for control focus. Reuse
+existing cursor rendering and test actual reducer/render transitions, including
+Unicode boundaries. This completes the approved editable parameter form.
+
+- [x] Parameter field supports Left/Right cursor edits and regression checks.
+
+The Codex failure traced to an existing combined argument in the saved policy,
+not a transport merge. Preserve exact argv semantics; the operator can correct
+it by removing the quotes in this field. Agy orientation cancellation is still
+under investigation; do not declare live acceptance complete.
+
+### 2026-09-13 — Operator smoke: solicited DECRQM reply
+
+Captured startup proves Agy requested synchronized-output mode status with
+`ESC[?2026$p`; its solicited `ESC[?2026;2$y` reply arrived with a supported
+Kitty keyboard reply and was classified as operator input. Add query-correlated
+DECRQM response admission, including fragmented/mixed-input regressions. Do not
+ignore arbitrary escape input or authorize unsolicited mode reports (ARCH-ORDER).
+
+- [x] Recognize solicited DECRQM replies without cancelling orientation.
+
+### 2026-09-13 — Smoke fixes verified and rebuilt
+
+Parameter editing uses a rune cursor offset within the existing MenuFrame, with
+cell-width rendering. Tests reproduce quote correction into separate argv and
+Unicode insertion/deletion. Query tracking admits only outstanding 2026/2027
+mode reports with valid status, bounded to these observed modes. Exact captured
+packet, fragmentation, duplicate/mismatch and mixed-text regressions pass.
+
+Root uncached couchtty/couchcmd/wrapcmd suites and full wrapper race suite pass;
+`make build` succeeds. Logs: `/tmp/pair-184-smoke-fixes-test.log` and
+`/tmp/pair-184-smoke-fixes-build.log`. Request another operator smoke; closure
+and publication remain deferred.

@@ -4761,3 +4761,13 @@ in the composer. Test both event orders through the production scheduler.
 - A lifecycle feature's full-chain acceptance must start before the lifecycle
   transition. Seeding its completed state tests transport but omits teardown,
   metadata transfer and preservation through that transition (BR-2, ARCH-PURPOSE).
+
+### 2026-09-13 — #184 operator smoke
+
+- An editable startup-parameter field must support interior cursor movement,
+  insertion and deletion. Test correcting a quoted saved argument through actual
+  key events; append-only text entry does not satisfy an editable prefill.
+- Direct wrapper conformance misses negotiation introduced by the enclosing
+  terminal stack. Capture the real launch's input/output before diagnosing
+  operator cancellation; match protocol replies to their outstanding queries
+  and preserve cancellation for actual edits and unsolicited reports.

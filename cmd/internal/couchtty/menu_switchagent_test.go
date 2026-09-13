@@ -173,3 +173,62 @@ func TestSwitchAgentSameAgentReplacementRequiresAnotherAcceptance(t *testing.T) 
 		t.Fatal("silently accepted same-agent replacement", state.Notice)
 	}
 }
+
+func TestSwitchAgentParameterArrowsEditSurroundingQuotes(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), SourceAgent: "claude", Profile: couchcore.LaunchProfile{Agent: "codex"}, Fingerprint: "accepted"}
+	input := "'--sandbox danger-full-access'"
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Action: "switch-agent", Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, Input: input, SelectedItem: "parameters"})
+	original := state
+	for i := 0; i < len(input)-1; i++ {
+		state, _ = reduceKey(state, PanelKey{Kind: KeyLeft})
+	}
+	if state.CurrentFrame().SelectedItem != "parameters" {
+		t.Fatalf("Left moved focus away from parameters: %+v", state.CurrentFrame())
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
+	if state.CurrentFrame().Input != "--sandbox danger-full-access'" {
+		t.Fatalf("first quote was not removed: %q", state.CurrentFrame().Input)
+	}
+	for range input {
+		state, _ = reduceKey(state, PanelKey{Kind: KeyRight})
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
+	if state.CurrentFrame().Input != "--sandbox danger-full-access" || original.CurrentFrame().Input != input {
+		t.Fatalf("last quote removal or reducer purity failed: %q, original %q", state.CurrentFrame().Input, original.CurrentFrame().Input)
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.SwitchArgv != `["--sandbox","danger-full-access"]` {
+		t.Fatalf("edited parameters did not become separate argv: %+v", effects)
+	}
+}
+
+func TestSwitchAgentParameterCursorUsesRunesAndRenderedCells(t *testing.T) {
+	state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+	p := couchcore.PreparedAgentSwitch{Address: menuAddress("couch-one"), Profile: couchcore.LaunchProfile{Agent: "codex"}, Fingerprint: "accepted"}
+	appendMenuFrame(&state, MenuFrame{Kind: MenuFrameSwitchAgent, Thread: p.Address, Agent: "codex", SwitchStage: 1, SwitchPrepared: &p, Input: "a界b", SelectedItem: "parameters", Generation: 7, PreviewPending: 7})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyLeft})
+	view := RenderMenuView(state, 100, 20, time.Now(), false)
+	// The label occupies 14 cells, then a (1) and 界 (2), followed by the cursor.
+	if view.Cursor == nil || view.Cursor.Col != 18 || state.CurrentFrame().PreviewPending != 7 {
+		t.Fatalf("cursor move changed preview or ignored wide rune: cursor=%+v frame=%+v", view.Cursor, state.CurrentFrame())
+	}
+	before := state
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: '雪'})
+	if state.CurrentFrame().Input != "a界雪b" || before.CurrentFrame().Input != "a界b" || state.CurrentFrame().PreviewPending != 0 {
+		t.Fatalf("insert did not edit at rune cursor and invalidate preview: %+v", state.CurrentFrame())
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyLeft})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
+	if state.CurrentFrame().Input != "界b" {
+		t.Fatalf("backspace split or removed wrong rune: %q", state.CurrentFrame().Input)
+	}
+	state, _ = reduceKey(state, PanelKey{Kind: KeyLeft})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyBackspace})
+	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: '前'})
+	if state.CurrentFrame().Input != "前界b" || state.CurrentFrame().SelectedItem != "parameters" {
+		t.Fatalf("start boundary editing failed: %+v", state.CurrentFrame())
+	}
+}

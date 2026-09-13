@@ -158,3 +158,30 @@ func TestOrientationDueSubmitSurvivesPrioritizedInput(t *testing.T) {
 		})
 	}
 }
+
+// Captured Agy startup in Zellij sent this exact 16-byte response packet
+// (SHA256 prefix 9aed9bfbb79c) after querying mode 2026 and Kitty support.
+func TestOrientationQueriedModeReplies(t *testing.T) {
+	for _, chunks := range [][]string{{"\x1b[?2026;2$y\x1b[?1u"}, {"\x1b[?2026;", "2$", "y\x1b[?", "1u"}} {
+		var replies orientationReplies
+		replies.observeQueries([]byte("\x1b[?2026$p\x1b[?2027$p\x1b[?u"))
+		for _, chunk := range chunks {
+			if replies.operatorData([]byte(chunk)) {
+				t.Fatalf("solicited response classified as operator: %q", chunk)
+			}
+		}
+		if len(replies.input) != 0 {
+			t.Fatalf("unconsumed response: %q", replies.input)
+		}
+		if !replies.operatorData([]byte("\x1b[?2026;2$y")) {
+			t.Fatal("duplicate mode reply accepted")
+		}
+	}
+	for _, reply := range []string{"\x1b[?2027;2$y", "\x1b[?2026;5$y", "\x1b[?2026;2;1$y", "\x1b[?2026;2$ytext"} {
+		var replies orientationReplies
+		replies.observeQueries([]byte("\x1b[?2026$p"))
+		if !replies.operatorData([]byte(reply)) {
+			t.Fatalf("unexpected input accepted: %q", reply)
+		}
+	}
+}

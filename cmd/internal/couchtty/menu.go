@@ -64,6 +64,8 @@ type MenuFrame struct {
 	SwitchPrepared *couchcore.PreparedAgentSwitch
 	SwitchStage    int
 	SwitchEdited   bool
+	// Rune distance from the end; zero keeps newly prefilled parameters at end.
+	SwitchCursorFromEnd int
 
 	Instance        uint64
 	Kind            MenuFrameKind

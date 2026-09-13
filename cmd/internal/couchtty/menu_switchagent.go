@@ -39,21 +39,38 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 		}
 	case 1:
 		switch key.Kind {
-		case KeyTab, KeyDown, KeyRight:
+		case KeyTab, KeyDown:
 			moveSwitchFocus(frame, 1)
-		case KeyUp, KeyLeft:
+		case KeyUp:
 			moveSwitchFocus(frame, -1)
+		case KeyLeft, KeyRight:
+			if frame.SelectedItem == "parameters" {
+				length := utf8.RuneCountInString(frame.Input)
+				if key.Kind == KeyLeft && frame.SwitchCursorFromEnd < length {
+					frame.SwitchCursorFromEnd++
+				} else if key.Kind == KeyRight && frame.SwitchCursorFromEnd > 0 {
+					frame.SwitchCursorFromEnd--
+				}
+			} else if key.Kind == KeyRight {
+				moveSwitchFocus(frame, 1)
+			} else {
+				moveSwitchFocus(frame, -1)
+			}
 		case KeyRune:
 			if frame.SelectedItem == "parameters" && frame.SwitchPrepared != nil && key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && key.Rune >= 32 && key.Rune != 127 && len(frame.Input)+utf8.RuneLen(key.Rune) <= 4096 {
-				frame.Input += string(key.Rune)
+				text, cursor := switchParameterCursor(*frame)
+				frame.Input = string(text[:cursor]) + string(key.Rune) + string(text[cursor:])
 				frame.SwitchEdited = true
 				invalidateSwitchEdit(&state, frame)
 			}
 		case KeyBackspace:
 			if frame.SelectedItem == "parameters" && frame.SwitchPrepared != nil {
-				frame.Input = removeLastRune(frame.Input)
-				frame.SwitchEdited = true
-				invalidateSwitchEdit(&state, frame)
+				text, cursor := switchParameterCursor(*frame)
+				if cursor > 0 {
+					frame.Input = string(text[:cursor-1]) + string(text[cursor:])
+					frame.SwitchEdited = true
+					invalidateSwitchEdit(&state, frame)
+				}
 			}
 		case KeyEnter:
 			switch frame.SelectedItem {
@@ -74,6 +91,11 @@ func reduceSwitchAgentKey(state MenuState, key PanelKey) (MenuState, []MenuEffec
 	}
 
 	return state, nil
+}
+
+func switchParameterCursor(frame MenuFrame) ([]rune, int) {
+	text := []rune(frame.Input)
+	return text, max(0, len(text)-frame.SwitchCursorFromEnd)
 }
 
 func requestSwitchAgentPreview(state MenuState, final bool) (MenuState, []MenuEffect) {
@@ -136,6 +158,7 @@ func reduceSwitchAgentPreview(state MenuState, event MenuEvent) (MenuState, []Me
 	}
 	if !frame.SwitchEdited {
 		frame.Input = launcher.FormatLaunchParameters(p.Profile.Argv)
+		frame.SwitchCursorFromEnd = 0
 	}
 
 	return state, nil
@@ -166,7 +189,7 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 		if frame.PreviewPending != 0 {
 			lines = append(lines, "resolving startup parameters…")
 		}
-		lines = append(lines, "Tab/↑↓: focus · Enter: select · Escape: cancel")
+		lines = append(lines, "←→: text cursor · Tab/↑↓: focus · Enter: select · Escape: cancel")
 	}
 
 	for i, line := range lines {

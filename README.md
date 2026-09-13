@@ -445,8 +445,9 @@ not the surface — park is confirmed at both scopes and detach at neither.
 In a live or verified parked thread's actions, **switch coding agent** opens the coding
 agent switch form. Choose an agent, then edit its prefilled startup parameters (an
 empty value is allowed). This second screen names the source and target and
-contains **Switch** and **Cancel**. Tab or the arrow keys move between the
-parameter field and buttons; Enter on **Switch** submits the change. Switching keeps the thread and working path, launches a fresh
+contains **Switch** and **Cancel**. Tab or Up/Down move between the
+parameter field and buttons; Left/Right move the text cursor while editing.
+Enter on **Switch** submits the change. Switching keeps the thread and working path, launches a fresh
 conversation, and asks the new agent to read the outgoing context and summarize
 its orientation. The switcher stays open. If orientation delivery fails, the
 thread's **Copy orientation prompt** action requests clipboard copy without changing the
