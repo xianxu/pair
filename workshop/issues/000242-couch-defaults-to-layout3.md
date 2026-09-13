@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-13
-estimate_hours:
+estimate_hours: 0.389
 started: 2026-09-13T15:55:46-07:00
 ---
 
@@ -26,7 +26,7 @@ record in the store is layout3 —
 — so the default is the one thing nobody uses. The operator has not hit a
 failure here; the ask is simply that the default match how couch is used, so
 `couch` means the workbench that is actually run. (A consequence worth
-knowing, not the motivatio with one layout per couch process and a startup
+knowing, not the motivation: with one layout per couch process and a startup
 guard that refuses to mix, a flagless `couch` next to layout3 threads refuses
 to start — `atlas/couch.md:1075-1083`.)
 
@@ -97,3 +97,31 @@ Out of scope: per-thread layouts (a couch process has one layout by design,
 - `pair`'s own flagless default left alone on purpose; if the operator wants
   it to follow, that is one more line in `launcher/args.go`, a separate
   decision.
+
+## Revisions
+
+### 2026-09-13 — implementation scope confirmed
+
+ParseCLI independently defaults to Layout2 and overrides New. Both will use
+DefaultLayout = Layout3 (ARCH-DRY); persisted empty layouts remain Layout2.
+Fresh-eyes spec review confirmed this omission. Durable plan:
+`workshop/plans/000242-couch-defaults-to-layout3-plan.md`.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.16
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.00 impl=0.12
+design-buffer: 0.15
+total: 0.389
+```
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. One existing-module extension (shared
+default, remedy and regression tests), one docs sweep, one close review.
+Design uses 0.2 of the resolved-scope primitive values; implementation uses
+v3.1's 40% factor. Existing parser, guard and stateful fakes require no new
+library. Design subtotal 0.06 × 1.15 + implementation 0.32 = 0.389h.
