@@ -107,3 +107,14 @@ Brainstorm first; the questions below are the design, not the answer.
   ariadne#224 (`ARCH-FUNERAL`), filed the same day; this issue is its first
   application and should be designed against the principle's `at-plan` text
   once that lands.
+
+### 2026-09-13 — spec discussion opened
+
+Operator requests settling the feature spec together before implementation.
+Claimed for design only; no collection or code changes authorized yet.
+Fresh metadata-only scan (logical file bytes, GiB): wrap-events 12.859 / 171
+files; scrollback 1.003 / 130; parked-scrollback 0.682 / 300; ledger 0.086 /
+248; other families about 0.177. The two largest wrapper-event logs total
+8.547 GiB. These figures replace the old sizing baseline, not the proposed
+policies. Consumer/lifecycle audit is in progress; protection of drafts and
+threads versus age-based expiry is the first operator decision pending.
