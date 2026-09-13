@@ -7,7 +7,7 @@ const (
 	groupDraft    = "Draft — compose and send"
 	groupHistory  = "Draft — history and queue"
 	groupPanes    = "Panes and layout"
-	groupTerminal = "Terminal tabs (in the right terminal)"
+	groupTerminal = "Terminal tabs (right terminal; tab keys reach a full-screen app; focus & switch still work)"
 	groupSession  = "Session"
 )
 

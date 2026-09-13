@@ -16,6 +16,12 @@ Launches a `zellij` workbench in one of two layouts:
   Those tabs are drawn on a **tab strip in the pane's bottom row**, which the
   pane reserves for itself — so a shell there sees a terminal one row shorter
   than the pane, and `Alt+r` edits the tab name in place on that row.
+  When a **full-screen app** runs there (Neovim, `less`, `htop` — anything on
+  the alternate screen), those pane chords pass through to it instead of being
+  intercepted, so the app can bind `Alt+t` and the rest (#227). Two survive
+  regardless, so you are never trapped: `Alt+k` still returns to the left
+  stack, and the global `Shift+Alt+←`/`→` still switch tabs from anywhere. At
+  a shell prompt every chord is intercepted as before.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or

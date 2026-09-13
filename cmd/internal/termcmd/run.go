@@ -345,6 +345,9 @@ type ptyWriter interface {
 	previousTab()
 	nextTab()
 	appMouseMode() bool
+	// activeChildOwnsScreen reports whether the active tab's child is a
+	// full-screen app, so the pump forwards role-scoped chords to it (#227).
+	activeChildOwnsScreen() bool
 	// reportError puts a diagnostic on the pane THROUGH the writer loop.
 	// On the interface because the input goroutine is where these arise, and
 	// it must not reach the pane's fd directly (#199 M2).
@@ -490,11 +493,23 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 				data := append(held, result.data...)
 				held = nil
 				for len(data) > 0 {
-					chordBefore, chord, _, chordRest, chordOK := workbenchshortcut.FindChord(data)
+					chordBefore, chord, chordRaw, chordRest, chordOK := workbenchshortcut.FindChord(data)
 					mouseBefore, event, rawMouse, mouseRest, mouseOK := findSGRMousePress(data)
 					if chordOK && (!mouseOK || len(chordBefore) <= len(mouseBefore)) {
 						if len(chordBefore) > 0 {
 							mux.writeActive(chordBefore)
+						}
+						// #227: under a full-screen child, a role-scoped chord is
+						// the app's, not pair term's — forward its raw bytes and
+						// dispatch nothing. Globals stay workbench-wide, and M-k
+						// (focus-left) is excluded so the operator can always get
+						// back to the left stack. This also closes #234's
+						// residual: ESC,j typed inside the deadline decodes as
+						// ChordAltJ whose raw bytes \x1bj forward as ESC then j.
+						if workbenchshortcut.RightTerminalChordPassesThrough(chord) && mux.activeChildOwnsScreen() {
+							mux.writeActive(chordRaw)
+							data = chordRest
+							continue
 						}
 						if chord == workbenchshortcut.ChordAltR {
 							tabID, editor, err := mux.beginRename()
@@ -1411,6 +1426,23 @@ func (m *terminalMux) appMouseMode() bool {
 	tab := m.activeTabLocked()
 	m.mu.Unlock()
 	return tab != nil && tab.child != nil && tab.child.Mouse()
+}
+
+// activeChildOwnsScreen reports whether the active tab's child is on the
+// alternate screen buffer, observed to be so (#227). Under it, role-scoped
+// chords pass through to the child instead of being intercepted. RepaintModes(),
+// not the bare AltScreen(): the unknown case — nil child, or one that never
+// spoke about the buffer — must read as "not full-screen" so pair term keeps
+// intercepting, which is the no-regression choice and the #196 tri-state.
+func (m *terminalMux) activeChildOwnsScreen() bool {
+	m.mu.Lock()
+	tab := m.activeTabLocked()
+	m.mu.Unlock()
+	if tab == nil || tab.child == nil {
+		return false
+	}
+	altScreen, observed := tab.child.RepaintModes()
+	return altScreen && observed
 }
 
 // removeTab runs ON THE WRITER GOROUTINE -- its only caller is handleChunk, on

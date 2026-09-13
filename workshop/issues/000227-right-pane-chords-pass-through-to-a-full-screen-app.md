@@ -1,12 +1,13 @@
 ---
 id: 000227
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-10
 updated: 2026-09-13
-estimate_hours:
+estimate_hours: 0.75
 started: 2026-09-13T09:18:29-07:00
+actual_hours: 2.29
 ---
 
 # right-pane chords pass through to a full-screen app
@@ -129,23 +130,80 @@ from input to disposition today, and keeping it pure keeps it table-testable
 - Every handled and swallowed right-terminal chord above passes through under a
   full-screen app, and behaves as today at a shell — a table test over all three
   states for each chord.
-- The unknown state intercepts, asserted.
-- Global chords (`<M-n>` restart, etc.) are unchanged in every state.
-- `Decide` stays pure; alt-screen state arrives as an input field.
-- The escape-chord decision is recorded, whichever way it goes.
+- The unknown alt-screen state intercepts, asserted.
+- `<M-k>` (focus-left) still returns to the left stack under a full-screen app —
+  it does NOT pass through, so the operator is never trapped in nvim.
+- Global chords (`<M-n>` restart, from-anywhere tab switch, etc.) are unchanged
+  in every state.
+- `Decide` stays pure and untouched; the passthrough gate lives in the pump
+  (the one place all chord-dispatch paths funnel through), keyed on a pure
+  `RightTerminalChordPassesThrough` predicate.
+- The escape-chord decision is recorded (see Revisions): none added; switching
+  stays global and focus-left survives.
 - `atlas/` records the rule, and `pair keys` / help reflects that right-pane chords are
   conditional.
 
+Durable plan: `workshop/plans/000227-right-pane-chords-pass-through-to-a-full-screen-app-plan.md`.
+
 ## Plan
 
-- [ ] Add alt-screen state (from `RepaintModes()`) to `ShortcutInput`; populate it in
-      `pair term` from the active tab.
-- [ ] In `Decide`, right-terminal role: pass through role-scoped chords when observed +
-      on.
-- [ ] Table test: each chord × {on, off, unknown}; globals unaffected.
-- [ ] Decide the escape chord; record it.
-- [ ] Update help text and `atlas/`.
-- [ ] Manual: parley `<M-t>` in right-pane nvim; `<M-t>` at the shell.
+- [x] `IsGlobalChord` + `RightTerminalChordPassesThrough` (pure predicates, `M-k` excluded)
+- [x] `activeChildOwnsScreen()` on the mux (from `RepaintModes()`); `activeChildOwnsScreen` on the `ptyWriter` interface + `fakeMux`
+- [x] Pump gate: forward a pass-through chord's raw bytes to a full-screen child; dispatch as today otherwise
+- [x] Table test: each chord × {fullscreen, shell}; the tri-state accessor test covers unknown; the ESC-then-j, focus-left, and global regressions
+- [x] Escape-chord decision recorded (none; switching + focus-left survive) — see Revisions
+- [x] Update help text (keyhelp `groupTerminal` heading) and `atlas/`
+- [ ] Manual: parley `<M-t>` in right-pane nvim; `<M-k>` back to the agent; ESC+`j` reaches nvim; `<M-t>` at the shell
+
+## Revisions
+
+### 2026-09-13 — pump gate, not a ShortcutInput field (plan-quality round 1)
+
+**Reason.** The Spec sketched adding an alt-screen field to `ShortcutInput` and
+having `Decide` return pass-through. That covers only the chords dispatched
+through `Decide`; the tab chords (`M-t`/`M-w`/`M-r`/`M-S-d`/`M-Left`/`M-Right`)
+go through `handleTerminalChord`, bypassing `Decide` — the very chords the
+operator reported. **Delta:** the gate lives in the pump (the one place all
+dispatch paths funnel through), keyed on the pure `RightTerminalChordPassesThrough`
+predicate; `Decide` stays pure and untouched (ARCH-PURE).
+
+### 2026-09-13 — M-k excluded from passthrough (plan-quality PQ-1)
+
+**Reason.** The gate first passed through every non-global role chord. The
+plan-quality review found `M-k` (focus-left) is the ONLY keyboard bridge from
+the right terminal back to the left stack, with no global equivalent (zellij's
+MoveFocus defaults are unbound). Passing it through would trap an operator with
+nvim focused on the right. **Delta:** `RightTerminalChordPassesThrough` excludes
+`ChordAltK`, so `M-k` always fires focus-left; a regression test asserts it.
+
+### 2026-09-13 — escape-chord decision: none
+
+Switching tabs survives via the global from-anywhere `M-S-←/→`, and focus-left
+survives via the `M-k` exclusion. Only tab create (`M-t`) / close (`M-w`)
+require leaving the full-screen app. Per #227's default, no always-available
+escape chord is added until that restriction is felt.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* Design at ×0.2 (the plan resolves the gate, the predicate and the M-k exclusion); impl at 40% of v2; +15% buffer.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module  design=0.02 impl=0.08
+item: smaller-go-module  design=0.06 impl=0.16
+item: smaller-go-module  design=0.04 impl=0.16
+item: atlas-docs         design=0.02 impl=0.05
+item: milestone-review   design=0.00 impl=0.14
+design-buffer: 0.15
+total: 0.75
+```
+
+- `IsGlobalChord` + `RightTerminalChordPassesThrough` (pure) — 0.02 / 0.08
+- `activeChildOwnsScreen` + pump gate + `ptyWriter` method — 0.06 / 0.16
+- table test + 3 regressions + harness seam — 0.04 / 0.16
+- keyhelp heading + atlas — 0.02 / 0.05
+- close review — 0.00 / 0.14
 
 ## Log
 
@@ -161,3 +219,37 @@ fixes `<M-t>` and the eleven other right-pane chords at once with no moves. The
 alt-screen definition turned out to be already implemented with the `#196` tri-state,
 because `#209` needed it — so the observed/unknown distinction the design depends on
 exists and is enforced as a locked pair.
+
+### 2026-09-13 (close)
+- 2026-09-13: closed — Unit-tested pump gate (every chord x {fullscreen,shell}, tri-state, ESC-then-j/focus-left/global regressions). Full make test green (197 pkgs). LIVE via probes/escsmoke with real nvim: Alt+j passes through (cursor moves) and Alt+t fires a real nvim <M-t> map = get(g:,mt,0)==1 (parley M-t mechanism, BR-4); Alt+k never reaches nvim; origin/main control fails the Alt+j step. Round-1/2 review fixes landed: keys heading (BR-2 then drift-proofed), README layout-3 conditional passthrough (BR-3), M-t live verification (BR-4). Operator parley-outline check remains a manual nice-to-have (--no-plan-check).; review verdict: FIX-THEN-SHIP
+
+- **Live verification (BR-4).** `probes/escsmoke` drives a real `pair term`
+  under a pty with a real `nvim --clean` (which enters the alt screen) and asks
+  nvim over its RPC socket. On this build: "Alt+j passes through to the
+  full-screen nvim (cursor moves down)" PASSES and "Alt+k does NOT pass through
+  (cursor unmoved)" PASSES — the mechanism works with a real editor. On an
+  origin/main control build (no #227) the Alt+j step FAILS (cursor stays on
+  line 1, Alt+j swallowed) — the delta. The operator's in-workbench parley
+  check (`M-t` opens parley's outline; `M-k` returns to the agent; `M-t` at a
+  shell still opens a tab) is the one remaining manual step, unticked because
+  it needs the running workbench.
+- BR-2: the `pair keys` terminal heading now names the two exceptions
+  (`Alt+k`, `Shift+Alt+←/→`) rather than claiming universal passthrough.
+- BR-3: README's layout-3 section now describes the conditional passthrough.
+
+### 2026-09-13 (close round 2)
+
+- **BR-4 — M-t under nvim verified live.** Extended `probes/escsmoke` to bind a
+  real nvim keymap on `<M-t>` (standing in for parley's outline binding) and
+  send Alt+t through the full-screen pane: `get(g:, 'mt', 0) == 1` — Alt+t's
+  raw bytes reach nvim and fire its `<M-t>` map. This is the issue's stated
+  purpose (a full-screen app receives the chords it binds), proven with a real
+  editor rather than deferred to the operator. The operator's parley-specific
+  outline check remains a nice-to-have manual confirmation, not the gate.
+- **Heading drift (advisory).** Rephrased the `pair keys` terminal heading to
+  "tab keys reach a full-screen app; focus & switch still work" — a generic
+  true statement rather than a hand-maintained key list, so it cannot drift
+  from `RightTerminalChordPassesThrough`. A row→chord drift test was considered
+  and rejected: keyhelp Display strings use arrow glyphs that do not map cleanly
+  to the `Chord` enum, so the test would be fragile; removing the enumeration
+  removes the drift surface entirely.

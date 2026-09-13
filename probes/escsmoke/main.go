@@ -122,14 +122,35 @@ func run() int {
 		time.Sleep(120 * time.Millisecond)
 		send("j")
 	})
-	// The other side of the deadline: a chord typed AS a chord arrives in one
-	// write and is still pair term's, never nvim's. Had it been forwarded as
-	// ESC+j, nvim in normal mode on line 1 would move down to line 2 — so
-	// start on line 1 and check the cursor stays there.
-	step("Alt+j as one write is still consumed by pair term", map[string]string{"mode()": "n", "line('.')": "1"}, func() {
+	// #227: under a FULL-SCREEN app (nvim is on the alt screen), a role-scoped
+	// chord is the app's, not pair term's. Alt+j (raw bytes \x1bj) is forwarded
+	// to nvim = ESC then j, so from line 1 the cursor moves DOWN to line 2.
+	// Before #227 pair term swallowed Alt+j and the cursor stayed on line 1 —
+	// running this probe against a pre-#227 build shows line 1, this build line 2.
+	step("Alt+j passes through to the full-screen nvim (#227): cursor moves down", map[string]string{"mode()": "n", "line('.')": "2"}, func() {
 		send("gg")
 		time.Sleep(100 * time.Millisecond)
 		send("\x1bj")
+	})
+	// M-k must NOT pass through: it is the keyboard escape to the left stack.
+	// pair term intercepts it (fires focus-left, which does nothing in this bare
+	// harness), so nvim never sees ESC+k and the cursor stays on line 2.
+	step("Alt+k does NOT pass through (focus-left stays pair term's): cursor unmoved", map[string]string{"mode()": "n", "line('.')": "2"}, func() {
+		send("\x1b[107;3u")
+	})
+
+	// #227's stated purpose: a full-screen app can BIND a passthrough chord and
+	// receive it. parley binds M-t to its outline; this stands in for that with
+	// a real nvim keymap on <M-t>. Under passthrough, Alt+t's raw bytes \x1bt
+	// reach nvim as <M-t> and the map fires; a build without #227 swallows them
+	// and g:mt stays 0.
+	if out, err := exec.Command("nvim", "--server", sock, "--remote-expr",
+		`execute("nnoremap <M-t> :let g:mt=1<CR>")`).CombinedOutput(); err != nil {
+		fmt.Printf("FAIL  could not define the <M-t> map: %v %s\n", err, out)
+		failures++
+	}
+	step("Alt+t reaches the full-screen nvim and fires its <M-t> map (#227, parley's M-t)", map[string]string{"get(g:,'mt',0)": "1"}, func() {
+		send("\x1bt")
 	})
 
 	fmt.Println()
