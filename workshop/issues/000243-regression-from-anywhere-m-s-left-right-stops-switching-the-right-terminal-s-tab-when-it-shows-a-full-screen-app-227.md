@@ -119,6 +119,16 @@ total: 1.00
   switch-terminal-tab` -> `RunSwitchTerminalTab` -> `TabChordFor` ->
   `SwitchRightTerminalTab` (delivers bytes to the right terminal).
 
-## Log
+### 2026-09-13 (close)
 
-### 2026-09-13
+- **Live encoding verified (BR-2).** A bare `nvim --clean` under a pty (no pair
+  term) with `nnoremap <M-T>` set, fed `\x1b[84;4u` (what zellij's `Alt T` bind
+  delivers), fires the map: `get(g:, 'mt', 0) == 1`. So the generated
+  `["<M-T>"]` keymap in the draft receives the operator's `M-S-t`. This is the
+  `<M-N>` precedent (`\x1b[78;4u` -> `<M-N>`) confirmed for `<M-T>`. The
+  remaining operator step is the in-workbench check that `M-S-Left/Right/t`
+  from the draft drive a full-screen right pane, which needs a fresh `pair term`.
+- BR-1: `RunSwitchTerminalTab` now has per-direction delivery-byte tests
+  (prev/next/new deliver the global bytes). BR-3: the two `newTab` cases in
+  `handleTerminalChord` are merged. BR-4: this duplicate heading removed; the
+  atlas sentence reworded.

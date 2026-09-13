@@ -601,7 +601,13 @@ func pumpStdinWithTimer(stdin io.Reader, mux ptyWriter, rt Runtime, stdout io.Wr
 
 func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtime) bool {
 	switch chord {
-	case workbenchshortcut.ChordAltT:
+	case workbenchshortcut.ChordAltT, workbenchshortcut.ChordAltShiftT:
+		// ChordAltShiftT is the from-anywhere new-tab (#243), delivered here as
+		// a global that #227 never passes through, so a full-screen child cannot
+		// eat it. Same action as the local ChordAltT (ARCH-DRY). newTab's error
+		// is discarded as at the local ChordAltT: a failed spawn surfaces on the
+		// child's own EOF path, and reporting it here posts into the writer loop
+		// a test driving handleTerminalChord directly has not started.
 		_ = mux.newTab()
 		return true
 	case workbenchshortcut.ChordAltW:
@@ -615,11 +621,6 @@ func handleTerminalChord(chord workbenchshortcut.Chord, mux ptyWriter, rt Runtim
 		return true
 	case workbenchshortcut.ChordAltRight, workbenchshortcut.ChordAltShiftRight:
 		mux.nextTab()
-		return true
-	case workbenchshortcut.ChordAltShiftT:
-		// The from-anywhere new-tab (#243): delivered here as a global, which
-		// #227 never passes through, so a full-screen child cannot eat it.
-		_ = mux.newTab()
 		return true
 	case workbenchshortcut.ChordAltShiftD:
 		if err := splitTerminalDown(rt); err != nil {

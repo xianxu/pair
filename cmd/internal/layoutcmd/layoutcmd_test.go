@@ -237,6 +237,33 @@ func TestSwitchRightTerminalTabIsInertWithoutATerminalPane(t *testing.T) {
 	}
 }
 
+// RunSwitchTerminalTab is the draft pane's only path to the right terminal
+// (#216/#243). Each direction must deliver the GLOBAL chord bytes — Alt+Shift+
+// Left/Right/t = ESC[1;4D / ESC[1;4C / ESC[84;4u — NOT the role-scoped ;3 forms
+// #227 passes through a full-screen child (BR-1).
+func TestRunSwitchTerminalTabDeliversTheGlobalBytes(t *testing.T) {
+	panes := []byte(`[{"id":4,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}]`)
+	for _, test := range []struct {
+		dir  string
+		want string
+	}{
+		{"prev", "write --pane-id 4 27 91 49 59 52 68"},
+		{"next", "write --pane-id 4 27 91 49 59 52 67"},
+		{"new", "write --pane-id 4 27 91 56 52 59 52 117"},
+	} {
+		t.Run(test.dir, func(t *testing.T) {
+			rt := &fakeRuntime{panesJSON: panes}
+			var stderr bytes.Buffer
+			if code := RunSwitchTerminalTab([]string{test.dir}, rt, &stderr); code != 0 {
+				t.Fatalf("exit = %d (stderr %q)", code, stderr.String())
+			}
+			if len(rt.ops) != 1 || rt.ops[0] != test.want {
+				t.Fatalf("ops = %v, want [%s]", rt.ops, test.want)
+			}
+		})
+	}
+}
+
 func TestRunSwitchTerminalTabParsesItsDirection(t *testing.T) {
 	panes := []byte(`[{"id":3,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"}]`)
 	for _, test := range []struct {
@@ -247,6 +274,7 @@ func TestRunSwitchTerminalTabParsesItsDirection(t *testing.T) {
 	}{
 		{"prev", []string{"prev"}, 0, 1},
 		{"next", []string{"next"}, 0, 1},
+		{"new", []string{"new"}, 0, 1},
 		{"missing", nil, 2, 0},
 		{"unknown", []string{"sideways"}, 2, 0},
 		{"too many", []string{"prev", "next"}, 2, 0},

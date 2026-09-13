@@ -474,7 +474,7 @@ opposite directions, and the asymmetry is deliberate:
   (`TabChordFor` → `ChordAltShiftLeft/Right/T`), not the role-scoped
   `Alt+←/→`: #227 passes a role-scoped chord THROUGH to a full-screen child, so
   delivering `Alt+←` ate the tab switch (#243). A global is never passed
-  through, and `handleTerminalChord` acts on it (prev/next/new tab). The test
+  through, and `handleTerminalChord` acts on it (prev/next/new tab). A test asserts
   `TabChordFor` returns a chord for which `IsGlobalChord` holds, so this class
   cannot regress. `Decide` is
   untouched — the gate is a pure predicate over the chord table plus the one
