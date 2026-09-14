@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-14
-estimate_hours:
+estimate_hours: 6.216
 started: 2026-09-14T10:30:49-07:00
 ---
 
@@ -113,6 +113,42 @@ while keeping the work scoped to the continuation/restart contract.
 - [ ] Design restart ownership, checkpoint transport, and failure recovery in a durable plan.
 - [ ] Implement, verify the full hosted flow and standalone regressions, and update docs.
 - [ ] Close through the SDLC review gate.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Derived after plan-quality accepted round 3;
+the calibration source is marked stale, so this remains provisional.
+
+The primitives, in block order, cover issue/design authoring, checkpoint/request
+model, persisted slot, writer/standalone transport, owner execution, interrupted
+attempt reconciliation, Console state/polling, CLI bootstrap, cross-package
+acceptance, live conformance, docs, and close review. Existing park, tracked
+fresh start, orientation and queue implementations satisfy the library check;
+there is no new service or third-party library to build. Implementation picks
+use the upper table allowance where lifecycle coverage spans packages, scaled
+to 40% by v3.1. Design uses the plan's 0.2 spec discount for implementation
+primitives (not the design authoring itself); familiarity is 1.0 and the
+thorough-plan design buffer is 15%.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.75 impl=0.12
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: tui-screen design=0.20 impl=0.40
+item: smaller-go-module design=0.06 impl=0.20
+item: api-integration design=0.20 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+design-buffer: 0.15
+total: 6.216
+```
 
 ## Log
 
