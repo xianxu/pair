@@ -228,3 +228,21 @@ checkpoint execution rather than building another launcher. Diagnose observed
 helper/session state without asserting the whole Couch supervisor crashed.
 The operational acceptance baseline includes the manual incarnation retirement
 already logged above; usable conversation recovery remains to be confirmed.
+
+
+### 2026-09-14T14:00:00-07:00 — Implementation integration and telemetry follow-up
+
+Schema/readiness unit implemented and focused checkpoint/readiness/threadrecord
+tests pass; optional launch ordinal and absence/generation witnesses are present.
+Recovery menu/dispatch unit implemented, with full Couch TTY race tests passing
+before wiring the pending core method. Disposable process/session acceptance and
+interactive smoke fixtures are written; integration is still red because the
+RecoverThread execution method is being implemented. No end-to-end recovery
+success is claimed yet. Core execution and owner archive reconciliation are
+active independent implementation tasks. Preserve all live operator sessions.
+
+Operator asked whether Astro can be recovered: surviving detached Zellij plus
+dead helper is the intended warm recovery case, preserving the existing Claude
+conversation after fresh ownership checks. Operator also requested durable exit
+telemetry; tracked separately in #253 so unknown-trigger investigation remains
+distinct from #250's recovery contract.
