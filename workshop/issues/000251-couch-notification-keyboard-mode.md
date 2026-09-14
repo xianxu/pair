@@ -211,3 +211,14 @@ interval or acceptance acknowledgement; no speculative delay fix applied.
 `/tmp/pair-combined-make-test.log`. Focused combined mouse/keyboard race tests
 also exit 0 (`/tmp/pair-combined-race.log`), and `bin/couch` builds successfully.
 Live operator smoke remains the next acceptance step.
+
+
+### 2026-09-14 — Detach shortcut blocked the smoke transition
+
+Operator reported Alt+D in the switcher returned to the thread and typed d.
+Old Couch only recognizes the Kitty Alt+D form, not legacy ESC+d; losing
+keyboard disambiguation therefore also removes the safe leave shortcut.
+PID 5316 still owned /dev/ttys008. Applied the tested additive keyboard enable
+control once to that host tty (7/7 bytes accepted), without signalling Couch
+or its sessions, so the operator can retry the normal detach-all action.
+Terminal acceptance and relaunch remain operator-observed pending steps.
