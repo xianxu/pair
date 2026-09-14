@@ -83,3 +83,9 @@ Couch onExit. Both wait paths currently discard signal distinctions; PTY pump
 discards its terminal read error. This is evidence collection, not a speculative
 fix for Astro's unknown trigger. #250 recovery implementation continues in
 parallel; telemetry design has not yet crossed change-code.
+
+Fresh-context spec review: Approved, no Important gaps. Implementation plan must
+pin aggregate storage/file-count bounds, a bounded event queue with drop counts
+and shutdown drain deadline, process-local sequencing and operation correlation,
+and an explicit unsupported-platform wait-result fallback. Operator design
+approval requested; #250 implementation continues independently.
