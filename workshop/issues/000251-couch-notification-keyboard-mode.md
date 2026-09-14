@@ -103,7 +103,7 @@ total: 1.74
 
 - [x] Follow `workshop/plans/000251-couch-notification-keyboard-mode-plan.md`: reproduce using a stateful terminal double.
 - [x] Implement Couch-owned disambiguation through existing output/framing boundaries.
-- [ ] Verify regressions, document the behavior and validate the installed runtime with the operator.
+- [x] Verify regressions, document the behavior and validate the installed runtime with the operator.
 - [ ] Close through SDLC review and publish.
 
 ## Log
@@ -222,3 +222,19 @@ PID 5316 still owned /dev/ttys008. Applied the tested additive keyboard enable
 control once to that host tty (7/7 bytes accepted), without signalling Couch
 or its sessions, so the operator can retry the normal detach-all action.
 Terminal acceptance and relaunch remain operator-observed pending steps.
+
+
+### 2026-09-14 — Live acceptance and shipping authorization
+
+Operator restarted the combined build and confirmed Ctrl+Return works, then
+explicitly said to ship. The accepted invariant is that Couch maintains the
+terminal capabilities required for its own operation. Full combined make test,
+focused race checks, terminal-model regressions and live Ctrl+Return smoke
+passed. The historical exact reset source remains unproven. Mouse M1 supplies
+diagnostics; its causal repair M2 and general #250 recovery remain open.
+
+Live validation scope: the operator confirmed the reported Ctrl+Return behavior.
+Other protocol transitions/ordinary Return/cleanup remain automated evidence;
+the optional disposable-terminal protocol query was not performed. The close
+and publish checkbox is self-referential workflow work, to be checked after
+those gates succeed, not an outstanding implementation requirement.
