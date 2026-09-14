@@ -158,6 +158,36 @@ threads versus age-based expiry is the first operator decision pending.
 
 ## Revisions
 
+### 2026-09-13 — parked captures have independent expiry
+
+Operator requests deleting captures older than 60 days independently of a
+reused tag's lifetime. Each timestamped parked capture and its companion
+events expire together 60 days after capture, even if the parent tag remains
+active or visible in Couch. Active readers temporarily protect their capture;
+viewing it does not restart its age clock. This supersedes the earlier
+blanket rule that Couch visibility protects every associated Pair artifact.
+Diagnostics remain seven days; other session data remains tag-wide sixty days
+since meaningful use, with visible Couch thread protection.
+
+### 2026-09-13 — debugging logs use seven days
+
+Operator separates debugging-level information into a **7-day bucket**:
+wrapper event traces, adaptation flight recorders and optional Pair/Couch
+debug traces. This supersedes their earlier blanket 60-day classification
+and the decision to defer writer rotation. Session/recovery data retains
+the approved 60-day meaningful-use policy and visible Couch protection.
+The durable plan's diagnostic appendix specifies writer rotation and
+independent age-based expiry; background diagnostic writes do not refresh
+the session-use clock. No real data has been deleted.
+
+Metadata-only sizing: total Pair data about 15.04 GiB; 0.52 GiB (3.5%) had
+not been written for 60 days. Wrapper diagnostics alone total about 13 GiB;
+11.538 GiB had not been written for 7 days. These are age-based candidates,
+not actual eligibility: live/unknown writers and ownership still need checks.
+Reusing a tag can retain older contents in recently used session files, but
+wrapper raw scrollback and wrapper-event files truncate at wrapper startup;
+parked captures are separate preserved copies.
+
 ### 2026-09-13 — durable technical plan drafted
 
 The implementation plan is [storage GC](../plans/000239-storage-gc-plan.md).
@@ -239,3 +269,47 @@ Original checklist
 - `pair gc` dry-run + `--apply`, per-family policies, liveness guard, report
 - `wrap-events` writer cap + rotation
 - Run on the operator's store; record before/after bytes in the Log
+
+### 2026-09-13 — agreed final parked-capture policy
+
+Operator confirmed 7 days for old parked captures, superseding the preceding
+60-day capture revision. Expiry follows each capture’s age, independent of
+tag activity and Couch visibility; raw and event sidecars are removed together.
+Active readers or incomplete handoffs defer deletion. Session data remains
+60 days since meaningful use; Couch-visible threads remain protected until
+archival, which starts a fresh 60-day grace.
+
+### 2026-09-13 — implementation checkpoint
+
+Final approved buckets are session60d, debug7d, immutable parked captures7d;
+Couch membership protects session data until archive begins fresh grace.
+Implemented actual-process leases, durable content-use intents, startup/reader
+handoffs, Couch archive clocks/receipts, exact artifact inventory, quarantine
+recovery, capture-only rediscovery, shared binding cleanup, and diagnostic
+writers. Foreground Lua CLI integration and unchanged-save behavior pass real
+Neovim/CLI tests. Full Couch suite passed76.058s; quarantine race suite passed;
+remaining full-tree checks and both review boundaries are outstanding.
+Public GC command and readiness-triggered scheduler are being composed now.
+No user storage has been deleted and no new binary has been installed.
+
+### 2026-09-13 21:08 — integration checkpoint before continuation
+
+Public `pair gc` preview/apply/migration and readiness-triggered scheduling are
+implemented, along with all three retention buckets. New parked captures now
+publish an explicit UTC creation timestamp with exact raw/events identities;
+the collector validates those identities and falls back conservatively only
+when metadata is absent. Changed/missing payload or malformed metadata retains.
+The new publication-clock regression failed before collector integration and
+passes afterward; full storagegc suite passed8.797s. Adapt shell/Lua schema
+integration passed (contended optional logs may skip); main changelog/streaming
+fixture regressions passed1.761s. Diagnostic race and Linux compile passed;
+source inventory passes after new metadata sources were classified.
+
+The first full-tree run exposed a production path-spelling regression in
+ParkScrollback (/var versus /private/var), now fixed and under full Couch tests,
+and a timerless intentionally-idle subprocess fixture that Go could call deadlocked.
+Full-tree checks must be rerun after these fixes. Lua/real CLI checks are running
+in /tmp/pair-239-final-shell.log. Neither milestone has crossed its mandatory
+review boundary. No completion, installation, real-store migration or deletion
+is claimed. Next: finish full checks, preview the real store read-only, reconcile
+plan checkboxes and run SDLC M1/M2/close reviews, then publish.

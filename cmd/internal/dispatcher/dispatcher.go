@@ -51,6 +51,9 @@ func Families() []CommandFamily {
 	return []CommandFamily{
 		{Name: "launch", Summary: "session lifecycle and public pair launcher flow", Status: "handoff"},
 		// flat helpers
+		{Name: "gc", Summary: "preview or collect expired Pair storage", Status: "implemented", Streaming: true},
+		{Name: "diagnostic append", Summary: "internal coordinated trace append", Status: "implemented", Streaming: true, Alias: true},
+		{Name: "retention", Summary: "internal managed storage use", Status: "implemented", Streaming: true, Alias: true},
 		{Name: "context", Summary: "agent pane context meter", Status: "implemented"},
 		{Name: "keys", Summary: "in-session keybindings (what Alt+h shows)", Status: "implemented"},
 		{Name: "agent restart", Summary: "restart only the supervised agent conversation", Status: "implemented"},
@@ -250,7 +253,7 @@ func dispatchKeys(args []string) Result {
 
 func dispatchScrollbackRender(args []string) Result {
 	var stdout, stderr bytes.Buffer
-	code := scrollbackcmd.Run(args, &stdout, &stderr)
+	code := scrollbackcmd.RunWithEnv(args, os.Getenv, &stdout, &stderr)
 	return Result{Stdout: stdout.String(), Stderr: stderr.String(), ExitCode: code}
 }
 

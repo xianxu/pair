@@ -3,12 +3,12 @@ package couchtty
 import (
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 )
 
 // traceFile is the file an operator-requested trace appends to. Both of couch's
@@ -22,17 +22,21 @@ import (
 // tracers, so a traceFile always exists once it has been opened.
 type traceFile struct {
 	mu sync.Mutex
-	f  *os.File
+	f  *diagnosticlog.Writer
 }
 
 // openTraceFile returns nil when path is empty, meaning the trace is off. It
 // returns an error naming the variable when a path was given but could not be
 // opened: the inability to observe must never read as an observation.
-func openTraceFile(variable, path string) (*traceFile, error) {
+func openTraceFile(variable, path string, options ...diagnosticlog.Options) (*traceFile, error) {
 	if path == "" {
 		return nil, nil
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	opts := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
+	if len(options) > 0 {
+		opts = options[0]
+	}
+	f, err := diagnosticlog.Open(path, opts)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", variable, err)
 	}
@@ -51,7 +55,9 @@ func (t *traceFile) Close() error {
 }
 
 func (t *traceFile) writeLine(line string) {
-	t.mu.Lock()
+	if !t.mu.TryLock() {
+		return
+	}
 	defer t.mu.Unlock()
 	if t.f == nil {
 		return
@@ -80,8 +86,8 @@ const (
 // terminal.
 type eventTracer struct{ file *traceFile }
 
-func newEventTracer(path string) (*eventTracer, error) {
-	file, err := openTraceFile("COUCH_TRACE", path)
+func newEventTracer(path string, options ...diagnosticlog.Options) (*eventTracer, error) {
+	file, err := openTraceFile("COUCH_TRACE", path, options...)
 	if file == nil {
 		return nil, err
 	}
@@ -139,8 +145,8 @@ func reattachDoneDetail(success bool, diagnostic couchcore.ResumeDiagnosticCode)
 // console did not exist when the process began, so the composition root, which
 // read the clock first, supplies it. A failed open is reported the way
 // SetInputTrace reports one.
-func (c *Console) SetEventTrace(path string, processStart time.Time) error {
-	tracer, err := newEventTracer(path)
+func (c *Console) SetEventTrace(path string, processStart time.Time, options ...diagnosticlog.Options) error {
+	tracer, err := newEventTracer(path, options...)
 	c.mu.Lock()
 	previous := c.events
 	c.events = tracer

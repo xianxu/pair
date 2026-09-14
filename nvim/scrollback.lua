@@ -11,6 +11,8 @@
 -- baleia.nvim or AnsiEsc.vim would add a vendor dir for marginal gain.
 
 vim.opt.termguicolors = true
+
+local retention = dofile((debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './') .. 'retention.lua').setup('scrollback-viewer')
 vim.opt.compatible = false
 -- The scrollback viewer is launched with `nvim -u scrollback.lua`, which
 -- skips init.lua — so the editor-wide `wrap`/`linebreak` defaults set

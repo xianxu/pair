@@ -115,8 +115,18 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 
 		m, ok := rt.TakeRestartMarker(step.session)
 		if !ok {
+			if !finishLaunchRetention(step, stderr) {
+				return 1, nil
+			}
 			return step.code, nil // no restart pending — done.
 		}
+		restartUses, err := retainRestartOwners(rt, env.DataDir, step, m)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: cannot protect restart namespace: %v\n", err)
+			finishLaunchRetention(step, stderr)
+			return 1, nil
+		}
+		rt.SetEnv("PAIR_RETENTION_BACKGROUND", "")
 		rTag := firstNonEmpty(m.Tag, step.tag)
 		rAgent := firstNonEmpty(m.Agent, step.agent)
 
@@ -154,6 +164,13 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 				opts.ContinueDoc = docPath
 			}
 		}
+		if !finishRestartOwners(restartUses, stderr) {
+			finishLaunchRetention(step, stderr)
+			return 1, nil
+		}
+		if !finishLaunchRetention(step, stderr) {
+			return 1, nil
+		}
 	}
 }
 
@@ -162,6 +179,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 // restart plan's current-run defaults), and whether the blocking handoff ran
 // (only then do cleanup + restart apply).
 type launchStep struct {
+	retention RetentionUse
 	code      int
 	session   string
 	tag       string
@@ -292,12 +310,12 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			rt.KillTitlePoller(decision.Tag)
 			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
 		}
-		code, err := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
+		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
 		}
-		return launchStep{code: code, session: decision.SessionName, tag: decision.Tag, agent: agent, handedOff: true}, nil
+		return launchStep{code: code, session: decision.SessionName, tag: decision.Tag, agent: agent, handedOff: true, retention: retained}, nil
 	case ActionCreate:
 		return runCreate(opts, env, rt, sessions, decision, base, agent, sessionNameEntries[decision.Tag], stderr)
 	default: // ActionPick is resolved above — unreachable; a defensive guard.
@@ -372,7 +390,7 @@ func launchNameTags(args LaunchArgs, base string) []string {
 // runCreate ports the shell's create branch: prompt/validate the tag, run the
 // tag-restart config picker, compose the per-agent launch args, spawn the
 // sidecars, then hand off to the blocking zellij create.
-func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (launchStep, error) {
+func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (result launchStep, resultErr error) {
 	// Validate the agent here (create-only; attach re-uses an existing pane's
 	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
@@ -411,6 +429,23 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: cannot resolve thread scope: %v\n", err)
 		return launchStep{code: 1}, nil
+	}
+	use, err := beginRetention(rt, env.DataDir, chosenTag, true)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: cannot reserve storage for '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
+	if use != nil {
+		defer func() {
+			if result.handedOff {
+				result.retention = use
+				return
+			}
+			if err := use.Finish(false); err != nil {
+				fmt.Fprintf(stderr, "pair: retention completion failed for '%s': %v\n", chosenTag, err)
+				result.code = 1
+			}
+		}()
 	}
 	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
 	var addressErr error
@@ -603,14 +638,20 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	draft := artifactPaths.Draft()
 	_ = rt.Touch(draft)
 	if opts.ContinueDoc != "" {
-		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
+		if err := writeRetainedDraft(rt, use, draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc))); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to preserve continuation draft: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
 	} else if opts.ContinueText != "" {
 		existing, _ := rt.ReadFile(draft)
 		text := opts.ContinueText
 		if strings.TrimSpace(existing) != "" {
 			text += "\nExisting draft content follows:\n\n" + existing
 		}
-		_ = rt.WriteAtomic(draft, text)
+		if err := writeRetainedDraft(rt, use, draft, text); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to preserve continuation draft: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
 	}
 
 	// Record the agent for `pair list` / the title poller (survives detach).
@@ -639,11 +680,17 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// pre-abbreviated cwd now that no title shows one.
 	rt.SetEnv("PAIR_PANE_TITLE", agent)
 
-	// Truncate the adaptation flight recorder once, before any appender starts.
-	_ = rt.WriteAtomic(artifactPaths.AdaptLog(), "")
+	// The first managed diagnostic emitter creates the recorder. Reusing a tag
+	// preserves young generations across launches.
 
 	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
 	// final resolved vector (post mint / codex / resume compose).
+	if use != nil {
+		if err := use.BeforeSpawn(); err != nil {
+			fmt.Fprintf(stderr, "pair: cannot protect child startup for '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+	}
 	rt.SpawnSessionWatcher(agent, chosenTag, scope.Key, env.Cwd, repoRoot, repoName, launchOrdinal, agentArgs)
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag)

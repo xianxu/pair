@@ -210,6 +210,8 @@ func TestOrientationCapturedComposersWithoutReturnRemap(t *testing.T) {
 	}
 }
 func TestOrientationChildEnvironmentAndReadinessStatus(t *testing.T) {
+	t.Setenv("PAIR_SCOPE_KEY", "")
+	t.Setenv("PAIR_RETENTION_START_ID", "")
 	dir := t.TempDir()
 	fake := filepath.Join(dir, "claude")
 	if err := os.WriteFile(fake, []byte("#!/bin/sh\nif [ -n \"${PAIR_ORIENTATION_REQUEST+x}\" ]; then exit 13; fi\nexit 0\n"), 0755); err != nil {

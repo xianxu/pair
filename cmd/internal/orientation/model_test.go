@@ -1,6 +1,7 @@
 package orientation
 
 import (
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"strings"
 	"testing"
 )
@@ -121,4 +122,20 @@ func FuzzDeliveryTerminalStatesNeverEmitInput(f *testing.F) {
 			state = next
 		}
 	})
+}
+
+func TestRendererReceivesExplicitSourceOwner(t *testing.T) {
+	owner, err := artifactpath.NewStorageOwner("/data", "scope", "tag")
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := BuildPrompt(OrientationContext{Tag: "tag", WorkingPath: "/repo", TargetAgent: "codex", Renderer: "/bin/pair", ScrollbackRaw: "/data/repos/scope/capture.raw", Owner: &owner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{`"--owner-dir","/data/repos/scope"`, `"--owner-scope","scope"`, `"--owner-tag","tag"`} {
+		if !strings.Contains(body, value) {
+			t.Fatalf("owner missing: %s", body)
+		}
+	}
 }

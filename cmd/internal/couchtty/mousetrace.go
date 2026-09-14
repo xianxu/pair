@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"strconv"
 	"strings"
 	"time"
@@ -29,8 +30,8 @@ type mouseTracer struct{ file *traceFile }
 // from env here, for the reason newInputTracer documents at length: a
 // constructor that reaches for ambient env opens a real file per Console and
 // leaks fds through every test.
-func newMouseTracer(path string) (*mouseTracer, error) {
-	file, err := openTraceFile("COUCH_MOUSE_TRACE", path)
+func newMouseTracer(path string, options ...diagnosticlog.Options) (*mouseTracer, error) {
+	file, err := openTraceFile("COUCH_MOUSE_TRACE", path, options...)
 	if file == nil {
 		return nil, err
 	}

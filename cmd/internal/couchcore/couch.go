@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // Couch is the composition root: every seam in one place, every operation a
@@ -107,6 +108,33 @@ func New(namespace CouchNamespace, r Runner, p PathOps, g GitRunner, proc ProcOp
 		return nil, err
 	}
 	threads := NewThreadStore(namespace)
+	if environment, ok := artifacts.(PairLifecycleEnvironment); ok {
+		root := environment.PairLifecycleDataDir()
+		if !filepath.IsAbs(root) {
+			return nil, errors.New("Pair retention data root must be absolute")
+		}
+		if err := os.MkdirAll(root, 0700); err != nil {
+			return nil, err
+		}
+		coordinator, err := storagegc.NewCoordinator(root)
+		if err != nil {
+			return nil, err
+		}
+		if c != nil {
+			coordinator.Now = c.Now
+		}
+		process, err := storagegc.CurrentProcessIdentity(os.Getpid())
+		if err != nil {
+			return nil, err
+		}
+		if err := coordinator.RegisterRuntime(context.Background(), process, "couch-runtime"); err != nil {
+			return nil, err
+		}
+		threads, err = NewCoordinatedThreadStore(namespace, coordinator)
+		if err != nil {
+			return nil, err
+		}
+	}
 	result := &Couch{
 		Namespace: namespace,
 		Layout:    DefaultLayout,

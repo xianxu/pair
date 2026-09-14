@@ -56,7 +56,7 @@ One stable root coordination lock, outside collectible groups, orders activity p
 
 Managed launch reserves a lifetime lease under coordination before spawning; the supervised owner holds the lease until all owned writers exit. Attach, editor and viewer lifetimes are also leased, so a reader open for 61 days stays protected. Child-start failure releases reservation. Hand-offs transfer ownership before releasing the old lease; unknown or unsupported legacy runtime ownership retains. Meaningful use is recorded once per explicit action, without treating periodic lease checks as use. Foreground viewer closure records the end of that explicit viewing interval; background reader/writer lease release never refreshes the clock. A dormant live session is protected while alive but does not earn fresh use merely by exiting.
 
-Short content writes acquire coordination before access, persist changed content and activity before releasing it. A failed activity commit after a successful write creates blocking recovery evidence, not an old valid timestamp. Long readers acquire their lease before opening paths. Locks/leases remain on stable inodes outside the deletable namespace.
+Short content writes acquire coordination before access. BeginUse durably journals an intent (owner incarnation, operation ID, start time and exact target) before permitting changed content to be written; failure to persist/fsync intent refuses the content effect. CompleteUse publishes activity durably before retiring intent. Outstanding intent always blocks GC, including process death between content persistence and activity publication. RecoverUse conservatively publishes use at the intent time, retaining a live operation until its owner exits; then retires the intent. Recovery does not guess whether content was unchanged after a crash. All managed write entrypoints use this protocol; a failed cleanup cannot erase protection. Long readers acquire their lease before opening paths. Locks/leases remain on stable inodes outside the deletable namespace.
 
 Concrete lease ownership: the launcher holds a durable pending-start reservation, not sole lifetime protection. `wrapcmd.Run` and `sessionwatch.Run` register their own PID plus OS process-birth identity before artifact access and retain that record for their entire process lifetime. The Lua retention helper registers Neovim's own process identity through the internal CLI before managed storage is opened; the record survives the short CLI process. Explicit opener/viewer commands register the actual viewer child before access, or keep their own lease while waiting for a foreground child. Protection is based on these durable per-process registrations plus ProcessProbe, not parent survival or inherited advisory locks. Registration writes take the root lock; GC rechecks process identities under that lock. Clean exit removes its registration; death is reaped only on verified identity mismatch/death. Unsupported process-birth inspection reports unknown and retains.
 
@@ -97,31 +97,31 @@ ARCH-PURE: policy and transaction state transitions remain deterministic; filesy
 
 Files: create `cmd/internal/artifactpath/gc.go`, `gc_test.go`, `cmd/internal/storagegc/policy.go`, `policy_test.go`; modify `cmd/internal/artifactpath/manifest.go` and `coverage_test.go`.
 
-- [ ] Add failing ownership tests spanning all Families, legacy/scoped collisions, overlapping tags, hyphenated agents, malformed suffixes, directories, unknown families and raw/event pairs. Add a mechanical coverage guard requiring every family to state collectable/shared/protected and its exact constructor/parser.
+- [ ] Add failing MatchArtifact and Decide tests using the function strategies below. Add a mechanical coverage guard requiring every family to state collectable/shared/protected and its exact constructor/parser.
 - [ ] Run `go test ./cmd/internal/artifactpath ./cmd/internal/storagegc -count=1`; expect missing GC symbols/tests to fail.
 - [ ] Implement typed owner and exact inventory descriptors, reusing Paths/LegacyPaths. Do not reuse OwnsTagArtifact or RenameArtifacts as deletion authority.
-- [ ] Implement Decide with direct unit cases for 60-day boundary ±1ns, missing/invalid/future clocks, archive later than use, use later than archive, visible parked/unreadable/multiple-store references, live/unknown owner and incomplete inventory. Fuzz monotonicity: adding protection must never turn retained into eligible.
+- [ ] Implement Decide and its time/protection strategy below; keep the policy pure.
 - [ ] Run those packages to PASS and commit `#239: define exact storage ownership and retention policy`.
 
 #### Task 2: Coordination, migration and Couch timestamps
 
 Files: create `cmd/internal/storagegc/coordinator.go`, `stores.go`, `process.go` and corresponding `_test.go`; create `cmd/internal/couchcore/retention.go`, `retention_test.go`; modify `threadstore.go`, `couchcmd/run.go`.
 
-- [ ] Write failing folder-backed tests for initialization grace, malformed metadata, registry incompleteness, unavailable custom stores, process death/PID reuse, lease handoff and lock ordering.
+- [ ] Write failing Coordinator/StoreRegistry/ProcessProbe tests using the function strategies below.
 - [ ] Run `go test ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`; expect new contract assertions to fail.
 - [ ] Implement Coordinator and registry/migration gating; move every membership-mutating ThreadStore entry through one coordinated seam. Enumerate callers mechanically with rg so archive, creation, registration and restore cannot bypass it.
 - [ ] Journal archive grace alongside existing archival effects. Add a typed restore transaction coordinating manifest re-add and archive removal, with no new UI requirement; document that manual recovery requires stopping managed processes and GC.
-- [ ] Run tests for both valid and undecodable archives, each injected journal failure, duplicate archive/retry, visible unreadable rows, and two registered stores sharing an owner. All PASS; commit `#239: coordinate retention with Couch membership and live owners`.
+- [ ] Run the ArchiveThread and RestoreThread strategy below; require PASS and commit `#239: coordinate retention with Couch membership and live owners`.
 
 #### Task 3: Meaningful-use integration
 
 Files: create `cmd/internal/storagegc/use.go`, `use_test.go`, `nvim/retention.lua`, `nvim/retention_test.lua`; modify `cmd/internal/launcher/createflow.go`, `lifecycle.go`, `cmd/internal/couchcore/resume.go`, `cmd/internal/pairlog/runcli.go`, `cmd/internal/opener/run.go`, `cmd/internal/scrollbackcmd/scrollbackcmd.go`, `cmd/internal/orientation/model.go`, `cmd/internal/wrapcmd/wrap.go`, `cmd/internal/sessionwatch/run.go`, `nvim/init.lua`, `nvim/scrollback.lua`; add integration tests alongside the modified Go entrypoints and `tests/retention-test.sh`.
 
-- [ ] Write failing managed-use tests: selected create/attach/resume, explicit history navigation, live and parked scrollback, changelog view, changed draft/queue/history save, prompt prepare/commit; failed open and unchanged autosave do not refresh. A successful authored write followed by metadata failure must block deletion.
+- [ ] Write failing BeginUse/CompleteUse/RecoverUse and ManagedUse integration tests using the function strategies below.
 - [ ] Run the affected package tests and `bash tests/retention-test.sh`; expect missing integration assertions to fail.
 - [ ] Wire resolved owner context into managed entrypoints and propagate explicit identity through orientation to parked readers. Use one lease/touch API; expose internal CLI operations for Lua through the existing dispatcher contract. Compare content before publishing a use event; do not read log payloads for GC.
 - [ ] Cover all managed content readers/writers by a checked call-site inventory, including programmatic and explicit saves. Verify generic history scans, refresh/statusline reads, diagnostics and distiller writes stay non-use operations. Their file access still needs a lease when racing collection.
-- [ ] Test a long-held viewer/session across expiry, release grace, failed launch, overlapping readers, and cancellation using barriers and a stateful process fake. Run affected Go/Lua tests to PASS; update `atlas/` and its index for ownership/use/lock contracts; commit.
+- [ ] Run managed-use and lifetime-registration strategies below; require affected Go/Lua tests to PASS; update `atlas/` and its index for ownership/use/lock contracts; commit.
 - [ ] Close M1 through `sdlc milestone-close --issue 239 --milestone M1` with recorded verification; fix the binary's review findings. No live deletion is enabled by M1.
 
 ### M2 — Safe collection, CLI and scheduled sweeps
@@ -130,20 +130,20 @@ Files: create `cmd/internal/storagegc/use.go`, `use_test.go`, `nvim/retention.lu
 
 Files: create `cmd/internal/storagegc/transaction.go`, `transaction_test.go`, `collector.go`, `collector_test.go`; extend `cmd/internal/couchcore/retention.go`, `cmd/internal/launcher/session_index.go` through their owning APIs.
 
-- [ ] Write failing transition and filesystem tests for every table row above. Inject failure before/after every journal write, rename and cleanup; verify unrelated owners, shared metadata and all newer incarnations survive.
+- [ ] Write failing ReduceTransaction and Collector.Apply tests using the function strategies below.
 - [ ] Run `go test ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`; expect collection contract failures.
 - [ ] Implement exact quarantine transactions and recovery, revalidation under coordination, coordinated archive removal, exact binding cleanup and cache invalidation. Preserve original evidence on error; never retry deletion against source names after detachment.
-- [ ] Exercise race barriers for use/launch/restore versus final eligibility, symlink replacement, unknown file appearance, partial inventory, live legacy processes and custom namespace failures. Test that raw/events cannot become a visible half-pair after recovery.
+- [ ] Exercise the Collector.Apply race/fault strategy below, including raw/event group visibility after recovery.
 - [ ] Run tests and `go test -race ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/launcher`; require PASS and commit `#239: collect expired owner groups with recoverable detachment`.
 
 #### Task 5: Commands, automatic scheduling and end-to-end verification
 
 Files: create `cmd/internal/gccmd/run.go`, `run_test.go`, `cmd/internal/storagegc/schedule.go`, `schedule_test.go`; modify `cmd/pair-go/main.go`, `cmd/internal/dispatcher/dispatcher.go`, dispatcher coverage tests, launcher and Couch lifecycle entrypoints, `Makefile`, `atlas/index.md`; create `atlas/storage-retention.md`.
 
-- [ ] Write failing CLI tests for default preview, apply, migration/store registration, invalid args and busy/incomplete states. Snapshot a fixture tree before/after preview and require identical files, contents and mtimes; pending recovery stays blocked and unmodified.
+- [ ] Write failing GCCLI.Run tests using the function strategies below.
 - [ ] Implement public `pair gc` routing/help and explicit migration completion with registered-store summary. Apply works only after migration completeness is established. Report counts/logical bytes and reasons; no payload contents in diagnostics.
 - [ ] Implement a context-bound, joined worker after UI/session readiness, daily completion clock and bounded resumable cursor. Never count sweep discovery as use; initialize legacy records only on mutating runs.
-- [ ] Add scheduler tests for 100,000 fixture names, budget/cursor progress, repeated starts, busy lock, shutdown/cancellation and interrupted passes. Assert one worker and bounded group processing, not brittle elapsed-time thresholds.
+- [ ] Implement the Scheduler.Run bounded-work strategy below; assert one worker and bounded group processing, not brittle elapsed-time thresholds.
 - [ ] Run `go test ./... -count=1`, `go test -race ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/launcher`, `make test-lua`, `bash tests/retention-test.sh`, and `git diff --check`; require PASS.
 - [ ] Run real-store preview only and record measured eligible/protected/untracked totals without reading content or deleting live files. Run apply against an isolated representative fixture containing old standalone, visible parked, newly archived, expired archived and live sessions; assert the expected survivors and second-apply idempotence.
 - [ ] Document 60-day clocks, migration, managed-use boundary, custom stores, commands, retained-error diagnostics and no global size ceiling; update atlas index and issue Log. Commit and close M2 with the binary review gate.
@@ -158,3 +158,171 @@ The reviewer found two ordering gaps: custom Couch stores can be on another file
 ### Acceptance evidence
 
 Function-level ownership tests guard exact membership and parser ambiguity; pure policy tests guard the entire decision precedence and time boundary. Stateful integration tests guard each IO seam, crash step and actor ordering. CLI fixture snapshots prove preview has no writes. The real preview validates inventory at observed scale without treating old timestamps as authorization to delete. Successful tests plus both SDLC milestone reviews and final close are required before claiming completion.
+
+### 2026-09-13 — operator approval
+
+Operator approved implementation with “go ahead”; earlier pending-approval
+notes are historical. Proceed through change-code and both review boundaries.
+
+### 2026-09-13 — plan gate PQ-1 and PQ-2
+
+PQ-1 addressed by durable BeginUse intent before every managed content effect,
+with fail-closed intent creation, recovery, and retirement after activity is
+published. PQ-2 addressed by replacing procedural test inventories with the
+function strategies below. Acceptance commands remain in their tasks.
+
+### Function-level test strategies
+
+| Production function | Adversarial input class and mechanical guard |
+|---|---|
+| artifactpath.MatchArtifact | Arbitrary filenames and overlapping owner/agent identities: fuzz constructor round-trips and reject ambiguous matches; exhaustive Families coverage guard. |
+| artifactpath.NewStorageOwner | Untrusted root/scope/tag components: fuzz path confinement and namespace separation. |
+| storagegc.DecodeActivity | Truncated, hand-edited and future-version bytes: fuzz decoder; no invalid record becomes expiry evidence. |
+| storagegc.Decide | Arbitrary clocks and conflicting protection evidence: property-test time boundary and monotonic protection without IO. |
+| storagegc.ReduceTransaction | Interrupted/duplicate/out-of-order transaction events: enumerate state/event product; prohibit source deletion after detachment. |
+| Coordinator.BeginUse / CompleteUse / RecoverUse | Process death and IO failure at each durable boundary: stateful filesystem fault injection proves intent precedes content and survives until activity is durable. |
+| Coordinator.RegisterProcess / ReleaseProcess | Parent-child lifetime interleavings and PID reuse: stateful process fake plus child-survives-parent subprocess conformance proves protection follows actual children. |
+| ProcessProbe.Inspect | Alive/dead/unknown OS identities: injected backend and real-child conformance agree; unavailable identity never means dead. |
+| StoreRegistry.Register / CompleteMigration | Missing, aliased, malformed and unavailable roots: folder-backed state machine tests keep deletion disabled unless inventory is complete. |
+| ThreadStore.ArchiveThread / RestoreThread | Invalid records and interruption at each journal effect: existing store fault hooks prove reference/grace conservation. |
+| ManagedUse.Open / WriteChanged | Explicit use versus background access and unchanged writes: stateful entrypoint tests verify activity deltas; checked producer/consumer inventory guards missing integrations. |
+| Collector.Preview | Arbitrary portable trees and pending transactions: before/after filesystem snapshot equality proves read-only behavior. |
+| Collector.Apply / Recover | Concurrent use, namespace replacement and failure at every detach/cross-store step: barrier schedules and fault injection prove unrelated/new incarnations survive; EXDEV fails closed. |
+| GCCLI.Run | Invalid/public/internal command forms and migration states: dispatcher route coverage plus isolated end-to-end fixture assertions. |
+| Scheduler.Run | Oversized inventories, cancellation and repeated starts: injected clock/budget with 100,000 names proves bounded groups, one worker and cursor progress. |
+
+### 2026-09-13 — operator separates diagnostic retention
+
+The operator requests a separate **7-day debugging-log bucket**. This
+supersedes exclusion of writer rotation and blanket 60-day diagnostic
+retention. Session/recovery data keeps its approved 60-day meaningful-use
+policy and Couch visibility protection. Diagnostic retention is generation
+age: viewing a trace or keeping its thread visible does not extend it.
+
+Debugging families: wrap-events, adapt flight recorder, optional PAIR_WRAP_LOG
+and PAIR_SLUG_LOG, Couch COUCH_TRACE, COUCH_INPUT_TRACE and COUCH_MOUSE_TRACE.
+Raw scrollback plus offset events, parked captures, prompt logs, ledger,
+changelog and drafts remain session/recovery data. The record/state distinction
+matters more than a filename containing "log".
+
+Add a shared `diagnosticlog.Writer` in `cmd/internal/diagnosticlog/writer.go`
+and pure `DiagnosticSegment`/`DecideSegment` in `policy.go`. Keep the current
+trace pathname for compatibility. Rotate into unique segments in an adjacent
+managed directory after 24 hours or 64 MiB; the byte threshold only segments,
+never discards young data. Closed segments expire seven days after their last
+write (at most one extra day of record-age slack). An idle current file can
+expire after seven days under writer coordination; upgraded writers reopen
+on their next append. Old processes without this protocol retain their open
+files until they stop, rather than writing into unlinked storage.
+
+Legacy diagnostic mtime measures generation age, so stopped diagnostic files
+over seven days old do not need the session onboarding grace. Still require
+exact ownership and inactive-writer evidence. Explicit external trace paths
+are registered only by their writer, including their exact segment directory;
+never discover arbitrary /tmp logs by glob. Invalid/unavailable registered
+paths retain. Registration ends after writer, current file and segments are
+gone; unknown pre-upgrade external paths cannot be collected automatically.
+
+All writers take a stable per-log lock nonblocking before append/rotate;
+optional logging skips on contention/error instead of blocking terminal IO.
+Verify current inode after acquiring the lock before using a cached fd, so
+another process's rotation cannot strand writes in old segments. Collector
+takes the same lock. Root coordinator precedes diagnostic lock; no inverse
+acquisition. Segment cleanup uses the bounded scheduler, never unbounded work
+in the terminal path. Persist rotation intent before rename; recovery under
+the same lock completes/recognizes the exact rename before any next append.
+No extra daemon. Metadata and lock lifetimes end with the managed log after
+all writers have gone. Reuse artifactpath/procutil (ARCH-DRY), pure age policy
+(ARCH-PURE), explicit rotation states (ARCH-ORDER), bounded writer work
+(ARCH-CONSTRAINTS) and one retention constant (ARCH-PURPOSE/ARCH-FUNERAL).
+
+This adds diagnostic collection to **M2**; M1 still enables no deletion.
+Before M2 final verification:
+
+- [ ] `DecideSegment`: arbitrary age/size/future clocks → boundary/property tests ensuring younger data survives and Couch visibility does not override debug expiry.
+- [ ] `Writer.Append`/`Rotate`: concurrent writers and crashes at each durable boundary → portable filesystem barriers/fault injection prove young-segment preservation and current-inode reopen.
+- [ ] `CollectSegments`: malformed metadata, old writers and substituted external paths → exact identity/no-symlink guards and preview snapshot equality.
+- [ ] Implement policy/writer/registry, then wire wrapcmd/wrap.go, adapt/adapt.go, slugcmd/slugcmd.go, couchtty/trace.go, nvim/adapt.lua, bin/lib/adapt-log.sh and launcher adaptation initialization. Shell/Lua use one internal append command through dispatcher rather than direct file appends.
+- [ ] Verify all emitters with their existing schema/trace tests, diagnosticlog race tests and counted hot-path work; exercise live rotation and stopped legacy eligibility.
+- [ ] Extend preview with 7-day diagnostic and 60-day session buckets; document segment-age slack and exact external-path scope. Run original acceptance commands plus `go test -race ./cmd/internal/diagnosticlog` and `bash tests/adapt-schema-test.sh`.
+
+Metadata-only sizing on 2026-09-13: wrapper diagnostics 13.017 GiB total,
+11.538 GiB last written over seven days ago, versus 0.321 GiB over sixty.
+These are candidate sizes, not verified reclaimable bytes.
+
+### 2026-09-13 — diagnostic appendix review disposition
+
+The review raised three ordering gaps, addressed as follows. Rotation and
+expiry both require absence of legacy/unknown writers. For Pair-owned logs,
+use complete owner/session process evidence plus upgraded writer registrations;
+for configured external logs, registration records each contributing Pair
+root and process, and an injected open-file inspection seam (stateful fake,
+local subprocess conformance) must agree that no unregistered process holds
+the file. Any older relevant Pair/Couch runtime without registration blocks
+management of its trace path even if it opens that path only transiently.
+Unverifiable external legacy traces are retained, not adopted by assumption.
+Concurrent manual or third-party writes are outside the managed protocol and
+must cause detected identity/mtime inconsistency to retain rather than prune.
+
+Persist generation start independently of last-write time, in rotation
+metadata shared across reopen/restart. Continuous low-volume appends do not
+move that clock. The current generation rotates on elapsed start time; its
+closed generation's last-write time determines seven-day expiry. Missing
+legacy generation metadata is initialized conservatively while preserving
+the old file; never claim its mtime proves start time.
+
+Per-log coordination inodes are deliberately stable and never unlinked by
+GC, including after payload collection. Each is a zero-length file, one inode
+per distinct canonical trace path, named next to that exact path so multiple
+Pair roots use the same lock. This small persistent cost prevents a paused
+opener acquiring a stale lock after cleanup; registry and segment metadata
+still disappear after final collection. Every upgraded writer resolves the
+canonical path before opening that shared lock. Explicitly test a paused
+opener across cleanup and two roots sharing one external trace path.
+
+Add Writer.Rotate tests for mixed old/new writers and continuous writes across
+restart; add lock/open-file conformance tests alongside the existing barrier
+suite. These are mechanism corrections, not retention-policy changes.
+
+### 2026-09-13 — operator expires parked captures independently
+
+Each parked capture is a separate immutable retention unit, expiring 60 days
+after capture even while its parent tag remains active or Couch-visible.
+This supersedes parked captures' inclusion in the tag-wide protection rule.
+Delete the raw file and companion offset events together; do not truncate
+either in place. An active reader postpones deletion until it finishes but
+does not renew capture age. Parent tag use/visibility is not capture use.
+
+Add `CaptureRetention` to artifactpath and pure `DecideCapture` to storagegc.
+New ParkScrollback writes explicit captured-at metadata with its exact raw/
+events identity; producer completes publication before releasing reservation.
+Existing timestamped captures can use conservative legacy capture evidence:
+the latest of both file mtimes and the filename timestamp interpreted with
+the latest possible timezone offset (+14h to a UTC interpretation). Refuse
+invalid names, future timestamps, mismatched pairs and uncertain ownership.
+This avoids guessing last meaningful use or delaying every known old capture
+by a fresh session-onboarding grace. Recognized single raw captures are valid
+when no events were produced; orphan events without raw remain blocked.
+
+Implement independent capture-group preview/collection in M2, reusing exact
+quarantine transactions and actual-reader registrations. Managed parked-read
+entrypoints register the exact capture in addition to owner identity; owner
+process liveness alone need not retain all old captures. Older processes with
+uncertain capture access conservatively block affected captures until stopped.
+`DecideCapture` tests arbitrary capture clocks/liveness with boundary and
+monotonic-protection properties; capture collector tests paired detachment,
+legacy timezone bounds, and a reader racing expiry through scheduler barriers.
+
+Reporting now separates **7-day diagnostics**, **60-day parked captures**,
+and **60-day inactive-tag session data**. The third bucket retains old content
+while its tag keeps receiving meaningful use; it does not prune individual
+prompt or ledger rows. No other retention-policy change is implied.
+
+### 2026-09-13 — agreed final parked-capture policy
+
+Operator confirmed 7 days for old parked captures, superseding the preceding
+60-day capture revision. Expiry follows each capture’s age, independent of
+tag activity and Couch visibility; raw and event sidecars are removed together.
+Active readers or incomplete handoffs defer deletion. Session data remains
+60 days since meaningful use; Couch-visible threads remain protected until
+archival, which starts a fresh 60-day grace.

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
@@ -692,5 +693,58 @@ func TestParkScrollbackSkipsOrphanedEventsArchive(t *testing.T) {
 	}
 	if _, err := os.Stat(base + ".events.jsonl"); !os.IsNotExist(err) {
 		t.Fatalf("adopted unrelated events: %s %v", base, err)
+	}
+}
+
+func TestParkScrollbackPublishesProducerClock(t *testing.T) {
+	dir := t.TempDir()
+	rt := NewOSRuntime(dir, "/pair")
+	if err := os.WriteFile(filepath.Join(dir, "scrollback-work-codex.raw"), []byte("capture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	before := time.Now()
+	base, ok := rt.ParkScrollback("work", "codex", false)
+	after := time.Now()
+	if !ok {
+		t.Fatal("park failed")
+	}
+	physical, _ := filepath.EvalSymlinks(dir)
+	o, _ := artifactpath.NewStorageOwner(physical, "", "work")
+	physicalBase := filepath.Join(physical, filepath.Base(base))
+	m, _ := artifactpath.MatchArtifact(physicalBase+".raw", []artifactpath.StorageOwner{o}, nil)
+	cap, err := artifactpath.ParseParkedCapture(m, time.UTC)
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(cap.Metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	meta, err := artifactpath.DecodeCaptureMetadata(data, cap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if meta.CapturedAt.Before(before) || meta.CapturedAt.After(after) || meta.EventsIdentity != nil {
+		t.Fatalf("bad producer evidence %+v", meta)
+	}
+}
+
+func TestParkScrollbackPreservesSelectedAliasInReturnedBase(t *testing.T) {
+	root := t.TempDir()
+	alias := filepath.Join(t.TempDir(), "selected")
+	if err := os.Symlink(root, alias); err != nil {
+		t.Fatal(err)
+	}
+	paths, _ := artifactpath.ResolveScoped(alias, "work")
+	live, _ := paths.ScrollbackArtifacts("codex")
+	if err := os.WriteFile(live.Raw, []byte("capture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	base, ok := NewOSRuntime(alias, "/pair").ParkScrollback("work", "codex", false)
+	if !ok || filepath.Dir(base) != alias {
+		t.Fatalf("returned %q %v, expected selected directory %q", base, ok, alias)
+	}
+	if _, err := os.Stat(base + ".capture.json"); err != nil {
+		t.Fatal(err)
 	}
 }

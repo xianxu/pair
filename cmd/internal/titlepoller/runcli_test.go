@@ -1,6 +1,9 @@
 package titlepoller
 
 import (
+	"bytes"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -53,5 +56,39 @@ func TestOptionsFromCLIRefusesAnArgvWithoutTagAndAgent(t *testing.T) {
 		if _, ok := optionsFromCLI(args, getenv); ok {
 			t.Errorf("optionsFromCLI(%q) accepted an argv with no agent", args)
 		}
+	}
+}
+
+func TestRunCLIRefusesUnleasedStorageBeforePolling(t *testing.T) {
+	root := t.TempDir()
+	env := map[string]string{"PAIR_DATA_DIR": filepath.Join(root, "missing"), "PAIR_TAG": "tag"}
+	var stderr bytes.Buffer
+	if code := RunCLI([]string{"tag", "codex"}, func(k string) string { return env[k] }, &stderr); code != 1 {
+		t.Fatalf("unleased poller exit %d", code)
+	}
+	if !strings.Contains(stderr.String(), "retention") {
+		t.Fatalf("missing retention error: %s", stderr.String())
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("unleased poller wrote artifacts: %v %v", entries, err)
+	}
+}
+
+func TestRunCLIRejectsDifferentLeasedTag(t *testing.T) {
+	root := t.TempDir()
+	env := map[string]string{"PAIR_DATA_DIR": root, "PAIR_TAG": "different"}
+	var stderr bytes.Buffer
+	// Empty agent makes the pre-lease implementation return immediately, so this
+	// regression fails on owner validation rather than running a polling loop.
+	if code := RunCLI([]string{"tag", ""}, func(k string) string { return env[k] }, &stderr); code != 1 {
+		t.Fatalf("mismatched owner exit %d", code)
+	}
+	if !strings.Contains(stderr.String(), "retention") {
+		t.Fatalf("missing ownership error: %s", stderr.String())
+	}
+	entries, _ := os.ReadDir(root)
+	if len(entries) != 0 {
+		t.Fatal("mismatched owner created metadata")
 	}
 }

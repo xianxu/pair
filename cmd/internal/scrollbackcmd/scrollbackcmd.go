@@ -392,11 +392,21 @@ func render(rawPath, eventsPath, outPath, viewportPath string, plain bool, maxLi
 }
 
 func Run(argv []string, stdout, stderr io.Writer) int {
+	return RunWithEnv(argv, func(string) string { return "" }, stdout, stderr)
+}
+
+// RunWithEnv is the managed CLI entry; in-process callers may use Run when a
+// surrounding lease already protects the input, or pass explicit owner flags.
+func RunWithEnv(argv []string, getenv func(string) string, stdout, stderr io.Writer) int {
 	fs := flag.NewFlagSet("pair-scrollback-render", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	fs.Usage = func() {
 		fmt.Fprintf(stderr, "usage: pair-scrollback-render [--plain] [--viewport F] [--max-lines N] [--with-timestamps] <raw> <events.jsonl> <out>\n")
 	}
+	ownerDir := fs.String("owner-dir", "", "exact selected storage directory")
+	ownerScope := fs.String("owner-scope", "", "source repository scope")
+	ownerTag := fs.String("owner-tag", "", "source owner tag")
+	ownerIntent := fs.String("owner-intent", "", "source selection handoff intent")
 	plain := fs.Bool("plain", false, "emit plain text (no SGR) for distillation")
 	maxLines := fs.Int("max-lines", historyRows, "scrollback history rows retained; <=0 = uncapped")
 	withTimestamps := fs.Bool("with-timestamps", false, "interleave ⟦pair:ts DATE⟧ day markers from time events (for the change log; #59)")
@@ -408,6 +418,33 @@ func Run(argv []string, stdout, stderr io.Writer) int {
 	if len(args) != 3 {
 		fs.Usage()
 		return 2
+	}
+	if *ownerDir != "" || *ownerScope != "" || *ownerTag != "" {
+		original := getenv
+		getenv = func(key string) string {
+			switch key {
+			case "PAIR_DATA_DIR":
+				return *ownerDir
+			case "PAIR_SCOPE_KEY":
+				return *ownerScope
+			case "PAIR_TAG":
+				return *ownerTag
+			}
+			if original != nil {
+				return original(key)
+			}
+			return ""
+		}
+	}
+	lease, err := acquireRenderLease(getenv, args[0], args[1])
+	if err != nil {
+		fmt.Fprintf(stderr, "scrollback-render: retention: %v\n", err)
+		return 1
+	}
+	defer lease.Close()
+	if err := acknowledgeRenderHandoff(lease, *ownerIntent, args[0]); err != nil {
+		fmt.Fprintf(stderr, "scrollback-render: retention handoff: %v\n", err)
+		return 1
 	}
 	if err := render(args[0], args[1], args[2], *viewport, *plain, *maxLines, *withTimestamps); err != nil {
 		fmt.Fprintf(stderr, "scrollback-render: %v\n", err)

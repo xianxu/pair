@@ -1,12 +1,15 @@
 package titlepoller
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"os/signal"
 	"syscall"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/contextcmd"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // RunCLI is the pair-title command body (the launcher spawns bin/pair-title
@@ -18,6 +21,17 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 	if !ok {
 		return 0
 	}
+
+	if selectedTag := getenv("PAIR_TAG"); selectedTag != "" && selectedTag != opts.Tag {
+		fmt.Fprintln(stderr, "pair-title: retention: PAIR_TAG differs from command tag")
+		return 1
+	}
+	lease, err := storagegc.AcquireSelectedProcess(context.Background(), getenv, "title-poller")
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-title: retention: %v\n", err)
+		return 1
+	}
+	defer lease.Close()
 
 	// Ignore SIGHUP: bin/pair spawns us with `& disown`, which only removes the
 	// job-table entry — the poller still shares a controlling tty with the

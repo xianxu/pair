@@ -295,6 +295,7 @@ func TestSpawnStartsPairAndRecordsTheActor(t *testing.T) {
 		"COUCH_STORE_DIR=" + env.Dir,
 		"COUCH_THREAD_SCOPE=816fc349d3faebf8",
 		"COUCH_THREAD_TAG=couch-0102030405060708",
+		"PAIR_RETENTION_BACKGROUND=",
 		launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(profileRaw),
 		"PAIR_USE_REPO_DEFAULT=1",
 	}

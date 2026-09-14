@@ -13,6 +13,7 @@ import (
 )
 
 type trackedThreadLaunch struct {
+	Background     bool
 	Context        context.Context
 	Thread         ThreadRecord
 	Nonce          string
@@ -63,6 +64,11 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		"COUCH_THREAD_SCOPE=" + thread.Address.RepoScope,
 		"COUCH_THREAD_TAG=" + string(thread.Address.Tag),
 	}
+	background := ""
+	if in.Background {
+		background = "1"
+	}
+	env = append(env, "PAIR_RETENTION_BACKGROUND="+background)
 	if in.Resume || in.Fresh {
 		env = append(env, "COUCH_THREAD_RESUME=1")
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // SwitchContextResolver captures outgoing source evidence before park.
@@ -49,6 +50,11 @@ func (r OSSwitchContextResolver) Resolve(ctx context.Context, record ThreadRecor
 	if err != nil {
 		return result, err
 	}
+	owner, err := artifactpath.NewStorageOwner(r.DataDir, record.Address.RepoScope, result.Tag)
+	if err != nil {
+		return result, err
+	}
+	result.Owner = &owner
 	if readableSwitchFile(paths.Log()) {
 		result.PairLog = paths.Log()
 	} else {
@@ -104,6 +110,9 @@ func (r OSSwitchContextResolver) ResolveArchive(record ThreadRecord, result *ori
 	if result == nil {
 		return errors.New("switch context is nil")
 	}
+	if err := retireCaptureHandoff(result); err != nil {
+		return err
+	}
 	result.ScrollbackRaw, result.ScrollbackEvents = "", ""
 	result.Renderer = r.Renderer
 	if record.VerifiedPark == nil || record.VerifiedPark.Scrollback == nil {
@@ -129,6 +138,25 @@ func (r OSSwitchContextResolver) ResolveArchive(record ThreadRecord, result *ori
 	if err != nil {
 		return err
 	}
+	coordinator, err := storagegc.NewCoordinator(r.DataDir)
+	if err != nil {
+		return err
+	}
+	owner, err := artifactpath.NewStorageOwner(coordinator.Root, record.Address.RepoScope, string(record.Address.Tag))
+	if err != nil {
+		return err
+	}
+	result.Owner = &owner
+	canonicalPaths, _ := artifactpath.ResolveScoped(owner.Directory(), owner.Tag)
+	canonicalCapture, _ := canonicalPaths.ParkedScrollbackArtifacts(descriptor.Token)
+	process, err := storagegc.CurrentProcessIdentity(os.Getpid())
+	if err != nil {
+		return err
+	}
+	result.ReaderIntent, err = coordinator.BeginUse(context.Background(), owner, process, canonicalCapture.Raw)
+	if err != nil {
+		return err
+	}
 	if readableSwitchFile(archive.Raw) {
 		result.ScrollbackRaw = archive.Raw
 	} else {
@@ -139,6 +167,9 @@ func (r OSSwitchContextResolver) ResolveArchive(record ThreadRecord, result *ori
 	}
 	if result.ScrollbackRaw != "" && result.Renderer == "" {
 		result.Unavailable = append(result.Unavailable, "Pair scrollback renderer is unavailable")
+	}
+	if result.ScrollbackRaw == "" || result.Renderer == "" {
+		return retireCaptureHandoff(result)
 	}
 	return nil
 }
@@ -295,4 +326,34 @@ func (r OSOrientationStatusReader) Registered(ctx context.Context, address Threa
 		return false, nil
 	}
 	return ready != nil, err
+}
+
+// An abandoned or superseded selection must not strand a live selector's
+// intent. A delivered selection is retired by the renderer after registration;
+// a dead selector's unresolved intent follows normal RecoverUse handling.
+func retireCaptureHandoff(result *orientation.OrientationContext) error {
+	if result.ReaderIntent == "" {
+		return nil
+	}
+	if result.Owner == nil {
+		return errors.New("capture handoff has no owner")
+	}
+	c, err := storagegc.NewCoordinator(result.Owner.DataDir)
+	if err != nil {
+		return err
+	}
+	state, err := c.ReadOwner(*result.Owner)
+	if err != nil {
+		return err
+	}
+	for _, intent := range state.Intents {
+		if intent.ID == result.ReaderIntent {
+			if err := c.CancelUnchangedUse(context.Background(), *result.Owner, intent.ID); err != nil {
+				return err
+			}
+			break
+		}
+	}
+	result.ReaderIntent = ""
+	return nil
 }

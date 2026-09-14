@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // RunCLI is the `pair session-watch` command body. It parses argv into Options
@@ -18,6 +20,16 @@ func RunCLI(args []string, getenv func(string) string, stderr io.Writer) int {
 	if !ok {
 		return 0
 	}
+	if selectedTag := getenv("PAIR_TAG"); selectedTag != "" && selectedTag != opts.Tag {
+		fmt.Fprintln(stderr, "pair-session-watch: retention: PAIR_TAG differs from command tag")
+		return 1
+	}
+	lease, err := storagegc.AcquireSelectedProcess(context.Background(), getenv, "session-watch")
+	if err != nil {
+		fmt.Fprintf(stderr, "pair-session-watch: retention: %v\n", err)
+		return 1
+	}
+	defer lease.Close()
 	cleanupPairTag := ensurePairTag(opts.Tag)
 	defer cleanupPairTag()
 	logger := adapt.Open("session-watch", opts.Agent)

@@ -90,3 +90,5 @@
   comparative rather than absolute.
 - `README.md` (repo root) — install and usage.
 - Design pensive (sibling repo): `~/workspace/brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md`
+
+- [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection and migration.

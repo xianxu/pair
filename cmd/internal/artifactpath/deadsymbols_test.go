@@ -22,6 +22,8 @@ const deadSymbolScope = "cmd/internal/couchcore"
 // production caller. Each needs a reason -- an entry without one is how this
 // guard degrades into a list of things nobody wanted to think about.
 var deadSymbolAllowlist = map[string]string{
+	"ReadStoreRetention": "pair#239 M2 Task4/5: read-only registered-store adapter; remove exemption when production GC preview is wired",
+	"RestoreThread":      "pair#239: explicitly supported typed archive restoration transaction; no new UI is in scope",
 	// Seams and non-context wrappers: production takes the Context form, the
 	// bare one exists so a test can call it without threading a context.
 	"Spawn":                     "the test seam over the start path; documented as such at couch.go",

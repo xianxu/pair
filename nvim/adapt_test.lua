@@ -16,10 +16,20 @@ local path = tmp .. '/adapt-adapttest.jsonl'
 vim.env.PAIR_ADAPT_LOG_PATH = path
 os.remove(path)
 
+-- A stateful subprocess seam verifies transport; adapt-schema-test.sh uses
+-- the real CLI for all three emitter languages.
+local system = vim.system
+vim.system = function(argv, options, on_exit)
+  assert(table.concat(argv, ' ') == 'pair diagnostic append --path ' .. path)
+  local f = assert(io.open(path, 'a')); f:write(options.stdin); f:close()
+  return { wait = function() on_exit({ code = 0 }); return { code = 0 } end }
+end
+
 -- 100 × 'あ' (U+3042, 3 bytes) = 300 bytes; must cap to <=200 bytes WITHOUT
 -- splitting a rune. Old byte-sub cut at 200 (= 66*3 + 2) → mid-rune → invalid.
 local long = string.rep('あ', 100)
-adapt.log(2, 'overlay-detect', 'near-miss', long)
+assert(adapt.log(2, 'overlay-detect', 'near-miss', long)):wait()
+vim.system = system
 
 local f = assert(io.open(path, 'r'), 'adapt.log wrote no file')
 local line = f:read('*l')

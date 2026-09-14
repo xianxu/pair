@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"io"
 	"os"
 	"os/exec"
@@ -651,6 +652,20 @@ func (r OSRuntime) ReadSessionNameIndex() (SessionNameIndex, error) {
 }
 
 func (r OSRuntime) AppendSessionNameIndex(entry SessionNameEntry) error {
+	owner, err := storagegc.SelectedOwner(r.DataDir, "", entry.Tag)
+	if err != nil {
+		return err
+	}
+	coordinator, err := storagegc.NewCoordinator(owner.DataDir)
+	if err != nil {
+		return err
+	}
+	return coordinator.WithLock(context.Background(), func(held *storagegc.Locked) error {
+		return r.appendSessionNameIndex(entry)
+	})
+}
+
+func (r OSRuntime) appendSessionNameIndex(entry SessionNameEntry) error {
 	scope, err := artifactpath.ResolveSelectedScope(r.DataDir)
 	if err != nil {
 		return err
@@ -881,7 +896,20 @@ func (r OSRuntime) SweepOrphanNvim(liveTags []string) {
 // touches parked-<tag> (shell 696-708). The timestamp is taken here (time.Now is
 // live in OSRuntime, unlike a pure decider).
 func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
-	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
+	lease, err := storagegc.AcquireSelectedProcess(context.Background(), func(key string) string {
+		switch key {
+		case "PAIR_DATA_DIR":
+			return r.DataDir
+		case "PAIR_TAG":
+			return tag
+		}
+		return ""
+	}, "capture-producer")
+	if err != nil || lease == nil {
+		return "", false
+	}
+	defer lease.Close()
+	paths, err := artifactpath.ResolveScoped(lease.Owner.Directory(), tag)
 	if err != nil {
 		return "", false
 	}
@@ -894,7 +922,8 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 	}
 	// Exclusive destination creation protects earlier captures, including concurrent
 	// parks and copies in the same second. The suffix remains a family component.
-	stamp := time.Now().Format("20060102T150405")
+	capturedAt := time.Now()
+	stamp := capturedAt.Format("20060102T150405")
 	for collision := 0; ; collision++ {
 		token := stamp
 		if collision > 0 {
@@ -905,6 +934,11 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 			return "", false
 		}
 		// An orphan sidecar must not become metadata for this new raw capture.
+		if _, err := os.Lstat(parked.Metadata); err == nil {
+			continue
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", false
+		}
 		if _, err := os.Lstat(parked.Events); err == nil {
 			continue
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -917,10 +951,24 @@ func (r OSRuntime) ParkScrollback(tag, agent string, move bool) (string, bool) {
 		if err != nil {
 			return "", false
 		}
+		// Preserve the selected directory spelling for lifecycle token extraction;
+		// only retention metadata uses canonical physical paths.
+		selectedBase := filepath.Join(r.DataDir, filepath.Base(parked.Base))
 		// Events are optional; failed copies remove their incomplete destination.
 		_ = transferFile(scrollback.Events, parked.Events, move)
+		member, err := artifactpath.MatchArtifact(parked.Raw, []artifactpath.StorageOwner{lease.Owner}, nil)
+		if err != nil {
+			return selectedBase, false
+		}
+		capture, err := artifactpath.ParseParkedCapture(member, time.UTC)
+		if err != nil {
+			return selectedBase, false
+		}
+		if err := lease.Coordinator.PublishCaptureMetadata(context.Background(), lease.Owner, capture, capturedAt); err != nil {
+			return selectedBase, false
+		}
 		_ = r.Touch(paths.Parked())
-		return parked.Base, true
+		return selectedBase, true
 	}
 }
 

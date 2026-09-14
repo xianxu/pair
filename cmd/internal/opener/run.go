@@ -108,7 +108,11 @@ func RunScrollback(opts Options, rt Runtime, stderr io.Writer) int {
 	}
 	_ = rt.WriteFile(lock, rt.Getpid()+"\n")
 	defer rt.Remove(lock)
-	_ = rt.RunViewer(opts.PairHome+"/nvim/scrollback.lua", ansi, env)
+	env = append(env, retentionEnv(opts, raw, "scrollback-viewer")...)
+	if err := rt.RunViewer(opts.PairHome+"/nvim/scrollback.lua", ansi, env); err != nil {
+		fmt.Fprintf(stderr, "pair-scrollback-open: viewer: %v\n", err)
+		return 1
+	}
 	return 0
 }
 
@@ -198,6 +202,7 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 	if sz, ok := rt.FileSize(raw); !distillerRunning && ok && sz > 0 && rt.Executable(bin) {
 		_ = rt.WriteFile(status, "")
 		env := distillerEnv(bin, raw, events, cleaned, log, anchor, changelog.Ready, opts.Agent)
+		env = append(env, retentionEnv(opts, raw, "changelog-distiller")...)
 		if pid, err := rt.StartDetached(distillerInner, env, status); err == nil {
 			_ = rt.WriteFile(dlock, pid+"\n")
 		}
@@ -208,6 +213,16 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 		"PAIR_CHANGELOG_DLOCK=" + dlock,
 		"PAIR_CHANGELOG_STATUS=" + status,
 	}
-	_ = rt.RunViewer(opts.PairHome+"/nvim/changelog.lua", log, env)
+	env = append(env, retentionEnv(opts, log, "changelog-viewer")...)
+	if err := rt.RunViewer(opts.PairHome+"/nvim/changelog.lua", log, env); err != nil {
+		fmt.Fprintf(stderr, "pair-changelog-open: viewer: %v\n", err)
+		return 1
+	}
 	return 0
+}
+
+// Every launched child receives the explicit selected owner, never a stale
+// inherited pane identity. Target narrows viewer/reader protection to its file.
+func retentionEnv(opts Options, target, role string) []string {
+	return []string{"PAIR_DATA_DIR=" + opts.DataDir, "PAIR_SCOPE_KEY=" + opts.ScopeKey, "PAIR_TAG=" + opts.Tag, "PAIR_AGENT=" + opts.Agent, "PAIR_RETENTION_TARGET=" + target, "PAIR_RETENTION_ROLE=" + role}
 }

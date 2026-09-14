@@ -11,6 +11,7 @@
 package changelogcmd
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -18,7 +19,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/model"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 const (
@@ -40,7 +43,11 @@ const (
 // progress to stderr (the Alt+l viewer tails it for a spinner), so it runs on
 // the streaming dispatch seam rather than the buffered path.
 func Run(args []string, stderr io.Writer) int {
-	if err := run(args, stderr); err != nil {
+	return RunWithEnv(args, func(string) string { return "" }, stderr)
+}
+
+func RunWithEnv(args []string, getenv func(string) string, stderr io.Writer) int {
+	if err := runWithEnv(args, getenv, stderr); err != nil {
 		fmt.Fprintf(stderr, "pair-changelog: %v\n", err)
 		return 1
 	}
@@ -48,6 +55,10 @@ func Run(args []string, stderr io.Writer) int {
 }
 
 func run(args []string, stderr io.Writer) error {
+	return runWithEnv(args, func(string) string { return "" }, stderr)
+}
+
+func runWithEnv(args []string, getenv func(string) string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("pair-changelog", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var cleanedPath, logPath, anchorPath, readyPath, agent, modelName string
@@ -65,6 +76,23 @@ func run(args []string, stderr io.Writer) error {
 		return fmt.Errorf("usage: pair-changelog --cleaned F --log F --anchor F --ready F [--agent A]")
 	}
 
+	if getenv("PAIR_DATA_DIR") != "" || getenv("PAIR_TAG") != "" {
+		owner, err := storagegc.SelectedOwner(getenv("PAIR_DATA_DIR"), getenv("PAIR_SCOPE_KEY"), getenv("PAIR_TAG"))
+		if err != nil {
+			return fmt.Errorf("retention owner: %w", err)
+		}
+		for _, path := range []string{cleanedPath, logPath, anchorPath, readyPath} {
+			member, err := artifactpath.MatchArtifact(path, []artifactpath.StorageOwner{owner}, []string{agent})
+			if err != nil || member.Family != "changelog" {
+				return fmt.Errorf("retention: distiller path is outside selected changelog")
+			}
+		}
+	}
+	lease, err := storagegc.AcquireSelectedProcess(context.Background(), getenv, "changelog-render")
+	if err != nil {
+		return fmt.Errorf("retention: %w", err)
+	}
+	defer lease.Close()
 	cleanedBytes, err := os.ReadFile(cleanedPath)
 	if err != nil {
 		return fmt.Errorf("read cleaned: %v", err)

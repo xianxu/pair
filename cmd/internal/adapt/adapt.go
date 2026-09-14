@@ -11,11 +11,8 @@
 // near-misses (the harness did something we half-recognized but no matcher
 // caught), so `pair-doctor` can read the trace and point at the broken aspect.
 //
-// Multiple components append concurrently (pair-wrap, pair-slug, plus shell
-// and Lua emitters writing the same line format from other processes). All
-// appends are O_APPEND of a single sub-PIPE_BUF line, which the kernel keeps
-// atomic across processes; bin/pair truncates the file once at session launch
-// so no writer ever races on truncation.
+// All emitters append through diagnosticlog, which coordinates generation
+// rotation across processes without truncating young diagnostics on restart.
 package adapt
 
 import (
@@ -28,6 +25,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 )
 
 // maxDetail caps the free-text detail field. detail can carry a snippet of
@@ -111,7 +109,7 @@ func Open(comp, agent string) *Logger {
 		return nil
 	}
 	path := paths.AdaptLog()
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := diagnosticlog.Open(path, diagnosticlog.EnvironmentOptions(os.Getenv))
 	if err != nil {
 		return nil
 	}
@@ -126,7 +124,9 @@ func (l *Logger) Log(aspect int, signal string, outcome Outcome, detail string) 
 		return
 	}
 	line := marshalEvent(l.now().UTC(), l.comp, l.agent, aspect, signal, outcome, detail)
-	l.mu.Lock()
+	if !l.mu.TryLock() {
+		return
+	}
 	_, _ = l.w.Write(line)
 	l.mu.Unlock()
 }

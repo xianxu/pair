@@ -31,7 +31,7 @@ func TestChangelogSeamMarkerSurvival(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(fakeDir, "claude"), []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	env := append(os.Environ(), "PATH="+fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	env := append(os.Environ(), "PATH="+fakeDir+string(os.PathListSeparator)+os.Getenv("PATH"), "PAIR_DATA_DIR=", "PAIR_TAG=", "PAIR_SCOPE_KEY=", "PAIR_RETENTION_START_ID=")
 
 	dir := t.TempDir()
 	rawPath := filepath.Join(dir, "s.raw")

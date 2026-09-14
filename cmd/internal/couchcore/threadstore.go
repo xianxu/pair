@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -77,9 +79,10 @@ type threadManifest struct {
 
 // pair:m5-concept integration
 type ThreadStore struct {
-	namespace CouchNamespace
-	root      string
-	hooks     threadStoreHooks
+	namespace   CouchNamespace
+	root        string
+	hooks       threadStoreHooks
+	coordinator *storagegc.Coordinator
 }
 
 func NewThreadStore(namespace CouchNamespace) *ThreadStore {
@@ -129,6 +132,18 @@ func (s *ThreadStore) pathLaunchPreferencePath(repoIdentity, physicalPath string
 }
 
 func (s *ThreadStore) withLock(fn func() error) (err error) {
+	if s != nil && s.coordinator != nil {
+		return s.coordinator.WithLock(context.Background(), func(l *storagegc.Locked) error {
+			if err := l.RegisterStore(s.namespace.Dir()); err != nil {
+				return err
+			}
+			return s.withStoreLock(fn)
+		})
+	}
+	return s.withStoreLock(fn)
+}
+
+func (s *ThreadStore) withStoreLock(fn func() error) (err error) {
 	if s == nil || s.namespace.Dir() == "" {
 		return errors.New("thread store has no namespace")
 	}
@@ -143,17 +158,7 @@ func (s *ThreadStore) withLock(fn func() error) (err error) {
 	return fn()
 }
 
-func (s *ThreadStore) RecoverStoreJournal() (err error) {
-	if s == nil || s.namespace.Dir() == "" {
-		return errors.New("thread store has no namespace")
-	}
-	lock, err := acquireThreadStoreLock(s.root)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, lock.Close()) }()
-	return s.recoverStoreJournalLocked()
-}
+func (s *ThreadStore) RecoverStoreJournal() error { return s.withLock(func() error { return nil }) }
 
 func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 	record = cloneThreadRecord(record)
@@ -1048,15 +1053,20 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 		if err != nil {
 			return err
 		}
-		// One journal, three effects: the archive copy appears, the record
-		// disappears, the manifest stops listing it. A crash between them would
+		// One journal, four effects: archive bytes and their grace clock appear,
+		// the record disappears, and the manifest stops listing it. A crash between them would
 		// otherwise leave a record in no set or in both.
+		grace, err := s.archiveGraceBytes(address, raw)
+		if err != nil {
+			return err
+		}
 		archived := append([]byte{}, raw...)
 		expectedRecord := append([]byte{}, raw...)
 		expectedManifest := append([]byte{}, manifestRaw...)
 		afterManifest := append(nextRaw, '\n')
 		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
 			{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
+			{Path: relativeStorePath(s.root, s.archiveGracePath(address)), After: &grace},
 			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
 		}})

@@ -161,7 +161,7 @@ pair: $(BIN_DIR)/pair
 #                     inside the vt.Emulator library API itself, which is
 #                     outside our scope to fix — exclude that package
 #                     here rather than chase a library-level race.
-test: runtimebundle-generate test-run-headless test-lua test-perf-capture test-queue test-submission-transaction test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
+test: runtimebundle-generate test-retention test-run-headless test-lua test-perf-capture test-queue test-submission-transaction test-autopair test-draft-complete test-pair-doctor test-perf-key-conformance test-plan-superseded test-paint-gate-consumers test-cr test-statusline test-doctor test-adapt-schema test-dev-rebuild test-pair-go-install-layout test-pair-embedded-runtime test-pair-restart-quit test-emitter-health test-session-watch test-changelog test-copy-on-select test-term-pane-shortcuts test-pair-title test-zellij-trace test-review
 	go test ./... -count=1
 
 # Expensive, explicit boundary regression: prove make test from a no-.git
@@ -242,6 +242,7 @@ test-run-headless:
 # runs a Lua script in nvim's interpreter with the full vim.api available, so
 # pure logic AND buffer-manipulation can be asserted without a UI.
 test-lua:
+	nvim -l nvim/retention_test.lua
 	nvim -l nvim/confirm_quit_test.lua
 	nvim -l nvim/workbench_route_test.lua
 	bash tests/workbench-route-nvim-test.sh
@@ -431,3 +432,7 @@ $(addprefix $(BIN_DIR)/,$(BUSYBOX_LINKS)): $(BIN_DIR)/pair
 # Tart VM targets (tart, tart-gui, tart-mount, tart-stop, tart-clean)
 # live in .tart/Makefile, vendored from ariadne and auto-included by
 # Makefile.workflow. `make help-tart` for usage.
+
+.PHONY: test-retention
+test-retention:
+	bash tests/retention-test.sh

@@ -26,8 +26,8 @@ import (
 // agent (no fresh spawn, no arg composition) and blocks on the attach handoff so
 // the loop regains control for cleanup + restart. agent is the inferred title
 // agent (the on-disk agent-<tag> record, resolved by the caller).
-func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
-	return AttachExistingSession(opts, env, rt, tag, session, agent)
+func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error, RetentionUse) {
+	return attachWithRetention(opts, env, rt, tag, session, agent, true)
 }
 
 // AttachExistingSession is Pair's production blocking attach handoff. It is
@@ -35,6 +35,28 @@ func runAttach(opts LaunchOptions, env Env, rt Runtime, tag, session, agent stri
 // controlled child process and prove that Couch's production quit trigger is
 // what releases it. The normal launcher reaches it through runAttach.
 func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string) (int, error) {
+	code, err, _ := attachWithRetention(opts, env, rt, tag, session, agent, false)
+	return code, err
+}
+
+func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, agent string, retain bool) (code int, resultErr error, retained RetentionUse) {
+	use, err := beginRetention(rt, env.DataDir, tag, false)
+	if err != nil {
+		return 1, err, nil
+	}
+	if use != nil {
+		defer func() {
+			if retain && retained != nil && resultErr == nil {
+				return
+			}
+			retained = nil
+			if err := use.Finish(code == 0 && resultErr == nil); err != nil {
+				resultErr = errors.Join(resultErr, err)
+				code = 1
+			}
+		}()
+	}
+
 	if session == "" {
 		// Degraded fallback: callers pass the resolved name. Reached only when
 		// attach was invoked without one (#130).
@@ -53,7 +75,7 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 	// zellij creates the draft on new-session but not on attach; ensure it.
 	paths, err := artifactpath.ResolveScoped(env.DataDir, tag)
 	if err != nil {
-		return 1, err
+		return 1, err, nil
 	}
 	_ = rt.Touch(paths.Draft())
 	rt.SetTerminalTitle(session)
@@ -85,7 +107,8 @@ func AttachExistingSession(opts LaunchOptions, env Env, rt Runtime, tag, session
 	}
 	rt.SpawnTitlePoller(tag, agent, session, titlepoller.NewSessionEnv(env.DataDir, scopeKey))
 
-	return rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))
+	code, resultErr = rt.AttachSession(session, filepath.Join(opts.PairHome, "zellij"))
+	return code, resultErr, use
 }
 
 // runCleanup ports cleanup_quit_marker (shell 1520-1647): after a blocking

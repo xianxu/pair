@@ -64,6 +64,9 @@ func TestRunStreamingSubcommandRoutesSessionWatch(t *testing.T) {
 }
 
 func TestRunStreamingSubcommandRoutesSessionLogStdin(t *testing.T) {
+	t.Setenv("PAIR_DATA_DIR", "")
+	t.Setenv("PAIR_TAG", "")
+	t.Setenv("PAIR_RETENTION_START_ID", "")
 	path := filepath.Join(t.TempDir(), "log.md")
 	t.Setenv("PAIR_LOG_PATH", path)
 	var stdout, stderr bytes.Buffer

@@ -4,6 +4,12 @@
 
 vim.g.mapleader = ' '
 
+local retention = dofile(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h') .. '/retention.lua').setup('draft-editor')
+retention:watch_writes(function(path)
+  local draft = vim.env.PAIR_DRAFT_PATH
+  return draft and path == (vim.uv.fs_realpath(draft) or vim.fn.fnamemodify(draft, ':p'))
+end)
+
 _G.PairZellijTrace = dofile(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h') .. '/zellij_trace.lua')
 
 -- Publish this nvim's pid so the quit path can reap it deterministically.
@@ -504,12 +510,16 @@ local function read_file(path)
 end
 
 local function write_file(path, content)
-  vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
-  local f = io.open(path, 'w')
-  if not f then return false end
-  f:write(content)
-  f:close()
-  return true
+  local ok, err = retention:write(path, content, function() return read_file(path) end, function(value)
+    vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
+    local f = io.open(path, 'w')
+    if not f then return false end
+    local wrote = f:write(value)
+    local closed = f:close()
+    return wrote ~= nil and closed ~= nil
+  end)
+  if not ok then vim.notify('pair: write failed: ' .. tostring(err), vim.log.levels.ERROR) end
+  return ok
 end
 
 local pair_log = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'pairlog.lua')
@@ -660,7 +670,7 @@ local function queue_write(key, body)
 end
 
 local function queue_remove(key)
-  return os.remove(queue_path(key))
+  return retention:change(queue_path(key), function() return os.remove(queue_path(key)) end)
 end
 
 local function queue_push_back(body)
@@ -2393,8 +2403,15 @@ local function go_to(new_pos)
   else
     autosave_current_slot()
   end
+  local previous_pos = nav.pos
   nav.pos = new_pos
-  set_buffer_text(load_baseline_for_current_pos())
+  local body, err = retention:view('history-navigation', load_baseline_for_current_pos)
+  if body == nil then
+    nav.pos = previous_pos
+    vim.notify('pair: cannot record history use: ' .. tostring(err), vim.log.levels.ERROR)
+    return
+  end
+  set_buffer_text(body)
   -- Re-read the baseline from the buffer so its representation matches
   -- buffer_text() exactly (set_buffer_text strips a trailing newline). This
   -- keeps the dirty check (`buffer_text() ~= nav.baseline`) honest.
@@ -2875,11 +2892,13 @@ local function pair_pickup_scrollback_pending()
     -- this is the right hand-off shape for the off-slot case.
     local draft = pair_draft_file()
     if not draft or draft == '' then return end
-    local d = io.open(draft, 'a')
-    if d then
-      local wrote = pcall(function() d:write(content); d:close() end)
-      if wrote then landed = true end
-    end
+    landed = retention:change(draft, function()
+      local f = io.open(draft, 'a')
+      if not f then return false end
+      local wrote = f:write(content)
+      local closed = f:close()
+      return wrote ~= nil and closed ~= nil
+    end)
   end
 
   if landed then

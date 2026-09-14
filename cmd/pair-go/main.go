@@ -12,11 +12,14 @@ import (
 	"github.com/xianxu/pair/cmd/internal/changelogcmd"
 	"github.com/xianxu/pair/cmd/internal/clipcmd"
 	"github.com/xianxu/pair/cmd/internal/continuationcmd"
+	"github.com/xianxu/pair/cmd/internal/diagnosticcmd"
 	"github.com/xianxu/pair/cmd/internal/dispatcher"
 	"github.com/xianxu/pair/cmd/internal/entrypoint"
+	"github.com/xianxu/pair/cmd/internal/gccmd"
 	"github.com/xianxu/pair/cmd/internal/hoprttcmd"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlog"
+	"github.com/xianxu/pair/cmd/internal/retentioncmd"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/scribecmd"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
@@ -83,6 +86,12 @@ func runWithLegacyRuntime(args []string, stdout, stderr io.Writer, rt legacyRunt
 // unknown name is a programming error.
 func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	switch name {
+	case "gc":
+		return gccmd.Run(rest, os.Getenv, stdout, stderr)
+	case "diagnostic append":
+		return diagnosticcmd.Run(rest, os.Getenv, stdin, stderr)
+	case "retention":
+		return retentioncmd.Run(rest, os.Getenv, stdout, stderr)
 	case "wrap":
 		return wrapcmd.Run(rest, stdin, stdout, stderr)
 	case "term":
@@ -92,7 +101,7 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 	case "scribe":
 		return scribecmd.Run(rest, stdin, stdout, stderr)
 	case "changelog render":
-		return changelogcmd.Run(rest, stderr)
+		return changelogcmd.RunWithEnv(rest, os.Getenv, stderr)
 	case "continuation":
 		return continuationcmd.Run(rest, stdin, stdout, stderr, time.Now)
 	case "session-watch":

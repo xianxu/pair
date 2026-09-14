@@ -42,7 +42,12 @@ func TestRunCommitCLIMakesPreparedTextCorrelationEligible(t *testing.T) {
 		t.Fatal(err)
 	}
 	var stderr bytes.Buffer
-	code := RunCommitCLI([]string{"--append-id", "attempt-a"}, func(string) string { return path }, &stderr)
+	code := RunCommitCLI([]string{"--append-id", "attempt-a"}, func(key string) string {
+		if key == "PAIR_LOG_PATH" {
+			return path
+		}
+		return ""
+	}, &stderr)
 	if code != 0 || stderr.Len() != 0 {
 		t.Fatalf("code=%d stderr=%q", code, stderr.String())
 	}

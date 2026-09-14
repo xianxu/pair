@@ -35,7 +35,11 @@ func TestSupervisorLeaseSubprocessHelper(t *testing.T) {
 			os.Exit(4)
 		}
 	}
-	select {}
+	// A timer keeps the helper live until the parent deliberately kills it.
+	// select {} lets the Go runtime terminate it as a deadlock first.
+	for {
+		time.Sleep(time.Hour)
+	}
 }
 
 func startSupervisorLeaseHelper(t *testing.T, ns CouchNamespace, mode string) (*exec.Cmd, *bufio.Reader) {

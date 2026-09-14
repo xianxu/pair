@@ -116,9 +116,10 @@ type ChangelogArtifactSet struct {
 
 // pair:m5-concept pure
 type ParkedScrollbackArtifactSet struct {
-	Base   string
-	Raw    string
-	Events string
+	Metadata string
+	Base     string
+	Raw      string
+	Events   string
 }
 
 func ResolveLegacyRoot(dataDir string) (LegacyRootPaths, error) {
@@ -670,7 +671,7 @@ func (p Paths) ParkedScrollbackArtifacts(timestamp string) (ParkedScrollbackArti
 	if err != nil {
 		return ParkedScrollbackArtifactSet{}, err
 	}
-	return ParkedScrollbackArtifactSet{Base: base, Raw: base + ".raw", Events: base + ".events.jsonl"}, nil
+	return ParkedScrollbackArtifactSet{Base: base, Raw: base + ".raw", Events: base + ".events.jsonl", Metadata: base + ".capture.json"}, nil
 }
 
 func (p Paths) Scrollback(agent, suffix string) string {
