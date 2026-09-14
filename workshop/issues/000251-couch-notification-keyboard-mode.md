@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-14
-estimate_hours:
+estimate_hours: 1.74
 started: 2026-09-14T08:57:57-07:00
 ---
 
@@ -70,6 +70,34 @@ that remove the bit rather than only matching a new output constant
 - Focused tests, affected-package tests and a real supporting-terminal smoke
   pass; the operator verifies the rebuilt Couch shortcut with a yellow thread.
 - Atlas documents Couch's keyboard requirement and legacy-terminal fallback.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Calibration is marked stale by sdlc, so
+these numbers are provisional. Derived after plan-quality accepted round 2.
+
+Use familiar-Go multiplier 1.0, detailed-plan design discount 0.2 on implementation
+primitives, and 15% design buffer. Raw v2 design/implementation selections:
+issue/spec 0.5/0.1; new terminal double 0.5/0.6; keyboard policy extension
+0.2/0.5; output serialization refactor 0.5/0.5; atlas 0.05/0.1; boundary
+review 0/0.4. Scale implementation by 0.4 for v3.1. Existing Host and ANSI
+libraries are reused; x/vt lacks Kitty key encoding, so no additional library
+availability discount applies to the new protocol double. The issue/spec row
+accounts for design authoring; other design rows use the settled-plan discount.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.04
+item: greenfield-go-module design=0.1 impl=0.24
+item: smaller-go-module design=0.04 impl=0.2
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: atlas-docs design=0.01 impl=0.04
+item: milestone-review design=0 impl=0.16
+design-buffer: 0.15
+total: 1.74
+```
 
 ## Plan
 
