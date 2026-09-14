@@ -202,3 +202,12 @@ still running, before this candidate loaded. Read-only evidence for the
 Codex PTY, 16 ms apart. This does not prove application acceptance or identify
 the reported failed attempt. Small single-line sends currently have no settle
 interval or acceptance acknowledgement; no speculative delay fix applied.
+
+
+### 2026-09-14 — Combined verification passed
+
+`env -u PAIR_SESSION_ID -u PAIR_TAG make test` completed with exit 0 in
+`~/workspace/pair` on the combined smoke branch; log:
+`/tmp/pair-combined-make-test.log`. Focused combined mouse/keyboard race tests
+also exit 0 (`/tmp/pair-combined-race.log`), and `bin/couch` builds successfully.
+Live operator smoke remains the next acceptance step.
