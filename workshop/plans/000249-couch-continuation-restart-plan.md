@@ -202,7 +202,7 @@ The end-to-end test enters through the real continuation writer and follows its 
 - [x] Enumerate every restart-marker producer/consumer with `rg 'WriteRestartMarker|TakeRestartMarker|RestartMarker|planRestart' cmd bin`. For normal restart and rename, resolve hosted same-address registration and unsupported address-changing ownership before teardown; ensure no path retains Couch identity while invoking initial reservation registration. Keep normal standalone behavior in regression tests.
 - [x] Document accepted/pending/complete distinction, exact checkpoint retention and retry, replacement-helper ownership, and limitations of uncertain delivery. Give smoke steps: hosted checkpoint from sibling worktree; same address reappears; new agent references a unique checkpoint token; failed preflight leaves original session usable.
 - [x] Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test`, focused race tests for four affected packages, `make build`, and `git diff --check`. Capture evidence; avoid rerunning broad suites absent new changes.
-- [ ] Tick issue/plan steps and record evidence/decisions. Close once with `sdlc close --issue 249 --verified '<actual test evidence>'`; address gate findings. Pause for operator smoke with built binaries and exact steps before starting #250.
+- [x] Tick issue/plan steps and record evidence/decisions. Close once with `sdlc close --issue 249 --verified '<actual test evidence>'`; address gate findings. Pause for operator smoke with built binaries and exact steps before starting #250.
 
 ## Resolved implementation choices
 

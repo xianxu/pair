@@ -1,12 +1,13 @@
 ---
 id: 000249
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-14
 estimate_hours: 6.216
 started: 2026-09-14T10:30:49-07:00
+actual_hours: 4.90
 ---
 
 # Fix continuation restart for Couch-hosted Pair threads
@@ -165,6 +166,7 @@ this incident deliberately terminated the source but failed to replace it.
 No implementation started; runtime identities above are historical evidence.
 
 ### 2026-09-14 — Implementation checkpoint; integration remains open
+- 2026-09-14: closed — Full make test, focused continuation races, live Zellij conformance and build passed. Round-one follow-up changes only tests/docs: full Console suite and four intervening-focus race cases pass unchanged production; BR-1 complete concept audit appended, BR-2 withdrawal requested with deterministic evidence. Cross-worktree initial/warm writer-to-Console acceptance passed; operator smoke pending.; review verdict: SHIP
 
 The durable design is `workshop/plans/000249-couch-continuation-restart-plan.md`.
 Fresh-context plan review passed after one revision addressing last-source-exit
@@ -332,6 +334,27 @@ switch for resume, not continue-thread or retry-continuation. Thus a foreground
 attach does not override an intervening live actor selection. Request that the
 next review withdraw BR-2, or provide a counterexample beyond these covered
 event orders. The ledger disposition remains the reviewer's responsibility.
+
+### 2026-09-14 — SHIP; paused for operator smoke
+
+The second closing review returned SHIP: BR-1 addressed, BR-2 withdrawn after
+the reviewer confirmed the existing atomic attachment guard and four race-tested
+event orders. No findings remain open. `sdlc close` set codecomplete and adopted
+4.90 measured hours. Review window: `7800e968..6ed50f41`; sidecars retain both
+rounds. The earlier unchecked-closing-task refusal was a bookkeeping preflight,
+not an additional review round.
+
+Smoke procedure: leave Couch from its switcher with Alt+d (detach all threads),
+then start the rebuilt `bin/couch` from this checkout. Reloading only an inner
+Pair process does not update the already-running Couch supervisor. Trigger a
+continuation in a hosted thread, including a distinctive next-action token.
+Verify the replacement keeps the same Pair tag and prompt history and receives
+that token from the checkpoint. If convenient, author the checkpoint in a
+sibling worktree to exercise exact-path transport live. Automated tests cover
+failure retention, retry, and missing/mismatched checkpoint refusal.
+
+Implementation is committed and reviewed, not merged. Stop here for smoke;
+#250 implementation and #245 remain queued in that order.
 
 ## Revisions
 

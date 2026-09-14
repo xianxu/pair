@@ -20,6 +20,19 @@ rounds:
           family: async-completion-preserves-user-intent
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-14T12:46:48-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Plan lines 232–255 supersede the original classifications. Line 254 correctly identifies unchanged orientation dependencies and names their new callers; the pinned diff and source confirm this prose-only correction.
+          round: 2
+        - id: BR-2
+          disposition: withdrawn
+          note: console.go:411 changes focus only when active is empty, under the installation mutex. TestContinuationCompletionPreservesInterveningFocus at console_continuation_test.go:216 passes all four event orders under race detection without production changes. The previously alleged override is not supported.
+          round: 2
+      blocked: false
 ---
 
 # Gate ledger — pair#249 (boundary-review)
@@ -36,7 +49,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `async-completion-preserves-user-intent` Continuation completion overrides an intervening operator focus change
   console_continuation.go:125 captures PreserveFocus at enqueue time, and console.go:2055 uses it after asynchronous replacement. Selecting another actor while replacement runs is overridden by foreground adoption. ARCH-ORDER: preserve intervening focus changes and test acceptance, operator switch, then completion.
 
+## Round 2 — 2026-09-14T12:46:48-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Plan lines 232–255 supersede the original classifications. Line 254 correctly identifies unchanged orientation dependencies and names their new callers; the pinned diff and source confirm this prose-only correction.
+- BR-2 — withdrawn — console.go:411 changes focus only when active is empty, under the installation mutex. TestContinuationCompletionPreservesInterveningFocus at console_continuation_test.go:216 passes all four event orders under race detection without production changes. The previously alleged override is not supported.
+
 ## Open findings
 
-- **BR-1** [Critical] `core-concepts-match-diff` Core-concepts table marks unchanged orientation files as modified
-- **BR-2** [Important] `async-completion-preserves-user-intent` Continuation completion overrides an intervening operator focus change
+(none — every finding has been disposed)

@@ -77,3 +77,71 @@ findings:
     detail: |
       console_continuation.go:125 captures PreserveFocus at enqueue time, and console.go:2055 uses it after asynchronous replacement. Selecting another actor while replacement runs is overridden by foreground adoption. ARCH-ORDER: preserve intervening focus changes and test acceptance, operator switch, then completion.
 ```
+
+---
+
+## Re-review — 2026-09-14T12:46:48-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 249 — Fix continuation restart for Couch-hosted Pair threads |
+| repo | pair |
+| issue file | workshop/issues/000249-couch-continuation-restart.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 7800e9682e02b59e4b8cd299718b9a08d8e975ed..6ed50f413d30420d46a8f62683fa5c13c9897e05 |
+| command | sdlc close --issue 249 |
+| reviewer | codex |
+| timestamp | 2026-09-14T12:46:48-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range fulfills the documented continuation/recovery contract. BR-1 is addressed by the superseding concept audit; BR-2 is withdrawn because the existing attachment guard preserves intervening actor selection, confirmed by four passing race-tested scenarios. No new blocking findings.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Plan lines 232–255 supersede the original classifications. Line 254 correctly identifies unchanged orientation dependencies and names their new callers; the pinned diff and source confirm this prose-only correction.
+  - id: BR-2
+    disposition: withdrawn
+    note: |
+      console.go:411 changes focus only when active is empty, under the installation mutex. TestContinuationCompletionPreservesInterveningFocus at console_continuation_test.go:216 passes all four event orders under race detection without production changes. The previously alleged override is not supported.
+```
+
+1. **Strengths**
+   - Exact checkpoint bytes and digest cross the writer/launcher boundary; acceptance covers sibling worktrees, warm reattachment, tampering, and obsolete source generations.
+   - Recovery distinguishes an existing target from proven absence before authorizing another launch.
+   - Standalone failure retains its snapshot; generation-checked acknowledgment preserves successor requests.
+   - Archive journals snapshot preservation and derived-file cleanup together. README and atlas document the new surface.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - All eight affected packages passed: checkpoint, threadrecord, launcher, continuationcmd, couchcore, couchcmd, couchtty, artifactpath.
+   - BR-2’s four ordering scenarios passed with `-race`.
+   - Pinned `git diff --check` passed.
+   - Live Zellij and paid-agent smoke were not rerun during this review; operator smoke remains the documented next checkpoint.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared checkpoint validation and existing lifecycle/attachment machinery.
+   - **ARCH-PURE — pass:** deterministic validation/reducer logic separated from integration effects.
+   - **ARCH-PURPOSE — pass:** complete handoff, recovery, and adjacent restart-consumer handling delivered.
+   - **ARCH-MOCK — pass:** portable stateful fixtures cross production seams; live conformance has a scheduled workflow.
+   - **ARCH-CONSTRAINTS — pass:** bounded snapshots, transport, queueing, and lifetime-scoped polling.
+   - **ARCH-SECURE — pass:** digest, generation, ownership, and persisted-state validation precede destructive effects.
+   - **ARCH-ORDER — pass:** explicit request transitions and controlled interruption/order tests.
+   - **ARCH-FUNERAL — pass:** bounded per-thread storage, supersession, archive cleanup, and joined worker lifetime.
+
+7. **Plan revision recommendations:** None.
