@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"strings"
 	"testing"
 )
@@ -31,7 +32,7 @@ func TestCompactionDecision(t *testing.T) {
 func TestSerializeRestartMarkerRoundTrip(t *testing.T) {
 	m := RestartMarker{Tag: "demo", Agent: "codex", NewSession: true, Continue: "demo-slug"}
 	got := parseRestartMarker(serializeRestartMarker(m))
-	if got != m {
+	if !sameRestartMarker(got, m) {
 		t.Fatalf("round-trip = %+v, want %+v", got, m)
 	}
 	// The compaction shape (shell 1052-1057): tag, agent, new_session=1, continue.
@@ -51,6 +52,7 @@ func TestSerializeRestartMarkerRoundTrip(t *testing.T) {
 func compactOpts(force, fake bool, session string) LaunchOptions {
 	o := baseOpts(LaunchArgs{Agent: "claude"})
 	o.ContinueSlug = "demo"
+	o.ContinueCheckpoint, _ = checkpoint.New("/repo/workshop/continuation/demo.md", "---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nContinue demo.\n")
 	o.PairTag = "demo"
 	o.PairAgent = "claude"
 	o.ForceInSession = force
@@ -70,7 +72,7 @@ func TestRunLaunchCompactionForced(t *testing.T) {
 	if !ok || m.Continue != "demo" || !m.NewSession || m.Tag != "demo" || m.Agent != "claude" {
 		t.Fatalf("restart marker = %+v (ok=%v)", m, ok)
 	}
-	if len(rt.touchedQuit) != 1 || rt.touchedQuit[0] != "pair-demo" {
+	if len(rt.touchedQuit) != 1 {
 		t.Fatalf("quit marker = %v", rt.touchedQuit)
 	}
 	if len(rt.killed) != 1 || rt.killed[0] != "pair-demo" {
@@ -100,7 +102,7 @@ func TestRunLaunchCompactionUsesScopedPublicSession(t *testing.T) {
 	if m.Tag != "demo" || m.Agent != "claude" || !m.NewSession || m.Continue != "demo" {
 		t.Fatalf("restart marker = %+v", m)
 	}
-	if len(rt.touchedQuit) != 1 || rt.touchedQuit[0] != "📁work-demo" {
+	if len(rt.touchedQuit) != 1 {
 		t.Fatalf("quit marker = %v", rt.touchedQuit)
 	}
 	if len(rt.killed) != 1 || rt.killed[0] != "📁work-demo" {

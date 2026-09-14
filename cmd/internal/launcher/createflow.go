@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
@@ -63,12 +64,11 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	}
 	rt.SetEnv("PATH", prependBinToPath(opts.PairHome, exeDir, os.Getenv("PATH")))
 
-	// #55 in-session compaction (M5b): `pair continue <slug>` from inside the
-	// matching pane parks the scrollback (copy), drops a restart marker carrying
-	// the slug, and kills the session — the outer loop below then re-launches
-	// fresh, seeded from the slug. First entry only: a restart re-launch is the
-	// same outer process, never in a pane.
-	if opts.ContinueSlug != "" &&
+	// A validated continuation inside its own pane submits to Couch or to the
+	// standalone outer loop. Re-entry below carries the snapshot without invoking
+	// this entry-only dispatch again.
+
+	if (opts.ContinueSlug != "" || opts.ContinueCheckpoint.Version != 0) &&
 		compactionDecision(opts.ForceInSession, rt.InZellijPane() || opts.FakeInZellij, opts.PairTag, opts.ZellijSession, opts.PairSession) {
 		return runCompaction(opts, rt, stderr)
 	}
@@ -98,7 +98,19 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		rt.SweepOrphanNvim(liveTagsForSweep(sessions, index, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir)))
 	}
 
+	pendingSession, pendingMarker := opts.RestartSession, opts.RestartAttempt
 	for {
+		if opts.ContinueCheckpoint.Version != 0 {
+			if err := opts.ContinueCheckpoint.Validate(); err != nil {
+				fmt.Fprintf(stderr, "pair: %v\n", err)
+				return 1, nil
+			}
+			if err := ValidateFreshAgentArgs(opts.Args.Agent, opts.Args.AgentArgs); err != nil {
+				fmt.Fprintf(stderr, "pair: continuation requires fresh arguments: %v\n", err)
+				return 1, nil
+			}
+			opts.SkipConfigPicker = true
+		}
 		step, err := runOnce(opts, env, rt, stderr)
 		if err != nil {
 			return step.code, err // defensive: runOnce messages + returns nil now
@@ -109,14 +121,37 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 			continue
 		}
 		if !step.handedOff {
+			if pendingSession != "" {
+				fmt.Fprintf(stderr, "pair: continuation intent retained; retry with pair continue --retry %s\n", pendingMarker.Tag)
+			}
 			return step.code, nil // aborted or errored before the blocking handoff
 		}
 		runCleanup(env, rt, step, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir), opts.ParkPromptTimeout, stderr)
 
-		m, ok := rt.TakeRestartMarker(step.session)
-		if !ok {
-			return step.code, nil // no restart pending — done.
+		if pendingSession != "" {
+			if step.code != 0 {
+				fmt.Fprintf(stderr, "pair: continuation replacement failed; retry with pair continue --retry %s\n", pendingMarker.Tag)
+				return step.code, nil
+			}
+			if err := rt.AcknowledgeRestartMarker(pendingSession, pendingMarker); err != nil {
+				fmt.Fprintf(stderr, "pair: continuation handoff completed but acknowledgment failed: %v\n", err)
+				return 1, nil
+			}
+			pendingSession = ""
 		}
+		m, ok, markerErr := rt.ReadRestartMarker(step.session)
+		if markerErr != nil {
+			fmt.Fprintf(stderr, "pair: read restart intent: %v\n", markerErr)
+			return 1, nil
+		}
+		if !ok {
+			return step.code, nil
+		}
+		if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+			fmt.Fprintln(stderr, "pair: legacy hosted restart intent refused; use Couch continuation/relaunch recovery")
+			return 1, nil
+		}
+
 		rTag := firstNonEmpty(m.Tag, step.tag)
 		rAgent := firstNonEmpty(m.Agent, step.agent)
 
@@ -143,17 +178,36 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		}
 		opts.Args = plan.Args
 		opts.SkipConfigPicker = true
-		// A #55 compaction re-entry re-seeds the draft from the continuation slug
-		// (M5b); every other restart re-entry leaves the draft as-is. The re-entry
-		// is the outer process (never in a pane), so ContinueSlug stays cleared —
-		// it can't re-trigger compaction, only the ContinueDoc draft re-seed.
 		opts.ContinueDoc = ""
 		opts.ContinueSlug = ""
-		if plan.ContinueSlug != "" {
-			if docPath, _, ok := rt.ResolveContinuationDoc(plan.ContinueSlug); ok {
-				opts.ContinueDoc = docPath
+		opts.ContinueText = ""
+		opts.ContinueCheckpoint = checkpoint.Checkpoint{}
+		if m.Version != 0 {
+			opts.ContinueCheckpoint = m.Checkpoint
+			opts.ContinueDoc = m.Checkpoint.SourcePath
+		} else if plan.ContinueSlug != "" {
+			path, _, found := rt.ResolveContinuationDoc(plan.ContinueSlug)
+			if !found {
+				fmt.Fprintf(stderr, "pair: continuation %q is unavailable; restart intent retained\n", plan.ContinueSlug)
+				return 1, nil
+			}
+			c, err := rt.ReadCheckpoint(path)
+			if err != nil {
+				fmt.Fprintf(stderr, "pair: continuation unavailable; restart intent retained: %v\n", err)
+				return 1, nil
+			}
+			opts.ContinueCheckpoint = c
+			opts.ContinueDoc = c.SourcePath
+		}
+		if opts.ContinueCheckpoint.Version != 0 {
+			pendingSession, pendingMarker = step.session, m
+		} else {
+			if err := rt.AcknowledgeRestartMarker(step.session, m); err != nil {
+				fmt.Fprintf(stderr, "pair: acknowledge restart: %v\n", err)
+				return 1, nil
 			}
 		}
+
 	}
 }
 
@@ -259,7 +313,7 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 	if requestedAgent != "" && agent != requestedAgent {
 		opts.Args.AgentArgs = nil
 	}
-	if (opts.Args.ResumeRequired || opts.Args.FreshRequired) && decision.Action != ActionCreate {
+	if (opts.Args.ResumeRequired || opts.Args.FreshRequired || opts.ContinueCheckpoint.Version != 0) && decision.Action != ActionCreate {
 		fmt.Fprintf(stderr, "pair: %v\n", &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required Couch resume no longer resolves to a create boundary"})
 		return launchStep{code: 1}, nil
 	}
@@ -449,7 +503,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	configPath := resolveConfigPath(rt, dataDir, chosenTag, agent)
 	var savedForPicker savedConfig
 	var savedWarnings []string
-	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired {
+	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
 		savedForPicker, savedWarnings = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
 	}
 	if !opts.SkipConfigPicker {
@@ -460,7 +514,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	var agentDefault AgentDefault
 	var defaultFound bool
-	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired {
+	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
 		agentDefault, defaultFound = rt.ReadAgentDefault(agent)
 	}
 	argDecision := DecideLaunchArgs(LaunchArgInputs{
@@ -477,7 +531,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// Tag-restart config picker (#000016): a saved config for this (tag, agent)
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
-	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired {
+	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
 		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
 			return launchStep{code: code}, nil
 		}
@@ -521,7 +575,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
-	} else if opts.Args.AgentArgsExplicit && !opts.Args.ResumeRequired {
+	} else if opts.Args.AgentArgsExplicit && !opts.Args.ResumeRequired && opts.ContinueCheckpoint.Version == 0 {
 		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
 	} else {
 		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
@@ -602,8 +656,23 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	draft := artifactPaths.Draft()
 	_ = rt.Touch(draft)
-	if opts.ContinueDoc != "" {
-		_ = rt.WriteAtomic(draft, fmt.Sprintf("Read workshop/continuation/%s and continue from its NEXT ACTION.\n", filepath.Base(opts.ContinueDoc)))
+	if opts.ContinueCheckpoint.Version != 0 {
+		c := opts.ContinueCheckpoint
+		seed := fmt.Sprintf("Continue from the exact saved checkpoint below (source %q, SHA-256 %s). Follow its NEXT ACTION.\n\n%s", c.SourcePath, c.Digest, c.Body)
+		if err := rt.WriteAtomic(draft, seed); err != nil {
+			fmt.Fprintf(stderr, "pair: cannot seed continuation draft: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+	} else if opts.ContinueDoc != "" {
+		c, err := rt.ReadCheckpoint(opts.ContinueDoc)
+		if err != nil {
+			fmt.Fprintf(stderr, "pair: cannot read continuation draft source: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
+		if err := rt.WriteAtomic(draft, fmt.Sprintf("Read %q (SHA-256 %s) and continue from its NEXT ACTION.\n", c.SourcePath, c.Digest)); err != nil {
+			fmt.Fprintf(stderr, "pair: cannot seed continuation draft: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
 	} else if opts.ContinueText != "" {
 		existing, _ := rt.ReadFile(draft)
 		text := opts.ContinueText

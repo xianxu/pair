@@ -39,7 +39,7 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 			}
 		}
 	}
-	rt.WriteRestartMarker(session, RestartMarker{
+	if err := rt.WriteRestartMarker(session, RestartMarker{
 		Tag: tag,
 		// InferAgent reads agent-<tag> (always present when the keybind fires —
 		// cleanup removes it only AFTER the restart). Its config-<tag>-*.json
@@ -50,9 +50,18 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 		SessionID:  sessionID,
 		NewSession: args.NewSession,
 		RenameTo:   args.RenameTo,
-	})
-	rt.TouchQuitMarker(session)
-	rt.ExecKillSession(session)
+	}); err != nil {
+		fmt.Fprintf(stderr, "pair restart: write intent: %v\n", err)
+		return 1
+	}
+	if err := writeQuitIntent(rt, session, QuitIntent{Version: QuitIntentVersion, Kind: QuitIntentDirect}); err != nil {
+		fmt.Fprintf(stderr, "pair restart: write quit intent: %v\n", err)
+		return 1
+	}
+	if err := rt.ExecKillSession(session); err != nil {
+		fmt.Fprintf(stderr, "pair: cannot stop source session: %v\n", err)
+		return 1
+	}
 	return 0
 }
 
@@ -68,6 +77,9 @@ func runQuit(rt Runtime, session string, stderr io.Writer) int {
 		_, _ = fmt.Fprintf(stderr, "pair quit: write intent: %v\n", err)
 		return 1
 	}
-	rt.ExecKillSession(session)
+	if err := rt.ExecKillSession(session); err != nil {
+		fmt.Fprintf(stderr, "pair: cannot stop source session: %v\n", err)
+		return 1
+	}
 	return 0
 }

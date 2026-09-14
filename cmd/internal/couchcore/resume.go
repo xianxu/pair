@@ -378,6 +378,9 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	var binding NativeBindingResolution
 	var bindings NativeBindingResolver
 	if thread.VerifiedPark != nil {
+		if err := continuationGuard(thread); err != nil {
+			return ActorRecord{}, nil, err
+		}
 		var ok bool
 		bindings, ok = c.Artifacts.(NativeBindingResolver)
 		if !ok {
@@ -413,6 +416,11 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		return ActorRecord{}, nil, refuseResume(ResumeNotDetached,
 			"thread has no detached session to reattach to; a warm-only resume never starts an agent")
 	}
+	if thread.Continuation != nil && detached {
+		if err := c.validateContinuationWarm(ctx, thread); err != nil {
+			return ActorRecord{}, nil, err
+		}
+	}
 	eligible, err := DecideResume(ResumeEligibilityInput{
 		Thread: thread, WorkingPathExists: pathExists, Binding: binding, Detached: detached,
 	})
@@ -438,6 +446,12 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		return ActorRecord{}, nil, err
 	}
 	thread, err = c.Threads.CommitStartClaim(address, thread.Revision, repoIdentity, startedAt, StartEvent{
+		Shape: func() StartShape {
+			if detached {
+				return StartWarmReattach
+			}
+			return StartColdResume
+		}(),
 		Kind:    StartClaimed,
 		Nonce:   nonce,
 		Owner:   SupervisorOwner{PID: owner.PID, Identity: owner.Identity},

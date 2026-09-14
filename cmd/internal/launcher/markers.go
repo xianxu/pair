@@ -6,9 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
 const QuitIntentVersion = 1
@@ -104,13 +108,19 @@ func validateQuitIntent(intent QuitIntent) error {
 
 // RestartMarker is the parsed ~/.cache/pair/restart-<session> handshake dropped
 // by `pair restart` (Alt+n / Shift+Alt+N, #94 M1) or the #55 compaction branch.
+const maxContinuationArgsBytes = 32 * 1024
+
 type RestartMarker struct {
-	Tag        string
-	Agent      string
-	SessionID  string // plain restart: live native session id captured before kill
-	NewSession bool   // Shift+Alt+N / compaction: fresh agent conversation
-	RenameTo   string // #22 inside-flow tag rename (native re-entry as of M5b)
-	Continue   string // #55 compaction slug (native continue re-entry as of M5b)
+	AgentArgs  []string              `json:"agent_args,omitempty"`
+	Version    int                   `json:"version,omitempty"`
+	Attempt    string                `json:"attempt,omitempty"`
+	Checkpoint checkpoint.Checkpoint `json:"checkpoint"`
+	Tag        string                `json:"tag"`
+	Agent      string                `json:"agent"`
+	SessionID  string                `json:"session_id,omitempty"`  // plain restart: live native session id captured before kill
+	NewSession bool                  `json:"new_session,omitempty"` // Shift+Alt+N / compaction: fresh agent conversation
+	RenameTo   string                `json:"rename_to,omitempty"`   // #22 inside-flow tag rename (native re-entry as of M5b)
+	Continue   string                `json:"continue,omitempty"`    // #55 compaction slug (native continue re-entry as of M5b)
 }
 
 // parseRestartMarker reads the `key=value` lines `pair restart` writes. Unknown
@@ -118,6 +128,10 @@ type RestartMarker struct {
 // zero value).
 func parseRestartMarker(content string) RestartMarker {
 	var m RestartMarker
+	if strings.HasPrefix(strings.TrimSpace(content), "{") {
+		_ = strictjson.Decode([]byte(content), &m)
+		return m
+	}
 	for _, line := range strings.Split(content, "\n") {
 		key, val, ok := strings.Cut(line, "=")
 		if !ok {
@@ -177,6 +191,11 @@ func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartP
 		// Continue slug only ever rides new_session (shell 1055-1056), so re-seed
 		// here (the loop resolves the slug → draft).
 		base.AgentArgs = append([]string(nil), saved.Args...)
+		if m.Version != 0 {
+			base.AgentArgs = append([]string(nil), m.AgentArgs...)
+		} else if m.Continue != "" {
+			base.AgentArgs = FreshAgentArgs(base.AgentArgs)
+		}
 		return restartPlan{Args: base, DropConfig: true, ContinueSlug: m.Continue}
 	}
 	// Default Alt+n: an empty marker ID means the current typed generation is
@@ -187,4 +206,70 @@ func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartP
 	}
 	base.AgentArgs = composeResumeArgs(agent, saved.Args, m.SessionID)
 	return restartPlan{Args: base}
+}
+
+// decodeRestartMarker turns the persisted process boundary into a checked value.
+func decodeRestartMarker(raw string) (RestartMarker, error) {
+	var m RestartMarker
+	if strings.HasPrefix(strings.TrimSpace(raw), "{") {
+		if err := strictjson.Decode([]byte(raw), &m); err != nil {
+			return m, fmt.Errorf("restart marker: %w", err)
+		}
+		if m.Version != 1 || m.Tag == "" || m.Agent == "" || m.Attempt == "" || ValidatePairTag(m.Attempt) != nil || len(m.Attempt) > 128 || !m.NewSession || m.SessionID != "" || m.RenameTo != "" {
+			return m, errors.New("invalid continuation restart marker")
+		}
+		if err := m.Checkpoint.Validate(); err != nil {
+			return m, err
+		}
+		total := 0
+		for _, arg := range m.AgentArgs {
+			total += len(arg)
+			if !utf8.ValidString(arg) || strings.ContainsRune(arg, '\x00') {
+				return m, errors.New("invalid continuation argv text")
+			}
+		}
+		if len(m.AgentArgs) > 512 || total > maxContinuationArgsBytes {
+			return m, errors.New("continuation argv exceeds size bound")
+		}
+		if err := ValidateFreshAgentArgs(m.Agent, m.AgentArgs); err != nil {
+			return m, err
+		}
+	} else {
+		seen := map[string]bool{}
+		for _, line := range strings.Split(raw, "\n") {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			key, _, ok := strings.Cut(line, "=")
+			if !ok || seen[key] {
+				return m, errors.New("malformed or duplicate restart marker field")
+			}
+			switch key {
+			case "tag", "agent", "session_id", "new_session", "rename_to", "continue":
+			default:
+				return m, fmt.Errorf("unknown restart marker field %q", key)
+			}
+			seen[key] = true
+		}
+		m = parseRestartMarker(raw)
+		if strings.TrimSpace(raw) == "" {
+			return m, errors.New("empty restart marker")
+		}
+		if m.Continue != "" && !m.NewSession {
+			return m, errors.New("continuation marker must request a fresh session")
+		}
+	}
+	if m.Tag != "" {
+		if err := ValidatePairTag(m.Tag); err != nil {
+			return m, err
+		}
+	}
+	if m.Agent != "" && !IsSupportedAgent(m.Agent) {
+		return m, errors.New("restart marker has unsupported agent")
+	}
+	return m, nil
+}
+
+func sameRestartMarker(a, b RestartMarker) bool {
+	return a.Version == b.Version && a.Attempt == b.Attempt && a.Checkpoint == b.Checkpoint && a.Tag == b.Tag && a.Agent == b.Agent && a.SessionID == b.SessionID && a.NewSession == b.NewSession && a.RenameTo == b.RenameTo && a.Continue == b.Continue && slices.Equal(a.AgentArgs, b.AgentArgs)
 }

@@ -28,6 +28,7 @@ const (
 )
 
 type StartEvent struct {
+	Shape   StartShape
 	Kind    StartEventKind
 	Nonce   string
 	Owner   SupervisorOwner

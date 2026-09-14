@@ -9,6 +9,7 @@ import (
 // address and every incarnation state; ordinary switchers use
 // ActionableThreadSummary so undecodable lifecycle states remain invisible.
 type ThreadSummary struct {
+	Continuation     *ContinuationStatus `json:"continuation,omitempty"`
 	Address          ThreadAddress       `json:"address"`
 	StartingPath     string              `json:"starting_path"`
 	WorkingPath      string              `json:"working_path"`
@@ -59,6 +60,7 @@ func BuildThreadInventory(input ThreadProjectionInput) []ThreadSummary {
 		state, reason := ClassifyThread(cloned, evidence[cloned.Address])
 		rows = append(rows, ThreadSummary{
 			Address:          cloned.Address,
+			Continuation:     continuationStatus(cloned),
 			StartingPath:     cloned.StartingPath,
 			WorkingPath:      cloned.WorkingPath,
 			Name:             cloned.Name,

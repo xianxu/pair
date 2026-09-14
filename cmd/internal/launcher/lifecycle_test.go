@@ -455,6 +455,7 @@ func TestRunLaunchContinueReentry(t *testing.T) {
 	rt.quitMarkers["📁work"] = true
 	rt.restartMarkers["📁work"] = RestartMarker{Tag: "work", Agent: "claude", NewSession: true, Continue: "demo"}
 	rt.continuationDocs = map[string][2]string{"demo": {"/repo/workshop/continuation/20260101-demo.md", "claude"}}
+	rt.files["/repo/workshop/continuation/20260101-demo.md"] = testCheckpoint(t).Body
 
 	opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"})
 	opts.Env.DataDir = "/data"

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -219,6 +220,12 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return record.Description, nil
+		case "request-continuation":
+			ordinal, err := strconv.ParseUint(a["launch-ordinal"], 10, 64)
+			if err != nil || ordinal == 0 {
+				return nil, fmt.Errorf("invalid continuation launch ordinal")
+			}
+			return c.RequestContinuation(call.Context, ThreadAddress{RepoScope: a["repo-scope"], Tag: ThreadTag(a["tag"])}, ContinuationSource{Agent: a["agent"], Session: a["session"], LaunchOrdinal: ordinal, ExpectedDigest: a["expected-digest"]}, a["path"])
 		case "publish-description":
 			if a["repo-scope"] == "" || a["tag"] == "" {
 				return nil, fmt.Errorf("thread scope/tag are unavailable -- run this inside a couch-spawned session")
@@ -272,6 +279,19 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("accepted startup parameters are required")
 			}
 			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
+		case "continue-thread", "retry-continuation", "continuation-status":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			switch call.Operation.Name {
+			case "continue-thread":
+				return c.Continue(ctx, address, a["request-id"])
+			case "retry-continuation":
+				return c.RetryContinuation(ctx, address, a["request-id"])
+			default:
+				return c.ReconcileContinuation(ctx, address, a["request-id"], a["attempt"])
+			}
 		case "orientation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

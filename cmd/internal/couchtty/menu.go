@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 )
@@ -186,6 +187,10 @@ type MenuState struct {
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
 	PanelOrigin bool
+	// ContinuationID correlates durable automatic work without routing it
+	// through the reattachment pass. PreserveFocus controls child adoption.
+	ContinuationID string
+	PreserveFocus  bool
 	// Manual suppresses the attention capture, so the landing is classified
 	// arrivalOrdinary even on a paging actor. A click is always a manual switch;
 	// Enter on a paging actor is not.
@@ -1186,6 +1191,12 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 // the switcher. A guard must be able to fail, and production must not coerce its
 // input into agreement. The test reads this function and compares.
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
+	if request := thread.Continuation; request != nil && request.Phase != checkpoint.Complete {
+		if request.Phase == checkpoint.Failed || request.Phase == checkpoint.Running {
+			return []string{"retry-continuation", "name", "describe"}
+		}
+		return []string{"name", "describe"}
+	}
 	if thread.State == couchcore.ThreadBusy {
 		// Something else is still acting on this thread. Offering archive here
 		// would file a record mid-park -- the store refuses it, so the offer is
@@ -1551,7 +1562,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "detach", "resume", "leave", "archive", "relaunch", "switch-agent":
+	case "park", "detach", "resume", "leave", "archive", "relaunch", "switch-agent", "retry-continuation":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -1573,7 +1584,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // it is what stops the next one being added to one list only (ARCH-DRY).
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch", "switch-agent":
+	case "park", "detach", "relaunch", "switch-agent", "retry-continuation", "continue-thread":
 		return true
 	}
 	return false
@@ -1585,7 +1596,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent":
+	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent", "retry-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false
@@ -1660,6 +1671,12 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	}
 	state.OperationSequence++
 	effect.Attempt = state.OperationSequence
+	if effect.Operation == "retry-continuation" {
+		effect.Args["ref"] = string(address.Tag)
+		if thread, ok := menuThread(state, address); ok && thread.Continuation != nil {
+			effect.Args["request-id"] = thread.Continuation.RequestID
+		}
+	}
 	if effect.Operation == "resume" {
 		// Preserve the selected action when the record changes before the
 		// queued operation executes. A detached row authorizes attachment only.
@@ -1709,6 +1726,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "saving " + label + " description"
 	case "relaunch":
 		return "restarting " + label + "'s pair…"
+	case "retry-continuation":
+		return "retrying continuation for " + label
 	case "archive":
 		return "archiving " + label
 	default:

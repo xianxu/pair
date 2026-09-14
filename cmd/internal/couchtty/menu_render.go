@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
@@ -390,6 +391,16 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 // label, and the guard that keeps it that way iterates the vocabulary rather
 // than listing cases here (Go has no exhaustive-switch check).
 func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
+	if request := thread.Continuation; request != nil {
+		switch request.Phase {
+		case checkpoint.Pending:
+			return "continuation queued"
+		case checkpoint.Running:
+			return "continuing…"
+		case checkpoint.Failed:
+			return "continuation failed — retry available"
+		}
+	}
 	switch thread.State {
 	case couchcore.ThreadLive:
 		return "live"

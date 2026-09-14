@@ -14,7 +14,9 @@ USAGE
   pair [<agent>] --layout3      layered workbench with user terminal
   pair resume <tag>             attach this repo's tag if live, else create it
                                 (agent inferred from saved state)
-  pair continue [slug] [agent]  resume from a continuation doc; bare lists them
+  pair continue [slug] [agent]  continue from a checkpoint; bare lists them
+  pair continue --checkpoint <absolute-path>  use this exact checkpoint
+  pair continue --retry <tag>   retry a retained standalone continuation
   pair [<agent>] -- <args>      forward args to the agent on create
   pair list | ls                list this repo's Pair sessions and attach state
   pair rename <old> <new>       rename every tag-scoped file from <old> to <new>

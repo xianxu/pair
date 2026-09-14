@@ -14,6 +14,9 @@ export HOME="$TMP"
 export PAIR_KILL_CMD="true" # ExecKillSession runs `true <session>` instead of zellij
 export ZELLIJ_SESSION_NAME="pair-smoke"
 export PAIR_TAG="smoke"
+# This fixture exercises the standalone restart loop, even when invoked from
+# an agent pane hosted by Couch. Hosted restart refusal is covered separately.
+unset COUCH_THREAD_SCOPE COUCH_THREAD_TAG
 MARK="$TMP/.cache/pair"
 # NB: deliberately do NOT pre-create $MARK — the first `pair restart` must create
 # it via WriteAtomic/Touch's MkdirAll, so this smoke is load-bearing for that path.

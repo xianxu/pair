@@ -109,9 +109,9 @@ while keeping the work scoped to the continuation/restart contract.
 
 ## Plan
 
-- [ ] Reproduce hosted restart with stateful ownership and cross-worktree checkpoint fixtures.
+- [x] Reproduce hosted restart with stateful ownership and cross-worktree checkpoint fixtures.
 - [x] Design restart ownership, checkpoint transport, and failure recovery in a durable plan.
-- [ ] Implement, verify the full hosted flow and standalone regressions, and update docs.
+- [x] Implement, verify the full hosted flow and standalone regressions, and update docs.
 - [ ] Close through the SDLC review gate.
 
 ## Estimate
@@ -265,6 +265,39 @@ It does not claim paid-agent composer recognition or real Zellij teardown;
 the separately maintained live conformance and operator smoke cover those
 boundaries. No production sessions or data were mutated. Code commit, full-suite
 integration, operator smoke, and SDLC close remain with the main agent.
+
+### 2026-09-14 — Verification run and remaining closing gate
+
+Full Couch CLI/Console package tests passed. Final focused continuation race
+tests passed across checkpoint, writer, launcher, core, Console and CLI;
+ThreadRecord's full ordinary tests passed earlier (the final focused race
+selector has no ThreadRecord tests). Full `make test-couch-zellij-live` passed,
+including detach, verified park and continuation seed/receipt transport.
+
+The first `make test` run stopped at the standalone restart shell fixture:
+inherited COUCH_THREAD_SCOPE/TAG made its standalone restart correctly refuse.
+The fixture now explicitly clears those two hosted-context variables; its
+focused rerun passed. The full rerun is in `/tmp/pair-249-make-test-2.log`.
+
+Additional boundary tests caught and fixed a missing required thread reference
+in the Retry menu's declared-operation payload and pending requests incorrectly
+being sent to receipt polling after an admission conflict. Queue-overload tests
+verify source focus/liveness remains intact until the request is admitted.
+
+Implementation and acceptance are ready for closing verification. Remaining:
+finish full suite/build, commit the coherent implementation and checked plan,
+run `sdlc close`'s mandatory fresh-context review, address any findings, then
+pause for operator smoke. No closing review has run yet.
+
+### 2026-09-14 — Closing verification passed
+
+`env -u PAIR_SESSION_ID -u PAIR_TAG make test` passed on the second full run,
+including all Go packages, shell and Lua checks (`/tmp/pair-249-make-test-2.log`).
+`make build` passed (`/tmp/pair-249-build.log`). Full live Zellij conformance
+passed (`/tmp/pair-249-live-conformance.log`), focused race tests passed
+(`/tmp/pair-249-final-race.log`), and `git diff --check` passed. The implementation
+is being committed for the mandatory fresh-context closing review; its verdict
+is still pending. Operator smoke follows review, before #250 implementation.
 
 ## Revisions
 

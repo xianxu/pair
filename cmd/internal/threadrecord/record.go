@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
@@ -63,12 +64,13 @@ type Incarnation struct {
 }
 
 type Record struct {
-	SchemaVersion int       `json:"schema_version"`
-	Address       Address   `json:"address"`
-	StartingPath  string    `json:"starting_path"`
-	WorkingPath   string    `json:"working_path"`
-	CreatedAt     time.Time `json:"created_at"`
-	Revision      uint64    `json:"revision"`
+	Continuation  *checkpoint.Request `json:"continuation,omitempty"`
+	SchemaVersion int                 `json:"schema_version"`
+	Address       Address             `json:"address"`
+	StartingPath  string              `json:"starting_path"`
+	WorkingPath   string              `json:"working_path"`
+	CreatedAt     time.Time           `json:"created_at"`
+	Revision      uint64              `json:"revision"`
 	// DeprecatedClaimGeneration is a TOMBSTONE for the same reason as
 	// Incarnation.DeprecatedPolicy -- and a more urgent one: it appeared in
 	// EVERY record in the operator's store, so deleting it would have made the
@@ -109,6 +111,25 @@ func ValidateAddress(address Address, validators Validators) error {
 // persisted records. Policy values are evidence interpreted elsewhere; their
 // exact JSON shape is still enforced by Record plus strictjson.Decode.
 func Validate(record Record, validators Validators) error {
+	if record.Continuation != nil {
+		if err := record.Continuation.Validate(); err != nil {
+			return fmt.Errorf("continuation: %w", err)
+		}
+		if record.Continuation.ID != checkpoint.RequestID(record.Address.RepoScope, record.Address.Tag, record.Continuation.Source.LaunchOrdinal, record.Continuation.Checkpoint.Digest) {
+			return fmt.Errorf("continuation request belongs to another address")
+		}
+		if request := record.Continuation; request.SourcePark != "" {
+			found := false
+			for _, park := range record.ParkHistory {
+				if park.Identity.Nonce == request.SourcePark && park.Closed && !park.Tombstoned && park.SuccessfulAttempt > 0 && park.Identity.PID == request.Source.Helper.PID && park.Identity.ProcessIdentity == request.Source.Helper.Identity {
+					found = true
+				}
+			}
+			if !found {
+				return fmt.Errorf("continuation source park receipt is unavailable or mismatched")
+			}
+		}
+	}
 	if record.SchemaVersion != SchemaVersion {
 		return fmt.Errorf("unsupported thread schema version %d", record.SchemaVersion)
 	}
