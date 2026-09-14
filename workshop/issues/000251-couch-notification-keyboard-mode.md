@@ -180,3 +180,25 @@ independent terminal model passed 6,988 partition-fuzz executions. Full
 `make test` first flagged the keyboard-only framing reads in the paint-gate
 source guard; the documented non-paint exception now passes and the full suite
 is rerunning. Live supporting-terminal verification remains outstanding.
+
+
+### 2026-09-14 — Combined smoke candidate in the primary checkout
+
+Operator requested branch-in-place development from Parley and smoke testing
+at `~/workspace/pair`. Combined #251 with reviewed #207 M1 diagnostics on
+`couch-251-207-smoke`; preserved unrelated #239 local edits. The duplicate
+root #251 plan files are retained in the named git stash. The combined
+`bin/couch` builds, focused keyboard/mouse race tests pass, and a fresh
+integration review approved the conflict resolution. Byte-count diagnostics
+include keyboard suffixes; post-release assertions report suppression.
+Full make test also exposed the new source's missing artifact inventory entry,
+now classified and verified. Full combined suite is running at this checkpoint.
+Operator received detach-all/relaunch smoke instructions. Physical terminal
+acceptance is pending; neither #251 nor mouse recovery M2 is marked complete.
+
+An intermittent auto-submit report occurred while the old Couch PID 5316 was
+still running, before this candidate loaded. Read-only evidence for the
+09:26:15 send shows body and translated CR both successfully written to the
+Codex PTY, 16 ms apart. This does not prove application acceptance or identify
+the reported failed attempt. Small single-line sends currently have no settle
+interval or acceptance acknowledgement; no speculative delay fix applied.

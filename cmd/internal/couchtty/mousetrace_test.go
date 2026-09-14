@@ -122,7 +122,7 @@ func TestMouseTraceProducerTransitions(t *testing.T) {
 	requireMouseTrace(t, log(), "\tchild-mode\t", `active="first"`, `thread="legacy/first"`, "scanner-before=none", "scanner-after=1002,1006", "outcome=emitted")
 	c.takeOverScreen(nil, nil)
 	requireMouseTrace(t, log(), "\ttakeover\t", "scanner-before=1002,1006", "scanner-reset=none", "scanner-after=none", "replay-bytes=0", "target=panel")
-	if h.Written() != "\x1b[?1002;1006h"+string(hostty.RepaintFor(nil, nil)) {
+	if h.Written() != "\x1b[?1002;1006h"+hostty.EnableKeyboardDisambiguation+string(hostty.RepaintFor(nil, nil))+hostty.EnableKeyboardDisambiguation {
 		t.Fatal("tracing altered output")
 	}
 }
@@ -297,5 +297,16 @@ func TestMouseTraceContextBoundsAndQuoting(t *testing.T) {
 	requireMouseTrace(t, detail, "surface=panel", `\n`)
 	if strings.ContainsAny(detail, "\n\t\x00") || len(detail) > 4096 {
 		t.Fatalf("unsafe or unbounded detail %q", detail)
+	}
+}
+
+func TestMouseTraceReleasedAssertion(t *testing.T) {
+	c, h, log := mouseTraceFixture(t)
+	c.release()
+	before := h.Written()
+	c.traceMouseClicks("paint")
+	requireMouseTrace(t, log(), "outcome=suppressed", "reason=terminal-released")
+	if h.Written() != before {
+		t.Fatal("mouse assertion wrote after terminal release")
 	}
 }
