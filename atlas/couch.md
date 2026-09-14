@@ -355,10 +355,22 @@ Three edge cases:
   stays, with no takeover. It also shows a notice, because the row never draws
   the active actor's bell, so the acknowledgement alone would be invisible.
 
-The chord is Kitty-only (`newestPageSequence`, `\x1b[13;5u`). In legacy
-encoding ctrl+return is a bare CR, and taking every Return from the child is not
-a trade worth making. Inside the switcher it is unclaimed: the handler feeds the
-chord's own bytes to `DecodePanelKeys`, which makes it the panel's Return.
+The chord uses Kitty keyboard disambiguation (`newestPageSequence`,
+`\x1b[13;5u`); explicit press and repeat forms also jump, while release does
+not. Couch owns the disambiguation flag its shortcuts require (`pair#251`):
+startup, completed active output, and actor/panel takeovers add that flag without
+clearing the child's other flags or pushing stack entries. This survives an
+aged-out startup sequence or replayed reset/pop. Plain Return still reaches the
+agent; an unsupported terminal retains Ctrl+Space then Return as the fallback.
+Inside the switcher the chord retains the panel's Return behavior.
+
+Couch serializes scanner decisions and terminal writes with `terminalMu`,
+acquired before its state mutex. Keyboard assertions wait for complete escape
+framing, including skipped oversized strings, but do not wait for cursor-save
+release: they do not touch the cursor. A takeover releases the output lock before
+requesting a child repaint. Cleanup closes output ownership and clears modes on
+both the current buffer and the main buffer after leaving alternate screen;
+later writes are dropped. The typed-interface enforcement remains #224's scope.
 
 `SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
 slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the

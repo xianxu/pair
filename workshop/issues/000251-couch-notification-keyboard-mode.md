@@ -101,8 +101,8 @@ total: 1.74
 
 ## Plan
 
-- [ ] Follow `workshop/plans/000251-couch-notification-keyboard-mode-plan.md`: reproduce using a stateful terminal double.
-- [ ] Implement Couch-owned disambiguation through existing output/framing boundaries.
+- [x] Follow `workshop/plans/000251-couch-notification-keyboard-mode-plan.md`: reproduce using a stateful terminal double.
+- [x] Implement Couch-owned disambiguation through existing output/framing boundaries.
 - [ ] Verify regressions, document the behavior and validate the installed runtime with the operator.
 - [ ] Close through SDLC review and publish.
 
@@ -154,3 +154,29 @@ mouse diagnostics. SDLC plan-quality's PQ-1 requested function-level test
 strategies instead of case inventories; the plan now names pure helper,
 terminal-double parser/encoder and Console/interceptor targets with generated
 input and deterministic interleaving guards. No behavior/design scope changed.
+
+
+### 2026-09-14 — Reproduced and implemented
+
+The new stateful Host regression failed before production edits: physical
+Ctrl+Return encoded CR and reached c1 while c2 was paging. It also reproduced
+main-buffer keyboard leakage on release. Implemented additive disambiguation,
+explicit press/repeat key forms, output/scanner serialization and final
+main-buffer cleanup. Focused keyboard tests and affected packages pass.
+
+Existing notification tests now permit the keyboard control at the complete
+sequence boundary; a menu test now waits for its asynchronous visible banner
+rather than assuming reducer completion means paint completion. Source confirms
+EOF stops only pumpStdin, not Run; tests preserve this behavior and verify
+cleanup after the eventual stop. Historical incident trigger remains unobserved;
+the new regression proves the supported mode-loss mechanism.
+
+
+### 2026-09-14 — Validation checkpoint
+
+Affected packages pass (couchtty, hostty, ptychild), as does the focused race
+suite. Pure policy fuzzing passed 103,830 executions in three seconds; the
+independent terminal model passed 6,988 partition-fuzz executions. Full
+`make test` first flagged the keyboard-only framing reads in the paint-gate
+source guard; the documented non-paint exception now passes and the full suite
+is rerunning. Live supporting-terminal verification remains outstanding.

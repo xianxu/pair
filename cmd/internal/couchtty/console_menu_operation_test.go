@@ -310,10 +310,11 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	waitUpTo(t, 250*time.Millisecond, "attach refusal completion", func() bool {
 		return f.con.menuSnapshot().InFlight.Operation == ""
 	})
-	screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written()))))
-	if !strings.Contains(screen, "start thread\r\nerror: thread ") || !strings.Contains(screen, "already attached") {
-		t.Fatalf("attach refusal was not painted locally: %q", screen)
-	}
+	// Reducer completion precedes its paint; wait for the observable result.
+	waitUpTo(t, time.Second, "attach refusal banner", func() bool {
+		screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written()))))
+		return strings.Contains(screen, "start thread\r\nerror: thread ") && strings.Contains(screen, "already attached")
+	})
 	f.con.mu.Lock()
 	focus, inflight := f.con.focus, f.con.menu.InFlight.Operation
 	f.con.mu.Unlock()

@@ -169,3 +169,28 @@ restored main buffer.
 also affect cross-package inventory contracts. Retain focused red/green and
 race checks for the keyboard/output ordering tests. Log failures honestly and
 fix newly affected consumers rather than declaring success from focused tests.
+
+
+### 2026-09-14 — Implementation and verification progress
+
+The physical-key and both-buffer regressions were observed failing on baseline,
+then pass with the production fix. Core policy and output ownership are
+implemented. Affected package tests pass; full/race/live checks are pending.
+The shared helper is `keyboardDisambiguated`; the test model methods are
+`keyboardModel.feed`/`command` behind `keyboardHost.Write`/`ctrlReturn`.
+
+Source correction: pumpStdin returns on EOF without ending Console.Run.
+Preserve that behavior; the EOF scenario verifies shell restoration when Console
+subsequently stops, rather than adding an unrelated exit policy change.
+
+
+### 2026-09-14 — Full-suite guard distinguishes keyboard control from painting
+
+Full `make test` correctly found the two new MidSequence reads in the static
+paint-gate guard. Keyboard controls have no cursor effects and must not wait for
+cursor-save release, as the approved plan requires. Add an explicit
+`keyboard-control-boundary: no cursor effects` annotation to these reads and
+teach `tests/paint-gate-consumers-test.sh` that narrow non-paint exception;
+unannotated partial paint-gate reads remain rejected. This is a newly affected
+consumer of the documented framing contract, not a weakening to all MidSequence
+calls. The stateful cursor-save regression verifies the distinct behavior.

@@ -62,6 +62,11 @@ type Console struct {
 	stdin  io.Reader
 	stderr io.Writer
 
+	// terminalMu owns scanner-to-wire ordering; acquire before mu, and never
+	// hold it across a child callback. terminalReleased ends all host output.
+	terminalMu       sync.Mutex
+	terminalReleased bool
+
 	mu     sync.Mutex
 	panes  map[string]*pane
 	order  []string
@@ -585,6 +590,7 @@ func (c *Console) Run() int {
 	// couch asks the TERMINAL for clicks. It never writes the CHILD's modes:
 	// ptychild replay re-asserts those across a switch, and a second writer
 	// would be two authorities for one terminal state.
+	c.writeHostControl(hostty.EnableKeyboardDisambiguation)
 	c.writeOwn(hostty.EnableMouseClicks)
 
 	c.applyLayout()
@@ -1022,13 +1028,18 @@ func (c *Console) onExit(event childExit) bool {
 // release puts the terminal back: region reset, then the reserved row cleared,
 // so the operator's shell does not inherit a pinned region or a stale row.
 func (c *Console) release() {
+	if !c.lockTerminal() {
+		return
+	}
+	defer c.terminalMu.Unlock()
+	c.terminalReleased = true
 	c.mu.Lock()
 	res := bottomReservation(c.size.Rows)
 	c.mu.Unlock()
 	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
 	// spliced sequence, and the child is finished with the screen by now.
 	_, _ = io.WriteString(c.host,
-		res.Release()+res.Paint("")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
+		res.Release()+res.Paint("")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetInteractiveModes+hostty.ResetRegion+hostty.ShowCursor)
 }
 
 // bottomReservation is couch's row: always the host's bottom one.
@@ -1126,10 +1137,15 @@ func (c *Console) repaint() { c.paintNow() }
 // scanner answers is "where is the child's stream", and our writes are not part
 // of it.
 func (c *Console) writeChild(p []byte) {
+	if !c.lockTerminal() {
+		return
+	}
+	defer c.terminalMu.Unlock()
 	c.mu.Lock()
 	before := c.hostScan.MouseModes()
 	c.hostScan.FeedFraming(p)
 	after := c.hostScan.MouseModes()
+	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
 	tracer := c.mouseTrace
 	c.mu.Unlock()
 	// A mouse-mode change in the CHILD's teed stream is one of the two events
@@ -1138,7 +1154,7 @@ func (c *Console) writeChild(p []byte) {
 	if tracer != nil && formatMouseModes(before) != formatMouseModes(after) {
 		tracer.record("child-mode", formatMouseModes(before)+" -> "+formatMouseModes(after))
 	}
-	_, _ = c.host.Write(p)
+	_, _ = c.host.Write(keyboardDisambiguated(p, complete))
 }
 
 // takeOverScreen replaces what is on the screen wholesale -- a switch landing,
@@ -1159,16 +1175,13 @@ func (c *Console) writeChild(p []byte) {
 // now a mechanism: `Child` owns its geometry, so no caller has an ordering
 // obligation there.
 //
-// The WRITER's half is not, and this comment is where it gets said out loud
-// instead of being asserted away: `c.host` is a bare `io.Writer` with no
-// serialization, and couch has several unsynchronized write sites. termcmd
-// already has the answer next door — `paneWriter` is deliberately not an
-// `io.Writer`, so a door that skips the reasoning does not compile — and couch
-// wants the same typed single-writer door. That is #224, not this issue: the
-// change is couch-wide and #209 has no business growing into it. What #209 owes
-// is not leaving a false claim behind, because a claim like this one is exactly
-// what lets the next reader believe the rule is already kept.
+// terminalMu serializes the scanner and its matching wire write with the other
+// output sites, including release. #224 still owns making bypasses impossible
+// through a typed output interface.
 func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
+	if !c.lockTerminal() {
+		return
+	}
 	c.mu.Lock()
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
@@ -1180,7 +1193,6 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 	// composition also owned a buffer assertion, withdrawn for now because
 	// `?1049` moves the cursor; hostty's repaint holds both reasons.
 	composed := hostty.RepaintFor(child, body)
-	_, _ = c.host.Write(composed)
 
 	// And FEED it back. The reset above drops the old child's partial sequence,
 	// which is right, but it also drops everything the scanner knew about the
@@ -1203,7 +1215,10 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 	// prefix is HomeAndClear alone, so this changes nothing; it is written now
 	// so the `?1047` candidate does not need either console to remember.
 	c.hostScan.FeedFraming(composed)
+	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
 	c.mu.Unlock()
+	_, _ = c.host.Write(keyboardDisambiguated(composed, complete))
+	c.terminalMu.Unlock()
 
 	// AND ASK THE CHILD TO REPAINT. Here, not at the call sites, because a
 	// takeover and its repaint request are one act: the body above is the
@@ -1218,6 +1233,10 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 // screen. It refuses while the child's stream is mid-sequence and records the
 // debt; the next chunk that lands on a boundary pays it.
 func (c *Console) writeOwn(p string) {
+	if !c.lockTerminal() {
+		return
+	}
+	defer c.terminalMu.Unlock()
 	c.mu.Lock()
 	// SafeToPaint, not MidSequence: the shared door adds "the child holds the
 	// cursor save", which couch needs for the same reason termcmd does even

@@ -31,13 +31,9 @@ const previousByte = 0x08
 // newestPageSequence is ctrl+return under the Kitty protocol: codepoint 13 with
 // modifier bitmask 4 encoded as 4+1, the same construction as ctrl-space's row.
 //
-// It has NO legacy form, and that is accepted rather than discovered. In legacy
-// encoding ctrl+return is a bare CR, byte-identical to plain Return, so
-// intercepting it there would take every Return from the child. previousByte
-// makes the opposite trade because ^H is a rarely-typed key; CR is the most
-// common key there is. With the protocol off the chord therefore reaches the
-// child as a plain Return -- and zellij pushes the protocol, so that is the
-// documented edge, not the ordinary case.
+// It has no legacy form: CR is also ordinary Return. Couch maintains the
+// disambiguation flag while it owns a supporting terminal; an unsupported host
+// retains Ctrl+Space then Return as the notification-jump fallback.
 //
 // Named because two sites need the same bytes: the knownSequences row, and the
 // panel arm of onNewestPageHotkey, which hands them to the panel's decoder.
@@ -182,6 +178,8 @@ var knownSequences = func() []struct {
 		{[]byte("\x1b[127;5u"), seqPrevious},
 		// ctrl+return, Kitty-only by necessity; see newestPageSequence.
 		{[]byte(newestPageSequence), seqNewestPage},
+		{[]byte("\x1b[13;5:1u"), seqNewestPage}, // explicit press
+		{[]byte("\x1b[13;5:2u"), seqNewestPage}, // repeat; never release
 	}
 	for _, chord := range []struct {
 		chord workbenchshortcut.Chord
