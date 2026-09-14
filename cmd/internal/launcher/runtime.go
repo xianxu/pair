@@ -3,6 +3,8 @@ package launcher
 import (
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
+
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
@@ -198,20 +200,22 @@ type LifecycleOps interface {
 	// it — the park-nudge skip (a restart isn't a quit; the relaunch keeps the
 	// work), shell 1553.
 	RestartMarkerPresent(session string) bool
-	// TakeRestartMarker read-clears the restart marker and parses it; ok=false
-	// when absent (the loop terminates), shell 717-733.
-	TakeRestartMarker(session string) (RestartMarker, bool)
+	// ReadRestartMarker preserves intent until exact successful acknowledgment.
+	ReadRestartMarker(session string) (RestartMarker, bool, error)
+	AcknowledgeRestartMarker(session string, expected RestartMarker) error
+	RequestCouchContinuation(sourcePath string) error
+	ReadCheckpoint(path string) (checkpoint.Checkpoint, error)
 	// WriteRestartMarker writes ~/.cache/pair/restart-<session> (serialized) —
-	// the in-session compaction write twin of TakeRestartMarker (#99 M5b, shell
+	// the checked in-session compaction publication seam (#99 M5b, shell
 	// 1052-1057).
-	WriteRestartMarker(session string, m RestartMarker)
+	WriteRestartMarker(session string, m RestartMarker) error
 	// TouchQuitMarker touches ~/.cache/pair/quit-<session> so the outer loop's
 	// runCleanup fires after the compaction kill (shell 1058).
 	TouchQuitMarker(session string)
 	// ExecKillSession execs `${PAIR_KILL_CMD:-zellij kill-session} <session>` —
 	// TERMINAL (replaces the process), so the compaction pane dies and the outer
 	// bin/pair regains the tty (shell 1060). PAIR_KILL_CMD overrides for tests.
-	ExecKillSession(session string)
+	ExecKillSession(session string) error
 	// DeleteSession removes the zellij session record, SIGKILLs exact lingering
 	// server processes, and returns success only after record + servers are
 	// observed absent.
@@ -271,6 +275,9 @@ type LaunchOptions struct {
 	Env                  Env
 	PairHome             string
 	GlobalDataDir        string
+	ContinueCheckpoint   checkpoint.Checkpoint
+	RestartSession       string
+	RestartAttempt       RestartMarker
 	ContinueDoc          string // seed the draft to read this continuation (create-only)
 	ContinueText         string // seed the draft with generated continuation instructions
 	CodexAltScreenOptOut bool   // PAIR_CODEX_ALT_SCREEN=1: leave codex in alt-screen

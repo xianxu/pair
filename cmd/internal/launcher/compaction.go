@@ -1,18 +1,16 @@
 package launcher
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"io"
 	"strings"
 )
 
-// In-session compaction (#55, #99 M5b, ported from bin/pair-shell 1019-1062).
-// `pair continue <slug>` run from INSIDE the matching live pane must not
-// fresh-start (a nested --session would break, and the create path's name prompt
-// would block). Instead: park the scrollback (copy — pair-wrap is still appending
-// to .raw), drop a restart marker carrying the slug, kill the session; the outer
-// RunLaunch loop then re-launches fresh under the same tag. The decision + marker
-// serialization are pure; park/marker-write/kill are Runtime effects.
+// In-session continuation publishes a validated handoff before teardown. Couch
+// owns hosted replacement; standalone sessions publish an exact snapshot marker
+// for their existing outer launcher. Neither path resolves a slug after shutdown.
 
 // compactionDecision decides whether an in-pane `continue` compacts (shell
 // 1035-1043). PAIR_FORCE_IN_SESSION forces it (bypassing both halves);
@@ -41,9 +39,13 @@ func sessionMatchesTag(session, tag, pairSession string) bool {
 
 // serializeRestartMarker renders a RestartMarker as the `key=value` text
 // pair-restart.sh's format expects — the inverse of parseRestartMarker, so a
-// marker written here round-trips through TakeRestartMarker. Only non-empty
+// marker written here round-trips through ReadRestartMarker. Only non-empty
 // fields are emitted (matching the shell's compaction write, 1052-1057).
 func serializeRestartMarker(m RestartMarker) string {
+	if m.Version != 0 {
+		raw, _ := json.Marshal(m)
+		return string(raw) + "\n"
+	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "tag=%s\n", m.Tag)
 	fmt.Fprintf(&b, "agent=%s\n", m.Agent)
@@ -62,11 +64,8 @@ func serializeRestartMarker(m RestartMarker) string {
 	return b.String()
 }
 
-// runCompaction executes the in-pane compaction (shell 1045-1060): park the
-// scrollback (copy), write the restart marker (new_session + continue slug),
-// touch the quit marker, then exec kill-session. ExecKillSession is terminal
-// (replaces the process), so the return is unreachable on the real runtime — it
-// exists so the fake-Runtime loop test can observe the sequence.
+// runCompaction delegates hosted ownership to Couch or durably publishes the
+// standalone snapshot, checks quit intent, and stops the exact source session.
 func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 	tag := opts.PairTag
 	if tag == "" {
@@ -80,10 +79,47 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 		// fallback for a pre-#130 session whose env is missing it.
 		session = firstNonEmpty(opts.PairSession, legacySessionPrefix+tag)
 	}
+	if opts.ContinueCheckpoint.Version == 0 {
+		fmt.Fprintln(stderr, "pair: continuation checkpoint was not validated; source kept running")
+		return 1, nil
+	}
+	if err := opts.ContinueCheckpoint.Validate(); err != nil {
+		fmt.Fprintf(stderr, "pair: %v\n", err)
+		return 1, nil
+	}
+	if opts.Env.CouchThreadScope != "" || opts.Env.CouchThreadTag != "" {
+		if opts.Env.CouchThreadScope == "" || opts.Env.CouchThreadTag != tag {
+			fmt.Fprintln(stderr, "pair: Couch continuation address does not match this pane")
+			return 1, nil
+		}
+		rt.SetEnv(checkpoint.DigestEnv, opts.ContinueCheckpoint.Digest)
+		if err := rt.RequestCouchContinuation(opts.ContinueCheckpoint.SourcePath); err != nil {
+			fmt.Fprintf(stderr, "pair: continuation request failed; checkpoint kept at %s: %v\n", opts.ContinueCheckpoint.SourcePath, err)
+			return 1, nil
+		}
+		fmt.Fprintln(stderr, "pair: continuation accepted by Couch; the thread owner will restart from the saved checkpoint")
+		return 0, nil
+	}
 	fmt.Fprintf(stderr, "pair: compacting %s — parking scrollback, restarting from continuation…\n", session)
-	rt.ParkScrollback(tag, agent, false) // copy: the live .raw is still being appended
-	rt.WriteRestartMarker(session, RestartMarker{Tag: tag, Agent: agent, NewSession: true, Continue: opts.ContinueSlug})
-	rt.TouchQuitMarker(session)
-	rt.ExecKillSession(session)
+	attempt := rt.MintLaunchNonce()
+	if attempt == "" {
+		fmt.Fprintln(stderr, "pair: cannot allocate continuation restart attempt")
+		return 1, nil
+	}
+	saved := readSavedConfig(rt, resolveConfigPath(rt, opts.Env.DataDir, tag, agent))
+	marker := RestartMarker{AgentArgs: FreshAgentArgs(saved.Args), Version: 1, Attempt: attempt, Tag: tag, Agent: agent, NewSession: true, Continue: opts.ContinueSlug, Checkpoint: opts.ContinueCheckpoint}
+	if err := rt.WriteRestartMarker(session, marker); err != nil {
+		fmt.Fprintf(stderr, "pair: write continuation restart intent: %v\n", err)
+		return 1, nil
+	}
+	if err := writeQuitIntent(rt, session, QuitIntent{Version: QuitIntentVersion, Kind: QuitIntentDirect}); err != nil {
+		fmt.Fprintf(stderr, "pair: write continuation quit intent: %v; retry with pair continue --retry %s\n", err, tag)
+		return 1, nil
+	}
+	rt.ParkScrollback(tag, agent, false)
+	if err := rt.ExecKillSession(session); err != nil {
+		fmt.Fprintf(stderr, "pair: source stop failed: %v; checkpoint retained, inspect source before pair continue --retry %s\n", err, tag)
+		return 1, nil
+	}
 	return 0, nil
 }

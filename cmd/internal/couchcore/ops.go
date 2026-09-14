@@ -229,6 +229,31 @@ func Operations() []Operation {
 				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
 			},
 		},
+
+		{
+			Name: "request-continuation", Summary: "Accept an exact checkpoint for this hosted thread",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal,
+			Args: []ArgSpec{
+				{Name: "path", Summary: "absolute path to the saved checkpoint", Required: true},
+				{Name: "repo-scope", Summary: "exact repository scope from the hosted thread", Required: true, Implicit: true}, {Name: "tag", Summary: "exact hosted thread tag", Required: true, Implicit: true},
+				{Name: "agent", Summary: "source agent matching the checkpoint", Required: true, Implicit: true}, {Name: "session", Summary: "exact source Pair session", Required: true, Implicit: true}, {Name: "launch-ordinal", Summary: "current source launch generation", Required: true, Implicit: true}, {Name: "expected-digest", Summary: "SHA-256 of the checkpoint accepted by the writer", Required: true, Implicit: true},
+			},
+		},
+		{
+			Name: "continue-thread", Summary: "Execute or reconcile an accepted continuation",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationInternal,
+			Args: continuationArguments(false),
+		},
+		{
+			Name: "retry-continuation", Summary: "Retry the retained continuation without duplicating its target",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationInternal, RowAction: true,
+			Args: continuationArguments(true),
+		},
+		{
+			Name: "continuation-status", Summary: "Reconcile the exact continuation delivery receipt",
+			Execution: ExecuteLiveOwner, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal,
+			Args: append(continuationArguments(false), ArgSpec{Name: "attempt", Summary: "exact continuation launch attempt", Implicit: true}),
+		},
 		{
 			Name: "publish-description", Summary: "Publish this session's own one-line summary (run by the agent inside its thread)",
 			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread,
@@ -370,6 +395,14 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 	}
 	if accepted {
 		args = append(args, ArgSpec{Name: "fingerprint", Summary: "accepted preview fingerprint", Required: true, Implicit: true})
+	}
+	return args
+}
+
+func continuationArguments(bootstrap bool) []ArgSpec {
+	args := []ArgSpec{{Name: "repo-scope", Summary: "exact repository scope for the continuation", Required: true, Implicit: true}, {Name: "tag", Summary: "exact thread tag supplied by the owner", Implicit: true}, {Name: "request-id", Summary: "stable retained continuation request ID", Required: !bootstrap, Implicit: true}}
+	if bootstrap {
+		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true}}, args...)
 	}
 	return args
 }

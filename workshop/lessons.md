@@ -4839,3 +4839,33 @@ When Couch takes ownership of a terminal capability formerly supplied by its
 child, update README, atlas and current source-contract comments together.
 Search for the old owner and accepted encoding claims; passing protocol tests
 do not establish that operator documentation describes the shipped behavior.
+
+
+## 2026-09-14 — Continuation recovery crosses UI and durable state (#249)
+
+An accepted replacement request outlives its source pane. Test both source-exit
+and failure-completion orders, retain the request address after the pane leaves,
+and do not infer successful delivery from helper registration. A recovered
+source must return to execution; a pending admission conflict cannot be sent to
+receipt polling for a target that does not exist.
+
+Exercise generated menu payloads through the declared operation dispatcher.
+Checking that an action appears or carries an ID misses required arguments that
+make it unreachable. Every returned StartedChild must be adopted or waited for,
+including internal CLI paths and intermediate recovery helpers.
+
+Keep the issue log current while implementation agents work. Answering a side
+question does not finish the active task: resume integration and record the
+completed unit before ending a turn or starting another investigation.
+
+
+## 2026-09-14 — Verify review claims at the actual mutation boundary (#249)
+
+A foreground/background hint does not itself establish a focus override. Trace
+the installer through the lock and its active-actor condition, then reproduce
+intervening user actions through the actual dispatcher. If the proposed failing
+cases pass unchanged code, preserve them as regressions and request a grounded
+review disposition rather than adding another focus mechanism speculatively.
+
+Before closing, compare every Core-concepts row against the actual diff and
+append corrected classifications for unchanged reuse and split implementations.

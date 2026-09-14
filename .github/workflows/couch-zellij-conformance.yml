@@ -11,6 +11,18 @@ on:
       - "cmd/internal/launcher/markers*.go"
       - "cmd/internal/launcher/restart*.go"
       - "cmd/internal/launcher/quit_lifecycle_live_test.go"
+      - "cmd/internal/checkpoint/**"
+      - "cmd/internal/continuationcmd/**"
+      - "cmd/internal/couchcore/continuation*.go"
+      - "cmd/internal/couchcore/switchcontext.go"
+      - "cmd/internal/couchcore/launch_existing.go"
+      - "cmd/internal/couchcmd/continuation*.go"
+      - "cmd/internal/couchtty/console_continuation*.go"
+      - "cmd/internal/launcher/checkpoint*.go"
+      - "cmd/internal/launcher/continuation*.go"
+      - "cmd/internal/launcher/createflow.go"
+      - "cmd/internal/orientation/**"
+      - "cmd/internal/readiness/**"
       - "cmd/internal/pairlifecycle/**"
       - "cmd/internal/pairlifecycletest/**"
       - "cmd/internal/artifactpath/**"
@@ -29,6 +41,18 @@ on:
       - "cmd/internal/launcher/markers*.go"
       - "cmd/internal/launcher/restart*.go"
       - "cmd/internal/launcher/quit_lifecycle_live_test.go"
+      - "cmd/internal/checkpoint/**"
+      - "cmd/internal/continuationcmd/**"
+      - "cmd/internal/couchcore/continuation*.go"
+      - "cmd/internal/couchcore/switchcontext.go"
+      - "cmd/internal/couchcore/launch_existing.go"
+      - "cmd/internal/couchcmd/continuation*.go"
+      - "cmd/internal/couchtty/console_continuation*.go"
+      - "cmd/internal/launcher/checkpoint*.go"
+      - "cmd/internal/launcher/continuation*.go"
+      - "cmd/internal/launcher/createflow.go"
+      - "cmd/internal/orientation/**"
+      - "cmd/internal/readiness/**"
       - "cmd/internal/pairlifecycle/**"
       - "cmd/internal/pairlifecycletest/**"
       - "cmd/internal/artifactpath/**"
@@ -47,5 +71,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install zellij
         run: brew install zellij
-      - name: Exercise observable zellij teardown
+      - name: Exercise Zellij teardown and continuation seed transport
         run: make test-couch-zellij-live

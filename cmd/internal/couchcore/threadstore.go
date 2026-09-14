@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -467,6 +468,12 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 		return ThreadRecord{}, errors.New("start claim has no repository identity")
 	}
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Continuation != nil && next.Continuation.Phase != checkpoint.Complete {
+			allowedFresh := event.Shape == StartFreshExisting && next.Continuation.Phase == checkpoint.Running && event.Nonce == next.Continuation.Attempt
+			if !allowedFresh && event.Shape != StartWarmReattach {
+				return continuationGuard(*next)
+			}
+		}
 		if len(next.Incarnations) != 0 {
 			return fmt.Errorf("thread %+v already has %d incarnation(s)", address, len(next.Incarnations))
 		}
@@ -1055,11 +1062,19 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 		expectedRecord := append([]byte{}, raw...)
 		expectedManifest := append([]byte{}, manifestRaw...)
 		afterManifest := append(nextRaw, '\n')
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+		entries := []storeJournalEntry{
 			{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
 			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
-		}})
+		}
+		// Snapshot bytes are already preserved by the first journal entry.
+		// Removing the sole derived file is part of the same recoverable commit.
+		if snapshot, exists, err := readOptionalFile(s.continuationPath(address)); err != nil {
+			return err
+		} else if exists {
+			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.continuationPath(address)), Expected: &snapshot})
+		}
+		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
 	})
 }
 

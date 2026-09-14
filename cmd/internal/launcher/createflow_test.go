@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"maps"
 	"os"
 	"path/filepath"
@@ -99,30 +100,35 @@ type fakeRuntime struct {
 	readyErr       error
 
 	// recorded
-	env             map[string]string
-	launched        string // last session name handed to LaunchSession
-	launchLayout    string
-	launchCode      int
-	launchCount     int // number of create handoffs (restart-loop iterations)
-	defaultReads    int
-	watchers        []string            // "agent|tag|cwd|args"
-	pollers         []string            // "tag|agent"
-	pollerEnvs      []map[string]string // the environment each title poller started with
-	cmux            []string            // "tag|title"
-	ttyRecorded     []string
-	titles          []string
-	removed         []string
-	family          []string
-	devRebuilt      bool
-	proofMigrations int
-	attached        []string   // sessions handed to AttachSession
-	deleted         []string   // sessions handed to DeleteSession
-	reaped          []string   // tags handed to ReapNvim
-	swept           [][]string // liveTags per SweepOrphanNvim call
-	parkPrompts     []string   // sessions prompted via ConfirmParkNudge
-	parked          []string   // "tag|agent|move" per ParkScrollback
-	killedPollers   []string   // tags handed to KillTitlePoller
-	cmuxCleared     int        // ClearCmuxOwner calls
+	env                  map[string]string
+	launched             string // last session name handed to LaunchSession
+	launchLayout         string
+	launchCode           int
+	couchContinuations   []string
+	couchContinuationErr error
+	markerWriteErr       error
+	killErr              error
+	launchHook           func(int)
+	launchCount          int // number of create handoffs (restart-loop iterations)
+	defaultReads         int
+	watchers             []string            // "agent|tag|cwd|args"
+	pollers              []string            // "tag|agent"
+	pollerEnvs           []map[string]string // the environment each title poller started with
+	cmux                 []string            // "tag|title"
+	ttyRecorded          []string
+	titles               []string
+	removed              []string
+	family               []string
+	devRebuilt           bool
+	proofMigrations      int
+	attached             []string   // sessions handed to AttachSession
+	deleted              []string   // sessions handed to DeleteSession
+	reaped               []string   // tags handed to ReapNvim
+	swept                [][]string // liveTags per SweepOrphanNvim call
+	parkPrompts          []string   // sessions prompted via ConfirmParkNudge
+	parked               []string   // "tag|agent|move" per ParkScrollback
+	killedPollers        []string   // tags handed to KillTitlePoller
+	cmuxCleared          int        // ClearCmuxOwner calls
 }
 
 func (f *fakeRuntime) StartProofMigration() { f.proofMigrations++ }
@@ -202,6 +208,9 @@ func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, err
 	f.launched = session
 	f.launchLayout = layout
 	f.launchCount++
+	if f.launchHook != nil {
+		f.launchHook(f.launchCount)
+	}
 	return f.launchCode, f.launchErr
 }
 
@@ -537,14 +546,21 @@ func (f *fakeRuntime) ReadDir(path string) ([]string, error) {
 	}
 	return out, nil
 }
-func (f *fakeRuntime) WriteRestartMarker(session string, m RestartMarker) {
+func (f *fakeRuntime) WriteRestartMarker(session string, m RestartMarker) error {
+	if f.markerWriteErr != nil {
+		return f.markerWriteErr
+	}
 	if f.writtenMarkers == nil {
 		f.writtenMarkers = map[string]RestartMarker{}
 	}
 	f.writtenMarkers[session] = m
+	return nil
 }
 func (f *fakeRuntime) TouchQuitMarker(session string) { f.touchedQuit = append(f.touchedQuit, session) }
-func (f *fakeRuntime) ExecKillSession(session string) { f.killed = append(f.killed, session) }
+func (f *fakeRuntime) ExecKillSession(session string) error {
+	f.killed = append(f.killed, session)
+	return f.killErr
+}
 
 // LifecycleOps
 func (f *fakeRuntime) AttachSession(session, configDir string) (int, error) {
@@ -561,13 +577,6 @@ func (f *fakeRuntime) TakeQuitMarker(session string) bool {
 func (f *fakeRuntime) RestartMarkerPresent(session string) bool {
 	_, ok := f.restartMarkers[session]
 	return ok
-}
-func (f *fakeRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
-	m, ok := f.restartMarkers[session]
-	if ok {
-		delete(f.restartMarkers, session) // read-clear (one-shot)
-	}
-	return m, ok
 }
 func (f *fakeRuntime) DeleteSession(session string) error {
 	f.deleted = append(f.deleted, session)
@@ -1769,4 +1778,30 @@ func TestRunLaunchPickNewDefaultUsesScopedNextFreeSessionName(t *testing.T) {
 	if rt.launched != "📁work-2" {
 		t.Fatalf("launched = %q, want scoped next-free public session name", rt.launched)
 	}
+}
+
+func (f *fakeRuntime) ReadRestartMarker(session string) (RestartMarker, bool, error) {
+	m, ok := f.restartMarkers[session]
+	if !ok {
+		return m, false, nil
+	}
+	validated, err := decodeRestartMarker(serializeRestartMarker(m))
+	return validated, ok, err
+}
+func (f *fakeRuntime) AcknowledgeRestartMarker(session string, expected RestartMarker) error {
+	if sameRestartMarker(f.restartMarkers[session], expected) {
+		delete(f.restartMarkers, session)
+	}
+	return nil
+}
+func (f *fakeRuntime) RequestCouchContinuation(path string) error {
+	f.couchContinuations = append(f.couchContinuations, path)
+	return f.couchContinuationErr
+}
+func (f *fakeRuntime) ReadCheckpoint(path string) (checkpoint.Checkpoint, error) {
+	raw, err := f.ReadFile(path)
+	if err != nil {
+		return checkpoint.Checkpoint{}, err
+	}
+	return checkpoint.New(path, raw)
 }

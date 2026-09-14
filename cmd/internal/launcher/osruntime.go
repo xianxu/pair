@@ -245,6 +245,8 @@ func (r OSRuntime) ResolveContinuationDoc(slug string) (string, string, bool) {
 	agent := ""
 	if raw, err := r.ReadFile(path); err == nil {
 		agent = frontmatterField(raw, "agent")
+	} else {
+		return "", "", false
 	}
 	return path, agent, true
 }
@@ -758,27 +760,10 @@ func (OSRuntime) RestartMarkerPresent(session string) bool {
 	return fileExists(path)
 }
 
-func (r OSRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
-	path, ok := restartMarkerPath(session)
-	if !ok {
-		return RestartMarker{}, false
-	}
-	raw, err := r.ReadFile(path)
-	if err != nil {
-		return RestartMarker{}, false
-	}
-	r.Remove(path)
-	return parseRestartMarker(raw), true
-}
-
 // WriteRestartMarker + TouchQuitMarker are the in-session compaction write twins
 // (#99 M5b, shell 1052-1058); WriteAtomic/Touch MkdirAll the cache dir.
-func (r OSRuntime) WriteRestartMarker(session string, m RestartMarker) {
-	path, ok := restartMarkerPath(session)
-	if !ok {
-		return
-	}
-	_ = r.WriteAtomic(path, serializeRestartMarker(m))
+func (r OSRuntime) WriteRestartMarker(session string, m RestartMarker) error {
+	return r.writeRestartMarker(session, m)
 }
 
 func (r OSRuntime) TouchQuitMarker(session string) {
@@ -793,14 +778,16 @@ func (r OSRuntime) TouchQuitMarker(session string) {
 // does NOT return on success (syscall.Exec replaces the process — the compaction
 // pane dies, the outer bin/pair regains the tty). A missing binary falls through
 // so the caller isn't wedged (shell 1060).
-func (OSRuntime) ExecKillSession(session string) {
+func (OSRuntime) ExecKillSession(session string) error {
 	argv := []string{"zellij", "kill-session", session}
 	if kc := os.Getenv("PAIR_KILL_CMD"); kc != "" {
 		argv = append(strings.Fields(kc), session)
 	}
-	if path, err := exec.LookPath(argv[0]); err == nil {
-		_ = syscall.Exec(path, argv, os.Environ())
+	path, err := exec.LookPath(argv[0])
+	if err != nil {
+		return err
 	}
+	return syscall.Exec(path, argv, os.Environ())
 }
 
 // DeleteSession returns success only after both the exact session record and

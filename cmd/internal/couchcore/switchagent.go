@@ -79,6 +79,9 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if err != nil {
 		return PreparedAgentSwitch{}, err
 	}
+	if err := continuationGuard(record); err != nil {
+		return PreparedAgentSwitch{}, err
+	}
 	if record.Park != nil {
 		return PreparedAgentSwitch{}, errors.New("switch-agent: park is incomplete; use park retry/recover/abandon")
 	}

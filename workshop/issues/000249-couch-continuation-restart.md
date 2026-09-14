@@ -1,12 +1,13 @@
 ---
 id: 000249
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-14
 estimate_hours: 6.216
 started: 2026-09-14T10:30:49-07:00
+actual_hours: 4.90
 ---
 
 # Fix continuation restart for Couch-hosted Pair threads
@@ -109,10 +110,10 @@ while keeping the work scoped to the continuation/restart contract.
 
 ## Plan
 
-- [ ] Reproduce hosted restart with stateful ownership and cross-worktree checkpoint fixtures.
-- [ ] Design restart ownership, checkpoint transport, and failure recovery in a durable plan.
-- [ ] Implement, verify the full hosted flow and standalone regressions, and update docs.
-- [ ] Close through the SDLC review gate.
+- [x] Reproduce hosted restart with stateful ownership and cross-worktree checkpoint fixtures.
+- [x] Design restart ownership, checkpoint transport, and failure recovery in a durable plan.
+- [x] Implement, verify the full hosted flow and standalone regressions, and update docs.
+- [x] Submit the verified implementation to the SDLC closing gate.
 
 ## Estimate
 
@@ -164,6 +165,210 @@ registration. This differs from #248's detached-session inventory rejection:
 this incident deliberately terminated the source but failed to replace it.
 No implementation started; runtime identities above are historical evidence.
 
+### 2026-09-14 — Implementation checkpoint; integration remains open
+- 2026-09-14: closed — Full make test, focused continuation races, live Zellij conformance and build passed. Round-one follow-up changes only tests/docs: full Console suite and four intervening-focus race cases pass unchanged production; BR-1 complete concept audit appended, BR-2 withdrawal requested with deterministic evidence. Cross-worktree initial/warm writer-to-Console acceptance passed; operator smoke pending.; review verdict: SHIP
+
+The durable design is `workshop/plans/000249-couch-continuation-restart-plan.md`.
+Fresh-context plan review passed after one revision addressing last-source-exit
+ordering. `sdlc change-code` plan-quality passed on the third review round; the
+next invocation supplied the estimate and opened this implementation branch.
+
+Implemented, still uncommitted: immutable bounded checkpoint/request model and
+persisted slot; exact committed path and digest through the writer/launcher;
+Couch publication without inner teardown; durable standalone marker/retry;
+Couch-owned park/fresh replacement, receipt reconciliation, timeout and safe
+source/target warm recovery; continuation guards and declared operations.
+The Console worker, status/retry UI and CLI bootstrap are partly integrated.
+
+Implementing agents reported passing full package tests for checkpoint,
+threadrecord, writer, launcher and Couch core, plus focused race tests. This is
+component evidence, not end-to-end completion. Root is running the combined
+affected-package check with output in `/tmp/pair-249-integration-status.log`.
+
+Known remaining wiring: inject the OS source reader; bind the writer's expected
+digest at CLI ingress; execute again after adopting a recovered source; process
+healthy request statuses when another slot fails to read. Then finish actual
+hosted acceptance, live-conformance coverage, artifact classifications, docs,
+full suite/build and the mandatory SDLC closing review. No smoke-ready or
+code-complete claim yet; #250 has not started implementation.
+
+Progress reporting lagged while root answered side questions and investigated
+the separate display defect (#252). The implementation agents continued, but
+root repeatedly ended turns instead of resuming integration and did not update
+this log. This checkpoint corrects the record; future progress is recorded here
+at each completed integration/verification unit.
+
+### 2026-09-14 — CLI and Console integration regressions
+
+Root wired the OS source reader and exact digest at CLI ingress. New regression
+tests first failed for missing digest transport, a corrupt slot blocking healthy
+requests, recovered-source execution stalling in receipt polling, and an empty
+error result discarding request identity. All four cases now pass. Additional
+Console checks verify actual replacement attachment, focus preservation for a
+background thread, and no automatic retry of failed requests.
+
+A non-Console continuation result also exposed an owner-lifetime bug: the CLI
+printed the result and returned instead of waiting for its new helper. Generalized
+rendering to the existing StartedChild interface, with a failing-then-passing
+exit-code test. Full UI/CLI verification is running in
+`/tmp/pair-249-ui-cli-tests.log`. Acceptance and live-conformance work remain in
+progress; this is not the closing verification run.
+
+### 2026-09-14 — Transport and complete handoff acceptance
+
+Task 2 now carries the writer's committed absolute checkpoint path and SHA-256
+through the launcher and the declared Couch publication operation. Hosted
+continuation leaves source teardown to Couch; hosted restart/rename refuse
+before side effects. Standalone continuation retains its immutable snapshot and
+fresh argv through failed replacement and explicit retry; marker writes and
+quit writes are checked, and acknowledgment is generation-checked after success.
+Shared leaf validation bounds the body and requires continuation frontmatter
+and a substantive NEXT ACTION. This preserves one validation authority
+(ARCH-DRY) and orders durable intent before source teardown (ARCH-ORDER).
+
+`go test ./cmd/internal/launcher ./cmd/internal/continuationcmd ./cmd/internal/checkpoint -count=1`
+passed (6.638s / 0.944s / 0.636s), and focused race tests for those packages
+passed; commands and output are retained in
+`/tmp/pair249-transport-tests.log` and `/tmp/pair249-transport-race.log`.
+Observed red tests covered missing checkpoint APIs, writer slug/error handling,
+malformed markers, missing kill executable, unbounded body input, wrong installed
+Couch executable lookup, NEXT ACTION only inside frontmatter, and missing durable
+fresh argv. Each was corrected before the green runs.
+
+`TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` now builds the
+real Pair binary, writes and commits in a sibling Git worktree while its outer
+working directory is the main fixture checkout, and follows the actual serialized
+writer output through the real launcher, CLI dispatch, ThreadStore, and source
+ledger reader. Both initial and warm-reattached cases continue through durable
+Pair lifecycle request/completion files, verified source death, production
+existing-address registration, exact materialized seed and fresh profile,
+on-disk readiness waiting/submitted receipts, complete request state, and
+Console input/output. Established claim bytes and prompt-history bytes remain
+unchanged. The warm case additionally enters the actual retry CLI operation,
+checks singleton lease ownership during replacement attachment, and observes
+release after its finisher. Missing committed digest, post-launcher file tamper,
+and obsolete source generation produce their exact expected errors and leave
+the source, claim, and committed checkpoint intact without request authority.
+
+`go test -race ./cmd/internal/couchcmd -run '^TestContinuationWriterPublishesExactCheckpointAcrossWorktrees$' -count=1 -v`
+passed all five cases; output is in
+`/tmp/pair249-publication-acceptance-race.log`. The non-race command also passed,
+with output in `/tmp/pair249-publication-acceptance.log`. One acceptance fixture
+red run proved the retry declaration requires `ref`, not `tag`; the corrected
+fixture exercises the declared operation rather than a direct callback.
+`rg 'WriteRestartMarker|TakeRestartMarker|RestartMarker|planRestart' cmd bin`
+was reviewed; its inventory is in `/tmp/pair249-restart-consumer-sweep.log`.
+There is no destructive TakeRestartMarker consumer remaining. `git diff --check`
+is clean.
+
+The portable acceptance uses real temporary Git/store/claim/protocol files and
+simulates external process death, blocked helper execution, and terminal devices.
+It does not claim paid-agent composer recognition or real Zellij teardown;
+the separately maintained live conformance and operator smoke cover those
+boundaries. No production sessions or data were mutated. Code commit, full-suite
+integration, operator smoke, and SDLC close remain with the main agent.
+
+### 2026-09-14 — Verification run and remaining closing gate
+
+Full Couch CLI/Console package tests passed. Final focused continuation race
+tests passed across checkpoint, writer, launcher, core, Console and CLI;
+ThreadRecord's full ordinary tests passed earlier (the final focused race
+selector has no ThreadRecord tests). Full `make test-couch-zellij-live` passed,
+including detach, verified park and continuation seed/receipt transport.
+
+The first `make test` run stopped at the standalone restart shell fixture:
+inherited COUCH_THREAD_SCOPE/TAG made its standalone restart correctly refuse.
+The fixture now explicitly clears those two hosted-context variables; its
+focused rerun passed. The full rerun is in `/tmp/pair-249-make-test-2.log`.
+
+Additional boundary tests caught and fixed a missing required thread reference
+in the Retry menu's declared-operation payload and pending requests incorrectly
+being sent to receipt polling after an admission conflict. Queue-overload tests
+verify source focus/liveness remains intact until the request is admitted.
+
+Implementation and acceptance are ready for closing verification. Remaining:
+finish full suite/build, commit the coherent implementation and checked plan,
+run `sdlc close`'s mandatory fresh-context review, address any findings, then
+pause for operator smoke. No closing review has run yet.
+
+### 2026-09-14 — Closing verification passed
+
+`env -u PAIR_SESSION_ID -u PAIR_TAG make test` passed on the second full run,
+including all Go packages, shell and Lua checks (`/tmp/pair-249-make-test-2.log`).
+`make build` passed (`/tmp/pair-249-build.log`). Full live Zellij conformance
+passed (`/tmp/pair-249-live-conformance.log`), focused race tests passed
+(`/tmp/pair-249-final-race.log`), and `git diff --check` passed. The implementation
+is being committed for the mandatory fresh-context closing review; its verdict
+is still pending. Operator smoke follows review, before #250 implementation.
+
+
+### 2026-09-14 — BR-1 core-concepts traceability corrected
+
+The closing gate returned REWORK with BR-1 (plan/diff traceability) and BR-2
+(asynchronous focus ordering). BR-1 is addressed: audited all six pure-entity
+and seven integration rows against pinned `7800e968..f5fa755b`, then appended a
+superseding Core-concepts audit under the durable plan's Revisions. Orientation
+files are reused unchanged; the correction names their actual continuation
+callers, the new `checkpoint_io.go` implementation location, the mixed new and
+modified Console files, and the exported `checkpoint.Request` name. No runtime
+code changed for BR-1. Row-by-row diff and pinned-symbol inspection verified the
+correction; BR-2 and the mandatory closing-gate rerun remain pending.
+
+### 2026-09-14 — BR-2 reproduction and requested disposition
+
+The first closing review returned REWORK. BR-1 is corrected by the complete
+concept-table audit recorded in the plan revision. BR-2's stated focus override
+does not reproduce against the unchanged production implementation.
+
+`TestContinuationCompletionPreservesInterveningFocus` exercises the actual
+acceptance, switchTo/onHotkey, source exit, finishOperation, declared dispatcher,
+and attach installer. Its four cases select another actor, return to the panel,
+switch inside attach dispatch, and switch before source exit. All pass with the
+race detector (`/tmp/pair-249-br2-reproduction.log`). No production focus changes
+were made to obtain that result.
+
+`installObservedThreadActor` checks `c.active == ""` under the same mutex used
+to install the new pane and change focus. Selecting another actor sets active;
+reopening the panel retains that active actor. `finishOperation` only forces a
+switch for resume, not continue-thread or retry-continuation. Thus a foreground
+attach does not override an intervening live actor selection. Request that the
+next review withdraw BR-2, or provide a counterexample beyond these covered
+event orders. The ledger disposition remains the reviewer's responsibility.
+
+### 2026-09-14 — SHIP; paused for operator smoke
+
+The second closing review returned SHIP: BR-1 addressed, BR-2 withdrawn after
+the reviewer confirmed the existing atomic attachment guard and four race-tested
+event orders. No findings remain open. `sdlc close` set codecomplete and adopted
+4.90 measured hours. Review window: `7800e968..6ed50f41`; sidecars retain both
+rounds. The earlier unchecked-closing-task refusal was a bookkeeping preflight,
+not an additional review round.
+
+Smoke procedure: leave Couch from its switcher with Alt+d (detach all threads),
+then start the rebuilt `bin/couch` from this checkout. Reloading only an inner
+Pair process does not update the already-running Couch supervisor. Trigger a
+continuation in a hosted thread, including a distinctive next-action token.
+Verify the replacement keeps the same Pair tag and prompt history and receives
+that token from the checkpoint. If convenient, author the checkpoint in a
+sibling worktree to exercise exact-path transport live. Automated tests cover
+failure retention, retry, and missing/mismatched checkpoint refusal.
+
+Implementation is committed and reviewed, not merged. Stop here for smoke;
+#250 implementation and #245 remain queued in that order.
+
+### 2026-09-14 — Operator smoke passed on brain thread
+
+Operator restarted Couch, requested continuation in brain, and confirmed the
+thread returned alive. Read-only runtime verification observed the same address
+`2e51fcf9799b1d8f/couch-e1a31510b7033d08`, request phase complete, no failure,
+and matching SHA-256 for the retained checkpoint body. Source helper 20491 was
+replaced by helper 22555, registered at 13:11:06 local time. The checkpoint was
+saved at `brain/workshop/continuation/20260914T131057-couch-e1a31510b7033d08.md`;
+the new agent's visible task was resuming that continuation. This supplies the
+actual-agent smoke complement to the automated submission-receipt tests.
+
+Smoke checkpoint accepted; ship #249 and continue the approved sequence at #250.
+
 ## Revisions
 
 ### 2026-09-14T10:40:00-07:00 — Shared recovery contract and execution order
@@ -196,3 +401,10 @@ replacement using existing verified park and fresh-existing start machinery
 the Couch owner picks up a durable request even while the panel is closed.
 Failed requests retain that snapshot and require explicit retry. Account for
 last-actor exit before replacement attachment so Couch itself stays open.
+
+### 2026-09-14 — Make the closing checklist describe its review handoff
+
+The first close invocation stopped before review because its own final "Close"
+checkbox was unchecked. Reworded that self-referential checklist item to the
+completed submission of verified work. The review verdict remains pending in
+Log and issue status stays working; no review or verification gate is bypassed.

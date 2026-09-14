@@ -521,7 +521,8 @@ func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, 
 	var violations []string
 	for _, allowance := range classification.Vocabulary {
 		if allowance.Context != GoStructTagVocabulary && allowance.Context != GoCallArgumentVocabulary &&
-			allowance.Context != GoCaseValueVocabulary && allowance.Context != GoComparisonVocabulary || allowance.Count <= 0 {
+			allowance.Context != GoCaseValueVocabulary && allowance.Context != GoComparisonVocabulary &&
+			allowance.Context != GoKeyValueVocabulary && allowance.Context != GoReturnVocabulary || allowance.Count <= 0 {
 			violations = append(violations, fmt.Sprintf("%s: invalid Go vocabulary allowance %+v", rel, allowance))
 			continue
 		}
@@ -614,6 +615,17 @@ func vocabularyUseForLiteral(file *ast.File, parents map[ast.Node]ast.Node, lite
 					return GoCallArgumentVocabulary, callee, argument, true
 				}
 				return "", "", 0, false
+			}
+		case *ast.KeyValueExpr:
+			// Only direct named values qualify, never constructed paths or calls.
+			if key, ok := parent.Key.(*ast.Ident); ok && parent.Value == literal {
+				return GoKeyValueVocabulary, enclosingFunction(parents, parent) + "." + key.Name, 0, true
+			}
+		case *ast.ReturnStmt:
+			for result, expr := range parent.Results {
+				if expr == literal {
+					return GoReturnVocabulary, enclosingFunction(parents, parent), result, true
+				}
 			}
 		case *ast.CaseClause:
 			for _, expr := range parent.List {
@@ -1009,6 +1021,46 @@ func TestVocabularyConsumerContract(t *testing.T) {
 		allowances    []VocabularyAllowance
 		wantViolation bool
 	}{
+		{
+			name:       "direct named struct field",
+			body:       `package mutation; type op struct { Name string }; func ops() []op { return []op{{Name: "session_id"}} }`,
+			allowances: []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoKeyValueVocabulary, Use: "ops.Name", Count: 1}},
+		},
+		{
+			name:       "direct return result",
+			body:       `package mutation; func operation() (int, string) { return 0, "session_id" }`,
+			allowances: []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoReturnVocabulary, Use: "operation", Argument: 1, Count: 1}},
+		},
+		{
+			name:          "field allowance cannot authorize another function",
+			body:          `package mutation; type op struct { Name string }; func bad() op { return op{Name: "session_id"} }`,
+			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoKeyValueVocabulary, Use: "ops.Name", Count: 1}},
+			wantViolation: true,
+		},
+		{
+			name:          "return allowance cannot authorize path call",
+			body:          `package mutation; import "path/filepath"; func operation() string { return filepath.Join("root", "session_id") }`,
+			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoReturnVocabulary, Use: "operation", Count: 1}},
+			wantViolation: true,
+		},
+		{
+			name:          "field allowance cannot authorize constructed value",
+			body:          `package mutation; type op struct { Name string }; func ops() op { return op{Name: "session_id" + "suffix"} }`,
+			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoKeyValueVocabulary, Use: "ops.Name", Count: 1}},
+			wantViolation: true,
+		},
+		{
+			name:          "return allowance cannot authorize constructed value",
+			body:          `package mutation; func operation() string { return "session_id" + "suffix" }`,
+			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoReturnVocabulary, Use: "operation", Count: 1}},
+			wantViolation: true,
+		},
+		{
+			name:          "return allowance counts duplicates",
+			body:          `package mutation; func operation(ok bool) string { if ok { return "session_id" }; return "session_id" }`,
+			allowances:    []VocabularyAllowance{{Family: "native-session", Value: "session_id", Context: GoReturnVocabulary, Use: "operation", Count: 1}},
+			wantViolation: true,
+		},
 		{
 			name:       "exact vocabulary only",
 			body:       "package mutation\ntype record struct { ID string `json:\"session_id\"` }\n",

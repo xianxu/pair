@@ -135,6 +135,8 @@ func TestLaunchNativeBadFlag(t *testing.T) {
 }
 
 func TestLaunchNativeRestartInfersAgentFromScopedDataDir(t *testing.T) {
+	t.Setenv("COUCH_THREAD_SCOPE", "")
+	t.Setenv("COUCH_THREAD_TAG", "")
 	home := t.TempDir()
 	repo := filepath.Join(home, "work", "pair")
 	if err := os.MkdirAll(repo, 0o755); err != nil {
@@ -191,7 +193,7 @@ func TestLaunchNativeRestartInfersAgentFromScopedDataDir(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	code, err := LaunchNative([]string{"restart"}, "/pair", &stdout, &stderr)
-	if err != nil || code != 0 {
+	if err != nil || code != 1 || !strings.Contains(stderr.String(), "cannot stop source session") {
 		t.Fatalf("code=%d err=%v stderr=%q", code, err, stderr.String())
 	}
 	raw, err := os.ReadFile(filepath.Join(home, ".cache", "pair", "restart-pair-work"))
@@ -205,6 +207,8 @@ func TestLaunchNativeRestartInfersAgentFromScopedDataDir(t *testing.T) {
 }
 
 func TestLaunchNativeUsesGitRootForScopedDataDirFromSubdir(t *testing.T) {
+	t.Setenv("COUCH_THREAD_SCOPE", "")
+	t.Setenv("COUCH_THREAD_TAG", "")
 	home := t.TempDir()
 	repo := filepath.Join(home, "work", "pair")
 	subdir := filepath.Join(repo, "cmd", "pair")
@@ -257,7 +261,7 @@ func TestLaunchNativeUsesGitRootForScopedDataDirFromSubdir(t *testing.T) {
 
 	var stdout, stderr bytes.Buffer
 	code, err := LaunchNative([]string{"restart"}, "/pair", &stdout, &stderr)
-	if err != nil || code != 0 {
+	if err != nil || code != 1 || !strings.Contains(stderr.String(), "cannot stop source session") {
 		t.Fatalf("code=%d err=%v stderr=%q", code, err, stderr.String())
 	}
 	raw, err := os.ReadFile(filepath.Join(home, ".cache", "pair", "restart-📁pair-work"))
@@ -271,6 +275,8 @@ func TestLaunchNativeUsesGitRootForScopedDataDirFromSubdir(t *testing.T) {
 }
 
 func TestLaunchNativeRenameHonorsPairDataDirOverride(t *testing.T) {
+	t.Setenv("COUCH_THREAD_SCOPE", "")
+	t.Setenv("COUCH_THREAD_TAG", "")
 	home := t.TempDir()
 	repo := filepath.Join(home, "work", "pair")
 	if err := os.MkdirAll(repo, 0o755); err != nil {

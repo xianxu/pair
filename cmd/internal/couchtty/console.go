@@ -156,28 +156,31 @@ type Console struct {
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
-	started            bool
-	exited             chan childExit
-	operationQueue     *operationQueue
-	refreshRequests    chan struct{}
-	refreshResults     chan menuRefreshResult
-	refreshSchedule    RefreshSchedule
-	orientationResults chan orientationWatchResult
-	orientationWatches map[couchcore.ThreadAddress]orientationWatch
-	previewResults     chan menuPreviewResult
-	previewSchedule    PreviewSchedule
-	previewCancel      context.CancelFunc
-	previewRunning     uint64
-	directoryReader    DirectoryBatchReader
-	completionResults  chan menuCompletionResult
-	completionSchedule latestSchedule[CompletionRequest]
-	completionCancel   context.CancelFunc
-	completionRunning  CompletionIdentity
-	lifetime           context.Context
-	cancelLifetime     context.CancelFunc
-	stop               chan struct{}
-	once               sync.Once
-	workers            sync.WaitGroup
+	started              bool
+	exited               chan childExit
+	operationQueue       *operationQueue
+	refreshRequests      chan struct{}
+	refreshResults       chan menuRefreshResult
+	refreshSchedule      RefreshSchedule
+	orientationResults   chan orientationWatchResult
+	orientationWatches   map[couchcore.ThreadAddress]orientationWatch
+	continuationProvider ContinuationProvider
+	continuationResults  chan continuationScanResult
+	continuations        map[couchcore.ThreadAddress]continuationWatch
+	previewResults       chan menuPreviewResult
+	previewSchedule      PreviewSchedule
+	previewCancel        context.CancelFunc
+	previewRunning       uint64
+	directoryReader      DirectoryBatchReader
+	completionResults    chan menuCompletionResult
+	completionSchedule   latestSchedule[CompletionRequest]
+	completionCancel     context.CancelFunc
+	completionRunning    CompletionIdentity
+	lifetime             context.Context
+	cancelLifetime       context.CancelFunc
+	stop                 chan struct{}
+	once                 sync.Once
+	workers              sync.WaitGroup
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -192,26 +195,28 @@ func (c *Console) errw() io.Writer {
 func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
-		host:               host,
-		stdin:              stdin,
-		panes:              map[string]*pane{},
-		chunks:             make(chan chunk, 256),
-		resized:            make(chan struct{}, 1),
-		switching:          make(chan string, 8),
-		input:              make(chan []byte, 64),
-		exited:             make(chan childExit, 64),
-		operationQueue:     newOperationQueue(16),
-		refreshRequests:    make(chan struct{}, 1),
-		refreshResults:     make(chan menuRefreshResult, 1),
-		orientationResults: make(chan orientationWatchResult, 8),
-		previewResults:     make(chan menuPreviewResult, 1),
-		directoryReader:    OSDirectoryBatchReader{},
-		completionResults:  make(chan menuCompletionResult, 1),
-		expectedExits:      map[string]bool{},
-		lifetime:           lifetime,
-		cancelLifetime:     cancelLifetime,
-		stop:               make(chan struct{}),
-		feed:               NewFeed(8, time.Now, NoticeLifetime),
+		host:                host,
+		stdin:               stdin,
+		panes:               map[string]*pane{},
+		chunks:              make(chan chunk, 256),
+		resized:             make(chan struct{}, 1),
+		switching:           make(chan string, 8),
+		input:               make(chan []byte, 64),
+		exited:              make(chan childExit, 64),
+		operationQueue:      newOperationQueue(16),
+		refreshRequests:     make(chan struct{}, 1),
+		refreshResults:      make(chan menuRefreshResult, 1),
+		orientationResults:  make(chan orientationWatchResult, 8),
+		continuationResults: make(chan continuationScanResult, 1),
+		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
+		previewResults:      make(chan menuPreviewResult, 1),
+		directoryReader:     OSDirectoryBatchReader{},
+		completionResults:   make(chan menuCompletionResult, 1),
+		expectedExits:       map[string]bool{},
+		lifetime:            lifetime,
+		cancelLifetime:      cancelLifetime,
+		stop:                make(chan struct{}),
+		feed:                NewFeed(8, time.Now, NoticeLifetime),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -596,7 +601,8 @@ func (c *Console) Run() int {
 	c.applyLayout()
 	c.paintNow()
 
-	c.workers.Add(3)
+	c.workers.Add(4)
+	go func() { defer c.workers.Done(); c.watchContinuations() }()
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
 	go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
@@ -875,6 +881,8 @@ func (c *Console) Run() int {
 			c.finishMenuRefresh(result)
 		case result := <-c.orientationResults:
 			c.finishOrientation(result)
+		case result := <-c.continuationResults:
+			c.acceptContinuationRequests(result)
 		case result := <-c.previewResults:
 			c.finishMenuPreview(result)
 		case result := <-c.completionResults:
@@ -997,6 +1005,7 @@ func (c *Console) onExit(event childExit) bool {
 		c.focus = FocusPanel()
 	}
 	expected := c.consumeExpectedParkExitLocked(event.id, p.thread)
+	_, continuationPending := c.continuations[p.thread]
 	forget := c.forget
 	last := len(c.panes) == 0
 	c.mu.Unlock()
@@ -1014,7 +1023,7 @@ func (c *Console) onExit(event childExit) bool {
 		}
 	}
 	c.requestMenuRefresh()
-	if last && !panelFocused {
+	if last && !panelFocused && !(expected && continuationPending) {
 		return true
 	}
 	if wasFocused || panelFocused {
@@ -1831,6 +1840,22 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
+	if effect.Operation == "retry-continuation" {
+		origin.ContinuationID = effect.Args["request-id"]
+		origin.PreserveFocus = c.focus.IsPanel()
+		if origin.ContinuationID != "" {
+			watch := c.continuations[origin.Address]
+			watch.status.Address, watch.status.RequestID = origin.Address, origin.ContinuationID
+			watch.queued, watch.handled = true, true
+			c.continuations[origin.Address] = watch
+			for id, p := range c.panes {
+				if p.thread == origin.Address {
+					c.expectedExits[id] = true
+				}
+			}
+			c.menu.InFlight = origin
+		}
+	}
 	if effect.Operation == "switch-agent" {
 		if previous, ok := c.orientationWatches[origin.Address]; ok {
 			previous.cancel()
@@ -2001,6 +2026,10 @@ func (c *Console) pendingMouse() MouseHit {
 // finishOperation returns true when the completion requested Console exit.
 func (c *Console) finishOperation(completed operationCompletion) bool {
 	err := completed.err
+	defer func() { c.finishContinuationOperation(completed, err) }()
+	if completed.name == "continuation-status" {
+		return false
+	}
 	address := completed.origin.Address
 	if parked, ok := completed.value.(couchcore.ParkResult); ok && parked.Thread.Address != (couchcore.ThreadAddress{}) {
 		address = parked.Thread.Address
@@ -2023,7 +2052,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 					err = errors.New("no action dispatcher wired")
 				} else {
 					args := map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)}
-					if completed.origin.Background || completed.origin.Operation == "switch-agent" && completed.origin.PanelOrigin {
+					if completed.origin.PreserveFocus || completed.origin.Background || completed.origin.Operation == "switch-agent" && completed.origin.PanelOrigin {
 						// The reattach pass's child is adopted without taking
 						// focus (pair#206); only the declared arg carries that
 						// across the operation table to the installer.

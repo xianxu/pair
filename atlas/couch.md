@@ -138,6 +138,62 @@ hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
 `describe` and `archive` are TUI/in-process operations. `orientation-status` is
 an internal owner operation for one launch attempt.
 
+Continuation has four internal operations (`pair#249`):
+
+- `request-continuation`, invoked as `couch --internal request-continuation <absolute-path>`, durably accepts the hosted source's exact checkpoint. The inherited scope, tag, agent, session, launch ordinal, and expected digest bind publication to the writer's validated bytes and current source generation. This metadata operation can run in another worktree without becoming a second supervisor.
+- `continue-thread`, invoked in process through `couch --internal continue-thread`'s declared operation, executes or reconciles an accepted request under the live owner.
+- `retry-continuation`, exposed in the switcher's thread actions, reconciles a retained failure. After Couch has exited, `couch --internal retry-continuation <tag>` in the thread's repository acquires the normal singleton lease and opens a Console for recovery. It refuses a competing owner.
+- `continuation-status`, represented by `couch --internal continuation-status`, reconciles the exact launch attempt's orientation receipt under the live owner. The Console supplies the address, request ID, and attempt through the typed operation arguments.
+
+### Continuation ownership and recovery
+
+The continuation writer commits the document before requesting replacement and
+passes its absolute path plus digest. `checkpoint.Checkpoint` validates a bounded
+256 KiB UTF-8 document and stores its body, original path, and digest. The
+revisioned ThreadRecord embeds one `checkpoint.Request`, including source
+launch generation, request ID, attempt, phase, and process evidence. Repeated
+publication of the same source and digest is idempotent. Warm attachment changes
+the owning helper without changing the native pane's source launch ordinal.
+
+The Console's one lifetime-bound worker observes only its hosted and accepted
+request addresses; it performs no native-session scan on each poll. Accepted
+requests survive removal of their source pane, keeping the recovery panel open
+even when a failure and the last child's exit arrive in either order. The
+existing operation queue owns process effects. Couch parks the exact source,
+materializes the saved body at `continuation/<scope>/<tag>.md` inside its store,
+and starts a fresh conversation through the existing blocked-helper claim and
+registration protocol. The Pair scope and tag stay unchanged, preserving prompt
+history. An unsubmitted checkpoint needs no native conversation binding.
+
+Acceptance is not completion. Registration proves a fresh target exists;
+`complete` requires the matching orientation `submitted` receipt. A failed,
+canceled, or unconfirmed delivery remains recoverable, and text may already be
+present in the target. Retry observes or reattaches an existing matching target
+instead of automatically submitting again. Another fresh attempt requires proof
+that the previous target is absent; unknown ownership refuses. Inspect the
+existing agent and use the available copy-orientation action before manually
+sending text whose delivery is uncertain.
+
+The embedded snapshot remains authoritative if the original file is edited,
+removed, or saved in a sibling worktree. It is retained through failure and
+completion until superseded, and remains in the archived ThreadRecord. Archive
+removes the derived materialized file. Active requests prevent unrelated cold
+resume, agent switching, relaunch, or archive from bypassing their ownership.
+Hosted inner `pair restart` and address-changing rename routes refuse before
+teardown; use Couch's tracked relaunch or name action. Standalone Pair retains
+its outer restart-loop ownership and draft-seeding workflow.
+
+`make test-couch-zellij-live` exercises continuation seed transport alongside
+real park teardown. A deterministic pane under real Zellij reads the exact
+materialized snapshot from the launch profile's orientation prompt and publishes
+waiting/submitted readiness records. The production reader verifies session,
+agent, tag, attempt, and live PID; registration alone cannot complete the request,
+and deleting the session invalidates its receipt. This fixture uses temporary
+stores and no paid agents. It uses the stateful fake for source parking and the
+blocked launch helper; real composer recognition and actual agent submission
+remain operator smoke tests. The conformance workflow runs on relevant changes
+and weekly.
+
 `relaunch` (`pair#182`) is detailed under **Exit, detach, and terminal
 lifecycle**; the one thing worth knowing at this level is that its commonest
 refusal is not a fault. A cold resume needs `--resume <native-id>`, and that

@@ -337,6 +337,21 @@ resumable rows at one path created a third, guaranteeing the next startup
 created a fourth -- and wanting a fresh agent instead costs one chord inside
 Pair (`Alt+Shift+N` restarts the conversation, keeping the workbench).
 
+**Compact a Couch thread without changing its tag.** `Alt+Shift+C` saves and
+commits a continuation, then asks Couch to replace the conversation. Couch keeps
+the same thread and prompt history, including when the checkpoint was saved in
+another worktree. The switcher shows the queued or running continuation; saving
+the document means the request was accepted, while completion requires the new
+agent's prompt submission receipt.
+
+If replacement or delivery fails, the checkpoint stays saved and the thread
+provides **Retry continuation**. Retry first checks for an existing target;
+it does not blindly start or submit again. Inspect that target before manually
+sending anything when delivery is uncertain. If Couch itself exited, follow the
+explicit retry command in its diagnostic to reopen recovery. Inner
+`pair restart` and address-changing rename are refused for hosted threads; use
+Couch's relaunch and name actions.
+
 **Every other detached thread comes back too, behind you** (pair#206). Once the
 thread you land on is up, couch reattaches the rest in the background, one at a
 time, most recently active first, without moving your keyboard or your screen.
@@ -641,6 +656,15 @@ returning to an existing tag preserves its native resume behavior.
 
 - **`pair resume <tag>`** reattaches the agent's **native** session — its own transcript and session id, byte-faithful. It needs that session to still exist on this machine, with the same agent.
 - **`pair continue <slug> [agent]`** seeds a fresh session from a **continuation** doc — a durable, version-controlled distillation of the session's *human-meaningful* state (next action, open threads, decisions/dead-ends), written to `workshop/continuation/` and committed to the repo. It's portable across time, machines, people, and agent stacks, and the optional `[agent]` lets you continue under a *different* stack. Unlike `resume`, it does **not** force the tag: you name the session at the normal prompt, and `-- <args>` forward to the agent just like a plain `pair <agent> -- <args>`. Bare `pair continue` lists the saved continuations.
+
+An exact saved file can also be selected with
+`pair continue --checkpoint /absolute/path/to/checkpoint.md`. In a hosted
+thread this publishes to Couch under the existing tag. Standalone replacement
+keeps a snapshot in its restart marker and seeds the draft before starting the
+fresh session; submit that draft through the usual prompt workflow. If that
+replacement fails, `pair continue --retry <tag>` retries the retained snapshot
+from the same repository, refusing a session that is still running. Editing or
+removing the original document after acceptance does not change the saved seed.
 
 You produce a continuation by pressing **`Alt+Shift+C`** (compact in place — it writes the doc *and* restarts the session on it), by asking the agent to "park this session", or by accepting the **Alt+x park prompt** to preserve a session's scrollback for distillation later.
 
