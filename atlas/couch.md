@@ -303,7 +303,7 @@ while a thread is loading.
 
 `ctrl-space` is intercepted before the child sees it. It arrives in TWO
 encodings and both are recognised: the legacy `0x00`, and CSI-u
-`\x1b[32;5u` under the Kitty keyboard protocol, which zellij enables -- so the
+`\x1b[32;5u` under the Kitty keyboard protocol, whose disambiguation Couch maintains -- so the
 legacy byte is the one a real session almost never sends. The interceptor
 returns a SPLIT (bytes for the focus being left, bytes for the focus landed on),
 because a concatenated buffer cannot say which child the tail belongs to. It

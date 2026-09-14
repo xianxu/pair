@@ -204,3 +204,11 @@ was not performed. Remaining transitions are validated by the stateful terminal
 tests and passing full suite. The close/publish row is pending gate execution,
 not unfinished product behavior. Couch owns the terminal requirements for its
 controls and re-establishes them across output boundaries (ARCH-ORDER).
+
+
+### 2026-09-14 — BR-1 operator-documentation parity
+
+Close review found README still described the previous keyboard owner and only
+the implicit Ctrl+Return press encoding. Documentation deliverable includes
+README, atlas and current ownership comments, covering Couch maintenance,
+explicit press/repeat events and the unsupported-terminal switcher fallback.

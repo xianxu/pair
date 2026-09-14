@@ -238,3 +238,11 @@ Other protocol transitions/ordinary Return/cleanup remain automated evidence;
 the optional disposable-terminal protocol query was not performed. The close
 and publish checkbox is self-referential workflow work, to be checked after
 those gates succeed, not an outstanding implementation requirement.
+
+
+### 2026-09-14 — Close review BR-1
+
+Review found no blocking runtime defect; REWORK requested README parity.
+Updated README's owner/event/fallback contract, atlas ownership wording and
+current Alt-chord comments. Added the documentation-sweep lesson. No runtime
+behavior changed. Rerunning close to dispose BR-1 through the gate ledger.

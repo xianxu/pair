@@ -196,7 +196,8 @@ var knownSequences = func() []struct {
 		//
 		// ChordAltD has exactly one encoding: the table declares no legacy
 		// "\x1bd", so with the Kitty protocol off alt+d passes through to the
-		// child. zellij pushes the protocol, so this is a documented edge.
+		// child on unsupported terminals. Couch maintains disambiguation on
+		// supporting terminals (#251).
 		{workbenchshortcut.ChordAltD, seqDetach},
 		// alt+n and ctrl+alt+n are Pair's own reload chords, intercepted for a
 		// reason that is sharper than alt+d's. Un-intercepted, Pair handles them
@@ -220,9 +221,8 @@ var knownSequences = func() []struct {
 		//
 		// Kitty-protocol edge, inherited from ChordAltD: neither declares a
 		// legacy encoding, so with the protocol off both pass through to Pair
-		// and do its old in-place reload. zellij pushes the protocol, so this is
-		// a documented degradation -- but it means the behaviour differs
-		// silently by protocol state, which is why it is written here.
+		// and do its old in-place reload on unsupported terminals. Couch now
+		// maintains disambiguation on supporting terminals (#251).
 		{workbenchshortcut.ChordAltN, seqRelaunch},
 		{workbenchshortcut.ChordCtrlAltN, seqRelaunch},
 	} {

@@ -4822,3 +4822,11 @@ captured before IO. Keep scanner belief labels distinct from terminal queries.
 A core-concepts table should declare PURE/INTEGRATION explicitly for every
 entity, including later additions; prose describing the distinction does not
 make a table mechanically reviewable. Caught by #207 M1 review (Minor).
+
+
+## Terminal ownership changes need matching operator documentation (#251)
+
+When Couch takes ownership of a terminal capability formerly supplied by its
+child, update README, atlas and current source-contract comments together.
+Search for the old owner and accepted encoding claims; passing protocol tests
+do not establish that operator documentation describes the shipped behavior.
