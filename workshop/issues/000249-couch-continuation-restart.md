@@ -127,3 +127,21 @@ planning, createflow, thread claims, continuation lookup, and Couch launch
 registration. This differs from #248's detached-session inventory rejection:
 this incident deliberately terminated the source but failed to replace it.
 No implementation started; runtime identities above are historical evidence.
+
+## Revisions
+
+### 2026-09-14T10:40:00-07:00 — Shared recovery contract and execution order
+
+Operator approved design and implementation of #248 → #249 → #250, pausing for
+smoke after #248. Coordinated contract is recorded in
+`workshop/plans/000248-couch-warm-reattach-gate-plan.md`; #249 receives its own
+executable plan after that checkpoint. This issue owns durable continuation
+request, checkpoint availability, replacement and retry, reused by #250.
+
+Additional source findings: createflow seeds only the checkpoint basename under
+the launcher's relative `workshop/continuation/`, so exact lookup must extend
+through final prompt delivery. FreshRequired currently clears continuation
+fields; setting that flag alone cannot fix registration. Existing tracked
+fresh-existing launch and cleanup should be reused, with ownership independent
+of conversation mode. Restart marker consumption currently precedes success;
+the replacement must retain recoverable intent across failure.
