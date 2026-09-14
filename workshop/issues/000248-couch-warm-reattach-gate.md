@@ -71,6 +71,9 @@ launches, but those races have not been established in this Tools incident.
 
 ## Plan
 
+Detailed implementation and coordinated #248/#249/#250 contract:
+`workshop/plans/000248-couch-warm-reattach-gate-plan.md`.
+
 - [ ] Reproduce the inventory/UI refusal with a portable fake session and no native binding.
 - [ ] Align warm eligibility across inventory, switcher, and execution; verify boundary races.
 - [ ] Update diagnostics/docs and close through the SDLC review gate.
@@ -129,3 +132,13 @@ Removing the native-binding gate must retain these constraints:
 Regression coverage must demonstrate both successful warm attachment without a
 binding and preservation of these limits, including no fabricated binding and
 no fresh-agent launch after the surviving session disappears.
+
+### 2026-09-14T10:40:00-07:00 — Approved coordinated implementation
+
+Operator approved the shared model and authorized design and implementation of
+#248, #249 and #250, pausing after an independently smoke-testable issue. Begin
+with #248. Warm observations carry session ownership, not native transcript
+authority. Share the existing matcher across inventory/execution/recheck and
+preserve warm-only intent from foreground and startup selection. #249 owns
+durable continuation execution/retry; #250 reconciles stale ownership and
+offers those same operations. Detailed plan linked above.
