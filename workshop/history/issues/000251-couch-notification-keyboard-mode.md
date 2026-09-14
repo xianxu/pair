@@ -105,7 +105,7 @@ total: 1.74
 - [x] Follow `workshop/plans/000251-couch-notification-keyboard-mode-plan.md`: reproduce using a stateful terminal double.
 - [x] Implement Couch-owned disambiguation through existing output/framing boundaries.
 - [x] Verify regressions, document the behavior and validate the installed runtime with the operator.
-- [ ] Close through SDLC review and publish.
+- [x] Close through SDLC review and publish.
 
 ## Log
 
@@ -248,3 +248,11 @@ Review found no blocking runtime defect; REWORK requested README parity.
 Updated README's owner/event/fallback contract, atlas ownership wording and
 current Alt-chord comments. Added the documentation-sweep lesson. No runtime
 behavior changed. Rerunning close to dispose BR-1 through the gate ledger.
+
+
+### 2026-09-14 — Published
+
+PR #133 merged after SHIP review and the deterministic publish gate. #251 is
+done; #207 M1 diagnostics shipped while M2 remains open, and #250 remains open.
+The primary checkout is back on main. Post-review integration resolved only
+older #207 issue bookkeeping; no runtime code changed after review.

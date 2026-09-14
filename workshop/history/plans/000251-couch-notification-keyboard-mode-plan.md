@@ -90,7 +90,7 @@ This does not repair modes changed by an unrelated process writing the same TTY 
 - [x] Build the Couch executable using the repository's existing build target. Determine a controlled reload path before replacing the running instance: this session is hosted and #250's stale Pair record remains unresolved. Do not kill or archive that thread just to test #251.
 - [x] On the operator's supporting terminal, verify normal Return, physical Ctrl+Return to a yellow thread, repeated jumps, recent-thread return, switcher return and thread switches. To compare the fake with the real terminal, use a disposable terminal/probe to set/add/pop flags and query them; enter only deliberate test keys and restore modes. If live terminal access requires the operator, present exact smoke steps and leave live verification unchecked until confirmed.
 - [x] Document the Couch-owned flag, explicit press/repeat handling, unsupported-host fallback and shell-safe teardown in the existing atlas keyboard section.
-- [ ] Close with `sdlc close --issue 251 --verified '<actual evidence>'`, address the binary's fresh-context review findings, then `sdlc pr` and `sdlc merge`. The single-pass task has no separate milestone boundary.
+- [x] Close with `sdlc close --issue 251 --verified '<actual evidence>'`, address the binary's fresh-context review findings, then `sdlc pr` and `sdlc merge`. The single-pass task has no separate milestone boundary.
 
 ## References
 
