@@ -74,3 +74,75 @@ findings:
     detail: |
       README.md:404-408 attributes keyboard enablement to Zellij and says only CSI 13;5u is recognized, while Console now maintains disambiguation and keys.go accepts explicit press/repeat forms. Update the operator documentation with Couch ownership, supported events, and the unsupported-terminal fallback; atlas alone does not satisfy the README gate (ARCH-PURPOSE).
 ```
+
+---
+
+## Re-review — 2026-09-14T09:49:45-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 251 — Keep Ctrl+Return notification jumps working across Couch thread switches |
+| repo | pair |
+| issue file | workshop/issues/000251-couch-notification-keyboard-mode.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6a9ca2bffa05ae5de98e77d4adddaed15b9376dc..3ecee04dca027c98aa40a03b0b62803ff4cc33e5 |
+| command | sdlc close --issue 251 |
+| reviewer | codex |
+| timestamp | 2026-09-14T09:49:45-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range matches the revised Spec and Plan. BR-1 is addressed by the README correction, supported by the implementation and passing behavioral tests. No new blocking findings. The range also includes documented #207 diagnostic work; its recovery milestone remains separate.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:404-410 now documents Couch ownership, implicit/explicit press and repeat, release exclusion, and the unsupported-terminal fallback. This matches console.go:593,1152,1236 and keys.go:178-182. The correction is prose-only; existing physical-key and event-encoding tests pass.
+```
+
+1. **Strengths**
+
+   - `keyboard.go:11` provides one pure suffix policy, preserving payload bytes and deferring insertion across incomplete framing.
+   - `console.go:1030` serializes cleanup, resets both relevant buffers, and prevents subsequent terminal writes.
+   - `console_keyboard_test.go:41` derives physical Ctrl+Return from emitted terminal state, then verifies notification selection, acknowledgement, and ordinary Return forwarding.
+   - Mouse diagnostics distinguish scanner beliefs from accepted writes and test partial writes, errors, and attribution during blocked output.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+
+   Independently passed:
+
+   - Tests for `couchcmd`, `couchtty`, `hostty`, and `ptychild`.
+   - Focused race tests covering keyboard, notification shortcuts, interception, and mouse tracing.
+   - Paint-gate consumer checks and pinned-range `git diff --check`.
+
+   Coverage includes fragmented and oversized controls, replay, background isolation, preserved flags, bounded stack growth, output ordering, and shutdown. Full-suite and physical-terminal acceptance are recorded in the tracker; I did not independently repeat those. The plan explicitly records that the expanded live protocol probe was not performed.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** Shared control constant, suffix helper, and existing framing authority.
+   - **ARCH-PURE — pass:** Byte transformation and formatting remain directly testable without IO; Console owns integration.
+   - **ARCH-PURPOSE — pass:** Startup, live output, takeovers, and cleanup implement the stated shortcut requirement.
+   - **ARCH-MOCK — pass:** Stateful Host double consumes production writes. Additive flags and independent screen stacks agree with the [Kitty protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/#progressive-enhancement).
+   - **ARCH-CONSTRAINTS — pass:** Bounded suffix overhead; no new production queue, timer, or worker.
+   - **ARCH-SECURE — pass:** Existing framing handles arbitrary PTY bytes; diagnostic fields are bounded and quoted.
+   - **ARCH-ORDER — pass:** Scanner/write transactions share a mutex; barrier tests exercise contention and release suppression.
+   - **ARCH-FUNERAL — pass:** Keyboard changes create no durable artifacts. Existing opt-in diagnostic captures have documented ownership, cost, closure, and operator removal.
+
+   Keep #224’s typed output interface separate; the current mutex establishes the required ordering.
+
+7. **Plan revision recommendations:** None. Existing revisions explain the serialization prerequisite, cleanup changes, and narrowed live acceptance scope.

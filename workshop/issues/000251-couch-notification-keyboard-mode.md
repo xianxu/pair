@@ -1,12 +1,13 @@
 ---
 id: 000251
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-14
 estimate_hours: 1.74
 started: 2026-09-14T08:57:57-07:00
+actual_hours: 1.31
 ---
 
 # Keep Ctrl+Return notification jumps working across Couch thread switches
@@ -109,6 +110,7 @@ total: 1.74
 ## Log
 
 ### 2026-09-14
+- 2026-09-14: closed — Full combined make test exit 0; focused keyboard/mouse race tests pass; operator restarted and confirmed Ctrl+Return works. BR-1 documentation parity corrected. Only unchecked plan item is close/publish workflow itself.; review verdict: SHIP
 
 Created and claimed at operator request. Read-only investigation found no
 keyboard state restoration in Couch's takeover path. Existing tests passed:
