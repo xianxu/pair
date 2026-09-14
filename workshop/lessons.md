@@ -4857,3 +4857,15 @@ including internal CLI paths and intermediate recovery helpers.
 Keep the issue log current while implementation agents work. Answering a side
 question does not finish the active task: resume integration and record the
 completed unit before ending a turn or starting another investigation.
+
+
+## 2026-09-14 — Verify review claims at the actual mutation boundary (#249)
+
+A foreground/background hint does not itself establish a focus override. Trace
+the installer through the lock and its active-actor condition, then reproduce
+intervening user actions through the actual dispatcher. If the proposed failing
+cases pass unchanged code, preserve them as regressions and request a grounded
+review disposition rather than adding another focus mechanism speculatively.
+
+Before closing, compare every Core-concepts row against the actual diff and
+append corrected classifications for unchanged reuse and split implementations.

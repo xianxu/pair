@@ -299,6 +299,40 @@ passed (`/tmp/pair-249-live-conformance.log`), focused race tests passed
 is being committed for the mandatory fresh-context closing review; its verdict
 is still pending. Operator smoke follows review, before #250 implementation.
 
+
+### 2026-09-14 — BR-1 core-concepts traceability corrected
+
+The closing gate returned REWORK with BR-1 (plan/diff traceability) and BR-2
+(asynchronous focus ordering). BR-1 is addressed: audited all six pure-entity
+and seven integration rows against pinned `7800e968..f5fa755b`, then appended a
+superseding Core-concepts audit under the durable plan's Revisions. Orientation
+files are reused unchanged; the correction names their actual continuation
+callers, the new `checkpoint_io.go` implementation location, the mixed new and
+modified Console files, and the exported `checkpoint.Request` name. No runtime
+code changed for BR-1. Row-by-row diff and pinned-symbol inspection verified the
+correction; BR-2 and the mandatory closing-gate rerun remain pending.
+
+### 2026-09-14 — BR-2 reproduction and requested disposition
+
+The first closing review returned REWORK. BR-1 is corrected by the complete
+concept-table audit recorded in the plan revision. BR-2's stated focus override
+does not reproduce against the unchanged production implementation.
+
+`TestContinuationCompletionPreservesInterveningFocus` exercises the actual
+acceptance, switchTo/onHotkey, source exit, finishOperation, declared dispatcher,
+and attach installer. Its four cases select another actor, return to the panel,
+switch inside attach dispatch, and switch before source exit. All pass with the
+race detector (`/tmp/pair-249-br2-reproduction.log`). No production focus changes
+were made to obtain that result.
+
+`installObservedThreadActor` checks `c.active == ""` under the same mutex used
+to install the new pane and change focus. Selecting another actor sets active;
+reopening the panel retains that active actor. `finishOperation` only forces a
+switch for resume, not continue-thread or retry-continuation. Thus a foreground
+attach does not override an intervening live actor selection. Request that the
+next review withdraw BR-2, or provide a counterexample beyond these covered
+event orders. The ledger disposition remains the reviewer's responsibility.
+
 ## Revisions
 
 ### 2026-09-14T10:40:00-07:00 — Shared recovery contract and execution order

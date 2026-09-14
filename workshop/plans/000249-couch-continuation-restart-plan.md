@@ -226,3 +226,46 @@ The request reader returns only small metadata to the Console worker. Snapshot b
 - 2026-09-14: Implementation recovery review refined the request evidence without adding a second lifecycle owner. `SourcePark` links the request to its successful, closed source-helper park receipt, preserving exact teardown proof after start promotion clears the active park marker. `Target.ObservedAt` records the first target observation and survives helper reattachment; a missing submission receipt becomes a durable failed request after 30 seconds rather than resetting the timeout on every poll. Unknown delivery remains observation-only on explicit retry while that target may exist.
 - 2026-09-14: A newly warm-attached source returns `SourceReattached` with its started child before the executor parks it. Console adopts that child and allows the next queued execution to continue; target reattachment likewise returns its handle before receipt reconciliation. This preserves terminal ownership across recovery failures. Writer/launcher transport carries the validated digest to request ingress, where `ExpectedDigest` binds publication to the exact saved bytes and rejects an intervening file edit.
 - 2026-09-14: Core integration verification added the 100-slot bounded-address discovery fixture: requested addresses are deduplicated, an unrelated corrupt slot is never read, and projected JSON omits snapshot contents. Operation argument descriptions and exact `continuation-status` vocabulary classifications were completed together. The artifact guard now recognizes only direct named literal fields and direct literal return values with explicit function/site/count allowances; path calls and constructed strings remain rejected (ARCH-DRY).
+
+
+### 2026-09-14 — BR-1: Core-concepts traceability against the closing window
+
+Audited all six pure-entity rows and all seven integration rows against the
+pinned `7800e968..f5fa755b` diff and the symbols at its final commit. This table
+supersedes the original Core-concepts classifications and locations where they
+differ; the original design remains above as the planning record. `New` and
+`modified` describe the named surface; file changes are stated separately when
+a new surface is introduced in an existing file. `Reused unchanged` explicitly
+records dependencies outside the implementation diff (ARCH-DRY).
+
+| Original concept row | Actual symbol/location and classification in the pinned diff |
+|---|---|
+| `ContinuationRequest` and phase/event reducer | Implemented as `checkpoint.Request` and `checkpoint.Advance` in **new** `cmd/internal/checkpoint/request.go`; the planned concept name was descriptive, not the exported Go type name. |
+| `Checkpoint` | **New** `Checkpoint` in **new** `cmd/internal/checkpoint/checkpoint.go`; original classification confirmed. |
+| `ThreadRecord` | **Modified** in `cmd/internal/couchcore/thread.go`; adds the optional shared request field. |
+| `threadrecord.Record` | **Modified** in `cmd/internal/threadrecord/record.go`; persists the same optional request. |
+| `RestartMarker` and `restartPlan` | **Modified** in `cmd/internal/launcher/markers.go`; original classification/location confirmed. |
+| Continuation operation result implementing `StartedChild` | **New** `ContinuationResult` and its `Started` method in **new** `cmd/internal/couchcore/continuation.go`; original classification confirmed. |
+| Exact writer handoff | **Modified** in `cmd/internal/continuationcmd/continuationcmd.go`; `newContinueRestartCmd` carries the committed path/digest. |
+| `Runtime.RequestCouchContinuation` | **New interface method** in **modified** `cmd/internal/launcher/runtime.go`; its implementation `OSRuntime.RequestCouchContinuation` is in **new** `cmd/internal/launcher/checkpoint_io.go`, correcting the planned implementation location `osruntime.go`. |
+| Request publication and transitions | **New** `PublishContinuation` and `AdvanceContinuation` in **new** `cmd/internal/couchcore/continuation_store.go`; original classification confirmed. |
+| Continuation executor | **New** executor in **new** `cmd/internal/couchcore/continuation.go`, with reconciliation/retry split into **new** `cmd/internal/couchcore/continuation_recovery.go`; original classification confirmed and final split recorded. |
+| Console request provider and worker | **New integration** wired by **modified** `cmd/internal/couchcmd/run.go` through `SetContinuationProvider(c.ContinuationRequests)`; worker and completion handling are in **new** `cmd/internal/couchtty/console_continuation.go`. The original row's `new` described the integration, not both files. |
+| Existing orientation delivery | **Reused unchanged**, not modified: `cmd/internal/couchtty/console_switchagent.go` and `cmd/internal/couchcore/switchcontext.go` have no diff. New receipt caller `ReconcileContinuation` in `continuation_recovery.go` invokes existing `ReadOrientationStatus`; `executeContinuation` in `continuation.go` supplies an existing `orientation.Request` to the tracked launch path. `finishContinuationOperation` in `console_continuation.go` populates the existing menu orientation-copy state. Continuation uses its own durable status polling, not the unchanged switch-agent `watchOrientation` worker. |
+| Exact standalone marker IO | **Modified** wrappers in `cmd/internal/launcher/osruntime.go` and producer in `cmd/internal/launcher/compaction.go`; strict read/write/acknowledgment implementations are in **new** `cmd/internal/launcher/checkpoint_io.go`. Original modified classifications confirmed; final implementation split recorded. |
+
+BR-1 is addressed by this documentation correction; no orientation protocol or
+production behavior changed for the finding. Verification was the complete
+row-by-row `git diff --name-status 7800e968..f5fa755b` audit plus pinned-symbol
+inspection. The separate BR-2 focus-ordering finding remains with the Console
+implementation and its regression test.
+
+### 2026-09-14 — BR-2 focus-ordering regression evidence
+
+Added `TestContinuationCompletionPreservesInterveningFocus` across four event
+orders: select another actor after source exit, select then reopen the panel,
+select during attach dispatch, and select before source exit. The existing
+atomic installer only changes focus when active is empty; all cases pass with
+unchanged production code, including under race detection. No focus-generation
+mechanism is added without a reproduced need. The second closing review is asked
+to withdraw the stated finding or supply a counterexample.

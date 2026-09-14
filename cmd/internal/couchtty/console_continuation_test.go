@@ -213,6 +213,48 @@ func TestContinuationPendingRequestRetriesAdmissionAfterConflict(t *testing.T) {
 	}
 }
 
+func TestContinuationCompletionPreservesInterveningFocus(t *testing.T) {
+	for _, scenario := range []string{"other-actor", "back-to-panel", "during-attach", "switch-before-source-exit"} {
+		t.Run(scenario, func(t *testing.T) {
+			c, status := continuationConsole(t)
+			c.attachThreadActor("other", "other", menuAddress("other"), "/other", "other", ptychild.NewFakeChild(nil))
+			c.acceptContinuationRequests(continuationScanResult{statuses: []couchcore.ContinuationStatus{status}})
+			request := <-c.operationQueue.requests
+			if scenario != "switch-before-source-exit" {
+				c.onExit(childExit{id: "source", code: 0})
+			}
+			if scenario != "during-attach" {
+				c.switchTo("other", true, arrivalOrdinary)
+			}
+			if scenario == "switch-before-source-exit" {
+				c.onExit(childExit{id: "source", code: 0})
+			}
+			want := FocusActor("other")
+			if scenario == "back-to-panel" {
+				c.onHotkey()
+				want = FocusPanel()
+			}
+			c.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
+				if scenario == "during-attach" && call.Name == "attach" {
+					c.switchTo("other", true, arrivalOrdinary)
+				}
+				return couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: c.ExecuteConsoleOperation}, call)
+			})
+			started, _ := attachStartResult(t, "replacement", status.Address)
+			status.Phase = checkpoint.Running
+			c.finishOperation(operationCompletion{name: request.name, origin: request.origin,
+				value: couchcore.ContinuationResult{Status: status, Record: started.Record, Handle: started.Handle},
+			})
+			if _, attached := c.panes[started.Handle.ID()]; !attached {
+				t.Fatal("replacement was not adopted")
+			}
+			if c.focus != want {
+				t.Fatalf("completion overrode newer choice: focus=%v want=%v", c.focus, want)
+			}
+		})
+	}
+}
+
 func TestContinuationWorkerPicksUpQuietActorAndJoinsOnStop(t *testing.T) {
 	c, status := continuationConsole(t)
 	reader, writer := io.Pipe()
