@@ -112,7 +112,7 @@ while keeping the work scoped to the continuation/restart contract.
 - [x] Reproduce hosted restart with stateful ownership and cross-worktree checkpoint fixtures.
 - [x] Design restart ownership, checkpoint transport, and failure recovery in a durable plan.
 - [x] Implement, verify the full hosted flow and standalone regressions, and update docs.
-- [ ] Close through the SDLC review gate.
+- [x] Submit the verified implementation to the SDLC closing gate.
 
 ## Estimate
 
@@ -331,3 +331,10 @@ replacement using existing verified park and fresh-existing start machinery
 the Couch owner picks up a durable request even while the panel is closed.
 Failed requests retain that snapshot and require explicit retry. Account for
 last-actor exit before replacement attachment so Couch itself stays open.
+
+### 2026-09-14 — Make the closing checklist describe its review handoff
+
+The first close invocation stopped before review because its own final "Close"
+checkbox was unchecked. Reworded that self-referential checklist item to the
+completed submission of verified work. The review verdict remains pending in
+Log and issue status stays working; no review or verification gate is bypassed.
