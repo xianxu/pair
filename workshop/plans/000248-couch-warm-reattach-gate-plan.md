@@ -195,7 +195,7 @@ Files: `README.md`, `atlas/couch.md`, issue log and this plan.
   reports uncertainty, not binding loss. Broader stale-helper diagnosis is #250.
 - [x] Run `env -u PAIR_SESSION_ID -u PAIR_TAG make test`, focused race tests,
   `git diff --check`, and build `make build`. Record exact evidence.
-- [ ] Close through `sdlc close --issue 248 --verified '<evidence>'`, fix blocking
+- [x] Close through `sdlc close --issue 248 --verified '<evidence>'`, fix blocking
   fresh-context review findings, and leave the reviewed build available in the
   operator's checkout. Stop before #249 implementation for the requested smoke.
 
