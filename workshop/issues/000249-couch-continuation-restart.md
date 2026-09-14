@@ -356,6 +356,19 @@ failure retention, retry, and missing/mismatched checkpoint refusal.
 Implementation is committed and reviewed, not merged. Stop here for smoke;
 #250 implementation and #245 remain queued in that order.
 
+### 2026-09-14 — Operator smoke passed on brain thread
+
+Operator restarted Couch, requested continuation in brain, and confirmed the
+thread returned alive. Read-only runtime verification observed the same address
+`2e51fcf9799b1d8f/couch-e1a31510b7033d08`, request phase complete, no failure,
+and matching SHA-256 for the retained checkpoint body. Source helper 20491 was
+replaced by helper 22555, registered at 13:11:06 local time. The checkpoint was
+saved at `brain/workshop/continuation/20260914T131057-couch-e1a31510b7033d08.md`;
+the new agent's visible task was resuming that continuation. This supplies the
+actual-agent smoke complement to the automated submission-receipt tests.
+
+Smoke checkpoint accepted; ship #249 and continue the approved sequence at #250.
+
 ## Revisions
 
 ### 2026-09-14T10:40:00-07:00 — Shared recovery contract and execution order
