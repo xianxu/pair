@@ -68,3 +68,24 @@ overlay: `/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-utf8-repro-o6l7a
 Inspection links frequent injection to commit `9ec88703` (#251, maintaining
 Couch notification key encoding). The shared boundary-model omission predates
 that trigger. This is separate from ongoing #249/#250 continuation work.
+
+
+### 2026-09-14 — Screenshot-local TTY evidence
+
+Operator reported flashing around the SDLC sync tool output in current Codex
+thread couch-79469b7a163cc37d. Located exact screenshot text in raw capture at
+byte 343091506 (Syncing issue changes), with matching wrap events around
+15:13:44.427725–15:13:45.002679 local time. The displayed cyan arrow is ASCII
+`==>` emitted by SDLC (font renders it as an arrow); branch marks are valid
+UTF-8 U+2502/U+2514 and ellipsis is U+2026. A 20 KB surrounding sample is valid
+UTF-8 and contains no replacement codepoints. Preserved sample and event rows
+at /tmp/pair-display-sync-window.raw and /tmp/pair-display-sync-events.json.
+
+Sample includes 19 synchronized-update begin/end pairs. Actual wrap events
+confirm standalone ESC[?2026l chunks were stripped (stdout_len=0, filtered=true).
+The source also repeatedly moves the cursor and clears/repaints lines. Removing
+frame boundaries can expose partial redraws and is a plausible flashing cause,
+but this log does not prove it caused the operator's observed flashing. The
+separate confirmed UTF-8 injection defect above remains applicable downstream;
+raw capture is upstream of Couch and cannot show Couch-added corruption.
+No filter, terminal mode, or live session changed during this inspection.
