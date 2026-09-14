@@ -63,3 +63,36 @@ Created and claimed from the operator's request. Initial inspection found
 `workbenchshortcut.Decide` applies globals before agent-role routing, and
 `wrapcmd.handleWorkbenchChord` executes those decisions. No implementation
 changes yet. Design approval pending.
+
+## Revisions
+
+### 2026-09-14 — Agent owns keys by default, with reserved navigation chords
+
+The operator refined the blanket pass-through proposal: pass most keys to the
+focused agent while retaining a small explicit exception list. This supersedes
+the original Spec's no-exceptions rule. The candidate reserved chords are:
+
+- Ctrl+Space: open the Couch switcher.
+- Ctrl+Delete: return to the previous Couch thread. Interpret Delete as the
+  Apple backspace key, matching the existing Ctrl+Backspace binding; forward
+  Delete is a distinct chord.
+- Ctrl+Return: jump to the newest notification's thread.
+- Shift+Alt+T: create a right-terminal tab.
+- Shift+Alt+Left / Right: select the previous / next right-terminal tab.
+
+Alt+Up/Down and ordinary Alt+Left/Right reach the focused agent. Every other
+workbench shortcut also passes through unless explicitly added to this list.
+Keep the policy agent-independent and derive routing and help from one declared
+exception set (ARCH-DRY).
+
+The proposed implementation scope now includes Couch's outer interception where
+needed to enforce this rule end to end (ARCH-PURPOSE), superseding its original
+exclusion. In particular, existing outer detach/relaunch shortcuts must not
+silently remain extra exceptions while the agent pane has focus. Other pane
+roles retain their existing behavior. Verification must cross Couch, Zellij,
+and the agent wrapper, covering both delivery of unreserved keys and the retained
+actions of reserved keys.
+
+This records the operator's candidate list ("maybe"), not a completed design or
+implementation. Finalize the exception set and focused-pane propagation in the
+implementation plan; no code changed as part of this revision.
