@@ -4818,3 +4818,7 @@ A log helper test cannot establish that an event means bytes were emitted.
 Name each production writer and its adversarial strategy in diagnostic plans:
 compare outcomes with accepted bytes, and pause writes to verify identity is
 captured before IO. Keep scanner belief labels distinct from terminal queries.
+
+A core-concepts table should declare PURE/INTEGRATION explicitly for every
+entity, including later additions; prose describing the distinction does not
+make a table mechanically reviewable. Caught by #207 M1 review (Minor).

@@ -68,7 +68,7 @@ metadata (identity, modes, counts); no new artifact family.
 - [x] Run focused tests then `go test ./cmd/internal/couchtty ./cmd/internal/couchcmd`
   and race-focused diagnostics. Update atlas/couch.md diagnostic documentation
   (or its existing diagnostic owner located by COUCH_MOUSE_TRACE search).
-- [ ] Commit, log verification and run `sdlc milestone-close --issue 207 --milestone M1`.
+- [x] Commit, log verification and run `sdlc milestone-close --issue 207 --milestone M1`.
   Do not close #207, merge, deploy or restart live Couch.
 
 ## M2 — later causal repair
@@ -120,3 +120,15 @@ writeOwn callers ignore its new observation result. No emission policy changed.
 
 `mouseWriteResult.detail` formats accepted/requested counts and outcome. The
 context formatter and assertion integration remain methods of Console.
+
+### 2026-09-14 — M1 review: explicit concept classifications
+
+The reviewer returned SHIP with no blocking findings and one Minor classification
+omission. This consolidated table supersedes the earlier split concept tables;
+no implementation or ownership changes are required.
+
+| Name | Kind | Lives in | Status |
+|---|---|---|---|
+| mouseTracer | INTEGRATION | cmd/internal/couchtty/mousetrace.go | modified |
+| Console | INTEGRATION | cmd/internal/couchtty/console.go | modified |
+| mouseWriteResult | PURE | cmd/internal/couchtty/mousetrace.go | new |

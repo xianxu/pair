@@ -91,7 +91,7 @@ and the first is the one that matters:
 
 ## Plan
 
-- [ ] M1 — trace active thread, replay/reset, and actual assertion write outcomes.
+- [x] M1 — trace active thread, replay/reset, and actual assertion write outcomes.
 - [ ] M2 — capture recurrence, approve causal recovery design, implement and verify recovery.
 
 - [ ] Confirm the diagnosis: does couch assert to the host with no release?
@@ -230,6 +230,7 @@ including the #240 theory (does a right-pane tab switch to a shell cause a
 
 
 ### 2026-09-14 — Live recurrence captured; replay and assertion-result trace gaps
+- 2026-09-14: closed M1 — go test ./cmd/internal/couchtty ./cmd/internal/couchcmd passed after generated runtime assets; go test -race ./cmd/internal/couchtty -run MouseTrace\|MouseWriteResult -count=1 passed; producer red-green identity/replay/lifecycle/write-outcome checks; git diff --check clean. Actual 1.02h is output of sdlc actual --issue 207 --brain-dir /Users/xianxu/workspace/brain; close auto-measurement still ignores that root. Cumulative historical measurement is not directly comparable with M1-only estimate. Recovery remains M2.; review verdict: SHIP
 
 Operator reports drag selection no longer highlights during motion, alongside
 Ctrl+Return becoming plain Return (#251). Ctrl+Space then Return still reaches
@@ -320,3 +321,18 @@ Focused diagnostics and race diagnostics passed. Full couchtty passed; couchcmd
 initially failed because the isolated worktree lacked generated embedded runtime
 files. Generated them with `go run ./cmd/internal/runtimebundle/generatecmd -repo .
 -out cmd/internal/runtimebundle/assets/runtime`; these remain ignored artifacts.
+
+### 2026-09-14 — M1 boundary accepted
+
+Mandatory `sdlc milestone-close` review returned SHIP: no Critical/Important
+findings. Resolved the Minor plan-table classification omission in an appended
+consolidated PURE/INTEGRATION table. Reviewer independently reran both package
+and focused race checks successfully. Original recovery acceptance stays M2.
+
+The worktree's default `../brain` gave a telemetry-unavailable refusal.
+`sdlc actual --issue 207 --brain-dir /Users/xianxu/workspace/brain` produced
+1.02h cumulatively; passing that exact measured value let milestone-close
+continue because its automatic measurement did not honor the corrected root.
+This includes historical issue work and may exclude this API subagent segment;
+it must not be interpreted as a measurement of M1 alone or compared to its
+M1-only estimate. No judgment hours were invented.
