@@ -119,7 +119,7 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 		}
 		bindings = append(bindings, SessionNameBinding{
 			Address: candidate.Address, SessionName: name,
-			Agent: candidate.Agent, NativeID: candidate.NativeID,
+			Agent: candidate.Agent,
 		})
 		sessions = append(sessions, launcher.Session{Name: name, State: launcher.SessionDetached})
 	}

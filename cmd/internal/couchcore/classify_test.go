@@ -55,7 +55,7 @@ func everyThreadShape(t *testing.T) []classifyCase {
 	}
 	detachedProof := func(record ThreadRecord) []DetachedSessionObservation {
 		return []DetachedSessionObservation{{
-			Address: record.Address, SessionName: "pair-three", Agent: "claude", NativeID: "native-3",
+			Address: record.Address, SessionName: "pair-three", Agent: "claude",
 		}}
 	}
 	// The operator's pair-couch-24: a live session whose binding never landed.
@@ -152,7 +152,7 @@ func everyThreadShape(t *testing.T) []classifyCase {
 		{
 			name: "detached whose session is alive but binding lost", record: detachedRecord,
 			evidence:  resolved(ThreadEvidence{Detached: detachedNoBinding(detachedRecord)}),
-			wantState: ThreadUnusable, wantReason: ReasonBindingLost,
+			wantState: ThreadDetached,
 		},
 		{
 			name: "no incarnation and no session", record: detached(),
@@ -218,12 +218,12 @@ func TestClassifyThreadIsTotalOverEveryRecordShape(t *testing.T) {
 }
 
 // The characterization half: the accepting branches must be exactly what the
-// pre-#181 projector accepted, so M1 provably changes only the refusals.
+// pre-#181 projector accepted, except #248 intentionally admits unbound warm sessions.
 func TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted(t *testing.T) {
 	for _, tc := range everyThreadShape(t) {
 		state, _ := ClassifyThread(tc.record, tc.evidence)
 		actionable := state == ThreadLive || state == ThreadParked || state == ThreadDetached
-		if actionable != tc.wasActionableBefore {
+		if actionable != (tc.wasActionableBefore || tc.name == "detached whose session is alive but binding lost") {
 			t.Fatalf("%s: actionable=%v, previously %v", tc.name, actionable, tc.wasActionableBefore)
 		}
 	}
@@ -482,8 +482,8 @@ func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
 	if paths.calls != resumeShaped {
 		t.Fatalf("Physical called %d times, want %d -- a live or unstartable record must not pay", paths.calls, resumeShaped)
 	}
-	if artifacts.resolveCalls != resumeShaped {
-		t.Fatalf("binding resolver called %d times, want %d", artifacts.resolveCalls, resumeShaped)
+	if artifacts.resolveCalls != 2 {
+		t.Fatalf("binding resolver called %d times, want 2 parked records only", artifacts.resolveCalls)
 	}
 	// One detach candidate (the record with no park and no incarnation), so
 	// exactly one zellij query -- and it is a query per REFRESH, not per row.

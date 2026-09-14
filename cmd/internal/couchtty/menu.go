@@ -1152,7 +1152,7 @@ func menuThreadActionable(thread couchcore.ActionableThreadSummary) bool {
 func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:
-		return "its resume binding was lost; the session may still be running (pair#168)"
+		return "its native conversation binding is unavailable; cold resume requires a verified binding"
 	case couchcore.ReasonStaleIncarnation:
 		return "couch exited without detaching it; its state needs reconciling (pair#171)"
 	case couchcore.ReasonUnrecordedChild:
@@ -1661,6 +1661,11 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	state.OperationSequence++
 	effect.Attempt = state.OperationSequence
 	if effect.Operation == "resume" {
+		// Preserve the selected action when the record changes before the
+		// queued operation executes. A detached row authorizes attachment only.
+		if thread, ok := menuThread(state, address); ok && thread.Detached() {
+			effect.Args["warm-only"] = "true"
+		}
 		// The operator resuming a failed thread by hand clears its mark
 		// (pair#206 cell 9).
 		state = clearReattachFailure(state, address)

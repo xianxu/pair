@@ -19,7 +19,7 @@ func detachedLayoutRecord(t *testing.T, layout Layout) (ThreadRecord, map[Thread
 	record.Layout = layout
 	evidence := map[ThreadAddress]ThreadEvidence{record.Address: {
 		Detached: []DetachedSessionObservation{{
-			Address: record.Address, SessionName: "pair-three", Agent: "claude", NativeID: "native-3",
+			Address: record.Address, SessionName: "pair-three", Agent: "claude",
 		}},
 		ParkedStatus: ProofResolved, DetachedStatus: ProofResolved,
 	}}

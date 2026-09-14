@@ -435,7 +435,11 @@ select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
 while `Left` or `Escape` restores its parent. Rows expose only proven `live`, exact
 verified `parked`, and proved `detached` states — and a row is offered only when
 it can actually be acted on, so an offered detached row is one `Enter`
-reattaches. The two lifecycle chords read as a grid: the **key** picks what
+reattaches. Reattachment preserves the running agent and needs no native
+conversation binding. Couch rechecks that the same session is uniquely owned,
+alive and client-free; if that proof changes, it refuses rather than starting
+another agent. Warm attachment does not establish a native binding: cold
+conversation resume still requires one. The two lifecycle chords read as a grid: the **key** picks what
 happens (`Alt+x` parks — the agent stops; `Alt+d` detaches — the agent keeps
 running behind its zellij session and only the client goes) and **where you
 press it** picks the scope (in an actor it means that thread; in the switcher it

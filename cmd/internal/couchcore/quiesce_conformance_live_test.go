@@ -67,7 +67,7 @@ func TestQuiesceLeavesTheBindingAndEndsTheSessionLive(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	observed, err := checker.DetachedSessions(ctx, []DetachedCandidate{{Address: address, Agent: "claude", NativeID: "native-1"}})
+	observed, err := checker.DetachedSessions(ctx, []DetachedCandidate{{Address: address, Agent: "claude"}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -239,13 +239,11 @@ type DetachedSessionResolver interface {
 	DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error)
 }
 
-// DetachedCandidate is one address worth asking about, carrying the resume proof
-// its caller already resolved. Passing the proof in rather than patching it onto
-// the answer keeps the observation complete at every layer.
+// DetachedCandidate names a thread and its saved agent profile. Its session
+// ownership is resolved independently of native conversation evidence.
 type DetachedCandidate struct {
-	Address  ThreadAddress
-	Agent    string
-	NativeID string
+	Address ThreadAddress
+	Agent   string
 }
 
 // DetachedSessions reads each requested scope's session-name index once and
@@ -329,7 +327,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 				candidate := proof[address]
 				bindings = append(bindings, SessionNameBinding{
 					Address: address, SessionName: name,
-					Agent: candidate.Agent, NativeID: candidate.NativeID,
+					Agent: candidate.Agent,
 				})
 			}
 		}
