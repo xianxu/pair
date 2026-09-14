@@ -196,6 +196,22 @@ root repeatedly ended turns instead of resuming integration and did not update
 this log. This checkpoint corrects the record; future progress is recorded here
 at each completed integration/verification unit.
 
+### 2026-09-14 — CLI and Console integration regressions
+
+Root wired the OS source reader and exact digest at CLI ingress. New regression
+tests first failed for missing digest transport, a corrupt slot blocking healthy
+requests, recovered-source execution stalling in receipt polling, and an empty
+error result discarding request identity. All four cases now pass. Additional
+Console checks verify actual replacement attachment, focus preservation for a
+background thread, and no automatic retry of failed requests.
+
+A non-Console continuation result also exposed an owner-lifetime bug: the CLI
+printed the result and returned instead of waiting for its new helper. Generalized
+rendering to the existing StartedChild interface, with a failing-then-passing
+exit-code test. Full UI/CLI verification is running in
+`/tmp/pair-249-ui-cli-tests.log`. Acceptance and live-conformance work remain in
+progress; this is not the closing verification run.
+
 ## Revisions
 
 ### 2026-09-14T10:40:00-07:00 — Shared recovery contract and execution order
