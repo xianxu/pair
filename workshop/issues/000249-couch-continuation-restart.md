@@ -145,3 +145,18 @@ fields; setting that flag alone cannot fix registration. Existing tracked
 fresh-existing launch and cleanup should be reused, with ownership independent
 of conversation mode. Restart marker consumption currently precedes success;
 the replacement must retain recoverable intent across failure.
+
+### 2026-09-14T11:25:00-07:00 — Start implementation design after #248 shipment
+
+Operator accepted #248 for shipment and requested the next issue. #248 merged
+through PR #134; its coordinated plan is now archived under
+`workshop/history/plans/000248-couch-warm-reattach-gate-plan.md`.
+
+Source tracing confirmed that warm attachment retains the outer launcher loop,
+but an in-place restart would leave Couch's helper ownership shape unchanged
+and bypass its registration transaction. Design #249 around Couch-owned
+replacement using existing verified park and fresh-existing start machinery
+(ARCH-DRY, ARCH-ORDER). The writer transports an exact checkpoint snapshot;
+the Couch owner picks up a durable request even while the panel is closed.
+Failed requests retain that snapshot and require explicit retry. Account for
+last-actor exit before replacement attachment so Couch itself stays open.
