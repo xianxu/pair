@@ -5,11 +5,46 @@ deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-14
-estimate_hours:
+estimate_hours: 5.056
 started: 2026-09-14T10:31:03-07:00
 ---
 
 # Recover stale Couch threads without losing live sessions or checkpoints
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; calibration source is marked stale by SDLC.
+Derived after plan-quality passed in round 2. Mapping in order: issue/spec;
+recovery policy/coordinator; request authority extension; exact readiness/target
+generation wiring; archive reconciliation; operation dispatch; recovery menu;
+cross-package acceptance; disposable live acceptance; docs; closing review.
+
+Reuse existing ThreadStore, checkpoint, readiness, operation queue, supervisor
+lease and Zellij fixtures. No external library implements this ownership policy.
+Design uses thorough-plan 0.2 discount: modules 1h, smaller modules 0.3h,
+wiring 0.6h, dispatcher 0.5h, TUI 2h, docs/review 0.2h. Issue/spec uses 0.75h
+without another discount. Implementation uses v3.1's 40% of v2 hours:
+modules 0.8h, smaller/wiring/dispatcher/review 0.5h, TUI 1h, docs 0.2h,
+spec 0.3h. Familiar stack multiplier 1.0; design buffer 15%.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.75 impl=0.12
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: skill-or-dispatcher design=0.1 impl=0.2
+item: tui-screen design=0.4 impl=0.4
+item: greenfield-go-module design=0.2 impl=0.32
+item: greenfield-go-module design=0.2 impl=0.32
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 5.056
+```
 
 ## Problem
 
