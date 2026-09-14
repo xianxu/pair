@@ -71,10 +71,11 @@ session must not be terminated as a side effect of inspection or reconciliation;
 any stop/archive must follow the operator's explicit action and verified scope.
 Do not let one stale row permanently prevent work in its repository.
 
-Include recovery of the currently blocked Pair thread as an acceptance step,
-after rechecking its identity and evidence. Select the operator's intended
-recovery source and verify usable access through Couch. Record the outcome;
-a unit-test-only fix does not resolve the reported operational blockage.
+Prove recovery through a disposable Couch thread with deliberately induced
+helper/session failure and an exact checkpoint. The original Pair incarnation
+was already manually retired; do not damage an existing working thread to
+recreate the incident. Record automated integration and live fixture evidence,
+and provide the disposable fixture for operator smoke testing.
 
 ## Done when
 
@@ -89,15 +90,15 @@ a unit-test-only fix does not resolve the reported operational blockage.
   reuse, absent native binding, occupied sessions, missing checkpoint, open
   transactions, concurrent actions, interruption and retry without duplicate
   ownership or silent loss of conversation context.
-- The actual blocked Pair thread is recovered with operator-confirmed usable
-  access; docs describe recovery choices and failure handling.
+- A disposable live Couch fixture demonstrates usable recovery, with an
+  operator smoke path; docs describe recovery choices and failure handling.
 
 ## Plan
 
 - [ ] Reproduce the stale-record/archive dead end and surviving/dead-session variants with stateful fixtures.
 - [ ] Design recovery choices, ownership proofs and interruption handling in a durable plan.
 - [ ] Implement the shared recovery path, verify UI-to-store behavior and update the Couch atlas.
-- [ ] Recheck and recover the reported Pair thread, preserving its checkpoint and history; record outcome and close through SDLC review.
+- [ ] Verify recovery with a disposable live fixture, preserve existing operator threads, record the outcome and close through SDLC review; pause for operator smoke.
 
 ## Log
 
@@ -136,6 +137,22 @@ archived. Operator must retry detach-all and confirm usable access; the absent
 Pair conversation is not restored by this repair. General #250 remains open.
 
 ## Revisions
+
+### 2026-09-14T13:20:00-07:00 — Controlled recovery acceptance
+
+The operator noted there is no longer a naturally broken thread and approved
+disposable fault fixtures for #250. Replace the obsolete real-incident recovery
+requirement with controlled helper-gone/session-alive, helper-and-session-gone
+with checkpoint, and stale/no-checkpoint cases. Stateful tests additionally
+cover unknown ownership, PID reuse, concurrency and interruption. Historical
+manual repair evidence remains above; it does not by itself prove the new flow.
+
+#249 shipped in PR #135 after SHIP review and a successful operator brain-thread
+continuation smoke. #250 planning has begun via `sdlc start-plan`. Initial source
+inspection confirms that archive still refuses stale occupied records, while
+#249 correctly requires an actual park receipt and cannot yet recover an
+already-dead source. Reuse its execution and delivery machinery with explicit
+absence authority; do not fabricate a park receipt (ARCH-DRY, ARCH-ORDER).
 
 ### 2026-09-14T10:40:00-07:00 — Reconcile then reuse recovery operations
 
