@@ -110,7 +110,7 @@ while keeping the work scoped to the continuation/restart contract.
 ## Plan
 
 - [ ] Reproduce hosted restart with stateful ownership and cross-worktree checkpoint fixtures.
-- [ ] Design restart ownership, checkpoint transport, and failure recovery in a durable plan.
+- [x] Design restart ownership, checkpoint transport, and failure recovery in a durable plan.
 - [ ] Implement, verify the full hosted flow and standalone regressions, and update docs.
 - [ ] Close through the SDLC review gate.
 
@@ -163,6 +163,38 @@ planning, createflow, thread claims, continuation lookup, and Couch launch
 registration. This differs from #248's detached-session inventory rejection:
 this incident deliberately terminated the source but failed to replace it.
 No implementation started; runtime identities above are historical evidence.
+
+### 2026-09-14 — Implementation checkpoint; integration remains open
+
+The durable design is `workshop/plans/000249-couch-continuation-restart-plan.md`.
+Fresh-context plan review passed after one revision addressing last-source-exit
+ordering. `sdlc change-code` plan-quality passed on the third review round; the
+next invocation supplied the estimate and opened this implementation branch.
+
+Implemented, still uncommitted: immutable bounded checkpoint/request model and
+persisted slot; exact committed path and digest through the writer/launcher;
+Couch publication without inner teardown; durable standalone marker/retry;
+Couch-owned park/fresh replacement, receipt reconciliation, timeout and safe
+source/target warm recovery; continuation guards and declared operations.
+The Console worker, status/retry UI and CLI bootstrap are partly integrated.
+
+Implementing agents reported passing full package tests for checkpoint,
+threadrecord, writer, launcher and Couch core, plus focused race tests. This is
+component evidence, not end-to-end completion. Root is running the combined
+affected-package check with output in `/tmp/pair-249-integration-status.log`.
+
+Known remaining wiring: inject the OS source reader; bind the writer's expected
+digest at CLI ingress; execute again after adopting a recovered source; process
+healthy request statuses when another slot fails to read. Then finish actual
+hosted acceptance, live-conformance coverage, artifact classifications, docs,
+full suite/build and the mandatory SDLC closing review. No smoke-ready or
+code-complete claim yet; #250 has not started implementation.
+
+Progress reporting lagged while root answered side questions and investigated
+the separate display defect (#252). The implementation agents continued, but
+root repeatedly ended turns instead of resuming integration and did not update
+this log. This checkpoint corrects the record; future progress is recorded here
+at each completed integration/verification unit.
 
 ## Revisions
 
