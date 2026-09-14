@@ -110,3 +110,10 @@ later writes after cleanup. The plan adds this prerequisite without claiming
 to finish #224's broader typed-writer task. Cleanup must also clear keyboard
 mode after returning from alternate to main screen. Add deterministic write/
 takeover/cleanup interleaving tests and a both-buffer shutdown regression.
+
+
+### 2026-09-14 — Plan review approved
+
+Fresh-context spec/plan review approved the revised implementation plan after
+addressing terminal-write serialization and both-buffer cleanup. The plan is
+ready for operator approval; no production code or runtime sessions changed.
