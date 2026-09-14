@@ -4792,3 +4792,21 @@ Retention protection must follow actual detached readers/writers, not their
 launcher's lifetime. Test a child surviving its parent. When configurable
 storage roots participate in deletion, assume different filesystems: keep
 quarantine local and specify recoverable cross-store ordering before coding.
+
+
+## 2026-09-14 — Keyboard mode repair needs wire ownership and both-buffer cleanup
+
+The #251 plan initially assumed Couch's Run loop owned every terminal write,
+but operationQueue also calls takeover. Scanning under one lock and emitting
+after releasing it can make the scanner disagree with the terminal's actual
+byte order. Before adding a mode assertion, enumerate every write site and
+serialize scanner decisions with output; test concurrent takeover and cleanup
+using explicit barriers. Cleanup must prevent any later writer from restoring
+the mode it just cleared.
+
+Kitty keyboard stacks are separate on primary and alternate screens. Resetting
+only the current alternate buffer before leaving it can reveal an enabled main
+buffer and leak extended keys into the shell. Test startup on main, alternate
+entry, and shutdown as one stateful sequence, and verify final main-buffer key
+encoding rather than just searching for a reset escape. Caught during #251
+spec/plan review.
