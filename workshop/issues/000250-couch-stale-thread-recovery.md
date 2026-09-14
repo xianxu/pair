@@ -259,3 +259,21 @@ fixtures; fixture integration resumed to correct session setup and confirmation
 driving and rerun real Zellij conformance. See /tmp/pair250-integrated-tests.log.
 Implementation remains uncommitted; full repository verification, SDLC boundary
 review, build and operator smoke are pending. Astro runtime is untouched.
+
+
+### 2026-09-14T15:24:15-07:00 — Acceptance progress; live empty-session blocker
+
+All four disposable command/menu acceptance cases now pass, including race:
+warm recovery, checkpoint recovery, retired checkpoint import, and archive.
+Real Zellij warm recovery preserves the source agent PID and accepts input.
+PTY smoke exercised warm/checkpoint recovery and exact NEXT ACTION/echo behavior.
+
+Live source-absent conformance remains blocked by a discovered production
+observer mismatch: Zellij 0.45.1 returns exit 1 with "No active zellij sessions
+found." after deleting the last session, but the session-quiescence observer
+treats that as an error and loops. Fixture owner is now implementing a shared
+observer fix plus regression test before rerunning live conformance and cleanup.
+Disposable smoke shutdown also exposed blocking raw stdin reads on Darwin;
+fixture uses a cancelable reader, so do not claim this proves production stdin
+shutdown is fixed. Full final checks, implementation commit and SDLC boundary
+review remain pending. Operator Astro session remains untouched.
