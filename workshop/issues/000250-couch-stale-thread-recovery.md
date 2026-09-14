@@ -246,3 +246,16 @@ dead helper is the intended warm recovery case, preserving the existing Claude
 conversation after fresh ownership checks. Operator also requested durable exit
 telemetry; tracked separately in #253 so unknown-trigger investigation remains
 distinct from #250's recovery contract.
+
+
+### 2026-09-14T15:13:44-07:00 — Core complete; acceptance integration pending
+
+Core RecoverThread execution, target-generation correlation, shared dead-helper
+reconciliation, owner archive revision fencing, menu/CLI and documentation are
+implemented. Full core package passed (83.120s); focused recovery race tests and
+archive race tests passed. Schema/readiness/threadrecord/TTY packages passed.
+The combined command suite remains red on the four new disposable acceptance
+fixtures; fixture integration resumed to correct session setup and confirmation
+driving and rerun real Zellij conformance. See /tmp/pair250-integrated-tests.log.
+Implementation remains uncommitted; full repository verification, SDLC boundary
+review, build and operator smoke are pending. Astro runtime is untouched.
