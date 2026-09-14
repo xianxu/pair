@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-14
-estimate_hours:
+estimate_hours: 1.08
 started: 2026-09-14T10:30:41-07:00
 ---
 
@@ -68,6 +68,28 @@ launches, but those races have not been established in this Tools incident.
   session death between inventory and execution, and verify cold resume still
   rejects missing native bindings.
 - Operator diagnostics/docs agree with the shared eligibility policy.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; calibration is marked stale by estimate-source.
+Existing matcher/start transaction/fakes cover this work; no novel stack or
+library discovery. Thorough plan applies 0.2 to design bases of 0.5h refactor,
+0.5h menu routing, 0.3h integration extension and 0.1h docs. Implementation bases
+are 0.5h, 0.3h, 0.5h, 0.1h and 0.5h review, scaled by 0.4; familiar Go stack
+uses 1.0 familiarity. Design buffer is 15%. Derivation follows accepted plan.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: tui-screen design=0.10 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 1.08
+```
 
 ## Plan
 
