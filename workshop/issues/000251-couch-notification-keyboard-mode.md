@@ -117,3 +117,12 @@ takeover/cleanup interleaving tests and a both-buffer shutdown regression.
 Fresh-context spec/plan review approved the revised implementation plan after
 addressing terminal-write serialization and both-buffer cleanup. The plan is
 ready for operator approval; no production code or runtime sessions changed.
+
+
+### 2026-09-14 — Operator approval; plan-quality refinement
+
+Operator approved the #251 plan and independently authorized improving #207
+mouse diagnostics. SDLC plan-quality's PQ-1 requested function-level test
+strategies instead of case inventories; the plan now names pure helper,
+terminal-double parser/encoder and Console/interceptor targets with generated
+input and deterministic interleaving guards. No behavior/design scope changed.
