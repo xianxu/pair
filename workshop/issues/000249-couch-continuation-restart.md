@@ -212,6 +212,60 @@ exit-code test. Full UI/CLI verification is running in
 `/tmp/pair-249-ui-cli-tests.log`. Acceptance and live-conformance work remain in
 progress; this is not the closing verification run.
 
+### 2026-09-14 — Transport and complete handoff acceptance
+
+Task 2 now carries the writer's committed absolute checkpoint path and SHA-256
+through the launcher and the declared Couch publication operation. Hosted
+continuation leaves source teardown to Couch; hosted restart/rename refuse
+before side effects. Standalone continuation retains its immutable snapshot and
+fresh argv through failed replacement and explicit retry; marker writes and
+quit writes are checked, and acknowledgment is generation-checked after success.
+Shared leaf validation bounds the body and requires continuation frontmatter
+and a substantive NEXT ACTION. This preserves one validation authority
+(ARCH-DRY) and orders durable intent before source teardown (ARCH-ORDER).
+
+`go test ./cmd/internal/launcher ./cmd/internal/continuationcmd ./cmd/internal/checkpoint -count=1`
+passed (6.638s / 0.944s / 0.636s), and focused race tests for those packages
+passed; commands and output are retained in
+`/tmp/pair249-transport-tests.log` and `/tmp/pair249-transport-race.log`.
+Observed red tests covered missing checkpoint APIs, writer slug/error handling,
+malformed markers, missing kill executable, unbounded body input, wrong installed
+Couch executable lookup, NEXT ACTION only inside frontmatter, and missing durable
+fresh argv. Each was corrected before the green runs.
+
+`TestContinuationWriterPublishesExactCheckpointAcrossWorktrees` now builds the
+real Pair binary, writes and commits in a sibling Git worktree while its outer
+working directory is the main fixture checkout, and follows the actual serialized
+writer output through the real launcher, CLI dispatch, ThreadStore, and source
+ledger reader. Both initial and warm-reattached cases continue through durable
+Pair lifecycle request/completion files, verified source death, production
+existing-address registration, exact materialized seed and fresh profile,
+on-disk readiness waiting/submitted receipts, complete request state, and
+Console input/output. Established claim bytes and prompt-history bytes remain
+unchanged. The warm case additionally enters the actual retry CLI operation,
+checks singleton lease ownership during replacement attachment, and observes
+release after its finisher. Missing committed digest, post-launcher file tamper,
+and obsolete source generation produce their exact expected errors and leave
+the source, claim, and committed checkpoint intact without request authority.
+
+`go test -race ./cmd/internal/couchcmd -run '^TestContinuationWriterPublishesExactCheckpointAcrossWorktrees$' -count=1 -v`
+passed all five cases; output is in
+`/tmp/pair249-publication-acceptance-race.log`. The non-race command also passed,
+with output in `/tmp/pair249-publication-acceptance.log`. One acceptance fixture
+red run proved the retry declaration requires `ref`, not `tag`; the corrected
+fixture exercises the declared operation rather than a direct callback.
+`rg 'WriteRestartMarker|TakeRestartMarker|RestartMarker|planRestart' cmd bin`
+was reviewed; its inventory is in `/tmp/pair249-restart-consumer-sweep.log`.
+There is no destructive TakeRestartMarker consumer remaining. `git diff --check`
+is clean.
+
+The portable acceptance uses real temporary Git/store/claim/protocol files and
+simulates external process death, blocked helper execution, and terminal devices.
+It does not claim paid-agent composer recognition or real Zellij teardown;
+the separately maintained live conformance and operator smoke cover those
+boundaries. No production sessions or data were mutated. Code commit, full-suite
+integration, operator smoke, and SDLC close remain with the main agent.
+
 ## Revisions
 
 ### 2026-09-14T10:40:00-07:00 — Shared recovery contract and execution order
