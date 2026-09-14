@@ -303,7 +303,7 @@ while a thread is loading.
 
 `ctrl-space` is intercepted before the child sees it. It arrives in TWO
 encodings and both are recognised: the legacy `0x00`, and CSI-u
-`\x1b[32;5u` under the Kitty keyboard protocol, which zellij enables -- so the
+`\x1b[32;5u` under the Kitty keyboard protocol, whose disambiguation Couch maintains -- so the
 legacy byte is the one a real session almost never sends. The interceptor
 returns a SPLIT (bytes for the focus being left, bytes for the focus landed on),
 because a concatenated buffer cannot say which child the tail belongs to. It
@@ -355,10 +355,22 @@ Three edge cases:
   stays, with no takeover. It also shows a notice, because the row never draws
   the active actor's bell, so the acknowledgement alone would be invisible.
 
-The chord is Kitty-only (`newestPageSequence`, `\x1b[13;5u`). In legacy
-encoding ctrl+return is a bare CR, and taking every Return from the child is not
-a trade worth making. Inside the switcher it is unclaimed: the handler feeds the
-chord's own bytes to `DecodePanelKeys`, which makes it the panel's Return.
+The chord uses Kitty keyboard disambiguation (`newestPageSequence`,
+`\x1b[13;5u`); explicit press and repeat forms also jump, while release does
+not. Couch owns the disambiguation flag its shortcuts require (`pair#251`):
+startup, completed active output, and actor/panel takeovers add that flag without
+clearing the child's other flags or pushing stack entries. This survives an
+aged-out startup sequence or replayed reset/pop. Plain Return still reaches the
+agent; an unsupported terminal retains Ctrl+Space then Return as the fallback.
+Inside the switcher the chord retains the panel's Return behavior.
+
+Couch serializes scanner decisions and terminal writes with `terminalMu`,
+acquired before its state mutex. Keyboard assertions wait for complete escape
+framing, including skipped oversized strings, but do not wait for cursor-save
+release: they do not touch the cursor. A takeover releases the output lock before
+requesting a child repaint. Cleanup closes output ownership and clears modes on
+both the current buffer and the main buffer after leaving alternate screen;
+later writes are dropped. The typed-interface enforcement remains #224's scope.
 
 `SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
 slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the
@@ -1050,8 +1062,8 @@ The child receives `COUCH_TREE`, `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --<couch's
 layout>`.
 
-`COUCH_INPUT_TRACE=<path>` (`pair#182`) is one of the two env vars couch reads
-for ITSELF rather than passing down (the other is `COUCH_TRACE`, below): it appends every operator keystroke couch
+`COUCH_INPUT_TRACE=<path>` (`pair#182`) is an env var couch reads
+for ITSELF rather than passing down: it appends every operator keystroke couch
 receives to that file. It exists because "the chord had no effect" has two
 indistinguishable causes — couch consumed it and dispatched nothing, or the
 terminal never sent the bytes couch watches for — and only the wire separates
@@ -1079,7 +1091,7 @@ The events:
 - `reattach-done`, with `ok`, a resume diagnostic code, or `error`.
 
 Unlike the keystroke trace, it records addresses, counts and timings, never
-content. Both traces write through one `traceFile` (`trace.go`): opened 0600,
+content. The traces write through one `traceFile` (`trace.go`): opened 0600,
 at a path the composition root passes in, and reported on the status row when
 it cannot open. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
 `zellij action` latency and prints its window in unix ms, so the sampler's
@@ -1308,3 +1320,32 @@ scope event in `workshop/projects/couch.md`.
 
 Ariadne #200's normalized policy provider is implemented and consumed at the
 #149 M1 boundary.
+
+
+### Mouse diagnostic trace (#207 M1)
+
+`COUCH_MOUSE_TRACE=<path>` enables the opt-in `mouseTracer` in
+`cmd/internal/couchtty/mousetrace.go`. Its `<unix-ms>\t<event>\t<detail>` records
+cover live `child-mode` changes, every `takeover` (including scanner reset and
+empty/panel replay), `assert-clicks` with startup/paint source, and `cleanup`.
+Each carries active handle, actor and durable thread identity when attached,
+plus actor/panel surface. Takeover also names its target handle (or panel).
+Free-form fields are quoted and truncated after 128 bytes with an ellipsis.
+
+`scanner-before`, `scanner-reset`, and `scanner-after` are Couch's scanner
+beliefs, never terminal queries. Couch's own assertions still do not update
+that scanner. `outcome=emitted` means the complete Write was accepted with no
+error; `deferred` means the existing paint gate wrote no bytes; `short-write`
+and `error` carry accepted/requested counts and quoted errors. A deferred
+attempt is not queued byte delivery: a later repaint produces another attempt.
+Mode scanning retains its existing behavior even when a host write fails.
+Snapshots precede IO, so changing active thread during a blocked write does
+not relabel that attempt. These records do not establish ordering among
+concurrent writers or prove what the terminal applied.
+
+The file uses the existing 0600 append sink and Console teardown closes it.
+No child body, replay content or keystrokes are logged. Records stay below
+4 KiB (normally below 1 KiB); at ten events/s, a 15-minute diagnostic capture
+normally costs less than 9 MiB. The existing sink has no rotation or size cap;
+the operator disables tracing and removes the temporary capture after diagnosis.
+This instrumentation preserves mouse policy and does not fix #207 recovery.

@@ -88,7 +88,7 @@ func TestCrossActorNotificationDeferral(t *testing.T) {
 	}
 
 	con.onChunk(chunk{id: "c1", batch: observedBatch(&active, []byte("m"))})
-	if got := []byte(host.Written()); !bytes.Contains(got, append([]byte("\x1b[31m"), envelope...)) {
+	if got := []byte(host.Written()); !bytes.Contains(got, append([]byte("\x1b[31m"+hostty.EnableKeyboardDisambiguation), envelope...)) {
 		t.Fatalf("deferred notification did not flush after safe boundary: %q", got)
 	}
 }

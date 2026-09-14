@@ -3,7 +3,6 @@ package couchtty
 import (
 	"context"
 	"errors"
-	"io"
 	"strconv"
 	"time"
 
@@ -211,16 +210,16 @@ func (c *Console) showMenu() {
 	c.mu.Lock()
 	c.menuExtents = view.Extents
 	c.mu.Unlock()
-	_, _ = c.host.Write([]byte(hostty.HideCursor))
+	c.writeHostControl(hostty.HideCursor)
 	// couch's OWN surface, not a child's: nobody to ask for a repaint, and no
 	// child modes to assert (#209).
 	c.takeOverScreen(nil, []byte(view.Body))
 	c.paintNow()
 	if view.Cursor == nil {
-		_, _ = c.host.Write([]byte(hostty.HideCursor))
+		c.writeHostControl(hostty.HideCursor)
 		return
 	}
-	_, _ = io.WriteString(c.host, hostty.MoveTo(view.Cursor.Row, view.Cursor.Col)+hostty.ShowCursor)
+	c.writeHostControl(hostty.MoveTo(view.Cursor.Row, view.Cursor.Col) + hostty.ShowCursor)
 }
 
 // dispatchMenuEffects is the thin stateful shell around the pure menu. Preview

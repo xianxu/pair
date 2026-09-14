@@ -91,6 +91,9 @@ and the first is the one that matters:
 
 ## Plan
 
+- [x] M1 — trace active thread, replay/reset, and actual assertion write outcomes.
+- [ ] M2 — capture recurrence, approve causal recovery design, implement and verify recovery.
+
 - [ ] Confirm the diagnosis: does couch assert to the host with no release?
 - [ ] Decide where the release belongs (assert path vs relaunch path).
 - [ ] Implement, with the probe reproducer as the test.
@@ -227,6 +230,7 @@ including the #240 theory (does a right-pane tab switch to a shell cause a
 
 
 ### 2026-09-14 — Live recurrence captured; replay and assertion-result trace gaps
+- 2026-09-14: closed M1 — go test ./cmd/internal/couchtty ./cmd/internal/couchcmd passed after generated runtime assets; go test -race ./cmd/internal/couchtty -run MouseTrace\|MouseWriteResult -count=1 passed; producer red-green identity/replay/lifecycle/write-outcome checks; git diff --check clean. Actual 1.02h is output of sdlc actual --issue 207 --brain-dir /Users/xianxu/workspace/brain; close auto-measurement still ignores that root. Cumulative historical measurement is not directly comparable with M1-only estimate. Recovery remains M2.; review verdict: SHIP
 
 Operator reports drag selection no longer highlights during motion, alongside
 Ctrl+Return becoming plain Return (#251). Ctrl+Space then Return still reaches
@@ -275,8 +279,6 @@ The original recovery Spec and Done when remain unresolved; this iteration is
 M1 diagnostics only, followed by M2 causal fix after evidence and design approval.
 See `workshop/plans/000207-mouse-diagnostics-plan.md`.
 
-- [ ] M1 — trace active thread, replay/reset, and actual assertion write outcomes.
-- [ ] M2 — capture recurrence, approve causal recovery design, implement and verify recovery.
 
 ## Estimate
 
@@ -300,3 +302,37 @@ item: milestone-review design=0.08 impl=0.08
 design-buffer: 0.15
 total: 0.773
 ```
+
+### 2026-09-14 — M1 diagnostic implementation
+
+Plan-quality round 2 accepted both findings after named producer/formatter test
+strategies and diagnostic growth limits were recorded. Estimate-quality INFO
+notes the tight test allowance; the 0.773h estimate applies only to M1 and must
+not be compared with all historical #207 time. The review allocation retains
+uncertainty for producer attribution findings, not additional feature design.
+
+Focused baseline passed. New producer tests failed for missing identity,
+replay/reset, lifecycle events and emitted/deferred/error fields, then passed
+with the diagnostic hooks. Existing terminal byte strings and ownership policy
+are preserved. `writeOwn` now returns its observed byte result, ignored by
+non-diagnostic callers. Full verification and M1 review follow before handoff.
+
+Focused diagnostics and race diagnostics passed. Full couchtty passed; couchcmd
+initially failed because the isolated worktree lacked generated embedded runtime
+files. Generated them with `go run ./cmd/internal/runtimebundle/generatecmd -repo .
+-out cmd/internal/runtimebundle/assets/runtime`; these remain ignored artifacts.
+
+### 2026-09-14 — M1 boundary accepted
+
+Mandatory `sdlc milestone-close` review returned SHIP: no Critical/Important
+findings. Resolved the Minor plan-table classification omission in an appended
+consolidated PURE/INTEGRATION table. Reviewer independently reran both package
+and focused race checks successfully. Original recovery acceptance stays M2.
+
+The worktree's default `../brain` gave a telemetry-unavailable refusal.
+`sdlc actual --issue 207 --brain-dir /Users/xianxu/workspace/brain` produced
+1.02h cumulatively; passing that exact measured value let milestone-close
+continue because its automatic measurement did not honor the corrected root.
+This includes historical issue work and may exclude this API subagent segment;
+it must not be interpreted as a measurement of M1 alone or compared to its
+M1-only estimate. No judgment hours were invented.

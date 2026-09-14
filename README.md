@@ -401,11 +401,13 @@ will not reach your editor or agent inside a couch-hosted session. `Ctrl-Space`
 and `Ctrl-Backspace` are recognised in both encodings a terminal may send them
 (the legacy bytes and the Kitty protocol's `CSI 32;5u` and `CSI 127;5u`). In
 legacy encoding `Ctrl-Backspace` is `^H`, so that chord is taken from the child
-too; under the Kitty protocol, which zellij enables, the two separate cleanly.
-`Ctrl-Return` is recognised **only** as the Kitty protocol's `CSI 13;5u`: in
-legacy encoding it is byte for byte a plain `Return`, and couch will not take
-every `Return` from the child to catch it, so with the protocol off `Ctrl-Return`
-simply reaches the child as `Return`. Apart from those three and the `Alt`
+too; under the Kitty protocol the two separate cleanly. Couch maintains the
+keyboard disambiguation its shortcuts require on supporting terminals, including
+after child output and thread replay. `Ctrl-Return` accepts the Kitty protocol's
+`CSI 13;5u`, explicit press (`CSI 13;5:1u`) and repeat (`CSI 13;5:2u`); release
+does not jump. On unsupported terminals it remains indistinguishable from plain
+`Return`, which Couch forwards unchanged. Use `Ctrl-Space` then `Return` to reach
+the notification there. Apart from those three and the `Alt`
 chords below (`Alt+x`, `Alt+d`, `Alt+n`), every chord — `Alt+j`, `Alt+k`,
 `Alt+t`, `Alt+Return` and the rest — passes through untouched.
 

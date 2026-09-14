@@ -66,30 +66,30 @@ This does not repair modes changed by an unrelated process writing the same TTY 
 
 **Files:** Create `cmd/internal/couchtty/keyboard_host_test.go` and `cmd/internal/couchtty/console_keyboard_test.go`; reuse `console_newest_page_test.go` fixture patterns.
 
-- [ ] Build a Host double with independent main/alternate flag stacks, bounded to 16 entries, and set/add/remove/push/pop/RIS interpretation using the existing ANSI tokenizer. Write unit cases from the official protocol, including fragmented commands and overflow/underflow.
-- [ ] Add a running Console fixture with two real fake children and a pending notification. Feed a live `\x1b[=0u`, press physical Ctrl+Return via the terminal double, and assert the jump and acknowledgement. Observe the failure on main: CR reaches the original child.
-- [ ] Add startup and takeover cases: raw replay ending in pop; incoming child's enable aged out of the bounded ring; repeated actor/panel switching; primary/alternate mode independence; inactive reset isolation. Check the fake's emitted key, not only the final selected actor.
-- [ ] Run `go test ./cmd/internal/couchtty -run 'Test.*Keyboard' -count=1 -v`. Record the expected red result in the issue Log.
+- [x] Build a Host double with independent main/alternate flag stacks, bounded to 16 entries, and set/add/remove/push/pop/RIS interpretation using the existing ANSI tokenizer. Write unit cases from the official protocol, including fragmented commands and overflow/underflow.
+- [x] Add a running Console fixture with two real fake children and a pending notification. Feed a live `\x1b[=0u`, press physical Ctrl+Return via the terminal double, and assert the jump and acknowledgement. Observe the failure on main: CR reaches the original child.
+- [x] Add startup and takeover cases: raw replay ending in pop; incoming child's enable aged out of the bounded ring; repeated actor/panel switching; primary/alternate mode independence; inactive reset isolation. Check the fake's emitted key, not only the final selected actor.
+- [x] Run `go test ./cmd/internal/couchtty -run 'Test.*Keyboard' -count=1 -v`. Record the expected red result in the issue Log.
 
 ### Task 2: Enforce the requirement
 
 **Files:** Modify `cmd/internal/hostty/control.go`, `cmd/internal/couchtty/console.go`, `cmd/internal/couchtty/keys.go`; create `cmd/internal/couchtty/keyboard.go`; extend `cmd/internal/couchtty/keys_test.go`.
 
-- [ ] Add `EnableKeyboardDisambiguation = "\x1b[=1;2u"` with a comment explaining additive flags and no stack allocation.
-- [ ] Add the small shared suffix/writer helper. Call at startup after successful MakeRaw, from live `writeChild` after feeding its bytes, and from takeover after feeding the composed repaint. Use `!hostScan.MidSequence()`, never the cursor-save paint gate.
-- [ ] Add the two exact Ctrl+Return event encodings to the existing sequence table. Test every read split, explicit press and repeat, plain Return passthrough, release not jumping, and bracketed-paste passthrough before adding the rows.
-- [ ] Add split CSI/OSC/DCS/APC, overlong control-string, cursor-save, non-disambiguation flags preservation and teardown cases. Ensure the suffix is not emitted after shell reset and repeated enforcement leaves stack depth unchanged.
-- [ ] Run `go test ./cmd/internal/couchtty ./cmd/internal/hostty ./cmd/internal/ptychild -count=1` and `go test -race ./cmd/internal/couchtty -run 'Test.*(Keyboard|NewestPage|Interceptor)' -count=1`.
-- [ ] Review actual changed files and keep tests targeted; retain existing host mode/notification tests. Commit with #251 and a Co-Authored-By trailer.
+- [x] Add `EnableKeyboardDisambiguation = "\x1b[=1;2u"` with a comment explaining additive flags and no stack allocation.
+- [x] Add the small shared suffix/writer helper. Call at startup after successful MakeRaw, from live `writeChild` after feeding its bytes, and from takeover after feeding the composed repaint. Use `!hostScan.MidSequence()`, never the cursor-save paint gate.
+- [x] Add the two exact Ctrl+Return event encodings to the existing sequence table. Test every read split, explicit press and repeat, plain Return passthrough, release not jumping, and bracketed-paste passthrough before adding the rows.
+- [x] Add split CSI/OSC/DCS/APC, overlong control-string, cursor-save, non-disambiguation flags preservation and teardown cases. Ensure the suffix is not emitted after shell reset and repeated enforcement leaves stack depth unchanged.
+- [x] Run `go test ./cmd/internal/couchtty ./cmd/internal/hostty ./cmd/internal/ptychild -count=1` and `go test -race ./cmd/internal/couchtty -run 'Test.*(Keyboard|NewestPage|Interceptor)' -count=1`.
+- [x] Review actual changed files and keep tests targeted; retain existing host mode/notification tests. Commit with #251 and a Co-Authored-By trailer.
 
 ### Task 3: Verify in a real terminal and publish
 
 **Files:** Update `atlas/couch.md`, issue Log and this plan's checkboxes.
 
-- [ ] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/hostty ./cmd/internal/ptychild -count=1` and `git diff --check`; broaden only for a new failure or affected consumer.
-- [ ] Build the Couch executable using the repository's existing build target. Determine a controlled reload path before replacing the running instance: this session is hosted and #250's stale Pair record remains unresolved. Do not kill or archive that thread just to test #251.
-- [ ] On the operator's supporting terminal, verify normal Return, physical Ctrl+Return to a yellow thread, repeated jumps, recent-thread return, switcher return and thread switches. To compare the fake with the real terminal, use a disposable terminal/probe to set/add/pop flags and query them; enter only deliberate test keys and restore modes. If live terminal access requires the operator, present exact smoke steps and leave live verification unchecked until confirmed.
-- [ ] Document the Couch-owned flag, explicit press/repeat handling, unsupported-host fallback and shell-safe teardown in the existing atlas keyboard section.
+- [x] Run `go test ./cmd/internal/couchcmd ./cmd/internal/couchtty ./cmd/internal/hostty ./cmd/internal/ptychild -count=1` and `git diff --check`; broaden only for a new failure or affected consumer.
+- [x] Build the Couch executable using the repository's existing build target. Determine a controlled reload path before replacing the running instance: this session is hosted and #250's stale Pair record remains unresolved. Do not kill or archive that thread just to test #251.
+- [x] On the operator's supporting terminal, verify normal Return, physical Ctrl+Return to a yellow thread, repeated jumps, recent-thread return, switcher return and thread switches. To compare the fake with the real terminal, use a disposable terminal/probe to set/add/pop flags and query them; enter only deliberate test keys and restore modes. If live terminal access requires the operator, present exact smoke steps and leave live verification unchecked until confirmed.
+- [x] Document the Couch-owned flag, explicit press/repeat handling, unsupported-host fallback and shell-safe teardown in the existing atlas keyboard section.
 - [ ] Close with `sdlc close --issue 251 --verified '<actual evidence>'`, address the binary's fresh-context review findings, then `sdlc pr` and `sdlc merge`. The single-pass task has no separate milestone boundary.
 
 ## References
@@ -169,3 +169,46 @@ restored main buffer.
 also affect cross-package inventory contracts. Retain focused red/green and
 race checks for the keyboard/output ordering tests. Log failures honestly and
 fix newly affected consumers rather than declaring success from focused tests.
+
+
+### 2026-09-14 — Implementation and verification progress
+
+The physical-key and both-buffer regressions were observed failing on baseline,
+then pass with the production fix. Core policy and output ownership are
+implemented. Affected package tests pass; full/race/live checks are pending.
+The shared helper is `keyboardDisambiguated`; the test model methods are
+`keyboardModel.feed`/`command` behind `keyboardHost.Write`/`ctrlReturn`.
+
+Source correction: pumpStdin returns on EOF without ending Console.Run.
+Preserve that behavior; the EOF scenario verifies shell restoration when Console
+subsequently stops, rather than adding an unrelated exit policy change.
+
+
+### 2026-09-14 — Full-suite guard distinguishes keyboard control from painting
+
+Full `make test` correctly found the two new MidSequence reads in the static
+paint-gate guard. Keyboard controls have no cursor effects and must not wait for
+cursor-save release, as the approved plan requires. Add an explicit
+`keyboard-control-boundary: no cursor effects` annotation to these reads and
+teach `tests/paint-gate-consumers-test.sh` that narrow non-paint exception;
+unannotated partial paint-gate reads remain rejected. This is a newly affected
+consumer of the documented framing contract, not a weakening to all MidSequence
+calls. The stateful cursor-save regression verifies the distinct behavior.
+
+
+### 2026-09-14 — Live acceptance scope at authorized shipment
+
+Operator confirmed rebuilt Ctrl+Return and authorized shipment. Task 3's live
+checkbox records that acceptance; the expanded live protocol-query exercise
+was not performed. Remaining transitions are validated by the stateful terminal
+tests and passing full suite. The close/publish row is pending gate execution,
+not unfinished product behavior. Couch owns the terminal requirements for its
+controls and re-establishes them across output boundaries (ARCH-ORDER).
+
+
+### 2026-09-14 — BR-1 operator-documentation parity
+
+Close review found README still described the previous keyboard owner and only
+the implicit Ctrl+Return press encoding. Documentation deliverable includes
+README, atlas and current ownership comments, covering Couch maintenance,
+explicit press/repeat events and the unsupported-terminal switcher fallback.

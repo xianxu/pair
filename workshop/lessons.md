@@ -4810,3 +4810,23 @@ buffer and leak extended keys into the shell. Test startup on main, alternate
 entry, and shutdown as one stateful sequence, and verify final main-buffer key
 encoding rather than just searching for a reset escape. Caught during #251
 spec/plan review.
+
+
+## 2026-09-14 — Diagnostic plans name producer-level oracles (#207)
+
+A log helper test cannot establish that an event means bytes were emitted.
+Name each production writer and its adversarial strategy in diagnostic plans:
+compare outcomes with accepted bytes, and pause writes to verify identity is
+captured before IO. Keep scanner belief labels distinct from terminal queries.
+
+A core-concepts table should declare PURE/INTEGRATION explicitly for every
+entity, including later additions; prose describing the distinction does not
+make a table mechanically reviewable. Caught by #207 M1 review (Minor).
+
+
+## Terminal ownership changes need matching operator documentation (#251)
+
+When Couch takes ownership of a terminal capability formerly supplied by its
+child, update README, atlas and current source-contract comments together.
+Search for the old owner and accepted encoding claims; passing protocol tests
+do not establish that operator documentation describes the shipped behavior.

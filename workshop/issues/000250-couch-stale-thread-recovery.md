@@ -109,3 +109,27 @@ The checkpoint was found at
 Runtime addresses and paths are incident evidence, not authority to act later
 without fresh verification. No sessions or runtime metadata were modified;
 implementation has not started.
+
+
+### 2026-09-14 — Operator-authorized manual unblock
+
+Detach-all failed partway through on exact address
+`e108517d46ab4575/couch-36b623f6869ebaa2`, reporting no live Pair session.
+Operator explicitly requested manual state repair before implementing #250.
+Rechecked: recorded PID 5330 absent, exact Zellij session `📁pair-couch-27`
+absent, revision 22, identity `1789341245.53810`, one live incarnation,
+no open start/park transaction. Backed up the entire threadstore and exact
+#239 continuation to `/tmp/pair-250-manual-recovery-57qbkgg9`.
+
+A temporary Go helper called the existing `ThreadStore.RetireIncarnation`
+transaction with revision 22 and that exact identity, immediately rechecking
+`OSProcOps.Exists == Dead`. Passed the existing LastActiveAt to preserve
+historical activity rather than claiming the absent session ran today.
+Result revision 23, no incarnation, no fabricated VerifiedPark. Raw comparison
+proved only this record changed, and only its revision/incarnations fields;
+all other thread records unchanged. Helper source retained in backup and
+removed from checkout. `couch --show pair` now truthfully reports `session gone`.
+`Couch.Leave` skips records without an active incarnation, so the identified
+stale-record detach blocker is removed. No process/session was signalled or
+archived. Operator must retry detach-all and confirm usable access; the absent
+Pair conversation is not restored by this repair. General #250 remains open.

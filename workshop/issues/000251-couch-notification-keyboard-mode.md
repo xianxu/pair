@@ -1,12 +1,13 @@
 ---
 id: 000251
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-14
 estimate_hours: 1.74
 started: 2026-09-14T08:57:57-07:00
+actual_hours: 1.31
 ---
 
 # Keep Ctrl+Return notification jumps working across Couch thread switches
@@ -101,14 +102,15 @@ total: 1.74
 
 ## Plan
 
-- [ ] Follow `workshop/plans/000251-couch-notification-keyboard-mode-plan.md`: reproduce using a stateful terminal double.
-- [ ] Implement Couch-owned disambiguation through existing output/framing boundaries.
-- [ ] Verify regressions, document the behavior and validate the installed runtime with the operator.
+- [x] Follow `workshop/plans/000251-couch-notification-keyboard-mode-plan.md`: reproduce using a stateful terminal double.
+- [x] Implement Couch-owned disambiguation through existing output/framing boundaries.
+- [x] Verify regressions, document the behavior and validate the installed runtime with the operator.
 - [ ] Close through SDLC review and publish.
 
 ## Log
 
 ### 2026-09-14
+- 2026-09-14: closed — Full combined make test exit 0; focused keyboard/mouse race tests pass; operator restarted and confirmed Ctrl+Return works. BR-1 documentation parity corrected. Only unchecked plan item is close/publish workflow itself.; review verdict: SHIP
 
 Created and claimed at operator request. Read-only investigation found no
 keyboard state restoration in Couch's takeover path. Existing tests passed:
@@ -154,3 +156,95 @@ mouse diagnostics. SDLC plan-quality's PQ-1 requested function-level test
 strategies instead of case inventories; the plan now names pure helper,
 terminal-double parser/encoder and Console/interceptor targets with generated
 input and deterministic interleaving guards. No behavior/design scope changed.
+
+
+### 2026-09-14 — Reproduced and implemented
+
+The new stateful Host regression failed before production edits: physical
+Ctrl+Return encoded CR and reached c1 while c2 was paging. It also reproduced
+main-buffer keyboard leakage on release. Implemented additive disambiguation,
+explicit press/repeat key forms, output/scanner serialization and final
+main-buffer cleanup. Focused keyboard tests and affected packages pass.
+
+Existing notification tests now permit the keyboard control at the complete
+sequence boundary; a menu test now waits for its asynchronous visible banner
+rather than assuming reducer completion means paint completion. Source confirms
+EOF stops only pumpStdin, not Run; tests preserve this behavior and verify
+cleanup after the eventual stop. Historical incident trigger remains unobserved;
+the new regression proves the supported mode-loss mechanism.
+
+
+### 2026-09-14 — Validation checkpoint
+
+Affected packages pass (couchtty, hostty, ptychild), as does the focused race
+suite. Pure policy fuzzing passed 103,830 executions in three seconds; the
+independent terminal model passed 6,988 partition-fuzz executions. Full
+`make test` first flagged the keyboard-only framing reads in the paint-gate
+source guard; the documented non-paint exception now passes and the full suite
+is rerunning. Live supporting-terminal verification remains outstanding.
+
+
+### 2026-09-14 — Combined smoke candidate in the primary checkout
+
+Operator requested branch-in-place development from Parley and smoke testing
+at `~/workspace/pair`. Combined #251 with reviewed #207 M1 diagnostics on
+`couch-251-207-smoke`; preserved unrelated #239 local edits. The duplicate
+root #251 plan files are retained in the named git stash. The combined
+`bin/couch` builds, focused keyboard/mouse race tests pass, and a fresh
+integration review approved the conflict resolution. Byte-count diagnostics
+include keyboard suffixes; post-release assertions report suppression.
+Full make test also exposed the new source's missing artifact inventory entry,
+now classified and verified. Full combined suite is running at this checkpoint.
+Operator received detach-all/relaunch smoke instructions. Physical terminal
+acceptance is pending; neither #251 nor mouse recovery M2 is marked complete.
+
+An intermittent auto-submit report occurred while the old Couch PID 5316 was
+still running, before this candidate loaded. Read-only evidence for the
+09:26:15 send shows body and translated CR both successfully written to the
+Codex PTY, 16 ms apart. This does not prove application acceptance or identify
+the reported failed attempt. Small single-line sends currently have no settle
+interval or acceptance acknowledgement; no speculative delay fix applied.
+
+
+### 2026-09-14 — Combined verification passed
+
+`env -u PAIR_SESSION_ID -u PAIR_TAG make test` completed with exit 0 in
+`~/workspace/pair` on the combined smoke branch; log:
+`/tmp/pair-combined-make-test.log`. Focused combined mouse/keyboard race tests
+also exit 0 (`/tmp/pair-combined-race.log`), and `bin/couch` builds successfully.
+Live operator smoke remains the next acceptance step.
+
+
+### 2026-09-14 — Detach shortcut blocked the smoke transition
+
+Operator reported Alt+D in the switcher returned to the thread and typed d.
+Old Couch only recognizes the Kitty Alt+D form, not legacy ESC+d; losing
+keyboard disambiguation therefore also removes the safe leave shortcut.
+PID 5316 still owned /dev/ttys008. Applied the tested additive keyboard enable
+control once to that host tty (7/7 bytes accepted), without signalling Couch
+or its sessions, so the operator can retry the normal detach-all action.
+Terminal acceptance and relaunch remain operator-observed pending steps.
+
+
+### 2026-09-14 — Live acceptance and shipping authorization
+
+Operator restarted the combined build and confirmed Ctrl+Return works, then
+explicitly said to ship. The accepted invariant is that Couch maintains the
+terminal capabilities required for its own operation. Full combined make test,
+focused race checks, terminal-model regressions and live Ctrl+Return smoke
+passed. The historical exact reset source remains unproven. Mouse M1 supplies
+diagnostics; its causal repair M2 and general #250 recovery remain open.
+
+Live validation scope: the operator confirmed the reported Ctrl+Return behavior.
+Other protocol transitions/ordinary Return/cleanup remain automated evidence;
+the optional disposable-terminal protocol query was not performed. The close
+and publish checkbox is self-referential workflow work, to be checked after
+those gates succeed, not an outstanding implementation requirement.
+
+
+### 2026-09-14 — Close review BR-1
+
+Review found no blocking runtime defect; REWORK requested README parity.
+Updated README's owner/event/fallback contract, atlas ownership wording and
+current Alt-chord comments. Added the documentation-sweep lesson. No runtime
+behavior changed. Rerunning close to dispose BR-1 through the gate ledger.
