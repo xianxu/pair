@@ -138,6 +138,34 @@ Pair conversation is not restored by this repair. General #250 remains open.
 
 ## Revisions
 
+### 2026-09-14T13:28:00-07:00 — Astro exit investigation
+
+Operator reported another spontaneous exit and asked for trigger analysis.
+Read-only evidence: Astro address `fcff31946c0ac9d2/couch-057762b29e5f0952`
+still records helper PID 20234/start identity `1789416513.384925` live at
+revision 56, but that PID is absent and the registry has dropped Astro.
+Claude PID 51537, wrap PID 51530 and Zellij server PID 51529 remain alive
+since September 12. Exact session `📁astro-couch-2` is live with zero clients.
+Registry mtime is 13:16:41.601764; this is not proof of the exit timestamp.
+
+Confirmed stale-state mechanism: `Console.onExit` calls `Couch.Forget`, which
+removes the registry actor without retiring the durable incarnation;
+`Couch.PruneDead` likewise leaves that incarnation. The current label claiming
+the supervisor crashed is not justified by this evidence. Attach has no
+post-start timeout. Wrapper output continues through 13:12 with no agent exit;
+available Zellij/macOS logs do not establish the helper's exit trigger.
+The exit notice is transient and stores only an integer code, losing the signal
+distinction. Do not assert a particular signal, keypress or cleanup operation
+caused this incident without more evidence.
+
+Snapshot of record, registry, process identities and relevant logs:
+`/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair-astro-exit-sescyfqn`.
+No process was signalled, session attached, or runtime record repaired during
+inspection. Astro is a real surviving-session instance of the #250 gap; preserve
+its live agent when implementing recovery. Fresh spec review approved #250;
+the durable plan is drafted and its first review requested exact target-generation
+correlation on retry plus explicit absence phase rules, now appended by its author.
+
 ### 2026-09-14T13:20:00-07:00 — Controlled recovery acceptance
 
 The operator noted there is no longer a naturally broken thread and approved
