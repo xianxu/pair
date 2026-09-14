@@ -1,11 +1,12 @@
 ---
 id: 000248
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-14
 estimate_hours:
+started: 2026-09-14T10:30:41-07:00
 ---
 
 # Couch switcher blocks warm reattach without a native binding
