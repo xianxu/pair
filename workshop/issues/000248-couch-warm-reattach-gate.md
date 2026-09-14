@@ -1,12 +1,13 @@
 ---
 id: 000248
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-14
 estimate_hours: 1.08
 started: 2026-09-14T10:30:41-07:00
+actual_hours: 7.21
 ---
 
 # Couch switcher blocks warm reattach without a native binding
@@ -96,9 +97,9 @@ total: 1.08
 Detailed implementation and coordinated #248/#249/#250 contract:
 `workshop/plans/000248-couch-warm-reattach-gate-plan.md`.
 
-- [ ] Reproduce the inventory/UI refusal with a portable fake session and no native binding.
-- [ ] Align warm eligibility across inventory, switcher, and execution; verify boundary races.
-- [ ] Update diagnostics/docs and close through the SDLC review gate.
+- [x] Reproduce the inventory/UI refusal with a portable fake session and no native binding.
+- [x] Align warm eligibility across inventory, switcher, and execution; verify boundary races.
+- [x] Update diagnostics/docs; implementation is ready for the SDLC acceptance review.
 
 ## Log
 
@@ -120,6 +121,38 @@ supports a Couch-wide detach/restart followed by reattachment of every thread
 except Tools, rather than an isolated Tools agent crash. Detach updates
 LastActiveAt through RetireIncarnation; its agent and Zellij server survive.
 The evidence does not identify what initiated the Couch exit/restart.
+
+### 2026-09-14 — Implementation and regression evidence
+- 2026-09-14: closed — Full env -u PAIR_SESSION_ID -u PAIR_TAG make test passed; focused race tests passed; real switcher-to-Console fake-session acceptance proves unbound warm attachment with terminal input/output, unchanged session and no fabricated binding; stale selection and late session loss refuse cold fallback; make build and git diff --check passed. Pausing on reviewed branch for operator smoke before #249/#250.; review verdict: SHIP
+
+Removed native IDs from warm evidence and moved native resolution inside the
+cold branch. Inventory, initial execution and post-claim recheck now share
+`detachedResumeProofMatches`; recheck also retains the original session name.
+Foreground and startup selections carry warm-only intent. ARCH-DRY/ORDER
+shaped these changes. Query errors now propagate rather than proving detachment.
+
+Captured red tests for binding-lost inventory, missing resolver execution,
+rebound session acceptance, foreground warm intent, startup cold fallback and
+failed Zellij queries. The actual Console acceptance and focused race suites
+pass, including terminal input/output and zero native resolution. Full `env -u PAIR_SESSION_ID -u PAIR_TAG make test` passed, including all
+Go packages and shell/Lua checks; focused race tests and `git diff --check`
+passed. SDLC acceptance review follows. Operator smoke remains the
+explicit pause before implementing #249.
+
+### 2026-09-14 — Acceptance complete; operator smoke pending
+
+SDLC boundary review returned SHIP with no Critical, Important or Minor code
+findings and independently passed all four affected package suites. The carried
+PQ-2 advisory described the old query-error behavior; implementation now
+propagates failures and the review confirmed the resulting constraint/security
+contract. Full make test, focused race tests, build and diff checks passed.
+
+Built `bin/couch`, `bin/pair`, and `bin/pair-launch-helper` in the operator
+checkout. Keep branch `000248-couch-warm-reattach-gate` unmerged for smoke:
+from this checkout run `PATH="$PWD/bin:$PATH" bin/couch`, select an unbound
+detached thread, confirm existing agent access, then detach/reattach again.
+No production thread was repaired or restarted by this implementation. Resume
+#249/#250 only after the requested smoke checkpoint.
 
 ## Revisions
 

@@ -752,11 +752,12 @@ one name -- and the projector's detached branch requires ZERO incarnations, whic
 is what keeps a crashed Couch's stale `IncarnationLive` from masquerading as a
 clean detach. `DetachedSessions` takes **candidates** rather than returning the
 whole set, because the session-name index is per repo scope. Each candidate
-carries the resume proof its caller already resolved (agent + native id) and the
-observation carries it back, so `detachedResumeProofMatches` — the pure twin of
-`parkedResumeProofMatches` — enforces it in the projector rather than trusting
-the shell. The inventory passes only candidates (no incarnation, no verified
-park, a saved profile, an established binding), which bounds
+carries its address and saved agent profile; the observation adds its uniquely
+owned live client-free session name. `detachedResumeProofMatches` is shared by
+inventory, resume execution and its post-claim recheck (`pair#248`). None of
+these warm paths resolves or requires a native conversation binding. The
+inventory passes only candidates (no incarnation, no verified park, a usable
+saved profile and working path), which bounds
 *whether* the zellij snapshot runs -- a couch with nothing detachable pays
 nothing -- and, since `pair#228`, its fan-out too: two `list-sessions` runs plus
 one `action list-clients` per *candidate* session, not per session on the host.
@@ -930,28 +931,25 @@ Two neighbouring states are deliberately never SELECTED, though both are now
 listed. A session **attached elsewhere** yields no detached observation, so
 couch cannot steal it. A **stale `IncarnationLive` from a crashed couch** shows
 as `unusable/stale-incarnation` and is not selectable, so startup creates a new
-thread; automatic reconciliation is the gap `pair#171` owns, and archive is the
-manual out.
+thread. `pair#250` owns stale-owner reconciliation and recovery; a stale occupied
+record can currently block archive too.
 
-**The native-binding gate no longer hides a row, and no longer applies to the
-warm path at all** (`pair#181`). It once did both: `ActionableThreadInventoryContext`
-dropped every candidate whose binding was not one exact established root, and
-`DecideResume` demanded that binding for detached threads too. The reasoning was
-sound and the conclusion was wrong. Startup has NO fallback by design
-(`pair#167`), so a Resume refusal stops `couch` rather than starting something
-else, and the invariant that makes that safe is *a row the inventory offers is
-one resume can take* — but the gate enforced it by making the row VANISH, and
-the native session id it demanded is the COLD path's proof, which a warm
-reattach never consumes.
+**Warm attachment and cold conversation resume use different evidence**
+(`pair#248`). Warm access requires the surviving session; cold resume requires
+the established native conversation binding. Warm success does not establish
+that binding or promise transcript-dependent recovery. Foreground Enter and
+startup preserve the selected detached row's intent with `WarmOnly`, as the
+background pass already does. If the row becomes parked before execution, the
+attempt refuses instead of creating a cold replacement. The final recheck
+requires the same session name as the initial execution proof, then existing
+tracked-start registration and cleanup deliver the helper to Console. Failed
+warm starts never quiesce a session they did not create.
 
-The atlas recorded the fork before it was taken: "The alternative — list it,
-refuse its `Enter` with the diagnostic, and gate only startup selection — was
-not weighed when the gate was written; it is the fork to revisit if an operator
-hits this." The operator hit it. That alternative is what `pair#181` built: the
-row is listed as `binding lost — repairable`, `Enter` explains, and
-`SelectResumableRoot` never offers it because only proven states rank. A
-detached thread whose binding degrades is now visible with its reason instead of
-being a live agent nothing mentions.
+Zellij snapshot queries have a five-second per-query timeout. Query failures
+propagate as errors, leaving inventory unknown and preventing execution; a
+failed client count cannot become proof of zero clients. The exact Zellij
+empty-inventory diagnostic remains an empty result. Contradictory warm proof
+reports unknown, while binding-lost describes missing cold conversation proof.
 
 Parked and detached candidates are physicalized alike, which the selector
 depends on rather than merely benefits from: it compares paths by exact string,

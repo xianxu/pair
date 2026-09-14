@@ -63,12 +63,9 @@ type ParkedResumeObservation struct {
 type DetachedSessionObservation struct {
 	Address     ThreadAddress
 	SessionName string
-	// Agent and NativeID carry the same resume proof ParkedResumeObservation
-	// does, so the PURE projector enforces it rather than trusting the IO shell
-	// to have filtered its candidates. An observation without them is not
-	// evidence of a resumable thread, only of a running session.
-	Agent    string
-	NativeID string
+	// Agent correlates the requested launch profile. Native conversation
+	// evidence is absent: reattachment consumes only the surviving session.
+	Agent string
 }
 
 // ProofStatus records whether the IO shell managed to ASK a question, as
@@ -312,8 +309,8 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	case detachedResumeProofMatches(record, evidence.Detached):
 		return ThreadDetached, ""
 	case len(evidence.Detached) != 0:
-		// A live session whose binding is unusable: pair#168's shape.
-		return ThreadUnusable, ReasonBindingLost
+		// Contradictory session evidence proves neither attachment nor death.
+		return ThreadUnusable, ReasonUnknown
 	default:
 		return ThreadUnusable, ReasonSessionGone
 	}
@@ -349,21 +346,18 @@ func liveProofMatches(record ThreadRecord, observations []ProcessIdentity) bool 
 	return observations[0] == ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
 }
 
-// detachedResumeProofMatches is parkedResumeProofMatches' twin, and the
-// symmetry is the point: both resumable kinds prove themselves the same way, in
-// the same layer.
-//
-// The binding requirement used to live only in the IO shell, which made this
-// function's own "fails closed on its own" claim false -- a caller that forgot
-// to gate its candidates would have got rows resume cannot take. Startup has no
-// fallback, so that is not a degraded row, it is `couch` refusing to start.
+// detachedResumeProofMatches is the warm-session contract shared by inventory,
+// execution and the final recheck. ProjectDetachedSessions proves live,
+// client-free, unique ownership; this matcher correlates that proof with the
+// thread. Occupancy belongs to the caller's lifecycle stage, since the final
+// recheck runs after the attempt has claimed a creating incarnation.
 func detachedResumeProofMatches(record ThreadRecord, observations []DetachedSessionObservation) bool {
 	if record.LatestLaunchProfile == nil || !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil || len(observations) != 1 {
 		return false
 	}
 	observation := observations[0]
 	return observation.Address == record.Address && observation.SessionName != "" &&
-		observation.Agent == record.LatestLaunchProfile.Agent && observation.NativeID != ""
+		observation.Agent == record.LatestLaunchProfile.Agent
 }
 
 func parkedResumeProofMatches(record ThreadRecord, observations []ParkedResumeObservation) bool {
@@ -482,7 +476,7 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 				snapshot.Records[i].WorkingPath = physicalPath
 			}
 		}
-		if item.PathError != nil || resolver == nil {
+		if item.PathError != nil {
 			evidence[record.Address] = item
 			continue
 		}
@@ -495,8 +489,12 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			continue
 		}
 		agent := record.LatestLaunchProfile.Agent
-		binding, resolveErr := resolver.ResolveEstablished(ctx, record.Address.RepoScope, string(record.Address.Tag), agent)
 		if record.VerifiedPark != nil {
+			if resolver == nil {
+				evidence[record.Address] = item
+				continue
+			}
+			binding, resolveErr := resolver.ResolveEstablished(ctx, record.Address.RepoScope, string(record.Address.Tag), agent)
 			// The parked question is answered either way: a refusal is a
 			// resolved "no binding", not an unresolved question.
 			item.ParkedStatus = ProofResolved
@@ -508,23 +506,10 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			evidence[record.Address] = item
 			continue
 		}
-		// A detach candidate regardless of binding health: whether the SESSION
-		// is alive is a different question from whether the agent's transcript
-		// id resolved, and conflating them is what hid a live detached thread.
-		//
-		// The id itself still travels only when it RESOLVED CLEANLY. That keeps
-		// the proof exactly as strict as it was -- an ambiguous binding carries
-		// a non-empty NativeID, so passing it through unchecked would make such
-		// a row actionable and offer it to startup selection, which is not a
-		// change this milestone makes. What the candidate buys here is the
-		// answer to the session question, which turns an invisible row into a
-		// visible `binding-lost` one instead of an asserted `session-gone`.
-		nativeID := ""
-		if resolveErr == nil && bindingResumeDiagnostic(binding) == "" {
-			nativeID = binding.NativeID
-		}
+		// A warm candidate asks only about its session. Native resolution can
+		// neither authorize this action nor prevent it.
 		detachedCandidates = append(detachedCandidates, DetachedCandidate{
-			Address: record.Address, Agent: agent, NativeID: nativeID,
+			Address: record.Address, Agent: agent,
 		})
 		evidence[record.Address] = item
 	}

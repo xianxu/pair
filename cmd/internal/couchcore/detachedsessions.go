@@ -15,14 +15,8 @@ import (
 type SessionNameBinding struct {
 	Address     ThreadAddress
 	SessionName string
-	// Agent and NativeID are the resume proof the caller already resolved for
-	// this address. They travel through so ProjectDetachedSessions emits
-	// COMPLETE observations: without them the pure function produced a shape
-	// ProjectActionableThreads always rejects, and only worked because the IO
-	// shell patched the fields in afterwards -- a pure function whose output is
-	// unusable on its own, whose tests therefore assert nothing.
-	Agent    string
-	NativeID string
+	// Agent correlates the requested launch profile with the observation.
+	Agent string
 }
 
 // ProjectDetachedSessions is the pure detached rule: a thread is detached when
@@ -51,6 +45,7 @@ type SessionNameBinding struct {
 //     wherever no newer row supersedes it. Both are theoretical for couch
 //     threads, whose tags are random 8-byte values, but the count is exactly
 //     as wide as the reads and no wider.
+//
 //   - two zellij rows sharing one name: the snapshot itself is contradictory,
 //     so that name proves nothing.
 //
@@ -87,7 +82,7 @@ func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.
 		}
 		out = append(out, DetachedSessionObservation{
 			Address: binding.Address, SessionName: binding.SessionName,
-			Agent: binding.Agent, NativeID: binding.NativeID,
+			Agent: binding.Agent,
 		})
 	}
 	return out, nil

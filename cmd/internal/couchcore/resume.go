@@ -363,10 +363,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	if thread.LatestLaunchProfile != nil {
 		agent = thread.LatestLaunchProfile.Agent
 	}
-	bindings, ok := c.Artifacts.(NativeBindingResolver)
-	if !ok {
-		return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
-	}
 	// Resolve the binding ONLY where it is the authority -- the cold path, which
 	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
 	// its surviving session and needs no native id, so it asks for none: the
@@ -380,7 +376,13 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 			"thread is parked; a warm-only resume reattaches running agents and never starts one")
 	}
 	var binding NativeBindingResolution
+	var bindings NativeBindingResolver
 	if thread.VerifiedPark != nil {
+		var ok bool
+		bindings, ok = c.Artifacts.(NativeBindingResolver)
+		if !ok {
+			return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
+		}
 		resolved, err := c.resumeEvidence(ctx, thread)
 		if err != nil {
 			return ActorRecord{}, nil, err
@@ -392,15 +394,19 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// that survival is the authority. Ask only when it could matter, so an
 	// ordinary parked resume costs no extra observation.
 	detached := false
+	warmSession := ""
 	if thread.VerifiedPark == nil {
 		if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
 			observed, observeErr := resolver.DetachedSessions(ctx, []DetachedCandidate{{
-				Address: address, Agent: agent, NativeID: binding.NativeID,
+				Address: address, Agent: agent,
 			}})
 			if observeErr != nil {
 				return ActorRecord{}, nil, fmt.Errorf("observe detached session for %+v: %w", address, observeErr)
 			}
-			detached = len(observed) == 1 && observed[0].Address == address
+			detached = detachedResumeProofMatches(thread, observed)
+			if detached {
+				warmSession = observed[0].SessionName
+			}
 		}
 	}
 	if opts.WarmOnly && !detached {
@@ -450,7 +456,7 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// there is nothing to attach to.
 	profileRaw := ""
 	if detached {
-		if err := c.confirmStillDetached(ctx, address, eligible.Profile.Agent); err != nil {
+		if err := c.confirmStillDetached(ctx, thread, warmSession); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
 	} else {
@@ -487,19 +493,17 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 // The cold path's equivalent is RequireNativeResumeBinding. Both exist for the
 // same reason -- the world can change between projecting a row and launching --
 // and each asks about the authority its own shape actually rests on.
-func (c *Couch) confirmStillDetached(ctx context.Context, address ThreadAddress, agent string) error {
+func (c *Couch) confirmStillDetached(ctx context.Context, thread ThreadRecord, session string) error {
 	resolver, ok := c.Artifacts.(DetachedSessionResolver)
 	if !ok {
-		return refuseResume(ResumeBindingUnbound, "detached sessions cannot be observed")
+		return refuseResume(ResumeUnknown, "detached sessions cannot be observed")
 	}
-	observed, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: address, Agent: agent}})
+	observed, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: thread.Address, Agent: thread.LatestLaunchProfile.Agent}})
 	if err != nil {
 		return err
 	}
-	for _, observation := range observed {
-		if observation.Address == address && observation.SessionName != "" {
-			return nil
-		}
+	if detachedResumeProofMatches(thread, observed) && observed[0].SessionName == session {
+		return nil
 	}
-	return refuseResume(ResumeSessionGone, "the detached session is no longer running")
+	return refuseResume(ResumeSessionGone, "the same session can no longer be proved live, uniquely owned and detached")
 }

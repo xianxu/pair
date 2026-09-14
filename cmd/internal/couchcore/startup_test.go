@@ -216,23 +216,18 @@ func seedStartupParked(t *testing.T, env *testEnv, tag ThreadTag, path string, a
 // offering a row that cannot resume does not degrade to "start something new",
 // it kills `couch` in that tree.
 //
-// Detached rows must therefore clear the same native-binding gate parked rows
-// already do. Without it a thread whose agent session data was pruned, rotated
-// or raced is auto-selected and startup exits 1 with no way through -- and M2
-// made detached the NORMAL resting state, so that is the ordinary row at the
-// operator's own path.
-func TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding(t *testing.T) {
+// Detached rows prove their surviving session. Native binding health must not
+// prevent selection, because warm execution does not consume that binding.
+func TestStartupSelectsDetachedRowsRegardlessOfNativeBinding(t *testing.T) {
 	for _, test := range []struct {
 		name    string
 		binding func(*testEnv, ThreadAddress)
-		want    bool
 	}{
 		{
 			name: "established binding is resumable",
 			binding: func(env *testEnv, a ThreadAddress) {
 				env.Artifacts.SetNativeBinding(a, "claude", sessioninventory.BindingEstablished, "native-root-1")
 			},
-			want: true,
 		},
 		{
 			name:    "no binding at all",
@@ -270,9 +265,9 @@ func TestStartInteractiveSkipsDetachedRowsWithoutAResumableBinding(t *testing.T)
 				t.Fatal(err)
 			}
 			_, selected := SelectResumableRoot(rows, created.Address.RepoScope, "/repo")
-			if selected != test.want {
+			if !selected {
 				t.Fatalf("row offered for selection = %v, want %v (rows = %+v) -- an offered row must be resumable",
-					selected, test.want, rows)
+					selected, true, rows)
 			}
 		})
 	}

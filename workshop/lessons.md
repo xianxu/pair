@@ -1,5 +1,14 @@
 # Lessons
 
+## Query failure cannot prove an empty external state (#248)
+
+Zellij snapshot code swallowed listing/client-query errors; a failed client
+query became zero clients and therefore attachment authority. Trace every
+external observation through its error path before relying on fail-closed
+comments. Test each query boundary with deterministic failure and cancellation,
+require no partial authority, and distinguish a documented empty result from
+an unknown failure. Caught during #248 plan review.
+
 ## Acceptance tests must cross routing and attachment boundaries
 
 A Couch startup test called the new domain helper directly, so it remained green

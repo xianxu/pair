@@ -2,14 +2,146 @@ package launcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycletest"
 )
+
+func TestZellijSnapshotQueryFailuresDiscardAllSessions(t *testing.T) {
+	for _, stage := range []string{"list-sessions --short", "list-sessions --no-formatting", "--session pair-b action list-clients"} {
+		t.Run(stage, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "zellij")
+			script := `#!/bin/sh
+if [ "$*" = '` + stage + `' ]; then
+  printf 'query failed\n' >&2
+  exit 1
+fi
+case "$*" in
+  'list-sessions --short') printf 'pair-a\npair-b\n' ;;
+  'list-sessions --no-formatting') printf 'pair-a [Created]\npair-b [Created]\n' ;;
+  *) printf 'CLIENTS\n' ;;
+esac
+`
+			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			got, err := (ZellijSource{Path: path}).Snapshot()
+			if err == nil || !strings.Contains(err.Error(), stage) {
+				t.Errorf("error = %v, want failed query %q", err, stage)
+			}
+			if got != nil {
+				t.Errorf("failed snapshot returned partial authority: %+v", got)
+			}
+		})
+	}
+}
+
+func TestZellijSnapshotCancellation(t *testing.T) {
+	for _, deadline := range []bool{false, true} {
+		t.Run(fmt.Sprint(deadline), func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			want := error(context.Canceled)
+			if deadline {
+				cancel()
+				ctx, cancel = context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
+				want = context.DeadlineExceeded
+			} else {
+				cancel()
+			}
+			defer cancel()
+			got, err := (ZellijSource{Path: "/bin/sh"}).SnapshotContext(ctx)
+			if !errors.Is(err, want) || got != nil {
+				t.Fatalf("snapshot = %+v, %v; want nil, %v", got, err, want)
+			}
+		})
+	}
+}
+
+func TestZellijSnapshotCancellationDuringQuery(t *testing.T) {
+	for _, stage := range []string{"list-sessions --short", "list-sessions --no-formatting", "--session pair-b action list-clients"} {
+		t.Run(stage, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, "zellij")
+			ready := filepath.Join(dir, "ready")
+			script := `#!/bin/sh
+if [ "$*" = '` + stage + `' ]; then
+  touch '` + ready + `'
+  exec sleep 30
+fi
+case "$*" in
+  'list-sessions --short') printf 'pair-a\npair-b\n' ;;
+  'list-sessions --no-formatting') printf 'pair-a [Created]\npair-b [Created]\n' ;;
+  *) printf 'CLIENTS\n' ;;
+esac
+`
+			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			done := make(chan struct{})
+			var got []Session
+			var err error
+			go func() {
+				got, err = (ZellijSource{Path: path}).SnapshotContext(ctx)
+				close(done)
+			}()
+			limit := time.After(3 * time.Second)
+			tick := time.NewTicker(time.Millisecond)
+			defer tick.Stop()
+			for {
+				if _, statErr := os.Stat(ready); statErr == nil {
+					break
+				}
+				select {
+				case <-tick.C:
+				case <-limit:
+					cancel()
+					<-done
+					t.Fatal("query did not reach cancellation barrier")
+				}
+			}
+			cancel()
+			<-done
+			if got != nil || !errors.Is(err, context.Canceled) {
+				t.Fatalf("snapshot = %+v, %v; want nil, context canceled", got, err)
+			}
+		})
+	}
+}
+
+func TestZellijSnapshotEmptyInventoryDiagnostic(t *testing.T) {
+	for _, tc := range []struct {
+		name, diagnostic, stdout string
+		status                   int
+		empty                    bool
+	}{
+		{"empty", "No active zellij sessions found.", "", 1, true},
+		{"unknown error", "query failed", "", 1, false},
+		{"wrong exit status", "No active zellij sessions found.", "", 2, false},
+		{"partial stdout", "No active zellij sessions found.", "pair-a", 1, false},
+		{"extra diagnostic", "No active zellij sessions found. additional error", "", 1, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "zellij")
+			script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' '%s' >&2\nprintf '%%s' '%s'\nexit %d\n", tc.diagnostic, tc.stdout, tc.status)
+			if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			got, err := (ZellijSource{Path: path}).Snapshot()
+			if got != nil || (err == nil) != tc.empty {
+				t.Fatalf("snapshot = %+v, %v; want empty success = %v", got, err, tc.empty)
+			}
+		})
+	}
+}
 
 func TestZellijSourceClassifiesSessions(t *testing.T) {
 	dir := t.TempDir()
