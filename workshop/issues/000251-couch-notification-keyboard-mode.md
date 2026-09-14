@@ -101,3 +101,12 @@ The independent investigation noted that preserving child event-reporting flags
 also requires recognizing explicit Ctrl+Return press/repeat encodings. Add the
 two exact forms through the existing interceptor table; release must not jump.
 The durable plan includes this bounded compatibility case and stateful tests.
+
+### 2026-09-14 — Fresh review: terminal ownership and cleanup
+
+Plan review found that operationQueue can also write takeovers, so the fix must
+serialize all current terminal write sites with scanner decisions and stop
+later writes after cleanup. The plan adds this prerequisite without claiming
+to finish #224's broader typed-writer task. Cleanup must also clear keyboard
+mode after returning from alternate to main screen. Add deterministic write/
+takeover/cleanup interleaving tests and a both-buffer shutdown regression.
