@@ -134,3 +134,17 @@ removed from checkout. `couch --show pair` now truthfully reports `session gone`
 stale-record detach blocker is removed. No process/session was signalled or
 archived. Operator must retry detach-all and confirm usable access; the absent
 Pair conversation is not restored by this repair. General #250 remains open.
+
+## Revisions
+
+### 2026-09-14T10:40:00-07:00 — Reconcile then reuse recovery operations
+
+Operator approved design and implementation of #248 → #249 → #250, pausing for
+smoke after #248. Coordinated contract is recorded in
+`workshop/plans/000248-couch-warm-reattach-gate-plan.md`; #250 receives its own
+executable plan before implementation. Its responsibility is exact stale-owner
+reconciliation and recovery choices, reusing #248 reattachment and #249 durable
+checkpoint execution rather than building another launcher. Diagnose observed
+helper/session state without asserting the whole Couch supervisor crashed.
+The operational acceptance baseline includes the manual incarnation retirement
+already logged above; usable conversation recovery remains to be confirmed.
