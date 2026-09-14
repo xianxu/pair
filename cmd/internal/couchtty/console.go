@@ -591,7 +591,7 @@ func (c *Console) Run() int {
 	// ptychild replay re-asserts those across a switch, and a second writer
 	// would be two authorities for one terminal state.
 	c.writeHostControl(hostty.EnableKeyboardDisambiguation)
-	c.writeOwn(hostty.EnableMouseClicks)
+	c.traceMouseClicks("startup")
 
 	c.applyLayout()
 	c.paintNow()
@@ -1035,11 +1035,15 @@ func (c *Console) release() {
 	c.terminalReleased = true
 	c.mu.Lock()
 	res := bottomReservation(c.size.Rows)
+	tracer, context := c.mouseTraceContextLocked()
 	c.mu.Unlock()
 	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
 	// spliced sequence, and the child is finished with the screen by now.
-	_, _ = io.WriteString(c.host,
-		res.Release()+res.Paint("")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetInteractiveModes+hostty.ResetRegion+hostty.ShowCursor)
+	body := res.Release() + res.Paint("") + hostty.ResetInteractiveModes + hostty.LeaveAltScreen + hostty.ResetInteractiveModes + hostty.ResetRegion + hostty.ShowCursor
+	n, err := io.WriteString(c.host, body)
+	if tracer != nil {
+		tracer.record("cleanup", context+" "+(mouseWriteResult{n: n, err: err}).detail(len(body)))
+	}
 }
 
 // bottomReservation is couch's row: always the host's bottom one.
@@ -1146,15 +1150,17 @@ func (c *Console) writeChild(p []byte) {
 	c.hostScan.FeedFraming(p)
 	after := c.hostScan.MouseModes()
 	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
-	tracer := c.mouseTrace
+	tracer, context := c.mouseTraceContextLocked()
 	c.mu.Unlock()
+	p = keyboardDisambiguated(p, complete)
+	n, err := c.host.Write(p)
 	// A mouse-mode change in the CHILD's teed stream is one of the two events
 	// that decide the host's mode (#207). Logged only on a change, so a busy
 	// stream does not flood the trace.
 	if tracer != nil && formatMouseModes(before) != formatMouseModes(after) {
-		tracer.record("child-mode", formatMouseModes(before)+" -> "+formatMouseModes(after))
+		tracer.record("child-mode", context+" scanner-before="+formatMouseModes(before)+
+			" scanner-after="+formatMouseModes(after)+" "+(mouseWriteResult{n: n, err: err}).detail(len(p)))
 	}
-	_, _ = c.host.Write(keyboardDisambiguated(p, complete))
 }
 
 // takeOverScreen replaces what is on the screen wholesale -- a switch landing,
@@ -1183,6 +1189,18 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 		return
 	}
 	c.mu.Lock()
+	tracer, context := c.mouseTraceContextLocked()
+	before := c.hostScan.MouseModes()
+	target := "panel"
+	if child != nil {
+		target = "unattached"
+		for id, pane := range c.panes {
+			if pane.child == child {
+				target = mouseTraceQuote(id)
+				break
+			}
+		}
+	}
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
 	c.mu.Unlock()
@@ -1216,8 +1234,15 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 	// so the `?1047` candidate does not need either console to remember.
 	c.hostScan.FeedFraming(composed)
 	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
+	after := c.hostScan.MouseModes()
 	c.mu.Unlock()
-	_, _ = c.host.Write(keyboardDisambiguated(composed, complete))
+	composed = keyboardDisambiguated(composed, complete)
+	n, err := c.host.Write(composed)
+	if tracer != nil {
+		tracer.record("takeover", context+" target="+target+
+			" scanner-before="+formatMouseModes(before)+" scanner-reset=none scanner-after="+formatMouseModes(after)+
+			" replay-bytes="+strconv.Itoa(len(body))+" "+(mouseWriteResult{n: n, err: err}).detail(len(composed)))
+	}
 	c.terminalMu.Unlock()
 
 	// AND ASK THE CHILD TO REPAINT. Here, not at the call sites, because a
@@ -1232,9 +1257,9 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 // writeOwn emits the console's OWN bytes, and is the only way they reach the
 // screen. It refuses while the child's stream is mid-sequence and records the
 // debt; the next chunk that lands on a boundary pays it.
-func (c *Console) writeOwn(p string) {
+func (c *Console) writeOwn(p string) mouseWriteResult {
 	if !c.lockTerminal() {
-		return
+		return mouseWriteResult{released: true}
 	}
 	defer c.terminalMu.Unlock()
 	c.mu.Lock()
@@ -1245,10 +1270,11 @@ func (c *Console) writeOwn(p string) {
 	if !c.hostScan.SafeToPaint() {
 		c.paintPending = true
 		c.mu.Unlock()
-		return
+		return mouseWriteResult{deferred: true}
 	}
 	c.mu.Unlock()
-	_, _ = io.WriteString(c.host, p)
+	n, err := io.WriteString(c.host, p)
+	return mouseWriteResult{n: n, err: err}
 }
 
 // paintNow draws the row unconditionally, re-asserting the region first.
@@ -1281,23 +1307,7 @@ func (c *Console) paintNow() {
 	// operator can still reach every actor by keyboard, and a wedged drag inside
 	// their editor is not recoverable by any keystroke.
 	if c.couchMayOwnTheMouse() {
-		c.writeOwn(hostty.EnableMouseClicks)
-		// The OTHER event that decides the host's mode (#207): couch asserting
-		// its own clicks-only mode. Logged with the host's mode BEFORE this
-		// write and the active child's belief, so a trace shows whether this
-		// assert raised a floor over an empty host or clobbered a live 1002.
-		c.mu.Lock()
-		tracer := c.mouseTrace
-		host := c.hostScan.MouseModes()
-		var childMouse, childObserved bool
-		if pane, ok := c.panes[c.active]; ok && pane != nil {
-			childMouse = pane.child.Mouse()
-			childObserved = pane.child.MouseObserved()
-		}
-		c.mu.Unlock()
-		tracer.record("assert-clicks", "host-before="+formatMouseModes(host)+
-			" child-mouse="+strconv.FormatBool(childMouse)+
-			" child-observed="+strconv.FormatBool(childObserved))
+		c.traceMouseClicks("paint")
 	}
 	row := RenderStatusRow(cols, model)
 	c.mu.Lock()

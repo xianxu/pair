@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"github.com/xianxu/pair/cmd/internal/hostty"
 	"strconv"
 	"strings"
 	"time"
@@ -9,19 +10,10 @@ import (
 // mouseTracer appends couch's host mouse-mode decisions to the file named by
 // COUCH_MOUSE_TRACE, and does nothing at all when that is unset.
 //
-// It exists because "drag highlight is dead until I restart couch" (#207) has
-// a cause no amount of re-reading the code separates: WHICH layer turned the
-// host's motion tracking off, and WHEN. couch is the only writer of the real
-// terminal's mouse mode, so this probe records the two events that decide it —
-// a change couch OBSERVES in the child's stream (`writeChild`), and a mode
-// couch ASSERTS itself (`paintNow`'s `couchMayOwnTheMouse` clicks-assert) —
-// with the host's mode set at each. A trace showing "child dropped 1002 at T1,
-// couch asserted 1000 at T2" localises the trigger to the layer below couch;
-// one showing couch asserting 1000 over a host that still holds 1002 localises
-// it to couch itself.
-//
-// Deliberately NOT a visual affordance, like the keystroke probe: the console
-// hosts a child terminal, so anything painted would corrupt the child's screen.
+// It records scanner beliefs and attempted host writes at live, takeover,
+// startup, paint and cleanup boundaries. A successful Write is byte acceptance,
+// not a terminal query. Concurrent records do not establish terminal wire order.
+// No child output, prompt or replay content is recorded.
 type mouseTracer struct{ file *traceFile }
 
 // newMouseTracer returns a nil tracer when the path is empty, and an ERROR when
@@ -68,4 +60,76 @@ func formatMouseModes(modes []int) string {
 		parts[i] = strconv.Itoa(m)
 	}
 	return strings.Join(parts, ",")
+}
+
+// mouseWriteResult observes an existing write; it never retries or changes policy.
+type mouseWriteResult struct {
+	n        int
+	err      error
+	deferred bool
+	released bool
+}
+
+func (r mouseWriteResult) detail(want int) string {
+	outcome := "emitted"
+	switch {
+	case r.released:
+		outcome = "suppressed"
+	case r.deferred:
+		outcome = "deferred"
+	case r.err != nil:
+		outcome = "error"
+	case r.n != want:
+		outcome = "short-write"
+	}
+	detail := "outcome=" + outcome + " written=" + strconv.Itoa(r.n) + " requested=" + strconv.Itoa(want)
+	if r.released {
+		detail += " reason=terminal-released"
+	}
+	if r.deferred {
+		detail += " reason=unsafe-paint"
+	}
+	if r.err != nil {
+		detail += " error=" + mouseTraceQuote(r.err.Error())
+	}
+	return detail
+}
+
+// Bound before quoting so control bytes cannot forge records or inflate a field
+// beyond 512 escaped bytes. This is a diagnostic label, not an identity lookup.
+func mouseTraceQuote(s string) string {
+	if len(s) > 128 {
+		s = s[:128] + "…"
+	}
+	return strconv.Quote(s)
+}
+
+// Called with c.mu held. Snapshot identity before IO, including the retained
+// actor under a panel, whose mouse belief the current policy still consults.
+func (c *Console) mouseTraceContextLocked() (*mouseTracer, string) {
+	if c.mouseTrace == nil {
+		return nil, ""
+	}
+	surface := "actor"
+	if c.focus.IsPanel() {
+		surface = "panel"
+	}
+	detail := "active=" + mouseTraceQuote(c.active) + " surface=" + surface
+	if p := c.panes[c.active]; p != nil {
+		detail += " actor=" + mouseTraceQuote(string(p.actorID)) + " thread=" + mouseTraceQuote(p.thread.RepoScope+"/"+string(p.thread.Tag)) +
+			" child-mouse=" + strconv.FormatBool(p.child.Mouse()) + " child-observed=" + strconv.FormatBool(p.child.MouseObserved())
+	}
+	return c.mouseTrace, detail
+}
+
+func (c *Console) traceMouseClicks(source string) {
+	c.mu.Lock()
+	tracer, context := c.mouseTraceContextLocked()
+	before := c.hostScan.MouseModes()
+	c.mu.Unlock()
+	result := c.writeOwn(hostty.EnableMouseClicks)
+	if tracer == nil {
+		return
+	}
+	tracer.record("assert-clicks", context+" source="+source+" scanner-before="+formatMouseModes(before)+" "+result.detail(len(hostty.EnableMouseClicks)))
 }

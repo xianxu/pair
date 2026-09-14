@@ -91,6 +91,9 @@ and the first is the one that matters:
 
 ## Plan
 
+- [ ] M1 — trace active thread, replay/reset, and actual assertion write outcomes.
+- [ ] M2 — capture recurrence, approve causal recovery design, implement and verify recovery.
+
 - [ ] Confirm the diagnosis: does couch assert to the host with no release?
 - [ ] Decide where the release belongs (assert path vs relaunch path).
 - [ ] Implement, with the probe reproducer as the test.
@@ -265,3 +268,55 @@ active thread identity and emitted-versus-deferred assertions, preserving the
 current live evidence before any restart. Keyboard-mode loss shares the same
 host terminal/replay boundary but is still a separate unproven correlation.
 No runtime state or production code changed during this inspection.
+
+## Revisions
+
+### 2026-09-14 — approved diagnostic boundary before recovery design
+
+The operator approved logging improvements after the live recurrence report.
+The original recovery Spec and Done when remain unresolved; this iteration is
+M1 diagnostics only, followed by M2 causal fix after evidence and design approval.
+See `workshop/plans/000207-mouse-diagnostics-plan.md`.
+
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. This estimates the approved M1 diagnostic
+boundary only; M2 is unapproved and must be estimated after its causal design.
+Two smaller-go-module primitives cover production diagnostic integration and
+producer regression coverage. Each takes 0.3 design before the thorough-spec
+0.2 discount, and 0.5 implementation before the v3.1 0.4 multiplier. Existing
+traceFile/host fake/scanner remove any novel-stack/library need. Atlas takes
+0.1 design x0.2 and 0.1 impl x0.4; one review takes 0.08 design and 0.2 impl x0.4.
+Familiarity 1.0, design buffer 15%; 0.22*1.15 + 0.52 = 0.773 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.08 impl=0.08
+design-buffer: 0.15
+total: 0.773
+```
+
+### 2026-09-14 — M1 diagnostic implementation
+
+Plan-quality round 2 accepted both findings after named producer/formatter test
+strategies and diagnostic growth limits were recorded. Estimate-quality INFO
+notes the tight test allowance; the 0.773h estimate applies only to M1 and must
+not be compared with all historical #207 time. The review allocation retains
+uncertainty for producer attribution findings, not additional feature design.
+
+Focused baseline passed. New producer tests failed for missing identity,
+replay/reset, lifecycle events and emitted/deferred/error fields, then passed
+with the diagnostic hooks. Existing terminal byte strings and ownership policy
+are preserved. `writeOwn` now returns its observed byte result, ignored by
+non-diagnostic callers. Full verification and M1 review follow before handoff.
+
+Focused diagnostics and race diagnostics passed. Full couchtty passed; couchcmd
+initially failed because the isolated worktree lacked generated embedded runtime
+files. Generated them with `go run ./cmd/internal/runtimebundle/generatecmd -repo .
+-out cmd/internal/runtimebundle/assets/runtime`; these remain ignored artifacts.

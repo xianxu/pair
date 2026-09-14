@@ -1062,8 +1062,8 @@ The child receives `COUCH_TREE`, `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --<couch's
 layout>`.
 
-`COUCH_INPUT_TRACE=<path>` (`pair#182`) is one of the two env vars couch reads
-for ITSELF rather than passing down (the other is `COUCH_TRACE`, below): it appends every operator keystroke couch
+`COUCH_INPUT_TRACE=<path>` (`pair#182`) is an env var couch reads
+for ITSELF rather than passing down: it appends every operator keystroke couch
 receives to that file. It exists because "the chord had no effect" has two
 indistinguishable causes — couch consumed it and dispatched nothing, or the
 terminal never sent the bytes couch watches for — and only the wire separates
@@ -1091,7 +1091,7 @@ The events:
 - `reattach-done`, with `ok`, a resume diagnostic code, or `error`.
 
 Unlike the keystroke trace, it records addresses, counts and timings, never
-content. Both traces write through one `traceFile` (`trace.go`): opened 0600,
+content. The traces write through one `traceFile` (`trace.go`): opened 0600,
 at a path the composition root passes in, and reported on the status row when
 it cannot open. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
 `zellij action` latency and prints its window in unix ms, so the sampler's
@@ -1320,3 +1320,32 @@ scope event in `workshop/projects/couch.md`.
 
 Ariadne #200's normalized policy provider is implemented and consumed at the
 #149 M1 boundary.
+
+
+### Mouse diagnostic trace (#207 M1)
+
+`COUCH_MOUSE_TRACE=<path>` enables the opt-in `mouseTracer` in
+`cmd/internal/couchtty/mousetrace.go`. Its `<unix-ms>\t<event>\t<detail>` records
+cover live `child-mode` changes, every `takeover` (including scanner reset and
+empty/panel replay), `assert-clicks` with startup/paint source, and `cleanup`.
+Each carries active handle, actor and durable thread identity when attached,
+plus actor/panel surface. Takeover also names its target handle (or panel).
+Free-form fields are quoted and truncated after 128 bytes with an ellipsis.
+
+`scanner-before`, `scanner-reset`, and `scanner-after` are Couch's scanner
+beliefs, never terminal queries. Couch's own assertions still do not update
+that scanner. `outcome=emitted` means the complete Write was accepted with no
+error; `deferred` means the existing paint gate wrote no bytes; `short-write`
+and `error` carry accepted/requested counts and quoted errors. A deferred
+attempt is not queued byte delivery: a later repaint produces another attempt.
+Mode scanning retains its existing behavior even when a host write fails.
+Snapshots precede IO, so changing active thread during a blocked write does
+not relabel that attempt. These records do not establish ordering among
+concurrent writers or prove what the terminal applied.
+
+The file uses the existing 0600 append sink and Console teardown closes it.
+No child body, replay content or keystrokes are logged. Records stay below
+4 KiB (normally below 1 KiB); at ten events/s, a 15-minute diagnostic capture
+normally costs less than 9 MiB. The existing sink has no rotation or size cap;
+the operator disables tracing and removes the temporary capture after diagnosis.
+This instrumentation preserves mouse policy and does not fix #207 recovery.
