@@ -124,3 +124,29 @@ its three reserved navigation chords everywhere (lifecycle actions remain in
 the switcher), or preserving Couch lifecycle hotkeys in nonagent panes via a
 new owner-addressed command bridge. The first changes nonagent Couch hotkey
 semantics, so that scope choice requires an explicit answer. No code changed.
+
+
+### 2026-09-14 — Proceed with simplified outer ownership
+
+The operator instructed “continue” after the routing options were presented.
+Proceed with the recommended simpler design, as stated back to the operator:
+Couch reserves Ctrl+Space, Ctrl+Backspace and Ctrl+Return while displaying a
+hosted actor. Its switcher retains detach/park/relaunch actions and keyboard
+behavior. No inner-focus cache, query on keystrokes, or new lifecycle RPC bridge.
+This supersedes the earlier requirement to retain identical Couch lifecycle
+hotkeys outside the agent pane: those keys reach existing Pair actions there,
+whose detach/quit/restart semantics differ from Couch's owner operations. The
+switcher is the documented route to Couch lifecycle operations.
+
+The receiving agent wrapper handles only Shift+Alt+T, Shift+Alt+Left and
+Shift+Alt+Right. All other workbench chords pass through to every agent,
+including Alt+Up/Down, Alt+Left/Right, Alt+j/k, Alt+d/x/n, Alt+h/l and compact
+shortcuts. Return adaptation remains a separate existing concern. Terminal-tab
+reservations apply only to actual keystrokes, never bracketed-paste content.
+Zellij forwards help/changelog chords to pane-local handlers; other Pair pane
+roles retain their actions. Shared binding metadata drives agent reservations
+and help context; tests enumerate the full recognized chord set and cross the
+Couch-to-wrapper boundary. Isolated real-Zellij conformance checks semantic key
+delivery because Zellij may normalize encodings. No running user thread is
+restarted during automated testing. Pause for operator smoke after implementation,
+verification and the SDLC boundary review; do not ship #245 before that smoke.
