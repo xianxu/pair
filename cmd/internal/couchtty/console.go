@@ -808,7 +808,9 @@ func (c *Console) Run() (code int) {
 			}
 		case <-c.presenter.Failed():
 			c.terminalError(c.presenter.Failure())
-			return 1
+			// Joined teardown classifies the failure independently of whether
+			// this notification or Stop wins the select.
+			return 0
 		case <-terminated:
 			return 0
 		case <-c.stop:
@@ -875,7 +877,15 @@ func (c *Console) teardown(restore func() error) error {
 	failure, leaveReport := c.terminalFailure, c.leaveReport
 	c.leaveReport = ""
 	c.mu.Unlock()
-	err := errors.Join(failure, cleanupErr)
+	// Release has joined the presenter: a concurrent paint failure can no
+	// longer arrive after this observation. A failure latched while Run was
+	// live remains fatal even when its leaf was context.Canceled; only a new
+	// presenter cancellation caused by owner shutdown is expected here.
+	presenterFailure := c.presenter.Failure()
+	if c.lifetime.Err() != nil && shutdownCancellation(presenterFailure) {
+		presenterFailure = nil
+	}
+	err := errors.Join(failure, presenterFailure, cleanupErr)
 	if err != nil {
 		fmt.Fprintf(c.errw(), "couch: terminal: %v\n", err)
 	}

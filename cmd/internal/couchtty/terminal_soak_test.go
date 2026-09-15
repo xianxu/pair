@@ -133,7 +133,8 @@ func TestCouchProductionSoak(t *testing.T) {
 	t.Cleanup(func() { host.em.Close() })
 	reader, input := io.Pipe()
 	con := New(host, reader)
-	con.SetErrorWriter(io.Discard)
+	var diagnostics bytes.Buffer
+	con.SetErrorWriter(&diagnostics)
 	done := make(chan int, 1)
 	children := map[string]*ptychild.Child{}
 	t.Cleanup(func() {
@@ -314,13 +315,17 @@ func TestCouchProductionSoak(t *testing.T) {
 			lastProgress = now
 		}
 	}
+	host.mu.Lock()
+	preStopBytes, preStopWrites := host.bytes, host.writes
+	host.mu.Unlock()
+	t.Logf("couch soak assertions complete; shutdown pending: duration=%s iterations=%d attachment_replacements=%d max_input_visible=%s parent_bytes=%d writes=%d", time.Since(start), iterations, replacements, maxLatency, preStopBytes, preStopWrites)
 	con.Stop()
 	input.Close()
 	select {
 	case code := <-done:
 		done <- code
 		if code != 0 {
-			t.Fatalf("console exit%d", code)
+			t.Fatalf("console exit%d: %s; presenter failure: %v", code, diagnostics.String(), con.presenter.Failure())
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("console shutdown timeout")

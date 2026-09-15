@@ -16,7 +16,7 @@ A real fresh outer terminal matters: clearing Zellij environment variables insid
 
 ## Check
 
-1. While agent output is active, drag-select text in the agent pane and hold the mouse button. Highlight should follow the drag before release. Release and verify copied text. Repeat in the right terminal and nvim, including wrapped Unicode text.
+1. Create visible output first: ask the fresh agent to print thirty numbered lines including `café 界 👩‍💻`, without editing files. In the right pane, print a few wrapped lines or open nvim. While agent output is active, drag-select text in the agent pane and hold the mouse button. Highlight should follow the drag before release. Release and verify copied text. Repeat in the right terminal and nvim, including wrapped Unicode text.
 2. Open/close the Couch switcher, switch threads and right terminal tabs repeatedly, resize the window, and repeat selection. Check pane borders, cursor placement, text and colors for flashing, replacement glyphs or stale fragments.
 3. Exercise actual Codex and Claude interaction: ordinary typing, the configured Return/Alt+Return behavior, Codex Option+Up questions, paste and copy. In an Other/free-text choice, type an answer before submitting.
 4. Detach and reattach a smoke thread, verify its existing history/conversation remains, and repeat held selection. Exercise normal and alternate screen programs.

@@ -52,7 +52,10 @@ proved through the corresponding parent presentation. Couch retains ownership af
 pane leaves its map: ordinary exit drains, deselects/retires, then disposes; the
 last visible final frame remains owned through parent release. Rejected startup
 and attachment paths dispose their unaccepted client, and teardown disposes all
-remaining accepted children after release.
+remaining accepted children after release. Final Console exit classification waits
+for Presenter release/join: shutdown-only cancellation is expected, while
+previously latched live failures, mixed host errors and cleanup failures remain
+errors regardless of which stop/failure notification was selected first.
 
 Normal history carries monotonic row IDs, clear epochs, blank provenance and soft
 wrap metadata. `RenderWithHistory` serializes owned cells in bounded chunks; the

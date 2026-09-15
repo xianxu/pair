@@ -44,8 +44,32 @@ func (c *Console) runTerminalCommand(ctx context.Context, run func() error) erro
 	}
 }
 
+// shutdownCancellation accepts only error trees whose every leaf is the
+// owner's cancellation. errors.Is would also match a joined physical failure.
+func shutdownCancellation(err error) bool {
+	if err == nil {
+		return false
+	}
+	if joined, ok := err.(interface{ Unwrap() []error }); ok {
+		children := joined.Unwrap()
+		if len(children) == 0 {
+			return false
+		}
+		for _, child := range children {
+			if !shutdownCancellation(child) {
+				return false
+			}
+		}
+		return true
+	}
+	if wrapped, ok := err.(interface{ Unwrap() error }); ok {
+		return shutdownCancellation(wrapped.Unwrap())
+	}
+	return err == context.Canceled
+}
+
 func (c *Console) terminalError(err error) {
-	if err != nil && c.lifetime.Err() == nil {
+	if err != nil && !(c.lifetime.Err() != nil && shutdownCancellation(err)) {
 		c.mu.Lock()
 		if c.terminalFailure == nil {
 			c.terminalFailure = err

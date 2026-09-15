@@ -823,7 +823,8 @@ PAIR_LIVE_COUCH_NATIVE=1 PAIR_LIVE_COUCH=1 \
 measurements using real Pair terminal processes and independent screen receipts.
 Those timings include interpreter IPC and parsing; measured resource figures are
 workload evidence, not universal bounds. Automated checks support the required
-operator smoke test for sustained display and selection behavior before rollout.
+[operator smoke test](workshop/plans/000255-terminal-smoke.md) for sustained
+display and selection behavior before rollout.
 
 The text profile preserves contiguous combining, joiner and variation-selector
 clusters. Controls seal the current cluster. An orphan zero-width character
