@@ -90,7 +90,7 @@ The primary acceptance is operator-visible: the ongoing display corruption and m
 
 ## Plan
 
-- [ ] M1 — Qualify the required terminal contract and candidate backend; record failures, untested obligations and an evidence-based adoption decision.
+- [x] M1 — Qualify the required terminal contract and candidate backend; record failures, untested obligations and an evidence-based adoption decision.
 - [ ] M2 — Implement the shared endpoint/presenter after qualification and detailed design approval.
 - [ ] M3 — Migrate Couch and Pair, including wrapper transformation conformance, to the shared contract.
 - [ ] M4 — Complete composed/live conformance, measured rollout verification and publication.
@@ -133,6 +133,7 @@ func TestAuditConcurrentOutputAndSwitch(t *testing.T) {
 The overlay maps an additional `cmd/internal/couchtty/audit_temp_test.go` to the temporary source above. Observed result: `WARNING: DATA RACE`, followed by test failure. This demonstrates the field race only; it neither reproduces the random disconnect nor proves every hypothesized interleaving.
 
 ### 2026-09-15 — Terminal abstraction discussion
+- 2026-09-15: closed M1 — Full Go suite PASS after implementation corrections; focused race on terminalqualify, probe, artifactpath PASS after BR-5 test-only correction; four partition mutations detected; probe 53 pass, 15 fail, 14 not-covered rejects unchanged adoption; git diff --check PASS. No production fix claimed. Actual unavailable: sdlc actual found no transcript events.; review verdict: SHIP
 
 Operator challenged the explanation that adding UI and interception inherently makes interference unavoidable: a faithful terminal abstraction should preserve inner-program behavior. Accepted that correction. The missing requirement is a semantic terminal contract, not merely more locks or single-owner fields. Current #252 reproduction violates chunk independence. The #207 trace records click-only writes during panel display and subsequent takeover with no restored mouse modes; this supports a mode-restoration gap, while the initial background mouse-off source remains unresolved. These observations do not establish the disconnect cause. No production changes or live repairs were made for this issue update.
 
@@ -202,3 +203,8 @@ Four findings addressed before resubmission: BR-1 complete observation equivalen
 ### 2026-09-15 — M1 review round 2 partition-test correction
 
 Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests counted calls without proving delivered bytes. Added literal partitions for empty, single-byte, multi-byte UTF-8 and CSI inputs, plus independent byte-preservation and every-boundary assertions over all 256 byte values and mixed Unicode/control streams. The production RunCase executor path is checked with the same invariant. Four mutations are detected by failed assertions: repeating whole input, dropping a byte, skipping alternating boundaries and omitting the first boundary. No production implementation changed in this correction. Final full Go suite passed after round 1 corrections; focused race verification covers these additional tests.
+
+
+### 2026-09-15 — M1 complete, implementation decision pending
+
+Third boundary review: SHIP, all five findings disposed. Qualification result remains 53 pass, 15 fail, 14 not-covered. The approved qualification phase is complete; backend re-plan is next. Production migration and the user-visible acceptance gate remain open.

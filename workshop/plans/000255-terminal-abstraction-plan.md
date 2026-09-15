@@ -85,9 +85,9 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 ### M1 — Qualify the terminal contract and backend
 
 - [ ] Enumerate exact required protocol/capability and compatibility matrix from production entrypoints and fixtures; define frame timeout, queue limits, normal-screen history and input cancellation semantics.
-- [ ] Add independent conformance fixtures in cmd/internal/terminal and exercise the pinned candidate, recording failures before fixes.
+- [x] Add independent conformance fixtures in cmd/internal/terminal and exercise the pinned candidate, recording failures before fixes.
 - [ ] Resolve backend selection and maintenance strategy from results; review the detailed M2–M4 implementation plan before production migration. Do not advance with unmet required semantics.
-- [ ] Close M1 through SDLC with the matrix and qualified backend decision (or re-plan if qualification fails).
+- [x] Close M1 through SDLC with the matrix and qualified backend decision (or re-plan if qualification fails).
 
 ### M2 — Shared endpoint and parent presentation
 
@@ -206,3 +206,8 @@ Reason: first M1 review found sparse split predicates, unobserved style fields a
 ### 2026-09-15 — M1 review round 2 partition-test correction
 
 Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests counted calls without proving delivered bytes. Added literal partitions for empty, single-byte, multi-byte UTF-8 and CSI inputs, plus independent byte-preservation and every-boundary assertions over all 256 byte values and mixed Unicode/control streams. The production RunCase executor path is checked with the same invariant. Four mutations are detected by failed assertions: repeating whole input, dropping a byte, skipping alternating boundaries and omitting the first boundary. No production implementation changed in this correction. Final full Go suite passed after round 1 corrections; focused race verification covers these additional tests.
+
+
+### 2026-09-15 — M1 review boundary complete
+
+SHIP after three boundary rounds, five findings disposed. Executable qualification lives in terminalqualify as specified by Chunk 1. The negative adoption decision takes the documented re-plan branch: production budgets, backend maintenance choice and detailed M2–M4 design remain deferred and unchecked. This milestone does not establish that the live display or selection symptoms are fixed.

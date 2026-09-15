@@ -89,3 +89,10 @@ Updated result: 53 pass, 15 fail, 14 not-covered; no unchanged production adopti
 ### 2026-09-15 — M1 review round 2 partition-test correction
 
 Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests counted calls without proving delivered bytes. Added literal partitions for empty, single-byte, multi-byte UTF-8 and CSI inputs, plus independent byte-preservation and every-boundary assertions over all 256 byte values and mixed Unicode/control streams. The production RunCase executor path is checked with the same invariant. Four mutations are detected by failed assertions: repeating whole input, dropping a byte, skipping alternating boundaries and omitting the first boundary. No production implementation changed in this correction. Final full Go suite passed after round 1 corrections; focused race verification covers these additional tests.
+
+
+### 2026-09-15 — M1 closed: SHIP, round 3
+
+SDLC's third boundary review disposed all five findings with no open blockers. The qualification milestone is complete with a negative adoption decision; #255 remains working. Full repository tests and final focused race checks pass. The next checkpoint is a revised backend choice and detailed production plan, not a runtime rollout.
+
+After adding complete style observation, the same 10-iteration benchmark measured 80x24: 1.73ms/op, 2.90MB/op, 21274 allocations; 240x80: 19.38ms/op, 24.05MB/op, 212267 allocations (`/tmp/pair255-round3-bench.log`). These supersede the earlier diagnostic-map measurements above and remain unrelated to production budgets.

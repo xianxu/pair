@@ -62,6 +62,32 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-15T10:30:52-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Retained: runner.go compares complete whole/split observations in both directions; TestRunCaseDetectsUnassertedSplitStateChanges passes.'
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: 'Retained: candidate.go captures attributes, underline style and color; snapshot regression tests and twelve literal style fixtures pass.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: 'Retained: report.go and runner.go preserve bounded structured evidence; runner and CLI JSON regression tests pass.'
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: README.md:773 documents invocation, evidence and exit meanings, matching cmd/probes/terminalqualify/main.go and the reproduced probe result.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: cases_test.go:11, :58 and :67 verify literal partitions, byte preservation, every boundary and production executor delivery. A temporary Go overlay replacing the split pair with []string{input, ""} makes all three tests fail; unmodified tests pass.
+          round: 3
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -96,6 +122,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Important] `qualification-observation-equivalence` Promised partition-coverage regression tests do not verify delivered bytes
   cmd/internal/terminalqualify/runner_test.go:11 checks chunk counts and call counts, but never their contents; the completed plan checkbox at workshop/plans/000255-terminal-abstraction-plan.md:161 promises detection of missed splits. Replacing cases.go:20 with []string{input, ""} leaves both complete harness packages green. This is the 2nd finding in family qualification-observation-equivalence. Earlier corrections covered observation comparison; enforce the complete rule across partition generation and comparison: preserve the input bytes, enumerate every byte boundary, include byte-at-a-time delivery, and detect changed observations. Add independent partition expectations covering empty, single-byte, multibyte, and control-sequence inputs, and require this mutation to fail. ARCH-PURPOSE.
 
+## Round 3 — 2026-09-15T10:30:52-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Retained: runner.go compares complete whole/split observations in both directions; TestRunCaseDetectsUnassertedSplitStateChanges passes.
+- BR-2 — addressed — Retained: candidate.go captures attributes, underline style and color; snapshot regression tests and twelve literal style fixtures pass.
+- BR-3 — addressed — Retained: report.go and runner.go preserve bounded structured evidence; runner and CLI JSON regression tests pass.
+- BR-4 — addressed — README.md:773 documents invocation, evidence and exit meanings, matching cmd/probes/terminalqualify/main.go and the reproduced probe result.
+- BR-5 — addressed — cases_test.go:11, :58 and :67 verify literal partitions, byte preservation, every boundary and production executor delivery. A temporary Go overlay replacing the split pair with []string{input, ""} makes all three tests fail; unmodified tests pass.
+
 ## Open findings
 
-- **BR-5** [Important] `qualification-observation-equivalence` Promised partition-coverage regression tests do not verify delivered bytes
+(none — every finding has been disposed)

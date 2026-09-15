@@ -218,3 +218,104 @@ The M1 concept-table entities exist at their stated locations. The broader produ
 ## 7. Plan revision recommendations
 
 Add a `## Revisions` entry acknowledging the partition-test gap and recording the byte-preservation/boundary-coverage invariant plus mutation evidence once corrected. Keep M2–M4 behind the documented backend re-plan checkpoint.
+
+---
+
+## Re-review — 2026-09-15T10:30:52-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | b11ab67ff1d290386cf12177f2dacdccbc8551c0..fbcd3d79db19061ec947cc2246391f06cd7f69ef |
+| command | sdlc milestone-close --issue 255 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-15T10:30:52-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the approved M1 qualification scope. BR-5 is addressed with regression tests that fail under the exact reported mutation. The probe independently reproduces **53 pass, 15 fail, 14 not-covered; qualified=false**. This verdict approves M1’s negative qualification result; backend adoption and issue closure remain subject to the documented later gates.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Retained: runner.go compares complete whole/split observations in both directions; TestRunCaseDetectsUnassertedSplitStateChanges passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Retained: candidate.go captures attributes, underline style and color; snapshot regression tests and twelve literal style fixtures pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Retained: report.go and runner.go preserve bounded structured evidence; runner and CLI JSON regression tests pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      README.md:773 documents invocation, evidence and exit meanings, matching cmd/probes/terminalqualify/main.go and the reproduced probe result.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      cases_test.go:11, :58 and :67 verify literal partitions, byte preservation, every boundary and production executor delivery. A temporary Go overlay replacing the split pair with []string{input, ""} makes all three tests fail; unmodified tests pass.
+```
+
+## 1. Strengths
+
+- Partition coverage now checks actual delivered bytes, including empty, single-byte, Unicode, control-sequence and all-byte inputs.
+- Qualification separates literal correctness, split equivalence and bounded presentation evidence.
+- Candidate lifecycle tests exercise blocked replies, read failure, cancellation, isolation and joined teardown.
+- README and atlas document the new probe; explicit uncovered obligations prevent premature backend approval.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Verified:
+
+- Required pinned stat/name-status inspections and targeted patches.
+- Normal and race tests for both qualification packages.
+- Artifact inventory tests.
+- BR-5 mutation failure through a temporary overlay.
+- Probe exit 1 and all documented failure results.
+- Pinned-range whitespace check.
+
+The full repository suite and live terminal conformance were not rerun during this review. Repository files were unchanged.
+
+## 6. Architectural notes for upcoming work
+
+| Marker | Assessment |
+|---|---|
+| ARCH-DRY | **Pass:** shared runner, comparator and partition generator; no production parser duplication. |
+| ARCH-PURE | **Pass:** observation/report logic runs without IO; emulator and probe are classified as integration. |
+| ARCH-PURPOSE | **Pass:** partition generation and delivery now enforce the complete BR-5 rule; negative qualification remains explicit. |
+| ARCH-MOCK | **Pass for M1:** controlled transport doubles share the candidate seam; live/composed conformance remains an explicit unmet obligation. |
+| ARCH-CONSTRAINTS | **Pass:** fixture, geometry, reply and evidence bounds are present; diagnostic measurements make no production performance claim. |
+| ARCH-SECURE | **Pass:** synthetic inputs and bounded evidence introduce no operator-session or credential access. |
+| ARCH-ORDER | **Pass for M1:** serialized execution, private snapshots and cancellation tests cover the diagnostic lifecycle. Production ownership remains deferred explicitly. |
+| ARCH-FUNERAL | **Pass:** disposable candidates close transport and join workers; ordinary launches gain no durable artifact family. |
+
+The M1 entities exist at their stated locations. The broader proposed core-concept rows belong to later milestones.
+
+## 7. Plan revision recommendations
+
+None required for M1. Preserve the negative adoption decision and the M2–M4 re-plan checkpoint.
