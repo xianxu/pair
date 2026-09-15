@@ -168,6 +168,48 @@ rounds:
           round: 4
       boundary: M1
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-15T00:13:33-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Metadata-only admission, protection and interrupted-retirement tests pass in storagegc.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Coordinated pending publication recovery and killed-metadata-publisher tests pass.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Dead pre-spawn reservation recovery, admission cleanup and uncertain-start protection tests pass.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: Durable references establish missing payload namespaces; legacy archive grace and identity-checked onboarding tests pass.
+          round: 5
+        - id: BR-5
+          disposition: not-addressed
+          note: The reducer and its production enforcement are corrected, but workshop/plans/000239-storage-gc-plan.md:33 still labels StoreRegistry PURE. Its validate method at cmd/internal/storagegc/stores.go:54 calls filesystem-dependent canonicalStore, including EvalSymlinks and directory reads. Reclassify it as INTEGRATION and record the correction under Revisions (ARCH-PURE); no wording-presence test is required.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: Owner-budget, 100,000-filename, diagnostic-page isolation, contention and cancellation tests pass.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: Prepared journal authority precedes quarantine creation; publication failure, killed-process and unsafe-quarantine recovery tests pass.
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: Diagnostic deletion replay tests pass across payload, metadata and ancestor removal, including replacement refusal.
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: Bounded append and exact-inode creation intents precede payload effects and recover through production entrypoints. Partial-write, cancellation, killed-process and replacement tests pass; removing append-intent publication in a scratch overlay makes the cancellation/reopen regression fail.
+          round: 5
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it#239 (boundary-review)
@@ -243,6 +285,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Critical] `interrupted-publication-recovery` Interrupted diagnostic appends permanently block logging and collection
   cmd/internal/diagnosticlog/writer.go:281 changes the payload before publishing Size/ModTime at line 294. Cancellation, publication failure or process death between those effects leaves metadata stale; Open, Write, Maintain and Collect subsequently reject the generation. A scratch regression confirms persisted bytes followed by failures from both reopen and expired collection. This is the 3rd finding in family interrupted-publication-recovery. State and enforce the class-wide rule: every payload effect requiring matching metadata must have recoverable authority before mutation. Sweep initial/current-file creation, append, rotation, deletion and retirement; add interruption tests without weakening replacement-file checks (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).
 
+## Round 5 — 2026-09-15T00:13:33-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Metadata-only admission, protection and interrupted-retirement tests pass in storagegc.
+- BR-2 — addressed — Coordinated pending publication recovery and killed-metadata-publisher tests pass.
+- BR-3 — addressed — Dead pre-spawn reservation recovery, admission cleanup and uncertain-start protection tests pass.
+- BR-4 — addressed — Durable references establish missing payload namespaces; legacy archive grace and identity-checked onboarding tests pass.
+- BR-5 — not-addressed — The reducer and its production enforcement are corrected, but workshop/plans/000239-storage-gc-plan.md:33 still labels StoreRegistry PURE. Its validate method at cmd/internal/storagegc/stores.go:54 calls filesystem-dependent canonicalStore, including EvalSymlinks and directory reads. Reclassify it as INTEGRATION and record the correction under Revisions (ARCH-PURE); no wording-presence test is required.
+- BR-6 — addressed — Owner-budget, 100,000-filename, diagnostic-page isolation, contention and cancellation tests pass.
+- BR-7 — addressed — Prepared journal authority precedes quarantine creation; publication failure, killed-process and unsafe-quarantine recovery tests pass.
+- BR-8 — addressed — Diagnostic deletion replay tests pass across payload, metadata and ancestor removal, including replacement refusal.
+- BR-9 — addressed — Bounded append and exact-inode creation intents precede payload effects and recover through production entrypoints. Partial-write, cancellation, killed-process and replacement tests pass; removing append-intent publication in a scratch overlay makes the cancellation/reopen regression fail.
+
 ## Open findings
 
-- **BR-9** [Critical] `interrupted-publication-recovery` Interrupted diagnostic appends permanently block logging and collection
+- **BR-5** [Critical] `enforced-pure-transitions` The completed plan claims a transaction reducer that does not exist

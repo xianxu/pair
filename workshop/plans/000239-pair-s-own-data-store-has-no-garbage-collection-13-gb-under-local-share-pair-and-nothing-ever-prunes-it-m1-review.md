@@ -507,3 +507,124 @@ Existing publication tests verify staging cleanup but miss the ordinary append�
 ### 7. Plan revision recommendations
 
 Add a `## Revisions` entry defining recovery across **every diagnostic payload/metadata boundary**, including ordinary append. Update the checked “crashes at each durable boundary” claim at plan line 243 after the missing regressions pass.
+
+---
+
+## Re-review — 2026-09-15T00:13:33-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 239 — Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it |
+| repo | 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it |
+| issue file | workshop/issues/000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 6b06b449ae3521b92187ae14c51d62b66ec356e4..84e00c86a34069d53715510b92dc2c88cb7529ea |
+| command | sdlc milestone-close --issue 239 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-15T00:13:33-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: medium
+```
+
+BR-9 is addressed: interrupted diagnostic appends and creation now have recoverable authority, with meaningful regression coverage. Focused tests and diagnostic race tests passed. One residual BR-5 issue blocks this gate under the supplied Core concepts rule: `StoreRegistry` remains classified PURE despite filesystem-dependent validation. No new runtime correctness defect was demonstrated.
+
+## 1. Strengths
+
+- Append recovery preserves partial-write counts and reconciles only bytes actually written; it rejects replacement inodes, truncation and foreign tails (`diagnosticlog/append.go:89`).
+- Creation publishes an identified staged inode without replacing an existing file (`diagnosticlog/creation.go:41`).
+- Production collection advances through `ReduceTransaction`, backed by phase/event, sequence and bypass tests (`storagegc/transaction.go:709`).
+- README and atlas document migration, retention clocks, recovery and the cooperative maintenance budget.
+
+## 2. Critical findings
+
+**BR-5 — not-addressed: remaining PURE classification contradiction.**
+
+`workshop/plans/000239-storage-gc-plan.md:33` classifies `StoreRegistry` as PURE. Its method `StoreRegistry.validate` calls `canonicalStore` (`cmd/internal/storagegc/stores.go:54`), which resolves symlinks, opens directories and reads entries (`stores.go:30`, `stores.go:39`). The same registry value can therefore validate differently as external filesystem state changes. Registry tests appropriately use temporary directories and actual filesystem changes.
+
+**Fix:** classify this entity and its validation as INTEGRATION. Alternatively, separate pure schema validation from filesystem availability checks. Record the correction under `## Revisions`.
+
+This reopens the classification portion of BR-5; its reducer correction remains validated. **ARCH-PURE.** Critical severity follows the explicit Core concepts gate, rather than a demonstrated data-loss defect.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Passed:
+
+- Full package tests: `diagnosticlog`, `storagegc`, `artifactpath`, `gccmd`, `retentioncmd`.
+- Diagnostic race suite.
+- Targeted Couch/runtime retention, archive, publication, registry and maintenance tests, including the 100,000-filename fixture.
+- Pinned-range `git diff --check`.
+
+A temporary Go overlay removed append-intent publication. `TestAppendCanceledAfterPayloadRetainsRecoverableIntent` then failed on reopen with `diagnostic generation changed outside protocol`; the unmodified test passed. This independently establishes BR-9 regression sensitivity.
+
+Repository files remained unchanged. Full-tree, Lua and hosted conformance suites were not rerun in this review.
+
+## 6. Architectural notes
+
+| Marker | Result |
+|---|---|
+| ARCH-DRY | Pass — shared ownership, coordination and publication helpers. |
+| ARCH-PURE | **Flag — BR-5 classification mismatch above.** Other listed pure entities and reducer logic match their classifications. |
+| ARCH-PURPOSE | Pass — combined M1/M2 scope is explicitly reconciled; BR-9 covers creation and append alongside existing rotation/deletion recovery. |
+| ARCH-MOCK | Pass — portable stores, injected process evidence, subprocess tests and scheduled Zellij conformance. |
+| ARCH-CONSTRAINTS | Pass — bounded owner effects, cancellation and contention tests; cooperative limits are documented. |
+| ARCH-SECURE | Pass — malformed metadata and replacement evidence fail closed in inspected paths. |
+| ARCH-ORDER | Pass — production reducer use and interruption/replay tests establish ordering. |
+| ARCH-FUNERAL | Pass — inspected intents, stages and quarantines have recovery and retirement paths. |
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry correcting `StoreRegistry` to INTEGRATION because validation reads external filesystem state. Apply the classification rule to entity methods as well as fields. A documentation-only correction needs source inspection, not a wording-presence test.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Metadata-only admission, protection and interrupted-retirement tests pass in storagegc.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Coordinated pending publication recovery and killed-metadata-publisher tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Dead pre-spawn reservation recovery, admission cleanup and uncertain-start protection tests pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Durable references establish missing payload namespaces; legacy archive grace and identity-checked onboarding tests pass.
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      The reducer and its production enforcement are corrected, but workshop/plans/000239-storage-gc-plan.md:33 still labels StoreRegistry PURE. Its validate method at cmd/internal/storagegc/stores.go:54 calls filesystem-dependent canonicalStore, including EvalSymlinks and directory reads. Reclassify it as INTEGRATION and record the correction under Revisions (ARCH-PURE); no wording-presence test is required.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Owner-budget, 100,000-filename, diagnostic-page isolation, contention and cancellation tests pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Prepared journal authority precedes quarantine creation; publication failure, killed-process and unsafe-quarantine recovery tests pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Diagnostic deletion replay tests pass across payload, metadata and ancestor removal, including replacement refusal.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Bounded append and exact-inode creation intents precede payload effects and recover through production entrypoints. Partial-write, cancellation, killed-process and replacement tests pass; removing append-intent publication in a scratch overlay makes the cancellation/reopen regression fail.
+```

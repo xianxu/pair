@@ -30,7 +30,7 @@
 | ArtifactGroup | PURE | cmd/internal/artifactpath/gc.go | new |
 | ActivityRecord / RetentionDecision | PURE | cmd/internal/storagegc/policy.go | new |
 | CollectionTransaction / CollectionEvent / ReduceTransaction | PURE | cmd/internal/storagegc/transaction_model.go | new |
-| StoreRegistry | PURE | cmd/internal/storagegc/stores.go | new persisted value |
+| StoreRegistry | INTEGRATION | cmd/internal/storagegc/stores.go | new persisted value with filesystem validation |
 
 - **StorageOwner:** canonical Pair root, explicit legacy-or-scoped namespace, and validated tag. One owner has many artifacts. Reuse Paths/LegacyPaths and checked constructors; never parse display names or split tag/agent strings heuristically. Scope/tag address maps to the same owner for Couch and Pair. Additional artifact families widen the manifest, not independent globs (ARCH-DRY).
 - **ArtifactGroup:** exact recognized files/directories for one owner, with identity evidence and exclusions. Raw capture and offset events are inseparable. Shared scope metadata, defaults, bindings and catalogs are not owned by a thread. Ambiguous or unknown ownership blocks the group; report unknown global entries separately.
@@ -682,3 +682,7 @@ running on the combined tree. No source changed during this verification run.
 
 Final repository verification passed `/tmp/pair239-round5-full-go.log`:
 Couch166.047s, diagnostics34.250s, runtime133.937s including the100k fixture.
+
+### 2026-09-15 — M1 round5 classification correction
+
+BR-5: classify StoreRegistry as INTEGRATION because validate calls canonicalStore, resolving symlinks and reading directories. Its methods depend on external filesystem state even though its fields are persisted data (ARCH-PURE). Source inspection verifies the correction; no wording-presence test is warranted. Round5 confirmed BR-1 through BR-4 and BR-6 through BR-9 addressed, with no new runtime defect.
