@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-15
-estimate_hours:
+estimate_hours: 2.204
 started: 2026-09-15T09:20:10-07:00
 ---
 
@@ -74,6 +74,12 @@ Out of scope: durable thread lifecycle transition APIs, store mutation authority
 These are coordination and acceptance references, not blanket blocking dependencies. Decide which work is implemented here or in linked issues during design; do not duplicate state owners. No live-session repair or production refactoring is authorized by this issue edit.
 
 ## Done when
+
+The primary acceptance is operator-visible: the ongoing display corruption and mouse-selection highlight loss are gone in actual Couch/Pair use. Architectural completion and green component tests alone cannot close this issue.
+
+- Sustained use shows no recurrence of the reported replacement glyphs, corrupted pane borders or flashing/stray rendering artifacts attributable to Pair/Couch processing. Any remaining reported artifact must be investigated and resolved or explicitly reviewed with the operator; do not assume #252 explains every symptom.
+- Mouse selection highlights continuously during dragging in the agent pane and right-side shell/nvim panes, including after panel open/close, repeated thread/tab switches and reattachment; it must not wait for mouse release.
+- Isolated automated reproductions cover the observed failures, followed by an operator smoke test under the triggering workflows and extended-session conditions. Record duration, operations, terminal/build versions and observed result. Absence during a brief test is not proof of sustained resolution; final close requires operator acceptance of the live result.
 
 - A durable terminal-contract design names supported capabilities, transformations, state authorities and concrete production boundaries, including deliberate handling of unsupported features.
 - Child-requested, selected-view and parent-terminal states have authoritative owners and coherent identity/output-position semantics; emitted effects and uncertain outcomes remain distinct.
@@ -155,3 +161,27 @@ Fresh spec review approved the proposed direction and M1 qualification, with no 
 ### 2026-09-15 — Qualification approved
 
 Operator approved the architectural direction and qualification phase. Added executable M1 tool/matrix plan, explicit negative qualification semantics and bounded candidate lifecycle; later production migration remains subject to qualification and detailed plan approval. Replaced generic plan rows with the four actual review boundaries from the approved proposal.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. This is approved M1 qualification only; M2–M4 require later estimates after their designs settle. Calibration is marked stale by estimate-source, so the result is provisional.
+
+Candidate integration uses the existing vt library: 1.0 design ×0.5 library ×0.2 thorough-spec =0.10; implementation0.8 ×0.4 =0.32. Matrix/independent expectations are a separate greenfield concern with no library for the oracle:1.0 ×0.2 =0.20, impl0.8 ×0.4 =0.32. Report and CLI are two smaller modules, each0.3 ×0.2 =0.06 design and0.5 ×0.4 =0.20 impl. Docs0.2 ×0.2 =0.04 design and0.2 ×0.4 =0.08 impl. Review0.1 design and0.5 ×0.4 =0.20 impl. One real-API discovery allowance0.6 ×0.4 =0.24 impl covers behavioral qualification of the unfamiliar backend. Familiarity1.0; design buffer15%. Total0.56 ×1.15 +1.56 =2.204h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: real-api-discovery design=0 impl=0.24
+design-buffer: 0.15
+total: 2.204
+```
+
+### 2026-09-15 — Operator-visible acceptance takes precedence
+
+Operator clarified that #255 acceptance is the ongoing display corruption and loss of selection highlight going away. Promoted these to primary Done when criteria, requiring both causal regressions and sustained actual-use acceptance across panes/switches. The abstraction is the means, not a substitute deliverable. M1 qualification still cannot close #255.
