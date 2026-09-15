@@ -148,3 +148,7 @@ Claimed #255 and ran start-plan. Read-only parallel architecture mapping confirm
 ### 2026-09-15 — Pair coverage explicit
 
 Operator emphasized that Pair needs the same abstraction. The proposal covers both Couch and pair term as shared compositors and pair wrap as an explicit observation/transformation boundary. Added wrapper filter, Return, notification and query/reply audit plus composed-path acceptance; a Couch-only implementation cannot close #255.
+
+### 2026-09-15 — Architectural proposal reviewed
+
+Fresh spec review approved the proposed direction and M1 qualification, with no blockers at that stage. Incorporated advisory input/reply serialization, presentation admission, wrapper observation and budget timing. Awaiting operator architectural approval before qualification implementation; backend suitability and detailed later milestones are not yet approved.
