@@ -84,11 +84,10 @@ These are coordination and acceptance references, not blanket blocking dependenc
 
 ## Plan
 
-- [ ] Revalidate terminal findings and map existing Couch/Pair/Zellij boundaries, capabilities, state and output paths.
-- [ ] Claim/start-plan and author an approved durable terminal-abstraction design with supported semantics, ownership, transition ordering and implementation boundaries.
-- [ ] Add conformance regressions for the terminal acceptance properties using independent interpretation and forced production-boundary schedules.
-- [ ] Implement the approved abstraction and reconciliation changes, coordinating linked terminal issues.
-- [ ] Verify composed/live behavior, update atlas and close through SDLC.
+- [ ] M1 — Qualify the required terminal contract and candidate backend; record failures, untested obligations and an evidence-based adoption decision.
+- [ ] M2 — Implement the shared endpoint/presenter after qualification and detailed design approval.
+- [ ] M3 — Migrate Couch and Pair, including wrapper transformation conformance, to the shared contract.
+- [ ] M4 — Complete composed/live conformance, measured rollout verification and publication.
 
 ## Log
 
@@ -152,3 +151,7 @@ Operator emphasized that Pair needs the same abstraction. The proposal covers bo
 ### 2026-09-15 — Architectural proposal reviewed
 
 Fresh spec review approved the proposed direction and M1 qualification, with no blockers at that stage. Incorporated advisory input/reply serialization, presentation admission, wrapper observation and budget timing. Awaiting operator architectural approval before qualification implementation; backend suitability and detailed later milestones are not yet approved.
+
+### 2026-09-15 — Qualification approved
+
+Operator approved the architectural direction and qualification phase. Added executable M1 tool/matrix plan, explicit negative qualification semantics and bounded candidate lifecycle; later production migration remains subject to qualification and detailed plan approval. Replaced generic plan rows with the four actual review boundaries from the approved proposal.
