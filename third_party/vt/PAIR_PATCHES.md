@@ -103,3 +103,12 @@ M2 BR8 adds `Emulator.Cursor()` as a copied value from the active screen. Endpoi
 and qualification snapshots use this state directly instead of reconstructing
 cursor shape/visibility through incomplete callbacks. Literal tests cover reset,
 saved-cursor restoration and alternate-buffer transitions at every byte split.
+
+- Zero-width input extends a still-open printable grapheme when segmentation
+  permits; controls seal that cluster. Orphan/non-attaching zero-width graphemes
+  (including combining marks, ZWJ and variation selectors after controls) are
+  consumed without cells, cursor movement or pending-wrap changes. This follows
+  native Zellij's orphan behavior and preserves nonempty cells' positive-width
+  invariant. Pinned xterm/headless 5.5's default representation instead stores
+  nonempty width-zero cells for these orphan cases; that representation is not
+  adopted. Contiguous supported combining/ZWJ/VS clusters remain intact.

@@ -45,9 +45,18 @@ func (e *Emulator) handlePrint(r rune) {
 			return
 		}
 	}
+	_, width := ansi.FirstGraphemeCluster(next, ansi.GraphemeWidth)
+	if width == 0 {
+		// Controls seal the provisional cluster. Without an open printable
+		// predecessor, consume non-attaching zero-width input without creating
+		// a nonempty continuation cell or changing cursor/pending-wrap state.
+		// This follows the native Zellij orphan policy; valid open clusters
+		// still accept combining marks, joiners and selectors above.
+		e.flushGrapheme()
+		return
+	}
 	e.clusterDropping = false
 	e.cluster = next
-	_, width := ansi.FirstGraphemeCluster(next, ansi.GraphemeWidth)
 	e.handleGrapheme(next, width)
 }
 

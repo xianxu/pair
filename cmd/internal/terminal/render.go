@@ -3,6 +3,7 @@ package terminal
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
@@ -171,7 +172,20 @@ func StyledRows(text string, cols, rows int) ([]Cell, error) {
 			text = text[end+term:]
 			continue
 		}
-		seq, width, n, _ := ansi.DecodeSequence(text, 0, nil)
+		// A leading zero-width rune has no printable base to amend. Consume
+		// it before grouping: a leading joiner + selector must not fabricate
+		// a wide cell. Controls remain rejected, including zero-width controls.
+		_, runeBytes := utf8.DecodeRuneInString(text)
+		lead, leadWidth := ansi.FirstGraphemeCluster(text[:runeBytes], ansi.GraphemeWidth)
+		if !plainText(lead) {
+			return nil, fmt.Errorf("terminal: forbidden chrome text or control")
+		}
+		if leadWidth == 0 {
+			text = text[runeBytes:]
+			continue
+		}
+		seq, width := ansi.FirstGraphemeCluster(text, ansi.GraphemeWidth)
+		n := len(seq)
 		if n < 1 || width < 1 || width > 2 || !plainText(seq) || len(seq) > MaxClusterBytes {
 			return nil, fmt.Errorf("terminal: forbidden chrome text or control")
 		}

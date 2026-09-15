@@ -4993,3 +4993,5 @@ that transition authority is pure or enforced.
 - Discovery scripts committed as evidence still own real artifact/process lifetimes. Scope temporary directories around the entire run, including setup/spawn failures, and remove after joined teardown; test both success and failure. (#255 M2 BR10, 2026-09-15)
 
 - Enumerate terminal state mutations in both setup and renderer, then test successful release after every accepted control-stream prefix using an independent interpreter. Cleanup that works after complete frames can still leak autowrap, hyperlink or cursor style after interruption. (#255 M2 BR11, 2026-09-15)
+
+- A terminal cell validator must use complete grapheme segmentation, not an ANSI decoder whose ASCII fast path returns one byte. Test valid ASCII-base combining clusters and orphan zero-width input through Feed→Frame→Presenter→input, including controls and every byte split. Keep backend and UI text policy coherent without permitting nonempty continuation cells. (#255 M2 BR12, 2026-09-15)

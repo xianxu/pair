@@ -89,8 +89,8 @@ func (f Frame) Validate() error {
 			return fmt.Errorf("terminal: unsupported cell width at %d", i)
 		}
 		if c.Content != "" {
-			_, width, n, _ := ansi.DecodeSequence(c.Content, 0, nil)
-			if n != len(c.Content) || width != c.Width {
+			cluster, width := ansi.FirstGraphemeCluster(c.Content, ansi.GraphemeWidth)
+			if len(cluster) != len(c.Content) || width != c.Width {
 				return fmt.Errorf("terminal: content does not fit cell %d", i)
 			}
 		}

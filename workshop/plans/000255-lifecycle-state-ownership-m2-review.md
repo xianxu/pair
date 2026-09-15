@@ -440,3 +440,130 @@ The M2 core-concept table matches the implementation boundaries; no additional c
 ## 7. Plan revision recommendations
 
 Add a `## Revisions` entry defining **parent state restoration after interrupted writes**: enumerate renderer/setup state, specify the required release state, and require independent-oracle tests across partial-write boundaries. Preserve conditional keyboard-stack restoration rather than blindly popping unowned state.
+
+---
+
+## Re-review — 2026-09-15T13:42:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 29101ebf157ba9663609f5e75278449f34eea722..785cd2a3abae476877914c0403e9f6a607ce0f8b |
+| command | sdlc milestone-close --issue 255 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-15T13:42:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-11 is addressed with verified failing-without-fix tests. The pinned M2 range provides the shared ownership boundaries, bounded transports, and documentation, but a new Unicode defect blocks the boundary: valid zero-width characters can permanently fail the presenter. Repository files were unchanged.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Parent/orphan gesture and negotiation-epoch regressions remain present and pass in the focused normal/race suites.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Atomic parameter overflow guards and boundary regressions remain present; fork normal/race suites pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Endpoint and qualification snapshots consume the authoritative copied cursor; reset/restore/buffer regressions pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Cancellation commits independently of resize and retains pending delivery; failed-resize and interrupted-cancellation regressions pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Native discovery uses invocation-scoped temporary storage; all five cleanup and bounded-capture tests pass.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      presenter.go:244 restores the parent baseline. The independent interrupted-presentation test passes; scratch mutations removing autowrap restoration or hyperlink closure both make it fail.
+findings:
+  - id: new
+    severity: Critical
+    family: unicode-cell-coherence
+    title: |
+      Zero-width Unicode output permanently fails the presenter
+    detail: |
+      third_party/vt/utf8.go:49-51 stores an initial zero-width grapheme as a nonempty Width:0 cell, which cmd/internal/terminal/frame.go:97-100 rejects. Production Feed → Present → Flush reproduces Failed state for U+0301, U+200D, U+FE0F, and a combining mark following SGR or cursor movement. ARCH-PURPOSE: define coherent zero-width rendering across backend, frame validation, and serialization; cover the entire class with split-input and production-presentation regressions rather than weakening frame validation.
+```
+
+## 1. Strengths
+
+- BR-11 has causal regression evidence: removing `?7h` reproduces `ABCDEFGI`; removing hyperlink closure exposes the leaked link.
+- Presenter admission passes through `Transition`, with forced-order tests covering partial writes, cancellation, and release.
+- Terminfo and query capabilities share one table, with compiled-contract verification.
+- README and atlas document the new library, fork, profile, and M3 migration boundary.
+
+## 2. Critical findings
+
+**Zero-width Unicode can disable the connection.** At [utf8.go:49](third_party/vt/utf8.go#L49), a grapheme without an extendable predecessor can become a nonempty zero-width cell. [Frame.Validate](cmd/internal/terminal/frame.go#L97) rejects it; refresh reaches `p.fail` through [presenter.go:327](cmd/internal/terminal/presenter.go#L327), leaving `Failed` state and rejecting subsequent input.
+
+Reproduction: select an 8×2 endpoint, feed any input below, then call `Present` and `Flush`:
+
+- `"\u0301"`
+- `"\u200d"`
+- `"\ufe0f"`
+- `"A\x1b[31m\u0301"`
+- `"A\x1b[2G\u0301"`
+
+All five scratch regressions failed with `content in continuation` and presenter state `Failed`. Independent xterm interpretation accepts these inputs.
+
+**Fix:** define valid standalone/after-control zero-width behavior, preserve frame invariants, and test continued presentation and input afterward.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Passed:
+
+- Terminal, ttyio, and qualification normal/race suites.
+- Fork normal/race suites.
+- Required independent renderer oracle.
+- Wrapcmd and ptychild suites.
+- Five discovery cleanup tests and resource probe.
+- Pinned-range whitespace check.
+
+Qualification reports **84 pass, 0 fail, 6 not-covered**, retaining M3/M4 obligations. The full root suite was interrupted before completion; no full-suite pass is claimed.
+
+Existing grapheme tests cover extensions of printable bases but miss the zero-width cases above.
+
+## 6. Architectural notes
+
+| Marker | Assessment |
+|---|---|
+| ARCH-DRY | Pass: shared capability source and authoritative cursor reads. |
+| ARCH-PURE | Pass: M2 frame/view/render logic is separated from transport and backend IO. |
+| ARCH-PURPOSE | **Flag:** supported Unicode can terminate presentation. |
+| ARCH-MOCK | Pass for M2: stateful transport seam, independent interpreter, native checks. |
+| ARCH-CONSTRAINTS | Pass: explicit bounds, backpressure, deadlines, and resource measurements. |
+| ARCH-SECURE | Pass: controls are validated; raw child drawing cannot bypass composition. |
+| ARCH-ORDER | Pass: admission and cancellation use explicit transitions and controlled-order tests. |
+| ARCH-FUNERAL | Pass: joined workers, bounded retention, origin retirement, and temporary-directory cleanup. |
+
+The M2 concept table matches the implementation. Both consumer migrations and sustained live acceptance remain explicitly assigned to M3/M4.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry defining the zero-width cell invariant and enumerating standalone marks, joiners, variation selectors, and marks after controls. Require every-split backend tests plus production presenter regressions demonstrating valid frames and continued admission.

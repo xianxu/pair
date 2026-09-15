@@ -793,6 +793,13 @@ test-only xterm-headless dependency and checks actual renderer output against an
 independent terminal implementation. See [terminal ownership](atlas/terminal.md)
 for the current migration boundary.
 
+The text profile preserves contiguous combining, joiner and variation-selector
+clusters. Controls seal the current cluster. An orphan zero-width character
+(including one after a control) is consumed without creating a cell or moving the
+cursor, matching the tested native Zellij behavior. This intentionally differs
+from xterm-headless’s zero-width-cell representation. Frame validation and UI
+text rendering use the same grapheme segmentation as the backend.
+
 ---
 
 Release notes: [`CHANGELOG.md`](CHANGELOG.md). For design rationale and

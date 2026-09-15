@@ -199,6 +199,43 @@ rounds:
           round: 7
       boundary: M2
       blocked: true
+    - "n": 8
+      timestamp: "2026-09-15T13:42:44-07:00"
+      agent: codex
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: Parent/orphan gesture and negotiation-epoch regressions remain present and pass in the focused normal/race suites.
+          round: 8
+        - id: BR-7
+          disposition: addressed
+          note: Atomic parameter overflow guards and boundary regressions remain present; fork normal/race suites pass.
+          round: 8
+        - id: BR-8
+          disposition: addressed
+          note: Endpoint and qualification snapshots consume the authoritative copied cursor; reset/restore/buffer regressions pass.
+          round: 8
+        - id: BR-9
+          disposition: addressed
+          note: Cancellation commits independently of resize and retains pending delivery; failed-resize and interrupted-cancellation regressions pass.
+          round: 8
+        - id: BR-10
+          disposition: addressed
+          note: Native discovery uses invocation-scoped temporary storage; all five cleanup and bounded-capture tests pass.
+          round: 8
+        - id: BR-11
+          disposition: addressed
+          note: presenter.go:244 restores the parent baseline. The independent interrupted-presentation test passes; scratch mutations removing autowrap restoration or hyperlink closure both make it fail.
+          round: 8
+      findings:
+        - id: BR-12
+          severity: Critical
+          title: Zero-width Unicode output permanently fails the presenter
+          detail: 'third_party/vt/utf8.go:49-51 stores an initial zero-width grapheme as a nonempty Width:0 cell, which cmd/internal/terminal/frame.go:97-100 rejects. Production Feed → Present → Flush reproduces Failed state for U+0301, U+200D, U+FE0F, and a combining mark following SGR or cursor movement. ARCH-PURPOSE: define coherent zero-width rendering across backend, frame validation, and serialization; cover the entire class with split-input and production-presentation regressions rather than weakening frame validation.'
+          family: unicode-cell-coherence
+          round: 8
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -296,6 +333,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-11** [Critical] `parent-terminal-restoration` Successful release leaves autowrap disabled after an interrupted paint
   ARCH-ORDER: render.go:34 emits CSI ?7l, but presenter.go:127 omits CSI ?7h from release cleanup. A production-presenter test injecting failure immediately after ?7l, followed by successful Release, reproduces ABCDEFGI on one eight-column row instead of ABCDEFGH followed by I in the independent xterm oracle. Enumerate all parent state changed during painting and restore the required post-release state after any accepted prefix; add interrupted-paint cleanup regressions, including hyperlink state.
 
+## Round 8 — 2026-09-15T13:42:44-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-6 — addressed — Parent/orphan gesture and negotiation-epoch regressions remain present and pass in the focused normal/race suites.
+- BR-7 — addressed — Atomic parameter overflow guards and boundary regressions remain present; fork normal/race suites pass.
+- BR-8 — addressed — Endpoint and qualification snapshots consume the authoritative copied cursor; reset/restore/buffer regressions pass.
+- BR-9 — addressed — Cancellation commits independently of resize and retains pending delivery; failed-resize and interrupted-cancellation regressions pass.
+- BR-10 — addressed — Native discovery uses invocation-scoped temporary storage; all five cleanup and bounded-capture tests pass.
+- BR-11 — addressed — presenter.go:244 restores the parent baseline. The independent interrupted-presentation test passes; scratch mutations removing autowrap restoration or hyperlink closure both make it fail.
+
+### Raised
+
+- **BR-12** [Critical] `unicode-cell-coherence` Zero-width Unicode output permanently fails the presenter
+  third_party/vt/utf8.go:49-51 stores an initial zero-width grapheme as a nonempty Width:0 cell, which cmd/internal/terminal/frame.go:97-100 rejects. Production Feed → Present → Flush reproduces Failed state for U+0301, U+200D, U+FE0F, and a combining mark following SGR or cursor movement. ARCH-PURPOSE: define coherent zero-width rendering across backend, frame validation, and serialization; cover the entire class with split-input and production-presentation regressions rather than weakening frame validation.
+
 ## Open findings
 
-- **BR-11** [Critical] `parent-terminal-restoration` Successful release leaves autowrap disabled after an interrupted paint
+- **BR-12** [Critical] `unicode-cell-coherence` Zero-width Unicode output permanently fails the presenter

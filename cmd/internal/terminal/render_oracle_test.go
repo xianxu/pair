@@ -238,3 +238,34 @@ func TestRendererIndependentInterruptedPresentationRelease(t *testing.T) {
 		}
 	}
 }
+
+func TestRendererIndependentCombiningClusters(t *testing.T) {
+	endpoint, err := NewEndpoint("combining", Geometry{8, 2}, ttyio.NewFake())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer endpoint.Close()
+	if _, err := endpoint.Feed([]byte("e\u0301界"), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	frame, err := endpoint.Snapshot(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	chrome, err := StyledRows("e\u0301", 8, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	composed, err := Compose(frame, Geometry{8, 3}, chrome)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire, err := Render(Frame{}, composed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	screen := runOracle(t, 8, 3, []string{string(wire)})[0]
+	if screen.Cells[0][0].Text != "e\u0301" || screen.Cells[0][0].Width != 1 || screen.Cells[0][1].Text != "界" || screen.Cells[0][1].Width != 2 || screen.Cells[2][0].Text != "e\u0301" {
+		t.Fatalf("combining cells=%+v chrome=%+v", screen.Cells[0], screen.Cells[2])
+	}
+}
