@@ -1575,6 +1575,15 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			} else {
 				outBytes, leftover, inPaste = p.passThroughChunk(segment, inPaste)
 			}
+			// The full available stream contains a complete next chord. Its
+			// leading ESC disambiguates any proper escape prefix retained at
+			// the end of `before`: none of our finite input encodings contains
+			// an interior ESC. Emit that literal prefix before the action;
+			// only an actual end-of-read suffix may wait for more input.
+			if found && len(leftover) > 0 {
+				outBytes = append(outBytes, leftover...)
+				leftover = nil
+			}
 			if len(outBytes) > 0 {
 				wn, werr := out.Write(outBytes)
 				p.traceWrap("stdin-write-pty", map[string]any{
@@ -1591,7 +1600,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				}
 			}
 			if len(leftover) > 0 {
-				pending = append(leftover, data[len(segment):]...)
+				pending = leftover
 				break
 			}
 			if !found {

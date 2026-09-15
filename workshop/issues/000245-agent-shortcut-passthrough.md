@@ -247,3 +247,29 @@ log file; their tool results are the evidence, not a claimed filesystem log.
 
 The full suite, targeted race coverage, live protocol fixture and actual built
 help are verified. Operator smoke is deliberately pending after the close gate.
+
+
+### 2026-09-14 — Close review round 1 requires rework
+
+The mandatory boundary review returned REWORK: BR-1 (Critical) incomplete-prefix
+buffering can suppress a following reserved shortcut; BR-2 (Important) missing
+CI source selectors. BR-1 is being corrected with stream regression tests.
+BR-2 now covers wrapper, Couch keys/console and Neovim sources in both events;
+representative selector verification failed before and passed after the edit.
+The issue remains working; nothing has been published.
+
+
+BR-1 corrected: when lookahead has a complete next chord, emit the preceding
+literal incomplete escape prefix before dispatch. Only a genuine read-end
+suffix can remain pending. No new routing API or state was added. Regression
+matrix covers all reserved encodings, stray Escape/partial CSI, every two-way
+read partition and Return adaptation on/off. Sustained reads prove preceding
+bytes and actions progress without accumulation; timeout followed by EOF
+flushes a genuinely incomplete suffix once. RED reproduced zero actions
+(`/tmp/pair245-prefix-red.log`); full wrapper PASS 10.861s
+(`/tmp/pair245-wrapper-full.log`) and focused race PASS 2.043s
+(`/tmp/pair245-prefix-race.log`). Build passed after the correction.
+
+Post-rework full `go test ./... -count=1` passed (exit 0),
+`/tmp/pair245-rework-go.log`; rebuilt binaries passed
+(`/tmp/pair245-rework-build.log`). Both findings addressed; entering round 2.

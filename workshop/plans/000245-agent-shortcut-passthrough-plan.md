@@ -338,3 +338,18 @@ full `go test ./... -count=1` passed. Race packages and build passed. The techni
 verification obligation is complete; the issue-close review and operator smoke
 are still open. The quoted full make command itself exited nonzero before those
 two final corrections; do not report that invocation as green.
+
+
+### 2026-09-14 — Close review round 1: framing and CI coverage
+
+The gate reproduced an incomplete escape prefix retaining a following complete
+reserved chord. Resolve incomplete prefixes against all available bytes before
+holding a suffix (ARCH-CONSTRAINTS, ARCH-ORDER). Extend regression coverage to
+stray Escape and partial CSI before reservations, later reads, timeout and EOF,
+with Return adaptation enabled and disabled. This refines the existing bounded
+input obligation without changing shortcut policy.
+
+BR-2 verified: both CI event filters omitted wrapper, Couch input and Neovim
+sources. Added selectors for those families to pull_request and push. A direct
+selector check failed for all five missing representative files before the edit;
+afterward all eight representative source paths match in both events.

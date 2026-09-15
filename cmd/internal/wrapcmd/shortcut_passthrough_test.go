@@ -130,3 +130,99 @@ func TestAgentAllUnreservedChordEncodingsReachInput(t *testing.T) {
 		}
 	}
 }
+
+func TestReservedShortcutAfterIncompletePrefixEOF(t *testing.T) {
+	for _, remap := range []bool{false, true} {
+		for _, binding := range workbenchshortcut.GlobalBindings() {
+			if !binding.AgentReserved {
+				continue
+			}
+			for _, chord := range workbenchshortcut.ChordEncodings(binding.Chord) {
+				for _, prefix := range []string{"\x1b", "\x1b[", "\x1b[1;", "\x1b[20"} {
+					stream := append(append([]byte("text"+prefix), chord...), []byte("tail\x1b[")...)
+					for split := 0; split <= len(stream); split++ {
+						p := &proxy{}
+						if remap {
+							profile, _ := profileForHarness("claude", true)
+							p.ttyProfile = &profile
+						}
+						actions := 0
+						p.workbenchShortcutHandler = func(string) bool { actions++; return true }
+						var out bytes.Buffer
+						p.translateStdinFrom(&shortcutChunkReader{chunks: [][]byte{stream[:split], stream[split:]}}, &out, time.Second)
+						if actions != 1 || out.String() != "text"+prefix+"tail\x1b[" {
+							t.Fatalf("remap=%v chord=%q prefix=%q split=%d actions=%d output=%q", remap, chord, prefix, split, actions, out.String())
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestReservedShortcutPrefixProgressBeforeTimeout(t *testing.T) {
+	for _, remap := range []bool{false, true} {
+		for _, binding := range workbenchshortcut.GlobalBindings() {
+			if !binding.AgentReserved {
+				continue
+			}
+			for _, prefix := range []string{"\x1b", "\x1b[1;"} {
+				p := &proxy{}
+				if remap {
+					profile, _ := profileForHarness("claude", true)
+					p.ttyProfile = &profile
+				}
+				actions := make(chan struct{}, 16)
+				p.workbenchShortcutHandler = func(string) bool { actions <- struct{}{}; return true }
+				reader, writer := io.Pipe()
+				out := &drainBuffer{}
+				done := make(chan struct{})
+				go func() { p.translateStdinFrom(reader, out, 40*time.Millisecond); close(done) }()
+				t.Cleanup(func() {
+					_ = writer.Close()
+					_ = reader.Close()
+					select {
+					case <-done:
+					case <-time.After(time.Second):
+						t.Error("prefix fixture did not stop")
+					}
+				})
+				// Every read must execute its completed action. Waiting for the action
+				// also proves previous input cannot accumulate in pending across reads.
+				chord := workbenchshortcut.ChordEncodings(binding.Chord)[0]
+				var want []byte
+				for n := 0; n < 8; n++ {
+					chunk := append([]byte("text"+prefix), chord...)
+					_, err := writer.Write(chunk)
+					if err != nil {
+						t.Fatal(err)
+					}
+					select {
+					case <-actions:
+					case <-time.After(time.Second):
+						_ = writer.Close()
+						<-done
+						t.Fatalf("complete chord retained: remap=%v prefix=%q chord=%q iteration=%d", remap, prefix, chord, n)
+					}
+					want = append(want, []byte("text"+prefix)...)
+					if !bytes.Equal(out.Bytes(), want) {
+						t.Fatalf("prefix was not delivered before action: got=%q want=%q", out.Bytes(), want)
+					}
+				}
+				// A genuinely incomplete trailing CSI still waits for the timeout, then
+				// flushes once. EOF must not duplicate it.
+				_, _ = writer.Write([]byte("\x1b["))
+				want = append(want, []byte("\x1b[")...)
+				deadline := time.Now().Add(time.Second)
+				for !bytes.Equal(out.Bytes(), want) && time.Now().Before(deadline) {
+					time.Sleep(time.Millisecond)
+				}
+				_ = writer.Close()
+				<-done
+				if !bytes.Equal(out.Bytes(), want) {
+					t.Fatalf("timeout/EOF bytes=%q want=%q", out.Bytes(), want)
+				}
+			}
+		}
+	}
+}
