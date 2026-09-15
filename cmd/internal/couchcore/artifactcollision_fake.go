@@ -119,7 +119,7 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedSessions(ctx context.Contex
 		}
 		bindings = append(bindings, SessionNameBinding{
 			Address: candidate.Address, SessionName: name,
-			Agent: candidate.Agent, NativeID: candidate.NativeID,
+			Agent: candidate.Agent,
 		})
 		sessions = append(sessions, launcher.Session{Name: name, State: launcher.SessionDetached})
 	}
@@ -155,6 +155,17 @@ func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddres
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.pairSessions[address] = PairSessionBinding{Name: name, Present: present}
+}
+
+func (f *FakeThreadArtifactCollisionChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return PairSessionBinding{}, err
+	}
+	binding, err := f.PairSession(address)
+	if err == nil {
+		err = ctx.Err()
+	}
+	return binding, err
 }
 
 func (f *FakeThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {

@@ -3,6 +3,7 @@ package couchcore
 import (
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 )
 
 type ProcessIdentity struct {
@@ -28,6 +29,7 @@ const (
 )
 
 type StartEvent struct {
+	Shape   StartShape
 	Kind    StartEventKind
 	Nonce   string
 	Owner   SupervisorOwner
@@ -232,4 +234,34 @@ func CurrentStartTransaction(record ThreadRecord) (StartTransaction, error) {
 		transaction.Helper = &helper
 	}
 	return transaction, nil
+}
+
+// RegisteredTargetProof binds IO's exact ready receipt and helper-death
+// observations to the request being reconciled. It authorizes retirement only;
+// attachment still requires the surviving session's independent live proof.
+type RegisteredTargetProof struct {
+	RequestID, Agent, Session, Attempt string
+	Helper                             ProcessIdentity
+}
+
+// ReconcileRegisteredTarget removes a settled unknown helper atomically. A
+// receipt can explain its finished start without making its dead process Live.
+func ReconcileRegisteredTarget(record ThreadRecord, proof RegisteredTargetProof) (ThreadRecord, error) {
+	request := record.Continuation
+	if request == nil || (request.Phase != checkpoint.Running && request.Phase != checkpoint.Failed) || request.ID != proof.RequestID || proof.Attempt == "" || request.Attempt != proof.Attempt || request.Source.Agent != proof.Agent || request.Source.Session != proof.Session {
+		return ThreadRecord{}, errors.New("registered target proof does not match the current continuation")
+	}
+	if record.Park != nil || len(record.Incarnations) != 1 {
+		return ThreadRecord{}, errors.New("registered target retirement requires one settled incarnation and no open park")
+	}
+	inc := record.Incarnations[0]
+	if inc.State != IncarnationUnknown || inc.Start != nil || proof.Helper.PID <= 0 || proof.Helper.Identity == "" || inc.PID != proof.Helper.PID || inc.Identity != proof.Helper.Identity {
+		return ThreadRecord{}, errors.New("registered target retirement requires the exact settled unknown helper")
+	}
+	next := cloneThreadRecord(record)
+	next.Incarnations = nil
+	if err := ValidateThreadRecord(next); err != nil {
+		return ThreadRecord{}, err
+	}
+	return next, nil
 }

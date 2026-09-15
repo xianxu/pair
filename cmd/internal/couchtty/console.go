@@ -63,6 +63,11 @@ type Console struct {
 	stdin  io.Reader
 	stderr io.Writer
 
+	// terminalMu owns scanner-to-wire ordering; acquire before mu, and never
+	// hold it across a child callback. terminalReleased ends all host output.
+	terminalMu       sync.Mutex
+	terminalReleased bool
+
 	mu     sync.Mutex
 	panes  map[string]*pane
 	order  []string
@@ -152,28 +157,31 @@ type Console struct {
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
-	started            bool
-	exited             chan childExit
-	operationQueue     *operationQueue
-	refreshRequests    chan struct{}
-	refreshResults     chan menuRefreshResult
-	refreshSchedule    RefreshSchedule
-	orientationResults chan orientationWatchResult
-	orientationWatches map[couchcore.ThreadAddress]orientationWatch
-	previewResults     chan menuPreviewResult
-	previewSchedule    PreviewSchedule
-	previewCancel      context.CancelFunc
-	previewRunning     uint64
-	directoryReader    DirectoryBatchReader
-	completionResults  chan menuCompletionResult
-	completionSchedule latestSchedule[CompletionRequest]
-	completionCancel   context.CancelFunc
-	completionRunning  CompletionIdentity
-	lifetime           context.Context
-	cancelLifetime     context.CancelFunc
-	stop               chan struct{}
-	once               sync.Once
-	workers            sync.WaitGroup
+	started              bool
+	exited               chan childExit
+	operationQueue       *operationQueue
+	refreshRequests      chan struct{}
+	refreshResults       chan menuRefreshResult
+	refreshSchedule      RefreshSchedule
+	orientationResults   chan orientationWatchResult
+	orientationWatches   map[couchcore.ThreadAddress]orientationWatch
+	continuationProvider ContinuationProvider
+	continuationResults  chan continuationScanResult
+	continuations        map[couchcore.ThreadAddress]continuationWatch
+	previewResults       chan menuPreviewResult
+	previewSchedule      PreviewSchedule
+	previewCancel        context.CancelFunc
+	previewRunning       uint64
+	directoryReader      DirectoryBatchReader
+	completionResults    chan menuCompletionResult
+	completionSchedule   latestSchedule[CompletionRequest]
+	completionCancel     context.CancelFunc
+	completionRunning    CompletionIdentity
+	lifetime             context.Context
+	cancelLifetime       context.CancelFunc
+	stop                 chan struct{}
+	once                 sync.Once
+	workers              sync.WaitGroup
 }
 
 // errw is where the console reports its own failures. Separate from the host
@@ -188,26 +196,28 @@ func (c *Console) errw() io.Writer {
 func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
-		host:               host,
-		stdin:              stdin,
-		panes:              map[string]*pane{},
-		chunks:             make(chan chunk, 256),
-		resized:            make(chan struct{}, 1),
-		switching:          make(chan string, 8),
-		input:              make(chan []byte, 64),
-		exited:             make(chan childExit, 64),
-		operationQueue:     newOperationQueue(16),
-		refreshRequests:    make(chan struct{}, 1),
-		refreshResults:     make(chan menuRefreshResult, 1),
-		orientationResults: make(chan orientationWatchResult, 8),
-		previewResults:     make(chan menuPreviewResult, 1),
-		directoryReader:    OSDirectoryBatchReader{},
-		completionResults:  make(chan menuCompletionResult, 1),
-		expectedExits:      map[string]bool{},
-		lifetime:           lifetime,
-		cancelLifetime:     cancelLifetime,
-		stop:               make(chan struct{}),
-		feed:               NewFeed(8, time.Now, NoticeLifetime),
+		host:                host,
+		stdin:               stdin,
+		panes:               map[string]*pane{},
+		chunks:              make(chan chunk, 256),
+		resized:             make(chan struct{}, 1),
+		switching:           make(chan string, 8),
+		input:               make(chan []byte, 64),
+		exited:              make(chan childExit, 64),
+		operationQueue:      newOperationQueue(16),
+		refreshRequests:     make(chan struct{}, 1),
+		refreshResults:      make(chan menuRefreshResult, 1),
+		orientationResults:  make(chan orientationWatchResult, 8),
+		continuationResults: make(chan continuationScanResult, 1),
+		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
+		previewResults:      make(chan menuPreviewResult, 1),
+		directoryReader:     OSDirectoryBatchReader{},
+		completionResults:   make(chan menuCompletionResult, 1),
+		expectedExits:       map[string]bool{},
+		lifetime:            lifetime,
+		cancelLifetime:      cancelLifetime,
+		stop:                make(chan struct{}),
+		feed:                NewFeed(8, time.Now, NoticeLifetime),
 	}
 	if s, err := host.Size(); err == nil {
 		c.size = s
@@ -586,12 +596,14 @@ func (c *Console) Run() int {
 	// couch asks the TERMINAL for clicks. It never writes the CHILD's modes:
 	// ptychild replay re-asserts those across a switch, and a second writer
 	// would be two authorities for one terminal state.
-	c.writeOwn(hostty.EnableMouseClicks)
+	c.writeHostControl(hostty.EnableKeyboardDisambiguation)
+	c.traceMouseClicks("startup")
 
 	c.applyLayout()
 	c.paintNow()
 
-	c.workers.Add(3)
+	c.workers.Add(4)
+	go func() { defer c.workers.Done(); c.watchContinuations() }()
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
 	go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
@@ -738,32 +750,15 @@ func (c *Console) Run() int {
 	processInput := func(raw []byte) {
 		for {
 			before, hit, rest := it.FeedHit(raw)
-			route(before)
-			if hit == HitNone {
-				return
-			}
-			// One table, walked by a test against AllInterceptorHits, rather
-			// than a switch whose exhaustiveness is a promise. A `default:
-			// c.onHotkey()` would turn an unhandled hit into "open the
-			// switcher"; a switch with no default drops it silently, which is
-			// what alt+n did on its first ship. Neither can report the case it
-			// is missing -- the table can.
+			rawHit := it.RawHit()
 			if hit == HitMouse {
-				// Read from the same Interceptor that produced it, before the
-				// next Feed overwrites it, then dispatched through the table
-				// like every other hit.
 				c.mu.Lock()
 				c.mouseHit = it.Mouse()
 				c.mu.Unlock()
 			}
-			if handle := c.hitHandlers()[hit]; handle != nil {
-				handle()
-			} else {
-				// The bytes are already consumed, so silence here is a chord
-				// that does nothing with no way to tell. The test catches this
-				// at build time; this makes it observable to an operator in a
-				// build where it did not.
-				c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
+			c.dispatchInputCandidate(before, hit, rawHit, route)
+			if hit == HitNone {
+				return
 			}
 			raw = rest
 		}
@@ -870,6 +865,8 @@ func (c *Console) Run() int {
 			c.finishMenuRefresh(result)
 		case result := <-c.orientationResults:
 			c.finishOrientation(result)
+		case result := <-c.continuationResults:
+			c.acceptContinuationRequests(result)
 		case result := <-c.previewResults:
 			c.finishMenuPreview(result)
 		case result := <-c.completionResults:
@@ -992,6 +989,7 @@ func (c *Console) onExit(event childExit) bool {
 		c.focus = FocusPanel()
 	}
 	expected := c.consumeExpectedParkExitLocked(event.id, p.thread)
+	_, continuationPending := c.continuations[p.thread]
 	forget := c.forget
 	last := len(c.panes) == 0
 	c.mu.Unlock()
@@ -1009,7 +1007,7 @@ func (c *Console) onExit(event childExit) bool {
 		}
 	}
 	c.requestMenuRefresh()
-	if last && !panelFocused {
+	if last && !panelFocused && !(expected && continuationPending) {
 		return true
 	}
 	if wasFocused || panelFocused {
@@ -1023,13 +1021,22 @@ func (c *Console) onExit(event childExit) bool {
 // release puts the terminal back: region reset, then the reserved row cleared,
 // so the operator's shell does not inherit a pinned region or a stale row.
 func (c *Console) release() {
+	if !c.lockTerminal() {
+		return
+	}
+	defer c.terminalMu.Unlock()
+	c.terminalReleased = true
 	c.mu.Lock()
 	res := bottomReservation(c.size.Rows)
+	tracer, context := c.mouseTraceContextLocked()
 	c.mu.Unlock()
 	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
 	// spliced sequence, and the child is finished with the screen by now.
-	_, _ = io.WriteString(c.host,
-		res.Release()+res.Paint("")+hostty.ResetInteractiveModes+hostty.LeaveAltScreen+hostty.ResetRegion+hostty.ShowCursor)
+	body := res.Release() + res.Paint("") + hostty.ResetInteractiveModes + hostty.LeaveAltScreen + hostty.ResetInteractiveModes + hostty.ResetRegion + hostty.ShowCursor
+	n, err := io.WriteString(c.host, body)
+	if tracer != nil {
+		tracer.record("cleanup", context+" "+(mouseWriteResult{n: n, err: err}).detail(len(body)))
+	}
 }
 
 // bottomReservation is couch's row: always the host's bottom one.
@@ -1127,19 +1134,26 @@ func (c *Console) repaint() { c.paintNow() }
 // scanner answers is "where is the child's stream", and our writes are not part
 // of it.
 func (c *Console) writeChild(p []byte) {
+	if !c.lockTerminal() {
+		return
+	}
+	defer c.terminalMu.Unlock()
 	c.mu.Lock()
 	before := c.hostScan.MouseModes()
 	c.hostScan.FeedFraming(p)
 	after := c.hostScan.MouseModes()
-	tracer := c.mouseTrace
+	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
+	tracer, context := c.mouseTraceContextLocked()
 	c.mu.Unlock()
+	p = keyboardDisambiguated(p, complete)
+	n, err := c.host.Write(p)
 	// A mouse-mode change in the CHILD's teed stream is one of the two events
 	// that decide the host's mode (#207). Logged only on a change, so a busy
 	// stream does not flood the trace.
 	if tracer != nil && formatMouseModes(before) != formatMouseModes(after) {
-		tracer.record("child-mode", formatMouseModes(before)+" -> "+formatMouseModes(after))
+		tracer.record("child-mode", context+" scanner-before="+formatMouseModes(before)+
+			" scanner-after="+formatMouseModes(after)+" "+(mouseWriteResult{n: n, err: err}).detail(len(p)))
 	}
-	_, _ = c.host.Write(p)
 }
 
 // takeOverScreen replaces what is on the screen wholesale -- a switch landing,
@@ -1160,17 +1174,26 @@ func (c *Console) writeChild(p []byte) {
 // now a mechanism: `Child` owns its geometry, so no caller has an ordering
 // obligation there.
 //
-// The WRITER's half is not, and this comment is where it gets said out loud
-// instead of being asserted away: `c.host` is a bare `io.Writer` with no
-// serialization, and couch has several unsynchronized write sites. termcmd
-// already has the answer next door — `paneWriter` is deliberately not an
-// `io.Writer`, so a door that skips the reasoning does not compile — and couch
-// wants the same typed single-writer door. That is #224, not this issue: the
-// change is couch-wide and #209 has no business growing into it. What #209 owes
-// is not leaving a false claim behind, because a claim like this one is exactly
-// what lets the next reader believe the rule is already kept.
+// terminalMu serializes the scanner and its matching wire write with the other
+// output sites, including release. #224 still owns making bypasses impossible
+// through a typed output interface.
 func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
+	if !c.lockTerminal() {
+		return
+	}
 	c.mu.Lock()
+	tracer, context := c.mouseTraceContextLocked()
+	before := c.hostScan.MouseModes()
+	target := "panel"
+	if child != nil {
+		target = "unattached"
+		for id, pane := range c.panes {
+			if pane.child == child {
+				target = mouseTraceQuote(id)
+				break
+			}
+		}
+	}
 	c.hostScan = ptychild.Screen{}
 	c.paintPending = false
 	c.mu.Unlock()
@@ -1181,7 +1204,6 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 	// composition also owned a buffer assertion, withdrawn for now because
 	// `?1049` moves the cursor; hostty's repaint holds both reasons.
 	composed := hostty.RepaintFor(child, body)
-	_, _ = c.host.Write(composed)
 
 	// And FEED it back. The reset above drops the old child's partial sequence,
 	// which is right, but it also drops everything the scanner knew about the
@@ -1204,7 +1226,17 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 	// prefix is HomeAndClear alone, so this changes nothing; it is written now
 	// so the `?1047` candidate does not need either console to remember.
 	c.hostScan.FeedFraming(composed)
+	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
+	after := c.hostScan.MouseModes()
 	c.mu.Unlock()
+	composed = keyboardDisambiguated(composed, complete)
+	n, err := c.host.Write(composed)
+	if tracer != nil {
+		tracer.record("takeover", context+" target="+target+
+			" scanner-before="+formatMouseModes(before)+" scanner-reset=none scanner-after="+formatMouseModes(after)+
+			" replay-bytes="+strconv.Itoa(len(body))+" "+(mouseWriteResult{n: n, err: err}).detail(len(composed)))
+	}
+	c.terminalMu.Unlock()
 
 	// AND ASK THE CHILD TO REPAINT. Here, not at the call sites, because a
 	// takeover and its repaint request are one act: the body above is the
@@ -1218,7 +1250,11 @@ func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
 // writeOwn emits the console's OWN bytes, and is the only way they reach the
 // screen. It refuses while the child's stream is mid-sequence and records the
 // debt; the next chunk that lands on a boundary pays it.
-func (c *Console) writeOwn(p string) {
+func (c *Console) writeOwn(p string) mouseWriteResult {
+	if !c.lockTerminal() {
+		return mouseWriteResult{released: true}
+	}
+	defer c.terminalMu.Unlock()
 	c.mu.Lock()
 	// SafeToPaint, not MidSequence: the shared door adds "the child holds the
 	// cursor save", which couch needs for the same reason termcmd does even
@@ -1227,10 +1263,11 @@ func (c *Console) writeOwn(p string) {
 	if !c.hostScan.SafeToPaint() {
 		c.paintPending = true
 		c.mu.Unlock()
-		return
+		return mouseWriteResult{deferred: true}
 	}
 	c.mu.Unlock()
-	_, _ = io.WriteString(c.host, p)
+	n, err := io.WriteString(c.host, p)
+	return mouseWriteResult{n: n, err: err}
 }
 
 // paintNow draws the row unconditionally, re-asserting the region first.
@@ -1263,23 +1300,7 @@ func (c *Console) paintNow() {
 	// operator can still reach every actor by keyboard, and a wedged drag inside
 	// their editor is not recoverable by any keystroke.
 	if c.couchMayOwnTheMouse() {
-		c.writeOwn(hostty.EnableMouseClicks)
-		// The OTHER event that decides the host's mode (#207): couch asserting
-		// its own clicks-only mode. Logged with the host's mode BEFORE this
-		// write and the active child's belief, so a trace shows whether this
-		// assert raised a floor over an empty host or clobbered a live 1002.
-		c.mu.Lock()
-		tracer := c.mouseTrace
-		host := c.hostScan.MouseModes()
-		var childMouse, childObserved bool
-		if pane, ok := c.panes[c.active]; ok && pane != nil {
-			childMouse = pane.child.Mouse()
-			childObserved = pane.child.MouseObserved()
-		}
-		c.mu.Unlock()
-		tracer.record("assert-clicks", "host-before="+formatMouseModes(host)+
-			" child-mouse="+strconv.FormatBool(childMouse)+
-			" child-observed="+strconv.FormatBool(childObserved))
+		c.traceMouseClicks("paint")
 	}
 	row := RenderStatusRow(cols, model)
 	c.mu.Lock()
@@ -1803,6 +1824,22 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	c.mu.Lock()
 	fn := c.ops
 	origin := c.menu.InFlight
+	if effect.Operation == "retry-continuation" {
+		origin.ContinuationID = effect.Args["request-id"]
+		origin.PreserveFocus = c.focus.IsPanel()
+		if origin.ContinuationID != "" {
+			watch := c.continuations[origin.Address]
+			watch.status.Address, watch.status.RequestID = origin.Address, origin.ContinuationID
+			watch.queued, watch.handled = true, true
+			c.continuations[origin.Address] = watch
+			for id, p := range c.panes {
+				if p.thread == origin.Address {
+					c.expectedExits[id] = true
+				}
+			}
+			c.menu.InFlight = origin
+		}
+	}
 	if effect.Operation == "switch-agent" {
 		if previous, ok := c.orientationWatches[origin.Address]; ok {
 			previous.cancel()
@@ -1940,8 +1977,29 @@ func (c *Console) switchToThread(thread couchcore.ThreadAddress) {
 	c.reduceMenu(MenuEvent{Kind: MenuEventMouseSwitch, Address: thread})
 }
 
+// dispatchInputCandidate resolves ownership after prefix delivery. The route
+// callback is the input loop's existing panel/child writer, not a focus cache.
+func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawHit []byte, route func([]byte)) {
+	route(before)
+	if hit == HitNone {
+		return
+	}
+	c.mu.Lock()
+	actorFocused := !c.focus.IsPanel()
+	c.mu.Unlock()
+	if actorFocused && hit != HitMouse && !hit.actorReserved() {
+		route(rawHit)
+		return
+	}
+	// The declared handler table is checked against AllInterceptorHits.
+	if handle := c.hitHandlers()[hit]; handle != nil {
+		handle()
+	} else {
+		c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
+	}
+}
+
 // hitHandlers maps every intercepted chord to what the console does about it.
-//
 // A method rather than a package var because the handlers are bound to this
 // Console; the point is that the mapping is DATA a test can walk, not control
 // flow it can only execute.
@@ -1973,6 +2031,10 @@ func (c *Console) pendingMouse() MouseHit {
 // finishOperation returns true when the completion requested Console exit.
 func (c *Console) finishOperation(completed operationCompletion) bool {
 	err := completed.err
+	defer func() { c.finishContinuationOperation(completed, err) }()
+	if completed.name == "continuation-status" {
+		return false
+	}
 	address := completed.origin.Address
 	if parked, ok := completed.value.(couchcore.ParkResult); ok && parked.Thread.Address != (couchcore.ThreadAddress{}) {
 		address = parked.Thread.Address
@@ -1995,7 +2057,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 					err = errors.New("no action dispatcher wired")
 				} else {
 					args := map[string]string{"repo-scope": address.RepoScope, "tag": string(address.Tag)}
-					if completed.origin.Background || completed.origin.Operation == "switch-agent" && completed.origin.PanelOrigin {
+					if completed.origin.PreserveFocus || completed.origin.Background || completed.origin.Operation == "switch-agent" && completed.origin.PanelOrigin {
 						// The reattach pass's child is adopted without taking
 						// focus (pair#206); only the declared arg carries that
 						// across the operation table to the installer.
@@ -2079,7 +2141,7 @@ func (c *Console) finishOperation(completed operationCompletion) bool {
 	// Never for a background completion: the pass reattaches behind the
 	// operator, and there is no adoption, so no background completion is ever
 	// the operator's own landing (pair#206).
-	if completed.origin.Operation == "resume" && err == nil && startedHandleID != "" && !completed.origin.Background {
+	if (completed.origin.Operation == "resume" || completed.origin.Operation == "recover-thread" || completed.origin.Operation == "recover-checkpoint") && err == nil && startedHandleID != "" && !completed.origin.Background && !completed.origin.PreserveFocus {
 		c.requestMenuRefresh()
 		c.forceSwitch(startedHandleID)
 		return false

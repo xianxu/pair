@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-06
 updated: 2026-09-12
-estimate_hours:
+estimate_hours: 0.773
 started: 2026-09-12T23:21:00-07:00
 ---
 
@@ -90,6 +90,9 @@ and the first is the one that matters:
   child stream — rather than asserting on a hand-built belief.
 
 ## Plan
+
+- [x] M1 — trace active thread, replay/reset, and actual assertion write outcomes.
+- [ ] M2 — capture recurrence, approve causal recovery design, implement and verify recovery.
 
 - [ ] Confirm the diagnosis: does couch assert to the host with no release?
 - [ ] Decide where the release belongs (assert path vs relaunch path).
@@ -224,3 +227,112 @@ couch clobbered a live motion mode (the downgrade the floor rule targets).
 No behavioural change. The fix follows once a live trace names the trigger,
 including the #240 theory (does a right-pane tab switch to a shell cause a
 `child-mode ... -> none` in couch's trace?).
+
+
+### 2026-09-14 — Live recurrence captured; replay and assertion-result trace gaps
+- 2026-09-14: closed M1 — go test ./cmd/internal/couchtty ./cmd/internal/couchcmd passed after generated runtime assets; go test -race ./cmd/internal/couchtty -run MouseTrace\|MouseWriteResult -count=1 passed; producer red-green identity/replay/lifecycle/write-outcome checks; git diff --check clean. Actual 1.02h is output of sdlc actual --issue 207 --brain-dir /Users/xianxu/workspace/brain; close auto-measurement still ignores that root. Cumulative historical measurement is not directly comparable with M1-only estimate. Recovery remains M2.; review verdict: SHIP
+
+Operator reports drag selection no longer highlights during motion, alongside
+Ctrl+Return becoming plain Return (#251). Ctrl+Space then Return still reaches
+a yellow notification. No common triggering event has been established.
+
+Read-only inspection confirmed running Couch PID 5316 (started September 13,
+16:14:04 America/Los_Angeles) still holds
+`/private/tmp/couch-mouse-207.log` open. The complete log is only 20 lines;
+last observed modification was September 14 at 08:57:05. Local-time decoding
+shows `assert-clicks host-before=none child-mouse=false child-observed=true`
+bursts at 08:48:13.965–08:48:14.267 and 08:57:04.436–08:57:05.142. The earlier
+September 13 21:02:37.086–.087 assertions coincide with #249's failed
+continuation restart. This is timing correlation, not proof of a shared cause.
+
+There is NO recorded live `child-mode ... -> none` immediately preceding these
+bursts. The last recorded live transition is September 13 16:14:07.266,
+`none -> 1003,1006`. This does not establish that tracking persisted until the
+later assertions: `takeOverScreen` resets and feeds hostScan from replay without
+logging those mode transitions. Background child output updates the child's
+Screen without flowing through `writeChild`, so its mode changes are also
+absent from this trace until selection/replay.
+
+Two further limits matter before claiming the exact trigger:
+
+- `host-before` is the hostScan belief, not a query of the terminal; Couch's own
+  assertions are not fed into that scanner. Repeated `none` therefore does not
+  mean each prior assertion had no effect.
+- The `assert-clicks` event is logged after `writeOwn` returns even when the
+  paint/framing gate deferred the write. It records an assertion attempt, not
+  confirmed emission. Neither event carries the active thread address.
+
+The observed attempts fit the loss of motion tracking, but current traces cannot
+prove which takeover/reset/child changed the state or whether each attempted
+assertion reached the terminal. The next diagnostic change should cover replay,
+active thread identity and emitted-versus-deferred assertions, preserving the
+current live evidence before any restart. Keyboard-mode loss shares the same
+host terminal/replay boundary but is still a separate unproven correlation.
+No runtime state or production code changed during this inspection.
+
+## Revisions
+
+### 2026-09-14 — approved diagnostic boundary before recovery design
+
+The operator approved logging improvements after the live recurrence report.
+The original recovery Spec and Done when remain unresolved; this iteration is
+M1 diagnostics only, followed by M2 causal fix after evidence and design approval.
+See `workshop/plans/000207-mouse-diagnostics-plan.md`.
+
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. This estimates the approved M1 diagnostic
+boundary only; M2 is unapproved and must be estimated after its causal design.
+Two smaller-go-module primitives cover production diagnostic integration and
+producer regression coverage. Each takes 0.3 design before the thorough-spec
+0.2 discount, and 0.5 implementation before the v3.1 0.4 multiplier. Existing
+traceFile/host fake/scanner remove any novel-stack/library need. Atlas takes
+0.1 design x0.2 and 0.1 impl x0.4; one review takes 0.08 design and 0.2 impl x0.4.
+Familiarity 1.0, design buffer 15%; 0.22*1.15 + 0.52 = 0.773 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.02 impl=0.04
+item: milestone-review design=0.08 impl=0.08
+design-buffer: 0.15
+total: 0.773
+```
+
+### 2026-09-14 — M1 diagnostic implementation
+
+Plan-quality round 2 accepted both findings after named producer/formatter test
+strategies and diagnostic growth limits were recorded. Estimate-quality INFO
+notes the tight test allowance; the 0.773h estimate applies only to M1 and must
+not be compared with all historical #207 time. The review allocation retains
+uncertainty for producer attribution findings, not additional feature design.
+
+Focused baseline passed. New producer tests failed for missing identity,
+replay/reset, lifecycle events and emitted/deferred/error fields, then passed
+with the diagnostic hooks. Existing terminal byte strings and ownership policy
+are preserved. `writeOwn` now returns its observed byte result, ignored by
+non-diagnostic callers. Full verification and M1 review follow before handoff.
+
+Focused diagnostics and race diagnostics passed. Full couchtty passed; couchcmd
+initially failed because the isolated worktree lacked generated embedded runtime
+files. Generated them with `go run ./cmd/internal/runtimebundle/generatecmd -repo .
+-out cmd/internal/runtimebundle/assets/runtime`; these remain ignored artifacts.
+
+### 2026-09-14 — M1 boundary accepted
+
+Mandatory `sdlc milestone-close` review returned SHIP: no Critical/Important
+findings. Resolved the Minor plan-table classification omission in an appended
+consolidated PURE/INTEGRATION table. Reviewer independently reran both package
+and focused race checks successfully. Original recovery acceptance stays M2.
+
+The worktree's default `../brain` gave a telemetry-unavailable refusal.
+`sdlc actual --issue 207 --brain-dir /Users/xianxu/workspace/brain` produced
+1.02h cumulatively; passing that exact measured value let milestone-close
+continue because its automatic measurement did not honor the corrected root.
+This includes historical issue work and may exclude this API subagent segment;
+it must not be interpreted as a measurement of M1 alone or compared to its
+M1-only estimate. No judgment hours were invented.

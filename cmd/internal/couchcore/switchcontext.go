@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -251,12 +252,32 @@ func (c *Couch) ReadOrientationStatus(ctx context.Context, address ThreadAddress
 var errObsoleteOrientationReady = errors.New("orientation ready record belongs to an obsolete target")
 
 type OSOrientationStatusReader struct {
-	DataDir string
-	Session func(ThreadAddress) (PairSessionBinding, error)
-	Proc    ProcOps
+	DataDir        string
+	Session        func(ThreadAddress) (PairSessionBinding, error)
+	SessionContext func(context.Context, ThreadAddress) (PairSessionBinding, error)
+	Proc           ProcOps
 }
 
-func (r OSOrientationStatusReader) readReady(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
+// sessionBinding prefers the cancellable production observer. Session remains
+// compatible with in-memory observers and older embedders.
+func (r OSOrientationStatusReader) sessionBinding(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return PairSessionBinding{}, err
+	}
+	if r.SessionContext != nil {
+		return r.SessionContext(ctx, address)
+	}
+	if r.Session == nil {
+		return PairSessionBinding{}, errors.New("orientation session binding unavailable")
+	}
+	binding, err := r.Session(address)
+	if err == nil {
+		err = ctx.Err()
+	}
+	return binding, err
+}
+
+func (r OSOrientationStatusReader) readReadyFile(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -293,10 +314,15 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 	if ready.Tag != string(address.Tag) || ready.Agent != agent || ready.Nonce != attempt {
 		return nil, errObsoleteOrientationReady
 	}
-	if r.Session == nil {
-		return nil, errors.New("orientation session binding unavailable")
+	return &ready, nil
+}
+
+func (r OSOrientationStatusReader) readReady(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
+	ready, err := r.readReadyFile(ctx, address, agent, attempt)
+	if err != nil || ready == nil {
+		return ready, err
 	}
-	session, err := r.Session(address)
+	session, err := r.sessionBinding(ctx, address)
 	if err != nil {
 		return nil, err
 	}
@@ -309,7 +335,7 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &ready, nil
+	return ready, nil
 }
 
 func (r OSOrientationStatusReader) Read(ctx context.Context, address ThreadAddress, agent, attempt string) (orientation.DeliveryState, error) {
@@ -356,4 +382,30 @@ func retireCaptureHandoff(result *orientation.OrientationContext) error {
 	}
 	result.ReaderIntent = ""
 	return nil
+}
+
+// Generation reads durable attempt correlation even after the target dies.
+// Unlike Registered, it proves provenance, never current process liveness.
+func (r OSOrientationStatusReader) Generation(ctx context.Context, address ThreadAddress, agent, attempt string) (*checkpoint.TargetGeneration, error) {
+	ready, err := r.readReadyFile(ctx, address, agent, attempt)
+	if errors.Is(err, errObsoleteOrientationReady) {
+		return nil, nil
+	}
+	if err != nil || ready == nil {
+		return nil, err
+	}
+	if ready.LaunchOrdinal == 0 {
+		return nil, nil
+	} // legacy receipts prove no generation
+	session, err := r.sessionBinding(ctx, address)
+	if err != nil {
+		return nil, err
+	}
+	if session.Name != ready.Session {
+		return nil, errors.New("continuation target generation has a foreign session")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return &checkpoint.TargetGeneration{Agent: agent, Session: ready.Session, Attempt: attempt, LaunchOrdinal: ready.LaunchOrdinal}, nil
 }

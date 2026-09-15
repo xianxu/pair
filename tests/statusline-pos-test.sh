@@ -58,6 +58,15 @@ local ok, err = pcall(function()
     and review:find('Alt:', 1, true) == nil
     and review:find('queued', 1, true) == nil
   O:write(string.format('%s\treview-compact\n', compact and 'ok' or 'FAIL'))
+  _G._pair_review_segment = nil
+  vim.o.lines = 12
+  _G.PairLayoutSmaller()
+  local minimized = _G.PairStatusline()
+  local click_hint = minimized:find('Click here', 1, true) ~= nil
+    and minimized:find('Alt+↑', 1, true) ~= nil
+    and minimized:find('expand', 1, true) ~= nil
+  O:write(string.format('%s\tminimized-click-first\n', click_hint and 'ok' or 'FAIL'))
+
 end)
 if not ok then O:write('FAIL\tdriver-error: ' .. tostring(err) .. '\n') end
 O:close()

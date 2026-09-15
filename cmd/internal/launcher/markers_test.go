@@ -52,7 +52,7 @@ func TestParseRestartMarker(t *testing.T) {
 func TestSerializeRestartMarkerCarriesSessionID(t *testing.T) {
 	m := RestartMarker{Tag: "demo", Agent: "codex", SessionID: "SID-LIVE"}
 	got := parseRestartMarker(serializeRestartMarker(m))
-	if got != m {
+	if !sameRestartMarker(got, m) {
 		t.Fatalf("round-trip = %+v, want %+v", got, m)
 	}
 }

@@ -135,8 +135,99 @@ argument/result family, effect, confirmation, execution owner, and presentation.
 hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `name`,
-`describe` and `archive` are TUI/in-process operations. `orientation-status` is
+`describe`, `archive`, `recover-thread` and `recover-checkpoint` are TUI/in-process operations. `orientation-status` is
 an internal owner operation for one launch attempt.
+
+Continuation has four internal operations (`pair#249`):
+
+- `request-continuation`, invoked as `couch --internal request-continuation <absolute-path>`, durably accepts the hosted source's exact checkpoint. The inherited scope, tag, agent, session, launch ordinal, and expected digest bind publication to the writer's validated bytes and current source generation. This metadata operation can run in another worktree without becoming a second supervisor.
+- `continue-thread`, invoked in process through `couch --internal continue-thread`'s declared operation, executes or reconciles an accepted request under the live owner.
+- `retry-continuation`, exposed in the switcher's thread actions, reconciles a retained failure. After Couch has exited, `couch --internal retry-continuation <tag>` in the thread's repository acquires the normal singleton lease and opens a Console for recovery. It refuses a competing owner.
+- `continuation-status`, represented by `couch --internal continuation-status`, reconciles the exact launch attempt's orientation receipt under the live owner. The Console supplies the address, request ID, and attempt through the typed operation arguments.
+
+### Stale-thread recovery
+
+`recover-thread` reobserves the selected address and prefers warm attachment to
+an exactly owned detached session. `recover-checkpoint` accepts one absolute
+`path` (4096-byte limit), reads the bounded checkpoint, and starts a new
+conversation through the existing continuation executor. Both use the Console
+operation queue; internal CLI recovery and `archive` acquire the same namespace
+supervisor lease. The CLI resolves their repository scope from the caller.
+
+`RecoveryDecision` is the common UI result shape. The snapshot projection adds
+no refresh IO and offers inspection; execution gathers process-start identity,
+exact session presence and detached ownership again. Unknown/active/ambiguous
+observations and open start/park transactions refuse effects. Settled dead
+helpers retire through `RetireIncarnation`, retaining `LastActiveAt` and never
+fabricating `VerifiedPark`.
+
+Source-gone checkpoint execution records explicit `SourceAbsence` authority,
+including generation/revision proof. Legacy import may omit an unavailable
+retired helper identity, but keeps the original checkpoint bytes, path and
+digest. Actual park and absence authority cannot coexist. Recovery remains a
+fresh conversation, distinct from native parked resume. A prior target's
+attempt-bound readiness generation can authorize retry after that target is
+proved absent; unrelated newer generations refuse admission.
+
+Archive uses the same reconciliation, then checks occupancy before quiescing.
+A final record revision check prevents archiving a concurrently replaced
+request. An empty record may be archived with its pending/failed continuation
+intact; a live source or target cannot. The existing store journal preserves
+the request in the archive and removes only its derived materialized file.
+Disposable helper/session fault fixtures exercise warm recovery, checkpoint
+recovery across worktrees, and the missing-checkpoint archive escape. Real
+operator threads are not fault-injection fixtures.
+
+### Continuation ownership and recovery
+
+The continuation writer commits the document before requesting replacement and
+passes its absolute path plus digest. `checkpoint.Checkpoint` validates a bounded
+256 KiB UTF-8 document and stores its body, original path, and digest. The
+revisioned ThreadRecord embeds one `checkpoint.Request`, including source
+launch generation, request ID, attempt, phase, and process evidence. Repeated
+publication of the same source and digest is idempotent. Warm attachment changes
+the owning helper without changing the native pane's source launch ordinal.
+
+The Console's one lifetime-bound worker observes only its hosted and accepted
+request addresses; it performs no native-session scan on each poll. Accepted
+requests survive removal of their source pane, keeping the recovery panel open
+even when a failure and the last child's exit arrive in either order. The
+existing operation queue owns process effects. Couch parks the exact source,
+materializes the saved body at `continuation/<scope>/<tag>.md` inside its store,
+and starts a fresh conversation through the existing blocked-helper claim and
+registration protocol. The Pair scope and tag stay unchanged, preserving prompt
+history. An unsubmitted checkpoint needs no native conversation binding.
+
+Acceptance is not completion. Registration proves a fresh target exists;
+`complete` requires the matching orientation `submitted` receipt. A failed,
+canceled, or unconfirmed delivery remains recoverable, and text may already be
+present in the target. Retry observes or reattaches an existing matching target
+instead of automatically submitting again. Another fresh attempt requires proof
+that the previous target is absent; unknown ownership refuses. Inspect the
+existing agent and use the available copy-orientation action before manually
+sending text whose delivery is uncertain.
+
+The embedded snapshot remains authoritative if the original file is edited,
+removed, or saved in a sibling worktree. It is retained through failure and
+completion until superseded, and remains in the archived ThreadRecord. Archive
+removes the derived materialized file. Active requests prevent unrelated cold
+resume, agent switching, or relaunch from bypassing their ownership. Explicit
+archive may retain an incomplete request only after proving its source/target
+unoccupied; it never marks an unfinished request complete.
+Hosted inner `pair restart` and address-changing rename routes refuse before
+teardown; use Couch's tracked relaunch or name action. Standalone Pair retains
+its outer restart-loop ownership and draft-seeding workflow.
+
+`make test-couch-zellij-live` exercises continuation seed transport alongside
+real park teardown. A deterministic pane under real Zellij reads the exact
+materialized snapshot from the launch profile's orientation prompt and publishes
+waiting/submitted readiness records. The production reader verifies session,
+agent, tag, attempt, and live PID; registration alone cannot complete the request,
+and deleting the session invalidates its receipt. This fixture uses temporary
+stores and no paid agents. It uses the stateful fake for source parking and the
+blocked launch helper; real composer recognition and actual agent submission
+remain operator smoke tests. The conformance workflow runs on relevant changes
+and weekly.
 
 `relaunch` (`pair#182`) is detailed under **Exit, detach, and terminal
 lifecycle**; the one thing worth knowing at this level is that its commonest
@@ -155,11 +246,10 @@ working set and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json
 manifest in one journal entry, so a crash cannot leave a record in both sets or
 neither. Restoring is that move reversed plus a manifest re-add -- `Snapshot`
 walks the manifest, so a restored file the manifest does not list stays
-invisible. It refuses a LIVE or mid-park thread: archiving a record couch is
+invisible. It refuses a live/unknown helper or an open start/park transaction: archiving a record couch is
 hosting would leave the console owning a thread the store no longer lists, which
-is the stale-incarnation shape by construction. Every other state goes,
-including every unusable reason, because the operator decides a thread is
-finished.
+is the stale-incarnation shape by construction. Exact helper-death proof permits
+reconciliation; unknown ownership still refuses destructive effects.
 
 Park cannot do the stopping and that is why Quiesce does: park drives a
 transaction through `PairLifecycle` and needs a live incarnation, which the
@@ -303,7 +393,7 @@ while a thread is loading.
 
 `ctrl-space` is intercepted before the child sees it. It arrives in TWO
 encodings and both are recognised: the legacy `0x00`, and CSI-u
-`\x1b[32;5u` under the Kitty keyboard protocol, which zellij enables -- so the
+`\x1b[32;5u` under the Kitty keyboard protocol, whose disambiguation Couch maintains -- so the
 legacy byte is the one a real session almost never sends. The interceptor
 returns a SPLIT (bytes for the focus being left, bytes for the focus landed on),
 because a concatenated buffer cannot say which child the tail belongs to. It
@@ -355,10 +445,22 @@ Three edge cases:
   stays, with no takeover. It also shows a notice, because the row never draws
   the active actor's bell, so the acknowledgement alone would be invisible.
 
-The chord is Kitty-only (`newestPageSequence`, `\x1b[13;5u`). In legacy
-encoding ctrl+return is a bare CR, and taking every Return from the child is not
-a trade worth making. Inside the switcher it is unclaimed: the handler feeds the
-chord's own bytes to `DecodePanelKeys`, which makes it the panel's Return.
+The chord uses Kitty keyboard disambiguation (`newestPageSequence`,
+`\x1b[13;5u`); explicit press and repeat forms also jump, while release does
+not. Couch owns the disambiguation flag its shortcuts require (`pair#251`):
+startup, completed active output, and actor/panel takeovers add that flag without
+clearing the child's other flags or pushing stack entries. This survives an
+aged-out startup sequence or replayed reset/pop. Plain Return still reaches the
+agent; an unsupported terminal retains Ctrl+Space then Return as the fallback.
+Inside the switcher the chord retains the panel's Return behavior.
+
+Couch serializes scanner decisions and terminal writes with `terminalMu`,
+acquired before its state mutex. Keyboard assertions wait for complete escape
+framing, including skipped oversized strings, but do not wait for cursor-save
+release: they do not touch the cursor. A takeover releases the output lock before
+requesting a child repaint. Cleanup closes output ownership and clears modes on
+both the current buffer and the main buffer after leaving alternate screen;
+later writes are dropped. The typed-interface enforcement remains #224's scope.
 
 `SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
 slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the
@@ -539,15 +641,15 @@ produce two stories. Ambiguous and legacy-unverified records now appear in both
 views, named rather than hidden. Ephemeral console targets bind only to durable proven-live rows,
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
-available for the refreshed resumable row. The two LIFECYCLE chords read as a
-2x2 (Alt+n is a third intercepted chord and deliberately not part of this grid;
-see **Alt+n is Couch's own relaunch** below): the KEY chooses the disposition (Alt+x parks, Alt+d detaches) and the
-SURFACE chooses the scope (an actor means that thread, the switcher means every
-live thread and then leaving). Alt+x on the switcher therefore opens the typed
-`leave` confirmation in its park disposition, parks every live thread
-sequentially, and closes the console only after durable success and exact
-Pair-child death; Alt+d there does the same sweep with detach and no
-confirmation. Confirmation rides the disposition, not the scope.
+available for the refreshed resumable row. Lifecycle shortcuts are panel-only
+(#245): Alt+x opens the typed `leave` confirmation in its park disposition;
+Alt+d performs the detach sweep without confirmation. Individual thread actions
+remain in the switcher. While an actor is displayed, those raw chords reach
+Zellij and the receiving pane. No inner-pane focus cache or key-time query exists.
+The agent consumes only Shift+Alt+T/Left/Right; Couch consumes its three navigation
+chords. `Interceptor` frames candidates, then Console routes the preceding bytes
+before resolving focus and authorizing or forwarding the raw candidate. This
+preserves ordering when a read contains navigation followed by a lifecycle key.
 That confirmation is a **global frame** -- `menuFrameBindsThread` is false for
 it -- because it names couch rather than a thread. It used to ride the root
 actor's live address, so five thread lookups passed by accident; one of them,
@@ -622,30 +724,16 @@ recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
 same-address/same-nonce overlap shares one future, while other work overloads
 without lifecycle effects.
 
-**Alt+n is Couch's own relaunch** (`pair#182`), and it is the THIRD intercepted
-chord — the lifecycle grid above covers only Alt+x and Alt+d, which is why this
-one is easy to miss. It is intercepted for a sharper reason than they are:
-un-intercepted, Pair handles Alt+n INSIDE the process couch spawned, re-entering
-its loop in the same process image, so the binary in memory is still the old one
-and a rebuilt Pair is not what comes back. For Pair development that is worse
-than not working, because it looks like it worked. `Ctrl+Alt+n` aliases it and is
-not a nicety — on newer macOS Option+n is a dead-tilde composer. `Alt+Shift+N` is
-deliberately NOT taken: it restarts the conversation and keeps the code, the
-exact inverse, and it stays the cheap in-session escape hatch.
+**Alt+n / Ctrl+Alt+n relaunch the highlighted switcher row** (`pair#182`,
+`pair#245`). Couch replaces the helper with the current binary and keeps the
+conversation. While a Pair pane is displayed these chords pass inward: the agent
+receives input; other panes retain Pair's existing in-process reload. There is
+no whole-Couch relaunch; leave the switcher, rebuild and run Couch again.
 
-Alt+n does not follow the lifecycle grid's scope rule, and the deviation is the
-point rather than an oversight: there is no whole-couch relaunch (that is Alt+d,
-rebuild, re-run couch), so from the switcher it relaunches the HIGHLIGHTED ROW.
-From an actor it relaunches that actor and leaves the operator in the SWITCHER,
-not on the actor, because until a pane can outlive its child there is no actor
-surface to stay on — the child is being replaced. Ending on the actor is
-`pair#186`.
-
-**Alt+d is Couch's own detach** (`pair#170`), intercepted like Alt+x and for the
-same reason: un-intercepted, Pair's `PairConfirmDetach` runs `zellij action
-detach` from inside the session, leaving Couch with a dead child and a stale live
-incarnation that the fail-closed projection hides -- the operator's safest
-gesture would make the thread disappear. Detach is park's WARM counterpart:
+**Detach is available in the switcher** (`pair#170`, `pair#245`). Alt+d there
+detaches all live threads; a thread's Detach action operates on that thread.
+Use this route for durable Couch retirement. Pair's own draft/right-pane detach
+only detaches its Zellij client. Detach is park's warm counterpart:
 `Couch.Detach` SIGTERMs the actor's process group (never SIGKILL -- it does not
 reuse `handleCleanup`, whose own comment calls that path rollback rather than
 graceful shutdown), waits bounded for exit, proves the zellij session is still
@@ -740,11 +828,12 @@ one name -- and the projector's detached branch requires ZERO incarnations, whic
 is what keeps a crashed Couch's stale `IncarnationLive` from masquerading as a
 clean detach. `DetachedSessions` takes **candidates** rather than returning the
 whole set, because the session-name index is per repo scope. Each candidate
-carries the resume proof its caller already resolved (agent + native id) and the
-observation carries it back, so `detachedResumeProofMatches` — the pure twin of
-`parkedResumeProofMatches` — enforces it in the projector rather than trusting
-the shell. The inventory passes only candidates (no incarnation, no verified
-park, a saved profile, an established binding), which bounds
+carries its address and saved agent profile; the observation adds its uniquely
+owned live client-free session name. `detachedResumeProofMatches` is shared by
+inventory, resume execution and its post-claim recheck (`pair#248`). None of
+these warm paths resolves or requires a native conversation binding. The
+inventory passes only candidates (no incarnation, no verified park, a usable
+saved profile and working path), which bounds
 *whether* the zellij snapshot runs -- a couch with nothing detachable pays
 nothing -- and, since `pair#228`, its fan-out too: two `list-sessions` runs plus
 one `action list-clients` per *candidate* session, not per session on the host.
@@ -882,7 +971,7 @@ addresses a thread without decoding it so the gesture reaches the one record
 class that most needs it. But archiving one never stops its session: the guard
 that proves a thread is not live needs a decoded record, so quiescing would kill
 an agent on the strength of a record couch just failed to read. The archive
-returns an `UnreadableArchiveWarning` saying so.
+returns `ArchiveResult.Warning()` saying so.
 
 Both projections take one `ThreadProjectionInput` (records + evidence +
 unreadable). The three used to travel separately with the unreadable set as a
@@ -914,32 +1003,29 @@ last segment, else the tag. `DisambiguateLabels` appends the tag's tail to
 labels that collide, computed over the whole inventory rather than the filtered
 view so a name does not change as the operator types.
 
-Two neighbouring states are deliberately never SELECTED, though both are now
+Automatic startup never adopts two neighbouring states, though both are
 listed. A session **attached elsewhere** yields no detached observation, so
-couch cannot steal it. A **stale `IncarnationLive` from a crashed couch** shows
-as `unusable/stale-incarnation` and is not selectable, so startup creates a new
-thread; automatic reconciliation is the gap `pair#171` owns, and archive is the
-manual out.
+couch cannot steal it. A **stale `IncarnationLive` whose helper is no longer hosted** shows
+as `unusable/stale-incarnation`. The label makes no claim that the supervisor
+died. Explicit recovery rechecks helper/session ownership before effects
+(`pair#250`); startup does not infer a dead agent from that row.
 
-**The native-binding gate no longer hides a row, and no longer applies to the
-warm path at all** (`pair#181`). It once did both: `ActionableThreadInventoryContext`
-dropped every candidate whose binding was not one exact established root, and
-`DecideResume` demanded that binding for detached threads too. The reasoning was
-sound and the conclusion was wrong. Startup has NO fallback by design
-(`pair#167`), so a Resume refusal stops `couch` rather than starting something
-else, and the invariant that makes that safe is *a row the inventory offers is
-one resume can take* — but the gate enforced it by making the row VANISH, and
-the native session id it demanded is the COLD path's proof, which a warm
-reattach never consumes.
+**Warm attachment and cold conversation resume use different evidence**
+(`pair#248`). Warm access requires the surviving session; cold resume requires
+the established native conversation binding. Warm success does not establish
+that binding or promise transcript-dependent recovery. Foreground Enter and
+startup preserve the selected detached row's intent with `WarmOnly`, as the
+background pass already does. If the row becomes parked before execution, the
+attempt refuses instead of creating a cold replacement. The final recheck
+requires the same session name as the initial execution proof, then existing
+tracked-start registration and cleanup deliver the helper to Console. Failed
+warm starts never quiesce a session they did not create.
 
-The atlas recorded the fork before it was taken: "The alternative — list it,
-refuse its `Enter` with the diagnostic, and gate only startup selection — was
-not weighed when the gate was written; it is the fork to revisit if an operator
-hits this." The operator hit it. That alternative is what `pair#181` built: the
-row is listed as `binding lost — repairable`, `Enter` explains, and
-`SelectResumableRoot` never offers it because only proven states rank. A
-detached thread whose binding degrades is now visible with its reason instead of
-being a live agent nothing mentions.
+Zellij snapshot queries have a five-second per-query timeout. Query failures
+propagate as errors, leaving inventory unknown and preventing execution; a
+failed client count cannot become proof of zero clients. The exact Zellij
+empty-inventory diagnostic remains an empty result. Contradictory warm proof
+reports unknown, while binding-lost describes missing cold conversation proof.
 
 Parked and detached candidates are physicalized alike, which the selector
 depends on rather than merely benefits from: it compares paths by exact string,
@@ -1050,8 +1136,8 @@ The child receives `COUCH_TREE`, `COUCH_STORE_DIR`, `COUCH_THREAD_SCOPE`, and
 `COUCH_THREAD_TAG`, and launches as `pair resume <opaque-tag> --<couch's
 layout>`.
 
-`COUCH_INPUT_TRACE=<path>` (`pair#182`) is one of the two env vars couch reads
-for ITSELF rather than passing down (the other is `COUCH_TRACE`, below): it appends every operator keystroke couch
+`COUCH_INPUT_TRACE=<path>` (`pair#182`) is an env var couch reads
+for ITSELF rather than passing down: it appends every operator keystroke couch
 receives to that file. It exists because "the chord had no effect" has two
 indistinguishable causes — couch consumed it and dispatched nothing, or the
 terminal never sent the bytes couch watches for — and only the wire separates
@@ -1079,7 +1165,7 @@ The events:
 - `reattach-done`, with `ok`, a resume diagnostic code, or `error`.
 
 Unlike the keystroke trace, it records addresses, counts and timings, never
-content. Both traces write through one `traceFile` (`trace.go`): opened 0600,
+content. The traces write through one `traceFile` (`trace.go`): opened 0600,
 at a path the composition root passes in, and reported on the status row when
 it cannot open. `PAIR_PROBE_SAMPLE_SECS=N make test-reattach-cost` samples
 `zellij action` latency and prints its window in unix ms, so the sampler's
@@ -1308,3 +1394,32 @@ scope event in `workshop/projects/couch.md`.
 
 Ariadne #200's normalized policy provider is implemented and consumed at the
 #149 M1 boundary.
+
+
+### Mouse diagnostic trace (#207 M1)
+
+`COUCH_MOUSE_TRACE=<path>` enables the opt-in `mouseTracer` in
+`cmd/internal/couchtty/mousetrace.go`. Its `<unix-ms>\t<event>\t<detail>` records
+cover live `child-mode` changes, every `takeover` (including scanner reset and
+empty/panel replay), `assert-clicks` with startup/paint source, and `cleanup`.
+Each carries active handle, actor and durable thread identity when attached,
+plus actor/panel surface. Takeover also names its target handle (or panel).
+Free-form fields are quoted and truncated after 128 bytes with an ellipsis.
+
+`scanner-before`, `scanner-reset`, and `scanner-after` are Couch's scanner
+beliefs, never terminal queries. Couch's own assertions still do not update
+that scanner. `outcome=emitted` means the complete Write was accepted with no
+error; `deferred` means the existing paint gate wrote no bytes; `short-write`
+and `error` carry accepted/requested counts and quoted errors. A deferred
+attempt is not queued byte delivery: a later repaint produces another attempt.
+Mode scanning retains its existing behavior even when a host write fails.
+Snapshots precede IO, so changing active thread during a blocked write does
+not relabel that attempt. These records do not establish ordering among
+concurrent writers or prove what the terminal applied.
+
+The file uses the existing 0600 append sink and Console teardown closes it.
+No child body, replay content or keystrokes are logged. Records stay below
+4 KiB (normally below 1 KiB); at ten events/s, a 15-minute diagnostic capture
+normally costs less than 9 MiB. The existing sink has no rotation or size cap;
+the operator disables tracing and removes the temporary capture after diagnosis.
+This instrumentation preserves mouse policy and does not fix #207 recovery.

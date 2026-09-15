@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
@@ -52,6 +53,7 @@ type ThreadIncarnation struct {
 }
 
 type ThreadRecord struct {
+	Continuation        *checkpoint.Request `json:"continuation,omitempty"`
 	SchemaVersion       int                 `json:"schema_version"`
 	Address             ThreadAddress       `json:"address"`
 	StartingPath        string              `json:"starting_path"`
@@ -109,6 +111,10 @@ func toPersistedThreadRecord(record ThreadRecord) threadrecord.Record {
 		Layout:       string(record.Layout),
 		Incarnations: make([]threadrecord.Incarnation, len(record.Incarnations)),
 	}
+	if record.Continuation != nil {
+		request := record.Continuation.Clone()
+		out.Continuation = &request
+	}
 	if record.LatestLaunchProfile != nil {
 		profile := cloneLaunchProfile(*record.LatestLaunchProfile)
 		out.LatestLaunchProfile = &threadrecord.LaunchProfile{Agent: profile.Agent, Argv: profile.Argv}
@@ -163,6 +169,10 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 		Name: record.Name, Description: record.Description, PublishedSummary: record.PublishedSummary,
 		Layout:       Layout(record.Layout),
 		Incarnations: make([]ThreadIncarnation, len(record.Incarnations)),
+	}
+	if record.Continuation != nil {
+		request := record.Continuation.Clone()
+		out.Continuation = &request
 	}
 	if record.LatestLaunchProfile != nil {
 		profile := LaunchProfile{Agent: record.LatestLaunchProfile.Agent, Argv: cloneArgv(record.LatestLaunchProfile.Argv)}
@@ -223,6 +233,10 @@ func fromPersistedThreadRecord(record threadrecord.Record) ThreadRecord {
 
 func cloneThreadRecord(record ThreadRecord) ThreadRecord {
 	copy := record
+	if record.Continuation != nil {
+		request := record.Continuation.Clone()
+		copy.Continuation = &request
+	}
 	copy.Incarnations = append([]ThreadIncarnation{}, record.Incarnations...)
 	for i := range copy.Incarnations {
 		if record.Incarnations[i].Start != nil {
@@ -340,6 +354,8 @@ func deprecatedPolicyRepoIdentity(raw json.RawMessage) string {
 // matches what resume refuses for the same reason: an occupied thread is one
 // something else is still doing something to.
 func archivableRecord(record ThreadRecord) error {
+	// Explicit archive retains an incomplete request and its checkpoint.
+	// Occupancy, not delivery completion, determines whether the row can leave.
 	if record.Park != nil {
 		return fmt.Errorf("thread %s has a park in flight; let it finish before archiving", record.Address.Tag)
 	}

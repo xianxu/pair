@@ -87,6 +87,9 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 		return refused, err
 	}
 
+	if err := continuationGuard(thread); err != nil {
+		return refused, err
+	}
 	// Park's own precondition, asked first because its failure is the one that
 	// would otherwise surface after Pair had been told to quit.
 	//
@@ -124,7 +127,7 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 	}
 
 	// Only now is anything destroyed.
-	if _, err := c.PairLifecycle.Park(ctx, address); err != nil {
+	if _, err := c.PairLifecycle.ParkExpected(ctx, address, thread.Revision); err != nil {
 		return RelaunchResult{Outcome: ParkIncomplete}, fmt.Errorf(
 			"relaunch %s: the park did not complete, so its Pair was stopped but the thread is not resumable yet: %w\n"+
 				"  the transaction is still open; recover it with park's own modes:\n"+

@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -285,5 +286,86 @@ func TestOrientationCaptureHasRecoverableReaderHandoff(t *testing.T) {
 	state, err = c.ReadOwner(*result.Owner)
 	if err != nil || len(state.Intents) != 0 {
 		t.Fatalf("superseded handoff stranded: %+v %v", state, err)
+	}
+}
+
+func TestContinuationGenerationReceiptSurvivesTargetDeath(t *testing.T) {
+	record := verifiedResumeThread(t)
+	data := t.TempDir()
+	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
+	path, _ := paths.AgentReadyChecked("codex")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	ready := readiness.ReadyRecord{Tag: string(record.Address.Tag), Agent: "codex", Session: "exact-session", Nonce: "attempt", PID: 42, LaunchOrdinal: 17}
+	raw, err := readiness.Encode(ready)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	reader := OSOrientationStatusReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
+		return PairSessionBinding{Name: "exact-session", Present: false}, nil
+	}, Proc: NewFakeProcOps()}
+	generation, err := reader.Generation(context.Background(), record.Address, "codex", "attempt")
+	if err != nil || generation == nil || generation.LaunchOrdinal != 17 || generation.Attempt != "attempt" {
+		t.Fatalf("lost durable correlation: %+v %v", generation, err)
+	}
+	registered, err := reader.Registered(context.Background(), record.Address, "codex", "attempt")
+	if err != nil || registered {
+		t.Fatalf("dead receipt became live proof: %v %v", registered, err)
+	}
+	foreign, err := reader.Generation(context.Background(), record.Address, "codex", "obsolete")
+	if err != nil || foreign != nil {
+		t.Fatalf("foreign attempt correlated: %+v %v", foreign, err)
+	}
+}
+
+func TestOrientationSessionObservationHonorsCallerDeadline(t *testing.T) {
+	for _, operation := range []string{"generation", "registered", "read"} {
+		t.Run(operation, func(t *testing.T) {
+			record := verifiedResumeThread(t)
+			data := t.TempDir()
+			paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
+			path, _ := paths.AgentReadyChecked("codex")
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			raw, err := readiness.Encode(readiness.ReadyRecord{Tag: string(record.Address.Tag), Agent: "codex", Session: "exact-session", Nonce: "attempt", PID: 42, LaunchOrdinal: 17})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+			observed := false
+			reader := OSOrientationStatusReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
+				t.Fatal("legacy observer bypassed caller context")
+				return PairSessionBinding{}, nil
+			}, SessionContext: func(got context.Context, _ ThreadAddress) (PairSessionBinding, error) {
+				observed = true
+				wantDeadline, _ := ctx.Deadline()
+				gotDeadline, _ := got.Deadline()
+				if !gotDeadline.Equal(wantDeadline) {
+					t.Fatalf("deadline lost: %v want %v", gotDeadline, wantDeadline)
+				}
+				<-got.Done()
+				return PairSessionBinding{}, got.Err()
+			}}
+			switch operation {
+			case "generation":
+				_, err = reader.Generation(ctx, record.Address, "codex", "attempt")
+			case "registered":
+				_, err = reader.Registered(ctx, record.Address, "codex", "attempt")
+			case "read":
+				_, err = reader.Read(ctx, record.Address, "codex", "attempt")
+			}
+			if !observed || !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("observed=%v err=%v", observed, err)
+			}
+		})
 	}
 }

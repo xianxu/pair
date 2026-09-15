@@ -91,7 +91,7 @@ func (r ThreadReason) Label() string {
 	case ReasonBindingLost:
 		return "binding lost — repairable"
 	case ReasonStaleIncarnation:
-		return "stale — couch exited unexpectedly"
+		return "stale — helper ownership unresolved"
 	case ReasonUnrecordedChild:
 		return "running but unrecorded"
 	case ReasonSessionGone:

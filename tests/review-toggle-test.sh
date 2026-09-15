@@ -276,7 +276,7 @@ grep -Fq 'bind "Alt r" { Write 27; Write 114; }' "$ROOT/zellij/config.kdl" \
 grep -Eq '^[[:space:]]*bind "Alt r"[^{]*\\{.*(RenameTab|TabNameInput|NewTab)' "$ROOT/zellij/config.kdl" \
   && fail "Alt+r still globally owns tab behavior" \
   || pass "Alt+r has no global tab action"
-grep -q 'unbind "Alt o"' "$ROOT/zellij/config.kdl" && pass "Alt+o default zellij tab-move disabled" || fail "Alt+o still captured by zellij"
+grep -q '^keybinds clear-defaults=true' "$ROOT/zellij/config.kdl" && pass "Alt+o default zellij tab-move disabled" || fail "Alt+o still captured by zellij"
 grep -q 'Run "pair-review-toggle"' "$ROOT/zellij/config.kdl" && fail "Alt+c still spawns the old toggle pane" || pass "old pair-review-toggle pane gone"
 grep -Fq 'bind "Alt x" { WriteChars "\u{1b}[120;3u"; }' "$ROOT/zellij/config.kdl" \
   && pass "Alt+x forwards to focused process for local routing" \

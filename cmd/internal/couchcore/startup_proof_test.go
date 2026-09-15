@@ -68,8 +68,8 @@ func detachedThreadAt(t *testing.T, env *testEnv, path, suffix string) ThreadAdd
 	name := "pair-" + string(created.Address.Tag)
 	env.Artifacts.SetDetachedSession(created.Address, name)
 	env.Artifacts.SetPairSession(created.Address, name, true)
-	// The inventory's detached proof needs a native id, so without this every
-	// row reads binding-lost and the fixture would test nothing.
+	// A binding is seeded for tests that later park this thread; warm startup
+	// must not consult it.
 	env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-"+suffix)
 	return created.Address
 }
@@ -116,10 +116,9 @@ func TestStartupProvesOnlyTheThreadsItsReadersConsume(t *testing.T) {
 			if got := env.Artifacts.DetachedCandidatesAsked(); got != 3 {
 				t.Fatalf("detached candidates = %d, want 3 regardless of the other %d threads", got, others)
 			}
-			// And the ledger reads: the cwd thread is the only resume-shaped
-			// record startup resolves a binding for.
-			if got := env.Artifacts.BindingResolutions(); got != 1 {
-				t.Fatalf("binding resolutions = %d, want 1: each reads a thread's own ledger", got)
+			// Warm startup performs no native ledger resolution.
+			if got := env.Artifacts.BindingResolutions(); got != 0 {
+				t.Fatalf("binding resolutions = %d, want 0: warm attachment reads no native ledger", got)
 			}
 			// And the startup actually resumed the cwd thread, rather than the
 			// counts coming out right because nothing at the cwd was found.
@@ -131,6 +130,48 @@ func TestStartupProvesOnlyTheThreadsItsReadersConsume(t *testing.T) {
 				t.Fatalf("cwd thread = %+v, want it resumed: a narrowing that matched nothing would still produce low counts", current)
 			}
 		})
+	}
+}
+
+// Capture the actual session snapshot, then complete a park before startup
+// consumes it. Returning the captured evidence reproduces stale selection
+// deterministically without adding a production scheduling hook.
+type parkAfterSnapshotArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+	after func()
+}
+
+func (a *parkAfterSnapshotArtifacts) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
+	observed, err := a.FakeThreadArtifactCollisionChecker.DetachedSessions(ctx, candidates)
+	if a.after != nil {
+		after := a.after
+		a.after = nil
+		after()
+	}
+	return observed, err
+}
+
+func TestStartupWarmSelectionCannotBecomeColdResume(t *testing.T) {
+	env, address := startupFixture(t, 0, "")
+	var parked ThreadRecord
+	env.Couch.Artifacts = &parkAfterSnapshotArtifacts{
+		FakeThreadArtifactCollisionChecker: env.Artifacts,
+		after: func() {
+			parkThread(t, env, address)
+			var err error
+			parked, err = env.Couch.Threads.GetThread(address)
+			if err != nil {
+				t.Fatal(err)
+			}
+		},
+	}
+	_, err := env.Couch.StartInteractive(t.Context(), StartArgs{Worktree: "/repo"})
+	if ResumeDiagnosticOf(err) != ResumeNotDetached {
+		t.Fatalf("stale warm selection = %v; want warm-only refusal", err)
+	}
+	current, err := env.Couch.Threads.GetThread(address)
+	if err != nil || current.Revision != parked.Revision || len(env.Runner.Ops) != 0 || env.Artifacts.BindingResolutions() != 0 {
+		t.Fatalf("stale warm selection had effects: revision=%d want=%d ops=%v bindings=%d err=%v", current.Revision, parked.Revision, env.Runner.Ops, env.Artifacts.BindingResolutions(), err)
 	}
 }
 
@@ -323,12 +364,12 @@ func TestStartupDoesNotProveAForeignScopeRecordAtTheCwdPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	before := env.Artifacts.BindingResolutions()
+	before := env.Artifacts.DetachedCandidatesAsked()
 	if _, err := env.Couch.startupInventory(context.Background(), cwdScope.Key, "/repo"); err != nil {
 		t.Fatal(err)
 	}
 	// The two in-scope threads at /repo are proved; the foreign-scope one is not.
-	if got := env.Artifacts.BindingResolutions() - before; got != 2 {
-		t.Fatalf("binding resolutions = %d, want 2: the foreign-scope record at the same path is consulted by nobody", got)
+	if got := env.Artifacts.DetachedCandidatesAsked() - before; got != 2 {
+		t.Fatalf("detached candidates = %d, want 2: the foreign-scope record at the same path is consulted by nobody", got)
 	}
 }

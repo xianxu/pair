@@ -38,3 +38,22 @@ func TestReadyRecordRejectsIncompleteOrMalformedInput(t *testing.T) {
 		})
 	}
 }
+
+func TestReadyRecordCarriesExactLaunchOrdinal(t *testing.T) {
+	const raw = `{"tag":"work","agent":"codex","session":"pair-work","nonce":"attempt","pid":123,"launch_ordinal":17}`
+	record, err := Decode(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.LaunchOrdinal != 17 {
+		t.Fatalf("ordinal = %d", record.LaunchOrdinal)
+	}
+	encoded, err := Encode(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	again, err := Decode(encoded)
+	if err != nil || again.LaunchOrdinal != 17 {
+		t.Fatalf("round trip = %+v %v", again, err)
+	}
+}

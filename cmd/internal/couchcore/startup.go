@@ -201,7 +201,14 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 		return StartResult{}, layoutConflictRefusal(c.Layout, conflicts)
 	}
 	if address, ok := SelectResumableRoot(rows, scope.Key, resolution.CanonicalPath); ok {
-		record, handle, resumeErr := c.ResumeContext(ctx, address)
+		opts := ResumeOptions{}
+		for _, row := range rows {
+			if row.Address == address {
+				opts.WarmOnly = row.Detached()
+				break
+			}
+		}
+		record, handle, resumeErr := c.ResumeContextWith(ctx, address, opts)
 		return StartResult{Record: record, Handle: handle}, startupResumeRefusal(address, resumeErr)
 	}
 	record, handle, err := c.spawnResolved(ctx, resolution, rows)

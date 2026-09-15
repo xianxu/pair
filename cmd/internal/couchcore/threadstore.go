@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -472,6 +473,12 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 		return ThreadRecord{}, errors.New("start claim has no repository identity")
 	}
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.Continuation != nil && next.Continuation.Phase != checkpoint.Complete {
+			allowedFresh := event.Shape == StartFreshExisting && next.Continuation.Phase == checkpoint.Running && event.Nonce == next.Continuation.Attempt
+			if !allowedFresh && event.Shape != StartWarmReattach {
+				return continuationGuard(*next)
+			}
+		}
 		if len(next.Incarnations) != 0 {
 			return fmt.Errorf("thread %+v already has %d incarnation(s)", address, len(next.Incarnations))
 		}
@@ -1017,6 +1024,18 @@ func (s *ThreadStore) archivePath(address ThreadAddress) string {
 // producing. Everything else goes: parked, detached and every unusable reason,
 // because the operator is the one who decides a thread is finished.
 func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
+	return s.archiveThread(address, nil)
+}
+
+// ArchiveThreadExpected preserves the exact record inspected before external
+// session effects. A concurrently published request must not be archived by an
+// older action merely because the newer record is also unoccupied. Revision
+// zero represents an unreadable observation and refuses a newly readable record.
+func (s *ThreadStore) ArchiveThreadExpected(address ThreadAddress, revision uint64) error {
+	return s.archiveThread(address, &revision)
+}
+
+func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64) error {
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
@@ -1041,6 +1060,14 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 		// before any effect, because by the time the store refuses, a quiesce
 		// would already have happened.
 		record, decodeErr := s.decodeThreadRaw(address, raw)
+		if expectedRevision != nil {
+			if decodeErr != nil && *expectedRevision != 0 {
+				return decodeErr
+			}
+			if decodeErr == nil && record.Revision != *expectedRevision {
+				return &ThreadRevisionError{Address: address, Want: *expectedRevision, Got: record.Revision}
+			}
+		}
 		if decodeErr == nil {
 			if err := archivableRecord(record); err != nil {
 				return err
@@ -1064,12 +1091,20 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 		expectedRecord := append([]byte{}, raw...)
 		expectedManifest := append([]byte{}, manifestRaw...)
 		afterManifest := append(nextRaw, '\n')
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+		entries := []storeJournalEntry{
 			{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
 			{Path: relativeStorePath(s.root, s.archiveGracePath(address)), After: &grace},
 			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
-		}})
+		}
+		// Snapshot bytes are already preserved by the first journal entry.
+		// Removing the sole derived file is part of the same recoverable commit.
+		if snapshot, exists, err := readOptionalFile(s.continuationPath(address)); err != nil {
+			return err
+		} else if exists {
+			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.continuationPath(address)), Expected: &snapshot})
+		}
+		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: entries})
 	})
 }
 
@@ -1118,4 +1153,17 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 		return records[i].Address.Tag < records[j].Address.Tag
 	})
 	return records, nil
+}
+
+// ReconcileRegisteredTarget persists the owned retirement transition at the
+// exact revision whose receipt, helper identity and session were observed.
+func (s *ThreadStore) ReconcileRegisteredTarget(address ThreadAddress, expectedRevision uint64, proof RegisteredTargetProof) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		reconciled, err := ReconcileRegisteredTarget(*next, proof)
+		if err != nil {
+			return err
+		}
+		*next = reconciled
+		return nil
+	})
 }

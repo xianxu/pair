@@ -65,3 +65,9 @@ func TestEveryReasonHasADistinctOperatorLabel(t *testing.T) {
 		seen[label] = reason
 	}
 }
+
+func TestStaleLabelDoesNotClaimSupervisorDied(t *testing.T) {
+	if got := ReasonStaleIncarnation.Label(); got != "stale — helper ownership unresolved" {
+		t.Fatalf("stale diagnosis overclaims supervisor death: %q", got)
+	}
+}

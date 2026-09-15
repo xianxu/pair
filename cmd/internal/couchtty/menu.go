@@ -2,10 +2,12 @@ package couchtty
 
 import (
 	"errors"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 )
@@ -186,6 +188,10 @@ type MenuState struct {
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
 	PanelOrigin bool
+	// ContinuationID correlates durable automatic work without routing it
+	// through the reattachment pass. PreserveFocus controls child adoption.
+	ContinuationID string
+	PreserveFocus  bool
 	// Manual suppresses the attention capture, so the landing is classified
 	// arrivalOrdinary even on a paging actor. A click is always a manual switch;
 	// Enter on a paging actor is not.
@@ -664,6 +670,9 @@ func pastParticiple(operation string) string {
 // One authority, because a click must take Enter's rule rather than a restatement
 // of it -- the restatement had already diverged on its first day (pair#172).
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
+	if thread.State == couchcore.ThreadUnusable && thread.Recovery != nil && thread.Recovery.Recover {
+		return "recover-thread"
+	}
 	if thread.Resumable() {
 		return "resume"
 	}
@@ -705,7 +714,7 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			return state, []MenuEffect{{CopyOrientation: &request}}
 		case "switch-agent":
 			return openSwitchAgent(state, thread.Address)
-		case "name", "describe":
+		case "name", "describe", "recover-checkpoint":
 			// The genuine special case: these collect text before they can run,
 			// which no declaration expresses.
 			appendMenuFrame(&state, MenuFrame{
@@ -777,6 +786,7 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		}
 		confirms, _ := couchcore.OperationConfirms(frame.Action)
 		if frame.SelectedItem != frame.Action || !confirms ||
+			(binds && frame.Action == "archive" && !containsMenuItem(menuActionItems(thread), "archive")) ||
 			(binds && frame.Action != "archive" && !thread.Live()) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
@@ -823,6 +833,17 @@ func reduceTextKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		if frame.Action == "describe" {
 			args["description"] = frame.Input
 			return dispatchMenuOperation(state, MenuEffect{Operation: "describe", Args: args}, thread.Address)
+		}
+		if frame.Action == "recover-checkpoint" {
+			if thread.Recovery == nil || !thread.Recovery.FromCheckpoint {
+				return discardThreadFrames(state, frame.Thread, "checkpoint recovery is no longer available"), nil
+			}
+			if !filepath.IsAbs(frame.Input) || len(frame.Input) > menuTextLimit {
+				state.Notice = errorMenuNotice("enter an absolute checkpoint path (up to 4096 bytes)")
+				return state, nil
+			}
+			args["path"] = frame.Input
+			return dispatchMenuOperation(state, MenuEffect{Operation: "recover-checkpoint", Args: args}, thread.Address)
 		}
 	}
 	return state, nil
@@ -1138,6 +1159,9 @@ func startMenuEffect(frame MenuFrame) MenuEffect {
 // menuThreadActionable is the one place the menu asks whether a row can be
 // acted on, so the Enter rule and the action list cannot disagree about it.
 func menuThreadActionable(thread couchcore.ActionableThreadSummary) bool {
+	if thread.State == couchcore.ThreadUnusable && thread.Recovery != nil && thread.Recovery.Recover {
+		return true
+	}
 	switch thread.State {
 	case couchcore.ThreadLive, couchcore.ThreadParked, couchcore.ThreadDetached:
 		return true
@@ -1150,15 +1174,18 @@ func menuThreadActionable(thread couchcore.ActionableThreadSummary) bool {
 // still running, couch just lost the pointer" and "this is over" call for very
 // different reactions.
 func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
+	if thread.Recovery != nil && thread.Recovery.Diagnosis != "" {
+		return thread.Recovery.Diagnosis
+	}
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:
-		return "its resume binding was lost; the session may still be running (pair#168)"
+		return "its native conversation binding is unavailable; cold resume requires a verified binding"
 	case couchcore.ReasonStaleIncarnation:
-		return "couch exited without detaching it; its state needs reconciling (pair#171)"
+		return "the recorded helper is not hosted here; inspect its process and session before recovery"
 	case couchcore.ReasonUnrecordedChild:
 		return "a child is running that this thread's record does not know about"
 	case couchcore.ReasonSessionGone:
-		return "nothing left to resume"
+		return "the session is gone; recover from a saved checkpoint or archive"
 	case couchcore.ReasonNeverStarted:
 		return "it never started"
 	case couchcore.ReasonInvalid:
@@ -1186,6 +1213,28 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 // the switcher. A guard must be able to fail, and production must not coerce its
 // input into agreement. The test reads this function and compares.
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
+	if recovery := thread.Recovery; recovery != nil && (thread.State == couchcore.ThreadUnusable || (thread.Continuation != nil && thread.Continuation.Phase != checkpoint.Complete)) {
+		items := []string{}
+		if recovery.Recover {
+			items = append(items, "recover-thread")
+		}
+		if request := thread.Continuation; request != nil && (request.Phase == checkpoint.Failed || request.Phase == checkpoint.Running) {
+			items = append(items, "retry-continuation")
+		}
+		if recovery.FromCheckpoint {
+			items = append(items, "recover-checkpoint")
+		}
+		if recovery.Archive {
+			items = append(items, "archive")
+		}
+		return append(items, "name", "describe")
+	}
+	if request := thread.Continuation; request != nil && request.Phase != checkpoint.Complete {
+		if request.Phase == checkpoint.Failed || request.Phase == checkpoint.Running {
+			return []string{"retry-continuation", "name", "describe"}
+		}
+		return []string{"name", "describe"}
+	}
 	if thread.State == couchcore.ThreadBusy {
 		// Something else is still acting on this thread. Offering archive here
 		// would file a record mid-park -- the store refuses it, so the offer is
@@ -1276,6 +1325,12 @@ func filterMenuItems(items []string, query string) []string {
 }
 
 func menuItemLabel(item string) string {
+	if item == "recover-thread" {
+		return "Recover session or retained checkpoint"
+	}
+	if item == "recover-checkpoint" {
+		return "Recover from checkpoint · new conversation"
+	}
 	if item == "switch-agent" {
 		return "switch coding agent"
 	}
@@ -1462,6 +1517,7 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			operationInFlight := state.InFlight.Operation == frame.Action && state.InFlight.Address == frame.Thread
 			confirms, _ := couchcore.OperationConfirms(frame.Action)
 			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) || !confirms ||
+				(frame.Action == "archive" && !operationInFlight && !containsMenuItem(menuActionItems(thread), "archive")) ||
 				(frame.Action != "archive" && !operationInFlight && !thread.Live()) {
 				invalidThreadFrame = true
 				setBookkeepingNotice(&state, "thread action is no longer applicable")
@@ -1474,7 +1530,12 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 				continue
 			}
 		case MenuFrameText:
-			if bound != frame.Thread || (frame.Action != "name" && frame.Action != "describe") {
+			textAllowed := frame.Action == "name" || frame.Action == "describe"
+			if frame.Action == "recover-checkpoint" {
+				ownRecovery := state.InFlight.Operation == frame.Action && state.InFlight.Address == frame.Thread
+				textAllowed = ownRecovery || (thread.Recovery != nil && thread.Recovery.FromCheckpoint)
+			}
+			if bound != frame.Thread || !textAllowed {
 				invalidThreadFrame = true
 				setBookkeepingNotice(&state, "thread input is no longer applicable")
 				continue
@@ -1551,7 +1612,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "detach", "resume", "leave", "archive", "relaunch", "switch-agent":
+	case "park", "detach", "resume", "leave", "archive", "relaunch", "switch-agent", "retry-continuation", "recover-thread", "recover-checkpoint":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -1573,7 +1634,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 // it is what stops the next one being added to one list only (ARCH-DRY).
 func endsItsOwnChild(operation string) bool {
 	switch operation {
-	case "park", "detach", "relaunch", "switch-agent":
+	case "park", "detach", "relaunch", "switch-agent", "retry-continuation", "continue-thread":
 		return true
 	}
 	return false
@@ -1585,7 +1646,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent":
+	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent", "retry-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false
@@ -1660,7 +1721,18 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	}
 	state.OperationSequence++
 	effect.Attempt = state.OperationSequence
+	if effect.Operation == "retry-continuation" {
+		effect.Args["ref"] = string(address.Tag)
+		if thread, ok := menuThread(state, address); ok && thread.Continuation != nil {
+			effect.Args["request-id"] = thread.Continuation.RequestID
+		}
+	}
 	if effect.Operation == "resume" {
+		// Preserve the selected action when the record changes before the
+		// queued operation executes. A detached row authorizes attachment only.
+		if thread, ok := menuThread(state, address); ok && thread.Detached() {
+			effect.Args["warm-only"] = "true"
+		}
 		// The operator resuming a failed thread by hand clears its mark
 		// (pair#206 cell 9).
 		state = clearReattachFailure(state, address)
@@ -1704,6 +1776,12 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "saving " + label + " description"
 	case "relaunch":
 		return "restarting " + label + "'s pair…"
+	case "retry-continuation":
+		return "retrying continuation for " + label
+	case "recover-thread":
+		return "recovering " + label
+	case "recover-checkpoint":
+		return "starting a new conversation from checkpoint for " + label
 	case "archive":
 		return "archiving " + label
 	default:

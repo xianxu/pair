@@ -1,6 +1,8 @@
 package continuationcmd
 
 import (
+	"errors"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -8,6 +10,16 @@ import (
 	"testing"
 	"time"
 )
+
+func TestReadBodyRejectsOversizedInput(t *testing.T) {
+	input := strings.NewReader(strings.Repeat("x", checkpoint.MaxBytes*2))
+	if _, err := readBody("-", input); err == nil {
+		t.Fatal("accepted oversized input")
+	}
+	if consumed := checkpoint.MaxBytes*2 - input.Len(); consumed > checkpoint.MaxBytes+1 {
+		t.Fatalf("read unbounded source: %d", consumed)
+	}
+}
 
 // run() does real, non-injected git IO (it builds gitRunner{root} internally),
 // so these are integration tests over a real temp repo — not pure units. The
@@ -63,7 +75,7 @@ func TestRun_FoldsDraftWhenInCompaction(t *testing.T) {
 	var b strings.Builder
 	err := run(baseArgs(repo), env, fixedClock(),
 		strings.NewReader("## NEXT ACTION\n\nreview PR\n"), &b,
-		func(string) error { return nil })
+		func(string, string) error { return nil })
 	if err != nil {
 		t.Fatalf("run: %v", err)
 	}
@@ -90,7 +102,7 @@ func TestRun_NoFoldOrRestartStandalone(t *testing.T) {
 	var b strings.Builder
 	if err := run(baseArgs(repo), env, fixedClock(),
 		strings.NewReader("## NEXT ACTION\n\ndo it\n"), &b,
-		func(string) error { called++; return nil }); err != nil {
+		func(string, string) error { called++; return nil }); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if called != 0 {
@@ -105,31 +117,42 @@ func TestRun_TriggersRestartInCompaction(t *testing.T) {
 	repo := initTempRepo(t)
 	env := runEnv{pairTag: "mytag", dataDir: t.TempDir(), zellijSession: "pair-mytag"}
 
-	var gotSlug string
+	var gotPath string
 	called := 0
 	var b strings.Builder
 	if err := run(baseArgs(repo), env, fixedClock(),
 		strings.NewReader("## NEXT ACTION\n\ngo\n"), &b,
-		func(slug string) error { gotSlug = slug; called++; return nil }); err != nil {
+		func(path, digest string) error {
+			gotPath = path
+			called++
+			if len(digest) != 64 {
+				t.Fatalf("missing committed digest %q", digest)
+			}
+			return nil
+		}); err != nil {
 		t.Fatalf("run: %v", err)
 	}
-	if called != 1 || gotSlug != "resume-parser" {
-		t.Fatalf("restart not triggered with slug: called=%d slug=%q", called, gotSlug)
+	if called != 1 || gotPath != strings.TrimSpace(b.String()) || !filepath.IsAbs(gotPath) {
+		t.Fatalf("restart not triggered with exact path: called=%d path=%q", called, gotPath)
 	}
 }
 
 func TestNewContinueRestartCmd_FakesInZellij(t *testing.T) {
-	c := newContinueRestartCmd("/opt/pair", "myslug", nil, nil, nil)
-	if len(c.Args) != 3 || c.Args[1] != "continue" || c.Args[2] != "myslug" {
+	c := newContinueRestartCmd("/opt/pair", "/worktree/checkpoint.md", "expected-digest", nil, nil, nil)
+	if len(c.Args) != 4 || c.Args[1] != "continue" || c.Args[2] != "--checkpoint" || c.Args[3] != "/worktree/checkpoint.md" {
 		t.Fatalf("args = %v, want [exe continue myslug]", c.Args)
 	}
 	found := false
+	digestFound := false
 	for _, e := range c.Env {
+		if e == "PAIR_CONTINUATION_DIGEST=expected-digest" {
+			digestFound = true
+		}
 		if e == "PAIR_FAKE_IN_ZELLIJ=1" {
 			found = true
 		}
 	}
-	if !found {
+	if !found || !digestFound {
 		// The agent's command sandbox blocks the proc-ancestry walk InZellijPane
 		// uses; without this fake the restart misfires under a sandboxed shell (#105).
 		t.Error("restart command must set PAIR_FAKE_IN_ZELLIJ=1")
@@ -148,7 +171,7 @@ func TestRun_NoRestartFlagSuppressesInCompaction(t *testing.T) {
 	var b strings.Builder
 	if err := run(a, env, fixedClock(),
 		strings.NewReader("## NEXT ACTION\n\ngo\n"), &b,
-		func(string) error { called++; return nil }); err != nil {
+		func(string, string) error { called++; return nil }); err != nil {
 		t.Fatalf("run: %v", err)
 	}
 	if called != 0 {
@@ -156,5 +179,23 @@ func TestRun_NoRestartFlagSuppressesInCompaction(t *testing.T) {
 	}
 	if strings.Contains(readWrittenContinuation(t, repo), "wip") {
 		t.Error("--no-restart must also suppress the fold (deliberate manual write)")
+	}
+}
+
+func TestRunRestartFailurePreservesCommittedCheckpoint(t *testing.T) {
+	repo := initTempRepo(t)
+	env := runEnv{pairTag: "mytag", dataDir: t.TempDir(), zellijSession: "pair-mytag"}
+	var out strings.Builder
+	err := run(baseArgs(repo), env, fixedClock(), strings.NewReader("## NEXT ACTION\nContinue.\n"), &out, func(string, string) error { return errors.New("request refused") })
+	if err == nil || !strings.Contains(err.Error(), strings.TrimSpace(out.String())) {
+		t.Fatalf("expected actionable durable failure: %v", err)
+	}
+	path := strings.TrimSpace(out.String())
+	if _, err := os.Stat(path); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "-C", repo, "ls-files", "--error-unmatch", path)
+	if raw, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("checkpoint not committed: %s %v", raw, err)
 	}
 }

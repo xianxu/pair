@@ -52,3 +52,44 @@ func TestPublishAgentReadySkipsWhenPairEnvIncomplete(t *testing.T) {
 		t.Fatalf("ready file stat err = %v, want not exist", err)
 	}
 }
+
+func TestPublishAgentReadyCarriesLaunchOrdinal(t *testing.T) {
+	for _, ordinal := range []string{"17", "", "0", "invalid", "-1", "18446744073709551616"} {
+		t.Run(ordinal, func(t *testing.T) {
+			t.Setenv("PAIR_TAG", "work")
+			t.Setenv("PAIR_SESSION_NAME", "pair-work")
+			t.Setenv("PAIR_LAUNCH_NONCE", "attempt")
+			t.Setenv("PAIR_LAUNCH_ORDINAL", ordinal)
+			path := filepath.Join(t.TempDir(), "ready.json")
+			p := &proxy{agentBasename: "codex", agentReadyPath: path}
+			err := p.publishAgentReady(321)
+			if ordinal != "17" && ordinal != "" {
+				if err == nil {
+					t.Fatal("invalid supplied launch ordinal accepted")
+				}
+				if _, e := os.Stat(path); !os.IsNotExist(e) {
+					t.Fatal("invalid ordinal published readiness")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err := readiness.Decode(string(raw))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := uint64(0)
+			if ordinal == "17" {
+				want = 17
+			}
+			if record.LaunchOrdinal != want {
+				t.Fatalf("ordinal=%d want %d", record.LaunchOrdinal, want)
+			}
+		})
+	}
+}

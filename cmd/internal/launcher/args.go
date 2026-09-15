@@ -35,7 +35,9 @@ type LaunchArgs struct {
 	// continue (#99 M5b): the raw slug (normalized at resolve time). "" with
 	// Command=="continue" is the bare list mode. Agent/AgentArgs above carry the
 	// optional agent port + `-- <forwarded>` args.
-	ContinueSlug string
+	ContinueSlug       string
+	ContinueCheckpoint string
+	ContinueRetry      string
 
 	// restart (#94 M1): `pair restart [--new-session] [--rename-to <tag>]` — the
 	// nvim-keybind lifecycle writer ported from bin/pair-restart.sh. Both fields
@@ -176,7 +178,7 @@ func launchArgsAcceptLayout(args LaunchArgs) bool {
 	if args.Command == "" {
 		return true
 	}
-	return args.Command == "continue" && args.ContinueSlug != ""
+	return args.Command == "continue" && (args.ContinueSlug != "" || args.ContinueCheckpoint != "" || args.ContinueRetry != "")
 }
 
 // parseRename parses `rename [--restart-check] [--] <old> <new>` (#99 M5b, shell
@@ -241,8 +243,27 @@ func parseContinue(args []string) (LaunchArgs, error) {
 	if len(args) == 0 {
 		return out, nil // bare list
 	}
-	out.ContinueSlug = args[0]
 	rest := args[1:]
+	switch args[0] {
+	case "--checkpoint", "--retry":
+		if len(rest) == 0 || rest[0] == "" || strings.HasPrefix(rest[0], "--") {
+			return LaunchArgs{}, UsageError{Message: "pair continue: " + args[0] + " requires a value"}
+		}
+		if args[0] == "--checkpoint" {
+			out.ContinueCheckpoint = rest[0]
+		} else {
+			out.ContinueRetry = rest[0]
+		}
+		rest = rest[1:]
+		if out.ContinueRetry != "" && len(rest) != 0 {
+			return LaunchArgs{}, UsageError{Message: "pair continue --retry takes only the exact tag"}
+		}
+	default:
+		if strings.HasPrefix(args[0], "--") {
+			return LaunchArgs{}, UsageError{Message: "pair continue: unknown option " + args[0]}
+		}
+		out.ContinueSlug = args[0]
+	}
 	if len(rest) > 0 && rest[0] != "--" {
 		out.Agent = rest[0] // explicit port
 		rest = rest[1:]

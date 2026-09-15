@@ -280,3 +280,79 @@ func TestWarmOnlyReachesTheResumeThroughTheOperationTable(t *testing.T) {
 		t.Fatalf("runner ops %v: the parked thread's agent was started", children)
 	}
 }
+
+// Native transcript resolution is not even an available capability here.
+// The same portable session state still authorizes inventory and execution.
+type warmSessionArtifacts struct {
+	ThreadArtifactController
+	DetachedSessionResolver
+	PairSessionIO
+}
+
+func TestWarmInventoryAndResumeNeedNoNativeResolver(t *testing.T) {
+	for _, missing := range []bool{false, true} {
+		t.Run(map[bool]string{false: "failing-resolver", true: "missing-resolver"}[missing], func(t *testing.T) {
+			env, address := warmDetachedThread(t)
+			env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingUnbound, "")
+			probe := &warmPathResolverProbe{FakeThreadArtifactCollisionChecker: env.Artifacts}
+			env.Couch.Artifacts = probe
+			if missing {
+				env.Couch.Artifacts = warmSessionArtifacts{env.Artifacts, env.Artifacts, env.Artifacts}
+			}
+			rows, err := env.Couch.ActionableThreadInventory(nil)
+			if err != nil || len(rows) != 1 || rows[0].State != ThreadDetached {
+				t.Errorf("warm inventory = %+v, %v; want detached without a native resolver", rows, err)
+			}
+			record, handle, err := env.Couch.ResumeContextWith(t.Context(), address, ResumeOptions{WarmOnly: true})
+			if err != nil || handle == nil || record.Shape != StartWarmReattach {
+				t.Errorf("warm execution = %+v, %v; want warm reattachment", record, err)
+			}
+			if probe.calls != 0 || env.Artifacts.BindingResolutions() != 0 {
+				t.Errorf("warm path resolved native binding: probe=%d fake=%d", probe.calls, env.Artifacts.BindingResolutions())
+			}
+		})
+	}
+}
+
+func TestWarmProofMatcherAcceptsOnlyExactSessionEvidence(t *testing.T) {
+	record := warmDetachedRecord(t)
+	valid := DetachedSessionObservation{Address: record.Address, SessionName: "pair-surviving", Agent: "claude"}
+	for _, tt := range []struct {
+		name         string
+		observations []DetachedSessionObservation
+		want         bool
+	}{
+		{"unbound", []DetachedSessionObservation{valid}, true},
+		{"absent", nil, false},
+		{"duplicate", []DetachedSessionObservation{valid, valid}, false},
+		{"wrong-address", []DetachedSessionObservation{{Address: ThreadAddress{RepoScope: "other", Tag: record.Address.Tag}, SessionName: valid.SessionName, Agent: valid.Agent}}, false},
+		{"wrong-agent", []DetachedSessionObservation{{Address: record.Address, SessionName: valid.SessionName, Agent: "codex"}}, false},
+		{"empty-session", []DetachedSessionObservation{{Address: record.Address, Agent: valid.Agent}}, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := detachedResumeProofMatches(record, tt.observations); got != tt.want {
+				t.Fatalf("proof = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWarmRecheckRefusesSessionReplacementAfterClaim(t *testing.T) {
+	env, address := warmDetachedThread(t)
+	calls := 0
+	env.Artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+		calls++
+		if calls == 2 {
+			env.Artifacts.SetDetachedSession(address, "pair-replacement")
+		}
+		return nil
+	}
+	_, handle, err := env.Couch.ResumeContextWith(t.Context(), address, ResumeOptions{WarmOnly: true})
+	if ResumeDiagnosticOf(err) != ResumeSessionGone || handle != nil {
+		t.Fatalf("replacement accepted: handle=%v err=%v", handle, err)
+	}
+	after, err := env.Couch.Threads.GetThread(address)
+	if err != nil || len(after.Incarnations) != 0 || len(env.Runner.Ops) != 0 {
+		t.Fatalf("failed recheck left effects: record=%+v ops=%v err=%v", after, env.Runner.Ops, err)
+	}
+}

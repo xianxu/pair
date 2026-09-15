@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
-	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
 func TestProjectDetachedSessions(t *testing.T) {
@@ -22,9 +21,9 @@ func TestProjectDetachedSessions(t *testing.T) {
 	}{
 		{
 			name:     "a live session with no client is detached",
-			bindings: []SessionNameBinding{{Address: one, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
+			bindings: []SessionNameBinding{{Address: one, SessionName: "pair-one", Agent: "claude"}},
 			sessions: []launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}},
-			want:     []DetachedSessionObservation{{Address: one, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}},
+			want:     []DetachedSessionObservation{{Address: one, SessionName: "pair-one", Agent: "claude"}},
 		},
 		{
 			name:     "an attached session is not detached",
@@ -48,14 +47,14 @@ func TestProjectDetachedSessions(t *testing.T) {
 		{
 			name: "each bound address is judged independently",
 			bindings: []SessionNameBinding{
-				{Address: one, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"},
-				{Address: two, SessionName: "pair-two", Agent: "claude", NativeID: "native-2"},
+				{Address: one, SessionName: "pair-one", Agent: "claude"},
+				{Address: two, SessionName: "pair-two", Agent: "claude"},
 			},
 			sessions: []launcher.Session{
 				{Name: "pair-one", State: launcher.SessionAttached},
 				{Name: "pair-two", State: launcher.SessionDetached},
 			},
-			want: []DetachedSessionObservation{{Address: two, SessionName: "pair-two", Agent: "claude", NativeID: "native-2"}},
+			want: []DetachedSessionObservation{{Address: two, SessionName: "pair-two", Agent: "claude"}},
 		},
 		{
 			name:     "an empty session name is never a binding",
@@ -133,7 +132,6 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 	}
 
 	candidate := newRecord("couch-0000000000000001", func(*ThreadRecord) {})
-	artifactsBinding := candidate
 	// Occupied: it has an incarnation, so it cannot be detached.
 	newRecord("couch-0000000000000002", func(r *ThreadRecord) {
 		r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 5, Identity: "id-5", StartedAt: time.Unix(2, 0).UTC()}}
@@ -142,9 +140,7 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 	newRecord("couch-0000000000000003", func(r *ThreadRecord) { r.LatestLaunchProfile = nil })
 
 	artifacts := NewFakeThreadArtifactCollisionChecker()
-	// Candidates must also clear the native-binding gate; without it the
-	// inventory skips them before ever asking about sessions.
-	artifacts.SetNativeBinding(artifactsBinding, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	// No native binding: candidates ask only about session ownership.
 	var asked [][]ThreadAddress
 	artifacts.DetachedSessionsHook = func(addresses []ThreadAddress) error {
 		asked = append(asked, addresses)
@@ -201,12 +197,12 @@ func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
 // It used to emit {Address, SessionName} only, which
 // ProjectActionableThreads -- once it started enforcing the resume proof --
 // always rejected. Production worked anyway because the IO shell patched Agent
-// and NativeID onto the answer afterwards, which meant this function's own
+// onto the answer afterwards, which meant this function's own
 // tests asserted a shape nothing downstream would take. Composing the two pure
 // functions is the guard.
 func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
-	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}}
+	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude"}}
 	observed, err := ProjectDetachedSessions(
 		bindings,
 		[]launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}},
@@ -237,7 +233,7 @@ func TestProjectDetachedSessionsEmitsObservationsTheProjectorAccepts(t *testing.
 // and TestThePickerRefusesAttachStateItWasNotGiven.
 func TestProjectDetachedSessionsRefusesAttachStateItWasNotGiven(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
-	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}}
+	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude"}}
 	observed, err := ProjectDetachedSessions(
 		bindings,
 		[]launcher.Session{{Name: "pair-one", State: launcher.SessionLive}},
@@ -266,7 +262,7 @@ func claimsOf(bindings []SessionNameBinding) map[string]int {
 // proves nothing, even when the caller passed only one claimant.
 func TestProjectDetachedSessionsRefusesAContestedName(t *testing.T) {
 	address := ThreadAddress{RepoScope: "scope-a", Tag: "couch-0000000000000001"}
-	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude", NativeID: "native-1"}}
+	bindings := []SessionNameBinding{{Address: address, SessionName: "pair-one", Agent: "claude"}}
 	sessions := []launcher.Session{{Name: "pair-one", State: launcher.SessionDetached}}
 
 	if observed, err := ProjectDetachedSessions(bindings, sessions, map[string]int{"pair-one": 1}); err != nil || len(observed) != 1 {

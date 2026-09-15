@@ -274,6 +274,7 @@ func TestRunLaunchExplicitAgentDifferentHistoricalUsesContinuation(t *testing.T)
 	rt.historical = []HistoricalTag{{Tag: "old", MTime: time.Unix(1_700_000_000, 0), RepoName: "work", Agent: "claude"}}
 	rt.inferAgent = map[string]string{"old": "claude"}
 	rt.continuationDocs = map[string][2]string{"old": {"/continuations/20260816-old.md", "claude"}}
+	rt.files["/continuations/20260816-old.md"] = testCheckpoint(t).Body
 	rt.pickFunc = func(header string, options []string) string {
 		return "work/old  claude  (today, no live session)"
 	}
@@ -288,7 +289,7 @@ func TestRunLaunchExplicitAgentDifferentHistoricalUsesContinuation(t *testing.T)
 	if len(rt.pollers) != 1 || rt.pollers[0] != "old|codex" {
 		t.Fatalf("pollers = %v, want [old|codex]", rt.pollers)
 	}
-	if got := rt.files["/data/draft-old.md"]; !strings.Contains(got, "Read workshop/continuation/20260816-old.md") {
+	if got := rt.files["/data/draft-old.md"]; !strings.Contains(got, "/continuations/20260816-old.md") {
 		t.Fatalf("draft-old = %q, want continuation seed", got)
 	}
 }

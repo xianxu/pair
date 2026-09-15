@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,24 +23,26 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
-	Namespace         CouchNamespace
-	Runner            Runner
-	Path              PathOps
-	Git               GitRunner
-	Proc              ProcOps
-	Store             Store
-	Clock             Clock
-	IDs               IDGen
-	Threads           *ThreadStore
-	Entropy           io.Reader
-	Artifacts         ThreadArtifactController
-	PairLifecycle     *PairLifecycleController
-	RootAgent         string
-	RepoAgentDefault  func(repoRoot, agent string) (LaunchProfile, bool, error)
-	FreshRegistration func(context.Context, ThreadAddress, string, string) (bool, error)
-	OrientationStatus func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
-	SwitchContext     SwitchContextResolver
-	SwitchLaunchCheck func(agent string) error
+	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
+	ContinuationSource     func(context.Context, ThreadAddress) (ContinuationSource, error)
+	Namespace              CouchNamespace
+	Runner                 Runner
+	Path                   PathOps
+	Git                    GitRunner
+	Proc                   ProcOps
+	Store                  Store
+	Clock                  Clock
+	IDs                    IDGen
+	Threads                *ThreadStore
+	Entropy                io.Reader
+	Artifacts              ThreadArtifactController
+	PairLifecycle          *PairLifecycleController
+	RootAgent              string
+	RepoAgentDefault       func(repoRoot, agent string) (LaunchProfile, bool, error)
+	FreshRegistration      func(context.Context, ThreadAddress, string, string) (bool, error)
+	OrientationStatus      func(context.Context, ThreadAddress, string, string) (orientation.DeliveryState, error)
+	SwitchContext          SwitchContextResolver
+	SwitchLaunchCheck      func(agent string) error
 	// Layout is which pair layout this couch launches its threads in, chosen
 	// once at construction and IMMUTABLE for the process lifetime -- there is
 	// no mid-session layout change, which is what keeps the mixed-state

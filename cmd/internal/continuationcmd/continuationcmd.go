@@ -16,6 +16,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 )
 
 // ContinuationDir is the repo-relative home for continuation instances (matches
@@ -52,17 +53,16 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer, now func() ti
 		zellijSession:   os.Getenv("ZELLIJ_SESSION_NAME"),
 		pairSessionName: os.Getenv("PAIR_SESSION_NAME"),
 	}
-	// Real restart seam: re-invoke `pair continue <slug>` on ourselves. Inherits
-	// the env (PAIR_DEV/PAIR_TAG/ZELLIJ_SESSION_NAME ride through), so it re-enters
-	// compaction (compactionDecision fires) under the SAME config, then the outer
-	// reincarnation loop relaunches. The kill-session inside tears this process
-	// down too — that's fine, the continuation is already written + pushed.
-	restart := func(slug string) error {
+	// Reinvoke the launcher's exact-checkpoint ingress with the committed digest.
+	// Hosted continuation is accepted durably by Couch; standalone continuation
+	// is handed to the existing outer launcher before the source is stopped.
+
+	restart := func(path, digest string) error {
 		exe, err := os.Executable()
 		if err != nil {
 			return err
 		}
-		return newContinueRestartCmd(exe, slug, stdin, stdout, stderr).Run()
+		return newContinueRestartCmd(exe, path, digest, stdin, stdout, stderr).Run()
 	}
 
 	if err := run(a, env, now, stdin, stdout, restart); err != nil {
@@ -83,7 +83,7 @@ type runEnv struct {
 	pairTag, dataDir, zellijSession, pairSessionName string
 }
 
-// newContinueRestartCmd builds the `pair continue <slug>` command the writer runs
+// newContinueRestartCmd builds the `pair continue --checkpoint <absolute-path>` command the writer runs
 // to trigger the compaction restart. It sets PAIR_FAKE_IN_ZELLIJ=1 for a specific
 // reason (found by #105's live smoke): the writer has ALREADY confirmed the
 // compaction context via InCompactionContext (the ZELLIJ_SESSION_NAME tag-match,
@@ -95,10 +95,10 @@ type runEnv struct {
 // the actual "restart stopped working" root cause. PAIR_FAKE_IN_ZELLIJ fakes ONLY
 // the ancestry half; `pair continue`'s own ZELLIJ_SESSION_NAME tag-match still runs,
 // so it can't compact the wrong session.
-func newContinueRestartCmd(exe, slug string, stdin io.Reader, stdout, stderr io.Writer) *exec.Cmd {
-	c := exec.Command(exe, "continue", slug)
+func newContinueRestartCmd(exe, path, digest string, stdin io.Reader, stdout, stderr io.Writer) *exec.Cmd {
+	c := exec.Command(exe, "continue", "--checkpoint", path)
 	c.Stdin, c.Stdout, c.Stderr = stdin, stdout, stderr
-	c.Env = append(os.Environ(), "PAIR_FAKE_IN_ZELLIJ=1")
+	c.Env = append(os.Environ(), "PAIR_FAKE_IN_ZELLIJ=1", checkpoint.DigestEnv+"="+digest)
 	return c
 }
 
@@ -106,7 +106,7 @@ func newContinueRestartCmd(exe, slug string, stdin io.Reader, stdout, stderr io.
 // file, then commit + push. Clock and stdin are injected so it's testable; git
 // + fs are the real IO seam (the integration test drives the built binary
 // against a real temp repo).
-func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io.Writer, restart func(string) error) error {
+func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io.Writer, restart func(string, string) error) error {
 	root := a.repoRoot
 	if root == "" {
 		out, err := exec.Command("git", "rev-parse", "--show-toplevel").Output()
@@ -114,6 +114,12 @@ func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io
 			return fmt.Errorf("resolve repo root: %w", err)
 		}
 		root = strings.TrimSpace(string(out))
+	}
+
+	var err error
+	root, err = filepath.Abs(root)
+	if err != nil {
+		return fmt.Errorf("resolve absolute repo root: %w", err)
 	}
 
 	body, err := readBody(a.bodyFile, stdin)
@@ -164,7 +170,11 @@ func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io
 	name := AllocName(f.Slug, ts, existing)
 	rel := filepath.ToSlash(filepath.Join(ContinuationDir, name))
 	abs := filepath.Join(dir, name)
-	if err := os.WriteFile(abs, []byte(Assemble(RenderFrontmatter(f), body)), 0o644); err != nil {
+	snapshot, err := checkpoint.New(abs, Assemble(RenderFrontmatter(f), body))
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(abs, []byte(snapshot.Body), 0o644); err != nil {
 		return err
 	}
 
@@ -191,27 +201,37 @@ func run(a runArgs, env runEnv, now func() time.Time, stdin io.Reader, stdout io
 
 	// #105: in a compaction context, the writer OWNS the restart — no agent step
 	// to forget. Fires only after a successful write+commit (the doc is durable
-	// first). --no-restart opts out (manual in-pane write). The seam kills the
-	// session; the outer reincarnation loop relaunches fresh, seeded from the doc.
+	// first). --no-restart opts out. The selected owner executes the restart
+	// from this exact committed snapshot; a failed request preserves the commit.
 	if !a.noRestart && InCompactionContext(env.pairTag, env.zellijSession, env.pairSessionName) {
-		if err := restart(f.Slug); err != nil {
-			fmt.Fprintf(os.Stderr, "pair-continuation: restart failed (continuation kept): %v\n", err)
+		if err := restart(abs, snapshot.Digest); err != nil {
+			return fmt.Errorf("restart failed; checkpoint kept at %s: %w", abs, err)
 		}
 	}
 	return nil
 }
 
 func readBody(bodyFile string, stdin io.Reader) (string, error) {
-	switch bodyFile {
-	case "":
+	if bodyFile == "" {
 		return "", fmt.Errorf("-body-file is required")
-	case "-":
-		b, err := io.ReadAll(stdin)
-		return string(b), err
-	default:
-		b, err := os.ReadFile(bodyFile)
-		return string(b), err
 	}
+	reader := stdin
+	if bodyFile != "-" {
+		f, err := os.Open(bodyFile)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+		reader = f
+	}
+	raw, err := io.ReadAll(io.LimitReader(reader, checkpoint.MaxBytes+1))
+	if err != nil {
+		return "", err
+	}
+	if len(raw) > checkpoint.MaxBytes {
+		return "", fmt.Errorf("continuation body exceeds %d bytes", checkpoint.MaxBytes)
+	}
+	return string(raw), nil
 }
 
 func splitCSV(s string) []string {

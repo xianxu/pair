@@ -27,6 +27,8 @@ const (
 	GoCallArgumentVocabulary VocabularyContext = "go-call-argument"
 	GoCaseValueVocabulary    VocabularyContext = "go-case-value"
 	GoComparisonVocabulary   VocabularyContext = "go-comparison"
+	GoKeyValueVocabulary     VocabularyContext = "go-key-value"
+	GoReturnVocabulary       VocabularyContext = "go-return"
 	ExactLineVocabulary      VocabularyContext = "exact-line"
 )
 
@@ -394,6 +396,25 @@ var SourceClassifications = []SourceClassification{
 	}},
 	{Path: "cmd/internal/launcher/markers.go", Kind: ResolvedConsumer, Families: []string{"lifecycle-request", "native-session"}, BindingNames: []string{"composite-lifecycle-request", "composite-lifecycle-native-session"}, Vocabulary: []VocabularyAllowance{
 		goCaseVocabulary("native-session", "session_id", "parseRestartMarker", 1),
+		goCaseVocabulary("native-session", "session_id", "decodeRestartMarker", 1),
+		goStructVocabulary("native-session", `json:"session_id,omitempty"`, "SessionID", 1),
+	}},
+	{Path: "cmd/internal/couchcore/continuation_source.go", Kind: ResolvedConsumer,
+		Families: []string{"ledger", "session-binding"}, BindingNames: []string{"composite-ledger", "legacy-session-binding", "selected-session-binding"}},
+	// The operation name overlaps the continuation artifact prefix. Keep its
+	// vocabulary exceptions tied to exact declaration and dispatch sites.
+	{Path: "cmd/internal/couchcore/ops.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
+		{Family: "continuation", Value: "continuation-status", Context: GoKeyValueVocabulary, Use: "Operations.Name", Count: 1},
+	}},
+	{Path: "cmd/internal/couchcore/operationdispatch.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
+		goCaseVocabulary("continuation", "continuation-status", "CouchLiveOwnerExecutor", 1),
+	}},
+	{Path: "cmd/internal/couchtty/console.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
+		goComparisonVocabulary("continuation", "continuation-status", "finishOperation", 1),
+	}},
+	{Path: "cmd/internal/couchtty/console_continuation.go", Kind: VocabularyConsumer, Families: []string{"continuation"}, Vocabulary: []VocabularyAllowance{
+		{Family: "continuation", Value: "continuation-status", Context: GoReturnVocabulary, Use: "continuationOperation", Count: 1},
+		goComparisonVocabulary("continuation", "continuation-status", "acceptContinuationRequests", 1),
 	}},
 	{Path: "cmd/internal/couchcore/artifactcollision.go", Kind: ResolvedConsumer,
 		Families: []string{"session-binding"}, BindingNames: []string{"composite-scope-session-binding"}},
@@ -562,6 +583,16 @@ var NonArtifactSources = []string{
 	"cmd/internal/storagegc/capture.go",
 	"cmd/internal/procutil/strict_identity.go",
 	"cmd/internal/storagegc/process.go",
+	"cmd/internal/checkpoint/checkpoint.go",
+	"cmd/internal/checkpoint/request.go",
+	"cmd/internal/couchcmd/continuation.go",
+	"cmd/internal/couchcore/continuation.go",
+	"cmd/internal/couchcore/continuation_recovery.go",
+	"cmd/internal/couchcore/continuation_store.go",
+	"cmd/internal/couchcore/recovery.go",
+	"cmd/internal/couchcore/recovery_execute.go",
+	"cmd/internal/launcher/checkpoint_io.go",
+	"cmd/internal/launcher/checkpoint_retry.go",
 	"cmd/internal/couchcore/switchagent.go",
 	"cmd/internal/couchtty/console_switchagent.go",
 	"cmd/internal/couchtty/menu_switchagent.go",
@@ -601,8 +632,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/mailbox.go",
 	"cmd/internal/couchcore/namespace.go",
 	"cmd/internal/couchcore/naming.go",
-	"cmd/internal/couchcore/operationdispatch.go",
-	"cmd/internal/couchcore/ops.go",
 	"cmd/internal/couchcore/parktransaction.go",
 	"cmd/internal/couchcore/parkworker.go",
 	"cmd/internal/couchcore/path.go",
@@ -635,12 +664,12 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/worktree.go",
 	"cmd/internal/mouseinput/mouseinput.go",
 	"cmd/internal/couchtty/attention.go",
-	"cmd/internal/couchtty/console.go",
 	"cmd/internal/couchtty/console_completion.go",
 	"cmd/internal/couchtty/console_menu.go",
 	"cmd/internal/couchtty/console_reattach.go",
 	"cmd/internal/couchtty/focus.go",
 	"cmd/internal/couchtty/inputtrace.go",
+	"cmd/internal/couchtty/keyboard.go",
 	"cmd/internal/couchtty/keys.go",
 	"cmd/internal/couchtty/menu_reattach.go",
 	"cmd/internal/couchtty/mouse.go",
@@ -795,6 +824,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/titlepoller/runcli.go",
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",
+	"cmd/internal/workbenchshortcut/framing.go",
 	"cmd/internal/workbenchshortcut/render_lua.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
 	"cmd/internal/wrapcmd/codex_working.go",

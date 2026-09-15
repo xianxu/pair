@@ -26,6 +26,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // Runtime is the seam for everything ambient: env lookup and where the store
@@ -103,6 +104,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		return nil, err
 	}
 	c.RootAgent = r.Getenv("PAIR_AGENT")
+	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
 	c.SwitchContext = couchcore.OSSwitchContextResolver{DataDir: dataDir, HomeDir: r.Getenv("HOME"), Renderer: renderer}
 	c.SwitchLaunchCheck = func(agent string) error {
@@ -118,8 +120,15 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	}
 	if sessions, ok := c.Artifacts.(couchcore.PairSessionIO); ok {
 		status := couchcore.OSOrientationStatusReader{DataDir: dataDir, Session: sessions.PairSession, Proc: c.Proc}
+		if observer, ok := c.Artifacts.(interface {
+			PairSessionContext(context.Context, couchcore.ThreadAddress) (couchcore.PairSessionBinding, error)
+		}); ok {
+			status.SessionContext = observer.PairSessionContext
+		}
+
 		c.OrientationStatus = status.Read
 		c.FreshRegistration = status.Registered
+		c.ContinuationGeneration = status.Generation
 	}
 
 	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
@@ -207,6 +216,9 @@ func RunWithRuntime(args []string, stdin io.Reader, stdout, stderr io.Writer, rt
 		return 2
 	}
 	parsed, err := bindArgs(op, argv)
+	if err == nil && op.Name == "request-continuation" {
+		err = bindContinuationEnvironment(parsed, rt.Getenv)
+	}
 	// A spawned child receives the exact composite thread address, so an agent
 	// can publish its summary without resolving a mutable path or human label.
 	if op.Name == "publish-description" && parsed != nil {
@@ -256,8 +268,8 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
 	}
-	// Starting a new root and resuming a parked root are the two entrypoints
-	// that bootstrap the singleton owner. Other owner-required CLI calls route
+	// Starting, resuming, recovery and explicit archive acquire the singleton
+	// owner. Other owner-required CLI calls route
 	// to an already-running owner, which is deliberately unavailable until
 	// #147.
 	ownsLive := operationOwnsLive(op.Name)
@@ -335,8 +347,10 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		}()
 	}
 	if console != nil {
-		if start, ok := result.(couchcore.StartResult); ok {
-			return finishConsole(console, c, start, stdout)
+		if child, ok := result.(couchcore.StartedChild); ok {
+			if start, hasChild := child.Started(); hasChild {
+				return finishConsole(console, c, start, stdout)
+			}
 		}
 	}
 	return render(stdout, op, result)
@@ -348,7 +362,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe", "park", "resume":
+	case "show", "name", "describe", "park", "resume", "retry-continuation", "recover-thread", "recover-checkpoint", "archive":
 		return true
 	default:
 		return false
@@ -358,7 +372,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume"
+	return name == "start" || name == "resume" || name == "retry-continuation" || name == "recover-thread" || name == "recover-checkpoint" || name == "archive"
 }
 
 // consoleRunner decides which Runner this invocation gets, and builds the
@@ -378,7 +392,7 @@ func operationOwnsLive(name string) bool {
 // draws on the output fd, so a redirected stdout with a tty stdin would
 // otherwise build a console that paints into a file.
 func WantsConsole(name string, hasTerminal bool) bool {
-	return operationOwnsLive(name) && hasTerminal
+	return operationOwnsLive(name) && name != "archive" && hasTerminal
 }
 
 func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
@@ -521,6 +535,7 @@ func dispatchInitialAttach(console *couchtty.Console, start couchcore.StartResul
 // wireResolver supplies the proof-bearing actionable projection. Reference
 // matching for keystrokes is intentionally in-memory inside the pure menu.
 func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
+	console.SetContinuationProvider(c.ContinuationRequests)
 	console.SetActionableProvider(func(ctx context.Context, observations []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
 		select {
 		case <-ctx.Done():
@@ -622,18 +637,24 @@ func bindArgs(op couchcore.Operation, argv []string) (map[string]string, error) 
 }
 
 func render(w io.Writer, op couchcore.Operation, result any) int {
-	switch v := result.(type) {
-	case couchcore.StartResult:
-		// Reached only through injected/internal non-console orchestration. Public
-		// launch is terminal-gated before actor creation.
-		fmt.Fprintf(w, "couch: no console — inheriting stdio, no pty, no reserved row\n")
-		fmt.Fprintf(w, "started %s on %s (pid %d)\n", v.Record.ID, v.Record.Args.Worktree, v.Record.PID)
-		if v.Handle != nil {
-			// Couch launch waits for the child's lifetime: this path has
-			// no pty, so the child owns the terminal until it exits (#146).
-			return v.Handle.Wait()
+	if child, ok := result.(couchcore.StartedChild); ok {
+		if started, hasChild := child.Started(); hasChild {
+			fmt.Fprintln(w, "couch: no console — inheriting stdio, no pty, no reserved row")
+			fmt.Fprintf(w, "started %s on %s (pid %d)\n", started.Record.ID, started.Record.Args.Worktree, started.Record.PID)
+			if started.Handle != nil {
+				return started.Handle.Wait()
+			}
+			return 0
 		}
-		return 0
+	}
+	switch v := result.(type) {
+	case couchcore.ContinuationResult:
+		return render(w, op, v.Status)
+	case couchcore.ContinuationStatus:
+		fmt.Fprintf(w, "continuation %s/%s: %s\n", v.Address.RepoScope, v.Address.Tag, v.Phase)
+		if v.Failure != "" {
+			fmt.Fprintln(w, v.Failure)
+		}
 	case []couchcore.ThreadSummary:
 		if op.Name == "show" {
 			renderThreadDetails(w, v)
@@ -691,7 +712,7 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 	for _, thread := range threads {
 		// Dim by the CLASSIFIED state. Reading liveness from the incarnations
 		// here while the label came from the classifier printed a stale row
-		// undimmed above the words "stale — couch exited unexpectedly".
+		// undimmed above the words "stale — helper ownership unresolved".
 		open, close := dim, reset
 		if thread.State == couchcore.ThreadLive {
 			open, close = "", ""
@@ -774,4 +795,16 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  --layout2  use the two-pane workbench without the right-hand terminal.")
 	fmt.Fprintln(w, "             One layout per couch: it refuses to run alongside a thread")
 	fmt.Fprintln(w, "             already holding a session in the other layout.")
+	fmt.Fprintln(w, "\nWhile a Pair pane is displayed:")
+	for _, binding := range couchtty.CouchNavigationBindings() {
+		fmt.Fprintf(w, "  %s  %s\n", binding.Key, binding.Help)
+	}
+	fmt.Fprintln(w, "The agent also reserves these terminal-tab keys:")
+	for _, binding := range workbenchshortcut.GlobalBindings() {
+		if binding.AgentReserved {
+			fmt.Fprintf(w, "  %s  %s\n", workbenchshortcut.ChordName(binding.Chord), binding.Help)
+		}
+	}
+	fmt.Fprintln(w, "Other workbench keys reach the focused agent. Click another pane to leave it.")
+	fmt.Fprintln(w, "Use the switcher for Couch lifecycle operations.")
 }

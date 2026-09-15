@@ -3,6 +3,7 @@ package couchtty
 import (
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
@@ -83,6 +84,17 @@ func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 		}) {
 			offered[action] = true
 		}
+	}
+	for _, phase := range []checkpoint.Phase{checkpoint.Pending, checkpoint.Running, checkpoint.Failed, checkpoint.Complete} {
+		for _, action := range menuActionItems(couchcore.ActionableThreadSummary{
+			Address: menuAddress("continuation"), State: couchcore.ThreadUnusable,
+			Continuation: &couchcore.ContinuationStatus{RequestID: "request", Phase: phase},
+		}) {
+			offered[action] = true
+		}
+	}
+	for _, action := range menuActionItems(recoveryMenuRow()) {
+		offered[action] = true
 	}
 	// Read straight off the declaration. A helper here would need a production
 	// caller to survive the dead-symbol guard, and the only honest one -- having

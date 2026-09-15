@@ -12,6 +12,10 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
+// ErrPairSessionBindingAbsent means the exact scoped index was readable but
+// contains no session binding for this address. It does not prove session absence.
+var ErrPairSessionBindingAbsent = errors.New("exact Pair session binding is absent")
+
 type PairSessionBinding struct {
 	Name    string
 	Present bool
@@ -193,6 +197,13 @@ func claimsFromBindings(bindings map[ThreadAddress]string) map[string]int {
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
+	return c.PairSessionContext(context.Background(), address)
+}
+
+func (c ScopedThreadArtifactCollisionChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return PairSessionBinding{}, err
+	}
 	if err := validateThreadAddress(address); err != nil {
 		return PairSessionBinding{}, err
 	}
@@ -209,12 +220,12 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 	}
 	name := effectiveBindings([]scopedIndexRead{{scope: address.RepoScope, index: index}})[address]
 	if name == "" {
-		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
+		return PairSessionBinding{}, fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
 	}
 	// Liveness, not a full snapshot: Present is "listed and not exited", so no
 	// session needs asking for its clients. This is couch's registration poll on
 	// every reattach, and detach and park call it too (pair#228).
-	sessions, err := c.Zellij.LivenessContext(context.Background())
+	sessions, err := c.Zellij.LivenessContext(ctx)
 	if err != nil {
 		return PairSessionBinding{}, fmt.Errorf("observe exact Pair session: %w", err)
 	}
@@ -239,13 +250,11 @@ type DetachedSessionResolver interface {
 	DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error)
 }
 
-// DetachedCandidate is one address worth asking about, carrying the resume proof
-// its caller already resolved. Passing the proof in rather than patching it onto
-// the answer keeps the observation complete at every layer.
+// DetachedCandidate names a thread and its saved agent profile. Its session
+// ownership is resolved independently of native conversation evidence.
 type DetachedCandidate struct {
-	Address  ThreadAddress
-	Agent    string
-	NativeID string
+	Address ThreadAddress
+	Agent   string
 }
 
 // DetachedSessions reads each requested scope's session-name index once and
@@ -329,7 +338,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 				candidate := proof[address]
 				bindings = append(bindings, SessionNameBinding{
 					Address: address, SessionName: name,
-					Agent: candidate.Agent, NativeID: candidate.NativeID,
+					Agent: candidate.Agent,
 				})
 			}
 		}

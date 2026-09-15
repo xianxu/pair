@@ -184,7 +184,28 @@ func TestParseNvimKeymapsReconcilesAgainstRealFile(t *testing.T) {
 
 func TestParseZellijRunBindsAgainstRealFile(t *testing.T) {
 	got := ParseZellijRunBinds(mustReadTreeSource(t, "zellij/config.kdl"))
-	if len(got) != 2 {
-		t.Fatalf("config.kdl should have exactly 2 Run binds (Alt h, Alt l), got %+v", got)
+	if len(got) != 0 {
+		t.Fatalf("config.kdl must forward input rather than run commands, got %+v", got)
+	}
+}
+
+func TestZellijShortcutConfigHasNoImplicitConsumers(t *testing.T) {
+	body := mustReadTreeSource(t, "zellij/config.kdl")
+	if !strings.Contains(body, "keybinds clear-defaults=true") {
+		t.Fatal("inherited defaults can consume unreserved agent input")
+	}
+	// The reviewed grammar is deliberately small: one explicit shared block
+	// of byte writes. Any new verb, inherited mode, or nested action needs a
+	// routing-policy review instead of silently consuming agent input.
+	bindings := body[strings.Index(body, "keybinds clear-defaults=true"):]
+	allowed := regexp.MustCompile(`^bind "[^"\n]+" \{ (?:Write [0-9]+; ?|WriteChars "(?:[^"\\]|\\.)*"; ?)+\}$`)
+	for _, line := range strings.Split(bindings, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "//") || line == "keybinds clear-defaults=true {" || line == "shared {" || line == "}" {
+			continue
+		}
+		if !allowed.MatchString(line) {
+			t.Errorf("unreviewed Zellij input action: %s", line)
+		}
 	}
 }

@@ -198,7 +198,7 @@ func TestOSRuntimeRestartMarker(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Peek must NOT clear (park-nudge skip reads it before Take does).
+	// Peek must NOT clear (park-nudge skip reads it before acknowledgment).
 	if !rt.RestartMarkerPresent("pair-x") {
 		t.Fatal("RestartMarkerPresent should see the marker")
 	}
@@ -206,14 +206,17 @@ func TestOSRuntimeRestartMarker(t *testing.T) {
 		t.Fatal("RestartMarkerPresent must not clear the marker")
 	}
 
-	m, ok := rt.TakeRestartMarker("pair-x")
-	if !ok || m.Tag != "x" || m.Agent != "codex" || !m.NewSession {
+	m, ok, readErr := rt.ReadRestartMarker("pair-x")
+	if readErr != nil || !ok || m.Tag != "x" || m.Agent != "codex" || !m.NewSession {
 		t.Fatalf("TakeRestartMarker = %+v ok=%v", m, ok)
 	}
-	if _, err := os.Stat(marker); !os.IsNotExist(err) {
-		t.Fatal("TakeRestartMarker must clear the marker")
+	if err := rt.AcknowledgeRestartMarker("pair-x", m); err != nil {
+		t.Fatal(err)
 	}
-	if _, ok := rt.TakeRestartMarker("pair-x"); ok {
+	if _, err := os.Stat(marker); !os.IsNotExist(err) {
+		t.Fatal("acknowledgment must clear matching marker")
+	}
+	if _, ok, err := rt.ReadRestartMarker("pair-x"); ok || err != nil {
 		t.Fatal("a cleared restart marker should read false")
 	}
 }

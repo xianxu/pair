@@ -95,7 +95,7 @@ func TestRunTestShortcutIgnoresNonTerminalPane(t *testing.T) {
 
 func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua"},
 		{"id":3,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
 	]`
 	rt := &fakeRuntime{panesJSON: panes}
@@ -1501,5 +1501,20 @@ func TestClosingATabAsksTheSurvivingChildToRepaint(t *testing.T) {
 	got := waitForChildResizes(t, survivor, before+2)
 	if got[before].Rows != 22 || got[before+1].Rows != 23 {
 		t.Fatalf("resizes = %v, want a shrink-and-restore pair around 23 rows", got[before:])
+	}
+}
+
+func TestTerminalHelpAndChangelogRouteWithoutFocusChange(t *testing.T) {
+	for _, tc := range []struct{ raw, fn string }{{"\x1b[104;3u", "PairOpenHelp"}, {"\x1b[108;3u", "PairOpenChangelog"}} {
+		rt := &fakeRuntime{cachedDraft: "2", failList: true}
+		mux := &fakeMux{}
+		pumpStdin(&splitReader{chunks: [][]byte{[]byte(tc.raw)}}, mux, rt, io.Discard)
+		want := "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua " + tc.fn + "(),write --pane-id 2 13"
+		if got := strings.Join(rt.ops, ","); got != want {
+			t.Fatalf("ops=%q want=%q", got, want)
+		}
+		if rt.listCalls != 0 || len(mux.reported) != 0 {
+			t.Fatalf("unexpected query/error: %d %v", rt.listCalls, mux.reported)
+		}
 	}
 }

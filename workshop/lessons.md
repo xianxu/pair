@@ -1,5 +1,14 @@
 # Lessons
 
+## Query failure cannot prove an empty external state (#248)
+
+Zellij snapshot code swallowed listing/client-query errors; a failed client
+query became zero clients and therefore attachment authority. Trace every
+external observation through its error path before relying on fail-closed
+comments. Test each query boundary with deterministic failure and cancellation,
+require no partial authority, and distinguish a documented empty result from
+an unknown failure. Caught during #248 plan review.
+
 ## Acceptance tests must cross routing and attachment boundaries
 
 A Couch startup test called the new domain helper directly, so it remained green
@@ -4792,3 +4801,115 @@ Retention protection must follow actual detached readers/writers, not their
 launcher's lifetime. Test a child surviving its parent. When configurable
 storage roots participate in deletion, assume different filesystems: keep
 quarantine local and specify recoverable cross-store ordering before coding.
+
+
+## 2026-09-14 — Keyboard mode repair needs wire ownership and both-buffer cleanup
+
+The #251 plan initially assumed Couch's Run loop owned every terminal write,
+but operationQueue also calls takeover. Scanning under one lock and emitting
+after releasing it can make the scanner disagree with the terminal's actual
+byte order. Before adding a mode assertion, enumerate every write site and
+serialize scanner decisions with output; test concurrent takeover and cleanup
+using explicit barriers. Cleanup must prevent any later writer from restoring
+the mode it just cleared.
+
+Kitty keyboard stacks are separate on primary and alternate screens. Resetting
+only the current alternate buffer before leaving it can reveal an enabled main
+buffer and leak extended keys into the shell. Test startup on main, alternate
+entry, and shutdown as one stateful sequence, and verify final main-buffer key
+encoding rather than just searching for a reset escape. Caught during #251
+spec/plan review.
+
+
+## 2026-09-14 — Diagnostic plans name producer-level oracles (#207)
+
+A log helper test cannot establish that an event means bytes were emitted.
+Name each production writer and its adversarial strategy in diagnostic plans:
+compare outcomes with accepted bytes, and pause writes to verify identity is
+captured before IO. Keep scanner belief labels distinct from terminal queries.
+
+A core-concepts table should declare PURE/INTEGRATION explicitly for every
+entity, including later additions; prose describing the distinction does not
+make a table mechanically reviewable. Caught by #207 M1 review (Minor).
+
+
+## Terminal ownership changes need matching operator documentation (#251)
+
+When Couch takes ownership of a terminal capability formerly supplied by its
+child, update README, atlas and current source-contract comments together.
+Search for the old owner and accepted encoding claims; passing protocol tests
+do not establish that operator documentation describes the shipped behavior.
+
+
+## 2026-09-14 — Continuation recovery crosses UI and durable state (#249)
+
+An accepted replacement request outlives its source pane. Test both source-exit
+and failure-completion orders, retain the request address after the pane leaves,
+and do not infer successful delivery from helper registration. A recovered
+source must return to execution; a pending admission conflict cannot be sent to
+receipt polling for a target that does not exist.
+
+Exercise generated menu payloads through the declared operation dispatcher.
+Checking that an action appears or carries an ID misses required arguments that
+make it unreachable. Every returned StartedChild must be adopted or waited for,
+including internal CLI paths and intermediate recovery helpers.
+
+Keep the issue log current while implementation agents work. Answering a side
+question does not finish the active task: resume integration and record the
+completed unit before ending a turn or starting another investigation.
+
+
+## 2026-09-14 — Verify review claims at the actual mutation boundary (#249)
+
+A foreground/background hint does not itself establish a focus override. Trace
+the installer through the lock and its active-actor condition, then reproduce
+intervening user actions through the actual dispatcher. If the proposed failing
+cases pass unchanged code, preserve them as regressions and request a grounded
+review disposition rather than adding another focus mechanism speculatively.
+
+Before closing, compare every Core-concepts row against the actual diff and
+append corrected classifications for unchanged reuse and split implementations.
+
+
+## 2026-09-14 — Recovery must preserve empty-thread escape and caller deadlines (#250)
+
+When strengthening lifecycle ownership checks, retain the never-bound case:
+an empty thread whose launch failed before session publication still needs a
+non-signalling archive path. Prove missing binding explicitly; do not conflate
+it with an unreadable index, unknown session state, or occupied incarnation.
+Test the public operation with a real scoped index lacking the entry.
+
+A timeout on an outer recovery helper does not bound a nested observer that
+switches to context.Background. Trace caller context through registration,
+generation lookup, retry and final archive observation into the actual external
+command. Test cancellation at those boundaries, not only before the operation.
+
+
+Exact external evidence does not authorize an ad-hoc persisted lifecycle state
+assignment. Represent receipt-backed recovery in the owned pure transition
+model and revision-checked store operation. Test interruption between that
+transition and attachment; avoid publishing a synthetic live intermediate state.
+
+## 2026-09-14 — Authorize shortcuts after routing their preceding input (#245)
+
+A byte chunk can contain a menu selection followed by a lifecycle shortcut.
+Framing the shortcut before delivering its prefix is valid; deciding its scope
+then is not. Route the prefix first, read the resulting focus, and only then
+consume or forward the original candidate bytes. Test both focus directions
+with same-read input; per-read focus snapshots cannot establish key ownership.
+
+
+## 2026-09-14 — Validate incremental framing at action boundaries (#245)
+
+A complete shortcut found by lookahead disambiguates any incomplete prefix
+before it. Do not run suffix retention on that artificially truncated prefix
+and then append the complete shortcut to pending input. Exercise malformed or
+stray prefixes followed by valid actions, across reads and flush boundaries;
+partitioning only well-formed streams cannot establish bounded pending state.
+
+When a plan promises CI source coverage, verify representative production paths
+against every event filter before ticking it complete. Running the fixture
+locally does not prove a change will trigger it in CI.
+
+Preserve executable CI selector checks as committed regressions, including both
+events; an ad hoc red/green check alone does not defend the routing invariant.

@@ -26,6 +26,10 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"stop":                 {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStop, PresentationTUI},
 		"name":                 {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationTUI},
 		"describe":             {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultDescription, PresentationTUI},
+		"request-continuation": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
+		"continue-thread":      {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationInternal},
+		"retry-continuation":   {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationInternal},
+		"continuation-status":  {ExecuteLiveOwner, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"publish-description":  {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"switch":               {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole, PresentationTUI},
 		"attach":               {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole, PresentationTUI},
@@ -33,8 +37,10 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"detach":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultThread, PresentationTUI},
 		"leave":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
 		"relaunch":             {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
-		"archive":              {ExecuteDirectStore, EffectMetadata, ConfirmRequired, ResultThread, PresentationTUI},
+		"archive":              {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread, PresentationTUI},
 		"archived":             {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
+		"recover-thread":       {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
+		"recover-checkpoint":   {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"resume":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 	}
 	for _, op := range Operations() {

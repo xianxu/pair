@@ -210,11 +210,11 @@ func TestRetentionOSRuntimeRejectsScopeSymlinkBeforeEffects(t *testing.T) {
 	}
 }
 
-func (r *retainedRuntime) TakeRestartMarker(session string) (RestartMarker, bool) {
+func (r *retainedRuntime) ReadRestartMarker(session string) (RestartMarker, bool, error) {
 	if r.traceTail {
 		r.events = append(r.events, "restart-read")
 	}
-	return r.fakeRuntime.TakeRestartMarker(session)
+	return r.fakeRuntime.ReadRestartMarker(session)
 }
 func (f *fakeRetentionUse) WriteChanged(target string, write func() (bool, error)) error {
 	*f.events = append(*f.events, "write-use")
@@ -331,5 +331,69 @@ func TestRetentionSeedCommitFailureLeavesBlockingIntent(t *testing.T) {
 	state, err := guard.coordinator.ReadOwner(guard.owner)
 	if err != nil || len(state.Intents) != 1 {
 		t.Fatalf("saved content lost blocking intent %+v %v", state, err)
+	}
+}
+
+// The restart protocol must acknowledge only after the retained seed is durable
+// and the replacement has handed off, while releasing its lifetime on errors.
+type retainedCheckpointRuntime struct {
+	*retainedRuntime
+	ackErr error
+}
+
+func (r *retainedCheckpointRuntime) AcknowledgeRestartMarker(session string, marker RestartMarker) error {
+	r.events = append(r.events, "ack")
+	if r.ackErr != nil {
+		return r.ackErr
+	}
+	return r.fakeRuntime.AcknowledgeRestartMarker(session, marker)
+}
+
+func TestRetentionCheckpointHandoffAndAcknowledgment(t *testing.T) {
+	for _, mode := range []string{"success", "ack-error", "launch-error"} {
+		t.Run(mode, func(t *testing.T) {
+			r := &retainedCheckpointRuntime{retainedRuntime: &retainedRuntime{fakeRuntime: newFakeRuntime()}}
+			c := testCheckpoint(t)
+			marker := RestartMarker{Version: 1, Attempt: "retained-239", Tag: "work", Agent: "claude", NewSession: true, Checkpoint: c}
+			r.restartMarkers["source-session"] = marker
+			opts := baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"})
+			opts.ContinueCheckpoint, opts.RestartSession, opts.RestartAttempt = c, "source-session", marker
+			if mode == "ack-error" {
+				r.ackErr = errors.New("acknowledgment unavailable")
+			}
+			if mode == "launch-error" {
+				r.launchErr = errors.New("replacement unavailable")
+			}
+			var output bytes.Buffer
+			code, err := RunLaunch(opts, r, &output)
+			if err != nil || (code == 0) != (mode == "success") {
+				t.Fatalf("code=%d err=%v: %s", code, err, output.String())
+			}
+			events := strings.Join(r.events, " ")
+			if !strings.Contains(events, "write-use spawn launch") || !strings.Contains(r.files["/data/draft-work.md"], c.Body) {
+				t.Fatalf("checkpoint not durably retained before handoff: %s", events)
+			}
+			if mode == "launch-error" {
+				if strings.Contains(events, "ack") || !strings.HasSuffix(events, "finish:false") {
+					t.Fatalf("failed launch acknowledgment/release: %s", events)
+				}
+			} else if !strings.HasSuffix(events, "launch ack finish:true") {
+				t.Fatalf("ack must follow handoff and precede lifetime release: %s", events)
+			}
+			_, retained := r.restartMarkers["source-session"]
+			if retained != (mode != "success") {
+				t.Fatalf("retained intent=%v for %s", retained, mode)
+			}
+		})
+	}
+}
+
+func TestRetentionPostHandoffMarkerFailureReleasesLifetime(t *testing.T) {
+	r := &retainedRuntime{fakeRuntime: newFakeRuntime(), traceTail: true}
+	r.restartMarkers["📁work"] = RestartMarker{Version: 1}
+	var output bytes.Buffer
+	code, _ := RunLaunch(baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), r, &output)
+	if code != 1 || !strings.Contains(strings.Join(r.events, " "), "restart-read finish:true") {
+		t.Fatalf("invalid marker lost lifetime release: code=%d events=%v output=%s", code, r.events, output.String())
 	}
 }

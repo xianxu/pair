@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -159,8 +160,8 @@ func TestShortcutDecision(t *testing.T) {
 			},
 		},
 		{
-			name:    "left agent alt k records focused pane then focuses terminal",
-			role:    PaneRoleLeftAgent,
+			name:    "left draft alt k records focused pane then focuses terminal",
+			role:    PaneRoleLeftDraft,
 			chord:   ChordAltK,
 			focused: "1",
 			want: ShortcutDecision{
@@ -176,10 +177,10 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusLeftAgent},
 		},
 		{
-			name:  "left agent alt j focuses draft",
+			name:  "left agent alt j passes through",
 			role:  PaneRoleLeftAgent,
 			chord: ChordAltJ,
-			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionFocusLeftDraft},
+			want:  ShortcutDecision{Disposition: DispositionPass},
 		},
 		{
 			name:  "left pane tab helper is swallowed",
@@ -292,8 +293,10 @@ func TestGlobalDecisionMatrix(t *testing.T) {
 		{ChordAltUp, ActionGrowDraft, "PairLayoutBigger", false},
 		{ChordAltDown, ActionShrinkDraft, "PairLayoutSmaller", false},
 		{ChordAltC, ActionToggleReview, "PairReviewToggle", false},
+		{ChordAltH, ActionOpenHelp, "PairOpenHelp", false},
+		{ChordAltL, ActionOpenChangelog, "PairOpenChangelog", false},
 	}
-	roles := []PaneRole{PaneRoleLeftAgent, PaneRoleLeftDraft, PaneRoleRightTerminal}
+	roles := []PaneRole{PaneRoleLeftDraft, PaneRoleRightTerminal}
 	for _, global := range globals {
 		for _, role := range roles {
 			got := Decide(ShortcutInput{Role: role, Chord: global.chord})
@@ -689,5 +692,52 @@ func TestTabChordForDeliversGlobalChords(t *testing.T) {
 		if !IsGlobalChord(chord) {
 			t.Errorf("TabChordFor(%v) = %v, NOT global — it would pass through a full-screen child", a, ChordName(chord))
 		}
+	}
+}
+
+func TestAgentReservationPolicyMatrix(t *testing.T) {
+	reserved := map[Chord]ShortcutAction{ChordAltShiftT: ActionTerminalNewTab, ChordAltShiftLeft: ActionTerminalPrevTab, ChordAltShiftRight: ActionTerminalNextTab}
+	for chord := ChordUnknown; chord < ChordMax(); chord++ {
+		got := Decide(ShortcutInput{Role: PaneRoleLeftAgent, Chord: chord})
+		want := ShortcutDecision{Disposition: DispositionPass}
+		if action, ok := reserved[chord]; ok {
+			want = ShortcutDecision{Disposition: DispositionHandle, Action: action}
+		}
+		if got != want {
+			t.Errorf("agent %s: got %+v, want %+v", ChordName(chord), got, want)
+		}
+	}
+}
+
+func TestRoleLocalHelpAndChangelog(t *testing.T) {
+	for _, tt := range []struct{ bytes, lua string }{{"\x1bh", "PairOpenHelp"}, {"\x1bl", "PairOpenChangelog"}} {
+		chord, ok := DecodeChord([]byte(tt.bytes))
+		if !ok {
+			t.Errorf("missing chord %q", tt.bytes)
+			continue
+		}
+		for _, role := range []PaneRole{PaneRoleLeftAgent, PaneRoleLeftDraft, PaneRoleRightTerminal} {
+			got := Decide(ShortcutInput{Role: role, Chord: chord})
+			if role == PaneRoleLeftAgent {
+				if got.Disposition != DispositionPass {
+					t.Errorf("agent consumes %q", tt.bytes)
+				}
+			} else if got.DraftLuaFunction != tt.lua || got.FocusDraft {
+				t.Errorf("role %v: %+v", role, got)
+			}
+		}
+	}
+}
+
+func TestAgentReservationMetadataIsExact(t *testing.T) {
+	want := map[Chord]bool{ChordAltShiftT: true, ChordAltShiftLeft: true, ChordAltShiftRight: true}
+	got := map[Chord]bool{}
+	for _, b := range GlobalBindings() {
+		if b.AgentReserved {
+			got[b.Chord] = true
+		}
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("reserved=%v want=%v", got, want)
 	}
 }

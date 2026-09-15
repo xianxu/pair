@@ -3,6 +3,8 @@ package launcher
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"os/exec"
 	"sort"
 	"strings"
@@ -67,11 +69,11 @@ func (s ZellijSource) LivenessContext(ctx context.Context) ([]Session, error) {
 func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) bool) ([]Session, error) {
 	short, err := s.runContext(ctx, "list-sessions", "--short")
 	if err != nil {
-		short = nil
+		return nil, err
 	}
 	raw, err := s.runContext(ctx, "list-sessions", "--no-formatting")
 	if err != nil {
-		raw = nil
+		return nil, err
 	}
 	exited := exitedSessions(string(raw))
 	var out []Session
@@ -85,10 +87,15 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 			state = SessionExited
 		case !ask(name):
 			state = SessionLive
-		case s.clientCountContext(ctx, name) > 0:
-			state = SessionAttached
 		default:
+			clients, err := s.clientCountContext(ctx, name)
+			if err != nil {
+				return nil, err
+			}
 			state = SessionDetached
+			if clients > 0 {
+				state = SessionAttached
+			}
 		}
 		out = append(out, Session{Name: name, State: state})
 	}
@@ -97,15 +104,16 @@ func (s ZellijSource) snapshot(ctx context.Context, ask, keep func(name string) 
 }
 
 func (s ZellijSource) clientCount(session string) int {
-	return s.clientCountContext(context.Background(), session)
+	count, _ := s.clientCountContext(context.Background(), session)
+	return count
 }
 
-func (s ZellijSource) clientCountContext(ctx context.Context, session string) int {
+func (s ZellijSource) clientCountContext(ctx context.Context, session string) (int, error) {
 	out, err := s.runContext(ctx, "--session", session, "action", "list-clients")
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return parseClientCount(string(out)) // one parser for both call sites (ARCH-DRY)
+	return parseClientCount(string(out)), nil // one parser for both call sites (ARCH-DRY)
 }
 
 func (s ZellijSource) run(args ...string) ([]byte, error) {
@@ -120,10 +128,26 @@ func (s ZellijSource) runContext(ctx context.Context, args ...string) ([]byte, e
 	ctx, cancel := context.WithTimeout(ctx, zellijQueryTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, args...)
-	var stdout bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
-		return nil, err
+		if ctx.Err() != nil {
+			err = ctx.Err()
+		} else {
+			// Zellij reports a successfully observed empty inventory with exit
+			// 1 and this exact diagnostic. Other failures are not absence proof.
+			var exitErr *exec.ExitError
+			if len(args) > 0 && args[0] == "list-sessions" &&
+				errors.As(err, &exitErr) && exitErr.ExitCode() == 1 &&
+				stdout.Len() == 0 && strings.TrimSpace(stderr.String()) == "No active zellij sessions found." {
+				return nil, nil
+			}
+		}
+		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("zellij %s: %w", strings.Join(args, " "), err)
 	}
 	return stdout.Bytes(), nil
 }

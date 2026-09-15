@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"io"
 	"os"
 	"os/exec"
@@ -48,6 +49,8 @@ func newLaunchOptions(args LaunchArgs, env Env, pairHome, dataDir string, useRep
 // are already on stdout/stderr, and the error is always nil (no shell to fall back
 // to).
 func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer) (int, error) {
+	expectedDigest := os.Getenv(checkpoint.DigestEnv)
+	_ = os.Unsetenv(checkpoint.DigestEnv)
 	useRepoDefault := consumeRepoDefaultPolicy(os.Getenv, os.Unsetenv)
 	couchProfile := os.Getenv(CouchLaunchProfileEnv)
 	_ = os.Unsetenv(CouchLaunchProfileEnv)
@@ -111,11 +114,15 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 
 	// `rename <old> <new>` is an offline sidecar move — no launch (#99 M5b).
 	if args.Command == "rename" {
+		if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+			fmt.Fprintln(stderr, "pair: hosted tag rename is unsupported; use Couch name to change the thread label")
+			return 1, nil
+		}
 		return runRenameScoped(rt, args, env.DataDir, scopeKeyFromDataDir(dataDir, env.DataDir), stdout, stderr), nil
 	}
 
 	// Bare `continue` lists the docs + exits; it never launches (#99 M5b).
-	if args.Command == "continue" && args.ContinueSlug == "" {
+	if args.Command == "continue" && args.ContinueSlug == "" && args.ContinueCheckpoint == "" && args.ContinueRetry == "" {
 		return runContinueList(rt, stdout, stderr), nil
 	}
 
@@ -123,6 +130,10 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	// bin/pair-{restart,quit}.sh): write markers, exec kill-session. They need the
 	// live ZELLIJ_SESSION_NAME the keybind fires under.
 	if args.Command == "restart" {
+		if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+			fmt.Fprintln(stderr, "pair: hosted inner restart is unsupported; use Couch relaunch (Alt+n)")
+			return 1, nil
+		}
 		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), os.Getenv("PAIR_TAG"), stderr), nil
 	}
 	if args.Command == "quit" {
@@ -130,22 +141,45 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	}
 	opts := newLaunchOptions(args, env, pairHome, dataDir, useRepoDefault, os.Getenv, parkPromptTimeout())
 
-	// `continue <slug>`: resolve the doc (seeds the draft on create + drives the
-	// compaction marker), pick the agent (explicit port → doc frontmatter → claude).
 	if args.Command == "continue" {
-		slug, err := NormalizeTag(args.ContinueSlug)
-		if err != nil {
-			_, _ = io.WriteString(stderr, "pair: invalid slug '"+args.ContinueSlug+"'\n")
-			return 1, nil
+		if args.ContinueRetry != "" {
+			if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+				fmt.Fprintln(stderr, "pair: use Couch Retry continuation for a hosted thread")
+				return 1, nil
+			}
+			if err := prepareContinuationRetry(&opts, rt, args.ContinueRetry); err != nil {
+				fmt.Fprintf(stderr, "pair: %v\n", err)
+				return 1, nil
+			}
+		} else {
+			path := args.ContinueCheckpoint
+			if path == "" {
+				slug, err := NormalizeTag(args.ContinueSlug)
+				if err != nil {
+					fmt.Fprintf(stderr, "pair: invalid continuation slug: %v\n", err)
+					return 1, nil
+				}
+				var ok bool
+				path, _, ok = rt.ResolveContinuationDoc(slug)
+				if !ok {
+					fmt.Fprintf(stderr, "pair: no readable continuation matching %q in %s\n", slug, continuationDirPath())
+					return 1, nil
+				}
+				opts.ContinueSlug = slug
+			}
+			c, err := rt.ReadCheckpoint(path)
+			if err != nil {
+				fmt.Fprintf(stderr, "pair: %v\n", err)
+				return 1, nil
+			}
+			if expectedDigest != "" && expectedDigest != c.Digest {
+				fmt.Fprintln(stderr, "pair: checkpoint changed since the writer committed it; source kept running")
+				return 1, nil
+			}
+			opts.ContinueCheckpoint = c
+			opts.ContinueDoc = c.SourcePath
+			opts.Args.Agent = firstNonEmpty(args.Agent, c.Agent(), "claude")
 		}
-		docPath, docAgent, ok := rt.ResolveContinuationDoc(slug)
-		if !ok {
-			_, _ = io.WriteString(stderr, "pair: no continuation matching '"+slug+"' in "+continuationDirPath()+"\n")
-			return 1, nil
-		}
-		opts.ContinueDoc = docPath
-		opts.ContinueSlug = slug
-		opts.Args.Agent = firstNonEmpty(args.Agent, docAgent, "claude")
 	}
 
 	return RunLaunch(opts, rt, stderr)

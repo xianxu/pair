@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
@@ -311,7 +312,24 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		return renderRootMenuFrame(state, frame, width, height, now, color256)
 	case MenuFrameActions:
 		thread, _ := menuThread(state, frame.Thread)
-		return renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionsFor(state, thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height), nil
+		details := []string{}
+		if r := thread.Recovery; r != nil {
+			if r.CheckpointPath != "" {
+				details = append(details, clipMenuLine("Checkpoint: "+r.CheckpointPath, width))
+			}
+			if r.CheckpointDigest != "" {
+				details = append(details, clipMenuLine("SHA-256: "+r.CheckpointDigest, width))
+			}
+		}
+		// Reserve details only when at least one action still fits.
+		if height < len(details)+3 {
+			details = nil
+		}
+		lines := renderItemMenuFrame("actions · "+thread.Label(), filterMenuItems(menuActionsFor(state, thread), frame.Filter), frame.SelectedItem, frame.Filter, width, height-len(details))
+		if thread.Recovery != nil && len(lines) > 1 {
+			lines[1] = clipMenuLine(thread.Recovery.Diagnosis, width)
+		}
+		return append(lines, details...), nil
 	case MenuFrameConfirmation:
 		// The title argument is vestigial at every call site: RenderMenuView
 		// overwrites line 0 with the breadcrumb. What the operator reads is the
@@ -323,7 +341,11 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		}
 		return renderItemMenuFrame(title, filterMenuItems(confirmationMenuItems(state, frame), frame.Filter), confirmationDisplaySelection(frame), frame.Filter, width, height), nil
 	case MenuFrameText:
-		return []string{clipMenuLine(menuItemLabel(frame.Action), width), "", clipMenuLine("> "+frame.Input, width)}, nil
+		hint := ""
+		if frame.Action == "recover-checkpoint" {
+			hint = "Absolute checkpoint path · starts a new conversation"
+		}
+		return []string{clipMenuLine(menuItemLabel(frame.Action), width), clipMenuLine(hint, width), clipMenuLine("> "+frame.Input, width)}, nil
 	case MenuFrameStart:
 		return renderStartMenuFrame(state, frame, width, height), nil
 	default:
@@ -390,6 +412,16 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 // label, and the guard that keeps it that way iterates the vocabulary rather
 // than listing cases here (Go has no exhaustive-switch check).
 func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
+	if request := thread.Continuation; request != nil {
+		switch request.Phase {
+		case checkpoint.Pending:
+			return "continuation queued"
+		case checkpoint.Running:
+			return "continuing…"
+		case checkpoint.Failed:
+			return "continuation failed — retry available"
+		}
+	}
 	switch thread.State {
 	case couchcore.ThreadLive:
 		return "live"

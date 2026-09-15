@@ -24,6 +24,8 @@
 #                               scanner models; not a paint-safety question at
 #                               all (pair term's takeover reconciles the pane's
 #                               mouse modes from it, #240)
+#   MidSequence() with keyboard-control-boundary annotation -- cursor-neutral
+#                               keyboard mode control, not a reserved-row paint
 #   ...ForTest / ...forTest  -- probes that deliberately observe one half
 #
 # Anything else -- notably a bare MidSequence() or HoldsCursorSave() in
@@ -64,6 +66,7 @@ for rel in $FILES; do
       /^func / { fn = $0 }
       index($0, scanner ".") {
         if (fn ~ /ForTest|forTest/) next
+        if ($0 ~ /MidSequence\(\).*\/\/ keyboard-control-boundary: no cursor effects/) next
         if ($0 ~ /FeedFraming|= ptychild\.Screen\{\}|SafeToPaint\(\)|MouseModes\(\)/) next
         printf "%d: %s\n", NR, $0
       }

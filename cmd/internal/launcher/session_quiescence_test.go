@@ -3,6 +3,8 @@ package launcher
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"time"
@@ -204,5 +206,28 @@ func TestZellijServerPIDsMatchOnlyExactSession(t *testing.T) {
 `
 	if got := zellijServerPIDs(raw, "pair-work"); !reflect.DeepEqual(got, []int{41, 44}) {
 		t.Fatalf("exact server pids = %v", got)
+	}
+}
+
+func TestOSSessionQuiescenceEmptyInventory(t *testing.T) {
+	for _, tc := range []struct {
+		name, diagnostic string
+		wantError        bool
+	}{
+		{"empty", "No active zellij sessions found.", false},
+		{"unknown", "session inventory unavailable", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			stub := "#!/bin/sh\nprintf '%s\\n' '" + tc.diagnostic + "' >&2\nexit 1\n"
+			if err := os.WriteFile(filepath.Join(dir, "zellij"), []byte(stub), 0755); err != nil {
+				t.Fatal(err)
+			}
+			t.Setenv("PATH", dir)
+			present, err := (osSessionQuiescenceOps{}).SessionPresent(context.Background(), "pair-fixture")
+			if present || (err != nil) != tc.wantError {
+				t.Fatalf("present=%v err=%v, want absent and error=%v", present, err, tc.wantError)
+			}
+		})
 	}
 }

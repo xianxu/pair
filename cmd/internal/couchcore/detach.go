@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 )
 
 // detachExitPoll is how often Detach re-observes the client it asked to leave.
@@ -222,6 +224,9 @@ func (c *Couch) awaitExactProcessExit(ctx context.Context, identity ProcessIdent
 // is no session bound to the address at all, which is the common debris case --
 // so a refused archive is safe to retry.
 func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (ArchiveResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := validateThreadAddress(address); err != nil {
 		return ArchiveResult{}, err
 	}
@@ -243,12 +248,70 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	// the store, so a park-in-flight thread had its session killed and was then
 	// refused -- the agent dead, the record still listed.
 	if readErr == nil {
+		reconciled, evidence, err := c.reconcileRecoveryHelper(ctx, address)
+		if err != nil {
+			// A pre-session launch failure can leave a readable empty record
+			// with no binding. This is a non-signalling bookkeeping escape,
+			// not proof of session absence for recovery or a retained request.
+			if !errors.Is(err, ErrPairSessionBindingAbsent) || len(record.Incarnations) != 0 || record.Park != nil || record.Continuation != nil {
+				return ArchiveResult{}, err
+			}
+			// Recheck the exact index before the revision-guarded move. A
+			// newly published binding requires normal ownership checks.
+			if _, err := c.recoverySession(ctx, address); !errors.Is(err, ErrPairSessionBindingAbsent) {
+				if err != nil {
+					return ArchiveResult{}, err
+				}
+				return ArchiveResult{}, fmt.Errorf("archive %s: session binding appeared before archive", address.Tag)
+			}
+			if err := ctx.Err(); err != nil {
+				return ArchiveResult{}, err
+			}
+			if err := c.Threads.ArchiveThreadExpected(address, record.Revision); err != nil {
+				return ArchiveResult{}, err
+			}
+			return ArchiveResult{Record: record}, nil
+		}
+		record = reconciled
+		decision := DecideRecovery(evidence)
+		if !decision.Archive {
+			return ArchiveResult{}, fmt.Errorf("archive %s: %s", address.Tag, decision.Diagnosis)
+		}
 		if err := archivableRecord(record); err != nil {
+			return ArchiveResult{}, err
+		}
+		if err := c.archiveContinuationVacant(record, evidence); err != nil {
+			return ArchiveResult{}, err
+		}
+		latest, err := c.observeRecovery(ctx, record)
+		if err != nil {
+			return ArchiveResult{}, err
+		}
+		if latest.Session != evidence.Session || latest.Presence != evidence.Presence || !DecideRecovery(latest).Archive {
+			return ArchiveResult{}, fmt.Errorf("archive %s: helper or session ownership changed before stop", address.Tag)
+		}
+		if err := c.archiveContinuationVacant(record, latest); err != nil {
+			return ArchiveResult{}, err
+		}
+		if err := ctx.Err(); err != nil {
 			return ArchiveResult{}, err
 		}
 		if err := c.Artifacts.Quiesce(address); err != nil {
 			return ArchiveResult{}, fmt.Errorf("archive %s: its session could not be stopped: %w", address.Tag, err)
 		}
+		// Quiesce may cross an external failure/retry boundary. Refuse if a
+		// session appeared again or durable request state changed meanwhile.
+		presence, err := c.observeSessionPresenceContext(ctx, address)
+		if err != nil {
+			return ArchiveResult{}, err
+		}
+		if presence != PresenceAbsent {
+			return ArchiveResult{}, fmt.Errorf("archive %s: session absence is no longer proved", address.Tag)
+		}
+		if err := c.Threads.ArchiveThreadExpected(address, record.Revision); err != nil {
+			return ArchiveResult{}, err
+		}
+		return ArchiveResult{Record: record}, nil
 	} else {
 		// Unreadable: the operator can still remove the row -- that escape is
 		// what keeps a corrupt record from locking its repository -- but couch
@@ -259,10 +322,36 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		// left alone, and the caller is told.
 		record = ThreadRecord{Address: address}
 	}
-	if err := c.Threads.ArchiveThread(address); err != nil {
+	if err := c.Threads.ArchiveThreadExpected(address, 0); err != nil {
 		return ArchiveResult{}, err
 	}
 	return ArchiveResult{Record: record, SessionNotStopped: readErr != nil}, nil
+}
+
+// A retained request may name a live source/target even after its incarnation
+// was retired. Archive preserves the request only when those actors are proved
+// absent; a checkpoint is never permission to stop an unfinished conversation.
+func (c *Couch) archiveContinuationVacant(record ThreadRecord, evidence RecoveryEvidence) error {
+	request := record.Continuation
+	if request == nil || request.Phase == checkpoint.Complete {
+		return nil
+	}
+	if evidence.Presence != PresenceAbsent {
+		return fmt.Errorf("archive %s: continuation source or target session is still occupied", record.Address.Tag)
+	}
+	identities := []ProcessIdentity{{PID: request.Source.Helper.PID, Identity: request.Source.Helper.Identity}}
+	if request.Target != nil {
+		identities = append(identities, ProcessIdentity{PID: request.Target.PID, Identity: request.Target.Identity})
+	}
+	for _, identity := range identities {
+		if identity.PID == 0 && identity.Identity == "" {
+			continue
+		}
+		if c.Proc == nil || observeExactProcess(c.Proc, identity) != Dead {
+			return fmt.Errorf("archive %s: continuation source or target helper is not proved dead", record.Address.Tag)
+		}
+	}
+	return nil
 }
 
 // ArchiveResult is what archiving did, including what it deliberately did NOT
