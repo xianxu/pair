@@ -165,3 +165,36 @@ go test -race ./cmd/internal/couchtty ./cmd/internal/termcmd -run 'Test(ConsoleC
 ```
 
 This supplies concrete consumer evidence for the clipboard and notification rows above. The qualification inventory is not automatically promoted by these additional tests; live-display/selection, sustained native behavior and the operator smoke remain explicitly uncovered until their own production evidence is recorded.
+
+### 2026-09-15 — M4 native continuity, mutation and coverage attribution
+
+Frozen candidate native conformance passes three race repetitions (`/tmp/pair255-m4-native-stable.log`,20.910s). The direct Zellij and actual wrapper→Zellij→Couch fixtures retain the same original process PID, random boot nonce and in-memory counter across detach/reattach; a new PTY attachment resumes the counter from1 to2 without creating a replacement session. Independent xterm compares every viewport cell/style/cursor before and after. A mouse drag has visible highlight while held, followed by exact copied text on release; wrapped CJK, enhanced keys, paste/focus/drag and notification delivery survive reattachment. Real nvim content/chrome and scrolling checks also pass. All use disposable sessions.
+
+Coverage attribution remains explicit: these native fixtures use synthetic applications, not a live Codex/Claude conversation. The wrapper native CR receipt exercises pass-through; recognized-composer Return remapping and normalized queued-observer equality are established by focused wrapper stateful tests. Native CPR asserts response shape, not an exact-coordinate/origin proof for every nesting level. The thirty-minute consumer soaks use real PTYs with synthetic helpers, not thirty-minute native Zellij/nvim sessions. Pair term's soak checks mouse destinations; visible selection in both real agent and right panes remains in the operator smoke.
+
+The final inventory remains **84 pass,0 fail,6 not-covered; qualified=false** (`/tmp/pair255-m4-qualification.json`, expected CLI exit1). The production evidence tables above complement those placeholders; they do not relabel them. Operator sustained-use acceptance remains pending. Three causal mutations are detected again on frozen source: discard split UTF-8 parser carry, overwrite the final child row with chrome, and drop mouse motion. Each unmodified targeted suite passes and each scratch-overlay mutation fails behavioral assertions; no production source is mutated (`/tmp/pair255-m4-mutation/manifest.json`).
+
+### 2026-09-15 — M4 final performance and resource evidence
+
+Five timing trials per binary/geometry compare baseline `b11ab67f` with the frozen candidate. The process runs actual `pair term` with synthetic PTY applications and pinned xterm5.5.0 receipts. Both include independent interpreter IPC/parsing; no time is subtracted. Cold startup resets per-trial application data/runtime extraction, not OS filesystem cache. Two production soaks ran concurrently; these are development-machine observations rather than dedicated-machine guarantees.
+
+| Metric |80×24 baseline → candidate |240×80 baseline → candidate |
+|---|---:|---:|
+| Startup p95 ms |263.832 →660.857 |306.976 →222.145 |
+| Startup median ms |171.54 →226.14 |174.95 →204.35 |
+| New tab p95 ms |28.688 →49.075 |43.605 →49.203 |
+| Input p95 ms |2.843 →19.739 |3.088 →23.454 |
+| Switch p95 ms |33.746 →39.386 |41.303 →34.769 |
+| Post-history input p95 ms |2.495 →21.051 |2.677 →24.011 |
+| Post-history switch p95 ms |187.129 →101.060 |215.472 →115.416 |
+| Synthetic output median MiB/s |0.788 →1.040 |0.673 →0.562 |
+| Active-output median wrapper CPU % |3.954 →41.378 |4.033 →40.970 |
+| Idle median wrapper CPU % |0 →0.498 |0 →0.498 |
+|120Hz unsolicited-hover median wrapper CPU % |1.499 →1.500 |1.499 →1.999 |
+|16 saturated tabs: maximum observed wrapper RSS MiB |23.234 →203.156 |23.828 →386.594 |
+
+Input meets50ms and representative16-tab sampled RSS meets512MiB. Saturated-history pooled switch p95 **misses100ms** by1.060ms/15.416ms; switches into only the saturated destination have p95105.106ms/150.089ms. All samples remain included. Seven240×80 events above100ms occur in a single trial, with identical44,156-byte redraws; each other trial has none. Candidate history rebuilds preserve logical text/native copy and are smaller than baseline replay, but still cost output/interpretation plus scheduling and compositor work. No single cause is claimed for the extra timing variation. This is a documented provisional-budget exception for boundary review and operator smoke, not a passed threshold or rollout approval. The candidate's active-output CPU cost is substantially higher than the raw-forwarding baseline and is shown explicitly.
+
+RSS is the maximum of49 point-in-time wrapper samples per16-tab run, not OS peak; it includes compositor/endpoints/rings/PTY descriptors and excludes child helpers and independent oracle. Each tab emits1,050,624bytes before sampling, retaining sixteen histories concurrently. CPU is wrapper-only `ps` cumulative accounting;2s idle/hover windows can quantize small deltas. The hover workload sends unsolicited button-none motion while child tracking is disabled; it is not native mouse capture. Throughput covers synthetic payload emission through visible completion.
+
+Evidence: `/tmp/pair255-m4-performance-final.{json,log}`, `/tmp/pair255-memory-final.{json,log}`. Baseline SHA256 `f52764eca185b0147b7e2c60b5f8762c98795dff2e18e4164a0be251a66dccd7`; candidate `3f1f9ecac95017e8f18aaca446a6327cd2aa45ade65729d651ebe34f2b1f7afd`. Failed pre-correction harness evidence remains separately preserved.

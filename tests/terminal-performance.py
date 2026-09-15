@@ -57,7 +57,7 @@ def cpu_seconds(pid):
  parts=[float(p) for p in raw.split(':')]
  return days*86400+sum(v*60**i for i,v in enumerate(reversed(parts)))
 
-def trial(binary,cols,rows,bulk,idle,hover_seconds,hover_hz):
+def trial(binary,cols,rows,bulk,idle,hover_seconds,hover_hz,memory_tabs=0):
  with tempfile.TemporaryDirectory(prefix='pair-terminal-perf-') as directory:
   root=pathlib.Path(directory);shell=root/'shell'
   shell.write_text('#!'+sys.executable+'\n'+HELPER);shell.chmod(0o700)
@@ -67,17 +67,27 @@ def trial(binary,cols,rows,bulk,idle,hover_seconds,hover_hz):
   fcntl.ioctl(slave,termios.TIOCSWINSZ,struct.pack('HHHH',rows,cols,0,0))
   start=time.monotonic();process=subprocess.Popen([binary,'term'],stdin=slave,stdout=slave,stderr=slave,env=env,start_new_session=True);os.close(slave)
   parent_bytes=0;screen=''
-  def until(marker):
+  def output_failure(reason):
+   return RuntimeError('%s; wrapper_exit=%r; bounded_screen_tail=%r'%(reason,process.poll(),screen[-8192:]))
+  def read_output(timeout):
    nonlocal parent_bytes,screen
+   if not select.select([master],[],[],max(0,timeout))[0]:return False
+   try:data=os.read(master,65536)
+   except OSError as err:raise output_failure('PTY read error '+str(err)) from err
+   if not data:raise output_failure('PTY EOF')
+   parent_bytes+=len(data);screen=oracle.ask(dict(data=base64.b64encode(data).decode()))
+   return True
+  def drain_for(seconds):
+   # Even an idle real terminal keeps consuming its output. A screen receipt
+   # can precede the final render bytes; sleeping with an unread PTY falsely
+   # turns an idle CPU sample into the presenter's blocked-writer test.
+   deadline=time.monotonic()+seconds
+   while time.monotonic()<deadline:read_output(deadline-time.monotonic())
+  def until(marker):
    deadline=time.monotonic()+15
    while time.monotonic()<deadline:
-    if select.select([master],[],[],0.1)[0]:
-     try:data=os.read(master,65536)
-     except OSError:raise RuntimeError('PTY ended; bounded screen='+repr(screen))
-     if not data:raise RuntimeError('PTY EOF')
-     parent_bytes+=len(data);screen=oracle.ask(dict(data=base64.b64encode(data).decode()))
-     if marker in screen:return time.monotonic()
-   raise RuntimeError('missing '+marker+'; bounded screen='+repr(screen))
+    if read_output(min(.1,deadline-time.monotonic())) and marker in screen.splitlines():return time.monotonic()
+   raise output_failure('missing '+marker)
   def measured(data,marker,details=None):
    before_bytes=parent_bytes;before_oracle=oracle.processing_seconds
    sent=time.monotonic();os.write(master,data);elapsed=(until(marker)-sent)*1000
@@ -92,6 +102,24 @@ def trial(binary,cols,rows,bulk,idle,hover_seconds,hover_hz):
    return dict(elapsed_ms=elapsed*1000,parent_bytes=parent_bytes-started['bytes'],oracle_ipc_processing_ms=(oracle.processing_seconds-started['oracle'])*1000,wrapper_cpu_seconds=cpu_seconds(process.pid)-started['cpu'],oracle_cpu_seconds=cpu_seconds(oracle.p.pid)-started['oracle_cpu'])
   try:
    startup=(until('READY:1')-start)*1000
+   if memory_tabs:
+    samples=[];blocks=max(bulk,256)
+    def sample(stage,live_tabs,selected_tab):
+     rss=int(subprocess.check_output(['ps','-o','rss=','-p',str(process.pid)],text=True))
+     samples.append(dict(stage=stage,live_tabs=live_tabs,selected_tab=selected_tab,elapsed_ms=(time.monotonic()-start)*1000,wrapper_rss_kib=rss,parent_bytes=parent_bytes))
+    for tab in range(1,memory_tabs+1):
+     if tab>1:measured(b'\x1b[116;3u','READY:%d'%tab)
+     sample('ready',tab,tab)
+     measured(('bulk:%d\r'%blocks).encode(),'DONE:%d'%tab)
+     sample('history_saturated',tab,tab)
+    # All histories remain owned concurrently; select each retained frame.
+    # Whole-row receipts distinguish DONE:1 from DONE:16.
+    if memory_tabs>1:
+     for tab in range(1,memory_tabs+1):
+      measured(b'\x1b[1;3C','DONE:%d'%tab)
+      sample('retained_history_selected',memory_tabs,tab)
+    drain_for(idle);sample('idle',memory_tabs,memory_tabs)
+    return dict(kind='actual pair term memory stages',wrapper_pid=process.pid,tabs=memory_tabs,emitted_bytes_per_tab=blocks*1026,startup_ms=startup,max_observed_wrapper_rss_kib=max(x['wrapper_rss_kib'] for x in samples),measurement='maximum of listed point-in-time wrapper PID RSS samples, not OS peak; includes compositor/endpoints/rings/PTY descriptors, excludes helper processes and oracle',parent_bytes=parent_bytes,stage_samples=samples)
    inputs=[measured(('ping%d\r'%i).encode(),'ACK:1:ping%d'%i) for i in range(10)]
    newtab=measured(b'\x1b[116;3u','READY:2')
    measured(b'second\r','ACK:2:second')
@@ -115,20 +143,19 @@ def trial(binary,cols,rows,bulk,idle,hover_seconds,hover_hz):
     after_switches.append(measured(b'\x1b[1;3D','ACK:1:ping9',switch_details))
     after_switches.append(measured(b'\x1b[1;3C','ACK:2:after9',switch_details))
    switch_detail=stage_end(switch_stage)
-   cpu_before=cpu_seconds(process.pid);idle_start=time.monotonic();time.sleep(idle)
+   cpu_before=cpu_seconds(process.pid);idle_start=time.monotonic();drain_for(idle)
    cpu=(cpu_seconds(process.pid)-cpu_before)/(time.monotonic()-idle_start)*100
    # Last workload: the helper drains bytes without storing them. Baseline
    # passthrough may deliver motion even when the child requested no tracking.
    measured(b'hover\r','HOVER:2')
+   drain_for(.05) # finish transition paint before sampling hover CPU
    hover_cpu_before=cpu_seconds(process.pid);hover_start=time.monotonic();sent=0
    while time.monotonic()-hover_start<hover_seconds:
     os.write(master,('\x1b[<35;%d;%dM'%(1+sent%cols,1+(sent//cols)%(rows-1))).encode());sent+=1
     # Drain every available parent write so the injected workload cannot
     # measure a full PTY pipe instead of routing cost. Keep only current cells.
-    while select.select([master],[],[],0)[0]:
-     data=os.read(master,65536)
-     if not data:raise RuntimeError('PTY EOF during hover')
-     parent_bytes+=len(data);screen=oracle.ask(dict(data=base64.b64encode(data).decode()))
+    while read_output(0):
+     if time.monotonic()-hover_start>=hover_seconds:break
     time.sleep(max(0,hover_start+sent/hover_hz-time.monotonic()))
    hover_wall=time.monotonic()-hover_start;hover_cpu=cpu_seconds(process.pid)-hover_cpu_before
    rss=int(subprocess.check_output(['ps','-o','rss=','-p',str(process.pid)],text=True))
@@ -142,12 +169,22 @@ def trial(binary,cols,rows,bulk,idle,hover_seconds,hover_hz):
 
 def main():
  parser=argparse.ArgumentParser(description=__doc__)
+ parser.add_argument('--memory-tabs',type=int,default=0,help='separate memory mode with1..16 real tabs; skips latency trials')
  parser.add_argument('--baseline',required=True);parser.add_argument('--candidate',required=True)
  parser.add_argument('--hover-seconds',type=float,default=2);parser.add_argument('--hover-hz',type=float,default=120)
  parser.add_argument('--trials',type=int,default=5);parser.add_argument('--bulk-blocks',type=int,default=1024);parser.add_argument('--idle-seconds',type=float,default=2)
  args=parser.parse_args()
+ if args.memory_tabs<0 or args.memory_tabs>16:parser.error('memory tabs must be0(disabled) or1..16')
  if args.trials<1 or args.bulk_blocks<1 or args.idle_seconds<=0 or args.hover_seconds<=0 or args.hover_hz<=0:parser.error('positive workload required')
  result=dict(platform=platform.platform(), node=subprocess.check_output(['node','--version'],text=True).strip(), oracle='@xterm/headless 5.5.0', binary_sha256={role:hashlib.sha256(pathlib.Path(binary).read_bytes()).hexdigest() for role,binary in [('baseline',args.baseline),('candidate',args.candidate)]}, kind='isolated production pair term; independent xterm screen acknowledgments; no native Zellij',timing='includes oracle IPC+parsing for both binaries; startup includes cold per-trial runtime extraction',cpu='wrapper process only, ps cumulative CPU resolution; child/helper and independent oracle excluded; short samples may quantize to zero',history='>=256KiB emitted before post-history samples; saturation inferred from65536 history-cell ceiling and128KiB baseline ring, not introspected',hover=dict(kind='unsolicited SGR button-none motion; no child tracking requested; last workload with child drain-only',target_hz=args.hover_hz,seconds=args.hover_seconds),samples=[])
+ if args.memory_tabs:
+  result['kind']='isolated production16-tab-capable memory probe; separate from timing trials'
+  for cols,rows in [(80,24),(240,80)]:
+   for role,binary in [('baseline',args.baseline),('candidate',args.candidate)]:
+    sample=dict(role=role,binary=str(pathlib.Path(binary).resolve()),cols=cols,rows=rows)
+    sample.update(trial(binary,cols,rows,args.bulk_blocks,args.idle_seconds,args.hover_seconds,args.hover_hz,args.memory_tabs))
+    result['samples'].append(sample);print(json.dumps(sample),file=sys.stderr,flush=True)
+  print(json.dumps(result,indent=2));return
  for cols,rows in [(80,24),(240,80)]:
   for index in range(args.trials):
    for role,binary in [('baseline',args.baseline),('candidate',args.candidate)]:

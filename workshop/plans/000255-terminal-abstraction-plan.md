@@ -84,7 +84,7 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 
 ### M1 — Qualify the terminal contract and backend
 
-- [ ] Enumerate exact required protocol/capability and compatibility matrix from production entrypoints and fixtures; define frame timeout, queue limits, normal-screen history and input cancellation semantics.
+- [x] Enumerate exact required protocol/capability and compatibility matrix from production entrypoints and fixtures; define frame timeout, queue limits, normal-screen history and input cancellation semantics.
 - [x] Add independent conformance fixtures in cmd/internal/terminal and exercise the pinned candidate, recording failures before fixes.
 - [x] Resolve backend selection and maintenance strategy from results; review the detailed M2–M4 implementation plan before production migration. Do not advance with unmet required semantics.
 - [x] Close M1 through SDLC with the matrix and qualified backend decision (or re-plan if qualification fails).
@@ -97,9 +97,9 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 
 ### M3 — Couch and Pair adoption
 
-- [ ] Migrate Couch and Pair term to the same shared abstraction; remove raw replay and state-changing reservation from their display paths.
-- [ ] Replace independent mode authority and before-queue selection mutations; audit and reconcile pair wrap transformations against the same contract, preserving notification, Return, query/reply, capture and park/resume behavior.
-- [ ] Verify both consumers, nested Zellij, shell/nvim and agent fixtures; update linked issue dispositions from actual acceptance evidence and close the boundary.
+- [x] Migrate Couch and Pair term to the same shared abstraction; remove raw replay and state-changing reservation from their display paths.
+- [x] Replace independent mode authority and before-queue selection mutations; audit and reconcile pair wrap transformations against the same contract, preserving notification, Return, query/reply, capture and park/resume behavior.
+- [x] Verify both consumers, nested Zellij, shell/nvim and agent fixtures; update linked issue dispositions from actual acceptance evidence and close the boundary.
 
 ### M4 — Live conformance and publication
 
@@ -369,11 +369,11 @@ Disposable evidence: `/tmp/pair255-wrap-proof.cjs` retained xterm wrapped histor
 
 **Implementation and verification sequence (within M3):**
 
-- [ ] Add literal backend row-metadata/identity tests first: normal and early-wide wrap, every split of combining/ZWJ/VS clusters at right/bottom margins, LF versus CUP, insert/delete/erase, resize, ED2/ED3, retention eviction/rejection, and primary/alternate isolation. Implement the smallest metadata and history-observation APIs those tests require.
-- [ ] Add pure history append/rebuild and reflow tests, then atomic endpoint tests with fake time for synchronized withholding, hidden output, selection and eviction while held. Assert copied publications remain unchanged after subsequent writes.
-- [ ] Extend the pinned headless oracle to retain scrollback and report wrap flags. Commit native-wire fixtures covering append, repeated full/incremental repaint, history-to-viewport continuation, width change, one-child-row geometry, chrome exclusion, clear and owner switches. Include the ED2 failure as a negative-control fixture.
-- [ ] Run the same typed-output fixtures through a disposable native Zellij session. Assert logical lines using `dump-screen --full`, exercise scroll-up/down and selection/copy behavior where available, and verify no operator session is touched. Add alternate-screen and Unicode/reflow cases before relying on the serializer in either consumer.
-- [ ] Integrate the shared publication path in both Couch and Pair term, retaining product policy. Run local fork tests, shared terminal normal/race tests, independent oracle, consumer integration tests and qualification; update atlas and record unresolved live-only obligations for M4. Do not cross the M3 boundary with a known copied-logical-line regression.
+- [x] Add literal backend row-metadata/identity tests first: normal and early-wide wrap, every split of combining/ZWJ/VS clusters at right/bottom margins, LF versus CUP, insert/delete/erase, resize, ED2/ED3, retention eviction/rejection, and primary/alternate isolation. Implement the smallest metadata and history-observation APIs those tests require.
+- [x] Add pure history append/rebuild and reflow tests, then atomic endpoint tests with fake time for synchronized withholding, hidden output, selection and eviction while held. Assert copied publications remain unchanged after subsequent writes.
+- [x] Extend the pinned headless oracle to retain scrollback and report wrap flags. Commit native-wire fixtures covering append, repeated full/incremental repaint, history-to-viewport continuation, width change, one-child-row geometry, chrome exclusion, clear and owner switches. Include the ED2 failure as a negative-control fixture.
+- [x] Run the same typed-output fixtures through a disposable native Zellij session. Assert logical lines using `dump-screen --full`, exercise scroll-up/down and selection/copy behavior where available, and verify no operator session is touched. Add alternate-screen and Unicode/reflow cases before relying on the serializer in either consumer.
+- [x] Integrate the shared publication path in both Couch and Pair term, retaining product policy. Run local fork tests, shared terminal normal/race tests, independent oracle, consumer integration tests and qualification; update atlas and record unresolved live-only obligations for M4. Do not cross the M3 boundary with a known copied-logical-line regression.
 
 ### 2026-09-15 13:09 PDT — Single-row history proof and oracle baseline precision
 
@@ -465,3 +465,13 @@ M3 SHIP at `c5ec1728..e1a18517` after three rounds; BR-13–BR-18 are disposed. 
 The saturated-history preflight demonstrates excessive output when retention evicts an old prefix: every changed FirstID currently rebuilds the whole exported window. Refine the export policy for continuous presentation: if owner, width and clear epoch are unchanged and the delivered NextID still has contiguous coverage, append only new rows. The physical parent may retain previously delivered older rows under its own scrollback policy, as with normal terminal output. Endpoint storage/export remain bounded; switch/rebuild restores the retained suffix, and clear or missing coverage must rebuild. This preserves logical copy text while avoiding full-window redraws on routine prefix eviction. Add independent/native regression cases for overlap append versus an actual coverage gap; remeasure the end-to-end budgets without subtracting interpreter cost. ARCH-PURPOSE / ARCH-CONSTRAINTS.
 
 M4 also measures actual sixteen-tab compositor RSS in addition to the backend/publication probe. Sample after each saturated tab and retained-screen switch; label maximum observed wrapper RSS explicitly, excluding child/helper/oracle processes and not claiming an OS peak. Native reattachment must prove an unchanged agent PID plus in-memory counter, then held-drag highlight/copy after reattach.
+
+## Revisions — 2026-09-15 M4 measurement corrections
+
+Extended qualification exposed an observation race in the soak receipt barrier and an idle-output backpressure error in the timing harness. Selected-screen receipt observation, followed by completed presentation and frame comparison, is the readiness condition; queued-publication flush alone cannot acknowledge concurrent ingestion. Idle performance samples must drain the PTY continuously while retaining only bounded interpreted screen state. Preserve initial failed/interrupted evidence and rerun from fresh binaries; do not count partial durations or subtract independent-interpreter time from the latency budget. Redundant default style/link reset sequences may be removed only with explicit preservation tests for colored/linked cells, erased backgrounds, soft wraps, and interrupted output.
+
+## Revisions — 2026-09-15 M4 measured performance disposition
+
+All twenty baseline/candidate timing sessions completed on frozen source, with five trials per geometry and every sample retained. Candidate pooled p95 post-history input is 21.051ms at80×24 and24.011ms at240×80, meeting the50ms target. Post-history switching is101.060ms and115.416ms, exceeding the provisional100ms target by1.060ms and15.416ms. Baseline is187.129ms and215.472ms. No oracle time is subtracted. The seven240×80 switches over100ms all occurred in one trial with identical44,156-byte history rebuilds; the other four trials had none. Dense retained-text output and independent interpretation account for substantial cost, with additional timing variation not causally attributed to one subsystem.
+
+Disposition: preserve the provisional threshold and report this measured miss as an explicit M4 limitation for boundary review and operator smoke, rather than silently treating it as a pass or changing history/copy semantics to meet a synthetic timing number. The earlier budget table permits documenting measured breaches; candidate preparation does not authorize rollout. A larger history serializer redesign is not justified by this qualification alone. Operator acceptance of switching responsiveness remains part of the pre-merge smoke. Source and installed-session behavior remain frozen during the sustained tests.

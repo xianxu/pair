@@ -84,6 +84,11 @@ func (h *couchSoakHost) WriteContext(ctx context.Context, p []byte) (int, error)
 	h.writes++
 	return n, err
 }
+func (h *couchSoakHost) text() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.em.String()
+}
 func (h *couchSoakHost) compare(frame terminal.Frame) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -191,10 +196,12 @@ func TestCouchProductionSoak(t *testing.T) {
 			}
 			time.Sleep(time.Millisecond)
 		}
-		t.Fatalf("timeout waiting%s", label)
+		t.Fatalf("timeout waiting%s; bounded parent=%q", label, host.text())
 	}
-	receipt := func(child *ptychild.Child, want string) {
+	receipt := func(child *ptychild.Child, want string, visible bool) {
 		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 		wait("receipt "+want, func() bool {
 			f, err := child.Endpoint().Snapshot(time.Now())
 			if err != nil {
@@ -204,17 +211,25 @@ func TestCouchProductionSoak(t *testing.T) {
 			for _, c := range f.Cells {
 				s.WriteString(c.Content)
 			}
-			return strings.Contains(s.String(), want)
+			if !strings.Contains(s.String(), want) {
+				return false
+			}
+			if !visible {
+				return true // Hidden readiness is an endpoint condition only.
+			}
+			if err := child.FlushOutput(ctx); err != nil {
+				t.Fatalf("receipt %q publication: %v; bounded parent=%q", want, err, host.text())
+			}
+			if err := con.presenter.Flush(ctx); err != nil {
+				t.Fatalf("receipt %q presentation: %v; bounded parent=%q", want, err, host.text())
+			}
+			// An endpoint snapshot can precede publication enqueue. Require
+			// the selected physical screen after the completed flush as well.
+			return con.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(host.text(), want)
 		})
-		if err := child.FlushOutput(context.Background()); err != nil {
-			t.Fatal(err)
-		}
-		if err := con.presenter.Flush(context.Background()); err != nil {
-			t.Fatal(err)
-		}
 	}
-	receipt(a, "READY")
-	receipt(b, "READY")
+	receipt(a, "READY", false)
+	receipt(b, "READY", false)
 	start := time.Now()
 	lastProgress := start
 	iterations, replacements := 0, 0
@@ -231,14 +246,14 @@ func TestCouchProductionSoak(t *testing.T) {
 			mode = fmt.Sprintf("shell%d", iterations)
 		}
 		send(mode + "\r")
-		receipt(child, hex.EncodeToString([]byte(mode)))
+		receipt(child, hex.EncodeToString([]byte(mode)), true)
 		// A chrome-origin gesture cannot acquire the child after crossing its edge.
 		size, _ := host.Size()
 		send(fmt.Sprintf("\x1b[<0;159;%dM\x1b[<32;2;2M\x1b[<0;2;2m", size.Rows))
 		token := fmt.Sprintf("r%d", iterations)
 		sent := time.Now()
 		send(token + "\r")
-		receipt(child, hex.EncodeToString([]byte(token)))
+		receipt(child, hex.EncodeToString([]byte(token)), true)
 		if elapsed := time.Since(sent); elapsed > maxLatency {
 			maxLatency = elapsed
 		}
@@ -258,15 +273,16 @@ func TestCouchProductionSoak(t *testing.T) {
 			expected = drag + dragToken
 		}
 		send(drag + dragToken + "\r")
-		receipt(child, hex.EncodeToString([]byte(expected)))
+		receipt(child, hex.EncodeToString([]byte(expected)), true)
 		// A panel-owned press remains parent-owned even after a fresh actor landing.
 		send("\x00")
 		wait("panel", func() bool { return con.presenter.View().Selected == "" })
 		send("\x1b[<0;159;1M")
 		con.Switch(id)
 		wait("actor after panel", func() bool { return con.presenter.View().Admitted == child.Endpoint().ID() })
-		send("\x1b[<32;2;2M\x1b[<0;2;2mpanel\r")
-		receipt(child, hex.EncodeToString([]byte("panel")))
+		panelToken := fmt.Sprintf("panel%d", iterations)
+		send("\x1b[<32;2;2M\x1b[<0;2;2m" + panelToken + "\r")
+		receipt(child, hex.EncodeToString([]byte(panelToken)), true)
 		rows := uint16(8)
 		if iterations%2 == 0 {
 			rows = 10
@@ -281,7 +297,7 @@ func TestCouchProductionSoak(t *testing.T) {
 			}
 			wait("old attachment removed", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.panes["two"] == nil })
 			b = attach("two")
-			receipt(b, "READY")
+			receipt(b, "READY", false)
 			replacements++
 			if con.presenter.View().Selected != "" {
 				t.Fatal("background attachment stole panel focus")

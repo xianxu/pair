@@ -783,7 +783,8 @@ report-output error. `go run` prints the child exit status for nonzero results.
 This is development qualification tooling. It does not change the running terminal
 or establish that live display/selection bugs are fixed. See the
 [#255 qualification report](workshop/plans/000255-terminal-qualification.md)
-for the current negative adoption decision and remaining integration requirements.
+for the original adoption rejection, repaired-backend evidence, and remaining
+operator acceptance requirements.
 
 The repaired candidate is maintained as a local module in `third_party/vt`;
 `PAIR_PATCHES.md` there records provenance and owned fixes. Its explicit child
@@ -792,6 +793,37 @@ as well as the root tests. The runtime build compiles `terminfo/pair-vt-256color
 test-only xterm-headless dependency and checks actual renderer output against an
 independent terminal implementation. See [terminal ownership](atlas/terminal.md)
 for the current migration boundary.
+
+The default Go suite includes short production-path soak tests for Couch and Pair
+term. A scheduled or pre-release sustained run can use disposable synthetic PTY
+children for thirty minutes (it does not attach operator sessions):
+
+```sh
+env -u PAIR_TAG -u PAIR_SESSION_ID -u PAIR_DATA_DIR \
+  -u COUCH_THREAD_SCOPE -u COUCH_THREAD_TAG \
+  -u ZELLIJ -u ZELLIJ_SESSION_NAME -u ZELLIJ_PANE_ID \
+  PAIR_TERMINAL_SOAK_DURATION=30m \
+  go test ./cmd/internal/couchtty ./cmd/internal/termcmd \
+  -run '^(TestCouchProductionSoak|TestTerminalProductionSoak)$' \
+  -count=1 -timeout=35m -v
+```
+
+The harnesses keep bounded current-screen evidence and log progress at most once
+per minute. Native Zellij reattachment/selection and nvim conformance are separate:
+
+```sh
+PAIR_LIVE_COUCH_NATIVE=1 PAIR_LIVE_COUCH=1 \
+  PAIR_NATIVE_BINARY=/absolute/path/to/candidate/pair \
+  go test -race ./cmd/internal/couchtty \
+  -run '^(TestNativeConsoleWrapperZellij|TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling)$' \
+  -count=1 -timeout=2m -v
+```
+
+`tests/terminal-performance.py --help` describes isolated baseline/candidate
+measurements using real Pair terminal processes and independent screen receipts.
+Those timings include interpreter IPC and parsing; measured resource figures are
+workload evidence, not universal bounds. Automated checks support the required
+operator smoke test for sustained display and selection behavior before rollout.
 
 The text profile preserves contiguous combining, joiner and variation-selector
 clusters. Controls seal the current cluster. An orphan zero-width character

@@ -5010,3 +5010,7 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
 
 - Validate dimensions and payload bounds before allocating or cloning at every public adapter entrypoint, including convenience APIs that derive chrome. A private validator reached after make is too late; invalid geometry must leave the established view usable. (#255 M3 BR-16)
 - Teardown assertions must observe the lifecycle's completion acknowledgment. A reset byte, restored-looking frame, or intermediate mode flag may occur before shutdown finishes; join Run/Release/closeAll before probing a returned terminal. (#255 M3 BR-17)
+
+- Endpoint ingestion, output enqueue, and physical presentation are distinct acknowledgments. Concurrent snapshot visibility plus an empty publication queue does not prove screen visibility; integration receipts must observe the selected parent. Performance harnesses must also keep draining the PTY during idle, as a real terminal does, or their own backpressure can trigger write deadlines. (#255 M4 extended qualification)
+
+- A prepopulated menu/inventory does not prove an asynchronous console finished startup. Tests that mutate focus must await a command acknowledgment after the initial selection and join Run during teardown; otherwise fixture navigation can be overwritten by startup.

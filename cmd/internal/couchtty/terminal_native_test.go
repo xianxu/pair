@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -162,11 +163,13 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	} else {
 		t.Log("native Zellij omitted combining mark before Endpoint (compare direct baseline); CJK asserted independently")
 	}
+	var nextNotification time.Time
 	if wrapped {
 		_, _ = inputW.Write([]byte("\r"))
 		waitUpTo(t, 3*time.Second, "one native notification through outer tty", func() bool {
 			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 1
 		})
+		nextNotification = time.Now().Add(600 * time.Millisecond)
 	}
 	// A real second PTY exercises actor switching, hidden output and panel entry.
 	second, err := runner.Start(dir, []string{"/bin/sh", "-c", "printf 'shell-counterpart-ready\\r\\n'; cat"}, nil)
@@ -199,6 +202,91 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatalf("notification duplicated on switch: %q", host.Written())
 	}
 	assertNativeOracle(t, host.Written(), 110, 28, "native 界 e ready", "native-agent")
+	// Record a value held only in the agent process. Reattachment must preserve
+	// this PID+boot nonce and advance the same counter, not start a replacement.
+	var boot string
+	for _, line := range strings.Split(readReceipts(), "\n") {
+		if strings.HasPrefix(line, "BOOT=") {
+			boot = strings.TrimPrefix(line, "BOOT=")
+		}
+	}
+	if boot == "" {
+		t.Fatal("fixture did not report process identity")
+	}
+	_, _ = inputW.Write([]byte("Q"))
+	waitUpTo(t, 3*time.Second, "original in-memory state", func() bool {
+		return strings.Contains(readReceipts(), "STATE="+boot+":1\n") && strings.Contains(host.childArea(), "persistent-counter=1")
+	})
+	evidenceDir, err := os.MkdirTemp("/tmp", "pair255-native-reattach-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	captureNativeReattachEvidence(t, evidenceDir, "before-detach", child)
+	t.Logf("persistent reattach exact child wire/frame evidence (wrapped=%t): %s", wrapped, evidenceDir)
+	oldChild, oldID := child, handle.ID()
+	oldTTY, _ := os.ReadFile(paths.OuterTTY())
+	con.Switch(second.ID())
+	waitUpTo(t, 3*time.Second, "shell holds Console during detach", func() bool { return con.presenter.View().Admitted == secondChild.Endpoint().ID() })
+	detachCtx, cancelDetach := context.WithTimeout(context.Background(), 5*time.Second)
+	detach := exec.CommandContext(detachCtx, zellij, "--session", session, "action", "detach")
+	detach.Env = append(os.Environ(), env...)
+	detachedOutput, detachErr := detach.CombinedOutput()
+	cancelDetach()
+	if detachErr != nil {
+		t.Fatalf("private Zellij detach: %v %s", detachErr, detachedOutput)
+	}
+	select {
+	case <-oldChild.Exited():
+	case <-time.After(5 * time.Second):
+		t.Fatal("detached client did not drain and exit")
+	}
+	waitUpTo(t, 3*time.Second, "detached client retired and disposed", func() bool { _, err := oldChild.Endpoint().Snapshot(time.Now()); return errors.Is(err, os.ErrClosed) })
+	// No --create: the original server and agent must still exist. Rewrite the
+	// outer-TTY sidecar before exec so the surviving wrapper targets this client.
+	handle, err = runner.Start(dir, []string{"/bin/sh", "-c", `tty > "$1"; shift; exec "$@"`, "native-reattach", paths.OuterTTY(), zellij, "--config", config, "--data-dir", filepath.Join(dir, "data"), "attach", session}, env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	child = handle.(couchcore.TerminalHandle).Terminal()
+	if child.Endpoint().ID() == oldChild.Endpoint().ID() || handle.ID() == oldID {
+		t.Fatal("reattachment reused disposed endpoint identity")
+	}
+	con.Attach(handle.ID(), "native-agent", child)
+	con.Switch(handle.ID())
+	waitUpTo(t, 5*time.Second, "persistent native frame after reattach", func() bool {
+		return con.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(host.childArea(), "persistent-counter=1") && (!wrapped || strings.Contains(host.childArea(), "native 界 e ready"))
+	})
+	captureNativeReattachEvidence(t, evidenceDir, "after-reattach", child)
+	assertNativeReattachFrames(t, evidenceDir, 110, 27)
+	if !wrapped && !bytes.Contains(child.Snapshot(), []byte("native 界")) {
+		t.Log("direct Zellij had already omitted earlier CJK row before detach after counter paint; exact pre/post traces preserved, not a detach-induced loss")
+	}
+	_, _ = inputW.Write([]byte("Q"))
+	waitUpTo(t, 3*time.Second, "same agent resumes interaction", func() bool {
+		return strings.Contains(readReceipts(), "STATE="+boot+":2\n") && strings.Contains(host.childArea(), "persistent-counter=2")
+	})
+	if wrapped {
+		// Respect wrapper's 500ms native-notification limiter between real turns.
+		if remaining := time.Until(nextNotification); remaining > 0 {
+			time.Sleep(remaining)
+		}
+		_, _ = inputW.Write([]byte("\r"))
+		waitUpTo(t, 3*time.Second, "surviving wrapper notification uses reattached outer tty", func() bool {
+			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 2
+		})
+	}
+	if strings.Count(readReceipts(), "BOOT=") != 1 {
+		t.Fatalf("reattachment restarted agent: %s", readReceipts())
+	}
+	if err := con.presenter.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	assertNativeOracle(t, host.Written(), 110, 28, "persistent-counter=2", "native-agent")
+	currentTTY, err := os.ReadFile(paths.OuterTTY())
+	if err != nil || len(bytes.TrimSpace(currentTTY)) == 0 {
+		t.Fatalf("reattach outer tty missing: %q %v", currentTTY, err)
+	}
+	t.Logf("persistent native reattach retained pid:nonce=%s counter=1→2; endpoints=%s→%s; tty=%s→%s", boot, oldChild.Endpoint().ID(), child.Endpoint().ID(), bytes.TrimSpace(oldTTY), bytes.TrimSpace(currentTTY))
 	// A no-mouse child makes Zellij own native text selection. Inspect its
 	// published highlight while the button is still held, then inspect OSC52.
 	if err := os.WriteFile(receipts+".select", []byte("select"), 0600); err != nil {
@@ -240,7 +328,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err != nil || string(copied) != "selectabl" {
 		t.Fatalf("native selection copied %q (%v), want selectabl", copied, err)
 	}
-	t.Log("native selection highlighted in endpoint and independent xterm before release; clipboard selectabl emitted on release")
+	t.Log("native selection after persistent reattach highlighted in endpoint and independent xterm before release; clipboard selectabl emitted on release")
 	t.Logf("native Console join (wrapped=%t): CPR, fragmented CJK, synchronized update, enhanced key, paste, focus, drag, shell/panel switches, resize; receipts=%s", wrapped, readReceipts())
 }
 
@@ -269,6 +357,9 @@ const nativeAgentFixture = `import os,sys,time,tty,select
 fd=os.open('/dev/tty',os.O_RDWR)
 tty.setraw(fd)
 log=open(sys.argv[1],'a',buffering=1)
+identity=str(os.getpid())+':'+os.urandom(12).hex()
+counter=0
+log.write('BOOT='+identity+'\n')
 os.write(fd,b'\x1b[6n')
 reply=b''
 end=time.monotonic()+5
@@ -288,6 +379,10 @@ while True:
  data=os.read(fd,65536)
  if not data: break
  log.write(data.hex()+'\n')
+ if b'Q' in data:
+  counter+=data.count(b'Q')
+  log.write('STATE='+identity+':'+str(counter)+'\n')
+  os.write(fd,('\x1b[2;1H\x1b[2Kpersistent-counter='+str(counter)).encode())
  if b'\r' in data: os.write(fd,b'\x1b]9;native-fixture-complete\x07\x1b]9;native-fixture-complete\x07')
 `
 
@@ -321,4 +416,58 @@ func assertNativeHighlight(t *testing.T, before, after string, cols, rows int) {
 		}
 	}
 	t.Fatal("native held selection did not reach independent xterm styles")
+}
+
+// Keep measured baseline limitations reviewable after disposable session cleanup.
+func captureNativeReattachEvidence(t *testing.T, dir, phase string, child *ptychild.Child) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, phase+"-child.raw"), child.Snapshot(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	frame, err := child.Endpoint().Snapshot(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.MarshalIndent(frame, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, phase+"-endpoint.json"), encoded, 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Compare complete native viewports with independently parsed pre/post wires.
+// The agent identity/counter assertion separately proves process continuity.
+func assertNativeReattachFrames(t *testing.T, dir string, cols, rows int) {
+	t.Helper()
+	type observed struct {
+		Cells json.RawMessage
+		X, Y  int
+	}
+	var frames []observed
+	for _, phase := range []string{"before-detach", "after-reattach"} {
+		wire, err := os.ReadFile(filepath.Join(dir, phase+"-child.raw"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request, _ := json.Marshal(map[string]any{"Cols": cols, "Rows": rows, "Chunks": []string{string(wire)}})
+		cmd := exec.Command("node", "../../../tests/terminal-oracle/driver.cjs")
+		cmd.Stdin = bytes.NewReader(request)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("reattach oracle: %v %s", err, out)
+		}
+		if err := os.WriteFile(filepath.Join(dir, phase+"-xterm.json"), out, 0600); err != nil {
+			t.Fatal(err)
+		}
+		var result []observed
+		if err := json.Unmarshal(out, &result); err != nil || len(result) != 1 {
+			t.Fatalf("invalid reattach oracle output: %v", err)
+		}
+		frames = append(frames, result[0])
+	}
+	if !bytes.Equal(frames[0].Cells, frames[1].Cells) || frames[0].X != frames[1].X || frames[0].Y != frames[1].Y {
+		t.Fatalf("native pre/post viewport cells/styles/cursor differ; exact evidence: %s", dir)
+	}
 }

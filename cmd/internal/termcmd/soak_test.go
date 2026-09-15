@@ -137,9 +137,11 @@ func TestTerminalProductionSoak(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	wait := func(child *ptychild.Child, marker string) {
+	wait := func(child *ptychild.Child, marker string, visible bool) {
 		t.Helper()
 		deadline := time.Now().Add(5 * time.Second)
+		ctx, cancel := context.WithDeadline(context.Background(), deadline)
+		defer cancel()
 		for time.Now().Before(deadline) {
 			frame, err := child.Endpoint().Snapshot(time.Now())
 			if err != nil {
@@ -150,20 +152,27 @@ func TestTerminalProductionSoak(t *testing.T) {
 				text.WriteString(cell.Content)
 			}
 			if strings.Contains(text.String(), marker) {
-				if err := child.FlushOutput(context.Background()); err != nil {
+				if !visible {
+					return // Hidden readiness is an endpoint condition only.
+				}
+				if err := child.FlushOutput(ctx); err != nil {
 					t.Fatal(err)
 				}
-				if err := m.presenter.Flush(context.Background()); err != nil {
+				if err := m.presenter.Flush(ctx); err != nil {
 					t.Fatal(err)
 				}
-				return
+				// Feed may precede publication enqueue. A completed flush alone
+				// cannot acknowledge that receipt; inspect the actual parent.
+				if m.presenter.View().Admitted == child.Endpoint().ID() && strings.Contains(parent.text(), marker) {
+					return
+				}
 			}
 			time.Sleep(time.Millisecond)
 		}
 		t.Fatalf("missing receipt %q; bounded parent=%q", marker, parent.text())
 	}
 	for _, tab := range m.tabs {
-		wait(tab.child, "READY")
+		wait(tab.child, "READY", false)
 	}
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 8, Cols: 80})
 	send := func(raw string) { pumpStdin(strings.NewReader(raw), m, m.rt, io.Discard) }
@@ -182,7 +191,7 @@ func TestTerminalProductionSoak(t *testing.T) {
 			mode = fmt.Sprintf("app%d", iterations)
 		}
 		send(mode + "\r")
-		wait(tab.child, hex.EncodeToString([]byte(mode)))
+		wait(tab.child, hex.EncodeToString([]byte(mode)), true)
 		mouse := "\x1b[<0;2;2M\x1b[<32;3;2M\x1b[<0;3;2m"
 		receipt := fmt.Sprintf("r%d", iterations)
 		want := receipt
@@ -191,7 +200,7 @@ func TestTerminalProductionSoak(t *testing.T) {
 		}
 		sent := time.Now()
 		send(mouse + receipt + "\r")
-		wait(tab.child, hex.EncodeToString([]byte(want)))
+		wait(tab.child, hex.EncodeToString([]byte(want)), true)
 		if elapsed := time.Since(sent); elapsed > maxLatency {
 			maxLatency = elapsed
 		}

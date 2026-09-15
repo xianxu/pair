@@ -9,7 +9,8 @@ import (
 )
 
 // HistoryState describes only a completely written parent presentation.
-// FirstID detects eviction even when no new rows were appended.
+// FirstID records the bounded exported suffix; continuous parent history may
+// retain an older prefix under the parent terminal's own scrollback limit.
 type HistoryState struct {
 	EndpointID string
 	Cursor     HistoryCursor
@@ -49,7 +50,7 @@ func RenderWithHistory(previous, next Frame, history HistoryWindow, installed Hi
 	p.state = HistoryState{EndpointID: next.EndpointID, Cursor: history.Cursor, FirstID: first, Columns: next.Geometry.Cols, AltScreen: next.AltScreen}
 	p.enterAlt = next.AltScreen && !installed.AltScreen
 	p.leaveAlt = !next.AltScreen && installed.AltScreen
-	p.reset = installed.EndpointID != next.EndpointID || previous.EndpointID != next.EndpointID || installed.Columns != next.Geometry.Cols || installed.FirstID != first || installed.Cursor.ClearEpoch != history.Cursor.ClearEpoch || installed.Cursor.NextID > history.Cursor.NextID || p.leaveAlt
+	p.reset = installed.EndpointID != next.EndpointID || previous.EndpointID != next.EndpointID || installed.Columns != next.Geometry.Cols || previous.Geometry != next.Geometry || installed.Cursor.ClearEpoch != history.Cursor.ClearEpoch || installed.Cursor.NextID > history.Cursor.NextID || p.leaveAlt
 	p.dirty = p.reset || p.enterAlt || p.leaveAlt || installed.Cursor != history.Cursor || !sameHistoryFrame(previous, next)
 	if !p.dirty {
 		return p, nil
@@ -60,6 +61,9 @@ func RenderWithHistory(previous, next Frame, history HistoryWindow, installed Hi
 			for start < len(history.Rows) && history.Rows[start].ID < installed.Cursor.NextID {
 				start++
 			}
+			// Prefix eviction alone is not a loss to the parent: those rows were
+			// already delivered. Append while every ID since its cursor remains
+			// available; otherwise rebuild only the bounded retained suffix.
 			expected := installed.Cursor.NextID
 			for _, row := range history.Rows[start:] {
 				if row.ID != expected {
@@ -202,10 +206,13 @@ func (e *historyEmitter) packet(s string) {
 	}
 }
 func (e *historyEmitter) resetStyle() { e.add("\x1b[0m\x1b]8;;\x1b\\") }
+
+// cells requires plain rendition on entry and restores it on return. Emit's
+// prologue and the cells/blankTail/wrap helpers maintain that invariant, so
+// default-only rows need no per-row SGR or OSC8 traffic.
 func (e *historyEmitter) cells(cells []Cell, used int) {
 	var style uv.Style
 	var link uv.Link
-	e.resetStyle()
 	for x := 0; x < used && e.err == nil; x++ {
 		c := cells[x]
 		if c.Width == 0 {
@@ -233,7 +240,9 @@ func (e *historyEmitter) cells(cells []Cell, used int) {
 			x++
 		}
 	}
-	e.resetStyle()
+	if !style.Equal(&uv.Style{}) || link != (uv.Link{}) {
+		e.resetStyle()
+	}
 }
 
 // blankTail paints physical erase cells without extending the logical text
@@ -275,12 +284,15 @@ func (e *historyEmitter) wrap(cells []Cell, used, cols int) {
 	}
 	// Early-wide autowrap erases the last source column with the current
 	// background. Match its retained blank paint instead of resetting it.
-	if len(cells) >= cols && cells[cols-1].Style.Bg != nil {
+	coloredGap := len(cells) >= cols && cells[cols-1].Style.Bg != nil
+	if coloredGap {
 		gap := uv.Style{Bg: cells[cols-1].Style.Bg}
 		e.add(gap.String())
 	}
 	e.add("界")
-	e.resetStyle()
+	if coloredGap {
+		e.resetStyle()
+	}
 }
 func (p HistoryRender) Emit(write func([]byte) error) error {
 	if !p.dirty {

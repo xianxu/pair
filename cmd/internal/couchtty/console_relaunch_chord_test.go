@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -41,7 +42,25 @@ func newChordFixture(t *testing.T) (*Console, *io.PipeWriter, couchcore.ThreadAd
 	t.Cleanup(func() {
 		con.Stop()
 		_ = writer.Close()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Error("chord console did not join")
+		}
 	})
+	// Inventory exists before Run starts. A command acknowledgment proves Run
+	// completed its initial selection, so direct fixture navigation cannot race
+	// that selection and overwrite the previous-thread history being tested.
+	waitFor(t, "Run initialization", func() bool {
+		con.mu.Lock()
+		defer con.mu.Unlock()
+		return con.started
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := con.runTerminalCommand(ctx, func() error { return nil }); err != nil {
+		t.Fatalf("initial console command: %v", err)
+	}
 	return con, writer, address
 }
 

@@ -41,7 +41,11 @@ func (w childInput) WriteContext(ctx context.Context, p []byte) (int, error) {
 	}
 	return c.transport.WriteContext(ctx, p)
 }
-func (c *Child) Endpoint() *terminal.Endpoint          { return c.endpoint }
+func (c *Child) Endpoint() *terminal.Endpoint { return c.endpoint }
+
+// FlushOutput waits for already queued publication batches. Endpoint ingestion
+// precedes enqueueing, so an independently observed Snapshot is not a display
+// acknowledgment; consumers must observe the corresponding parent presentation.
 func (c *Child) FlushOutput(ctx context.Context) error { return c.publication.flush(ctx) }
 func (c *Child) ingest(p []byte) error {
 	c.feedMu.Lock()
