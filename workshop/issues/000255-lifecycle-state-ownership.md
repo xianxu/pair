@@ -8,53 +8,22 @@ updated: 2026-09-15
 estimate_hours:
 ---
 
-# Enforce lifecycle and terminal state ownership
+# Establish a faithful terminal abstraction for Couch and Pair
 
 ## Problem
 
-The 2026-09-14 Pair/Couch audit found strong local state machines but incomplete structural ownership and cross-component behavioral enforcement. TTY bugs and an unexplained attachment disconnect motivated the audit. A concurrent output/switch test reproduced a data race; it does not establish the disconnect's cause.
+Couch and Pair must present a defined terminal abstraction to inner programs. Composing UI, switching children and routing input must preserve that abstraction. The current combination of selective parsing, passthrough, interleaved control writes and bounded replay has incomplete contracts for terminal state and transformations. Correctness requires more than locks or consistent ownership of existing fields.
 
-Audit baseline: HEAD `5ebb381f`, plus the then-current uncommitted #250 recovery work. The principal terminal and store-boundary gaps predate that recovery delta. Recheck current code before implementation; cited lines locate the audited version.
-
-### Findings
+Concrete failures motivate the design: #252 reproduces control insertion inside split UTF-8 characters; #207 captures click-only mode emission followed by takeover without restored mouse modes. The historical terminal audit also identified:
 
 1. **Confirmed TTY data race and incomplete switch transaction.** `cmd/internal/couchtty/console.go:565` reads `p.replayCutoff` outside `mu`, while `onChunk` writes it under `mu` at line 1405. The temporary race test below failed on those exact accesses. `switchTo` publishes active/focus at lines 530–547 and performs takeover afterward; the operation worker reaches it while Run continues input/output handling (`operation_queue.go:64`, `console.go:2217`). A stale output-source decision can outlive a focus change. The data race is reproduced; stale-screen/input misrouting is an architectural interleaving risk, not a reproduced incident.
-2. **Record validation is not transition authority.** `ThreadStore.UpdateExistingThread` (`cmd/internal/couchcore/threadstore.go:264`) accepts arbitrary mutation callbacks. CAS, immutable-field checks and final validation protect coherent records, but do not require an authorized state/event transition. Production continuation recovery mutates lifecycle fields through this door. Direct mutations already existed in HEAD; #250 adds more guarded reconciliation. Model these as explicit transitions rather than assuming every guarded mutation is a bug.
-3. **Transport and process outcomes are discarded.** `ptychild/child.go:147` discards the terminal PTY read error; `procutil/procutil.go:122` and `launcher/osruntime.go:167` reduce process termination to integer exit codes. Console input EOF/error retires only its reader (`console.go:1547`); child input errors are discarded and host scanning advances without treating partial/failed writes as lifecycle outcomes (`console.go:747`, `:1159`). `launcher/lifecycle.go:102` also discards the typed cleanup return; durable receipts cover some paths but not every setup/direct failure.
-4. **Observation uncertainty is lost in projection.** `ProcOps` defines Live/Dead/Unknown, but `ObserveRecordedProcesses` (`couchcore/actionableinventory.go:568`) drops unknown and identity-read errors. `ThreadEvidence.Live` retains only positive evidence; `ClassifyThread` can therefore present an unobservable incarnation as stale (`:269–283`). #250's new execution path preserves uncertainty better than this diagnostic projection. Unknown must not be treated as confirmed absence.
 5. **Sequence coverage does not span the composition.** Local menu/reattach/orientation reducers have generated sequence tests; park tests include timeout followed by late success and stale attempts. The audit found no comparable composed console/lifecycle model spanning attach, switch, queued output, child exit, input failure, partial host write, operation completion and stop. Tests confined to a locked write transaction do not exercise the ownership decision made before entering it.
 
-### Existing foundations to preserve
-
-`ReduceMenu`, `AdvanceStartTransaction`, `AdvanceParkTransaction`, `AdvanceDelivery`, latest-request scheduling, generated reattach sequences, exact PID/start identities, supervisor lease, revision CAS/store journal, and Child-owned geometry are real enforcement. Console's current output paths already use `terminalMu`; this is not a claim that byte-level writes are all unlocked. `termcmd.paneWriter` provides a useful typed-door precedent, though its raw write result also needs explicit fault semantics if reused.
+Those audit findings refer to baseline `5ebb381f` plus then-uncommitted #250 recovery work; revalidate before implementation. The race was reproduced, but neither it nor the other terminal findings establishes the disconnect's cause.
 
 ## Spec
 
-Establish a shared vocabulary and make lifecycle/terminal models authoritative under ARCH-ORDER's structural, behavioral, and uncertainty requirements (ariadne#226 and ariadne#227). This ticket captures the audit and desired outcome; implementation requires a durable design and approval. Preserve independently surviving resources; avoid flattening the whole application into one global FSM.
-
-### Vocabulary and ownership
-
-Map each noun to actual symbols, identity, sole transition owner, states, accepted events, effects, invariants and termination/recovery behavior:
-
-| Noun | Meaning |
-| --- | --- |
-| Thread | Durable logical work identity/history, surviving runtime processes. |
-| Native session | Zellij workspace hosting panes and their processes. |
-| Process instance | OS process identified by PID plus process-start identity. |
-| Incarnation | Currently the recorded Pair helper instance, not the whole workspace. |
-| Attachment | Helper/client/PTY relationship to an existing native session. |
-| Terminal view | Selected input/output source, replay position, geometry and terminal modes. |
-| Operation attempt | Correlated start, park, resume, continuation or recovery attempt. |
-| Observation | Evidence about an exact external resource, including freshness and uncertainty. |
-
-A process may host several state machines; an operation may coordinate several processes. Separate desired state, observed state and operation outcome where relevant. Define confirmed success, confirmed failure and unconfirmed outcome, permitted actions under uncertainty, and bounded reconciliation/escalation. Preserve partial progress; local rollback cannot undo completed external effects. Probes can fail and observations can become stale.
-
-### Enforcement direction
-
-- Give terminal focus, output eligibility, replay and takeover one defined transition ordering; restrict callers to that owner rather than adding only a lock around the one reported read.
-- Restrict durable lifecycle updates to named transition APIs. Keep storage atomicity/CAS distinct from permission to transition.
-- Return structured external outcomes as events, with exact process/attempt identities; preserve unknown through observation, projection and recovery.
-- Test independent invariants after generated event sequences and force orderings at production scheduling boundaries. Reducer fuzzing alone cannot prove IO-shell wiring or cross-resource ordering.
+Define and faithfully implement the terminal abstraction at Couch and Pair boundaries, with explicit state ownership, supported protocol semantics and observable conformance. Preserve existing useful parsers, reducers, typed output paths and Child-owned geometry where they meet the contract (ARCH-DRY, ARCH-ORDER). A dedicated durable design must choose implementation boundaries before code changes.
 
 ### Terminal abstraction contract
 
@@ -82,35 +51,37 @@ Input modes apply to a terminal connection, while event routing follows region/f
 
 Test these through production composition with an independent terminal interpreter/stateful fake and live conformance where practical. Force byte splits and switch/output schedules; checking internal fields with the same parser is insufficient. Preserve existing local reducers and parser tests as supporting coverage (ARCH-MOCK, ARCH-DRY).
 
-### Related work
+### Scope and related work
 
-- #224 owns the typed console-writer door. Coordinate or expand its scope for whole focus/screen transactions; avoid a second parallel implementation.
-- #250 owns stale-thread recovery and currently changes the audited surfaces. Reconcile this design against its final implementation.
-- #253 owns default bounded attachment-disconnect telemetry. Reuse its structured outcomes; telemetry is evidence collection, not proof of the past incident's cause.
+In scope: terminal connections and capabilities; child-requested, selected-view and parent-terminal state; input routing/encoding; geometry; parsing and control insertion; rendering/replay; switching and output ordering; terminal read/write failure effects and recovery.
 
-- #207 (mouse ownership/restoration), #252 (UTF-8 injection boundaries), #254 (minimal filtering), and #241 (private-mode reconciliation) provide concrete terminal-contract acceptance cases. Revalidate fixes against current code; avoid parallel owners or duplicated parsers.
+Out of scope: durable thread lifecycle transition APIs, store mutation authority, process liveness classification and generic attachment/process lifecycle redesign. Those findings are preserved in #256. Share necessary outcome types at the boundary rather than inventing a second lifecycle system. #253 supplies disconnect telemetry; it is not a replacement for terminal-state correctness.
 
-These are coordination references, not a claim that all work is blocked on all three. Set actual dependencies and child issues during design. No live-session repairs or production refactoring are authorized by this capture alone.
+- #224: typed console output ownership; coordinate its writer API with the full selection/output transition.
+- #207: mouse state, parent tracking and restoration on switching.
+- #241: private-mode reconciliation across pane takeovers.
+- #252: UTF-8/control framing and chunk independence.
+- #254: explicit minimal-filtering policy under the supported terminal contract.
+- #250: completed recovery integration to preserve and revalidate during terminal design.
+
+These are coordination and acceptance references, not blanket blocking dependencies. Decide which work is implemented here or in linked issues during design; do not duplicate state owners. No live-session repair or production refactoring is authorized by this issue edit.
 
 ## Done when
 
-- A dedicated terminal-contract design specifies the supported abstraction, state authorities, transformations and all terminal acceptance properties above; composed conformance tests enforce them. Keep this as an independently verifiable part of the broader lifecycle design.
-
-- A canonical vocabulary/ownership map names real code components and explains independent thread, native-session, process and attachment lifetimes.
-- The reproduced race is covered by a committed regression; the terminal transition design also prevents stale output/input ownership across switches.
-- Authoritative lifecycle changes pass through named transition APIs; callers cannot use general mutation callbacks to bypass lifecycle rules.
-- Failed/partial IO and unknown external outcomes retain their evidence and have explicit state transitions, safe actions and bounded reconciliation.
-- Composed sequence tests enforce: attachment loss does not imply session death; stale attempts cannot mutate replacements; unknown cannot authorize destructive cleanup; partial effects are not erased by local rollback; released terminals accept no later output.
-- Existing local FSM guarantees remain valid; focused integration/conformance evidence demonstrates production routing, and #224/#250/#253 ownership is resolved without duplicated work.
+- A durable terminal-contract design names supported capabilities, transformations, state authorities and concrete production boundaries, including deliberate handling of unsupported features.
+- Child-requested, selected-view and parent-terminal states have authoritative owners and coherent identity/output-position semantics; emitted effects and uncertain outcomes remain distinct.
+- Production switching and output admission prevent stale-source input/output and mode leakage; the historical race has a committed regression if still present.
+- Composed conformance tests enforce chunk independence, switch preservation, UI isolation, input fidelity and ordered effects as specified above, including background mode changes and replay eviction.
+- Tests exercise independent terminal interpretation, forced scheduling, partial IO and supported live terminal/multiplexer behavior; local parser/reducer tests remain supporting evidence rather than the only oracle.
+- Atlas documents the abstraction and #207/#224/#241/#252/#254 responsibilities, with lifecycle concerns handed off to #256 and no duplicated owners.
 
 ## Plan
 
-- [ ] Design the terminal-contract portion explicitly and map #207/#241/#252/#254 acceptance cases and #224 writer ownership to it; decide implementation boundaries or child issues without replacing the broader lifecycle scope.
-
-- [ ] Revalidate findings against the latest implementation and coordinate with #224, #250 and #253.
-- [ ] Claim/start-plan and author an approved durable design with vocabulary, owners, transition contracts, uncertainty semantics and implementation boundaries.
-- [ ] Implement scoped changes with a permanent race regression and deterministic production-boundary sequence tests.
-- [ ] Verify relevant race/integration/conformance checks, update atlas and close through SDLC.
+- [ ] Revalidate terminal findings and map existing Couch/Pair/Zellij boundaries, capabilities, state and output paths.
+- [ ] Claim/start-plan and author an approved durable terminal-abstraction design with supported semantics, ownership, transition ordering and implementation boundaries.
+- [ ] Add conformance regressions for the terminal acceptance properties using independent interpretation and forced production-boundary schedules.
+- [ ] Implement the approved abstraction and reconciliation changes, coordinating linked terminal issues.
+- [ ] Verify composed/live behavior, update atlas and close through SDLC.
 
 ## Log
 
@@ -158,3 +129,7 @@ Operator challenged the explanation that adding UI and interception inherently m
 ### 2026-09-15 — Make terminal semantics explicit within generic ownership scope
 
 Reason: operator requested a rigorous terminal abstraction rather than attributing interference to inevitable layered complexity. Added a dedicated terminal-contract design requirement, separated child-requested/selected-view/parent-terminal state, defined observable acceptance properties and connected the concrete mouse, UTF-8, filtering and mode-reconciliation issues. Preserved the original lifecycle, external-outcome and uncertainty scope and historical audit evidence. Implementation remains open and requires the existing durable-design approval; this update does not select a full emulator or authorize a blanket1003 change.
+
+### 2026-09-15 — Narrow to terminal abstraction
+
+Reason: the operator clarified that terminal state management and a faithful terminal abstraction are the central purpose of #255. Supersedes the earlier revision retaining a broad lifecycle umbrella. Retitled and rewrote current Problem/Spec/Done when/Plan around terminal semantics and conformance. Moved generic lifecycle authority, process/attachment outcomes and observation uncertainty to #256; retained terminal IO outcomes and switch-ordering concerns here. Historical log and audit evidence remain as provenance, not additional current scope. No implementation was started.
