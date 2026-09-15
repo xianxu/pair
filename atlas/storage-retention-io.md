@@ -83,3 +83,13 @@ direct-call guard below it. Run
 plus the behavioral test for the changed row. Removing a guard or changing its
 clock semantics requires updating and reviewing the implementation and test,
 not only repointing this document to a surviving function.
+
+Diagnostic payload effects are coordinated separately from meaningful session
+use: `cmd/internal/diagnosticlog/creation.go#ensureCurrent` records an empty
+reserved inode before no-replace publication; `cmd/internal/diagnosticlog/append.go#appendChunk`
+publishes bounded intended bytes before appending. `recoverAppend` validates and
+commits only the observed prefix. Both use the stable per-log lock and do not
+renew session activity. `creation_test.go` and `append_test.go` cover process
+death, cancellation, partial writes and replacement refusal. Ordinary optional
+append metadata uses atomic rename for process-exit recovery; lifecycle
+rotation/collection retain durable synchronization.

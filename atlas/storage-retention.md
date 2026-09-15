@@ -86,6 +86,12 @@ The implementation map:
   unpublished stages are reclaimed only under their owning lock. Deletion
   intents replay through missing payloads, metadata and removed ancestor
   directories, while replacement identities and unsafe ancestors still refuse.
+  `creation.go` publishes a reserved inode without replacement; `append.go`
+  records bounded intended bytes before payload writes and reconciles only the
+  prefix actually written. Ordinary optional appends use atomic publication for
+  process-exit recovery without per-record fsync. Host power-loss durability is
+  not promised for debug records; inconsistent evidence retains them. Rotation
+  and destructive collection sync their payload/metadata boundaries durably.
 - `gcruntime/` composes Couch, process evidence, binding cleanup and diagnostic
   collection. `gccmd/` exposes the command; `storagegc/schedule.go` owns bounded
   scheduling and its durable completion/cursor state. Diagnostic path discovery

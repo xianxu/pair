@@ -288,7 +288,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 	if e = validate(s, path); e != nil {
 		return nil, cursor, false, e
 	}
-	if s.Pending != nil || s.Deleting != nil {
+	if s.Pending != nil || s.Deleting != nil || s.Creating != nil || s.Appending != nil {
 		return nil, cursor, false, errors.New("diagnostic recovery pending")
 	}
 	reason := ""

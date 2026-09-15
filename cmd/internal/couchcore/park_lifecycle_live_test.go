@@ -239,9 +239,14 @@ func TestParkLifecycleLive(t *testing.T) {
 }
 
 func TestParkLifecycleLiveIntentOnlyMutation(t *testing.T) {
-	ctx, cancel := liveParkContext(t, 750*time.Millisecond)
+	setupCtx, cancelSetup := liveParkContext(t, 20*time.Second)
+	defer cancelSetup()
+	driver, request := newRealParkConformance(t, setupCtx, true)
+
+	// The short deadline proves missing completion after intent publication.
+	// Zellij startup and helper attachment are separately bounded admission.
+	ctx, cancel := context.WithTimeout(setupCtx, 750*time.Millisecond)
 	defer cancel()
-	driver, request := newRealParkConformance(t, ctx, true)
 
 	trace, err := pairlifecycletest.RunConformanceScenario(ctx, driver, request)
 	wantTrace := pairlifecycletest.EffectTrace{

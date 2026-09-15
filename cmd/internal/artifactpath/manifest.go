@@ -567,6 +567,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/sessioninventory/catalog_gc.go",
 	"cmd/internal/storagegc/runtimes.go",
 	"cmd/internal/storagegc/schedule.go",
+	"cmd/internal/diagnosticlog/append.go",
+	"cmd/internal/diagnosticlog/creation.go",
 	"cmd/internal/diagnosticlog/collect.go",
 	"cmd/internal/diagnosticlog/environment.go",
 	"cmd/internal/diagnosticlog/environment_darwin.go",

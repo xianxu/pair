@@ -582,3 +582,103 @@ that ordering, early exit and deadline failure; helper full race passes2.249s.
 Final fresh-config live group passes3 repetitions16.426s
 (`/tmp/pair239-ci-render-live-green.log`). No production terminal behavior or
 operator session changed. This test-only delta follows the full Go pass above.
+
+### 2026-09-15 — BR-9: payload effects require prior recovery authority
+
+Round4 addressed BR-1 through BR-8 but found ordinary append changes payload
+before its matching generation metadata is published. The earlier publication
+sweep covered metadata staging, not every payload/metadata pair; the prior
+checked crash-boundary claim was incomplete. Correct the rule across all effects
+(ARCH-ORDER, ARCH-FUNERAL): publish exact recovery authority before modifying a
+payload, validate that authority on replay, retire it only after payload and
+metadata effects are durable. This completes the approved crash-recovery scope.
+
+Alternatives considered: accepting observed size growth would authorize unrelated
+writes and weaken replacement protection; a dirty flag/digest alone cannot
+validate every partial append. Use bounded exact append bytes in the intent.
+One state slot is reused per log; no per-record journal accumulation or new
+background worker is introduced. Measure its write overhead explicitly.
+
+- Append intent records the prior generation, at most64KiB intended bytes and
+  intended write time. Split larger caller writes into bounded chunks. Publish
+  the intent durably before payload mutation. Recovery checks the same inode,
+  size within the allowed interval, and the exact already-written suffix prefix;
+  zero-byte progress still requires unchanged prior metadata. Complete only the
+  missing bytes, sync the payload, then publish final generation metadata and
+  clear the intent durably. Reject unrelated tails, truncation and replacements.
+- Current-file creation reserves an empty inode in one fixed same-filesystem
+  staging location, records its exact identity before publishing the current
+  path without replacement, then finalizes metadata and removes the stage.
+  Under the existing log lock, unreferenced reserved staging has bounded cleanup;
+  referenced staging follows the durable creation intent. This serves initial
+  Open and recreation following rotation or deletion.
+- Ordinary Open/Write/Maintain and collection recover these intents before
+  strict generation matching or subsequent rotation/deletion. Preview reports
+  incomplete operations without mutating them. Existing v1 state without new
+  optional fields remains readable; conflicting intents fail closed.
+- Rotation retains its prior exact-generation intent, move, metadata and current
+  retirement sequence. Deletion retains exact identity authority through each
+  removed ancestor. Final retirement remains recoverable after state/directory
+  removal. Audit each callsite against this list instead of treating a newly
+  passing append reproducer as the entire class.
+- Tests cover cancellation, publication failure and actual process death before
+  and after creation/append boundaries, partial writes, repeat replay, bytes
+  preservation and replacement rejection. Run focused races, full integration
+  and a representative temp-root append timing comparison. No real-store apply.
+
+The verified CI-only mutation deadline patch is now applied: startup/attachment
+has a20s admission budget, followed by a fresh750ms mutation budget. A scratch
+800ms admission delay fails before the old mutation and passes the revised test
+with unchanged mutation assertions (`/tmp/pair239-ci-mutation-{red,green}.log`).
+
+Append refinement before implementation: replay commits only the exact prefix
+already present; it does not append missing intended bytes. This preserves
+`io.Writer` partial-count/retry behavior and does not invent effects after a
+cancelled write. Zero progress clears the intent with the prior generation
+unchanged. Larger writes use multiple bounded chunks, preserving the existing
+API. Ordinary writes sync their appended bytes before final metadata commit.
+
+The integrity contract remains the existing exact inode/size/mtime evidence,
+plus verification of the authorized append suffix during recovery. It is not
+cryptographic proof of the entire old prefix against an uncoordinated actor
+editing it during a live append; the prior implementation did not provide that
+proof either. A resumable whole-file digest adds a new integrity system outside
+this retention task and is not introduced. Foreign tails, replacement inodes,
+truncation and changed zero-progress metadata still refuse recovery. Manual
+external edits must not race managed users, active intents or collection.
+
+### 2026-09-15 — Preserve optional logging latency without weakening deletion
+
+Measured per-record durable fsync overhead was25–26ms/write versus0.32–0.34ms
+before the append fix (`/tmp/pair239-append-benchmark-{before,after}.log`,100 writes
+at256B/4KiB/64KiB). That regression is unsuitable for terminal paths. Refine the
+synchronization boundary: ordinary optional appends and Open/Write reconciliation
+atomically publish intent before payload and final metadata afterward, without
+per-record fsync. This guarantees recovery after process exit, not host power
+loss. Missing/mismatched evidence after power loss remains retained; no uncertain
+state becomes deletion authority. Diagnostic records were already best-effort.
+
+Maintain/Collect reconciliation synchronizes pending appended bytes and final
+metadata durably. Rotation syncs/revalidates the current payload before its
+durable intent. Creation, rotation, deletion and retirement keep their durable
+lifecycle publication. No unbounded asynchronous writer or extra buffering
+lifecycle is added to avoid a per-record cost; bounded intents and return counts
+stay unchanged. Re-run the same benchmark and real killed-process tests.
+
+Selected synchronization split measured0.866/0.653/0.731ms per256B/4KiB/64KiB
+write (`/tmp/pair239-append-benchmark-final.log`, same100-write harness). This is
+additional ordered metadata work, but avoids the rejected25ms per-record sync.
+Counted tests defend zero hot-path payload syncs and durable maintenance recovery;
+a failed rotation payload sync cannot publish its deletion/move authority.
+Full diagnostic race passes17.231s; final append/validation race passes3.407s.
+Creation/direct-collection race passes2.457s, including killed first Open before
+state publication. Stateless stage cleanup requires the log lock and writer
+proof and removes only the reserved empty inode; unknown contents still retain.
+
+The complete hosted conformance target passes locally with isolated Zellij
+socket/config/cache directories: launcher3.235s, Couch8.733s, input2.117s
+(`/tmp/pair239-round5-live-conformance.log`). The final repository suite is
+running on the combined tree. No source changed during this verification run.
+
+Final repository verification passed `/tmp/pair239-round5-full-go.log`:
+Couch166.047s, diagnostics34.250s, runtime133.937s including the100k fixture.

@@ -383,3 +383,127 @@ Add `## Revisions` entries that:
 - Enumerate publication destinations, synchronization owners, and interrupted-stage recovery.
 - Extend the maintenance envelope through nested inspections and traversal helpers.
 - Specify diagnostic deletion recovery after payload, metadata, and ancestor removal, including cancellation before intent retirement.
+
+---
+
+## Re-review — 2026-09-14T23:50:45-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 239 — Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it |
+| repo | 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it |
+| issue file | workshop/issues/000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 6b06b449ae3521b92187ae14c51d62b66ec356e4..44eb1f10e342bff16c8a9f24b67e55fb9f64eb07 |
+| command | sdlc milestone-close --issue 239 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-14T23:50:45-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The specific BR-6/BR-7/BR-8 corrections pass regression tests, and scratch mutations confirm those tests detect their removal. One related correctness gap blocks shipping: interrupted diagnostic appends leave valid payloads permanently incompatible with their metadata, disabling subsequent logging and collection. The repository remained unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Metadata-only admission, protection and interrupted-retirement tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Central pending-metadata recovery and killed-publisher tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Dead pre-spawn reservation recovery and uncertain-start protection tests pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Legacy archive onboarding and namespace discovery tests pass, including missing payload directories.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The plan names the production reducer; phase/event, sequence and production bypass-guard tests pass.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Production owner-budget, 100,000-filename, contention and cancellation tests pass. Removing subprocess deadline propagation makes both lsof and ps deadline regressions fail.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Journals now precede unique quarantines. Restoring pre-publication directory creation makes all three publication-failure regressions fail. A separate remaining publication-class instance is reported below.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Parent-removal and intent-retirement replay tests pass. Replacing surviving-ancestor synchronization with direct parent synchronization reproduces ENOENT.
+findings:
+  - id: new
+    severity: Critical
+    family: interrupted-publication-recovery
+    title: |
+      Interrupted diagnostic appends permanently block logging and collection
+    detail: |
+      cmd/internal/diagnosticlog/writer.go:281 changes the payload before publishing Size/ModTime at line 294. Cancellation, publication failure or process death between those effects leaves metadata stale; Open, Write, Maintain and Collect subsequently reject the generation. A scratch regression confirms persisted bytes followed by failures from both reopen and expired collection. This is the 3rd finding in family interrupted-publication-recovery. State and enforce the class-wide rule: every payload effect requiring matching metadata must have recoverable authority before mutation. Sweep initial/current-file creation, append, rotation, deletion and retirement; add interruption tests without weakening replacement-file checks (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).
+```
+
+### 1. Strengths
+
+- Exact ownership and retention policies have exhaustive family checks and conservative protection precedence.
+- Collection phases use a production reducer with sequence tests and a bypass guard.
+- Recovery tests exercise actual killed publishers, cancellation and unsafe replacements.
+- README and atlas cover commands, migration, retention clocks and the cooperative scheduling budget.
+
+### 2. Critical findings
+
+**Diagnostic append recovery:** [writer.go:281](cmd/internal/diagnosticlog/writer.go#L281) writes bytes before publishing matching metadata at line 294.
+
+The scratch test interrupts publication after a successful payload write. Both subsequent `Open` and collection after eight days return:
+
+> diagnostic generation changed outside protocol
+
+Add a replayable append protocol, preserving strict rejection of unrelated modifications. The reproducer is available through [this scratch overlay](/tmp/pair239-review-b7ujg5tu/append.json):
+
+```sh
+go test -overlay /tmp/pair239-review-b7ujg5tu/append.json \
+  ./cmd/internal/diagnosticlog \
+  -run '^TestReviewAppendPublicationInterruption$' -count=1 -v
+```
+
+### 3. Important findings
+
+None additional.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+Passed full suites for storagegc, diagnosticlog, gcruntime, gccmd, artifactpath, opener and retentioncmd; targeted retention/publication suites for Couch, launcher, pairlog and scrollback also passed.
+
+Existing publication tests verify staging cleanup but miss the ordinary append’s payload-to-metadata failure window. This review did not rerun the full repository, race or Lua suites.
+
+### 6. Architectural notes
+
+| Marker | Result |
+|---|---|
+| ARCH-DRY | Pass — shared ownership, coordination and diagnostic implementations. |
+| ARCH-PURE | Pass — core policy/reducer tests exercise deterministic logic directly. |
+| ARCH-PURPOSE | Flag — interrupted appends strand diagnostic data outside successful retention. |
+| ARCH-MOCK | Pass — portable stores, injected process evidence and live conformance tests. |
+| ARCH-CONSTRAINTS | Pass — tested owner budgets, continuation, contention and cooperative cancellation. |
+| ARCH-SECURE | Pass — inspected paths reject unsafe identities and uncertain evidence. |
+| ARCH-ORDER | Flag — append effects lack recoverable intermediate authority. |
+| ARCH-FUNERAL | Flag — the resulting generation has no successful automatic retirement path. |
+
+### 7. Plan revision recommendations
+
+Add a `## Revisions` entry defining recovery across **every diagnostic payload/metadata boundary**, including ordinary append. Update the checked “crashes at each durable boundary” claim at plan line 243 after the missing regressions pass.

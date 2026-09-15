@@ -34,6 +34,9 @@ type Registration struct {
 }
 type Proof func(ctx context.Context, path string, writers []Registration) error
 type Options struct {
+	// appendWrite injects real partial-write outcomes in durability tests.
+	appendWrite func(*os.File, []byte) (int, error)
+	appendSync  func(*os.File) error
 	// Context bounds optional maintenance; nil preserves ordinary writer behavior.
 	Context  context.Context
 	Now      func() time.Time
@@ -70,12 +73,14 @@ type generation struct {
 	ModTime   time.Time `json:"mod_time"`
 }
 type diskState struct {
-	Version  int            `json:"version"`
-	Path     string         `json:"path"`
-	Current  generation     `json:"current"`
-	Writers  []Registration `json:"writers"`
-	Pending  *generation    `json:"pending,omitempty"`
-	Deleting *generation    `json:"deleting,omitempty"`
+	Creating  *generation    `json:"creating,omitempty"`
+	Appending *appendIntent  `json:"appending,omitempty"`
+	Version   int            `json:"version"`
+	Path      string         `json:"path"`
+	Current   generation     `json:"current"`
+	Writers   []Registration `json:"writers"`
+	Pending   *generation    `json:"pending,omitempty"`
+	Deleting  *generation    `json:"deleting,omitempty"`
 }
 
 func normalized(opts Options) Options {
@@ -142,22 +147,18 @@ func Open(path string, options Options) (*Writer, error) {
 		if e = validate(s, p); e != nil {
 			return e
 		}
+		if e := recoverCreation(p, &s, options); e != nil {
+			return e
+		}
+		if e := recoverAppend(p, &s, options, false); e != nil {
+			return e
+		}
 		if s.Pending == nil && s.Deleting == nil {
-			f, e := openRegular(p, syscall.O_CREAT|syscall.O_APPEND|syscall.O_WRONLY)
-			if e != nil {
-				return e
-			}
-			st, e := f.Stat()
-			f.Close()
-			if e != nil {
-				return e
-			}
-			if s.Current.Identity == (identity{}) {
-				s.Current = generation{Identity: fileIdentity(st), Start: options.Now().UTC(), LastWrite: st.ModTime(), Size: st.Size(), ModTime: st.ModTime()}
-			} else if e = matches(st, s.Current); e != nil {
+			if e := ensureCurrent(p, &s, options); e != nil {
 				return e
 			}
 		}
+
 		found := false
 		out := s.Writers[:0]
 		for _, r := range s.Writers {
@@ -217,6 +218,12 @@ func (w *Writer) Write(b []byte) (int, error) {
 		if e = validate(s, w.path); e != nil {
 			return e
 		}
+		if e := recoverCreation(w.path, &s, w.options); e != nil {
+			return e
+		}
+		if e := recoverAppend(w.path, &s, w.options, false); e != nil {
+			return e
+		}
 		if s.Deleting != nil || s.Pending != nil {
 			if !w.options.SynchronousMaintenance {
 				maintenanceDue = true
@@ -259,39 +266,19 @@ func (w *Writer) Write(b []byte) (int, error) {
 				exists = false
 			}
 		}
-		f, e := openRegular(w.path, syscall.O_CREAT|syscall.O_APPEND|syscall.O_WRONLY)
-		if e != nil {
+		if e := ensureCurrent(w.path, &s, w.options); e != nil {
 			return e
 		}
-		defer f.Close()
-		if !exists {
-			st, e = f.Stat()
+		for len(b) > 0 {
+			chunk := b[:min(len(b), maxAppendBytes)]
+			written, e := appendChunk(w.path, &s, chunk, w.options)
+			n += written
 			if e != nil {
 				return e
 			}
-			s.Current = generation{Identity: fileIdentity(st), Start: now, LastWrite: now}
+			b = b[len(chunk):]
 		}
-		if s.Current.Start.IsZero() {
-			st, e = f.Stat()
-			if e != nil {
-				return e
-			}
-			s.Current = generation{Identity: fileIdentity(st), Start: now, LastWrite: st.ModTime(), Size: st.Size()}
-		}
-		n, e = f.Write(b)
-		if e != nil {
-			return e
-		}
-		st, e = f.Stat()
-		if e != nil {
-			return e
-		}
-		s.Current.Size = st.Size()
-		s.Current.ModTime = st.ModTime()
-		s.Current.LastWrite = now
-		// LastWrite is explicit so an injected clock and coarse filesystem clocks
-		// cannot make a young managed generation appear old.
-		return save(w.path, s, false, w.options)
+		return nil
 	})
 	if maintenanceDue && !w.options.SynchronousMaintenance {
 		w.scheduleMaintenance()
@@ -436,6 +423,9 @@ func validate(s diskState, path string) error {
 	if s.Version != 1 || s.Path != path {
 		return errors.New("invalid diagnostic identity")
 	}
+	if s.Current.Name != "" {
+		return errors.New("diagnostic current cannot name a segment")
+	}
 	if s.Current.Size < 0 {
 		return errors.New("invalid diagnostic size")
 	}
@@ -444,11 +434,26 @@ func validate(s diskState, path string) error {
 			return ErrUnknownWriters
 		}
 	}
-	if s.Pending != nil && s.Deleting != nil {
+	operations := 0
+	for _, present := range []bool{s.Pending != nil, s.Deleting != nil, s.Creating != nil, s.Appending != nil} {
+		if present {
+			operations++
+		}
+	}
+	if operations > 1 {
 		return errors.New("conflicting diagnostic operations")
 	}
 	validGeneration := func(g generation) bool {
 		return g.Identity != (identity{}) && !g.Start.IsZero() && !g.LastWrite.IsZero() && !g.ModTime.IsZero() && g.Size >= 0
+	}
+	if s.Creating != nil && (!validGeneration(*s.Creating) || s.Creating.Size != 0 || s.Creating.Name != "" || s.Current.Identity != (identity{})) {
+		return errors.New("invalid creation intent")
+	}
+	if s.Appending != nil {
+		a := s.Appending
+		if !validGeneration(a.Before) || a.Before != s.Current || a.At.IsZero() || len(a.Data) == 0 || len(a.Data) > maxAppendBytes {
+			return errors.New("invalid append intent")
+		}
 	}
 	if s.Current.Identity != (identity{}) && !validGeneration(s.Current) {
 		return errors.New("invalid current diagnostic generation")
@@ -604,6 +609,32 @@ func rotate(path string, s *diskState, o Options) error {
 		return err
 	}
 	g := s.Current
+	// Hot appends are atomically tracked but best-effort durable. Flush and
+	// revalidate their payload before publishing durable rotation authority.
+	f, e := openRegular(path, syscall.O_RDONLY)
+	if e != nil {
+		return e
+	}
+	st, e := f.Stat()
+	if e == nil {
+		e = matches(st, g)
+	}
+	if e == nil {
+		e = syncAppendPayload(f, o)
+	}
+	if e == nil {
+		st, e = f.Stat()
+		if e == nil {
+			e = matches(st, g)
+		}
+	}
+	e = errors.Join(e, f.Close())
+	if e != nil {
+		return e
+	}
+	if e := fault(o, "rotation-payload-synced"); e != nil {
+		return e
+	}
 	ready := false
 	for range 8 {
 		if err := o.checkContext(); err != nil {
@@ -746,6 +777,12 @@ func Maintain(path string, options Options) error {
 			return e
 		}
 		if e = validate(s, p); e != nil {
+			return e
+		}
+		if e := recoverCreation(p, &s, options); e != nil {
+			return e
+		}
+		if e := recoverAppend(p, &s, options, true); e != nil {
 			return e
 		}
 		if options.Proof == nil {

@@ -123,6 +123,51 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-14T23:50:45-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Metadata-only admission, protection and interrupted-retirement tests pass.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Central pending-metadata recovery and killed-publisher tests pass.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Dead pre-spawn reservation recovery and uncertain-start protection tests pass.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Legacy archive onboarding and namespace discovery tests pass, including missing payload directories.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: The plan names the production reducer; phase/event, sequence and production bypass-guard tests pass.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: Production owner-budget, 100,000-filename, contention and cancellation tests pass. Removing subprocess deadline propagation makes both lsof and ps deadline regressions fail.
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: Journals now precede unique quarantines. Restoring pre-publication directory creation makes all three publication-failure regressions fail. A separate remaining publication-class instance is reported below.
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: Parent-removal and intent-retirement replay tests pass. Replacing surviving-ancestor synchronization with direct parent synchronization reproduces ENOENT.
+          round: 4
+      findings:
+        - id: BR-9
+          severity: Critical
+          title: Interrupted diagnostic appends permanently block logging and collection
+          detail: 'cmd/internal/diagnosticlog/writer.go:281 changes the payload before publishing Size/ModTime at line 294. Cancellation, publication failure or process death between those effects leaves metadata stale; Open, Write, Maintain and Collect subsequently reject the generation. A scratch regression confirms persisted bytes followed by failures from both reopen and expired collection. This is the 3rd finding in family interrupted-publication-recovery. State and enforce the class-wide rule: every payload effect requiring matching metadata must have recoverable authority before mutation. Sweep initial/current-file creation, append, rotation, deletion and retirement; add interruption tests without weakening replacement-file checks (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).'
+          family: interrupted-publication-recovery
+          round: 4
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it#239 (boundary-review)
@@ -180,8 +225,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Critical] `durable-deletion-replay` Diagnostic deletion cannot recover after removing its parent directories
   diagnosticlog/collect.go:199 removes empty segment ancestors before clearing the durable Deleting intent at lines 205-209. Death or cancellation between those effects leaves replay calling syncDir on a missing parent at line 183, permanently failing. A scratch regression reproduces ENOENT. Make replay tolerate already-completed directory cleanup while preserving identity checks, and test interruption after each parent removal and before intent retirement (ARCH-ORDER, ARCH-FUNERAL).
 
+## Round 4 — 2026-09-14T23:50:45-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Metadata-only admission, protection and interrupted-retirement tests pass.
+- BR-2 — addressed — Central pending-metadata recovery and killed-publisher tests pass.
+- BR-3 — addressed — Dead pre-spawn reservation recovery and uncertain-start protection tests pass.
+- BR-4 — addressed — Legacy archive onboarding and namespace discovery tests pass, including missing payload directories.
+- BR-5 — addressed — The plan names the production reducer; phase/event, sequence and production bypass-guard tests pass.
+- BR-6 — addressed — Production owner-budget, 100,000-filename, contention and cancellation tests pass. Removing subprocess deadline propagation makes both lsof and ps deadline regressions fail.
+- BR-7 — addressed — Journals now precede unique quarantines. Restoring pre-publication directory creation makes all three publication-failure regressions fail. A separate remaining publication-class instance is reported below.
+- BR-8 — addressed — Parent-removal and intent-retirement replay tests pass. Replacing surviving-ancestor synchronization with direct parent synchronization reproduces ENOENT.
+
+### Raised
+
+- **BR-9** [Critical] `interrupted-publication-recovery` Interrupted diagnostic appends permanently block logging and collection
+  cmd/internal/diagnosticlog/writer.go:281 changes the payload before publishing Size/ModTime at line 294. Cancellation, publication failure or process death between those effects leaves metadata stale; Open, Write, Maintain and Collect subsequently reject the generation. A scratch regression confirms persisted bytes followed by failures from both reopen and expired collection. This is the 3rd finding in family interrupted-publication-recovery. State and enforce the class-wide rule: every payload effect requiring matching metadata must have recoverable authority before mutation. Sweep initial/current-file creation, append, rotation, deletion and retirement; add interruption tests without weakening replacement-file checks (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).
+
 ## Open findings
 
-- **BR-6** [Important] `bounded-maintenance-work` Scheduled collection limits deletions but processes every owner under the shared lock
-- **BR-7** [Important] `interrupted-publication-recovery` Unpublished quarantine directories have no recovery path
-- **BR-8** [Critical] `durable-deletion-replay` Diagnostic deletion cannot recover after removing its parent directories
+- **BR-9** [Critical] `interrupted-publication-recovery` Interrupted diagnostic appends permanently block logging and collection

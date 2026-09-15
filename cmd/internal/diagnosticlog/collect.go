@@ -68,6 +68,12 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			if e := options.prove(p, nil); e != nil {
 				return e
 			}
+			// A killed first opener can leave its reserved empty inode before
+			// any state exists. Reap only that exact staging name under the
+			// log lock; unknown entries still prevent directory retirement.
+			if e := recoverCreation(p, &diskState{Version: 1, Path: p}, options); e != nil {
+				return e
+			}
 			if _, e := os.Lstat(directory(p)); e == nil {
 				// Only an empty directory is a recoverable final retirement;
 				// unknown payload or metadata still blocks instead of being lost.
@@ -89,6 +95,12 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			return e
 		}
 		if e = validate(s, p); e != nil {
+			return e
+		}
+		if e := recoverCreation(p, &s, options); e != nil {
+			return e
+		}
+		if e := recoverAppend(p, &s, options, true); e != nil {
 			return e
 		}
 		if options.Proof == nil {

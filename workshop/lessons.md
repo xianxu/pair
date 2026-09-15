@@ -4968,3 +4968,11 @@ that transition authority is pure or enforced.
   has not initialized. Gate disposable fixture readiness on server-rendered
   output, not socket presence or client bootstrap bytes; preserve server logs
   before treating an intermittent live test failure as a timeout problem.
+- #239 BR-9: recovery audits must start from payload syscalls (create, append,
+  rename, unlink), not from metadata publishers. For every payload effect, name
+  the durable authority that already exists and test death before the next
+  metadata publication. A passing staging-cleanup test does not establish this.
+- #239 boundary bookkeeping: retain REWORK findings in the issue/ledger, but do
+  not attach Review-Verdict/Review-Window trailers to an implementation fix
+  commit. SDLC treats those trailers as a completed boundary, even for REWORK;
+  verify the emitted review base/head before letting the next review proceed.
