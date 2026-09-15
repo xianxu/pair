@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-13
-estimate_hours:
+estimate_hours: 4.379
 started: 2026-09-13T16:24:31-07:00
 ---
 
@@ -48,6 +48,38 @@ Neither matches the requested ownership by focused pane as directly.
 - Draft and terminal routing regression checks continue to pass.
 - Zellij routing and operator help/docs agree with the new scope; manually
   verify agent delivery and mouse focus in a running Pair session.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only; calibration is marked stale by
+`sdlc estimate-source`, so treat it as provisional.
+
+Decomposition: spec/audit, existing policy module, pure framing module,
+Couch routing extension, cross-layer binding migration, Lua actions,
+conformance fixture, docs, and one close review. Existing Go/PTY/Zellij/Lua
+seams cover the stack; no new external library needed. The thorough plan
+pre-resolves implementation design (0.2 design multiplier); spec/audit uses
+0.75h without discount. Module base design 0.3h or 1h for new concern,
+cross-cutting 0.6h, Lua 2h, docs 0.15h, review 0.2h. Familiarity 1.0;
+implementation values are 40% of v2's upper representative primitive hours.
+Design subtotal 1.86h plus 15% buffer; implementation subtotal 2.24h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.75 impl=0.12
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.06 impl=0.2
+item: cross-cutting-refactor design=0.12 impl=0.2
+item: lua-neovim design=0.4 impl=0.6
+item: greenfield-go-module design=0.2 impl=0.32
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 4.379
+```
 
 ## Plan
 
