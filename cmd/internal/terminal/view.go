@@ -11,13 +11,24 @@ const (
 	Released
 )
 
+// GestureOwner records who accepted the physical press. Parent gestures include
+// chrome, panels, orphan motion, and canceled child gestures until release.
+type GestureOwner uint8
+
+const (
+	GestureNone GestureOwner = iota
+	GestureParent
+	GestureChild
+)
+
 // View is the confirmed parent ownership, separate from a product's logical
 // operation target. Empty Selected denotes the compositor's panel.
 type View struct {
 	State                               ViewState
 	Selected, Admitted, DragDestination string
 	Token, Generation, GeometryEpoch    uint64
-	SuppressDrag                        bool
+	Gesture                             GestureOwner
+	Button                              int
 }
 type ViewEventKind uint8
 
@@ -29,10 +40,13 @@ const (
 	PublishFrame
 	PressMouse
 	ReleaseMouse
+	ParentPressMouse
+	CancelMouse
 )
 
 type ViewEvent struct {
 	Kind                             ViewEventKind
+	Button                           int
 	EndpointID                       string
 	Token, Generation, GeometryEpoch uint64
 }
@@ -55,7 +69,7 @@ func Transition(v View, e ViewEvent) (View, ViewEffects, error) {
 		if v.DragDestination != "" {
 			out.CancelDrag = v.DragDestination
 			v.DragDestination = ""
-			v.SuppressDrag = true
+			v.Gesture = GestureParent
 		}
 	}
 	switch e.Kind {
@@ -95,13 +109,27 @@ func Transition(v View, e ViewEvent) (View, ViewEffects, error) {
 			v.State = Released
 		}
 	case PressMouse:
-		if v.State != Ready || v.Admitted == "" || v.SuppressDrag || v.DragDestination != "" {
+		if v.State != Ready || v.Admitted == "" || v.Gesture != GestureNone {
 			return reject()
 		}
 		v.DragDestination = v.Admitted
+		v.Gesture = GestureChild
+		v.Button = e.Button
+	case ParentPressMouse:
+		if v.State != Ready || v.Gesture != GestureNone {
+			return reject()
+		}
+		v.Gesture = GestureParent
+		v.Button = e.Button
+	case CancelMouse:
+		cancel()
 	case ReleaseMouse:
+		if v.Gesture != GestureNone && e.Button != 0 && v.Button != 0 && e.Button != v.Button {
+			return reject()
+		}
 		v.DragDestination = ""
-		v.SuppressDrag = false
+		v.Gesture = GestureNone
+		v.Button = 0
 	default:
 		return reject()
 	}

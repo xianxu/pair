@@ -84,6 +84,9 @@ func (e *Emulator) setMode(mode ansi.Mode, setting ansi.ModeSetting) {
 			}
 		}
 	}
+	if (mouseTrackingMode(mode) || mode == ansi.ModeMouseExtSgr) && e.isModeSet(mode) != setting.IsSet() {
+		e.mouseEpoch++
+	}
 	e.modes[mode] = setting
 	switch mode {
 	case ansi.ModeTextCursorEnable:

@@ -4,7 +4,7 @@ import "github.com/charmbracelet/x/ansi"
 
 // handleDcs handles a DCS escape sequence.
 func (e *Emulator) handleDcs(cmd ansi.Cmd, params ansi.Params, data []byte) {
-	if len(data) > e.limits.StringBytes {
+	if e.parameters.overflow || len(data) > e.limits.StringBytes {
 		e.flushGrapheme()
 		return
 	}

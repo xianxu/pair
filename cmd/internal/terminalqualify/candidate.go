@@ -59,13 +59,11 @@ func newCandidate(e *vt.Emulator, reader io.Reader, pipe io.Closer) (*Candidate,
 		return nil, err
 	}
 	e.SetScrollbackSize(1000)
-	c := &Candidate{emulator: e, reader: reader, commands: make(chan struct{}, 1), stopping: make(chan struct{}), drainDone: make(chan struct{}), replies: make(chan replyResult, 1), marker: marker, pipe: pipe, effects: Observation{"title": "", "cwd": "", "bells": "0", "cursor-visible": "true", "cursor-style": "0,true"}}
+	c := &Candidate{emulator: e, reader: reader, commands: make(chan struct{}, 1), stopping: make(chan struct{}), drainDone: make(chan struct{}), replies: make(chan replyResult, 1), marker: marker, pipe: pipe, effects: Observation{"title": "", "cwd": "", "bells": "0"}}
 	bells := 0
 	e.SetCallbacks(vt.Callbacks{
 		Title: func(s string) { c.effects["title"] = s }, WorkingDirectory: func(s string) { c.effects["cwd"] = s },
-		Bell:             func() { bells++; c.effects["bells"] = strconv.Itoa(bells) },
-		CursorVisibility: func(b bool) { c.effects["cursor-visible"] = strconv.FormatBool(b) },
-		CursorStyle:      func(s vt.CursorStyle, b bool) { c.effects["cursor-style"] = fmt.Sprintf("%d,%t", s, b) },
+		Bell: func() { bells++; c.effects["bells"] = strconv.Itoa(bells) },
 	})
 	go c.drain()
 	return c, nil
@@ -183,8 +181,8 @@ func (c *Candidate) snapshot() (Observation, error) {
 	if w <= 0 || h <= 0 || w > maxCandidateCells/h {
 		return nil, errors.New("candidate resized beyond cell bound")
 	}
-	p := e.CursorPosition()
-	out := Observation{"cursor": fmt.Sprintf("%d,%d", p.X, p.Y), "alt": strconv.FormatBool(e.IsAltScreen()), "width": strconv.Itoa(w), "height": strconv.Itoa(h), "history-lines": strconv.Itoa(e.ScrollbackLen())}
+	p := e.Cursor()
+	out := Observation{"cursor-visible": strconv.FormatBool(!p.Hidden), "cursor-style": fmt.Sprintf("%d,%t", p.Style, !p.Steady), "cursor": fmt.Sprintf("%d,%d", p.X, p.Y), "alt": strconv.FormatBool(e.IsAltScreen()), "width": strconv.Itoa(w), "height": strconv.Itoa(h), "history-lines": strconv.Itoa(e.ScrollbackLen())}
 	for k, v := range c.effects {
 		out[k] = v
 	}

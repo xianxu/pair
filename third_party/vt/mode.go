@@ -4,6 +4,12 @@ import "github.com/charmbracelet/x/ansi"
 
 // resetModes resets all modes to their default values.
 func (e *Emulator) resetModes() {
+	for mode, setting := range e.modes {
+		if setting.IsSet() && (mouseTrackingMode(mode) || mode == ansi.ModeMouseExtSgr) {
+			e.mouseEpoch++
+			break
+		}
+	}
 	e.modes = ansi.Modes{
 		ansi.DECMode(47):      ansi.ModeReset,
 		ansi.DECMode(2026):    ansi.ModeReset,
@@ -34,3 +40,7 @@ func (e *Emulator) resetModes() {
 		e.setMode(mode, setting)
 	}
 }
+
+// MouseEpoch changes whenever tracking or SGR encoding changes, including reset.
+// It detects intervening changes even if the final mode equals an earlier snapshot.
+func (e *Emulator) MouseEpoch() uint64 { return e.mouseEpoch }

@@ -47,6 +47,7 @@ type Presenter struct {
 	host           Geometry
 	bottom         []Cell
 	previous       Frame
+	mouseEpoch     uint64
 	mouse          uv.Mouse
 	effects        map[string]uint64
 	origins        map[string]*Endpoint
@@ -203,8 +204,12 @@ func (p *Presenter) cancelDrag(ctx context.Context) error {
 	if v.DragDestination == "" || p.selected == nil {
 		return nil
 	}
-	if err := p.selected.Send(uv.MouseReleaseEvent(p.mouse)); err != nil {
+	accepted, err := p.selected.SendMouse(uv.MouseReleaseEvent(p.mouse), p.mouseEpoch)
+	if err != nil {
 		return err
+	}
+	if !accepted {
+		return nil
 	}
 	return p.selected.Flush(ctx)
 }
@@ -232,6 +237,11 @@ func parentModeDelta(before, after parentModes, known bool) string {
 	return s
 }
 func (p *Presenter) paint(ctx context.Context, f Frame, selection bool) error {
+	if !selection {
+		if err := p.reconcileGesture(ctx); err != nil {
+			return p.fail(err)
+		}
+	}
 	if err := f.Validate(); err != nil {
 		return err
 	}
@@ -345,53 +355,141 @@ func (p *Presenter) Panel(ctx context.Context, f Frame) error {
 		return p.paint(ctx, f, true)
 	})
 }
+
+// reconcileGesture observes changes even when a child toggled tracking off and
+// back on in one output batch. That new protocol generation cannot inherit a
+// press admitted under the previous one.
+func (p *Presenter) reconcileGesture(ctx context.Context) error {
+	v := p.View()
+	if v.Gesture != GestureChild || p.selected == nil || p.selected.Modes().MouseEpoch == p.mouseEpoch {
+		return nil
+	}
+	err := p.cancelDrag(ctx)
+	p.transition(ViewEvent{Kind: CancelMouse})
+	return err
+}
 func (p *Presenter) Input(ctx context.Context, event uv.Event) error {
 	return p.call(ctx, func(ctx context.Context) error {
-		v := p.View()
-		if _, release := event.(uv.MouseReleaseEvent); release && v.SuppressDrag {
-			p.transition(ViewEvent{Kind: ReleaseMouse})
-			return nil
+		if err := p.reconcileGesture(ctx); err != nil {
+			return p.fail(err)
 		}
+		if mouse, ok := event.(uv.MouseEvent); ok {
+			return p.mouseInput(event, mouse.Mouse())
+		}
+		v := p.View()
 		if v.State != Ready || v.Admitted == "" || p.selected == nil {
 			return errors.New("terminal: no admitted endpoint")
 		}
-		if ev, ok := event.(uv.MouseEvent); ok {
-			m := ev.Mouse()
-			_, release := event.(uv.MouseReleaseEvent)
-			if v.SuppressDrag {
-				if release {
-					p.transition(ViewEvent{Kind: ReleaseMouse})
-				}
-				return nil
-			}
-			outside := m.X < 0 || m.Y < 0 || m.X >= p.host.Cols || m.Y >= p.host.Rows-1
-			if outside && v.DragDestination == "" {
-				return nil
-			}
-			if outside {
-				m.X = max(0, min(m.X, p.host.Cols-1))
-				m.Y = max(0, min(m.Y, p.host.Rows-2))
-				switch event.(type) {
-				case uv.MouseReleaseEvent:
-					event = uv.MouseReleaseEvent(m)
-				case uv.MouseMotionEvent:
-					event = uv.MouseMotionEvent(m)
-				default:
-					return nil
-				}
-			}
-			if _, click := event.(uv.MouseClickEvent); click && p.selected.Modes().Tracking != 0 {
-				if _, err := p.transition(ViewEvent{Kind: PressMouse}); err != nil {
-					return err
-				}
-			}
-			p.mouse = m
-			if release {
-				p.transition(ViewEvent{Kind: ReleaseMouse})
-			}
-		}
 		return p.selected.Send(event)
 	})
+}
+func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
+	v := p.View()
+	if v.State != Ready {
+		return errors.New("terminal: no presented mouse destination")
+	}
+	_, release := event.(uv.MouseReleaseEvent)
+	if v.Gesture == GestureParent {
+		if release {
+			_, _ = p.transition(ViewEvent{Kind: ReleaseMouse, Button: int(m.Button)})
+		}
+		return nil
+	}
+	inside := p.selected != nil && v.Admitted != "" && m.X >= 0 && m.Y >= 0 && m.X < p.host.Cols && m.Y < p.host.Rows-1
+	modes := Modes{}
+	if p.selected != nil {
+		modes = p.selected.Modes()
+	}
+	if v.Gesture == GestureNone {
+		switch event.(type) {
+		case uv.MouseClickEvent:
+			if m.Button == uv.MouseNone {
+				return nil
+			}
+			kind := ParentPressMouse
+			if inside && modes.Tracking != 0 {
+				kind = PressMouse
+			}
+			if _, err := p.transition(ViewEvent{Kind: kind, Button: int(m.Button)}); err != nil {
+				return err
+			}
+			if kind == ParentPressMouse {
+				return nil
+			}
+			p.mouseEpoch = modes.MouseEpoch
+		case uv.MouseMotionEvent:
+			if m.Button != uv.MouseNone {
+				_, err := p.transition(ViewEvent{Kind: ParentPressMouse, Button: int(m.Button)})
+				return err
+			}
+			if !inside || modes.Tracking != 1003 {
+				return nil
+			}
+		case uv.MouseReleaseEvent:
+			return nil
+		case uv.MouseWheelEvent:
+			if !inside {
+				return nil
+			}
+		default:
+			return nil
+		}
+	} else {
+		switch event.(type) {
+		case uv.MouseClickEvent:
+			return nil // a second button cannot steal capture
+		case uv.MouseMotionEvent:
+			if int(m.Button) != v.Button {
+				return nil
+			}
+		case uv.MouseReleaseEvent:
+			if m.Button != uv.MouseNone && int(m.Button) != v.Button {
+				return nil
+			}
+			m.Button = uv.MouseButton(v.Button)
+		case uv.MouseWheelEvent:
+			if !inside {
+				return nil
+			}
+		default:
+			return nil
+		}
+		if !inside {
+			m.X = max(0, min(m.X, p.host.Cols-1))
+			m.Y = max(0, min(m.Y, p.host.Rows-2))
+		}
+		switch event.(type) {
+		case uv.MouseMotionEvent:
+			event = uv.MouseMotionEvent(m)
+		case uv.MouseReleaseEvent:
+			event = uv.MouseReleaseEvent(m)
+		}
+	}
+	epoch := modes.MouseEpoch
+	if p.View().Gesture == GestureChild {
+		epoch = p.mouseEpoch
+	}
+	accepted, err := p.selected.SendMouse(event.(uv.MouseEvent), epoch)
+	if err != nil {
+		return err
+	}
+	if !accepted {
+		if p.View().Gesture == GestureChild {
+			p.transition(ViewEvent{Kind: CancelMouse})
+		}
+		if release {
+			p.transition(ViewEvent{Kind: ReleaseMouse, Button: int(m.Button)})
+		}
+		return nil
+	}
+	if _, wheel := event.(uv.MouseWheelEvent); !wheel {
+		p.mouse = m
+	}
+	if release {
+		_, err := p.transition(ViewEvent{Kind: ReleaseMouse, Button: int(m.Button)})
+		return err
+	}
+	return nil
 }
 func (p *Presenter) Resize(ctx context.Context, host Geometry, apply func(Geometry) error) error {
 	return p.call(ctx, func(ctx context.Context) error {

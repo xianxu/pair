@@ -52,7 +52,9 @@ type Emulator struct {
 	clusterDropping    bool
 
 	// The ANSI parser to use.
-	parser *ansi.Parser
+	parser     *ansi.Parser
+	parameters parameterGuard
+	mouseEpoch uint64
 
 	cb Callbacks
 
@@ -100,7 +102,7 @@ func newEmulator(w, h int, limits Limits) *Emulator {
 	t.scrs[0].cb = &t.cb
 	t.scrs[1].cb = &t.cb
 	t.parser = ansi.NewParser()
-	t.parser.SetParamsSize(parser.MaxParamsSize)
+	t.parser.SetParamsSize(parser.MaxParamsSize + 1)
 	t.parser.SetDataSize(limits.StringBytes + 1) // one overflow sentinel byte
 	t.parser.SetHandler(ansi.Handler{
 		Print:     t.handlePrint,
@@ -294,7 +296,9 @@ func (e *Emulator) Write(p []byte) (n int, err error) {
 	}
 
 	for i := range p {
-		e.parser.Advance(p[i])
+		if e.parameters.advance(e.parser, p[i]) {
+			e.parser.Advance(p[i])
+		}
 
 	}
 	return len(p), nil

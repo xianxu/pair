@@ -143,6 +143,8 @@ Operator challenged the explanation that adding UI and interception inherently m
 
 - 2026-09-15 M2 pre-gate verification: final `go test ./... -count=1` passed; shared terminal/ttyio/terminalqualify race tests passed; independent xterm-headless renderer oracle passed; fork normal/race tests passed. Qualification is 81 pass, 0 fail, six correctly uncovered M3/M4 obligations. Updated the exhaustive source inventory and replaced the wrapper test that deliberately expected split-ZWJ corruption with every-split correct-cluster assertions. Presenter in-session review fixes stable mouse modes during drag, joined cancellation, hidden refresh isolation, typed origin retirement, panel release, and owned keyboard cleanup. Native scrollback export is explicitly retained as M3 work. SDLC M2 boundary review is next.
 
+- 2026-09-15 M2 boundary round 1 returned REWORK with BR6–BR8. BR6 reproduced chrome/panel/orphan mouse gesture leakage; View now represents parent/child/no ownership and Presenter admits mouse events atomically against a backend negotiation epoch. BR7 reproduced truncated CSI effects (including exactly32 parameters losing one); the fork now retains bounded overflow evidence and rejects the entire CSI/DCS command before dispatch. BR8 reproduced stale cursor shape/visibility after reset, restore and buffer switching; Endpoint and the qualification observer now read copied authoritative cursor state. Each class has a failing-before regression and passing-after verification. Extended qualification adds three cursor-state cases (84 pass, six consumer/live obligations uncovered). Wider verification and the second boundary review follow.
+
 ## Revisions
 
 ### 2026-09-15 — Make terminal semantics explicit within generic ownership scope

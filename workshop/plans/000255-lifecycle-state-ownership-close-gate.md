@@ -88,6 +88,30 @@ rounds:
           round: 3
       boundary: M1
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-15T12:55:07-07:00"
+      agent: codex
+      findings:
+        - id: BR-6
+          severity: Critical
+          title: A gesture beginning on chrome leaks motion and release into the child
+          detail: 'cmd/internal/terminal/presenter.go:367-393 drops an outside press without recording ownership or suppressing its remainder. With 1002/1006 enabled, press at (2,4) on the reserved row, move to (2,2), then release: the child receives "\x1b[<32;3;3M\x1b[<0;3;3m" despite receiving no press. The scratch TestReviewChromeGesture reproduces this. ARCH-ORDER: model child-owned and parent-owned gestures explicitly in View, and admit button motion/release only under the corresponding ownership. Cover chrome-to-child, panel-to-child, orphan events, and tracking changes during a gesture.'
+          family: gesture-origin-ownership
+          round: 4
+        - id: BR-7
+          severity: Critical
+          title: Parameter overflow executes a truncated CSI command
+          detail: 'third_party/vt/emulator.go:103 bounds parameter storage, but third_party/vt/csi.go:11-15 dispatches the truncated parameters without overflow rejection. Feeding CSI ?1002; followed by 32 copies of 1006; and then 1004h enables tracking 1002 and SGR while dropping the final requested mode. TestReviewOverflowParameters reproduces this, contradicting the plan''s reject-overflow-effects contract. ARCH-SECURE / ARCH-CONSTRAINTS: retain overflow evidence and reject the entire command through its terminator. Sweep CSI/DCS parameter consumers and test boundary counts, split input, no partial effects, and subsequent recovery.'
+          family: overflow-command-atomicity
+          round: 4
+        - id: BR-8
+          severity: Critical
+          title: Endpoint cursor metadata remains stale after backend reset
+          detail: 'cmd/internal/terminal/endpoint.go:113-115 maintains cursor metadata through callbacks, and capture at line 205 publishes that shadow state. third_party/vt/screen.go:35-40 resets the actual cursor without a style callback. Feeding "\x1b[6 q\x1bc" therefore publishes Shape:3, Blink:false after reset instead of the backend''s default blinking block. TestReviewCursorResetPublication reproduces this. ARCH-DRY / ARCH-ORDER: derive the full cursor publication from authoritative backend state, or enforce complete notifications for every mutation. Sweep reset, saved-cursor restore, and screen switching rather than repairing only RIS.'
+          family: authoritative-snapshot-coherence
+          round: 4
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -132,6 +156,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-4 — addressed — README.md:773 documents invocation, evidence and exit meanings, matching cmd/probes/terminalqualify/main.go and the reproduced probe result.
 - BR-5 — addressed — cases_test.go:11, :58 and :67 verify literal partitions, byte preservation, every boundary and production executor delivery. A temporary Go overlay replacing the split pair with []string{input, ""} makes all three tests fail; unmodified tests pass.
 
+## Round 4 — 2026-09-15T12:55:07-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-6** [Critical] `gesture-origin-ownership` A gesture beginning on chrome leaks motion and release into the child
+  cmd/internal/terminal/presenter.go:367-393 drops an outside press without recording ownership or suppressing its remainder. With 1002/1006 enabled, press at (2,4) on the reserved row, move to (2,2), then release: the child receives "\x1b[<32;3;3M\x1b[<0;3;3m" despite receiving no press. The scratch TestReviewChromeGesture reproduces this. ARCH-ORDER: model child-owned and parent-owned gestures explicitly in View, and admit button motion/release only under the corresponding ownership. Cover chrome-to-child, panel-to-child, orphan events, and tracking changes during a gesture.
+- **BR-7** [Critical] `overflow-command-atomicity` Parameter overflow executes a truncated CSI command
+  third_party/vt/emulator.go:103 bounds parameter storage, but third_party/vt/csi.go:11-15 dispatches the truncated parameters without overflow rejection. Feeding CSI ?1002; followed by 32 copies of 1006; and then 1004h enables tracking 1002 and SGR while dropping the final requested mode. TestReviewOverflowParameters reproduces this, contradicting the plan's reject-overflow-effects contract. ARCH-SECURE / ARCH-CONSTRAINTS: retain overflow evidence and reject the entire command through its terminator. Sweep CSI/DCS parameter consumers and test boundary counts, split input, no partial effects, and subsequent recovery.
+- **BR-8** [Critical] `authoritative-snapshot-coherence` Endpoint cursor metadata remains stale after backend reset
+  cmd/internal/terminal/endpoint.go:113-115 maintains cursor metadata through callbacks, and capture at line 205 publishes that shadow state. third_party/vt/screen.go:35-40 resets the actual cursor without a style callback. Feeding "\x1b[6 q\x1bc" therefore publishes Shape:3, Blink:false after reset instead of the backend's default blinking block. TestReviewCursorResetPublication reproduces this. ARCH-DRY / ARCH-ORDER: derive the full cursor publication from authoritative backend state, or enforce complete notifications for every mutation. Sweep reset, saved-cursor restore, and screen switching rather than repairing only RIS.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-6** [Critical] `gesture-origin-ownership` A gesture beginning on chrome leaks motion and release into the child
+- **BR-7** [Critical] `overflow-command-atomicity` Parameter overflow executes a truncated CSI command
+- **BR-8** [Critical] `authoritative-snapshot-coherence` Endpoint cursor metadata remains stale after backend reset

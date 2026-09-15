@@ -290,3 +290,66 @@ func TestReplyBufferOverflowCannotBeIgnoredByQueryHandler(t *testing.T) {
 		t.Fatalf("ignored reply overflow: %v", err)
 	}
 }
+
+func TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers(t *testing.T) {
+	cases := []struct {
+		name, stream string
+		want         Cursor
+	}{
+		{"reset", "\x1b[6 q\x1b[?25l\x1bc", Cursor{Visible: true, Blink: true, Shape: 1}},
+		{"saved", "\x1b[3 q\x1b[2;3H\x1b7\x1b[6 q\x1b[?25l\x1b[H\x1b8", Cursor{X: 2, Y: 1, Visible: true, Blink: true, Shape: 2}},
+		{"alternate-entry", "\x1b[6 q\x1b[?47h", Cursor{Visible: true, Blink: true, Shape: 1}},
+		{"alternate-return", "\x1b[6 q\x1b[?47h\x1b[3 q\x1b[?47l", Cursor{Visible: true, Blink: false, Shape: 3}},
+		{"alternate-retained", "\x1b[?47h\x1b[3 q\x1b[?47l\x1b[6 q\x1b[?47h", Cursor{Visible: true, Blink: true, Shape: 2}},
+		{"reset-held", "A\x1b[?2026h\x1b[6 q\x1bc", Cursor{Visible: true, Blink: true, Shape: 1}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for split := 0; split <= len(tc.stream); split++ {
+				e, _ := newEndpointTest(t, tc.name)
+				now := time.Now()
+				if _, err := e.Feed([]byte(tc.stream[:split]), now); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := e.Feed([]byte(tc.stream[split:]), now); err != nil {
+					t.Fatal(err)
+				}
+				f, err := e.Snapshot(now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if f.Cursor != tc.want {
+					t.Fatalf("split%d cursor%+v want%+v", split, f.Cursor, tc.want)
+				}
+				if tc.name == "reset-held" && f.Cells[0].Content != " " && f.Cells[0].Content != "" {
+					t.Fatal("reset remains held")
+				}
+			}
+		})
+	}
+}
+func TestEndpointMouseAdmissionChecksNegotiationAtomically(t *testing.T) {
+	e, out := newEndpointTest(t, "mouse")
+	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+	before := e.Modes()
+	e.Feed([]byte("\x1b[?1002l\x1b[?1002h"), time.Now())
+	if e.Modes().MouseEpoch == before.MouseEpoch {
+		t.Fatal("missed intervening modes")
+	}
+	accepted, err := e.SendMouse(uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft}, before.MouseEpoch)
+	if err != nil || accepted {
+		t.Fatalf("stale press admitted: %v %v", accepted, err)
+	}
+	e.Flush(context.Background())
+	if len(out.Bytes()) != 0 {
+		t.Fatal("stale press written")
+	}
+	accepted, err = e.SendMouse(uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft}, e.Modes().MouseEpoch)
+	if err != nil || !accepted {
+		t.Fatal(accepted, err)
+	}
+	e.Flush(context.Background())
+	if string(out.Bytes()) != "\x1b[<0;2;2M" {
+		t.Fatalf("%q", out.Bytes())
+	}
+}

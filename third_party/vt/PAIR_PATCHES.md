@@ -90,3 +90,16 @@ while those obligations are not covered is intentional. Additional `pair_*test`
 cases cover every cluster byte split, bytewise input, right/bottom wrap,
 oversized cluster recovery, exact string limits and recovery, history limits,
 resize retention, negotiation state, effect limits and related regressions.
+
+- Parameter commands retain overflow evidence across writes and reject CSI/DCS
+  atomically, including subparameter counts and numeric values that would collide
+  with parser flags/sentinels. A fixed extra parser slot preserves exactly 32
+  parameters despite upstream final-slot accounting; overflow parameter bytes
+  are not accumulated. Cancellation and subsequent commands recover normally.
+- `MouseEpoch` records real tracking/SGR mode transitions, including reset and
+  transitions that return to the same state within one input chunk.
+
+M2 BR8 adds `Emulator.Cursor()` as a copied value from the active screen. Endpoint
+and qualification snapshots use this state directly instead of reconstructing
+cursor shape/visibility through incomplete callbacks. Literal tests cover reset,
+saved-cursor restoration and alternate-buffer transitions at every byte split.

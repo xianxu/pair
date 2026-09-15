@@ -230,3 +230,18 @@ func TestCandidateCapturesCompleteStyle(t *testing.T) {
 		t.Fatal("copied style changed: " + detail)
 	}
 }
+
+func TestCandidateCursorObservationReadsAuthoritativeResetState(t *testing.T) {
+	c, err := NewCandidate(8, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	got, err := c.Execute(context.Background(), []string{"\x1b[6 q\x1b[?25l\x1bc"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["cursor-style"] != "0,true" || got["cursor-visible"] != "true" {
+		t.Fatalf("stale cursor observation: style=%s visible=%s", got["cursor-style"], got["cursor-visible"])
+	}
+}

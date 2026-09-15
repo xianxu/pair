@@ -39,6 +39,7 @@ type Output struct {
 	Effects              []Effect
 }
 type Modes struct {
+	MouseEpoch                                                         uint64
 	Tracking                                                           int
 	SGR, Focus, Paste, ApplicationCursor, ApplicationKeypad, AltScreen bool
 	Keyboard                                                           uint32
@@ -70,8 +71,6 @@ type Endpoint struct {
 	replies                               replyBuffer
 	geometry                              Geometry
 	generation, epoch, position, sequence uint64
-	cursor                                Cursor
-	alt                                   bool
 	now, syncStarted                      time.Time
 	syncState                             uint8 // 0 idle, 1 withheld, 2 timed-out/recovered
 	published                             Frame
@@ -92,7 +91,7 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := &Endpoint{closeDone: make(chan struct{}), id: id, backend: backend, geometry: g, epoch: 1, cursor: Cursor{Visible: true, Blink: true, Shape: 1}}
+	e := &Endpoint{closeDone: make(chan struct{}), id: id, backend: backend, geometry: g, epoch: 1}
 	backend.SetReplyWriter(&e.replies)
 	backend.SetCallbacks(vt.Callbacks{
 		Bell:             func() { e.effect(Effect{Kind: BellEffect}) },
@@ -109,10 +108,7 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
 				}
 			}
 		},
-		Notification:     func(title, body string) { e.effect(Effect{Kind: NotificationEffect, Selection: title, Text: body}) },
-		AltScreen:        func(b bool) { e.alt = b },
-		CursorVisibility: func(b bool) { e.cursor.Visible = b },
-		CursorStyle:      func(s vt.CursorStyle, b bool) { e.cursor.Shape = int(s) + 1; e.cursor.Blink = b },
+		Notification: func(title, body string) { e.effect(Effect{Kind: NotificationEffect, Selection: title, Text: body}) },
 		EnableMode: func(m ansi.Mode) {
 			if m == ansi.DECMode(2026) && e.syncState == 0 {
 				e.published = e.capture()
@@ -184,6 +180,9 @@ func (e *Endpoint) Feed(p []byte, now time.Time) (Output, error) {
 	}
 	e.now = now
 	n, err := e.backend.Write(p)
+	if !e.backend.Mode(ansi.DECMode(2026)).IsSet() {
+		e.syncState = 0
+	}
 	e.position += uint64(n)
 	if n > 0 {
 		e.generation++
@@ -202,10 +201,9 @@ func (e *Endpoint) Feed(p []byte, now time.Time) (Output, error) {
 	return out, errors.Join(err, e.commitReplies())
 }
 func (e *Endpoint) capture() Frame {
-	f := Frame{EndpointID: e.id, Generation: e.generation, GeometryEpoch: e.epoch, Geometry: e.geometry, Cursor: e.cursor, AltScreen: e.alt}
-	pos := e.backend.CursorPosition()
-	f.Cursor.X = pos.X
-	f.Cursor.Y = pos.Y
+	f := Frame{EndpointID: e.id, Generation: e.generation, GeometryEpoch: e.epoch, Geometry: e.geometry, AltScreen: e.backend.IsAltScreen()}
+	cur := e.backend.Cursor()
+	f.Cursor = Cursor{X: cur.X, Y: cur.Y, Visible: !cur.Hidden, Blink: !cur.Steady, Shape: int(cur.Style) + 1}
 	f.Cells = make([]Cell, e.geometry.Cols*e.geometry.Rows)
 	for y := 0; y < e.geometry.Rows; y++ {
 		for x := 0; x < e.geometry.Cols; x++ {
@@ -262,7 +260,7 @@ func (e *Endpoint) Modes() Modes {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	set := func(n int) bool { return e.backend.Mode(ansi.DECMode(n)).IsSet() }
-	m := Modes{SGR: set(1006), Focus: set(1004), Paste: set(2004), ApplicationCursor: set(1), ApplicationKeypad: set(66), AltScreen: e.alt, Keyboard: e.backend.KeyboardFlags()}
+	m := Modes{MouseEpoch: e.backend.MouseEpoch(), SGR: set(1006), Focus: set(1004), Paste: set(2004), ApplicationCursor: set(1), ApplicationKeypad: set(66), AltScreen: e.backend.IsAltScreen(), Keyboard: e.backend.KeyboardFlags()}
 	for _, n := range []int{9, 1000, 1002, 1003} {
 		if set(n) {
 			m.Tracking = n
@@ -322,4 +320,23 @@ func (e *Endpoint) NextPublication() time.Time {
 		return time.Time{}
 	}
 	return e.syncStarted.Add(SyncTimeout)
+}
+
+// SendMouse admits an event only under the exact negotiation that established
+// its gesture. A mode change between inspection and encoding rejects it without
+// sending an orphaned event in the child's new protocol.
+func (e *Endpoint) SendMouse(event uv.MouseEvent, expectedEpoch uint64) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.check(); err != nil {
+		return false, err
+	}
+	if e.backend.MouseEpoch() != expectedEpoch {
+		return false, nil
+	}
+	e.backend.SendMouse(event)
+	if err := e.commitReplies(); err != nil {
+		return false, err
+	}
+	return true, nil
 }

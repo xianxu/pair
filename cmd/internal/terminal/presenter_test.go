@@ -289,7 +289,7 @@ func TestPresenterReleaseInPanelClearsSuppression(t *testing.T) {
 		t.Fatal(err)
 	}
 	selectPresenter(t, p, e)
-	if p.View().SuppressDrag {
+	if p.View().Gesture == GestureParent {
 		t.Fatal("physical release in panel left suppression stuck")
 	}
 }
@@ -501,5 +501,106 @@ func TestPresenterChromeUpdatePreservesDragAndOwnsCells(t *testing.T) {
 	}
 	if p.bottom[0].Content != "s" || p.View() != after {
 		t.Fatal("invalid chrome mutated view")
+	}
+}
+
+func TestPresenterParentAndOrphanGesturesNeverReachChild(t *testing.T) {
+	for _, origin := range []string{"chrome", "panel", "orphan-motion", "orphan-release"} {
+		t.Run(origin, func(t *testing.T) {
+			p, _, e, input := presenterFixture(t, CouchAnyMotion)
+			e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+			selectPresenter(t, p, e)
+			switch origin {
+			case "chrome":
+				p.Input(context.Background(), uv.MouseClickEvent{X: 2, Y: 4, Button: uv.MouseLeft})
+			case "panel":
+				f, err := PanelFrame(Geometry{8, 5}, make([]Cell, 40), Cursor{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := p.Panel(context.Background(), f); err != nil {
+					t.Fatal(err)
+				}
+				p.Input(context.Background(), uv.MouseClickEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+				selectPresenter(t, p, e)
+			case "orphan-motion":
+			case "orphan-release":
+				p.Input(context.Background(), uv.MouseReleaseEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+				e.Flush(context.Background())
+				if len(input.Bytes()) != 0 {
+					t.Fatalf("orphan release=%q", input.Bytes())
+				}
+				return
+			}
+			p.Input(context.Background(), uv.MouseMotionEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+			p.Input(context.Background(), uv.MouseReleaseEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+			e.Flush(context.Background())
+			if len(input.Bytes()) != 0 {
+				t.Fatalf("unowned gesture leaked:%q", input.Bytes())
+			}
+			// A complete subsequent gesture remains usable.
+			p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+			p.Input(context.Background(), uv.MouseReleaseEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+			e.Flush(context.Background())
+			if got := string(input.Bytes()); got != "\x1b[<0;2;2M\x1b[<0;2;2m" {
+				t.Fatalf("new gesture=%q", got)
+			}
+		})
+	}
+}
+func TestPresenterMouseModeChangeEndsCapturedGesture(t *testing.T) {
+	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+	selectPresenter(t, p, e)
+	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	e.Feed([]byte("\x1b[?1002l"), time.Now())
+	p.Present(context.Background(), e)
+	p.Flush(context.Background())
+	e.Feed([]byte("\x1b[?1002h"), time.Now())
+	p.Input(context.Background(), uv.MouseMotionEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+	p.Input(context.Background(), uv.MouseReleaseEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	if got := string(input.Bytes()); got != "\x1b[<0;2;2M" {
+		t.Fatalf("gesture resumed after tracking change:%q", got)
+	}
+}
+
+func TestPresenterModeEpochAndButtonOwnership(t *testing.T) {
+	for _, change := range []string{"\x1b[?1002l\x1b[?1002h", "\x1b[?1006l\x1b[?1006h", "\x1bc\x1b[?1002h\x1b[?1006h"} {
+		t.Run(fmt.Sprintf("%x", change), func(t *testing.T) {
+			p, _, e, input := presenterFixture(t, CouchAnyMotion)
+			e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+			selectPresenter(t, p, e)
+			p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+			e.Feed([]byte(change), time.Now())
+			p.Input(context.Background(), uv.MouseMotionEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+			if p.View().Gesture != GestureParent {
+				t.Fatal("new protocol generation inherited child gesture")
+			}
+			p.Input(context.Background(), uv.MouseReleaseEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+			e.Flush(context.Background())
+			if got := string(input.Bytes()); got != "\x1b[<0;2;2M" {
+				t.Fatalf("old gesture crossed mode epoch:%q", got)
+			}
+		})
+	}
+	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	e.Feed([]byte("\x1b[?1003h\x1b[?1006h"), time.Now())
+	selectPresenter(t, p, e)
+	p.Input(context.Background(), uv.MouseMotionEvent{X: 1, Y: 1, Button: uv.MouseNone})
+	e.Flush(context.Background())
+	if got := string(input.Bytes()); got != "\x1b[<35;2;2M" {
+		t.Fatalf("no-button hover lost:%q", got)
+	}
+	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+	p.Input(context.Background(), uv.MouseReleaseEvent{X: 1, Y: 1, Button: uv.MouseRight})
+	if p.View().Gesture != GestureChild {
+		t.Fatal("unrelated release ended owned gesture")
+	}
+	p.Input(context.Background(), uv.MouseReleaseEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	if got := string(input.Bytes()); got != "\x1b[<35;2;2M\x1b[<0;2;2M\x1b[<0;2;2m" {
+		t.Fatalf("button ownership:%q", got)
 	}
 }
