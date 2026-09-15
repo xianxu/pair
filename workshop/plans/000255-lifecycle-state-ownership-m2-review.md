@@ -223,3 +223,112 @@ The M2 core-concept locations and implementation roles are present. M3 consumer/
 Add a `## Revisions` entry stating:
 
 > Gesture cancellation commits independently of selection or resize success. Enumerate all six cancellation callers and test subsequent failure, interrupted delivery, retry, physical release and a fresh press. Failed resize preserves geometry but cannot restore a canceled gesture.
+
+---
+
+## Re-review — 2026-09-15T13:23:31-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 29101ebf157ba9663609f5e75278449f34eea722..4bce610f2a47af95faa3b91214db5cf3217e7f1e |
+| command | sdlc milestone-close --issue 255 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-15T13:23:31-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-9 is addressed: cancellation revokes gesture ownership independently of resize success, and interrupted delivery is tracked without duplicate releases. The committed regressions fail when revocation is removed. M2’s focused tests, race checks, backend suite, and independent renderer checks pass. One Important artifact-lifecycle gap remains in the newly added discovery driver.
+
+```findings
+dispose:
+  - id: BR-9
+    disposition: addressed
+    note: |
+      presenter.go:205 commits CancelMouse before delivery and tracks its pending acknowledgment. Tests at presenter_test.go:608,638,661,727,760 cover failed resize, interrupted delivery, all six callers, child-write failure, and cancellation during selection. Removing ownership revocation in a temporary overlay makes the resize regression and all six caller cases fail.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Existing disposition retained: explicit gesture ownership and negotiation epochs remain enforced; chrome, panel, orphan-event, and mode-change regressions pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Existing disposition retained: CSI/DCS dispatch rejects retained overflow evidence; parameter boundary, numeric overflow, split-input, and recovery regressions pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Existing disposition retained: Endpoint captures authoritative backend cursor state; reset, restore, and buffer-switch regressions pass.
+findings:
+  - id: new
+    severity: Important
+    family: artifact-lifetime-ownership
+    title: |
+      Native discovery runs retain temporary artifacts without cleanup or a bound
+    detail: |
+      tests/terminal-oracle/discovery/zellij_oracle.py:5 creates a new /tmp/pw* directory for every invocation, while its finally block at lines 34–46 only stops processes and closes handles. All six discovery probes share this driver, and README.md:24–26 explicitly retains the directories without defining removal or a retention bound. ARCH-FUNERAL: make the driver remove its directory after teardown, including failure paths; any retained diagnostic mode needs an explicit bounded lifecycle. Cover successful and failed runs with cleanup regression tests.
+```
+
+## 1. Strengths
+
+- **Cancellation is now a shared rule:** ownership revocation precedes delivery, and retries wait for the existing release.
+- **Presentation controls admission:** blocked and partial writes are exercised through stateful transport doubles.
+- **Independent rendering verification passes:** xterm-headless checks actual wire output, including wide-cell replacements and styles.
+- **Qualification remains honest:** reproduced **84 pass, 0 fail, 6 not-covered**; consumer and live obligations remain pending.
+- README and atlas document the shared library, profile, fork, and verification command.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**Discovery artifact cleanup:** [zellij_oracle.py:5](/Users/xianxu/workspace/worktree/pair/000255-lifecycle-state-ownership/tests/terminal-oracle/discovery/zellij_oracle.py:5).
+
+Scope temporary storage to the driver’s lifetime and remove it after process teardown. Preserve diagnostic evidence only under a documented retention policy. This is a small shared-driver correction covering all six probes.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Passed:
+
+- Terminal, ttyio, qualification, and probe tests.
+- Terminal/ttyio/qualification race suites.
+- Local VT fork normal and race suites.
+- Required independent renderer oracle.
+- Pinned-range `git diff --check`.
+
+The BR-9 mutation produced actual assertion failures, including revived gestures and duplicate releases. Repository files were unchanged.
+
+The full root suite, native discovery scripts, and sustained live workflows were not rerun.
+
+## 6. Architectural notes
+
+| Marker | Result | Assessment |
+|---|---|---|
+| ARCH-DRY | Pass | Shared cancellation helper; authoritative cursor snapshots; terminfo checked against its capability source. |
+| ARCH-PURE | Pass | Frame, composition, rendering, and View logic have direct tests; IO integrations are separate. |
+| ARCH-PURPOSE | Pass for M2 | BR-9 covers the six-caller family; both consumer migrations remain explicit M3 obligations. |
+| ARCH-MOCK | Pass for M2 | Stateful transports share production seams; disposable PTY and independent interpreter tests supplement them. |
+| ARCH-CONSTRAINTS | Pass for M2 | Parser, geometry, history, and queue bounds are exercised; sustained performance acceptance remains M4. |
+| ARCH-SECURE | Pass | Overflow rejection and frame/effect validation protect protocol boundaries. |
+| ARCH-ORDER | Pass | View mutations use the transition owner; cancellation and pending delivery remain distinct. |
+| ARCH-FUNERAL | **Flag** | New discovery directories lack removal or bounded retention. |
+
+The M2 core-concept implementations exist at the mapped locations. No additional plan/code classification contradiction was identified.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry defining discovery-artifact ownership: the driver creates temporary storage, teardown removes it, and retained failure evidence—if supported—has an explicit bound. The existing cancellation revision accurately describes the BR-9 correction.

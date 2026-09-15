@@ -410,3 +410,7 @@ Compare each oracle to its own direct-stream baseline at the same history/viewpo
 ### 2026-09-15 — M2 cancellation commits before subsequent operations
 
 Second M2 review disposed BR6–BR8 but reproduced BR9: a failed resize kept the old gesture admitted after delivering its synthetic release. Gesture cancellation commits independently of selection or resize success. Enumerate release, failure, selection, panel, negotiation reconciliation and resize, with tests for subsequent failure, interrupted delivery, retry, physical release and a fresh press. Failed resize preserves geometry but cannot restore a canceled gesture. Track an admitted release until delivery settles; retry waits for that delivery rather than enqueueing another release. ARCH-ORDER / ARCH-PURPOSE: one cancellation transition serves the whole caller family.
+
+### 2026-09-15 — M2 discovery artifact ownership
+
+The newly preserved native probes must scope their temporary configuration, sockets, logs and scripts to one invocation. The shared driver removes its directory after process and PTY teardown, including setup, launch and oracle failures. No implicit diagnostic retention is supported; bounded returned/stdout evidence is the diagnostic artifact. Add success/failure cleanup regressions. ARCH-FUNERAL applies to discovery tools as well as production paths.

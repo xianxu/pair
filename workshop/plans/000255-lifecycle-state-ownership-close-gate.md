@@ -137,6 +137,35 @@ rounds:
           round: 5
       boundary: M2
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-15T13:23:31-07:00"
+      agent: codex
+      dispose:
+        - id: BR-9
+          disposition: addressed
+          note: presenter.go:205 commits CancelMouse before delivery and tracks its pending acknowledgment. Tests at presenter_test.go:608,638,661,727,760 cover failed resize, interrupted delivery, all six callers, child-write failure, and cancellation during selection. Removing ownership revocation in a temporary overlay makes the resize regression and all six caller cases fail.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: 'Existing disposition retained: explicit gesture ownership and negotiation epochs remain enforced; chrome, panel, orphan-event, and mode-change regressions pass.'
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: 'Existing disposition retained: CSI/DCS dispatch rejects retained overflow evidence; parameter boundary, numeric overflow, split-input, and recovery regressions pass.'
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: 'Existing disposition retained: Endpoint captures authoritative backend cursor state; reset, restore, and buffer-switch regressions pass.'
+          round: 6
+      findings:
+        - id: BR-10
+          severity: Important
+          title: Native discovery runs retain temporary artifacts without cleanup or a bound
+          detail: 'tests/terminal-oracle/discovery/zellij_oracle.py:5 creates a new /tmp/pw* directory for every invocation, while its finally block at lines 34–46 only stops processes and closes handles. All six discovery probes share this driver, and README.md:24–26 explicitly retains the directories without defining removal or a retention bound. ARCH-FUNERAL: make the driver remove its directory after teardown, including failure paths; any retained diagnostic mode needs an explicit bounded lifecycle. Cover successful and failed runs with cleanup regression tests.'
+          family: artifact-lifetime-ownership
+          round: 6
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -205,6 +234,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-9** [Critical] `gesture-origin-ownership` Failed resize resumes a gesture after delivering its cancellation release
   cmd/internal/terminal/presenter.go:505-509 cancels the drag before resizing, but returns directly when the resize callback fails; cancelDrag at lines 202-214 never transitions ownership. With 1002/1006 enabled, press (1,1), fail the resize callback, then move/release at (2,2): the child receives press, synthetic release, motion, and another release. TestReviewFailedResizeCancelsGesture reproduces this on the pinned head. ARCH-ORDER: cancellation must revoke child ownership independently of subsequent geometry success. This is the 2nd finding in family gesture-origin-ownership. Do NOT fix only this instance: enforce that rule across all six cancellation callers—release, failure, selection, panel, negotiation reconciliation and resize—including interrupted delivery and retry.
 
+## Round 6 — 2026-09-15T13:23:31-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-9 — addressed — presenter.go:205 commits CancelMouse before delivery and tracks its pending acknowledgment. Tests at presenter_test.go:608,638,661,727,760 cover failed resize, interrupted delivery, all six callers, child-write failure, and cancellation during selection. Removing ownership revocation in a temporary overlay makes the resize regression and all six caller cases fail.
+- BR-6 — addressed — Existing disposition retained: explicit gesture ownership and negotiation epochs remain enforced; chrome, panel, orphan-event, and mode-change regressions pass.
+- BR-7 — addressed — Existing disposition retained: CSI/DCS dispatch rejects retained overflow evidence; parameter boundary, numeric overflow, split-input, and recovery regressions pass.
+- BR-8 — addressed — Existing disposition retained: Endpoint captures authoritative backend cursor state; reset, restore, and buffer-switch regressions pass.
+
+### Raised
+
+- **BR-10** [Important] `artifact-lifetime-ownership` Native discovery runs retain temporary artifacts without cleanup or a bound
+  tests/terminal-oracle/discovery/zellij_oracle.py:5 creates a new /tmp/pw* directory for every invocation, while its finally block at lines 34–46 only stops processes and closes handles. All six discovery probes share this driver, and README.md:24–26 explicitly retains the directories without defining removal or a retention bound. ARCH-FUNERAL: make the driver remove its directory after teardown, including failure paths; any retained diagnostic mode needs an explicit bounded lifecycle. Cover successful and failed runs with cleanup regression tests.
+
 ## Open findings
 
-- **BR-9** [Critical] `gesture-origin-ownership` Failed resize resumes a gesture after delivering its cancellation release
+- **BR-10** [Important] `artifact-lifetime-ownership` Native discovery runs retain temporary artifacts without cleanup or a bound

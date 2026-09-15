@@ -15,15 +15,19 @@ python3 tests/terminal-oracle/discovery/viewport_wrap.py
 python3 tests/terminal-oracle/discovery/width_reflow.py
 python3 tests/terminal-oracle/discovery/one_row.py
 python3 tests/terminal-oracle/discovery/wide_cells.py
+python3 -m unittest discover -s tests/terminal-oracle/discovery -p 'test_*.py' -v
 ```
 
 The pinned headless dependency is `@xterm/headless@5.5.0`, from the parent directory's
 lockfile. Native discovery used **Zellij 0.45.1**. The native driver starts a uniquely
 named session on a disposable PTY with temporary config, data and socket paths. It
 removes inherited session identity and kills only the session it created, including
-on failure. It does not attach to or modify an operator session. Temporary directories
-under `/tmp/pw*` and JSON stdout are retained for inspection; the caller may save stdout
-as evidence. Do not run the native scripts against a substituted shared-session driver.
+on failure. It does not attach to or modify an operator session. A `TemporaryDirectory` owns the entire setup/run/teardown lifetime and removes
+all generated child scripts, configuration, socket/data/cache files on success or
+failure, including spawn failure. No retained-artifact mode exists. PTY diagnostics
+retain only their last 8 KiB (at most 2,000 decoded characters are reported on failure);
+JSON stdout contains the fixture dump for direct-baseline comparison. The caller may
+save that stdout using its existing evidence-retention policy. Do not run the native scripts against a substituted shared-session driver.
 
 | Script | What it establishes |
 |---|---|
