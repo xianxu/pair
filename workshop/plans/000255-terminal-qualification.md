@@ -70,3 +70,10 @@ Apple M2 Max, Go1.26.3,10 iterations, `BenchmarkCandidateFeedSnapshot`:80x24 ~1.
 ## Verification
 
 Harness unit tests and focused race tests pass, including blocked/failing reply transport, isolation, cancellation and joined teardown. CLI tests distinguish fail/not-covered from infrastructure errors and refuse broken report output. Full repository verification and M1 boundary review are pending; append their results below before closing M1. Generated runtime assets are required in the isolated worktree for existing acceptance tests.
+
+
+### 2026-09-15 final verification
+
+`go test ./...` passed after generating the worktree runtime bundle (`/tmp/pair255-full-go-final.log`). Earlier runs found missing generated assets, two new artifact-inventory omissions (fixed), and one existing `TestOrientationTerminalRepliesDoNotCancel` failure: orientation paste appeared between complete terminal replies. That test passed 30 focused reruns and the final full suite; no wrapper change was made. Focused normal/race tests passed after adding the 64KiB fixture limit, whose failing-before-fix test prevents excessive partition metadata. The comparator mutation test failed as intended. `git diff --check` passed. Probe exit1 reproduced 41 pass / 15 fail / 14 not-covered. M1 boundary review is the remaining checkpoint.
+
+`sdlc actual --issue 255` reported no transcript events in the available harness registry, so measured actuals are unavailable. Use the precise `--no-actual` exception with this reason rather than invent hours.

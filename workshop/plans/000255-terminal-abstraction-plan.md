@@ -178,7 +178,7 @@ Files: create `cmd/probes/terminalqualify/main.go`, `main_test.go`; update `work
 - [x] Run `go run ./cmd/probes/terminalqualify > /tmp/pair255-terminal-qualification.json`; expected exit1 while required gaps exist. Inspect every failure and distinguish candidate mismatch from a defective oracle. Correct oracle errors only with explicit evidence and revisions.
 - [x] Measure synthetic80x24 and240x80 screen feed/snapshot costs via benchmarks, reporting raw observations. Existing262144-cell dimension bound is the candidate safety ceiling; initial history cap1000lines and report mismatch cap4KiB/case bound qualification memory. These diagnostic limits are not production performance promises. M2 must set provisional production budgets from measured endpoint cost multiplied by representative Couch thread counts, before implementation approval.
 - [x] Write the backend decision: suitable unchanged / suitable only with enumerated owned adaptation / reject candidate. Any required fail or not-covered blocks unchanged production adoption. If fixes entail broad backend ownership, stop for the existing re-plan checkpoint; do not silently start that work.
-- [ ] Verify full `go test ./...` after generated runtime assets if necessary, `git diff --check`, record all evidence and submit the M1 boundary to SDLC. The reviewer assesses the qualification tool/evidence, not a claim that #255 or production migration is complete.
+- [x] Verify full `go test ./...` after generated runtime assets if necessary, `git diff --check`, record all evidence and submit the M1 boundary to SDLC. The reviewer assesses the qualification tool/evidence, not a claim that #255 or production migration is complete.
 
 ### M1 bounds and independence
 
