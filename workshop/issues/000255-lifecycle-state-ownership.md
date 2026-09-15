@@ -144,3 +144,7 @@ Reason: the operator clarified that terminal state management and a faithful ter
 ### 2026-09-15 — Planning started
 
 Claimed #255 and ran start-plan. Read-only parallel architecture mapping confirmed Screen is a selective observer, replay/mode snapshots can differ in position, and selection precedes output takeover in both consoles. Backend inspection found existing x/vt reusable screen APIs but keyboard, query/effect and framing conformance gaps. Recorded virtual-terminal/compositor proposal and qualification-first boundaries; no runtime changes, dependency upgrades, or live probes.
+
+### 2026-09-15 — Pair coverage explicit
+
+Operator emphasized that Pair needs the same abstraction. The proposal covers both Couch and pair term as shared compositors and pair wrap as an explicit observation/transformation boundary. Added wrapper filter, Return, notification and query/reply audit plus composed-path acceptance; a Couch-only implementation cannot close #255.
