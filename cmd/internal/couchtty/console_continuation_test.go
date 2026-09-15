@@ -282,3 +282,39 @@ func TestContinuationWorkerPicksUpQuietActorAndJoinsOnStop(t *testing.T) {
 	c.Stop()
 	waitFor(t, "continuation worker shutdown", func() bool { return len(done) > 0 })
 }
+
+func TestRecoveryResultStartsWatchOnlyForPublishedRequest(t *testing.T) {
+	for _, published := range []bool{false, true} {
+		t.Run(map[bool]string{false: "warm", true: "checkpoint"}[published], func(t *testing.T) {
+			c, status := continuationConsole(t)
+			result := couchcore.ContinuationResult{}
+			if published {
+				status.Phase = checkpoint.Running
+				result.Status = status
+				result.SourceReattached = true
+			}
+			c.finishContinuationOperation(operationCompletion{name: "recover-thread", origin: MenuOperationOrigin{Address: status.Address}, value: result}, nil)
+			watch, found := c.continuations[status.Address]
+			if found != published {
+				t.Fatalf("watch exists = %v, want %v", found, published)
+			}
+			if published && (watch.status.RequestID != status.RequestID || watch.handled) {
+				t.Fatalf("lost request or followup execution: %+v", watch)
+			}
+			if _, bad := c.continuations[couchcore.ThreadAddress{}]; bad {
+				t.Fatal("warm attachment created empty request watch")
+			}
+		})
+	}
+}
+
+func TestRecoveryCompletionDoesNotReplaceNewerWatchedRequest(t *testing.T) {
+	c, status := continuationConsole(t)
+	newer := status
+	newer.RequestID = "newer"
+	c.continuations[status.Address] = continuationWatch{status: newer, queued: true}
+	c.finishContinuationOperation(operationCompletion{name: "recover-checkpoint", origin: MenuOperationOrigin{Address: status.Address}, value: couchcore.ContinuationResult{Status: status}}, nil)
+	if got := c.continuations[status.Address]; got.status.RequestID != newer.RequestID || !got.queued {
+		t.Fatalf("obsolete recovery replaced accepted request: %+v", got)
+	}
+}

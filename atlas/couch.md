@@ -135,7 +135,7 @@ argument/result family, effect, confirmation, execution owner, and presentation.
 hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
 `attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `name`,
-`describe` and `archive` are TUI/in-process operations. `orientation-status` is
+`describe`, `archive`, `recover-thread` and `recover-checkpoint` are TUI/in-process operations. `orientation-status` is
 an internal owner operation for one launch attempt.
 
 Continuation has four internal operations (`pair#249`):
@@ -144,6 +144,39 @@ Continuation has four internal operations (`pair#249`):
 - `continue-thread`, invoked in process through `couch --internal continue-thread`'s declared operation, executes or reconciles an accepted request under the live owner.
 - `retry-continuation`, exposed in the switcher's thread actions, reconciles a retained failure. After Couch has exited, `couch --internal retry-continuation <tag>` in the thread's repository acquires the normal singleton lease and opens a Console for recovery. It refuses a competing owner.
 - `continuation-status`, represented by `couch --internal continuation-status`, reconciles the exact launch attempt's orientation receipt under the live owner. The Console supplies the address, request ID, and attempt through the typed operation arguments.
+
+### Stale-thread recovery
+
+`recover-thread` reobserves the selected address and prefers warm attachment to
+an exactly owned detached session. `recover-checkpoint` accepts one absolute
+`path` (4096-byte limit), reads the bounded checkpoint, and starts a new
+conversation through the existing continuation executor. Both use the Console
+operation queue; internal CLI recovery and `archive` acquire the same namespace
+supervisor lease. The CLI resolves their repository scope from the caller.
+
+`RecoveryDecision` is the common UI result shape. The snapshot projection adds
+no refresh IO and offers inspection; execution gathers process-start identity,
+exact session presence and detached ownership again. Unknown/active/ambiguous
+observations and open start/park transactions refuse effects. Settled dead
+helpers retire through `RetireIncarnation`, retaining `LastActiveAt` and never
+fabricating `VerifiedPark`.
+
+Source-gone checkpoint execution records explicit `SourceAbsence` authority,
+including generation/revision proof. Legacy import may omit an unavailable
+retired helper identity, but keeps the original checkpoint bytes, path and
+digest. Actual park and absence authority cannot coexist. Recovery remains a
+fresh conversation, distinct from native parked resume. A prior target's
+attempt-bound readiness generation can authorize retry after that target is
+proved absent; unrelated newer generations refuse admission.
+
+Archive uses the same reconciliation, then checks occupancy before quiescing.
+A final record revision check prevents archiving a concurrently replaced
+request. An empty record may be archived with its pending/failed continuation
+intact; a live source or target cannot. The existing store journal preserves
+the request in the archive and removes only its derived materialized file.
+Disposable helper/session fault fixtures exercise warm recovery, checkpoint
+recovery across worktrees, and the missing-checkpoint archive escape. Real
+operator threads are not fault-injection fixtures.
 
 ### Continuation ownership and recovery
 
@@ -178,7 +211,9 @@ The embedded snapshot remains authoritative if the original file is edited,
 removed, or saved in a sibling worktree. It is retained through failure and
 completion until superseded, and remains in the archived ThreadRecord. Archive
 removes the derived materialized file. Active requests prevent unrelated cold
-resume, agent switching, relaunch, or archive from bypassing their ownership.
+resume, agent switching, or relaunch from bypassing their ownership. Explicit
+archive may retain an incomplete request only after proving its source/target
+unoccupied; it never marks an unfinished request complete.
 Hosted inner `pair restart` and address-changing rename routes refuse before
 teardown; use Couch's tracked relaunch or name action. Standalone Pair retains
 its outer restart-loop ownership and draft-seeding workflow.
@@ -211,11 +246,10 @@ working set and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json
 manifest in one journal entry, so a crash cannot leave a record in both sets or
 neither. Restoring is that move reversed plus a manifest re-add -- `Snapshot`
 walks the manifest, so a restored file the manifest does not list stays
-invisible. It refuses a LIVE or mid-park thread: archiving a record couch is
+invisible. It refuses a live/unknown helper or an open start/park transaction: archiving a record couch is
 hosting would leave the console owning a thread the store no longer lists, which
-is the stale-incarnation shape by construction. Every other state goes,
-including every unusable reason, because the operator decides a thread is
-finished.
+is the stale-incarnation shape by construction. Exact helper-death proof permits
+reconciliation; unknown ownership still refuses destructive effects.
 
 Park cannot do the stopping and that is why Quiesce does: park drives a
 transaction through `PairLifecycle` and needs a live incarnation, which the
@@ -951,7 +985,7 @@ addresses a thread without decoding it so the gesture reaches the one record
 class that most needs it. But archiving one never stops its session: the guard
 that proves a thread is not live needs a decoded record, so quiescing would kill
 an agent on the strength of a record couch just failed to read. The archive
-returns an `UnreadableArchiveWarning` saying so.
+returns `ArchiveResult.Warning()` saying so.
 
 Both projections take one `ThreadProjectionInput` (records + evidence +
 unreadable). The three used to travel separately with the unreadable set as a
@@ -983,12 +1017,12 @@ last segment, else the tag. `DisambiguateLabels` appends the tag's tail to
 labels that collide, computed over the whole inventory rather than the filtered
 view so a name does not change as the operator types.
 
-Two neighbouring states are deliberately never SELECTED, though both are now
+Automatic startup never adopts two neighbouring states, though both are
 listed. A session **attached elsewhere** yields no detached observation, so
-couch cannot steal it. A **stale `IncarnationLive` from a crashed couch** shows
-as `unusable/stale-incarnation` and is not selectable, so startup creates a new
-thread. `pair#250` owns stale-owner reconciliation and recovery; a stale occupied
-record can currently block archive too.
+couch cannot steal it. A **stale `IncarnationLive` whose helper is no longer hosted** shows
+as `unusable/stale-incarnation`. The label makes no claim that the supervisor
+died. Explicit recovery rechecks helper/session ownership before effects
+(`pair#250`); startup does not infer a dead agent from that row.
 
 **Warm attachment and cold conversation resume use different evidence**
 (`pair#248`). Warm access requires the surviving session; cold resume requires

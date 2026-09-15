@@ -193,6 +193,13 @@ func claimsFromBindings(bindings map[ThreadAddress]string) map[string]int {
 }
 
 func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
+	return c.PairSessionContext(context.Background(), address)
+}
+
+func (c ScopedThreadArtifactCollisionChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return PairSessionBinding{}, err
+	}
 	if err := validateThreadAddress(address); err != nil {
 		return PairSessionBinding{}, err
 	}
@@ -214,7 +221,7 @@ func (c ScopedThreadArtifactCollisionChecker) PairSession(address ThreadAddress)
 	// Liveness, not a full snapshot: Present is "listed and not exited", so no
 	// session needs asking for its clients. This is couch's registration poll on
 	// every reattach, and detach and park call it too (pair#228).
-	sessions, err := c.Zellij.LivenessContext(context.Background())
+	sessions, err := c.Zellij.LivenessContext(ctx)
 	if err != nil {
 		return PairSessionBinding{}, fmt.Errorf("observe exact Pair session: %w", err)
 	}

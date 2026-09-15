@@ -13,12 +13,13 @@ import (
 )
 
 type ReadyRecord struct {
-	Orientation *orientation.DeliveryState `json:"orientation,omitempty"`
-	Tag         string                     `json:"tag"`
-	Agent       string                     `json:"agent"`
-	Session     string                     `json:"session"`
-	Nonce       string                     `json:"nonce"`
-	PID         int                        `json:"pid"`
+	LaunchOrdinal uint64                     `json:"launch_ordinal,omitempty"`
+	Orientation   *orientation.DeliveryState `json:"orientation,omitempty"`
+	Tag           string                     `json:"tag"`
+	Agent         string                     `json:"agent"`
+	Session       string                     `json:"session"`
+	Nonce         string                     `json:"nonce"`
+	PID           int                        `json:"pid"`
 }
 
 func Encode(record ReadyRecord) (string, error) {

@@ -517,13 +517,22 @@ func (p *proxy) publishAgentReadyStatus(pid int, status *orientation.DeliverySta
 	if p.agentReadyPath == "" || tag == "" || p.agentBasename == "" || session == "" || nonce == "" {
 		return nil
 	}
+	launchOrdinal := uint64(0)
+	if raw := os.Getenv("PAIR_LAUNCH_ORDINAL"); raw != "" {
+		parsed, err := strconv.ParseUint(raw, 10, 64)
+		if err != nil || parsed == 0 {
+			return fmt.Errorf("ready record: invalid PAIR_LAUNCH_ORDINAL %q", raw)
+		}
+		launchOrdinal = parsed
+	}
 	raw, err := readiness.Encode(readiness.ReadyRecord{
-		Orientation: status,
-		Tag:         tag,
-		Agent:       p.agentBasename,
-		Session:     session,
-		Nonce:       nonce,
-		PID:         pid,
+		LaunchOrdinal: launchOrdinal,
+		Orientation:   status,
+		Tag:           tag,
+		Agent:         p.agentBasename,
+		Session:       session,
+		Nonce:         nonce,
+		PID:           pid,
 	})
 	if err != nil {
 		return err

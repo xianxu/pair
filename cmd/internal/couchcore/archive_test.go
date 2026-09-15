@@ -3,7 +3,9 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -134,7 +136,8 @@ func TestCouchArchiveStopsTheSessionBeforeMovingTheRecord(t *testing.T) {
 	thread := archivableThread(t, store, "couch-0000000000000001")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(thread.Address, "pair-"+string(thread.Address.Tag), true)
-	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	artifacts.SetDetachedSession(thread.Address, "pair-"+string(thread.Address.Tag))
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
 
 	if _, err := couch.ArchiveThread(context.Background(), thread.Address); err != nil {
 		t.Fatalf("ArchiveThread: %v", err)
@@ -155,8 +158,9 @@ func TestCouchArchiveRefusesWhenTheSessionCannotBeStopped(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(thread.Address, "pair-"+string(thread.Address.Tag), false)
 	artifacts.QuiesceHook = func(ThreadAddress) error { return errors.New("zellij is not answering") }
-	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
 
 	if _, err := couch.ArchiveThread(context.Background(), thread.Address); err == nil {
 		t.Fatal("archived a thread whose session could not be stopped")
@@ -257,7 +261,7 @@ func TestArchivingAnUnreadableRecordNeverStopsItsSession(t *testing.T) {
 	corrupt := writeCorruptRecord(t, store, healthy, "couch-0000000000000002")
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(corrupt, "pair-"+string(corrupt.Tag), true)
-	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
 
 	result, err := couch.ArchiveThread(context.Background(), corrupt)
 	if err != nil {
@@ -290,7 +294,7 @@ func TestARefusedArchiveStopsNothing(t *testing.T) {
 	}
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(live.Address, "pair-live-session", true)
-	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
 
 	if _, err := couch.ArchiveThread(context.Background(), live.Address); err == nil {
 		t.Fatal("archived a live thread")
@@ -372,5 +376,189 @@ func TestSpawnRefusesWhileAnUnreadableRecordIsInTheRepository(t *testing.T) {
 		if !strings.Contains(err.Error(), want) {
 			t.Fatalf("refusal %q does not mention %q", err, want)
 		}
+	}
+}
+
+func TestRecoveryArchivePreservesPendingCheckpointAndHistory(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := archivableThread(t, store, "couch-0000000000000250")
+	request := testContinuationRequest(t, record)
+	record, err := store.PublishContinuation(record.Address, record.Revision, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(record.Address, "pair-source", false)
+	c := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	materialized, err := c.materializeContinuation(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.ArchiveThread(context.Background(), record.Address); err != nil {
+		t.Fatalf("archive missing-session checkpoint: %v", err)
+	}
+	if _, err := os.Stat(materialized); !os.IsNotExist(err) {
+		t.Fatalf("derived checkpoint remains: %v", err)
+	}
+	archived, err := store.ArchivedThreads()
+	if err != nil || len(archived) != 1 || archived[0].Continuation == nil || !reflect.DeepEqual(*archived[0].Continuation, request) {
+		t.Fatalf("archive lost pending checkpoint: %+v, %v", archived, err)
+	}
+}
+
+func TestRecoveryArchiveRetiresOnlyExactDeadSettledHelper(t *testing.T) {
+	for _, mode := range []string{"dead", "pid-reused", "live", "unknown", "session-unknown", "creating"} {
+		t.Run(mode, func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			record := archivableThread(t, store, "couch-0000000000000250")
+			record, err := store.UpdateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error {
+				r.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "original", State: IncarnationLive}}
+				if mode == "creating" {
+					r.Incarnations[0].State = IncarnationCreating
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			proc := NewFakeProcOps()
+			if mode == "live" {
+				proc.Set(42, "original")
+			}
+			if mode == "pid-reused" {
+				proc.Set(42, "other")
+			}
+			if mode == "unknown" {
+				proc.SetUnknown(42)
+			}
+			artifacts := NewFakeThreadArtifactCollisionChecker()
+			artifacts.SetPairSession(record.Address, "pair-source", false)
+			if mode == "session-unknown" {
+				artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("query failed") }
+			}
+			c := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+			_, err = c.ArchiveThread(context.Background(), record.Address)
+			want := mode == "dead" || mode == "pid-reused"
+			if (err == nil) != want {
+				t.Fatalf("archive %s = %v", mode, err)
+			}
+			if !want {
+				after, e := store.GetThread(record.Address)
+				if e != nil || after.Revision != record.Revision || len(artifacts.Quiesces()) != 0 {
+					t.Fatalf("refusal mutated record/session: %+v %v", after, e)
+				}
+			}
+			if len(proc.Signals) != 0 || len(proc.GroupSignals) != 0 {
+				t.Fatal("archive signalled helper")
+			}
+		})
+	}
+}
+
+func TestRecoveryArchiveRejectsRecordChangedDuringQuiesce(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := archivableThread(t, store, "couch-0000000000000250")
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(record.Address, "pair-source", false)
+	artifacts.QuiesceHook = func(ThreadAddress) error {
+		_, err := store.UpdateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error { r.Name = "concurrent update"; return nil })
+		return err
+	}
+	c := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+	_, err := c.ArchiveThread(context.Background(), record.Address)
+	var conflict *ThreadRevisionError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("archive accepted changed record: %v", err)
+	}
+	if after, e := store.GetThread(record.Address); e != nil || after.Name != "concurrent update" {
+		t.Fatalf("archive lost concurrent state: %+v %v", after, e)
+	}
+}
+
+func TestRecoveryArchiveRefusesSessionAppearingBeforeStop(t *testing.T) {
+	for _, initiallyPresent := range []bool{false, true} {
+		t.Run(map[bool]string{false: "absent-to-present", true: "session-replaced"}[initiallyPresent], func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			record := archivableThread(t, store, "couch-0000000000000250")
+			artifacts := NewFakeThreadArtifactCollisionChecker()
+			artifacts.SetPairSession(record.Address, "old-session", initiallyPresent)
+			if initiallyPresent {
+				artifacts.SetDetachedSession(record.Address, "old-session")
+			}
+			calls := 0
+			artifacts.BeforePairSession = func(ThreadAddress) error {
+				calls++
+				if calls == 2 {
+					artifacts.SetPairSession(record.Address, "new-session", true)
+					artifacts.SetDetachedSession(record.Address, "new-session")
+				}
+				return nil
+			}
+			c := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+			_, err := c.ArchiveThread(context.Background(), record.Address)
+			if err == nil || len(artifacts.Quiesces()) != 0 {
+				t.Fatalf("archive touched newly appearing session: err=%v stops=%v", err, artifacts.Quiesces())
+			}
+			if _, err := store.GetThread(record.Address); err != nil {
+				t.Fatal("archive removed raced record")
+			}
+		})
+	}
+}
+
+func TestRecoveryArchiveRefusesLiveContinuationReferences(t *testing.T) {
+	for _, actor := range []string{"source", "target", "target-unknown", "session"} {
+		t.Run(actor, func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			record := archivableThread(t, store, "couch-0000000000000250")
+			request := testContinuationRequest(t, record)
+			request.Phase = checkpoint.Running
+			request.Attempt = "attempt"
+			request.SourceAbsence = &checkpoint.SourceAbsence{Session: request.Source.Session, LaunchOrdinal: request.Source.LaunchOrdinal, ObservedAt: record.CreatedAt, RecordRevision: record.Revision}
+			request.Target = &checkpoint.Target{Process: checkpoint.Process{PID: 43, Identity: "target"}, ObservedAt: record.CreatedAt}
+			record, err := store.UpdateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error { r.Continuation = &request; return nil })
+			if err != nil {
+				t.Fatal(err)
+			}
+			proc := NewFakeProcOps()
+			switch actor {
+			case "source":
+				proc.Set(42, "source")
+			case "target":
+				proc.Set(43, "target")
+			case "target-unknown":
+				proc.SetUnknown(43)
+			}
+			artifacts := NewFakeThreadArtifactCollisionChecker()
+			artifacts.SetPairSession(record.Address, "pair-source", actor == "session")
+			if actor == "session" {
+				artifacts.SetDetachedSession(record.Address, "pair-source")
+			}
+			c := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+			if _, err := c.ArchiveThread(context.Background(), record.Address); err == nil {
+				t.Fatal("archive accepted occupied continuation")
+			}
+			if len(artifacts.Quiesces()) != 0 {
+				t.Fatal("archive stopped unfinished continuation")
+			}
+			after, err := store.GetThread(record.Address)
+			if err != nil || after.Revision != record.Revision || !reflect.DeepEqual(after.Continuation, record.Continuation) {
+				t.Fatalf("refused archive changed request: %+v %v", after, err)
+			}
+		})
+	}
+}
+
+func TestArchiveExpectedUnreadableObservationDoesNotArchiveRepairedRecord(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := archivableThread(t, store, "couch-0000000000000250")
+	// Revision zero represents an unreadable observation. A repaired record must
+	// be inspected afresh, even if its new state happens to be unoccupied.
+	if err := store.ArchiveThreadExpected(record.Address, 0); err == nil {
+		t.Fatal("unreadable observation archived a repaired record")
+	}
+	corrupt := writeCorruptRecord(t, store, record, "couch-0000000000000251")
+	if err := store.ArchiveThreadExpected(corrupt, 0); err != nil {
+		t.Fatalf("unchanged unreadable record lost archive escape: %v", err)
 	}
 }

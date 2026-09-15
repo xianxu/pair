@@ -119,6 +119,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		status := couchcore.OSOrientationStatusReader{DataDir: dataDir, Session: sessions.PairSession, Proc: c.Proc}
 		c.OrientationStatus = status.Read
 		c.FreshRegistration = status.Registered
+		c.ContinuationGeneration = status.Generation
 	}
 
 	c.RepoAgentDefault = func(repoRoot, agent string) (couchcore.LaunchProfile, bool, error) {
@@ -258,8 +259,8 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
 	}
-	// Starting a new root and resuming a parked root are the two entrypoints
-	// that bootstrap the singleton owner. Other owner-required CLI calls route
+	// Starting, resuming, recovery and explicit archive acquire the singleton
+	// owner. Other owner-required CLI calls route
 	// to an already-running owner, which is deliberately unavailable until
 	// #147.
 	ownsLive := operationOwnsLive(op.Name)
@@ -352,7 +353,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe", "park", "resume", "retry-continuation":
+	case "show", "name", "describe", "park", "resume", "retry-continuation", "recover-thread", "recover-checkpoint", "archive":
 		return true
 	default:
 		return false
@@ -362,7 +363,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume" || name == "retry-continuation"
+	return name == "start" || name == "resume" || name == "retry-continuation" || name == "recover-thread" || name == "recover-checkpoint" || name == "archive"
 }
 
 // consoleRunner decides which Runner this invocation gets, and builds the
@@ -382,7 +383,7 @@ func operationOwnsLive(name string) bool {
 // draws on the output fd, so a redirected stdout with a tty stdin would
 // otherwise build a console that paints into a file.
 func WantsConsole(name string, hasTerminal bool) bool {
-	return operationOwnsLive(name) && hasTerminal
+	return operationOwnsLive(name) && name != "archive" && hasTerminal
 }
 
 func consoleRunner(name string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {
@@ -666,7 +667,7 @@ func renderThreadRows(w io.Writer, threads []couchcore.ThreadSummary, includeAdd
 	for _, thread := range threads {
 		// Dim by the CLASSIFIED state. Reading liveness from the incarnations
 		// here while the label came from the classifier printed a stale row
-		// undimmed above the words "stale — couch exited unexpectedly".
+		// undimmed above the words "stale — helper ownership unresolved".
 		open, close := dim, reset
 		if thread.State == couchcore.ThreadLive {
 			open, close = "", ""

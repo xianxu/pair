@@ -512,6 +512,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/continuation.go",
 	"cmd/internal/couchcore/continuation_recovery.go",
 	"cmd/internal/couchcore/continuation_store.go",
+	"cmd/internal/couchcore/recovery.go",
+	"cmd/internal/couchcore/recovery_execute.go",
 	"cmd/internal/launcher/checkpoint_io.go",
 	"cmd/internal/launcher/checkpoint_retry.go",
 	"cmd/internal/couchcore/switchagent.go",

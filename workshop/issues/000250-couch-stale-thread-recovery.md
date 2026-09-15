@@ -130,9 +130,9 @@ and provide the disposable fixture for operator smoke testing.
 
 ## Plan
 
-- [ ] Reproduce the stale-record/archive dead end and surviving/dead-session variants with stateful fixtures.
-- [ ] Design recovery choices, ownership proofs and interruption handling in a durable plan.
-- [ ] Implement the shared recovery path, verify UI-to-store behavior and update the Couch atlas.
+- [x] Reproduce the stale-record/archive dead end and surviving/dead-session variants with stateful fixtures.
+- [x] Design recovery choices, ownership proofs and interruption handling in a durable plan.
+- [x] Implement the shared recovery path, verify UI-to-store behavior and update the Couch atlas.
 - [ ] Verify recovery with a disposable live fixture, preserve existing operator threads, record the outcome and close through SDLC review; pause for operator smoke.
 
 ## Log
@@ -277,3 +277,41 @@ Disposable smoke shutdown also exposed blocking raw stdin reads on Darwin;
 fixture uses a cancelable reader, so do not claim this proves production stdin
 shutdown is fixed. Full final checks, implementation commit and SDLC boundary
 review remain pending. Operator Astro session remains untouched.
+
+
+### 2026-09-14 — Evidence-backed implementation checklist audit
+
+Shared recovery, owner archive, generation-correlated absence continuation,
+menu/dispatch and atlas work are implemented. The plan revision records actual
+concept/file mappings and the layered fixture scope. Portable four-mode race
+acceptance passed (2.686s); real-Zellij warm and source-absent conformance and
+both interactive warm/checkpoint smoke commands exited 0 with echo, exact
+`RECOVERY-EXACT-250` checkpoint output and clean fixture Ctrl+D. These use
+stand-in agents/deterministic target attachments and do not establish a complete
+real coding-agent end-to-end recovery. The missing-checkpoint archive drill is
+portable acceptance. The empty-Zellij-inventory blocker above is fixed through
+shared observation normalization and its regression tests pass (1.046s).
+Final core/TTY race passed (94.086s/9.204s); current binaries built successfully.
+Root is still completing repository checks and SDLC review. Operator smoke and
+the plan's remaining explicit verification obligations remain open; no real
+operator thread was faulted or restarted for this fixture.
+
+
+### 2026-09-14T18:11:53-07:00 — Final verification before close review
+
+All repository Go tests pass (/tmp/pair250-final-go-test.log). make test completed
+all shell/Lua checks; its first Go pass found only missing source-inventory
+classification for recovery.go/recovery_execute.go. Added the two non-artifact
+consumer entries, reran artifactpath tests successfully, then reran the full Go
+suite successfully. Full Couch core/TTY race tests pass (94.086s/9.204s,
+/tmp/pair250-final-race.log). make build passes and rebuilt bin/pair, bin/couch
+and pair-launch-helper (/tmp/pair250-final-build.log). Disposable real-Zellij
+conformance and both interactive warm/checkpoint smoke drivers passed; fixture
+limitations remain explicitly documented in the plan. Final cancellation/deadline
+and bad-document no-spawn regression results are recorded separately below.
+
+The remaining close/checklist items include the review invocation itself and
+operator smoke after review, not unimplemented recovery behavior. Preserve that
+pending operator acceptance; do not label it already performed. No live Astro
+process/session has been changed. Implementation is being committed for the
+mandatory SDLC boundary review.

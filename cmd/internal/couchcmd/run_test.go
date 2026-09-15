@@ -584,7 +584,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
+	want := map[string]int{"recover-thread": 3, "recover-checkpoint": 4, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])
@@ -1444,7 +1444,7 @@ func TestConsoleExitForgetsThroughCouchRegistry(t *testing.T) {
 //
 // One case per TUI-dispatched direct-store operation, in the argument dialect
 // the SWITCHER actually sends.
-func TestSwitcherDialectReachesEveryDirectStoreOperation(t *testing.T) {
+func TestSwitcherDialectReachesMetadataAndArchiveOperations(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		args map[string]string
@@ -1456,6 +1456,7 @@ func TestSwitcherDialectReachesEveryDirectStoreOperation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			rt := newRT(t, "/repo")
 			thread := seedThread(t, rt, "/repo")
+			rt.artifacts.SetPairSession(thread.Address, "pair-archive-fixture", false)
 			args := map[string]string{
 				"repo-scope": thread.Address.RepoScope,
 				// tag, not ref: this is exactly what threadEffect sends.
@@ -1480,6 +1481,7 @@ func TestSwitcherDialectReachesEveryDirectStoreOperation(t *testing.T) {
 func TestArchiveThroughTheRuntimeMovesTheThreadToTheArchive(t *testing.T) {
 	rt := newRT(t, "/repo")
 	thread := seedThread(t, rt, "/repo")
+	rt.artifacts.SetPairSession(thread.Address, "pair-archive-fixture", false)
 
 	_, errw, code := runTypedRT(rt, couchcore.OperationCall{
 		Name: "archive", Implicit: true,
@@ -1721,5 +1723,16 @@ func TestOSCompositionChecksSwitchExecutablesAndWiresExactStatus(t *testing.T) {
 	}
 	if err := c.SwitchLaunchCheck("codex"); err == nil {
 		t.Fatal("nonexecutable pair accepted")
+	}
+}
+
+func TestRecoveryAndArchiveEntrypointsAcquireOwnerScope(t *testing.T) {
+	for _, name := range []string{"recover-thread", "recover-checkpoint", "archive"} {
+		if !operationOwnsLive(name) || !operationUsesCurrentRepoScope(name) {
+			t.Errorf("%s does not acquire exact owner/scope", name)
+		}
+		if WantsConsole(name, true) != (name != "archive") {
+			t.Errorf("%s has wrong terminal policy", name)
+		}
 	}
 }

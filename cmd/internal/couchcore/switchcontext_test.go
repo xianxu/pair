@@ -248,3 +248,36 @@ func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
 		t.Fatal("context lookup blocked on FIFO")
 	}
 }
+
+func TestContinuationGenerationReceiptSurvivesTargetDeath(t *testing.T) {
+	record := verifiedResumeThread(t)
+	data := t.TempDir()
+	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: data, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
+	path, _ := paths.AgentReadyChecked("codex")
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	ready := readiness.ReadyRecord{Tag: string(record.Address.Tag), Agent: "codex", Session: "exact-session", Nonce: "attempt", PID: 42, LaunchOrdinal: 17}
+	raw, err := readiness.Encode(ready)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	reader := OSOrientationStatusReader{DataDir: data, Session: func(ThreadAddress) (PairSessionBinding, error) {
+		return PairSessionBinding{Name: "exact-session", Present: false}, nil
+	}, Proc: NewFakeProcOps()}
+	generation, err := reader.Generation(context.Background(), record.Address, "codex", "attempt")
+	if err != nil || generation == nil || generation.LaunchOrdinal != 17 || generation.Attempt != "attempt" {
+		t.Fatalf("lost durable correlation: %+v %v", generation, err)
+	}
+	registered, err := reader.Registered(context.Background(), record.Address, "codex", "attempt")
+	if err != nil || registered {
+		t.Fatalf("dead receipt became live proof: %v %v", registered, err)
+	}
+	foreign, err := reader.Generation(context.Background(), record.Address, "codex", "obsolete")
+	if err != nil || foreign != nil {
+		t.Fatalf("foreign attempt correlated: %+v %v", foreign, err)
+	}
+}

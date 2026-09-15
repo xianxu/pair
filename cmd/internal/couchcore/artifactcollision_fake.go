@@ -157,6 +157,17 @@ func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddres
 	f.pairSessions[address] = PairSessionBinding{Name: name, Present: present}
 }
 
+func (f *FakeThreadArtifactCollisionChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return PairSessionBinding{}, err
+	}
+	binding, err := f.PairSession(address)
+	if err == nil {
+		err = ctx.Err()
+	}
+	return binding, err
+}
+
 func (f *FakeThreadArtifactCollisionChecker) PairSession(address ThreadAddress) (PairSessionBinding, error) {
 	f.mu.Lock()
 	hook := f.BeforePairSession

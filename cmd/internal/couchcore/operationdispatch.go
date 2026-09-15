@@ -179,27 +179,6 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return BuildArchivedInventory(records), nil
-		case "archive":
-			// resolveOperationThread, NOT ResolveThreadReference: the switcher
-			// dispatches through threadEffect, which sends {repo-scope, tag}
-			// and no ref. Reading only `ref` made every Tab -> archive fail
-			// with "empty reference" -- the milestone's headline action,
-			// unreachable from the only surface offering it. The two dialects
-			// are the bug; this is the one that accepts both (ARCH-DRY).
-			// resolveThreadForArchive, not resolveOperationThread: resolving by
-			// tag calls GetThread, which DECODES -- so archiving an unreadable
-			// record failed with the decode error at exactly the moment the
-			// operator was trying to get rid of it. An archive target is
-			// addressed, not read.
-			address, err := resolveThreadForArchive(c, a)
-			if err != nil {
-				return nil, err
-			}
-			ctx := call.Context
-			if ctx == nil {
-				ctx = context.Background()
-			}
-			return c.ArchiveThread(ctx, address)
 		case "name":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
@@ -279,6 +258,20 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("accepted startup parameters are required")
 			}
 			return c.SwitchAgent(ctx, SwitchAgentRequest{Address: address, Agent: a["agent"], Argv: *argv, AcceptedFingerprint: a["fingerprint"]})
+		case "archive":
+			// Exact tag/ref addressing must also work for unreadable records;
+			// archive retains those without signalling an unproved session.
+			address, err := resolveThreadForArchive(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.ArchiveThread(ctx, address)
+		case "recover-thread", "recover-checkpoint":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.RecoverThread(ctx, address, a["path"])
 		case "continue-thread", "retry-continuation", "continuation-status":
 			address, err := resolveOperationThread(c, a)
 			if err != nil {

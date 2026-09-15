@@ -122,9 +122,9 @@ func newOSSessionQuiescenceOps() osSessionQuiescenceOps {
 }
 
 func (osSessionQuiescenceOps) SessionPresent(ctx context.Context, session string) (bool, error) {
-	out, err := exec.CommandContext(ctx, "zellij", "list-sessions", "--no-formatting").CombinedOutput()
+	out, err := (ZellijSource{}).runContext(ctx, "list-sessions", "--no-formatting")
 	if err != nil {
-		return false, fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
+		return false, err
 	}
 	present, _ := sessionRowState(string(out), session)
 	return present, nil

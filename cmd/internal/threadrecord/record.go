@@ -118,6 +118,9 @@ func Validate(record Record, validators Validators) error {
 		if record.Continuation.ID != checkpoint.RequestID(record.Address.RepoScope, record.Address.Tag, record.Continuation.Source.LaunchOrdinal, record.Continuation.Checkpoint.Digest) {
 			return fmt.Errorf("continuation request belongs to another address")
 		}
+		if absence := record.Continuation.SourceAbsence; absence != nil && absence.RecordRevision > record.Revision {
+			return fmt.Errorf("continuation source absence refers to a future record revision")
+		}
 		if request := record.Continuation; request.SourcePark != "" {
 			found := false
 			for _, park := range record.ParkHistory {

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -225,7 +226,7 @@ type OSOrientationStatusReader struct {
 	Proc    ProcOps
 }
 
-func (r OSOrientationStatusReader) readReady(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
+func (r OSOrientationStatusReader) readReadyFile(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -262,6 +263,14 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 	if ready.Tag != string(address.Tag) || ready.Agent != agent || ready.Nonce != attempt {
 		return nil, errObsoleteOrientationReady
 	}
+	return &ready, nil
+}
+
+func (r OSOrientationStatusReader) readReady(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
+	ready, err := r.readReadyFile(ctx, address, agent, attempt)
+	if err != nil || ready == nil {
+		return ready, err
+	}
 	if r.Session == nil {
 		return nil, errors.New("orientation session binding unavailable")
 	}
@@ -278,7 +287,7 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	return &ready, nil
+	return ready, nil
 }
 
 func (r OSOrientationStatusReader) Read(ctx context.Context, address ThreadAddress, agent, attempt string) (orientation.DeliveryState, error) {
@@ -295,4 +304,33 @@ func (r OSOrientationStatusReader) Registered(ctx context.Context, address Threa
 		return false, nil
 	}
 	return ready != nil, err
+}
+
+// Generation reads durable attempt correlation even after the target dies.
+// Unlike Registered, it proves provenance, never current process liveness.
+func (r OSOrientationStatusReader) Generation(ctx context.Context, address ThreadAddress, agent, attempt string) (*checkpoint.TargetGeneration, error) {
+	ready, err := r.readReadyFile(ctx, address, agent, attempt)
+	if errors.Is(err, errObsoleteOrientationReady) {
+		return nil, nil
+	}
+	if err != nil || ready == nil {
+		return nil, err
+	}
+	if ready.LaunchOrdinal == 0 {
+		return nil, nil
+	} // legacy receipts prove no generation
+	if r.Session == nil {
+		return nil, errors.New("continuation target session binding unavailable")
+	}
+	session, err := r.Session(address)
+	if err != nil {
+		return nil, err
+	}
+	if session.Name != ready.Session {
+		return nil, errors.New("continuation target generation has a foreign session")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return &checkpoint.TargetGeneration{Agent: agent, Session: ready.Session, Attempt: attempt, LaunchOrdinal: ready.LaunchOrdinal}, nil
 }
