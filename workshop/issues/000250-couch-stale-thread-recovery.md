@@ -134,7 +134,7 @@ and provide the disposable fixture for operator smoke testing.
 - [x] Reproduce the stale-record/archive dead end and surviving/dead-session variants with stateful fixtures.
 - [x] Design recovery choices, ownership proofs and interruption handling in a durable plan.
 - [x] Implement the shared recovery path, verify UI-to-store behavior and update the Couch atlas.
-- [ ] Verify recovery with a disposable live fixture, preserve existing operator threads, record the outcome and close through SDLC review; pause for operator smoke.
+- [x] Verify recovery with a disposable live fixture, preserve existing operator threads, record the outcome and close through SDLC review; pause for operator smoke.
 
 ## Log
 
@@ -405,3 +405,12 @@ same Claude conversation after fresh ownership checks. Disposable alternatives:
 sh tests/couch-recovery-smoke.sh warm and checkpoint. Stop for operator smoke;
 do not publish or modify Astro's runtime on the operator's behalf. The separately
 investigated mouse-selection mode leak is recorded under #254 and remains unfixed.
+
+
+### 2026-09-14 — Operator acceptance and ship authorization
+
+Operator reports Astro loaded automatically at startup without selecting Recover
+and appears good. This verifies successful startup reattachment, not the
+explicit Recover menu path; that path remains covered by automated and disposable
+interactive acceptance. Operator then authorized closing #250. Smoke checkpoint
+is accepted; proceed through PR/merge to done and archive.

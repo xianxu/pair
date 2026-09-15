@@ -122,7 +122,7 @@ The feature includes stale settled live incarnations and already-retired records
 - [x] Build the current binaries using the existing Makefile target. Create a distinct disposable namespace, data directory, exact thread/session and checkpoint; record their identities before fault injection. Use only those recorded fixture identities for helper/session termination.
 - [x] In fixture A, remove only the helper and leave its agent/session alive. Use Couch Recover and verify same agent identity and actual input/output. In fixture B, remove only the fixture-owned disposable source helper/session, recover from a checkpoint in another worktree via the text path form, and verify the replacement reads the exact digest/NEXT ACTION and accepts input.
 - [x] Exercise explicit archive of a disposable stale row with missing checkpoint. Confirm the row disappears while archived metadata/history persist, and no unrelated session/process/store record changes. Record before/after identity evidence and cleanup only owned fixture resources.
-- [ ] Record the already-repaired original incident and the operator-approved fixture substitution in the issue. Request operator confirmation of usable fixture Couch access when the acceptance result is concrete; do not restart or fault the real thread.
+- [x] Record the already-repaired original incident and the operator-approved fixture substitution in the issue. Request operator confirmation of usable fixture Couch access when the acceptance result is concrete; do not restart or fault the real thread.
 - [x] Document recovery choices and absence/unknown diagnostics, update atlas links, and compare concept-table rows against the actual diff. Append plan revisions for deviations rather than overwriting the design history.
 - [x] Commit verified work, then let root run `sdlc close --issue 250 --verified '<actual evidence>'`. Its fresh-context review is the issue boundary; fix Critical/Important findings before publication.
 
@@ -281,3 +281,11 @@ Both live in starttransaction.go. ThreadStore.ReconcileRegisteredTarget is the
 modified store boundary's revision-fenced integration; external receipt/death
 observations remain in ensureContinuationAttached. Pure tests use plain records;
 interruption/reattachment tests use the existing stateful continuation fixture.
+
+
+### 2026-09-14 — Operator acceptance
+
+Astro returned through automatic startup reattachment; the operator reported it
+looks good and authorized close. This is the real-session startup smoke; explicit
+recovery and source-absent checkpoint recovery were exercised by disposable
+fixtures. No claim that the operator clicked Recover.
