@@ -231,3 +231,111 @@ findings:
     detail: |
       atlas/how-to-bring-up-a-new-harness-cli.md:108 describes stdoutChunk and Codex synchronized-output stripping, both removed by this range. Update the guide to the implemented wrapper contract.
 ```
+
+---
+
+## Re-review — 2026-09-15T15:21:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | c5ec1728810e89cbf0c9c8151bc3696c08a321ab..e1a18517e63eeb174576c7c7f841a069cb794ab9 |
+| command | sdlc milestone-close --issue 255 --milestone M3 |
+| reviewer | codex |
+| timestamp | 2026-09-15T15:21:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned M3 range addresses BR-16–BR-18. Both consumers use shared endpoint/presenter ownership, and the focused normal, race, and independent-oracle checks passed. No new blocking findings emerged. This verdict covers M3 migration; sustained native conformance and operator acceptance remain M4 obligations. Repository files were unchanged.
+
+## 1. Strengths
+
+- Geometry validation now precedes allocation and cloning across presenter entrypoints (`cmd/internal/terminal/presenter.go:583`).
+- Teardown probes wait for lifecycle completion before checking restoration or simulating successor-shell output (`cmd/internal/couchtty/vtscreen_test.go:168`).
+- Both consumers derive presentation and negotiated modes from shared terminal state; the inspected production paths no longer use raw replay as display authority.
+- Bounded publication queues, final-output acknowledgment, and explicit child disposal have production-seam tests.
+- README and atlas updates cover compiled terminfo, typed history, ownership, and wrapper behavior.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+None newly raised.
+
+## 5. Test coverage notes
+
+Passed:
+
+- Normal suites: terminal, PTY child, Couch TTY/core, Pair term, host, runtime generator, and wrapper.
+- Race suites: terminal, PTY child, Couch TTY, Pair term, host, and runtime generator—with the independent terminal oracle required.
+- Vendored VT suite.
+- Revised teardown tests: 30 repetitions.
+
+Correction evidence:
+
+- **BR-16:** Restoring the previous presenter through a scratch overlay makes the committed regression panic at the original allocation.
+- **BR-17:** Restoring the previous teardown test reproduces failure **7/100 times**. Revised tests use completion acknowledgments; inspected Pair teardown assertions already follow joined completion.
+- **BR-18:** The corrected guide matches wrapper passthrough and normalized-stream observation.
+
+Full root testing, native Zellij workflows, and sustained M4 measurements were not rerun. Range whitespace checking reported only Markdown hard-break spaces in the recorded review document.
+
+## 6. Architectural notes
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass — shared endpoint/presenter replaces competing consumer display authority. |
+| ARCH-PURE | Pass — inspected frame, view, and serialization logic remains separate from transport; integration components are identified accordingly. |
+| ARCH-PURPOSE | Pass for M3 — both consumers and wrapper migration are implemented; sustained acceptance remains explicitly pending. |
+| ARCH-MOCK | Pass — stateful transport/child doubles share production seams; compiler injection and native conformance are present. |
+| ARCH-CONSTRAINTS | Pass for M3 — geometry, history, publication, and write bounds are explicit and exercised. Aggregate performance remains M4 work. |
+| ARCH-SECURE | Pass — inspected geometry and typed presentation inputs validate before allocation or emission. |
+| ARCH-ORDER | Pass — selection admission follows successful presentation; teardown evidence now observes completion. |
+| ARCH-FUNERAL | Pass — child disposal, worker joins, and temporary compiler-storage cleanup have defined owners and tests. |
+
+## 7. Plan revision recommendations
+
+No additional revision required. Existing geometry/completion revisions describe the corrections. Preserve the M4 sustained-testing and operator-acceptance gates.
+
+```findings
+dispose:
+  - id: BR-16
+    disposition: addressed
+    note: |
+      presenter.go:583 validates geometry before allocation; both resize APIs have invalid-geometry regressions. Restoring the prior presenter in a scratch overlay makes the committed test panic at the original allocation.
+  - id: BR-17
+    disposition: addressed
+    note: |
+      vtscreen_test.go:168 waits for Run completion before restoration checks and successor-shell simulation. Mouse and keyboard assertions were swept; Pair assertions use joined completion. Revised tests pass 30 repetitions; restoring the old test fails 7/100 runs.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      atlas/how-to-bring-up-a-new-harness-cli.md:108-121 replaces deleted filtering advice and retires its telemetry expectation. wrap.go:2905 preserves normalized passthrough and wrap.go:2963 observes that queued stream.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Prior disposition retained; erased-background oracle coverage passes with the independent oracle required.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      Prior disposition retained; inspected retirement/disposal ownership and passing consumer disposal tests support the correction.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Prior disposition retained; injected compiler failure/preservation tests and native compiler conformance pass.
+```

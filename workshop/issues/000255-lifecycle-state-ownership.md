@@ -92,12 +92,13 @@ The primary acceptance is operator-visible: the ongoing display corruption and m
 
 - [x] M1 — Qualify the required terminal contract and candidate backend; record failures, untested obligations and an evidence-based adoption decision.
 - [x] M2 — Implement the shared endpoint/presenter after qualification and detailed design approval.
-- [ ] M3 — Migrate Couch and Pair, including wrapper transformation conformance, to the shared contract.
+- [x] M3 — Migrate Couch and Pair, including wrapper transformation conformance, to the shared contract.
 - [ ] M4 — Complete composed/live conformance, measured rollout verification and publication.
 
 ## Log
 
 ### 2026-09-15 — M3 migration in progress
+- 2026-09-15: closed M3 — BR16-18 corrected after prior BR13-15 disposition. Red invalid resize panic now rejected before allocation with view/input preserved; shared terminal+qualification+term native/oracle race passed (/tmp/pair255-br16-final-race.log). Teardown failure reproduced2/50 then100normal+100race+100late-presentation repetitions and full Couch/term race passed (/tmp/pair255-br17-*.log). Geometry/clone entrypoints and both consumer teardown suites swept; stale harness guide corrected. Prior full Go, fork, compiler, wrapper, Lua/shell/Linux evidence logged; source whitespace clean, generated review has Markdown hard breaks. No measured per-milestone increment available; whole-window0.61h not substituted. M4 history latency correction, longruns and operator smoke remain pending.; review verdict: SHIP
 
 M2 closed with SHIP (`c5ec1728`, review window `29101ebf..214d43e8`). M3 now routes Couch and Pair through endpoint publications and the shared presenter. PTY output delivery is bounded and acknowledged; child EOF disables input immediately while final output remains publishable, and drained exit cannot overtake it. Host IO owns nonblocking descriptor flags for its lifetime and joins transport/watchers on teardown. Removed the production resize-nudge authority; terminal history now comes from typed bounded state. Build-time terminfo compilation is included in the runtime bundle, avoiding a runtime `tic` dependency. Focused publication race tests passed; full consumer migration checks are in progress. Native history oracle caught a one-column-to-wider soft-wrap/copy edge, still under investigation; no completion claim or live operator runtime change. User stop remains after M4 for smoke acceptance before merge.
 

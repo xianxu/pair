@@ -331,6 +331,36 @@ rounds:
           round: 11
       boundary: M3
       blocked: true
+    - "n": 12
+      timestamp: "2026-09-15T15:21:08-07:00"
+      agent: codex
+      dispose:
+        - id: BR-16
+          disposition: addressed
+          note: presenter.go:583 validates geometry before allocation; both resize APIs have invalid-geometry regressions. Restoring the prior presenter in a scratch overlay makes the committed test panic at the original allocation.
+          round: 12
+        - id: BR-17
+          disposition: addressed
+          note: vtscreen_test.go:168 waits for Run completion before restoration checks and successor-shell simulation. Mouse and keyboard assertions were swept; Pair assertions use joined completion. Revised tests pass 30 repetitions; restoring the old test fails 7/100 runs.
+          round: 12
+        - id: BR-18
+          disposition: addressed
+          note: atlas/how-to-bring-up-a-new-harness-cli.md:108-121 replaces deleted filtering advice and retires its telemetry expectation. wrap.go:2905 preserves normalized passthrough and wrap.go:2963 observes that queued stream.
+          round: 12
+        - id: BR-13
+          disposition: addressed
+          note: Prior disposition retained; erased-background oracle coverage passes with the independent oracle required.
+          round: 12
+        - id: BR-14
+          disposition: addressed
+          note: Prior disposition retained; inspected retirement/disposal ownership and passing consumer disposal tests support the correction.
+          round: 12
+        - id: BR-15
+          disposition: addressed
+          note: Prior disposition retained; injected compiler failure/preservation tests and native compiler conformance pass.
+          round: 12
+      boundary: M3
+      blocked: false
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -484,8 +514,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-18** [Minor] `documentation-surface-accuracy` Harness guide still recommends deleted wrapper filtering
   atlas/how-to-bring-up-a-new-harness-cli.md:108 describes stdoutChunk and Codex synchronized-output stripping, both removed by this range. Update the guide to the implemented wrapper contract.
 
+## Round 12 — 2026-09-15T15:21:08-07:00 (codex) — passed
+
+### Disposed
+
+- BR-16 — addressed — presenter.go:583 validates geometry before allocation; both resize APIs have invalid-geometry regressions. Restoring the prior presenter in a scratch overlay makes the committed test panic at the original allocation.
+- BR-17 — addressed — vtscreen_test.go:168 waits for Run completion before restoration checks and successor-shell simulation. Mouse and keyboard assertions were swept; Pair assertions use joined completion. Revised tests pass 30 repetitions; restoring the old test fails 7/100 runs.
+- BR-18 — addressed — atlas/how-to-bring-up-a-new-harness-cli.md:108-121 replaces deleted filtering advice and retires its telemetry expectation. wrap.go:2905 preserves normalized passthrough and wrap.go:2963 observes that queued stream.
+- BR-13 — addressed — Prior disposition retained; erased-background oracle coverage passes with the independent oracle required.
+- BR-14 — addressed — Prior disposition retained; inspected retirement/disposal ownership and passing consumer disposal tests support the correction.
+- BR-15 — addressed — Prior disposition retained; injected compiler failure/preservation tests and native compiler conformance pass.
+
 ## Open findings
 
-- **BR-16** [Critical] `validate-before-allocation` Presenter resize allocates before validating geometry
-- **BR-17** [Important] `qualification-observation-equivalence` Teardown regression mistakes ordinary paint output for shutdown completion
-- **BR-18** [Minor] `documentation-surface-accuracy` Harness guide still recommends deleted wrapper filtering
+(none — every finding has been disposed)
