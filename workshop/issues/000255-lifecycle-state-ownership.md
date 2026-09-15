@@ -97,6 +97,19 @@ The primary acceptance is operator-visible: the ongoing display corruption and m
 
 ## Log
 
+### 2026-09-15 — M3 migration in progress
+
+M2 closed with SHIP (`c5ec1728`, review window `29101ebf..214d43e8`). M3 now routes Couch and Pair through endpoint publications and the shared presenter. PTY output delivery is bounded and acknowledged; child EOF disables input immediately while final output remains publishable, and drained exit cannot overtake it. Host IO owns nonblocking descriptor flags for its lifetime and joins transport/watchers on teardown. Removed the production resize-nudge authority; terminal history now comes from typed bounded state. Build-time terminfo compilation is included in the runtime bundle, avoiding a runtime `tic` dependency. Focused publication race tests passed; full consumer migration checks are in progress. Native history oracle caught a one-column-to-wider soft-wrap/copy edge, still under investigation; no completion claim or live operator runtime change. User stop remains after M4 for smoke acceptance before merge.
+
+
+### 2026-09-15 — M3 production verification
+
+Couch and Pair now use typed endpoint publications, ordered input/effects and one presenter. Removed raw replay/nudge/scanner display authority. Full root Go suite passes (`/tmp/pair255-m3-full-final.log`); fork and shared packages pass race/native oracle checks. Wrapper full suite and targeted race, both consumer race suites, runtime profile/inventory tests, Lua, terminal shortcut and retention tests pass. Focused vet and Linux build pass. Real startup/query tests prove endpoint replies progress before a blocked UI publication callback completes; EOF/exit tests prove final output drains before removal.
+
+Disposable native Zellij joins the real candidate wrapper, synthetic Codex-named peer, PTY and Console. Direct and wrapped baselines cover query/key/paste/focus/drag receipts, Return-triggered canonical notification once, shell/panel/resize, real nvim content and independent xterm chrome. Actual native selection highlights before mouse release and emits the expected copied text (`/tmp/pair255-couch-native-final.log`). Upstream Zellij's loss of the tested combining accent is reproduced directly and is not claimed fixed by Pair; endpoint split-grapheme behavior remains separately checked. A one-column viewport clips an unrepresentable wide glyph while retaining it for widening; that extreme native-copy limit is explicit.
+
+Typed history adds bounded row identity, clear epochs, blank provenance and primary reflow. A redundant ordinary history snapshot initially exceeded the representative memory target; removing it without mutable aliasing brought sixteen saturated 240×80 endpoints plus caller publications to 287.5MB live heap and 427.7MB peak RSS. 80×24 measured 170.0MB heap /244.3MB peak RSS. These measurements do not replace M4 sustained production and latency evidence. Short real-PTY Couch/Pair soak harnesses are prepared and pass, with long runs pending the M3 gate. Operator smoke remains after M4, before issue close or merge.
+
 ### 2026-09-14 — Audit capture
 
 Created at the user's request after the read-only audit. Left open; no implementation begun. Existing selected orientation, ptychild, termcmd and couchcore tests passed; the TTY audit's selected fake/reducer tests also passed. A temporary Go overlay test failed under the race detector with `onChunk` writing console.go:1405 and `switchTo` reading console.go:565. No Pair source or live sessions were changed by the audit.
@@ -321,3 +334,8 @@ item: real-api-discovery design=0.00 impl=0.24
 design-buffer: 0.15
 total: 18.025
 ```
+
+
+### 2026-09-15 — M3 boundary submission
+
+Final source audit found diagnostics could bypass the presenter while stderr shared its TTY, and canceled teardown discarded release errors. Tests first reproduced both; errors/reports are now retained until joined release/raw restoration, and release failure returns nonzero. Full Couch race passed again (`/tmp/pair255-couch-exit-full-race2.log`). M3 is ready for the binary-owned boundary review. Milestone measured increment is unavailable: `sdlc actual --issue 255` reports a multi-issue whole-window value (0.61h, `8a9d900f..HEAD`), which is not substituted for M3. The precise `--no-actual` acknowledgment is retained for this milestone rather than inventing an increment.

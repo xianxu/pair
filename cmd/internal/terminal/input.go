@@ -117,6 +117,13 @@ func (d *Decoder) Feed(data []byte) (events []InputEvent, err error) {
 			}
 			raw := append([]byte(nil), d.pending[:n]...)
 			consumed, event := d.decoder.Decode(raw)
+			// Legacy terminal Alt-arrow aliases already supported by Pair.
+			if bytes.Equal(raw, []byte("\x1b[3D")) {
+				consumed, event = len(raw), uv.KeyPressEvent{Code: uv.KeyLeft, Mod: uv.ModAlt}
+			}
+			if bytes.Equal(raw, []byte("\x1b[3C")) {
+				consumed, event = len(raw), uv.KeyPressEvent{Code: uv.KeyRight, Mod: uv.ModAlt}
+			}
 			// ultraviolet currently classifies a valid U+FFFD as malformed.
 			// Correct that one decoded-rune case without accepting invalid bytes.
 			if bytes.Equal(raw, []byte("�")) {

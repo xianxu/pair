@@ -40,6 +40,9 @@ type Presenter struct {
 	done           chan struct{}
 	life           context.Context
 	cancel         context.CancelFunc
+	failureOnce    sync.Once
+	failed         chan struct{}
+	failureErr     error
 	releaseOnce    sync.Once
 	releaseErr     error
 	dirty          *Endpoint
@@ -54,12 +57,14 @@ type Presenter struct {
 	origins        map[string]*Endpoint
 	confirmedModes parentModes
 	keyboardOwned  bool
+	altOwned       bool
+	history        HistoryState
 	modesKnown     bool
 }
 
 func NewPresenter(w ttyio.Writer, policy ParentMousePolicy) *Presenter {
 	ctx, cancel := context.WithCancel(context.Background())
-	p := &Presenter{writer: w, policy: policy, requests: make(chan presentRequest, MaxPendingEvents), wake: make(chan struct{}, 1), stop: make(chan context.Context, 1), done: make(chan struct{}), life: ctx, cancel: cancel, effects: make(map[string]uint64), origins: make(map[string]*Endpoint)}
+	p := &Presenter{failed: make(chan struct{}), writer: w, policy: policy, requests: make(chan presentRequest, MaxPendingEvents), wake: make(chan struct{}, 1), stop: make(chan context.Context, 1), done: make(chan struct{}), life: ctx, cancel: cancel, effects: make(map[string]uint64), origins: make(map[string]*Endpoint)}
 	go p.run()
 	return p
 }
@@ -120,7 +125,7 @@ func (p *Presenter) run() {
 		select {
 		case ctx := <-p.stop:
 			cancelErr := p.cancelDrag(ctx)
-			p.releaseErr = errors.Join(cancelErr, p.write(ctx, parentReleaseControls(p.keyboardOwned), false))
+			p.releaseErr = errors.Join(cancelErr, p.write(ctx, append(p.releaseAlt(), parentReleaseControls(p.keyboardOwned)...), false))
 			p.transition(ViewEvent{Kind: ReleaseView})
 			return
 		case r := <-p.requests:
@@ -180,6 +185,14 @@ func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
 		defer stop()
 	}
 	accepted, err := writeComplete(ctx, p.writer, data)
+	if accepted == len(data) {
+		if string(data) == "\x1b[?1049h" {
+			p.altOwned = true
+		}
+		if string(data) == "\x1b[?1049l" {
+			p.altOwned = false
+		}
+	}
 	if err != nil {
 		return &WriteFailure{Accepted: accepted, Total: len(data), Err: err}
 	}
@@ -194,6 +207,7 @@ func (p *Presenter) fail(err error) error {
 	defer cancel()
 	cancelErr := p.cancelDrag(ctx)
 	p.transition(ViewEvent{Kind: FailView})
+	p.failureOnce.Do(func() { p.mu.Lock(); p.failureErr = errors.Join(err, cancelErr); p.mu.Unlock(); close(p.failed) })
 	return errors.Join(err, cancelErr)
 }
 
@@ -223,6 +237,10 @@ func (p *Presenter) cancelDrag(ctx context.Context) error {
 		return errors.New("terminal: pending cancellation lost endpoint")
 	}
 	if err := p.cancelTarget.Flush(ctx); err != nil {
+		if errors.Is(err, ErrInputEnded) {
+			p.settleCancellation()
+			return nil
+		}
 		return err
 	}
 	p.settleCancellation()
@@ -274,6 +292,9 @@ func parentModeDelta(before, after parentModes, known bool) string {
 	return s
 }
 func (p *Presenter) paint(ctx context.Context, f Frame, selection bool) error {
+	return p.paintPublication(ctx, f, nil, selection)
+}
+func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *HistoryWindow, selection bool) error {
 	if !selection {
 		if err := p.reconcileGesture(ctx); err != nil {
 			return p.fail(err)
@@ -296,39 +317,56 @@ func (p *Presenter) paint(ctx context.Context, f Frame, selection bool) error {
 		childModes = p.selected.Modes()
 	}
 	desired := desiredParentModes(p.policy, childModes)
-	data, err := Render(p.previous, f)
+	delta := parentModeDelta(p.confirmedModes, desired, p.modesKnown)
+	err := p.write(ctx, []byte(delta), true)
+	accepted := len(delta)
+	var failure *WriteFailure
+	if errors.As(err, &failure) {
+		accepted = failure.Accepted
+	}
+	if push := strings.Index(delta, "\x1b[>3u"); push >= 0 && accepted >= push+len("\x1b[>3u") {
+		p.keyboardOwned = true
+	}
+	var nextHistory HistoryState
 	if err == nil {
-		delta := parentModeDelta(p.confirmedModes, desired, p.modesKnown)
-		packet := append([]byte(delta), data...)
-		err = p.write(ctx, packet, true)
-		accepted := len(packet)
-		var failure *WriteFailure
-		if errors.As(err, &failure) {
-			accepted = failure.Accepted
-		}
-		if push := strings.Index(delta, "\x1b[>3u"); push >= 0 && accepted >= push+len("\x1b[>3u") {
-			p.keyboardOwned = true
+		if history == nil {
+			var data []byte
+			data, err = Render(p.previous, f)
+			if err == nil {
+				err = p.write(ctx, data, true)
+			}
+		} else {
+			var rendered HistoryRender
+			rendered, err = RenderWithHistory(p.previous, f, *history, p.history)
+			if err == nil {
+				err = rendered.Emit(func(data []byte) error { return p.write(ctx, data, true) })
+				nextHistory = rendered.NextState()
+			}
 		}
 	}
+
 	if err != nil {
 		return p.fail(err)
 	}
 	p.confirmedModes = desired
 	p.modesKnown = true
 	p.previous = f.Clone()
+	if history != nil {
+		p.history = nextHistory
+	}
 	_, err = p.transition(ViewEvent{Kind: PresentView, EndpointID: f.EndpointID, Token: v.Token, Generation: f.Generation, GeometryEpoch: f.GeometryEpoch})
 	return err
 }
 func (p *Presenter) paintEndpoint(ctx context.Context, e *Endpoint, selection bool) error {
-	f, err := e.Snapshot(time.Now())
+	pub, err := e.Publication(time.Now())
 	if err != nil {
 		return p.fail(err)
 	}
-	f, err = Compose(f, p.host, p.bottom)
+	f, err := Compose(pub.Frame, p.host, p.bottom)
 	if err != nil {
 		return p.fail(err)
 	}
-	return p.paint(ctx, f, selection)
+	return p.paintPublication(ctx, f, &pub.History, selection)
 }
 func (p *Presenter) Select(ctx context.Context, e *Endpoint, host Geometry, bottom []Cell) error {
 	if e == nil {
@@ -352,7 +390,7 @@ func (p *Presenter) Select(ctx context.Context, e *Endpoint, host Geometry, bott
 		p.selected = e
 		p.host = host
 		p.bottom = bottom
-		return p.paint(ctx, f, true)
+		return p.paintEndpoint(ctx, e, true)
 	})
 }
 func (p *Presenter) Present(ctx context.Context, e *Endpoint) error {
@@ -433,7 +471,7 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 		}
 		return nil
 	}
-	inside := p.selected != nil && v.Admitted != "" && m.X >= 0 && m.Y >= 0 && m.X < p.host.Cols && m.Y < p.host.Rows-1
+	inside := p.selected != nil && v.Admitted != "" && m.X >= 0 && m.Y >= 0 && m.X < p.host.Cols && m.Y < p.childRows()
 	modes := Modes{}
 	if p.selected != nil {
 		modes = p.selected.Modes()
@@ -494,7 +532,7 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 		}
 		if !inside {
 			m.X = max(0, min(m.X, p.host.Cols-1))
-			m.Y = max(0, min(m.Y, p.host.Rows-2))
+			m.Y = max(0, min(m.Y, p.childRows()-1))
 		}
 		switch event.(type) {
 		case uv.MouseMotionEvent:
@@ -532,25 +570,55 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 }
 func (p *Presenter) Resize(ctx context.Context, host Geometry, apply func(Geometry) error) error {
 	return p.call(ctx, func(ctx context.Context) error {
-		if p.selected == nil {
-			return errors.New("terminal: resize requires endpoint")
+		var bottom []Cell
+		if len(p.bottom) > 0 {
+			bottom = make([]Cell, host.Cols)
 		}
-		if err := host.Validate(); err != nil {
-			return err
-		}
-		if host.Rows < 2 {
-			return errors.New("terminal: no child rows")
-		}
-		if err := p.cancelDrag(ctx); err != nil {
-			return p.fail(err)
-		}
-		if err := p.selected.Resize(Geometry{host.Cols, host.Rows - 1}, apply); err != nil {
-			return err
-		}
-		p.host = host
-		p.bottom = make([]Cell, host.Cols)
-		return p.paintEndpoint(ctx, p.selected, true)
+		return p.resizeLayout(ctx, host, bottom, apply)
 	})
+}
+
+// ResizeLayout changes geometry and chrome reservation as one admitted layout.
+func (p *Presenter) ResizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
+	owned := make([]Cell, len(bottom))
+	for i, c := range bottom {
+		owned[i] = cloneCell(c)
+	}
+	return p.call(ctx, func(ctx context.Context) error { return p.resizeLayout(ctx, host, owned, apply) })
+}
+func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
+	if p.selected == nil {
+		return errors.New("terminal: resize requires endpoint")
+	}
+	if err := host.Validate(); err != nil {
+		return err
+	}
+	reserved := 0
+	if len(bottom) > 0 {
+		reserved = 1
+		if len(bottom) != host.Cols {
+			return errors.New("terminal: chrome width mismatch")
+		}
+	}
+	if host.Rows <= reserved {
+		return errors.New("terminal: no child rows")
+	}
+	// Validate chrome before mutating child or physical geometry.
+	chromeFrame := Frame{Geometry: Geometry{Cols: host.Cols, Rows: 1}, Cells: bottom}
+	if reserved > 0 {
+		if err := chromeFrame.Validate(); err != nil {
+			return err
+		}
+	}
+	if err := p.cancelDrag(ctx); err != nil {
+		return p.fail(err)
+	}
+	if err := p.selected.Resize(Geometry{host.Cols, host.Rows - reserved}, apply); err != nil {
+		return err
+	}
+	p.host = host
+	p.bottom = bottom
+	return p.paintEndpoint(ctx, p.selected, true)
 }
 func (p *Presenter) EmitEffects(ctx context.Context, effects []Effect, policy EffectPolicy) ([]Effect, error) {
 	if len(effects) > MaxPendingEvents {
@@ -692,10 +760,45 @@ func (p *Presenter) UpdateChrome(ctx context.Context, cells []Cell) error {
 		if err != nil {
 			return err
 		}
-		if err := p.paint(ctx, frame, false); err != nil {
+		_ = frame
+		previousBottom := p.bottom
+		p.bottom = owned
+		if err := p.paintEndpoint(ctx, p.selected, false); err != nil {
+			p.bottom = previousBottom
 			return err
 		}
 		p.bottom = owned
 		return nil
 	})
+}
+
+// Failed closes when an asynchronous or synchronous presentation fails.
+func (p *Presenter) Failed() <-chan struct{} { return p.failed }
+func (p *Presenter) Failure() error          { p.mu.Lock(); defer p.mu.Unlock(); return p.failureErr }
+func (p *Presenter) childRows() int {
+	if len(p.bottom) > 0 {
+		return p.host.Rows - 1
+	}
+	return p.host.Rows
+}
+
+// Copy emits an application-owned clipboard action through the same parent writer.
+func (p *Presenter) Copy(ctx context.Context, data []byte) error {
+	if len(data) > MaxStringBytes {
+		return errors.New("terminal: clipboard payload exceeds limit")
+	}
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return p.call(ctx, func(ctx context.Context) error {
+		if err := p.write(ctx, []byte("\x1b]52;c;"+encoded+"\x1b\\"), true); err != nil {
+			return p.fail(err)
+		}
+		return nil
+	})
+}
+
+func (p *Presenter) releaseAlt() []byte {
+	if p.altOwned {
+		return []byte("\x18\x1b\\\x1b[?1049l")
+	}
+	return nil
 }

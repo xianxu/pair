@@ -10,8 +10,8 @@ import (
 // The tab strip: what `pair term` draws in the row it reserves for itself.
 //
 // This is the POLICY half of the reserved row, the counterpart to couch's
-// RenderStatusRow. The mechanism -- reserving the row, painting it without
-// moving the child's cursor -- is hostty.Reservation, shared by both (#199 M1).
+// RenderStatusRow. terminal.Presenter composes its cells with the child frame
+// and owns the parent cursor and reserved row.
 //
 // Pure: no IO, no mux, no terminal. Everything that makes the row correct under
 // a hostile tab name or a narrow pane is decidable from (width, model), which is

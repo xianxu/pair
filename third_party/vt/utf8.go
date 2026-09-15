@@ -82,8 +82,14 @@ func (e *Emulator) handleGrapheme(content string, width int) {
 		// moves cursor down similar to [Terminal.linefeed] except it doesn't
 		// respects [ansi.LNM] mode.
 		// This will reset the phantom state i.e. pending wrap state.
+		if !e.atPhantom && x+width > e.scr.Width() {
+			for gap := x; gap < e.scr.Width(); gap++ {
+				e.scr.SetCell(gap, y, e.scr.blankCell())
+			}
+		}
 		e.index()
 		_, y = e.scr.CursorPosition()
+		e.scr.rows[y].Wrapped = true
 		x = 0
 	}
 

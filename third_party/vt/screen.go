@@ -17,6 +17,7 @@ type Screen struct {
 	scroll uv.Rectangle
 	// scrollback is the scrollback buffer for lines scrolled off the top.
 	scrollback *Scrollback
+	rows       []RowMetadata
 }
 
 // NewScreen creates a new screen.
@@ -25,6 +26,8 @@ func NewScreen(w, h int) *Screen {
 		buf:        uv.NewRenderBuffer(w, h),
 		scrollback: NewScrollback(DefaultScrollbackSize),
 	}
+	s.rows = make([]RowMetadata, h)
+	s.buf.Fill(&uv.Cell{Width: 1})
 	s.scroll = s.buf.Bounds()
 	return &s
 }
@@ -33,7 +36,8 @@ func NewScreen(w, h int) *Screen {
 // It clears the screen, sets the cursor to the top left corner, reset the
 // cursor styles, and resets the scroll region.
 func (s *Screen) Reset() {
-	s.buf.Clear()
+	s.buf.Fill(&uv.Cell{Width: 1})
+	clear(s.rows)
 	s.cur = Cursor{}
 	s.saved = Cursor{}
 	s.scroll = s.buf.Bounds()
@@ -62,7 +66,37 @@ func (s *Screen) CellAt(x int, y int) *uv.Cell {
 
 // SetCell sets the cell at the given x, y position.
 func (s *Screen) SetCell(x, y int, c *uv.Cell) {
+	if x == 0 && y >= 0 && y < len(s.rows) {
+		s.rows[y].clipped = nil
+	}
+	if c == nil {
+		c = &uv.Cell{Width: 1}
+	}
+	// UV clears a partially overwritten wide glyph to printed spaces. Those
+	// companion positions were erased, not printed; normalize only the affected
+	// glyph outside the new write, retaining its erase style.
+	lo, hi := x, x+max(1, c.Width)
+	if old := s.CellAt(x, y); old != nil {
+		if old.Width > 1 {
+			hi = max(hi, x+old.Width)
+		}
+		if old.Width == 0 && x > 0 {
+			if lead := s.CellAt(x-1, y); lead != nil && lead.Width == 2 {
+				lo = x - 1
+			}
+		}
+	}
+	if tail := s.CellAt(x+max(1, c.Width)-1, y); tail != nil && tail.Width > 1 {
+		hi = max(hi, x+max(1, c.Width)-1+tail.Width)
+	}
 	s.buf.SetCell(x, y, c)
+	for p := max(0, lo); p < min(s.Width(), hi); p++ {
+		if p < x || p >= x+max(1, c.Width) {
+			if erased := s.CellAt(p, y); erased != nil && erased.Width == 1 {
+				erased.Content = ""
+			}
+		}
+	}
 }
 
 // Height returns the height of the screen.
@@ -74,19 +108,25 @@ func (s *Screen) Height() int {
 func (s *Screen) Resize(width int, height int) {
 	if s.buf == nil {
 		s.buf = uv.NewRenderBuffer(width, height)
+		s.buf.Fill(&uv.Cell{Width: 1})
+		s.rows = make([]RowMetadata, height)
 	} else if width != s.Width() || height != s.Height() {
 		// UV's Resize retains truncated rows and cell payloads in backing arrays.
 		// Own an exact-size buffer so shrinking releases memory and clipped wide cells.
 		next := uv.NewRenderBuffer(width, height)
+		next.Fill(&uv.Cell{Width: 1})
+		rows := make([]RowMetadata, height)
+		copy(rows, s.rows)
 		for y := 0; y < min(height, s.Height()); y++ {
 			for x := 0; x < min(width, s.Width()); x++ {
 				c := s.CellAt(x, y)
-				if c != nil && c.Width > 0 {
+				if c != nil && c.Width > 0 && x+c.Width <= width {
 					next.SetCell(x, y, c)
 				}
 			}
 		}
 		s.buf = next
+		s.rows = rows
 	}
 	s.buf.Touched = nil
 	s.scroll = s.buf.Bounds()
@@ -102,30 +142,24 @@ func (s *Screen) Clear() {
 	s.ClearArea(s.Bounds())
 }
 
-// ClearWithScrollback saves all non-empty lines to scrollback before clearing.
-// This is used for operations like ED 2 (erase screen) where content should
-// be preserved in history.
+// ClearWithScrollback preserves the visible prefix through the last printed
+// row, including blank hard separators and explicit-space soft rows. Trailing
+// unused rows are omitted, matching native Zellij's erase-to-history behavior.
 func (s *Screen) ClearWithScrollback() {
 	if s.scrollback != nil {
-		// Save all lines that have content before clearing
-		for y := 0; y < s.buf.Height(); y++ {
-			line := s.buf.Line(y)
-			if line != nil && !s.isLineEmpty(line) {
-				s.scrollback.Push(line)
+		last := -1
+		for y := 0; y < s.Height(); y++ {
+			_, meta := s.historyLine(y)
+			if meta.UsedColumns > 0 {
+				last = y
 			}
+		}
+		for y := 0; y <= last; y++ {
+			line, meta := s.historyLine(y)
+			s.scrollback.push(line, meta)
 		}
 	}
 	s.Clear()
-}
-
-// isLineEmpty returns true if the line contains only empty/space cells.
-func (s *Screen) isLineEmpty(line uv.Line) bool {
-	for _, cell := range line {
-		if cell.Content != "" && cell.Content != " " {
-			return false
-		}
-	}
-	return true
 }
 
 // ClearArea clears the given area.
@@ -146,7 +180,17 @@ func (s *Screen) FillArea(c *uv.Cell, area uv.Rectangle) {
 	if area.Empty() {
 		return
 	}
-	s.buf.FillArea(c, area)
+	if c == nil {
+		c = &uv.Cell{Width: 1}
+	}
+	for y := area.Min.Y; y < area.Max.Y; y++ {
+		for x := area.Min.X; x < area.Max.X; x += max(1, c.Width) {
+			s.SetCell(x, y, c)
+		}
+		if area.Min.X == 0 && area.Max.X == s.Width() {
+			s.rows[y] = RowMetadata{}
+		}
+	}
 	s.touchArea(area)
 }
 
@@ -347,6 +391,13 @@ func (s *Screen) InsertLine(n int) bool {
 		return false
 	}
 
+	n = min(n, s.scroll.Max.Y-y)
+	if s.scroll.Min.X == 0 && s.scroll.Max.X == s.Width() {
+		copy(s.rows[y+n:s.scroll.Max.Y], s.rows[y:s.scroll.Max.Y-n])
+		clear(s.rows[y : y+n])
+	} else {
+		clear(s.rows[y:s.scroll.Max.Y])
+	}
 	s.buf.InsertLineArea(y, n, s.blankCell(), s.scroll)
 
 	return true
@@ -375,13 +426,23 @@ func (s *Screen) DeleteLine(n int) bool {
 	// Save lines to scrollback if we're at the top of the scroll region
 	// and the scroll region uses the full width (typical terminal scroll).
 	// This captures lines that would be lost during scroll up operations.
-	if s.scrollback != nil && y == scroll.Min.Y &&
+	if s.scrollback != nil && y == 0 && scroll.Min.Y == 0 &&
 		scroll.Min.X == 0 && scroll.Max.X == s.buf.Width() {
 		// Save lines that will be deleted
 		linesToSave := min(n, scroll.Max.Y-y)
-		s.scrollback.PushN(s.buf, y, linesToSave)
+		for i := y; i < y+linesToSave; i++ {
+			line, meta := s.historyLine(i)
+			s.scrollback.push(line, meta)
+		}
 	}
 
+	n = min(n, scroll.Max.Y-y)
+	if scroll.Min.X == 0 && scroll.Max.X == s.Width() {
+		copy(s.rows[y:scroll.Max.Y-n], s.rows[y+n:scroll.Max.Y])
+		clear(s.rows[scroll.Max.Y-n : scroll.Max.Y])
+	} else {
+		clear(s.rows[y:scroll.Max.Y])
+	}
 	s.buf.DeleteLineArea(y, n, s.blankCell(), scroll)
 
 	return true
@@ -391,11 +452,7 @@ func (s *Screen) DeleteLine(n int) bool {
 // current pen background color. If the pen background color is nil, the return
 // value is nil.
 func (s *Screen) blankCell() *uv.Cell {
-	if s.cur.Pen.Bg == nil {
-		return nil
-	}
-
-	c := uv.EmptyCell
+	c := uv.Cell{Width: 1}
 	c.Style.Bg = s.cur.Pen.Bg
 	return &c
 }

@@ -2,6 +2,7 @@ package vt
 
 import (
 	"io"
+	"unicode"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
@@ -42,7 +43,19 @@ func (e *Emulator) SendKey(k uv.KeyEvent) {
 
 		// Extended identity fields do not participate in legacy key matching.
 		if key.Mod & ^(uv.ModShift|uv.ModCapsLock|uv.ModNumLock) == 0 && key.Text != "" {
-			io.WriteString(e.replies(), key.Text)
+			io.WriteString(e.replies(), seq+key.Text)
+			return
+		}
+		if key.Mod & ^(uv.ModShift|uv.ModCapsLock|uv.ModNumLock) == 0 && unicode.IsPrint(key.Code) {
+			code := key.Code
+			if key.Mod&uv.ModShift != 0 {
+				if key.ShiftedCode > 0 {
+					code = key.ShiftedCode
+				} else {
+					code = unicode.ToUpper(code)
+				}
+			}
+			io.WriteString(e.replies(), seq+string(code))
 			return
 		}
 		key.Text = ""

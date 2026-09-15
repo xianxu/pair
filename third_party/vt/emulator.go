@@ -98,6 +98,7 @@ func newEmulator(w, h int, limits Limits) *Emulator {
 	t.limits = limits
 	t.scrs[0] = *NewScreen(w, h)
 	t.scrs[1] = *NewScreen(w, h)
+	t.scrs[1].SetScrollback(nil)
 	t.scr = &t.scrs[0]
 	t.scrs[0].cb = &t.cb
 	t.scrs[1].cb = &t.cb
@@ -118,7 +119,9 @@ func newEmulator(w, h int, limits Limits) *Emulator {
 	t.pr, t.pw = io.Pipe()
 	t.replyWriter = t.pw
 	for i := range t.scrs {
-		t.scrs[i].scrollback.setLimits(limits.HistoryLines, limits.HistoryCells, limits.HistoryBytes)
+		if t.scrs[i].scrollback != nil {
+			t.scrs[i].scrollback.setLimits(limits.HistoryLines, limits.HistoryCells, limits.HistoryBytes)
+		}
 	}
 	t.resetModes()
 	t.tabstops = uv.DefaultTabStops(w)
@@ -151,14 +154,14 @@ func (e *Emulator) Touched() []*uv.LineData {
 
 // String returns a string representation of the underlying screen buffer.
 func (e *Emulator) String() string {
-	s := e.scr.buf.String()
+	s := e.scr.legacyLines().String()
 	return uv.TrimSpace(s)
 }
 
 // Render renders a snapshot of the terminal screen as a string with styles and
 // links encoded as ANSI escape codes.
 func (e *Emulator) Render() string {
-	return e.scr.buf.Render()
+	return e.scr.legacyLines().Render()
 }
 
 var _ uv.Screen = (*Emulator)(nil)
@@ -238,6 +241,7 @@ func (e *Emulator) Resize(width int, height int) { _ = e.ResizeChecked(width, he
 
 func (e *Emulator) resize(width int, height int) {
 	e.flushGrapheme()
+	wasPhantom := e.atPhantom
 	x, y := e.scr.CursorPosition()
 	if e.atPhantom {
 		if x < width-1 {
@@ -259,11 +263,20 @@ func (e *Emulator) resize(width int, height int) {
 		x = width - 1
 	}
 
-	e.scrs[0].Resize(width, height)
+	primaryPhantom := wasPhantom && e.scr == &e.scrs[0]
+	// Reflow uses the original cursor, including its pending wrap position.
+	primaryPhantom = e.scrs[0].resizePrimary(width, height, primaryPhantom)
 	e.scrs[1].Resize(width, height)
+	if e.scr == &e.scrs[0] {
+		x, y = e.scr.CursorPosition()
+		e.atPhantom = primaryPhantom
+	}
 	e.tabstops = uv.DefaultTabStops(width)
 
 	e.setCursor(x, y)
+	if e.scr == &e.scrs[0] {
+		e.atPhantom = primaryPhantom
+	}
 
 	if e.isModeSet(ansi.ModeInBandResize) {
 		_, _ = io.WriteString(e.replies(), ansi.InBandResize(e.Height(), e.Width(), 0, 0))

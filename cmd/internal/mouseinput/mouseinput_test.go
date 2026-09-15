@@ -200,7 +200,33 @@ func TestNoConsumerComparesARawButtonAgainstAWheelConstant(t *testing.T) {
 			}
 			return true
 		})
-		mentionsWheel := func(node ast.Node) bool { return strings.Contains(text(node), "Wheel") }
+		// UV events carry a normalized MouseButton enum; modifiers are separate.
+		// The raw-bitfield guard applies only to raw mouseinput wheel constants.
+		uvAliases := map[string]bool{}
+		for _, imp := range file.Imports {
+			if imp.Path.Value == "\"github.com/charmbracelet/ultraviolet\"" {
+				name := "uv"
+				if imp.Name != nil {
+					name = imp.Name.Name
+				}
+				uvAliases[name] = true
+			}
+		}
+		mentionsWheel := func(node ast.Node) bool {
+			found := false
+			ast.Inspect(node, func(n ast.Node) bool {
+				if sel, ok := n.(*ast.SelectorExpr); ok {
+					if pkg, ok := sel.X.(*ast.Ident); ok && uvAliases[pkg.Name] {
+						return false
+					}
+				}
+				if id, ok := n.(*ast.Ident); ok && strings.Contains(id.Name, "Wheel") {
+					found = true
+				}
+				return true
+			})
+			return found
+		}
 		report := func(node ast.Node, form string) {
 			offenders = append(offenders, fmt.Sprintf("%s:%d: %s (%s)",
 				path, fset.Position(node.Pos()).Line, text(node), form))

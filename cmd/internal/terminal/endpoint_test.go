@@ -353,3 +353,54 @@ func TestEndpointMouseAdmissionChecksNegotiationAtomically(t *testing.T) {
 		t.Fatalf("%q", out.Bytes())
 	}
 }
+
+func TestEndpointEndInputRetainsFinalPublication(t *testing.T) {
+	e, _ := newEndpointTest(t, "ended")
+	now := time.Now()
+	e.Feed([]byte("A\x1b[?2026h\rB"), now)
+	e.EndInput()
+	frame, err := e.Snapshot(now)
+	if err != nil || frame.Cells[0].Content != "B" {
+		t.Fatalf("final snapshot: %+v %v", frame, err)
+	}
+	if e.ID() != "ended" {
+		t.Fatal("identity changed")
+	}
+	if err := e.Send(uv.KeyPressEvent{Code: 'x'}); !errors.Is(err, ErrInputEnded) {
+		t.Fatalf("ended input:%v", err)
+	}
+	if accepted, err := e.SendMouse(uv.MouseReleaseEvent{Button: uv.MouseLeft}, e.Modes().MouseEpoch); accepted || err != nil {
+		t.Fatalf("ended gesture: %v %v", accepted, err)
+	}
+	if _, err := e.Feed([]byte("late"), now); !errors.Is(err, ErrInputEnded) {
+		t.Fatalf("late output:%v", err)
+	}
+	e.EndInput()
+	e.Close()
+	if _, err := e.Snapshot(now); !errors.Is(err, os.ErrClosed) {
+		t.Fatalf("disposed snapshot:%v", err)
+	}
+}
+
+func TestEndpointFailedInputDoesNotHideFinalOutput(t *testing.T) {
+	e, out := newEndpointTest(t, "broken-input")
+	boom := errors.New("input transport broke")
+	out.Enqueue(ttyio.WriteStep{Err: boom, ZeroProgress: true})
+	if err := e.Send(uv.KeyPressEvent{Code: 'x', Text: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.Flush(context.Background()); !errors.Is(err, boom) {
+		t.Fatalf("input failure:%v", err)
+	}
+	if _, err := e.Feed([]byte("last"), time.Now()); err != nil {
+		t.Fatalf("output after input failure:%v", err)
+	}
+	e.EndInput()
+	frame, err := e.Snapshot(time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Cells[0].Content != "l" || frame.Cells[3].Content != "t" {
+		t.Fatalf("lost final output:%+v", frame.Cells[:4])
+	}
+}

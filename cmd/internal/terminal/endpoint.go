@@ -38,6 +38,9 @@ type Output struct {
 	Generation, Position uint64
 	Effects              []Effect
 }
+
+var ErrInputEnded = errors.New("terminal: child input ended")
+
 type Modes struct {
 	MouseEpoch                                                         uint64
 	Tracking                                                           int
@@ -74,9 +77,11 @@ type Endpoint struct {
 	now, syncStarted                      time.Time
 	syncState                             uint8 // 0 idle, 1 withheld, 2 timed-out/recovered
 	published                             Frame
+	publishedHistory                      HistoryWindow
 	effects                               []Effect
 	failure                               error
 	closed                                bool
+	inputEnded                            bool
 	closeDone                             chan struct{}
 }
 
@@ -111,7 +116,7 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
 		Notification: func(title, body string) { e.effect(Effect{Kind: NotificationEffect, Selection: title, Text: body}) },
 		EnableMode: func(m ansi.Mode) {
 			if m == ansi.DECMode(2026) && e.syncState == 0 {
-				e.published = e.capture()
+				e.capturePublication()
 				e.syncState = 1
 				e.syncStarted = e.now
 			}
@@ -127,7 +132,7 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
 		return nil, err
 	}
 	e.input = NewInputWriter(out, MaxInputPackets, MaxInputBytes)
-	e.published = e.capture()
+	e.capturePublication()
 	return e, nil
 }
 func validSelection(s string) bool {
@@ -152,6 +157,9 @@ func (e *Endpoint) check() error {
 	if e.closed {
 		return os.ErrClosed
 	}
+	if e.inputEnded {
+		return ErrInputEnded
+	}
 	if e.failure != nil {
 		return e.failure
 	}
@@ -162,21 +170,27 @@ func (e *Endpoint) commitReplies() error {
 	if err == nil && e.failure != nil {
 		err = e.failure
 	}
-	if err == nil {
+	if err != nil {
+		e.failure = err
+	}
+	if err == nil && len(e.replies.data) > 0 {
 		err = e.input.Enqueue(e.replies.data)
 	}
 	e.replies.data = e.replies.data[:0]
 	e.replies.failure = nil
-	if err != nil {
-		e.failure = err
-	}
 	return err
 }
 func (e *Endpoint) Feed(p []byte, now time.Time) (Output, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if err := e.check(); err != nil {
-		return Output{}, err
+	if e.closed {
+		return Output{}, os.ErrClosed
+	}
+	if e.inputEnded {
+		return Output{}, ErrInputEnded
+	}
+	if e.failure != nil {
+		return Output{}, e.failure
 	}
 	e.now = now
 	n, err := e.backend.Write(p)
@@ -205,7 +219,10 @@ func (e *Endpoint) capture() Frame {
 	cur := e.backend.Cursor()
 	f.Cursor = Cursor{X: cur.X, Y: cur.Y, Visible: !cur.Hidden, Blink: !cur.Steady, Shape: int(cur.Style) + 1}
 	f.Cells = make([]Cell, e.geometry.Cols*e.geometry.Rows)
+	f.Rows = make([]RowMetadata, e.geometry.Rows)
 	for y := 0; y < e.geometry.Rows; y++ {
+		m := e.backend.RowMetadata(y)
+		f.Rows[y] = RowMetadata{Wrapped: m.Wrapped, UsedColumns: m.UsedColumns}
 		for x := 0; x < e.geometry.Cols; x++ {
 			if c := e.backend.CellAt(x, y); c != nil {
 				f.Cells[y*e.geometry.Cols+x] = *c
@@ -214,22 +231,61 @@ func (e *Endpoint) capture() Frame {
 	}
 	return f
 }
-func (e *Endpoint) Snapshot(now time.Time) (Frame, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if err := e.check(); err != nil {
-		return Frame{}, err
+func (e *Endpoint) capturePublication() {
+	e.published = e.capture()
+	e.publishedHistory = e.captureHistory()
+}
+func (e *Endpoint) captureHistory() HistoryWindow {
+	h := e.backend.HistorySnapshot()
+	window := HistoryWindow{Cursor: HistoryCursor{ClearEpoch: h.ClearEpoch, NextID: h.NextID}, ContinuesToScreen: h.ContinuesToScreen, Rows: make([]HistoryRow, len(h.Rows))}
+	for i, row := range h.Rows {
+		window.Rows[i] = HistoryRow{ID: row.ID, Cells: row.Cells, Meta: RowMetadata{Wrapped: row.Meta.Wrapped, UsedColumns: row.Meta.UsedColumns}}
+	}
+	return window
+}
+func (e *Endpoint) updatePublication(now time.Time) error {
+	if e.closed {
+		return os.ErrClosed
 	}
 	if e.syncState == 1 {
 		if now.Sub(e.syncStarted) < SyncTimeout {
-			return e.published.Clone(), nil
+			return nil
 		}
 		e.syncState = 2
 	}
 	if e.published.Generation != e.generation || e.published.GeometryEpoch != e.epoch {
 		e.published = e.capture()
 	}
+	// Only an actual synchronized hold or EOF needs a frozen history copy.
+	// Ordinary publications transfer one owned backend snapshot to the caller.
+	if !e.inputEnded {
+		e.publishedHistory = HistoryWindow{}
+	}
+	return nil
+}
+func (e *Endpoint) Snapshot(now time.Time) (Frame, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.updatePublication(now); err != nil {
+		return Frame{}, err
+	}
 	return e.published.Clone(), nil
+}
+
+// Publication captures the frame and bounded primary history at one generation.
+// A synchronized hold (including its history window) remains immutable until
+// release, timeout or EOF. Input failure does not prevent output publication.
+func (e *Endpoint) Publication(now time.Time) (Publication, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if err := e.updatePublication(now); err != nil {
+		return Publication{}, err
+	}
+	history := e.publishedHistory.Clone()
+	if e.syncState != 1 && !e.inputEnded {
+		history = e.captureHistory()
+	}
+	return Publication{Frame: e.published.Clone(), History: history}, nil
 }
 func (e *Endpoint) Send(event uv.Event) error {
 	e.mu.Lock()
@@ -296,7 +352,31 @@ func (e *Endpoint) Resize(g Geometry, apply func(Geometry) error) error {
 	e.syncState = 0
 	return e.commitReplies()
 }
-func (e *Endpoint) Flush(ctx context.Context) error { return e.input.Flush(ctx) }
+func (e *Endpoint) Flush(ctx context.Context) error {
+	err := e.input.Flush(ctx)
+	e.mu.Lock()
+	ended := e.inputEnded && !e.closed
+	e.mu.Unlock()
+	if ended {
+		return ErrInputEnded
+	}
+	return err
+}
+
+func (e *Endpoint) ID() string { return e.id }
+
+// EndInput ends the transport at EOF while keeping the final output readable.
+// Disposal is separate: the compositor presents and retires this endpoint first.
+func (e *Endpoint) EndInput() {
+	e.mu.Lock()
+	if !e.closed && !e.inputEnded {
+		e.inputEnded = true
+		e.syncState = 0
+		e.capturePublication()
+	}
+	e.mu.Unlock()
+	e.input.Close()
+}
 func (e *Endpoint) Close() {
 	e.mu.Lock()
 	if e.closed {
@@ -328,6 +408,11 @@ func (e *Endpoint) NextPublication() time.Time {
 func (e *Endpoint) SendMouse(event uv.MouseEvent, expectedEpoch uint64) (bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	// EOF settles a captured gesture without trying to write to a dead child.
+	// This lets its healthy successor be presented before the old state is disposed.
+	if e.inputEnded && !e.closed {
+		return false, nil
+	}
 	if err := e.check(); err != nil {
 		return false, err
 	}

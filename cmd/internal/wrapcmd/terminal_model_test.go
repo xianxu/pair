@@ -39,7 +39,7 @@ func TestTerminalModelConstructorReturnsEmptySnapshot(t *testing.T) {
 		if len(snapshot.Cells) != size.width*size.height {
 			t.Errorf("cell count = %d, want %d", len(snapshot.Cells), size.width*size.height)
 		}
-		if cell := snapshot.CellAt(0, 0); cell == nil || cell.Content != " " || cell.Width != 1 {
+		if cell := snapshot.CellAt(0, 0); cell == nil || cell.Content != "" || cell.Width != 1 {
 			t.Errorf("CellAt(0,0) = %#v, want x/vt's blank cell", cell)
 		}
 		for _, point := range [][2]int{{-1, 0}, {0, -1}, {size.width, 0}, {0, size.height}} {
@@ -282,7 +282,7 @@ func TestTerminalModelSnapshotCellsAreIndependent(t *testing.T) {
 	if got := second.CellAt(0, 0).Content; got != "A" {
 		t.Fatalf("mutating first snapshot changed model cell to %q", got)
 	}
-	if got := first.CellAt(1, 0).Content; got != " " {
+	if got := first.CellAt(1, 0).Content; got != "" {
 		t.Fatalf("later Feed changed first snapshot cell to %q", got)
 	}
 }
@@ -733,7 +733,7 @@ func TestTerminalModelSnapshotTracksActiveScreen(t *testing.T) {
 			if !alternate.AltScreen || alternate.CursorVisible {
 				t.Fatalf("alternate identity/visibility = (%v,%v), want (true,false)", alternate.AltScreen, alternate.CursorVisible)
 			}
-			if got := alternate.CellAt(0, 0).Content; got != " " {
+			if got := alternate.CellAt(0, 0).Content; got != "" {
 				t.Fatalf("new alternate screen retained primary cell %q", got)
 			}
 
@@ -1115,7 +1115,12 @@ func FuzzTerminalModelControlObserverChunkPartitions(f *testing.F) {
 func snapshotRow(snapshot terminalSnapshot, y int) string {
 	var row strings.Builder
 	for x := 0; x < snapshot.Width; x++ {
-		row.WriteString(snapshot.CellAt(x, y).Content)
+		cell := snapshot.CellAt(x, y)
+		if cell.Content == "" && cell.Width > 0 {
+			row.WriteByte(' ')
+		} else {
+			row.WriteString(cell.Content)
+		}
 	}
 	return row.String()
 }

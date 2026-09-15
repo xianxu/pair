@@ -242,7 +242,7 @@ func TestAnOperatorSwitchWaitsBehindAtMostTheRunningAttempt(t *testing.T) {
 	f := newFixture(t, 24, 100)
 	root := consoleThread(f, "c1")
 	second := ptychild.NewFakeChild(nil)
-	second.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	second.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return f.con.Deliver(ctx, "c2", batch) })
 	f.con.Attach("c2", "worker", second)
 	live := consoleThread(f, "c2")
 

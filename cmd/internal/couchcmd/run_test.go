@@ -358,6 +358,9 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
+		t.Fatal(err)
+	}
 	defer master.Close()
 	defer slave.Close()
 
@@ -406,6 +409,9 @@ func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
+		t.Fatal(err)
+	}
 	defer master.Close()
 	defer slave.Close()
 
@@ -442,6 +448,9 @@ func TestInteractiveLaunchResumesUniqueParkedRoot(t *testing.T) {
 	}
 	master, slave, err := pty.Open()
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
 		t.Fatal(err)
 	}
 	defer master.Close()
@@ -1162,6 +1171,9 @@ func TestConsoleRunnerDetectsARealPTY(t *testing.T) {
 	master, slave, err := pty.Open()
 	if err != nil {
 		t.Fatalf("open pty: %v", err)
+	}
+	if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
+		t.Fatal(err)
 	}
 	defer master.Close()
 	defer slave.Close()

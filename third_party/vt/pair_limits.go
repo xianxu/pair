@@ -93,6 +93,12 @@ func (e *Emulator) Usage() Usage {
 	for i := range e.scrs {
 		s := &e.scrs[i]
 		u.ScreenCells += s.Width() * s.Height()
+		u.RetainedBytes += cap(s.rows) * int(unsafe.Sizeof(RowMetadata{}))
+		for _, row := range s.rows {
+			if row.clipped != nil {
+				u.RetainedBytes += size + cellPayload(row.clipped) + cellAllowance(row.clipped)
+			}
+		}
 		u.RetainedBytes += cap(s.buf.Lines)*int(unsafe.Sizeof(uv.Line{})) + cap(s.buf.Touched)*int(unsafe.Sizeof((*uv.LineData)(nil))) + len(s.buf.Touched)*int(unsafe.Sizeof(uv.LineData{}))
 		for y := 0; y < s.Height(); y++ {
 			for x := 0; x < s.Width(); x++ {
@@ -106,6 +112,7 @@ func (e *Emulator) Usage() Usage {
 		}
 		if b := s.scrollback; b != nil {
 			u.HistoryCells += b.cells
+			u.RetainedBytes += cap(b.ids)*8 + cap(b.metadata)*int(unsafe.Sizeof(RowMetadata{}))
 			u.HistoryBytes += b.bytes
 			for _, line := range b.lines {
 				for j := range line {

@@ -27,12 +27,14 @@ type Frame struct {
 	Generation, GeometryEpoch uint64
 	Geometry                  Geometry
 	Cells                     []Cell
+	Rows                      []RowMetadata
 	Cursor                    Cursor
 	AltScreen                 bool
 }
 
 func (f Frame) Clone() Frame {
 	f.Cells = append([]Cell(nil), f.Cells...)
+	f.Rows = append([]RowMetadata(nil), f.Rows...)
 	for i := range f.Cells {
 		f.Cells[i] = cloneCell(f.Cells[i])
 	}
@@ -81,28 +83,48 @@ func (f Frame) Validate() error {
 	if f.Cursor.X < 0 || f.Cursor.X >= f.Geometry.Cols || f.Cursor.Y < 0 || f.Cursor.Y >= f.Geometry.Rows || f.Cursor.Shape < 0 || f.Cursor.Shape > 3 {
 		return fmt.Errorf("terminal: invalid frame cursor")
 	}
-	for i, c := range f.Cells {
-		if !plainText(c.Content) || len(c.Content) > MaxClusterBytes || !validLink(c) {
-			return fmt.Errorf("terminal: unsafe cell %d", i)
+	if len(f.Rows) != 0 && len(f.Rows) != f.Geometry.Rows {
+		return fmt.Errorf("terminal: row metadata count does not match geometry")
+	}
+	for y, m := range f.Rows {
+		if m.UsedColumns < 0 || m.UsedColumns > f.Geometry.Cols {
+			return fmt.Errorf("terminal: invalid row metadata %d", y)
 		}
-		if c.Width < 0 || c.Width > 2 {
-			return fmt.Errorf("terminal: unsupported cell width at %d", i)
+	}
+	for y := 0; y < f.Geometry.Rows; y++ {
+		row := f.Cells[y*f.Geometry.Cols : (y+1)*f.Geometry.Cols]
+		for x := range row {
+			if err := validateCell(row, x); err != nil {
+				return err
+			}
 		}
+	}
+
+	return nil
+}
+
+func validateCell(cells []Cell, i int) error {
+	c := cells[i]
+	if !plainText(c.Content) || len(c.Content) > MaxClusterBytes || !validLink(c) {
+		return fmt.Errorf("terminal: unsafe cell %d", i)
+	}
+	if c.Width < 0 || c.Width > 2 {
+		return fmt.Errorf("terminal: unsupported cell width at %d", i)
+	}
+	if c.Content != "" {
+		cluster, width := ansi.FirstGraphemeCluster(c.Content, ansi.GraphemeWidth)
+		if len(cluster) != len(c.Content) || width != c.Width {
+			return fmt.Errorf("terminal: content does not fit cell %d", i)
+		}
+	}
+	if c.Width == 0 {
+		// Zero cells are also the backend's ordinary blank representation.
 		if c.Content != "" {
-			cluster, width := ansi.FirstGraphemeCluster(c.Content, ansi.GraphemeWidth)
-			if len(cluster) != len(c.Content) || width != c.Width {
-				return fmt.Errorf("terminal: content does not fit cell %d", i)
-			}
+			return fmt.Errorf("terminal: content in continuation at %d", i)
 		}
-		if c.Width == 0 {
-			// Zero cells are also the backend's ordinary blank representation.
-			if c.Content != "" {
-				return fmt.Errorf("terminal: content in continuation at %d", i)
-			}
-		}
-		if c.Width == 2 && (i%f.Geometry.Cols == f.Geometry.Cols-1 || f.Cells[i+1].Width != 0 || f.Cells[i+1].Content != "") {
-			return fmt.Errorf("terminal: broken wide cell at %d", i)
-		}
+	}
+	if c.Width == 2 && (i == len(cells)-1 || cells[i+1].Width != 0 || cells[i+1].Content != "") {
+		return fmt.Errorf("terminal: broken wide cell at %d", i)
 	}
 	return nil
 }

@@ -201,7 +201,7 @@ func StyledRows(text string, cols, rows int) ([]Cell, error) {
 	return cells, nil
 }
 
-// Compose preserves the child's virtual geometry and appends one bottom row.
+// Compose preserves the child geometry with an optional single bottom row.
 func Compose(child Frame, host Geometry, bottom []Cell) (Frame, error) {
 	if err := child.Validate(); err != nil {
 		return Frame{}, err
@@ -209,11 +209,22 @@ func Compose(child Frame, host Geometry, bottom []Cell) (Frame, error) {
 	if err := host.Validate(); err != nil {
 		return Frame{}, err
 	}
-	if child.Geometry.Cols != host.Cols || child.Geometry.Rows+1 != host.Rows || len(bottom) != host.Cols {
+	chromeRows := 0
+	if len(bottom) > 0 {
+		chromeRows = 1
+	}
+	if child.Geometry.Cols != host.Cols || child.Geometry.Rows+chromeRows != host.Rows || (len(bottom) != 0 && len(bottom) != host.Cols) {
 		return Frame{}, fmt.Errorf("terminal: incompatible chrome geometry")
 	}
 	f := child
 	f.Geometry = host
+	f.Rows = make([]RowMetadata, host.Rows)
+	for y := 0; y < child.Geometry.Rows; y++ {
+		f.Rows[y] = child.rowMetadata(y)
+	}
+	if chromeRows == 1 {
+		f.Rows[host.Rows-1] = rowMetadata(bottom)
+	}
 	f.Cells = make([]Cell, len(child.Cells)+len(bottom))
 	for i, c := range child.Cells {
 		f.Cells[i] = cloneCell(c)

@@ -26,7 +26,7 @@ func pagingFixture(t *testing.T) (*consoleFixture, [3]couchcore.ThreadAddress) {
 	f := newFixture(t, 24, 100)
 	for _, id := range []string{"c2", "c3"} {
 		child := ptychild.NewFakeChild([]byte(id + " screen"))
-		child.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver(id, batch) })
+		child.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return f.con.Deliver(ctx, id, batch) })
 		f.con.Attach(id, id, child)
 	}
 

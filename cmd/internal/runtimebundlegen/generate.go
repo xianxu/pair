@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -75,7 +76,41 @@ func Generate(opts GenerateOptions) (manifestmodel.RuntimeManifest, error) {
 	}()
 	filesRoot := filepath.Join(stageRoot, "files")
 
+	compiledRoot, err := os.MkdirTemp(outParent, ".pair-terminfo-")
+	if err != nil {
+		return manifestmodel.RuntimeManifest{}, err
+	}
+	defer os.RemoveAll(compiledRoot)
+	compiler := exec.Command("tic", "-x", "-o", compiledRoot, filepath.Join(repoRoot, "terminfo", "pair-vt-256color.ti"))
+	if output, err := compiler.CombinedOutput(); err != nil {
+		return manifestmodel.RuntimeManifest{}, fmt.Errorf("compile terminal profile: %w: %s", err, output)
+	}
+	generated := map[string]string{}
+	if err := filepath.WalkDir(compiledRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(compiledRoot, path)
+		if err != nil {
+			return err
+		}
+		// ncurses accepts hex directory names on every supported host; normalize
+		// tic's platform-specific p/ versus70/ output for reproducible manifests.
+		if filepath.Base(rel) != "pair-vt-256color" {
+			return fmt.Errorf("unexpected compiled terminal entry %s", rel)
+		}
+		generated["terminfo/70/pair-vt-256color"] = path
+		return nil
+	}); err != nil {
+		return manifestmodel.RuntimeManifest{}, err
+	}
 	paths := map[string]bool{}
+	for logical := range generated {
+		paths[logical] = true
+	}
 	for _, p := range explicitAssetPaths {
 		paths[p] = true
 	}
@@ -115,6 +150,9 @@ func Generate(opts GenerateOptions) (manifestmodel.RuntimeManifest, error) {
 	manifest := manifestmodel.RuntimeManifest{Assets: make([]manifestmodel.RuntimeAsset, 0, len(ordered))}
 	for _, logical := range ordered {
 		src := filepath.Join(repoRoot, filepath.FromSlash(logical))
+		if compiled, ok := generated[logical]; ok {
+			src = compiled
+		}
 		info, err := os.Stat(src)
 		if err != nil {
 			return manifestmodel.RuntimeManifest{}, fmt.Errorf("asset %s: %w", logical, err)

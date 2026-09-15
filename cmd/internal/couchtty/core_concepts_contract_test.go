@@ -102,6 +102,15 @@ func TestCoreConceptsContract(t *testing.T) {
 	assertConceptInventory(t, rows)
 	for _, row := range rows {
 		row := row
+		// #255 supersedes the historical raw-terminal controller. Keep the
+		// original inventory identity while checking its current owner and path.
+		switch row.name {
+		case "`termcmd.terminalTab`":
+			row.paths = []string{"cmd/internal/termcmd/presentation.go"}
+		case "`termcmd.restoreTerminal`":
+			row.paths = []string{"cmd/internal/termcmd/run.go"}
+			row.symbols = []string{"termcmd.runShellOnHost"}
+		}
 		t.Run(row.kind+"/"+row.name, func(t *testing.T) {
 			// #151 supersedes #146's temporary flat-panel authority. Keep the
 			// historical row in the inventory, but invert its current contract:

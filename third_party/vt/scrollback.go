@@ -13,6 +13,9 @@ const DefaultScrollbackSize = 10000
 // Scrollback represents a scrollback buffer that stores lines scrolled off the screen.
 type Scrollback struct {
 	lines                            []uv.Line
+	ids                              []uint64
+	metadata                         []RowMetadata
+	nextID, clearEpoch               uint64
 	maxLines                         int
 	maxCells, maxBytes, cells, bytes int
 }
@@ -46,9 +49,28 @@ func (s *Scrollback) Push(line uv.Line) {
 		}
 	}
 
-	// Clone the line content up to and including the last non-empty cell
-	cloned := slices.Clone(line[:lastNonEmpty+1])
+	s.push(line[:lastNonEmpty+1], RowMetadata{UsedColumns: lastNonEmpty + 1})
+}
 
+func (s *Scrollback) push(line uv.Line, meta RowMetadata) {
+	if s == nil {
+		return
+	}
+	id := s.nextID
+	s.nextID++
+	if s.maxLines <= 0 {
+		return
+	}
+	// Keep painted backgrounds/links as well as text; unprinted default padding
+	// does not consume history cells. A wide cell retains its continuation slot.
+	end := meta.UsedColumns
+	for x, c := range line {
+		if !c.Style.Equal(&uv.Style{}) || c.Link != (uv.Link{}) {
+			end = max(end, x+max(1, c.Width))
+		}
+	}
+	end = min(end, len(line))
+	cloned := slices.Clone(line[:end])
 	nbytes := lineBytes(cloned)
 	if (s.maxCells > 0 && len(cloned) > s.maxCells) || (s.maxBytes > 0 && nbytes > s.maxBytes) {
 		return
@@ -57,6 +79,8 @@ func (s *Scrollback) Push(line uv.Line) {
 		s.evict()
 	}
 	s.lines = append(s.lines, cloned)
+	s.ids = append(s.ids, id)
+	s.metadata = append(s.metadata, meta)
 	s.cells += len(cloned)
 	s.bytes += nbytes
 }
@@ -127,7 +151,10 @@ func (s *Scrollback) Clear() {
 	if s == nil {
 		return
 	}
+	s.clearEpoch++
 	clear(s.lines)
+	s.ids = s.ids[:0]
+	s.metadata = s.metadata[:0]
 	s.lines = s.lines[:0]
 	s.cells = 0
 	s.bytes = 0
@@ -155,6 +182,8 @@ func (s *Scrollback) evict() {
 	s.cells -= len(s.lines[0])
 	s.bytes -= lineBytes(s.lines[0])
 	s.lines = slices.Delete(s.lines, 0, 1)
+	s.ids = slices.Delete(s.ids, 0, 1)
+	s.metadata = slices.Delete(s.metadata, 0, 1)
 }
 func (s *Scrollback) setLimits(lines, cells, bytes int) {
 	s.maxLines = lines

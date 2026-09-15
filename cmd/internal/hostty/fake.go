@@ -1,6 +1,7 @@
 package hostty
 
 import (
+	"context"
 	"os"
 	"strings"
 	"sync"
@@ -41,6 +42,9 @@ func NewFakeHost(size ptychild.Size) *FakeHost {
 func (h *FakeHost) Write(p []byte) (int, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if h.closed {
+		return 0, os.ErrClosed
+	}
 	n, err := h.written.Write(p)
 	copy := append([]byte(nil), p...)
 	select {
@@ -159,4 +163,11 @@ func (h *FakeHost) Closed() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.closed
+}
+
+func (h *FakeHost) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return h.Write(p)
 }

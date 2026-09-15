@@ -442,288 +442,44 @@ Both Return-adaptation configurations preserve partial paste and chord framing,
 and pasted shortcuts remain literal. Couch handles its three navigation keys
 outside paste and defers lifecycle chords to its switcher; see [Couch](couch.md).
 
-**`pair term` stream hygiene (#127).** The terminal wrapper owns two filters, on
-opposite directions, and the asymmetry is deliberate:
+**Shared terminal abstraction (#255).** Couch and `pair term` use the same
+`cmd/internal/terminal.Endpoint` for each child's UTF-8/control parser, screen,
+normal history, modes, capability replies and ordered input. Product code chooses
+shortcuts and effects; it never replays raw child output to reconstruct a screen.
+`terminal.Presenter` serializes typed publications, panels, chrome, input admission
+and parent mode changes. See [Terminal ownership](terminal.md).
 
-- *Input.* `pumpStdin` arbitrates chords and SGR mouse events out of the byte
-  stream and forwards the rest to the child. Mouse events terminate with `M`
-  (press) or `m` (release); both are complete — a shared `sgrMouseTerminators`
-  constant drives every site that frames one (run.go, `sgrMouseSize`). Treating
-  the release as an unfinished press parked it, and then every following
-  keystroke, in the `held` buffer: a dead keyboard plus a child stuck in an
-  unmatched mouse drag (nvim: stuck in visual mode).
-  A chord or mouse *prefix* — every legacy Alt chord begins with ESC — is
-  held for one `workbenchshortcut.EscapeAmbiguity` (35 ms) and then forwarded
-  as typed. That constant is the one deadline all four framers in the tree
-  read (couch's input and panel framers, the rename decoder, and this main
-  loop); the chord table owns it because the chord table is what makes a lone
-  ESC ambiguous. Whoever owns the pending bytes owns the pump's single
-  `EscapeTimer`: a rename session arms it for a lone pending ESC (expiry
-  cancels the rename), the plain path for any held prefix (expiry forwards
-  it). Before #234 the main path had no deadline at all: a bare ESC sat in
-  `held` until the next keystroke, so nvim in the right pane needed two
-  presses to leave insert mode, and `ESC`,`j` arrived as Alt+j. The residual
-  — `ESC`,`j` typed inside 35 ms still decodes as a chord — is what #227's
-  alt-screen passthrough closes.
-- *Chord passthrough under a full-screen app (#227).* `pair term` is the
-  right terminal's only application from zellij's view, so it intercepts the
-  workbench chords. When the active tab's child is on the alternate screen
-  buffer — nvim, `less`, `htop`: `?1049h`, read through `RepaintModes()`'s
-  #196 tri-state, so the unknown case intercepts — a role-scoped chord is the
-  app's, not pair term's. The pump forwards its raw bytes to the child instead
-  of dispatching it, gated by `workbenchshortcut.RightTerminalChordPassesThrough`:
-  true for the role-scoped chords (tab management + the swallowed ones) EXCEPT
-  `M-k`, which is the only keyboard bridge back to the left stack and always
-  fires. Globals (`M-n` restart, `M-d` detach, and the from-anywhere right-terminal
-  set `M-S-←`/`M-S-→`/`M-S-t`) are workbench-wide and fire in every state. The
-  from-anywhere set is delivered to the right terminal AS the global chords
-  (`TabChordFor` → `ChordAltShiftLeft/Right/T`), not the role-scoped
-  `Alt+←/→`: #227 passes a role-scoped chord THROUGH to a full-screen child, so
-  delivering `Alt+←` ate the tab switch (#243). A global is never passed
-  through, and `handleTerminalChord` acts on it (prev/next/new tab). A test asserts
-  `TabChordFor` returns a chord for which `IsGlobalChord` holds, so this class
-  cannot regress. `Decide` is
-  untouched — the gate is a pure predicate over the chord table plus the one
-  `RepaintModes()` read — because the tab chords dispatch through
-  `handleTerminalChord`, bypassing `Decide`, so the pump is the one place all
-  paths funnel through. Forwarding the raw bytes is also what closes #234's
-  inside-deadline residual: `ESC`,`j` decodes as `ChordAltJ` whose raw bytes
-  `\x1bj` reach nvim as ESC then j. At a shell (no alt screen) every chord is
-  intercepted as before.
-- *Takeover: the pane's mouse modes follow the active child (#240).* `pair
-  term` is the pane's only application from zellij's point of view, so the
-  active child's mouse DECSETs set the PANE's mode; a tab switch used to
-  compose `HomeAndClear` + the incoming child's replay and assert nothing
-  else, so a shell tab following an nvim tab kept nvim's `?1002h` in zellij's
-  view, zellij forwarded every click to the shell, and selection was dead in
-  that tab. `applyTakeover` now reads the modes `hostScan` holds (it is fed
-  exactly what the pane was shown) before the reset and prefixes the
-  composition with `mouseReconcile(held, want)`: one write per axis, tracking
-  being ONE slot (`off|1000|1002|1003`, as xterm and zellij hold it — a
-  DECRST of any turns tracking off) and SGR encoding a bit, both modelled in
-  `ptychild.Screen.MouseModes()`. `hostty.PrivateModes` is the shared
-  formatter; the policy stays in `termcmd` because couch asserts its OWN
-  mouse mode on its host and must not be mirrored (#172). The prefix is fed
-  to `hostScan` with the rest, which is what keeps the next takeover's read
-  correct. `probes/mousemodesmoke` shows the bytes on both directions of the
-  switch.
-- *Output, replay only.* `redrawTab` repaints a tab from its stored output. That
-  buffer still holds the app's **capability queries** (DA1, DECRQM, Kitty flags,
-  DSR, OSC colour), so replaying re-ASKED the host terminal and its answers were
-  typed into whichever tab was then active. `ptychild.StripQueries`
-  (`replay.go`) removes them from the replay. The live path is untouched —
-  `copyActiveOutput` writes each chunk to stdout separately — so an app's first
-  real query still reaches the terminal and still gets its answer.
+`termcmd.terminalTab` and `terminalMux` live in `presentation.go`; tab identity is
+independent of list position. Selecting a tab completes its presentation before
+subsequent input can reach it. Hidden output updates its endpoint and answers its
+own queries, without repainting the active pane. Full-screen shortcut policy
+reads `Endpoint.Modes`; global workbench actions retain their declared behavior.
+The shared decoder preserves complete semantic keys across read boundaries,
+resolves only a lone Escape on its ambiguity deadline, and keeps pasted shortcuts
+literal. An incomplete control frame is never forwarded as an arbitrary suffix.
 
-**The terminal plumbing is shared with `couch` (#146).** `pair term` is a
-switcher — pty-backed tabs, a bounded replay window, redraw-from-snapshot on
-switch, resize propagation — and so is `couch`. Rather than a second copy, the
-mechanism sits in two packages that both drive:
+`ptychild.Child` owns the process/PTY, endpoint, bounded diagnostic capture and
+bounded acknowledged output delivery. `Exited` follows final output delivery;
+input EOF is separately observable. `hostty.OSHost` acquires nonblocking terminal
+IO before readers start and restores descriptor flags after joined teardown.
+`runShellOnHost` joins input and resize loops, releases the presenter, restores raw
+mode and closes the host. Helpers never inherit the pane's terminal descriptors;
+errors appear as sanitized typed diagnostics in the same presentation path.
 
-- **`cmd/internal/ptychild`** — the CHILD half. `Child` (a process on a pty plus
-  its read pump), `Ring` (the bounded replay window, 128 KiB), `StripQueries`
-  (the deny-list above), `Screen` (one scanner over the child's output), and
-  `NewFakeChild` (a child with no process, for switching-policy tests).
-- **`cmd/internal/hostty`** — the HOST half. The `Host` seam over the operator's
-  terminal (size, raw mode, coalesced resize notifications), `OSHost`,
-  `FakeHost`, and the terminal-control constants. `\x1b[r` lives here and only
-  here; it was about to exist in two packages.
+Couch reserves one chrome row. Pair's terminal strip reserves one when geometry
+permits, and no row at a one-row size. `ResizeLayout` changes that reservation and
+acknowledged child geometry together. Child erases, margins, synchronized updates
+and alternate buffers affect child state; chrome is composed from owned cells.
+Normal history is serialized from typed rows, preserving soft-wrap metadata and
+intentional spaces. Switching, clear and history eviction can rebuild the bounded
+parent history; no resize nudge or raw replay is involved.
 
-  Since `#209` it also owns **`Repaint`** — how a switch hands the screen to a
-  child. The rule it encodes: **the replay is the immediate paint, the child is
-  the authority.** A switch used to be clear-then-replay, which is correct only
-  if the bounded ring happens to still hold a full frame — and four ways that
-  fails are reproduced in `ptychild/replay_insufficiency_test.go`. So a switch
-  now composes, then asks the child to repaint (a rows-only SIGWINCH nudge;
-  zellij 0.44.3 has no repaint action, and `cmd/probes/zellijrepaint` confirms
-  against the real binary that it re-renders its pane from its own buffer).
-
-  **The nudge has a SETTLE, and it is the difference between working and usually
-  working.** `ptychild.RepaintSettle` (20 ms) is how long the shrink stands
-  before the restore erases it. Standard signals do not queue: issue both
-  `TIOCSWINSZ` ioctls back-to-back and zellij can take one `SIGWINCH`, read a
-  winsize already restored, and re-render nothing. Measured, not reasoned —
-  `cmd/probes/zellijrepaint` with `PAIR_PROBE_SETTLE` puts the no-settle
-  sequence at **6 of 12 runs repainted** and 1 ms at 5 of 5. The probe READS the
-  production constant rather than restating it, which is why it lives under
-  `cmd/probes/` — a probe that hard-codes the sequence it verifies measures
-  itself, and this one defaulted to the condemned sequence for exactly one
-  commit.
-
-  **The settle is visible, and that is accepted.** zellij really renders the
-  one-row-shorter frame while the shrink stands. So on every switch the screen
-  shifts up a line and falls back when the restore lands, as the operator
-  observed on the live stack on 2026-09-10 (`pair#221` Log). The shift is the
-  mechanism working, not a failure of it, and the operator accepted it as-is.
-  Two directions are unmeasured if it ever matters. One is a `SIGWINCH` to the
-  child's foreground process group with no size change, which helps only if
-  zellij repaints on an unchanged winsize: the probe can answer that. The other
-  is bracketing shrink-to-restore in synchronized output (DEC `?2026`), which
-  depends on how zellij's own `?2026` brackets nest inside it. Shrinking
-  columns instead is out, because it reflows wrapped lines.
-
-  **`Child` owns its geometry, and that is what makes the nudge safe rather than
-  a rule someone has to keep.** `RequestRepaint` takes NO size: it reads what to
-  restore under the same lock it holds for the whole shrink-settle-restore, so a
-  resize from any goroutine either precedes the nudge or waits and applies
-  after, and the child ends at the newest size either way. The first version
-  took the size and documented "callers must stay on the goroutine that
-  serializes their other resizes" — couch broke that immediately, because
-  `switchTo` is reached from the operationQueue goroutine as well as the Run
-  loop, and that path is the operator's primary switch gesture. A doc comment is
-  not a mechanism. Being lock-serialized also lets the settle run off the
-  caller's goroutine, so a switch costs the event loop nothing and a second
-  request during one in flight is dropped.
-
-  **The repaint request rides WITH the takeover**, in `applyTakeover` and
-  `takeOverScreen` rather than at their call sites. Splitting them let
-  `removeTab` hand the screen to a surviving tab with no way to recover a frame
-  the ring no longer held — the issue's own symptom, reached by the one takeover
-  site that forgot. The four sites had been swept for *intent* and not for the
-  *request*: same enumeration, one lens applied.
-
-  **What `Repaint` asserts is currently NOTHING, and that is a withdrawal rather
-  than a simplification.** The composition asserted the child's buffer before
-  the clear — right in principle, because `?1049h`/`?1049l` switch buffers and a
-  paint belongs to whichever buffer was active when it was written. But the
-  `1049` pair also SAVES and RESTORES the cursor, and the save slot is shared
-  with `DECSC`, which is what the tab strip paints with (`#199`); emitting
-  `?1049l` on every switch consumed the strip's save/restore pairing and landed
-  typed characters mid-screen. So mode 4 is unfixed, the candidate is
-  `?1047h`/`?1047l` (buffer switch WITHOUT the cursor half), and it gets a probe
-  before it ships rather than a second guess.
-
-  Two rules survive the withdrawal and are what the `?1047` attempt must honour:
-  a mode is asserted only when it was OBSERVED, since absence of evidence would
-  drop a child out of an alt screen it is really in (`#196`'s shape —
-  `Screen.AltScreenObserved` sits beside `mouseObserved` for the same reason);
-  and cursor-save is not asserted at all, because `\x1b7` saves the CURRENT
-  cursor and no sequence injects a previously-saved one. Mouse is left to the
-  authorities that already own it rather than adding a third writer.
-
-  `RepaintFor(child, replay)` is the door both consoles use, and the reason is a
-  testability one: with nothing asserted, the child's modes have no observable
-  effect, so a mode read done at each consumer could not be distinguished from
-  the zero value by any test there. One read, pinned once, in the package that
-  owns the composition.
-
-  **A takeover ALWAYS BLANKS**, and the version that did not is worth recording
-  because its argument was persuasive enough to ship twice. It emitted nothing
-  for an empty replay, reasoning that a stale frame beats a blank one while the
-  child is asked to repaint. The hidden premise is that the stale frame belongs
-  to the CHILD BEING REPAINTED — and none of the five takeover sites is that
-  case: couch's switch shows the previous thread or the panel, `pair term`'s
-  shows the previous tab, and the three "deliberate clear" sites were carve-outs
-  invented to escape the rule rather than instances of it. Starting a thread
-  from the panel left the PANEL's body on screen under the new thread's label.
-  So the branch went, and the intent enum that existed to carve exceptions out
-  of it went with it — an intent parameter that changes no bytes is a trap.
-  `clearTab` survives as a name for a call site, not as a second behaviour.
-  What answers "the ring could not tell us what to draw" is asking the child.
-
-  The guarantee differs by what the child IS, deliberately: zellij repaints its
-  whole pane, a foreground TUI repaints, and a bare shell has no screen model at
-  all, so a frame that scrolled out of the ring exists nowhere and mode 1 is
-  best-effort there. Same mechanism, different guarantee, said out loud.
-
-  Since `#199` it also owns **`Reservation`** — the row-reservation primitive:
-  `Reservation{Rows, Edge}` answering `ChildRows` / `Reserve` / `Release` /
-  `Paint`. This is the same argument as `\x1b[r`, one level up. Reserving a row
-  is host-half *mechanism* with two consumers — couch holds the host's bottom
-  row for its actor strip, and `pair term` holds its pane's bottom row for a tab
-  strip — while *what the row says* stays with each consumer as policy
-  (`couchtty.RenderStatusRow` renders actors; `termcmd` renders tabs). It is a
-  RESERVATION rather than compositing: the scrolling region stops one row short,
-  so a child scrolling at the bottom of its own screen cannot walk onto the row,
-  and is never told — from its side the terminal is simply one row shorter.
-
-  **`Edge` is asymmetric, and that is why it is named rather than assumed.**
-  `EdgeBottom` is the only implemented edge and the zero value. `EdgeTop` is
-  representable and refused: with the region at 2..N the child still addresses
-  absolute rows, so its row 1 *is* the strip, and any absolute positioning it
-  does lands on top. Origin mode (DECOM) does not rescue it — measured in
-  `#223`: DECSTBM parameters stay absolute under DECOM, so a full-screen child's
-  own region includes the strip. Real nvim, after a few half-page scrolls and a
-  jump, left its own buffer line on the strip row (`probes/zellijwrapmargin`,
-  `top:nvim`, one screen dump at the end). A top edge would need the child's
-  DECSTBM rewritten in flight.
-  `NewReservation` refuses it and the methods fail closed if a caller bypasses
-  the constructor — emitting a region computed for an unimplemented edge is a
-  silently corrupted screen, whereas drawing nothing costs only the strip.
-
-  That `pair term` can reserve at all is **measured, not assumed**: couch writes
-  straight to the host tty, but a pane's writes pass through zellij's emulator.
-  zellij honors DECSTBM from a pane process — 200 lines scrolled inside the
-  region while the reserved row held its paint (`#199` finding 5).
-
-  **It needs zellij ≥ 0.45.0, and the reason is a finding the first probe could
-  not make.** `#199`'s probe printed only SHORT lines. On zellij 0.44.x a line
-  that WRAPS at the region's bottom margin moves the cursor onto the reserved
-  row instead of scrolling the region — `line_wrap()` never consulted the scroll
-  region — so any long output after the screen fills overprints the strip and
-  leaves the shell typing into it (`#223`). A newline at the same spot was always
-  correct, which is why it hid for a day. Fixed upstream in zellij 0.45.0
-  (zellij#5357); `probes/zellijwrapmargin` measures it and runs in
-  `make test-smoke`. To reproduce through pair itself, run `pair term` on
-  zellij 0.44.x at any commit: the fix changed zellij, not the strip.
-
-  **The strip stays at the BOTTOM**, where the child's rows and the pane's rows
-  are one coordinate system. Reserving the top row instead was measured and
-  fails worse — see the `Edge` asymmetry above.
-
-  **And two reservations NEST**, which is the arrangement couch actually
-  produces: couch holds the HOST terminal's bottom row, `pair term` holds its
-  PANE's, and they compose because each is computed from its own `Host.Size()`
-  rather than from a number the two would have to agree on. zellij is what makes
-  them independent — it interprets the pane's DECSTBM into its own grid, so the
-  inner region never reaches the physical terminal. Measured, again, rather than
-  argued: `cmd/probes/couchnestedrows` (`make test-couch-nested-rows`) reserves
-  a row on a real 40-row pty, runs a real zellij in the 39 that remain, and runs
-  a real `pair term` in the pane — the shell reports `38 100`, a 400-line flood
-  reaches neither row, and neither row eats the other. It also carries the one
-  acceptance step no unit test reaches: a flood that emits ESCAPES (an SGR pair
-  per line) with tab switches against it, which is the only way to request a
-  paint while the child's stream is genuinely mid-sequence. `yes` and `seq` emit
-  none, which is why two earlier attempts at that step exercised nothing.
-
-**One writer, one gate — in `termcmd` as in `couch` (`#199` M2).** Every byte
-reaching the right pane passes through `terminalMux.copyActiveOutput`: child
-output, redraws, paints, diagnostics. A second writer is how a paint lands
-inside a child's escape sequence, since a pty read boundary falls wherever the
-kernel puts it. The gate is a `ptychild.Screen` fed **child bytes only** and
-consulted before any console-originated write; a write issued mid-sequence is
-deferred. A **paint** goes into a single **coalescing** slot — a later paint
-replaces an earlier one, correct because the row renders current state and
-queueing would draw a
-burst of stale rows at the next boundary — and flushed when the stream reaches
-a boundary. A wholesale takeover (`redrawTab`) resets the scan and **drops** the
-owed paint: the screen it was owed against is gone. That third rule is couch's
-(`couchtty/console.go:992-995`) and is easy to miss when restating the first two.
-
-Two consequences worth stating because neither is local to the writer loop.
-`enqueue` posts and does **not** wait: `runShell` redraws (via `newTab`) before
-it starts the loop, so a synchronous post deadlocks `pair term` on startup —
-ordering comes from the channel, which is all the envelope needs. And
-`termcmd.OSRuntime` gives a subprocess **none** of the pane's descriptors —
-including **stdin**, which is in raw mode and carries the operator's keystrokes,
-and which an earlier version handed over while the code and this paragraph both
-said "neither" and counted only two —
-enforced at the Runtime rather than at call sites: that Runtime is handed to
-`layoutcmd` and `draftroute` too, so a call-site rule covers neither their
-sites nor the next one added. `zellij action` output on a full-screen pty lands
-wherever the child's cursor is, outside the loop and outside the gate — and a
-FAILING action did the same on stderr, once per wheel tick.
-
-Not handing over the descriptors is **not** the same as discarding the output,
-and the difference is worth stating because the first version got it wrong.
-Sending both to `io.Discard` made a failing action *completely silent*, since
-the wheel-tick callers drop the error too — silence is not an improvement on
-noise. The subprocess's stderr is captured and folded into the returned error;
-`terminalMux.reportError` then puts it on the pane **through the writer loop**,
-so it is gated like any other write. Which means external bytes DO reach the
-pane, by a controlled path — and therefore go through `rowtext.SanitizeAndFit`
-at that egress, the single point every diagnostic passes, rather than at each
-producer. Filtering one producer only moves the hazard to the next.
+Mouse tracking has one parent owner. Couch requests motion reporting and filters
+semantic events by the selected child's mode; Pair requests the selected child's
+tracking policy. Gesture ownership survives crossing chrome and emits at most one
+synthetic release when selection or geometry revokes a drag. Parent input reports
+are decoded once and encoded for the intended child; host capability replies are
+not typed into whichever tab happens to be active.
 
 - **`cmd/internal/rowtext`** — `Sanitize` / `Fit` / `SanitizeAndFit`: the one
   implementation of "make untrusted text safe for a row". Both reserved-row
@@ -1501,8 +1257,8 @@ Tracked in workshop issues. v2 candidates include a real nvim plugin (for users 
 
 ### Shared terminal abstraction (#255)
 
-The M2 library establishes explicit per-child terminal state, ordered input/replies,
-immutable frames and physical-parent presentation ownership. See
+The shared implementation provides per-child terminal state, ordered input/replies,
+immutable publications and physical-parent presentation ownership. See
 [Terminal ownership](terminal.md) for boundaries, profile and verification. Couch
-and Pair production adoption remains the M3 step; library qualification alone
-does not establish the disappearance of the live display or mouse symptoms.
+and Pair production use these adapters. Composed live verification and operator
+smoke acceptance remain necessary to establish disappearance of the reported symptoms.

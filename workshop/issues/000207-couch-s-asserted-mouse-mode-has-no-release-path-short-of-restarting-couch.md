@@ -336,3 +336,7 @@ continue because its automatic measurement did not honor the corrected root.
 This includes historical issue work and may exclude this API subagent segment;
 it must not be interpreted as a measurement of M1 alone or compared to its
 M1-only estimate. No judgment hours were invented.
+
+### 2026-09-15 — #255 M3 integration evidence
+
+The shared presenter now owns parent tracking and gesture cancellation. Couch requests motion reports and filters by endpoint mode; it does not repeatedly assert click-only mode. Continuous-motion, mode-transition, cancellation and failed-admission tests replace scanner-belief assertions. End-to-end sustained/operator highlight acceptance remains pending M4/smoke; this issue is not closed by the refactor alone.

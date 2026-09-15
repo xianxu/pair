@@ -45,7 +45,7 @@ func TestSwitcherWarmReattachWithoutNativeBindingReachesTerminal(t *testing.T) {
 	console.Attach("initial-console-pane", "initial", initial)
 	t.Cleanup(func() { initial.Exit(0) })
 	rt.runner.AfterBlockedStart = func(id string) {
-		rt.runner.Terminal(id).SetSink(func(batch ptychild.OutputBatch) { console.Deliver(id, batch) })
+		rt.runner.Terminal(id).SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return console.Deliver(ctx, id, batch) })
 	}
 	wireResolver(console, c)
 	rows, err := console.ActionableProvider()(context.Background(), nil)

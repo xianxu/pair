@@ -80,3 +80,10 @@ site).
   symptom; this is the general "pane mirrors the active child's full mode
   set" work it deliberately scoped out. See also #200's "one arbitration,
   two consumers" consolidation and #207 (couch's own mouse assertion).
+
+
+## Revisions
+
+### 2026-09-15 — #255 M3 integration evidence
+
+Pair term now uses the same endpoint/presenter as Couch for selected parent modes, panels, tab switch/removal, resize and release. Child queries/input encoding stay origin-bound. Production raw takeover scanner/replay authority is removed. Full term normal/race tests pass; native composed conformance and operator smoke remain pending.

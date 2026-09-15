@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/x/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -50,20 +50,21 @@ func TestConsoleRunHierarchicalMenuControls(t *testing.T) {
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte{'\t'})
 	waitUpTo(t, 250*time.Millisecond, "thread action frame", func() bool {
-		screen := lastConsoleScreen(f.host.Written())
+		screen := f.screenText()
 		return strings.Contains(screen, "threads › root › actions") && strings.Contains(screen, "rename")
 	})
-	if screen := lastConsoleScreen(f.host.Written()); strings.Contains(screen, "/repo") {
+	if screen := f.screenText(); strings.Contains(screen, "/repo") {
 		t.Fatalf("action surface retained the root body: %q", f.host.Written())
 	}
 
 	f.host.Reset()
-	_, _ = f.stdin.Write([]byte("\x1b\x1b"))
+	_, _ = f.stdin.Write([]byte("\x1b"))
+	waitFor(t, "back to root", func() bool { return f.con.menuSnapshot().CurrentFrame().Kind == MenuFrameRoot })
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "start form", func() bool {
-		return strings.Contains(f.host.Written(), "start thread") && strings.Contains(f.host.Written(), "path")
+		return strings.Contains(f.screenText(), "start thread") && strings.Contains(f.screenText(), "path")
 	})
-	if screen := lastConsoleScreen(f.host.Written()); strings.Contains(screen, "threads") || strings.Contains(screen, "root") {
+	if screen := f.screenText(); strings.Contains(screen, "threads") || strings.Contains(screen, "root") {
 		t.Fatalf("global start rendered a false parent: %q", f.host.Written())
 	}
 }
@@ -78,18 +79,15 @@ func TestConsoleRunStartPathOwnsCursorOnHighlightedPathRow(t *testing.T) {
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "start path cursor", func() bool {
-		written := f.host.Written()
-		return strings.Contains(written, "▸ path") && strings.Contains(written, hostty.MoveTo(3, 9)+hostty.ShowCursor)
+		f.screen.mu.Lock()
+		defer f.screen.mu.Unlock()
+		pos := f.screen.em.CursorPosition()
+		return pos.X == 8 && pos.Y == 2 && f.screen.em.Mode(ansi.DECMode(25)) == ansi.ModeSet
 	})
-	written := f.host.Written()
-	hide := strings.Index(written, "\x1b[?25l")
-	clear := strings.Index(written, hostty.HomeAndClear)
-	if hide < 0 || clear < 0 || hide > clear {
-		t.Fatalf("switcher did not hide inherited cursor before takeover: %q", written)
+	if !strings.Contains(f.screenText(), "▸ path") {
+		t.Fatalf("cursor has no path form: %q", f.screenText())
 	}
-	if strings.Contains(written, hostty.MoveTo(1, 1)+hostty.ShowCursor) {
-		t.Fatalf("cursor landed on start title instead of path row: %q", written)
-	}
+
 }
 
 func TestConsoleRunStartPathCompletionNavigatesFakeFilesystem(t *testing.T) {
@@ -106,16 +104,16 @@ func TestConsoleRunStartPathCompletionNavigatesFakeFilesystem(t *testing.T) {
 
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
-		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
+		return strings.Contains(f.screenText(), "threads")
 	})
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "start form", func() bool {
-		return strings.Contains(lastConsoleScreen(f.host.Written()), "start thread")
+		return strings.Contains(f.screenText(), "start thread")
 	})
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("s\t"))
 	waitUpTo(t, 250*time.Millisecond, "directory candidates", func() bool {
-		screen := lastConsoleScreen(f.host.Written())
+		screen := f.screenText()
 		return strings.Contains(screen, "sample/") && strings.Contains(screen, "src/") && !strings.Contains(screen, "notes.txt")
 	})
 	select {
@@ -136,16 +134,17 @@ func TestConsoleRunMenuOwnsInputAndBackgroundPainting(t *testing.T) {
 	f := liveMenuFixture(t)
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
-		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
+		return strings.Contains(f.screenText(), "threads")
 	})
 	f.host.Reset()
 	before := len(f.child.Writes())
 
 	f.child.Feed([]byte("background output must stay hidden"))
 	f.child.Feed([]byte("\x1b[2J"))
-	waitUpTo(t, 250*time.Millisecond, "background output drain", func() bool {
-		return f.con.PaneRowDirty("c1")
-	})
+	if err := f.con.presenter.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
 	// Row 1 is the BREADCRUMB, which is nobody. These reports were chosen as
 	// bytes couch swallows rather than forwards, and that is still what they
 	// test -- but since pair#172 a click on an ACTOR row switches, so aiming
@@ -168,9 +167,11 @@ func TestConsoleRunRootEscapeClearsFilterThenReplaysActor(t *testing.T) {
 	f := liveMenuFixture(t)
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
-		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
+		return strings.Contains(f.screenText(), "threads")
 	})
-	_, _ = f.stdin.Write([]byte("zz\x1b"))
+	_, _ = f.stdin.Write([]byte("zz"))
+	waitFor(t, "root filter text", func() bool { return f.con.menuSnapshot().CurrentFrame().Filter == "zz" })
+	_, _ = f.stdin.Write([]byte("\x1b"))
 	waitUpTo(t, 250*time.Millisecond, "root filter clear", func() bool {
 		state := f.con.menuSnapshot()
 		f.con.mu.Lock()
@@ -186,16 +187,16 @@ func TestConsoleRunRootEscapeClearsFilterThenReplaysActor(t *testing.T) {
 		f.con.mu.Lock()
 		focus := f.con.focus
 		f.con.mu.Unlock()
-		return !focus.IsPanel() && strings.Contains(f.host.Written(), "progress while switcher was open")
+		return !focus.IsPanel() && strings.Contains(f.screenText(), "progress while switcher was open")
 	})
-	if !strings.Contains(f.host.Written(), hostty.HomeAndClear) {
-		t.Fatal("return from switcher skipped clear-and-replay")
+	if f.con.presenter.View().Admitted != f.child.Endpoint().ID() {
+		t.Fatal("returned actor was not admitted")
 	}
 }
 
 func lastConsoleScreen(written string) string {
-	if index := strings.LastIndex(written, hostty.HomeAndClear); index >= 0 {
-		return written[index+len(hostty.HomeAndClear):]
+	if index := strings.LastIndex(written, "\x1b[2J"); index >= 0 {
+		return written[index+len("\x1b[2J"):]
 	}
 	return written
 }
@@ -210,12 +211,12 @@ func TestConsoleRunHorizontalArrowsNavigateSingleSurfaceHierarchy(t *testing.T) 
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("\x1b[C"))
 	waitUpTo(t, 250*time.Millisecond, "Right to actions", func() bool {
-		return strings.Contains(f.host.Written(), "threads › root › actions")
+		return strings.Contains(f.screenText(), "threads › root › actions")
 	})
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("\x1b[D"))
 	waitUpTo(t, 250*time.Millisecond, "Left to root", func() bool {
-		return strings.Contains(f.host.Written(), "root") && !strings.Contains(f.host.Written(), "actions")
+		return strings.Contains(f.screenText(), "root") && !strings.Contains(f.screenText(), "actions")
 	})
 
 	f.host.Reset()
@@ -223,7 +224,7 @@ func TestConsoleRunHorizontalArrowsNavigateSingleSurfaceHierarchy(t *testing.T) 
 	// the top before descending into its confirmation.
 	_, _ = f.stdin.Write([]byte("\x1bOC\x1b[B\x1b[B\x1bOC"))
 	waitUpTo(t, 250*time.Millisecond, "SS3 Right to park confirmation", func() bool {
-		return strings.Contains(f.host.Written(), "threads › root › park") && strings.Contains(f.host.Written(), "cancel")
+		return strings.Contains(f.screenText(), "threads › root › park") && strings.Contains(f.screenText(), "cancel")
 	})
 }
 
@@ -235,7 +236,7 @@ func TestConsoleRunMenuAltXOnThePanelOpensLeaveConfirmation(t *testing.T) {
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("\x00\x1bx"))
 	waitUpTo(t, 250*time.Millisecond, "leave confirmation", func() bool {
-		screen := lastConsoleScreen(f.host.Written())
+		screen := f.screenText()
 		return strings.Contains(screen, "threads › leave couch") && strings.Contains(screen, "cancel") &&
 			// The destructive whole-couch action names its cost where the
 			// operator actually reads it -- on the item, since the frame title
@@ -280,14 +281,14 @@ func TestConsoleRunPaintsAndAnimatesProgressWhileOperationBlocks(t *testing.T) {
 	f := liveMenuFixture(t)
 	started := make(chan string, 1)
 	f.con.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
-		started <- lastConsoleScreen(f.host.Written())
+		started <- f.screenText()
 		<-call.Context.Done()
 		return nil, call.Context.Err()
 	})
 
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "root menu", func() bool {
-		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
+		return strings.Contains(f.screenText(), "threads")
 	})
 	f.host.Reset()
 	_, _ = f.stdin.Write([]byte("\x1b[C\x1b[B\x1b[B\x1b[C\x1b[B\r"))
@@ -300,13 +301,13 @@ func TestConsoleRunPaintsAndAnimatesProgressWhileOperationBlocks(t *testing.T) {
 		t.Fatal("park operation did not start")
 	}
 	waitUpTo(t, 500*time.Millisecond, "animated operation progress", func() bool {
-		screen := lastConsoleScreen(f.host.Written())
+		screen := f.screenText()
 		return strings.Contains(screen, "◓ parking root…") || strings.Contains(screen, "◑ parking root…") || strings.Contains(screen, "◒ parking root…")
 	})
 
 	_, _ = f.stdin.Write([]byte("x"))
 	waitUpTo(t, 250*time.Millisecond, "responsive navigation during operation", func() bool {
-		screen := lastConsoleScreen(f.host.Written())
+		screen := f.screenText()
 		return strings.Contains(screen, "filter: x") && strings.Contains(screen, "parking root…")
 	})
 }
@@ -318,7 +319,7 @@ func twoThreadMenuFixture(t *testing.T) (*consoleFixture, couchcore.ThreadAddres
 	t.Helper()
 	f := newFixture(t, 24, 100)
 	second := ptychild.NewFakeChild([]byte("second screen"))
-	second.SetSink(func(batch ptychild.OutputBatch) { f.con.Deliver("c2", batch) })
+	second.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return f.con.Deliver(ctx, "c2", batch) })
 	f.con.Attach("c2", "worker", second)
 
 	f.con.mu.Lock()
@@ -437,7 +438,7 @@ func TestConsoleRunAltDActorInputDoesNotDispatchDetach(t *testing.T) {
 	setTestOps(f.con, func(name string, _ map[string]string) (any, error) { dispatched <- name; return nil, nil })
 	var expected []byte
 	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD) {
-		expected = append(expected, encoding...)
+		expected = append(expected, "\x1bd"...)
 		_, _ = f.stdin.Write(encoding)
 	}
 	waitFor(t, "Pair detach input", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), expected) })
@@ -474,9 +475,9 @@ func TestConsoleRunAltDOnThePanelDetachesEveryThreadAndLeaves(t *testing.T) {
 			t.Fatalf("leave args = %+v, want only mode=detach", args)
 		}
 	case <-time.After(500 * time.Millisecond):
-		t.Fatalf("alt+d in the switcher dispatched nothing; screen: %q", lastConsoleScreen(f.host.Written()))
+		t.Fatalf("alt+d in the switcher dispatched nothing; screen: %q", f.screenText())
 	}
-	if screen := lastConsoleScreen(f.host.Written()); strings.Contains(screen, "cancel") {
+	if screen := f.screenText(); strings.Contains(screen, "cancel") {
 		t.Fatalf("the safe whole-couch gesture asked for confirmation: %q", screen)
 	}
 	select {
@@ -517,7 +518,7 @@ func TestConsoleRunLeavesFromASwitcherWithNothingLive(t *testing.T) {
 	// Open the switcher, then lose the last live actor behind it.
 	_, _ = f.stdin.Write([]byte{0})
 	waitUpTo(t, 250*time.Millisecond, "the switcher", func() bool {
-		return strings.Contains(lastConsoleScreen(f.host.Written()), "threads")
+		return strings.Contains(f.screenText(), "threads")
 	})
 	live.Store(false)
 	f.child.Exit(0)
@@ -543,7 +544,7 @@ func TestConsoleRunLeavesFromASwitcherWithNothingLive(t *testing.T) {
 			t.Fatalf("alt+d in an empty switcher dispatched %q, want leave", name)
 		}
 	case <-time.After(500 * time.Millisecond):
-		t.Fatalf("alt+d in an empty switcher dispatched nothing; screen: %q", lastConsoleScreen(f.host.Written()))
+		t.Fatalf("alt+d in an empty switcher dispatched nothing; screen: %q", f.screenText())
 	}
 	select {
 	case <-f.done:

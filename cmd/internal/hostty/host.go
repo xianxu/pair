@@ -1,6 +1,7 @@
 package hostty
 
 import (
+	"context"
 	"io"
 	"os"
 
@@ -15,6 +16,7 @@ import (
 // conversion.
 type Host interface {
 	io.Writer
+	WriteContext(context.Context, []byte) (int, error)
 
 	// Size reports the terminal's current dimensions.
 	Size() (ptychild.Size, error)

@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"bytes"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"slices"
@@ -189,14 +190,7 @@ func TestWarmRecoveryAdoptsExactTerminalWithoutCreatingContinuation(t *testing.T
 	if _, err := f.stdin.Write([]byte("recovered-input")); err != nil {
 		t.Fatal(err)
 	}
-	waitUpTo(t, time.Second, "input to exact recovered agent", func() bool {
-		for _, w := range terminal.Writes() {
-			if strings.Contains(string(w), "recovered-input") {
-				return true
-			}
-		}
-		return false
-	})
+	waitUpTo(t, time.Second, "input to exact recovered agent", func() bool { return string(bytes.Join(terminal.Writes(), nil)) == "recovered-input" })
 	f.con.mu.Lock()
 	defer f.con.mu.Unlock()
 	if len(f.con.continuations) != 0 {

@@ -131,3 +131,37 @@ Reproduce with:
 ```sh
 PAIR_TERMINAL_RESOURCE_PROBE=1 go test ./cmd/internal/terminal -run '^TestTerminalResourceProbe$' -count=1 -v
 ```
+
+### 2026-09-15 14:35 PDT — M3 typed history evidence and remaining M4 obligations
+
+The executable probe currently reports **84 pass, 0 fail, 6 not-covered; qualified=false** (`/tmp/pair255-m3-qualification.json`). The six placeholders remain uncovered; the following maps available production seams to the additional evidence required, rather than relabeling discovery or unit results as native acceptance.
+
+| Remaining obligation | Existing production evidence seam | Required completion evidence |
+|---|---|---|
+| `composition-switch` | Couch `TestEndpointChromeDuringIncompleteChildSequence`, `TestEndpointChromeDoesNotUseChildCursorSave`, `TestEndpointSwitchRestoresFrameWithoutResizingChild`; shell `TestPresentationHiddenStateAndUTF8StayIsolated`, `TestPresentationSwitchRestoresCellsModesAndNeverNudges` | Attribute successful runs through both consumer paths, with distinct margins/save slots, fragmented switching and capture-ring eviction; include native output/history checks. |
+| `wrapper-composition` | `TestNativeConsoleWrapperZellij` joins the actual wrapper, PTY and Console; wrapper stdout/notification/Return/query tests provide focused seams | Successful isolated native run with receipt assertions for raw/transformed observations, Return translation, notification rewrite and local query routing; current fixture existence alone does not prove every obligation. |
+| `clipboard-policy` | Endpoint/Presenter typed effects and shell `TestPresentationHiddenPhysicalEffectsStaySuppressedAfterSelection`; Couch composer clipboard injection and oversized OSC52 rejection | Both consumers: literal selected/hidden write counts, suppression across subsequent selection, deterministic local query response and no physical read leakage. Composer injection alone is insufficient. |
+| `notification-origin` | Couch `TestOutputBatchFocusOrder`, `TestSplitNotificationAcrossTakeover`, `TestHiddenNotificationDoesNotWaitForActivePartialSequence`, `TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot`; Child typed-once notification tests | Attribute current migrated consumer runs and verify exactly one outer delivery with focus-at-delivery attention semantics; shell policy must be exercised explicitly. |
+| `terminfo-profile` | `TestTerminalEnvironmentProvidesCompiledProfile`, shell `TestPresentationRealChildFinalOutputAndEnvironment`, profile query cases | Packaged environment/profile load and actual shell, nvim and isolated Zellij compatibility, with truthful advertised capabilities. |
+| `live-display-selection` | Typed history serializer production tests compare pinned xterm cells/wraps and disposable native Zellij logical text; no interactive selection claim | Sustained production drawing and actual selection/highlight/copy across both consumers and reattachment, followed by the authorized operator smoke before merge. |
+
+Backend/fork `go test -race ./...` and production `PAIR_TERMINAL_NATIVE=1 go test -race ./cmd/internal/terminal ./cmd/internal/terminalqualify` pass after the M3 history changes (`/tmp/pair255-m3-fork-final.log`, `/tmp/pair255-m3-history-final.log`). Production oracle tests cover explicit trailing spaces, early-wide wrapping, append/rebuild without chrome history, one-host-row geometry, width-one/three/four growth and exact ED2 blank/space history. ED2 follows measured native Zellij: retain the visible prefix through the last printed row, preserving blank hard separators and printed-space soft rows. Pinned xterm ED2 does not save the viewport; tests assert that baseline difference instead of claiming identical direct streams.
+
+An initial whole-publication resource probe exceeded the representative RSS target because ordinary endpoints retained a duplicate history snapshot. The corrected ordinary path transfers one owned backend history snapshot to the caller; only synchronized holds and EOF retain frozen history. No mutable shared cache was introduced. With sixteen 240×80 saturated endpoints plus caller publications, the repeat measured **287,526,792 bytes live Go heap** and **427,704,320 bytes maximum RSS** (`/tmp/pair255-m3-history-resource-final.log`), below 512MiB for this representative probe. Fresh publication allocations fell from 9.40MB to 4.94MB at 80×24 and from 12.79MB to 8.56MB at 240×80 (`/tmp/pair255-m3-history-benchmark-final.log`). These are workload measurements, not universal memory bounds or whole-application sustained-latency acceptance; M4 composition/soak measurements remain necessary.
+
+### 2026-09-15 14:41 PDT — Consumer effect-policy conformance
+
+New tests exercise the migrated consumer paths rather than the shared Presenter alone:
+
+- Couch `TestConsoleClipboardPolicyThroughDelivery` passes endpoint-produced batches through `Console.Deliver` and `onChunk`, asserting one selected clipboard write, zero hidden writes, no replay after selection, and exactly one empty local OSC52 read reply to each originating child with no physical read query.
+- Couch `TestConsoleNotificationUsesCapturedDeliveryFocusOnce` queues through the real `Deliver` focus capture, changes selection before processing, and asserts attention follows delivery-time focus in both directions. Each notification reaches the outer terminal exactly once, including after duplicate typed-batch delivery and repaint.
+- Shell `TestShellClipboardPolicyThroughOutput` uses admitted tabs and `Child.Feed`/consumer sink delivery, asserting selected/hidden clipboard counts, no selection replay, and origin-local read responses without outer queries.
+- Shell `TestShellNotificationsHiddenSelectedAndRedeliveryOnce` covers fragmented hidden and selected notifications, no output from an incomplete envelope, one completed envelope each, no replay on selection, and deduplication of repeated delivery of one typed batch.
+
+The first run found a production Couch regression: `Clipboard:true` forwarded a hidden write that the pre-migration selected-only ordinary-output path suppressed (`/tmp/pair255-m4-effect-policy-red.log`). The production owner restored selected-only bell/title/clipboard emission while preserving notification delivery and hidden-bell attention. The new four tests now pass with `-race` in both consumer packages (`/tmp/pair255-m4-effect-policy-race.log`). Reproduce with:
+
+```sh
+go test -race ./cmd/internal/couchtty ./cmd/internal/termcmd -run 'Test(ConsoleClipboardPolicy|ConsoleNotificationUsesCaptured|ShellClipboardPolicy|ShellNotificationsHidden)' -count=1
+```
+
+This supplies concrete consumer evidence for the clipboard and notification rows above. The qualification inventory is not automatically promoted by these additional tests; live-display/selection, sustained native behavior and the operator smoke remain explicitly uncovered until their own production evidence is recorded.

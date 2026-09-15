@@ -112,3 +112,24 @@ saved-cursor restoration and alternate-buffer transitions at every byte split.
   invariant. Pinned xterm/headless 5.5's default representation instead stores
   nonempty width-zero cells for these orphan cases; that representation is not
   adopted. Contiguous supported combining/ZWJ/VS clusters remain intact.
+
+M3 typed history publication:
+- Primary scrollback has monotonic append-attempt IDs and a clear epoch. Loss
+  gaps remain observable; snapshots own cells/colors and never include alternate
+  history. Full-width top scrolling admits rows; interior regions do not.
+- Row metadata preserves incoming soft wrap and used text extent. Unprinted
+  blank cells have empty content with Width1; printed spaces remain text. Legacy
+  String/Render and upstream visual test adapters normalize only that display
+  distinction. Erase, partial-wide overwrite, IL/DL and resize retain coherent
+  metadata and cells.
+- Primary width changes reflow visible logical lines independently of retained
+  history, preserving early-wide gaps, cursor position and pending wrap. Narrowing
+  admits displaced rows through existing limits. Alternate resize still clips.
+- At width1, an indivisible wide glyph is retained privately and painted blank;
+  widening restores it, overwrite discards it, and scroll admits its full source
+  to typed history. This is a deliberate coherent clipped-view policy, not native
+  equivalence for one-column copy. Retained memory estimates include this source.
+- ED2 preserves the visible prefix through the last printed row, including blank
+  hard separators and explicit-space soft rows, matching measured native Zellij.
+  Pinned xterm's direct ED2 discards viewport rows rather than admitting them;
+  production oracle tests explicitly distinguish these two baseline behaviors.

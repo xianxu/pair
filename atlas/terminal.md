@@ -1,12 +1,12 @@
 # Terminal ownership
 
 The shared terminal implementation for #255 lives in `cmd/internal/terminal`.
-M2 adds the library; Couch and Pair adoption belongs to M3. Live symptom acceptance
+Couch and Pair use the same endpoint/presenter adapters. Live symptom acceptance
 is held for the operator after M4.
 
 An `Endpoint` owns one child's emulator and negotiated modes. Output updates that
 state before a consumer can see the batch. Queries are answered from that endpoint
-and enter the same bounded FIFO as encoded operator input. Immutable `Frame`
+and enter the same bounded FIFO as encoded operator input. Immutable `Publication` values combine `Frame` and bounded typed history. Frame
 publications carry endpoint identity, generation and acknowledged geometry epoch.
 Synchronized output retains the last complete frame, with a 150ms recovery bound.
 Clipboard writes, notifications, title/directory changes and bells are ordered,
@@ -39,3 +39,26 @@ Verification has three independent layers: literal terminal/frame fixtures,
 `terminalqualify` backend and integration cases, and actual renderer wire interpreted
 by pinned `@xterm/headless` under `tests/terminal-oracle`. Production composition and
 sustained native terminal acceptance add evidence beyond those library checks.
+
+Production adapters live in `ptychild/terminal.go`, `couchtty/terminal.go` and
+`termcmd/presentation.go`. Each PTY receives an endpoint before its reader starts.
+Output delivery has bounded backpressure; a blocked UI callback does not block
+query/input serialization. EOF ends input immediately, preserves the final
+publication, and only announces drained child exit after callbacks complete.
+Consumer failure cancels the read pump and reaps a silent child. Disposal cancels
+and joins both output delivery and input workers.
+
+Normal history carries monotonic row IDs, clear epochs, blank provenance and soft
+wrap metadata. `RenderWithHistory` serializes owned cells in bounded chunks; the
+presenter commits its installed cursor only after all writes succeed. Child
+alternate-screen transitions become presenter-owned parent transitions; panels
+retain the current physical buffer. Release leaves only an alternate buffer the
+presenter actually entered, then restores parent controls.
+
+The runtime bundle includes `tic` output compiled during generation. Both launch
+roots install the versioned profile and pass `TERM=pair-vt-256color` plus its
+`TERMINFO` directory. Runtime launch does not execute `tic`. `pair wrap` preserves
+Codex synchronized output, focus and keyboard negotiation; notification
+normalization and Return adaptation remain product behavior. Its terminal
+observer consumes the normalized queued visual stream, while raw capture remains
+separate; observation does not claim physical-write acknowledgment.

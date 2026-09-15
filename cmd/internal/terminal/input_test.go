@@ -266,3 +266,27 @@ func BenchmarkInputSplitString(b *testing.B) {
 		}
 	}
 }
+
+func TestDecoderLegacyAltArrowAliases(t *testing.T) {
+	for _, raw := range []string{"\x1b[3D", "\x1b[3C"} {
+		for cut := 0; cut <= len(raw); cut++ {
+			var d Decoder
+			a, e := d.Feed([]byte(raw[:cut]))
+			if e != nil {
+				t.Fatal(e)
+			}
+			b, e := d.Feed([]byte(raw[cut:]))
+			if e != nil {
+				t.Fatal(e)
+			}
+			a = append(a, b...)
+			if len(a) != 1 || a[0].Reply {
+				t.Fatalf("%q split%d: %+v", raw, cut, a)
+			}
+			k, ok := a[0].Event.(uv.KeyPressEvent)
+			if !ok || k.Mod != uv.ModAlt {
+				t.Fatalf("%q: %+v", raw, a[0])
+			}
+		}
+	}
+}

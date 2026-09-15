@@ -1,13 +1,12 @@
 package couchtty
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -39,17 +39,6 @@ type pane struct {
 	label   string
 	desc    string
 	child   *ptychild.Child
-
-	// rowDirty is the same shape for the reserved row: an INACTIVE pane's
-	// erase or margin reset is real, it just cannot be acted on yet. The first
-	// version consumed the child's latch for every pane and acted on it only
-	// for the active one, so a background child's damage was thrown away and
-	// attaching to it would land on a screen with no status row.
-	rowDirty bool
-
-	// replayCutoff advances only after Run has processed a delivered batch.
-	// A takeover therefore cannot replay bytes still queued behind the switch.
-	replayCutoff uint64
 }
 
 // Console routes the operator's terminal to one child at a time.
@@ -59,14 +48,13 @@ type pane struct {
 // transitions as it drives hostty.Host. It never calls x/term or os/signal
 // directly, which keeps resize and teardown testable without a terminal.
 type Console struct {
-	host   hostty.Host
-	stdin  io.Reader
-	stderr io.Writer
-
-	// terminalMu owns scanner-to-wire ordering; acquire before mu, and never
-	// hold it across a child callback. terminalReleased ends all host output.
-	terminalMu       sync.Mutex
-	terminalReleased bool
+	host             hostty.Host
+	stdin            io.Reader
+	stderr           io.Writer
+	presenter        *terminal.Presenter
+	terminalCommands chan terminalCommand
+	terminalFailure  error
+	leaveReport      string
 
 	mu     sync.Mutex
 	panes  map[string]*pane
@@ -104,35 +92,9 @@ type Console struct {
 	// and the asynchronous operation-completion channel.
 	expectedExits map[string]bool
 
-	// paintPending means a repaint was wanted while the host stream was
-	// mid-sequence, and is owed as soon as it is safe.
-	paintPending bool
-	// deferredNotifications holds batch suffixes whose first part is a
-	// notification that cannot yet be inserted into the outer host stream.
-	// Keeping the original acknowledgement open backpressures that source actor
-	// while other actors and the focused UI continue independently.
-	deferredNotifications []chunk
-	flushingNotifications bool
-
-	// hostScan frames the bytes the console has WRITTEN to the host.
+	// Run orders product input, output notifications, and focus transitions.
+	// Presenter alone owns the host writer.
 	//
-	// It has to be this stream, not the child's. Asking the child was the first
-	// shape of this fix and it was unsound (M2 BR-21): ptychild's pump feeds its
-	// Screen before calling the sink, and the console drains a buffered channel
-	// later, so by the time it asked about the chunk it had just written, the
-	// answer described a LATER chunk the child had since read. Framing what we
-	// write is race-free by construction -- there is exactly one writer.
-	hostScan ptychild.Screen
-
-	// Run is the ONLY goroutine that writes to the host. Everything that wants
-	// the screen sends here instead of writing.
-	//
-	// The first fix for BR-21 framed the console's own output but left
-	// applyLayout and the hotkey path writing from other goroutines, so a
-	// SIGWINCH or a keypress could still splice into the child's stream. Making
-	// the writer singular removes the class rather than the two instances:
-	// there is no longer a way to reach the screen except through the loop that
-	// tracks where the stream is.
 	chunks    chan chunk
 	resized   chan struct{}
 	switching chan string
@@ -197,6 +159,8 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
 		host:                host,
+		presenter:           terminal.NewPresenter(host, terminal.CouchAnyMotion),
+		terminalCommands:    make(chan terminalCommand, 16),
 		stdin:               stdin,
 		panes:               map[string]*pane{},
 		chunks:              make(chan chunk, 256),
@@ -314,7 +278,7 @@ func (c *Console) ChildSize() ptychild.Size {
 //
 // It still yields to stop, so teardown cannot deadlock behind a child that is
 // mid-write.
-func (c *Console) Deliver(id string, batch ptychild.OutputBatch) {
+func (c *Console) Deliver(ctx context.Context, id string, batch ptychild.OutputBatch) error {
 	c.mu.Lock()
 	focused := c.focus == FocusActor(id)
 	c.mu.Unlock()
@@ -323,9 +287,16 @@ func (c *Console) Deliver(id string, batch ptychild.OutputBatch) {
 	case c.chunks <- chunk{id: id, batch: batch, focusedAtDelivery: focused, ack: ack}:
 		select {
 		case <-ack:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-c.stop:
+			return context.Canceled
 		}
+	case <-ctx.Done():
+		return ctx.Err()
 	case <-c.stop:
+		return context.Canceled
 	}
 }
 
@@ -370,6 +341,9 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 	if handleID == "" || actorID == "" || child == nil {
 		return errors.New("attach requires complete handle, actor, and terminal identities")
 	}
+	if child.Endpoint().InputEnded() {
+		return errors.New("attach terminal input has ended")
+	}
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -398,15 +372,26 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		return fmt.Errorf("terminal handle %q is already attached", handleID)
 	}
 	for _, installed := range c.panes {
-		if installed.thread == thread && !installed.child.Done() {
+		if installed.thread == thread && !installed.child.Endpoint().InputEnded() {
 			c.mu.Unlock()
 			return fmt.Errorf("thread %s/%s is already attached", thread.RepoScope, thread.Tag)
 		}
 	}
+	desired := ptychild.Size{Rows: bottomReservation(c.size.Rows).ChildRows(), Cols: c.size.Cols}
+	if child.Size() != desired {
+		if err := child.Resize(desired); err != nil {
+			c.mu.Unlock()
+			return err
+		}
+	}
+	if err := c.presenter.Register(ctx, child.Endpoint()); err != nil {
+		c.mu.Unlock()
+		return err
+	}
 	c.workers.Add(1)
 	c.panes[handleID] = &pane{
 		tree: tree, thread: thread, process: process, actorID: actorID,
-		label: label, child: child, replayCutoff: child.ReplaySafeEnd(),
+		label: label, child: child,
 	}
 	c.order = append(c.order, handleID)
 	if c.active == "" {
@@ -446,18 +431,6 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		}
 	}()
 	return nil
-}
-
-// PaneRowDirty reports whether a pane still owes a row repaint. Exported for
-// the test that pins an inactive pane's damage surviving -- a latch thrown away
-// is invisible from every other accessor.
-func (c *Console) PaneRowDirty(id string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	if p, ok := c.panes[id]; ok {
-		return p.rowDirty
-	}
-	return false
 }
 
 // Switch points the operator's terminal at another hosted actor.
@@ -530,43 +503,14 @@ func (a arrival) viaNotification() bool { return a == arrivalNotification }
 // second authority that another goroutine's switch can falsify in between.
 func (c *Console) switchTo(id string, force bool, how arrival) (stayed bool) {
 	c.mu.Lock()
-	p, known := c.panes[id]
-	already := c.active == id && !force
-	if known {
-		c.active = id
-		c.focus = FocusActor(id)
-		c.menu.ActiveAddress = p.thread
-		p.rowDirty = false
-		// Unconditional: SwitchTracker itself ignores a landing on the actor
-		// already current, so the rule stays in one place rather than being
-		// half-enforced by whichever caller remembered.
-		c.tracker.Switch(p.thread, how.viaNotification())
-		// Whatever brought the operator here, they are here now.
-		c.attention.Acknowledge(c.attention.Capture(p.thread))
-		c.syncAttentionLocked()
-	}
+	known := c.panes[id] != nil
 	c.mu.Unlock()
 	if !known {
-		// An unknown actor is not a reason to blank the operator's screen.
 		return false
 	}
-	if already {
-		return true
-	}
-
-	// The replay is Replay(), not Snapshot(): a raw one still carries whatever
-	// capability queries the child emitted at startup, and re-asking the host
-	// terminal lands the ANSWER in the newly active child's stdin -- #127's bug
-	// arriving at a new site.
-	// The repaint request rides WITH the takeover (see takeOverScreen): the
-	// replay is the immediate paint, and the request is what makes the result
-	// correct rather than probable once the last full frame has aged out of the
-	// ring (#209). It used to be a separate call here, which is how the SAME
-	// enumeration got swept for the composition and not for the request.
-	c.takeOverScreen(p.child, p.child.ReplayThrough(p.replayCutoff))
-	c.flushDeferredNotifications()
-	c.paintNow()
-	return false
+	stayed, err := c.selectActor(id, force, how)
+	c.terminalError(err)
+	return stayed
 }
 
 // Stop tears the console down. Safe to call more than once, and from any
@@ -581,7 +525,7 @@ func (c *Console) Stop() {
 // Run owns the operator's terminal until the actor-focused last child exits or
 // Stop is called. If the panel already owns focus, a last-child exit leaves it
 // available for durable Park/Resume; Escape with no actor calls Stop.
-func (c *Console) Run() int {
+func (c *Console) Run() (code int) {
 	restore, err := c.host.MakeRaw()
 	if err != nil {
 		// Say why. Returning a bare 1 was the other half of BR-23: the
@@ -589,18 +533,24 @@ func (c *Console) Run() int {
 		fmt.Fprintf(c.errw(), "couch: cannot take the terminal: %v\n", err)
 		return 1
 	}
-	defer c.teardown(restore)
+	defer func() {
+		if err := c.teardown(restore); err != nil {
+			code = 1
+		}
+	}()
 	c.mu.Lock()
 	c.started = true
 	c.mu.Unlock()
-	// couch asks the TERMINAL for clicks. It never writes the CHILD's modes:
-	// ptychild replay re-asserts those across a switch, and a second writer
-	// would be two authorities for one terminal state.
-	c.writeHostControl(hostty.EnableKeyboardDisambiguation)
-	c.traceMouseClicks("startup")
-
 	c.applyLayout()
-	c.paintNow()
+	c.mu.Lock()
+	initial := c.active
+	panel := c.focus.IsPanel()
+	c.mu.Unlock()
+	if panel || initial == "" {
+		c.showMenu()
+	} else {
+		c.switchTo(initial, true, arrivalOrdinary)
+	}
 
 	c.workers.Add(4)
 	go func() { defer c.workers.Done(); c.watchContinuations() }()
@@ -612,8 +562,8 @@ func (c *Console) Run() int {
 		terminated = h.Terminated()
 	}
 
-	var it Interceptor
-	var inputEscapeTimer, panelEscapeTimer *time.Timer
+	var decoder terminal.Decoder
+	var inputEscapeTimer *time.Timer
 	var inputEscapeC, panelEscapeC <-chan time.Time
 	var spinnerTimer *time.Timer
 	var noticeTimer *time.Timer
@@ -630,7 +580,7 @@ func (c *Console) Run() int {
 		}
 	}
 	armInputEscape := func() {
-		if !bytes.Equal(it.held, []byte{0x1b}) {
+		if !decoder.PendingEscape() {
 			inputEscapeC = nil
 			return
 		}
@@ -640,18 +590,6 @@ func (c *Console) Run() int {
 			inputEscapeTimer.Reset(workbenchshortcut.EscapeAmbiguity)
 		}
 		inputEscapeC = inputEscapeTimer.C
-	}
-	armPanelEscape := func() {
-		if !bytes.Equal(c.menuHeld, []byte{0x1b}) {
-			panelEscapeC = nil
-			return
-		}
-		if panelEscapeTimer == nil {
-			panelEscapeTimer = time.NewTimer(workbenchshortcut.EscapeAmbiguity)
-		} else {
-			panelEscapeTimer.Reset(workbenchshortcut.EscapeAmbiguity)
-		}
-		panelEscapeC = panelEscapeTimer.C
 	}
 	stopSpinner := func() {
 		if spinnerTimer != nil && !spinnerTimer.Stop() {
@@ -729,39 +667,15 @@ func (c *Console) Run() int {
 		}
 		spinnerC = spinnerTimer.C
 	}
-	route := func(raw []byte) {
-		if len(raw) == 0 {
-			return
-		}
-		c.mu.Lock()
-		toPanel := c.focus.IsPanel()
-		c.mu.Unlock()
-		if toPanel {
-			stopTimer(panelEscapeTimer)
-			panelEscapeC = nil
-			c.onMenuInput(raw)
-			armPanelEscape()
-			return
-		}
-		if child := c.activeChild(); child != nil {
-			_, _ = child.Write(raw)
+	processEvents := func(events []terminal.InputEvent) {
+		for _, event := range events {
+			c.routeInputEvent(event)
 		}
 	}
 	processInput := func(raw []byte) {
-		for {
-			before, hit, rest := it.FeedHit(raw)
-			rawHit := it.RawHit()
-			if hit == HitMouse {
-				c.mu.Lock()
-				c.mouseHit = it.Mouse()
-				c.mu.Unlock()
-			}
-			c.dispatchInputCandidate(before, hit, rawHit, route)
-			if hit == HitNone {
-				return
-			}
-			raw = rest
-		}
+		events, err := decoder.Feed(raw)
+		processEvents(events)
+		c.terminalError(err)
 	}
 
 	// A transient notice stops being true on its own, and nothing else is
@@ -801,6 +715,12 @@ func (c *Console) Run() int {
 
 	for {
 		select {
+		case command := <-c.terminalCommands:
+			if err := command.ctx.Err(); err != nil {
+				command.done <- err
+			} else {
+				command.done <- command.run()
+			}
 		case ch := <-c.chunks:
 			c.onChunk(ch)
 		case <-c.resized:
@@ -814,15 +734,9 @@ func (c *Console) Run() int {
 			armInputEscape()
 		case <-inputEscapeC:
 			inputEscapeC = nil
-			literal := it.Flush()
-			c.mu.Lock()
-			toPanel := c.focus.IsPanel()
-			c.mu.Unlock()
-			if toPanel && bytes.Equal(literal, []byte{0x1b}) {
-				c.onMenuKey(PanelKey{Kind: KeyEscape})
-			} else {
-				route(literal)
-			}
+			events, err := decoder.FlushEscape()
+			processEvents(events)
+			c.terminalError(err)
 		case <-panelEscapeC:
 			panelEscapeC = nil
 			c.menuHeld = nil
@@ -875,9 +789,18 @@ func (c *Console) Run() int {
 			if c.finishOperation(completed) {
 				continue
 			}
+		case <-c.presenter.Failed():
+			c.terminalError(c.presenter.Failure())
+			return 1
 		case <-terminated:
 			return 0
 		case <-c.stop:
+			c.mu.Lock()
+			failed := c.terminalFailure != nil
+			c.mu.Unlock()
+			if failed {
+				return 1
+			}
 			return 0
 		}
 		syncSpinner()
@@ -889,6 +812,12 @@ func (c *Console) Run() int {
 func (c *Console) drainChunks() {
 	for {
 		select {
+		case command := <-c.terminalCommands:
+			if err := command.ctx.Err(); err != nil {
+				command.done <- err
+			} else {
+				command.done <- command.run()
+			}
 		case ch := <-c.chunks:
 			c.onChunk(ch)
 		default:
@@ -897,52 +826,46 @@ func (c *Console) drainChunks() {
 	}
 }
 
-// teardown is the one lifecycle owner: restore the visible terminal while it
-// is still writable/raw, stop every event source, close the blocking input seam,
-// and join every worker before Run returns.
-func (c *Console) teardown(restore func() error) {
-	c.release()
-	c.mu.Lock()
-	tracer := c.trace
-	c.trace = nil
-	events := c.events
-	c.events = nil
-	mouseTrace := c.mouseTrace
-	c.mouseTrace = nil
-	// The terminal is being handed back, so a publish must stop painting into
-	// it. This CLOSES the window rather than sealing it: publishNotice reads
-	// started under the lock and paints after releasing it, so a publish that
-	// passed the check a moment before teardown can still land. Nothing does
-	// today -- every publisher is the Run goroutine that also runs teardown --
-	// and the honest statement is "no live instance", not "cannot happen".
-	c.started = false
-	c.mu.Unlock()
-	if err := tracer.Close(); err != nil {
-		fmt.Fprintf(c.errw(), "couch: close input trace: %v\n", err)
-	}
-	if err := events.Close(); err != nil {
-		fmt.Fprintf(c.errw(), "couch: close timing trace: %v\n", err)
-	}
-	if err := mouseTrace.Close(); err != nil {
-		fmt.Fprintf(c.errw(), "couch: close mouse trace: %v\n", err)
-	}
-	if err := restore(); err != nil {
-		fmt.Fprintf(c.errw(), "couch: restore terminal: %v\n", err)
-	}
+// teardown cancels and joins event sources before releasing the presenter and
+// restoring raw state. Diagnostics are emitted only after ownership ends.
+type contextualInput interface {
+	ReadContext(context.Context, []byte) (int, error)
+}
+
+func (c *Console) teardown(restore func() error) error {
 	c.Stop()
-	if err := c.host.Close(); err != nil {
-		fmt.Fprintf(c.errw(), "couch: close terminal host: %v\n", err)
-	}
-	if closer, ok := c.stdin.(io.Closer); ok {
-		if err := closer.Close(); err != nil {
-			fmt.Fprintf(c.errw(), "couch: close terminal input: %v\n", err)
+	// Contextual readers retain their fd lease until after the input pump joins
+	// and Presenter has restored the parent terminal. Plain fixture pipes need
+	// explicit close to interrupt Read.
+	if _, ok := c.stdin.(contextualInput); !ok {
+		if closer, ok := c.stdin.(io.Closer); ok {
+			_ = closer.Close()
 		}
 	}
-	// Pair with installObservedThreadActor's under-mutex Add. Once this barrier
-	// passes, Stop is closed and no later attach can increment the WaitGroup.
 	c.mu.Lock()
+	c.started = false
 	c.mu.Unlock()
 	c.workers.Wait()
+	releaseErr := c.release()
+	c.mu.Lock()
+	tracer, events, mouseTrace := c.trace, c.events, c.mouseTrace
+	c.trace, c.events, c.mouseTrace = nil, nil, nil
+	c.mu.Unlock()
+	// Complete every cleanup before writing to stderr, which may refer to the
+	// same physical terminal. A release failure must still restore raw state.
+	cleanupErr := errors.Join(releaseErr, tracer.Close(), events.Close(), mouseTrace.Close(), c.host.Close(), restore())
+	c.mu.Lock()
+	failure, leaveReport := c.terminalFailure, c.leaveReport
+	c.leaveReport = ""
+	c.mu.Unlock()
+	err := errors.Join(failure, cleanupErr)
+	if err != nil {
+		fmt.Fprintf(c.errw(), "couch: terminal: %v\n", err)
+	}
+	if leaveReport != "" && c.stderr != nil {
+		fmt.Fprint(c.stderr, leaveReport)
+	}
+	return err
 }
 
 // onExit removes a dead child from the console and registry. An active exit
@@ -951,6 +874,7 @@ func (c *Console) teardown(restore func() error) {
 // an actor-focused console, but an already panel-focused console stays up so a
 // completed Park can expose the durable row that Enter resumes.
 func (c *Console) onExit(event childExit) bool {
+	c.terminalError(c.presenter.Flush(c.lifetime))
 	c.mu.Lock()
 	p, known := c.panes[event.id]
 	if !known {
@@ -1007,6 +931,12 @@ func (c *Console) onExit(event childExit) bool {
 		}
 	}
 	c.requestMenuRefresh()
+	defer func() {
+		if c.presenter.View().Selected == p.child.Endpoint().ID() {
+			return
+		}
+		c.terminalError(c.presenter.Retire(c.lifetime, p.child.Endpoint()))
+	}()
 	if last && !panelFocused && !(expected && continuationPending) {
 		return true
 	}
@@ -1018,25 +948,13 @@ func (c *Console) onExit(event childExit) bool {
 	return false
 }
 
-// release puts the terminal back: region reset, then the reserved row cleared,
-// so the operator's shell does not inherit a pinned region or a stale row.
-func (c *Console) release() {
-	if !c.lockTerminal() {
-		return
-	}
-	defer c.terminalMu.Unlock()
-	c.terminalReleased = true
-	c.mu.Lock()
-	res := bottomReservation(c.size.Rows)
-	tracer, context := c.mouseTraceContextLocked()
-	c.mu.Unlock()
-	// Teardown writes UNCONDITIONALLY: a half-restored terminal is worse than a
-	// spliced sequence, and the child is finished with the screen by now.
-	body := res.Release() + res.Paint("") + hostty.ResetInteractiveModes + hostty.LeaveAltScreen + hostty.ResetInteractiveModes + hostty.ResetRegion + hostty.ShowCursor
-	n, err := io.WriteString(c.host, body)
-	if tracer != nil {
-		tracer.record("cleanup", context+" "+(mouseWriteResult{n: n, err: err}).detail(len(body)))
-	}
+// release restores the parent terminal modes before raw state is restored.
+func (c *Console) release() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err := c.presenter.Release(ctx)
+	c.traceTerminal("release", err)
+	return err
 }
 
 // bottomReservation is couch's row: always the host's bottom one.
@@ -1074,7 +992,10 @@ func (c *Console) applyLayout() {
 	// The resize always happens; only the SCREEN write is gated, and it goes
 	// through the paint below so there is one gated path rather than two.
 	for _, child := range children {
-		_ = child.Resize(size)
+		if err := child.Resize(size); err != nil {
+			c.terminalError(err)
+			return
+		}
 	}
 }
 
@@ -1124,200 +1045,27 @@ func (c *Console) statusModelLocked() StatusModel {
 
 func (c *Console) repaint() { c.paintNow() }
 
-// writeChild passes the active child's output through, tracking where the
-// CHILD's stream sits. Called only from the Run goroutine.
-//
-// Only child bytes are fed to the scanner. Feeding our own escapes into it was
-// the second shape of this bug: appending `\x1b[1;23r` to a pending
-// `\x1b[38;2;76` let the scanner frame the two together as one complete
-// sequence, so it reported "safe" precisely when it was not. The question the
-// scanner answers is "where is the child's stream", and our writes are not part
-// of it.
-func (c *Console) writeChild(p []byte) {
-	if !c.lockTerminal() {
-		return
-	}
-	defer c.terminalMu.Unlock()
-	c.mu.Lock()
-	before := c.hostScan.MouseModes()
-	c.hostScan.FeedFraming(p)
-	after := c.hostScan.MouseModes()
-	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
-	tracer, context := c.mouseTraceContextLocked()
-	c.mu.Unlock()
-	p = keyboardDisambiguated(p, complete)
-	n, err := c.host.Write(p)
-	// A mouse-mode change in the CHILD's teed stream is one of the two events
-	// that decide the host's mode (#207). Logged only on a change, so a busy
-	// stream does not flood the trace.
-	if tracer != nil && formatMouseModes(before) != formatMouseModes(after) {
-		tracer.record("child-mode", context+" scanner-before="+formatMouseModes(before)+
-			" scanner-after="+formatMouseModes(after)+" "+(mouseWriteResult{n: n, err: err}).detail(len(p)))
-	}
-}
-
-// takeOverScreen replaces what is on the screen wholesale -- a switch landing,
-// or the panel opening.
-//
-// Distinct from writeOwn on purpose. An interleaved paint must WAIT for a
-// sequence boundary because it is inserted into a stream that continues; a
-// takeover ENDS that stream's relevance, so waiting would strand the operator
-// on the previous child's screen. It resets the framing state for the same
-// reason: whatever partial sequence the old child left is no longer on screen
-// to be corrupted.
-//
-// NOT Run-goroutine-only, and the sentence that said so was false rather than
-// aspirational (#209 I-2). `switchTo` reaches here from the operationQueue
-// goroutine too — `ExecuteConsoleOperation`'s `switch`, which is the switcher's
-// Enter and the status-chip click, the operator's primary gesture. That is what
-// #209 C2 discovered while fixing the nudge's ordering, and the nudge's half is
-// now a mechanism: `Child` owns its geometry, so no caller has an ordering
-// obligation there.
-//
-// terminalMu serializes the scanner and its matching wire write with the other
-// output sites, including release. #224 still owns making bypasses impossible
-// through a typed output interface.
-func (c *Console) takeOverScreen(child *ptychild.Child, body []byte) {
-	if !c.lockTerminal() {
-		return
-	}
-	c.mu.Lock()
-	tracer, context := c.mouseTraceContextLocked()
-	before := c.hostScan.MouseModes()
-	target := "panel"
-	if child != nil {
-		target = "unattached"
-		for id, pane := range c.panes {
-			if pane.child == child {
-				target = mouseTraceQuote(id)
-				break
-			}
-		}
-	}
-	c.hostScan = ptychild.Screen{}
-	c.paintPending = false
-	c.mu.Unlock()
-
-	// Composed by hostty (#209): blank, then draw the body. It ALWAYS blanks —
-	// the version that emitted nothing for an empty body left the PANEL's own
-	// surface standing under a new thread's label, which is C-1. The
-	// composition also owned a buffer assertion, withdrawn for now because
-	// `?1049` moves the cursor; hostty's repaint holds both reasons.
-	composed := hostty.RepaintFor(child, body)
-
-	// And FEED it back. The reset above drops the old child's partial sequence,
-	// which is right, but it also drops everything the scanner knew about the
-	// NEW child's modes -- and the body is exactly the bytes that re-establish
-	// them. Without this the scanner believes the primary screen after every
-	// switch, so SafeToPaint's alt-screen carve-out cannot apply: a full-screen
-	// child that then takes the cursor-save slot (nvim's `?1048h`) closes the
-	// paint gate for the rest of its session, which is BR-79's frozen strip
-	// arriving by another road (BR-82).
-	//
-	// termcmd's applyTakeover has done this since M3; couch resetting without
-	// feeding is the same shared-primitive divergence as BR-77.
-	c.mu.Lock()
-	// The COMPOSED bytes, not just the body (#209 BR-6). A repaint's prefix is
-	// mode-bearing BY DESIGN — it exists to assert what the tail LACKS — so
-	// feeding the tail alone would leave the scanner believing a screen state
-	// the terminal is not in: with a `?1048h` in the tail that closes
-	// SafeToPaint's carve-out for the session, which is BR-79's frozen strip
-	// arriving by the road BR-82's comment was written to close. Today the
-	// prefix is HomeAndClear alone, so this changes nothing; it is written now
-	// so the `?1047` candidate does not need either console to remember.
-	c.hostScan.FeedFraming(composed)
-	complete := !c.hostScan.MidSequence() // keyboard-control-boundary: no cursor effects
-	after := c.hostScan.MouseModes()
-	c.mu.Unlock()
-	composed = keyboardDisambiguated(composed, complete)
-	n, err := c.host.Write(composed)
-	if tracer != nil {
-		tracer.record("takeover", context+" target="+target+
-			" scanner-before="+formatMouseModes(before)+" scanner-reset=none scanner-after="+formatMouseModes(after)+
-			" replay-bytes="+strconv.Itoa(len(body))+" "+(mouseWriteResult{n: n, err: err}).detail(len(composed)))
-	}
-	c.terminalMu.Unlock()
-
-	// AND ASK THE CHILD TO REPAINT. Here, not at the call sites, because a
-	// takeover and its repaint request are one act: the body above is the
-	// immediate paint, and this is what makes the result correct rather than
-	// probable once the child's last full frame has aged out of the bounded
-	// ring. Nil for couch's own surfaces — the panel is not a child's screen
-	// and has nobody to ask.
-	child.RequestRepaint()
-}
-
-// writeOwn emits the console's OWN bytes, and is the only way they reach the
-// screen. It refuses while the child's stream is mid-sequence and records the
-// debt; the next chunk that lands on a boundary pays it.
-func (c *Console) writeOwn(p string) mouseWriteResult {
-	if !c.lockTerminal() {
-		return mouseWriteResult{released: true}
-	}
-	defer c.terminalMu.Unlock()
-	c.mu.Lock()
-	// SafeToPaint, not MidSequence: the shared door adds "the child holds the
-	// cursor save", which couch needs for the same reason termcmd does even
-	// though its full-screen child usually repaints over the damage. Masking is
-	// not safety -- two bugs latent in this primitive since #146 proved that.
-	if !c.hostScan.SafeToPaint() {
-		c.paintPending = true
-		c.mu.Unlock()
-		return mouseWriteResult{deferred: true}
-	}
-	c.mu.Unlock()
-	n, err := io.WriteString(c.host, p)
-	return mouseWriteResult{n: n, err: err}
-}
-
-// paintNow draws the row unconditionally, re-asserting the region first.
-//
-// The re-assertion is not belt-and-braces: a child that reset margins may have
-// dropped it a moment ago, and painting into an unreserved screen is what puts
-// the row where the child's content should be.
+// paintNow publishes chrome independently of child parsing and cursor state.
 func (c *Console) paintNow() {
 	c.mu.Lock()
-	c.paintPending = false
-	rows := c.size.Rows
-	cols := int(c.size.Cols)
-	model := c.statusModelLocked()
+	panel, started := c.focus.IsPanel(), c.started
 	c.mu.Unlock()
-
-	// Re-asserted on every paint, but ONLY while no child holds tracking of its
-	// own. Two facts have to hold together here and my first version had one:
-	//
-	//   - A child writing DECRST ?1000l turns couch's clicks off globally, with
-	//     no signal, so the feature would silently stop (BR-16).
-	//   - Modes 1000/1002/1003 are ONE mutually-exclusive tracking state, not
-	//     additive flags -- xterm's send_mouse_pos, and Alacritty/kitty/Ghostty
-	//     /iTerm2 all replace rather than union. Setting 1000 under a child
-	//     holding 1002 demotes it to press/release, so the child never receives
-	//     the motion that closes its drag: nvim stuck in visual selection, the
-	//     exact symptom mouseinput.go documents (BR-22).
-	//
-	// So the child's mode wins whenever it has one. couch loses its own clicks
-	// for as long as that child is attached, which is the correct trade: the
-	// operator can still reach every actor by keyboard, and a wedged drag inside
-	// their editor is not recoverable by any keystroke.
-	if c.couchMayOwnTheMouse() {
-		c.traceMouseClicks("paint")
+	if !started {
+		return
 	}
-	row := RenderStatusRow(cols, model)
-	c.mu.Lock()
-	c.statusChips = row.Chips
-	first := !c.framePainted
-	c.framePainted = true
-	var shown couchcore.ThreadAddress
-	if p, ok := c.panes[c.active]; ok {
-		shown = p.thread
+	if panel {
+		c.showMenu()
+		return
 	}
-	c.mu.Unlock()
-	res := bottomReservation(rows)
-	c.writeOwn(res.ReserveAndPaint(row.Body))
-	if first {
-		// The operator's first sight of couch (pair#206's COUCH_TRACE).
-		c.traceEvent(traceFirstFrame, shown, "")
+	row, cells, err := c.chrome()
+	if err == nil {
+		err = c.presenter.UpdateChrome(c.lifetime, cells)
 	}
+	if err != nil {
+		c.terminalError(err)
+		return
+	}
+	c.commitChrome(row)
 }
 
 func (c *Console) syncAttentionLocked() {
@@ -1332,140 +1080,46 @@ func (c *Console) syncAttentionLocked() {
 
 // onChunk routes one child write.
 func (c *Console) onChunk(ch chunk) {
-	ackHere := ch.ack != nil
 	if ch.ack != nil {
-		defer func() {
-			if ackHere {
-				close(ch.ack)
-			}
-		}()
+		defer close(ch.ack)
 	}
 	c.mu.Lock()
-	p, known := c.panes[ch.id]
-	// "Active" means the operator is looking at this child. With the panel up
-	// nobody is, so a child that keeps streaming must not paint over couch's
-	// own screen.
-	isActive := ch.id == c.active && !c.focus.IsPanel()
+	p := c.panes[ch.id]
+	active := c.focus == FocusActor(ch.id)
 	c.mu.Unlock()
-	if !known {
+	if p == nil {
 		return
 	}
-
-	parts := ch.batch.Parts
-	if len(parts) == 0 && len(ch.batch.Raw) > 0 && ch.batch.RingEnd == 0 && ch.batch.ReplaySafeEnd == 0 {
-		parts = []ptychild.OutputPart{{Bytes: ch.batch.Raw}}
-	}
-	attentionChanged := false
-	for i, part := range parts {
-		if len(part.Bytes) > 0 && isActive {
-			c.writeChild(part.Bytes)
-		}
-		if part.Notification != nil {
-			c.mu.Lock()
-			unsafe := !c.hostScan.SafeToPaint()
-			if unsafe {
-				ch.batch.Parts = append([]ptychild.OutputPart(nil), parts[i:]...)
-				c.deferredNotifications = append(c.deferredNotifications, ch)
-			}
-			c.mu.Unlock()
-			if unsafe {
-				ackHere = false
-				return
-			}
-			// Pair's envelope is still valid outer-terminal OSC. Couch observes
-			// it but does not swallow it.
-			c.writeChild(part.Notification.Raw)
-			if !ch.focusedAtDelivery {
-				c.mu.Lock()
-				c.attention.Mark(p.thread, part.Notification.Message)
-				c.syncAttentionLocked()
-				c.mu.Unlock()
-				attentionChanged = true
-			}
-		}
-	}
-	c.mu.Lock()
-	if ch.batch.ReplaySafeEnd > p.replayCutoff {
-		p.replayCutoff = ch.batch.ReplaySafeEnd
-	}
-	c.mu.Unlock()
-	// A paint deferred while the stream was mid-sequence is owed as soon as
-	// the stream is whole again.
-	c.mu.Lock()
-	owed := c.paintPending && c.hostScan.SafeToPaint()
-	c.mu.Unlock()
-	if owed {
-		c.paintNow()
-	}
-	c.flushDeferredNotifications()
-	if attentionChanged {
-		c.repaint()
-	}
-	// Derived state is consumed whether or not the child is on screen.
-	if ch.batch.RowDirty {
-		c.mu.Lock()
-		p.rowDirty = true
-		c.mu.Unlock()
-		// NOT a paint here, and the reason is worth writing down because I added
-		// one and could not tell it apart. The paint that re-evaluates the mode
-		// already happens above: a chunk carrying a DECSET leaves paintPending
-		// set, and the `owed` branch paints as soon as the stream is whole. A
-		// second paintNow here is unreachable-by-difference -- removing it left
-		// every test green, which is the signal that it was not the mechanism.
-	}
-	if ch.batch.Bell {
-		c.mu.Lock()
-		// An actor the operator is already looking at is not "wanting" them.
-		if !isActive {
-			c.attention.Mark(p.thread, "")
-			c.syncAttentionLocked()
-		}
-		c.mu.Unlock()
-		c.repaint()
+	if ch.batch.Err != nil {
+		c.terminalError(ch.batch.Err)
 		return
 	}
-	c.mu.Lock()
-	dirty := p.rowDirty && isActive
-	if dirty {
-		p.rowDirty = false
-	}
-	c.mu.Unlock()
-	if dirty {
-		c.repaint()
-	}
-}
-
-// flushDeferredNotifications releases arrival-ordered batch suffixes once
-// inserting another actor's OSC cannot corrupt a partial host sequence.
-func (c *Console) flushDeferredNotifications() {
-	c.mu.Lock()
-	if c.flushingNotifications || !c.hostScan.SafeToPaint() || len(c.deferredNotifications) == 0 {
-		c.mu.Unlock()
-		return
-	}
-	c.flushingNotifications = true
-	c.mu.Unlock()
-	defer func() {
-		c.mu.Lock()
-		c.flushingNotifications = false
-		c.mu.Unlock()
-	}()
-
-	for {
-		c.mu.Lock()
-		// SafeToPaint, matching the entry guard above. They MUST agree: with the
-		// entry guard stricter than the loop, a chunk that takes the cursor
-		// slot mid-drain leaves onChunk deferring the notification straight
-		// back onto the queue this loop pops from -- and the loop, still asking
-		// the looser question, spins forever.
-		if !c.hostScan.SafeToPaint() || len(c.deferredNotifications) == 0 {
-			c.mu.Unlock()
+	var effects []terminal.Effect
+	if len(ch.batch.Terminal.Effects) > 0 {
+		var err error
+		effects, err = c.presenter.EmitEffects(c.lifetime, ch.batch.Terminal.Effects, terminal.EffectPolicy{Bell: active, Title: active, Clipboard: active, Notifications: true})
+		if err != nil {
+			c.terminalError(err)
 			return
 		}
-		deferred := c.deferredNotifications[0]
-		c.deferredNotifications = c.deferredNotifications[1:]
+	}
+	changed := false
+	for _, effect := range effects {
+		c.mu.Lock()
+		switch {
+		case effect.Kind == terminal.NotificationEffect && effect.Selection == "pair" && !ch.focusedAtDelivery:
+			c.attention.Mark(p.thread, effect.Text)
+			changed = true
+		case effect.Kind == terminal.BellEffect && !active:
+			c.attention.Mark(p.thread, "")
+			changed = true
+		}
+		c.syncAttentionLocked()
 		c.mu.Unlock()
-		c.onChunk(deferred)
+	}
+	c.terminalError(c.presenter.Present(c.lifetime, p.child.Endpoint()))
+	if changed {
+		c.repaint()
 	}
 }
 
@@ -1490,20 +1144,44 @@ func (c *Console) watchResize() {
 
 // onResize runs on the Run goroutine.
 func (c *Console) onResize() {
-	if s, err := c.host.Size(); err == nil {
-		c.mu.Lock()
-		c.size = s
-		c.mu.Unlock()
-	}
-	c.mu.Lock()
-	menuFocused := c.focus.IsPanel()
-	c.mu.Unlock()
-	if menuFocused {
-		c.showMenu()
+	size, err := c.host.Size()
+	if err != nil {
+		c.terminalError(err)
 		return
 	}
-	c.applyLayout()
-	c.repaint()
+	c.mu.Lock()
+	c.size = size
+	panel := c.focus.IsPanel()
+	selected := c.panes[c.active]
+	children := make([]*ptychild.Child, 0, len(c.panes))
+	for _, p := range c.panes {
+		children = append(children, p.child)
+	}
+	c.mu.Unlock()
+	if !panel && selected != nil {
+		err = c.presenter.Resize(c.lifetime, terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, func(g terminal.Geometry) error {
+			return selected.child.ResizePTY(ptychild.Size{Cols: uint16(g.Cols), Rows: uint16(g.Rows)})
+		})
+		if err != nil {
+			c.terminalError(err)
+			return
+		}
+	}
+	childSize := c.ChildSize()
+	for _, child := range children {
+		if (!panel && selected != nil && child == selected.child) || child.Endpoint().InputEnded() {
+			continue
+		}
+		if err := child.Resize(childSize); err != nil {
+			c.terminalError(err)
+			return
+		}
+	}
+	if panel {
+		c.showMenu()
+	} else {
+		c.paintNow()
+	}
 }
 
 // pumpStdin is the one blocking reader. It hands raw chunks to Run, which owns
@@ -1511,7 +1189,13 @@ func (c *Console) onResize() {
 func (c *Console) pumpStdin() {
 	buf := make([]byte, 4096)
 	for {
-		n, err := c.stdin.Read(buf)
+		var n int
+		var err error
+		if reader, ok := c.stdin.(contextualInput); ok {
+			n, err = reader.ReadContext(c.lifetime, buf)
+		} else {
+			n, err = c.stdin.Read(buf)
+		}
 		if n > 0 {
 			chunk := append([]byte(nil), buf[:n]...)
 			// Under the mutex the field is WRITTEN under. record is nil- and
@@ -1682,28 +1366,25 @@ func (c *Console) reportPrevious(text string) {
 	c.setNotice(text)
 }
 
-// reportLeave writes a final line to the operator's terminal on the way out.
-//
-// The console is being torn down, so this goes to stderr rather than through
-// the menu: by the time it runs, the surface that would have rendered a notice
-// is about to stop existing.
+// reportLeave retains the final product report until terminal ownership ends.
 func (c *Console) reportLeave(result couchcore.LeaveResult) {
-	if c.stderr == nil {
-		return
-	}
+	var report strings.Builder
 	if len(result.Detached) > 0 {
-		fmt.Fprintf(c.stderr, "couch: detached %d thread(s); their agents keep running\n", len(result.Detached))
+		fmt.Fprintf(&report, "couch: detached %d thread(s); their agents keep running\n", len(result.Detached))
 	}
 	if len(result.Parked) > 0 {
 		if result.Disposition == couchcore.LeavePark {
-			fmt.Fprintf(c.stderr, "couch: parked %d thread(s); their agents were stopped\n", len(result.Parked))
+			fmt.Fprintf(&report, "couch: parked %d thread(s); their agents were stopped\n", len(result.Parked))
 		} else {
-			fmt.Fprintf(c.stderr, "couch: parked %d thread(s) that were already shutting down\n", len(result.Parked))
+			fmt.Fprintf(&report, "couch: parked %d thread(s) that were already shutting down\n", len(result.Parked))
 		}
 	}
 	for _, address := range result.Skipped {
-		fmt.Fprintf(c.stderr, "couch: left %s occupied — its state could not be proved detachable\n", address.Tag)
+		fmt.Fprintf(&report, "couch: left %s occupied — its state could not be proved detachable\n", address.Tag)
 	}
+	c.mu.Lock()
+	c.leaveReport += report.String()
+	c.mu.Unlock()
 }
 
 // onDetachHotkey handles Pair's Alt+d chord at the Couch ownership boundary.
@@ -1875,37 +1556,6 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 	}
 }
 
-// couchMayOwnTheMouse reports whether couch may write its own terminal-global
-// mouse mode right now.
-//
-// It is deliberately NOT "the child does not want mouse". couch is deciding a
-// GLOBAL write from a belief it can only have observed, so the three states have
-// to be distinguished:
-//
-//	child observed holding tracking -> no  (writing demotes it)
-//	child observed holding none     -> yes (couch owns the terminal)
-//	nothing observed at all         -> NO  (couch does not know)
-//
-// The third is the one that shipped broken and the operator found in production
-// (pair#196): a detach/reattach mints a fresh Child with an empty Screen for a
-// still-running agent that will not re-emit its startup DECSET, so `Mouse()`
-// reads false for a child holding ?1002 and every paint wrote ?1000 over it --
-// drag selection losing its live highlight, exactly as reported.
-//
-// Silence is not consent. couch forgoes its own clicks in the unknown case,
-// which costs a keyboard-reachable convenience; the alternative costs the
-// operator their editor's drag, which no keystroke recovers.
-func (c *Console) couchMayOwnTheMouse() bool {
-	c.mu.Lock()
-	pane := c.panes[c.active]
-	c.mu.Unlock()
-	if pane == nil {
-		// No child at all: nothing to overwrite.
-		return true
-	}
-	return pane.child.MouseObserved() && !pane.child.Mouse()
-}
-
 // onMouse routes one decoded mouse report.
 //
 // The ONE place the report's 1-based coordinates meet the render's 0-based
@@ -1915,54 +1565,14 @@ func (c *Console) couchMayOwnTheMouse() bool {
 // no new input path was needed: it sees every byte before focus is considered,
 // so the panel needs no PanelKey kind and panelkeys.go is untouched.
 func (c *Console) onMouse(hit MouseHit) {
-	// Before routing, so routing and forwarding see one canonical event rather
-	// than two. Routing is unaffected either way — its only button test is
-	// `Button == 0`, and every wheel code is non-zero — which is what makes
-	// doing it once here safe (#213).
-	hit.Event, hit.Raw = stripWheelResizeModifier(hit.Event, hit.Raw)
-	c.mu.Lock()
-	rows := int(c.size.Rows)
-	panel := c.focus.IsPanel()
-	chips := c.statusChips
-	extents := c.menuExtents
-	child := c.panes[c.active]
-	c.mu.Unlock()
-
-	wantsMouse := child != nil && child.child.Mouse()
-	switch RouteMouseReport(hit.Event, rows, wantsMouse, panel) {
-	case MouseForward:
-		if child != nil && child.child.SGRMouse() {
-			// The RAW bytes, and only to a child that asked for THIS ENCODING.
-			// couch requests ?1006 for itself, so the terminal sends SGR whether
-			// or not the child wanted it; a child holding ?1000h without ?1006h
-			// asked for the legacy form and cannot parse what would arrive.
-			// Forwarding anyway would put unparseable bytes in its input, which
-			// is the "receives its own events unchanged" Done-when read
-			// backwards (pair#172 BR-26).
-			//
-			// Not re-encoded to legacy: that is a translation couch has no
-			// business inventing, and the legacy form cannot express coordinates
-			// past 223 anyway. Swallowed instead, which is what the child would
-			// have received before couch enabled anything.
-			_, _ = child.child.Write(hit.Raw)
-		}
-		return
-	case MouseSwallow:
+	var decoder terminal.Decoder
+	events, err := decoder.Feed(hit.Raw)
+	if err != nil {
+		c.terminalError(err)
 		return
 	}
-
-	// couch's own row, then the panel. The report is 1-based in both axes.
-	if hit.Event.Y == rows {
-		if thread, ok := (RenderedStatusRow{Chips: chips}).ColumnToActor(hit.Event.X - 1); ok {
-			c.switchToThread(thread)
-		}
-		return
-	}
-	if !panel {
-		return
-	}
-	if thread, ok := (RenderedMenu{Extents: extents}).PointToActor(hit.Event.Y-1, hit.Event.X-1); ok {
-		c.switchToThread(thread)
+	for _, event := range events {
+		c.routeMouseEvent(event)
 	}
 }
 
@@ -2219,8 +1829,8 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 		if target == "" {
 			return nil, fmt.Errorf("thread %s/%s is not attached to this console", address.RepoScope, address.Tag)
 		}
-		c.switchTo(target, true, how)
-		return address, nil
+		err := c.runTerminalCommand(call.Context, func() error { _, err := c.selectActorContext(call.Context, target, true, how); return err })
+		return address, err
 	case "attach":
 		start, ok := call.TypedPayload.(couchcore.StartResult)
 		if !ok {
@@ -2255,7 +1865,7 @@ func (c *Console) ExecuteConsoleOperation(call couchcore.OperationCall) (any, er
 func (c *Console) switchTargetForAddressLocked(address couchcore.ThreadAddress) string {
 	for _, id := range c.order {
 		pane := c.panes[id]
-		if pane != nil && pane.thread == address && !pane.child.Done() {
+		if pane != nil && pane.thread == address && !pane.child.Endpoint().InputEnded() {
 			return id
 		}
 	}
@@ -2268,13 +1878,6 @@ func (c *Console) setNotice(text string) {
 
 // publishNotice is the one way a notice is PUBLISHED: it pushes to the feed and
 // repaints the row that shows it.
-//
-// Not the one way a notice reaches the operator's eye, which would be a stronger
-// claim than the code supports: writeOwn declines while the child's stream is
-// mid-sequence and defers the paint to the next child chunk, and an idle console
-// -- the case this exists for -- has none. Pathological today, and
-// takeOverScreen resets the scanner, so there is no live instance; the point is
-// that the sentence says what is true rather than what is nearly true.
 //
 // Pushing without repainting used to be merely late -- the sentence appeared
 // whenever something else next painted, and stayed forever once it did. Giving

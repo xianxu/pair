@@ -33,7 +33,7 @@ func TestConsoleWrapperShortcutPassthrough(t *testing.T) {
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
 	reader, writer := io.Pipe()
 	console := couchtty.New(host, reader)
-	child := ptychild.NewFakeChild(nil)
+	child := ptychild.NewFakeChild([]byte("\x1b[>1u\x1b[?2004h"))
 	console.Attach("agent", "agent", child)
 	done := make(chan int, 1)
 	go func() { done <- console.Run() }()
@@ -62,14 +62,17 @@ func TestConsoleWrapperShortcutPassthrough(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	if !bytes.Equal(delivered, input) {
-		t.Fatalf("Couch delivered %q; want %q", delivered, input)
+	// Endpoint re-encodes semantic input for the child's negotiated protocol.
+	encodedLiteral := strings.NewReplacer("\x1bx", "\x1b[120;3u", "\x1bh", "\x1b[104;3u", "\x1bl", "\x1b[108;3u").Replace(literal)
+	wantDelivered := []byte(encodedLiteral + "\x1b[84;4uEND245")
+	if !bytes.Equal(delivered, wantDelivered) {
+		t.Fatalf("Couch delivered %q; want %q", delivered, wantDelivered)
 	}
 	var actions []string
 	p := &proxy{workbenchShortcutHandler: func(chord string) bool { actions = append(actions, chord); return true }}
 	var out bytes.Buffer
 	p.translateStdinFrom(bytes.NewReader(delivered), &out, time.Second)
-	if out.String() != literal+"END245" || strings.Join(actions, ",") != "Alt+Shift+T" {
+	if out.String() != encodedLiteral+"END245" || strings.Join(actions, ",") != "Alt+Shift+T" {
 		t.Fatalf("agent=%q actions=%v", out.String(), actions)
 	}
 }

@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -49,8 +51,8 @@ func newMouseFixture(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, 
 	// fixture lacked it, which is why every mode test had to call repaint() by
 	// hand and why the missing re-evaluation stayed invisible.
 	first, second := ptychild.NewFakeChild(nil), ptychild.NewFakeChild(nil)
-	first.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) })
-	second.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c2", batch) })
+	first.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return con.Deliver(ctx, "c1", batch) })
+	second.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return con.Deliver(ctx, "c2", batch) })
 	con.attachThreadActor("c1", "one", one, "/w/one", "one", first)
 	con.attachThreadActor("c2", "two", two, "/w/two", "two", second)
 	con.mu.Lock()
@@ -62,7 +64,19 @@ func newMouseFixture(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, 
 	}, one)
 	con.menuReady = true
 	con.mu.Unlock()
-	go con.Run()
+	done := make(chan struct{})
+	go func() { con.Run(); close(done) }()
+	t.Cleanup(func() {
+		con.Stop()
+		_ = writer.Close()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Error("mouse console teardown timed out")
+		}
+		_ = first.Close()
+		_ = second.Close()
+	})
 	waitFor(t, "the console to start", func() bool { return host.Written() != "" })
 	return con, writer, host, calls
 }
@@ -151,7 +165,7 @@ func TestChildWithoutTrackingReceivesNoMouseBytes(t *testing.T) {
 		return false
 	})
 	for _, w := range child.Writes()[before:] {
-		if len(w) > 0 && w[0] == 0x1b {
+		if strings.HasPrefix(string(w), "\x1b[<") {
 			t.Fatalf("a mouse report reached a child that never enabled tracking: %q", w)
 		}
 	}
@@ -224,7 +238,7 @@ func TestForwardPreservesRawBytes(t *testing.T) {
 	// by this child. A test asking only for tracking would expect bytes the
 	// child could not read.
 	child.Feed([]byte("\x1b[?1000;1006h"))
-	waitFor(t, "the child's mouse mode to register", func() bool { return child.Mouse() })
+	waitFor(t, "the child's mouse mode to register", func() bool { return child.Endpoint().Modes().Tracking != 0 })
 
 	const report = "\x1b[<0;7;9M"
 	if _, err := writer.Write([]byte(report)); err != nil {
@@ -245,12 +259,12 @@ func TestForwardPreservesRawBytes(t *testing.T) {
 func TestTeardownDisablesMouseTracking(t *testing.T) {
 	con, _, host, _ := newMouseFixture(t)
 	waitFor(t, "couch to enable its own tracking", func() bool {
-		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
+		return strings.Contains(host.Written(), "\x1b[?1003h")
 	})
 	host.Reset()
 	con.Stop()
 	waitFor(t, "teardown to reset the terminal", func() bool {
-		return strings.Contains(host.Written(), hostty.ResetInteractiveModes)
+		return strings.Contains(host.Written(), "\x1b[?1003l")
 	})
 }
 
@@ -259,7 +273,7 @@ func TestTeardownDisablesMouseTracking(t *testing.T) {
 func TestCouchEnablesItsOwnMouseTracking(t *testing.T) {
 	_, _, host, _ := newMouseFixture(t)
 	waitFor(t, "couch to ask the terminal for clicks", func() bool {
-		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
+		return strings.Contains(host.Written(), "\x1b[?1003h")
 	})
 }
 
@@ -303,131 +317,14 @@ func TestClickInTheSwitcherTakesTheReturnPath(t *testing.T) {
 //
 // This is the case a keyboard smoke test cannot reach: it needs a child using
 // motion tracking, and the damage is to that child's drag rather than to couch.
-func TestCouchDoesNotDemoteAChildsTrackingMode(t *testing.T) {
-	con, _, host, _ := newMouseFixture(t)
-	child := con.activeChild()
-	child.Feed([]byte("\x1b[?1002h"))
-	waitFor(t, "the child's motion tracking to register", func() bool { return child.Mouse() })
 
-	host.Reset()
-	con.repaint()
-	con.repaint()
-	waitFor(t, "a repaint", func() bool { return host.Written() != "" })
-
-	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
-		t.Fatal("couch re-asserted ?1000h under a child holding ?1002h, demoting it to press/release")
-	}
-}
-
-// The mode-transition table, one case per row. couch's own tracking was
-// implemented for one of these and pinned for none -- deleting the per-paint
-// re-assert left the whole suite green, because the only existing test checked
-// the STARTUP write.
-//
-// The rule under every row: the child's mode wins whenever it has one, and couch
-// takes the terminal back the moment it does not.
-func TestMouseModeTransitions(t *testing.T) {
-	for _, tc := range []struct {
-		name      string
-		childMode string
-		gone      bool
-		wantCouch bool
-	}{
-		{"child enables click tracking: couch stands back", "\x1b[?1000h", false, false},
-		{"child enables button-event tracking: couch stands back", "\x1b[?1002h", false, false},
-		{"child enables any-event tracking: couch stands back", "\x1b[?1003h", false, false},
-		{"child disables: couch takes the terminal back", "\x1b[?1002h\x1b[?1002l", false, true},
-		// UNKNOWN is not "no". A fresh Screen for a still-running child -- what
-		// a reattach mints -- has observed nothing, and writing on the strength
-		// of that overwrites a mode couch never witnessed (pair#196).
-		{"nothing observed yet: couch stands back", "", false, false},
-		// The surviving actor decides, not the departed one: onExit falls the
-		// active slot back to c2, which has observed nothing, so couch stands
-		// back for the same reason as the row above. Asserting "couch takes it
-		// back" here would have been asserting the fixture's shape rather than
-		// the rule -- what the exit itself changes is that c1's mode stops
-		// being the answer.
-		{"child exits with mouse on: the SURVIVOR decides", "\x1b[?1002h", true, false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			con, _, host, _ := newMouseFixture(t)
-			child := con.activeChild()
-			if tc.childMode != "" {
-				child.Feed([]byte(tc.childMode))
-				waitFor(t, "the child's mode to settle", func() bool {
-					return child.Mouse() == !strings.HasSuffix(tc.childMode, "l")
-				})
-			}
-			if tc.gone {
-				// Through the real exit path, not by deleting the map entry:
-				// onExit is what production runs, and it is where the active
-				// slot moves to a surviving actor. Reaching into panes would
-				// test a state the console never reaches.
-				child.Close()
-				waitFor(t, "the child to finish", func() bool { return child.Done() })
-				con.onExit(childExit{id: "c1", code: 0})
-			}
-
-			host.Reset()
-			con.repaint()
-			waitFor(t, "a repaint", func() bool { return host.Written() != "" })
-
-			got := strings.Contains(host.Written(), hostty.EnableMouseClicks)
-			if got != tc.wantCouch {
-				if tc.wantCouch {
-					t.Fatalf("couch did not re-assert its tracking, so a child's DECRST silently ends the feature")
-				}
-				t.Fatalf("couch asserted ?1000h over the child's mode, demoting it and wedging its drag")
-			}
-		})
-	}
-}
-
-// Switching between children with different modes is the sixth cell, and the one
-// most likely to be got wrong: the mode is terminal-global while the state is
-// per-pane, so the ARRIVING actor's mode has to win.
-func TestSwitchingToAChildWithoutTrackingReturnsTheTerminalToCouch(t *testing.T) {
-	con, _, host, _ := newMouseFixture(t)
-	// c1 holds motion tracking; c2 holds nothing.
-	con.activeChild().Feed([]byte("\x1b[?1002h"))
-	waitFor(t, "c1's mode to register", func() bool { return con.activeChild().Mouse() })
-	host.Reset()
-	con.repaint()
-	waitFor(t, "a paint under c1", func() bool { return host.Written() != "" })
-	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
-		t.Fatal("couch asserted over c1's motion tracking")
-	}
-
-	// c2 must have SAID it holds none. A child that has announced nothing is
-	// unknown, not "no", and couch stands back for it -- so switching to a
-	// silent c2 would leave the terminal on c1's mode and this test would be
-	// asserting the fixture rather than the rule.
-	con.mu.Lock()
-	other := con.panes["c2"]
-	con.mu.Unlock()
-	other.child.Feed([]byte("\x1b[?1000h\x1b[?1000l"))
-	waitFor(t, "c2 to declare it holds no tracking", func() bool {
-		return other.child.MouseObserved() && !other.child.Mouse()
-	})
-
-	con.forceSwitch("c2")
-	waitFor(t, "couch to take the terminal back under c2", func() bool {
-		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
-	})
-}
-
-// couch requests ?1006 for itself, so the terminal emits SGR regardless of what
-// the child wanted. A child holding ?1000h WITHOUT ?1006h asked for the legacy
-// encoding and cannot parse an SGR report -- forwarding one puts unparseable
-// bytes in its input, which is "receives its own events unchanged" read
-// backwards.
 func TestAChildThatDidNotAskForSGRIsNotSentSGR(t *testing.T) {
 	con, writer, _, _ := newMouseFixture(t)
 	child := con.activeChild()
 	// Tracking, but the LEGACY encoding.
 	child.Feed([]byte("\x1b[?1000h"))
-	waitFor(t, "the child's tracking to register", func() bool { return child.Mouse() })
-	if child.SGRMouse() {
+	waitFor(t, "the child's tracking to register", func() bool { return child.Endpoint().Modes().Tracking != 0 })
+	if child.Endpoint().Modes().SGR {
 		t.Fatal("the fixture child asked for SGR, so this test cannot distinguish the encodings")
 	}
 	before := len(child.Writes())
@@ -447,10 +344,14 @@ func TestAChildThatDidNotAskForSGRIsNotSentSGR(t *testing.T) {
 		return false
 	})
 	for _, w := range child.Writes()[before:] {
-		if len(w) > 0 && w[0] == 0x1b {
+		if strings.HasPrefix(string(w), "\x1b[<") {
 			t.Fatalf("an SGR report was forwarded to a child that asked for the legacy encoding: %q", w)
 		}
 	}
+	if !strings.Contains(string(bytes.Join(child.Writes()[before:], nil)), "\x1b[M ')") {
+		t.Fatalf("legacy mouse report missing: %q", child.Writes()[before:])
+	}
+
 }
 
 // The operator's pair#196, as a test: agent-pane drag selection loses its live
@@ -467,86 +368,12 @@ func TestAChildThatDidNotAskForSGRIsNotSentSGR(t *testing.T) {
 // Silence is not consent. This is the case a keyboard smoke test cannot reach
 // and mainstream children hide: nvim and zellij both announce ?1006, so the
 // common configuration looks fine.
-func TestAReattachedChildKeepsItsTrackingMode(t *testing.T) {
-	con, _, host, _ := newMouseFixture(t)
-	address := menuAddress("one")
 
-	// The agent announced motion tracking long ago, on a Child that is gone.
-	// What couch has NOW is a fresh pane for the same running thread, which is
-	// what a detach/reattach mints -- reached through the real exit path rather
-	// than by deleting from the map, which no production path does and which
-	// leaves the console painting a pane it still believes in.
-	original := con.activeChild()
-	original.Feed([]byte("\x1b[?1002h"))
-	waitFor(t, "the original child's tracking to register", func() bool { return original.Mouse() })
-	_ = original.Close()
-	waitFor(t, "the original child to finish", func() bool { return original.Done() })
-	con.onExit(childExit{id: "c1", code: 0})
-
-	con.attachThreadActor("c1b", "one", address, "/w/one", "one", ptychild.NewFakeChild(nil))
-	con.mu.Lock()
-	con.active = "c1b"
-	fresh := con.panes["c1b"].child
-	con.mu.Unlock()
-
-	if fresh.MouseObserved() {
-		t.Fatal("a fresh Child claims to have observed a mode, so this test cannot reproduce the reattach")
-	}
-	if fresh.Mouse() {
-		t.Fatal("a fresh Child claims tracking, so the false-negative this test exists for cannot occur")
-	}
-
-	host.Reset()
-	con.repaint()
-	con.repaint()
-	waitFor(t, "a repaint", func() bool { return host.Written() != "" })
-
-	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
-		t.Fatal("couch wrote ?1000 over a reattached child whose mode it never observed, demoting a still-tracking agent")
-	}
-}
-
-// The TRIGGER, which every other mode test misses because they call repaint()
-// by hand -- a test that observes one interleaving the author chose.
-//
-// A child dropping its tracking must cause couch to take the terminal back on
-// its own. Before the latch, `?1002l` left couch's clicks off until some
-// unrelated paint happened to run, so the feature silently stopped and nothing
-// said why.
-func TestAChildDroppingItsModeMakesCouchReclaimTheTerminalWithoutAPaintCall(t *testing.T) {
-	con, _, host, _ := newMouseFixture(t)
-	child := con.activeChild()
-	child.Feed([]byte("\x1b[?1002h"))
-	waitFor(t, "the child's tracking to register", func() bool { return child.Mouse() })
-	// Reset AFTER the mode has registered. The latch means the DECSET itself
-	// triggers a paint, and that paint races the registration -- it can run
-	// while Screen still reports unobserved, which is correct behaviour (couch
-	// stands back when it does not know) but writes EnableMouseClicks into the
-	// buffer. Asserting on bytes written before the fact is asserting the race.
-	host.Reset()
-	con.repaint()
-	waitFor(t, "a paint under the tracking child", func() bool { return host.Written() != "" })
-	if strings.Contains(host.Written(), hostty.EnableMouseClicks) {
-		t.Fatal("couch asserted over a child holding ?1002")
-	}
-
-	// No repaint() here. The child's DECRST alone must get couch's mode back.
-	host.Reset()
-	child.Feed([]byte("\x1b[?1002l"))
-	waitFor(t, "couch to reclaim the terminal on its own", func() bool {
-		return strings.Contains(host.Written(), hostty.EnableMouseClicks)
-	})
-}
-
-// The strip must be CALLED, not merely correct. Both halves of it are pure, so a
-// discarded result or a call placed in the wrong branch compiles and leaves
-// every unit test green — this drives the real onMouse path end to end, which is
-// the only thing that can catch that.
 func TestForwardStripsCtrlFromWheelReports(t *testing.T) {
 	con, writer, _, _ := newMouseFixture(t)
 	child := con.activeChild()
 	child.Feed([]byte("\x1b[?1000;1006h"))
-	waitFor(t, "the child's mouse mode to register", func() bool { return child.Mouse() })
+	waitFor(t, "the child's mouse mode to register", func() bool { return child.Endpoint().Modes().Tracking != 0 })
 
 	const ctrlWheelUp = "\x1b[<80;7;9M"
 	const plainWheelUp = "\x1b[<64;7;9M"
@@ -565,5 +392,37 @@ func TestForwardStripsCtrlFromWheelReports(t *testing.T) {
 		if string(w) == ctrlWheelUp {
 			t.Fatal("the child received the ctrl-modified report; zellij would resize the pane instead of scrolling")
 		}
+	}
+}
+
+func TestCouchParentCaptureStableAcrossChildMouseModes(t *testing.T) {
+	for _, tc := range []struct {
+		mode string
+		want string
+	}{
+		{"", "x"},
+		{"\x1b[?1000;1006h", "\x1b[<0;7;9M\x1b[<0;8;9mx"},
+		{"\x1b[?1002;1006h", "\x1b[<0;7;9M\x1b[<32;8;9M\x1b[<0;8;9mx"},
+		{"\x1b[?1003;1006h", "\x1b[<0;7;9M\x1b[<32;8;9M\x1b[<0;8;9mx"},
+		{"\x1b[?1002;1006h\x1b[?1002l", "x"},
+	} {
+		t.Run(tc.mode, func(t *testing.T) {
+			con, writer, host, _ := newMouseFixture(t)
+			child := con.activeChild()
+			child.Feed([]byte(tc.mode))
+			if err := con.presenter.Flush(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			host.Reset()
+			_, _ = writer.Write([]byte("\x1b[<0;7;9M\x1b[<32;8;9M\x1b[<0;8;9mx"))
+			waitFor(t, "input barrier", func() bool { return strings.HasSuffix(string(bytes.Join(child.Writes(), nil)), "x") })
+			if got := string(bytes.Join(child.Writes(), nil)); got != tc.want {
+				t.Fatalf("child input %q want %q", got, tc.want)
+			}
+			con.repaint()
+			if got := host.Written(); strings.Contains(got, "\x1b[?1000h") || strings.Contains(got, "\x1b[?1002h") || strings.Contains(got, "\x1b[?1003l") {
+				t.Fatalf("child changed parent capture: %q", got)
+			}
+		})
 	}
 }

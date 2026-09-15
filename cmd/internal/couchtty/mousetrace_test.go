@@ -1,17 +1,15 @@
 package couchtty
 
 import (
+	"context"
 	"errors"
-	"fmt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestMouseTracerOffIsNilAndRecordIsNilSafe(t *testing.T) {
@@ -116,160 +114,6 @@ func requireMouseTrace(t *testing.T, log string, fields ...string) {
 	}
 }
 
-func TestMouseTraceProducerTransitions(t *testing.T) {
-	c, h, log := mouseTraceFixture(t)
-	c.writeChild([]byte("\x1b[?1002;1006h"))
-	requireMouseTrace(t, log(), "\tchild-mode\t", `active="first"`, `thread="legacy/first"`, "scanner-before=none", "scanner-after=1002,1006", "outcome=emitted")
-	c.takeOverScreen(nil, nil)
-	requireMouseTrace(t, log(), "\ttakeover\t", "scanner-before=1002,1006", "scanner-reset=none", "scanner-after=none", "replay-bytes=0", "target=panel")
-	if h.Written() != "\x1b[?1002;1006h"+hostty.EnableKeyboardDisambiguation+string(hostty.RepaintFor(nil, nil))+hostty.EnableKeyboardDisambiguation {
-		t.Fatal("tracing altered output")
-	}
-}
-
-func TestMouseTraceAssertionOutcomes(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		limit        int
-		err          error
-		prefix, want string
-	}{
-		{"emitted", -1, nil, "", "emitted"},
-		{"deferred", -1, nil, "\x1b[", "deferred"},
-		{"short", 2, nil, "", "short-write"},
-		{"error", 0, errors.New("write\nfailed"), "", "error"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			c, h, log := mouseTraceFixture(t)
-			c.activeChild().Feed([]byte("\x1b[?1002l"))
-			if tc.prefix != "" {
-				c.writeChild([]byte(tc.prefix))
-			}
-			h.Reset()
-			h.limit = tc.limit
-			h.failure = tc.err
-			c.paintNow()
-			requireMouseTrace(t, log(), "\tassert-clicks\t", "source=paint", "scanner-before=none", "outcome="+tc.want, `active="first"`)
-			if strings.Contains(log(), "host-before=") {
-				t.Fatal("scanner belief still called host state")
-			}
-			if tc.want == "deferred" && h.Written() != "" {
-				t.Fatal("deferred assertion wrote bytes")
-			}
-			if tc.err != nil {
-				requireMouseTrace(t, log(), `error="write\nfailed"`)
-			}
-		})
-	}
-}
-
-func TestMouseTraceWriteAttributionBeforeBlockedOutput(t *testing.T) {
-	c, h, log := mouseTraceFixture(t)
-	h.entered = make(chan struct{})
-	h.resume = make(chan struct{})
-	done := make(chan struct{})
-	go func() { c.writeChild([]byte("\x1b[?1002h")); close(done) }()
-	<-h.entered
-	c.mu.Lock()
-	c.active = "second"
-	c.mu.Unlock()
-	close(h.resume)
-	<-done
-	requireMouseTrace(t, log(), `active="first"`, `thread="legacy/first"`, "outcome=emitted")
-	if strings.Contains(log(), `active="second"`) {
-		t.Fatal("write attributed to later active thread")
-	}
-}
-
-func TestMouseTraceLifecycle(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "mouse.log")
-	f := newFixtureBeforeRun(t, 24, 80, func(c *Console) {
-		if err := c.SetMouseTrace(path); err != nil {
-			t.Fatal(err)
-		}
-	})
-	waitFor(t, "startup bytes", func() bool { return strings.Contains(f.host.Written(), hostty.EnableMouseClicks) })
-	f.con.Stop()
-	select {
-	case <-f.done:
-	case <-time.After(3 * time.Second):
-		t.Fatal("Run did not stop")
-	}
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	requireMouseTrace(t, string(body), "source=startup", "\tcleanup\t", "outcome=emitted")
-	if !strings.Contains(f.host.Written(), hostty.ResetInteractiveModes) {
-		t.Fatal("cleanup bytes missing")
-	}
-}
-
-func TestMouseTraceReplayAttributionAcrossThreads(t *testing.T) {
-	c, _, log := mouseTraceFixture(t)
-	c.writeChild([]byte("\x1b[?1002;1006h"))
-	other := ptychild.NewFakeChild(nil)
-	t.Cleanup(func() { other.Close() })
-	other.Feed([]byte("\x1b[?1003;1006h"))
-	c.attachThreadActor("second", "second-actor", couchcore.ThreadAddress{RepoScope: "repo", Tag: "second-thread"}, "second", "second", other)
-	c.switchTo("second", false, arrivalOrdinary)
-	lines := strings.Split(log(), "\n")
-	var takeover string
-	for _, line := range lines {
-		if strings.Contains(line, "\ttakeover\t") {
-			takeover = line
-		}
-	}
-	requireMouseTrace(t, takeover, `active="second"`, `actor="second-actor"`, `thread="repo/second-thread"`, `target="second"`, "scanner-before=1002,1006", "scanner-reset=none", "scanner-after=1003,1006", "outcome=emitted")
-}
-
-func TestMouseTraceProducerWriteFailures(t *testing.T) {
-	for _, producer := range []string{"child", "takeover", "cleanup"} {
-		for _, failed := range []bool{false, true} {
-			t.Run(fmt.Sprintf("%s/error=%t", producer, failed), func(t *testing.T) {
-				c, h, log := mouseTraceFixture(t)
-				h.limit = 2
-				want := "short-write"
-				if failed {
-					h.failure = errors.New("partial failure")
-					want = "error"
-				}
-				switch producer {
-				case "child":
-					c.writeChild([]byte("\x1b[?1002h"))
-				case "takeover":
-					c.takeOverScreen(nil, []byte("\x1b[?1002h"))
-				case "cleanup":
-					c.release()
-				}
-				requireMouseTrace(t, log(), "outcome="+want, "written=2")
-				if len(h.Written()) != 2 {
-					t.Fatalf("accepted %d bytes", len(h.Written()))
-				}
-			})
-		}
-	}
-}
-
-func TestMouseTraceDeferredAssertionEventuallyEmits(t *testing.T) {
-	c, h, log := mouseTraceFixture(t)
-	c.activeChild().Feed([]byte("\x1b[?1002l"))
-	c.writeChild([]byte("\x1b["))
-	h.Reset()
-	c.paintNow()
-	requireMouseTrace(t, log(), "outcome=deferred written=0")
-	if h.Written() != "" {
-		t.Fatal("deferred write emitted")
-	}
-	c.writeChild([]byte("m"))
-	h.Reset()
-	c.paintNow()
-	requireMouseTrace(t, log(), "outcome=emitted written="+strconv.Itoa(len(hostty.EnableMouseClicks)))
-	if !strings.HasPrefix(h.Written(), hostty.EnableMouseClicks) {
-		t.Fatal("later repaint did not emit clicks")
-	}
-}
-
 func TestMouseWriteResultDetail(t *testing.T) {
 	for _, tc := range []struct {
 		result mouseWriteResult
@@ -300,13 +144,28 @@ func TestMouseTraceContextBoundsAndQuoting(t *testing.T) {
 	}
 }
 
-func TestMouseTraceReleasedAssertion(t *testing.T) {
-	c, h, log := mouseTraceFixture(t)
-	c.release()
-	before := h.Written()
-	c.traceMouseClicks("paint")
-	requireMouseTrace(t, log(), "outcome=suppressed", "reason=terminal-released")
-	if h.Written() != before {
-		t.Fatal("mouse assertion wrote after terminal release")
+func (h *mouseTraceHost) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
 	}
+	return h.Write(p)
+}
+
+func TestMouseTraceRecordsTypedSelectionAndRelease(t *testing.T) {
+	c, _, log := mouseTraceFixture(t)
+	c.applyLayout()
+	c.switchTo("first", true, arrivalOrdinary)
+	c.release()
+	requireMouseTrace(t, log(), "\tselect\t", `active="first"`, "policy=couch-any-motion", "outcome=presented", "\trelease\t")
+}
+
+func TestMouseTraceRecordsPresentationFailure(t *testing.T) {
+	c, h, log := mouseTraceFixture(t)
+	c.applyLayout()
+	h.failure = errors.New("host rejected frame")
+	_, err := c.selectActor("first", true, arrivalOrdinary)
+	if err == nil {
+		t.Fatal("host failure was hidden")
+	}
+	requireMouseTrace(t, log(), "outcome=failed", "host rejected frame")
 }

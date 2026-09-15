@@ -65,6 +65,7 @@ func TestGenerateConcurrentSameOutputSucceeds(t *testing.T) {
 
 func writeMinimalRuntimeRepo(t *testing.T, repo string) {
 	t.Helper()
+	writeFile(t, filepath.Join(repo, "terminfo", "pair-vt-256color.ti"), "pair-vt-256color|Pair test terminal,\n cols#80, lines#24, clear=\\E[H\\E[2J,\n", 0o644)
 	for _, logical := range explicitAssetPaths {
 		writeFile(t, filepath.Join(repo, filepath.FromSlash(logical)), "#!/bin/sh\n", 0o755)
 	}

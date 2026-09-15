@@ -42,7 +42,7 @@ func TestFakeRunnerKillAlwaysEndsExactChild(t *testing.T) {
 	if h.Alive() {
 		t.Fatalf("killed child remained live: %+v", r.Child(h.ID()))
 	}
-	if h.Wait() != -1 || !r.Terminal(h.ID()).Done() {
+	if h.Wait() != -1 || !r.Terminal(h.ID()).Endpoint().InputEnded() {
 		t.Fatalf("killed child did not complete as killed: %+v", r.Child(h.ID()))
 	}
 }
@@ -238,7 +238,7 @@ func TestFakeRunnerExitEndsTheHandleAndTheTerminalTogether(t *testing.T) {
 	if h.Alive() {
 		t.Fatal("handle still alive after SetExited")
 	}
-	if !child.Done() {
+	if !child.Endpoint().InputEnded() {
 		t.Fatal("the terminal double is still running after the handle exited")
 	}
 	if got := child.Wait(); got != 5 {
@@ -255,7 +255,7 @@ func TestFakeRunnerAutoExitEndsTheTerminalToo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if !h.(TerminalHandle).Terminal().Done() {
+	if !h.(TerminalHandle).Terminal().Endpoint().InputEnded() {
 		t.Fatal("AutoExit left the terminal double running")
 	}
 }

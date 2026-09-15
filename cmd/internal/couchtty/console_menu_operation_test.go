@@ -64,7 +64,7 @@ func TestConsoleMenuMissingDispatcherPaintsLocalError(t *testing.T) {
 	if got.InFlight.Operation != "" || got.Notice.Level != MenuNoticeError || got.Notice.Text != "no action dispatcher wired" {
 		t.Fatalf("missing-dispatcher state = %+v", got)
 	}
-	if screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written())))); !strings.Contains(screen, "error: no action dispatcher wired") {
+	if screen := string(ansi.Strip([]byte(f.screenText()))); !strings.Contains(screen, "error: no action dispatcher wired") {
 		t.Fatalf("missing dispatcher was not painted locally: %q", screen)
 	}
 }
@@ -135,7 +135,7 @@ func TestConsoleMenuResumeLandsOnExactReturnedHandle(t *testing.T) {
 		f.con.mu.Unlock()
 		return active == started.Handle.ID() && focus == FocusActor(started.Handle.ID()) && inflight == "" && strings.Contains(f.host.Written(), "RESUMED-EXACT-SCREEN")
 	})
-	if strings.Contains(lastConsoleScreen(f.host.Written()), "threads") {
+	if strings.Contains(f.screenText(), "threads") {
 		t.Fatalf("successful resume repainted the switcher: %q", f.host.Written())
 	}
 	if !f.con.menuSnapshot().ProjectionPending {
@@ -192,7 +192,7 @@ func TestConsoleRefreshFailureKeepsCommittedMutationVisiblyPending(t *testing.T)
 
 	waitUpTo(t, 250*time.Millisecond, "failed refresh pending banner", func() bool {
 		state := f.con.menuSnapshot()
-		screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written()))))
+		screen := string(ansi.Strip([]byte(f.screenText())))
 		return state.ProjectionPending && strings.Contains(screen, "error: thread inventory unavailable: store unavailable; refresh pending")
 	})
 }
@@ -251,6 +251,7 @@ func TestConsoleAttachAndSwitchIgnoreDonePaneAwaitingExit(t *testing.T) {
 	old := ptychild.NewFakeChild(nil)
 	con.attachThreadActor("old-handle", "old-actor", address, "/repo", "old", old)
 	old.Exit(0)
+	waitFor(t, "old pane finalization", old.Done)
 	if !old.Done() {
 		t.Fatal("old pane did not enter done-but-queued state")
 	}
@@ -312,8 +313,8 @@ func TestConsoleMenuAttachRefusalPaintsLocalErrorBanner(t *testing.T) {
 	})
 	// Reducer completion precedes its paint; wait for the observable result.
 	waitUpTo(t, time.Second, "attach refusal banner", func() bool {
-		screen := string(ansi.Strip([]byte(lastConsoleScreen(f.host.Written()))))
-		return strings.Contains(screen, "start thread\r\nerror: thread ") && strings.Contains(screen, "already attached")
+		screen := string(ansi.Strip([]byte(f.screenText())))
+		return strings.Contains(screen, "start thread\nerror: thread ") && strings.Contains(screen, "already attached")
 	})
 	f.con.mu.Lock()
 	focus, inflight := f.con.focus, f.con.menu.InFlight.Operation

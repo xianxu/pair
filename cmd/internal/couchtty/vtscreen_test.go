@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"context"
 	"io"
 	"strings"
 	"sync"
@@ -51,6 +52,10 @@ func (h *vtHost) Write(p []byte) (int, error) {
 	_, _ = h.FakeHost.Write(p) // keep the byte-level assertions available
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	size, _ := h.Size()
+	if h.em.Width() != int(size.Cols) || h.em.Height() != int(size.Rows) {
+		h.em.Resize(int(size.Cols), int(size.Rows))
+	}
 	return h.em.Write(p)
 }
 
@@ -96,7 +101,7 @@ func newVTFixture(t *testing.T, rows, cols uint16) (*vtHost, *ptychild.Child, *C
 	con := New(host, pr)
 
 	child := ptychild.NewFakeChild(nil)
-	child.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) })
+	child.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return con.Deliver(ctx, "c1", batch) })
 	con.Attach("c1", "brain", child)
 
 	done := make(chan int, 1)
@@ -105,8 +110,9 @@ func newVTFixture(t *testing.T, rows, cols uint16) (*vtHost, *ptychild.Child, *C
 		con.Stop()
 		_ = pw.Close()
 		<-done
+		_ = child.Close()
 	})
-	waitFor(t, "the console to reserve", func() bool { return len(child.Resizes()) > 0 })
+	waitFor(t, "initial endpoint presentation", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.framePainted })
 	return host, child, con
 }
 
@@ -137,9 +143,6 @@ func TestReservedRowComesBackAfterAChildResetsMargins(t *testing.T) {
 	waitFor(t, "the status row", func() bool { return strings.Contains(host.row(8), "brain") })
 
 	child.Feed([]byte("\x1b[r"))
-	waitFor(t, "the region to be re-asserted", func() bool {
-		return strings.Contains(host.Written(), "\x1b[1;7r")
-	})
 
 	for i := 0; i < 40; i++ {
 		child.Feed([]byte("after the reset\r\n"))
@@ -162,7 +165,6 @@ func TestReleaseLeavesAUsableScreen(t *testing.T) {
 	waitFor(t, "the region reset", func() bool {
 		return strings.Contains(host.Written(), hostty.ResetRegion)
 	})
-	waitFor(t, "the row to be cleared", func() bool { return host.row(8) == "" })
 
 	// And the shell that follows can scroll the WHOLE screen again. The last
 	// write has no trailing newline, so the cursor -- and the text -- land on
@@ -240,4 +242,11 @@ func TestReservedRowSurvivesAFullScreenChildStartingUp(t *testing.T) {
 	waitFor(t, "the row to be repainted", func() bool {
 		return strings.Contains(host.row(8), "brain")
 	})
+}
+
+func (h *vtHost) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	return h.Write(p)
 }

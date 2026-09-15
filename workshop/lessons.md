@@ -4995,3 +4995,9 @@ that transition authority is pure or enforced.
 - Enumerate terminal state mutations in both setup and renderer, then test successful release after every accepted control-stream prefix using an independent interpreter. Cleanup that works after complete frames can still leak autowrap, hyperlink or cursor style after interruption. (#255 M2 BR11, 2026-09-15)
 
 - A terminal cell validator must use complete grapheme segmentation, not an ANSI decoder whose ASCII fast path returns one byte. Test valid ASCII-base combining clusters and orphan zero-width input through Feed→Frame→Presenter→input, including controls and every byte split. Keep backend and UI text policy coherent without permitting nonempty continuation cells. (#255 M2 BR12, 2026-09-15)
+
+### 2026-09-15 — #255 terminal migration preserves effect policy
+
+Replacing raw output with typed effects must preserve selected-versus-hidden behavior for each effect, independently of terminal parsing. A hidden clipboard write was previously suppressed with hidden raw output; enabling every typed effect for every origin leaked it to the operator. Test selected delivery, hidden suppression, later selection without replay, and local query replies separately. Notification attention may still use delivery-time focus while clipboard/title/bell emission uses the selected surface.
+
+Owned terminal teardown must finish before fallback stderr writes: stderr often aliases the same physical TTY. Record failures during ownership, cancel and join IO, release parent modes, then report; cancellation must not discard a release failure.

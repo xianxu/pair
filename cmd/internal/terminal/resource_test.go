@@ -34,7 +34,7 @@ func TestTerminalResourceProbe(t *testing.T) {
 	}
 	for _, g := range []Geometry{{80, 24}, {240, 80}} {
 		for _, state := range []string{"empty", "typical", "history-saturated"} {
-			for _, kind := range []string{"backend", "endpoint+published+caller-frame"} {
+			for _, kind := range []string{"backend", "endpoint+published+caller-publication"} {
 				t.Run(fmt.Sprintf("%dx%d/%s/%s", g.Cols, g.Rows, state, kind), func(t *testing.T) { resourceMeasure(t, g, state, kind) })
 			}
 		}
@@ -72,7 +72,7 @@ func resourceMeasure(t *testing.T, g Geometry, state, kind string) {
 	var before, after runtime.MemStats
 	backends := make([]*vt.Emulator, 0, count)
 	endpoints := make([]*Endpoint, 0, count)
-	frames := make([]Frame, 0, count)
+	publications := make([]Publication, 0, count)
 	runtime.GC()
 	runtime.ReadMemStats(&before)
 	start := time.Now()
@@ -93,11 +93,11 @@ func resourceMeasure(t *testing.T, g Geometry, state, kind string) {
 			endpoints = append(endpoints, e)
 			backends = append(backends, e.backend)
 			resourcePopulate(t, g, state, func(p []byte) error { _, err := e.Feed(p, time.Time{}); return err })
-			f, err := e.Snapshot(time.Time{})
+			f, err := e.Publication(time.Time{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			frames = append(frames, f)
+			publications = append(publications, f)
 		}
 	}
 	elapsed := time.Since(start)
@@ -125,7 +125,7 @@ func resourceMeasure(t *testing.T, g Geometry, state, kind string) {
 		t.Fatal(err)
 	}
 	t.Log(string(b))
-	runtime.KeepAlive(frames)
+	runtime.KeepAlive(publications)
 	runtime.KeepAlive(endpoints)
 	runtime.KeepAlive(backends)
 	if kind == "backend" {

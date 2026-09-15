@@ -10,7 +10,7 @@ async function main() {
   if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || rows < 1 || cols * rows > 262144 || !Array.isArray(chunks)) {
     throw new Error('invalid oracle dimensions or chunks');
   }
-  const terminal = new Terminal({ cols, rows, allowProposedApi: true, scrollback: 0 });
+  const terminal = new Terminal({ cols, rows, allowProposedApi: true, scrollback: Number.isInteger(request.Scrollback) ? Math.min(1000, Math.max(0, request.Scrollback)) : 0 });
   const links = [];
   terminal.parser.registerOscHandler(8, data => { links.push(data); return false; });
   const result = [];
@@ -32,7 +32,16 @@ async function main() {
         }
         cells.push(row);
       }
-      result.push({ Lines: lines, Cells: cells, X: buffer.cursorX, Y: buffer.cursorY, Links: [...links],
+      const history = [];
+      for (let y = 0; y < buffer.baseY; y++) {
+        const line = buffer.getLine(y);
+        const row = [];
+        for (let x = 0; x < cols; x++) { const c = line.getCell(x); row.push({Text:c.getChars(),Width:c.getWidth(),FG:c.getFgColor(),BG:c.getBgColor()}); }
+        history.push({Text:line.translateToString(true),Wrapped:line.isWrapped,Cells:row});
+      }
+      const wraps = [];
+      for (let y = 0; y < rows; y++) wraps.push(buffer.getLine(buffer.viewportY+y).isWrapped);
+      result.push({ History: history, Wraps: wraps, Lines: lines, Cells: cells, X: buffer.cursorX, Y: buffer.cursorY, Links: [...links],
         Modes: terminal.modes, CursorStyle: terminal.options.cursorStyle, CursorBlink: terminal.options.cursorBlink });
     }
   } finally { terminal.dispose(); }

@@ -33,6 +33,8 @@ func (e *Emulator) index() {
 		e.scr.moveCursor(0, 1)
 	}
 	e.atPhantom = false
+	_, row := e.scr.CursorPosition()
+	e.scr.rows[row].Wrapped = false
 }
 
 // horizontalTabSet sets a horizontal tab stop at the current cursor position.

@@ -1823,7 +1823,12 @@ func termText(term *Emulator) []string {
 			if cell == nil {
 				continue
 			}
-			line += cell.String()
+			// Visual oracle: unprinted width-one cells still occupy one blank column.
+			if cell.Width == 1 && cell.Content == "" {
+				line += " "
+			} else {
+				line += cell.String()
+			}
 			x += cell.Width - 1
 		}
 		lines = append(lines, line)

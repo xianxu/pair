@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -9,7 +10,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/notifycmd"
-	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
@@ -46,7 +46,9 @@ func TestNotificationPTYConformance(t *testing.T) {
 			"PAIR_OUTER_TTY_PATH=" + sidecar,
 		},
 		Size: f.con.ChildSize(),
-		Sink: func(batch ptychild.OutputBatch) { f.con.Deliver("notify", batch) },
+		Sink: func(ctx context.Context, batch ptychild.OutputBatch) error {
+			return f.con.Deliver(ctx, "notify", batch)
+		},
 	})
 	if err != nil {
 		t.Fatalf("start notification actor: %v", err)
@@ -54,7 +56,7 @@ func TestNotificationPTYConformance(t *testing.T) {
 	t.Cleanup(func() { _ = child.Close() })
 	f.con.Attach("notify", "notify", child)
 
-	envelope := notifyosc.Encode(message)
+	envelope := []byte("\x1b]777;notify;pair;" + message + "\x1b\\")
 	waitFor(t, "inactive PTY notification", func() bool {
 		f.con.mu.Lock()
 		pane := f.con.panes["notify"]

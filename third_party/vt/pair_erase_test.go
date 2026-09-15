@@ -37,7 +37,11 @@ func TestPairEraseDisplay(t *testing.T) {
 			for y, row := range tc.rows {
 				for x, want := range row {
 					c := e.CellAt(x, y)
-					if c.Content != string(want) {
+					wantContent := string(want)
+					if want == ' ' {
+						wantContent = ""
+					}
+					if c.Content != wantContent {
 						t.Fatalf("cell %d,%d got %q want %q", x, y, c.Content, string(want))
 					}
 					bg := ansi.IndexedColor(4)
@@ -72,7 +76,11 @@ func TestPairEraseLineAndCharacters(t *testing.T) {
 		var row strings.Builder
 		for x := 0; x < 4; x++ {
 			c := e.CellAt(x, 0)
-			row.WriteString(c.Content)
+			if c.Width == 1 && c.Content == "" {
+				row.WriteByte(' ')
+			} else {
+				row.WriteString(c.Content)
+			}
 			gotStyle, wantStyle := uv.Style{Bg: c.Style.Bg}, uv.Style{Bg: ansi.IndexedColor(1)}
 			if tc.want[x] == ' ' && !gotStyle.Equal(&wantStyle) {
 				t.Fatalf("%q erased bg=%v", tc.command, c.Style.Bg)
@@ -88,7 +96,7 @@ func TestPairEraseLargeCount(t *testing.T) {
 	e := NewEmulator(4, 2)
 	defer e.Close()
 	e.WriteString("ABCD\x1b[1;2H\x1b[100000000X")
-	if e.CellAt(0, 0).Content != "A" || e.CellAt(3, 0).Content != " " {
+	if e.CellAt(0, 0).Content != "A" || e.CellAt(3, 0).Content != "" {
 		t.Fatal("ECH clipped incorrectly")
 	}
 }

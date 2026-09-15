@@ -14,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/muesli/cancelreader"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -208,18 +207,14 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	var uiHost hostty.Host = host
 	var uiInput io.Reader = reader
 	if interactive {
-		uiHost = hostty.NewOSHost(os.Stdin, os.Stdout)
-		input, err := cancelreader.NewReader(os.Stdin)
-		if err != nil {
-			t.Fatal(err)
-		}
-		uiInput = recoverySmokeInput{input}
+		host := hostty.NewOSHost(os.Stdin, os.Stdout)
+		uiHost, uiInput = host, host
 	}
 	console := couchtty.New(uiHost, uiInput)
 	initial := ptychild.NewFakeChild(nil)
 	console.Attach("fixture-panel", "fixture", initial)
 	rt.runner.AfterBlockedStart = func(id string) {
-		rt.runner.Terminal(id).SetSink(func(batch ptychild.OutputBatch) { console.Deliver(id, batch) })
+		rt.runner.Terminal(id).SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return console.Deliver(ctx, id, batch) })
 	}
 	wireResolver(console, c)
 	lease, err := couchcore.AcquireSupervisorLease(rt.namespace, couchcore.OSProcOps{})
@@ -412,7 +407,9 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 			}
 		}()
 	}
-	initial.SetSink(func(batch ptychild.OutputBatch) { console.Deliver("fixture-panel", batch) })
+	initial.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error {
+		return console.Deliver(ctx, "fixture-panel", batch)
+	})
 	instruction := "\r\nDISPOSABLE RECOVERY FIXTURE (no paid agent)\r\nReal source helper was killed and reaped. Ctrl+Space opens Couch.\r\n"
 	if mode == "warm" {
 		instruction += "Select the stale row and press Enter to Recover.\r\n"
@@ -460,9 +457,3 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 	}
 	fmt.Fprintln(os.Stderr, "Disposable recovery UI closed; fixture resources will be removed.")
 }
-
-// Closing a blocking Darwin stdin fd does not necessarily wake its read. The
-// fixture has its own cancellation pipe so Ctrl+D does not need another key.
-type recoverySmokeInput struct{ cancelreader.CancelReader }
-
-func (r recoverySmokeInput) Close() error { r.Cancel(); return r.CancelReader.Close() }

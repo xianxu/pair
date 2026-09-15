@@ -1,13 +1,15 @@
 package hostty
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 
-	"github.com/creack/pty"
+	"github.com/xianxu/pair/cmd/internal/ttyio"
+	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
@@ -15,8 +17,13 @@ import (
 
 // OSHost is Host over a real terminal.
 type OSHost struct {
-	in  *os.File
-	out *os.File
+	fd        int
+	transport *ttyio.File
+	initErr   error
+	watchDone chan struct{}
+	closeErr  error
+	in        *os.File
+	out       *os.File
 
 	resized    chan struct{}
 	sigs       chan os.Signal
@@ -35,10 +42,18 @@ func NewOSHost(in, out *os.File) *OSHost {
 		terminated: make(chan os.Signal, 1),
 	}
 	if in != nil {
+		h.fd = int(in.Fd())
+	}
+	h.transport, h.initErr = ttyio.NewFile(in, out, false)
+	h.watchDone = make(chan struct{})
+	if in != nil {
 		h.sigs = make(chan os.Signal, 1)
 		signal.Notify(h.sigs, syscall.SIGWINCH)
 		signal.Notify(h.terminated, syscall.SIGTERM, syscall.SIGHUP)
 		go h.watch()
+	}
+	if in == nil {
+		close(h.watchDone)
 	}
 	return h
 }
@@ -49,6 +64,7 @@ func NewOSHost(in, out *os.File) *OSHost {
 func (h *OSHost) watch() {
 	// The watcher owns resized's lifetime: it is the only sender, so closing it
 	// here (after the signal source is closed) cannot race a send.
+	defer close(h.watchDone)
 	defer close(h.resized)
 	for range h.sigs {
 		select {
@@ -58,29 +74,43 @@ func (h *OSHost) watch() {
 	}
 }
 
-func (h *OSHost) Write(p []byte) (int, error) {
-	if h.out == nil {
-		return 0, fmt.Errorf("hostty: no output terminal")
+func (h *OSHost) Write(p []byte) (int, error) { return h.WriteContext(context.Background(), p) }
+func (h *OSHost) WriteContext(ctx context.Context, p []byte) (int, error) {
+	if h.initErr != nil {
+		return 0, h.initErr
 	}
-	return h.out.Write(p)
+	return h.transport.WriteContext(ctx, p)
+}
+func (h *OSHost) Read(p []byte) (int, error) { return h.ReadContext(context.Background(), p) }
+func (h *OSHost) ReadContext(ctx context.Context, p []byte) (int, error) {
+	if h.initErr != nil {
+		return 0, h.initErr
+	}
+	return h.transport.ReadContext(ctx, p)
 }
 
 func (h *OSHost) Size() (ptychild.Size, error) {
 	if h.in == nil {
 		return ptychild.Size{}, fmt.Errorf("hostty: no terminal to measure")
 	}
-	ws, err := pty.GetsizeFull(h.in)
+	if h.initErr != nil {
+		return ptychild.Size{}, h.initErr
+	}
+	ws, err := unix.IoctlGetWinsize(h.fd, unix.TIOCGWINSZ)
 	if err != nil {
 		return ptychild.Size{}, fmt.Errorf("hostty: measure terminal: %w", err)
 	}
-	return ptychild.Size{Rows: ws.Rows, Cols: ws.Cols}, nil
+	return ptychild.Size{Rows: ws.Row, Cols: ws.Col}, nil
 }
 
 func (h *OSHost) MakeRaw() (func() error, error) {
 	if h.in == nil {
 		return func() error { return nil }, nil
 	}
-	fd := int(h.in.Fd())
+	if h.initErr != nil {
+		return nil, h.initErr
+	}
+	fd := h.fd
 	state, err := term.MakeRaw(fd)
 	if err != nil {
 		return nil, fmt.Errorf("hostty: raw mode: %w", err)
@@ -113,6 +143,10 @@ func (h *OSHost) Close() error {
 		}
 		signal.Stop(h.terminated)
 		close(h.terminated)
+		<-h.watchDone
+		if h.transport != nil {
+			h.closeErr = h.transport.Close()
+		}
 	})
-	return nil
+	return h.closeErr
 }

@@ -273,11 +273,6 @@ type proxy struct {
 	// from the handleChunk pump goroutine, so it needs no lock.
 	adapt        *adapt.Logger
 	lastNearMiss string
-	// filterSeen dedups the aspect-5 output-filter signal: we log `fired`
-	// once per distinct stripped marker (presence is the signal, and the
-	// markers fire many times per turn). Touched only from the stdout pump
-	// goroutine (stripCodexOutputMarkers), so no lock.
-	filterSeen map[string]bool
 
 	// Scrollback log (-1 / nil when disabled)
 	scrollbackFD    *os.File
@@ -330,11 +325,6 @@ type proxy struct {
 	captureDeadline time.Time
 	captureWindow   time.Duration
 
-	// stdoutPending carries a possible split escape sequence for the
-	// per-agent stdout filter. It affects only bytes written to zellij;
-	// raw scrollback capture and detection still see the original PTY data.
-	stdoutPending []byte
-
 	// stdoutPump batches already-filtered bytes before visible delivery.
 	stdoutPump       *stdoutPump
 	stdoutFlushEvery time.Duration
@@ -344,20 +334,6 @@ type proxy struct {
 	wrapEventsFD io.WriteCloser
 	traceMu      sync.Mutex
 	traceSeq     uint64
-
-	// codexSyncPassthrough disables the DEC 2026/1004 strip when
-	// PAIR_CODEX_SYNC_PASSTHROUGH is set — the #68 A/B switch for whether
-	// forwarding codex's markers untouched lets zellij batch the inline repaint
-	// storm instead of tripping its client-disconnect guard. Default off
-	// preserves the #30 strip.
-	codexSyncPassthrough bool
-
-	// codexFilterKKP strips Codex's keyboard-protocol negotiation when
-	// PAIR_CODEX_FILTER_KKP is set, or when the per-tag marker file exists in
-	// pair's data dir. This is an opt-in diagnostic switch for the intermittent
-	// zellij mouse-scroll wedge; raw scrollback still keeps the original PTY
-	// bytes.
-	codexFilterKKP bool
 
 	// workbenchShortcutHandler is injected by tests. Production uses
 	// handleWorkbenchShortcut, which performs the thin zellij/sidecar IO shell.
@@ -548,17 +524,6 @@ func (p *proxy) publishAgentReadyStatus(pid int, status *orientation.DeliverySta
 		return err
 	}
 	return os.Rename(tmp, p.agentReadyPath)
-}
-
-func codexFilterKKPFlag() bool {
-	path := os.Getenv("PAIR_CODEX_FILTER_KKP_PATH")
-	if path == "" {
-		return false
-	}
-	if _, err := os.Stat(path); err == nil {
-		return true
-	}
-	return false
 }
 
 // ----- Debug log --------------------------------------------------------------
@@ -870,86 +835,6 @@ func detectMuseOverlayText(visible string) (bool, string) {
 		}
 	}
 	return false, ""
-}
-
-var codexSyncOutputMarkers = [][]byte{
-	[]byte("\x1b[?2026h"),
-	[]byte("\x1b[?2026l"),
-	[]byte("\x1b[?1004h"),
-	[]byte("\x1b[?1004l"),
-}
-
-var codexKKPMarkers = [][]byte{
-	[]byte("\x1b[>4;0m"),
-	[]byte("\x1b[>7u"),
-	[]byte("\x1b[?u"),
-}
-
-func (p *proxy) stdoutChunk(data []byte) []byte {
-	if p.agentBasename != "codex" {
-		return data
-	}
-	markers := p.codexOutputFilterMarkers()
-	if len(markers) == 0 {
-		return data
-	}
-	return p.stripCodexOutputMarkers(data, markers)
-}
-
-func (p *proxy) codexOutputFilterMarkers() [][]byte {
-	var markers [][]byte
-	if !p.codexSyncPassthrough {
-		markers = append(markers, codexSyncOutputMarkers...)
-	}
-	if p.codexFilterKKP {
-		markers = append(markers, codexKKPMarkers...)
-	}
-	return markers
-}
-
-func (p *proxy) stripCodexOutputMarkers(data []byte, markers [][]byte) []byte {
-	if len(p.stdoutPending) > 0 {
-		combined := make([]byte, 0, len(p.stdoutPending)+len(data))
-		combined = append(combined, p.stdoutPending...)
-		combined = append(combined, data...)
-		data = combined
-		p.stdoutPending = nil
-	}
-
-	out := make([]byte, 0, len(data))
-	for i := 0; i < len(data); {
-		matched := false
-		for _, marker := range markers {
-			if startsWith(data[i:], marker) {
-				i += len(marker)
-				matched = true
-				// Aspect 5: record that the filter engaged, once per distinct
-				// marker (deduped — these fire many times per render). If a
-				// codex update changes a sequence, its `fired` line stops
-				// appearing and pair-doctor sees the gap.
-				if p.adapt != nil {
-					if mk := fmt.Sprintf("%q", marker); !p.filterSeen[mk] {
-						if p.filterSeen == nil {
-							p.filterSeen = make(map[string]bool)
-						}
-						p.filterSeen[mk] = true
-						p.adapt.Log(5, "output-filter", adapt.Fired, "stripped "+mk)
-					}
-				}
-				break
-			}
-			if isPrefixOf(data[i:], marker) {
-				p.stdoutPending = append([]byte(nil), data[i:]...)
-				return out
-			}
-		}
-		if matched {
-			continue
-		}
-		out = append(out, data[i])
-		i++
-	}
-	return out
 }
 
 func stripTerminalControls(raw []byte) string {
@@ -2574,9 +2459,7 @@ argsDone:
 		}
 	}
 	p.scrollbackEvents = os.Getenv("PAIR_SCROLLBACK_EVENTS_PATH")
-	p.codexSyncPassthrough = envFlag("PAIR_CODEX_SYNC_PASSTHROUGH")
 	p.resolvePaths()
-	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || codexFilterKKPFlag()
 
 	// Open the always-on managed adaptation recorder; young generations survive
 	// restarts. nil when PAIR_TAG is unset.
@@ -3019,7 +2902,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	for _, notification := range rewritten.Notifications {
 		p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion, Message: notification.Message})
 	}
-	if out := p.stdoutChunk(rewritten.Passthrough); len(out) > 0 {
+	if out := rewritten.Passthrough; len(out) > 0 {
 		if p.stdoutPump == nil {
 			p.stdoutPump = newStdoutPump(p.stdout)
 		}
@@ -3077,8 +2960,10 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 				p.debug("DETECT-fail", fmt.Sprintf("%v", r))
 			}
 		}()
+		// The observer models the normalized queued visual stream, not a
+		// physical delivery acknowledgment. Raw capture remains unchanged.
 		if p.terminal != nil {
-			if err := p.terminal.Feed(data); err != nil {
+			if err := p.terminal.Feed(rewritten.Passthrough); err != nil {
 				p.debug("TERMINAL-feed-fail", err.Error())
 			} else {
 				p.observeCodexWorking()

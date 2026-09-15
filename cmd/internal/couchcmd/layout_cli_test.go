@@ -98,6 +98,9 @@ func TestLayoutFlagReachesTheCouch(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
+				t.Fatal(err)
+			}
 			defer master.Close()
 			defer slave.Close()
 

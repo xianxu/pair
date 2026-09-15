@@ -104,7 +104,7 @@ func TestAltShiftNBytesReachTheChildUntouched(t *testing.T) {
 			return false
 		}
 		for _, write := range child.Writes() {
-			if string(write) == string(encodings[0]) {
+			if string(write) == "\x1bN" {
 				return true
 			}
 		}
@@ -394,7 +394,8 @@ func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
 				if _, err := stdin.Write(input); err != nil {
 					t.Fatal(err)
 				}
-				waitFor(t, "forwarded lifecycle bytes", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), input) })
+				wire:=map[workbenchshortcut.Chord]string{workbenchshortcut.ChordAltD:"\x1bd",workbenchshortcut.ChordAltX:"\x1bx",workbenchshortcut.ChordAltN:"\x1bn",workbenchshortcut.ChordCtrlAltN:"\x1b\x0e"}[chord]
+ waitFor(t,"forwarded lifecycle event",func()bool{return string(bytes.Join(child.Writes(),nil))=="before"+wire+"after"})
 				con.mu.Lock()
 				focus := con.focus
 				con.mu.Unlock()
