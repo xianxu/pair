@@ -56,11 +56,15 @@ Child dimensions exclude chrome. Child scrolling/erase/save operations affect on
 
 Endpoint ingestion yields coherent state at an explicit output position; frames published during synchronized output remain unchanged until end-of-frame or a specified bounded timeout. Snapshot retention is bounded; coalesce superseded frames rather than queue unbounded copies. A switch selects one published frame and generation; subsequent output advances that endpoint only. Background endpoints continue parsing and replying, but cannot emit drawing bytes to the parent.
 
-ParentPresenter owns the ordered event stream for select, input admission, output frame publication, resize and release. Product workers request a switch and receive its completion; they do not first mutate the active input destination. Late frames cannot replace a different selected generation. Resize acknowledgment reflects the actual PTY outcome and endpoint geometry epoch, not merely a requested size. On partial parent writes, retain the known accepted prefix and invalidate the rendered-screen cache; retry a known remaining suffix only when transport outcome permits, otherwise stop parent output and surface failure. Do not reset a parser in memory and assume the physical parent is reset. Released presenters admit no further writes.
+ParentPresenter owns the ordered event stream for select, input admission, output frame publication, resize and release. Product workers request a switch and receive its completion; they do not first mutate the active input destination. Late frames cannot replace a different selected generation. Resize acknowledgment reflects the actual PTY outcome and endpoint geometry epoch, not merely a requested size. A select completion means the view has been presented successfully before ordinary input is admitted to the new destination. While presentation is pending or uncertain, pause ordinary input admission with a bounded queue; reserve a parent-owned escape/stop path. On partial parent writes, retain the known accepted prefix and invalidate the rendered-screen cache; retry a known remaining suffix only when transport outcome permits, otherwise stop parent output and surface failure. Do not reset a parser in memory and assume the physical parent is reset. Released presenters admit no further writes.
 
 ### Input
 
-The parent may use1003 plus SGR mouse reporting, while each endpoint receives only events its own profile/state requested. Couch handles clicks on its UI and discards motion there. An admitted press binds its drag/release to the same destination; switching/closing during a drag requires an explicit cancel/release policy verified before implementation. Zellij remains responsible for its own inner panes. Keyboard, focus and paste are decoded once at the parent boundary and encoded for the selected endpoint, preserving negotiated semantics and existing reserved shortcuts. Query replies use origin identity, never current focus. Host capability replies are consumed by the presenter rather than forwarded as operator input.
+The parent may use1003 plus SGR mouse reporting, while each endpoint receives only events its own profile/state requested. Couch handles clicks on its UI and discards motion there. An admitted press binds its drag/release to the same destination; switching/closing during a drag requires an explicit cancel/release policy verified before implementation. Zellij remains responsible for its own inner panes. Keyboard, focus and paste are decoded once at the parent boundary and encoded for the selected endpoint, preserving negotiated semantics and existing reserved shortcuts. Query replies use origin identity, never current focus. One ordered child-input writer serializes complete encoded operator events, paste payloads and query replies; independent reply-drain goroutines cannot interleave bytes with user input. Host capability replies are consumed by the presenter rather than forwarded as operator input.
+
+### Coverage across Pair
+
+Both compositors must adopt the same contract: Couch hosts a Zellij client plus Couch UI; `pair term` hosts shell/nvim terminals plus Pair tabs. `pair wrap` remains an explicit transformation/observation boundary inside a Zellij pane, not an automatic extra compositor. Audit its `stdoutChunk`/`stripCodexOutputMarkers`, notification rewriting, Return translation and query/reply tracking. Define whether each wrapper observer consumes raw agent output or the transformed stream delivered to its parent; those are distinct observations and cannot substitute for one another. Each retained transform must state its semantic exception and preserve framing and capabilities; remove filters that violate the declared contract through coordinated #254 work. A composed test must transport actual wrapper output through Zellij/terminal consumers, rather than manufacture equivalent bytes independently. Neither a green Couch-only result nor unchanged wrapper tests closes #255.
 
 ## Qualification before production changes
 
@@ -94,7 +98,7 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 ### M3 — Couch and Pair adoption
 
 - [ ] Migrate Couch and Pair term to the same shared abstraction; remove raw replay and state-changing reservation from their display paths.
-- [ ] Replace independent mode authority and before-queue selection mutations; preserve notification, input, capture and park/resume contracts.
+- [ ] Replace independent mode authority and before-queue selection mutations; audit and reconcile pair wrap transformations against the same contract, preserving notification, Return, query/reply, capture and park/resume behavior.
 - [ ] Verify both consumers, nested Zellij, shell/nvim and agent fixtures; update linked issue dispositions from actual acceptance evidence and close the boundary.
 
 ### M4 — Live conformance and publication
@@ -111,3 +115,9 @@ Per-endpoint screens are bounded by the declared geometry and scrollback policy;
 ## Architecture review markers
 
 ARCH-DRY: shared endpoint/presenter for both consumers, reuse PTY/Host and qualified libraries. ARCH-PURE: declarative profile/frame/view core, backend and transport honestly integration. ARCH-PURPOSE: full terminal abstraction at both consumers, not only mouse/UTF-8 symptom fixes. ARCH-MOCK: independent stateful interpretation and live conformance. ARCH-CONSTRAINTS: bounded screens, queues, replies and explicit measurement gate. ARCH-SECURE: capability truthfulness and origin-bound side effects, no unknown raw escape passthrough. ARCH-ORDER: one selection/output/input authority with forced scheduling and partial-outcome semantics. ARCH-FUNERAL: endpoint-owned worker lifetime and retained existing diagnostic policy.
+
+## Revisions
+
+### 2026-09-15 — Qualification review refinements
+
+Made Pair wrapper coverage explicit, distinguished raw/transformed observation, required one ordered child-input writer for operator events and query replies, and specified input admission after successful presentation. The proposal is for architectural approval and M1 qualification; detailed M2–M4 implementation plans and numerical limits remain subject to that evidence and a subsequent approval checkpoint.
