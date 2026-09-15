@@ -219,11 +219,11 @@ func (c *Couch) failTrackedPostAckStart(shape StartShape, thread ThreadRecord, n
 // thread was left occupied rather than tidied up, and the cold-resume tail this
 // shell replaced did surface it.
 func (c *Couch) observeSessionPresence(address ThreadAddress) (SessionPresence, error) {
-	sessions, ok := c.Artifacts.(PairSessionIO)
-	if !ok {
-		return PresenceUnobserved, errors.New("exact Pair session observer is unavailable")
-	}
-	binding, err := sessions.PairSession(address)
+	return c.observeSessionPresenceContext(context.Background(), address)
+}
+
+func (c *Couch) observeSessionPresenceContext(ctx context.Context, address ThreadAddress) (SessionPresence, error) {
+	binding, err := c.recoverySession(ctx, address)
 	if err != nil {
 		return PresenceUnobserved, err
 	}

@@ -354,9 +354,8 @@ func deprecatedPolicyRepoIdentity(raw json.RawMessage) string {
 // matches what resume refuses for the same reason: an occupied thread is one
 // something else is still doing something to.
 func archivableRecord(record ThreadRecord) error {
-	if err := continuationGuard(record); err != nil {
-		return err
-	}
+	// Explicit archive retains an incomplete request and its checkpoint.
+	// Occupancy, not delivery completion, determines whether the row can leave.
 	if record.Park != nil {
 		return fmt.Errorf("thread %s has a park in flight; let it finish before archiving", record.Address.Tag)
 	}

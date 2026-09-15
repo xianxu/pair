@@ -240,7 +240,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 		}
 		record = recovered.Thread
 	}
-	if record.VerifiedPark == nil && !continuationSourceParked(record) {
+	if record.VerifiedPark == nil && !continuationSourceParked(record) && request.SourceAbsence == nil {
 		current, err := c.ContinuationSource(ctx, record.Address)
 		if err != nil {
 			return c.failContinuation(record, err)
@@ -290,7 +290,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 		}
 		record = parked.Thread
 	}
-	if request.SourcePark == "" {
+	if request.SourcePark == "" && request.SourceAbsence == nil {
 		if record.VerifiedPark == nil {
 			return c.failContinuation(record, errors.New("continuation source has no verified park receipt"))
 		}
@@ -315,17 +315,39 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	if err != nil {
 		return c.failContinuation(record, err)
 	}
+	if request.SourceAbsence != nil {
+		if err := c.verifyAbsentContinuation(ctx, record); err != nil {
+			return c.failContinuation(record, err)
+		}
+	} else if err := c.verifyContinuationGeneration(ctx, record); err != nil {
+		return c.failContinuation(record, err)
+	}
 	claimed, err := c.Threads.CommitStartClaim(record.Address, record.Revision, repoIdentity, c.Clock.Now(), StartEvent{Kind: StartClaimed, Nonce: request.Attempt, Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: profile, Shape: StartFreshExisting})
 	if err != nil {
 		return c.failContinuation(record, err)
+	}
+	var authorityErr error
+	if request.SourceAbsence != nil {
+		authorityErr = c.verifyAbsentContinuation(ctx, claimed)
+	} else {
+		authorityErr = c.verifyContinuationGeneration(ctx, claimed)
+	}
+	if authorityErr != nil {
+		cleanupErr := c.rollbackTrackedStart(claimed, request.Attempt)
+		return c.failContinuation(record, errors.Join(authorityErr, cleanupErr))
 	}
 	orient := orientation.Request{SchemaVersion: 1, Tag: string(record.Address.Tag), Agent: profile.Agent, Attempt: request.Attempt, Body: "Read the saved continuation at " + strconv.Quote(path) + " (SHA-256 " + request.Checkpoint.Digest + "). Resume the task from its NEXT ACTION and preserve the existing Pair thread and prompt history."}
 	actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: claimed, Nonce: request.Attempt, Args: StartArgs{Worktree: Worktree(record.StartingPath), Cwd: record.WorkingPath, Stack: profile.Agent, ExtraArgs: argv}, StartedAt: c.Clock.Now(), ProfileRaw: raw, Fresh: true, Orientation: &orient})
 	if err != nil {
 		return c.failContinuation(record, err)
 	}
+	generation, generationErr := c.continuationTargetGeneration(ctx, record)
+	if generationErr != nil {
+		cleanupErr := c.AbortStarted(StartResult{Record: actor, Handle: handle}, generationErr)
+		return c.failContinuation(record, errors.Join(generationErr, cleanupErr))
+	}
 	target := checkpoint.Process{PID: actor.PID, Identity: actor.Identity}
-	registeredRecord, persistErr := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.Registered, At: c.Clock.Now(), RequestID: request.ID, Attempt: request.Attempt, Target: &target})
+	registeredRecord, persistErr := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.Registered, At: c.Clock.Now(), RequestID: request.ID, Attempt: request.Attempt, Target: &target, TargetGeneration: generation})
 	if persistErr != nil {
 		cleanupErr := c.AbortStarted(StartResult{Record: actor, Handle: handle}, persistErr)
 		return c.failContinuation(record, errors.Join(persistErr, cleanupErr))

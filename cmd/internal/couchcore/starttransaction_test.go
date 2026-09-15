@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"reflect"
 	"testing"
 )
@@ -186,5 +187,68 @@ func TestFailedStartDoesNotReplaceLatestLaunchProfile(t *testing.T) {
 	}
 	if !reflect.DeepEqual(*record.LatestLaunchProfile, oldProfile) {
 		t.Fatal("failed registration mutated input profile")
+	}
+}
+
+func TestReconcileRegisteredTargetRetiresUnknownAtomically(t *testing.T) {
+	record := validThreadRecord(t)
+	cp, err := checkpoint.New("/checkpoint.md", "---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nResume exact task.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	record.Continuation = &checkpoint.Request{Version: checkpoint.Version, ID: checkpoint.RequestID(record.Address.RepoScope, string(record.Address.Tag), 2, cp.Digest), Checkpoint: cp, Source: checkpoint.Source{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 2, Helper: checkpoint.Process{PID: 42, Identity: "source"}}, CreatedAt: record.CreatedAt, Phase: checkpoint.Running, Attempt: "attempt", SourceAbsence: &checkpoint.SourceAbsence{Session: "pair-exact", LaunchOrdinal: 2, ObservedAt: record.CreatedAt, RecordRevision: record.Revision}, Target: &checkpoint.Target{Process: checkpoint.Process{PID: 43, Identity: "target"}, ObservedAt: record.CreatedAt}}
+	record.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown, PID: 43, Identity: "target", StartedAt: record.CreatedAt}}
+	if err := ValidateThreadRecord(record); err != nil {
+		t.Fatal(err)
+	}
+	proof := RegisteredTargetProof{RequestID: record.Continuation.ID, Agent: record.Continuation.Source.Agent, Session: record.Continuation.Source.Session, Attempt: record.Continuation.Attempt, Helper: ProcessIdentity{PID: record.Incarnations[0].PID, Identity: record.Incarnations[0].Identity}}
+	for _, tc := range []struct {
+		name   string
+		mutate func(*ThreadRecord, *RegisteredTargetProof)
+	}{
+		{"exact", func(*ThreadRecord, *RegisteredTargetProof) {}},
+		{"open-park", func(r *ThreadRecord, _ *RegisteredTargetProof) { r.Park = &ParkTransaction{} }},
+		{"complete", func(r *ThreadRecord, _ *RegisteredTargetProof) { r.Continuation.Phase = checkpoint.Complete }},
+		{"foreign-attempt", func(_ *ThreadRecord, p *RegisteredTargetProof) { p.Attempt = "foreign" }},
+		{"foreign-agent", func(_ *ThreadRecord, p *RegisteredTargetProof) { p.Agent = "codex" }},
+		{"foreign-session", func(_ *ThreadRecord, p *RegisteredTargetProof) { p.Session = "foreign" }},
+		{"foreign-request", func(_ *ThreadRecord, p *RegisteredTargetProof) { p.RequestID = "foreign" }},
+		{"foreign-helper", func(_ *ThreadRecord, p *RegisteredTargetProof) { p.Helper.Identity = "foreign" }},
+		{"live", func(r *ThreadRecord, _ *RegisteredTargetProof) { r.Incarnations[0].State = IncarnationLive }},
+		{"open-start", func(r *ThreadRecord, _ *RegisteredTargetProof) {
+			r.Incarnations[0].Start = &ThreadStartClaim{Nonce: "open"}
+		}},
+		{"multiple", func(r *ThreadRecord, _ *RegisteredTargetProof) {
+			r.Incarnations = append(r.Incarnations, r.Incarnations[0])
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			input := cloneThreadRecord(record)
+			p := proof
+			tc.mutate(&input, &p)
+			if tc.name == "complete" {
+				if err := ValidateThreadRecord(input); err != nil {
+					t.Fatalf("complete fixture invalid: %v", err)
+				}
+			}
+			before := cloneThreadRecord(input)
+			next, err := ReconcileRegisteredTarget(input, p)
+			if !reflect.DeepEqual(input, before) {
+				t.Fatal("transition mutated input")
+			}
+			if tc.name != "exact" {
+				if err == nil {
+					t.Fatal("unproved retirement accepted")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			before.Incarnations = nil
+			if !reflect.DeepEqual(next, before) {
+				t.Fatalf("retirement changed unrelated facts: %+v", next)
+			}
+		})
 	}
 }

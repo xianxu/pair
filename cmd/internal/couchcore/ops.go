@@ -340,7 +340,7 @@ func Operations() []Operation {
 			// confirmed, because a row leaving the working set is exactly the
 			// kind of change that should not happen by a mistyped keystroke.
 			Name: "archive", Summary: "Remove a work thread from Couch, keeping its record in the archive",
-			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmRequired, Result: ResultThread,
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultThread,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{
 				{Name: "ref", Summary: "thread tag, path, or name", Required: false},
@@ -354,6 +354,27 @@ func Operations() []Operation {
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "mode", Summary: "detach (default) or park every live thread (--mode=<mode>)", FlagOnly: true, ValueRequired: true},
+			},
+		},
+		{
+			Name: "recover-thread", Summary: "Recover a surviving session or the retained checkpoint",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name"},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+			},
+		},
+		{
+			Name: "recover-checkpoint", Summary: "Start a new conversation from a selected checkpoint",
+			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
+			Presentation: PresentationTUI, RowAction: true,
+			Args: []ArgSpec{
+				{Name: "ref", Summary: "thread tag, path, or name"},
+				{Name: "tag", Summary: "exact thread tag from trusted owner context", Implicit: true},
+				{Name: "repo-scope", Summary: "repository scope derived from caller context", Required: true, Implicit: true},
+				{Name: "path", Summary: "absolute checkpoint path", Required: true, FlagOnly: true, ValueRequired: true},
 			},
 		},
 		{

@@ -64,38 +64,71 @@ func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRec
 			record = advanced
 			inc = record.Incarnations[0]
 		}
-		resolver, ok := c.Artifacts.(DetachedSessionResolver)
-		if !ok {
-			return record, ActorRecord{}, nil, errors.New("detached source observer unavailable")
+		settledUnknown := target && inc.State == IncarnationUnknown && inc.Start == nil
+		var evidence RecoveryEvidence
+		var err error
+		if settledUnknown {
+			evidence, err = c.observeRecoverySession(ctx, record, RecoveryEvidence{Thread: record, Helper: Dead, Checkpoint: true})
+		} else {
+			evidence, err = c.observeRecovery(ctx, record)
 		}
-		proof, err := resolver.DetachedSessions(ctx, []DetachedCandidate{{Address: record.Address, Agent: record.Continuation.Source.Agent}})
 		if err != nil {
 			return record, ActorRecord{}, nil, err
 		}
-		if !detachedResumeProofMatches(record, proof) {
+		if evidence.Presence != PresencePresent || !evidence.Detached {
 			return record, ActorRecord{}, nil, errors.New("continuation session has no unique detached ownership proof")
 		}
-		if !target && proof[0].SessionName != record.Continuation.Source.Session {
+		if !target && evidence.Session != record.Continuation.Source.Session {
 			return record, ActorRecord{}, nil, errors.New("detached continuation source session changed")
 		}
-		updated, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
-			if len(next.Incarnations) != 1 || next.Incarnations[0].PID != inc.PID || next.Incarnations[0].Identity != inc.Identity || next.Incarnations[0].Start != nil {
-				return errors.New("detached continuation helper changed")
+		if settledUnknown {
+			r := record.Continuation
+			if c.FreshRegistration == nil {
+				return record, ActorRecord{}, nil, errors.New("continuation target observer unavailable")
 			}
-			next.Incarnations = nil
-			if target {
-				next.VerifiedPark = nil
+			registered, err := c.FreshRegistration(ctx, record.Address, r.Source.Agent, r.Attempt)
+			if err != nil {
+				return record, ActorRecord{}, nil, err
 			}
-			next.LastActiveAt = MonotonicLastActiveAt(next.LastActiveAt, c.Clock.Now())
-			return nil
-		})
+			if !registered || evidence.Session != r.Source.Session {
+				return record, ActorRecord{}, nil, errors.New("exact continuation target receipt is no longer proved")
+			}
+			if err := ctx.Err(); err != nil {
+				return record, ActorRecord{}, nil, err
+			}
+			identity := ProcessIdentity{PID: inc.PID, Identity: inc.Identity}
+			if observeExactProcess(c.Proc, identity) != Dead {
+				return record, ActorRecord{}, nil, errors.New("continuation helper death is no longer proved")
+			}
+			updated, err := c.Threads.ReconcileRegisteredTarget(record.Address, record.Revision, RegisteredTargetProof{RequestID: r.ID, Agent: r.Source.Agent, Session: evidence.Session, Attempt: r.Attempt, Helper: identity})
+			if err != nil {
+				return record, ActorRecord{}, nil, err
+			}
+			record = updated
+		} else {
+			updated, _, err := c.reconcileRecoveryHelper(ctx, record.Address)
+			if err != nil {
+				return record, ActorRecord{}, nil, err
+			}
+			record = updated
+		}
+	}
+	if len(record.Incarnations) != 0 {
+		return record, ActorRecord{}, nil, errors.New("continuation has ambiguous incarnations")
+	}
+	if target && record.VerifiedPark != nil {
+		evidence, err := c.observeRecovery(ctx, record)
+		if err != nil {
+			return record, ActorRecord{}, nil, err
+		}
+		if evidence.Presence != PresencePresent || !evidence.Detached {
+			return record, ActorRecord{}, nil, errors.New("continuation target is not uniquely detached")
+		}
+		updated, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.VerifiedPark = nil; return nil })
 		if err != nil {
 			return record, ActorRecord{}, nil, err
 		}
 		record = updated
-	}
-	if len(record.Incarnations) != 0 {
-		return record, ActorRecord{}, nil, errors.New("continuation has ambiguous incarnations")
 	}
 	actor, handle, err := c.ResumeContextWith(ctx, record.Address, ResumeOptions{WarmOnly: true})
 	if err != nil {
@@ -120,8 +153,15 @@ func (c *Couch) observeContinuationTarget(ctx context.Context, record ThreadReco
 		return c.failContinuation(record, errors.New("registered continuation has no unique target"))
 	}
 	inc := record.Incarnations[0]
+	generation, generationErr := c.continuationTargetGeneration(ctx, record)
+	if generationErr != nil {
+		if handle != nil {
+			generationErr = errors.Join(generationErr, c.AbortStarted(StartResult{Record: actor, Handle: handle}, generationErr))
+		}
+		return c.failContinuation(record, generationErr)
+	}
 	target := checkpoint.Process{PID: inc.PID, Identity: inc.Identity}
-	updated, err := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.Registered, At: c.Clock.Now(), RequestID: record.Continuation.ID, Attempt: record.Continuation.Attempt, Target: &target})
+	updated, err := c.advanceContinuation(record.Address, checkpoint.Event{Kind: checkpoint.Registered, At: c.Clock.Now(), RequestID: record.Continuation.ID, Attempt: record.Continuation.Attempt, Target: &target, TargetGeneration: generation})
 	if err != nil {
 		if handle != nil {
 			err = errors.Join(err, c.AbortStarted(StartResult{Record: actor, Handle: handle}, err))
@@ -222,14 +262,30 @@ func (c *Couch) RetryContinuation(ctx context.Context, address ThreadAddress, id
 	}
 	// Existing source is allowed; a target or matching start claim must first be
 	// conclusively absent. Unknown process/session evidence never permits spawn.
-	targetAttempt := r.Target != nil || continuationSourceParked(record)
+	generation, generationErr := c.continuationTargetGeneration(ctx, record)
+	if generationErr != nil {
+		return ContinuationResult{Status: *continuationStatus(record)}, generationErr
+	}
+	targetAttempt := r.Target != nil || continuationSourceParked(record) || r.SourceAbsence != nil || generation != nil
 	for _, inc := range record.Incarnations {
 		if inc.Start != nil && inc.Start.Nonce == r.Attempt {
 			targetAttempt = true
 		}
 	}
 	if targetAttempt {
-		presence, err := c.observeSessionPresence(address)
+		if len(record.Incarnations) > 1 {
+			return ContinuationResult{Status: *continuationStatus(record)}, errors.New("continuation has multiple recorded helpers; resolve ownership before retry")
+		}
+		admission := record
+		request := record.Continuation.Clone()
+		if generation != nil {
+			request.Target = &checkpoint.Target{Generation: generation}
+		}
+		admission.Continuation = &request
+		if err := c.verifyContinuationGeneration(ctx, admission); err != nil {
+			return ContinuationResult{Status: *continuationStatus(record)}, err
+		}
+		presence, err := c.observeSessionPresenceContext(ctx, address)
 		if err != nil || presence != PresenceAbsent {
 			if err == nil {
 				err = errors.New("previous continuation target may still exist; inspect or copy the checkpoint")
@@ -266,7 +322,7 @@ func (c *Couch) RetryContinuation(ctx context.Context, address ThreadAddress, id
 	if err != nil {
 		return ContinuationResult{}, err
 	}
-	record, err = c.Threads.AdvanceContinuation(address, record.Revision, checkpoint.Event{Kind: checkpoint.RetryAbsent, RequestID: r.ID, Attempt: attempt})
+	record, err = c.Threads.AdvanceContinuation(address, record.Revision, checkpoint.Event{Kind: checkpoint.RetryAbsent, RequestID: r.ID, Attempt: attempt, TargetGeneration: generation})
 	if err != nil {
 		return ContinuationResult{}, err
 	}

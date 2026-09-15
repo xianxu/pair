@@ -93,6 +93,9 @@ func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 			offered[action] = true
 		}
 	}
+	for _, action := range menuActionItems(recoveryMenuRow()) {
+		offered[action] = true
+	}
 	// Read straight off the declaration. A helper here would need a production
 	// caller to survive the dead-symbol guard, and the only honest one -- having
 	// menuActionItems filter through it -- is exactly what made this test

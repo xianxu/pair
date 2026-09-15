@@ -4869,3 +4869,23 @@ review disposition rather than adding another focus mechanism speculatively.
 
 Before closing, compare every Core-concepts row against the actual diff and
 append corrected classifications for unchanged reuse and split implementations.
+
+
+## 2026-09-14 — Recovery must preserve empty-thread escape and caller deadlines (#250)
+
+When strengthening lifecycle ownership checks, retain the never-bound case:
+an empty thread whose launch failed before session publication still needs a
+non-signalling archive path. Prove missing binding explicitly; do not conflate
+it with an unreadable index, unknown session state, or occupied incarnation.
+Test the public operation with a real scoped index lacking the entry.
+
+A timeout on an outer recovery helper does not bound a nested observer that
+switches to context.Background. Trace caller context through registration,
+generation lookup, retry and final archive observation into the actual external
+command. Test cancellation at those boundaries, not only before the operation.
+
+
+Exact external evidence does not authorize an ad-hoc persisted lifecycle state
+assignment. Represent receipt-backed recovery in the owned pure transition
+model and revision-checked store operation. Test interruption between that
+transition and attachment; avoid publishing a synthetic live intermediate state.

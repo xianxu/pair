@@ -1019,6 +1019,18 @@ func (s *ThreadStore) archivePath(address ThreadAddress) string {
 // producing. Everything else goes: parked, detached and every unusable reason,
 // because the operator is the one who decides a thread is finished.
 func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
+	return s.archiveThread(address, nil)
+}
+
+// ArchiveThreadExpected preserves the exact record inspected before external
+// session effects. A concurrently published request must not be archived by an
+// older action merely because the newer record is also unoccupied. Revision
+// zero represents an unreadable observation and refuses a newly readable record.
+func (s *ThreadStore) ArchiveThreadExpected(address ThreadAddress, revision uint64) error {
+	return s.archiveThread(address, &revision)
+}
+
+func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uint64) error {
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
@@ -1043,6 +1055,14 @@ func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 		// before any effect, because by the time the store refuses, a quiesce
 		// would already have happened.
 		record, decodeErr := s.decodeThreadRaw(address, raw)
+		if expectedRevision != nil {
+			if decodeErr != nil && *expectedRevision != 0 {
+				return decodeErr
+			}
+			if decodeErr == nil && record.Revision != *expectedRevision {
+				return &ThreadRevisionError{Address: address, Want: *expectedRevision, Got: record.Revision}
+			}
+		}
 		if decodeErr == nil {
 			if err := archivableRecord(record); err != nil {
 				return err
@@ -1123,4 +1143,17 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 		return records[i].Address.Tag < records[j].Address.Tag
 	})
 	return records, nil
+}
+
+// ReconcileRegisteredTarget persists the owned retirement transition at the
+// exact revision whose receipt, helper identity and session were observed.
+func (s *ThreadStore) ReconcileRegisteredTarget(address ThreadAddress, expectedRevision uint64, proof RegisteredTargetProof) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		reconciled, err := ReconcileRegisteredTarget(*next, proof)
+		if err != nil {
+			return err
+		}
+		*next = reconciled
+		return nil
+	})
 }

@@ -37,8 +37,10 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"detach":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultThread, PresentationTUI},
 		"leave":                {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultConsole, PresentationTUI},
 		"relaunch":             {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultStart, PresentationTUI},
-		"archive":              {ExecuteDirectStore, EffectMetadata, ConfirmRequired, ResultThread, PresentationTUI},
+		"archive":              {ExecuteLiveOwner, EffectProcess, ConfirmRequired, ResultThread, PresentationTUI},
 		"archived":             {ExecuteDirectStore, EffectRead, ConfirmNone, ResultThreadInventory, PresentationList},
+		"recover-thread":       {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
+		"recover-checkpoint":   {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 		"resume":               {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationTUI},
 	}
 	for _, op := range Operations() {

@@ -105,6 +105,7 @@ type ThreadEvidence struct {
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
 type ActionableThreadSummary struct {
+	Recovery         *RecoveryDecision     `json:"recovery,omitempty"`
 	Continuation     *ContinuationStatus   `json:"continuation,omitempty"`
 	Address          ThreadAddress         `json:"address"`
 	StartingPath     string                `json:"starting_path"`
@@ -220,6 +221,7 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 		rows = append(rows, ActionableThreadSummary{
 			Address:          record.Address,
 			Continuation:     continuationStatus(record),
+			Recovery:         ProjectRecoveryChoices(record, evidence[record.Address], state, reason),
 			StartingPath:     record.StartingPath,
 			WorkingPath:      record.WorkingPath,
 			Name:             record.Name,

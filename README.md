@@ -491,7 +491,7 @@ switcher it relaunches the highlighted row; in an actor it relaunches that actor
 and leaves you in the switcher while the new Pair boots. Leaving
 never depends on there being something live to act on, so an empty switcher is
 never a dead end. `Tab → archive` removes a thread from couch and keeps its record: it is the
-operator's delete, offered on every row couch is not hosting, and undone by
+operator's delete, offered when ownership can be reconciled, and undone by
 moving the file back from `threadstore/archive/` and re-adding its address to
 the manifest. `couch --archived` lists what has been retired. `Escape` clears
 the filter or returns to an attached actor;
@@ -503,11 +503,27 @@ cycle that menu, `Enter` accepts, and `Escape` closes it. With the menu closed,
 `↑↓` moves between path and agent and `←→` selects the agent. Hidden directories
 appear only after a leading dot; directory symlinks remain navigable. Colons and digits are
 ordinary filter text—there is no command namespace or numbered jump mode.
+For a stale row, **Recover session or retained checkpoint** checks the helper
+and session again. A surviving detached session reattaches to the same running
+agent without needing a native transcript binding. If the session is gone,
+a retained checkpoint starts a **new conversation** seeded by those exact saved
+bytes. **Recover from checkpoint · new conversation** accepts an absolute path,
+including a checkpoint saved in another worktree; it does not scan for a likely
+file or silently start an empty conversation. The actions show the retained
+checkpoint path and digest. Native resume of a parked conversation still needs
+its verified binding.
+
+Unknown ownership, active clients, and open start or park transactions leave a
+diagnostic instead of guessing that a process died. Once a stale helper is
+proved dead, explicit **archive** remains an escape even with an incomplete
+continuation: the archived record keeps the checkpoint and history. A live
+continuation source or target must be resolved first. Inspection and recovery
+do not stop a surviving session; archive remains a separate confirmed action.
+
 Slow start/park/resume actions show local progress, and validation or operation
 failures remain in the switcher banner. Every thread in the store gets a row
 and says what it is: `live`, `detached`, `parked`, `parking…`, or a reason it
-cannot be entered — `binding lost — repairable`, `stale — couch exited
-unexpectedly`, `session gone`, and so on. Nothing is hidden for want of proof;
+cannot be entered — `binding lost — repairable`, `stale — helper ownership unresolved`, `session gone`, and so on. Nothing is hidden for want of proof;
 `Enter` on a row it cannot act on explains instead of doing nothing, and
 `couch --list` / `couch --show` report the same population and the same states
 with more room to describe them.

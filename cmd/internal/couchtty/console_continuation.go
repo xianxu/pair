@@ -168,6 +168,18 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 }
 
 func (c *Console) finishContinuationOperation(completed operationCompletion, err error) {
+	if completed.origin.ContinuationID == "" && (completed.name == "recover-thread" || completed.name == "recover-checkpoint") {
+		if result, ok := completed.value.(couchcore.ContinuationResult); ok && result.Status.RequestID != "" && result.Status.Address == completed.origin.Address {
+			completed.origin.ContinuationID = result.Status.RequestID
+			c.mu.Lock()
+			if current, exists := c.continuations[result.Status.Address]; exists && current.status.RequestID != result.Status.RequestID {
+				c.mu.Unlock()
+				return
+			}
+			c.continuations[result.Status.Address] = continuationWatch{status: result.Status, handled: !result.SourceReattached}
+			c.mu.Unlock()
+		}
+	}
 	if completed.origin.ContinuationID == "" {
 		return
 	}

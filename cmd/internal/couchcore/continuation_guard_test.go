@@ -23,8 +23,8 @@ func TestContinuationBlocksCompetingTransitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := archivableRecord(empty); err == nil {
-		t.Fatal("archive discarded pending continuation")
+	if err := archivableRecord(empty); err != nil {
+		t.Fatalf("explicit archive must retain an unoccupied pending continuation: %v", err)
 	}
 	profile := LaunchProfile{Agent: "codex", Argv: []string{}}
 	event := StartEvent{Kind: StartClaimed, Nonce: "start-1111111111111111", Owner: SupervisorOwner{PID: 100, Identity: "owner"}, Profile: &profile}
