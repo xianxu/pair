@@ -187,3 +187,7 @@ No added runtime worker or durable artifact in ordinary Couch/Pair launches. Eac
 ### 2026-09-15 — Plan-quality round1 correction
 
 PQ-1: replaced repeated case prose with function-level adversarial test strategies and mechanical guards; protocol classes remain specified above and exact cases belong in executable fixtures. PQ-2: corrected hostty.Fake capability claim; it buffers writes, while controlled partial/error behavior currently lives in couchtty mouseTraceHost and must be extracted/extended for production presentation tests. No semantics or phase authorization changed.
+
+### 2026-09-15 — Primary live acceptance clarified
+
+Operator requires the ongoing display corruption and missing live selection highlight to go away. M4 must demonstrate continuous drag highlight in agent and right shell/nvim panes across panel/thread/tab switches and reattachment, and investigate all reported display symptoms rather than equating a fixed UTF-8 regression with complete visual recovery. Record terminal/build, duration and exact workflows during sustained use; final closure requires operator acceptance. Qualification, semantic tests and architecture are supporting evidence, not substitutes for this result.

@@ -20,6 +20,20 @@ rounds:
           family: existing-behavior-evidence
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-15T09:52:00-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named function-level adversarial strategies and mechanical guards replace repeated case inventories; exact cases move into executable fixtures.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: The plan correctly attributes partial/error writes to mouseTraceHost and identifies extraction or extension for shared presentation tests.
+          round: 2
+      blocked: false
+content_hash: 0a00e902a45fa9e5872309d83e350ad0bb6bbaf1dd5b96506b6f1fea49dc9bf8
 ---
 
 # Gate ledger — pair#255 (plan-quality)
@@ -36,7 +50,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Minor] `existing-behavior-evidence` Correct the shared FakeHost partial-write capability claim
   The plan at line 40 attributes controlled partial/error writes to hostty.Fake, but cmd/internal/hostty/fake.go:41 only writes to a buffer. Those controls live in cmd/internal/couchtty/mousetrace_test.go:69; identify that helper and the planned shared extension rather than describing the capability as already available (ARCH-MOCK, ARCH-DRY).
 
+## Round 2 — 2026-09-15T09:52:00-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards replace repeated case inventories; exact cases move into executable fixtures.
+- PQ-2 — addressed — The plan correctly attributes partial/error writes to mouseTraceHost and identifies extraction or extension for shared presentation tests.
+
 ## Open findings
 
-- **PQ-1** [Important] `function-level-test-strategy` Replace prose case inventories with named function-level test strategies
-- **PQ-2** [Minor] `existing-behavior-evidence` Correct the shared FakeHost partial-write capability claim
+(none — every finding has been disposed)
