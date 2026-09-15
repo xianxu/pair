@@ -37,7 +37,7 @@ Recommend a virtual-terminal endpoint, conditional on backend qualification. Pai
 | TerminalEndpoint | INTEGRATION | cmd/internal/terminal/endpoint.go | New: one backend instance and ordered ingestion/reply/effect ownership per child |
 | ParentPresenter | INTEGRATION | cmd/internal/terminal/presenter.go | New: exclusive typed parent-output door, renderer and write-outcome handling |
 | ptychild.Child | INTEGRATION | cmd/internal/ptychild/child.go | Modified: PTY lifetime/geometry and integration with endpoint ingestion |
-| hostty.Host / Fake | INTEGRATION | cmd/internal/hostty/{host,fake}.go | Reused: parent terminal IO and controlled partial/error writes |
+| hostty.Host / Fake | INTEGRATION | cmd/internal/hostty/{host,fake}.go | Reused: parent terminal IO and buffered Fake; partial/error behavior requires extension from couchtty mouseTraceHost |
 | Console / terminalMux | INTEGRATION | cmd/internal/{couchtty/console,termcmd/run}.go | Modified: product policy submits events and chrome, cannot write child drawing bytes to parent |
 
 TerminalEndpoint is not labeled pure: the candidate backend has reply pipes and mutable IO lifecycle. Profile/Frame/View transition tests require no IO. Do not create a parallel parser for each console. Existing wrapcmd observer remains a separate observer of its own connection; it must not become a competing authority for the same endpoint. During migration, old Screen-derived mode getters must delegate to the endpoint or be removed for migrated consumers (ARCH-DRY, ARCH-PURE).
@@ -148,35 +148,32 @@ Use the existing pinned backend via a disposable Candidate per case. Observation
 
 Files: create `cmd/internal/terminalqualify/report.go`, `report_test.go`, `candidate.go`, `candidate_test.go`.
 
-- [ ] Write report tests: all pass qualifies, one fail refuses, one not-covered refuses, duplicate/missing case IDs cannot report complete qualification; emitted evidence remains bounded.
+- [ ] Test `Report.Validate`, `Report.Qualified`, `Compare` and `boundedDetail` using malformed/duplicate/incomplete result sets and mismatching observations; qualification requires exact required-ID coverage and rejects every unmet requirement, while only displayed evidence is truncated.
 - [ ] Run `go test ./cmd/internal/terminalqualify -run Report -count=1` and record the initial missing-implementation failure; implement report types/aggregation, rerun to PASS.
-- [ ] Write Candidate tests for a literal ASCII screen/cursor and a DSR reply, reply isolation between two candidates, and close after a reply-producing operation. Candidate must have one reply reader and one command execution path; bound command completion to2s, close pipes to unblock, join workers, never abandon an unbounded goroutine.
+- [ ] Test `Candidate.Execute`, `Candidate.Snapshot` and `Candidate.Close` through controlled reply-producing/blocked IO and cancellation schedules; assert literal state, origin isolation, completion within2s and joined workers. Candidate owns one reply reader and one command path, closing pipes to unblock teardown.
 - [ ] Implement the thin candidate wrapper; make teardown close both reply directions as required by pinned InputPipe. Run focused race tests. Inject a blocked/failing IO double to verify runner timeout/cleanup mechanics independently of x/vt.
 
 ### Task 2 — Rendering/framing matrix
 
 Files: create `cmd/internal/terminalqualify/cases.go`, `screen_cases.go`, `screen_cases_test.go`.
 
-- [ ] Define literal expected cells/cursor for ASCII and 2/3/4-byte UTF-8, combining accents, wide CJK and a ZWJ emoji. Exercise every single split point and byte-at-a-time delivery. Describe terminal grapheme-width expectations explicitly; discrepancies remain failures pending profile decisions, not automatic oracle changes.
-- [ ] Add ESC7/8 and CSI s/u save/restore, 1047/1048/1049 and47 alternate-buffer cases, margins/origin/scroll/erase cases, truecolor/indexed styling, OSC8 hyperlink URL/params, cursor visibility/style where observable, resize and bounded normal-screen history. Expected results include subsequent output after restore/switch.
-- [ ] Add incomplete CSI/OSC/DCS, oversized strings and malformed UTF-8 followed by recovery bytes. Report dimensions and operation limits; frame-boundary publication semantics and unobservable effects are not-covered until an adapter exists.
-- [ ] Tests validate matrix identifiers and literal expectations using simple hand-constructed observations; do not assert the pinned candidate must pass a known failing profile. Run the probe later to expose backend failures directly.
+- [ ] Implement `ScreenCases` for the required rendering/framing capability classes above; `TestScreenCases` enforces unique IDs, non-empty literal expectations and complete class coverage without deriving expected state from the candidate.
+- [ ] Test `Compare` and `SplitInputs` against hand-built observations and adversarial byte partitions; any changed cell/cursor/style/link or missed split must be detected. Preserve the full protocol matrix in executable fixtures, not repeated prose lists.
+- [ ] Test `RunCase` with injected correct/incorrect candidate observations, oversize inputs and cancellation; report failure or infrastructure error accurately, never promote an unobservable behavior to pass.
 
 ### Task 3 — Input/query/effect matrix and scope gaps
 
 Files: create `cmd/internal/terminalqualify/input_cases.go`, `input_cases_test.go`, `coverage.go`.
 
-- [ ] Exercise application cursor/keypad, bracketed paste/focus, Kitty negotiation and Ctrl+Return/Alt+Up/Alt+Left required by current shortcuts; compare returned bytes to independent literal encodings.
-- [ ] Exercise mouse tracking off/1000/1002/1003 with SGR press/motion/release and mode replacement order; report expected event suppression and encoding. Check events are not duplicated on candidate switches.
-- [ ] Exercise DSR/DA/mode queries with bounded synchronous command and reply drain, title/bell/cwd/OSC52/Pair notification handlers where backend exposes them. Distinguish built-in support from not-covered product adapters.
-- [ ] Add explicit required not-covered entries for compositor chrome isolation, generation-bound view switching/queued output, parent partial-write input admission, real capability advertisement, wrapper Return/filter/query semantics through Zellij, and deployment performance. They prevent qualification from claiming production readiness.
+- [ ] Implement `InputCases` and `Coverage` for the required input/query/effect and deferred-composition classes above. `TestInputCases` and `TestCoverage` mechanically enforce unique identifiers, required class inclusion and explicit not-covered obligations.
+- [ ] Test `Compare` against independently specified protocol bytes and deliberate suppression/encoding mismatches; `Candidate.Execute` tests prove reply drain and cancellation ordering, separate from candidate conformance.
 - [ ] Read `wrap.go` raw/transformed paths and document exact integration tests needed for M3; do not change wrapper filters in M1.
 
 ### Task 4 — Probe, measured report and backend decision
 
 Files: create `cmd/probes/terminalqualify/main.go`, `main_test.go`; update `workshop/plans/000255-terminal-qualification.md`, `atlas/architecture.md`, issue Log.
 
-- [ ] Write CLI tests with a fixed report runner for exit0/1/2 and JSON; implement probe with a2-minute whole-run context, deterministic order and candidate build version from module metadata.
+- [ ] Test probe `run` with an injected report runner across valid, incomplete and infrastructure-failure reports plus failing output writes; parse emitted JSON and enforce exit-status meaning. Implement a2-minute whole-run context, deterministic order and build-version metadata.
 - [ ] Run `go test ./cmd/internal/terminalqualify ./cmd/probes/terminalqualify -count=1` and `go test -race ./cmd/internal/terminalqualify ./cmd/probes/terminalqualify -count=1`.
 - [ ] Run `go run ./cmd/probes/terminalqualify > /tmp/pair255-terminal-qualification.json`; expected exit1 while required gaps exist. Inspect every failure and distinguish candidate mismatch from a defective oracle. Correct oracle errors only with explicit evidence and revisions.
 - [ ] Measure synthetic80x24 and240x80 screen feed/snapshot costs via benchmarks, reporting raw observations. Existing262144-cell dimension bound is the candidate safety ceiling; initial history cap1000lines and report mismatch cap4KiB/case bound qualification memory. These diagnostic limits are not production performance promises. M2 must set provisional production budgets from measured endpoint cost multiplied by representative Couch thread counts, before implementation approval.
@@ -186,3 +183,7 @@ Files: create `cmd/probes/terminalqualify/main.go`, `main_test.go`; update `work
 ### M1 bounds and independence
 
 No added runtime worker or durable artifact in ordinary Couch/Pair launches. Each case uses one disposable emulator and closed reply transport; execution is sequential and context-bounded. Report evidence caps apply to stored mismatch text, not to the expected predicate. Tests include cancellation and deterministic fake IO behavior. Protocol literals provide an independent oracle; a second terminal implementation/live Zellij remains required before admitting production semantics. Native tests here, if needed to settle an oracle, use isolated sockets/configuration only.
+
+### 2026-09-15 — Plan-quality round1 correction
+
+PQ-1: replaced repeated case prose with function-level adversarial test strategies and mechanical guards; protocol classes remain specified above and exact cases belong in executable fixtures. PQ-2: corrected hostty.Fake capability claim; it buffers writes, while controlled partial/error behavior currently lives in couchtty mouseTraceHost and must be extracted/extended for production presentation tests. No semantics or phase authorization changed.
