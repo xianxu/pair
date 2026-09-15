@@ -353,3 +353,15 @@ BR-2 verified: both CI event filters omitted wrapper, Couch input and Neovim
 sources. Added selectors for those families to pull_request and push. A direct
 selector check failed for all five missing representative files before the edit;
 afterward all eight representative source paths match in both events.
+
+
+### 2026-09-14 — Close round 2: preserve CI regression evidence
+
+Round 2 verified BR-1 addressed, with an independent mutation test. BR-2's
+selectors are correct but the gate requires a committed regression rather than
+only the direct check. Added `TestShortcutConformanceWorkflowSourceTriggers`
+in `cmd/internal/couchcmd/shortcut_workflow_test.go`, covering both event filters
+and nine representative input/config/fixture sources. Removing the added
+selectors makes all five previously missing paths fail in both events
+(`/tmp/pair245-workflow-red.log`); restored selectors pass
+(`/tmp/pair245-workflow-green.log`). No production behavior changed this round.

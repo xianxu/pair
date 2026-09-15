@@ -20,6 +20,19 @@ rounds:
           family: conformance-source-trigger-coverage
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-14T20:59:54-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The incomplete-prefix regressions pass at HEAD, including race coverage. Removing the prefix-release fix through a temporary Go overlay makes TestReservedShortcutAfterIncompletePrefixEOF fail with zero actions, establishing regression sensitivity.
+          round: 2
+        - id: BR-2
+          disposition: not-addressed
+          note: Both workflow filters now match the promised source families. An independent before/after check confirms five missing representative paths become covered in each event. However, no committed regression test preserves this check; the plan records only an ad hoc run. Under the executable-configuration evidence requirement, add a reproducible test covering both event filters that fails when the added selectors are removed.
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#245 (boundary-review)
@@ -36,7 +49,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `conformance-source-trigger-coverage` Both conformance event filters omit source paths promised by the completed plan
   .github/workflows/couch-zellij-conformance.yml:23 and :64 omit wrapper, Couch keys.go/console.go, and Neovim paths. Add these selectors to both pull_request and push filters and verify representative paths match, as Task 5 requires. ARCH-PURPOSE.
 
+## Round 2 — 2026-09-14T20:59:54-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The incomplete-prefix regressions pass at HEAD, including race coverage. Removing the prefix-release fix through a temporary Go overlay makes TestReservedShortcutAfterIncompletePrefixEOF fail with zero actions, establishing regression sensitivity.
+- BR-2 — not-addressed — Both workflow filters now match the promised source families. An independent before/after check confirms five missing representative paths become covered in each event. However, no committed regression test preserves this check; the plan records only an ad hoc run. Under the executable-configuration evidence requirement, add a reproducible test covering both event filters that fails when the added selectors are removed.
+
 ## Open findings
 
-- **BR-1** [Critical] `bounded-incremental-input-framing` An incomplete prefix suppresses complete reserved shortcuts and permits unbounded pending input
 - **BR-2** [Important] `conformance-source-trigger-coverage` Both conformance event filters omit source paths promised by the completed plan

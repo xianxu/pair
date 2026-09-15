@@ -4910,3 +4910,6 @@ partitioning only well-formed streams cannot establish bounded pending state.
 When a plan promises CI source coverage, verify representative production paths
 against every event filter before ticking it complete. Running the fixture
 locally does not prove a change will trigger it in CI.
+
+Preserve executable CI selector checks as committed regressions, including both
+events; an ad hoc red/green check alone does not defend the routing invariant.

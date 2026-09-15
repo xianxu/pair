@@ -273,3 +273,15 @@ flushes a genuinely incomplete suffix once. RED reproduced zero actions
 Post-rework full `go test ./... -count=1` passed (exit 0),
 `/tmp/pair245-rework-go.log`; rebuilt binaries passed
 (`/tmp/pair245-rework-build.log`). Both findings addressed; entering round 2.
+
+
+### 2026-09-14 — Close round 2: preserve CI regression evidence
+
+Round 2 verified BR-1 addressed, with an independent mutation test. BR-2's
+selectors are correct but the gate requires a committed regression rather than
+only the direct check. Added `TestShortcutConformanceWorkflowSourceTriggers`
+in `cmd/internal/couchcmd/shortcut_workflow_test.go`, covering both event filters
+and nine representative input/config/fixture sources. Removing the added
+selectors makes all five previously missing paths fail in both events
+(`/tmp/pair245-workflow-red.log`); restored selectors pass
+(`/tmp/pair245-workflow-green.log`). No production behavior changed this round.
