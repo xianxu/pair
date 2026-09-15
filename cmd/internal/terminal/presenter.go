@@ -47,6 +47,7 @@ type Presenter struct {
 	host           Geometry
 	bottom         []Cell
 	previous       Frame
+	cancelTarget   *Endpoint
 	mouseEpoch     uint64
 	mouse          uv.Mouse
 	effects        map[string]uint64
@@ -118,12 +119,12 @@ func (p *Presenter) run() {
 	for {
 		select {
 		case ctx := <-p.stop:
-			p.cancelDrag(ctx)
+			cancelErr := p.cancelDrag(ctx)
 			cleanup := "\x18\x1b\\"
 			if p.keyboardOwned {
 				cleanup += "\x1b[<u"
 			}
-			p.releaseErr = p.write(ctx, []byte(cleanup+"\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l\x1b[0m\x1b[r\x1b[?25h"), false)
+			p.releaseErr = errors.Join(cancelErr, p.write(ctx, []byte(cleanup+"\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l\x1b[0m\x1b[r\x1b[?25h"), false))
 			p.transition(ViewEvent{Kind: ReleaseView})
 			return
 		case r := <-p.requests:
@@ -195,23 +196,47 @@ func (p *Presenter) fail(err error) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), WriteTimeout)
 	defer cancel()
-	_ = p.cancelDrag(ctx)
+	cancelErr := p.cancelDrag(ctx)
 	p.transition(ViewEvent{Kind: FailView})
-	return err
+	return errors.Join(err, cancelErr)
 }
+
+// cancelDrag revokes the gesture before enqueueing its one synthetic release.
+// A canceled Flush leaves the existing delivery pending; retry only waits for
+// that delivery and can never enqueue a second release.
 func (p *Presenter) cancelDrag(ctx context.Context) error {
 	v := p.View()
-	if v.DragDestination == "" || p.selected == nil {
-		return nil
+	if v.PendingMouseRelease == "" {
+		if v.DragDestination == "" {
+			return nil
+		}
+		if p.selected == nil || p.selected.id != v.DragDestination {
+			return errors.New("terminal: cancellation destination unavailable")
+		}
+		if _, err := p.transition(ViewEvent{Kind: CancelMouse}); err != nil {
+			return err
+		}
+		p.cancelTarget = p.selected
+		accepted, err := p.cancelTarget.SendMouse(uv.MouseReleaseEvent(p.mouse), p.mouseEpoch)
+		if err != nil || !accepted {
+			p.settleCancellation()
+			return err
+		}
 	}
-	accepted, err := p.selected.SendMouse(uv.MouseReleaseEvent(p.mouse), p.mouseEpoch)
-	if err != nil {
+	if p.cancelTarget == nil {
+		return errors.New("terminal: pending cancellation lost endpoint")
+	}
+	if err := p.cancelTarget.Flush(ctx); err != nil {
 		return err
 	}
-	if !accepted {
-		return nil
+	p.settleCancellation()
+	return nil
+}
+func (p *Presenter) settleCancellation() {
+	if p.cancelTarget != nil {
+		p.transition(ViewEvent{Kind: SettleMouseCancellation, EndpointID: p.cancelTarget.id})
+		p.cancelTarget = nil
 	}
-	return p.selected.Flush(ctx)
 }
 
 type parentModes struct{ tracking int }
@@ -361,12 +386,13 @@ func (p *Presenter) Panel(ctx context.Context, f Frame) error {
 // press admitted under the previous one.
 func (p *Presenter) reconcileGesture(ctx context.Context) error {
 	v := p.View()
+	if v.PendingMouseRelease != "" {
+		return p.cancelDrag(ctx)
+	}
 	if v.Gesture != GestureChild || p.selected == nil || p.selected.Modes().MouseEpoch == p.mouseEpoch {
 		return nil
 	}
-	err := p.cancelDrag(ctx)
-	p.transition(ViewEvent{Kind: CancelMouse})
-	return err
+	return p.cancelDrag(ctx)
 }
 func (p *Presenter) Input(ctx context.Context, event uv.Event) error {
 	return p.call(ctx, func(ctx context.Context) error {
@@ -476,6 +502,7 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 	if !accepted {
 		if p.View().Gesture == GestureChild {
 			p.transition(ViewEvent{Kind: CancelMouse})
+			p.transition(ViewEvent{Kind: SettleMouseCancellation, EndpointID: p.selected.id})
 		}
 		if release {
 			p.transition(ViewEvent{Kind: ReleaseMouse, Button: int(m.Button)})

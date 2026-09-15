@@ -38,6 +38,7 @@ func TestViewSwitchCancelsDragAndSuppressesRemainder(t *testing.T) {
 	if err != nil || e.CancelDrag != "a" || v.Gesture != GestureParent || v.DragDestination != "" {
 		t.Fatalf("cancel %+v %+v %v", v, e, err)
 	}
+	v, _, _ = Transition(v, ViewEvent{Kind: SettleMouseCancellation, EndpointID: "a"})
 	v, _, _ = Transition(v, ViewEvent{Kind: PresentView, EndpointID: "b", Token: 2})
 	if _, _, err = Transition(v, ViewEvent{Kind: PressMouse}); err == nil {
 		t.Fatal("old gesture restarted")
@@ -86,5 +87,28 @@ func TestViewParentGestureSurvivesSelectionAndRequiresMatchingRelease(t *testing
 	v, _, err = Transition(v, ViewEvent{Kind: ReleaseMouse, Button: 1})
 	if err != nil || v.Gesture != GestureNone || v.Button != 0 {
 		t.Fatalf("release:%+v %v", v, err)
+	}
+}
+
+func TestViewCancellationRevocationPrecedesDeliveryAndSurvivesRelease(t *testing.T) {
+	v := View{State: Ready, Selected: "a", Admitted: "a", Gesture: GestureChild, DragDestination: "a", Button: 1}
+	v, e, err := Transition(v, ViewEvent{Kind: CancelMouse})
+	if err != nil || e.CancelDrag != "a" || v.Gesture != GestureParent || v.PendingMouseRelease != "a" {
+		t.Fatalf("cancel:%+v %+v %v", v, e, err)
+	}
+	v, e, err = Transition(v, ViewEvent{Kind: CancelMouse})
+	if err != nil || e.CancelDrag != "" || v.PendingMouseRelease != "a" {
+		t.Fatal("retry duplicated cancellation")
+	}
+	v, _, _ = Transition(v, ViewEvent{Kind: ReleaseMouse, Button: 1})
+	if v.PendingMouseRelease != "a" {
+		t.Fatal("physical release erased pending delivery")
+	}
+	if _, _, err := Transition(v, ViewEvent{Kind: PressMouse, Button: 1}); err == nil {
+		t.Fatal("new child gesture admitted before cancellation settled")
+	}
+	v, _, err = Transition(v, ViewEvent{Kind: SettleMouseCancellation, EndpointID: "a"})
+	if err != nil || v.PendingMouseRelease != "" {
+		t.Fatalf("settle:%+v %v", v, err)
 	}
 }

@@ -29,6 +29,7 @@ type View struct {
 	Token, Generation, GeometryEpoch    uint64
 	Gesture                             GestureOwner
 	Button                              int
+	PendingMouseRelease                 string
 }
 type ViewEventKind uint8
 
@@ -42,6 +43,7 @@ const (
 	ReleaseMouse
 	ParentPressMouse
 	CancelMouse
+	SettleMouseCancellation
 )
 
 type ViewEvent struct {
@@ -68,6 +70,7 @@ func Transition(v View, e ViewEvent) (View, ViewEffects, error) {
 	cancel := func() {
 		if v.DragDestination != "" {
 			out.CancelDrag = v.DragDestination
+			v.PendingMouseRelease = v.DragDestination
 			v.DragDestination = ""
 			v.Gesture = GestureParent
 		}
@@ -86,7 +89,7 @@ func Transition(v View, e ViewEvent) (View, ViewEffects, error) {
 		v.GeometryEpoch = e.GeometryEpoch
 		out.Present = true
 	case PresentView:
-		if v.State != Presenting || e.Token != v.Token || e.EndpointID != v.Selected || e.GeometryEpoch != v.GeometryEpoch || e.Generation < v.Generation {
+		if v.State != Presenting || v.PendingMouseRelease != "" || e.Token != v.Token || e.EndpointID != v.Selected || e.GeometryEpoch != v.GeometryEpoch || e.Generation < v.Generation {
 			return reject()
 		}
 		v.State = Ready
@@ -109,7 +112,7 @@ func Transition(v View, e ViewEvent) (View, ViewEffects, error) {
 			v.State = Released
 		}
 	case PressMouse:
-		if v.State != Ready || v.Admitted == "" || v.Gesture != GestureNone {
+		if v.State != Ready || v.Admitted == "" || v.Gesture != GestureNone || v.PendingMouseRelease != "" {
 			return reject()
 		}
 		v.DragDestination = v.Admitted
@@ -123,6 +126,11 @@ func Transition(v View, e ViewEvent) (View, ViewEffects, error) {
 		v.Button = e.Button
 	case CancelMouse:
 		cancel()
+	case SettleMouseCancellation:
+		if v.PendingMouseRelease == "" || e.EndpointID != v.PendingMouseRelease {
+			return reject()
+		}
+		v.PendingMouseRelease = ""
 	case ReleaseMouse:
 		if v.Gesture != GestureNone && e.Button != 0 && v.Button != 0 && e.Button != v.Button {
 			return reject()

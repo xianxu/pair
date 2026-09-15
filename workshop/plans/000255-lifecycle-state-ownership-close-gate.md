@@ -112,6 +112,31 @@ rounds:
           round: 4
       boundary: M2
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-15T13:11:26-07:00"
+      agent: codex
+      dispose:
+        - id: BR-6
+          disposition: addressed
+          note: Chrome, panel, orphan-event and negotiation-change regressions pass. Restoring the previous input handler makes the committed chrome/panel/orphan regressions fail with leaked motion and release.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: CSI/DCS count, numeric-overflow, split-input and recovery tests pass. Removing overflow evidence collection makes atomicity and boundary-count regressions fail.
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: Endpoint capture and qualification observations read authoritative backend cursor state. Restoring callback-maintained cursor metadata makes reset, restore and alternate-buffer regressions fail.
+          round: 5
+      findings:
+        - id: BR-9
+          severity: Critical
+          title: Failed resize resumes a gesture after delivering its cancellation release
+          detail: 'cmd/internal/terminal/presenter.go:505-509 cancels the drag before resizing, but returns directly when the resize callback fails; cancelDrag at lines 202-214 never transitions ownership. With 1002/1006 enabled, press (1,1), fail the resize callback, then move/release at (2,2): the child receives press, synthetic release, motion, and another release. TestReviewFailedResizeCancelsGesture reproduces this on the pinned head. ARCH-ORDER: cancellation must revoke child ownership independently of subsequent geometry success. This is the 2nd finding in family gesture-origin-ownership. Do NOT fix only this instance: enforce that rule across all six cancellation callers—release, failure, selection, panel, negotiation reconciliation and resize—including interrupted delivery and retry.'
+          family: gesture-origin-ownership
+          round: 5
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -167,8 +192,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Critical] `authoritative-snapshot-coherence` Endpoint cursor metadata remains stale after backend reset
   cmd/internal/terminal/endpoint.go:113-115 maintains cursor metadata through callbacks, and capture at line 205 publishes that shadow state. third_party/vt/screen.go:35-40 resets the actual cursor without a style callback. Feeding "\x1b[6 q\x1bc" therefore publishes Shape:3, Blink:false after reset instead of the backend's default blinking block. TestReviewCursorResetPublication reproduces this. ARCH-DRY / ARCH-ORDER: derive the full cursor publication from authoritative backend state, or enforce complete notifications for every mutation. Sweep reset, saved-cursor restore, and screen switching rather than repairing only RIS.
 
+## Round 5 — 2026-09-15T13:11:26-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-6 — addressed — Chrome, panel, orphan-event and negotiation-change regressions pass. Restoring the previous input handler makes the committed chrome/panel/orphan regressions fail with leaked motion and release.
+- BR-7 — addressed — CSI/DCS count, numeric-overflow, split-input and recovery tests pass. Removing overflow evidence collection makes atomicity and boundary-count regressions fail.
+- BR-8 — addressed — Endpoint capture and qualification observations read authoritative backend cursor state. Restoring callback-maintained cursor metadata makes reset, restore and alternate-buffer regressions fail.
+
+### Raised
+
+- **BR-9** [Critical] `gesture-origin-ownership` Failed resize resumes a gesture after delivering its cancellation release
+  cmd/internal/terminal/presenter.go:505-509 cancels the drag before resizing, but returns directly when the resize callback fails; cancelDrag at lines 202-214 never transitions ownership. With 1002/1006 enabled, press (1,1), fail the resize callback, then move/release at (2,2): the child receives press, synthetic release, motion, and another release. TestReviewFailedResizeCancelsGesture reproduces this on the pinned head. ARCH-ORDER: cancellation must revoke child ownership independently of subsequent geometry success. This is the 2nd finding in family gesture-origin-ownership. Do NOT fix only this instance: enforce that rule across all six cancellation callers—release, failure, selection, panel, negotiation reconciliation and resize—including interrupted delivery and retry.
+
 ## Open findings
 
-- **BR-6** [Critical] `gesture-origin-ownership` A gesture beginning on chrome leaks motion and release into the child
-- **BR-7** [Critical] `overflow-command-atomicity` Parameter overflow executes a truncated CSI command
-- **BR-8** [Critical] `authoritative-snapshot-coherence` Endpoint cursor metadata remains stale after backend reset
+- **BR-9** [Critical] `gesture-origin-ownership` Failed resize resumes a gesture after delivering its cancellation release

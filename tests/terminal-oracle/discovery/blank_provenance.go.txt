@@ -1,0 +1,3 @@
+package main
+import("fmt";uv "github.com/charmbracelet/ultraviolet")
+func main(){b:=uv.NewRenderBuffer(4,1);blank:=uv.Cell{Width:1};b.Fill(&blank);b.SetCell(0,0,&uv.Cell{Content:"A",Width:1});b.SetCell(2,0,&uv.Cell{Content:"B",Width:1});fmt.Printf("cells=%#v string=%q render=%q\n",b.Lines[0],b.String(),b.Render());b.InsertCellArea(0,0,1,&blank,b.Bounds());fmt.Printf("insert=%#v\n",b.Lines[0]);b.SetCell(0,0,&uv.Cell{Content:"界",Width:2});b.SetCell(1,0,&blank);fmt.Printf("wide-overwrite=%#v\n",b.Lines[0])}

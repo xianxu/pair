@@ -171,6 +171,10 @@ Fresh spec review approved the proposed direction and M1 qualification, with no 
 
 Operator approved the architectural direction and qualification phase. Added executable M1 tool/matrix plan, explicit negative qualification semantics and bounded candidate lifecycle; later production migration remains subject to qualification and detailed plan approval. Replaced generic plan rows with the four actual review boundaries from the approved proposal.
 
+- 2026-09-15 M2 second boundary review: BR6–BR8 independently verified addressed; BR9 blocks closure. Failed resize revived an already-canceled child gesture. Sweep all cancellation callers (release, failure, selection, panel, negotiation, resize), committing ownership revocation separately from delivery and subsequent operation success. Interrupted delivery must retain the existing release admission rather than enqueue a duplicate on retry. M3 remains pending this gate.
+
+- 2026-09-15 M2 BR9 correction verified: explicit pending cancellation commits child-to-parent ownership before admission, retries Flush rather than enqueue, and Release attempts parent cleanup while reporting child cancellation errors. Red evidence: `/tmp/pair255-br9-red.log`, `/tmp/pair255-br9-callers-red.log`, `/tmp/pair255-br9-child-red.log`; final shared terminal/ttyio/qualification race checks and independent renderer oracle passed (`/tmp/pair255-m2-round3-{race,oracle}.log`). Six-caller matrix plus actual interrupted Select, physical remainder, fresh press, failed resize and permanent child failure regressions pass. Previous full root suite remains valid for unchanged consumers. M3 history discovery prototypes are preserved under `tests/terminal-oracle/discovery`; all six probes passed, with typed/dirty smoke repeated after oracle error/cleanup hardening. These are preparation evidence, not production qualification.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. This is approved M1 qualification only; M2–M4 require later estimates after their designs settle. Calibration is marked stale by estimate-source, so the result is provisional.

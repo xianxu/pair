@@ -109,3 +109,117 @@ Add `## Revisions` entries specifying:
 - **Publication authority:** require complete cursor snapshots across every backend mutation, including reset, restore, and buffer switching.
 
 Keep the affected M2 tasks open until these regressions pass and the boundary is rerun.
+
+---
+
+## Re-review — 2026-09-15T13:11:26-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 29101ebf157ba9663609f5e75278449f34eea722..6015b51b2d5760e1abef11d1082c1cfcf338f06a |
+| command | sdlc milestone-close --issue 255 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-15T13:11:26-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The three prior findings are addressed, with regression tests that fail when the fixes are removed in temporary overlays. The focused normal/race suites and independent renderer oracle pass. One additional cancellation bug blocks M2: a failed resize leaves a gesture admitted after its synthetic release has already reached the child.
+
+```findings
+dispose:
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Chrome, panel, orphan-event and negotiation-change regressions pass. Restoring the previous input handler makes the committed chrome/panel/orphan regressions fail with leaked motion and release.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      CSI/DCS count, numeric-overflow, split-input and recovery tests pass. Removing overflow evidence collection makes atomicity and boundary-count regressions fail.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Endpoint capture and qualification observations read authoritative backend cursor state. Restoring callback-maintained cursor metadata makes reset, restore and alternate-buffer regressions fail.
+findings:
+  - id: new
+    severity: Critical
+    family: gesture-origin-ownership
+    title: |
+      Failed resize resumes a gesture after delivering its cancellation release
+    detail: |
+      cmd/internal/terminal/presenter.go:505-509 cancels the drag before resizing, but returns directly when the resize callback fails; cancelDrag at lines 202-214 never transitions ownership. With 1002/1006 enabled, press (1,1), fail the resize callback, then move/release at (2,2): the child receives press, synthetic release, motion, and another release. TestReviewFailedResizeCancelsGesture reproduces this on the pinned head. ARCH-ORDER: cancellation must revoke child ownership independently of subsequent geometry success. This is the 2nd finding in family gesture-origin-ownership. Do NOT fix only this instance: enforce that rule across all six cancellation callers—release, failure, selection, panel, negotiation reconciliation and resize—including interrupted delivery and retry.
+```
+
+## 1. Strengths
+
+- Cursor publication now uses one authoritative backend value, covering reset, saved-cursor restoration and buffer switching.
+- Overflow rejection happens before CSI/DCS dispatch; tests cover exact limits, subparameters, numeric overflow and recovery.
+- Stateful transport doubles exercise accepted prefixes, blocked writes, cancellation and joined teardown.
+- README and atlas updates describe the new surfaces. Qualification preserves six explicit M3/M4 gaps rather than claiming complete adoption.
+
+## 2. Critical findings
+
+**Failed-resize gesture cancellation**, at [presenter.go:505](/Users/xianxu/workspace/worktree/pair/000255-lifecycle-state-ownership/cmd/internal/terminal/presenter.go:505).
+
+The reproduced child wire is:
+
+```text
+Expected: \x1b[<0;2;2M\x1b[<0;2;2m
+Actual:   \x1b[<0;2;2M\x1b[<0;2;2m\x1b[<32;3;3M\x1b[<0;3;3m
+```
+
+Preserve the old geometry after resize failure, but preserve the cancellation too. Once the synthetic release is admitted, suppress the physical gesture’s remainder. Model interrupted delivery explicitly so retries cannot duplicate releases.
+
+The existing failed-resize test at `presenter_test.go:421` starts without an active gesture and therefore misses this case.
+
+## 3. Important findings
+
+None.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Verified:
+
+- `terminal`, `terminalqualify`, and `ttyio`: normal and race suites pass.
+- Local VT fork: normal and race suites pass.
+- Required independent renderer oracle passes.
+- Qualification: **84 pass, 0 fail, 6 not-covered**, with expected exit status 1.
+- Pinned-range `git diff --check` passes.
+- All three prior fixes have failing mutation evidence.
+
+The new reproduction is in [review_test.go](/var/folders/07/b9wcwwld4_v2w9r3hk525bm80000gn/T/pair255-review-6irszsf7/review_test.go). Repository files were unchanged. The full root suite was not rerun.
+
+## 6. Architectural notes for upcoming work
+
+| Marker | Result | Review assessment |
+|---|---|---|
+| ARCH-DRY | Pass | Cursor consumers share backend authority; terminfo is checked against the capability source. |
+| ARCH-PURE | Pass | Frame/view/render logic is directly testable; transport and backend integrations are separate. |
+| ARCH-PURPOSE | Flag | Cancellation enforcement remains incomplete across failure paths; sweep the whole family. |
+| ARCH-MOCK | Pass | Stateful write doubles share the production seam; PTY and independent interpreter tests add conformance evidence. |
+| ARCH-CONSTRAINTS | Pass for M2 | Parser, history and queue bounds are explicit and tested; complete workload acceptance remains M4. |
+| ARCH-SECURE | Pass | Overflow commands are rejected atomically; renderer/effect boundaries validate control-bearing data. |
+| ARCH-ORDER | Flag | Successful cancellation is lost when the subsequent resize fails. |
+| ARCH-FUNERAL | Pass | Workers have joined teardown; origins have retirement and retained buffers have bounds. |
+
+The M2 core-concept locations and implementation roles are present. M3 consumer/history work remains explicitly pending.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry stating:
+
+> Gesture cancellation commits independently of selection or resize success. Enumerate all six cancellation callers and test subsequent failure, interrupted delivery, retry, physical release and a fresh press. Failed resize preserves geometry but cannot restore a canceled gesture.

@@ -604,3 +604,186 @@ func TestPresenterModeEpochAndButtonOwnership(t *testing.T) {
 		t.Fatalf("button ownership:%q", got)
 	}
 }
+
+func TestPresenterFailedResizeDoesNotReviveCanceledGesture(t *testing.T) {
+	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+	selectPresenter(t, p, e)
+	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	before := p.View()
+	boom := errors.New("resize failed")
+	for i := 0; i < 2; i++ {
+		if err := p.Resize(context.Background(), Geometry{9, 6}, func(Geometry) error { return boom }); !errors.Is(err, boom) {
+			t.Fatalf("resize:%v", err)
+		}
+	}
+	after := p.View()
+	if after.GeometryEpoch != before.GeometryEpoch || after.Token != before.Token {
+		t.Fatal("failed resize changed geometry")
+	}
+	p.Input(context.Background(), uv.MouseMotionEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+	p.Input(context.Background(), uv.MouseReleaseEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	if got := string(input.Bytes()); got != "\x1b[<0;2;2M\x1b[<0;2;2m" {
+		t.Fatalf("canceled gesture revived:%q", got)
+	}
+	p.Input(context.Background(), uv.MouseClickEvent{X: 3, Y: 1, Button: uv.MouseLeft})
+	p.Input(context.Background(), uv.MouseReleaseEvent{X: 3, Y: 1, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	if got := string(input.Bytes()); got != "\x1b[<0;2;2M\x1b[<0;2;2m\x1b[<0;4;2M\x1b[<0;4;2m" {
+		t.Fatalf("fresh gesture:%q", got)
+	}
+}
+func TestPresenterInterruptedCancellationDoesNotEnqueueAgain(t *testing.T) {
+	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+	selectPresenter(t, p, e)
+	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	block := make(chan struct{})
+	input.Enqueue(ttyio.WriteStep{Block: block})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := p.call(context.Background(), func(context.Context) error { return p.cancelDrag(ctx) }); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancel delivery:%v", err)
+	}
+	close(block)
+	if err := p.call(context.Background(), func(ctx context.Context) error { return p.cancelDrag(ctx) }); err != nil {
+		t.Fatal(err)
+	}
+	e.Flush(context.Background())
+	if got := string(input.Bytes()); got != "\x1b[<0;2;2M\x1b[<0;2;2m" {
+		t.Fatalf("retry duplicated release:%q", got)
+	}
+}
+
+func TestPresenterCancellationCallersResumeOnePendingDelivery(t *testing.T) {
+	for _, caller := range []string{"release", "failure", "selection", "panel", "reconciliation", "resize"} {
+		t.Run(caller, func(t *testing.T) {
+			p, parent, e, input := presenterFixture(t, CouchAnyMotion)
+			e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+			selectPresenter(t, p, e)
+			p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+			e.Flush(context.Background())
+			block := make(chan struct{})
+			input.Enqueue(ttyio.WriteStep{Block: block})
+			canceled, cancel := context.WithCancel(context.Background())
+			cancel()
+			if err := p.call(context.Background(), func(context.Context) error { return p.cancelDrag(canceled) }); !errors.Is(err, context.Canceled) {
+				t.Fatalf("interrupt:%v", err)
+			}
+			close(block)
+			// Each production cancellation caller must resume the pending acknowledgment,
+			// not enqueue another release or restore the old gesture on a later failure.
+			switch caller {
+			case "release":
+				if err := p.Release(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				p.Release(context.Background())
+			case "failure":
+				parent.Enqueue(ttyio.WriteStep{Limit: 1, Err: errors.New("parent broke")})
+				if _, err := p.EmitEffects(context.Background(), []Effect{{Kind: BellEffect, EndpointID: "selected", Sequence: 1}}, EffectPolicy{Bell: true}); err == nil {
+					t.Fatal("missing parent failure")
+				}
+			case "selection":
+				b, _ := newEndpointTest(t, "b")
+				selectPresenter(t, p, b)
+				selectPresenter(t, p, b)
+			case "panel":
+				f, err := PanelFrame(Geometry{8, 5}, make([]Cell, 40), Cursor{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := p.Panel(context.Background(), f); err != nil {
+					t.Fatal(err)
+				}
+				p.Panel(context.Background(), f)
+			case "reconciliation":
+				if err := p.Input(context.Background(), uv.MouseMotionEvent{X: 2, Y: 2, Button: uv.MouseLeft}); err != nil {
+					t.Fatal(err)
+				}
+			case "resize":
+				for i := 0; i < 2; i++ {
+					if err := p.Resize(context.Background(), Geometry{9, 6}, func(Geometry) error { return errors.New("resize failed") }); err == nil {
+						t.Fatal("missing resize failure")
+					}
+				}
+			}
+			if pending := p.View().PendingMouseRelease; pending != "" {
+				t.Fatalf("caller left acknowledged cancellation pending:%s", pending)
+			}
+			p.Input(context.Background(), uv.MouseMotionEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+			p.Input(context.Background(), uv.MouseReleaseEvent{X: 2, Y: 2, Button: uv.MouseLeft})
+			e.Flush(context.Background())
+			if got := string(input.Bytes()); got != "\x1b[<0;2;2M\x1b[<0;2;2m" {
+				t.Fatalf("caller duplicated/revived cancellation:%q", got)
+			}
+		})
+	}
+}
+
+func TestPresenterFailedChildCancellationStillReleasesParent(t *testing.T) {
+	p, parent, e, input := presenterFixture(t, CouchAnyMotion)
+	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+	selectPresenter(t, p, e)
+	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	boom := errors.New("child input broke")
+	input.Enqueue(ttyio.WriteStep{Limit: 2, Err: boom})
+	resized := false
+	if err := p.Resize(context.Background(), Geometry{9, 6}, func(Geometry) error { resized = true; return nil }); !errors.Is(err, boom) {
+		t.Fatalf("resize cancellation:%v", err)
+	}
+	if resized || p.View().Gesture != GestureParent || p.View().State != Failed {
+		t.Fatalf("failed cancellation resumed operation:%+v", p.View())
+	}
+	childCalls := input.Calls()
+	parentBefore := len(parent.Bytes())
+	if err := p.Release(context.Background()); !errors.Is(err, boom) {
+		t.Fatalf("release hid child cancellation failure:%v", err)
+	}
+	if p.View().State != Released || input.Calls() != childCalls {
+		t.Fatal("release retried failed child write")
+	}
+	if !strings.Contains(string(parent.Bytes()[parentBefore:]), "\x18\x1b\\") {
+		t.Fatal("child failure skipped parent cleanup")
+	}
+	parentCalls := parent.Calls()
+	p.Release(context.Background())
+	if parent.Calls() != parentCalls || input.Calls() != childCalls {
+		t.Fatal("release retry repeated effects")
+	}
+}
+
+func TestPresenterCanceledSelectionJoinsExistingReleaseWithoutRetry(t *testing.T) {
+	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
+	selectPresenter(t, p, e)
+	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
+	e.Flush(context.Background())
+	<-input.Started()
+	b, _ := newEndpointTest(t, "b")
+	block := make(chan struct{})
+	input.Enqueue(ttyio.WriteStep{Block: block})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- p.Select(ctx, b, Geometry{8, 5}, make([]Cell, 8)) }()
+	<-input.Started()
+	cancel()
+	// Delivery may finish after its first waiter cancels. The failure path must
+	// join that same queued packet instead of emitting another release.
+	close(block)
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("selection cancellation:%v", err)
+	}
+	if p.View().Gesture != GestureParent || p.View().PendingMouseRelease != "" {
+		t.Fatalf("cancellation state:%+v", p.View())
+	}
+	p.Release(context.Background())
+	if got := string(input.Bytes()); got != "\x1b[<0;2;2M\x1b[<0;2;2m" {
+		t.Fatalf("selection retry duplicated release:%q", got)
+	}
+}
