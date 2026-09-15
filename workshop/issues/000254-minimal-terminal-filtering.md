@@ -77,3 +77,26 @@ Related: #252 UTF-8 output boundaries, #253 disconnect telemetry. Evidence:
 /tmp/pair-display-sync-window.raw and /tmp/pair-display-sync-events.json;
 #252 records exact source offsets and timestamp. Existing #250 recovery work
 continues; this capture does not reorder the previously agreed #245 follow-up.
+
+
+### 2026-09-14 — Mouse drag highlight trace: mode restoration is distinct from filtering
+
+Operator reports selection highlight appears only upon release, throughout the
+agent and right panes. Read-only /private/tmp/couch-mouse-207.log inspection:
+13:08:35 actor output establishes 1003,1006; 15:16:04.382–04.886 Couch emits six
+successful click-only 1000,1006 assertions while the panel retains a child whose
+tracking becomes false. Actor takeovers at 15:21:39.879 and 15:21:47.618 replay
+131072 bytes without mouse-mode setters; no later restoring child-mode event
+was found through the inspected trace. Current sole trace writer is Couch20191,
+started13:08:32. The trace does not identify every historical writer or include
+mouse-input reports, so exact symptom onset/current terminal mode is unproven.
+
+Code: takeover clears/replays without restoring incoming child's recorded mouse
+modes; couchMayOwnTheMouse sees that child wants tracking and declines further
+writes. Click-only reporting suppresses drag motion, closely matching the
+symptom. This is a strong mode-leak diagnosis, separate from Ctrl-wheel modifier
+filtering and #252 UTF-8 corruption. scanner=none is not host truth: takeover
+resets it and own mouse assertions bypass it. Recent no-output-terminal errors
+wrote zero bytes and therefore did not change terminal modes. No runtime or
+code changes during inspection. Any minimal-filtering solution must still
+restore terminal modes it changes when ownership returns to the child.
