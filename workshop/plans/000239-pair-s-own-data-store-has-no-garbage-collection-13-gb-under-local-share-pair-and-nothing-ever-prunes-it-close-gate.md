@@ -252,6 +252,11 @@ rounds:
           round: 6
       boundary: M1
       blocked: false
+    - "n": 7
+      timestamp: "2026-09-15T00:23:01-07:00"
+      agent: codex
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it#239 (boundary-review)
@@ -354,6 +359,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-7 — addressed — Journal publication precedes unique quarantine creation; publication-failure and killed-publisher recovery tests pass.
 - BR-8 — addressed — Diagnostic deletion replay handles removed ancestor directories while rejecting replacement identities; replay tests pass.
 - BR-9 — addressed — Bounded append intents reconcile the observed authorized prefix; partial-write, killed-publisher and substitution tests pass.
+
+## Round 7 — 2026-09-15T00:23:01-07:00 (codex) — passed
 
 ## Open findings
 
