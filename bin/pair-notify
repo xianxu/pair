@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# pair-notify — emit a notification escape to the outer terminal/wrapper
+# pair-notify — send an attention message to the owning wrapper
 # from inside a pair (zellij) pane.
 #
-# Encoding and outer-TTY IO live in the Go `pair notify` command. This shim
+# Bounded broker delivery lives in the Go `pair notify` command. This shim
 # remains because agent hook configurations invoke the stable pair-notify name.
 #
 # Usage:

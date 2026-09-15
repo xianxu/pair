@@ -51,7 +51,20 @@ rounds:
           note: The plan correctly identifies mouseTraceHost as the existing partial/error-write double and calls for shared extension.
           round: 4
       blocked: false
-content_hash: b66ed9821dbe1db096b0f29ad6761fe0ad4afd4918487e59242ebc843de59bf6
+    - "n": 5
+      timestamp: "2026-09-15T16:36:26-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named function-level adversarial strategies and mechanical guards remain in the qualification plan.
+          round: 5
+        - id: PQ-2
+          disposition: addressed
+          note: The plan correctly distinguishes buffered FakeHost writes from controlled partial/error transport behavior.
+          round: 5
+      blocked: false
+content_hash: 89dec26bb5cb0679b17a71eaa857752e24e08791b103d8cf115a7b043a07fb6e
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (plan-quality)
@@ -85,6 +98,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards remain in the qualification plan.
 - PQ-2 — addressed — The plan correctly identifies mouseTraceHost as the existing partial/error-write double and calls for shared extension.
+
+## Round 5 — 2026-09-15T16:36:26-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards remain in the qualification plan.
+- PQ-2 — addressed — The plan correctly distinguishes buffered FakeHost writes from controlled partial/error transport behavior.
 
 ## Open findings
 

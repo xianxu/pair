@@ -91,16 +91,12 @@ func captureCodexVisualNotification(t *testing.T) []byte {
 	}
 	dir := t.TempDir()
 	outer := filepath.Join(dir, "outer")
-	sidecar := filepath.Join(dir, "outer-path")
 	if err := os.WriteFile(outer, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	p := &proxy{
 		agentBasename: "codex", notifyModeActive: notifyModeDefault,
-		outerTTYFile: sidecar, lastSlug: time.Now(),
+		stdout: notificationFileWriter(t, outer), lastSlug: time.Now(),
 	}
 	if err := p.configureHarnessTTY(true, 120, 38); err != nil {
 		t.Fatal(err)
@@ -125,6 +121,14 @@ func captureCodexVisualNotification(t *testing.T) []byte {
 	p.processLifecycleObservation(TurnObservation{
 		Kind: ObservationGraceExpired, Token: p.notificationLifecycle.GraceToken,
 	})
+	// The captured file ends in ESC[3. Completion must wait for a genuine
+	// boundary; append the missing CSI final byte rather than injecting into it.
+	if len(p.stdoutPump.notifications) != 1 {
+		t.Fatal("truncated capture did not hold notification")
+	}
+	p.handleChunk([]byte("m"), &rolling)
+	p.flushStdout("fixture-complete")
+
 	written, err := os.ReadFile(outer)
 	if err != nil {
 		t.Fatal(err)
@@ -172,6 +176,7 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 	if _, err := writer.Write([]byte{0}); err != nil {
 		t.Fatal(err)
 	}
+
 	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(host.Written()), "agent stopped working") }, "switcher message")
 }
 

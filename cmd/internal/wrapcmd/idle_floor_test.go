@@ -3,7 +3,6 @@ package wrapcmd
 import (
 	"io"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -14,7 +13,7 @@ import (
 // The idle floor's master-loop behaviour (#171). These rows enter through the
 // production scheduling owner — p.masterPump() over an os.Pipe ptmx, the same
 // seam TestMasterPumpForwardsPTYWhileLifecycleJournalIOIsBlocked uses — and
-// observe the emit at the outer-TTY write seam. p.idleS is milliseconds, so
+// observe the emit in the production stdout stream. p.idleS is milliseconds, so
 // nothing here waits on wall-clock.
 
 type idleFloorHarness struct {
@@ -29,15 +28,6 @@ func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *
 	t.Helper()
 	reader, writer, err := os.Pipe()
 	if err != nil {
-		t.Fatal(err)
-	}
-	dir := t.TempDir()
-	outer := filepath.Join(dir, "outer")
-	if err := os.WriteFile(outer, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sidecar := filepath.Join(dir, "outer-path")
-	if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	h := &idleFloorHarness{writer: writer, done: make(chan struct{})}
@@ -57,19 +47,18 @@ func newIdleFloorHarness(t *testing.T, agent, mode string, idle time.Duration) *
 		stdoutPump: newStdoutPump(io.Discard), stdoutFlushEvery: 5 * time.Millisecond,
 		captureWindow: defaultCaptureWindow, now: advancing,
 		lifecycleEvents: make(chan TurnObservation, 32),
-		outerTTYFile:    sidecar,
 		idleS:           idle,
 		// Injected rather than debounced: this test's emit lands after a live
 		// timer, so a wall-clock debounce could lapse on a loaded machine and
 		// spawn a real slug run against the operator's machine (BR-11).
 		spawnSlug: func() {},
 	}
-	h.proxy.writeTTY = func(_ int, data []byte) (int, error) {
+	h.proxy.stdoutPump = newStdoutPump(notificationWriter(func(data []byte) (int, error) {
 		h.mu.Lock()
 		h.emitted = append(h.emitted, string(data))
 		h.mu.Unlock()
 		return len(data), nil
-	}
+	}))
 	go func() {
 		h.proxy.masterPump()
 		close(h.done)
@@ -150,25 +139,16 @@ func TestIdleFloorStaysSilentWhileTheAgentIsProducingOutput(t *testing.T) {
 // raced: queue the observation, then apply the expiry.
 func newIdleExpiryProxy(t *testing.T) (*proxy, func() []string) {
 	t.Helper()
-	dir := t.TempDir()
-	outer := filepath.Join(dir, "outer")
-	if err := os.WriteFile(outer, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sidecar := filepath.Join(dir, "outer-path")
-	if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	var emitted []string
 	p := &proxy{
 		agentBasename: "claude", notifyModeActive: "marker", now: time.Now,
 		lifecycleEvents: make(chan TurnObservation, 32),
-		outerTTYFile:    sidecar, idleS: time.Minute, spawnSlug: func() {},
+		idleS:           time.Minute, spawnSlug: func() {},
 	}
-	p.writeTTY = func(_ int, data []byte) (int, error) {
+	p.stdout = notificationWriter(func(data []byte) (int, error) {
 		emitted = append(emitted, string(data))
 		return len(data), nil
-	}
+	})
 	p.idleTimer = time.NewTimer(time.Hour)
 	drainStop(p.idleTimer)
 	p.lifecycleTimer = time.NewTimer(time.Hour)

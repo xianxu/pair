@@ -1,5 +1,30 @@
 # Lessons
 
+## Terminal side effects must use the connection's output owner (#255)
+
+An independently opened outer TTY let wrapper and hook notifications compete
+with Zellij's display writes. Retrying EAGAIN would fix one dropped message while
+leaving UTF-8/control framing vulnerable. Enumerate every producer, including
+hook commands, and route each through the owning serializer. Prove the composed
+native route under backpressure and detach/reattach; two isolated codec tests do
+not establish delivery or single-writer ownership.
+
+## Resource identity checks need serialized replacement (#255)
+
+Lstat/SameFile followed by Remove can still delete a replacement when two
+starters race to reclaim the same dead owner. Serialize publication and cleanup
+under one stable lock inode, retain the identity check, and test concurrent
+starters plus replacement preservation. Never unlink the lock file during use.
+
+## Observe physical publication before asserting a visible state (#255)
+
+Endpoint ingestion can finish before its publication reaches the presentation
+queue. A single Flush after reading the endpoint does not close that gap. For
+visible selection, wait for the parent-rendered style and then compare the
+independent screen. Insert a delay between ingestion and enqueue to prove the
+test actually detects this ordering error. Teardown must likewise join Run and
+assert its result rather than accepting an earlier cleanup escape.
+
 ## Query failure cannot prove an empty external state (#248)
 
 Zellij snapshot code swallowed listing/client-query errors; a failed client

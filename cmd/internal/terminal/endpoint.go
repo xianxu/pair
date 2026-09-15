@@ -7,6 +7,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 	vt "github.com/charmbracelet/x/vt"
+	"github.com/xianxu/pair/cmd/internal/notifyosc"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
 	"io"
 	"os"
@@ -98,6 +99,13 @@ func NewEndpoint(id string, g Geometry, out ttyio.Writer) (*Endpoint, error) {
 	}
 	e := &Endpoint{closeDone: make(chan struct{}), id: id, backend: backend, geometry: g, epoch: 1}
 	backend.SetReplyWriter(&e.replies)
+	backend.RegisterOscHandler(9, func(data []byte) bool {
+		n, ok := notifyosc.DecodeZellijOSC9(data)
+		if ok {
+			e.effect(Effect{Kind: NotificationEffect, Selection: "pair", Text: n.Message})
+		}
+		return ok
+	})
 	backend.SetCallbacks(vt.Callbacks{
 		Bell:             func() { e.effect(Effect{Kind: BellEffect}) },
 		Title:            func(s string) { e.effect(Effect{Kind: TitleEffect, Text: s}) },

@@ -34,6 +34,8 @@
 mouse_hover_effects false
 advanced_mouse_actions false
 focus_follows_mouse false
+// Pair notifications travel through Zellij's single host-output owner.
+host_notification_protocol "osc9"
 support_kitty_keyboard_protocol true
 show_release_notes false
 show_startup_tips false

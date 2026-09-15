@@ -214,3 +214,50 @@ The original Pair run **passes**30m0.017s:141,796 iterations,6,778,538,818 paren
 Couch now determines the final operational result after Presenter release/join, ignoring only new cancellation-only trees during shutdown. Already-latched live failure, deadlines, mixed host/cancellation errors and every cleanup failure remain fatal. Forced tests include zero/partial accepted bytes, parent parser repair and raw/host cleanup in every outcome. Deterministic race×100 passes, real-PTY250ms soaks race×100 pass(61.559s), and full Couch race passes(17.992s). Red/green logs are `/tmp/pair255-couch-stop-{red,green,full-race}.log`; the actual pre-fix cause is `/tmp/pair255-couch-soak-stop-cause.log`.
 
 The production delta is exactly `couchtty/console.go` and `couchtty/terminal.go`. Pair term's executed path and shared renderer remain unchanged, so its completed soak and the performance measurements above still apply to those paths; the measured Pair binary hash is historical, distinct from the refreshed candidate build. Couch's fresh thirty-minute run is `/tmp/pair255-couch-soak-30m-after-stop-fix.log`. The smoke binaries are rebuilt, and final candidate hashes/source manifest will be recorded after review.
+
+### 2026-09-15 — Corrected Couch sustained run passed
+
+`/tmp/pair255-couch-soak-30m-after-stop-fix.log` passes30m0.015s, including
+Stop/join and exit0:78,772 iterations,19,693 attachment replacements,
+3,059,548,059 parent bytes,853,486 writes and maximum visible receipt22.293ms.
+Operational worker count remains16; final measured heap is5,779,392 bytes.
+Together with the earlier passed Pair30m run, this supplies the two sustained
+consumer runs. These immutable binaries predate the new notification broker and
+OSC9 adapter; the unchanged screen/input stress paths remain attributed to those
+binaries, while the new notification path requires its own native stress and
+full/race verification. No operator display/highlight acceptance is claimed.
+
+### 2026-09-15 — Final notification revision verification
+
+The final production source has424 non-test Go files in
+`/tmp/pair255-notification-production-source.json`, with zero drift through
+verification. Full root `go test ./... -count=1` passes
+(`/tmp/pair255-m4-full-after-notifications.log`); full wrapper race passes165.300s
+(`/tmp/pair255-notify-wrapper-race.log`). Broker/CLI race, full Couch/term race,
+shared terminal/qualification race and local fork normal suites pass. The
+additional real-PTY blocked/flooding-child output-failure regression passes
+race×5; the startup test with the real private PID binding passes race×3.
+
+Strict actual-wrapper/Zellij/nvim qualification passes race×3 in79.614s
+(`/tmp/pair255-native-inband-final.log`):96 hook notifications exactly once,
+three4096-byte UTF-8 messages,48 hidden/48 focused attention cases,12 resizes,
+persistent reattachment with unchanged PID/nonce/counter, held selection/copy,
+independent xterm screen comparison and every Console exit0. A delayed
+Feed→enqueue overlay also passes, after proving the original highlight assertion
+race. These synthetic native checks do not replace the operator's real Codex/
+Claude sustained visual acceptance. The probe inventory remains84pass/0fail/
+6not-covered, qualified=false; placeholders are not silently promoted.
+
+Artifact coverage and runtime-bundle suites pass; regenerated Zellij config
+checks and Linux/amd64 builds pass. The initial cross-build command targeted an
+existing file as a directory and failed; corrected output directory succeeds
+(`/tmp/pair255-notification-linux-build-final.log`). Previous Lua/shell/retention
+and causal mutation evidence remains valid for unchanged paths.
+
+Final smoke Pair hash:
+`b4db037d0760d26f4069e4357721be1e7c7df75c589ce1418eae795a3ab7b7ef`,
+identical to the native-tested binary. Candidate root
+`/tmp/pair255-smoke-gfr6g7pd` holds refreshed runtime assets, Pair/Couch/helper,
+private launcher and build manifest. `couch --list` through that launcher reports
+no threads; no interactive operator session was launched. See the smoke guide
+for exact launch/revert and acceptance steps. M4 boundary review remains pending.

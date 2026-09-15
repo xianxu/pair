@@ -398,3 +398,73 @@ The short reproducer fails3/100; captured failure is `terminal: input write acce
 Only `cmd/internal/couchtty/console.go` and `terminal.go` changed in production. Couch's new30m run uses `/tmp/pair255-couch-soak-after-stop-fix.test`, logging to `/tmp/pair255-couch-soak-30m-after-stop-fix.log`. The previous failed log and source manifest are retained. Pair's passed30m run and measured Pair-term performance predate this Couch-only fix; their executed paths are unchanged. The smoke binaries are refreshed and affected full/native tests will be repeated before M4 closure.
 
 The first native rerun after the shutdown fix exposed a separate fixture observation race: it checked endpoint highlight then flushed once, before the Feed→enqueue publication gap closed. Captured native wire contains the correct highlight. A parent-visible barrier is being proved with the delayed-publication overlay. That run also had a notification timeout and post-Stop fixture diagnostics; investigate and preserve these independently (`/tmp/pair255-m4-native-after-stop-fix.log`) rather than treating the failed run as a pass. Couch's new long run remains active on unchanged production code.
+
+### 2026-09-15 — M4 notification ownership revision
+
+Strict native failure capture shows wrapper outer-TTY `EAGAIN`; retrying would
+still leave two independent writers on Zellij's terminal connection. Producer
+sweep also finds the hook CLI. The durable plan's notification transport revision
+replaces both with a bounded wrapper broker and serialized in-band OSC, qualified
+against pinned Zellij0.45.1. Plan-quality round5 passed after reading that revision
+(`/tmp/pair255-m4-notification-plan-gate.log`); implementation and native stress
+remain in progress. Endpoint mapping red/green proves typed Pair origin, exact
+4096-byte bodies and unchanged generic limits. Native probe equality includes
+Zellij's existing grapheme limitations; it is not broader Unicode conformance.
+The canonical plan uses a descriptive filename that SDLC does not inline; this
+round's log confirms the reviewer explicitly read it. Future revisions must also
+change this issue log so the gate's issue-content fingerprint cannot skip them.
+
+### 2026-09-15 — Corrected Couch sustained run passed
+
+`/tmp/pair255-couch-soak-30m-after-stop-fix.log` passes30m0.015s, including
+Stop/join and exit0:78,772 iterations,19,693 attachment replacements,
+3,059,548,059 parent bytes,853,486 writes and maximum visible receipt22.293ms.
+Operational worker count remains16; final measured heap is5,779,392 bytes.
+Together with the earlier passed Pair30m run, this supplies the two sustained
+consumer runs. These immutable binaries predate the new notification broker and
+OSC9 adapter; the unchanged screen/input stress paths remain attributed to those
+binaries, while the new notification path requires its own native stress and
+full/race verification. No operator display/highlight acceptance is claimed.
+
+Native-fixture isolation correction: earlier runs inherited
+`PAIR_SCROLLBACK_EVENTS_PATH` despite private `PAIR_DATA_DIR`; synthetic
+diagnostic events may have appended to the invoking session's event log. The
+fixture now clears every inherited `PAIR_*` binding and supplies explicit private
+paths. Existing operator logs were not removed or rewritten. Strict native
+cleanup now joins Console.Run and checks exit0 before terminating only the
+fixture's exact private Zellij session.
+
+### 2026-09-15 — Final notification revision verification
+
+The final production source has424 non-test Go files in
+`/tmp/pair255-notification-production-source.json`, with zero drift through
+verification. Full root `go test ./... -count=1` passes
+(`/tmp/pair255-m4-full-after-notifications.log`); full wrapper race passes165.300s
+(`/tmp/pair255-notify-wrapper-race.log`). Broker/CLI race, full Couch/term race,
+shared terminal/qualification race and local fork normal suites pass. The
+additional real-PTY blocked/flooding-child output-failure regression passes
+race×5; the startup test with the real private PID binding passes race×3.
+
+Strict actual-wrapper/Zellij/nvim qualification passes race×3 in79.614s
+(`/tmp/pair255-native-inband-final.log`):96 hook notifications exactly once,
+three4096-byte UTF-8 messages,48 hidden/48 focused attention cases,12 resizes,
+persistent reattachment with unchanged PID/nonce/counter, held selection/copy,
+independent xterm screen comparison and every Console exit0. A delayed
+Feed→enqueue overlay also passes, after proving the original highlight assertion
+race. These synthetic native checks do not replace the operator's real Codex/
+Claude sustained visual acceptance. The probe inventory remains84pass/0fail/
+6not-covered, qualified=false; placeholders are not silently promoted.
+
+Artifact coverage and runtime-bundle suites pass; regenerated Zellij config
+checks and Linux/amd64 builds pass. The initial cross-build command targeted an
+existing file as a directory and failed; corrected output directory succeeds
+(`/tmp/pair255-notification-linux-build-final.log`). Previous Lua/shell/retention
+and causal mutation evidence remains valid for unchanged paths.
+
+Final smoke Pair hash:
+`b4db037d0760d26f4069e4357721be1e7c7df75c589ce1418eae795a3ab7b7ef`,
+identical to the native-tested binary. Candidate root
+`/tmp/pair255-smoke-gfr6g7pd` holds refreshed runtime assets, Pair/Couch/helper,
+private launcher and build manifest. `couch --list` through that launcher reports
+no threads; no interactive operator session was launched. See the smoke guide
+for exact launch/revert and acceptance steps. M4 boundary review remains pending.

@@ -77,3 +77,14 @@ Codex synchronized output, focus and keyboard negotiation; notification
 normalization and Return adaptation remain product behavior. Its terminal
 observer consumes the normalized queued visual stream, while raw capture remains
 separate; observation does not claim physical-write acknowledgment.
+
+## Notification output ownership
+
+Automatic wrapper attention and explicit `pair notify` hooks share one output
+owner. `notifytransport` uses the existing exact wrapper PID binding for a private
+bounded Unix datagram broker. The wrapper frames insertion into its normal pane
+stream; no producer writes Zellij's outer TTY. Pinned Zellij converts OSC777 to
+OSC9, and Endpoint's registered adapter restores the Pair title and full4096-byte
+message before Presenter delivery. Generic backend metadata limits stay unchanged.
+Native qualification covers delayed Unicode chunks, maximum message size,
+focused/hidden attention and persistent-client reattachment.

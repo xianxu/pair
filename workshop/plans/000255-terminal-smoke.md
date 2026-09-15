@@ -20,7 +20,8 @@ A real fresh outer terminal matters: clearing Zellij environment variables insid
 2. Open/close the Couch switcher, switch threads and right terminal tabs repeatedly, resize the window, and repeat selection. Check pane borders, cursor placement, text and colors for flashing, replacement glyphs or stale fragments.
 3. Exercise actual Codex and Claude interaction: ordinary typing, the configured Return/Alt+Return behavior, Codex Option+Up questions, paste and copy. In an Other/free-text choice, type an answer before submitting.
 4. Detach and reattach a smoke thread, verify its existing history/conversation remains, and repeat held selection. Exercise normal and alternate screen programs.
-5. Keep the candidate active through a representative longer session. Report terminal app/version, duration, operations and any artifact/highlight loss; a brief clean run alone is not sustained acceptance.
+5. From the candidate right pane, run `(sleep 5; pair notify "smoke attention") &`, then switch to another Couch thread. Verify attention appears for the originating thread without disturbing its screen; switch back and continue typing/selection.
+6. Keep the candidate active through a representative longer session. Report terminal app/version, duration, operations and any artifact/highlight loss; a brief clean run alone is not sustained acceptance.
 
 Typing meets the provisional latency target in isolated measurements. Saturated-history switching narrowly misses100ms: pooled p95101ms at80×24 and115ms at240×80, versus baseline187ms/215ms. Please also assess switching responsiveness. These timings include independent interpreter IPC/parsing and are not native terminal measurements.
 

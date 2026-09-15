@@ -133,3 +133,9 @@ M3 typed history publication:
   hard separators and explicit-space soft rows, matching measured native Zellij.
   Pinned xterm's direct ED2 discards viewport rows rather than admitting them;
   production oracle tests explicitly distinguish these two baseline behaviors.
+
+M4 notification adapter precedence:
+- `osc.go`: registered OSC handlers run before built-in effect fallbacks, so
+  connection-specific protocol adapters can consume a bounded envelope without
+  enlarging generic metadata limits. Pair/Zellij mapping lives outside this fork.
+  `pair_osc_override_test.go` proves handled and declined fallback behavior.

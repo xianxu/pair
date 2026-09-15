@@ -103,7 +103,7 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 
 ### M4 — Live conformance and publication
 
-- [ ] Compare baseline/candidate startup, sustained output CPU/memory, redraw throughput, switch latency and idle mouse movement; verify the provisional budgets established in M1 before rollout; M4 must not be the first point where acceptable bounds are decided.
+- [x] Compare baseline/candidate startup, sustained output CPU/memory, redraw throughput, switch latency and idle mouse movement; verify the provisional budgets established in M1 before rollout; M4 must not be the first point where acceptable bounds are decided.
 - [x] Run full Go/race and existing Lua/shell/shortcut/retention suites appropriate to integration; add isolated native terminal conformance to CI.
 - [ ] Smoke-test an isolated candidate before any operator runtime replacement; document capabilities, failure/recovery and diagnostics in atlas/README.
 - [ ] Close and publish #255 only when both consumers satisfy the declared terminal contract.
@@ -310,8 +310,8 @@ Geometry/payload theoretical ceilings are not a license to allocate that ceiling
 
 M4 ends with a tested candidate and operator instructions. The operator explicitly requested the manual smoke-test pause after M4 and before merge; that manual acceptance still gates #255 close and publication.
 
-- [ ] **Run sustained isolated conformance.** Add cmd/probes/terminalconformance and/or tests/terminal-conformance-test.sh using disposable PTYs/Zellij sessions and synthetic inputs. Exercise at least 30 minutes of continuous mixed Unicode/control output, panel/thread/tab switches, resize, detach/reattach and active drag gestures; compare expected screen/cursor/style and event destinations throughout. Log versions, duration, seed and operation counts, with bounded synthetic captures on failure. Add a shorter deterministic CI target and document a scheduled longer run. The harness must send real events through the production parent-input and child-output paths.
-- [ ] **Verify resource/latency targets.** Measure startup, active output throughput, idle CPU, 16-endpoint memory/history saturation, input-to-visible and switch latency at 80x24/240x80; compare baseline and candidate in the same isolated environment. Check frame coalescing, bounded queues and sync recovery under sustained load. Resolve material target breaches before calling the candidate ready; record results and limitations without claiming production acceptance.
+- [x] **Run sustained isolated conformance.** Add cmd/probes/terminalconformance and/or tests/terminal-conformance-test.sh using disposable PTYs/Zellij sessions and synthetic inputs. Exercise at least 30 minutes of continuous mixed Unicode/control output, panel/thread/tab switches, resize, detach/reattach and active drag gestures; compare expected screen/cursor/style and event destinations throughout. Log versions, duration, seed and operation counts, with bounded synthetic captures on failure. Add a shorter deterministic CI target and document a scheduled longer run. The harness must send real events through the production parent-input and child-output paths.
+- [x] **Verify resource/latency targets.** Measure startup, active output throughput, idle CPU, 16-endpoint memory/history saturation, input-to-visible and switch latency at 80x24/240x80; compare baseline and candidate in the same isolated environment. Check frame coalescing, bounded queues and sync recovery under sustained load. Resolve material target breaches before calling the candidate ready; record results and limitations without claiming production acceptance.
 - [x] **Final automated validation.** Run full Go suite, local fork suite, focused race/integration, relevant Lua/shell/shortcut/retention suites, profile/terminfo and native conformance. Mutation-check the causal Unicode/chrome isolation and mouse drag/mode regressions. No expected-failure labels may hide required production semantics. Record exactly which terminal programs/versions were tested.
 - [ ] **Prepare operator candidate and close M4.** Build isolated candidate binaries and provide exact launch/revert steps and a smoke checklist: agent and right-pane selection highlights while dragging; active output; Codex/Claude interaction; panel/thread/tab switches; long session; reattachment; normal/alternate screen and clipboard/paste. Keep current installation and sessions intact. Update issue/atlas/README qualification evidence, run M4 milestone-close and fix blockers. Leave operator acceptance/issue close/merge pending.
 - [ ] **Pause for operator smoke test before merge.** Report M1–M4 evidence, remaining limits and candidate command. Await the operator's result; do not merge, publish or claim the original symptoms resolved before that acceptance.
@@ -483,3 +483,63 @@ Pair term completes its thirty-minute run. Couch completes all operational asser
 ## Revisions — 2026-09-15 M4 shutdown result ownership
 
 Short real-PTY runs reproduce the long-run exit1 with an empty teardown diagnostic and a Presenter write failure whose sole cause is `context.Canceled`. The Console Stop cancels its operation lifetime before the Presenter owner is released; whichever ready select branch wins must not decide success. Joined teardown now also observes Presenter failure, suppressing only new cancellation-only error trees during shutdown. Already-latched live failures, joined real host errors, deadlines and cleanup errors remain failures. A forced blocked-paint regression proves both expected cancellation and genuine-failure outcomes; live cancellation remains latched. Changes are limited to Couch's Console/terminal error handling. Restart the Couch thirty-minute run and rerun affected full/native suites; retain the completed Pair run and previous performance evidence with the exact source delta disclosed.
+
+## Revisions — 2026-09-15 M4 notification transport ownership
+
+**Reason:** strict native qualification captured `EMIT-fail ... resource temporarily unavailable`. Both `wrapcmd.emitOuter` and `notifycmd` independently open Zellij's outer TTY. Retrying that write does not prevent insertion inside Zellij's UTF-8/control output. Remove both bypasses; preserve best-effort attention without adding another screen authority (ARCH-PURPOSE, ARCH-ORDER).
+
+**Architecture:** hook commands send bounded messages to the live wrapper over a private Unix datagram socket. The wrapper's one output owner serializes canonical OSC777 into its existing Zellij pane stream at complete UTF-8/control boundaries. Zellij0.45.1 converts this to OSC9 `pair: <message>`; the shared Endpoint normalizes that representation into the existing typed Pair notification effect. Zellij remains its outer connection's sole writer. Persistent wrappers retain the broker across client detach/reattach. No outer-TTY fallback.
+
+Native evidence: `/tmp/pair255-notify-grapheme-split.log` compares delayed chunks at widths20/4 through native dumps and independent xterm cells/cursor for acute/ZWJ/VS/keycap/regional indicators. Insertion produces the same native result, including existing Zellij combining limitations. `/tmp/pair255-notify-maxbody.log` proves full4096-byte ASCII and multibyte bodies survive as4107-byte OSC9 envelopes. This qualifies the pinned native path, not every terminal emulator.
+
+### Core concepts for this revision
+
+| Name | Lives in | Status |
+|------|----------|--------|
+| Notification framing state | `cmd/internal/wrapcmd/notification_output.go` | new |
+| Ordered rewrite events | `cmd/internal/wrapcmd/notification_rewriter.go` | modified |
+| Mapped Pair notification | `cmd/internal/notifyosc/notification.go` | modified |
+| Broker address | `cmd/internal/notifytransport/address.go` | new |
+
+Framing state records only UTF-8/control completeness, never screen state. Reuse the bounded x/ansi parser with strict UTF-8 validation; ambiguous malformed framing permanently disables generated insertion for that stream while preserving original output. Feed the actual normalized output, not observer input. Ordered rewrite events preserve the position of native/progress observations relative to passthrough across arbitrary read partitions. Retain existing lifecycle deduplication/rate limits.
+
+Broker address derives from the exact existing `PAIR_PAIR_WRAP_PID_PATH` binding and strictly positive wrapper PID, using a short hashed name under a UID-private0700 temporary directory. It does not reconstruct tag/scope paths or add a durable artifact family. Binding publication occurs after listener readiness and before child hooks can run. Only the owning wrapper can remove its socket; stale socket cleanup must verify type/ownership and never unlink another live PID's socket. A reused PID in the same exact binding denotes the current wrapper, consistent with existing image-capture PID semantics. Socket storage is ephemeral, removed on joined normal teardown; crash residue is inert and reclaimed only with verified dead-owner evidence. All pathname construction stays in this package.
+
+| Name | Lives in | Status | Wraps |
+|------|----------|--------|-------|
+| Notification broker | `cmd/internal/notifytransport/transport.go` | new | Unix datagram socket and existing exact PID binding |
+| Wrapper output owner | `cmd/internal/wrapcmd/wrap.go` | modified | child PTY, output batching and broker admission |
+| Hook adapter | `cmd/internal/notifycmd/run.go` | modified | exact binding lookup and broker sender |
+| Zellij notification adapter | `cmd/internal/terminal/endpoint.go` | modified | registered OSC9 handler |
+
+Limits: sanitized body4096 bytes; datagram receiver uses4097 bytes and rejects oversize rather than truncating. Broker queue32, nonblocking admission with explicit diagnostic on overflow; sender has a200ms deadline and existing exit0-with-warning failure behavior. Main wrapper loop alone consumes messages and emits output. Pending unsafe-boundary insertion is bounded to32 notifications with2s expiry; drop/log at expiry or incomplete EOF, never inject CAN/ST or mutate child bytes to manufacture a boundary. Hook messages bypass turn-completion inference but share output serialization; they must not close a lifecycle generation. Listener Close unblocks and joins receiver; early startup/exec failures also clean up. No unbounded goroutine per notification or notification replay on reattach.
+
+### Implementation and verification
+
+- [x] Add pure mapping/framing/address tests first. Exercise every split of UTF-8, CSI, OSC, DCS, APC/SOS/PM, ST halves, CAN/SUB, huge incomplete controls, invalid continuation bytes and EOF. Original passthrough remains byte-exact; inserted notifications occur only at independently checked boundaries. Ordered event tests prove native/progress positions do not depend on reads. Test4096-byte body plus mapped prefix without changing generic backend limits.
+- [x] Implement `notifytransport` with real private-socket integration tests for exact binding isolation, bounded receive/admission, stale/malformed PID, oversize, unavailable reader, close/join, startup failure, ownership-safe cleanup and persistent sender lookup. Use a stateful broker fake at the CLI seam, and actual sockets for transport conformance. Migrate `notifycmd/run_test.go`, preserving legacy argument forms and warnings. Update the artifact source-coverage assertion to the existing exact PID binding.
+- [x] Implement wrapper framing/output owner and ordered rewriter, then broker startup before child creation and consumption in `masterPump`. Remove `writeTTY`/outer-TTY emission. Sweep wrapper lifecycle/idle/progress tests to observe production stdout. Handle partial output writes explicitly: continue accepted-prefix writes, latch terminal failure on unrecoverable error/zero progress, and report failure rather than claiming complete notification delivery. No retry from byte zero after partial acceptance.
+- [x] Register the mappedOSC9 handler in Endpoint using `notifyosc` shared decoding, preserving ordinary non-Pair OSC9 handling. Pin `host_notification_protocol "osc9"` in Zellij config. Keep domain-specific mapping out of the generic backend fork. Add both consumers' hidden/focused effect tests and no-replay tests.
+- [x] Update strict native fixtures: actual wrapper -> Zellij -> Endpoint -> Presenter, hidden origin attention and focused suppression, max body, delayed split Unicode, broker CLI message, and persistent reattach with unchanged PID/nonce/counter and no outer-TTY sidecar rewrite. Every fixture must join Run and assert exit0; private environment clears inherited diagnostic bindings. Rerun native race tests and affected package/full suites.
+- [ ] Update README, atlas notification routes, runtime bundle and qualification evidence. Preserve earlier failed logs. Attribute completed synthetic30m soaks to their immutable binaries; these do not qualify the new wrapper broker. Add sustained native notification/output stress for the changed path, then rebuild isolated smoke candidate. Re-run M4 SDLC boundary review and fix blockers. Pause for the operator's long-running visual/held-drag smoke before merge.
+
+Commands: `go test ./cmd/internal/notifyosc ./cmd/internal/notifytransport ./cmd/internal/notifycmd ./cmd/internal/wrapcmd ./cmd/internal/terminal ./cmd/internal/couchtty ./cmd/internal/termcmd -count=1`, followed by affected `-race` suites and the existing native qualification flags. Run `go test ./... -count=1`, runtime-bundle drift checks and scoped whitespace verification before the M4 boundary. Success requires behavioral assertions, not merely process startup or absence of stderr.
+
+## Revisions — 2026-09-15 M4 candidate verification complete; boundary pending
+
+Both thirty-minute synthetic production runs pass with exact source attribution
+in the qualification record. The final notification revision passes the full Go
+suite, fork suite, wrapper full race, consumer race suites and three strict native
+repetitions (96 actual hook cycles). Broker publication/removal share a stable
+UID-private lock, and the address derivation is pure. Hook messages do not refresh
+the slug or change turn lifecycle. Unsafe EOF is passed through exactly while
+pending notifications are dropped; output failure joins the reader and kills the
+owned child. The historical Codex recording ends inside CSI, and its regression
+now proves deferred insertion until the sequence completes.
+
+The isolated smoke candidate is rebuilt and validated by private `couch --list`;
+Pair SHA256 matches the final native-tested binary. M4 boundary review, operator
+smoke, issue close and merge are still pending. The measured100ms switch-budget
+exception remains explicit; no additional threshold or visual acceptance is
+claimed. Earlier long-run/performance evidence retains its immutable binary
+attribution rather than being relabeled as measurements of this final build.

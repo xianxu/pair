@@ -10,6 +10,17 @@ const MaxMessageBytes = 4 << 10
 
 const Prefix = "\x1b]777;notify;pair;"
 
+// DecodeZellijOSC9 decodes the OSC payload (including its numeric command)
+// produced by Zellij's osc9 host-notification protocol. The prefix is transport
+// metadata and does not consume the application's message-byte allowance.
+func DecodeZellijOSC9(payload []byte) (Notification, bool) {
+	const prefix = "9;pair: "
+	if !strings.HasPrefix(string(payload), prefix) || len(payload)-len(prefix) > MaxMessageBytes {
+		return Notification{}, false
+	}
+	return Notification{Message: Sanitize(payload[len(prefix):])}, true
+}
+
 type Notification struct {
 	Message string
 }

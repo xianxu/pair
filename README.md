@@ -552,7 +552,7 @@ pair rename <old> <new>          # rename every tag-scoped file in
                                  # Ctrl+Alt+n's (R) inside a session for
                                  # the live equivalent)
 pair keys                        # in-session keybindings (what Alt+h shows)
-pair notify "review ready"      # emit Pair's canonical outer-TTY notification
+pair notify "review ready"      # send an attention message through the live wrapper
 pair notify --osc 9 "ready"     # legacy selector accepted; output is canonical
 pair session-inventory          # stable native forests + Pair binding status
 pair session-inventory --json   # schema-v1 JSON for agents/tools
@@ -725,10 +725,11 @@ Pair forwards "agent needs attention" signals to your outer terminal automatical
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and
 `--osc 777` options remain accepted, but Pair always sanitizes the message and
-emits its single canonical `OSC 777;notify;pair;…` envelope. Hook delivery is
-best-effort: outside a Pair session, or when the recorded outer TTY is missing
-or stale, the command warns on stderr and exits successfully so a notification
-failure does not break the agent hook.
+sends it to the live wrapper. The wrapper serializes the notification with its
+output through Zellij; it never writes directly to the outer terminal. Hook
+delivery is best-effort: outside a Pair session, or when the wrapper is unavailable,
+the command warns on stderr and exits successfully so a notification failure
+does not break the agent hook.
 
 **The idle floor.** Attention signals depend on recognizing what the agent is
 doing, and recognition fails — most turns emit no progress signal at all, which

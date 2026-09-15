@@ -18,12 +18,12 @@ func (e *Emulator) handleOsc(cmd int, data []byte) {
 	if len(data) > e.limits.StringBytes {
 		return
 	}
-	if e.handlePairEffect(cmd, data) {
+	// Registered protocol adapters take precedence over fallback effects, just
+	// as registered handlers override the other default terminal operations.
+	if e.handlers.handleOsc(cmd, data) || e.handlePairEffect(cmd, data) {
 		return
 	}
-	if !e.handlers.handleOsc(cmd, data) {
-		e.logf("unhandled sequence: OSC %q", data)
-	}
+	e.logf("unhandled sequence: OSC %q", data)
 }
 
 func (e *Emulator) handleTitle(cmd int, data []byte) {

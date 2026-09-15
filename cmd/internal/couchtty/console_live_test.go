@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"os/exec"
@@ -37,6 +38,8 @@ func startLiveChild(t *testing.T, argv []string, rows, cols uint16) (*vtHost, *p
 		t.Fatalf("os.Pipe: %v", err)
 	}
 	con := New(host, stdinR)
+	var diagnostics bytes.Buffer
+	con.SetErrorWriter(&diagnostics)
 
 	profileEnv, err := runtimebundle.TerminalEnvironment(t.TempDir())
 	if err != nil {
@@ -58,11 +61,14 @@ func startLiveChild(t *testing.T, argv []string, rows, cols uint16) (*vtHost, *p
 	go func() { done <- con.Run() }()
 	t.Cleanup(func() {
 		con.Stop()
-		_ = child.Close()
 		_ = stdinW.Close()
 		select {
-		case <-done:
+		case code := <-done:
+			if code != 0 {
+				t.Errorf("live Console exit%d: %s", code, diagnostics.String())
+			}
 		case <-time.After(3 * time.Second):
+			t.Error("live Console did not join")
 		}
 	})
 	return host, child, con

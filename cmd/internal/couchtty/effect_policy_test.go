@@ -117,3 +117,33 @@ func TestConsoleNotificationUsesCapturedDeliveryFocusOnce(t *testing.T) {
 		})
 	}
 }
+
+func TestConsoleMappedZellijNotificationsPreserveOriginAndDeliveryFocus(t *testing.T) {
+	c, host := notificationConsole(t)
+	c.switchTo("c1", false, arrivalOrdinary)
+	host.Reset()
+	for _, id := range []string{"c1", "c2"} {
+		message := "mapped-" + id
+		batch := observedBatch(c.panes[id].child, []byte("\x1b]9;pair: "+message+"\x1b\\"))
+		ch, done := queuePolicyDelivery(t, c, id, batch)
+		finishPolicyDelivery(t, c, ch, done)
+		ch.ack = nil
+		c.onChunk(ch)
+		if n := bytes.Count([]byte(host.Written()), []byte("\x1b]777;notify;pair;"+message+"\x1b\\")); n != 1 {
+			t.Fatalf("%s canonical delivery count=%d", id, n)
+		}
+		c.mu.Lock()
+		attention := c.attention.Projection(c.panes[id].thread)
+		c.mu.Unlock()
+		if id == "c1" && len(attention) != 0 {
+			t.Fatalf("focused notification created attention: %+v", attention)
+		}
+		if id == "c2" && (len(attention) != 1 || attention[0].Text != message) {
+			t.Fatalf("hidden mapped origin lost: %+v", attention)
+		}
+	}
+	c.switchTo("c2", false, arrivalOrdinary)
+	if n := bytes.Count([]byte(host.Written()), []byte("\x1b]777;notify;pair;mapped-")); n != 2 {
+		t.Fatalf("switch replayed notifications:%d", n)
+	}
+}

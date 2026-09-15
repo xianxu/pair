@@ -7,41 +7,19 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/sys/unix"
-
-	"github.com/xianxu/pair/cmd/internal/notifyosc"
+	"github.com/xianxu/pair/cmd/internal/notifytransport"
 )
 
 type Runtime interface {
 	Getenv(string) string
-	ReadFile(string) ([]byte, error)
-	WriteNonblocking(string, []byte) error
+	SendNotification(binding, message string) error
 }
 
-type OSRuntime struct {
-	write func(fd int, p []byte) (int, error)
-}
+type OSRuntime struct{}
 
-func (OSRuntime) Getenv(key string) string             { return os.Getenv(key) }
-func (OSRuntime) ReadFile(path string) ([]byte, error) { return os.ReadFile(path) }
-func (rt OSRuntime) WriteNonblocking(path string, p []byte) error {
-	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_NONBLOCK, 0)
-	if err != nil {
-		return err
-	}
-	defer unix.Close(fd)
-	write := rt.write
-	if write == nil {
-		write = unix.Write
-	}
-	n, err := write(fd, p)
-	if err != nil {
-		return err
-	}
-	if n != len(p) {
-		return io.ErrShortWrite
-	}
-	return nil
+func (OSRuntime) Getenv(key string) string { return os.Getenv(key) }
+func (OSRuntime) SendNotification(binding, message string) error {
+	return notifytransport.Send(binding, message)
 }
 
 func Run(args []string, rt Runtime, stderr io.Writer) int {
@@ -53,23 +31,13 @@ func Run(args []string, rt Runtime, stderr io.Writer) int {
 		warn(stderr, "PAIR_TAG not set — not running inside a pair session")
 		return 0
 	}
-	sidecar := rt.Getenv("PAIR_OUTER_TTY_PATH")
-	if sidecar == "" {
-		warn(stderr, "PAIR_OUTER_TTY_PATH not set; restart the pair session")
+	binding := rt.Getenv("PAIR_PAIR_WRAP_PID_PATH")
+	if binding == "" {
+		warn(stderr, "PAIR_PAIR_WRAP_PID_PATH not set; restart the pair session")
 		return 0
 	}
-	b, err := rt.ReadFile(sidecar)
-	if err != nil {
-		warn(stderr, fmt.Sprintf("%s missing; outer TTY not recorded", sidecar))
-		return 0
-	}
-	tty := strings.TrimSpace(strings.SplitN(string(b), "\n", 2)[0])
-	if tty == "" {
-		warn(stderr, "recorded outer TTY is empty or stale")
-		return 0
-	}
-	if err := rt.WriteNonblocking(tty, notifyosc.Encode(message)); err != nil {
-		warn(stderr, fmt.Sprintf("outer TTY %q not writable (likely stale): %v", tty, err))
+	if err := rt.SendNotification(binding, message); err != nil {
+		warn(stderr, fmt.Sprintf("notification broker unavailable: %v", err))
 	}
 	return 0
 }

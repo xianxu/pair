@@ -56,7 +56,6 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"golang.org/x/sys/unix"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
@@ -68,7 +67,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
-	"github.com/xianxu/pair/cmd/internal/notifyosc"
+	"github.com/xianxu/pair/cmd/internal/notifytransport"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
@@ -195,7 +194,8 @@ var (
 // loop don't need locking; the few touched from signal goroutines (capture
 // window, notify-mode flags) are guarded explicitly.
 type proxy struct {
-	orientation *orientationDelivery
+	notificationBroker *notifytransport.Broker
+	orientation        *orientationDelivery
 	// Real stdio, injected by Run so the proxy is testable without touching
 	// the process globals. In production stdin/stdout ARE os.Stdin/os.Stdout,
 	// so stdinFile/stdoutFile (the *os.File view needed for raw-mode, winsize
@@ -221,7 +221,6 @@ type proxy struct {
 	bellFallback     bool
 
 	// Resolved paths (empty when env didn't provide PAIR_TAG)
-	outerTTYFile    string
 	agentOutputFile string
 	captureOutPath  string
 	captureDonePath string
@@ -298,7 +297,6 @@ type proxy struct {
 	codexWorkingRendered bool
 	lifecycleJournalPath string
 	lifecycleJournal     lifecycleJournalAdvancer
-	writeTTY             func(fd int, p []byte) (int, error)
 	// pair-slug spawn debounce (#000027)
 	lastSlug time.Time
 	// spawnSlug is the slug side effect, injectable so tests whose emit lands
@@ -392,8 +390,15 @@ type stdoutFlushRecord struct {
 }
 
 type stdoutPump struct {
-	batch  stdoutBatcher
-	writer io.Writer
+	observe         func([]byte)
+	boundary        outputBoundary
+	notifications   []pendingNotification
+	receipts        []notificationReceipt
+	queued, written uint64
+	failure         error
+	drop            func(string)
+	batch           stdoutBatcher
+	writer          io.Writer
 }
 
 func newStdoutPump(writer io.Writer) *stdoutPump {
@@ -401,10 +406,20 @@ func newStdoutPump(writer io.Writer) *stdoutPump {
 }
 
 func (p *stdoutPump) queue(data []byte) {
-	if p == nil {
+	if p == nil || p.failure != nil {
 		return
 	}
-	p.batch.append(data)
+	p.expire(time.Now())
+	start := 0
+	for i, c := range data {
+		p.boundary.advance(c)
+		if len(p.notifications) > 0 && p.boundary.safe() {
+			p.appendOutput(data[start : i+1])
+			start = i + 1
+			p.insertReady()
+		}
+	}
+	p.appendOutput(data[start:])
 }
 
 func (p *stdoutPump) pendingBytes() int {
@@ -432,11 +447,62 @@ func (p *stdoutPump) flush(reason string) stdoutFlushRecord {
 		Chunks: chunks,
 		SHA:    shortSHA256(out),
 	}
-	if len(out) == 0 || p.writer == nil {
+	if len(out) == 0 {
 		return rec
 	}
-	rec.WriteLen, rec.Err = p.writer.Write(out)
+	if p.writer == nil {
+		p.failure = io.ErrClosedPipe
+	}
+	if p.failure != nil {
+		rec.Err = p.failure
+		return rec
+	}
+	for rec.WriteLen < len(out) {
+		n, err := p.writer.Write(out[rec.WriteLen:])
+		if n < 0 || n > len(out)-rec.WriteLen {
+			err = io.ErrShortWrite
+			n = 0
+		}
+		rec.WriteLen += n
+		p.written += uint64(n)
+		for len(p.receipts) > 0 && p.receipts[0].end <= p.written {
+			receipt := p.receipts[0]
+			p.receipts = p.receipts[1:]
+			if receipt.complete != nil {
+				receipt.complete()
+			}
+		}
+		if err != nil {
+			p.failure = err
+			rec.Err = err
+			break
+		}
+		if n == 0 {
+			p.failure = io.ErrNoProgress
+			rec.Err = p.failure
+			break
+		}
+	}
+	if p.failure != nil {
+		p.receipts = nil
+		p.notifications = nil
+	}
 	return rec
+}
+
+func (p *proxy) output() *stdoutPump {
+	if p.stdoutPump == nil {
+		p.stdoutPump = newStdoutPump(p.stdout)
+	}
+	p.stdoutPump.drop = func(reason string) { p.debug("EMIT-drop", reason) }
+	p.stdoutPump.observe = func(data []byte) {
+		if p.terminal != nil {
+			if err := p.terminal.Feed(data); err != nil {
+				p.debug("TERMINAL-feed-fail", err.Error())
+			}
+		}
+	}
+	return p.stdoutPump
 }
 
 func (p *proxy) flushStdout(reason string) {
@@ -476,7 +542,6 @@ func (p *proxy) resolvePaths() {
 	if err != nil {
 		return
 	}
-	p.outerTTYFile = paths.OuterTTY()
 	if spanExtractionAgents[p.agentBasename] {
 		p.agentOutputFile = paths.AgentOutput()
 	}
@@ -592,8 +657,6 @@ func (p *proxy) traceWrap(label string, fields map[string]any) {
 
 // ----- Outer-TTY OSC emit -----------------------------------------------------
 
-// emitOuter writes Pair's canonical OSC 777 notification to the path recorded
-// in outerTTYFile.
 // maybeSpawnSlug fires pair-slug in the background to refresh the orientation
 // slug (#000027 M3). Debounced by slugDebounceS so closely-spaced turn-end
 // signals don't double-spawn. pair-slug self-gates (no-op without PAIR_TAG)
@@ -650,55 +713,27 @@ func (p *proxy) clock() time.Time {
 }
 
 func (p *proxy) emitOuter(msg string) {
+	p.maybeSpawnSlug()
+	p.emitNotification(msg)
+}
+
+// Explicit hook messages share delivery policy without claiming a turn ended.
+func (p *proxy) emitNotification(msg string) {
 	if msg == "" {
 		msg = "agent attention"
 	}
-	// Turn-end is also when the orientation slug should refresh (#000027).
-	// This is pair's agent-agnostic notify sink (marker/idle/native all land
-	// here), so it works for claude/codex/agy alike — no claude Stop hook.
-	p.maybeSpawnSlug()
 	now := p.clock()
 	if !p.lastEmit.IsZero() && now.Sub(p.lastEmit) < rateLimitS {
 		p.debug("EMIT-skip", fmt.Sprintf("rate-limited (%.2fs since last)", now.Sub(p.lastEmit).Seconds()))
 		return
 	}
-	if p.outerTTYFile == "" {
-		p.debug("EMIT-skip", "no outer-tty file resolved")
+	p.output()
+	p.stdoutPump.drop = func(reason string) { p.debug("EMIT-drop", reason) }
+	if err := p.stdoutPump.notify(msg, time.Now(), func() { p.lastEmit = p.clock(); p.debug("EMIT", "wrote canonical OSC 777 to pane stdout") }); err != nil {
+		p.debug("EMIT-fail", err.Error())
 		return
 	}
-	pathBytes, err := os.ReadFile(p.outerTTYFile)
-	if err != nil {
-		p.debug("EMIT-fail", fmt.Sprintf("%s: %v", p.outerTTYFile, err))
-		return
-	}
-	path := strings.TrimSpace(strings.SplitN(string(pathBytes), "\n", 2)[0])
-	if path == "" {
-		p.debug("EMIT-skip", "outer-tty file empty")
-		return
-	}
-	// O_NONBLOCK so a stuck reader on the other end can't wedge us.
-	fd, err := unix.Open(path, unix.O_WRONLY|unix.O_NONBLOCK, 0)
-	if err != nil {
-		p.debug("EMIT-fail", fmt.Sprintf("%s: %v", path, err))
-		return
-	}
-	defer unix.Close(fd)
-	osc := notifyosc.Encode(msg)
-	write := p.writeTTY
-	if write == nil {
-		write = unix.Write
-	}
-	n, err := write(fd, osc)
-	if err != nil {
-		p.debug("EMIT-fail", fmt.Sprintf("%s: %v", path, err))
-		return
-	}
-	if n != len(osc) {
-		p.debug("EMIT-fail", fmt.Sprintf("%s: short write %d/%d", path, n, len(osc)))
-		return
-	}
-	p.lastEmit = now
-	p.debug("EMIT", "wrote canonical OSC 777 to "+path)
+	p.flushStdout("notification")
 }
 
 // pickerOpenOSCBody is the OSC 777 body claude emits when a blocking
@@ -2198,7 +2233,9 @@ func (p *proxy) writeStartupBanner() {
 		text += strings.Repeat(" ", pad)
 	}
 	// Trailing CRLF puts cursor on row 2, blank line, agent starts row 3.
-	_, _ = io.WriteString(p.stdout, "\x1b[7m"+text+"\x1b[27m\r\n\r\n")
+	p.output()
+	p.stdoutPump.queue([]byte("\x1b[7m" + text + "\x1b[27m\r\n\r\n"))
+	p.flushStdout("startup")
 }
 
 // ----- Main -------------------------------------------------------------------
@@ -2520,7 +2557,30 @@ argsDone:
 		}
 	}
 
-	p.writeStartupBanner()
+	// Signal delivery must be installed before the broker publishes the shared
+	// capture/restart PID binding. Queue signals until the child is initialized.
+	sigCh := make(chan os.Signal, 4)
+	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
+	var signalDone chan struct{}
+	defer func() {
+		signal.Stop(sigCh)
+		close(sigCh)
+		if signalDone != nil {
+			<-signalDone
+		}
+	}()
+	if p.capturePIDPath != "" {
+		broker, err := notifytransport.Start(p.capturePIDPath, os.Getpid())
+		if err != nil {
+			return 0, fmt.Errorf("start notification broker: %w", err)
+		}
+		p.notificationBroker = broker
+		defer func() {
+			if err := broker.Close(); err != nil {
+				p.debug("NOTIFY-close-fail", err.Error())
+			}
+		}()
+	}
 
 	// Spawn child in a fresh PTY.
 	cmd := exec.Command(argv[0], argv[1:]...)
@@ -2538,6 +2598,7 @@ argsDone:
 		return 0, fmt.Errorf("initialize harness terminal: %w", err)
 	}
 	defer p.closeTerminal()
+	p.writeStartupBanner()
 	if p.ttyProfile != nil {
 		p.debug("REMAP-return", fmt.Sprintf(
 			"%s: Enter→%q  Alt+Enter→%q",
@@ -2583,9 +2644,7 @@ argsDone:
 	// readiness promise used by Alt+i and agent restart; writing it first left a
 	// real interval where SIGUSR1/SIGUSR2 was sent to the process before Notify
 	// owned those signals.
-	sigCh := make(chan os.Signal, 4)
-	signal.Notify(sigCh, syscall.SIGWINCH, syscall.SIGUSR1, syscall.SIGUSR2)
-	signalDone := make(chan struct{})
+	signalDone = make(chan struct{})
 	go func() {
 		defer close(signalDone)
 		for s := range sigCh {
@@ -2611,19 +2670,6 @@ argsDone:
 			}
 		}
 	}()
-
-	// Image-capture wiring. Drop the pidfile so nvim's Alt+i knows where
-	// to send SIGUSR1; only enabled when PAIR_TAG/PAIR_DATA_DIR resolved
-	// a valid output path.
-	if p.captureOutPath != "" {
-		if err := os.WriteFile(p.capturePIDPath, []byte(strconv.Itoa(os.Getpid())), 0644); err != nil {
-			p.debug("CAPTURE-arm-fail", err.Error())
-			p.captureOutPath = "" // disable; armCapture bails on empty
-		} else {
-			p.debug("CAPTURE-arm",
-				fmt.Sprintf("pid=%d window=%.3fs", os.Getpid(), p.captureWindow.Seconds()))
-		}
-	}
 
 	// Raw mode on stdin: without it the kernel does canonical line discipline
 	// (line buffering + echo + signal interpretation) on our input, which
@@ -2652,22 +2698,10 @@ argsDone:
 			_ = p.wrapEventsFD.Close()
 		}
 		_ = p.adapt.Close()
-		if p.capturePIDPath != "" {
-			// Drop pidfile so a future Alt+i doesn't signal a stale pid.
-			// image-capture-* files are intentionally left alone here —
-			// bin/pair's cleanup_quit_marker handles them with the rest
-			// of $DATA_DIR on Alt+x.
-			_ = os.Remove(p.capturePIDPath)
-		}
+
 		if p.agentPIDPath != "" {
 			_ = os.Remove(p.agentPIDPath)
 		}
-	}()
-
-	defer func() {
-		signal.Stop(sigCh)
-		close(sigCh)
-		<-signalDone
 	}()
 
 	// Main loop. One goroutine per direction; everything else is in
@@ -2692,6 +2726,9 @@ argsDone:
 	// binary called os.Exit(exitErr.ExitCode()) here; Run now returns the
 	// code so both entrypoints (shim + `pair wrap`) propagate it identically.
 	werr := cmd.Wait()
+	if p.stdoutPump != nil && p.stdoutPump.failure != nil {
+		return 0, fmt.Errorf("pane output: %w", p.stdoutPump.failure)
+	}
 	if p.restartFresh.Load() {
 		executable, err := os.Executable()
 		if err != nil {
@@ -2729,19 +2766,31 @@ func (p *proxy) masterPump() {
 		err  error
 	}
 	ch := make(chan readEv, 4)
+	readerStop := make(chan struct{})
+	readerDone := make(chan struct{})
+	defer func() { close(readerStop); _ = p.ptmx.Close(); <-readerDone }()
 	// Reader goroutine. Copies into a fresh slice each time so the receiver
 	// can hang onto the bytes without racing the next read.
 	go func() {
+		defer close(readerDone)
 		buf := make([]byte, readBufSize)
 		for {
 			n, err := p.ptmx.Read(buf)
 			if n > 0 {
 				cp := make([]byte, n)
 				copy(cp, buf[:n])
-				ch <- readEv{data: cp}
+				select {
+				case ch <- readEv{data: cp}:
+				case <-readerStop:
+					return
+				}
 			}
 			if err != nil {
-				ch <- readEv{err: err}
+				select {
+				case ch <- readEv{err: err}:
+				case <-readerStop:
+					return
+				}
 				close(ch)
 				return
 			}
@@ -2786,15 +2835,43 @@ func (p *proxy) masterPump() {
 	}
 	stdoutFlushTick := time.NewTicker(p.stdoutFlushInterval())
 	defer stdoutFlushTick.Stop()
-	if p.stdoutPump == nil {
-		p.stdoutPump = newStdoutPump(p.stdout)
+	p.output()
+	defer func() {
+		p.stdoutPump.queue(p.notificationRewriter.Finish())
+		p.stdoutPump.finish()
+		p.flushStdout("eof")
+	}()
+	var brokerMessages <-chan string
+	var brokerDiagnostics <-chan error
+	if p.notificationBroker != nil {
+		brokerMessages = p.notificationBroker.Messages()
+		brokerDiagnostics = p.notificationBroker.Diagnostics()
 	}
-	defer p.flushStdout("eof")
 
 	rolling := make([]byte, 0, rollingTailLen*2)
 
 	for {
+		if p.stdoutPump.failure != nil {
+			p.debug("STDOUT-fail", p.stdoutPump.failure.Error())
+			if p.cmd != nil && p.cmd.Process != nil {
+				_ = p.cmd.Process.Kill()
+			}
+			return
+		}
 		select {
+		case message, ok := <-brokerMessages:
+			if !ok {
+				brokerMessages = nil
+				p.debug("NOTIFY-broker", "message channel closed")
+				continue
+			}
+			p.emitNotification(message)
+		case err, ok := <-brokerDiagnostics:
+			if !ok {
+				brokerDiagnostics = nil
+				continue
+			}
+			p.debug("NOTIFY-broker", err.Error())
 		case err := <-lifecycleJournalFailures:
 			p.debug("LIFECYCLE-tail-fail", err.Error())
 			lifecycleJournalFailures = nil
@@ -2851,6 +2928,7 @@ func (p *proxy) masterPump() {
 				p.finalizeCapture()
 			}
 		case <-stdoutFlushTick.C:
+			p.stdoutPump.expire(time.Now())
 			p.flushStdout("tick")
 		}
 	}
@@ -2894,39 +2972,20 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 	}
 
 	rewritten := p.notificationRewriter.Feed(data, p.notifyModeActive == "native")
-	if progressOSCAuthorized(p.agentBasename) {
-		for _, observation := range rewritten.Observations {
-			p.processLifecycleObservation(observation)
+	p.output()
+	for _, event := range rewritten.Events {
+		if len(event.Passthrough) > 0 {
+			p.stdoutPump.queue(event.Passthrough)
+		}
+		if event.Observation != nil && progressOSCAuthorized(p.agentBasename) {
+			p.processLifecycleObservation(*event.Observation)
+		}
+		if event.Notification != nil {
+			p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion, Message: event.Notification.Message})
 		}
 	}
-	for _, notification := range rewritten.Notifications {
-		p.processLifecycleObservation(TurnObservation{Kind: ObservationNativeCompletion, Message: notification.Message})
-	}
-	if out := rewritten.Passthrough; len(out) > 0 {
-		if p.stdoutPump == nil {
-			p.stdoutPump = newStdoutPump(p.stdout)
-		}
-		p.stdoutPump.queue(out)
-		p.traceWrap("stdout-queue", map[string]any{
-			"stdout_len":       len(out),
-			"stdout_sha256_12": shortSHA256(out),
-			"filtered":         len(out) != len(data),
-			"queued_chunks":    p.stdoutPump.pendingChunks(),
-			"queued_bytes":     p.stdoutPump.pendingBytes(),
-		})
-	} else {
-		queuedChunks, queuedBytes := 0, 0
-		if p.stdoutPump != nil {
-			queuedChunks = p.stdoutPump.pendingChunks()
-			queuedBytes = p.stdoutPump.pendingBytes()
-		}
-		p.traceWrap("stdout-queue", map[string]any{
-			"stdout_len":    0,
-			"filtered":      len(data) > 0,
-			"queued_chunks": queuedChunks,
-			"queued_bytes":  queuedBytes,
-		})
-	}
+
+	p.traceWrap("stdout-queue", map[string]any{"stdout_len": len(rewritten.Passthrough), "stdout_sha256_12": shortSHA256(rewritten.Passthrough), "filtered": len(rewritten.Passthrough) != len(data), "queued_chunks": p.stdoutPump.pendingChunks(), "queued_bytes": p.stdoutPump.pendingBytes()})
 
 	if p.scrollbackFD != nil {
 		if wn, err := p.scrollbackFD.Write(data); err == nil {
@@ -2963,12 +3022,9 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		// The observer models the normalized queued visual stream, not a
 		// physical delivery acknowledgment. Raw capture remains unchanged.
 		if p.terminal != nil {
-			if err := p.terminal.Feed(rewritten.Passthrough); err != nil {
-				p.debug("TERMINAL-feed-fail", err.Error())
-			} else {
-				p.observeCodexWorking()
-			}
+			p.observeCodexWorking()
 		}
+
 		*rolling = append(*rolling, data...)
 		if len(*rolling) > rollingTailLen {
 			*rolling = (*rolling)[len(*rolling)-rollingTailLen:]

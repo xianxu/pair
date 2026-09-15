@@ -83,3 +83,30 @@ func TestShellNotificationsHiddenSelectedAndRedeliveryOnce(t *testing.T) {
 		t.Fatalf("redelivery repeated notification %d", n)
 	}
 }
+
+func TestShellMappedZellijNotificationsPreserveBothOriginsOnce(t *testing.T) {
+	m, parent := presentationFixture(t)
+	hidden := addPresentationTab(t, m, 1, "hidden")
+	selected := addPresentationTab(t, m, 2, "selected")
+	for i, child := range []*ptychild.Child{hidden, selected} {
+		message := []string{"hidden-mapped", "selected-mapped"}[i]
+		out, err := child.Endpoint().Feed([]byte("\x1b]9;pair: "+message+"\x1b\\"), time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch := ptychild.OutputBatch{Terminal: out}
+		for range 2 {
+			if err := m.handleOutput(context.Background(), i+1, batch); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if n := bytes.Count(parent.Bytes(), []byte("\x1b]777;notify;pair;"+message+"\x1b\\")); n != 1 {
+			t.Fatalf("origin%d delivery count=%d", i, n)
+		}
+	}
+	m.previousTab()
+	flushPresentation(t, m, hidden)
+	if n := bytes.Count(parent.Bytes(), []byte("\x1b]777;notify;pair;")); n != 2 {
+		t.Fatalf("switch replayed mapped notifications:%d", n)
+	}
+}

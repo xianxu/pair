@@ -80,7 +80,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	}
 	receipts := filepath.Join(dir, "receipts")
 	fixture := write("codex", "#!"+python+"\n"+nativeAgentFixture, 0700)
-	config := write("config.kdl", "pane_frames false\nshow_startup_tips false\nshow_release_notes false\non_force_close \"quit\"\n", 0600)
+	config := write("config.kdl", "host_notification_protocol \"osc9\"\npane_frames false\nshow_startup_tips false\nshow_release_notes false\non_force_close \"quit\"\n", 0600)
 	layoutBody := fmt.Sprintf("layout { pane borderless=true command=%q { args \"wrap\" \"--scrollback-log\" %q %q %q; }; }\n", binary, filepath.Join(dir, "scrollback"), fixture, receipts)
 	if !wrapped {
 		layoutBody = fmt.Sprintf("layout { pane borderless=true command=%q { args %q; }; }\n", fixture, receipts)
@@ -90,7 +90,18 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env := []string{"ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME=" + filepath.Join(dir, "cache"), "XDG_CONFIG_HOME=" + filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR=" + filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME=" + dir, "PAIR_DATA_DIR=" + filepath.Join(dir, "pair-data")}
+	// ptychild overlays rather than replaces the parent environment. Blank all
+	// inherited Pair session metadata before supplying this private fixture's
+	// paths, so wrapper event logs and lifecycle watchers cannot touch a host
+	// session merely because its environment launched this test process.
+	var env []string
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if strings.HasPrefix(key, "PAIR_") {
+			env = append(env, key+"=")
+		}
+	}
+	env = append(env, "PAIR_PAIR_WRAP_PID_PATH="+paths.PairWrapPID(), "PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(dir, "scrollback.events.jsonl"), "PAIR_WRAP_LOG="+filepath.Join(dir, "wrapper.log"), "ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME="+filepath.Join(dir, "cache"), "XDG_CONFIG_HOME="+filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR="+filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME="+dir, "PAIR_DATA_DIR="+filepath.Join(dir, "pair-data"))
 	session := filepath.Base(dir)
 	host := newVTHost(24, 100)
 	inputR, inputW, err := os.Pipe()
@@ -98,10 +109,12 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal(err)
 	}
 	con := New(host, inputR)
+	var diagnostics bytes.Buffer
+	con.SetErrorWriter(&diagnostics)
 	runner := &couchcore.PtyRunner{Size: con.ChildSize, Sink: con.Deliver, Environment: func() ([]string, error) {
 		return profileEnv, nil
 	}}
-	handle, err := runner.Start(dir, []string{"/bin/sh", "-c", `tty > "$1"; shift; exec "$@"`, "native-launch", paths.OuterTTY(), zellij, "--session", session, "--config", config, "--new-session-with-layout", layout, "--data-dir", filepath.Join(dir, "data")}, env)
+	handle, err := runner.Start(dir, []string{zellij, "--session", session, "--config", config, "--new-session-with-layout", layout, "--data-dir", filepath.Join(dir, "data")}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,21 +124,32 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	go func() { done <- con.Run() }()
 	t.Cleanup(func() {
 		if t.Failed() {
-			t.Logf("native diagnostic child=%q screen=%q", child.Snapshot(), host.childArea())
+			evidence, _ := os.MkdirTemp("/tmp", "pair255-native-failure-")
+			rawReceipts, _ := os.ReadFile(receipts)
+			wrapLog, _ := os.ReadFile(filepath.Join(dir, "wrapper.log"))
+			_ = os.WriteFile(filepath.Join(evidence, "wrapper.log"), wrapLog, 0600)
+			_ = os.WriteFile(filepath.Join(evidence, "receipts.txt"), rawReceipts, 0600)
+			_ = os.WriteFile(filepath.Join(evidence, "child.raw"), child.Snapshot(), 0600)
+			_ = os.WriteFile(filepath.Join(evidence, "parent.raw"), []byte(host.Written()), 0600)
+			t.Logf("native failure evidence: %s; receipts=%q", evidence, rawReceipts)
+		}
+		// Console owns accepted children until presentation release. Join it
+		// before killing the private server or disposing any terminal handle.
+		con.Stop()
+		_ = inputW.Close()
+		select {
+		case code := <-done:
+			if code != 0 {
+				t.Errorf("native Console exit%d: %s", code, diagnostics.String())
+			}
+		case <-time.After(5 * time.Second):
+			t.Error("native Console did not join")
 		}
 		killCtx, cancelKill := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancelKill()
 		kill := exec.CommandContext(killCtx, zellij, "kill-session", session)
 		kill.Env = append(os.Environ(), env...)
 		_ = kill.Run()
-		con.Stop()
-		_ = child.Close()
-		_ = inputW.Close()
-		select {
-		case <-done:
-		case <-time.After(5 * time.Second):
-			t.Error("native Console did not join")
-		}
 	})
 	readReceipts := func() string { b, _ := os.ReadFile(receipts); return string(b) }
 	waitUpTo(t, 15*time.Second, "wrapped native process and CPR", func() bool {
@@ -166,7 +190,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	var nextNotification time.Time
 	if wrapped {
 		_, _ = inputW.Write([]byte("\r"))
-		waitUpTo(t, 3*time.Second, "one native notification through outer tty", func() bool {
+		waitUpTo(t, 3*time.Second, "one native notification through Zellij output", func() bool {
 			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 1
 		})
 		nextNotification = time.Now().Add(600 * time.Millisecond)
@@ -177,7 +201,6 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal(err)
 	}
 	secondChild := second.(couchcore.TerminalHandle).Terminal()
-	defer secondChild.Close()
 	con.Attach(second.ID(), "native-shell", secondChild)
 	con.Switch(second.ID())
 	waitUpTo(t, 3*time.Second, "real shell actor", func() bool {
@@ -223,8 +246,14 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	}
 	captureNativeReattachEvidence(t, evidenceDir, "before-detach", child)
 	t.Logf("persistent reattach exact child wire/frame evidence (wrapped=%t): %s", wrapped, evidenceDir)
+	var brokerBinding []byte
+	if wrapped {
+		brokerBinding, err = os.ReadFile(paths.PairWrapPID())
+		if err != nil || len(bytes.TrimSpace(brokerBinding)) == 0 {
+			t.Fatalf("missing live wrapper broker binding: %q %v", brokerBinding, err)
+		}
+	}
 	oldChild, oldID := child, handle.ID()
-	oldTTY, _ := os.ReadFile(paths.OuterTTY())
 	con.Switch(second.ID())
 	waitUpTo(t, 3*time.Second, "shell holds Console during detach", func() bool { return con.presenter.View().Admitted == secondChild.Endpoint().ID() })
 	detachCtx, cancelDetach := context.WithTimeout(context.Background(), 5*time.Second)
@@ -241,9 +270,9 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal("detached client did not drain and exit")
 	}
 	waitUpTo(t, 3*time.Second, "detached client retired and disposed", func() bool { _, err := oldChild.Endpoint().Snapshot(time.Now()); return errors.Is(err, os.ErrClosed) })
-	// No --create: the original server and agent must still exist. Rewrite the
-	// outer-TTY sidecar before exec so the surviving wrapper targets this client.
-	handle, err = runner.Start(dir, []string{"/bin/sh", "-c", `tty > "$1"; shift; exec "$@"`, "native-reattach", paths.OuterTTY(), zellij, "--config", config, "--data-dir", filepath.Join(dir, "data"), "attach", session}, env)
+	// No --create: the original server and agent must still exist. Notification
+	// output follows this fresh client naturally, without an outer-TTY sidecar.
+	handle, err = runner.Start(dir, []string{zellij, "--config", config, "--data-dir", filepath.Join(dir, "data"), "attach", session}, env)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,14 +295,19 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		return strings.Contains(readReceipts(), "STATE="+boot+":2\n") && strings.Contains(host.childArea(), "persistent-counter=2")
 	})
 	if wrapped {
+		reattachedBinding, err := os.ReadFile(paths.PairWrapPID())
+		if err != nil || !bytes.Equal(brokerBinding, reattachedBinding) {
+			t.Fatalf("reattach replaced wrapper broker: before%q after%q err%v", brokerBinding, reattachedBinding, err)
+		}
 		// Respect wrapper's 500ms native-notification limiter between real turns.
 		if remaining := time.Until(nextNotification); remaining > 0 {
 			time.Sleep(remaining)
 		}
 		_, _ = inputW.Write([]byte("\r"))
-		waitUpTo(t, 3*time.Second, "surviving wrapper notification uses reattached outer tty", func() bool {
+		waitUpTo(t, 3*time.Second, "surviving wrapper notification follows reattached client", func() bool {
 			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 2
 		})
+		nextNotification = time.Now().Add(600 * time.Millisecond)
 	}
 	if strings.Count(readReceipts(), "BOOT=") != 1 {
 		t.Fatalf("reattachment restarted agent: %s", readReceipts())
@@ -282,11 +316,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatal(err)
 	}
 	assertNativeOracle(t, host.Written(), 110, 28, "persistent-counter=2", "native-agent")
-	currentTTY, err := os.ReadFile(paths.OuterTTY())
-	if err != nil || len(bytes.TrimSpace(currentTTY)) == 0 {
-		t.Fatalf("reattach outer tty missing: %q %v", currentTTY, err)
-	}
-	t.Logf("persistent native reattach retained pid:nonce=%s counter=1→2; endpoints=%s→%s; tty=%s→%s", boot, oldChild.Endpoint().ID(), child.Endpoint().ID(), bytes.TrimSpace(oldTTY), bytes.TrimSpace(currentTTY))
+	t.Logf("persistent native reattach retained pid:nonce=%s counter=1→2; endpoints=%s→%s", boot, oldChild.Endpoint().ID(), child.Endpoint().ID())
 	// A no-mouse child makes Zellij own native text selection. Inspect its
 	// published highlight while the button is still held, then inspect OSC52.
 	if err := os.WriteFile(receipts+".select", []byte("select"), 0600); err != nil {
@@ -297,6 +327,12 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	host.mu.Lock()
+	beforeParent := make([]terminal.Cell, 9)
+	for i := range beforeParent {
+		beforeParent[i] = *host.em.CellAt(i, 0)
+	}
+	host.mu.Unlock()
 	beforeWire := host.Written()
 	_, _ = inputW.Write([]byte("\x1b[<0;1;1M\x1b[<32;10;1M"))
 	waitUpTo(t, 3*time.Second, "native held-drag highlight before release", func() bool {
@@ -306,6 +342,18 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		}
 		for i := 0; i < 9; i++ {
 			if !reflect.DeepEqual(before.Cells[i].Style, now.Cells[i].Style) {
+				return true
+			}
+		}
+		return false
+	})
+	// Endpoint ingestion precedes publication enqueue. Flush alone cannot
+	// acknowledge that generation: first observe highlight on the parent.
+	waitUpTo(t, 3*time.Second, "physical held-drag highlight before release", func() bool {
+		host.mu.Lock()
+		defer host.mu.Unlock()
+		for i := range beforeParent {
+			if cell := host.em.CellAt(i, 0); cell != nil && !reflect.DeepEqual(beforeParent[i].Style, cell.Style) {
 				return true
 			}
 		}
@@ -329,6 +377,100 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		t.Fatalf("native selection copied %q (%v), want selectabl", copied, err)
 	}
 	t.Log("native selection after persistent reattach highlighted in endpoint and independent xterm before release; clipboard selectabl emitted on release")
+	if wrapped {
+		// The hook command exercises the real bound broker and wrapper writer.
+		// Each unique envelope must cross Zellij exactly once while both actors
+		// keep receiving output, focus transitions and geometry changes.
+		var hookEnvelopes []string
+		for cycle := 0; cycle < 32; cycle++ {
+			message := fmt.Sprintf("native-hook-%02d", cycle)
+			if cycle == 0 {
+				message = strings.Repeat("m", 4093) + "界"
+			}
+			hidden := cycle%2 == 0
+			target := handle.ID()
+			if hidden {
+				target = second.ID()
+			}
+			con.Switch(target)
+			waitUpTo(t, 3*time.Second, "stress focus", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.focus == FocusActor(target) })
+			if cycle%8 == 0 {
+				rows, cols := uint16(28), uint16(110)
+				if cycle%16 == 0 {
+					rows, cols = 30, 112
+				}
+				host.SetSize(ptychild.Size{Rows: rows, Cols: cols})
+				waitUpTo(t, 3*time.Second, "stress geometry", func() bool {
+					return child.Size() == (ptychild.Size{Rows: rows - 1, Cols: cols}) && secondChild.Size() == (ptychild.Size{Rows: rows - 1, Cols: cols})
+				})
+			}
+			shellMarker := fmt.Sprintf("shell-stress-%02d", cycle)
+			if _, err := secondChild.Write([]byte(shellMarker + "\n")); err != nil {
+				t.Fatal(err)
+			}
+			if hidden {
+				waitUpTo(t, 3*time.Second, "selected shell stress output", func() bool { return strings.Contains(host.childArea(), shellMarker) })
+			}
+			marker := fmt.Sprintf("stress-output-%02d", cycle)
+			if err := os.WriteFile(receipts+".output.tmp", []byte(marker), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Rename(receipts+".output.tmp", receipts+".output"); err != nil {
+				t.Fatal(err)
+			}
+			waitUpTo(t, 3*time.Second, "real native output", func() bool { return strings.Contains(readReceipts(), "OUTPUT="+marker+"\n") })
+			// Preserve the existing500ms emission cap across native and hook
+			// turns; no retry of a lost notification is allowed by this test.
+			if remaining := time.Until(nextNotification); remaining > 0 {
+				time.Sleep(remaining)
+			}
+			hookCtx, cancelHook := context.WithTimeout(context.Background(), 3*time.Second)
+			hook := exec.CommandContext(hookCtx, binary, "notify", message)
+			hook.Env = append(os.Environ(), env...)
+			out, hookErr := hook.CombinedOutput()
+			cancelHook()
+			if hookErr != nil || len(out) != 0 {
+				t.Fatalf("hook cycle%d: %v %s", cycle, hookErr, out)
+			}
+			envelope := "\x1b]777;notify;pair;" + message + "\x1b\\"
+			hookEnvelopes = append(hookEnvelopes, envelope)
+			waitUpTo(t, 3*time.Second, "exact in-band hook notification and attention", func() bool {
+				if strings.Count(host.Written(), envelope) != 1 {
+					return false
+				}
+				con.mu.Lock()
+				defer con.mu.Unlock()
+				attention := con.attention.Projection(con.panes[handle.ID()].thread)
+				return !hidden && len(attention) == 0 || hidden && len(attention) == 1 && attention[0].Text == message
+			})
+			nextNotification = time.Now().Add(600 * time.Millisecond)
+			con.mu.Lock()
+			attention := con.attention.Projection(con.panes[handle.ID()].thread)
+			con.mu.Unlock()
+			if hidden && (len(attention) != 1 || attention[0].Text != message) {
+				t.Fatalf("hidden hook cycle%d lost origin: %+v", cycle, attention)
+			}
+			if !hidden && len(attention) != 0 {
+				t.Fatalf("focused hook cycle%d created attention: %+v", cycle, attention)
+			}
+		}
+		con.Switch(handle.ID())
+		waitUpTo(t, 3*time.Second, "final stress actor frame", func() bool { return strings.Contains(host.childArea(), "stress-output-31") })
+		if strings.Count(readReceipts(), "BOOT=") != 1 {
+			t.Fatal("stress restarted original agent")
+		}
+		if err := con.presenter.Flush(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		for _, envelope := range hookEnvelopes {
+			if n := strings.Count(host.Written(), envelope); n != 1 {
+				t.Fatalf("notification replay after stress:count%d", n)
+			}
+		}
+		assertNativeOracle(t, host.Written(), 110, 28, "stress-output-31", "native-agent")
+		t.Log("native notification stress:32 unique hook envelopes,4096-byte UTF8 body,16hidden/16focused,4resizes,original reattached agent")
+	}
+
 	t.Logf("native Console join (wrapped=%t): CPR, fragmented CJK, synchronized update, enhanced key, paste, focus, drag, shell/panel switches, resize; receipts=%s", wrapped, readReceipts())
 }
 
@@ -372,6 +514,11 @@ for part in ['native '.encode(),b'\xe7',b'\x95',b'\x8c',b' e',b'\xcc',b'\x81',b'
  time.sleep(.005)
 os.write(fd,b'\x1b[?2026l')
 while True:
+ if os.path.exists(sys.argv[1]+'.output'):
+  marker=open(sys.argv[1]+'.output').read()
+  os.unlink(sys.argv[1]+'.output')
+  os.write(fd,('\x1b[3;1H\x1b[2K'+marker).encode())
+  log.write('OUTPUT='+marker+'\n')
  if os.path.exists(sys.argv[1]+'.select'):
   os.unlink(sys.argv[1]+'.select')
   os.write(fd,b'\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[H\x1b[2Kselectable-native-text')
