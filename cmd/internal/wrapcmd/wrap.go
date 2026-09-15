@@ -1311,8 +1311,8 @@ func bytesReplaceAll(b []byte, c byte) []byte {
 // — those are literal newlines from the source content, not user
 // keystrokes that mean "send."
 var (
-	bpStart = []byte("\x1b[200~")
-	bpEnd   = []byte("\x1b[201~")
+	bpStart = []byte(workbenchshortcut.PasteStart)
+	bpEnd   = []byte(workbenchshortcut.PasteEnd)
 )
 
 // Enter / Alt+Enter byte sequences across the two protocols modern
@@ -1564,7 +1564,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 			pending = nil
 		}
 		for len(data) > 0 {
-			before, chord, rawChord, rest, found := workbenchshortcut.FindChord(data)
+			before, chord, rawChord, rest, found := workbenchshortcut.FindChordOutsidePaste(data, inPaste)
 			segment := data
 			if found {
 				segment = before
@@ -1574,6 +1574,15 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				outBytes, leftover, inPaste = p.translateChunk(segment, inPaste)
 			} else {
 				outBytes, leftover, inPaste = p.passThroughChunk(segment, inPaste)
+			}
+			// The full available stream contains a complete next chord. Its
+			// leading ESC disambiguates any proper escape prefix retained at
+			// the end of `before`: none of our finite input encodings contains
+			// an interior ESC. Emit that literal prefix before the action;
+			// only an actual end-of-read suffix may wait for more input.
+			if found && len(leftover) > 0 {
+				outBytes = append(outBytes, leftover...)
+				leftover = nil
 			}
 			if len(outBytes) > 0 {
 				wn, werr := out.Write(outBytes)
@@ -1591,7 +1600,7 @@ func (p *proxy) translateStdinFrom(stdin io.Reader, out io.Writer, flushAfter ti
 				}
 			}
 			if len(leftover) > 0 {
-				pending = append(leftover, data[len(segment):]...)
+				pending = leftover
 				break
 			}
 			if !found {
@@ -1668,12 +1677,9 @@ func (p *proxy) closeTerminal() error {
 }
 
 func (p *proxy) passThroughChunk(data []byte, inPaste bool) ([]byte, []byte, bool) {
-	if workbenchshortcut.IsChordPrefix(data) {
-		return nil, append([]byte(nil), data...), inPaste
-	}
-	if len(data) == 1 && data[0] == 0x1b {
-		return nil, append([]byte(nil), data...), inPaste
-	}
+	held := workbenchshortcut.PendingInputSuffix(data)
+	pending := append([]byte(nil), data[len(data)-held:]...)
+	data = data[:len(data)-held]
 	// These bytes reach the agent verbatim, so a CR here IS a submission — and
 	// it is the only turn-opening signal this configuration has. Without it the
 	// floor never arms under PAIR_WRAP_REMAP_RETURN=0, nor for any agent
@@ -1686,7 +1692,7 @@ func (p *proxy) passThroughChunk(data []byte, inPaste bool) ([]byte, []byte, boo
 	if submits {
 		p.publishLifecycleObservation(TurnObservation{Kind: ObservationBareReturn})
 	}
-	return data, nil, nextPaste
+	return data, pending, nextPaste
 }
 
 // submittingReturn reports whether `data` carries a CR that the agent will see
@@ -2072,7 +2078,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			// on the next read? Hold back only if data[i:] is a strict
 			// prefix of *some* known pattern — unrelated escapes (arrow
 			// keys, CSI sequences, etc.) pass through.
-			held := false
+			held := workbenchshortcut.IsChordPrefix(data[i:])
 			for _, pat := range holdbackPatterns {
 				if isPrefixOf(data[i:], pat) {
 					held = true

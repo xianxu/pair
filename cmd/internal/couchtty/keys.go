@@ -17,9 +17,8 @@ import (
 // hotkeyByte is ctrl-space in the LEGACY encoding: ctrl-@ is NUL.
 const hotkeyByte = 0x00
 
-// previousByte is ctrl+backspace in the LEGACY encoding. Unlike every other
-// chord couch intercepts it is a bare byte, not an escape sequence, so it needs
-// a branch beside hotkeyByte rather than a knownSequences row.
+// previousByte is ctrl+backspace in the LEGACY encoding. Like hotkeyByte it
+// is a bare-byte navigation encoding rather than a multi-byte known sequence.
 //
 // Accepted cost, deliberate and not a discovery: in legacy encoding 0x08 IS
 // ^H, so intercepting ctrl+backspace also takes ctrl-h from the child (readline
@@ -67,25 +66,24 @@ const (
 // already caused once, and the shape that let alt+n ship consumed-and-dropped.
 // Two switches over one enum agree until someone edits one.
 func (k seqKind) hit() InterceptorHit {
+	for _, binding := range couchNavigation {
+		if binding.kind == k {
+			return binding.Hit
+		}
+	}
 	switch k {
-	case seqSwitch:
-		return HitSwitch
 	case seqPark:
 		return HitPark
-	case seqPrevious:
-		return HitPrevious
 	case seqDetach:
 		return HitDetach
 	case seqRelaunch:
 		return HitRelaunch
-	case seqNewestPage:
-		return HitNewestPage
 	}
 	return HitNone
 }
 
-// intercepts reports whether a sequence is CONSUMED by couch rather than
-// forwarded to the child. Derived from hit(), so the two cannot disagree.
+// intercepts reports whether a sequence is a Couch candidate. Console decides
+// its disposition after routing preceding input. Derived from hit().
 func (k seqKind) intercepts() bool { return k.hit() != HitNone }
 
 type InterceptorHit uint8
@@ -115,12 +113,51 @@ const (
 	// existed briefly and was dead: sequenceAt can only return kinds the table
 	// carries.
 	//
-	// Unlike every other hit it carries a
-	// PAYLOAD -- the decoded event and the raw wire bytes, read with Mouse() --
+	// Its additional payload is the decoded event and raw wire bytes, read
+	// with Mouse() --
 	// because a coordinate cannot be recovered from the hit alone and a
 	// forwarded report must be the bytes the terminal sent, not a re-encoding.
 	HitMouse
 )
+
+// CouchNavigationBinding declares one actor-wide navigation reservation. Help
+// consumers use the same declarations as input matching and focus admission.
+type CouchNavigationBinding struct {
+	Hit       InterceptorHit
+	Key, Help string
+	Encodings [][]byte
+}
+
+var couchNavigation = []struct {
+	CouchNavigationBinding
+	kind seqKind
+}{
+	{CouchNavigationBinding{HitSwitch, "Ctrl+Space", "open the Couch switcher", [][]byte{{hotkeyByte}, []byte("\x1b[32;5u")}}, seqSwitch},
+	{CouchNavigationBinding{HitPrevious, "Ctrl+Backspace", "return to the previous Couch thread", [][]byte{{previousByte}, []byte("\x1b[127;5u")}}, seqPrevious},
+	{CouchNavigationBinding{HitNewestPage, "Ctrl+Return", "jump to the newest notification thread", [][]byte{[]byte(newestPageSequence), []byte("\x1b[13;5:1u"), []byte("\x1b[13;5:2u")}}, seqNewestPage},
+}
+
+func CouchNavigationBindings() []CouchNavigationBinding {
+	out := make([]CouchNavigationBinding, 0, len(couchNavigation))
+	for _, entry := range couchNavigation {
+		binding := entry.CouchNavigationBinding
+		binding.Encodings = make([][]byte, len(entry.Encodings))
+		for n, encoding := range entry.Encodings {
+			binding.Encodings[n] = append([]byte(nil), encoding...)
+		}
+		out = append(out, binding)
+	}
+	return out
+}
+
+func (hit InterceptorHit) actorReserved() bool {
+	for _, entry := range couchNavigation {
+		if entry.Hit == hit {
+			return true
+		}
+	}
+	return false
+}
 
 // MouseHit is the payload of a HitMouse.
 type MouseHit struct {
@@ -171,58 +208,26 @@ var knownSequences = func() []struct {
 	}{
 		{[]byte("\x1b[200~"), seqPasteStart},
 		{[]byte("\x1b[201~"), seqPasteEnd},
-		{[]byte("\x1b[32;5u"), seqSwitch},
-		// ctrl+backspace under the Kitty protocol: codepoint 127 with modifier
-		// bitmask 4 encoded as 4+1. Its legacy form is the bare byte handled
-		// above, not a sequence.
-		{[]byte("\x1b[127;5u"), seqPrevious},
-		// ctrl+return, Kitty-only by necessity; see newestPageSequence.
-		{[]byte(newestPageSequence), seqNewestPage},
-		{[]byte("\x1b[13;5:1u"), seqNewestPage}, // explicit press
-		{[]byte("\x1b[13;5:2u"), seqNewestPage}, // repeat; never release
 	}
+	for _, binding := range couchNavigation {
+		for _, encoding := range binding.Encodings {
+			if len(encoding) > 1 {
+				sequences = append(sequences, struct {
+					bytes []byte
+					kind  seqKind
+				}{encoding, binding.kind})
+			}
+		}
+	}
+
 	for _, chord := range []struct {
 		chord workbenchshortcut.Chord
 		kind  seqKind
 	}{
 		{workbenchshortcut.ChordAltX, seqPark},
-		// alt+d is Pair's own detach chord, intercepted for the same reason
-		// alt+x is: un-intercepted, PairConfirmDetach runs `zellij action
-		// detach` from inside the session, leaving couch with a dead child and
-		// a stale live incarnation -- which the fail-closed projector hides. The
-		// operator's safest gesture would make the thread vanish from the
-		// switcher. Intercepting costs the hosted Pair its own chord and buys
-		// the durable retirement that makes the thread reattachable.
-		//
-		// ChordAltD has exactly one encoding: the table declares no legacy
-		// "\x1bd", so with the Kitty protocol off alt+d passes through to the
-		// child on unsupported terminals. Couch maintains disambiguation on
-		// supporting terminals (#251).
+		// Lifecycle candidates remain recognized for the switcher. Console
+		// forwards their exact bytes when prefix routing leaves actor focus.
 		{workbenchshortcut.ChordAltD, seqDetach},
-		// alt+n and ctrl+alt+n are Pair's own reload chords, intercepted for a
-		// reason that is sharper than alt+d's. Un-intercepted, Pair handles them
-		// INSIDE the process couch spawned: `pair restart` writes a marker and
-		// execs kill-session, the outer process unblocks, and createflow's loop
-		// re-enters runOnce in the same process image. There is no re-exec, so
-		// the binary in memory is the old one -- a rebuilt Pair is not what
-		// comes back. For pair development that is worse than not working,
-		// because it looks like it worked.
-		//
-		// BOTH aliases, and the second is not a nicety: on newer macOS
-		// Option+n is a dead-tilde composer, which is why Pair carries
-		// ctrl+alt+n at all. Taking only one would leave the operator's actual
-		// keystroke reaching the child.
-		//
-		// alt+SHIFT+n is deliberately NOT taken (\x1b[78;4u, a distinct
-		// sequence). It restarts only the agent conversation, and it is the
-		// cheap in-session escape hatch that has to survive couch claiming the
-		// heavier chord: alt+n means new code, same conversation;
-		// alt+shift+n means same code, new conversation.
-		//
-		// Kitty-protocol edge, inherited from ChordAltD: neither declares a
-		// legacy encoding, so with the protocol off both pass through to Pair
-		// and do its old in-place reload on unsupported terminals. Couch now
-		// maintains disambiguation on supporting terminals (#251).
 		{workbenchshortcut.ChordAltN, seqRelaunch},
 		{workbenchshortcut.ChordCtrlAltN, seqRelaunch},
 	} {
@@ -250,6 +255,7 @@ var knownSequences = func() []struct {
 // arbitrary bytes, and a pasted NUL that silently switches actors while eating a
 // byte is data loss the operator would never trace back.
 type Interceptor struct {
+	rawHit  []byte
 	inPaste bool
 
 	// mouse is the payload of the hit just returned. Read with Mouse()
@@ -263,6 +269,10 @@ type Interceptor struct {
 
 // Mouse is the payload of the HitMouse just returned.
 func (i *Interceptor) Mouse() MouseHit { return i.mouse }
+
+// RawHit is the exact wire payload of the latest FeedHit candidate. Read it
+// before the next FeedHit; nil means the latest feed found no candidate.
+func (i *Interceptor) RawHit() []byte { return i.rawHit }
 
 // Flush resolves an ambiguous partial as literal child input. The IO owner
 // calls it only after its short escape-key timeout expires.
@@ -282,9 +292,10 @@ func (i *Interceptor) Feed(in []byte) (before []byte, hit bool, rest []byte) {
 	return before, typed != HitNone, rest
 }
 
-// FeedHit is Feed's typed form, distinguishing Couch switching from Pair's
-// Alt+x full-quit chord intercepted as Couch Park.
+// FeedHit frames candidates without assigning focus authority. Console routes
+// preceding input before deciding whether the candidate belongs to Couch.
 func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, rest []byte) {
+	i.rawHit = nil
 	buf := in
 	if len(i.held) > 0 {
 		buf = append(i.held, in...)
@@ -293,11 +304,15 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 
 	out := make([]byte, 0, len(buf))
 	for idx := 0; idx < len(buf); {
-		if !i.inPaste && buf[idx] == hotkeyByte {
-			return out, HitSwitch, buf[idx+1:]
-		}
-		if !i.inPaste && buf[idx] == previousByte {
-			return out, HitPrevious, buf[idx+1:]
+		if !i.inPaste {
+			for _, binding := range couchNavigation {
+				for _, encoding := range binding.Encodings {
+					if len(encoding) == 1 && encoding[0] == buf[idx] {
+						i.rawHit = append([]byte(nil), encoding...)
+						return out, binding.Hit, buf[idx+1:]
+					}
+				}
+			}
 		}
 		if buf[idx] == 0x1b {
 			// A mouse report BEFORE the fixed-string table: its shape is
@@ -308,6 +323,7 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 			if event, raw, rest, ok := mouseinput.ParsePrefix(buf[idx:]); ok {
 				if !i.inPaste {
 					i.mouse = MouseHit{Event: event, Raw: append([]byte(nil), raw...)}
+					i.rawHit = i.mouse.Raw
 					return out, HitMouse, rest
 				}
 				// Inside a paste it is content, like any other byte.
@@ -347,6 +363,7 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 			// forwarded here, which is the third copy proving the point.
 			if kind.intercepts() {
 				if !i.inPaste {
+					i.rawHit = append([]byte(nil), buf[idx:idx+n]...)
 					return out, kind.hit(), buf[idx+n:]
 				}
 				// Inside a paste it is content, like any other byte.

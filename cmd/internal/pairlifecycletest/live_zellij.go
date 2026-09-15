@@ -1,6 +1,7 @@
 package pairlifecycletest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +23,17 @@ type ControlledZellij struct {
 	pty     *os.File
 }
 
+// ZellijOptions selects fixture configuration without changing the operator's config.
+type ZellijOptions struct {
+	ConfigFile string
+	LayoutFile string
+}
+
 func StartControlledZellij(ctx context.Context, session string) (*ControlledZellij, error) {
+	return StartControlledZellijWithOptions(ctx, session, ZellijOptions{})
+}
+
+func StartControlledZellijWithOptions(ctx context.Context, session string, options ZellijOptions) (*ControlledZellij, error) {
 	if session == "" {
 		return nil, errors.New("controlled zellij session is empty")
 	}
@@ -30,23 +41,45 @@ func StartControlledZellij(ctx context.Context, session string) (*ControlledZell
 		return nil, fmt.Errorf("zellij is required: %w", err)
 	}
 	_ = exec.Command("zellij", "delete-session", session, "--force").Run()
-	command := exec.Command("zellij", "--session", session)
+	var args []string
+	if options.ConfigFile != "" {
+		args = append(args, "--config", options.ConfigFile)
+	}
+	args = append(args, "--session", session)
+
+	command := exec.Command("zellij", args...)
 	command.Env = append(os.Environ(), "TERM=xterm-256color")
 	terminal, err := pty.StartWithSize(command, &pty.Winsize{Rows: 24, Cols: 80})
 	if err != nil {
 		return nil, err
 	}
 	fixture := &ControlledZellij{Session: session, command: command, pty: terminal}
-	go func() { _, _ = io.Copy(io.Discard, terminal) }()
+	clientOutput := make(chan string, 1)
+	go func() {
+		var startup bytes.Buffer
+		_, _ = io.Copy(&startup, io.LimitReader(terminal, 16384))
+		_, _ = io.Copy(io.Discard, terminal)
+		clientOutput <- startup.String()
+	}()
 
 	ticker := time.NewTicker(25 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		output, listErr := exec.CommandContext(ctx, "zellij", "list-sessions", "--no-formatting").CombinedOutput()
 		if listErr == nil && strings.Contains(string(output), session) {
+			if options.LayoutFile != "" {
+				out, err := exec.CommandContext(ctx, "zellij", "--session", session, "action", "new-tab", "--layout", options.LayoutFile).CombinedOutput()
+				if err != nil {
+					_ = fixture.Close()
+					return nil, fmt.Errorf("controlled zellij layout: %s: %w", out, err)
+				}
+			}
 			return fixture, nil
 		}
 		select {
+		case output := <-clientOutput:
+			_ = fixture.Close()
+			return nil, fmt.Errorf("controlled zellij client exited before readiness: %s", output)
 		case <-ctx.Done():
 			_ = fixture.Close()
 			return nil, fmt.Errorf("controlled zellij session %q did not become ready: %w", session, ctx.Err())
@@ -92,4 +125,13 @@ func (f *ControlledZellij) Close() error {
 		f.command = nil
 	}
 	return result
+}
+
+// WriteInput sends terminal input through the real attached client, so Zellij's
+// keybindings run. The action write/write-chars CLI would bypass that boundary.
+func (f *ControlledZellij) WriteInput(p []byte) (int, error) {
+	if f == nil || f.pty == nil {
+		return 0, errors.New("controlled zellij has no attached terminal")
+	}
+	return f.pty.Write(p)
 }

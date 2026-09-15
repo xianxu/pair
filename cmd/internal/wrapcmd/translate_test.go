@@ -199,10 +199,10 @@ func TestTranslateStdinHandlesWorkbenchShortcutWithoutReturnRemap(t *testing.T) 
 		wantHandled string
 		wantOut     string
 	}{
-		{name: "alt k", in: "\x1bkhello\r", wantHandled: "Alt+k", wantOut: "hello\r"},
-		{name: "alt x", in: "\x1b[120;3u", wantHandled: "Alt+x"},
+		{name: "alt k", in: "\x1bkhello\r", wantOut: "\x1bkhello\r"},
+		{name: "alt x", in: "\x1b[120;3u", wantOut: "\x1b[120;3u"},
 		{name: "agent alt shift enter passes through", in: "\x1b[13;4u", wantOut: "\x1b[13;4u"},
-		{name: "payload before alt k", in: "hello\r\x1bk", wantHandled: "Alt+k", wantOut: "hello\r"},
+		{name: "payload before alt k", in: "hello\r\x1bk", wantOut: "hello\r\x1bk"},
 	}
 
 	for _, tt := range tests {
@@ -248,11 +248,11 @@ func TestTranslateStdinHandlesSplitWorkbenchShortcut(t *testing.T) {
 	_ = writer.Close()
 	<-done
 
-	if got := strings.Join(handled, ","); got != "Alt+j" {
-		t.Fatalf("handled = %q, want Alt+j", got)
+	if got := strings.Join(handled, ","); got != "" {
+		t.Fatalf("handled = %q, want none", got)
 	}
-	if got := out.String(); got != "" {
-		t.Fatalf("out = %q, want empty", got)
+	if got := out.String(); got != "\x1bj" {
+		t.Fatalf("out = %q, want Alt+j bytes", got)
 	}
 }
 
@@ -279,100 +279,18 @@ func (f *fakeDraftRouteRuntime) RunZellijAction(args ...string) error {
 	return nil
 }
 
-func TestTranslateStdinRoutesGlobalHotkeysThroughRuntime(t *testing.T) {
-	tests := []struct {
-		name  string
-		in    string
-		lua   string
-		focus bool
-	}{
-		{name: "alt d", in: "\x1b[100;3u", lua: "PairConfirmDetach", focus: true},
-		{name: "alt x", in: "\x1b[120;3u", lua: "PairConfirmQuit", focus: true},
-		{name: "alt n", in: "\x1b[110;3u", lua: "PairConfirmRestart", focus: true},
-		{name: "ctrl alt n", in: "\x1b[110;7u", lua: "PairConfirmRestart", focus: true},
-		{name: "shift alt n", in: "\x1b[78;4u", lua: "PairConfirmAgentRestart", focus: true},
-		{name: "alt up", in: "\x1b[1;3A", lua: "PairLayoutBigger"},
-		{name: "alt down", in: "\x1b[1;3B", lua: "PairLayoutSmaller"},
-		{name: "alt c", in: "\x1b[99;3u", lua: "PairReviewToggle"},
-	}
-	panes := []byte(`[
-		{"id":1,"is_focused":true,"is_plugin":false,"terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_plugin":false,"terminal_command":"nvim -u /pair/nvim/init.lua /data/draft.md"}
-	]`)
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			rt := &fakeDraftRouteRuntime{panes: panes}
-			var reported []string
-			p := &proxy{
-				draftRouteRuntime: rt,
-				shortcutErrorReporter: func(err error) {
-					reported = append(reported, err.Error())
-				},
-			}
-			var out bytes.Buffer
-
-			p.translateStdinFrom(strings.NewReader(tt.in), &out, time.Millisecond)
-
-			if out.Len() != 0 {
-				t.Fatalf("child bytes = %q, want none", out.String())
-			}
-			want := "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua " +
-				tt.lua + "(),write --pane-id 2 13"
-			if tt.focus {
-				want = "focus-pane-id 2," + want
-			}
-			if got := strings.Join(rt.ops, ","); got != want {
-				t.Fatalf("ops = %q, want %q", got, want)
-			}
-			if len(reported) != 0 {
-				t.Fatalf("reported = %v, want none", reported)
-			}
-		})
-	}
-}
-
-func TestTranslateStdinReportsFocusFailureWithoutWriting(t *testing.T) {
-	rt := &fakeDraftRouteRuntime{cached: "2", failFocus: true}
-	var reported []string
-	p := &proxy{
-		draftRouteRuntime: rt,
-		shortcutErrorReporter: func(err error) {
-			reported = append(reported, err.Error())
-		},
-	}
-	var out bytes.Buffer
-
-	p.translateStdinFrom(strings.NewReader("\x1b[110;3u"), &out, time.Millisecond)
-
-	if out.Len() != 0 {
-		t.Fatalf("child bytes = %q, want none", out.String())
-	}
-	if got := strings.Join(rt.ops, ","); got != "focus-pane-id 2" {
-		t.Fatalf("ops = %q, want focus only", got)
-	}
-	if len(reported) != 1 || !strings.Contains(reported[0], "focus") {
-		t.Fatalf("reported = %v, want focus failure", reported)
-	}
-}
-
-func TestTranslateStdinConsumesGlobalHotkeyWhenDraftMissing(t *testing.T) {
-	rt := &fakeDraftRouteRuntime{panes: []byte(`[{"id":1,"is_focused":true,"terminal_command":"pair wrap codex"}]`)}
-	var reported []string
-	p := &proxy{
-		draftRouteRuntime: rt,
-		shortcutErrorReporter: func(err error) {
-			reported = append(reported, err.Error())
-		},
-	}
-	var out bytes.Buffer
-
-	p.translateStdinFrom(strings.NewReader("\x1b[110;3u"), &out, time.Millisecond)
-
-	if out.Len() != 0 {
-		t.Fatalf("child bytes = %q, want none", out.String())
-	}
-	if len(reported) != 1 || !strings.Contains(reported[0], "draft pane") {
-		t.Fatalf("reported = %v, want missing draft pane", reported)
+// Even an absent or failing draft must not affect agent key delivery.
+func TestTranslateStdinPassesUnreservedKeysWithoutDraftRuntime(t *testing.T) {
+	for _, rt := range []*fakeDraftRouteRuntime{
+		{panes: []byte(`[]`)}, {cached: "2", failFocus: true},
+	} {
+		p := &proxy{draftRouteRuntime: rt, shortcutErrorReporter: func(err error) { t.Errorf("unexpected routing: %v", err) }}
+		input := "\x1b[110;3u\x1b[1;3A\x1b[120;3u\x1bk"
+		var out bytes.Buffer
+		p.translateStdinFrom(strings.NewReader(input), &out, time.Millisecond)
+		if out.String() != input || len(rt.ops) != 0 {
+			t.Fatalf("output=%q operations=%v", out.String(), rt.ops)
+		}
 	}
 }
 
@@ -398,25 +316,12 @@ func TestHandleWorkbenchShortcutRunsAgentProductionPath(t *testing.T) {
 	t.Setenv("ZELLIJ_PANE_ID", "17")
 
 	p := &proxy{}
-	if !p.handleWorkbenchShortcut("Alt+k") {
-		t.Fatal("Alt+k was not handled")
+	if p.handleWorkbenchShortcut("Alt+k") || p.handleWorkbenchShortcut("Alt+j") {
+		t.Fatal("agent focus keys were consumed")
 	}
-	if !p.handleWorkbenchShortcut("Alt+j") {
-		t.Fatal("Alt+j was not handled")
-	}
-
-	sidecar, err := os.ReadFile(filepath.Join(dir, "last-left-pane-work"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(sidecar) != "17\n" {
-		t.Fatalf("last-left pane = %q, want 17", sidecar)
-	}
-	logged, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(logged) != "action focus-pane-id 9\naction move-focus down\n" {
-		t.Fatalf("zellij actions = %q", logged)
+	for _, path := range []string{filepath.Join(dir, "last-left-pane-work"), logPath} {
+		if _, err := os.Stat(path); !os.IsNotExist(err) {
+			t.Fatalf("unreserved key produced side effect %s: %v", path, err)
+		}
 	}
 }

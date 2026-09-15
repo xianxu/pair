@@ -4889,3 +4889,27 @@ Exact external evidence does not authorize an ad-hoc persisted lifecycle state
 assignment. Represent receipt-backed recovery in the owned pure transition
 model and revision-checked store operation. Test interruption between that
 transition and attachment; avoid publishing a synthetic live intermediate state.
+
+## 2026-09-14 — Authorize shortcuts after routing their preceding input (#245)
+
+A byte chunk can contain a menu selection followed by a lifecycle shortcut.
+Framing the shortcut before delivering its prefix is valid; deciding its scope
+then is not. Route the prefix first, read the resulting focus, and only then
+consume or forward the original candidate bytes. Test both focus directions
+with same-read input; per-read focus snapshots cannot establish key ownership.
+
+
+## 2026-09-14 — Validate incremental framing at action boundaries (#245)
+
+A complete shortcut found by lookahead disambiguates any incomplete prefix
+before it. Do not run suffix retention on that artificially truncated prefix
+and then append the complete shortcut to pending input. Exercise malformed or
+stray prefixes followed by valid actions, across reads and flush boundaries;
+partitioning only well-formed streams cannot establish bounded pending state.
+
+When a plan promises CI source coverage, verify representative production paths
+against every event filter before ticking it complete. Running the fixture
+locally does not prove a change will trigger it in CI.
+
+Preserve executable CI selector checks as committed regressions, including both
+events; an ad hoc red/green check alone does not defend the routing invariant.

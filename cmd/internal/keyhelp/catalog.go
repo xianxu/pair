@@ -4,6 +4,7 @@ import "github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 
 // Group titles, in render order.
 const (
+	groupAgent    = "Agent pane — reserved Pair shortcuts; other Pair keys pass through"
 	groupDraft    = "Draft — compose and send"
 	groupHistory  = "Draft — history and queue"
 	groupPanes    = "Panes and layout"
@@ -11,13 +12,9 @@ const (
 	groupSession  = "Session"
 )
 
-var groupOrder = []string{groupDraft, groupHistory, groupPanes, groupTerminal, groupSession}
+var groupOrder = []string{groupAgent, groupDraft, groupHistory, groupPanes, groupTerminal, groupSession}
 
 // entry is one curated row. It holds NO wording: Desc comes from the named Source.
-//
-// The exception is SourceZellij, whose two binds (Alt+h, Alt+l) have no upstream
-// prose anywhere — zellij's KDL has no description field — so Help is authored here
-// and the comment says so rather than leaving a silent inconsistency.
 type entry struct {
 	Key     string // the SOURCE's own spelling, e.g. "<M-CR>" or "Alt h"
 	Display string // display override; empty means derive from Key
@@ -25,7 +22,6 @@ type entry struct {
 	Order   int
 	Context Context
 	Source  Source
-	Help    string // ONLY for SourceZellij
 }
 
 // catalog decides INCLUSION, GROUP and ORDER — never wording.
@@ -80,24 +76,15 @@ var Catalog = catalog{
 		// document twice with different meanings.
 		{Key: "Alt+← (terminal)", Display: "Alt+←", Group: groupTerminal, Order: 5, Context: ContextTerminal, Source: SourceRole},
 		{Key: "Alt+→ (terminal)", Display: "Alt+→", Group: groupTerminal, Order: 6, Context: ContextTerminal, Source: SourceRole},
-		// Global, not role-local: these switch the right pane's tabs from
-		// anywhere and leave focus alone (#216). Grouped with the terminal tab
-		// chords because that is where a reader looks for tab switching. What
-		// distinguishes them from the terminal-ONLY rows above is their Help
-		// wording ("from any pane, without moving focus") — `pair keys` renders
-		// no context column, so Context here feeds classification, not display,
-		// and the group heading's "(in the right terminal)" is corrected by the
-		// row text rather than by the heading. They replaced this group's former
-		// Draft/history occupants (nav_boundary), deleted by operator decision.
+		// Reservation metadata moves these rows to the agent section in
+		// Sections; the catalog owns display/order, not agent eligibility.
 		{Key: "<S-M-Left>", Display: "Shift+Alt+←", Group: groupTerminal, Order: 7, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<S-M-Right>", Display: "Shift+Alt+→", Group: groupTerminal, Order: 8, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<M-T>", Display: "Shift+Alt+t", Group: groupTerminal, Order: 9, Context: ContextGlobal, Source: SourceGlobal},
 
 		// --- Session ------------------------------------------------------
-		{Key: "Alt h", Display: "Alt+h", Group: groupSession, Order: 10, Context: ContextGlobal, Source: SourceZellij,
-			Help: "show this keybinding help"},
-		{Key: "Alt l", Display: "Alt+l", Group: groupSession, Order: 20, Context: ContextGlobal, Source: SourceZellij,
-			Help: "open the changelog"},
+		{Key: "<M-h>", Display: "Alt+h", Group: groupSession, Order: 10, Source: SourceGlobal},
+		{Key: "<M-l>", Display: "Alt+l", Group: groupSession, Order: 20, Source: SourceGlobal},
 		{Key: "<M-C>", Display: "Alt+Shift+c", Group: groupSession, Order: 30, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<M-d>", Display: "Alt+d", Group: groupSession, Order: 40, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<M-N>", Display: "Alt+Shift+n", Group: groupSession, Order: 50, Context: ContextGlobal, Source: SourceGlobal},

@@ -1,12 +1,13 @@
 ---
 id: 000245
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-14
 estimate_hours: 4.379
 started: 2026-09-13T16:24:31-07:00
+actual_hours: 3.73
 ---
 
 # Pass all Pair shortcuts through the agent pane
@@ -83,12 +84,14 @@ total: 4.379
 
 ## Plan
 
-- [ ] Confirm proposed scope and author the implementation plan.
-- [ ] Implement and verify agent shortcut ownership across routing layers.
-- [ ] Update operator documentation and close through the SDLC review gate.
+- [x] Confirm proposed scope and author the implementation plan ([durable plan](../plans/000245-agent-shortcut-passthrough-plan.md)).
+- [x] Implement and verify agent shortcut ownership across routing layers.
+- [x] Update operator documentation and close through the SDLC review gate.
 
 ## Log
 
+
+- 2026-09-14: closed — Full Go suite PASS after production fix (/tmp/pair245-rework-go.log), wrapper and focused race PASS, rebuilt binaries PASS. Round 2 independently verified BR-1 by mutation. BR-2 now has committed TestShortcutConformanceWorkflowSourceTriggers covering nine source paths in both event filters: removing selectors fails five paths per event (/tmp/pair245-workflow-red.log), restored config passes (/tmp/pair245-workflow-green.log). Round 3 changes only tests/docs. Prior shell/Lua and 13 live conformance cases passed. --no-plan-check applies only to close itself and operator smoke scheduled after acceptance; do not publish before smoke.; review verdict: SHIP
 ### 2026-09-13
 
 Created and claimed from the operator's request. Initial inspection found
@@ -197,3 +200,108 @@ retires undocumented multiplexer actions for all panes while preserving
 Pair-owned draft/terminal actions. Announced this consequence to the operator.
 A growing unbind list would fail the promised default ownership on upgrades
 (ARCH-PURPOSE); a closed forwarding configuration prevents that drift.
+
+
+### 2026-09-14 — Implementation integrated; broad verification running
+
+Plan-quality passed after two rounds: PQ-1 fixed post-prefix scope admission;
+PQ-2 named production-function tests and generated stream partitions. Estimate
+quality was informational and start gate created the in-place branch. Estimate
+framing/fixture rows include their regression work, Zellij setup/run/cleanup;
+Lua row includes actual Neovim command geometry and error-reporting integration.
+The linked durable plan supports the design discount and buffer.
+
+Implemented agent-first shared policy with three tab reservations, Couch
+navigation declarations and post-prefix candidate routing, pane-local help and
+changelog, closed Zellij forwarding configuration and metadata-derived help.
+Added paste-aware chord lookahead and bounded suffix retention in both wrapper
+adaptation modes. Test-first failures reproduced consumed ordinary chords,
+pasted tab execution and split-chord loss under Return adaptation. All supported
+harness profiles now pass all two-way splits and bytewise delivery without false
+pasted submission observations. Portable composed acceptance transports actual
+Console child output into the production wrapper.
+
+Focused wrapper suite passed (10.509s), Couch suite (4.439s), Couch race (1.700s),
+shared/help race and native Neovim routing passed. Isolated real Zellij input
+passed all 13 cases with exact bytes and unchanged layout; the old configuration
+failed on Alt+f. Existing live recovery fixtures still passed. These fixtures
+use deterministic recorders, not real coding agents. Full make/race checks are
+running; operator smoke and SDLC close review remain pending.
+
+
+### 2026-09-14 — Verification complete; entering close review
+
+Final full `go test ./... -count=1` passed (exit 0), recorded in
+`/tmp/pair245-final-go.log`. All shell/Lua prerequisites of the second full
+`make test` run passed; that run then found an obsolete term test expecting an
+agent Alt+k focus action and a displaced function comment. Both were corrected,
+the affected term package passed, and the entire Go suite was rerun successfully.
+The earlier literal Alt+o unbind assertion was also migrated to the closed-default
+contract. No production shortcut behavior needed changing for these final checks.
+
+Full shortcut/wrapper/Couch/help race packages passed in `/tmp/pair245-race.log`;
+`make build` exited 0 (`/tmp/pair245-build.log`), and built `couch --help` /
+`pair keys` showed metadata-derived reservations. Diff check passed. Live
+conformance evidence was reported by the fixture agent in exec session 24270
+(chunk c6d7f5): all 13 cases passed under race (1.62s; package 2.930s), existing
+recovery conformance passed (3.052s). Prior-config failure was session 17465
+(chunk e33e1d), Alt+f consumed instead of delivered. Those live runs have no saved
+log file; their tool results are the evidence, not a claimed filesystem log.
+
+The full suite, targeted race coverage, live protocol fixture and actual built
+help are verified. Operator smoke is deliberately pending after the close gate.
+
+
+### 2026-09-14 — Close review round 1 requires rework
+
+The mandatory boundary review returned REWORK: BR-1 (Critical) incomplete-prefix
+buffering can suppress a following reserved shortcut; BR-2 (Important) missing
+CI source selectors. BR-1 is being corrected with stream regression tests.
+BR-2 now covers wrapper, Couch keys/console and Neovim sources in both events;
+representative selector verification failed before and passed after the edit.
+The issue remains working; nothing has been published.
+
+
+BR-1 corrected: when lookahead has a complete next chord, emit the preceding
+literal incomplete escape prefix before dispatch. Only a genuine read-end
+suffix can remain pending. No new routing API or state was added. Regression
+matrix covers all reserved encodings, stray Escape/partial CSI, every two-way
+read partition and Return adaptation on/off. Sustained reads prove preceding
+bytes and actions progress without accumulation; timeout followed by EOF
+flushes a genuinely incomplete suffix once. RED reproduced zero actions
+(`/tmp/pair245-prefix-red.log`); full wrapper PASS 10.861s
+(`/tmp/pair245-wrapper-full.log`) and focused race PASS 2.043s
+(`/tmp/pair245-prefix-race.log`). Build passed after the correction.
+
+Post-rework full `go test ./... -count=1` passed (exit 0),
+`/tmp/pair245-rework-go.log`; rebuilt binaries passed
+(`/tmp/pair245-rework-build.log`). Both findings addressed; entering round 2.
+
+
+### 2026-09-14 — Close round 2: preserve CI regression evidence
+
+Round 2 verified BR-1 addressed, with an independent mutation test. BR-2's
+selectors are correct but the gate requires a committed regression rather than
+only the direct check. Added `TestShortcutConformanceWorkflowSourceTriggers`
+in `cmd/internal/couchcmd/shortcut_workflow_test.go`, covering both event filters
+and nine representative input/config/fixture sources. Removing the added
+selectors makes all five previously missing paths fail in both events
+(`/tmp/pair245-workflow-red.log`); restored selectors pass
+(`/tmp/pair245-workflow-green.log`). No production behavior changed this round.
+
+
+### 2026-09-14 — Ready for operator smoke
+
+Close round 3 returned SHIP with no open findings. Gate recorded codecomplete
+and measured 3.73 hours. Review independently passed focused Go/native Neovim
+checks and verified the CI selector mutation. Current binaries are built.
+Awaiting a fresh Couch process and relaunched test thread for whole-workbench
+operator acceptance; no PR, merge or publication has occurred.
+
+
+### 2026-09-14 — Operator smoke accepted; authorized to land
+
+Operator confirms #245 works: Option+Up now opens the Codex question that was
+previously inaccessible. Authorized landing. A separate Return-selection issue
+on the last menu option is reported and will be investigated after shipping;
+it concerns the existing Return adaptation, not shortcut ownership.

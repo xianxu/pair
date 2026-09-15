@@ -2,6 +2,7 @@ package keyhelp
 
 import (
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"strings"
 	"testing"
 )
@@ -102,5 +103,39 @@ func (failingSources) Read(string) ([]byte, error) { return nil, errors.New("boo
 func TestSectionsSurfacesSourceErrors(t *testing.T) {
 	if _, err := Sections(failingSources{}); err == nil {
 		t.Fatal("a source read failure must surface, not render empty help")
+	}
+}
+
+func TestReservedShortcutHelpMatchesPolicy(t *testing.T) {
+	sections, err := Sections(DefaultSources())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byDisplay := map[string]Binding{}
+	for _, section := range sections {
+		for _, binding := range section.Bindings {
+			byDisplay[binding.Key] = binding
+		}
+	}
+	for _, global := range workbenchshortcut.GlobalBindings() {
+		var found Binding
+		for _, entry := range Catalog.include {
+			if entry.Key == global.NvimKey {
+				found = byDisplay[displayFor(entry)]
+			}
+		}
+		if found.Key == "" {
+			t.Fatalf("no help for %s", global.NvimKey)
+		}
+		if strings.Contains(found.Desc, "outside the agent pane") == global.AgentReserved {
+			t.Errorf("scope description for %s: %q", global.NvimKey, found.Desc)
+		}
+		wantContext, wantGroup := ContextWorkbench, found.Group
+		if global.AgentReserved {
+			wantContext, wantGroup = ContextGlobal, groupAgent
+		}
+		if found.Context != wantContext || found.Group != wantGroup {
+			t.Errorf("scope metadata for %s: %+v", global.NvimKey, found)
+		}
 	}
 }
