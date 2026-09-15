@@ -1,12 +1,13 @@
 ---
 id: 000239
-status: working
+status: codecomplete
 deps: [ariadne#224]
 github_issue:
 created: 2026-09-12
-updated: 2026-09-13
+updated: 2026-09-15
 estimate_hours: 6.57
 started: 2026-09-13T16:20:21-07:00
+actual_hours: N/A
 ---
 
 # Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it
@@ -138,6 +139,8 @@ Implementation details and task checks: [approved plan](../plans/000239-storage-
 
 
 
+
+- 2026-09-15: closed — M1 and M2 SHIP; full Go suite, affected races, killed-publisher and mutation regressions, public CLI survivor/idempotence tests, Lua/shell checks and hosted Zellij conformance pass at unchanged runtime d7180a38. README and atlas updated. Real store preview only; no operator migration/apply. Actual N/A because active-time attribution is incomplete, excluding velocity calibration.; review verdict: SHIP
 - 2026-09-15: closed M2 — Public CLI apply survivor/idempotence fixture, real-store preview only, full Go and affected races, Lua/shell retention, isolated live conformance and hosted CI34940937904 pass. Combined implementation reviewed M1 SHIP; this boundary reconciles acceptance evidence with no new runtime surface. Actual N/A due incomplete attribution.; review verdict: SHIP
 - 2026-09-15: closed M1 — Full Go suite, diagnostic and runtime races, isolated live conformance passed; append-intent mutation regression verified independently. Round5 sole registry classification corrected by source inspection. Shortcut receiver acknowledgment passes causal stalled-client regression and three live repetitions. Actual N/A: session attribution incomplete; no fabricated milestone hours. No real-store migration/apply.; review verdict: SHIP
 ### 2026-09-12

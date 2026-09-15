@@ -148,7 +148,8 @@ Files: create `cmd/internal/gccmd/run.go`, `run_test.go`, `cmd/internal/storageg
 - [x] Run `go test ./... -count=1`, `go test -race ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/launcher`, `make test-lua`, `bash tests/retention-test.sh`, and `git diff --check`; require PASS.
 - [x] Run real-store preview only and record measured eligible/protected/untracked totals without reading content or deleting live files. Run apply against an isolated representative fixture containing old standalone, visible parked, newly archived, expired archived and live sessions; assert the expected survivors and second-apply idempotence.
 - [x] Document 60-day clocks, migration, managed-use boundary, custom stores, commands, retained-error diagnostics and no global size ceiling; update atlas index and issue Log. Commit and close M2 with the binary review gate.
-- [ ] Close #239 with measured actuals and verification, then publish through `sdlc pr` and `sdlc merge`. Do not run destructive real-store migration/apply as a test; automatic collection begins only after migration completion and the full legacy grace.
+- [x] Close #239 with verification and the documented actual-attribution exception.
+- [ ] Publish through `sdlc pr` and `sdlc merge`. Do not run destructive real-store migration/apply as a test; automatic collection begins only after migration completion and the full legacy grace.
 
 ## Revisions
 

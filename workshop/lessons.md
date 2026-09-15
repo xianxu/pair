@@ -4976,3 +4976,4 @@ that transition authority is pure or enforced.
   not attach Review-Verdict/Review-Window trailers to an implementation fix
   commit. SDLC treats those trailers as a completed boundary, even for REWORK;
   verify the emitted review base/head before letting the next review proceed.
+- #239 shortcut conformance: sender sleep cannot establish receiver parser progress. Observe delivered key bytes before sending a printable barrier; incomplete escape prefixes can absorb that barrier under scheduling delays. Reproduce with a stalled disposable client before changing deadlines.

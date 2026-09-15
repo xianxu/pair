@@ -257,6 +257,47 @@ rounds:
       agent: codex
       boundary: M2
       blocked: false
+    - "n": 8
+      timestamp: "2026-09-15T00:26:16-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Eligible metadata-only owners use journaled retirement; protection, admission, and interrupted-retirement tests pass.
+          round: 8
+        - id: BR-2
+          disposition: addressed
+          note: Coordinated JSON publication uses central pending staging; killed-publisher and bounded recovery tests pass.
+          round: 8
+        - id: BR-3
+          disposition: addressed
+          note: Confirmed-dead pre-spawn reservations retire through recovery and admission; spawned and unknown reservations remain protected in passing tests.
+          round: 8
+        - id: BR-4
+          disposition: addressed
+          note: Durable references discover owners without payload directories; legacy archive onboarding, identity validation, and eventual collection tests pass.
+          round: 8
+        - id: BR-5
+          disposition: addressed
+          note: Production advancement calls ReduceTransaction; matrix, sequence, and bypass tests pass. The plan Core concepts table classifies StoreRegistry as INTEGRATION, matching filesystem validation in stores.go:26-66.
+          round: 8
+        - id: BR-6
+          disposition: addressed
+          note: Owner-budget, 100,000-filename, diagnostic-isolation, contention, deadline, and cancellation tests pass through production maintenance paths.
+          round: 8
+        - id: BR-7
+          disposition: addressed
+          note: Prepared journal publication precedes unique quarantine creation; publication-failure, killed-publisher, and unsafe-replacement tests pass.
+          round: 8
+        - id: BR-8
+          disposition: addressed
+          note: Diagnostic deletion replay tolerates completed ancestor removal while rejecting replacement evidence; effect-boundary replay tests pass.
+          round: 8
+        - id: BR-9
+          disposition: addressed
+          note: Append authority precedes payload mutation and recovery commits only the observed authorized prefix; partial-write, cancellation, killed-publisher, and replacement tests pass.
+          round: 8
+      blocked: false
 ---
 
 # Gate ledger — 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it#239 (boundary-review)
@@ -361,6 +402,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-9 — addressed — Bounded append intents reconcile the observed authorized prefix; partial-write, killed-publisher and substitution tests pass.
 
 ## Round 7 — 2026-09-15T00:23:01-07:00 (codex) — passed
+
+## Round 8 — 2026-09-15T00:26:16-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Eligible metadata-only owners use journaled retirement; protection, admission, and interrupted-retirement tests pass.
+- BR-2 — addressed — Coordinated JSON publication uses central pending staging; killed-publisher and bounded recovery tests pass.
+- BR-3 — addressed — Confirmed-dead pre-spawn reservations retire through recovery and admission; spawned and unknown reservations remain protected in passing tests.
+- BR-4 — addressed — Durable references discover owners without payload directories; legacy archive onboarding, identity validation, and eventual collection tests pass.
+- BR-5 — addressed — Production advancement calls ReduceTransaction; matrix, sequence, and bypass tests pass. The plan Core concepts table classifies StoreRegistry as INTEGRATION, matching filesystem validation in stores.go:26-66.
+- BR-6 — addressed — Owner-budget, 100,000-filename, diagnostic-isolation, contention, deadline, and cancellation tests pass through production maintenance paths.
+- BR-7 — addressed — Prepared journal publication precedes unique quarantine creation; publication-failure, killed-publisher, and unsafe-replacement tests pass.
+- BR-8 — addressed — Diagnostic deletion replay tolerates completed ancestor removal while rejecting replacement evidence; effect-boundary replay tests pass.
+- BR-9 — addressed — Append authority precedes payload mutation and recovery commits only the observed authorized prefix; partial-write, cancellation, killed-publisher, and replacement tests pass.
 
 ## Open findings
 
