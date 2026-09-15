@@ -33,6 +33,19 @@ rounds:
           note: Both workflow filters now match the promised source families. An independent before/after check confirms five missing representative paths become covered in each event. However, no committed regression test preserves this check; the plan records only an ad hoc run. Under the executable-configuration evidence requirement, add a reproducible test covering both event filters that fails when the added selectors are removed.
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-14T21:04:39-07:00"
+      agent: codex
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: Both workflow filters cover the missing sources. The committed regression passes at HEAD; removing the selectors in a scratch copy fails all five previously missing paths in both events.
+          round: 3
+        - id: BR-1
+          disposition: addressed
+          note: The prior disposition stands. Prefix disambiguation remains present, and the wrapper suite passes the partition, progress, timeout and EOF regressions.
+          round: 3
+      blocked: false
 ---
 
 # Gate ledger — pair#245 (boundary-review)
@@ -56,6 +69,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-1 — addressed — The incomplete-prefix regressions pass at HEAD, including race coverage. Removing the prefix-release fix through a temporary Go overlay makes TestReservedShortcutAfterIncompletePrefixEOF fail with zero actions, establishing regression sensitivity.
 - BR-2 — not-addressed — Both workflow filters now match the promised source families. An independent before/after check confirms five missing representative paths become covered in each event. However, no committed regression test preserves this check; the plan records only an ad hoc run. Under the executable-configuration evidence requirement, add a reproducible test covering both event filters that fails when the added selectors are removed.
 
+## Round 3 — 2026-09-14T21:04:39-07:00 (codex) — passed
+
+### Disposed
+
+- BR-2 — addressed — Both workflow filters cover the missing sources. The committed regression passes at HEAD; removing the selectors in a scratch copy fails all five previously missing paths in both events.
+- BR-1 — addressed — The prior disposition stands. Prefix disambiguation remains present, and the wrapper suite passes the partition, progress, timeout and EOF regressions.
+
 ## Open findings
 
-- **BR-2** [Important] `conformance-source-trigger-coverage` Both conformance event filters omit source paths promised by the completed plan
+(none — every finding has been disposed)

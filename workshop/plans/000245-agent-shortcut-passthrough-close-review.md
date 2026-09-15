@@ -181,3 +181,88 @@ The pinned-range whitespace check reports two trailing-space lines in the previo
 ## 7. Plan revision recommendations
 
 Append a dated `## Revisions` entry naming BR-2’s regression test and its red/green evidence once added. The revised concept inventory otherwise matches the implementation.
+
+---
+
+## Re-review — 2026-09-14T21:04:39-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 245 — Pass all Pair shortcuts through the agent pane |
+| repo | pair |
+| issue file | workshop/issues/000245-agent-shortcut-passthrough.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 0ad7e1a59c990afffc0fc5e0937d1493a097de01..eb37d1db2263f67f2ee20595e3b4aac0423d2fd8 |
+| command | sdlc close --issue 245 |
+| reviewer | codex |
+| timestamp | 2026-09-14T21:04:39-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned implementation matches the revised Spec/Plan. BR-2 now has verified regression evidence, and no new blocking findings surfaced. This approves the code-review boundary; the documented operator smoke remains pending before publication.
+
+```findings
+dispose:
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Both workflow filters cover the missing sources. The committed regression passes at HEAD; removing the selectors in a scratch copy fails all five previously missing paths in both events.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The prior disposition stands. Prefix disambiguation remains present, and the wrapper suite passes the partition, progress, timeout and EOF regressions.
+```
+
+### 1. Strengths
+
+- Agent reservations derive from shared binding metadata.
+- Couch authorizes candidates after delivering preceding input.
+- Tests transport actual Console output into the wrapper and exercise fragmented input and paste.
+- README and atlas document the changed ownership and lifecycle entrypoints.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage
+
+Passed independently:
+
+- Seven focused Go packages covering shortcuts, wrapper, Couch, terminal and help.
+- Native Neovim routing tests.
+- BR-2 mutation check: green with selectors, red without.
+- Pinned-range `git diff --check`.
+
+Real-Zellij conformance and operator smoke were not rerun in this review.
+
+### 6. Architecture
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass — routing and help reuse reservation declarations. |
+| ARCH-PURE | Pass — deterministic policy/framing; help reads immutable embedded assets. |
+| ARCH-PURPOSE | Pass — covers all declared unreserved chords and upstream interception. |
+| ARCH-MOCK | Pass — existing terminal/action seams plus recurring live conformance. |
+| ARCH-CONSTRAINTS | Pass — bounded pending suffixes and progress regressions. |
+| ARCH-SECURE | Pass — literal paste handling and structured command arguments. |
+| ARCH-ORDER | Pass — prefix delivery precedes authorization; stream partitions are tested. |
+| ARCH-FUNERAL | Pass — disposable fixtures have cleanup; no new production durable artifact family. |
+
+### 7. Plan revisions
+
+None required. Keep operator smoke unchecked until performed.

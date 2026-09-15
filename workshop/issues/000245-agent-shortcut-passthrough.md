@@ -1,12 +1,13 @@
 ---
 id: 000245
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-14
 estimate_hours: 4.379
 started: 2026-09-13T16:24:31-07:00
+actual_hours: 3.73
 ---
 
 # Pass all Pair shortcuts through the agent pane
@@ -85,10 +86,12 @@ total: 4.379
 
 - [x] Confirm proposed scope and author the implementation plan ([durable plan](../plans/000245-agent-shortcut-passthrough-plan.md)).
 - [x] Implement and verify agent shortcut ownership across routing layers.
-- [ ] Update operator documentation and close through the SDLC review gate.
+- [x] Update operator documentation and close through the SDLC review gate.
 
 ## Log
 
+
+- 2026-09-14: closed — Full Go suite PASS after production fix (/tmp/pair245-rework-go.log), wrapper and focused race PASS, rebuilt binaries PASS. Round 2 independently verified BR-1 by mutation. BR-2 now has committed TestShortcutConformanceWorkflowSourceTriggers covering nine source paths in both event filters: removing selectors fails five paths per event (/tmp/pair245-workflow-red.log), restored config passes (/tmp/pair245-workflow-green.log). Round 3 changes only tests/docs. Prior shell/Lua and 13 live conformance cases passed. --no-plan-check applies only to close itself and operator smoke scheduled after acceptance; do not publish before smoke.; review verdict: SHIP
 ### 2026-09-13
 
 Created and claimed from the operator's request. Initial inspection found
@@ -285,3 +288,12 @@ and nine representative input/config/fixture sources. Removing the added
 selectors makes all five previously missing paths fail in both events
 (`/tmp/pair245-workflow-red.log`); restored selectors pass
 (`/tmp/pair245-workflow-green.log`). No production behavior changed this round.
+
+
+### 2026-09-14 — Ready for operator smoke
+
+Close round 3 returned SHIP with no open findings. Gate recorded codecomplete
+and measured 3.73 hours. Review independently passed focused Go/native Neovim
+checks and verified the CI selector mutation. Current binaries are built.
+Awaiting a fresh Couch process and relaunched test thread for whole-workbench
+operator acceptance; no PR, merge or publication has occurred.
