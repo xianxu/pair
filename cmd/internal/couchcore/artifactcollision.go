@@ -12,6 +12,10 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
+// ErrPairSessionBindingAbsent means the exact scoped index was readable but
+// contains no session binding for this address. It does not prove session absence.
+var ErrPairSessionBindingAbsent = errors.New("exact Pair session binding is absent")
+
 type PairSessionBinding struct {
 	Name    string
 	Present bool
@@ -216,7 +220,7 @@ func (c ScopedThreadArtifactCollisionChecker) PairSessionContext(ctx context.Con
 	}
 	name := effectiveBindings([]scopedIndexRead{{scope: address.RepoScope, index: index}})[address]
 	if name == "" {
-		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
+		return PairSessionBinding{}, fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
 	}
 	// Liveness, not a full snapshot: Present is "listed and not exited", so no
 	// session needs asking for its clients. This is couch's registration poll on

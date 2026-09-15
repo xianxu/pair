@@ -266,7 +266,7 @@ func (c *Couch) RetryContinuation(ctx context.Context, address ThreadAddress, id
 		if err := c.verifyContinuationGeneration(ctx, admission); err != nil {
 			return ContinuationResult{Status: *continuationStatus(record)}, err
 		}
-		presence, err := c.observeSessionPresence(address)
+		presence, err := c.observeSessionPresenceContext(ctx, address)
 		if err != nil || presence != PresenceAbsent {
 			if err == nil {
 				err = errors.New("previous continuation target may still exist; inspect or copy the checkpoint")

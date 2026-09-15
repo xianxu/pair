@@ -250,7 +250,27 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	if readErr == nil {
 		reconciled, evidence, err := c.reconcileRecoveryHelper(ctx, address)
 		if err != nil {
-			return ArchiveResult{}, err
+			// A pre-session launch failure can leave a readable empty record
+			// with no binding. This is a non-signalling bookkeeping escape,
+			// not proof of session absence for recovery or a retained request.
+			if !errors.Is(err, ErrPairSessionBindingAbsent) || len(record.Incarnations) != 0 || record.Park != nil || record.Continuation != nil {
+				return ArchiveResult{}, err
+			}
+			// Recheck the exact index before the revision-guarded move. A
+			// newly published binding requires normal ownership checks.
+			if _, err := c.recoverySession(ctx, address); !errors.Is(err, ErrPairSessionBindingAbsent) {
+				if err != nil {
+					return ArchiveResult{}, err
+				}
+				return ArchiveResult{}, fmt.Errorf("archive %s: session binding appeared before archive", address.Tag)
+			}
+			if err := ctx.Err(); err != nil {
+				return ArchiveResult{}, err
+			}
+			if err := c.Threads.ArchiveThreadExpected(address, record.Revision); err != nil {
+				return ArchiveResult{}, err
+			}
+			return ArchiveResult{Record: record}, nil
 		}
 		record = reconciled
 		decision := DecideRecovery(evidence)
@@ -281,7 +301,7 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		}
 		// Quiesce may cross an external failure/retry boundary. Refuse if a
 		// session appeared again or durable request state changed meanwhile.
-		presence, err := c.observeSessionPresence(address)
+		presence, err := c.observeSessionPresenceContext(ctx, address)
 		if err != nil {
 			return ArchiveResult{}, err
 		}

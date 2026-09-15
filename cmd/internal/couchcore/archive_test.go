@@ -3,7 +3,9 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"os"
 	"reflect"
 	"strings"
@@ -560,5 +562,121 @@ func TestArchiveExpectedUnreadableObservationDoesNotArchiveRepairedRecord(t *tes
 	corrupt := writeCorruptRecord(t, store, record, "couch-0000000000000251")
 	if err := store.ArchiveThreadExpected(corrupt, 0); err != nil {
 		t.Fatalf("unchanged unreadable record lost archive escape: %v", err)
+	}
+}
+
+func TestCouchArchiveNeverBoundThreadDoesNotSignal(t *testing.T) {
+	for _, corrupt := range []bool{false, true} {
+		t.Run(fmt.Sprintf("unreadable-index=%v", corrupt), func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			record := archivableThread(t, store, "couch-0000000000000001")
+			global := t.TempDir()
+			paths := launcher.NewScopedPaths(global, launcher.RepoScope{Key: record.Address.RepoScope}, string(record.Address.Tag))
+			if err := os.MkdirAll(paths.ScopeDir(), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if corrupt {
+				if err := os.Mkdir(paths.SessionBindings(), 0700); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := os.WriteFile(paths.SessionBindings(), nil, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			checker := &archiveScopedChecker{ScopedThreadArtifactCollisionChecker: NewScopedThreadArtifactCollisionChecker(global)}
+			deleter := &fakeSessionDeleter{}
+			checker.Sessions = deleter
+			c := &Couch{Threads: store, Artifacts: checker, Proc: NewFakeProcOps()}
+			_, err := c.ArchiveThread(context.Background(), record.Address)
+			if corrupt {
+				if err == nil {
+					t.Fatal("archived with unreadable index")
+				}
+				if _, err := store.GetThread(record.Address); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				archived, err := store.ArchivedThreads()
+				if err != nil || len(archived) != 1 || !reflect.DeepEqual(archived[0], record) {
+					t.Fatalf("archive=%+v err=%v", archived, err)
+				}
+			}
+			if len(deleter.deleted) != 0 || checker.stops != 0 {
+				t.Fatalf("signalled sessions: %v, quiesce calls: %d", deleter.deleted, checker.stops)
+			}
+		})
+	}
+}
+
+// Keep the real index reader while observing the destructive seam and injecting
+// a competing record publication between its two exact missing-binding reads.
+type archiveScopedChecker struct {
+	ScopedThreadArtifactCollisionChecker
+	before func()
+	stops  int
+}
+
+func (a *archiveScopedChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+	if a.before != nil {
+		a.before()
+	}
+	return a.ScopedThreadArtifactCollisionChecker.PairSessionContext(ctx, address)
+}
+func (a *archiveScopedChecker) Quiesce(address ThreadAddress) error {
+	a.stops++
+	return a.ScopedThreadArtifactCollisionChecker.Quiesce(address)
+}
+
+func TestCouchArchiveMissingBindingDoesNotBypassRequestOrRevision(t *testing.T) {
+	for _, mode := range []string{"request", "revision-race", "index-race"} {
+		t.Run(mode, func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			record := archivableThread(t, store, "couch-0000000000000001")
+			if mode == "request" {
+				var err error
+				record, err = store.PublishContinuation(record.Address, record.Revision, testContinuationRequest(t, record))
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			global := t.TempDir()
+			checker := &archiveScopedChecker{ScopedThreadArtifactCollisionChecker: NewScopedThreadArtifactCollisionChecker(global)}
+			reads := 0
+			checker.before = func() {
+				reads++
+				if reads != 2 {
+					return
+				}
+				if mode == "revision-race" {
+					if _, err := store.PublishContinuation(record.Address, record.Revision, testContinuationRequest(t, record)); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if mode == "index-race" {
+					paths := launcher.NewScopedPaths(global, launcher.RepoScope{Key: record.Address.RepoScope}, string(record.Address.Tag))
+					if err := os.MkdirAll(paths.ScopeDir(), 0700); err != nil {
+						t.Fatal(err)
+					}
+					// An unreadable newly published index is unknown, never missing.
+					if err := os.Mkdir(paths.SessionBindings(), 0700); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			c := &Couch{Threads: store, Artifacts: checker, Proc: NewFakeProcOps()}
+			if _, err := c.ArchiveThread(context.Background(), record.Address); err == nil {
+				t.Fatal("archived despite retained request or changed evidence")
+			}
+			if _, err := store.GetThread(record.Address); err != nil {
+				t.Fatal(err)
+			}
+			if checker.stops != 0 {
+				t.Fatalf("quiesced %d times", checker.stops)
+			}
+		})
 	}
 }

@@ -221,9 +221,29 @@ func (c *Couch) ReadOrientationStatus(ctx context.Context, address ThreadAddress
 var errObsoleteOrientationReady = errors.New("orientation ready record belongs to an obsolete target")
 
 type OSOrientationStatusReader struct {
-	DataDir string
-	Session func(ThreadAddress) (PairSessionBinding, error)
-	Proc    ProcOps
+	DataDir        string
+	Session        func(ThreadAddress) (PairSessionBinding, error)
+	SessionContext func(context.Context, ThreadAddress) (PairSessionBinding, error)
+	Proc           ProcOps
+}
+
+// sessionBinding prefers the cancellable production observer. Session remains
+// compatible with in-memory observers and older embedders.
+func (r OSOrientationStatusReader) sessionBinding(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {
+	if err := ctx.Err(); err != nil {
+		return PairSessionBinding{}, err
+	}
+	if r.SessionContext != nil {
+		return r.SessionContext(ctx, address)
+	}
+	if r.Session == nil {
+		return PairSessionBinding{}, errors.New("orientation session binding unavailable")
+	}
+	binding, err := r.Session(address)
+	if err == nil {
+		err = ctx.Err()
+	}
+	return binding, err
 }
 
 func (r OSOrientationStatusReader) readReadyFile(ctx context.Context, address ThreadAddress, agent, attempt string) (*readiness.ReadyRecord, error) {
@@ -271,10 +291,7 @@ func (r OSOrientationStatusReader) readReady(ctx context.Context, address Thread
 	if err != nil || ready == nil {
 		return ready, err
 	}
-	if r.Session == nil {
-		return nil, errors.New("orientation session binding unavailable")
-	}
-	session, err := r.Session(address)
+	session, err := r.sessionBinding(ctx, address)
 	if err != nil {
 		return nil, err
 	}
@@ -319,10 +336,7 @@ func (r OSOrientationStatusReader) Generation(ctx context.Context, address Threa
 	if ready.LaunchOrdinal == 0 {
 		return nil, nil
 	} // legacy receipts prove no generation
-	if r.Session == nil {
-		return nil, errors.New("continuation target session binding unavailable")
-	}
-	session, err := r.Session(address)
+	session, err := r.sessionBinding(ctx, address)
 	if err != nil {
 		return nil, err
 	}

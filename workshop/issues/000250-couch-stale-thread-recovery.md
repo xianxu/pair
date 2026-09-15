@@ -315,3 +315,37 @@ operator smoke after review, not unimplemented recovery behavior. Preserve that
 pending operator acceptance; do not label it already performed. No live Astro
 process/session has been changed. Implementation is being committed for the
 mandatory SDLC boundary review.
+
+
+### 2026-09-14 — Boundary review round 1: REWORK
+
+SDLC reviewed 2e4b2df7..75962c63. BR-1 Critical: newly unconditional recovery
+observation blocks readable empty never-bound threads from non-signalling
+archive. BR-2 Important: retry/generation session observation drops caller
+context. Both findings are accepted for targeted reproduction and class-wide
+fixes; cancellation sweep includes archive's final observation. No gate bypass
+or operator smoke claim. Review ledger preserves stable findings for round 2.
+
+
+### 2026-09-14 — BR-1 and BR-2 fixes verified locally
+
+BR-1 reproduced through Couch.ArchiveThread using a real readable scoped index
+with no matching binding. Added an explicit missing-binding error and a narrow
+empty/no-park/no-continuation archive path that performs no Quiesce or signal,
+rechecks the index, and uses the final record revision fence. Corrupt index,
+retained request and concurrent replacement tests refuse. Focused archive and
+PairSession race tests passed (5.388s).
+
+BR-2 reproduced lost caller cancellation during continuation retry. Added a
+context-aware presence observer, used it in retry and archive's final observation,
+and wired OSOrientationStatusReader.SessionContext in production. Generation,
+Read and Registered share the cancellable binding reader. Focused race tests
+passed (3.197s), proving deadlines reach the observer without record mutation or
+extra launch. Existing cleanup with no caller context keeps its deliberate
+post-cancellation reconciliation contract. Review-fix build passes; full affected
+core/command packages are running before round 2. No operator session changed.
+
+Full affected packages pass after both fixes: couchcore 95.010s and couchcmd
+20.593s (/tmp/pair250-review-fix-tests.log). Real Zellij recovery conformance
+passes again (3.142s, /tmp/pair250-review-fix-live.log). Build and diff check
+pass. These fixes are ready for the second SDLC boundary review.
