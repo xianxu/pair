@@ -205,7 +205,9 @@ func (c *Collector) collectItem(held *Locked, item CollectionItem) error {
 	if err != nil {
 		return err
 	}
-	for _, dir := range []string{c.transactionDir(), filepath.Dir(c.quarantine(t)), c.quarantine(t)} {
+	// Only the shared journal directory may precede publication. Unique
+	// quarantine state must always have durable transaction authority.
+	for _, dir := range []string{c.transactionDir()} {
 		if err := held.CheckContext(); err != nil {
 			return err
 		}
@@ -342,7 +344,25 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 	if err := c.validateTransaction(*t); err != nil {
 		return err
 	}
-	if err := checkDirectory(filepath.Dir(c.quarantine(*t)), false); err != nil {
+	if t.Phase == "prepared" {
+		// A killed publisher may leave an authoritative prepared journal before
+		// creating any quarantine directories. Recovery creates them only after
+		// validating the frozen transaction, and before touching source names.
+		for _, dir := range []string{filepath.Dir(c.quarantine(*t)), c.quarantine(*t)} {
+			if err := held.CheckContext(); err != nil {
+				return err
+			}
+			if err := checkDirectory(dir, true); err != nil {
+				return err
+			}
+			if err := c.Coordinator.syncDirectory(filepath.Dir(dir)); err != nil {
+				return err
+			}
+		}
+		if err := c.fault("quarantine"); err != nil {
+			return err
+		}
+	} else if err := checkDirectory(filepath.Dir(c.quarantine(*t)), false); err != nil {
 		return err
 	}
 	if t.Phase == "prepared" {

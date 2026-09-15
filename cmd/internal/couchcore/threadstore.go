@@ -91,8 +91,10 @@ func NewThreadStore(namespace CouchNamespace) *ThreadStore {
 }
 
 type threadStoreHooks struct {
-	AfterJournal func() error
-	AfterTarget  func(int) error
+	// AfterPublicationWrite runs after staging fsync and before target rename.
+	AfterPublicationWrite func(string) error
+	AfterJournal          func() error
+	AfterTarget           func(int) error
 	// AfterGetThread fires once GetThread has released the lock, which is the
 	// ONE moment a caller's read-then-CAS window is open. Without it a
 	// revision-conflict retry cannot be reached from a test: every hook that
@@ -144,17 +146,39 @@ func (s *ThreadStore) withLock(fn func() error) (err error) {
 	return s.withStoreLock(fn)
 }
 
-func (s *ThreadStore) withStoreLock(fn func() error) (err error) {
+func (s *ThreadStore) withStoreLock(fn func() error) error {
+	return s.withStoreLockChecked(fn, nil)
+}
+
+// A maintenance check selects nonblocking nested locking: the root coordinator
+// must never remain held while waiting for an independently busy Couch store.
+// Ordinary writers pass nil and retain their blocking lock semantics.
+func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error) (err error) {
 	if s == nil || s.namespace.Dir() == "" {
 		return errors.New("thread store has no namespace")
 	}
-	lock, err := acquireThreadStoreLock(s.root)
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	lock, err := acquireThreadStoreLockMode(s.root, check != nil)
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	if err := s.recoverStoreJournalLocked(); err != nil {
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	if err := s.recoverStoreJournalLockedChecked(check); err != nil {
 		return err
+	}
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
 	}
 	return fn()
 }
@@ -666,7 +690,7 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		}
 		nextThreadRaw = append(nextThreadRaw, '\n')
 		if profile == nil {
-			if err := writeAtomicBytes(s.recordPath(address), nextThreadRaw); err != nil {
+			if err := s.writeStoreAtomicLocked(s.recordPath(address), nextThreadRaw); err != nil {
 				return err
 			}
 			result = cloneThreadRecord(next)
@@ -971,6 +995,13 @@ func relativeStorePath(root, path string) string {
 }
 
 func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
+	return s.commitJournalLockedChecked(journal, nil)
+}
+
+func (s *ThreadStore) commitJournalLockedChecked(journal storeJournal, check func() error) error {
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
 	journal, err := assignStoreJournalNonce(journal)
 	if err != nil {
 		return err
@@ -979,7 +1010,7 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 	if err != nil {
 		return err
 	}
-	if err := writeAtomicBytes(s.journalPath(), append(raw, '\n')); err != nil {
+	if err := s.writeStoreAtomicLockedChecked(s.journalPath(), append(raw, '\n'), check); err != nil {
 		return err
 	}
 	if s.hooks.AfterJournal != nil {
@@ -988,7 +1019,7 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 		}
 	}
 	for i, entry := range journal.Entries {
-		if err := s.applyJournalEntry(entry); err != nil {
+		if err := s.applyJournalEntryChecked(entry, check); err != nil {
 			return err
 		}
 		if s.hooks.AfterTarget != nil {
@@ -996,6 +1027,9 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 				return err
 			}
 		}
+	}
+	if err := checkStoreContext(check); err != nil {
+		return err
 	}
 	if err := os.Remove(s.journalPath()); err != nil {
 		return err

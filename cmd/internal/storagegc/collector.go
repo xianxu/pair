@@ -69,21 +69,38 @@ func (c *Collector) Preview(ctx context.Context) (report CollectionReport, err e
 	if c.Coordinator == nil {
 		return report, errors.New("collector requires coordinator")
 	}
-	err = c.Coordinator.WithReadLock(ctx, func(l *Locked) error { var e error; report, e = c.snapshot(ctx, l); return e })
+	err = c.Coordinator.WithReadLock(ctx, func(l *Locked) error {
+		var e error
+		report, e = c.snapshot(ctx, l)
+		return e
+	})
 	return
 }
 
-// TryPreview yields to an active foreground writer without waiting.
-func (c *Collector) TryPreview(ctx context.Context) (report CollectionReport, err error) {
+// DiagnosticInventory discovers exact debugging paths without evaluating
+// session clocks, leases or process liveness. Each diagnostic page proves its
+// own writer and generation safety at collection time.
+func (c *Collector) DiagnosticInventory(ctx context.Context) (report CollectionReport, err error) {
 	if c.Coordinator == nil {
 		return report, errors.New("collector requires coordinator")
 	}
-	err = c.Coordinator.TryWithReadLock(ctx, func(l *Locked) error { var e error; report, e = c.snapshot(ctx, l); return e })
+	err = c.Coordinator.TryWithReadLock(ctx, func(l *Locked) error {
+		var e error
+		report, e = c.snapshotWithInventory(ctx, l, "", 0, nil, diagnosticPathsOnly)
+		return e
+	})
 	return
 }
 func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionReport, error) {
 	return c.snapshotPage(ctx, held, "", 0)
 }
+
+type snapshotPurpose uint8
+
+const (
+	sessionDecisions snapshotPurpose = iota
+	diagnosticPathsOnly
+)
 
 // inventorySnapshot exists only within one uninterrupted root-lock callback.
 // Metadata onboarding changes clocks, never the discovered payload paths.
@@ -94,10 +111,10 @@ type inventorySnapshot struct {
 }
 
 func (c *Collector) snapshotPage(ctx context.Context, held *Locked, after string, ownerLimit int) (CollectionReport, error) {
-	return c.snapshotWithInventory(ctx, held, after, ownerLimit, nil)
+	return c.snapshotWithInventory(ctx, held, after, ownerLimit, nil, sessionDecisions)
 }
 
-func (c *Collector) snapshotWithInventory(ctx context.Context, held *Locked, after string, ownerLimit int, cache *inventorySnapshot) (CollectionReport, error) {
+func (c *Collector) snapshotWithInventory(ctx context.Context, held *Locked, after string, ownerLimit int, cache *inventorySnapshot, purpose snapshotPurpose) (CollectionReport, error) {
 	r := CollectionReport{BatchComplete: true}
 	registry, err := c.Coordinator.ReadRegistry()
 	referencesComplete := err == nil
@@ -199,6 +216,23 @@ func (c *Collector) snapshotWithInventory(ctx context.Context, held *Locked, aft
 	}
 	r.Complete = inventory.Complete
 	r.Unknown = inventory.Unknown
+	if purpose == diagnosticPathsOnly {
+		for _, group := range inventory.Groups {
+			item := CollectionItem{Owner: group.Owner, Bucket: artifactpath.DebugRetention}
+			for _, member := range group.Members {
+				if err := ctx.Err(); err != nil {
+					return r, err
+				}
+				if member.Retention == artifactpath.DebugRetention {
+					item.Members = append(item.Members, member)
+				}
+			}
+			if len(item.Members) > 0 {
+				r.Items = append(r.Items, item)
+			}
+		}
+		return r, nil
+	}
 	rootLegacy := ProcessUnknown
 	if c.LegacyRoot != nil {
 		var err error
@@ -457,7 +491,7 @@ func (c *Collector) applyPage(ctx context.Context, after string, limit int, opti
 			return err
 		}
 		cache := &inventorySnapshot{}
-		initial, err := c.snapshotWithInventory(ctx, held, after, ownerLimit, cache)
+		initial, err := c.snapshotWithInventory(ctx, held, after, ownerLimit, cache, sessionDecisions)
 		if err != nil {
 			return err
 		}
@@ -498,7 +532,7 @@ func (c *Collector) applyPage(ctx context.Context, after string, limit int, opti
 				return err
 			}
 		}
-		report, err = c.snapshotWithInventory(ctx, held, after, ownerLimit, cache)
+		report, err = c.snapshotWithInventory(ctx, held, after, ownerLimit, cache, sessionDecisions)
 		if err != nil {
 			return err
 		}

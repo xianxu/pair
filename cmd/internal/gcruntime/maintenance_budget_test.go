@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
@@ -211,5 +212,64 @@ func TestMaintenanceSchedulerDeadlineRetainsDurableCursor(t *testing.T) {
 	}
 	if calls != 3 {
 		t.Fatalf("worker failed to resume: calls%d", calls)
+	}
+}
+
+func TestMaintenanceDiagnosticPagesDoNotEvaluateSessionOwners(t *testing.T) {
+	s, _ := scheduleFixture(t)
+	ctx := context.Background()
+	c := s.Collector.Coordinator
+	for n := 0; n < 7; n++ {
+		if err := os.WriteFile(filepath.Join(c.Root, fmt.Sprintf("draft-extra%d.md", n)), []byte("keep"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.CompleteMigration(ctx, nil); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now()
+	s.DiagnosticOptions.Now = func() time.Time { return now }
+	s.DiagnosticOptions.Proof = func(string, []diagnosticlog.Registration) error { return nil }
+	for _, tag := range []string{"tag", "extra0"} {
+		p := filepath.Join(c.Root, "wrap-events-"+tag+".jsonl")
+		if err := os.WriteFile(p, []byte("expired diagnostic"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(p, now.Add(-8*24*time.Hour), now.Add(-8*24*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	probes, persists := 0, 0
+	c.BeforePersist = func() error { persists++; return nil }
+	s.Collector.Legacy = func(context.Context, artifactpath.StorageOwner) (storagegc.Liveness, error) {
+		probes++
+		return storagegc.ProcessDead, nil
+	}
+	s.Collector.LegacyRoot = func(context.Context, []storagegc.ProcessIdentity) (storagegc.Liveness, error) {
+		probes++
+		return storagegc.ProcessDead, nil
+	}
+	cursor, complete := `{"phase":"diagnostics"}`, false
+	for n := 0; !complete && n < 4; n++ {
+		previous := cursor
+		var err error
+		cursor, complete, err = s.Batch(ctx, cursor, 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if probes != 0 || persists != 0 {
+			t.Fatalf("diagnostic page evaluated sessions: probes=%d persists=%d", probes, persists)
+		}
+		if !complete && cursor == previous {
+			t.Fatal("diagnostic page failed to advance")
+		}
+	}
+	if !complete {
+		t.Fatal("diagnostic pass did not complete")
+	}
+	for _, tag := range []string{"tag", "extra0"} {
+		if _, err := os.Stat(filepath.Join(c.Root, "wrap-events-"+tag+".jsonl")); !os.IsNotExist(err) {
+			t.Fatalf("diagnostic remains: %s %v", tag, err)
+		}
 	}
 }

@@ -420,3 +420,44 @@ and runtime race suites passed; public apply acceptance passed after flat-owner
 adapter correction. Legacy pending integration race passed2.721s and console
 shutdown regression race x20 passed3.027s. `git diff --check` passed. Ready for
 M1 round2; BR finding disposition belongs to that fresh review, not this log.
+
+
+### 2026-09-14 23:07 PDT — M1 round2 REWORK; class fixes underway
+
+The fresh review addressed BR-1, BR-2, BR-3 and BR-5 with mutation checks.
+BR-4 still missed durable owners whose payload namespace was absent; BR-6 still
+ran session probes during diagnostic pages and blocked on nested Couch locks;
+BR-7 found unique quarantine directories created before journal publication.
+These are real remaining gaps, not a completed milestone.
+
+Absent-namespace legacy/tracked archive and metadata-only cases now pass with
+full grace and eventual collection (focused race: storagegc1.300s,
+gcruntime2.627s). Diagnostic-page regression reproduced9 session probes and now
+passes with zero probes/writes while collecting old diagnostics. All five nested
+Couch maintenance APIs pass contention/cancellation regressions under race
+(`/tmp/pair239-nested-lock-race.log`). Journal-before-quarantine publication
+passes repeated errors, cancellation, real killed publisher and unsafe-path
+coverage; full storagegc race passed14.745s (`/tmp/pair239-br7-race.log`). The
+related Couch publisher stage lifecycle is being completed before round3.
+
+Draft PR138 runs CI. Bootstrap fixes are committed/pushed at4ef4d69b and3149cdd7;
+workflow regressions pass. Hosted tests now run, but one live Zellij detach
+fixture timed out after preceding live checks passed. The exact group passes
+locally4.437s on the same Zellij0.45.1; one hosted retry was requested. No test
+or timeout was weakened. Publication remains gated.
+
+
+Round3 final verification passed: full `go test ./... -count=1` with selected
+runtime environment cleared (`/tmp/pair239-round3-full-go-final.log`), including
+couchcore138.339s and gcruntime123.919s. A preceding run found three unused
+compatibility wrappers; they were removed without allowlisting, and the final
+full run is clean. Storagegc/gcruntime/gccmd race suites passed
+(`/tmp/pair239-round3-race.log`), plus targeted Couch publication/retention/archive
+race11.295s. The complete branch diff passes `git diff 6b06b449 --check`.
+Hosted conformance passed on the single retry; merge-check passed. Ready for M1
+round3, with BR-4/BR-6/BR-7 disposition still owned by the fresh reviewer.
+
+Main checkout's older239 plan edits and untracked plan-gate copy are preserved
+in stash ac42bde4cc2c8976ee5f0096c663a7757575c5fc before publication; the current
+worktree plan contains the evolved design and review revisions. Unrelated
+.nvimlog was left alone. No real-store apply/migration/install was performed.

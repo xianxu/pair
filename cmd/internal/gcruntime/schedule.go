@@ -61,7 +61,7 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 		}
 		return nextMaintenance(maintenanceCursor{Phase: "diagnostics"})
 	}
-	report, err := s.Collector.TryPreview(ctx)
+	report, err := s.Collector.DiagnosticInventory(ctx)
 	if err != nil {
 		return "", false, err
 	}

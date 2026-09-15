@@ -31,30 +31,30 @@ The pinned range includes both milestones, as the plan’s revision acknowledges
 
 ## 2. Critical findings
 
-1. **Expired metadata-only owners stop collection.**  
-   `cmd/internal/storagegc/collector.go:228` emits a session item whenever activity exists, even without session members or archives. Once eligible, `transaction.go:193` rejects it as an “empty collection,” aborting apply and the scheduled worker. This occurs naturally after independent capture cleanup; `TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays` stops before the resulting activity record expires.  
+1. **Expired metadata-only owners stop collection.**
+   `cmd/internal/storagegc/collector.go:228` emits a session item whenever activity exists, even without session members or archives. Once eligible, `transaction.go:193` rejects it as an “empty collection,” aborting apply and the scheduled worker. This occurs naturally after independent capture cleanup; `TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays` stops before the resulting activity record expires.
    **Fix:** support coordinated retirement of metadata-only owners without losing outstanding capture/process protection. Test subsequent sweeps beyond sixty days. **ARCH-FUNERAL, ARCH-PURPOSE.**
 
-2. **Interrupted metadata publication can permanently block the root.**  
-   `cmd/internal/storagegc/stateio.go:41` creates `.pending-*` files and relies on deferred removal. Process death before rename leaves them behind. `collector.go:103` treats every owner-directory entry as authoritative metadata: partial temporary files fail decoding; complete ones fail filename validation. Transaction-directory leftovers similarly obstruct recovery and managed access.  
+2. **Interrupted metadata publication can permanently block the root.**
+   `cmd/internal/storagegc/stateio.go:41` creates `.pending-*` files and relies on deferred removal. Process death before rename leaves them behind. `collector.go:103` treats every owner-directory entry as authoritative metadata: partial temporary files fail decoding; complete ones fail filename validation. Transaction-directory leftovers similarly obstruct recovery and managed access.
    **Fix:** separate unpublished temporary files from authoritative records and recover their residue under coordination. Test actual interruption before publication across the metadata directories. **ARCH-ORDER, ARCH-FUNERAL.**
 
-3. **Abandoned startup reservations have no recovery path.**  
-   `cmd/internal/storagegc/use.go:60` recovers intents and process registrations but never `Starts`. A launcher dying after `ReserveStart` and before `MarkStartSpawned` leaves a reservation permanently blocking collection, despite provable absence of child effects. Repetition eventually reaches the 32-reservation launch failure at `start.go:50`. Spawned reservations lacking an acknowledgment also have no reconciliation mechanism.  
+3. **Abandoned startup reservations have no recovery path.**
+   `cmd/internal/storagegc/use.go:60` recovers intents and process registrations but never `Starts`. A launcher dying after `ReserveStart` and before `MarkStartSpawned` leaves a reservation permanently blocking collection, despite provable absence of child effects. Repetition eventually reaches the 32-reservation launch failure at `start.go:50`. Spawned reservations lacking an acknowledgment also have no reconciliation mechanism.
    **Fix:** reconcile dead pre-spawn reservations automatically; implement evidence-based reconciliation or explicit resolution for uncertain spawned reservations. Preserve live/unknown children. **ARCH-ORDER, ARCH-FUNERAL.**
 
-4. **Pre-upgrade Couch archives never receive onboarding grace.**  
-   The base archive writer created no grace sidecar. At head, `cmd/internal/couchcore/retention.go:78` treats its absence as an error, which becomes permanent `ClockError` evidence at line 176. Apply initializes Pair activity only; no path initializes these archive clocks. Consequently, legacy archives and associated session data remain blocked indefinitely after migration.  
+4. **Pre-upgrade Couch archives never receive onboarding grace.**
+   The base archive writer created no grace sidecar. At head, `cmd/internal/couchcore/retention.go:78` treats its absence as an error, which becomes permanent `ClockError` evidence at line 176. Apply initializes Pair activity only; no path initializes these archive clocks. Consequently, legacy archives and associated session data remain blocked indefinitely after migration.
    **Fix:** initialize missing legacy archive grace through Couch’s coordinated journal, preserving exact archive identity and granting the full sixty days. Keep malformed existing clocks blocked. **ARCH-PURPOSE, ARCH-FUNERAL.**
 
-5. **The promised pure transaction model is absent.**  
-   `workshop/plans/000239-storage-gc-plan.md:39` promises pure transition tests; line 133 marks `ReduceTransaction` tests complete. No `ReduceTransaction` exists. Production directly mutates exported string state inside filesystem code (`cmd/internal/storagegc/transaction.go:403`), and the transaction tests require filesystem I/O. Actual phases also differ from the documented enumeration.  
+5. **The promised pure transaction model is absent.**
+   `workshop/plans/000239-storage-gc-plan.md:39` promises pure transition tests; line 133 marks `ReduceTransaction` tests complete. No `ReduceTransaction` exists. Production directly mutates exported string state inside filesystem code (`cmd/internal/storagegc/transaction.go:403`), and the transaction tests require filesystem I/O. Actual phases also differ from the documented enumeration.
    **Fix:** introduce and enforce the pure state/event transition function, with independently stated invariants and sequence tests. Reconcile the Core concepts tables, including explicit kinds and the nonexistent `ManagedUse`/`GCCLI` entity names. **ARCH-PURE, ARCH-ORDER.**
 
 ## 3. Important findings
 
-6. **Automatic work budgets do not bound actual owner processing.**  
-   `cmd/internal/storagegc/collector.go:342` holds the shared coordinator across two complete snapshots and initialization/recovery of every owner. Each recovery unconditionally persists state. The limit only counts deletions; `gcruntime/schedule.go:58` advances a round counter rather than an owner cursor. No two-second scheduling budget is applied, and transaction effects do not check cancellation between steps. This can block managed writes and Couch operations behind optional maintenance.  
+6. **Automatic work budgets do not bound actual owner processing.**
+   `cmd/internal/storagegc/collector.go:342` holds the shared coordinator across two complete snapshots and initialization/recovery of every owner. Each recovery unconditionally persists state. The limit only counts deletions; `gcruntime/schedule.go:58` advances a round counter rather than an owner cursor. No two-second scheduling budget is applied, and transaction effects do not check cancellation between steps. This can block managed writes and Couch operations behind optional maintenance.
    **Fix:** budget discovery, recovery, and initialization as well as deletion; persist actual continuation progress, use nonblocking automatic lock acquisition, and check cancellation between effects. Test the production batch with oversized inventories and counted operations. **ARCH-CONSTRAINTS.**
 
 ## 4. Minor findings
@@ -137,3 +137,127 @@ findings:
     detail: |
       collector.go:342 performs full snapshots and owner rewrites regardless of batch limit; gcruntime/schedule.go:58 has no owner continuation cursor. Enforce the declared scheduling budget, nonblocking acquisition, and cancellation between effects with production-batch tests (ARCH-CONSTRAINTS).
 ```
+
+---
+
+## Re-review — 2026-09-14T22:53:48-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 239 — Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it |
+| repo | 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it |
+| issue file | workshop/issues/000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 6b06b449ae3521b92187ae14c51d62b66ec356e4..1f2f487ebc7305457e43dfcbe19280ac3aa31c88 |
+| command | sdlc milestone-close --issue 239 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-14T22:53:48-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Four prior findings are addressed. BR-4 and BR-6 remain open, and interrupted journal publication leaves an additional uncollected artifact. Existing tests passed across 11 affected packages; four scratch-copy regressions reproduced the remaining gaps. The reviewed worktree is unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays covers capture cleanup followed by metadata expiry. Restoring empty-session rejection makes its metadata-retirement assertion fail.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Central staging and coordinated cleanup handle unpublished JSON. TestInterruptedMetadataPublisherProcess exercises killed publishers with complete and partial writes; restoring destination-local staging makes the regression fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Recovery and admission reclaim confirmed-dead pre-spawn reservations while preserving live, unknown and spawned evidence. Disabling recovery makes TestRecoverDeadUnspawnedStartsPreservesUnknownAndSpawned fail.
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      storagegc/inventory.go:175 only merges known owners into physically discovered namespaces. A legacy Couch archive without its Pair repos/<scope> directory is omitted from Apply, so collector.go:475 never onboards it. TestReviewLegacyArchiveWithoutPairScope reproduces this on the pinned head.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Production phase advancement calls ReduceTransaction through the persistence adapter. The phase/event matrix, sequence tests and bypass guard pass; a regressive retirement transition makes the matrix fail. The revised plan names the implemented phases and symbols.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      gcruntime/schedule.go:64 still invokes a full owner preview for every diagnostic page: a limit-2 regression probes all 8 owners. Recovery also reaches blocking Couch flock through retention.go:392, ignoring an expired maintenance context while holding the root lock. Both scratch regressions fail.
+findings:
+  - id: new
+    severity: Important
+    family: interrupted-publication-recovery
+    title: |
+      Unpublished quarantine directories have no recovery path
+    detail: |
+      storagegc/transaction.go:208 creates the unique quarantine directory before publishing its journal at line 222. Publication failure or cancellation leaves it unreachable by journal-only recovery at line 586; three injected publication failures leave three directories. This is the 2nd finding in family interrupted-publication-recovery. Define and enforce recovery for every artifact created before authoritative publication, rather than fixing this instance alone.
+```
+
+## 1. Strengths
+
+- Exact ownership, identity checks and quarantine replay protect replacement files and newer owner incarnations.
+- Metadata-only retirement now uses the transaction lifecycle, with protection and interruption tests.
+- Startup recovery distinguishes confirmed pre-spawn death from uncertain child effects.
+- README and atlas updates cover retention buckets, migration, managed access and recovery. The plan explicitly acknowledges the combined M1/M2 implementation boundary.
+
+## 2. Critical findings
+
+**BR-4 — Archive onboarding remains unreachable for absent Pair namespaces.**
+At `cmd/internal/storagegc/inventory.go:175–195`, known owners only enter namespaces discovered on disk. Registered Couch archives can exist without corresponding Pair payload directories; they disappear from reports and never receive grace.
+
+**Fix:** Build the namespace inventory from both physical entries and validated known owners. Cover legacy archives, tracked archives and metadata-only scoped owners with absent payload directories. Assert onboarding, full grace and eventual collection through `Collector.Apply`. **ARCH-PURPOSE, ARCH-FUNERAL.**
+
+## 3. Important findings
+
+**BR-6 — Maintenance bounds are incomplete.**
+
+- `cmd/internal/gcruntime/schedule.go:64`: diagnostic pages perform full owner evaluation. Reproduction: **8 owner probes with limit 2**.
+- `cmd/internal/couchcore/retention.go:392`: recovery reaches blocking `flock` through `withRetentionWrite` and `withStoreLock`. Reproduction: a **20 ms deadline remained blocked after 150 ms**, until the test released the Couch lock.
+
+**Fix:** Apply one maintenance-budget rule across session discovery, diagnostic discovery and reference recovery. Avoid full owner evaluation per diagnostic page; make nested maintenance lock acquisition nonblocking or cancellation-aware. Add production-path tests for both cases. **ARCH-CONSTRAINTS, ARCH-ORDER.**
+
+**New — Quarantine creation precedes its recovery authority.**
+`cmd/internal/storagegc/transaction.go:208–223` leaves unique empty directories after failed publication. Recovery only enumerates transaction journals.
+
+**Fix:** Make pre-publication artifacts recoverable across errors, cancellation and process death. Journal-first creation with recovery support, or coordinated orphan reconciliation, must cover the whole publication lifecycle. **ARCH-FUNERAL, ARCH-ORDER.**
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+- Passed: storagegc, gcruntime, gccmd, artifactpath, couchcore, diagnosticlog, retentioncmd, launcher, opener, scrollbackcmd and pairlog.
+- Mutation checks made the BR-1, BR-2, BR-3 and BR-5 regressions fail.
+- Four additional regressions failed against restored, unmodified production sources in a scratch copy: missing-scope archive, diagnostic owner budget, blocked Couch lock and orphan quarantine.
+- Lua/shell suites were not rerun in this review.
+
+Reproduction files remain in [/tmp/pair239-review.YxlFkq](/tmp/pair239-review.YxlFkq).
+
+## 6. Architectural notes
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass — shared ownership, policy and coordination mechanisms. |
+| ARCH-PURE | Pass — deterministic policy/reducer tests; filesystem effects remain in adapters. |
+| ARCH-PURPOSE | Flag — BR-4 omits valid archive owners. |
+| ARCH-MOCK | Pass — portable stores, stateful process doubles and subprocess conformance tests. |
+| ARCH-CONSTRAINTS | Flag — BR-6 leaves full diagnostic scans and blocking nested acquisition. |
+| ARCH-SECURE | Pass — inspected paths reject malformed evidence and unsafe identities conservatively. |
+| ARCH-ORDER | Flag — maintenance cancellation and pre-publication lifecycle remain incomplete. |
+| ARCH-FUNERAL | Flag — omitted archives and orphan quarantine directories lack effective collection. |
+
+## 7. Plan revision recommendations
+
+Add `## Revisions` entries specifying:
+
+- **Owner discovery:** registered references and retention metadata establish owners even without payload directories.
+- **Maintenance envelope:** budgets and cancellation apply across every phase and nested lock.
+- **Publication recovery:** enumerate artifacts created before journal publication and define their recovery/removal paths.

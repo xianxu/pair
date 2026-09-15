@@ -95,3 +95,64 @@ func TestInventoryDiagnosticLocksAreExactPersistentMetadata(t *testing.T) {
 		})
 	}
 }
+
+func TestInventoryKnownOwnerWithoutPayloadNamespace(t *testing.T) {
+	for _, kind := range []string{"absent-repos", "absent-scope", "scope-file", "scope-symlink", "repos-symlink"} {
+		t.Run(kind, func(t *testing.T) {
+			c, _ := coordinatorFixture(t)
+			owner, err := artifactpath.NewStorageOwner(c.Root, "816fc349d3faebf8", "tag")
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch kind {
+			case "absent-scope":
+				err = os.Mkdir(filepath.Join(c.Root, "repos"), 0700)
+			case "scope-file":
+				err = os.Mkdir(filepath.Join(c.Root, "repos"), 0700)
+				if err == nil {
+					err = os.WriteFile(owner.Directory(), nil, 0600)
+				}
+			case "scope-symlink":
+				err = os.Mkdir(filepath.Join(c.Root, "repos"), 0700)
+				if err == nil {
+					err = os.Symlink(t.TempDir(), owner.Directory())
+				}
+			case "repos-symlink":
+				err = os.Symlink(t.TempDir(), filepath.Join(c.Root, "repos"))
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := InventoryRoot(c.Root, []artifactpath.StorageOwner{owner}, []string{"codex"}, 100)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(got.Groups) != 1 || got.Groups[0].Owner != owner || len(got.Groups[0].Members) != 0 {
+				t.Fatalf("known owner omitted %+v", got)
+			}
+			unsafe := kind == "scope-file" || kind == "scope-symlink" || kind == "repos-symlink"
+			if (len(got.Groups[0].Blockers) > 0) != unsafe {
+				t.Fatalf("unsafe namespace disposition %+v", got)
+			}
+			if !unsafe {
+				if _, err := os.Lstat(owner.Directory()); !os.IsNotExist(err) {
+					t.Fatal("inventory created absent namespace", err)
+				}
+			}
+		})
+	}
+}
+
+func TestInventoryRejectsInvalidKnownOwners(t *testing.T) {
+	c, _ := coordinatorFixture(t)
+	for _, owner := range []artifactpath.StorageOwner{
+		{DataDir: t.TempDir(), RepoScope: "816fc349d3faebf8", Tag: "tag"},
+		{DataDir: c.Root, RepoScope: "../escape", Tag: "tag"},
+		{DataDir: c.Root, RepoScope: "816fc349d3faebf8", Tag: "../escape"},
+		{DataDir: c.Root, RepoScope: "", Tag: ""},
+	} {
+		if _, err := InventoryRoot(c.Root, []artifactpath.StorageOwner{owner}, nil, 100); err == nil {
+			t.Fatalf("invalid known owner accepted %+v", owner)
+		}
+	}
+}

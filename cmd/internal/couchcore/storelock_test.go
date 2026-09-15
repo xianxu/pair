@@ -8,14 +8,14 @@ import (
 func TestThreadStoreLockSerializesIndependentHandles(t *testing.T) {
 	_, ns := newTestThreadStore(t)
 	root := NewThreadStore(ns).root
-	first, err := acquireThreadStoreLock(root)
+	first, err := acquireThreadStoreLockMode(root, false)
 	if err != nil {
 		t.Fatalf("acquire first: %v", err)
 	}
 	acquired := make(chan *threadStoreLock, 1)
 	errs := make(chan error, 1)
 	go func() {
-		second, err := acquireThreadStoreLock(root)
+		second, err := acquireThreadStoreLockMode(root, false)
 		if err != nil {
 			errs <- err
 			return

@@ -46,10 +46,13 @@ func (s *ThreadStore) withRetentionWrite(held *storagegc.Locked, fn func() error
 	if s == nil || s.coordinator == nil || !held.Writable(s.coordinator.Root) {
 		return errors.New("archive mutation requires this root's writable lock")
 	}
+	if err := held.CheckContext(); err != nil {
+		return err
+	}
 	if err := held.RegisterStore(s.namespace.Dir()); err != nil {
 		return err
 	}
-	return s.withStoreLock(fn)
+	return retentionLockError(s.withStoreLockChecked(fn, held.CheckContext))
 }
 func (s *ThreadStore) readArchiveReceiptLocked(request ArchiveDetachRequest) ([]byte, bool, error) {
 	raw, err := s.readRetentionFile(s.archiveReceiptPath(request.OperationID))
@@ -112,11 +115,11 @@ func (s *ThreadStore) DetachArchive(held *storagegc.Locked, request ArchiveDetac
 		if err != nil {
 			return err
 		}
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+		return s.commitJournalLockedChecked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
 			{Path: relativeStorePath(s.root, s.archiveReceiptPath(request.OperationID)), After: &receipt},
 			{Path: relativeStorePath(s.root, s.archivePath(request.Address)), Expected: &raw},
 			{Path: relativeStorePath(s.root, s.archiveGracePath(request.Address)), Expected: &grace},
-		}})
+		}}, held.CheckContext)
 	})
 }
 
@@ -131,7 +134,7 @@ func (s *ThreadStore) ForgetArchiveReceipt(held *storagegc.Locked, request Archi
 		if err != nil || !exists {
 			return err
 		}
-		return s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{{Path: relativeStorePath(s.root, s.archiveReceiptPath(request.OperationID)), Expected: &raw}}})
+		return s.commitJournalLockedChecked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{{Path: relativeStorePath(s.root, s.archiveReceiptPath(request.OperationID)), Expected: &raw}}}, held.CheckContext)
 	})
 }
 

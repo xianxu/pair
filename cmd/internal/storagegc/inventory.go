@@ -49,6 +49,26 @@ func inventoryRootContext(ctx context.Context, root string, known []artifactpath
 		exclude[path] = true
 	}
 	spaces := map[string]*inventoryNamespace{"": {}}
+	// Durable references establish ownership even before (or after removal of)
+	// the payload namespace. Validate every owner before accepting that evidence.
+	// The filesystem walk still records unsafe existing namespaces as blockers.
+	knownByScope := map[string][]artifactpath.StorageOwner{}
+	for _, owner := range known {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
+		expected, err := artifactpath.NewStorageOwner(root, owner.RepoScope, owner.Tag)
+		if err != nil {
+			return result, err
+		}
+		if owner != expected {
+			return result, errors.New("known storage owner belongs to a different root")
+		}
+		knownByScope[owner.RepoScope] = append(knownByScope[owner.RepoScope], owner)
+		if spaces[owner.RepoScope] == nil {
+			spaces[owner.RepoScope] = &inventoryNamespace{scope: owner.RepoScope}
+		}
+	}
 	var walk func(string, string) error
 	walk = func(dir, scope string) error {
 		f, err := os.Open(dir)
@@ -184,10 +204,7 @@ func inventoryRootContext(ctx context.Context, root string, known []artifactpath
 		for _, o := range owners {
 			seen[o] = true
 		}
-		for _, o := range known {
-			if o.DataDir != root || o.RepoScope != scope {
-				continue
-			}
+		for _, o := range knownByScope[scope] {
 			if !seen[o] {
 				owners = append(owners, o)
 				seen[o] = true

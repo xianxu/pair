@@ -419,3 +419,69 @@ pre-migration page advances within its owner budget; 100,000 real filenames prov
 bounded owner effects and incomplete-inventory retention. Separate deadline,
 busy-lock and canceled-effect tests prove yielding and recovery. This replaces
 the earlier deletion-count-only claim; review remains pending.
+
+
+### 2026-09-14 23:07 PDT — M1 round2 class completion
+
+The second review addressed BR-1/BR-2/BR-3/BR-5, retained BR-4/BR-6, and raised
+BR-7 (the interrupted-publication family). Remaining requirements:
+
+- Owner discovery derives namespaces from validated durable references and owner
+  metadata as well as physical directories. Legacy/tracked archives and
+  metadata-only scoped owners remain discoverable with no payload directory;
+  unsafe existing directories and invalid owner identities still retain/refuse.
+- Diagnostic discovery shares exact path classification but does not evaluate
+  session clocks or process liveness. Each diagnostic page proves its own writer
+  and generation safety. All nested maintenance store locks must yield rather
+  than block behind a foreground writer; journal effects must check cancellation
+  as well as lock acquisition.
+- Publish the prepared transaction journal before creating its unique quarantine
+  directory. Replay creates a missing directory from validated journal authority.
+  Repeated failed publication, cancellation, real process death, durable sync
+  failure and unsafe replacement tests cover the ordering. Unknown preexisting
+  unjournaled directories have no deletion authority and remain untouched.
+
+Pre-publication artifact enumeration (ARCH-ORDER, ARCH-FUNERAL): fixed root
+infrastructure (`.retention`, owners/transactions/pending/quarantine parent
+folders, coordinator/scheduler lock inodes) has bounded per-root cardinality.
+All Pair JSON publications stage under the coordinated pending directory and
+receive bounded recovery after death. Transaction IDs remain memory-only until
+their journal is published; only that durable journal authorizes the subsequent
+unique quarantine. Couch coordinated journal/record/archive/grace/receipt
+publications also require a bounded recoverable stage, separately from unlocked
+continuation materialization; implementation and killed-publisher tests are in
+progress. Do not sweep generic `.thread-store-*` files used by unlocked writers.
+
+Hosted conformance uncovered two bootstrap assumptions: a sibling Makefile and
+preinstalled Go. The workflow now invokes Makefile.local and provisions the
+module-declared toolchain. Isolated-workflow regressions reproduce both failures.
+A subsequent hosted Zellij detach fixture timed out; its exact live group passes
+locally on the same version, so one hosted retry is in progress rather than an
+unsubstantiated timeout increase.
+
+
+### 2026-09-14 23:12 PDT — Publication class and maintenance envelope implemented
+
+Coordinated Couch publications now use one reserved `.thread-store-publication`
+file per store under its existing exclusive lock. This covers journal creation,
+journal entry targets (records/manifests/preferences/archive/grace/receipts), and
+the existing successful-start record update. Recovery removes only that exact
+regular staging file, then replays any durable journal. Generic unlocked
+continuation publication remains separate; its temporary names are never swept.
+The helper rejects unsafe staging types and cross-store publication targets;
+rename failure retains journal authority rather than copying across filesystems.
+
+Maintenance passes its cancellation check through journal commit, replay, each
+entry effect and staging publication; cancellation leaves any durable journal
+for retry. Tests kill actual publishers after stage fsync for journal, archive,
+grace and receipt targets, proving no target publication occurred early and
+that replay completes precisely. Cancellation after staged fsync and between
+journal entries is covered independently. Targeted Couch publication/retention/
+archive race passed11.295s. Pair transaction full race passed14.745s.
+
+Diagnostic production-page race passed1.973s with zero session probes/writes,
+while expired debug data is collected and cursor advances. Namespace tests cover
+both absent and unsafe directories, plus all legacy/tracked/metadata-only owner
+variants. Hosted conformance passed on its retry, with no timeout or test change.
+Full-tree and focused integration race runs are in progress on the combined
+round3 tree; the third milestone review has not run yet.

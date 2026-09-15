@@ -4942,3 +4942,17 @@ that transition authority is pure or enforced.
 - Cross-store adapters must distinguish standalone flat owners from scoped Couch
   addresses before constructing store keys; mixed-owner acceptance tests catch
   assumptions that narrow adapter fixtures miss (ARCH-PURPOSE).
+
+
+### #239 second review — enumerate missing storage and every phase
+
+- Physical directory discovery is not the owner registry: seed namespaces from
+  validated durable references and metadata, then distinguish absent payload
+  directories from unsafe existing paths (ARCH-PURPOSE).
+- Apply maintenance budgets to diagnostic discovery and nested locks too. A
+  session-page limit does not protect another phase that calls full preview;
+  a root deadline cannot interrupt a nested blocking flock (ARCH-CONSTRAINTS).
+- Publish recovery authority before creating unique artifacts. Enumerate shared
+  infrastructure, unpublished stages, unique directories and payload effects;
+  actual process-kill tests must cover each publication boundary. Keep unlocked
+  publishers out of cleanup that assumes a shared lock (ARCH-ORDER, ARCH-FUNERAL).

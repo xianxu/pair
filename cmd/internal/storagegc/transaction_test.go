@@ -32,7 +32,7 @@ func transactionFixture(t *testing.T) (*Collector, CollectionItem) {
 	return &Collector{Coordinator: c, Agents: []string{"codex"}}, CollectionItem{Owner: o, Bucket: artifactpath.SessionRetention, Members: []artifactpath.ArtifactMember{m}}
 }
 func TestCollectionTransactionRecoversEveryDurableBoundary(t *testing.T) {
-	steps := []string{"journal", "rename:0", "detached", "retired", "finalized", "remove:0", "forgotten"}
+	steps := []string{"journal", "quarantine", "rename:0", "detached", "retired", "finalized", "remove:0", "forgotten"}
 	for _, step := range steps {
 		t.Run(step, func(t *testing.T) {
 			c, item := transactionFixture(t)
@@ -432,7 +432,7 @@ func TestMetadataOnlyRetirementPreservesProtection(t *testing.T) {
 }
 
 func TestMetadataOnlyRetirementRecoversEveryBoundary(t *testing.T) {
-	for _, step := range []string{"journal", "detached", "cleanup", "retired", "finalized", "forgotten"} {
+	for _, step := range []string{"journal", "quarantine", "detached", "cleanup", "retired", "finalized", "forgotten"} {
 		t.Run(step, func(t *testing.T) {
 			c, o := collectorFixture(t)
 			if err := os.Remove(filepath.Join(o.Directory(), "draft-tag.md")); err != nil {
@@ -464,7 +464,7 @@ func TestMetadataOnlyRetirementRecoversEveryBoundary(t *testing.T) {
 }
 
 func TestTransactionCancellationRetainsRecoveryAuthority(t *testing.T) {
-	for _, step := range []string{"journal", "rename:0", "detached", "retired", "finalized"} {
+	for _, step := range []string{"journal", "quarantine", "rename:0", "detached", "retired", "finalized"} {
 		t.Run(step, func(t *testing.T) {
 			c, item := transactionFixture(t)
 			ctx, cancel := context.WithCancel(context.Background())

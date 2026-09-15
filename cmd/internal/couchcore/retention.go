@@ -124,6 +124,9 @@ func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (snapshot StoreR
 	if s.coordinator == nil || !held.Holds(s.coordinator.Root) {
 		return snapshot, errors.New("retention snapshot requires this root's live lock")
 	}
+	if err := held.CheckContext(); err != nil {
+		return snapshot, err
+	}
 	// An unused registered namespace contains no working set and needs no writes.
 	if _, err := os.Lstat(s.root); errors.Is(err, os.ErrNotExist) {
 		return snapshot, nil
@@ -132,9 +135,12 @@ func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (snapshot StoreR
 	}
 	lock, err := s.retentionReadLock()
 	if err != nil {
-		return snapshot, err
+		return snapshot, retentionLockError(err)
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
+	if err := held.CheckContext(); err != nil {
+		return snapshot, err
+	}
 	if _, err := os.Lstat(s.journalPath()); err == nil {
 		return snapshot, errors.New("thread store recovery pending")
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -150,6 +156,9 @@ func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (snapshot StoreR
 	snapshot.Visible = append([]ThreadAddress(nil), manifest.Threads...)
 	archiveRoot := filepath.Join(s.root, "archive")
 	err = filepath.WalkDir(archiveRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if err := held.CheckContext(); err != nil {
+			return err
+		}
 		if errors.Is(walkErr, os.ErrNotExist) && path == archiveRoot {
 			return nil
 		}
@@ -358,10 +367,10 @@ func (s *ThreadStore) OnboardArchiveGrace(ctx context.Context, held *storagegc.L
 			}
 			// The unchanged archive entry is an identity guard on every journal replay,
 			// including a crash after the grace sidecar was already installed.
-			if err := s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+			if err := s.commitJournalLockedChecked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
 				{Path: relativeStorePath(s.root, s.archivePath(address)), Expected: &raw, After: &raw},
 				{Path: relativeStorePath(s.root, s.archiveGracePath(address)), After: &grace},
-			}}); err != nil {
+			}}, held.CheckContext); err != nil {
 				return err
 			}
 		}
@@ -390,4 +399,13 @@ func RecoverStoreRetention(ctx context.Context, namespace CouchNamespace, c *sto
 	store := NewThreadStore(namespace)
 	store.coordinator = c
 	return store.withRetentionWrite(held, ctx.Err)
+}
+
+// Busy nested stores yield through the same maintenance scheduling contract as
+// a busy Pair root; callers must not turn contention into permanent failure.
+func retentionLockError(err error) error {
+	if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
+		return fmt.Errorf("Couch store busy: %w", storagegc.ErrCoordinatorBusy)
+	}
+	return err
 }

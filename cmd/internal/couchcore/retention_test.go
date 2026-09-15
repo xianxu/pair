@@ -531,3 +531,66 @@ func TestLegacyArchiveOnboardingJournalIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestRetentionNestedStoreLocksYieldAndReleaseRoot(t *testing.T) {
+	for _, operation := range []string{"snapshot", "recover", "onboard", "detach", "forget"} {
+		t.Run(operation, func(t *testing.T) {
+			s, c := retentionStore(t)
+			record := archivableThread(t, s, "couch-0000000000000001")
+			if err := s.ArchiveThread(record.Address); err != nil {
+				t.Fatal(err)
+			}
+			grace, err := readTestArchiveGrace(s, record.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := ArchiveDetachRequest{OperationID: "busy-test", Address: record.Address, RecordHash: grace.RecordHash, ArchivedAt: grace.ArchivedAt}
+			call := func(ctx context.Context, held *storagegc.Locked) error {
+				switch operation {
+				case "snapshot":
+					_, err := ReadStoreRetention(s.namespace, c, held)
+					return err
+				case "recover":
+					return RecoverStoreRetention(ctx, s.namespace, c, held)
+				case "onboard":
+					return OnboardStoreArchiveGrace(ctx, s.namespace, c, held, []ThreadAddress{record.Address})
+				case "detach":
+					return DetachStoreArchive(s.namespace, c, held, request)
+				default:
+					return ForgetStoreArchiveReceipt(s.namespace, c, held, request)
+				}
+			}
+			lock, err := acquireThreadStoreLockMode(s.root, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lock.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+			defer cancel()
+			done := make(chan error, 1)
+			go func() { done <- c.WithLock(ctx, func(held *storagegc.Locked) error { return call(ctx, held) }) }()
+			select {
+			case err := <-done:
+				if !errors.Is(err, storagegc.ErrCoordinatorBusy) && !errors.Is(err, context.DeadlineExceeded) {
+					t.Errorf("contention error = %v", err)
+				}
+			case <-time.After(150 * time.Millisecond):
+				lock.Close()
+				<-done
+				t.Fatal("maintenance blocked on nested Couch lock past its deadline")
+			}
+			if err := c.TryWithLock(context.Background(), func(*storagegc.Locked) error { return nil }); err != nil {
+				t.Fatalf("maintenance retained root lock: %v", err)
+			}
+			lock.Close()
+			ctx, cancel = context.WithCancel(context.Background())
+			err = c.WithLock(ctx, func(held *storagegc.Locked) error { cancel(); return call(ctx, held) })
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("canceled operation = %v", err)
+			}
+			if _, err := os.Stat(s.archivePath(record.Address)); err != nil {
+				t.Fatalf("canceled operation removed archive: %v", err)
+			}
+		})
+	}
+}

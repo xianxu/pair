@@ -59,9 +59,16 @@ The implementation map:
   precede authored-content effects; uncertain completion remains protected.
 - `couchcore/retention.go` journals archive grace with membership removal.
   `archive_gc.go` owns exact cross-store detach receipts. Lock order is Pair root
-  before Couch store, or Pair root before diagnostic log.
+  before Couch store, or Pair root before diagnostic log. Nested maintenance
+  acquisition is nonblocking; cancellation propagates through journal entries.
+  Coordinated Couch publications use one reserved `.thread-store-publication`
+  stage reclaimed under the store lock. Unlocked continuation materialization
+  uses a separate publisher; generic temporary names are never swept.
 - `storagegc/collector.go` inventories metadata; `transaction.go` journals exact
-  quarantine identities before rename. `transaction_model.go` owns the pure
+  quarantine identities before rename. The journal precedes its unique quarantine
+  directory, so interrupted creation remains replayable. Durable references and
+  owner metadata discover scoped owners even when payload directories are absent.
+  `transaction_model.go` owns the pure
   prepared → detached → finalized transition reducer. Empty eligible activity
   records use the same retirement journal. Recovery never deletes a replacement
   source after detachment. Raw captures, event sidecars and creation metadata detach together. New captures
@@ -75,7 +82,9 @@ The implementation map:
   exact writer registrations; unknown old external paths are not globbed.
 - `gcruntime/` composes Couch, process evidence, binding cleanup and diagnostic
   collection. `gccmd/` exposes the command; `storagegc/schedule.go` owns bounded
-  scheduling and its durable completion/cursor state.
+  scheduling and its durable completion/cursor state. Diagnostic path discovery
+  bypasses session clock and liveness evaluation; collection supplies its own
+  exact writer and generation proof.
 
 Malformed metadata, ambiguous ownership, unknown liveness, symlinks, incomplete
 inventories and uncertain filesystem effects retain data. Exceptionally large
