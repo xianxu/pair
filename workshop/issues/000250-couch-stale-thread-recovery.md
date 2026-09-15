@@ -1,12 +1,13 @@
 ---
 id: 000250
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-14
 estimate_hours: 5.056
 started: 2026-09-14T10:31:03-07:00
+actual_hours: 7.25
 ---
 
 # Recover stale Couch threads without losing live sessions or checkpoints
@@ -138,6 +139,7 @@ and provide the disposable fixture for operator smoke testing.
 ## Log
 
 ### 2026-09-14
+- 2026-09-14: closed — BR1/BR2 accepted in round2; BR3 atomic model retirement passes final pure/interruption tests and focused race12.096s; rebuilt binaries. Earlier full repo and affected packages green. Latest broad core run only failed an interim invalid test fixture; corrected fixture and recovery regressions rerun green2.566s, command package green25.070s. Real Zellij and interactive stand-in recovery passed. Plan-check waiver only this gate and post-review operator smoke; Astro untouched.; review verdict: SHIP
 
 Created at operator request specifically for recovery, after locating the
 punted reconciliation proposal and checking the current stale Pair record.
@@ -387,3 +389,19 @@ did final focused race 12.096s. The same broad run passed couchcmd 25.070s and
 reported no other failed test. Build passes (/tmp/pair250-br3-build.log). These
 results supplement the earlier green full repository and full affected suites;
 do not mislabel the interim full core run as green.
+
+
+### 2026-09-14 — SHIP review; operator smoke handoff
+
+Round 3 returned SHIP, with BR-1/BR-2/BR-3 addressed and no open findings.
+Reviewed window 2e4b2df7..0e702a9d. A clean full-core run on the final fixed tree
+also passed 110.875s (/tmp/pair250-br3-fixed-core.log), resolving the interim
+fixture-run caveat. Binaries are built; codecomplete is the local acceptance
+state, not shipped/done. Preserve the unchecked operator-acceptance item.
+
+Operator smoke: after using the rebuilt Couch, select Astro and choose Recover
+session or retained checkpoint. Its surviving session should reattach to the
+same Claude conversation after fresh ownership checks. Disposable alternatives:
+sh tests/couch-recovery-smoke.sh warm and checkpoint. Stop for operator smoke;
+do not publish or modify Astro's runtime on the operator's behalf. The separately
+investigated mouse-selection mode leak is recorded under #254 and remains unfixed.

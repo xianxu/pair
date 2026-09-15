@@ -40,6 +40,23 @@ rounds:
           family: lifecycle-transitions-through-owned-model
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-14T18:35:46-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: ReconcileRegisteredTarget in starttransaction.go:249 replaces the synthetic Live intermediate state through ThreadStore.ReconcileRegisteredTarget. continuation_recovery_test.go:329 exercises interruption after retirement, same-attempt reattachment, lost receipt, revived helper, and revision conflict. Both new regression tests passed independently. The interruption assertion rejects the previous implementation's persisted Live intermediate state.
+          round: 3
+        - id: BR-1
+          disposition: addressed
+          note: The narrow missing-binding archive escape remains guarded against unreadable indexes, retained requests, and concurrent replacement; the affected archive tests passed.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Production session and generation observations retain caller context; cancellation regressions and affected package tests passed.
+          round: 3
+      blocked: false
 ---
 
 # Gate ledger — pair#250 (boundary-review)
@@ -68,6 +85,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `lifecycle-transitions-through-owned-model` Settled unknown-target recovery bypasses the incarnation transition model
   cmd/internal/couchcore/continuation_recovery.go:87 directly assigns IncarnationLive inside UpdateExistingThread, committing an intermediate state before reconcileRecoveryHelper retires it. ARCH-ORDER requires this transition to belong to the pure model. Express exact-receipt reconciliation as a named transition with a revision-checked store operation; test interruption between reconciliation and attachment.
 
+## Round 3 — 2026-09-14T18:35:46-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — ReconcileRegisteredTarget in starttransaction.go:249 replaces the synthetic Live intermediate state through ThreadStore.ReconcileRegisteredTarget. continuation_recovery_test.go:329 exercises interruption after retirement, same-attempt reattachment, lost receipt, revived helper, and revision conflict. Both new regression tests passed independently. The interruption assertion rejects the previous implementation's persisted Live intermediate state.
+- BR-1 — addressed — The narrow missing-binding archive escape remains guarded against unreadable indexes, retained requests, and concurrent replacement; the affected archive tests passed.
+- BR-2 — addressed — Production session and generation observations retain caller context; cancellation regressions and affected package tests passed.
+
 ## Open findings
 
-- **BR-3** [Important] `lifecycle-transitions-through-owned-model` Settled unknown-target recovery bypasses the incarnation transition model
+(none — every finding has been disposed)

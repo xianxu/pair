@@ -178,3 +178,85 @@ Prior regressions reach the corrected branches; mutation tests were not run. Liv
 ### 7. Plan revision recommendations
 
 Append a `## Revisions` entry naming the modeled unknown-target reconciliation transition, its store boundary, and interruption test. Keep operator acceptance explicitly pending.
+
+---
+
+## Re-review — 2026-09-14T18:35:46-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 250 — Recover stale Couch threads without losing live sessions or checkpoints |
+| repo | pair |
+| issue file | workshop/issues/000250-couch-stale-thread-recovery.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 2e4b2df75c3c89d912e8ee91e4999990f8f031d3..0e702a9d12781772075879d462bb766982b0aad6 |
+| command | sdlc close --issue 250 |
+| reviewer | codex |
+| timestamp | 2026-09-14T18:35:46-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+BR-3 is addressed: registered-target recovery now retires the unknown helper atomically through a named pure transition and revision-checked store operation. The affected tests pass, and no new blocking findings emerged. Operator smoke remains explicitly pending; this review does not establish that acceptance.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      ReconcileRegisteredTarget in starttransaction.go:249 replaces the synthetic Live intermediate state through ThreadStore.ReconcileRegisteredTarget. continuation_recovery_test.go:329 exercises interruption after retirement, same-attempt reattachment, lost receipt, revived helper, and revision conflict. Both new regression tests passed independently. The interruption assertion rejects the previous implementation's persisted Live intermediate state.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The narrow missing-binding archive escape remains guarded against unreadable indexes, retained requests, and concurrent replacement; the affected archive tests passed.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Production session and generation observations retain caller context; cancellation regressions and affected package tests passed.
+```
+
+### 1. Strengths
+
+- Recovery distinguishes helper death from session survival and preserves warm attachment without native-binding requirements.
+- Checkpoint recovery preserves exact bytes and rejects unrelated generation advancement before launching.
+- BR-3 tests assert durable state after interruption and successful same-attempt recovery.
+- README, atlas, and plan revisions describe the implemented behavior and fixture limitations.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage
+
+Passed all eight affected package suites: `couchcore`, `couchcmd`, `couchtty`, `checkpoint`, `readiness`, `threadrecord`, `launcher`, and `wrapcmd`.
+
+The two BR-3 regression tests also passed independently. `git diff --check` passed. Live Zellij conformance, operator smoke, and mutation testing were not rerun during this review.
+
+### 6. Architectural notes
+
+- **ARCH-DRY — Pass:** shared observation, retirement, and continuation execution paths.
+- **ARCH-PURE — Pass:** value-only decisions/request transitions; BR-3’s transition tests require no IO.
+- **ARCH-PURPOSE — Pass:** warm recovery, checkpoint recovery, and archive escape are implemented.
+- **ARCH-MOCK — Pass:** stateful fixtures exercise production seams; recurring live conformance is wired.
+- **ARCH-CONSTRAINTS — Pass:** bounded retries, checkpoint limits, cancellable observations, and no added inventory-refresh IO.
+- **ARCH-SECURE — Pass:** exact identity/generation checks and visible refusal on uncertain evidence.
+- **ARCH-ORDER — Pass:** BR-3 eliminates the intermediate state; interruption and conflicting revisions are tested.
+- **ARCH-FUNERAL — Pass:** recovery reuses existing snapshot retention and materialized-file cleanup.
+
+### 7. Plan revisions
+
+None required. Preserve the unchecked operator-acceptance item until confirmation is obtained.

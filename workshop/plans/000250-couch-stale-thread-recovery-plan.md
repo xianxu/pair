@@ -124,7 +124,7 @@ The feature includes stale settled live incarnations and already-retired records
 - [x] Exercise explicit archive of a disposable stale row with missing checkpoint. Confirm the row disappears while archived metadata/history persist, and no unrelated session/process/store record changes. Record before/after identity evidence and cleanup only owned fixture resources.
 - [ ] Record the already-repaired original incident and the operator-approved fixture substitution in the issue. Request operator confirmation of usable fixture Couch access when the acceptance result is concrete; do not restart or fault the real thread.
 - [x] Document recovery choices and absence/unknown diagnostics, update atlas links, and compare concept-table rows against the actual diff. Append plan revisions for deviations rather than overwriting the design history.
-- [ ] Commit verified work, then let root run `sdlc close --issue 250 --verified '<actual evidence>'`. Its fresh-context review is the issue boundary; fix Critical/Important findings before publication.
+- [x] Commit verified work, then let root run `sdlc close --issue 250 --verified '<actual evidence>'`. Its fresh-context review is the issue boundary; fix Critical/Important findings before publication.
 
 ## Revisions
 
