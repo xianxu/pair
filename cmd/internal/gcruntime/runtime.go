@@ -98,9 +98,12 @@ func cleanupOwner(held *storagegc.Locked, owner artifactpath.StorageOwner) error
 	}
 	return (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Invalidate(path)
 }
-func (s *Service) registry() ([]diagnosticlog.RegistryEntry, error) {
+func (s *Service) registryContext(ctx context.Context) ([]diagnosticlog.RegistryEntry, error) {
 	var entries []diagnosticlog.RegistryEntry
 	for offset := 0; offset < 100000; offset += 100 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		page, err := diagnosticlog.EnumerateRoot(s.Collector.Coordinator.Root, offset, 100)
 		if err != nil {
 			return nil, err
@@ -113,7 +116,10 @@ func (s *Service) registry() ([]diagnosticlog.RegistryEntry, error) {
 	return nil, errors.New("diagnostic registry exceeds inventory budget")
 }
 func (s *Service) prepare() ([]diagnosticlog.RegistryEntry, error) {
-	entries, err := s.registry()
+	return s.prepareContext(context.Background())
+}
+func (s *Service) prepareContext(ctx context.Context) ([]diagnosticlog.RegistryEntry, error) {
+	entries, err := s.registryContext(ctx)
 	if err != nil {
 		return nil, err
 	}

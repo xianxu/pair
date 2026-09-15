@@ -14,19 +14,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 )
 
-// CollectionTransaction freezes deletion authority before the first rename.
-// Source paths are root-relative; destination paths are relative to its private
-// quarantine directory. Only Phase changes after publication.
-type CollectionTransaction struct {
-	Version     int                         `json:"version"`
-	ID          string                      `json:"id"`
-	Owner       artifactpath.StorageOwner   `json:"owner"`
-	Incarnation string                      `json:"incarnation"`
-	Bucket      artifactpath.RetentionClass `json:"bucket"`
-	Entries     []CollectionEntry           `json:"entries"`
-	Archives    []ArchiveReference          `json:"archives,omitempty"`
-	Phase       string                      `json:"phase"`
-}
 type CollectionEntry struct {
 	Source      string             `json:"source"`
 	Destination string             `json:"destination"`
@@ -141,6 +128,9 @@ func (c *Collector) prepareCollection(held *Locked, item CollectionItem) (Collec
 	sort.Strings(paths)
 	topPaths := []string{}
 	for _, path := range paths {
+		if err := held.CheckContext(); err != nil {
+			return t, err
+		}
 		rel, e := filepath.Rel(c.Coordinator.Root, path)
 		if e != nil {
 			return t, e
@@ -175,8 +165,14 @@ func (c *Collector) prepareCollection(held *Locked, item CollectionItem) (Collec
 		t.Entries = append(t.Entries, CollectionEntry{rel, destination, isTop, identity})
 	}
 	for _, path := range topPaths {
+		if err := held.CheckContext(); err != nil {
+			return t, err
+		}
 		if members[path].Directory {
 			err = filepath.WalkDir(path, func(p string, d fs.DirEntry, e error) error {
+				if err := held.CheckContext(); err != nil {
+					return err
+				}
 				if e != nil {
 					return e
 				}
@@ -190,8 +186,9 @@ func (c *Collector) prepareCollection(held *Locked, item CollectionItem) (Collec
 			}
 		}
 	}
-	if len(t.Entries) == 0 && len(t.Archives) == 0 {
-		return t, errors.New("empty collection")
+	if len(t.Entries) == 0 && len(t.Archives) == 0 &&
+		(t.Bucket != artifactpath.SessionRetention || item.Decision.State != Eligible) {
+		return t, errors.New("empty collection requires eligible session retirement")
 	}
 	for _, a := range t.Archives {
 		if a.Owner != t.Owner || t.Bucket != artifactpath.SessionRetention {
@@ -201,17 +198,26 @@ func (c *Collector) prepareCollection(held *Locked, item CollectionItem) (Collec
 	return t, nil
 }
 func (c *Collector) collectItem(held *Locked, item CollectionItem) error {
+	if err := held.CheckContext(); err != nil {
+		return err
+	}
 	t, err := c.prepareCollection(held, item)
 	if err != nil {
 		return err
 	}
 	for _, dir := range []string{c.transactionDir(), filepath.Dir(c.quarantine(t)), c.quarantine(t)} {
+		if err := held.CheckContext(); err != nil {
+			return err
+		}
 		if err := checkDirectory(dir, true); err != nil {
 			return err
 		}
 		if err := c.Coordinator.syncDirectory(filepath.Dir(dir)); err != nil {
 			return err
 		}
+	}
+	if err := held.CheckContext(); err != nil {
+		return err
 	}
 	if err := held.atomicJSON(c.transactionPath(t), t); err != nil {
 		return err
@@ -228,11 +234,14 @@ func (c *Collector) validateTransaction(t CollectionTransaction) error {
 	if err := c.Coordinator.validateOwner(t.Owner); err != nil {
 		return err
 	}
-	if t.Phase != "prepared" && t.Phase != "detached" && t.Phase != "finalized" {
+	if !validCollectionPhase(t.Phase) {
 		return errors.New("invalid collection phase")
 	}
 	if t.Bucket != artifactpath.SessionRetention && t.Bucket != artifactpath.CaptureRetention {
 		return errors.New("invalid collection bucket")
+	}
+	if t.Bucket == artifactpath.CaptureRetention && len(t.Entries) == 0 {
+		return errors.New("capture collection requires payload entries")
 	}
 	index, err := artifactpath.NewMatchIndex([]artifactpath.StorageOwner{t.Owner}, c.Agents)
 	if err != nil {
@@ -324,6 +333,9 @@ func (c *Collector) verifyTree(t CollectionTransaction, missing bool) error {
 	return nil
 }
 func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) error {
+	if err := held.CheckContext(); err != nil {
+		return err
+	}
 	if !held.Writable(c.Coordinator.Root) {
 		return errors.New("collection requires writable root lock")
 	}
@@ -338,6 +350,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			return errors.New("archive reference writer unavailable")
 		}
 		for i, a := range t.Archives {
+			if err := held.CheckContext(); err != nil {
+				return err
+			}
 			if err := c.References.Detach(held, t.ID, a); err != nil {
 				return err
 			}
@@ -346,6 +361,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			}
 		}
 		for i, e := range t.Entries {
+			if err := held.CheckContext(); err != nil {
+				return err
+			}
 			if !e.Top {
 				continue
 			}
@@ -384,6 +402,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			if rename == nil {
 				rename = os.Rename
 			}
+			if err := held.CheckContext(); err != nil {
+				return err
+			}
 			if err := rename(src, dst); err != nil {
 				return err
 			}
@@ -400,8 +421,7 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 		if err := c.verifyTree(*t, false); err != nil {
 			return err
 		}
-		t.Phase = "detached"
-		if err := held.atomicJSON(c.transactionPath(*t), t); err != nil {
+		if err := c.advanceTransaction(held, t, CollectionDetachmentProved); err != nil {
 			return err
 		}
 		if err := c.fault("detached"); err != nil {
@@ -417,6 +437,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			// A newer incarnation also owns the shared bindings. Recovery can
 			// finish deleting the detached bytes without touching those bindings.
 			if errors.Is(err, os.ErrNotExist) || state.Activity.Incarnation == t.Incarnation {
+				if err := held.CheckContext(); err != nil {
+					return err
+				}
 				if c.CleanupOwner != nil {
 					if e := c.CleanupOwner(held, t.Owner); e != nil {
 						return e
@@ -428,6 +451,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			}
 
 			if err == nil && state.Activity.Incarnation == t.Incarnation {
+				if err := held.CheckContext(); err != nil {
+					return err
+				}
 				if err := os.Remove(c.Coordinator.statePath(t.Owner)); err != nil {
 					return err
 				}
@@ -439,8 +465,7 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 		if err := c.fault("retired"); err != nil {
 			return err
 		}
-		t.Phase = "finalized"
-		if err := held.atomicJSON(c.transactionPath(*t), t); err != nil {
+		if err := c.advanceTransaction(held, t, CollectionOwnerRetired); err != nil {
 			return err
 		}
 		if err := c.fault("finalized"); err != nil {
@@ -453,6 +478,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 		return errors.New("archive receipt writer unavailable")
 	}
 	for i, a := range t.Archives {
+		if err := held.CheckContext(); err != nil {
+			return err
+		}
 		if err := c.References.Forget(held, t.ID, a); err != nil {
 			return err
 		}
@@ -466,6 +494,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 	entries := append([]CollectionEntry(nil), t.Entries...)
 	sort.Slice(entries, func(i, j int) bool { return len(entries[i].Destination) > len(entries[j].Destination) })
 	for i, e := range entries {
+		if err := held.CheckContext(); err != nil {
+			return err
+		}
 		path := filepath.Join(c.quarantine(*t), e.Destination)
 		if err := checkCollectionParents(c.quarantine(*t), e.Destination); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
@@ -493,6 +524,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			return err
 		}
 	}
+	if err := held.CheckContext(); err != nil {
+		return err
+	}
 	if err := os.Remove(c.quarantine(*t)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
@@ -500,6 +534,9 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 		return err
 	}
 	if err := c.fault("forgotten"); err != nil {
+		return err
+	}
+	if err := held.CheckContext(); err != nil {
 		return err
 	}
 	if err := os.Remove(c.transactionPath(*t)); err != nil {
@@ -542,6 +579,10 @@ func (c *Collector) verifySourceTree(t CollectionTransaction, top CollectionEntr
 	}
 	return nil
 }
+
+// ErrMaintenanceYield asks optional work to resume on its next scheduled pass.
+var ErrMaintenanceYield = errors.New("maintenance work budget exhausted")
+
 func (c *Collector) recoverTransactions(held *Locked, limit int) error {
 	if !held.Writable(c.Coordinator.Root) {
 		return errors.New("transaction recovery requires writable root lock")
@@ -560,8 +601,17 @@ func (c *Collector) recoverTransactions(held *Locked, limit int) error {
 		limit = 100
 	}
 	for i, entry := range entries {
+		if err := held.CheckContext(); err != nil {
+			return err
+		}
 		if i >= limit {
-			return errors.New("collection recovery limit reached")
+			return ErrMaintenanceYield
+		}
+		if isPendingMetadata(entry.Name()) {
+			if err := held.RemovePendingMetadata(held.ctx, c.transactionDir(), entry.Name()); err != nil {
+				return err
+			}
+			continue
 		}
 		var t CollectionTransaction
 		if err := readStateJSON(filepath.Join(c.transactionDir(), entry.Name()), &t); err != nil {
@@ -589,6 +639,9 @@ func (l *Locked) pendingOwnerTransaction(owner artifactpath.StorageOwner) error 
 		return err
 	}
 	for _, entry := range entries {
+		if isPendingMetadata(entry.Name()) {
+			continue
+		}
 		var t CollectionTransaction
 		if err := readStateJSON(filepath.Join(dir, entry.Name()), &t); err != nil {
 			return err
@@ -599,12 +652,29 @@ func (l *Locked) pendingOwnerTransaction(owner artifactpath.StorageOwner) error 
 		if err := l.coordinator.validateOwner(t.Owner); err != nil {
 			return err
 		}
-		if t.Phase != "prepared" && t.Phase != "detached" && t.Phase != "finalized" {
+		if !validCollectionPhase(t.Phase) {
 			return errors.New("invalid pending collection phase")
 		}
 		if t.Owner == owner {
 			return errors.New("owner has pending collection transaction")
 		}
 	}
+	return nil
+}
+
+// Advance only after the corresponding external effects have been proved.
+// Publish before changing the in-memory state so a failed write can be retried.
+func (c *Collector) advanceTransaction(held *Locked, current *CollectionTransaction, event CollectionEvent) error {
+	if err := held.CheckContext(); err != nil {
+		return err
+	}
+	next, err := ReduceTransaction(*current, event)
+	if err != nil {
+		return err
+	}
+	if err := held.atomicJSON(c.transactionPath(next), next); err != nil {
+		return err
+	}
+	*current = next
 	return nil
 }

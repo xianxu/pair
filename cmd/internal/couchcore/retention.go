@@ -308,3 +308,86 @@ func (c *Couch) beginResumeRetention(ctx context.Context, address ThreadAddress,
 		return errors.Join(err, coordinator.ReleaseProcess(finalContext, owner, registration))
 	}, nil
 }
+
+// OnboardArchiveGrace grants legacy archives a full grace interval starting at
+// apply. Only selected addresses are considered; nil selects nothing. Existing
+// grace (including malformed evidence) is never repaired or renewed here.
+func (s *ThreadStore) OnboardArchiveGrace(ctx context.Context, held *storagegc.Locked, addresses []ThreadAddress) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return s.withRetentionWrite(held, func() error {
+		manifest, _, _, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		for _, address := range addresses {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if err := validateThreadAddress(address); err != nil {
+				return err
+			}
+			if manifestContains(manifest, address) {
+				continue
+			}
+			raw, err := s.readRetentionFile(s.archivePath(address))
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			if err != nil {
+				return err
+			}
+			// Lstat distinguishes an absent clock from present but unreadable, invalid,
+			// or symlinked evidence; only absence authorizes onboarding.
+			if _, err := os.Lstat(s.archiveGracePath(address)); err == nil {
+				continue
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			// Validate parent components before publishing through the store journal.
+			if _, err := s.readRetentionFile(s.archiveGracePath(address)); !errors.Is(err, os.ErrNotExist) {
+				if err != nil {
+					return err
+				}
+				continue
+			}
+			grace, err := s.archiveGraceBytes(address, raw)
+			if err != nil {
+				return err
+			}
+			// The unchanged archive entry is an identity guard on every journal replay,
+			// including a crash after the grace sidecar was already installed.
+			if err := s.commitJournalLocked(storeJournal{SchemaVersion: 1, Entries: []storeJournalEntry{
+				{Path: relativeStorePath(s.root, s.archivePath(address)), Expected: &raw, After: &raw},
+				{Path: relativeStorePath(s.root, s.archiveGracePath(address)), After: &grace},
+			}}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func OnboardStoreArchiveGrace(ctx context.Context, namespace CouchNamespace, c *storagegc.Coordinator, held *storagegc.Locked, addresses []ThreadAddress) error {
+	if namespace.Dir() == "" || c == nil {
+		return errors.New("archive onboarding needs namespace and coordinator")
+	}
+	store := NewThreadStore(namespace)
+	store.coordinator = c
+	return store.OnboardArchiveGrace(ctx, held, addresses)
+}
+
+// RecoverStoreRetention is the apply-only pre-inventory journal recovery seam.
+// Preview uses ReadStoreRetention and never enters this writable path.
+func RecoverStoreRetention(ctx context.Context, namespace CouchNamespace, c *storagegc.Coordinator, held *storagegc.Locked) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if namespace.Dir() == "" || c == nil {
+		return errors.New("archive recovery needs namespace and coordinator")
+	}
+	store := NewThreadStore(namespace)
+	store.coordinator = c
+	return store.withRetentionWrite(held, ctx.Err)
+}

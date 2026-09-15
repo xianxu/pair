@@ -355,3 +355,68 @@ and 16 direct guard-call edges; passed after missing-doc RED. This bounded audit
 does not claim whole-program control-flow proof. README documents public GC and
 its explicit batch limits. All technical M1 obligations are now ready for the
 first mandatory milestone review over the combined checkpoint implementation.
+
+
+### 2026-09-14 22:34 PDT — M1 rework: BR-1 and BR-5 verified
+
+Eligible metadata-only owners now retire through the existing recoverable
+collection journal, including activity recreated during independent capture
+cleanup. Visible/live/unknown/unfinished-handoff protections remain effective.
+`ReduceTransaction` now enforces the real prepared → detached → finalized
+lifecycle; production phase publication uses one adapter and frozen deletion
+authority is unchanged. The plan's concept tables and source classification now
+match this implementation (ARCH-FUNERAL, ARCH-PURE, ARCH-ORDER).
+
+Original failure: `/tmp/pair239-br1-red.log`. Pure/integration coverage:
+`/tmp/pair239-br1-br5-focused.log`; regressive transition mutation caught in
+`/tmp/pair239-br5-mutation.log`. Full storagegc race pass: 14.875s in
+`/tmp/pair239-br1-br5-race.log`; final focused pass: 5.203s in
+`/tmp/pair239-br1-br5-final-focused.log`. Other M1 findings and the review gate
+remain separate outstanding work; no new completion or real-store deletion claim.
+
+
+### 2026-09-14 22:47 PDT — Remaining M1 rework integrated; full verification running
+
+BR-2/BR-3 now cover killed metadata publishers, bounded shared cleanup of legacy
+root/scoped/owner residues, dead pre-spawn reservation reclamation, explicit
+uncertain-start resolution, and no-op recovery without metadata rewrites. Logs:
+`/tmp/pair239-maintenance-recovery-race.log`,
+`/tmp/pair239-temp-budget-race.log`, `/tmp/pair239-legacy-pending-race.log`.
+
+BR-4 now gives absent legacy archive clocks a journaled full grace for selected
+owners, recovers pending store journals before snapshot, and retains malformed
+or replaced identities. Public acceptance exposed flat standalone owners at the
+Couch adapter boundary; root/owner validation now precedes flat-owner filtering.
+Mixed scoped/flat and public apply tests pass under race (gcruntime1.595s,
+gccmd3.119s). Preview remains read-only.
+
+BR-6 automatic work now has a real owner cursor, bounded visited-owner effects,
+nonblocking root acquisition, a cooperative two-second context budget, and
+cancellation checks across transaction and diagnostic effects. One payload
+inventory is reused only while the same root lock remains held. Recovery budgets
+yield for retry, and the durable cursor is preserved on deadline or contention.
+100,000-filename production coverage proves the inventory cap retains otherwise
+eligible data; small counted tests cover pre-migration progress, busy locks,
+deadlines and expired contexts. Explicit apply still scans past retained owners;
+its regression passes. Oversized stores are not promised automatic completion
+within two seconds; partial inventory never authorizes deletion.
+
+Full-suite integration also exposed a missing console-test fixture shutdown
+join. Production already joins; the fixture now does too, with race x20 coverage
+(`/tmp/pair239-console-join-race.log`) and full couchtty pass. Regenerated ignored
+runtime bundle assets after the embedded-source drift check identified stale
+Neovim content. `/tmp/pair239-rework-full-go-final.log` is running on this tree;
+the prior full run was not a pass. No real-store apply/migration/install occurred.
+
+`sdlc actual --issue 239 --brain-dir /Users/xianxu/workspace/brain` still measures
+0.21h with explicit incomplete attribution warnings
+(`/tmp/pair239-rework-actual.log`). This is a tool measurement, not an assertion
+that total development took0.21h or a valid estimate comparison.
+
+
+Final rework verification: full `go test ./... -count=1` passed with selected
+runtime environment cleared (`/tmp/pair239-rework-full-go-final.log`). Storage
+and runtime race suites passed; public apply acceptance passed after flat-owner
+adapter correction. Legacy pending integration race passed2.721s and console
+shutdown regression race x20 passed3.027s. `git diff --check` passed. Ready for
+M1 round2; BR finding disposition belongs to that fresh review, not this log.

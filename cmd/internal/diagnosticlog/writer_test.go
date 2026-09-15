@@ -1,10 +1,12 @@
 package diagnosticlog
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -457,5 +459,90 @@ func TestRotationRecoveryRetiresAbandonedLeafMetadataTemp(t *testing.T) {
 	}
 	if _, e = os.Stat(temp); !os.IsNotExist(e) {
 		t.Fatal("abandoned leaf temp survived recovery")
+	}
+}
+
+func TestMaintenanceCancellationStopsBeforeNextEffect(t *testing.T) {
+	for _, point := range []string{"before", "proof", "delete-intent", "delete-payload"} {
+		t.Run(point, func(t *testing.T) {
+			path, now, opts := fixture(t)
+			w, err := Open(path, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = w.Write([]byte("expired\n")); err != nil {
+				t.Fatal(err)
+			}
+			w.Close()
+			*now = now.Add(8 * 24 * time.Hour)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			opts.Context = ctx
+			if point == "before" {
+				cancel()
+			}
+			if point == "proof" {
+				opts.Proof = func(string, []Registration) error { cancel(); return nil }
+			}
+			opts.Fault = func(step string) error {
+				if step == point {
+					cancel()
+				}
+				return nil
+			}
+			if _, err := Collect(path, opts, 100); !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancellation ignored at %s: %v", point, err)
+			}
+			state, err := load(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if point == "delete-intent" || point == "delete-payload" {
+				if state.Deleting == nil {
+					t.Fatal("interrupted deletion lost recovery authority")
+				}
+			} else if state.Deleting != nil {
+				t.Fatal("canceled request published deletion")
+			}
+			raw, readErr := os.ReadFile(path)
+			if point != "delete-payload" && (readErr != nil || string(raw) != "expired\n") {
+				t.Fatalf("canceled effect deleted payload: %q %v", raw, readErr)
+			}
+			opts.Context = nil
+			opts.Fault = nil
+			opts.Proof = func(string, []Registration) error { return nil }
+			if _, err := Collect(path, opts, 100); err != nil {
+				t.Fatalf("retry failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestMaintenanceContendedLogLockReturnsImmediately(t *testing.T) {
+	path, _, opts := fixture(t)
+	w, err := Open(path, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.Close()
+	opts.Context = context.Background()
+	f, err := os.OpenFile(lockPath(path), os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		t.Fatal(err)
+	}
+	defer syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	done := make(chan error, 1)
+	go func() { _, err := Collect(path, opts, 100); done <- err }()
+	select {
+	case err := <-done:
+		if !errors.Is(err, ErrBusy) {
+			t.Fatalf("lock contention=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("maintenance blocked behind writer")
 	}
 }

@@ -214,3 +214,43 @@ func TestRegisterOptionalExactTarget(t *testing.T) {
 		t.Fatalf("target lost: %+v %v", state, err)
 	}
 }
+
+func TestResolveStartRequiresExplicitAbsenceAndDeadExactParent(t *testing.T) {
+	env, c := cliFixture(t)
+	ctx := context.Background()
+	o, _ := storagegc.SelectedOwner(c.Root, "", "tag")
+	child := exec.Command("sleep", "30")
+	if err := child.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = child.Process.Kill(); _ = child.Wait() })
+	parent, err := storagegc.CurrentProcessIdentity(child.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := c.ReserveStart(ctx, o, parent, []string{"wrapper"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.MarkStartSpawned(ctx, o, id, parent); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"resolve-start", "--id", id, "--parent-pid", strconv.Itoa(parent.PID), "--parent-birth", parent.Birth, "--unregistered-children-absent", "yes"}
+	if code, _, _ := invoke(env, args...); code == 0 {
+		t.Fatal("live parent resolved")
+	}
+	if err := child.Process.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	_ = child.Wait()
+	if code, _, _ := invoke(env, args[:len(args)-2]...); code == 0 {
+		t.Fatal("implicit absence accepted")
+	}
+	if code, _, stderr := invoke(env, args...); code != 0 {
+		t.Fatalf("explicit dead-parent resolution failed: %s", stderr)
+	}
+	state, err := c.ReadOwner(o)
+	if err != nil || len(state.Starts) != 0 {
+		t.Fatalf("start remains: %+v %v", state.Starts, err)
+	}
+}

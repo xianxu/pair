@@ -18,11 +18,12 @@ import (
 // Coordinator serializes retention metadata. It never owns the payload files.
 // BeforePersist is a deterministic failure seam for durable-order testing.
 type Coordinator struct {
-	Root          string
-	Now           func() time.Time
-	Probe         ProcessProbe
-	BeforePersist func() error
-	SyncDirectory func(string) error
+	Root           string
+	Now            func() time.Time
+	Probe          ProcessProbe
+	BeforePersist  func() error
+	AfterTempWrite func(string) error
+	SyncDirectory  func(string) error
 }
 
 type UseIntent struct {
@@ -104,12 +105,35 @@ func (c *Coordinator) syncDirectory(path string) error {
 // Locked is valid only in the WithLock callback. Callers acquiring a Couch
 // store lock do so inside this scope, never in the opposite order.
 type Locked struct {
+	ctx         context.Context
 	coordinator *Coordinator
 	active      bool
 	readOnly    bool
 }
 
-func (c *Coordinator) WithLock(ctx context.Context, fn func(*Locked) error) (err error) {
+var ErrCoordinatorBusy = errors.New("retention coordinator busy")
+
+// CheckContext yields between effects; persisted journals remain recoverable.
+func (l *Locked) CheckContext() error {
+	if l == nil || !l.active {
+		return errors.New("expired retention lock")
+	}
+	if l.ctx == nil {
+		return nil
+	}
+	return l.ctx.Err()
+}
+
+func (c *Coordinator) WithLock(ctx context.Context, fn func(*Locked) error) error {
+	return c.withLock(ctx, false, fn)
+}
+
+// TryWithLock lets optional maintenance yield immediately to foreground work.
+func (c *Coordinator) TryWithLock(ctx context.Context, fn func(*Locked) error) error {
+	return c.withLock(ctx, true, fn)
+}
+
+func (c *Coordinator) withLock(ctx context.Context, nonblocking bool, fn func(*Locked) error) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
@@ -136,6 +160,9 @@ func (c *Coordinator) WithLock(ctx context.Context, fn func(*Locked) error) (err
 		if err == nil {
 			break
 		}
+		if nonblocking && errors.Is(err, unix.EWOULDBLOCK) {
+			return ErrCoordinatorBusy
+		}
 		if !errors.Is(err, unix.EWOULDBLOCK) {
 			return err
 		}
@@ -146,7 +173,7 @@ func (c *Coordinator) WithLock(ctx context.Context, fn func(*Locked) error) (err
 		}
 	}
 	defer func() { err = errors.Join(err, unix.Flock(fd, unix.LOCK_UN)) }()
-	lock := &Locked{coordinator: c, active: true}
+	lock := &Locked{coordinator: c, active: true, ctx: ctx}
 	defer func() { lock.active = false }()
 	return fn(lock)
 }

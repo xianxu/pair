@@ -66,6 +66,7 @@ func (l *Locked) recoverUse(o artifactpath.StorageOwner) error {
 	if c.Probe == nil {
 		return errors.New("process probe unavailable")
 	}
+	beforeIntents, beforeProcesses, beforeStarts := len(s.Intents), len(s.Processes), len(s.Starts)
 	kept := s.Intents[:0]
 	recovered := false
 	for _, v := range s.Intents {
@@ -89,6 +90,10 @@ func (l *Locked) recoverUse(o artifactpath.StorageOwner) error {
 		}
 	}
 	s.Processes = processes
+	s.Starts = recoverUnspawnedStarts(s.Starts, c.Probe)
+	if len(s.Intents) == beforeIntents && len(s.Processes) == beforeProcesses && len(s.Starts) == beforeStarts {
+		return nil
+	}
 	return l.save(s)
 }
 

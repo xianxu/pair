@@ -44,13 +44,16 @@ func Collect(path string, options Options, limit int) ([]Segment, error) {
 	return rows, e
 }
 func collectManagedPage(path string, options Options, cursor string, limit int) (removed []Segment, next string, complete bool, err error) {
+	if err := options.checkContext(); err != nil {
+		return nil, cursor, false, err
+	}
 	p, e := canonical(path)
 	if e != nil {
 		return nil, cursor, false, e
 	}
 	options = normalized(options)
 	complete = true
-	e = locked(p, false, func() error {
+	e = lockedOptions(p, false, options, func() error {
 		s, e := load(p)
 		if os.IsNotExist(e) {
 			if _, e := os.Lstat(p); !os.IsNotExist(e) {
@@ -65,6 +68,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			if _, e := os.Lstat(directory(p)); e == nil {
 				// Only an empty directory is a recoverable final retirement;
 				// unknown payload or metadata still blocks instead of being lost.
+				if err := options.checkContext(); err != nil {
+					return err
+				}
 				if e = os.Remove(directory(p)); e != nil {
 					return e
 				}
@@ -104,6 +110,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			return e
 		}
 		for _, r := range rows {
+			if err := options.checkContext(); err != nil {
+				return err
+			}
 			if !r.Eligible {
 				continue
 			}
@@ -114,6 +123,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 				}
 			}
 			s.Deleting = &g
+			if err := options.checkContext(); err != nil {
+				return err
+			}
 			if e = save(p, s, true); e != nil {
 				return e
 			}
@@ -144,6 +156,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 // Deletion has an exact durable intent just like rotation. A crash after unlink
 // cannot leave a missing current file permanently blocking future writers.
 func recoverDeletion(path string, s *diskState, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	g := *s.Deleting
 	p := path
 	if g.Name != "" {
@@ -155,6 +170,9 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 	if st, e := regular(p); e == nil {
 		if e = matches(st, g); e != nil {
 			return e
+		}
+		if err := o.checkContext(); err != nil {
+			return err
 		}
 		if e = os.Remove(p); e != nil {
 			return e
@@ -169,23 +187,31 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 		return e
 	}
 	if g.Name != "" {
+		if err := o.checkContext(); err != nil {
+			return err
+		}
 		if e := os.Remove(p + ".json"); e != nil && !os.IsNotExist(e) {
 			return e
 		}
 		if e := syncDir(filepath.Dir(p)); e != nil {
 			return e
 		}
-		if e := removeEmptyParents(filepath.Dir(p), directory(path)); e != nil {
+		if e := removeEmptyParents(filepath.Dir(p), directory(path), o); e != nil {
 			return e
 		}
 	} else {
 		s.Current = generation{}
 	}
 	s.Deleting = nil
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	return save(path, *s, true)
 }
-
 func retire(path string, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	if o.Retire != nil {
 		return o.Retire(RegistryEntry{Version: 1, Path: path, Directory: directory(path), Lock: lockPath(path)})
 	}
@@ -214,6 +240,9 @@ func retireEmpty(path string, s diskState, o Options) error {
 	}
 	// Open republishes registrations while holding this same log lock. It cannot
 	// write through a registry row retired by a concurrent collector.
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	if e = os.Remove(filepath.Join(directory(path), "state.json")); e != nil {
 		return e
 	}
@@ -222,6 +251,9 @@ func retireEmpty(path string, s diskState, o Options) error {
 	}
 	if e = fault(o, "retire-state"); e != nil {
 		return e
+	}
+	if err := o.checkContext(); err != nil {
+		return err
 	}
 	if e = os.Remove(directory(path)); e != nil {
 		return e
@@ -268,6 +300,9 @@ func cleanupTemps(path string, o Options, limit int) error {
 		}
 		if !DecideSegment(o.Now(), st.ModTime()) {
 			continue
+		}
+		if err := o.checkContext(); err != nil {
+			return err
 		}
 		if e = os.Remove(p); e != nil {
 			return e

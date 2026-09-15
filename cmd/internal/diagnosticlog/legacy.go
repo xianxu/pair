@@ -39,6 +39,9 @@ func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 // CollectLegacy upgrades only eligible, proven stopped diagnostics into the
 // managed journal protocol. Young/unknown files get no metadata side effects.
 func adoptLegacy(path string, options Options) (bool, error) {
+	if err := options.checkContext(); err != nil {
+		return false, err
+	}
 	p, e := canonical(path)
 	if e != nil {
 		return false, e
@@ -61,7 +64,7 @@ func adoptLegacy(path string, options Options) (bool, error) {
 		return false, e
 	}
 	expected := generation{Identity: fileIdentity(before), Start: options.Now().UTC(), LastWrite: before.ModTime(), Size: before.Size(), ModTime: before.ModTime()}
-	e = locked(p, true, func() error {
+	e = lockedOptions(p, true, options, func() error {
 		// Another upgraded writer may have adopted it since preview; use its
 		// managed state and clocks during the final collection decision.
 		if _, e := load(p); e == nil {
@@ -85,10 +88,16 @@ func adoptLegacy(path string, options Options) (bool, error) {
 		if !DecideSegment(options.Now(), st.ModTime()) {
 			return errors.New("legacy generation changed age")
 		}
+		if err := options.checkContext(); err != nil {
+			return err
+		}
 		if options.Registry != nil {
 			if e = options.Registry(RegistryEntry{Version: 1, Path: p, Directory: directory(p), Lock: lockPath(p)}); e != nil {
 				return e
 			}
+		}
+		if err := options.checkContext(); err != nil {
+			return err
 		}
 		return save(p, diskState{Version: 1, Path: p, Current: expected}, true)
 	})

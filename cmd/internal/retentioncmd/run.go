@@ -13,18 +13,25 @@ import (
 )
 
 type command struct {
-	action, id, role, target string
-	pid                      int
+	action, id, role, target   string
+	pid                        int
+	parent                     storagegc.ProcessIdentity
+	unregisteredChildrenAbsent bool
 }
 
 func parse(args []string) (command, error) {
 	var cmd command
 	if len(args) == 0 {
-		return cmd, errors.New("expected register, release, begin, complete or unchanged")
+		return cmd, errors.New("expected register, release, begin, complete, unchanged or resolve-start")
 	}
 	cmd.action = args[0]
 	allowed := map[string]bool{}
 	switch cmd.action {
+	case "resolve-start":
+		allowed["--id"] = true
+		allowed["--parent-pid"] = true
+		allowed["--parent-birth"] = true
+		allowed["--unregistered-children-absent"] = true
 	case "register":
 		allowed["--pid"] = true
 		allowed["--role"] = true
@@ -66,6 +73,17 @@ func parse(args []string) (command, error) {
 			return cmd, errors.New("--pid must name a positive actual writer PID")
 		}
 		cmd.pid = pid
+	}
+	if cmd.action == "resolve-start" {
+		pid, err := strconv.Atoi(values["--parent-pid"])
+		if err != nil || pid <= 0 {
+			return cmd, errors.New("--parent-pid must name the recorded launch parent")
+		}
+		if values["--unregistered-children-absent"] != "yes" {
+			return cmd, errors.New("--unregistered-children-absent requires explicit yes")
+		}
+		cmd.parent = storagegc.ProcessIdentity{PID: pid, Birth: values["--parent-birth"]}
+		cmd.unregisteredChildrenAbsent = true
 	}
 	return cmd, nil
 }
@@ -113,6 +131,8 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		err = coordinator.CompleteUse(ctx, owner, cmd.id)
 	case "unchanged":
 		err = coordinator.CancelUnchangedUse(ctx, owner, cmd.id)
+	case "resolve-start":
+		err = coordinator.ResolveAbandonedStart(ctx, owner, cmd.id, cmd.parent, cmd.unregisteredChildrenAbsent)
 	}
 	if err != nil {
 		return fail(err)

@@ -380,3 +380,154 @@ func TestRetentionExplicitResumeTouchesButBackgroundReattachDoesNot(t *testing.T
 		})
 	}
 }
+
+func TestLegacyArchiveGraceOnboarding(t *testing.T) {
+	for _, malformed := range []bool{false, true} {
+		t.Run(fmt.Sprint(malformed), func(t *testing.T) {
+			s, c := retentionStore(t)
+			r := archivableThread(t, s, "couch-0000000000000001")
+			if err := s.ArchiveThread(r.Address); err != nil {
+				t.Fatal(err)
+			}
+			gracePath := s.archiveGracePath(r.Address)
+			if err := os.Remove(gracePath); err != nil {
+				t.Fatal(err)
+			}
+			if malformed {
+				if err := os.WriteFile(gracePath, []byte("broken"), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			old := c.Now().Add(-365 * 24 * time.Hour)
+			if err := os.Chtimes(s.archivePath(r.Address), old, old); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := NewCoordinatedThreadStore(s.namespace, c); err != nil {
+				t.Fatal(err)
+			}
+			if err := c.WithReadLock(context.Background(), func(l *storagegc.Locked) error {
+				snap, err := s.RetentionSnapshot(l)
+				if err != nil {
+					return err
+				}
+				if len(snap.Archives) != 1 || snap.Archives[0].ClockError == "" {
+					t.Fatalf("legacy preview %+v", snap)
+				}
+				if err := s.OnboardArchiveGrace(context.Background(), l, []ThreadAddress{r.Address}); err == nil {
+					t.Fatal("read token mutated archive")
+				}
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if !malformed {
+				if _, err := os.Stat(gracePath); !os.IsNotExist(err) {
+					t.Fatal("startup/preview created grace")
+				}
+			}
+			onboard := c.Now()
+			if err := c.WithLock(context.Background(), func(l *storagegc.Locked) error {
+				return s.OnboardArchiveGrace(context.Background(), l, []ThreadAddress{r.Address})
+			}); err != nil {
+				t.Fatal(err)
+			}
+			a, err := readTestArchiveGrace(s, r.Address)
+			if malformed {
+				raw, _ := os.ReadFile(gracePath)
+				if err == nil || string(raw) != "broken" {
+					t.Fatal("malformed evidence replaced")
+				}
+				return
+			}
+			if err != nil || !a.ArchivedAt.Equal(onboard) {
+				t.Fatalf("onboarding did not grant full grace: %+v %v", a, err)
+			}
+			c.Now = func() time.Time { return onboard.Add(24 * time.Hour) }
+			if err := c.WithLock(context.Background(), func(l *storagegc.Locked) error {
+				return s.OnboardArchiveGrace(context.Background(), l, []ThreadAddress{r.Address})
+			}); err != nil {
+				t.Fatal(err)
+			}
+			a, err = readTestArchiveGrace(s, r.Address)
+			if err != nil || !a.ArchivedAt.Equal(onboard) {
+				t.Fatal("retry renewed grace")
+			}
+		})
+	}
+}
+
+func TestLegacyArchiveOnboardingJournalIdentity(t *testing.T) {
+	for _, replacement := range []bool{false, true} {
+		for fault := -1; fault < 2; fault++ {
+			t.Run(fmt.Sprintf("%v/%d", replacement, fault), func(t *testing.T) {
+				s, c := retentionStore(t)
+				r := archivableThread(t, s, "couch-0000000000000001")
+				if err := s.ArchiveThread(r.Address); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Remove(s.archiveGracePath(r.Address)); err != nil {
+					t.Fatal(err)
+				}
+				now := c.Now()
+				crash := errors.New("interrupted")
+				if fault < 0 {
+					s.hooks.AfterJournal = func() error { return crash }
+				} else {
+					s.hooks.AfterTarget = func(n int) error {
+						if n == fault {
+							return crash
+						}
+						return nil
+					}
+				}
+				if err := c.WithLock(context.Background(), func(l *storagegc.Locked) error {
+					return s.OnboardArchiveGrace(context.Background(), l, []ThreadAddress{r.Address})
+				}); !errors.Is(err, crash) {
+					t.Fatalf("fault missing %v", err)
+				}
+				s.hooks = threadStoreHooks{}
+				journalBefore, err := os.ReadFile(s.journalPath())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := c.WithReadLock(context.Background(), func(l *storagegc.Locked) error {
+					if _, err := s.RetentionSnapshot(l); err == nil {
+						t.Fatal("preview accepted pending onboarding")
+					}
+					if err := RecoverStoreRetention(context.Background(), s.namespace, c, l); err == nil {
+						t.Fatal("read token recovered journal")
+					}
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+				journalAfter, err := os.ReadFile(s.journalPath())
+				if err != nil || string(journalAfter) != string(journalBefore) {
+					t.Fatal("preview mutated onboarding journal")
+				}
+				if replacement {
+					if err := os.WriteFile(s.archivePath(r.Address), []byte("replacement"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				c.Now = func() time.Time { return now.Add(time.Hour) }
+				err = c.WithLock(context.Background(), func(l *storagegc.Locked) error {
+					return RecoverStoreRetention(context.Background(), s.namespace, c, l)
+				})
+				if replacement {
+					if err == nil {
+						t.Fatal("recovery accepted different archive identity")
+					}
+					return
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				a, err := readTestArchiveGrace(s, r.Address)
+				if err != nil || !a.ArchivedAt.Equal(now) {
+					t.Fatalf("replay changed identity/clock %+v %v", a, err)
+				}
+			})
+		}
+	}
+}

@@ -336,6 +336,21 @@ func TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays(t *testin
 			t.Fatal("expired capture retained", err)
 		}
 	}
+	// Capture-only rediscovery creates fresh activity metadata. That metadata
+	// must itself retire after grace instead of aborting every later sweep.
+	c.Coordinator.Now = func() time.Time { return now.Add(70 * 24 * time.Hour) }
+	report, err = c.Apply(context.Background(), 100)
+	if err != nil || report.Collected != 1 {
+		t.Fatalf("metadata retirement %+v %v", report, err)
+	}
+	if _, err := c.Coordinator.ReadOwner(o); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("metadata remains: %v", err)
+	}
+	report, err = c.Apply(context.Background(), 100)
+	if err != nil || report.Collected != 0 {
+		t.Fatalf("subsequent sweep %+v %v", report, err)
+	}
+
 }
 
 func TestMalformedPendingTransactionFailsClosedForManagedWrites(t *testing.T) {
@@ -348,5 +363,156 @@ func TestMalformedPendingTransactionFailsClosedForManagedWrites(t *testing.T) {
 	}
 	if err := c.Coordinator.Initialize(context.Background(), item.Owner); err == nil {
 		t.Fatal("malformed transaction allowed owner access")
+	}
+}
+
+type metadataReferences struct {
+	transactionReferences
+	visible []artifactpath.StorageOwner
+}
+
+func (r *metadataReferences) Snapshot(context.Context, *Locked, []string) (References, error) {
+	return References{Visible: r.visible}, nil
+}
+
+func TestMetadataOnlyRetirementPreservesProtection(t *testing.T) {
+	for _, kind := range []string{"eligible", "visible", "live", "unknown", "handoff"} {
+		t.Run(kind, func(t *testing.T) {
+			c, o := collectorFixture(t)
+			if err := os.Remove(filepath.Join(o.Directory(), "draft-tag.md")); err != nil {
+				t.Fatal(err)
+			}
+			process := ProcessIdentity{PID: 42, Birth: "fixture-birth"}
+			probe := &FakeProcessProbe{Processes: map[int]string{42: process.Birth}, Unknown: map[int]bool{}}
+			c.Coordinator.Probe = probe
+			switch kind {
+			case "visible":
+				root, err := filepath.EvalSymlinks(t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := c.Coordinator.RegisterStore(context.Background(), root); err != nil {
+					t.Fatal(err)
+				}
+				if err := c.Coordinator.CompleteMigration(context.Background(), []string{root}); err != nil {
+					t.Fatal(err)
+				}
+				c.References = &metadataReferences{visible: []artifactpath.StorageOwner{o}}
+			case "live", "unknown":
+				if _, err := c.Coordinator.RegisterProcess(context.Background(), o, process, "reader"); err != nil {
+					t.Fatal(err)
+				}
+				probe.Unknown[42] = kind == "unknown"
+			case "handoff":
+				if _, err := c.Coordinator.BeginUse(context.Background(), o, process, "capture-reader-handoff"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			report, err := c.Apply(context.Background(), 100)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if kind == "eligible" {
+				if report.Collected != 1 {
+					t.Fatalf("empty owner not retired: %+v", report)
+				}
+				if _, err := c.Coordinator.ReadOwner(o); !errors.Is(err, os.ErrNotExist) {
+					t.Fatalf("state retained: %v", err)
+				}
+			} else {
+				if report.Collected != 0 {
+					t.Fatalf("protected metadata retired: %+v", report)
+				}
+				if _, err := c.Coordinator.ReadOwner(o); err != nil {
+					t.Fatalf("protection state lost: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestMetadataOnlyRetirementRecoversEveryBoundary(t *testing.T) {
+	for _, step := range []string{"journal", "detached", "cleanup", "retired", "finalized", "forgotten"} {
+		t.Run(step, func(t *testing.T) {
+			c, o := collectorFixture(t)
+			if err := os.Remove(filepath.Join(o.Directory(), "draft-tag.md")); err != nil {
+				t.Fatal(err)
+			}
+			stopped := false
+			c.Fault = func(at string) error {
+				if at == step && !stopped {
+					stopped = true
+					return errors.New("interrupted")
+				}
+				return nil
+			}
+			if _, err := c.Apply(context.Background(), 100); err == nil || !stopped {
+				t.Fatalf("fault %s not exercised: %v", step, err)
+			}
+			c.Fault = nil
+			if _, err := c.Apply(context.Background(), 100); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.Coordinator.ReadOwner(o); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("metadata not retired: %v", err)
+			}
+			if report, err := c.Apply(context.Background(), 100); err != nil || report.Collected != 0 {
+				t.Fatalf("non-idempotent %+v %v", report, err)
+			}
+		})
+	}
+}
+
+func TestTransactionCancellationRetainsRecoveryAuthority(t *testing.T) {
+	for _, step := range []string{"journal", "rename:0", "detached", "retired", "finalized"} {
+		t.Run(step, func(t *testing.T) {
+			c, item := transactionFixture(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			reached := false
+			c.Fault = func(at string) error {
+				if at == step {
+					reached = true
+					cancel()
+				}
+				return nil
+			}
+			err := c.Coordinator.WithLock(ctx, func(held *Locked) error { return c.collectItem(held, item) })
+			if !reached || !errors.Is(err, context.Canceled) {
+				t.Fatalf("cancellation at %s: reached=%v err=%v", step, reached, err)
+			}
+			entries, err := os.ReadDir(c.transactionDir())
+			if err != nil || len(entries) != 1 {
+				t.Fatalf("lost recovery authority: %v %v", entries, err)
+			}
+			c.Fault = nil
+			if err := c.Coordinator.WithLock(context.Background(), func(held *Locked) error { return c.recoverTransactions(held, 100) }); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(item.Members[0].Path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("recovery failed: %v", err)
+			}
+		})
+	}
+}
+
+func TestEmptyCollectionAdmissionRequiresEligibleSession(t *testing.T) {
+	for _, bucket := range []artifactpath.RetentionClass{artifactpath.SessionRetention, artifactpath.CaptureRetention} {
+		for _, state := range []RetentionState{Eligible, Protected, Live, Grace, Untracked, Blocked} {
+			t.Run(string(bucket)+"/"+string(state), func(t *testing.T) {
+				c, item := transactionFixture(t)
+				if err := os.Remove(item.Members[0].Path); err != nil {
+					t.Fatal(err)
+				}
+				item.Members = nil
+				item.Bucket = bucket
+				item.Decision.State = state
+				err := c.Coordinator.WithLock(context.Background(), func(held *Locked) error { _, err := c.prepareCollection(held, item); return err })
+				allowed := bucket == artifactpath.SessionRetention && state == Eligible
+				if (err == nil) != allowed {
+					t.Fatalf("empty admission allowed=%v err=%v", allowed, err)
+				}
+			})
+		}
 	}
 }

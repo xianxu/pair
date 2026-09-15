@@ -73,12 +73,46 @@ func newFixtureBeforeRun(t *testing.T, rows, cols uint16, beforeRun func(*Consol
 	if beforeRun != nil {
 		beforeRun(con)
 	}
-	go func() { f.done <- con.Run() }()
+	go func() {
+		f.done <- con.Run()
+		close(f.done)
+	}()
 	t.Cleanup(func() {
 		con.Stop()
 		_ = pw.Close()
+		// Run owns tracer closure and worker joins. Closing done also lets
+		// cleanup wait safely when the test already consumed its exit code.
+		select {
+		case <-f.done:
+		case <-time.After(3 * time.Second):
+			t.Error("console fixture did not finish teardown")
+		}
 	})
 	return f
+}
+
+// A fixture's cleanup must join Run, including workers finishing after Stop,
+// before t.TempDir cleanup may remove resources those workers still own.
+func TestConsoleFixtureCleanupJoinsRun(t *testing.T) {
+	finished := make(chan struct{})
+	t.Run("fixture lifetime", func(t *testing.T) {
+		newFixtureBeforeRun(t, 24, 80, func(con *Console) {
+			con.workers.Add(1)
+			go func() {
+				defer con.workers.Done()
+				<-con.stop
+				// Model an in-flight operation finishing after cancellation.
+				time.Sleep(30 * time.Millisecond)
+				close(finished)
+			}()
+		})
+	})
+	select {
+	case <-finished:
+	default:
+		<-finished // do not leak the regression worker on failure
+		t.Fatal("fixture cleanup returned before Run joined its worker")
+	}
 }
 
 // newLaidOutFakeChild is a fake child born at the console's child size, the way

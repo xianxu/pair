@@ -14,7 +14,9 @@ Meaningful use is explicit create/attach/resume/view, or a changed authored-cont
 write. Unchanged saves, background scans, repaint, diagnostics and distillation do
 not extend the session clock. Foreground viewing remains protected until the
 viewer closes. Existing session data without use metadata starts a new 60-day
-grace; old atime/mtime does not prove session inactivity.
+grace; old atime/mtime does not prove session inactivity. Legacy archived Couch
+records missing a grace sidecar also receive a full grace on apply; malformed
+sidecars remain blocked.
 
 `pair gc` previews counts, logical bytes and retention reasons; `--json` includes
 exact paths and decisions. Preview never initializes clocks or recovers journals.
@@ -31,7 +33,14 @@ publishing references. An unavailable registered store blocks session collection
 
 After migration, running Pair/Couch schedules bounded background sweeps after
 readiness, at most once per completed daily pass. Work resumes from a cursor;
-failures preserve evidence and leave data retained. Expiry means collection on a
+automatic pages visit at most 100 owners, including retained owners, with a
+cooperative two-second budget and nonblocking root-lock acquisition. Contention
+or budget expiry preserves the last durable cursor and retries later. Discovery
+is metadata-only and capped at 100,000 entries; incomplete inventory retains
+payloads, and very large inventories may require explicit collection. Filesystem
+calls can exceed the cooperative budget. Explicit apply scans past retained
+owners while limiting deletions, so repeated commands do not starve later owners.
+Failures preserve evidence and leave data retained. Expiry means collection on a
 successful eligible sweep, not deletion at an exact wall-clock instant. No global
 disk ceiling is promised: active session history remains retained.
 
@@ -42,13 +51,19 @@ The implementation map:
 - `storagegc/policy.go` and `capture.go` decide from injected clocks and evidence.
   `coordinator.go`, `use.go`, `lease.go`, `start.go` and `runtimes.go` record actual
   process identity, pending content effects and handoffs under stable root locking.
+  Confirmed dead pre-spawn reservations are reaped; uncertain spawned reservations
+  require explicit `pair retention resolve-start` evidence and acknowledgment.
+  Unpublished metadata stages centrally under `.retention/pending`; recovery
+  removes exact unpublished residues under coordination.
 - The internal `pair retention` command serves Lua editors. A durable intent must
   precede authored-content effects; uncertain completion remains protected.
 - `couchcore/retention.go` journals archive grace with membership removal.
   `archive_gc.go` owns exact cross-store detach receipts. Lock order is Pair root
   before Couch store, or Pair root before diagnostic log.
 - `storagegc/collector.go` inventories metadata; `transaction.go` journals exact
-  quarantine identities before rename. Recovery never deletes a replacement
+  quarantine identities before rename. `transaction_model.go` owns the pure
+  prepared → detached → finalized transition reducer. Empty eligible activity
+  records use the same retirement journal. Recovery never deletes a replacement
   source after detachment. Raw captures, event sidecars and creation metadata detach together. New captures
   use a recorded UTC creation clock with checked payload identities; legacy
   captures use the latest plausible filename time or file mtime conservatively.

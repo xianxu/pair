@@ -24,29 +24,30 @@
 
 ### Core concepts
 
-| Name | Lives in | Status |
-|---|---|---|
-| StorageOwner | cmd/internal/artifactpath/gc.go | new |
-| ArtifactGroup | cmd/internal/artifactpath/gc.go | new |
-| ActivityRecord | cmd/internal/storagegc/policy.go | new |
-| RetentionDecision | cmd/internal/storagegc/policy.go | new |
-| CollectionTransaction | cmd/internal/storagegc/transaction.go | new |
+| Name | Kind | Lives in | Status |
+|---|---|---|---|
+| StorageOwner | PURE | cmd/internal/artifactpath/gc.go | new |
+| ArtifactGroup | PURE | cmd/internal/artifactpath/gc.go | new |
+| ActivityRecord / RetentionDecision | PURE | cmd/internal/storagegc/policy.go | new |
+| CollectionTransaction / CollectionEvent / ReduceTransaction | PURE | cmd/internal/storagegc/transaction_model.go | new |
+| StoreRegistry | PURE | cmd/internal/storagegc/stores.go | new persisted value |
 
 - **StorageOwner:** canonical Pair root, explicit legacy-or-scoped namespace, and validated tag. One owner has many artifacts. Reuse Paths/LegacyPaths and checked constructors; never parse display names or split tag/agent strings heuristically. Scope/tag address maps to the same owner for Couch and Pair. Additional artifact families widen the manifest, not independent globs (ARCH-DRY).
 - **ArtifactGroup:** exact recognized files/directories for one owner, with identity evidence and exclusions. Raw capture and offset events are inseparable. Shared scope metadata, defaults, bindings and catalogs are not owned by a thread. Ambiguous or unknown ownership blocks the group; report unknown global entries separately.
 - **ActivityRecord:** version, owner, incarnation ID, initialized-at, last-meaningful-use. One bounded JSON record per owner; archive grace is separate Couch-owned evidence. Decoding rejects unsupported versions, mismatched identities and impossible timestamps. Pure decision uses max(initialized-at, last-use, archive-grace) and an injected clock; future times retain.
 - **RetentionDecision:** a tagged result: protected, live, grace, eligible, untracked, blocked. `Decide(now, evidence)` performs no IO. Incomplete inventory and ambiguous liveness dominate expiry; all references must be accounted for. Multiple archives use the newest grace and all visible references protect.
-- **CollectionTransaction:** prepared, detaching, detached, cleaned; exact source/destination identities and generation, never broad deletion patterns. One transaction per owner incarnation; enables retry without deleting a newer same-tag incarnation. Pure transition tests enumerate interrupt/retry cases.
+- **CollectionTransaction:** persisted phases are `prepared`, `detached`, and `finalized`. `ReduceTransaction` accepts proved-detachment and owner-retirement events without changing frozen source/destination identities, owner, incarnation, bucket or archive receipts. One pending transaction per owner prevents overlapping incarnations; source names are never revisited after detachment. Pure transition tests cover rejected events, idempotent completed steps and non-regressing sequences.
 
-| Name | Lives in | Status | Wraps |
-|---|---|---|---|
-| Coordinator | cmd/internal/storagegc/coordinator.go | new | stable root lock, activity and lifetime leases |
-| StoreRegistry | cmd/internal/storagegc/stores.go | new | registered Couch namespaces for this Pair root |
-| Collector | cmd/internal/storagegc/collector.go | new | metadata inventory and quarantine IO |
-| ProcessProbe | cmd/internal/storagegc/process.go | new | process identity and existing session evidence |
-| ThreadStore | cmd/internal/couchcore/threadstore.go | modified | archive grace and coordinated membership changes |
-| ManagedUse | cmd/internal/storagegc/use.go | new | selected launch/view/write operations |
-| GCCLI | cmd/internal/gccmd/run.go | new | preview/apply, bounded sweep scheduling |
+| Name | Kind | Lives in | Status | Wraps |
+|---|---|---|---|---|
+| Coordinator / Locked | INTEGRATION | cmd/internal/storagegc/coordinator.go | new | stable root lock, activity/intents, registry publication and process leases |
+| Collector | INTEGRATION | cmd/internal/storagegc/collector.go, transaction.go | new | metadata inventory, reducer-backed quarantine effects and recovery |
+| ProcessProbe / OSProcessProbe | INTEGRATION | cmd/internal/storagegc/process.go | new | process-birth identity and liveness evidence |
+| ThreadStore | INTEGRATION | cmd/internal/couchcore/threadstore.go, retention.go | modified | coordinated references, archive grace and restore |
+| ProcessLease / AcquireSelectedProcess | INTEGRATION | cmd/internal/storagegc/lease.go | new | managed reader/writer process lifetimes |
+| Coordinator.BeginUse / CompleteUse / WriteChanged / RecoverUse | INTEGRATION | cmd/internal/storagegc/coordinator.go, use.go | new | durable content intents and meaningful-use clocks |
+| gccmd.Run | INTEGRATION | cmd/internal/gccmd/run.go | new | public flags, migration, preview and apply |
+| Scheduler / ScheduleWorker | INTEGRATION | cmd/internal/storagegc/schedule.go | new | bounded scheduled batches and worker lifetime |
 
 Coordinator/Collector are thin shells around pure decisions, using portable temporary roots in tests. ProcessProbe has a stateful fake with alive/dead/unknown identities and explicit barriers; a local child-process conformance test checks real lease/process behavior. No network/service dependencies or credentials. Existing wrapper/session evidence supplements leases for pre-upgrade processes; a bare stale PID never proves death or life.
 
@@ -117,7 +118,7 @@ Files: create `cmd/internal/storagegc/coordinator.go`, `stores.go`, `process.go`
 
 Files: create `cmd/internal/storagegc/use.go`, `use_test.go`, `nvim/retention.lua`, `nvim/retention_test.lua`; modify `cmd/internal/launcher/createflow.go`, `lifecycle.go`, `cmd/internal/couchcore/resume.go`, `cmd/internal/pairlog/runcli.go`, `cmd/internal/opener/run.go`, `cmd/internal/scrollbackcmd/scrollbackcmd.go`, `cmd/internal/orientation/model.go`, `cmd/internal/wrapcmd/wrap.go`, `cmd/internal/sessionwatch/run.go`, `nvim/init.lua`, `nvim/scrollback.lua`; add integration tests alongside the modified Go entrypoints and `tests/retention-test.sh`.
 
-- [x] Write failing BeginUse/CompleteUse/RecoverUse and ManagedUse integration tests using the function strategies below.
+- [x] Write failing BeginUse/CompleteUse/RecoverUse and managed-entrypoint integration tests using the function strategies below.
 - [x] Run the affected package tests and `bash tests/retention-test.sh`; expect missing integration assertions to fail.
 - [x] Wire resolved owner context into managed entrypoints and propagate explicit identity through orientation to parked readers. Use one lease/touch API; expose internal CLI operations for Lua through the existing dispatcher contract. Compare content before publishing a use event; do not read log payloads for GC.
 - [x] Cover all managed content readers/writers by a checked call-site inventory, including programmatic and explicit saves. Verify generic history scans, refresh/statusline reads, diagnostics and distiller writes stay non-use operations. Their file access still needs a lease when racing collection.
@@ -140,7 +141,7 @@ Files: create `cmd/internal/storagegc/transaction.go`, `transaction_test.go`, `c
 
 Files: create `cmd/internal/gccmd/run.go`, `run_test.go`, `cmd/internal/storagegc/schedule.go`, `schedule_test.go`; modify `cmd/pair-go/main.go`, `cmd/internal/dispatcher/dispatcher.go`, dispatcher coverage tests, launcher and Couch lifecycle entrypoints, `Makefile`, `atlas/index.md`; create `atlas/storage-retention.md`.
 
-- [x] Write failing GCCLI.Run tests using the function strategies below.
+- [x] Write failing gccmd.Run tests using the function strategies below.
 - [x] Implement public `pair gc` routing/help and explicit migration completion with registered-store summary. Apply works only after migration completeness is established. Report counts/logical bytes and reasons; no payload contents in diagnostics.
 - [x] Implement a context-bound, joined worker after UI/session readiness, daily completion clock and bounded resumable cursor. Never count sweep discovery as use; initialize legacy records only on mutating runs.
 - [x] Implement the Scheduler.Run bounded-work strategy below; assert one worker and bounded group processing, not brittle elapsed-time thresholds.
@@ -185,10 +186,10 @@ function strategies below. Acceptance commands remain in their tasks.
 | ProcessProbe.Inspect | Alive/dead/unknown OS identities: injected backend and real-child conformance agree; unavailable identity never means dead. |
 | StoreRegistry.Register / CompleteMigration | Missing, aliased, malformed and unavailable roots: folder-backed state machine tests keep deletion disabled unless inventory is complete. |
 | ThreadStore.ArchiveThread / RestoreThread | Invalid records and interruption at each journal effect: existing store fault hooks prove reference/grace conservation. |
-| ManagedUse.Open / WriteChanged | Explicit use versus background access and unchanged writes: stateful entrypoint tests verify activity deltas; checked producer/consumer inventory guards missing integrations. |
+| AcquireSelectedProcess / Coordinator.WriteChanged | Explicit use versus background access and unchanged writes: stateful entrypoint tests verify activity deltas; checked producer/consumer inventory guards missing integrations. |
 | Collector.Preview | Arbitrary portable trees and pending transactions: before/after filesystem snapshot equality proves read-only behavior. |
 | Collector.Apply / Recover | Concurrent use, namespace replacement and failure at every detach/cross-store step: barrier schedules and fault injection prove unrelated/new incarnations survive; EXDEV fails closed. |
-| GCCLI.Run | Invalid/public/internal command forms and migration states: dispatcher route coverage plus isolated end-to-end fixture assertions. |
+| gccmd.Run | Invalid/public/internal command forms and migration states: dispatcher route coverage plus isolated end-to-end fixture assertions. |
 | Scheduler.Run | Oversized inventories, cancellation and repeated starts: injected clock/budget with 100,000 names proves bounded groups, one worker and cursor progress. |
 
 ### 2026-09-13 — operator separates diagnostic retention
@@ -342,3 +343,79 @@ acknowledgment ordering. Full Go and race checks pass after integration; native
 Neovim caught a top-level-local limit, resolved by narrowing existing helper
 scope. Public apply acceptance and a checked managed-I/O inventory complete the
 outstanding technical verification rather than relying on package tests alone.
+
+
+### 2026-09-14 22:34 PDT — BR-1/BR-5: retirement and enforced transaction model
+
+Reason: the M1 boundary review found that an eligible owner with only activity
+metadata aborted collection, and that the documented pure reducer did not exist.
+The Core concepts tables above now name actual production symbols and their
+PURE/INTEGRATION kinds. They replace the earlier planned four-phase enumeration
+and conceptual managed-use/CLI type labels; earlier revision records remain intact.
+
+`CollectionTransaction` remains schema version 1. The existing persisted phase
+values are retained; no journal migration or extra intermediate phase is needed.
+
+| Current phase | Completion event | Next phase | Effects authorized by the adapter |
+|---|---|---|---|
+| prepared | detachment-proved | detached | Before the event: detach exact archive receipts and rename exact source identities into quarantine; verify the resulting tree |
+| detached | detachment-proved | detached | Idempotent event only; do not repeat source-name effects |
+| detached | owner-retired | finalized | Before the event: clean bindings and retire only matching session incarnation metadata; captures do not retire their owner |
+| finalized | owner-retired | finalized | Idempotent event; remaining work only forgets receipts and removes exact quarantine entries/journal |
+
+All other phase/event combinations fail without mutation. The filesystem adapter
+publishes the reduced state before replacing its in-memory value. An AST guard
+rejects direct production phase assignments outside the reducer. Cancellation
+checks before effects preserve the journal for a later coordinated recovery.
+
+Empty session items may enter this same transaction path only when the collector
+has established `Eligible` under coordination. Empty capture transactions remain
+invalid. Visible owners, live/unknown readers and unfinished handoffs retain
+metadata. Independent capture expiry can leave newly initialized activity behind;
+a later successful sweep beyond its sixty-day grace now retires it normally.
+
+Verification: `/tmp/pair239-br1-red.log` reproduced the original post-capture
+empty-collection failure. `/tmp/pair239-br1-br5-focused.log` passed the pure
+phase/event matrix, depth-eight event sequences, bypass guard, metadata protection
+matrix, six interrupted-retirement boundaries and five cancellation/resume
+boundaries. A regressive reducer mutation failed in
+`/tmp/pair239-br5-mutation.log`. Full storagegc race tests passed 14.875s in
+`/tmp/pair239-br1-br5-race.log`; the final transaction-focused run passed 5.203s
+in `/tmp/pair239-br1-br5-final-focused.log`. These address BR-1/BR-5; they do not
+claim the other M1 findings or the boundary gate are closed.
+
+
+### 2026-09-14 — M1 review recovery and maintenance corrections
+
+BR-2/BR-3: unpublished JSON now stages centrally under `.retention/pending`
+without becoming authoritative. Exact legacy pending names are skipped by reads
+and removable under coordination; killed-publisher tests cover complete and
+partial writes before rename. Confirmed dead pre-spawn reservations retire during
+recovery and before admission limits. Spawned uncertainty requires explicit
+parent/child death evidence plus the reachable `resolve-start` acknowledgment;
+live or unknown identities still retain. Unchanged recovery no longer rewrites
+owner state (ARCH-FUNERAL, ARCH-ORDER).
+
+BR-4: apply recovers Couch journals before its discovery snapshot and onboards
+missing archive grace only for selected owners. Each journal witnesses the exact
+archive identity and grants a full sixty days; malformed existing sidecars remain
+blocked. Preview remains read-only (ARCH-PURPOSE).
+
+BR-6: automatic `ApplyPage` limits visited owners rather than deletions and
+persists the last owner key, including pre-migration and retained owners. It
+shares one immutable payload inventory only inside an uninterrupted root lock
+while refreshing clocks/references. Explicit `Apply` still scans past retained
+owners and limits collections, avoiding repeated-command starvation. Discovery
+checks cancellation between entries and caps payload and owner metadata inventory;
+no partial scan becomes deletion authority. The two-second cooperative scheduler
+budget, nonblocking root acquisition, context checks between journal/delete
+steps, and bounded recovery yield preserve retryable state. Diagnostic options
+carry the same maintenance context. The scheduler retries contention and budget
+expiry with the old durable cursor; it does not claim a hard syscall deadline or
+guarantee that an oversized inventory completes within two seconds.
+
+Production tests use seven owners and counted probes/persists to prove every
+pre-migration page advances within its owner budget; 100,000 real filenames prove
+bounded owner effects and incomplete-inventory retention. Separate deadline,
+busy-lock and canceled-effect tests prove yielding and recovery. This replaces
+the earlier deletion-count-only claim; review remains pending.

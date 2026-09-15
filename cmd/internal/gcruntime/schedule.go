@@ -14,7 +14,7 @@ import (
 // cursor is lexical, so deleting a completed path cannot shift the next page.
 type maintenanceCursor struct {
 	Phase   string `json:"phase"`
-	Round   uint64 `json:"round,omitempty"`
+	Owner   string `json:"owner,omitempty"`
 	Path    string `json:"path,omitempty"`
 	Segment string `json:"segment,omitempty"`
 	After   bool   `json:"after,omitempty"`
@@ -43,25 +43,25 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 	if state.Phase != "sessions" && state.Phase != "diagnostics" {
 		return "", false, errors.New("invalid maintenance cursor phase")
 	}
-	entries, err := s.prepare()
+	entries, err := s.prepareContext(ctx)
 	if err != nil {
 		return "", false, err
 	}
 	if state.Phase == "sessions" {
-		report, err := s.Collector.Apply(ctx, limit)
+		report, err := s.Collector.ApplyPage(ctx, state.Owner, limit)
 		if err != nil {
 			return "", false, err
+		}
+		if !report.BatchComplete {
+			state.Owner = report.NextOwner
+			return nextMaintenance(state)
 		}
 		if !report.MigrationComplete {
 			return "", true, nil
 		}
-		if report.Collected >= limit {
-			state.Round++
-			return nextMaintenance(state)
-		}
 		return nextMaintenance(maintenanceCursor{Phase: "diagnostics"})
 	}
-	report, err := s.Collector.Preview(ctx)
+	report, err := s.Collector.TryPreview(ctx)
 	if err != nil {
 		return "", false, err
 	}
@@ -83,7 +83,7 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 	}
 	var next string
 	var complete bool
-	err = s.Collector.Coordinator.WithLock(ctx, func(held *storagegc.Locked) error {
+	err = s.Collector.Coordinator.TryWithLock(ctx, func(held *storagegc.Locked) error {
 		registry, err := s.Collector.Coordinator.ReadRegistry()
 		if err != nil {
 			return err
@@ -91,7 +91,12 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 		if !registry.MigrationComplete {
 			return errors.New("migration acknowledgement unavailable")
 		}
-		_, next, complete, err = diagnosticlog.CollectLegacyPage(path, s.DiagnosticOptions, segment, min(limit, 100))
+		options := s.DiagnosticOptions
+		options.Context = ctx
+		_, next, complete, err = diagnosticlog.CollectLegacyPage(path, options, segment, min(limit, 100))
+		if errors.Is(err, diagnosticlog.ErrBusy) {
+			return storagegc.ErrCoordinatorBusy
+		}
 		return err
 	})
 	if err != nil {

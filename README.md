@@ -646,7 +646,8 @@ paths. Preview does not change your files or initialize retention clocks.
   their raw output and offset sidecars together; active readers postpone removal.
 - Standalone session data expires after sixty days without meaningful use.
   Threads visible in Couch's switcher stay protected, including parked threads.
-  Archiving a thread starts a fresh sixty-day grace.
+  Archiving a thread starts a fresh sixty-day grace; old archives without tracking
+  receive the same grace when collection first initializes them.
 - Existing session data receives a full grace period when tracking begins.
   Unknown ownership or liveness keeps data. Agent-native conversations and
   repository files are outside this collector.
@@ -662,7 +663,8 @@ items in bounded batches: up to 100 eligible groups and the first 100 diagnostic
 paths per invocation. Repeating it can collect remaining session/capture groups;
 the automatic worker uses a saved cursor to cover larger diagnostic inventories.
 Blocked groups report why they remain. Running Pair/Couch schedules these
-resumable daily sweeps after readiness.
+resumable daily sweeps after readiness, visiting up to 100 owners per page with
+a cooperative two-second budget. Incomplete inventories retain data.
 Retention does not impose a global disk-space ceiling on active session history.
 See [storage retention](atlas/storage-retention.md) for clocks, migration and
 recovery details.

@@ -13,7 +13,13 @@ import (
 // WithReadLock never initializes storage. Before the first managed mutation
 // there is no coordination inode; that snapshot can only report untracked
 // evidence. It must never be used as authorization for collection.
-func (c *Coordinator) WithReadLock(ctx context.Context, fn func(*Locked) error) (err error) {
+func (c *Coordinator) WithReadLock(ctx context.Context, fn func(*Locked) error) error {
+	return c.withReadLock(ctx, false, fn)
+}
+func (c *Coordinator) TryWithReadLock(ctx context.Context, fn func(*Locked) error) error {
+	return c.withReadLock(ctx, true, fn)
+}
+func (c *Coordinator) withReadLock(ctx context.Context, nonblocking bool, fn func(*Locked) error) (err error) {
 	if err = ctx.Err(); err != nil {
 		return err
 	}
@@ -42,6 +48,9 @@ func (c *Coordinator) WithReadLock(ctx context.Context, fn func(*Locked) error) 
 				if err == nil {
 					break
 				}
+				if nonblocking && errors.Is(err, unix.EWOULDBLOCK) {
+					return ErrCoordinatorBusy
+				}
 				if !errors.Is(err, unix.EWOULDBLOCK) {
 					return err
 				}
@@ -54,7 +63,7 @@ func (c *Coordinator) WithReadLock(ctx context.Context, fn func(*Locked) error) 
 			defer func() { err = errors.Join(err, unix.Flock(fd, unix.LOCK_UN)) }()
 		}
 	}
-	held := &Locked{coordinator: c, active: true, readOnly: true}
+	held := &Locked{coordinator: c, active: true, readOnly: true, ctx: ctx}
 	defer func() { held.active = false }()
 	return fn(held)
 }

@@ -4,6 +4,7 @@ package diagnosticlog
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -33,6 +34,8 @@ type Registration struct {
 }
 type Proof func(path string, writers []Registration) error
 type Options struct {
+	// Context bounds optional maintenance; nil preserves ordinary writer behavior.
+	Context  context.Context
 	Now      func() time.Time
 	MaxBytes int64
 	Proof    Proof
@@ -307,6 +310,25 @@ func definitelyDead(r Registration) bool {
 }
 func directory(path string) string { return path + ".pair-diagnostics" }
 func lockPath(path string) string  { return path + ".pair-diagnostics.lock" }
+func (o Options) checkContext() error {
+	if o.Context != nil {
+		return o.Context.Err()
+	}
+	return nil
+}
+
+func lockedOptions(path string, create bool, o Options, fn func() error) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	return locked(path, create, func() error {
+		if err := o.checkContext(); err != nil {
+			return err
+		}
+		return fn()
+	})
+}
+
 func locked(path string, create bool, fn func() error) error {
 	flags := syscall.O_RDWR
 	if create {
@@ -478,10 +500,15 @@ func syncDir(path string) error {
 	return f.Sync()
 }
 func fault(o Options, step string) error {
-	if o.Fault != nil {
-		return o.Fault(step)
+	if err := o.checkContext(); err != nil {
+		return err
 	}
-	return nil
+	if o.Fault != nil {
+		if err := o.Fault(step); err != nil {
+			return err
+		}
+	}
+	return o.checkContext()
 }
 func validSegment(name string) bool {
 	if len(name) != len("segment-")+32+len(".log") || name[:8] != "segment-" || name[len(name)-4:] != ".log" {
@@ -491,6 +518,9 @@ func validSegment(name string) bool {
 	return e == nil
 }
 func rotate(path string, s *diskState, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	g := s.Current
 	ready := false
 	for range 8 {
@@ -515,6 +545,9 @@ func rotate(path string, s *diskState, o Options) error {
 		return errors.New("diagnostic radix allocation busy")
 	}
 	s.Pending = &g
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	if e := save(path, *s, true); e != nil {
 		return e
 	}
@@ -524,6 +557,9 @@ func rotate(path string, s *diskState, o Options) error {
 	return recoverRotation(path, s, o)
 }
 func recoverRotation(path string, s *diskState, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	g := *s.Pending
 	dst := segmentPath(path, g.Name)
 	st, e := regular(dst)
@@ -534,6 +570,9 @@ func recoverRotation(path string, s *diskState, o Options) error {
 		}
 		if e = matches(st, g); e != nil {
 			return e
+		}
+		if err := o.checkContext(); err != nil {
+			return err
 		}
 		if e = os.Rename(path, dst); e != nil {
 			return e
@@ -556,14 +595,20 @@ func recoverRotation(path string, s *diskState, o Options) error {
 	if e = fault(o, "rename"); e != nil {
 		return e
 	}
-	if e = cleanupGenerationTemps(filepath.Dir(dst)); e != nil {
+	if e = cleanupGenerationTemps(filepath.Dir(dst), o); e != nil {
 		return e
+	}
+	if err := o.checkContext(); err != nil {
+		return err
 	}
 	if e = writeJSON(dst+".json", g, true); e != nil {
 		return e
 	}
 	s.Current = generation{}
 	s.Pending = nil
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	if e = save(path, *s, true); e != nil {
 		return e
 	}
@@ -599,12 +644,15 @@ func (w *Writer) scheduleMaintenance() {
 // Maintain is scheduled work, never a terminal callback. It performs one
 // pending recovery or generation rotation, with nonblocking coordination.
 func Maintain(path string, options Options) error {
+	if err := options.checkContext(); err != nil {
+		return err
+	}
 	p, e := canonical(path)
 	if e != nil {
 		return e
 	}
 	options = normalized(options)
-	return locked(p, false, func() error {
+	return lockedOptions(p, false, options, func() error {
 		s, e := load(p)
 		if e != nil {
 			return e

@@ -47,6 +47,7 @@ func (c *Coordinator) ReserveStart(ctx context.Context, o artifactpath.StorageOw
 		if err != nil {
 			return err
 		}
+		state.Starts = recoverUnspawnedStarts(state.Starts, c.Probe)
 		if len(state.Starts) >= 32 {
 			return errors.New("pending start limit reached")
 		}
@@ -147,4 +148,68 @@ func (l *Locked) AcknowledgeStart(o artifactpath.StorageOwner, id, role string, 
 		return l.save(state)
 	}
 	return nil
+}
+
+// CanRetireUnspawnedStart is the pure recovery admission: parent death is
+// sufficient only before the durable spawn boundary and without child receipts.
+func CanRetireUnspawnedStart(start StartReservation, parent Liveness) bool {
+	return parent == ProcessDead && !start.Spawned && len(start.Acknowledged) == 0
+}
+
+func recoverUnspawnedStarts(starts []StartReservation, probe ProcessProbe) []StartReservation {
+	kept := starts[:0]
+	for _, start := range starts {
+		if !CanRetireUnspawnedStart(start, probe.Inspect(start.Parent)) {
+			kept = append(kept, start)
+		}
+	}
+	return kept
+}
+
+// ResolveAbandonedStart is an explicit operator resolution of an uncertain
+// spawn. The acknowledgment covers unregistered descendants that process
+// records cannot prove absent; all recorded identities must still be dead.
+func (c *Coordinator) ResolveAbandonedStart(ctx context.Context, o artifactpath.StorageOwner, id string, parent ProcessIdentity, confirmUnregisteredChildrenAbsent bool) error {
+	if !confirmUnregisteredChildrenAbsent {
+		return errors.New("explicit acknowledgment of unregistered child absence is required")
+	}
+	return c.WithLock(ctx, func(l *Locked) error {
+		state, err := l.load(o)
+		if err != nil {
+			return err
+		}
+		if c.Probe == nil {
+			return errors.New("process probe unavailable")
+		}
+		for i, start := range state.Starts {
+			if start.ID != id || start.Parent != parent {
+				continue
+			}
+			if c.Probe.Inspect(parent) != ProcessDead {
+				return errors.New("launch parent is not proved dead")
+			}
+			for _, child := range start.Acknowledged {
+				if c.Probe.Inspect(child) != ProcessDead {
+					return errors.New("acknowledged child is not proved dead")
+				}
+			}
+			for _, registration := range state.Processes {
+				if c.Probe.Inspect(registration.Process) != ProcessDead {
+					return errors.New("registered owner process is not proved dead")
+				}
+			}
+			for _, intent := range state.Intents {
+				if c.Probe.Inspect(intent.Process) != ProcessDead {
+					return errors.New("owner use is not proved dead")
+				}
+			}
+			state.Starts = append(state.Starts[:i], state.Starts[i+1:]...)
+			now := c.Now()
+			if start.Spawned && now.After(state.Activity.LastUse) {
+				state.Activity.LastUse = now
+			}
+			return l.save(state)
+		}
+		return errors.New("unknown start reservation or changed parent")
+	})
 }

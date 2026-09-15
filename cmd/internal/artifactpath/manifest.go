@@ -257,6 +257,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/storagegc/inventory.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/storagegc/snapshot.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/storagegc/transaction.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/transaction_model.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/storagegc/policy.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/storagegc/capture_metadata.go", Kind: ResolvedConsumer, Families: []string{"parked"}, BindingNames: []string{"parsed-parked-capture"}},
 	{Path: "cmd/internal/artifactpath/gc.go", Kind: Constructor, Families: []string{"agent", "lifecycle", "parked", "scrollback"}},

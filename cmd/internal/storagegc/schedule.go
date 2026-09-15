@@ -18,6 +18,7 @@ type Scheduler struct {
 	Interval    time.Duration
 	Batch       func(context.Context, string, int) (next string, complete bool, err error)
 	Limit       int
+	WorkBudget  time.Duration
 }
 
 type scheduleState struct {
@@ -100,7 +101,19 @@ func (s *Scheduler) runOnce(ctx context.Context) (ran bool, delay time.Duration,
 	if err = ctx.Err(); err != nil {
 		return false, 0, err
 	}
-	next, complete, batchErr := s.Batch(ctx, state.Cursor, limit)
+	budget := s.WorkBudget
+	if budget == 0 {
+		budget = 2 * time.Second
+	}
+	if budget < 0 {
+		return false, 0, errors.New("invalid maintenance time budget")
+	}
+	workCtx, cancel := context.WithTimeout(ctx, budget)
+	next, complete, batchErr := s.Batch(workCtx, state.Cursor, limit)
+	cancel()
+	if ctx.Err() == nil && (errors.Is(batchErr, context.DeadlineExceeded) || errors.Is(batchErr, ErrCoordinatorBusy) || errors.Is(batchErr, ErrMaintenanceYield)) {
+		return true, time.Minute, nil
+	}
 	if batchErr != nil {
 		return true, 0, batchErr
 	}
@@ -118,7 +131,10 @@ func (s *Scheduler) runOnce(ctx context.Context) (ran bool, delay time.Duration,
 	} else {
 		delay = 0
 	}
-	err = c.WithLock(ctx, func(l *Locked) error { return l.atomicJSON(path, state) })
+	err = c.TryWithLock(ctx, func(l *Locked) error { return l.atomicJSON(path, state) })
+	if errors.Is(err, ErrCoordinatorBusy) {
+		return true, time.Minute, nil
+	}
 	return true, delay, err
 }
 

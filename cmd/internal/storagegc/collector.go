@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
@@ -47,6 +48,9 @@ type CollectionReport struct {
 	BlockReason       string           `json:"block_reason,omitempty"`
 	CollectedBytes    int64            `json:"collected_bytes"`
 	Collected         int              `json:"collected"`
+	NextOwner         string           `json:"next_owner,omitempty"`
+	BatchComplete     bool             `json:"batch_complete"`
+	OwnersProcessed   int              `json:"owners_processed"`
 }
 type Collector struct {
 	Coordinator   *Coordinator
@@ -68,8 +72,33 @@ func (c *Collector) Preview(ctx context.Context) (report CollectionReport, err e
 	err = c.Coordinator.WithReadLock(ctx, func(l *Locked) error { var e error; report, e = c.snapshot(ctx, l); return e })
 	return
 }
+
+// TryPreview yields to an active foreground writer without waiting.
+func (c *Collector) TryPreview(ctx context.Context) (report CollectionReport, err error) {
+	if c.Coordinator == nil {
+		return report, errors.New("collector requires coordinator")
+	}
+	err = c.Coordinator.TryWithReadLock(ctx, func(l *Locked) error { var e error; report, e = c.snapshot(ctx, l); return e })
+	return
+}
 func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionReport, error) {
-	r := CollectionReport{}
+	return c.snapshotPage(ctx, held, "", 0)
+}
+
+// inventorySnapshot exists only within one uninterrupted root-lock callback.
+// Metadata onboarding changes clocks, never the discovered payload paths.
+type inventorySnapshot struct {
+	ready     bool
+	inventory RootInventory
+	managed   []ProcessIdentity
+}
+
+func (c *Collector) snapshotPage(ctx context.Context, held *Locked, after string, ownerLimit int) (CollectionReport, error) {
+	return c.snapshotWithInventory(ctx, held, after, ownerLimit, nil)
+}
+
+func (c *Collector) snapshotWithInventory(ctx context.Context, held *Locked, after string, ownerLimit int, cache *inventorySnapshot) (CollectionReport, error) {
+	r := CollectionReport{BatchComplete: true}
 	registry, err := c.Coordinator.ReadRegistry()
 	referencesComplete := err == nil
 	if err != nil {
@@ -89,47 +118,84 @@ func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionRepor
 			}
 		}
 	}
-	known := append([]artifactpath.StorageOwner(nil), refs.Visible...)
-	for _, a := range refs.Archives {
-		known = append(known, a.Owner)
-	}
-	// Metadata owners keep otherwise anchorless stored artifacts discoverable.
-	dir := filepath.Join(c.Coordinator.Root, ".retention", "owners")
-	entries, e := os.ReadDir(dir)
-	if e != nil && !errors.Is(e, os.ErrNotExist) {
-		return r, e
-	}
+	var inventory RootInventory
 	var managed []ProcessIdentity
-	for _, entry := range entries {
-		if ctx.Err() != nil {
-			return r, ctx.Err()
+	if cache != nil && cache.ready {
+		inventory, managed = cache.inventory, cache.managed
+	} else {
+		known := append([]artifactpath.StorageOwner(nil), refs.Visible...)
+		for _, a := range refs.Archives {
+			known = append(known, a.Owner)
 		}
-		if entry.IsDir() {
-			return r, errors.New("unexpected activity directory")
+		pendingLeft := ownerLimit
+		if pendingLeft <= 0 {
+			pendingLeft = 100
 		}
-		var s OwnerState
-		if e := readStateJSON(filepath.Join(dir, entry.Name()), &s); e != nil {
+		var recoverPending func(string, string) error
+		if held.Writable(c.Coordinator.Root) {
+			recoverPending = func(dir, name string) error {
+				if pendingLeft == 0 {
+					return ErrMaintenanceYield
+				}
+				pendingLeft--
+				return held.RemovePendingMetadata(ctx, dir, name)
+			}
+		}
+		// Metadata owners keep otherwise anchorless stored artifacts discoverable.
+		dir := filepath.Join(c.Coordinator.Root, ".retention", "owners")
+		limit := c.MaxEntries
+		if limit == 0 {
+			limit = 100000
+		}
+		entries, e := boundedOwnerEntries(dir, limit)
+		if errors.Is(e, errMetadataBudget) {
+			r.BlockReason = e.Error()
+			return r, nil
+		}
+		if e != nil {
 			return r, e
 		}
-		if _, e := c.Coordinator.ReadOwner(s.Activity.Owner); e != nil {
+		for _, entry := range entries {
+			if ctx.Err() != nil {
+				return r, ctx.Err()
+			}
+			if isPendingMetadata(entry.Name()) {
+				if recoverPending != nil {
+					if err := recoverPending(dir, entry.Name()); err != nil {
+						return r, err
+					}
+				}
+				continue
+			}
+			if entry.IsDir() {
+				return r, errors.New("unexpected activity directory")
+			}
+			var s OwnerState
+			if e := readStateJSON(filepath.Join(dir, entry.Name()), &s); e != nil {
+				return r, e
+			}
+			if _, e := c.Coordinator.ReadOwner(s.Activity.Owner); e != nil {
+				return r, e
+			}
+			if c.Coordinator.statePath(s.Activity.Owner) != filepath.Join(dir, entry.Name()) {
+				return r, errors.New("activity filename does not match owner")
+			}
+			known = append(known, s.Activity.Owner)
+			for _, p := range s.Processes {
+				managed = append(managed, p.Process)
+			}
+		}
+		excluded := append(append([]string(nil), registry.Stores...), c.ExcludedPaths...)
+		inventory, e = inventoryRootContext(ctx, c.Coordinator.Root, known, c.Agents, limit, excluded, recoverPending)
+		if e != nil {
 			return r, e
 		}
-		if c.Coordinator.statePath(s.Activity.Owner) != filepath.Join(dir, entry.Name()) {
-			return r, errors.New("activity filename does not match owner")
+
+		if cache != nil {
+			cache.ready = true
+			cache.inventory = inventory
+			cache.managed = managed
 		}
-		known = append(known, s.Activity.Owner)
-		for _, p := range s.Processes {
-			managed = append(managed, p.Process)
-		}
-	}
-	limit := c.MaxEntries
-	if limit == 0 {
-		limit = 100000
-	}
-	excluded := append(append([]string(nil), registry.Stores...), c.ExcludedPaths...)
-	inventory, e := InventoryRootExcluding(c.Coordinator.Root, known, c.Agents, limit, excluded)
-	if e != nil {
-		return r, e
 	}
 	r.Complete = inventory.Complete
 	r.Unknown = inventory.Unknown
@@ -142,6 +208,15 @@ func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionRepor
 		}
 	}
 	for _, group := range inventory.Groups {
+		if group.Owner.Key() <= after {
+			continue
+		}
+		if ownerLimit > 0 && r.OwnersProcessed >= ownerLimit {
+			r.BatchComplete = false
+			break
+		}
+		r.OwnersProcessed++
+		r.NextOwner = group.Owner.Key()
 		if ctx.Err() != nil {
 			return r, ctx.Err()
 		}
@@ -202,6 +277,9 @@ func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionRepor
 		session := CollectionItem{Owner: owner, Bucket: artifactpath.SessionRetention, Archives: archives}
 		captures := map[string][]artifactpath.ArtifactMember{}
 		for _, m := range group.Members {
+			if err := ctx.Err(); err != nil {
+				return r, err
+			}
 			switch m.Retention {
 			case artifactpath.CaptureRetention:
 				cap, e := artifactpath.ParseParkedCapture(m, time.FixedZone("legacy-latest", -14*60*60))
@@ -214,14 +292,14 @@ func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionRepor
 				// Managed rotated diagnostics use diagnosticlog's per-generation collector.
 				// This row reports the historical current file without authorizing unlink.
 				item := CollectionItem{Owner: owner, Bucket: m.Retention, Members: []artifactpath.ArtifactMember{m}, Decision: RetentionDecision{State: Blocked, Reason: "debugging generation requires coordinated writer collection"}}
-				item.Bytes, _ = memberBytes(item.Members)
+				item.Bytes, _ = memberBytesContext(ctx, item.Members)
 				r.Items = append(r.Items, item)
 			default:
 				session.Members = append(session.Members, m)
 			}
 		}
 		session.Decision = Decide(c.Coordinator.Now(), evidence)
-		session.Bytes, e = memberBytes(session.Members)
+		session.Bytes, e = memberBytesContext(ctx, session.Members)
 		if e != nil {
 			session.Decision = RetentionDecision{State: Blocked, Reason: e.Error()}
 		}
@@ -229,6 +307,9 @@ func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionRepor
 			r.Items = append(r.Items, session)
 		}
 		for raw, members := range captures {
+			if err := ctx.Err(); err != nil {
+				return r, err
+			}
 			ce := CaptureEvidence{Complete: evidence.Complete, Reader: legacy, BlockReason: evidence.BlockReason}
 			hasRaw := false
 			for _, m := range members {
@@ -284,7 +365,7 @@ func (c *Collector) snapshot(ctx context.Context, held *Locked) (CollectionRepor
 				}
 			}
 			item := CollectionItem{Owner: owner, Bucket: artifactpath.CaptureRetention, Members: members, Decision: DecideCapture(c.Coordinator.Now(), ce)}
-			item.Bytes, e = memberBytes(members)
+			item.Bytes, e = memberBytesContext(ctx, members)
 			if e != nil {
 				item.Decision = RetentionDecision{State: Blocked, Reason: e.Error()}
 			}
@@ -309,9 +390,12 @@ func firstPath(i CollectionItem) string {
 	}
 	return i.Members[0].Path
 }
-func memberBytes(members []artifactpath.ArtifactMember) (int64, error) {
+func memberBytesContext(ctx context.Context, members []artifactpath.ArtifactMember) (int64, error) {
 	var total int64
 	for _, m := range members {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
 		st, e := os.Lstat(m.Path)
 		if e != nil {
 			return 0, e
@@ -335,19 +419,64 @@ func knownNonCaptureRole(role string) bool {
 
 // Apply initializes missing session clocks even before inventory migration is
 // acknowledged. Payload deletion requires a complete registered-store inventory.
-func (c *Collector) Apply(ctx context.Context, limit int) (report CollectionReport, err error) {
+func (c *Collector) Apply(ctx context.Context, limit int) (CollectionReport, error) {
+	return c.applyPage(ctx, "", limit, false)
+}
+
+// ApplyPage advances by visited owner, including retained and newly initialized
+// owners. Optional maintenance never waits for the foreground coordinator.
+func (c *Collector) ApplyPage(ctx context.Context, after string, limit int) (CollectionReport, error) {
+	return c.applyPage(ctx, after, limit, true)
+}
+
+func (c *Collector) applyPage(ctx context.Context, after string, limit int, optional bool) (report CollectionReport, err error) {
 	if c.Coordinator == nil || limit <= 0 {
 		return report, errors.New("collector and positive work limit required")
 	}
-	err = c.Coordinator.WithLock(ctx, func(held *Locked) error {
+	ownerLimit := 0 // Explicit apply scans all owners; limit bounds collections.
+	lock := c.Coordinator.WithLock
+	if optional {
+		ownerLimit = limit
+		lock = c.Coordinator.TryWithLock
+	}
+	err = lock(ctx, func(held *Locked) error {
+		if _, err := held.RecoverPendingMetadata(ctx, c.Coordinator.PendingMetadataDir(), limit); err != nil {
+			return err
+		}
+		registry, registryErr := c.Coordinator.ReadRegistry()
+		if registryErr == nil {
+			if recovery, ok := c.References.(interface {
+				Recover(context.Context, *Locked, []string) error
+			}); ok {
+				if err := recovery.Recover(ctx, held, registry.Stores); err != nil {
+					return err
+				}
+			}
+		}
 		if err := c.recoverTransactions(held, limit); err != nil {
 			return err
 		}
-		initial, err := c.snapshot(ctx, held)
+		cache := &inventorySnapshot{}
+		initial, err := c.snapshotWithInventory(ctx, held, after, ownerLimit, cache)
 		if err != nil {
 			return err
 		}
 		seen := map[artifactpath.StorageOwner]bool{}
+		var owners []artifactpath.StorageOwner
+		for _, item := range initial.Items {
+			if !seen[item.Owner] {
+				seen[item.Owner] = true
+				owners = append(owners, item.Owner)
+			}
+		}
+		if onboarding, ok := c.References.(interface {
+			Onboard(context.Context, *Locked, []string, []artifactpath.StorageOwner) error
+		}); ok && registryErr == nil {
+			if err := onboarding.Onboard(ctx, held, registry.Stores, owners); err != nil {
+				return err
+			}
+		}
+		seen = map[artifactpath.StorageOwner]bool{}
 		for _, item := range initial.Items {
 			if ctx.Err() != nil {
 				return ctx.Err()
@@ -369,7 +498,7 @@ func (c *Collector) Apply(ctx context.Context, limit int) (report CollectionRepo
 				return err
 			}
 		}
-		report, err = c.snapshot(ctx, held)
+		report, err = c.snapshotWithInventory(ctx, held, after, ownerLimit, cache)
 		if err != nil {
 			return err
 		}
@@ -395,4 +524,25 @@ func (c *Collector) Apply(ctx context.Context, limit int) (report CollectionRepo
 		return nil
 	})
 	return
+}
+
+var errMetadataBudget = errors.New("activity metadata exceeds inventory budget; collection retained")
+
+func boundedOwnerEntries(dir string, limit int) ([]os.DirEntry, error) {
+	f, err := os.Open(dir)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	entries, err := f.ReadDir(limit + 1)
+	if len(entries) > limit {
+		return nil, errMetadataBudget
+	}
+	if errors.Is(err, io.EOF) {
+		err = nil
+	}
+	return entries, err
 }

@@ -61,8 +61,11 @@ func directoryNames(path string, limit int) ([]string, error) {
 	}
 	return names, nil
 }
-func removeEmptyParents(path, base string) error {
+func removeEmptyParents(path, base string, o Options) error {
 	for path != base {
+		if err := o.checkContext(); err != nil {
+			return err
+		}
 		if e := os.Remove(path); e != nil {
 			if errors.Is(e, syscall.ENOTEMPTY) || errors.Is(e, syscall.EEXIST) {
 				return nil
@@ -92,13 +95,17 @@ func validCursor(cursor string) bool {
 // at most16 generations (32 payload/metadata names). No full-directory sort or
 // unstable directory offset is used. A page visits at most128*(limit+1) names;
 // malformed overfull nodes fail closed after one bounded read.
-func generationPage(path, after string, limit int, cleanup bool) (names []string, next string, complete bool, err error) {
+func generationPage(path, after string, limit int, cleanup bool, o Options) (names []string, next string, complete bool, err error) {
 	limit = normalizedLimit(limit)
 	budget := 128 * (limit + 1)
 	next = after
 	complete = true
 	var walk func(string, string) bool
 	walk = func(dir, prefix string) bool {
+		if e := o.checkContext(); e != nil {
+			err = e
+			return false
+		}
 		upper := "segment-" + prefix + strings.Repeat("f", 32-len(prefix)) + ".log"
 		if after != "" && upper <= after {
 			return true
@@ -116,7 +123,7 @@ func generationPage(path, after string, limit int, cleanup bool) (names []string
 			return false
 		}
 		if cleanup && len(prefix) == 4 {
-			if e := cleanupGenerationTemps(dir); e != nil && !os.IsNotExist(e) {
+			if e := cleanupGenerationTemps(dir, o); e != nil && !os.IsNotExist(e) {
 				err = e
 				return false
 			}
@@ -189,6 +196,10 @@ func generationPage(path, after string, limit int, cleanup bool) (names []string
 			}
 		}
 		if cleanup {
+			if e := o.checkContext(); e != nil {
+				err = e
+				return false
+			}
 			if e := os.Remove(dir); e != nil && !errors.Is(e, syscall.ENOTEMPTY) && !errors.Is(e, syscall.EEXIST) && !os.IsNotExist(e) {
 				err = e
 				return false
@@ -229,6 +240,9 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		reason = e.Error()
 	}
 	add := func(p string, g generation) error {
+		if err := o.checkContext(); err != nil {
+			return err
+		}
 		st, e := regular(p)
 		if e != nil {
 			return e
@@ -256,7 +270,7 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 	if after == currentCursor {
 		after = ""
 	}
-	names, next, complete, e := generationPage(path, after, limit-len(out), cleanup)
+	names, next, complete, e := generationPage(path, after, limit-len(out), cleanup, o)
 	if e != nil {
 		return nil, cursor, false, e
 	}
@@ -315,6 +329,9 @@ func PreviewLegacyPage(path string, options Options, cursor string, limit int) (
 	return rows, "", true, e
 }
 func CollectLegacyPage(path string, options Options, cursor string, limit int) ([]Segment, string, bool, error) {
+	if err := options.checkContext(); err != nil {
+		return nil, cursor, false, err
+	}
 	if !validCursor(cursor) {
 		return nil, cursor, false, errors.New("invalid diagnostic page cursor")
 	}
@@ -342,13 +359,16 @@ func CollectLegacyPage(path string, options Options, cursor string, limit int) (
 // Leaf temporary files are solely atomic generation-metadata replacements.
 // Under the protocol lock none can be an active write; interrupted generation
 // publication is recovered before scanning or deleting immutable generations.
-func cleanupGenerationTemps(dir string) error {
+func cleanupGenerationTemps(dir string, o Options) error {
 	names, e := directoryNames(dir, 2*leafGenerations+1)
 	if e != nil {
 		return e
 	}
 	changed := false
 	for _, name := range names {
+		if err := o.checkContext(); err != nil {
+			return err
+		}
 		suffix, ok := strings.CutPrefix(name, ".pending-")
 		if !ok {
 			continue

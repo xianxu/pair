@@ -1,6 +1,7 @@
 package storagegc
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -29,6 +30,10 @@ func InventoryRoot(root string, known []artifactpath.StorageOwner, agents []stri
 	return InventoryRootExcluding(root, known, agents, limit, nil)
 }
 func InventoryRootExcluding(root string, known []artifactpath.StorageOwner, agents []string, limit int, excluded []string) (RootInventory, error) {
+	return inventoryRootContext(context.Background(), root, known, agents, limit, excluded, nil)
+}
+
+func inventoryRootContext(ctx context.Context, root string, known []artifactpath.StorageOwner, agents []string, limit int, excluded []string, pending func(string, string) error) (RootInventory, error) {
 	result := RootInventory{Complete: true}
 	if limit <= 0 {
 		return result, errors.New("positive inventory budget required")
@@ -63,6 +68,9 @@ func InventoryRootExcluding(root string, known []artifactpath.StorageOwner, agen
 			}
 			result.Entries += len(names)
 			for _, name := range names {
+				if err := ctx.Err(); err != nil {
+					return err
+				}
 				path := filepath.Join(dir, name)
 				if exclude[path] {
 					continue
@@ -96,6 +104,10 @@ func InventoryRootExcluding(root string, known []artifactpath.StorageOwner, agen
 						}
 						result.Entries += len(scopes)
 						for _, key := range scopes {
+							if err := ctx.Err(); err != nil {
+								sf.Close()
+								return err
+							}
 							child := filepath.Join(path, key)
 							if _, e := artifactpath.NewStorageOwner(root, key, "validation"); e != nil {
 								result.Unknown = append(result.Unknown, child)
@@ -116,6 +128,21 @@ func InventoryRootExcluding(root string, known []artifactpath.StorageOwner, agen
 						}
 					}
 					sf.Close()
+					continue
+				}
+				ownerDirectory := root
+				if scope != "" {
+					ownerDirectory = filepath.Join(root, "repos", scope)
+				}
+				if dir == ownerDirectory && isPendingMetadata(name) {
+					if !st.Mode().IsRegular() {
+						return errors.New("unsafe unpublished metadata")
+					}
+					if pending != nil {
+						if err := pending(dir, name); err != nil {
+							return err
+						}
+					}
 					continue
 				}
 				ns := spaces[scope]
@@ -146,6 +173,9 @@ func InventoryRootExcluding(root string, known []artifactpath.StorageOwner, agen
 		return result, err
 	}
 	for scope, ns := range spaces {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
 		owners, err := artifactpath.DiscoverStorageOwners(root, scope, ns.names)
 		if err != nil {
 			return result, err
@@ -173,6 +203,9 @@ func InventoryRootExcluding(root string, known []artifactpath.StorageOwner, agen
 		}
 		probe, _ := artifactpath.NewStorageOwner(root, scope, "validation")
 		for _, path := range ns.paths {
+			if err := ctx.Err(); err != nil {
+				return result, err
+			}
 			if artifactpath.SharedStorageArtifact(probe, path, agents) {
 				continue
 			}
