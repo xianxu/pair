@@ -26,6 +26,12 @@ Those audit findings refer to baseline `5ebb381f` plus then-uncommitted #250 rec
 
 Define and faithfully implement the terminal abstraction at Couch and Pair boundaries, with explicit state ownership, supported protocol semantics and observable conformance. Preserve existing useful parsers, reducers, typed output paths and Child-owned geometry where they meet the contract (ARCH-DRY, ARCH-ORDER). A dedicated durable design must choose implementation boundaries before code changes.
 
+### Proposed architecture (2026-09-15; awaiting design approval)
+
+Recommend an authoritative virtual terminal per child and one shared parent compositor for Couch and Pair. Render semantic screen frames rather than replaying raw child drawing commands into shared terminal state. Preserve existing PTY/geometry/Host seams and qualify the existing x/vt backend before adopting it; source inspection found compatibility gaps, so it is not yet a selected production backend. A stateful passthrough translator and moving all UI into Zellij are the alternatives considered.
+
+Durable proposal: [terminal abstraction plan](../plans/000255-terminal-abstraction-plan.md). Its first checkpoint qualifies required protocol behavior and the backend; later milestones implement the shared abstraction and migrate both consumers. Qualification alone cannot close #255. Detailed production steps, numeric budgets and remaining input policies must clear design review before code changes.
+
 ### Terminal abstraction contract
 
 Specify the terminal abstraction presented to each inner program before assigning implementation fields to owners. Adding a status bar, switching threads or intercepting shortcuts must preserve that abstraction within a declared supported protocol. Serialization and race freedom alone do not establish correct terminal semantics (ARCH-ORDER). Selective parsing plus passthrough needs an explicit preservation contract; terminal complexity is not an exemption from it.
@@ -134,3 +140,7 @@ Reason: operator requested a rigorous terminal abstraction rather than attributi
 ### 2026-09-15 — Narrow to terminal abstraction
 
 Reason: the operator clarified that terminal state management and a faithful terminal abstraction are the central purpose of #255. Supersedes the earlier revision retaining a broad lifecycle umbrella. Retitled and rewrote current Problem/Spec/Done when/Plan around terminal semantics and conformance. Moved generic lifecycle authority, process/attachment outcomes and observation uncertainty to #256; retained terminal IO outcomes and switch-ordering concerns here. Historical log and audit evidence remain as provenance, not additional current scope. No implementation was started.
+
+### 2026-09-15 — Planning started
+
+Claimed #255 and ran start-plan. Read-only parallel architecture mapping confirmed Screen is a selective observer, replay/mode snapshots can differ in position, and selection precedes output takeover in both consoles. Backend inspection found existing x/vt reusable screen APIs but keyboard, query/effect and framing conformance gaps. Recorded virtual-terminal/compositor proposal and qualification-first boundaries; no runtime changes, dependency upgrades, or live probes.
