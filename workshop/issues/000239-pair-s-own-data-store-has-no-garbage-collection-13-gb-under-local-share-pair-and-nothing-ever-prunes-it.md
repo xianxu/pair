@@ -129,13 +129,15 @@ Brainstorm first; the questions below are the design, not the answer.
 
 ## Plan
 
-- [ ] M1 — Exact ownership, explicit meaningful-use tracking, live protection and Couch archive grace; no deletion
+- [x] M1 — Exact ownership, explicit meaningful-use tracking, live protection and Couch archive grace; no deletion
 - [ ] M2 — Recoverable collection, preview/apply, bounded automatic sweep, verification and publication
 
 Implementation details and task checks: [approved plan](../plans/000239-storage-gc-plan.md).
 
 ## Log
 
+
+- 2026-09-15: closed M1 — Full Go suite, diagnostic and runtime races, isolated live conformance passed; append-intent mutation regression verified independently. Round5 sole registry classification corrected by source inspection. Shortcut receiver acknowledgment passes causal stalled-client regression and three live repetitions. Actual N/A: session attribution incomplete; no fabricated milestone hours. No real-store migration/apply.; review verdict: SHIP
 ### 2026-09-12
 
 - Filed from the #237/#238 investigation. Measurements taken with `du` and

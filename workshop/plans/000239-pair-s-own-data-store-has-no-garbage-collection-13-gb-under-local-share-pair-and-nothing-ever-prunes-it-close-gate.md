@@ -210,6 +210,48 @@ rounds:
           round: 5
       boundary: M1
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-15T00:20:28-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Eligible metadata-only retirement uses the collection journal; protection and interrupted-retirement tests pass.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: Reserved metadata publication stages have coordinated recovery; subprocess interruption and bounded cleanup tests pass.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: Verified dead pre-spawn reservations retire; uncertain spawned reservations retain protection. Recovery and resolution tests pass.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: OnboardArchiveGrace grants missing legacy clocks fresh grace while preserving malformed evidence; focused Couch tests pass.
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: transaction.go:450,494 route transitions through advanceTransaction and ReduceTransaction. Matrix, sequence and bypass-guard tests pass; a scratch regression permitting finalized-to-detached fails both behavioral tests. Plan line 33 now classifies StoreRegistry as INTEGRATION, matching stores.go:27-66 filesystem validation.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: Scheduled pages bound visited-owner work; the 100,000-filename, contention, cancellation and diagnostic-isolation tests pass.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: Journal publication precedes unique quarantine creation; publication-failure and killed-publisher recovery tests pass.
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: Diagnostic deletion replay handles removed ancestor directories while rejecting replacement identities; replay tests pass.
+          round: 6
+        - id: BR-9
+          disposition: addressed
+          note: Bounded append intents reconcile the observed authorized prefix; partial-write, killed-publisher and substitution tests pass.
+          round: 6
+      boundary: M1
+      blocked: false
 ---
 
 # Gate ledger — 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it#239 (boundary-review)
@@ -299,6 +341,20 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-8 — addressed — Diagnostic deletion replay tests pass across payload, metadata and ancestor removal, including replacement refusal.
 - BR-9 — addressed — Bounded append and exact-inode creation intents precede payload effects and recover through production entrypoints. Partial-write, cancellation, killed-process and replacement tests pass; removing append-intent publication in a scratch overlay makes the cancellation/reopen regression fail.
 
+## Round 6 — 2026-09-15T00:20:28-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Eligible metadata-only retirement uses the collection journal; protection and interrupted-retirement tests pass.
+- BR-2 — addressed — Reserved metadata publication stages have coordinated recovery; subprocess interruption and bounded cleanup tests pass.
+- BR-3 — addressed — Verified dead pre-spawn reservations retire; uncertain spawned reservations retain protection. Recovery and resolution tests pass.
+- BR-4 — addressed — OnboardArchiveGrace grants missing legacy clocks fresh grace while preserving malformed evidence; focused Couch tests pass.
+- BR-5 — addressed — transaction.go:450,494 route transitions through advanceTransaction and ReduceTransaction. Matrix, sequence and bypass-guard tests pass; a scratch regression permitting finalized-to-detached fails both behavioral tests. Plan line 33 now classifies StoreRegistry as INTEGRATION, matching stores.go:27-66 filesystem validation.
+- BR-6 — addressed — Scheduled pages bound visited-owner work; the 100,000-filename, contention, cancellation and diagnostic-isolation tests pass.
+- BR-7 — addressed — Journal publication precedes unique quarantine creation; publication-failure and killed-publisher recovery tests pass.
+- BR-8 — addressed — Diagnostic deletion replay handles removed ancestor directories while rejecting replacement identities; replay tests pass.
+- BR-9 — addressed — Bounded append intents reconcile the observed authorized prefix; partial-write, killed-publisher and substitution tests pass.
+
 ## Open findings
 
-- **BR-5** [Critical] `enforced-pure-transitions` The completed plan claims a transaction reducer that does not exist
+(none — every finding has been disposed)

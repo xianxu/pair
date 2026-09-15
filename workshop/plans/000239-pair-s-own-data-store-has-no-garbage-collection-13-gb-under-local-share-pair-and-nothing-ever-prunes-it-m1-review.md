@@ -628,3 +628,116 @@ dispose:
     note: |
       Bounded append and exact-inode creation intents precede payload effects and recover through production entrypoints. Partial-write, cancellation, killed-process and replacement tests pass; removing append-intent publication in a scratch overlay makes the cancellation/reopen regression fail.
 ```
+
+---
+
+## Re-review — 2026-09-15T00:20:28-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 239 — Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it |
+| repo | 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it |
+| issue file | workshop/issues/000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 6b06b449ae3521b92187ae14c51d62b66ec356e4..d7180a3822262ce5c588afce1b061b9406744b6c |
+| command | sdlc milestone-close --issue 239 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-15T00:20:28-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range satisfies the reviewed retention contracts. BR-5 is addressed: production transitions use the pure reducer, regression tests reject illegal transitions, and the plan correctly classifies filesystem-dependent registry validation as INTEGRATION. No new blocking findings emerged. Required range inspections succeeded; the working tree is clean.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Eligible metadata-only retirement uses the collection journal; protection and interrupted-retirement tests pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Reserved metadata publication stages have coordinated recovery; subprocess interruption and bounded cleanup tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Verified dead pre-spawn reservations retire; uncertain spawned reservations retain protection. Recovery and resolution tests pass.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      OnboardArchiveGrace grants missing legacy clocks fresh grace while preserving malformed evidence; focused Couch tests pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      transaction.go:450,494 route transitions through advanceTransaction and ReduceTransaction. Matrix, sequence and bypass-guard tests pass; a scratch regression permitting finalized-to-detached fails both behavioral tests. Plan line 33 now classifies StoreRegistry as INTEGRATION, matching stores.go:27-66 filesystem validation.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Scheduled pages bound visited-owner work; the 100,000-filename, contention, cancellation and diagnostic-isolation tests pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Journal publication precedes unique quarantine creation; publication-failure and killed-publisher recovery tests pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Diagnostic deletion replay handles removed ancestor directories while rejecting replacement identities; replay tests pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Bounded append intents reconcile the observed authorized prefix; partial-write, killed-publisher and substitution tests pass.
+```
+
+### 1. Strengths
+
+- Transaction authority remains fixed across phase changes; recovery tests protect replacement source files and newer incarnations.
+- Preview and apply have separate mutation boundaries, verified by portable-store and real CLI tests.
+- README and atlas document migration, retention clocks, recovery, and the absence of a global disk ceiling.
+- Managed-use documentation links entrypoints to actual protection mechanisms and behavioral tests.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+Passed:
+
+- Full `storagegc`, `artifactpath`, `diagnosticlog`, `gcruntime`, and `gccmd` suites.
+- Focused Couch retention, legacy-archive, and archive-detachment tests.
+- `tests/retention-test.sh`.
+- Pinned-range `git diff --check`.
+
+Reducer mutation testing produced the expected failures. Full-tree, race, and hosted Zellij checks were not rerun in this review.
+
+### 6. Architectural notes
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass — artifact constructors and shared coordination APIs supply common authority. |
+| ARCH-PURE | Pass — policy and reducer tests execute without IO; registry validation is correctly classified. |
+| ARCH-PURPOSE | Pass — session, capture, diagnostic, and Couch retention paths are represented. |
+| ARCH-MOCK | Pass — portable stores, stateful process fakes, and native conformance tests exercise the boundaries. |
+| ARCH-CONSTRAINTS | Pass — owner limits, cancellation, contention, and large inventories have direct tests. |
+| ARCH-SECURE | Pass — inspected recovery paths validate identities and retain uncertain evidence. |
+| ARCH-ORDER | Pass — production phase changes use the reducer; illegal and regressive transitions are tested. |
+| ARCH-FUNERAL | Pass — inspected metadata, quarantine, receipt, and diagnostic families have cleanup paths or explicit bounds. |
+
+### 7. Plan revision recommendations
+
+None required.

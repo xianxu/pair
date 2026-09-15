@@ -123,7 +123,7 @@ Files: create `cmd/internal/storagegc/use.go`, `use_test.go`, `nvim/retention.lu
 - [x] Wire resolved owner context into managed entrypoints and propagate explicit identity through orientation to parked readers. Use one lease/touch API; expose internal CLI operations for Lua through the existing dispatcher contract. Compare content before publishing a use event; do not read log payloads for GC.
 - [x] Cover all managed content readers/writers by a checked call-site inventory, including programmatic and explicit saves. Verify generic history scans, refresh/statusline reads, diagnostics and distiller writes stay non-use operations. Their file access still needs a lease when racing collection.
 - [x] Run managed-use and lifetime-registration strategies below; require affected Go/Lua tests to PASS; update `atlas/` and its index for ownership/use/lock contracts; commit.
-- [ ] Close M1 through `sdlc milestone-close --issue 239 --milestone M1` with recorded verification; fix the binary's review findings. No live deletion is enabled by M1.
+- [x] Close M1 through `sdlc milestone-close --issue 239 --milestone M1` with recorded verification; fix the binary's review findings. No live deletion is enabled by M1.
 
 ### M2 — Safe collection, CLI and scheduled sweeps
 
