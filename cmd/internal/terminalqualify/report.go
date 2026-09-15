@@ -3,6 +3,7 @@
 package terminalqualify
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -19,11 +20,16 @@ const (
 )
 
 type Result struct {
-	ID         string `json:"id"`
-	Capability string `json:"capability"`
-	Source     string `json:"source,omitempty"`
-	Status     Status `json:"status"`
-	Detail     string `json:"detail,omitempty"`
+	Comparison        string      `json:"comparison,omitempty"`
+	ID                string      `json:"id"`
+	Capability        string      `json:"capability"`
+	Source            string      `json:"source,omitempty"`
+	Status            Status      `json:"status"`
+	Detail            string      `json:"detail,omitempty"`
+	Expected          Observation `json:"expected,omitempty"`
+	Observed          Observation `json:"observed,omitempty"`
+	ExpectedTruncated bool        `json:"expected_truncated"`
+	ObservedTruncated bool        `json:"observed_truncated"`
 }
 type Report struct {
 	Candidate string   `json:"candidate"`
@@ -106,3 +112,73 @@ func (r Report) Summary() string {
 	return fmt.Sprintf("%d pass, %d fail, %d not-covered; qualified=%t", counts[Pass], counts[Fail], counts[NotCovered], r.Qualified())
 }
 func mismatchDetails(parts ...string) string { return boundedDetail(strings.Join(parts, "; ")) }
+
+// boundedEvidence copies presentation evidence, limiting each observation to 64
+// entries and 4096 JSON bytes (including escaped keys and values). The flag means
+// information was omitted, shortened, or normalized to valid UTF-8. Qualification
+// must compare the original observations, never these presentation copies.
+func boundedEvidence(original Observation) (Observation, bool) {
+	if original == nil {
+		return nil, false
+	}
+	const maxBytes, maxEntries = 4096, 64
+	result := Observation{}
+	keys := make([]string, 0, len(original))
+	for key := range original {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	truncated := false
+	for _, rawKey := range keys {
+		if len(result) == maxEntries {
+			truncated = true
+			break
+		}
+		key := strings.ToValidUTF8(rawKey, "�")
+		value := strings.ToValidUTF8(original[rawKey], "�")
+		if key != rawKey || value != original[rawKey] {
+			truncated = true
+		}
+		if _, exists := result[key]; exists {
+			truncated = true
+			continue
+		}
+		// Reject oversize keys before encoding; a UTF-8 JSON key cannot shrink.
+		if len(key) > maxBytes {
+			truncated = true
+			continue
+		}
+		result[key] = ""
+		encoded, _ := json.Marshal(result)
+		if len(encoded) > maxBytes {
+			delete(result, key)
+			truncated = true
+			continue
+		}
+		// Binary search bounds work even for control characters, whose JSON escapes
+		// occupy more bytes than their in-memory representation.
+		lo, hi := 0, min(len(value), maxBytes)
+		for lo < hi {
+			mid := lo + (hi-lo+1)/2
+			result[key] = utf8Prefix(value, mid)
+			encoded, _ = json.Marshal(result)
+			if len(encoded) <= maxBytes {
+				lo = mid
+			} else {
+				hi = mid - 1
+			}
+		}
+		result[key] = utf8Prefix(value, lo)
+		if result[key] != value {
+			truncated = true
+		}
+	}
+	return result, truncated
+}
+
+func utf8Prefix(s string, limit int) string {
+	for limit > 0 && !utf8.ValidString(s[:limit]) {
+		limit--
+	}
+	return s[:limit]
+}

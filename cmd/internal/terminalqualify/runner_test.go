@@ -3,6 +3,7 @@ package terminalqualify
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -60,5 +61,45 @@ func TestRunCaseRejectsOversizeBeforePartitioning(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("oversize fixture accepted")
+	}
+}
+
+func TestRunCaseDetectsUnassertedSplitStateChanges(t *testing.T) {
+	for _, key := range []string{"cell:7,2", "attrs:7,2", "link:7,2", "replies", "new-key"} {
+		t.Run(key, func(t *testing.T) {
+			tc := Case{ID: "split", Input: "abc", Split: true, Expected: Observation{"cursor": "1,0"}}
+			got, err := RunCase(context.Background(), tc, func(_ context.Context, _ Case, chunks []string) (Observation, error) {
+				obs := Observation{"cursor": "1,0", "cell:7,2": " ", "attrs:7,2": "0", "link:7,2": "", "replies": ""}
+				if len(chunks) > 1 {
+					obs[key] = "corrupt"
+				}
+				return obs, nil
+			})
+			if err != nil || got.Status != Fail || got.Comparison != "whole-split" || got.Observed[key] != "corrupt" {
+				t.Fatalf("undetected %s: %+v %v", key, got, err)
+			}
+		})
+	}
+}
+
+func TestRunCaseIncludesStructuredEvidence(t *testing.T) {
+	for _, value := range []string{"expected", "different"} {
+		got, err := RunCase(context.Background(), Case{ID: "evidence", Expected: Observation{"cell:0,0": "expected"}}, func(context.Context, Case, []string) (Observation, error) { return Observation{"cell:0,0": value}, nil })
+		if err != nil || got.Expected["cell:0,0"] != "expected" || got.Observed["cell:0,0"] != value || got.Comparison != "literal" {
+			t.Fatalf("%+v %v", got, err)
+		}
+	}
+}
+
+func TestRunCaseEvidenceRetainsRelevantActualFields(t *testing.T) {
+	got, err := RunCase(context.Background(), Case{ID: "evidence", Expected: Observation{"underline:0,0": "1"}}, func(context.Context, Case, []string) (Observation, error) {
+		obs := Observation{"underline:0,0": "1"}
+		for i := 0; i < 100; i++ {
+			obs[fmt.Sprintf("attrs:%d,0", i)] = "0"
+		}
+		return obs, nil
+	})
+	if err != nil || got.Observed["underline:0,0"] != "1" || !got.ObservedTruncated {
+		t.Fatalf("%+v %v", got, err)
 	}
 }

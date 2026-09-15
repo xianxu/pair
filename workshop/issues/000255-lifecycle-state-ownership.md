@@ -192,3 +192,8 @@ Operator clarified that #255 acceptance is the ongoing display corruption and lo
 Added the isolated terminal qualification probe and literal screen/input/query fixtures. Current result: 41 pass, 15 fail, 14 not-covered; unchanged adoption is rejected. Controlled blocked/failing reply transport, cancellation, isolation, teardown and race tests pass; a comparator mutation is detected. Production Couch/Pair behavior is unchanged. The qualification report records the Pair wrapper raw/transformed-stream audit and the integration obligations that remain. Final acceptance remains sustained absence of display corruption and continuous mouse-drag highlights in both panes, confirmed by the operator. M1 review is pending; M2–M4 require the approved backend re-plan checkpoint.
 
 Full Go suite passed after generating runtime assets; focused normal/race and artifact-inventory checks passed. One existing orientation reply test failed intermittently in an earlier full run, then passed 30 focused repetitions and the final suite; recorded without claiming a fix. `sdlc actual` could not find transcript events, so M1 uses the specific unavailable-telemetry exception rather than guessed hours.
+
+
+### 2026-09-15 — M1 boundary review round 1: REWORK
+
+Four findings addressed before resubmission: BR-1 complete observation equivalence, BR-2 non-color text attribute coverage, BR-3 bounded structured JSON evidence, BR-4 README probe documentation. Added regression tests first; focused race tests pass. Updated matrix: 53 pass, 15 fail, 14 not-covered, still rejecting unchanged production adoption. Added the general qualification lesson to workshop/lessons.md. No REWORK verdict is recorded as a completed review boundary.

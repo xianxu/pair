@@ -4,7 +4,7 @@ Decision: **reject the pinned backend for unchanged production adoption**. Keep 
 
 Candidate: `github.com/charmbracelet/x/vt@v0.0.0-20260510215043-e3181689be6b`.
 
-Result: **41 pass, 15 fail, 14 not-covered; qualified=false**. Failures below are observed mismatches against the declared fixture profile, not proof that every terminal must share every profile choice. Core escape/query expectations derive from [xterm](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html); extended-key requirements from [Kitty](https://sw.kovidgoyal.net/kitty/keyboard-protocol/). Per-case sources are in the emitted report.
+Result after M1 review corrections: **53 pass, 15 fail, 14 not-covered; qualified=false**. Failures below are observed mismatches against the declared fixture profile, not proof that every terminal must share every profile choice. Core escape/query expectations derive from [xterm](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html); extended-key requirements from [Kitty](https://sw.kovidgoyal.net/kitty/keyboard-protocol/). Per-case sources are in the emitted report.
 
 Rerun from the repo root:
 
@@ -77,3 +77,10 @@ Harness unit tests and focused race tests pass, including blocked/failing reply 
 `go test ./...` passed after generating the worktree runtime bundle (`/tmp/pair255-full-go-final.log`). Earlier runs found missing generated assets, two new artifact-inventory omissions (fixed), and one existing `TestOrientationTerminalRepliesDoNotCancel` failure: orientation paste appeared between complete terminal replies. That test passed 30 focused reruns and the final full suite; no wrapper change was made. Focused normal/race tests passed after adding the 64KiB fixture limit, whose failing-before-fix test prevents excessive partition metadata. The comparator mutation test failed as intended. `git diff --check` passed. Probe exit1 reproduced 41 pass / 15 fail / 14 not-covered. M1 boundary review is the remaining checkpoint.
 
 `sdlc actual --issue 255` reported no transcript events in the available harness registry, so measured actuals are unavailable. Use the precise `--no-actual` exception with this reason rather than invent hours.
+
+
+### 2026-09-15 review round 1 corrections
+
+The first boundary review returned REWORK. BR-1: RunCase now compares complete whole/split observations in both directions in addition to literal expectations; regressions catch changes in otherwise unasserted cells, attributes, hyperlinks, replies and extra keys. BR-2: snapshots now include attribute masks, underline style and underline color, with 12 independent set/reset/preservation fixtures (all pass). BR-3: JSON includes bounded structured expected/observed maps and comparison kind. It prioritizes literal fields or whole/split differences; truncation flags explicitly identify omitted/shortened state. The full observations remain the correctness predicate. BR-4: README documents the runnable probe and exit statuses.
+
+Updated result: 53 pass, 15 fail, 14 not-covered; no unchanged production adoption. Focused race tests pass after the corrections. Failures remain those listed above; the added tests expand the coverage rather than changing the oracle to admit failures.

@@ -13,6 +13,23 @@ const hyperlinkSource = "https://gist.github.com/egmontkob/eb114294efbcd5adb1944
 // fragmentation check, never a substitute for the independent expected cells.
 func ScreenCases() []Case {
 	cases := []Case{
+		// Attribute observations expose the pinned API's mask: bold=1, faint=2,
+		// italic=4, blink=8, rapid blink=16, reverse=32, conceal=64, strike=128.
+		// Literal protocol expectations remain independent of the candidate parser.
+		{ID: "sgr-bold", Capability: "SGR bold set and reset", Input: "\x1b[1mX\x1b[22mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "1", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+		{ID: "sgr-faint", Capability: "SGR faint set and reset", Input: "\x1b[2mX\x1b[22mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "2", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+		{ID: "sgr-italic", Capability: "SGR italic set and reset", Input: "\x1b[3mX\x1b[23mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "4", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+		{ID: "sgr-slow-blink", Capability: "SGR slow-blink set and reset", Input: "\x1b[5mX\x1b[25mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "8", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+		{ID: "sgr-rapid-blink", Capability: "SGR rapid-blink set and reset", Input: "\x1b[6mX\x1b[25mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "16", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+		{ID: "sgr-reverse", Capability: "SGR reverse set and reset", Input: "\x1b[7mX\x1b[27mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "32", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+		{ID: "sgr-conceal", Capability: "SGR conceal set and reset", Input: "\x1b[8mX\x1b[28mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "64", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+		{ID: "sgr-strike", Capability: "SGR strike set and reset", Input: "\x1b[9mX\x1b[29mY", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "128", "cell:1,0": "Y", "attrs:1,0": "0"}, Split: true},
+
+		{ID: "sgr-selective-reset", Capability: "SGR selective reset preserves unrelated attributes", Input: "\x1b[1;2;3;7;8;9mA\x1b[22mB\x1b[23mC\x1b[27mD\x1b[28mE\x1b[29mF\x1b[1;4mG\x1b[0mH", Expected: Observation{"attrs:0,0": "231", "attrs:1,0": "228", "attrs:2,0": "224", "attrs:3,0": "192", "attrs:4,0": "128", "attrs:5,0": "0", "attrs:6,0": "1", "underline:6,0": "1", "attrs:7,0": "0", "underline:7,0": "0"}, Split: true},
+		{ID: "sgr-underline-styles", Capability: "SGR underline styles and selective reset", Input: "\x1b[1;4mA\x1b[4:2mB\x1b[4:3mC\x1b[4:4mD\x1b[4:5mE\x1b[24mF", Expected: Observation{"underline:0,0": "1", "underline:1,0": "2", "underline:2,0": "3", "underline:3,0": "4", "underline:4,0": "5", "underline:5,0": "0", "attrs:5,0": "1"}, Split: true},
+		{ID: "sgr-underline-color", Capability: "SGR underline color set, reset, and preservation", Input: "\x1b[4;58;2;18;52;86mA\x1b[24mB\x1b[4;58;5;196mC\x1b[59mD\x1b[58;5;22mE\x1b[0mF", Expected: Observation{"underline-color:0,0": "#123456", "underline-color:1,0": "#123456", "underline:1,0": "0", "underline-color:2,0": "ansi:196", "underline-color:3,0": "", "underline:3,0": "1", "underline-color:4,0": "ansi:22", "underline-color:5,0": "", "underline:5,0": "0"}, Split: true},
+		{ID: "sgr-scroll-preservation", Capability: "screen scrolling retains complete cell style after pen reset", Input: "\x1b[2;1H\x1b[1;3;7;4:3;58;2;18;52;86mX\x1b[0m\x1b[4;1H\n", Expected: Observation{"cell:0,0": "X", "attrs:0,0": "37", "underline:0,0": "3", "underline-color:0,0": "#123456", "attrs:0,3": "0", "underline:0,3": "0", "underline-color:0,3": ""}, Split: true},
+
 		{ID: "ascii", Capability: "ASCII text and cursor", Input: "abc", Expected: Observation{"cell:0,0": "a", "cell:1,0": "b", "cell:2,0": "c", "cursor": "3,0"}, Split: true},
 		{ID: "utf8-two", Capability: "two-byte UTF-8", Source: unicodeSource, Input: "éX", Expected: Observation{"cell:0,0": "é", "cell:1,0": "X", "cursor": "2,0"}, Split: true},
 		{ID: "utf8-four", Capability: "four-byte UTF-8", Source: unicodeSource, Input: "😀X", Expected: Observation{"cell:0,0": "😀", "cell-width:0,0": "2", "cell:2,0": "X", "cursor": "3,0"}, Split: true},

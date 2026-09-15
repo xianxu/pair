@@ -30,6 +30,7 @@ func RunCase(ctx context.Context, c Case, execute Executor) (Result, error) {
 	if c.Split {
 		variants = SplitInputs(c.Input)
 	}
+	var baseline Observation
 	for i, chunks := range variants {
 		if err := ctx.Err(); err != nil {
 			return result, err
@@ -40,7 +41,61 @@ func RunCase(ctx context.Context, c Case, execute Executor) (Result, error) {
 		if err != nil {
 			return result, fmt.Errorf("%s variant %d: %w", c.ID, i, err)
 		}
-		if detail := Compare(c.Expected, got); detail != "" {
+		if i == 0 {
+			baseline = make(Observation, len(got))
+			for key, value := range got {
+				baseline[key] = value
+			}
+		}
+		evidenceWant := c.Expected
+		result.Comparison = "literal"
+		detail := Compare(c.Expected, got)
+		if detail == "" && i > 0 {
+			detail = Compare(baseline, got)
+			if detail == "" {
+				detail = Compare(got, baseline)
+			}
+			if detail != "" {
+				evidenceWant = baseline
+				result.Comparison = "whole-split"
+				detail = "whole/split observation mismatch: " + detail
+			}
+		}
+		// Preserve the relevant comparison fields before applying display bounds.
+		// Full observations above remain the correctness predicate.
+		evidenceGot := make(Observation)
+		if result.Comparison == "whole-split" {
+			changedWant := make(Observation)
+			for key, value := range evidenceWant {
+				actual, ok := got[key]
+				if !ok || actual != value {
+					changedWant[key] = value
+					if ok {
+						evidenceGot[key] = actual
+					}
+				}
+			}
+			for key, value := range got {
+				if _, ok := evidenceWant[key]; !ok {
+					evidenceGot[key] = value
+				}
+			}
+			result.ExpectedTruncated = len(changedWant) < len(evidenceWant)
+			evidenceWant = changedWant
+		} else {
+			for key := range evidenceWant {
+				if value, ok := got[key]; ok {
+					evidenceGot[key] = value
+				}
+			}
+		}
+		expected, expectedCut := boundedEvidence(evidenceWant)
+		observed, observedCut := boundedEvidence(evidenceGot)
+		result.Expected = expected
+		result.Observed = observed
+		result.ExpectedTruncated = result.ExpectedTruncated || expectedCut
+		result.ObservedTruncated = observedCut || len(evidenceGot) < len(got)
+		if detail != "" {
 			result.Status = Fail
 			result.Detail = mismatchDetails(fmt.Sprintf("variant=%d chunks=%d", i, len(chunks)), detail)
 			return result, nil

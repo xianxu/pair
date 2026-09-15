@@ -196,3 +196,8 @@ Operator requires the ongoing display corruption and missing live selection high
 ### 2026-09-15 M1 qualification outcome
 
 The executable qualification is implemented under `cmd/internal/terminalqualify`, isolated from production. Snapshot is private and captured atomically by Execute; exposing an independent Snapshot method would allow unordered reads. The report rejects unchanged adoption (41 pass, 15 fail, 14 not-covered). This is the negative-result branch of M1: backend selection and detailed M2–M4 remain at the approved re-plan checkpoint. No production migration is authorized by a successful qualification-tool review. Fixed fixture inputs are capped at 64KiB before constructing partition metadata. See `000255-terminal-qualification.md` for evidence and limits.
+
+
+### 2026-09-15 review-driven qualification corrections
+
+Reason: first M1 review found sparse split predicates, unobserved style fields and incomplete evidence/documentation. Delta: full-observation split equivalence plus independent literals; attribute/underline fixtures; bounded structured evidence with explicit truncation and comparison kind; README usage. Matrix expands from 70 to 82 obligations. This corrects the qualification instrument without changing production scope or final operator acceptance.

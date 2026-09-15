@@ -769,6 +769,22 @@ note has been handed over. If the capture or the send fails, your text is kept
 and you are told so. The full capture goes to a file and the prompt carries a
 headline plus that file's path.
 
+
+### Terminal backend qualification
+
+From the repository root, run `go run ./cmd/probes/terminalqualify > /tmp/terminal-qualification.json`
+to exercise the pinned candidate against synthetic terminal fixtures. JSON contains
+the candidate version, required cases, statuses, bounded expected/observed evidence
+and summary. Truncation flags identify shortened evidence; comparisons use complete
+observations. Exit 0 means every declared requirement passed; exit 1 means failed
+or untested requirements remain; exit 2 means an invocation, infrastructure or
+report-output error. `go run` prints the child exit status for nonzero results.
+
+This is development qualification tooling. It does not change the running terminal
+or establish that live display/selection bugs are fixed. See the
+[#255 qualification report](workshop/plans/000255-terminal-qualification.md)
+for the current negative adoption decision and remaining integration requirements.
+
 ---
 
 Release notes: [`CHANGELOG.md`](CHANGELOG.md). For design rationale and

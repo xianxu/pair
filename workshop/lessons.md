@@ -4977,3 +4977,6 @@ that transition authority is pure or enforced.
   commit. SDLC treats those trailers as a completed boundary, even for REWORK;
   verify the emitted review base/head before letting the next review proceed.
 - #239 shortcut conformance: sender sleep cannot establish receiver parser progress. Observe delivered key bytes before sending a printable barrier; incomplete escape prefixes can absorb that barrier under scheduling delays. Reproduce with a stalled disposable client before changing deadlines.
+
+
+- Terminal qualification: literal spot checks and whole/split equivalence serve different purposes. Require both, comparing every observed field across byte partitions; cover style attributes as well as glyphs/colors, and keep bounded structured evidence separate from the full correctness predicate. New runnable probes need README invocation and exit-status documentation. (#255 M1 review, 2026-09-15)

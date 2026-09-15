@@ -52,3 +52,32 @@ func TestRunInfrastructureRefusesQualification(t *testing.T) {
 		t.Fatalf("write failure exit=%d", got)
 	}
 }
+
+func TestRunJSONPreservesStructuredEvidence(t *testing.T) {
+	var out bytes.Buffer
+	result := q.Result{ID: "a", Status: q.Fail, Expected: q.Observation{"cursor": "1,0"}, Observed: q.Observation{"cursor": "2,0"}, ObservedTruncated: true, Comparison: "whole-split"}
+	code := run(context.Background(), &out, io.Discard, func(context.Context) (q.Report, error) {
+		return q.Report{Required: []string{"a"}, Results: []q.Result{result}}, nil
+	})
+	if code != 1 {
+		t.Fatalf("exit=%d", code)
+	}
+	var doc struct {
+		Results []struct {
+			Expected, Observed map[string]string
+			Comparison         string `json:"comparison"`
+			ExpectedTruncated  bool   `json:"expected_truncated"`
+			ObservedTruncated  bool   `json:"observed_truncated"`
+		}
+	}
+	if err := json.Unmarshal(out.Bytes(), &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Results) != 1 {
+		t.Fatalf("%s", out.Bytes())
+	}
+	got := doc.Results[0]
+	if got.Expected["cursor"] != "1,0" || got.Observed["cursor"] != "2,0" || got.ExpectedTruncated || !got.ObservedTruncated || got.Comparison != "whole-split" {
+		t.Fatalf("%s", out.Bytes())
+	}
+}

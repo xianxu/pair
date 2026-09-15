@@ -207,3 +207,26 @@ func TestCandidateCopiesScreenAndCallbackObservations(t *testing.T) {
 		t.Fatal("snapshot changed after next Execute")
 	}
 }
+
+func TestCandidateCapturesCompleteStyle(t *testing.T) {
+	c, err := NewCandidate(4, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	got, err := c.Execute(context.Background(), []string{"\x1b[1;3;4:3;58;2;18;52;86mX\x1b[0mY"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := Observation{"attrs:0,0": "5", "underline:0,0": "3", "underline-color:0,0": "#123456", "attrs:1,0": "0", "underline:1,0": "0", "underline-color:1,0": "", "attrs:2,0": "0", "underline:2,0": "0", "underline-color:2,0": ""}
+	if detail := Compare(want, got); detail != "" {
+		t.Fatal(detail)
+	}
+	_, err = c.Execute(context.Background(), []string{"\x1b[HX"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if detail := Compare(want, got); detail != "" {
+		t.Fatal("copied style changed: " + detail)
+	}
+}

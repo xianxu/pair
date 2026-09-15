@@ -193,6 +193,7 @@ func (c *Candidate) snapshot() (Observation, error) {
 			suffix := fmt.Sprintf(":%d,%d", x, y)
 			cell := e.CellAt(x, y)
 			content, width, link, params, fg, bg := " ", 1, "", "", "", ""
+			attrs, underline, underlineColor := "0", "0", ""
 			if cell != nil {
 				content = cell.Content
 				if content == "" {
@@ -203,6 +204,9 @@ func (c *Candidate) snapshot() (Observation, error) {
 				params = cell.Link.Params
 				fg = colorString(cell.Style.Fg)
 				bg = colorString(cell.Style.Bg)
+				attrs = strconv.Itoa(int(cell.Style.Attrs))
+				underline = strconv.Itoa(int(cell.Style.Underline))
+				underlineColor = colorString(cell.Style.UnderlineColor)
 			}
 			out["cell"+suffix] = content
 			out["cell-width"+suffix] = strconv.Itoa(width)
@@ -210,6 +214,9 @@ func (c *Candidate) snapshot() (Observation, error) {
 			out["link-params"+suffix] = params
 			out["fg"+suffix] = fg
 			out["bg"+suffix] = bg
+			out["attrs"+suffix] = attrs
+			out["underline"+suffix] = underline
+			out["underline-color"+suffix] = underlineColor
 		}
 	}
 	return out, nil
