@@ -102,4 +102,4 @@ jobs:
       - name: Install zellij
         run: brew install zellij
       - name: Exercise Zellij teardown, continuation transport, and shortcut input
-        run: make test-couch-zellij-live
+        run: make -f Makefile.local test-couch-zellij-live

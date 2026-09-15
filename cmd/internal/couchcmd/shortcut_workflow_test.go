@@ -2,7 +2,9 @@ package couchcmd
 
 import (
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -63,5 +65,84 @@ func TestShortcutConformanceWorkflowSourceTriggers(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Hosted CI checks out Pair without its sibling ariadne repository. Exercise
+// the actual workflow command in that shape, without starting live processes.
+func TestConformanceWorkflowRunsWithoutSiblingMakefile(t *testing.T) {
+	workflow, err := os.ReadFile("../../../.github/workflows/couch-zellij-conformance.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var argv []string
+	for _, line := range strings.Split(string(workflow), "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "run: ") || !strings.Contains(line, "test-couch-zellij-live") {
+			continue
+		}
+		if argv != nil {
+			t.Fatal("multiple conformance commands; update the fixture")
+		}
+		argv = strings.Fields(strings.TrimPrefix(line, "run: "))
+	}
+	if len(argv) < 2 || argv[0] != "make" || argv[len(argv)-1] != "test-couch-zellij-live" {
+		t.Fatalf("unsupported conformance workflow command: %q", argv)
+	}
+	// Only the recipe file exists. Makefile has the same deliberately dangling
+	// link as a checkout without ../ariadne; do not repair it in the fixture.
+	fixture := filepath.Join(t.TempDir(), "pair")
+	if err := os.Mkdir(fixture, 0700); err != nil {
+		t.Fatal(err)
+	}
+	local, err := os.ReadFile("../../../Makefile.local")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(fixture, "Makefile.local"), local, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("../ariadne/Makefile", filepath.Join(fixture, "Makefile")); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(argv[0], append([]string{"-n"}, argv[1:]...)...)
+	command.Dir = fixture
+	// Inherited make flags/includes must not supply the missing sibling or run
+	// unrelated targets. All other environment remains available for make itself.
+	for _, entry := range os.Environ() {
+		key, _, _ := strings.Cut(entry, "=")
+		if key != "MAKEFLAGS" && key != "GNUMAKEFLAGS" && key != "MAKEFILES" {
+			command.Env = append(command.Env, entry)
+		}
+	}
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("standalone conformance dry-run: %v\n%s", err, output)
+	}
+	expected := map[string]string{
+		"./cmd/internal/launcher":  "TestSessionQuiescenceLive",
+		"./cmd/internal/couchcore": "TestRecoveryRealHelperAndSessionConformanceLive",
+		"./cmd/internal/couchcmd":  "TestAgentShortcutInputConformanceLive",
+	}
+	count := 0
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if !strings.HasPrefix(line, "PAIR_LIVE_COUCH=1 go test ") {
+			t.Fatalf("unexpected dry-run command %q", line)
+		}
+		count++
+		matched := false
+		for pkg, selector := range expected {
+			if strings.Contains(line, " "+pkg+" ") && strings.Contains(line, selector) {
+				delete(expected, pkg)
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			t.Fatalf("unexpected or duplicate conformance command %q", line)
+		}
+	}
+	if count != 3 || len(expected) != 0 {
+		t.Fatalf("expected three conformance commands, got %d; missing %v", count, expected)
 	}
 }
