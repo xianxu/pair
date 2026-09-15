@@ -83,7 +83,7 @@ total: 4.379
 
 ## Plan
 
-- [ ] Confirm proposed scope and author the implementation plan.
+- [x] Confirm proposed scope and author the implementation plan ([durable plan](../plans/000245-agent-shortcut-passthrough-plan.md)).
 - [ ] Implement and verify agent shortcut ownership across routing layers.
 - [ ] Update operator documentation and close through the SDLC review gate.
 
@@ -197,3 +197,30 @@ retires undocumented multiplexer actions for all panes while preserving
 Pair-owned draft/terminal actions. Announced this consequence to the operator.
 A growing unbind list would fail the promised default ownership on upgrades
 (ARCH-PURPOSE); a closed forwarding configuration prevents that drift.
+
+
+### 2026-09-14 — Implementation integrated; broad verification running
+
+Plan-quality passed after two rounds: PQ-1 fixed post-prefix scope admission;
+PQ-2 named production-function tests and generated stream partitions. Estimate
+quality was informational and start gate created the in-place branch. Estimate
+framing/fixture rows include their regression work, Zellij setup/run/cleanup;
+Lua row includes actual Neovim command geometry and error-reporting integration.
+The linked durable plan supports the design discount and buffer.
+
+Implemented agent-first shared policy with three tab reservations, Couch
+navigation declarations and post-prefix candidate routing, pane-local help and
+changelog, closed Zellij forwarding configuration and metadata-derived help.
+Added paste-aware chord lookahead and bounded suffix retention in both wrapper
+adaptation modes. Test-first failures reproduced consumed ordinary chords,
+pasted tab execution and split-chord loss under Return adaptation. All supported
+harness profiles now pass all two-way splits and bytewise delivery without false
+pasted submission observations. Portable composed acceptance transports actual
+Console child output into the production wrapper.
+
+Focused wrapper suite passed (10.509s), Couch suite (4.439s), Couch race (1.700s),
+shared/help race and native Neovim routing passed. Isolated real Zellij input
+passed all 13 cases with exact bytes and unchanged layout; the old configuration
+failed on Alt+f. Existing live recovery fixtures still passed. These fixtures
+use deterministic recorders, not real coding agents. Full make/race checks are
+running; operator smoke and SDLC close review remain pending.
