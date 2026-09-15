@@ -150,3 +150,18 @@ Couch-to-wrapper boundary. Isolated real-Zellij conformance checks semantic key
 delivery because Zellij may normalize encodings. No running user thread is
 restarted during automated testing. Pause for operator smoke after implementation,
 verification and the SDLC boundary review; do not ship #245 before that smoke.
+
+
+### 2026-09-14 — Spec review and inherited Zellij bindings
+
+Fresh spec review: Approved, no blocking findings. Review emphasized adding
+Alt+h/l to shared chord enumeration, retaining literal paste handling at both
+layers and distinguishing Backspace/Delete/Return encodings.
+
+The installed `zellij setup --dump-config` also revealed inherited Alt+f,
+Alt+=/+/-, Alt+[/], Alt+p and Alt+Shift+p actions. Clear inherited bindings
+(`clear-defaults=true`) and retain explicit Pair byte-forward bindings. This
+retires undocumented multiplexer actions for all panes while preserving
+Pair-owned draft/terminal actions. Announced this consequence to the operator.
+A growing unbind list would fail the promised default ownership on upgrades
+(ARCH-PURPOSE); a closed forwarding configuration prevents that drift.
