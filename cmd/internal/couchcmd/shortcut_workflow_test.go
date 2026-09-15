@@ -146,3 +146,41 @@ func TestConformanceWorkflowRunsWithoutSiblingMakefile(t *testing.T) {
 		t.Fatalf("expected three conformance commands, got %d; missing %v", count, expected)
 	}
 }
+
+// Hosted macOS images need not provide Go. The workflow must provision the
+// repository's declared toolchain before any recipe invokes it.
+func TestConformanceWorkflowProvisionsModuleToolchain(t *testing.T) {
+	workflow, err := os.ReadFile("../../../.github/workflows/couch-zellij-conformance.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checkedOut, setup, versionFile := false, false, ""
+	for _, block := range strings.Split(string(workflow), "\n      - ") {
+		if strings.Contains(block, "uses: actions/checkout@") {
+			checkedOut = true
+		}
+		if strings.Contains(block, "uses: actions/setup-go@") {
+			if !checkedOut {
+				t.Fatal("Go setup cannot read module version before checkout")
+			}
+			setup = true
+			for _, line := range strings.Split(block, "\n") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "go-version-file:") {
+					versionFile = strings.Trim(strings.TrimSpace(strings.TrimPrefix(line, "go-version-file:")), "\"'")
+				}
+			}
+		}
+		if strings.Contains(block, "run:") && strings.Contains(block, "test-couch-zellij-live") {
+			if !setup || versionFile != "go.mod" {
+				t.Fatalf("conformance recipe needs Go setup from go.mod first: setup=%v versionFile=%q", setup, versionFile)
+			}
+			module, err := os.ReadFile(filepath.Join("../../..", versionFile))
+			if err != nil || !strings.Contains(string(module), "\ngo ") {
+				t.Fatalf("Go setup version source lacks module toolchain: %v", err)
+			}
+			return
+		}
+	}
+	t.Fatal("conformance execution step missing")
+}
