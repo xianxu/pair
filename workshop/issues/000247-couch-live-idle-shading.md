@@ -71,3 +71,24 @@ Captured operator request. Inspected couchtty/menu_render.go (existing AgeBandFo
 and non-live fading), couchtty/reserve.go (selection/notification styles but no
 age), and threadstore timestamp updates. Read active #225 for theme constraints.
 Asked which activity should reset idle time; response pending. No code changed.
+
+
+## Revisions
+
+### 2026-09-14 — Add a simple recent-traffic dot
+
+The operator requested a green period after the thread name and explicitly chose simplicity over distinguishing useful work from terminal motion. This addition is independently scoped from the longer-term idle-shading proposal above; it does not require solving semantic work detection or persistent idle age.
+
+Approved dot behavior:
+
+- Display `ariadne.` with only the final period green when at least 15 bytes of fresh child PTY output arrived within the preceding 15 seconds. Spinners, redraws and control traffic count; no screen comparison or agent-work inference.
+- Apply the same recent-traffic predicate to thread names in the status bar and switcher, including background threads. The dot is presentation only, not part of the thread's name or identity.
+- Remove the dot when the rolling-window threshold is no longer met or the attachment ends. Replay and Couch's own paints do not create new activity. A new attachment starts with no observed activity; keep this transient state in memory.
+- Preserve existing selection and notification cues. Use existing console scheduling for expiry; no per-thread timer, per-byte persistence, or new background process. Bound storage and per-batch work by the small threshold.
+- Call the internal signal recent terminal activity. It is evidence of output, not proof of process health or useful progress. In color-disabled rendering the period still indicates activity without escape sequences.
+
+Dot acceptance: an injected clock verifies the 15-byte/15-second boundaries, expiry without further output, fresh versus replayed bytes, background activity and attachment reset. Production-path tests reach both renderers and preserve clipping/click spans and existing emphasis. This supplies the settled dot semantics for the implementation plan; the earlier ban on arbitrary PTY traffic applies only to the separate long-term meaningful-idle shading proposal.
+
+### 2026-09-14 — Capture status
+
+Recorded the operator's decision; no implementation begun. The shared checkout currently carries active #250 recovery work, including staged changes, so this update publishes only #247's issue record.
