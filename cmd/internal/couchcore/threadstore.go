@@ -1144,3 +1144,16 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 	})
 	return records, nil
 }
+
+// ReconcileRegisteredTarget persists the owned retirement transition at the
+// exact revision whose receipt, helper identity and session were observed.
+func (s *ThreadStore) ReconcileRegisteredTarget(address ThreadAddress, expectedRevision uint64, proof RegisteredTargetProof) (ThreadRecord, error) {
+	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		reconciled, err := ReconcileRegisteredTarget(*next, proof)
+		if err != nil {
+			return err
+		}
+		*next = reconciled
+		return nil
+	})
+}

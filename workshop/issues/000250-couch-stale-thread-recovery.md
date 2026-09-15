@@ -349,3 +349,41 @@ Full affected packages pass after both fixes: couchcore 95.010s and couchcmd
 20.593s (/tmp/pair250-review-fix-tests.log). Real Zellij recovery conformance
 passes again (3.142s, /tmp/pair250-review-fix-live.log). Build and diff check
 pass. These fixes are ready for the second SDLC boundary review.
+
+
+### 2026-09-14 — Boundary review round 2: prior fixes accepted; BR-3
+
+Review disposed BR-1/BR-2 as addressed. New Important BR-3 identifies direct
+Unknown-to-Live assignment during exact-receipt target reconciliation, before
+retiring that dead helper. Accepted: move receipt-backed reconciliation into the
+owned pure transition model with a revision-checked store operation and test
+interruption before reattachment. Prefer truthful atomic retirement over a
+synthetic live intermediate state. Gate remains unfinalized; no smoke-ready
+claim or operator-session mutation.
+
+
+### 2026-09-14 — BR-3 atomic transition implementation
+
+Added RegisteredTargetProof and pure ReconcileRegisteredTarget in the existing
+start transition model, with a revision-checked store operation. Exact request,
+attempt, agent/session and helper identity must match; only Running/Failed
+continuations with one settled Unknown incarnation and no start/park qualify.
+The IO caller rechecks registration/death; session observation no longer fakes
+a Live state even in its in-memory projection. Retirement preserves activity,
+checkpoint/history and all unrelated fields in one revision.
+
+Value-only model tests cover invalid proofs/states. Stateful tests interrupt
+immediately after retirement, prove no synthetic Live incarnation or extra
+launch, then reattach with the same attempt. Receipt loss, revived helper and
+competing revision refuse unchanged. Final focused race passed 12.096s (agent
+exec session65339); build passes. Full affected package rerun is in progress
+before submitting BR-3 for round 3. No operator runtime changes.
+
+The full BR-3 core run compiled an interim pure-test fixture during relocation
+and failed only TestReconcileRegisteredTargetRetiresUnknownAtomically (invalid
+source park receipt). The final value-only fixture uses valid SourceAbsence;
+fresh root targeted tests pass 2.566s (/tmp/pair250-br3-final-targeted.log), as
+did final focused race 12.096s. The same broad run passed couchcmd 25.070s and
+reported no other failed test. Build passes (/tmp/pair250-br3-build.log). These
+results supplement the earlier green full repository and full affected suites;
+do not mislabel the interim full core run as green.

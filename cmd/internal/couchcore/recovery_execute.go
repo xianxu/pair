@@ -55,6 +55,14 @@ func (c *Couch) observeRecovery(ctx context.Context, record ThreadRecord) (Recov
 	if record.Park != nil || len(record.Incarnations) > 1 || len(record.Incarnations) == 1 && (record.Incarnations[0].Start != nil || record.Incarnations[0].State != IncarnationLive || in.Helper != Dead) {
 		return in, nil
 	}
+	return c.observeRecoverySession(ctx, record, in)
+}
+
+// observeRecoverySession supplies session evidence after the caller's own
+// lifecycle admission. Ordinary recovery retains its stricter state guard.
+func (c *Couch) observeRecoverySession(ctx context.Context, record ThreadRecord, in RecoveryEvidence) (RecoveryEvidence, error) {
+	ctx, cancel := context.WithTimeout(ctx, recoveryObservationTimeout)
+	defer cancel()
 	binding, err := c.recoverySession(ctx, record.Address)
 	if err != nil {
 		return in, fmt.Errorf("recovery session state could not be checked; retry: %w", err)

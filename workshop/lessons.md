@@ -4883,3 +4883,9 @@ A timeout on an outer recovery helper does not bound a nested observer that
 switches to context.Background. Trace caller context through registration,
 generation lookup, retry and final archive observation into the actual external
 command. Test cancellation at those boundaries, not only before the operation.
+
+
+Exact external evidence does not authorize an ad-hoc persisted lifecycle state
+assignment. Represent receipt-backed recovery in the owned pure transition
+model and revision-checked store operation. Test interruption between that
+transition and attachment; avoid publishing a synthetic live intermediate state.

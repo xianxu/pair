@@ -64,14 +64,14 @@ func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRec
 			record = advanced
 			inc = record.Incarnations[0]
 		}
-		observationRecord := record
-		if target && inc.State == IncarnationUnknown && inc.Start == nil {
-			// The caller holds the exact target ready receipt. It can resolve a
-			// settled unknown target; ordinary recovery must still refuse unknown.
-			observationRecord = cloneThreadRecord(record)
-			observationRecord.Incarnations[0].State = IncarnationLive
+		settledUnknown := target && inc.State == IncarnationUnknown && inc.Start == nil
+		var evidence RecoveryEvidence
+		var err error
+		if settledUnknown {
+			evidence, err = c.observeRecoverySession(ctx, record, RecoveryEvidence{Thread: record, Helper: Dead, Checkpoint: true})
+		} else {
+			evidence, err = c.observeRecovery(ctx, record)
 		}
-		evidence, err := c.observeRecovery(ctx, observationRecord)
 		if err != nil {
 			return record, ActorRecord{}, nil, err
 		}
@@ -81,18 +81,37 @@ func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRec
 		if !target && evidence.Session != record.Continuation.Source.Session {
 			return record, ActorRecord{}, nil, errors.New("detached continuation source session changed")
 		}
-		if observationRecord.Incarnations[0].State != record.Incarnations[0].State {
-			promoted, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Incarnations[0].State = IncarnationLive; return nil })
+		if settledUnknown {
+			r := record.Continuation
+			if c.FreshRegistration == nil {
+				return record, ActorRecord{}, nil, errors.New("continuation target observer unavailable")
+			}
+			registered, err := c.FreshRegistration(ctx, record.Address, r.Source.Agent, r.Attempt)
 			if err != nil {
 				return record, ActorRecord{}, nil, err
 			}
-			record = promoted
+			if !registered || evidence.Session != r.Source.Session {
+				return record, ActorRecord{}, nil, errors.New("exact continuation target receipt is no longer proved")
+			}
+			if err := ctx.Err(); err != nil {
+				return record, ActorRecord{}, nil, err
+			}
+			identity := ProcessIdentity{PID: inc.PID, Identity: inc.Identity}
+			if observeExactProcess(c.Proc, identity) != Dead {
+				return record, ActorRecord{}, nil, errors.New("continuation helper death is no longer proved")
+			}
+			updated, err := c.Threads.ReconcileRegisteredTarget(record.Address, record.Revision, RegisteredTargetProof{RequestID: r.ID, Agent: r.Source.Agent, Session: evidence.Session, Attempt: r.Attempt, Helper: identity})
+			if err != nil {
+				return record, ActorRecord{}, nil, err
+			}
+			record = updated
+		} else {
+			updated, _, err := c.reconcileRecoveryHelper(ctx, record.Address)
+			if err != nil {
+				return record, ActorRecord{}, nil, err
+			}
+			record = updated
 		}
-		updated, _, err := c.reconcileRecoveryHelper(ctx, record.Address)
-		if err != nil {
-			return record, ActorRecord{}, nil, err
-		}
-		record = updated
 	}
 	if len(record.Incarnations) != 0 {
 		return record, ActorRecord{}, nil, errors.New("continuation has ambiguous incarnations")

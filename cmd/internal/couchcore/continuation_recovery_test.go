@@ -8,6 +8,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -322,5 +323,94 @@ func TestContinuationRetrySessionObservationHonorsCancellation(t *testing.T) {
 	after, _ := c.Threads.GetThread(f.source.Address)
 	if !observed || !errors.Is(err, context.DeadlineExceeded) || after.Revision != before.Revision || f.launches != 1 {
 		t.Fatalf("observation=%v err=%v revision=%d→%d launches=%d", observed, err, before.Revision, after.Revision, f.launches)
+	}
+}
+
+func TestRegisteredUnknownTargetRecoveryInterruptionAndProofRefusals(t *testing.T) {
+	for _, mode := range []string{"cancel-after-retirement", "receipt-lost", "helper-live-again", "revision-changed"} {
+		t.Run(mode, func(t *testing.T) {
+			f := newContinuationFixture(t)
+			c := f.env.Couch
+			first, err := c.Continue(context.Background(), f.source.Address, f.status.RequestID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.env.Proc.Kill(first.Record.PID)
+			f.env.Runner.SetExited(first.Handle.ID(), 0)
+			c.reg = c.reg.RemoveActor(first.Record.Args.Worktree, first.Record.ID)
+			record, _ := c.Threads.GetThread(f.source.Address)
+			record, err = c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
+				next.Incarnations[0].State = IncarnationUnknown
+				next.Continuation.Target = nil
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			f.env.Artifacts.SetDetachedSession(record.Address, "pair-exact")
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			originalStore := c.Threads
+			switch mode {
+			case "cancel-after-retirement":
+				c.Threads = newThreadStoreWithHooks(c.Namespace, threadStoreHooks{AfterTarget: func(int) error { cancel(); return nil }})
+			case "receipt-lost":
+				c.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return false, nil }
+			case "helper-live-again":
+				c.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
+					inc := record.Incarnations[0]
+					f.env.Proc.Set(inc.PID, inc.Identity)
+					return true, nil
+				}
+			case "revision-changed":
+				c.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
+					_, err := originalStore.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.PublishedSummary = "concurrent"; return nil })
+					return true, err
+				}
+			}
+			_, _, _, err = c.ensureContinuationAttached(ctx, record, true)
+			if err == nil {
+				t.Fatal("recovery unexpectedly attached")
+			}
+			c.Threads = originalStore
+			after, readErr := c.Threads.GetThread(record.Address)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if f.launches != 1 {
+				t.Fatalf("spawned before proof: %d", f.launches)
+			}
+			if mode != "cancel-after-retirement" {
+				expected := cloneThreadRecord(record)
+				if mode == "revision-changed" {
+					expected.Revision++
+					expected.PublishedSummary = "concurrent"
+				}
+				if !reflect.DeepEqual(after, expected) {
+					t.Fatalf("refusal changed durable record: %+v", after)
+				}
+				return
+			}
+			if !errors.Is(err, context.Canceled) {
+				t.Fatalf("lost cancellation: %v", err)
+			}
+			expected := cloneThreadRecord(record)
+			expected.Revision++
+			expected.Incarnations = nil
+			if len(after.Incarnations) != 0 {
+				t.Fatalf("retired helper survived: %+v", after.Incarnations)
+			}
+			after.Incarnations = nil // persisted decoding normalizes an empty collection
+			if !reflect.DeepEqual(after, expected) {
+				t.Fatalf("interrupted retirement resurrected helper or changed history: %+v", after)
+			}
+			again, err := c.Continue(context.Background(), record.Address, f.status.RequestID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if again.Record.Shape != StartWarmReattach || again.Status.Attempt != first.Status.Attempt {
+				t.Fatalf("retry changed conversation: %+v", again)
+			}
+		})
 	}
 }

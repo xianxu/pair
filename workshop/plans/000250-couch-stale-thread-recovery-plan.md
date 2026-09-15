@@ -254,3 +254,30 @@ The last audit additions change tests only. `TestCanceledParkAwaitStillBlocksRec
 Task 3's shared protocol boundaries map to `TestContinuationRecordRoundTripAndCAS` and `TestContinuationConcurrentPublicationDeduplicates` (durable publication), `TestRecoverThreadAbsentSourceRetainsExactSnapshot` and `TestRecoverThreadImportsLegacyCheckpointAfterRetirement` (retired/absent source and exact retained bytes), `TestContinuationRetryDoesNotStealUnrecordedHelperFromLiveOwner` together with the existing start reconciliation/cleanup tests (interrupted claim refuses an unproved-dead owner), `TestContinuationForkFailureRetainsParkAndSnapshot` (shared launcher failure and retry), `TestContinuationRegistrationCrashReconcilesWithoutSpawn` and `TestRecoverContinuationRetryDistinguishesOwnTargetGeneration` (registration crash and correlated retry), and existing submitted/indeterminate delivery reconciliation tests (one target, no automatic duplicate input). The new refusal integration cases exercise missing paths, a directory that cannot be read as a regular checkpoint, and a valid document for the wrong agent; they assert unchanged records and zero launches. `TestCheckpointReadFile` retains the bounded oversized-file oracle at the reused reader seam instead of duplicating its parser matrix in Couch.
 
 Final added-test command: `go test -race ./cmd/internal/couchcore -run 'RecoverThreadRefusesUnproved|RecoveryObservationDeadline|RecoveryCancellationBetween|CanceledParkAwait|RecoveryInventory' -count=1` — PASS, 8.222s. The full repository suite was independently reported passing by root in `/tmp/pair250-final-go-test.log`. Verification record for this focused run: `/tmp/pair250-audit-verification.txt`. No new implementation gap was observed; remaining commit/gate/operator acceptance checkboxes stay with root.
+
+
+### 2026-09-14 — BR-3 atomic registered-target reconciliation
+
+Replace the special settled-Unknown target's ad-hoc Unknown-to-Live persisted
+promotion with an explicit pure ReconcileRegisteredTarget transition in
+starttransaction.go and a revision-checked ThreadStore operation. The caller
+must reprove the exact attempt's ready receipt, dead helper identity, and unique
+surviving detached session. The transition retires the helper atomically while
+preserving activity/checkpoint history; no synthetic live intermediate state.
+The session observation helper is shared independently of helper-state
+classification so inspection never needs to pretend Unknown is Live.
+
+This adds a named PURE transition and modifies the existing store integration,
+not a new status or lifecycle coordinator (ARCH-PURE, ARCH-ORDER). Tests cover
+invalid identity/attempt/transaction guards and cancellation after reconciliation
+before attachment, followed by safe same-session retry. Ordinary recovery still
+refuses unresolved Unknown helpers lacking the exact continuation receipt.
+
+
+Final BR-3 concepts: RegisteredTargetProof (new PURE value) carries exact request,
+attempt, agent/session and helper identity; ReconcileRegisteredTarget (new PURE
+transition) validates that value against the record and returns its retired copy.
+Both live in starttransaction.go. ThreadStore.ReconcileRegisteredTarget is the
+modified store boundary's revision-fenced integration; external receipt/death
+observations remain in ensureContinuationAttached. Pure tests use plain records;
+interruption/reattachment tests use the existing stateful continuation fixture.
