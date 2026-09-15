@@ -208,3 +208,7 @@ Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests c
 ### 2026-09-15 — M1 complete, implementation decision pending
 
 Third boundary review: SHIP, all five findings disposed. Qualification result remains 53 pass, 15 fail, 14 not-covered. The approved qualification phase is complete; backend re-plan is next. Production migration and the user-visible acceptance gate remain open.
+
+### 2026-09-15 — Operator authorizes M2–M4 continuation
+
+Continue autonomously through M4, including backend re-plan and all implementation/review gates. Then pause for operator smoke test before merge. This supersedes the earlier stop after negative M1 qualification; it does not waive final sustained display/selection acceptance. Durable plan Chunks 2–4 select a checked-in narrow x/vt fork plus shared endpoint/presenter, both compositor migrations, wrapper audit and isolated sustained conformance. Production installation and merge remain held for the final smoke test.
