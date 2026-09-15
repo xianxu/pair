@@ -92,3 +92,5 @@
 - Design pensive (sibling repo): `~/workspace/brain/docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md`
 
 - [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection and migration.
+
+- [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.

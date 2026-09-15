@@ -313,3 +313,45 @@ in /tmp/pair-239-final-shell.log. Neither milestone has crossed its mandatory
 review boundary. No completion, installation, real-store migration or deletion
 is claimed. Next: finish full checks, preview the real store read-only, reconcile
 plan checkboxes and run SDLC M1/M2/close reviews, then publish.
+
+
+### 2026-09-14 — Resumed integration and fresh verification
+
+Resumed the committed implementation in its existing worktree. Merged current
+main, preserving checkpoint acknowledgment and retention startup handoffs;
+focused restart/continuation race tests pass. The combined Neovim configuration
+exceeded Lua's 200-local limit; scoped its existing help/changelog helper, then
+native compilation and `make test-lua test-retention test-adapt-schema` passed
+(`/tmp/pair239-resume-shell-fixed.log`). Full post-merge Go suite passed
+(`/tmp/pair239-resume-full-go.log`). Storage, diagnostic, runtime, CLI, Couch and
+launcher race suites passed (`/tmp/pair239-resume-race.log`).
+
+Real-store public CLI preview completed with no migration/apply flags:
+`/tmp/pair239-preview gc --root /Users/xianxu/.local/share/pair --json`, output
+`/tmp/pair239-real-preview.json`. Recognized totals: session 232 groups / 1.106
+GiB, parked captures 108 groups / 1.584 GiB, diagnostics 215 entries / 15.121
+GiB. No eligible deletion: Couch registry unavailable/unacknowledged and legacy
+runtime inventory incomplete. 1,942 unknown paths are separately reported,
+not authorized for collection. These are logical bytes, not promised reclaimable
+bytes. No user data was deleted; no new binary installed.
+
+Acceptance audit found the public apply survivor/idempotence fixture and checked
+managed-I/O inventory still missing; those are being completed before review.
+
+
+Public CLI apply acceptance now passes under race (`/tmp/pair-239-public-apply.log`):
+real portable stores and public migration/preview/apply commands collect expired
+standalone and archive data plus independent old capture/debug data, while
+preserving Couch-visible parked, new archive and actual live-process owners.
+Second apply collects zero. Replacing public Apply with Preview fails the
+collection assertion (`/tmp/pair-239-public-apply-mutation.log`). Broad process
+and open-file inventories are deterministic command fixtures; live owner birth
+identity is checked by the OS. No production seam was added for this test.
+
+`atlas/storage-retention-io.md` records 19 managed entrypoint families and their
+actual protection/use/test chains, including merged continuation/recovery and
+programmatic Lua saves. `TestManagedIOInventoryAnchors` checks source/test anchors
+and 16 direct guard-call edges; passed after missing-doc RED. This bounded audit
+does not claim whole-program control-flow proof. README documents public GC and
+its explicit batch limits. All technical M1 obligations are now ready for the
+first mandatory milestone review over the combined checkpoint implementation.

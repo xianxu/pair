@@ -97,31 +97,31 @@ ARCH-PURE: policy and transaction state transitions remain deterministic; filesy
 
 Files: create `cmd/internal/artifactpath/gc.go`, `gc_test.go`, `cmd/internal/storagegc/policy.go`, `policy_test.go`; modify `cmd/internal/artifactpath/manifest.go` and `coverage_test.go`.
 
-- [ ] Add failing MatchArtifact and Decide tests using the function strategies below. Add a mechanical coverage guard requiring every family to state collectable/shared/protected and its exact constructor/parser.
-- [ ] Run `go test ./cmd/internal/artifactpath ./cmd/internal/storagegc -count=1`; expect missing GC symbols/tests to fail.
-- [ ] Implement typed owner and exact inventory descriptors, reusing Paths/LegacyPaths. Do not reuse OwnsTagArtifact or RenameArtifacts as deletion authority.
-- [ ] Implement Decide and its time/protection strategy below; keep the policy pure.
-- [ ] Run those packages to PASS and commit `#239: define exact storage ownership and retention policy`.
+- [x] Add failing MatchArtifact and Decide tests using the function strategies below. Add a mechanical coverage guard requiring every family to state collectable/shared/protected and its exact constructor/parser.
+- [x] Run `go test ./cmd/internal/artifactpath ./cmd/internal/storagegc -count=1`; expect missing GC symbols/tests to fail.
+- [x] Implement typed owner and exact inventory descriptors, reusing Paths/LegacyPaths. Do not reuse OwnsTagArtifact or RenameArtifacts as deletion authority.
+- [x] Implement Decide and its time/protection strategy below; keep the policy pure.
+- [x] Run those packages to PASS and commit `#239: define exact storage ownership and retention policy`.
 
 #### Task 2: Coordination, migration and Couch timestamps
 
 Files: create `cmd/internal/storagegc/coordinator.go`, `stores.go`, `process.go` and corresponding `_test.go`; create `cmd/internal/couchcore/retention.go`, `retention_test.go`; modify `threadstore.go`, `couchcmd/run.go`.
 
-- [ ] Write failing Coordinator/StoreRegistry/ProcessProbe tests using the function strategies below.
-- [ ] Run `go test ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`; expect new contract assertions to fail.
-- [ ] Implement Coordinator and registry/migration gating; move every membership-mutating ThreadStore entry through one coordinated seam. Enumerate callers mechanically with rg so archive, creation, registration and restore cannot bypass it.
-- [ ] Journal archive grace alongside existing archival effects. Add a typed restore transaction coordinating manifest re-add and archive removal, with no new UI requirement; document that manual recovery requires stopping managed processes and GC.
-- [ ] Run the ArchiveThread and RestoreThread strategy below; require PASS and commit `#239: coordinate retention with Couch membership and live owners`.
+- [x] Write failing Coordinator/StoreRegistry/ProcessProbe tests using the function strategies below.
+- [x] Run `go test ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`; expect new contract assertions to fail.
+- [x] Implement Coordinator and registry/migration gating; move every membership-mutating ThreadStore entry through one coordinated seam. Enumerate callers mechanically with rg so archive, creation, registration and restore cannot bypass it.
+- [x] Journal archive grace alongside existing archival effects. Add a typed restore transaction coordinating manifest re-add and archive removal, with no new UI requirement; document that manual recovery requires stopping managed processes and GC.
+- [x] Run the ArchiveThread and RestoreThread strategy below; require PASS and commit `#239: coordinate retention with Couch membership and live owners`.
 
 #### Task 3: Meaningful-use integration
 
 Files: create `cmd/internal/storagegc/use.go`, `use_test.go`, `nvim/retention.lua`, `nvim/retention_test.lua`; modify `cmd/internal/launcher/createflow.go`, `lifecycle.go`, `cmd/internal/couchcore/resume.go`, `cmd/internal/pairlog/runcli.go`, `cmd/internal/opener/run.go`, `cmd/internal/scrollbackcmd/scrollbackcmd.go`, `cmd/internal/orientation/model.go`, `cmd/internal/wrapcmd/wrap.go`, `cmd/internal/sessionwatch/run.go`, `nvim/init.lua`, `nvim/scrollback.lua`; add integration tests alongside the modified Go entrypoints and `tests/retention-test.sh`.
 
-- [ ] Write failing BeginUse/CompleteUse/RecoverUse and ManagedUse integration tests using the function strategies below.
-- [ ] Run the affected package tests and `bash tests/retention-test.sh`; expect missing integration assertions to fail.
-- [ ] Wire resolved owner context into managed entrypoints and propagate explicit identity through orientation to parked readers. Use one lease/touch API; expose internal CLI operations for Lua through the existing dispatcher contract. Compare content before publishing a use event; do not read log payloads for GC.
-- [ ] Cover all managed content readers/writers by a checked call-site inventory, including programmatic and explicit saves. Verify generic history scans, refresh/statusline reads, diagnostics and distiller writes stay non-use operations. Their file access still needs a lease when racing collection.
-- [ ] Run managed-use and lifetime-registration strategies below; require affected Go/Lua tests to PASS; update `atlas/` and its index for ownership/use/lock contracts; commit.
+- [x] Write failing BeginUse/CompleteUse/RecoverUse and ManagedUse integration tests using the function strategies below.
+- [x] Run the affected package tests and `bash tests/retention-test.sh`; expect missing integration assertions to fail.
+- [x] Wire resolved owner context into managed entrypoints and propagate explicit identity through orientation to parked readers. Use one lease/touch API; expose internal CLI operations for Lua through the existing dispatcher contract. Compare content before publishing a use event; do not read log payloads for GC.
+- [x] Cover all managed content readers/writers by a checked call-site inventory, including programmatic and explicit saves. Verify generic history scans, refresh/statusline reads, diagnostics and distiller writes stay non-use operations. Their file access still needs a lease when racing collection.
+- [x] Run managed-use and lifetime-registration strategies below; require affected Go/Lua tests to PASS; update `atlas/` and its index for ownership/use/lock contracts; commit.
 - [ ] Close M1 through `sdlc milestone-close --issue 239 --milestone M1` with recorded verification; fix the binary's review findings. No live deletion is enabled by M1.
 
 ### M2 — Safe collection, CLI and scheduled sweeps
@@ -130,22 +130,22 @@ Files: create `cmd/internal/storagegc/use.go`, `use_test.go`, `nvim/retention.lu
 
 Files: create `cmd/internal/storagegc/transaction.go`, `transaction_test.go`, `collector.go`, `collector_test.go`; extend `cmd/internal/couchcore/retention.go`, `cmd/internal/launcher/session_index.go` through their owning APIs.
 
-- [ ] Write failing ReduceTransaction and Collector.Apply tests using the function strategies below.
-- [ ] Run `go test ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`; expect collection contract failures.
-- [ ] Implement exact quarantine transactions and recovery, revalidation under coordination, coordinated archive removal, exact binding cleanup and cache invalidation. Preserve original evidence on error; never retry deletion against source names after detachment.
-- [ ] Exercise the Collector.Apply race/fault strategy below, including raw/event group visibility after recovery.
-- [ ] Run tests and `go test -race ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/launcher`; require PASS and commit `#239: collect expired owner groups with recoverable detachment`.
+- [x] Write failing ReduceTransaction and Collector.Apply tests using the function strategies below.
+- [x] Run `go test ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/launcher -count=1`; expect collection contract failures.
+- [x] Implement exact quarantine transactions and recovery, revalidation under coordination, coordinated archive removal, exact binding cleanup and cache invalidation. Preserve original evidence on error; never retry deletion against source names after detachment.
+- [x] Exercise the Collector.Apply race/fault strategy below, including raw/event group visibility after recovery.
+- [x] Run tests and `go test -race ./cmd/internal/storagegc ./cmd/internal/couchcore ./cmd/internal/launcher`; require PASS and commit `#239: collect expired owner groups with recoverable detachment`.
 
 #### Task 5: Commands, automatic scheduling and end-to-end verification
 
 Files: create `cmd/internal/gccmd/run.go`, `run_test.go`, `cmd/internal/storagegc/schedule.go`, `schedule_test.go`; modify `cmd/pair-go/main.go`, `cmd/internal/dispatcher/dispatcher.go`, dispatcher coverage tests, launcher and Couch lifecycle entrypoints, `Makefile`, `atlas/index.md`; create `atlas/storage-retention.md`.
 
-- [ ] Write failing GCCLI.Run tests using the function strategies below.
-- [ ] Implement public `pair gc` routing/help and explicit migration completion with registered-store summary. Apply works only after migration completeness is established. Report counts/logical bytes and reasons; no payload contents in diagnostics.
-- [ ] Implement a context-bound, joined worker after UI/session readiness, daily completion clock and bounded resumable cursor. Never count sweep discovery as use; initialize legacy records only on mutating runs.
-- [ ] Implement the Scheduler.Run bounded-work strategy below; assert one worker and bounded group processing, not brittle elapsed-time thresholds.
-- [ ] Run `go test ./... -count=1`, `go test -race ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/launcher`, `make test-lua`, `bash tests/retention-test.sh`, and `git diff --check`; require PASS.
-- [ ] Run real-store preview only and record measured eligible/protected/untracked totals without reading content or deleting live files. Run apply against an isolated representative fixture containing old standalone, visible parked, newly archived, expired archived and live sessions; assert the expected survivors and second-apply idempotence.
+- [x] Write failing GCCLI.Run tests using the function strategies below.
+- [x] Implement public `pair gc` routing/help and explicit migration completion with registered-store summary. Apply works only after migration completeness is established. Report counts/logical bytes and reasons; no payload contents in diagnostics.
+- [x] Implement a context-bound, joined worker after UI/session readiness, daily completion clock and bounded resumable cursor. Never count sweep discovery as use; initialize legacy records only on mutating runs.
+- [x] Implement the Scheduler.Run bounded-work strategy below; assert one worker and bounded group processing, not brittle elapsed-time thresholds.
+- [x] Run `go test ./... -count=1`, `go test -race ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/launcher`, `make test-lua`, `bash tests/retention-test.sh`, and `git diff --check`; require PASS.
+- [x] Run real-store preview only and record measured eligible/protected/untracked totals without reading content or deleting live files. Run apply against an isolated representative fixture containing old standalone, visible parked, newly archived, expired archived and live sessions; assert the expected survivors and second-apply idempotence.
 - [ ] Document 60-day clocks, migration, managed-use boundary, custom stores, commands, retained-error diagnostics and no global size ceiling; update atlas index and issue Log. Commit and close M2 with the binary review gate.
 - [ ] Close #239 with measured actuals and verification, then publish through `sdlc pr` and `sdlc merge`. Do not run destructive real-store migration/apply as a test; automatic collection begins only after migration completion and the full legacy grace.
 
@@ -239,12 +239,12 @@ all writers have gone. Reuse artifactpath/procutil (ARCH-DRY), pure age policy
 This adds diagnostic collection to **M2**; M1 still enables no deletion.
 Before M2 final verification:
 
-- [ ] `DecideSegment`: arbitrary age/size/future clocks → boundary/property tests ensuring younger data survives and Couch visibility does not override debug expiry.
-- [ ] `Writer.Append`/`Rotate`: concurrent writers and crashes at each durable boundary → portable filesystem barriers/fault injection prove young-segment preservation and current-inode reopen.
-- [ ] `CollectSegments`: malformed metadata, old writers and substituted external paths → exact identity/no-symlink guards and preview snapshot equality.
-- [ ] Implement policy/writer/registry, then wire wrapcmd/wrap.go, adapt/adapt.go, slugcmd/slugcmd.go, couchtty/trace.go, nvim/adapt.lua, bin/lib/adapt-log.sh and launcher adaptation initialization. Shell/Lua use one internal append command through dispatcher rather than direct file appends.
-- [ ] Verify all emitters with their existing schema/trace tests, diagnosticlog race tests and counted hot-path work; exercise live rotation and stopped legacy eligibility.
-- [ ] Extend preview with 7-day diagnostic and 60-day session buckets; document segment-age slack and exact external-path scope. Run original acceptance commands plus `go test -race ./cmd/internal/diagnosticlog` and `bash tests/adapt-schema-test.sh`.
+- [x] `DecideSegment`: arbitrary age/size/future clocks → boundary/property tests ensuring younger data survives and Couch visibility does not override debug expiry.
+- [x] `Writer.Append`/`Rotate`: concurrent writers and crashes at each durable boundary → portable filesystem barriers/fault injection prove young-segment preservation and current-inode reopen.
+- [x] `CollectSegments`: malformed metadata, old writers and substituted external paths → exact identity/no-symlink guards and preview snapshot equality.
+- [x] Implement policy/writer/registry, then wire wrapcmd/wrap.go, adapt/adapt.go, slugcmd/slugcmd.go, couchtty/trace.go, nvim/adapt.lua, bin/lib/adapt-log.sh and launcher adaptation initialization. Shell/Lua use one internal append command through dispatcher rather than direct file appends.
+- [x] Verify all emitters with their existing schema/trace tests, diagnosticlog race tests and counted hot-path work; exercise live rotation and stopped legacy eligibility.
+- [x] Extend preview with 7-day diagnostic and 60-day session buckets; document segment-age slack and exact external-path scope. Run original acceptance commands plus `go test -race ./cmd/internal/diagnosticlog` and `bash tests/adapt-schema-test.sh`.
 
 Metadata-only sizing on 2026-09-13: wrapper diagnostics 13.017 GiB total,
 11.538 GiB last written over seven days ago, versus 0.321 GiB over sixty.
@@ -326,3 +326,19 @@ tag activity and Couch visibility; raw and event sidecars are removed together.
 Active readers or incomplete handoffs defer deletion. Session data remains
 60 days since meaningful use; Couch-visible threads remain protected until
 archival, which starts a fresh 60-day grace.
+
+
+### 2026-09-14 — Resume and boundary reconciliation
+
+The checkpoint implemented M1 and M2 together before either review. This was a
+workflow deviation: there was no earlier no-deletion implementation boundary.
+The first milestone review will therefore see the combined implementation;
+M2 still requires its acceptance fixture, real preview, and final integration
+review. Neither review is retroactively claimed. Runtime collection remains
+migration-gated, and no real-store apply/migration is authorized as a test.
+
+Merged newer checkpoint/recovery/shortcut behavior while retaining lease and
+acknowledgment ordering. Full Go and race checks pass after integration; native
+Neovim caught a top-level-local limit, resolved by narrowing existing helper
+scope. Public apply acceptance and a checked managed-I/O inventory complete the
+outstanding technical verification rather than relying on package tests alone.
