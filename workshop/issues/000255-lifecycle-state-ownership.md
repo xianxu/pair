@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-15
-estimate_hours: 2.204
+estimate_hours: 18.025
 started: 2026-09-15T09:20:10-07:00
 ---
 
@@ -169,7 +169,7 @@ Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `
 
 Candidate integration uses the existing vt library: 1.0 design ×0.5 library ×0.2 thorough-spec =0.10; implementation0.8 ×0.4 =0.32. Matrix/independent expectations are a separate greenfield concern with no library for the oracle:1.0 ×0.2 =0.20, impl0.8 ×0.4 =0.32. Report and CLI are two smaller modules, each0.3 ×0.2 =0.06 design and0.5 ×0.4 =0.20 impl. Docs0.2 ×0.2 =0.04 design and0.2 ×0.4 =0.08 impl. Review0.1 design and0.5 ×0.4 =0.20 impl. One real-API discovery allowance0.6 ×0.4 =0.24 impl covers behavioral qualification of the unfamiliar backend. Familiarity1.0; design buffer15%. Total0.56 ×1.15 +1.56 =2.204h.
 
-```estimate
+```text
 model: estimate-logic-v3.1
 familiarity: 1.0
 item: greenfield-go-module design=0.10 impl=0.32
@@ -212,3 +212,85 @@ Third boundary review: SHIP, all five findings disposed. Qualification result re
 ### 2026-09-15 — Operator authorizes M2–M4 continuation
 
 Continue autonomously through M4, including backend re-plan and all implementation/review gates. Then pause for operator smoke test before merge. This supersedes the earlier stop after negative M1 qualification; it does not waive final sustained display/selection acceptance. Durable plan Chunks 2–4 select a checked-in narrow x/vt fork plus shared endpoint/presenter, both compositor migrations, wrapper audit and isolated sustained conformance. Production installation and merge remain held for the final smoke test.
+
+
+### 2026-09-15 — Expanded estimate after M2–M4 plan-quality pass
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Preserve the historical M1 estimate of 2.204h above; the executable derivation below includes those unchanged item values plus M2–M4. The earlier fence is now historical text rather than a second active derivation.
+
+Source ranges were read from v2/v2.1 and the v3.1 implementation scaling. New Go concerns use the upper 0.8h implementation range ×0.4=0.32; TUI concerns use 1h×0.4=0.40; API harnesses use 1.5h×0.4=0.60; smaller/refactor use 0.5h×0.4=0.20. Design uses the documented library half-discount for usable vt/ultraviolet/ANSI/syscall/oracle libraries, then ×0.2 for settled decisions; grapheme/bounds/fd/composed-harness decisions use ×0.5 because implementation details still need discovery. Familiarity remains 1.0 for this now-audited Go/backend/repo surface, with two explicit real-API discovery allowances. Review/docs are counted once per remaining milestone, and sustained/native verification has its own API-harness items. This is a provisional calibration estimate, not a deadline or measured actual.
+
+| Scope | Primitive | Design h | Impl h |
+|---|---|---:|---:|
+| M2 grapheme repair | greenfield-go-module | 0.50 | 0.32 |
+| M2 keyboard state | greenfield-go-module | 0.20 | 0.32 |
+| M2 protocol repairs | smaller-go-module | 0.06 | 0.20 |
+| M2 backend bounds | greenfield-go-module | 0.50 | 0.32 |
+| M2 endpoint | greenfield-go-module | 0.20 | 0.32 |
+| M2 fd/packet transport | greenfield-go-module | 0.50 | 0.32 |
+| M2 input decoder | greenfield-go-module | 0.20 | 0.32 |
+| M2 view transitions | tui-screen | 0.40 | 0.40 |
+| M2 renderer | greenfield-go-module | 0.20 | 0.32 |
+| M2 presenter | tui-screen | 0.40 | 0.40 |
+| M2 wire oracle | api-integration | 0.10 | 0.60 |
+| M3 child migration | cross-cutting-refactor | 0.20 | 0.20 |
+| M3 Couch output | tui-screen | 0.40 | 0.40 |
+| M3 Couch input | tui-screen | 0.40 | 0.40 |
+| M3 Pair terminal | tui-screen | 0.40 | 0.40 |
+| M3 wrapper | cross-cutting-refactor | 0.20 | 0.20 |
+| M3 composed harness | api-integration | 0.50 | 0.60 |
+| M4 sustained harness | api-integration | 0.20 | 0.60 |
+| M4 performance | api-integration | 0.10 | 0.60 |
+| M4 candidate handoff | smaller-go-module | 0.06 | 0.20 |
+| M2 documentation | atlas-docs | 0.04 | 0.08 |
+| M2 review | milestone-review | 0.10 | 0.20 |
+| M3 documentation | atlas-docs | 0.04 | 0.08 |
+| M3 review | milestone-review | 0.10 | 0.20 |
+| M4 documentation | atlas-docs | 0.04 | 0.08 |
+| M4 review | milestone-review | 0.10 | 0.20 |
+| OS nonblocking API discovery | real-api-discovery | 0.00 | 0.24 |
+| independent oracle/native conformance discovery | real-api-discovery | 0.00 | 0.24 |
+
+Cumulative design 6.700 ×1.15 + implementation 10.320 = 18.025h. Added scope estimate: 15.821h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: greenfield-go-module design=0.50 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.50 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.50 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: tui-screen design=0.40 impl=0.40
+item: greenfield-go-module design=0.20 impl=0.32
+item: tui-screen design=0.40 impl=0.40
+item: api-integration design=0.10 impl=0.60
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: tui-screen design=0.40 impl=0.40
+item: tui-screen design=0.40 impl=0.40
+item: tui-screen design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: api-integration design=0.50 impl=0.60
+item: api-integration design=0.20 impl=0.60
+item: api-integration design=0.10 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+design-buffer: 0.15
+total: 18.025
+```
