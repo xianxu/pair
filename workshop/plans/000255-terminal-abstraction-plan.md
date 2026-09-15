@@ -148,36 +148,36 @@ Use the existing pinned backend via a disposable Candidate per case. Observation
 
 Files: create `cmd/internal/terminalqualify/report.go`, `report_test.go`, `candidate.go`, `candidate_test.go`.
 
-- [ ] Test `Report.Validate`, `Report.Qualified`, `Compare` and `boundedDetail` using malformed/duplicate/incomplete result sets and mismatching observations; qualification requires exact required-ID coverage and rejects every unmet requirement, while only displayed evidence is truncated.
-- [ ] Run `go test ./cmd/internal/terminalqualify -run Report -count=1` and record the initial missing-implementation failure; implement report types/aggregation, rerun to PASS.
-- [ ] Test `Candidate.Execute`, `Candidate.Snapshot` and `Candidate.Close` through controlled reply-producing/blocked IO and cancellation schedules; assert literal state, origin isolation, completion within2s and joined workers. Candidate owns one reply reader and one command path, closing pipes to unblock teardown.
-- [ ] Implement the thin candidate wrapper; make teardown close both reply directions as required by pinned InputPipe. Run focused race tests. Inject a blocked/failing IO double to verify runner timeout/cleanup mechanics independently of x/vt.
+- [x] Test `Report.Validate`, `Report.Qualified`, `Compare` and `boundedDetail` using malformed/duplicate/incomplete result sets and mismatching observations; qualification requires exact required-ID coverage and rejects every unmet requirement, while only displayed evidence is truncated.
+- [x] Run `go test ./cmd/internal/terminalqualify -run Report -count=1` and record the initial missing-implementation failure; implement report types/aggregation, rerun to PASS.
+- [x] Test `Candidate.Execute`, `Candidate.Snapshot` and `Candidate.Close` through controlled reply-producing/blocked IO and cancellation schedules; assert literal state, origin isolation, completion within2s and joined workers. Candidate owns one reply reader and one command path, closing pipes to unblock teardown.
+- [x] Implement the thin candidate wrapper; make teardown close both reply directions as required by pinned InputPipe. Run focused race tests. Inject a blocked/failing IO double to verify runner timeout/cleanup mechanics independently of x/vt.
 
 ### Task 2 — Rendering/framing matrix
 
 Files: create `cmd/internal/terminalqualify/cases.go`, `screen_cases.go`, `screen_cases_test.go`.
 
-- [ ] Implement `ScreenCases` for the required rendering/framing capability classes above; `TestScreenCases` enforces unique IDs, non-empty literal expectations and complete class coverage without deriving expected state from the candidate.
-- [ ] Test `Compare` and `SplitInputs` against hand-built observations and adversarial byte partitions; any changed cell/cursor/style/link or missed split must be detected. Preserve the full protocol matrix in executable fixtures, not repeated prose lists.
-- [ ] Test `RunCase` with injected correct/incorrect candidate observations, oversize inputs and cancellation; report failure or infrastructure error accurately, never promote an unobservable behavior to pass.
+- [x] Implement `ScreenCases` for the required rendering/framing capability classes above; `TestScreenCases` enforces unique IDs, non-empty literal expectations and complete class coverage without deriving expected state from the candidate.
+- [x] Test `Compare` and `SplitInputs` against hand-built observations and adversarial byte partitions; any changed cell/cursor/style/link or missed split must be detected. Preserve the full protocol matrix in executable fixtures, not repeated prose lists.
+- [x] Test `RunCase` with injected correct/incorrect candidate observations, oversize inputs and cancellation; report failure or infrastructure error accurately, never promote an unobservable behavior to pass.
 
 ### Task 3 — Input/query/effect matrix and scope gaps
 
 Files: create `cmd/internal/terminalqualify/input_cases.go`, `input_cases_test.go`, `coverage.go`.
 
-- [ ] Implement `InputCases` and `Coverage` for the required input/query/effect and deferred-composition classes above. `TestInputCases` and `TestCoverage` mechanically enforce unique identifiers, required class inclusion and explicit not-covered obligations.
-- [ ] Test `Compare` against independently specified protocol bytes and deliberate suppression/encoding mismatches; `Candidate.Execute` tests prove reply drain and cancellation ordering, separate from candidate conformance.
-- [ ] Read `wrap.go` raw/transformed paths and document exact integration tests needed for M3; do not change wrapper filters in M1.
+- [x] Implement `InputCases` and `Coverage` for the required input/query/effect and deferred-composition classes above. `TestInputCases` and `TestCoverage` mechanically enforce unique identifiers, required class inclusion and explicit not-covered obligations.
+- [x] Test `Compare` against independently specified protocol bytes and deliberate suppression/encoding mismatches; `Candidate.Execute` tests prove reply drain and cancellation ordering, separate from candidate conformance.
+- [x] Read `wrap.go` raw/transformed paths and document exact integration tests needed for M3; do not change wrapper filters in M1.
 
 ### Task 4 — Probe, measured report and backend decision
 
 Files: create `cmd/probes/terminalqualify/main.go`, `main_test.go`; update `workshop/plans/000255-terminal-qualification.md`, `atlas/architecture.md`, issue Log.
 
-- [ ] Test probe `run` with an injected report runner across valid, incomplete and infrastructure-failure reports plus failing output writes; parse emitted JSON and enforce exit-status meaning. Implement a2-minute whole-run context, deterministic order and build-version metadata.
-- [ ] Run `go test ./cmd/internal/terminalqualify ./cmd/probes/terminalqualify -count=1` and `go test -race ./cmd/internal/terminalqualify ./cmd/probes/terminalqualify -count=1`.
-- [ ] Run `go run ./cmd/probes/terminalqualify > /tmp/pair255-terminal-qualification.json`; expected exit1 while required gaps exist. Inspect every failure and distinguish candidate mismatch from a defective oracle. Correct oracle errors only with explicit evidence and revisions.
-- [ ] Measure synthetic80x24 and240x80 screen feed/snapshot costs via benchmarks, reporting raw observations. Existing262144-cell dimension bound is the candidate safety ceiling; initial history cap1000lines and report mismatch cap4KiB/case bound qualification memory. These diagnostic limits are not production performance promises. M2 must set provisional production budgets from measured endpoint cost multiplied by representative Couch thread counts, before implementation approval.
-- [ ] Write the backend decision: suitable unchanged / suitable only with enumerated owned adaptation / reject candidate. Any required fail or not-covered blocks unchanged production adoption. If fixes entail broad backend ownership, stop for the existing re-plan checkpoint; do not silently start that work.
+- [x] Test probe `run` with an injected report runner across valid, incomplete and infrastructure-failure reports plus failing output writes; parse emitted JSON and enforce exit-status meaning. Implement a2-minute whole-run context, deterministic order and build-version metadata.
+- [x] Run `go test ./cmd/internal/terminalqualify ./cmd/probes/terminalqualify -count=1` and `go test -race ./cmd/internal/terminalqualify ./cmd/probes/terminalqualify -count=1`.
+- [x] Run `go run ./cmd/probes/terminalqualify > /tmp/pair255-terminal-qualification.json`; expected exit1 while required gaps exist. Inspect every failure and distinguish candidate mismatch from a defective oracle. Correct oracle errors only with explicit evidence and revisions.
+- [x] Measure synthetic80x24 and240x80 screen feed/snapshot costs via benchmarks, reporting raw observations. Existing262144-cell dimension bound is the candidate safety ceiling; initial history cap1000lines and report mismatch cap4KiB/case bound qualification memory. These diagnostic limits are not production performance promises. M2 must set provisional production budgets from measured endpoint cost multiplied by representative Couch thread counts, before implementation approval.
+- [x] Write the backend decision: suitable unchanged / suitable only with enumerated owned adaptation / reject candidate. Any required fail or not-covered blocks unchanged production adoption. If fixes entail broad backend ownership, stop for the existing re-plan checkpoint; do not silently start that work.
 - [ ] Verify full `go test ./...` after generated runtime assets if necessary, `git diff --check`, record all evidence and submit the M1 boundary to SDLC. The reviewer assesses the qualification tool/evidence, not a claim that #255 or production migration is complete.
 
 ### M1 bounds and independence
@@ -191,3 +191,8 @@ PQ-1: replaced repeated case prose with function-level adversarial test strategi
 ### 2026-09-15 — Primary live acceptance clarified
 
 Operator requires the ongoing display corruption and missing live selection highlight to go away. M4 must demonstrate continuous drag highlight in agent and right shell/nvim panes across panel/thread/tab switches and reattachment, and investigate all reported display symptoms rather than equating a fixed UTF-8 regression with complete visual recovery. Record terminal/build, duration and exact workflows during sustained use; final closure requires operator acceptance. Qualification, semantic tests and architecture are supporting evidence, not substitutes for this result.
+
+
+### 2026-09-15 M1 qualification outcome
+
+The executable qualification is implemented under `cmd/internal/terminalqualify`, isolated from production. Snapshot is private and captured atomically by Execute; exposing an independent Snapshot method would allow unordered reads. The report rejects unchanged adoption (41 pass, 15 fail, 14 not-covered). This is the negative-result branch of M1: backend selection and detailed M2–M4 remain at the approved re-plan checkpoint. No production migration is authorized by a successful qualification-tool review. Fixed fixture inputs are capped at 64KiB before constructing partition metadata. See `000255-terminal-qualification.md` for evidence and limits.
