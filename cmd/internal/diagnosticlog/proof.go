@@ -23,11 +23,14 @@ type Runtime struct {
 // Inspection is a stateful OS seam: both exact open holders and transient
 // legacy runtime writers must be known before a rename or unlink.
 type Inspection interface {
-	OpenFiles(path string) ([]Registration, error)
-	Runtimes() ([]Runtime, error)
+	OpenFiles(ctx context.Context, path string) ([]Registration, error)
+	Runtimes(ctx context.Context) ([]Runtime, error)
 }
 
-func VerifyWriters(path string, registered []Registration, probe Inspection) error {
+func VerifyWriters(ctx context.Context, path string, registered []Registration, probe Inspection) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if probe == nil {
 		return ErrUnknownWriters
 	}
@@ -39,20 +42,32 @@ func VerifyWriters(path string, registered []Registration, probe Inspection) err
 		}
 		return false
 	}
-	holders, e := probe.OpenFiles(path)
+	holders, e := probe.OpenFiles(ctx, path)
 	if e != nil {
 		return fmt.Errorf("diagnostic open-file inspection: %w", e)
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, p := range holders {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if !known(p) {
 			return ErrUnknownWriters
 		}
 	}
-	runtimes, e := probe.Runtimes()
+	runtimes, e := probe.Runtimes(ctx)
 	if e != nil {
 		return fmt.Errorf("diagnostic runtime inspection: %w", e)
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	for _, runtime := range runtimes {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if known(runtime.Process) || runtime.Protocol {
 			continue
 		}
@@ -73,8 +88,8 @@ func VerifyWriters(path string, registered []Registration, probe Inspection) err
 // inspection. It reads process metadata only; no trace contents are inspected.
 type OSInspection struct{}
 
-func command(name string, args ...string) ([]byte, []byte, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+func command(parent context.Context, name string, args ...string) ([]byte, []byte, error) {
+	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
 	var stderr bytes.Buffer
@@ -85,13 +100,19 @@ func command(name string, args ...string) ([]byte, []byte, error) {
 	}
 	return b, stderr.Bytes(), e
 }
-func (OSInspection) OpenFiles(path string) ([]Registration, error) {
+func (OSInspection) OpenFiles(ctx context.Context, path string) ([]Registration, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if _, e := os.Lstat(path); os.IsNotExist(e) {
 		return nil, nil
 	} else if e != nil {
 		return nil, e
 	}
-	out, stderr, e := command("lsof", "-nP", "-F", "p", "--", path)
+	out, stderr, e := command(ctx, "lsof", "-nP", "-F", "p", "--", path)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if e != nil {
 		var exit *exec.ExitError
 		if !(errors.As(e, &exit) && exit.ExitCode() == 1 && len(out) == 0 && len(stderr) == 0) {
@@ -103,6 +124,9 @@ func (OSInspection) OpenFiles(path string) ([]Registration, error) {
 	}
 	var result []Registration
 	for _, line := range strings.Split(string(out), "\n") {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if line == "" {
 			continue
 		}
@@ -124,13 +148,19 @@ func (OSInspection) OpenFiles(path string) ([]Registration, error) {
 	}
 	return result, nil
 }
-func (OSInspection) Runtimes() ([]Runtime, error) {
-	out, stderr, e := command("ps", "-axo", "pid=,comm=")
+func (OSInspection) Runtimes(ctx context.Context) ([]Runtime, error) {
+	out, stderr, e := command(ctx, "ps", "-axo", "pid=,comm=")
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if e != nil || len(stderr) != 0 {
 		return nil, errors.New("process inventory unavailable")
 	}
 	var result []Runtime
 	for _, line := range strings.Split(string(out), "\n") {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		fields := strings.Fields(line)
 		if len(fields) < 2 {
 			continue
@@ -149,7 +179,13 @@ func (OSInspection) Runtimes() ([]Runtime, error) {
 		if birth == "" {
 			return nil, ErrUnknownWriters
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		env, e := processEnvironment(pid)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if e != nil || procutil.StrictIdentity(strconv.Itoa(pid)) != birth {
 			return nil, ErrUnknownWriters
 		}
@@ -158,6 +194,9 @@ func (OSInspection) Runtimes() ([]Runtime, error) {
 		if root != "" {
 			if filepath.Base(filepath.Dir(root)) == "repos" {
 				root = filepath.Dir(filepath.Dir(root))
+			}
+			if err := ctx.Err(); err != nil {
+				return nil, err
 			}
 			canonicalRoot, e := filepath.EvalSymlinks(root)
 			if e != nil {
@@ -175,6 +214,6 @@ func (OSInspection) Runtimes() ([]Runtime, error) {
 	}
 	return result, nil
 }
-func DefaultProof(path string, writers []Registration) error {
-	return VerifyWriters(path, writers, OSInspection{})
+func DefaultProof(ctx context.Context, path string, writers []Registration) error {
+	return VerifyWriters(ctx, path, writers, OSInspection{})
 }

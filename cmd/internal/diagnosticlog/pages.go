@@ -20,7 +20,7 @@ func segmentPath(path, name string) string {
 	token := strings.TrimSuffix(strings.TrimPrefix(name, "segment-"), ".log")
 	return filepath.Join(directory(path), "segments", token[0:1], token[1:2], token[2:3], token[3:4], name)
 }
-func ensureSegmentDirectory(path, name string) error {
+func ensureSegmentDirectory(path, name string, o Options) error {
 	dir := filepath.Join(directory(path), "segments")
 	parts := []string{dir}
 	token := name[8:12]
@@ -29,6 +29,9 @@ func ensureSegmentDirectory(path, name string) error {
 		parts = append(parts, dir)
 	}
 	for _, p := range parts {
+		if err := o.checkContext(); err != nil {
+			return err
+		}
 		e := os.Mkdir(p, 0700)
 		if e != nil && !os.IsExist(e) {
 			return e
@@ -61,9 +64,56 @@ func directoryNames(path string, limit int) ([]string, error) {
 	}
 	return names, nil
 }
+
+// syncExistingParent validates the whole extant ancestry and syncs the nearest
+// surviving directory. Missing descendants are normal during deletion replay.
+func syncExistingParent(path, base string, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	rel, err := filepath.Rel(base, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+		return errors.New("invalid diagnostic cleanup ancestry")
+	}
+	current := base
+	st, err := os.Lstat(current)
+	if err != nil {
+		return err
+	}
+	if !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
+		return errors.New("invalid diagnostic cleanup directory")
+	}
+	for _, part := range strings.Split(rel, string(os.PathSeparator)) {
+		if part == "." {
+			continue
+		}
+		if err := o.checkContext(); err != nil {
+			return err
+		}
+		next := filepath.Join(current, part)
+		st, err = os.Lstat(next)
+		if os.IsNotExist(err) {
+			break
+		}
+		if err != nil {
+			return err
+		}
+		if !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
+			return errors.New("invalid diagnostic cleanup directory")
+		}
+		current = next
+	}
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	return syncDir(current)
+}
 func removeEmptyParents(path, base string, o Options) error {
 	for path != base {
 		if err := o.checkContext(); err != nil {
+			return err
+		}
+		if err := syncExistingParent(path, base, o); err != nil {
 			return err
 		}
 		if e := os.Remove(path); e != nil {
@@ -74,13 +124,17 @@ func removeEmptyParents(path, base string, o Options) error {
 				return e
 			}
 		}
-		if e := syncDir(filepath.Dir(path)); e != nil {
+		if e := syncExistingParent(filepath.Dir(path), base, o); e != nil {
+			return e
+		}
+		if e := fault(o, "delete-parent:"+filepath.Base(path)); e != nil {
 			return e
 		}
 		path = filepath.Dir(path)
 	}
 	return nil
 }
+
 func normalizedLimit(limit int) int {
 	if limit <= 0 || limit > 100 {
 		return 100
@@ -128,6 +182,10 @@ func generationPage(path, after string, limit int, cleanup bool, o Options) (nam
 				return false
 			}
 			budget -= 2*leafGenerations + 1
+		}
+		if e := o.checkContext(); e != nil {
+			err = e
+			return false
 		}
 		children, e := directoryNames(dir, capNames)
 		if os.IsNotExist(e) {
@@ -236,8 +294,11 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 	reason := ""
 	if o.Proof == nil {
 		reason = ErrUnknownWriters.Error()
-	} else if e = o.Proof(path, s.Writers); e != nil {
+	} else if e = o.prove(path, s.Writers); e != nil {
 		reason = e.Error()
+	}
+	if e := o.checkContext(); e != nil {
+		return nil, cursor, false, e
 	}
 	add := func(p string, g generation) error {
 		if err := o.checkContext(); err != nil {
@@ -275,6 +336,9 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 		return nil, cursor, false, e
 	}
 	for _, name := range names {
+		if e := o.checkContext(); e != nil {
+			return nil, cursor, false, e
+		}
 		p := segmentPath(path, name)
 		var g generation
 		if e = readJSON(p+".json", &g); e != nil {
@@ -294,12 +358,15 @@ func previewPageLocked(path string, o Options, cursor string, limit int, cleanup
 }
 
 func previewManagedPage(path string, options Options, cursor string, limit int) (rows []Segment, next string, complete bool, err error) {
+	if e := options.checkContext(); e != nil {
+		return nil, cursor, false, e
+	}
 	p, e := canonical(path)
 	if e != nil {
 		return nil, cursor, false, e
 	}
 	options = normalized(options)
-	err = locked(p, false, func() error {
+	err = lockedOptions(p, false, options, func() error {
 		var e error
 		rows, next, complete, e = previewPageLocked(p, options, cursor, limit, false)
 		return e
@@ -310,6 +377,9 @@ func previewManagedPage(path string, options Options, cursor string, limit int) 
 // PreviewLegacyPage is read-only. Empty cursor starts with the current file;
 // subsequent opaque cursors traverse immutable generations despite removals.
 func PreviewLegacyPage(path string, options Options, cursor string, limit int) ([]Segment, string, bool, error) {
+	if e := options.checkContext(); e != nil {
+		return nil, cursor, false, e
+	}
 	if !validCursor(cursor) {
 		return nil, cursor, false, errors.New("invalid diagnostic page cursor")
 	}
@@ -360,6 +430,9 @@ func CollectLegacyPage(path string, options Options, cursor string, limit int) (
 // Under the protocol lock none can be an active write; interrupted generation
 // publication is recovered before scanning or deleting immutable generations.
 func cleanupGenerationTemps(dir string, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
 	names, e := directoryNames(dir, 2*leafGenerations+1)
 	if e != nil {
 		return e

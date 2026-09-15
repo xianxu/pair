@@ -485,3 +485,100 @@ both absent and unsafe directories, plus all legacy/tracked/metadata-only owner
 variants. Hosted conformance passed on its retry, with no timeout or test change.
 Full-tree and focused integration race runs are in progress on the combined
 round3 tree; the third milestone review has not run yet.
+
+### 2026-09-14 23:30 PDT — Complete diagnostic recovery and cancellation classes
+
+M1 round3 addressed BR-4 but kept BR-6/BR-7 and added BR-8. Diagnostic
+registry, state and segment metadata must have explicit publication ownership,
+not just the Pair and Couch journals audited in the previous revision:
+
+| Publication | Synchronization and recovery authority |
+| --- | --- |
+| Pair activity, leases, starts, stores, runtimes, captures, transactions and scheduler | Root coordinator; central `.retention/pending` recovery |
+| Couch journal and its record/manifest/preferences/archive/grace/receipt targets | Couch store lock; exact reserved publication stage and durable journal replay |
+| Diagnostic registry entry | Registry lock shared by publishers/retirement; exact `.metadata-publication` stage, explicit unfiltered pagination cursor/completion |
+| Diagnostic current state and segment generation metadata | Per-log lock; one central `.metadata-publication` stage per log, recovered before subsequent log operations |
+| Unlocked continuation materialization | Independent publisher; not part of retention's coordinated staging authority |
+
+The registry lock follows the per-log lock where both are needed. Registry-only
+recovery must not acquire per-log locks, and automatic maintenance must yield on
+contention. Preview stays read-only. Tests must distinguish an unpublished
+reserved stage from another publisher's live work and from unknown legacy names.
+Pagination completion comes from traversal progress rather than the number of
+valid entries returned, so skipped temporary entries cannot truncate discovery.
+
+Every nested diagnostic process inspection inherits the worker context,
+including subprocess deadlines and per-process traversal. Session recovery's
+source/quarantine walks and pending-owner lookup must also check that context.
+The budget is cooperative between filesystem calls, not a hard syscall timeout.
+
+Diagnostic deletion's durable intent remains authoritative through payload
+removal, exact generation metadata removal, each ancestor removal and intent
+retirement. Replay must accept already-completed removals while refusing unsafe
+replacement ancestors or mismatched metadata. Fault/cancellation regressions
+cover those boundaries, including repeat replay after partial cleanup.
+
+The next review will use `WF_BOUNDARY_ROUND_CAP=10` to keep Important findings
+blocking beyond the default third round; this tightens acceptance rather than
+silently demoting remaining findings. No review or ledger gate is waived.
+
+
+### 2026-09-14 23:44 PDT — Diagnostic class fixes verified
+
+Registry pages now return entries, next offset and explicit completion, checking
+cancellation during offset skipping and each row. Registry mutations use a
+permanent lock; automatic contention yields with the existing retry semantics.
+All diagnostic publications stage centrally per owning log/registry under
+`.metadata-publication`, with cancellation before effects and rename. Registry
+and retirement callbacks carry the operation context. Legacy numeric per-log
+stages retain their existing locked cleanup authority; old registry temporary
+names remain untouched and cannot truncate the inventory. Radix directories
+are fixed-depth bounded infrastructure, not per-generation orphan artifacts.
+
+Killed-publisher tests cover registry entries, current state and segment metadata,
+including a concurrent collector refusing the live lock. A staged publication
+cancelled before rename leaves the prior target intact. Deletion replay tests
+cover every effect boundary and reject replacement payload/metadata/ancestors.
+Process-proof tests enforce worker deadlines within both lsof and ps, and no
+subsequent inspection after cancellation. Storage recovery tree walks now check
+the same held context. Combined diagnostic/runtime/CLI race passes in
+`/tmp/pair239-round4-integration-race.log`; storage full race passes in
+`/tmp/pair239-round4-storage-race.log`. Final full Go run remains in progress.
+
+
+Final combined verification passed: full Go suite
+`/tmp/pair239-round4-full-go-final.log` (diagnostic26.920s,
+runtime132.773s including100kfixture, Couch160.748s), diagnostic/runtime/CLI
+race and storage race above. Registry cancellation/lock cursor tests also passed
+race after that snapshot. No real operator store was modified.
+
+Conservative boundary retained: death during the first-ever current-log state
+publication can leave a current file without authoritative metadata. Collection
+refuses that payload; the next managed Open initializes its identity under the
+log lock. This is intentionally not authority to infer and delete unknown data.
+Reserved staging still has a recovery owner; no new per-attempt stage survives
+recovery. The missing-metadata refusal remains visible in previews/apply errors.
+
+Hosted conformance investigation located an external Zellij0.45.1 server panic
+before FirstClientConnected, at zellij-server/src/lib.rs:1462. Diagnostic excerpt
+is `/tmp/pair239-zellij-server-panic-evidence.log`. The fixture probes list-sessions
+while startup is still underway; investigating whether this probe triggers the
+premature RemoveClient event before changing readiness behavior.
+
+The refreshed `sdlc actual` measurement reports0.38h with historical mention
+fallback warnings (`/tmp/pair239-round4-actual.log`); it does not cover this
+long implementation/review session reliably or isolate milestone increments.
+Subsequent closes will use the precise `--no-actual` exception, recording N/A
+and excluding velocity calibration instead of presenting this partial number
+as total effort or inventing increments. Verification and review gates remain.
+
+### 2026-09-14 — Hosted conformance startup race resolved
+
+Zellij's list-sessions connection probe can trigger RemoveClient before session
+initialization in0.45.1. The disposable fixture now waits for server-rendered
+cursor-position/reset output before probing and accepts only an exact live row.
+Client setup bytes alone are insufficient. Fake subprocess regressions cover
+that ordering, early exit and deadline failure; helper full race passes2.249s.
+Final fresh-config live group passes3 repetitions16.426s
+(`/tmp/pair239-ci-render-live-green.log`). No production terminal behavior or
+operator session changed. This test-only delta follows the full Go pass above.

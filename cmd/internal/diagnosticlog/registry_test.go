@@ -1,6 +1,7 @@
 package diagnosticlog
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"os"
@@ -29,7 +30,7 @@ func TestRegistryTwoRootsOneCanonicalLog(t *testing.T) {
 		}
 		w.Write([]byte("line\n"))
 		w.Close()
-		entries, e := EnumerateRoot(root, 0, 100)
+		entries, e := registryEntriesForTest(root)
 		if e != nil || len(entries) != 1 {
 			t.Fatalf("entries=%v err=%v", entries, e)
 		}
@@ -76,7 +77,7 @@ func TestPreviewDoesNotInitializeOrRecover(t *testing.T) {
 func TestRegistryRejectsPathSubstitution(t *testing.T) {
 	path, _, opts := fixture(t)
 	root := t.TempDir()
-	opts.Registry = func(e RegistryEntry) error { return register(root, e) }
+	opts.Registry = func(_ context.Context, e RegistryEntry) error { return register(context.Background(), root, e) }
 	w, e := Open(path, opts)
 	if e != nil {
 		t.Fatal(e)
@@ -89,7 +90,7 @@ func TestRegistryRejectsPathSubstitution(t *testing.T) {
 	entry.Path = filepath.Join(root, "unrelated")
 	b, _ = json.Marshal(entry)
 	os.WriteFile(files[0], b, 0600)
-	if _, e = EnumerateRoot(root, 0, 100); e == nil {
+	if _, e = registryEntriesForTest(root); e == nil {
 		t.Fatal("substituted path accepted")
 	}
 }
@@ -128,7 +129,7 @@ func TestPausedOpenerRepublishesAfterRetirement(t *testing.T) {
 		t.Fatal(e)
 	}
 	s.Writers = nil
-	if e = save(path, s, true); e != nil {
+	if e = save(path, s, true, Options{}); e != nil {
 		t.Fatal(e)
 	}
 	*now = now.Add(8 * 24 * time.Hour)
@@ -144,7 +145,7 @@ func TestPausedOpenerRepublishesAfterRetirement(t *testing.T) {
 	if _, e = os.Stat(directory(path)); !os.IsNotExist(e) {
 		t.Fatal("state directory retained", e)
 	}
-	entries, e := EnumerateRoot(root, 0, 100)
+	entries, e := registryEntriesForTest(root)
 	if e != nil || len(entries) != 0 {
 		t.Fatalf("registry=%v err=%v", entries, e)
 	}
@@ -154,7 +155,7 @@ func TestPausedOpenerRepublishesAfterRetirement(t *testing.T) {
 	if _, e = Open(path, opts); !errors.Is(e, ErrBusy) {
 		t.Fatalf("opener ignored stable lock %v", e)
 	}
-	entries, e = EnumerateRoot(root, 0, 100)
+	entries, e = registryEntriesForTest(root)
 	if e != nil || len(entries) != 0 {
 		t.Fatal("busy opener published before lock", entries, e)
 	}
@@ -165,7 +166,7 @@ func TestPausedOpenerRepublishesAfterRetirement(t *testing.T) {
 	}
 	defer w.Close()
 	w.Write([]byte("new"))
-	entries, e = EnumerateRoot(root, 0, 100)
+	entries, e = registryEntriesForTest(root)
 	if e != nil || len(entries) != 1 {
 		t.Fatalf("opener did not republish %v %v", entries, e)
 	}
@@ -196,7 +197,7 @@ func TestRetirementCrashKeepsDiscoverableRecovery(t *testing.T) {
 			w.Close()
 			s, _ := load(path)
 			s.Writers = nil
-			save(path, s, true)
+			save(path, s, true, Options{})
 			*now = now.Add(8 * 24 * time.Hour)
 			opts.Fault = func(step string) error {
 				if step == point {
@@ -207,7 +208,7 @@ func TestRetirementCrashKeepsDiscoverableRecovery(t *testing.T) {
 			if _, e = Collect(path, opts, 100); e == nil {
 				t.Fatal("retirement fault ignored")
 			}
-			entries, e := EnumerateRoot(root, 0, 100)
+			entries, e := registryEntriesForTest(root)
 			if e != nil || len(entries) != 1 {
 				t.Fatal("recovery lost discovery", entries, e)
 			}
@@ -215,7 +216,7 @@ func TestRetirementCrashKeepsDiscoverableRecovery(t *testing.T) {
 			if _, e = Collect(path, opts, 100); e != nil {
 				t.Fatal(e)
 			}
-			entries, e = EnumerateRoot(root, 0, 100)
+			entries, e = registryEntriesForTest(root)
 			if e != nil || len(entries) != 0 {
 				t.Fatal("retirement not recovered", entries, e)
 			}
@@ -234,4 +235,9 @@ func FuzzDecideSegmentAge(f *testing.F) {
 			t.Fatalf("delta=%d eligible=%v", delta, got)
 		}
 	})
+}
+
+func registryEntriesForTest(root string) ([]RegistryEntry, error) {
+	page, err := EnumerateRoot(context.Background(), root, 0, 100)
+	return page.Entries, err
 }

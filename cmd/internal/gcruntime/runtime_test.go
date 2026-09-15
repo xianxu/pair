@@ -21,7 +21,7 @@ func TestLegacyDiagnosticsExpireWithoutSessionGrace(t *testing.T) {
 	s.Collector.LegacyRoot = func(context.Context, []storagegc.ProcessIdentity) (storagegc.Liveness, error) {
 		return storagegc.ProcessDead, nil
 	}
-	s.DiagnosticOptions.Proof = func(string, []diagnosticlog.Registration) error { return nil }
+	s.DiagnosticOptions.Proof = func(context.Context, string, []diagnosticlog.Registration) error { return nil }
 	path := filepath.Join(c.Root, "wrap-events-tag.jsonl")
 	os.WriteFile(path, []byte("old diagnostic"), 0600)
 	at := time.Now().Add(-8 * 24 * time.Hour)

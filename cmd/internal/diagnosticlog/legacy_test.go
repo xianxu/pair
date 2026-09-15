@@ -1,6 +1,7 @@
 package diagnosticlog
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -39,7 +40,7 @@ func TestLegacyUnknownOrYoungDoesNotInitialize(t *testing.T) {
 			old := now.Add(-time.Hour)
 			if unknown {
 				old = now.Add(-8 * 24 * time.Hour)
-				opts.Proof = func(string, []Registration) error { return errors.New("legacy writer alive") }
+				opts.Proof = func(context.Context, string, []Registration) error { return errors.New("legacy writer alive") }
 			}
 			os.Chtimes(path, old, old)
 			rows, e := PreviewLegacy(path, opts)

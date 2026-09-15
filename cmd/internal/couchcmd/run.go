@@ -429,7 +429,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 		// root, even when no Pair launcher exported PAIR_DATA_DIR.
 		if getenv("COUCH_INPUT_TRACE") != "" || getenv("COUCH_TRACE") != "" || getenv("COUCH_MOUSE_TRACE") != "" {
 			if e := os.MkdirAll(config.root, 0700); e != nil {
-				options.Registry = func(diagnosticlog.RegistryEntry) error { return e }
+				options.Registry = func(context.Context, diagnosticlog.RegistryEntry) error { return e }
 			} else {
 				options = diagnosticlog.EnvironmentOptions(func(key string) string {
 					if key == "PAIR_DATA_DIR" {

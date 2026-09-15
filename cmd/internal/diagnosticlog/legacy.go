@@ -9,6 +9,9 @@ import (
 // by its owning inventory. It is not discovery authority for external paths.
 // Old diagnostic mtime is generation-age evidence, not session-use evidence.
 func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
+	if err := options.checkContext(); err != nil {
+		return nil, err
+	}
 	p, e := canonical(path)
 	if e != nil {
 		return nil, e
@@ -26,8 +29,11 @@ func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 	reason := ""
 	if options.Proof == nil {
 		reason = ErrUnknownWriters.Error()
-	} else if e = options.Proof(p, nil); e != nil {
+	} else if e = options.prove(p, nil); e != nil {
 		reason = e.Error()
+	}
+	if err := options.checkContext(); err != nil {
+		return nil, err
 	}
 	eligible := reason == "" && DecideSegment(options.Now(), st.ModTime())
 	if reason == "" && !eligible {
@@ -65,6 +71,9 @@ func adoptLegacy(path string, options Options) (bool, error) {
 	}
 	expected := generation{Identity: fileIdentity(before), Start: options.Now().UTC(), LastWrite: before.ModTime(), Size: before.Size(), ModTime: before.ModTime()}
 	e = lockedOptions(p, true, options, func() error {
+		if err := recoverPublication(p, options); err != nil {
+			return err
+		}
 		// Another upgraded writer may have adopted it since preview; use its
 		// managed state and clocks during the final collection decision.
 		if _, e := load(p); e == nil {
@@ -82,7 +91,7 @@ func adoptLegacy(path string, options Options) (bool, error) {
 		if options.Proof == nil {
 			return ErrUnknownWriters
 		}
-		if e = options.Proof(p, nil); e != nil {
+		if e = options.prove(p, nil); e != nil {
 			return e
 		}
 		if !DecideSegment(options.Now(), st.ModTime()) {
@@ -92,14 +101,14 @@ func adoptLegacy(path string, options Options) (bool, error) {
 			return err
 		}
 		if options.Registry != nil {
-			if e = options.Registry(RegistryEntry{Version: 1, Path: p, Directory: directory(p), Lock: lockPath(p)}); e != nil {
+			if e = options.Registry(options.context(), RegistryEntry{Version: 1, Path: p, Directory: directory(p), Lock: lockPath(p)}); e != nil {
 				return e
 			}
 		}
 		if err := options.checkContext(); err != nil {
 			return err
 		}
-		return save(p, diskState{Version: 1, Path: p, Current: expected}, true)
+		return save(p, diskState{Version: 1, Path: p, Current: expected}, true, options)
 	})
 	if e != nil {
 		return false, e

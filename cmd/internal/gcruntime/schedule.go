@@ -43,6 +43,12 @@ func (s *Service) Batch(ctx context.Context, cursor string, limit int) (string, 
 	if state.Phase != "sessions" && state.Phase != "diagnostics" {
 		return "", false, errors.New("invalid maintenance cursor phase")
 	}
+	if err := diagnosticlog.RecoverRegistry(ctx, s.Collector.Coordinator.Root); err != nil {
+		if errors.Is(err, diagnosticlog.ErrBusy) {
+			err = storagegc.ErrCoordinatorBusy
+		}
+		return "", false, err
+	}
 	entries, err := s.prepareContext(ctx)
 	if err != nil {
 		return "", false, err

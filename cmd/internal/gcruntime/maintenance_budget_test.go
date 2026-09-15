@@ -229,7 +229,7 @@ func TestMaintenanceDiagnosticPagesDoNotEvaluateSessionOwners(t *testing.T) {
 	}
 	now := time.Now()
 	s.DiagnosticOptions.Now = func() time.Time { return now }
-	s.DiagnosticOptions.Proof = func(string, []diagnosticlog.Registration) error { return nil }
+	s.DiagnosticOptions.Proof = func(context.Context, string, []diagnosticlog.Registration) error { return nil }
 	for _, tag := range []string{"tag", "extra0"} {
 		p := filepath.Join(c.Root, "wrap-events-"+tag+".jsonl")
 		if err := os.WriteFile(p, []byte("expired diagnostic"), 0600); err != nil {

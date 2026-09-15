@@ -461,3 +461,9 @@ Main checkout's older239 plan edits and untracked plan-gate copy are preserved
 in stash ac42bde4cc2c8976ee5f0096c663a7757575c5fc before publication; the current
 worktree plan contains the evolved design and review revisions. Unrelated
 .nvimlog was left alone. No real-store apply/migration/install was performed.
+
+- 2026-09-14 23:35 PDT: M1 round3 returned REWORK on diagnostic nested cancellation (BR-6), interrupted registry publication/pagination (BR-7), and deletion replay after ancestor removal (BR-8). Addressed BR-4 absent namespace onboarding. Extending fixes across diagnostic publishers and nested effects; root traversal cancellation race passes15.782s, mutation regression catches missing checks. Review cap will be raised to10 to preserve Important blocking severity. No real-store mutation performed.
+
+- 2026-09-14: Round4 fixes pass full Go suite `/tmp/pair239-round4-full-go-final.log`, storage race `/tmp/pair239-round4-storage-race.log`, and diagnostic/runtime/CLI race `/tmp/pair239-round4-integration-race.log`. Publisher process-death, registry pagination/cancellation, preserved scheduler cursor and deletion replay effect boundaries are covered. Live CI failure traced to external Zellij0.45.1 startup panic; fixture investigation continues before next review.
+
+- 2026-09-14: Live fixture startup race resolved without changing production: wait for server-rendered screen before probing Zellij. Helper race2.249s and fresh-config live group3 repetitions16.426s pass. Preparing M1 round4 with Important findings kept blocking; actual attribution remains incomplete, so close will record N/A rather than fabricate milestone increments.

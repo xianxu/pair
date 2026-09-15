@@ -19,7 +19,7 @@ func fixtureSegment(t *testing.T, path, name string, last time.Time) {
 	}
 	st, _ := os.Stat(p)
 	g := generation{Name: name, Identity: fileIdentity(st), Start: last, LastWrite: last, Size: st.Size(), ModTime: st.ModTime()}
-	if e := writeJSON(p+".json", g, true); e != nil {
+	if e := writeJSON(directory(path), p+".json", g, true, Options{}); e != nil {
 		t.Fatal(e)
 	}
 }

@@ -120,7 +120,7 @@ func TestScheduledDiagnosticsAdvanceAcrossDeletedPaths(t *testing.T) {
 	}
 	now := time.Now()
 	s.DiagnosticOptions.Now = func() time.Time { return now }
-	s.DiagnosticOptions.Proof = func(string, []diagnosticlog.Registration) error { return nil }
+	s.DiagnosticOptions.Proof = func(context.Context, string, []diagnosticlog.Registration) error { return nil }
 	paths := []string{filepath.Join(c.Root, "wrap-events-a.jsonl"), filepath.Join(c.Root, "wrap-events-b.jsonl")}
 	for _, path := range paths {
 		if err := os.WriteFile(path, []byte("old diagnostic"), 0600); err != nil {

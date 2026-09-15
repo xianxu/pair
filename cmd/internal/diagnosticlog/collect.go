@@ -54,6 +54,9 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 	options = normalized(options)
 	complete = true
 	e = lockedOptions(p, false, options, func() error {
+		if err := recoverPublication(p, options); err != nil {
+			return err
+		}
 		s, e := load(p)
 		if os.IsNotExist(e) {
 			if _, e := os.Lstat(p); !os.IsNotExist(e) {
@@ -62,7 +65,7 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			if options.Proof == nil {
 				return ErrUnknownWriters
 			}
-			if e := options.Proof(p, nil); e != nil {
+			if e := options.prove(p, nil); e != nil {
 				return e
 			}
 			if _, e := os.Lstat(directory(p)); e == nil {
@@ -91,7 +94,7 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 		if options.Proof == nil {
 			return ErrUnknownWriters
 		}
-		if e = options.Proof(p, s.Writers); e != nil {
+		if e = options.prove(p, s.Writers); e != nil {
 			return e
 		}
 		if s.Deleting != nil {
@@ -126,7 +129,7 @@ func collectManagedPage(path string, options Options, cursor string, limit int) 
 			if err := options.checkContext(); err != nil {
 				return err
 			}
-			if e = save(p, s, true); e != nil {
+			if e = save(p, s, true, options); e != nil {
 				return e
 			}
 			if e = fault(options, "delete-intent"); e != nil {
@@ -167,6 +170,19 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 		}
 		p = segmentPath(path, g.Name)
 	}
+	if g.Name != "" {
+		if e := syncExistingParent(filepath.Dir(p), directory(path), o); e != nil {
+			return e
+		}
+		var metadata generation
+		if e := readJSON(p+".json", &metadata); e == nil {
+			if metadata != g {
+				return errors.New("diagnostic deletion metadata changed")
+			}
+		} else if !os.IsNotExist(e) {
+			return e
+		}
+	}
 	if st, e := regular(p); e == nil {
 		if e = matches(st, g); e != nil {
 			return e
@@ -180,7 +196,7 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 	} else if !os.IsNotExist(e) {
 		return e
 	}
-	if e := syncDir(filepath.Dir(p)); e != nil {
+	if e := syncExistingParent(filepath.Dir(p), deletionBase(path, g), o); e != nil {
 		return e
 	}
 	if e := fault(o, "delete-payload"); e != nil {
@@ -193,7 +209,10 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 		if e := os.Remove(p + ".json"); e != nil && !os.IsNotExist(e) {
 			return e
 		}
-		if e := syncDir(filepath.Dir(p)); e != nil {
+		if e := syncExistingParent(filepath.Dir(p), deletionBase(path, g), o); e != nil {
+			return e
+		}
+		if e := fault(o, "delete-metadata"); e != nil {
 			return e
 		}
 		if e := removeEmptyParents(filepath.Dir(p), directory(path), o); e != nil {
@@ -202,18 +221,21 @@ func recoverDeletion(path string, s *diskState, o Options) error {
 	} else {
 		s.Current = generation{}
 	}
+	if e := fault(o, "delete-retire-intent"); e != nil {
+		return e
+	}
 	s.Deleting = nil
 	if err := o.checkContext(); err != nil {
 		return err
 	}
-	return save(path, *s, true)
+	return save(path, *s, true, o)
 }
 func retire(path string, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
 	if o.Retire != nil {
-		return o.Retire(RegistryEntry{Version: 1, Path: path, Directory: directory(path), Lock: lockPath(path)})
+		return o.Retire(o.context(), RegistryEntry{Version: 1, Path: path, Directory: directory(path), Lock: lockPath(path)})
 	}
 	return nil
 }
@@ -313,4 +335,11 @@ func cleanupTemps(path string, o Options, limit int) error {
 		return syncDir(directory(path))
 	}
 	return nil
+}
+
+func deletionBase(path string, g generation) string {
+	if g.Name == "" {
+		return filepath.Dir(path)
+	}
+	return directory(path)
 }

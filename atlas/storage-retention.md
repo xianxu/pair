@@ -80,11 +80,18 @@ The implementation map:
   write, allowing up to one extra day of record-age slack. Logging is optional
   and may skip under contention. External traces are discovered only through
   exact writer registrations; unknown old external paths are not globbed.
+  Registry enumeration reports traversal completion separately from filtered
+  entries. Registry publishers serialize under a permanent registry lock;
+  per-log state and generation metadata serialize under the log lock. Reserved
+  unpublished stages are reclaimed only under their owning lock. Deletion
+  intents replay through missing payloads, metadata and removed ancestor
+  directories, while replacement identities and unsafe ancestors still refuse.
 - `gcruntime/` composes Couch, process evidence, binding cleanup and diagnostic
   collection. `gccmd/` exposes the command; `storagegc/schedule.go` owns bounded
   scheduling and its durable completion/cursor state. Diagnostic path discovery
   bypasses session clock and liveness evaluation; collection supplies its own
-  exact writer and generation proof.
+  exact writer and generation proof. The maintenance context propagates into
+  process inspections, their subprocess deadlines and recovery tree walks.
 
 Malformed metadata, ambiguous ownership, unknown liveness, symlinks, incomplete
 inventories and uncertain filesystem effects retain data. Exceptionally large

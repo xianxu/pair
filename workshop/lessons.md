@@ -4956,3 +4956,15 @@ that transition authority is pure or enforced.
   infrastructure, unpublished stages, unique directories and payload effects;
   actual process-kill tests must cover each publication boundary. Keep unlocked
   publishers out of cleanup that assumes a shared lock (ARCH-ORDER, ARCH-FUNERAL).
+
+- #239 review round3: enumerate every atomic publication destination together
+  with the lock that authorizes interrupted-stage recovery; registry publishers
+  and diagnostic state are not exceptions. Pagination must report traversal
+  completion independently of filtered result count.
+- #239 review round3: cancellation belongs in nested process inspection and
+  tree traversal, not only the caller's loop. Durable deletion replay must cover
+  removal of its own parent directories before the intent is retired.
+- #239 hosted conformance: a session-list probe can itself affect a server that
+  has not initialized. Gate disposable fixture readiness on server-rendered
+  output, not socket presence or client bootstrap bytes; preserve server logs
+  before treating an intermittent live test failure as a timeout problem.

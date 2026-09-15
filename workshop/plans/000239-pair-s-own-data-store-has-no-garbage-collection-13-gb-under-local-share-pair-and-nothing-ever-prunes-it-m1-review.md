@@ -261,3 +261,125 @@ Add `## Revisions` entries specifying:
 - **Owner discovery:** registered references and retention metadata establish owners even without payload directories.
 - **Maintenance envelope:** budgets and cancellation apply across every phase and nested lock.
 - **Publication recovery:** enumerate artifacts created before journal publication and define their recovery/removal paths.
+
+---
+
+## Re-review — 2026-09-14T23:22:52-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 239 — Pair's own data store has no garbage collection: 13 GB under ~/.local/share/pair and nothing ever prunes it |
+| repo | 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it |
+| issue file | workshop/issues/000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | 6b06b449ae3521b92187ae14c51d62b66ec356e4..4bff5da772f6bd9efe1c3c9f7f72c3d043ddc37c |
+| command | sdlc milestone-close --issue 239 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-14T23:22:52-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Archive onboarding and journal-before-quarantine publication now have substantive regression coverage. However, BR-6 and BR-7 remain incomplete at their broader boundaries, and diagnostic deletion has a newly reproduced recovery failure. The six reviewed package suites pass; three additional scratch-copy regressions expose these gaps. The repository remains unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Eligible metadata-only retirement is implemented and covered by protection, empty-admission, and interrupted-retirement tests in storagegc/transaction_test.go; the package suite passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Coordinated retention JSON stages in .retention/pending; stateio_test.go covers killed publishers, bounded cleanup, and legacy pending files. These tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      start_test.go covers confirmed-dead pre-spawn reclamation, admission-cap recovery, actual parent death, and preservation of spawned or unknown evidence; the package suite passes.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      OnboardArchiveGrace journals missing clocks against exact archive bytes. TestApplyRetainsAndCollectsOwnersWithoutPairNamespace exercises legacy archives without Pair directories, read-only preview, full grace, and eventual collection; malformed-clock and replay-identity tests also pass.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The revised Core concepts table names the actual ReduceTransaction implementation; production phase advancement uses it, with phase/event, sequence, and AST bypass tests passing.
+  - id: BR-6
+    disposition: not-addressed
+    note: |
+      Owner paging and nonblocking locks are covered, but diagnosticlog/proof.go:25-27 provides no maintenance context to inspections, and line 77 creates an independent background deadline. Cancellation during OpenFiles still starts subsequent Runtimes work under the shared lock. A scratch regression observed two runtime inspections after cancellation. ARCH-CONSTRAINTS: complete the bounded-maintenance-work rule across nested inspections and traversal helpers.
+  - id: BR-7
+    disposition: not-addressed
+    note: |
+      Journal-before-quarantine ordering is fixed, but diagnostic registry publication still uses unrecoverable .pending-* files via diagnosticlog/registry.go:38 and writer.go:470. Enumeration filters these entries while gcruntime/runtime.go:112 treats the filtered count as completion. A scratch fixture discovered only 53 of 101 registered paths. ARCH-PURPOSE/ARCH-FUNERAL: the interrupted-publication-recovery family remains incomplete.
+findings:
+  - id: new
+    severity: Critical
+    family: durable-deletion-replay
+    title: |
+      Diagnostic deletion cannot recover after removing its parent directories
+    detail: |
+      diagnosticlog/collect.go:199 removes empty segment ancestors before clearing the durable Deleting intent at lines 205-209. Death or cancellation between those effects leaves replay calling syncDir on a missing parent at line 183, permanently failing. A scratch regression reproduces ENOENT. Make replay tolerate already-completed directory cleanup while preserving identity checks, and test interruption after each parent removal and before intent retirement (ARCH-ORDER, ARCH-FUNERAL).
+```
+
+## 1. Strengths
+
+- Legacy archive onboarding preserves malformed evidence and grants the full grace period without creating missing Pair payload directories.
+- Quarantine publication tests kill actual processes before and after journal publication.
+- Pure transaction tests enforce legal transitions and reject production phase assignments outside the reducer.
+- README and atlas updates document commands, migration, retention buckets, and managed I/O.
+
+## 2. Critical findings
+
+**Diagnostic deletion replay:** `cmd/internal/diagnosticlog/collect.go:183–209`. A completed directory removal becomes a permanent replay error. Preserve recoverability through intent retirement; add segment-specific failure and cancellation tests.
+
+## 3. Important findings
+
+- **BR-6 — nested maintenance cancellation:** `cmd/internal/diagnosticlog/proof.go:25–77`. Propagate the worker context through `Proof`, `Inspection`, and subprocess execution; check it between inspections and filesystem traversal steps. Existing cancellation tests stop around the proof callback, not inside its production work. This continues the second finding in family `bounded-maintenance-work`; fix the entire nested-effect rule.
+- **BR-7 — diagnostic registry staging:** `cmd/internal/diagnosticlog/registry.go:38,75–98` and `cmd/internal/gcruntime/runtime.go:112`. Interrupted registry writes have no cleanup owner and can truncate discovery. This is the third finding in family `interrupted-publication-recovery`. Enumerate every publication destination and its recovery authority, including concurrent diagnostic publishers; do not sweep their active temporary files indiscriminately. Return explicit pagination completion rather than deriving it from filtered results.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+Passed:
+
+- `storagegc`, `artifactpath`, `gcruntime`
+- `diagnosticlog`, `gccmd`, `couchcore`
+
+Scratch-copy regressions reproduced:
+
+- `ENOENT` replay after diagnostic parent cleanup.
+- Two runtime inspections starting after cancellation.
+- Premature registry completion after 53 of 101 paths.
+
+Scratch tests are in [review_recovery_test.go](/tmp/pair239-review-3fzlf19g/cmd/internal/diagnosticlog/review_recovery_test.go). Full-tree, Lua, and hosted conformance checks were not rerun.
+
+## 6. Architectural notes
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass: shared ownership classification and retention APIs. |
+| ARCH-PURE | Pass: listed pure entities and transaction decisions remain free of I/O. |
+| ARCH-PURPOSE | Flag: publication recovery has not covered every publisher. |
+| ARCH-MOCK | Pass: portable stores, process doubles, and real-process conformance tests exist. |
+| ARCH-CONSTRAINTS | Flag: nested inspection work escapes maintenance cancellation. |
+| ARCH-SECURE | Pass for inspected boundaries: exact identities, malformed-evidence retention, and unsafe-path tests. |
+| ARCH-ORDER | Flag: diagnostic cleanup cannot replay every partially completed sequence. |
+| ARCH-FUNERAL | Flag: registry staging lacks removal authority; interrupted diagnostic cleanup can remain stuck. |
+
+## 7. Plan revision recommendations
+
+Add `## Revisions` entries that:
+
+- Enumerate publication destinations, synchronization owners, and interrupted-stage recovery.
+- Extend the maintenance envelope through nested inspections and traversal helpers.
+- Specify diagnostic deletion recovery after payload, metadata, and ancestor removal, including cancellation before intent retirement.

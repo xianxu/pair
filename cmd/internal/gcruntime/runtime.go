@@ -52,7 +52,7 @@ func legacyEvidence(c *storagegc.Coordinator, inspector diagnosticlog.Inspection
 		for _, r := range entries {
 			managed = append(managed, r.Process)
 		}
-		runtimes, err := inspector.Runtimes()
+		runtimes, err := inspector.Runtimes(ctx)
 		if err != nil {
 			return storagegc.ProcessUnknown, err
 		}
@@ -100,18 +100,22 @@ func cleanupOwner(held *storagegc.Locked, owner artifactpath.StorageOwner) error
 }
 func (s *Service) registryContext(ctx context.Context) ([]diagnosticlog.RegistryEntry, error) {
 	var entries []diagnosticlog.RegistryEntry
-	for offset := 0; offset < 100000; offset += 100 {
+	for offset := 0; offset < 100000; {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		page, err := diagnosticlog.EnumerateRoot(s.Collector.Coordinator.Root, offset, 100)
+		page, err := diagnosticlog.EnumerateRoot(ctx, s.Collector.Coordinator.Root, offset, 100)
 		if err != nil {
 			return nil, err
 		}
-		entries = append(entries, page...)
-		if len(page) < 100 {
+		entries = append(entries, page.Entries...)
+		if page.Complete {
 			return entries, nil
 		}
+		if page.NextOffset <= offset {
+			return nil, errors.New("diagnostic registry cursor did not advance")
+		}
+		offset = page.NextOffset
 	}
 	return nil, errors.New("diagnostic registry exceeds inventory budget")
 }
@@ -175,6 +179,9 @@ func (s *Service) Preview(ctx context.Context) (r Report, err error) {
 	return r, nil
 }
 func (s *Service) Apply(ctx context.Context, limit int) (r Report, err error) {
+	if err := diagnosticlog.RecoverRegistry(ctx, s.Collector.Coordinator.Root); err != nil {
+		return r, err
+	}
 	entries, err := s.prepare()
 	if err != nil {
 		return r, err

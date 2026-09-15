@@ -15,7 +15,7 @@ func fixture(t *testing.T) (string, *time.Time, Options) {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "trace.log")
 	now := time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
-	return path, &now, Options{SynchronousMaintenance: true, Now: func() time.Time { return now }, Proof: func(string, []Registration) error { return nil }}
+	return path, &now, Options{SynchronousMaintenance: true, Now: func() time.Time { return now }, Proof: func(context.Context, string, []Registration) error { return nil }}
 }
 func TestGenerationAgeSurvivesRestart(t *testing.T) {
 	path, now, opts := fixture(t)
@@ -296,7 +296,7 @@ func TestMalformedDeletionIntentCannotRemoveCurrent(t *testing.T) {
 		t.Fatal(e)
 	}
 	s.Deleting = &generation{}
-	save(path, s, true)
+	save(path, s, true, Options{})
 	*now = now.Add(8 * 24 * time.Hour)
 	if _, e = Collect(path, opts, 100); e == nil {
 		t.Fatal("malformed deletion accepted")
@@ -312,7 +312,7 @@ func TestProductionWriteNeverWaitsForInspection(t *testing.T) {
 	opts.MaxBytes = 4
 	entered := make(chan struct{})
 	release := make(chan struct{})
-	opts.Proof = func(string, []Registration) error { close(entered); <-release; return nil }
+	opts.Proof = func(context.Context, string, []Registration) error { close(entered); <-release; return nil }
 	w, e := Open(path, opts)
 	if e != nil {
 		t.Fatal(e)
@@ -391,7 +391,7 @@ func TestAbandonedMetadataTempHasBoundedLifetime(t *testing.T) {
 	w.Close()
 	s, _ := load(path)
 	s.Writers = nil
-	save(path, s, true)
+	save(path, s, true, Options{})
 	abandoned := filepath.Join(directory(path), ".pending-1234")
 	os.WriteFile(abandoned, []byte("interrupted metadata"), 0600)
 	os.Chtimes(abandoned, *now, *now)
@@ -482,7 +482,7 @@ func TestMaintenanceCancellationStopsBeforeNextEffect(t *testing.T) {
 				cancel()
 			}
 			if point == "proof" {
-				opts.Proof = func(string, []Registration) error { cancel(); return nil }
+				opts.Proof = func(context.Context, string, []Registration) error { cancel(); return nil }
 			}
 			opts.Fault = func(step string) error {
 				if step == point {
@@ -510,7 +510,7 @@ func TestMaintenanceCancellationStopsBeforeNextEffect(t *testing.T) {
 			}
 			opts.Context = nil
 			opts.Fault = nil
-			opts.Proof = func(string, []Registration) error { return nil }
+			opts.Proof = func(context.Context, string, []Registration) error { return nil }
 			if _, err := Collect(path, opts, 100); err != nil {
 				t.Fatalf("retry failed: %v", err)
 			}

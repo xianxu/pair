@@ -1,6 +1,7 @@
 package couchcmd
 
 import (
+	"context"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"os"
@@ -22,7 +23,8 @@ func TestStandaloneCouchRegistersAllTracePathsWithoutPairEnvironment(t *testing.
 	defer console.SetInputTrace("")
 	defer console.SetMouseTrace("")
 	defer console.SetEventTrace("", processStartedAt)
-	entries, e := diagnosticlog.EnumerateRoot(root, 0, 100)
+	page, e := diagnosticlog.EnumerateRoot(context.Background(), root, 0, 100)
+	entries := page.Entries
 	if e != nil || len(entries) != 3 {
 		t.Fatalf("registered traces=%v err=%v", entries, e)
 	}

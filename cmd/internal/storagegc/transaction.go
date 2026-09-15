@@ -291,7 +291,10 @@ func (c *Collector) validateTransaction(t CollectionTransaction) error {
 // verifyTree checks the complete current destination subtree against the frozen
 // inventory. During deletion recorded missing leaves are expected; new children
 // and substitutions are always errors.
-func (c *Collector) verifyTree(t CollectionTransaction, missing bool) error {
+func (c *Collector) verifyTree(held *Locked, t CollectionTransaction, missing bool) error {
+	if err := held.CheckContext(); err != nil {
+		return err
+	}
 	root := c.quarantine(t)
 	if err := checkDirectory(root, false); err != nil {
 		if missing && errors.Is(err, os.ErrNotExist) {
@@ -305,6 +308,9 @@ func (c *Collector) verifyTree(t CollectionTransaction, missing bool) error {
 	}
 	seen := map[string]bool{}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err := held.CheckContext(); err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -414,7 +420,7 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			}
 			// Recheck every descendant immediately before moving its top directory.
 			if e.Identity.directory() {
-				if err := c.verifySourceTree(*t, e); err != nil {
+				if err := c.verifySourceTree(held, *t, e); err != nil {
 					return err
 				}
 			}
@@ -438,7 +444,7 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 				return err
 			}
 		}
-		if err := c.verifyTree(*t, false); err != nil {
+		if err := c.verifyTree(held, *t, false); err != nil {
 			return err
 		}
 		if err := c.advanceTransaction(held, t, CollectionDetachmentProved); err != nil {
@@ -508,7 +514,7 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 			return err
 		}
 	}
-	if err := c.verifyTree(*t, true); err != nil {
+	if err := c.verifyTree(held, *t, true); err != nil {
 		return err
 	}
 	entries := append([]CollectionEntry(nil), t.Entries...)
@@ -564,7 +570,10 @@ func (c *Collector) resumeCollection(held *Locked, t *CollectionTransaction) err
 	}
 	return c.Coordinator.syncDirectory(c.transactionDir())
 }
-func (c *Collector) verifySourceTree(t CollectionTransaction, top CollectionEntry) error {
+func (c *Collector) verifySourceTree(held *Locked, t CollectionTransaction, top CollectionEntry) error {
+	if err := held.CheckContext(); err != nil {
+		return err
+	}
 	entries := map[string]CollectionEntry{}
 	for _, e := range t.Entries {
 		if e.Source == top.Source || strings.HasPrefix(e.Source, top.Source+string(os.PathSeparator)) {
@@ -573,6 +582,9 @@ func (c *Collector) verifySourceTree(t CollectionTransaction, top CollectionEntr
 	}
 	seen := 0
 	err := filepath.WalkDir(filepath.Join(c.Coordinator.Root, top.Source), func(path string, d fs.DirEntry, err error) error {
+		if err := held.CheckContext(); err != nil {
+			return err
+		}
 		if err != nil {
 			return err
 		}
@@ -647,6 +659,9 @@ func (c *Collector) recoverTransactions(held *Locked, limit int) error {
 	return nil
 }
 func (l *Locked) pendingOwnerTransaction(owner artifactpath.StorageOwner) error {
+	if err := l.CheckContext(); err != nil {
+		return err
+	}
 	dir := filepath.Join(l.coordinator.Root, ".retention", "transactions")
 	if err := checkDirectory(dir, false); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -659,6 +674,9 @@ func (l *Locked) pendingOwnerTransaction(owner artifactpath.StorageOwner) error 
 		return err
 	}
 	for _, entry := range entries {
+		if err := l.CheckContext(); err != nil {
+			return err
+		}
 		if isPendingMetadata(entry.Name()) {
 			continue
 		}

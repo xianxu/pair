@@ -32,7 +32,7 @@ type Registration struct {
 	Birth string `json:"birth"`
 	Root  string `json:"root,omitempty"`
 }
-type Proof func(path string, writers []Registration) error
+type Proof func(ctx context.Context, path string, writers []Registration) error
 type Options struct {
 	// Context bounds optional maintenance; nil preserves ordinary writer behavior.
 	Context  context.Context
@@ -40,8 +40,8 @@ type Options struct {
 	MaxBytes int64
 	Proof    Proof
 	Root     string
-	Registry func(RegistryEntry) error
-	Retire   func(RegistryEntry) error
+	Registry func(context.Context, RegistryEntry) error
+	Retire   func(context.Context, RegistryEntry) error
 	Fault    func(step string) error
 	// SynchronousMaintenance is for explicit batch writers and fault harnesses;
 	// terminal emitters leave it false and never inspect processes on append.
@@ -120,11 +120,14 @@ func Open(path string, options Options) (*Writer, error) {
 
 	w := &Writer{path: p, options: options, registration: reg}
 	e = locked(p, true, func() error {
+		if err := recoverPublication(p, options); err != nil {
+			return err
+		}
 		// Registry callbacks are atomic entry writes only and must not acquire
 		// root coordination. Publish under this stable lock, so a paused opener
 		// republishes after collector retirement before touching content.
 		if options.Registry != nil {
-			if e := options.Registry(RegistryEntry{Version: 1, Path: p, Directory: directory(p), Lock: lockPath(p)}); e != nil {
+			if e := options.Registry(options.context(), RegistryEntry{Version: 1, Path: p, Directory: directory(p), Lock: lockPath(p)}); e != nil {
 				return e
 			}
 		}
@@ -172,7 +175,7 @@ func Open(path string, options Options) (*Writer, error) {
 		if len(s.Writers) > 1024 {
 			return errors.New("too many diagnostic writers")
 		}
-		return save(p, s, true)
+		return save(p, s, true, options)
 	})
 	if e != nil {
 		return nil, e
@@ -204,6 +207,9 @@ func (w *Writer) Write(b []byte) (int, error) {
 	n := 0
 	maintenanceDue := false
 	e := locked(w.path, false, func() error {
+		if err := recoverPublication(w.path, w.options); err != nil {
+			return err
+		}
 		s, e := load(w.path)
 		if e != nil {
 			return e
@@ -285,7 +291,7 @@ func (w *Writer) Write(b []byte) (int, error) {
 		s.Current.LastWrite = now
 		// LastWrite is explicit so an injected clock and coarse filesystem clocks
 		// cannot make a young managed generation appear old.
-		return save(w.path, s, false)
+		return save(w.path, s, false, w.options)
 	})
 	if maintenanceDue && !w.options.SynchronousMaintenance {
 		w.scheduleMaintenance()
@@ -296,7 +302,7 @@ func (w *Writer) prove(s diskState) error {
 	if w.options.Proof == nil {
 		return ErrUnknownWriters
 	}
-	return w.options.Proof(w.path, append([]Registration(nil), s.Writers...))
+	return w.options.prove(w.path, append([]Registration(nil), s.Writers...))
 }
 func definitelyDead(r Registration) bool {
 	if r.PID <= 0 || r.Birth == "" {
@@ -456,41 +462,117 @@ func validate(s diskState, path string) error {
 
 	return nil
 }
-func save(path string, s diskState, durable bool) error {
-	return writeJSON(filepath.Join(directory(path), "state.json"), s, durable)
+func save(path string, s diskState, durable bool, o Options) error {
+	return writeJSON(directory(path), filepath.Join(directory(path), "state.json"), s, durable, o)
 }
-func writeJSON(path string, value any, durable bool) error {
-	b, e := json.Marshal(value)
-	if e != nil {
-		return e
+func writeJSON(stageDir, path string, value any, durable bool, o Options) error {
+	return publishJSON(stageDir, path, value, durable, o, nil)
+}
+
+func publishJSON(stageDir, path string, value any, durable bool, o Options, afterStage func() error) (err error) {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	b, err := json.Marshal(value)
+	if err != nil {
+		return err
 	}
 	if len(b) > 1<<20 {
 		return errors.New("oversized diagnostic metadata")
 	}
-	f, e := os.CreateTemp(filepath.Dir(path), ".pending-")
-	if e != nil {
-		return e
+	if err := o.checkContext(); err != nil {
+		return err
 	}
-	tmp := f.Name()
-	defer os.Remove(tmp)
-	if _, e = f.Write(b); e == nil && durable {
-		e = f.Sync()
+	if err := clearPublication(stageDir, o); err != nil {
+		return err
 	}
-	ce := f.Close()
-	if e == nil {
-		e = ce
+	stage := publicationPath(stageDir)
+	if err := o.checkContext(); err != nil {
+		return err
 	}
-	if e != nil {
-		return e
+	f, err := os.OpenFile(stage, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
 	}
-	if e = os.Rename(tmp, path); e != nil {
-		return e
+	defer f.Close()
+	defer func() {
+		if e := os.Remove(stage); e == nil {
+			err = errors.Join(err, syncDir(stageDir))
+		} else if !os.IsNotExist(e) {
+			err = errors.Join(err, e)
+		}
+	}()
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	if _, err := f.Write(b); err != nil {
+		return err
 	}
 	if durable {
-		return syncDir(filepath.Dir(path))
+		if err := o.checkContext(); err != nil {
+			return err
+		}
+		if err := f.Sync(); err != nil {
+			return err
+		}
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if afterStage != nil {
+		if err := afterStage(); err != nil {
+			return err
+		}
+	}
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	if err := os.Rename(stage, path); err != nil {
+		return err
+	}
+	if durable {
+		if stageDir != filepath.Dir(path) {
+			return errors.Join(syncDir(stageDir), syncDir(filepath.Dir(path)))
+		}
+		return syncDir(stageDir)
 	}
 	return nil
 }
+
+// Publishers hold the matching log or registry lock. Only this exact shared
+// stage is reclaimed here. Older numeric per-log .pending-* residues retain
+// their existing cleanup under the same log lock; registry residues are retained.
+func publicationPath(dir string) string { return filepath.Join(dir, ".metadata-publication") }
+func clearPublication(dir string, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	path := publicationPath(dir)
+	info, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("unsafe diagnostic publication stage")
+	}
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	return syncDir(dir)
+}
+func recoverPublication(path string, o Options) error {
+	if err := o.checkContext(); err != nil {
+		return err
+	}
+	return clearPublication(directory(path), o)
+}
+
 func syncDir(path string) error {
 	f, e := os.Open(path)
 	if e != nil {
@@ -524,12 +606,15 @@ func rotate(path string, s *diskState, o Options) error {
 	g := s.Current
 	ready := false
 	for range 8 {
+		if err := o.checkContext(); err != nil {
+			return err
+		}
 		var token [16]byte
 		if _, e := rand.Read(token[:]); e != nil {
 			return e
 		}
 		g.Name = "segment-" + hex.EncodeToString(token[:]) + ".log"
-		if e := ensureSegmentDirectory(path, g.Name); e != nil {
+		if e := ensureSegmentDirectory(path, g.Name, o); e != nil {
 			return e
 		}
 		names, e := directoryNames(filepath.Dir(segmentPath(path, g.Name)), 2*leafGenerations+1)
@@ -548,7 +633,7 @@ func rotate(path string, s *diskState, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
-	if e := save(path, *s, true); e != nil {
+	if e := save(path, *s, true, o); e != nil {
 		return e
 	}
 	if e := fault(o, "intent"); e != nil {
@@ -601,7 +686,7 @@ func recoverRotation(path string, s *diskState, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
-	if e = writeJSON(dst+".json", g, true); e != nil {
+	if e = writeJSON(directory(path), dst+".json", g, true, o); e != nil {
 		return e
 	}
 	s.Current = generation{}
@@ -609,7 +694,7 @@ func recoverRotation(path string, s *diskState, o Options) error {
 	if err := o.checkContext(); err != nil {
 		return err
 	}
-	if e = save(path, *s, true); e != nil {
+	if e = save(path, *s, true, o); e != nil {
 		return e
 	}
 	return fault(o, "state")
@@ -653,6 +738,9 @@ func Maintain(path string, options Options) error {
 	}
 	options = normalized(options)
 	return lockedOptions(p, false, options, func() error {
+		if err := recoverPublication(p, options); err != nil {
+			return err
+		}
 		s, e := load(p)
 		if e != nil {
 			return e
@@ -663,7 +751,7 @@ func Maintain(path string, options Options) error {
 		if options.Proof == nil {
 			return ErrUnknownWriters
 		}
-		if e = options.Proof(p, s.Writers); e != nil {
+		if e = options.prove(p, s.Writers); e != nil {
 			return e
 		}
 		if s.Deleting != nil {
@@ -689,4 +777,30 @@ func Maintain(path string, options Options) error {
 		}
 		return nil
 	})
+}
+
+// prove threads the maintenance lifetime through the single inspection seam.
+func (o Options) prove(path string, writers []Registration) error {
+	ctx := o.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if o.Proof == nil {
+		return ErrUnknownWriters
+	}
+	err := o.Proof(ctx, path, writers)
+	if canceled := ctx.Err(); canceled != nil {
+		return canceled
+	}
+	return err
+}
+
+func (o Options) context() context.Context {
+	if o.Context != nil {
+		return o.Context
+	}
+	return context.Background()
 }
