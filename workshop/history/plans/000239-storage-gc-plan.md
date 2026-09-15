@@ -149,7 +149,7 @@ Files: create `cmd/internal/gccmd/run.go`, `run_test.go`, `cmd/internal/storageg
 - [x] Run real-store preview only and record measured eligible/protected/untracked totals without reading content or deleting live files. Run apply against an isolated representative fixture containing old standalone, visible parked, newly archived, expired archived and live sessions; assert the expected survivors and second-apply idempotence.
 - [x] Document 60-day clocks, migration, managed-use boundary, custom stores, commands, retained-error diagnostics and no global size ceiling; update atlas index and issue Log. Commit and close M2 with the binary review gate.
 - [x] Close #239 with verification and the documented actual-attribution exception.
-- [ ] Publish through `sdlc pr` and `sdlc merge`. Do not run destructive real-store migration/apply as a test; automatic collection begins only after migration completion and the full legacy grace.
+- [x] Publish through `sdlc pr` and `sdlc merge`. Do not run destructive real-store migration/apply as a test; automatic collection begins only after migration completion and the full legacy grace.
 
 ## Revisions
 
@@ -691,3 +691,7 @@ BR-5: classify StoreRegistry as INTEGRATION because validate calls canonicalStor
 ### 2026-09-15 — M2 acceptance boundary
 
 M1 round6 returned SHIP for the combined implementation, disposing all nine findings. M2 now reconciles the completed public-CLI survivor/idempotence fixture, real-store preview, full Go/race/Lua/shell validation and hosted conformance at d7180a38. No new runtime surface is added in this boundary; the existing README and atlas were reviewed with M1. Publication remains pending the M2 and whole-issue gates.
+
+### 2026-09-15 — Publication completed
+
+PR #138 merged as 253c8581; SDLC marked #239 done and archived its issue, plan and reviews. M1, M2 and full-close verdicts were SHIP. No real-store migration/apply or live binary installation was performed.
