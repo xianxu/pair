@@ -686,3 +686,7 @@ Couch166.047s, diagnostics34.250s, runtime133.937s including the100k fixture.
 ### 2026-09-15 — M1 round5 classification correction
 
 BR-5: classify StoreRegistry as INTEGRATION because validate calls canonicalStore, resolving symlinks and reading directories. Its methods depend on external filesystem state even though its fields are persisted data (ARCH-PURE). Source inspection verifies the correction; no wording-presence test is warranted. Round5 confirmed BR-1 through BR-4 and BR-6 through BR-9 addressed, with no new runtime defect.
+
+### 2026-09-15 — M2 acceptance boundary
+
+M1 round6 returned SHIP for the combined implementation, disposing all nine findings. M2 now reconciles the completed public-CLI survivor/idempotence fixture, real-store preview, full Go/race/Lua/shell validation and hosted conformance at d7180a38. No new runtime surface is added in this boundary; the existing README and atlas were reviewed with M1. Publication remains pending the M2 and whole-issue gates.
