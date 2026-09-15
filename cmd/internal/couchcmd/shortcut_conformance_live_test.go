@@ -119,27 +119,26 @@ func TestAgentShortcutInputConformanceLive(t *testing.T) {
 		{"reserved-shift-alt-right", "\x1b[1;4C", "\x1b[1;4C"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if _, err := fixture.WriteInput([]byte(tc.input)); err != nil {
-				t.Fatal(err)
-			}
-			// Bare ESC+[ is a prefix of CSI, so let Zellij's escape timer resolve it
-			// before sending a printable delivery barrier.
-			time.Sleep(80 * time.Millisecond)
-			if _, err := fixture.WriteInput([]byte("!")); err != nil {
-				t.Fatal(err)
-			}
-			expected = append(expected, []byte(tc.want+"!")...)
-			deadline := time.Now().Add(time.Second)
-			var got []byte
-			for time.Now().Before(deadline) {
-				got, _ = os.ReadFile(capture)
-				if bytes.Equal(got, expected) {
-					break
+			// Observe the key at the receiver before sending the barrier. Bare
+			// ESC+[ followed by ! is an incomplete CSI if the parser has not
+			// resolved Alt+[ yet; sender-side sleep cannot establish that.
+			for _, delivery := range []struct{ input, want string }{{tc.input, tc.want}, {"!", "!"}} {
+				if _, err := fixture.WriteInput([]byte(delivery.input)); err != nil {
+					t.Fatal(err)
 				}
-				time.Sleep(10 * time.Millisecond)
-			}
-			if !bytes.Equal(got, expected) {
-				t.Fatalf("client input %q: capture %q, want %q", tc.input, got, expected)
+				expected = append(expected, []byte(delivery.want)...)
+				deadline := time.Now().Add(time.Second)
+				var got []byte
+				for time.Now().Before(deadline) {
+					got, _ = os.ReadFile(capture)
+					if bytes.Equal(got, expected) {
+						break
+					}
+					time.Sleep(10 * time.Millisecond)
+				}
+				if !bytes.Equal(got, expected) {
+					t.Fatalf("client input %q delivery %q: capture %q, want %q", tc.input, delivery.input, got, expected)
+				}
 			}
 			if got := snapshot(); got != initial {
 				t.Fatal("shortcut changed pane/tab/layout state")

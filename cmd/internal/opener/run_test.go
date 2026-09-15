@@ -33,6 +33,7 @@ type fakeRuntime struct {
 	detached      []string // scripts passed to StartDetached
 	detachedPID   string
 	detachedEnv   []string
+	viewerHook    func([]string)
 	viewer        *viewerCall
 	sessionID     string
 	sessionStatus sessioninventory.BindingStatus
@@ -80,6 +81,9 @@ func (f *fakeRuntime) StartDetached(script string, extraEnv []string, statusPath
 	return f.detachedPID, nil
 }
 func (f *fakeRuntime) RunViewer(lua, file string, extraEnv []string) error {
+	if f.viewerHook != nil {
+		f.viewerHook(extraEnv)
+	}
 	f.viewer = &viewerCall{lua: lua, file: file, env: extraEnv}
 	return nil
 }

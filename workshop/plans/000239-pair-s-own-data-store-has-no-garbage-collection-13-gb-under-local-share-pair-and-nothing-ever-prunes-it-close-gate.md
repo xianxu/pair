@@ -1,0 +1,422 @@
+---
+gate: boundary-review
+issue: 239
+id_prefix: BR
+rounds:
+    - "n": 1
+      timestamp: "2026-09-14T22:22:59-07:00"
+      agent: codex
+      findings:
+        - id: BR-1
+          severity: Critical
+          title: Expired metadata-only owners abort collection
+          detail: collector.go:228 emits eligible empty session groups, while transaction.go:193 rejects them. Add coordinated metadata-only retirement and a regression covering capture cleanup followed by sixty-day expiry (ARCH-FUNERAL, ARCH-PURPOSE).
+          family: metadata-only-retirement
+          round: 1
+        - id: BR-2
+          severity: Critical
+          title: Crashed metadata writes leave temporary files that block recovery
+          detail: storagegc/stateio.go:41 relies on deferred temporary-file removal, but collector.go:103 and transaction recovery interpret leftovers as authoritative records. Recover unpublished residue under coordination and test process death before rename (ARCH-ORDER, ARCH-FUNERAL).
+          family: interrupted-publication-recovery
+          round: 1
+        - id: BR-3
+          severity: Critical
+          title: Abandoned startup reservations never retire
+          detail: storagegc/use.go:60 never reconciles Starts; even confirmed pre-spawn parent death permanently blocks collection and eventually exhausts start.go:50's reservation cap. Add evidence-based recovery with live and unknown child protection (ARCH-ORDER, ARCH-FUNERAL).
+          family: startup-reservation-reconciliation
+          round: 1
+        - id: BR-4
+          severity: Critical
+          title: Pre-upgrade Couch archives cannot enter retention grace
+          detail: couchcore/retention.go:78 turns absent legacy grace into permanent ClockError evidence, and apply never initializes archive clocks. Journal a full onboarding grace for missing legacy clocks while retaining malformed evidence (ARCH-PURPOSE, ARCH-FUNERAL).
+          family: legacy-retention-onboarding
+          round: 1
+        - id: BR-5
+          severity: Critical
+          title: The completed plan claims a transaction reducer that does not exist
+          detail: The plan at lines 39 and 133 promises pure transition coverage, but transaction.go:403 directly mutates phases inside I/O. Implement the enforced pure state/event model and reconcile the Core concepts table and phase enumeration (ARCH-PURE, ARCH-ORDER).
+          family: enforced-pure-transitions
+          round: 1
+        - id: BR-6
+          severity: Important
+          title: Scheduled collection limits deletions but processes every owner under the shared lock
+          detail: collector.go:342 performs full snapshots and owner rewrites regardless of batch limit; gcruntime/schedule.go:58 has no owner continuation cursor. Enforce the declared scheduling budget, nonblocking acquisition, and cancellation between effects with production-batch tests (ARCH-CONSTRAINTS).
+          family: bounded-maintenance-work
+          round: 1
+      boundary: M1
+      blocked: true
+    - "n": 2
+      timestamp: "2026-09-14T22:53:48-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays covers capture cleanup followed by metadata expiry. Restoring empty-session rejection makes its metadata-retirement assertion fail.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: Central staging and coordinated cleanup handle unpublished JSON. TestInterruptedMetadataPublisherProcess exercises killed publishers with complete and partial writes; restoring destination-local staging makes the regression fail.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Recovery and admission reclaim confirmed-dead pre-spawn reservations while preserving live, unknown and spawned evidence. Disabling recovery makes TestRecoverDeadUnspawnedStartsPreservesUnknownAndSpawned fail.
+          round: 2
+        - id: BR-4
+          disposition: not-addressed
+          note: storagegc/inventory.go:175 only merges known owners into physically discovered namespaces. A legacy Couch archive without its Pair repos/<scope> directory is omitted from Apply, so collector.go:475 never onboards it. TestReviewLegacyArchiveWithoutPairScope reproduces this on the pinned head.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: Production phase advancement calls ReduceTransaction through the persistence adapter. The phase/event matrix, sequence tests and bypass guard pass; a regressive retirement transition makes the matrix fail. The revised plan names the implemented phases and symbols.
+          round: 2
+        - id: BR-6
+          disposition: not-addressed
+          note: 'gcruntime/schedule.go:64 still invokes a full owner preview for every diagnostic page: a limit-2 regression probes all 8 owners. Recovery also reaches blocking Couch flock through retention.go:392, ignoring an expired maintenance context while holding the root lock. Both scratch regressions fail.'
+          round: 2
+      findings:
+        - id: BR-7
+          severity: Important
+          title: Unpublished quarantine directories have no recovery path
+          detail: storagegc/transaction.go:208 creates the unique quarantine directory before publishing its journal at line 222. Publication failure or cancellation leaves it unreachable by journal-only recovery at line 586; three injected publication failures leave three directories. This is the 2nd finding in family interrupted-publication-recovery. Define and enforce recovery for every artifact created before authoritative publication, rather than fixing this instance alone.
+          family: interrupted-publication-recovery
+          round: 2
+      boundary: M1
+      blocked: true
+    - "n": 3
+      timestamp: "2026-09-14T23:22:52-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Eligible metadata-only retirement is implemented and covered by protection, empty-admission, and interrupted-retirement tests in storagegc/transaction_test.go; the package suite passes.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Coordinated retention JSON stages in .retention/pending; stateio_test.go covers killed publishers, bounded cleanup, and legacy pending files. These tests pass.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: start_test.go covers confirmed-dead pre-spawn reclamation, admission-cap recovery, actual parent death, and preservation of spawned or unknown evidence; the package suite passes.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: OnboardArchiveGrace journals missing clocks against exact archive bytes. TestApplyRetainsAndCollectsOwnersWithoutPairNamespace exercises legacy archives without Pair directories, read-only preview, full grace, and eventual collection; malformed-clock and replay-identity tests also pass.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: The revised Core concepts table names the actual ReduceTransaction implementation; production phase advancement uses it, with phase/event, sequence, and AST bypass tests passing.
+          round: 3
+        - id: BR-6
+          disposition: not-addressed
+          note: 'Owner paging and nonblocking locks are covered, but diagnosticlog/proof.go:25-27 provides no maintenance context to inspections, and line 77 creates an independent background deadline. Cancellation during OpenFiles still starts subsequent Runtimes work under the shared lock. A scratch regression observed two runtime inspections after cancellation. ARCH-CONSTRAINTS: complete the bounded-maintenance-work rule across nested inspections and traversal helpers.'
+          round: 3
+        - id: BR-7
+          disposition: not-addressed
+          note: 'Journal-before-quarantine ordering is fixed, but diagnostic registry publication still uses unrecoverable .pending-* files via diagnosticlog/registry.go:38 and writer.go:470. Enumeration filters these entries while gcruntime/runtime.go:112 treats the filtered count as completion. A scratch fixture discovered only 53 of 101 registered paths. ARCH-PURPOSE/ARCH-FUNERAL: the interrupted-publication-recovery family remains incomplete.'
+          round: 3
+      findings:
+        - id: BR-8
+          severity: Critical
+          title: Diagnostic deletion cannot recover after removing its parent directories
+          detail: diagnosticlog/collect.go:199 removes empty segment ancestors before clearing the durable Deleting intent at lines 205-209. Death or cancellation between those effects leaves replay calling syncDir on a missing parent at line 183, permanently failing. A scratch regression reproduces ENOENT. Make replay tolerate already-completed directory cleanup while preserving identity checks, and test interruption after each parent removal and before intent retirement (ARCH-ORDER, ARCH-FUNERAL).
+          family: durable-deletion-replay
+          round: 3
+      boundary: M1
+      blocked: true
+    - "n": 4
+      timestamp: "2026-09-14T23:50:45-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Metadata-only admission, protection and interrupted-retirement tests pass.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Central pending-metadata recovery and killed-publisher tests pass.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: Dead pre-spawn reservation recovery and uncertain-start protection tests pass.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: Legacy archive onboarding and namespace discovery tests pass, including missing payload directories.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: The plan names the production reducer; phase/event, sequence and production bypass-guard tests pass.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: Production owner-budget, 100,000-filename, contention and cancellation tests pass. Removing subprocess deadline propagation makes both lsof and ps deadline regressions fail.
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: Journals now precede unique quarantines. Restoring pre-publication directory creation makes all three publication-failure regressions fail. A separate remaining publication-class instance is reported below.
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: Parent-removal and intent-retirement replay tests pass. Replacing surviving-ancestor synchronization with direct parent synchronization reproduces ENOENT.
+          round: 4
+      findings:
+        - id: BR-9
+          severity: Critical
+          title: Interrupted diagnostic appends permanently block logging and collection
+          detail: 'cmd/internal/diagnosticlog/writer.go:281 changes the payload before publishing Size/ModTime at line 294. Cancellation, publication failure or process death between those effects leaves metadata stale; Open, Write, Maintain and Collect subsequently reject the generation. A scratch regression confirms persisted bytes followed by failures from both reopen and expired collection. This is the 3rd finding in family interrupted-publication-recovery. State and enforce the class-wide rule: every payload effect requiring matching metadata must have recoverable authority before mutation. Sweep initial/current-file creation, append, rotation, deletion and retirement; add interruption tests without weakening replacement-file checks (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).'
+          family: interrupted-publication-recovery
+          round: 4
+      boundary: M1
+      blocked: true
+    - "n": 5
+      timestamp: "2026-09-15T00:13:33-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Metadata-only admission, protection and interrupted-retirement tests pass in storagegc.
+          round: 5
+        - id: BR-2
+          disposition: addressed
+          note: Coordinated pending publication recovery and killed-metadata-publisher tests pass.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: Dead pre-spawn reservation recovery, admission cleanup and uncertain-start protection tests pass.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: Durable references establish missing payload namespaces; legacy archive grace and identity-checked onboarding tests pass.
+          round: 5
+        - id: BR-5
+          disposition: not-addressed
+          note: The reducer and its production enforcement are corrected, but workshop/plans/000239-storage-gc-plan.md:33 still labels StoreRegistry PURE. Its validate method at cmd/internal/storagegc/stores.go:54 calls filesystem-dependent canonicalStore, including EvalSymlinks and directory reads. Reclassify it as INTEGRATION and record the correction under Revisions (ARCH-PURE); no wording-presence test is required.
+          round: 5
+        - id: BR-6
+          disposition: addressed
+          note: Owner-budget, 100,000-filename, diagnostic-page isolation, contention and cancellation tests pass.
+          round: 5
+        - id: BR-7
+          disposition: addressed
+          note: Prepared journal authority precedes quarantine creation; publication failure, killed-process and unsafe-quarantine recovery tests pass.
+          round: 5
+        - id: BR-8
+          disposition: addressed
+          note: Diagnostic deletion replay tests pass across payload, metadata and ancestor removal, including replacement refusal.
+          round: 5
+        - id: BR-9
+          disposition: addressed
+          note: Bounded append and exact-inode creation intents precede payload effects and recover through production entrypoints. Partial-write, cancellation, killed-process and replacement tests pass; removing append-intent publication in a scratch overlay makes the cancellation/reopen regression fail.
+          round: 5
+      boundary: M1
+      blocked: true
+    - "n": 6
+      timestamp: "2026-09-15T00:20:28-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Eligible metadata-only retirement uses the collection journal; protection and interrupted-retirement tests pass.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: Reserved metadata publication stages have coordinated recovery; subprocess interruption and bounded cleanup tests pass.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: Verified dead pre-spawn reservations retire; uncertain spawned reservations retain protection. Recovery and resolution tests pass.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: OnboardArchiveGrace grants missing legacy clocks fresh grace while preserving malformed evidence; focused Couch tests pass.
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: transaction.go:450,494 route transitions through advanceTransaction and ReduceTransaction. Matrix, sequence and bypass-guard tests pass; a scratch regression permitting finalized-to-detached fails both behavioral tests. Plan line 33 now classifies StoreRegistry as INTEGRATION, matching stores.go:27-66 filesystem validation.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: Scheduled pages bound visited-owner work; the 100,000-filename, contention, cancellation and diagnostic-isolation tests pass.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: Journal publication precedes unique quarantine creation; publication-failure and killed-publisher recovery tests pass.
+          round: 6
+        - id: BR-8
+          disposition: addressed
+          note: Diagnostic deletion replay handles removed ancestor directories while rejecting replacement identities; replay tests pass.
+          round: 6
+        - id: BR-9
+          disposition: addressed
+          note: Bounded append intents reconcile the observed authorized prefix; partial-write, killed-publisher and substitution tests pass.
+          round: 6
+      boundary: M1
+      blocked: false
+    - "n": 7
+      timestamp: "2026-09-15T00:23:01-07:00"
+      agent: codex
+      boundary: M2
+      blocked: false
+    - "n": 8
+      timestamp: "2026-09-15T00:26:16-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Eligible metadata-only owners use journaled retirement; protection, admission, and interrupted-retirement tests pass.
+          round: 8
+        - id: BR-2
+          disposition: addressed
+          note: Coordinated JSON publication uses central pending staging; killed-publisher and bounded recovery tests pass.
+          round: 8
+        - id: BR-3
+          disposition: addressed
+          note: Confirmed-dead pre-spawn reservations retire through recovery and admission; spawned and unknown reservations remain protected in passing tests.
+          round: 8
+        - id: BR-4
+          disposition: addressed
+          note: Durable references discover owners without payload directories; legacy archive onboarding, identity validation, and eventual collection tests pass.
+          round: 8
+        - id: BR-5
+          disposition: addressed
+          note: Production advancement calls ReduceTransaction; matrix, sequence, and bypass tests pass. The plan Core concepts table classifies StoreRegistry as INTEGRATION, matching filesystem validation in stores.go:26-66.
+          round: 8
+        - id: BR-6
+          disposition: addressed
+          note: Owner-budget, 100,000-filename, diagnostic-isolation, contention, deadline, and cancellation tests pass through production maintenance paths.
+          round: 8
+        - id: BR-7
+          disposition: addressed
+          note: Prepared journal publication precedes unique quarantine creation; publication-failure, killed-publisher, and unsafe-replacement tests pass.
+          round: 8
+        - id: BR-8
+          disposition: addressed
+          note: Diagnostic deletion replay tolerates completed ancestor removal while rejecting replacement evidence; effect-boundary replay tests pass.
+          round: 8
+        - id: BR-9
+          disposition: addressed
+          note: Append authority precedes payload mutation and recovery commits only the observed authorized prefix; partial-write, cancellation, killed-publisher, and replacement tests pass.
+          round: 8
+      blocked: false
+---
+
+# Gate ledger — 000239-pair-s-own-data-store-has-no-garbage-collection-13-gb-under-local-share-pair-and-nothing-ever-prunes-it#239 (boundary-review)
+
+Findings this gate raised, the stable ids the binary assigned them, and how
+later rounds disposed of them. Generated — edit the gate, not this file.
+
+## Round 1 — 2026-09-14T22:22:59-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-1** [Critical] `metadata-only-retirement` Expired metadata-only owners abort collection
+  collector.go:228 emits eligible empty session groups, while transaction.go:193 rejects them. Add coordinated metadata-only retirement and a regression covering capture cleanup followed by sixty-day expiry (ARCH-FUNERAL, ARCH-PURPOSE).
+- **BR-2** [Critical] `interrupted-publication-recovery` Crashed metadata writes leave temporary files that block recovery
+  storagegc/stateio.go:41 relies on deferred temporary-file removal, but collector.go:103 and transaction recovery interpret leftovers as authoritative records. Recover unpublished residue under coordination and test process death before rename (ARCH-ORDER, ARCH-FUNERAL).
+- **BR-3** [Critical] `startup-reservation-reconciliation` Abandoned startup reservations never retire
+  storagegc/use.go:60 never reconciles Starts; even confirmed pre-spawn parent death permanently blocks collection and eventually exhausts start.go:50's reservation cap. Add evidence-based recovery with live and unknown child protection (ARCH-ORDER, ARCH-FUNERAL).
+- **BR-4** [Critical] `legacy-retention-onboarding` Pre-upgrade Couch archives cannot enter retention grace
+  couchcore/retention.go:78 turns absent legacy grace into permanent ClockError evidence, and apply never initializes archive clocks. Journal a full onboarding grace for missing legacy clocks while retaining malformed evidence (ARCH-PURPOSE, ARCH-FUNERAL).
+- **BR-5** [Critical] `enforced-pure-transitions` The completed plan claims a transaction reducer that does not exist
+  The plan at lines 39 and 133 promises pure transition coverage, but transaction.go:403 directly mutates phases inside I/O. Implement the enforced pure state/event model and reconcile the Core concepts table and phase enumeration (ARCH-PURE, ARCH-ORDER).
+- **BR-6** [Important] `bounded-maintenance-work` Scheduled collection limits deletions but processes every owner under the shared lock
+  collector.go:342 performs full snapshots and owner rewrites regardless of batch limit; gcruntime/schedule.go:58 has no owner continuation cursor. Enforce the declared scheduling budget, nonblocking acquisition, and cancellation between effects with production-batch tests (ARCH-CONSTRAINTS).
+
+## Round 2 — 2026-09-14T22:53:48-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — TestSessionRetirementLeavesYoungCaptureDiscoverableUntilSevenDays covers capture cleanup followed by metadata expiry. Restoring empty-session rejection makes its metadata-retirement assertion fail.
+- BR-2 — addressed — Central staging and coordinated cleanup handle unpublished JSON. TestInterruptedMetadataPublisherProcess exercises killed publishers with complete and partial writes; restoring destination-local staging makes the regression fail.
+- BR-3 — addressed — Recovery and admission reclaim confirmed-dead pre-spawn reservations while preserving live, unknown and spawned evidence. Disabling recovery makes TestRecoverDeadUnspawnedStartsPreservesUnknownAndSpawned fail.
+- BR-4 — not-addressed — storagegc/inventory.go:175 only merges known owners into physically discovered namespaces. A legacy Couch archive without its Pair repos/<scope> directory is omitted from Apply, so collector.go:475 never onboards it. TestReviewLegacyArchiveWithoutPairScope reproduces this on the pinned head.
+- BR-5 — addressed — Production phase advancement calls ReduceTransaction through the persistence adapter. The phase/event matrix, sequence tests and bypass guard pass; a regressive retirement transition makes the matrix fail. The revised plan names the implemented phases and symbols.
+- BR-6 — not-addressed — gcruntime/schedule.go:64 still invokes a full owner preview for every diagnostic page: a limit-2 regression probes all 8 owners. Recovery also reaches blocking Couch flock through retention.go:392, ignoring an expired maintenance context while holding the root lock. Both scratch regressions fail.
+
+### Raised
+
+- **BR-7** [Important] `interrupted-publication-recovery` Unpublished quarantine directories have no recovery path
+  storagegc/transaction.go:208 creates the unique quarantine directory before publishing its journal at line 222. Publication failure or cancellation leaves it unreachable by journal-only recovery at line 586; three injected publication failures leave three directories. This is the 2nd finding in family interrupted-publication-recovery. Define and enforce recovery for every artifact created before authoritative publication, rather than fixing this instance alone.
+
+## Round 3 — 2026-09-14T23:22:52-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Eligible metadata-only retirement is implemented and covered by protection, empty-admission, and interrupted-retirement tests in storagegc/transaction_test.go; the package suite passes.
+- BR-2 — addressed — Coordinated retention JSON stages in .retention/pending; stateio_test.go covers killed publishers, bounded cleanup, and legacy pending files. These tests pass.
+- BR-3 — addressed — start_test.go covers confirmed-dead pre-spawn reclamation, admission-cap recovery, actual parent death, and preservation of spawned or unknown evidence; the package suite passes.
+- BR-4 — addressed — OnboardArchiveGrace journals missing clocks against exact archive bytes. TestApplyRetainsAndCollectsOwnersWithoutPairNamespace exercises legacy archives without Pair directories, read-only preview, full grace, and eventual collection; malformed-clock and replay-identity tests also pass.
+- BR-5 — addressed — The revised Core concepts table names the actual ReduceTransaction implementation; production phase advancement uses it, with phase/event, sequence, and AST bypass tests passing.
+- BR-6 — not-addressed — Owner paging and nonblocking locks are covered, but diagnosticlog/proof.go:25-27 provides no maintenance context to inspections, and line 77 creates an independent background deadline. Cancellation during OpenFiles still starts subsequent Runtimes work under the shared lock. A scratch regression observed two runtime inspections after cancellation. ARCH-CONSTRAINTS: complete the bounded-maintenance-work rule across nested inspections and traversal helpers.
+- BR-7 — not-addressed — Journal-before-quarantine ordering is fixed, but diagnostic registry publication still uses unrecoverable .pending-* files via diagnosticlog/registry.go:38 and writer.go:470. Enumeration filters these entries while gcruntime/runtime.go:112 treats the filtered count as completion. A scratch fixture discovered only 53 of 101 registered paths. ARCH-PURPOSE/ARCH-FUNERAL: the interrupted-publication-recovery family remains incomplete.
+
+### Raised
+
+- **BR-8** [Critical] `durable-deletion-replay` Diagnostic deletion cannot recover after removing its parent directories
+  diagnosticlog/collect.go:199 removes empty segment ancestors before clearing the durable Deleting intent at lines 205-209. Death or cancellation between those effects leaves replay calling syncDir on a missing parent at line 183, permanently failing. A scratch regression reproduces ENOENT. Make replay tolerate already-completed directory cleanup while preserving identity checks, and test interruption after each parent removal and before intent retirement (ARCH-ORDER, ARCH-FUNERAL).
+
+## Round 4 — 2026-09-14T23:50:45-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Metadata-only admission, protection and interrupted-retirement tests pass.
+- BR-2 — addressed — Central pending-metadata recovery and killed-publisher tests pass.
+- BR-3 — addressed — Dead pre-spawn reservation recovery and uncertain-start protection tests pass.
+- BR-4 — addressed — Legacy archive onboarding and namespace discovery tests pass, including missing payload directories.
+- BR-5 — addressed — The plan names the production reducer; phase/event, sequence and production bypass-guard tests pass.
+- BR-6 — addressed — Production owner-budget, 100,000-filename, contention and cancellation tests pass. Removing subprocess deadline propagation makes both lsof and ps deadline regressions fail.
+- BR-7 — addressed — Journals now precede unique quarantines. Restoring pre-publication directory creation makes all three publication-failure regressions fail. A separate remaining publication-class instance is reported below.
+- BR-8 — addressed — Parent-removal and intent-retirement replay tests pass. Replacing surviving-ancestor synchronization with direct parent synchronization reproduces ENOENT.
+
+### Raised
+
+- **BR-9** [Critical] `interrupted-publication-recovery` Interrupted diagnostic appends permanently block logging and collection
+  cmd/internal/diagnosticlog/writer.go:281 changes the payload before publishing Size/ModTime at line 294. Cancellation, publication failure or process death between those effects leaves metadata stale; Open, Write, Maintain and Collect subsequently reject the generation. A scratch regression confirms persisted bytes followed by failures from both reopen and expired collection. This is the 3rd finding in family interrupted-publication-recovery. State and enforce the class-wide rule: every payload effect requiring matching metadata must have recoverable authority before mutation. Sweep initial/current-file creation, append, rotation, deletion and retirement; add interruption tests without weakening replacement-file checks (ARCH-ORDER, ARCH-FUNERAL, ARCH-PURPOSE).
+
+## Round 5 — 2026-09-15T00:13:33-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Metadata-only admission, protection and interrupted-retirement tests pass in storagegc.
+- BR-2 — addressed — Coordinated pending publication recovery and killed-metadata-publisher tests pass.
+- BR-3 — addressed — Dead pre-spawn reservation recovery, admission cleanup and uncertain-start protection tests pass.
+- BR-4 — addressed — Durable references establish missing payload namespaces; legacy archive grace and identity-checked onboarding tests pass.
+- BR-5 — not-addressed — The reducer and its production enforcement are corrected, but workshop/plans/000239-storage-gc-plan.md:33 still labels StoreRegistry PURE. Its validate method at cmd/internal/storagegc/stores.go:54 calls filesystem-dependent canonicalStore, including EvalSymlinks and directory reads. Reclassify it as INTEGRATION and record the correction under Revisions (ARCH-PURE); no wording-presence test is required.
+- BR-6 — addressed — Owner-budget, 100,000-filename, diagnostic-page isolation, contention and cancellation tests pass.
+- BR-7 — addressed — Prepared journal authority precedes quarantine creation; publication failure, killed-process and unsafe-quarantine recovery tests pass.
+- BR-8 — addressed — Diagnostic deletion replay tests pass across payload, metadata and ancestor removal, including replacement refusal.
+- BR-9 — addressed — Bounded append and exact-inode creation intents precede payload effects and recover through production entrypoints. Partial-write, cancellation, killed-process and replacement tests pass; removing append-intent publication in a scratch overlay makes the cancellation/reopen regression fail.
+
+## Round 6 — 2026-09-15T00:20:28-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Eligible metadata-only retirement uses the collection journal; protection and interrupted-retirement tests pass.
+- BR-2 — addressed — Reserved metadata publication stages have coordinated recovery; subprocess interruption and bounded cleanup tests pass.
+- BR-3 — addressed — Verified dead pre-spawn reservations retire; uncertain spawned reservations retain protection. Recovery and resolution tests pass.
+- BR-4 — addressed — OnboardArchiveGrace grants missing legacy clocks fresh grace while preserving malformed evidence; focused Couch tests pass.
+- BR-5 — addressed — transaction.go:450,494 route transitions through advanceTransaction and ReduceTransaction. Matrix, sequence and bypass-guard tests pass; a scratch regression permitting finalized-to-detached fails both behavioral tests. Plan line 33 now classifies StoreRegistry as INTEGRATION, matching stores.go:27-66 filesystem validation.
+- BR-6 — addressed — Scheduled pages bound visited-owner work; the 100,000-filename, contention, cancellation and diagnostic-isolation tests pass.
+- BR-7 — addressed — Journal publication precedes unique quarantine creation; publication-failure and killed-publisher recovery tests pass.
+- BR-8 — addressed — Diagnostic deletion replay handles removed ancestor directories while rejecting replacement identities; replay tests pass.
+- BR-9 — addressed — Bounded append intents reconcile the observed authorized prefix; partial-write, killed-publisher and substitution tests pass.
+
+## Round 7 — 2026-09-15T00:23:01-07:00 (codex) — passed
+
+## Round 8 — 2026-09-15T00:26:16-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Eligible metadata-only owners use journaled retirement; protection, admission, and interrupted-retirement tests pass.
+- BR-2 — addressed — Coordinated JSON publication uses central pending staging; killed-publisher and bounded recovery tests pass.
+- BR-3 — addressed — Confirmed-dead pre-spawn reservations retire through recovery and admission; spawned and unknown reservations remain protected in passing tests.
+- BR-4 — addressed — Durable references discover owners without payload directories; legacy archive onboarding, identity validation, and eventual collection tests pass.
+- BR-5 — addressed — Production advancement calls ReduceTransaction; matrix, sequence, and bypass tests pass. The plan Core concepts table classifies StoreRegistry as INTEGRATION, matching filesystem validation in stores.go:26-66.
+- BR-6 — addressed — Owner-budget, 100,000-filename, diagnostic-isolation, contention, deadline, and cancellation tests pass through production maintenance paths.
+- BR-7 — addressed — Prepared journal publication precedes unique quarantine creation; publication-failure, killed-publisher, and unsafe-replacement tests pass.
+- BR-8 — addressed — Diagnostic deletion replay tolerates completed ancestor removal while rejecting replacement evidence; effect-boundary replay tests pass.
+- BR-9 — addressed — Append authority precedes payload mutation and recovery commits only the observed authorized prefix; partial-write, cancellation, killed-publisher, and replacement tests pass.
+
+## Open findings
+
+(none — every finding has been disposed)

@@ -18,6 +18,8 @@
 
 local M = {}
 
+local retention = dofile((debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './') .. 'retention.lua').setup('changelog-viewer')
+
 do
   local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
   local workbench_route = dofile(here .. 'workbench_route.lua')

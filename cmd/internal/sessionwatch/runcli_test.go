@@ -1,8 +1,11 @@
 package sessionwatch
 
 import (
+	"bytes"
 	"os"
+	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -97,5 +100,38 @@ func TestEnsurePairTagFallback(t *testing.T) {
 	cleanup()
 	if got := os.Getenv("PAIR_TAG"); got != "" {
 		t.Fatalf("PAIR_TAG after cleanup = %q, want empty", got)
+	}
+}
+
+func TestRunCLIRefusesUnleasedStorageBeforeAdaptOpen(t *testing.T) {
+	root := t.TempDir()
+	logPath := filepath.Join(root, "adapt.jsonl")
+	t.Setenv("PAIR_ADAPT_LOG_PATH", logPath)
+	env := map[string]string{"PAIR_DATA_DIR": filepath.Join(root, "missing"), "PAIR_TAG": "tag"}
+	var stderr bytes.Buffer
+	if code := RunCLI([]string{"codex", "tag", root}, func(k string) string { return env[k] }, &stderr); code != 1 {
+		t.Fatalf("unleased watcher exit %d", code)
+	}
+	if !strings.Contains(stderr.String(), "retention") {
+		t.Fatalf("missing retention error: %s", stderr.String())
+	}
+	if _, err := os.Stat(logPath); !os.IsNotExist(err) {
+		t.Fatalf("adapt opened before lease: %v", err)
+	}
+}
+
+func TestRunCLIRejectsDifferentLeasedTag(t *testing.T) {
+	root := t.TempDir()
+	env := map[string]string{"PAIR_DATA_DIR": root, "PAIR_TAG": "different"}
+	var stderr bytes.Buffer
+	if code := RunCLI([]string{"codex", "tag", root}, func(k string) string { return env[k] }, &stderr); code != 1 {
+		t.Fatalf("mismatched owner exit %d", code)
+	}
+	if !strings.Contains(stderr.String(), "retention") {
+		t.Fatalf("missing ownership error: %s", stderr.String())
+	}
+	entries, _ := os.ReadDir(root)
+	if len(entries) != 0 {
+		t.Fatal("mismatched owner created metadata")
 	}
 }

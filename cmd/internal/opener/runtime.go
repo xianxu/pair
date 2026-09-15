@@ -1,12 +1,14 @@
 package opener
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/procutil"
 	"github.com/xianxu/pair/cmd/internal/scrollbackcmd"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 // OSRuntime implements Runtime with real zellij/nvim/exec/fs calls. The fs
@@ -41,7 +44,7 @@ func (OSRuntime) ProcessAlive(pid string) bool { return procutil.Alive(pid) }
 // #92) rather than shelling out — the render is synchronous, so no subprocess is
 // needed (ARCH-DRY; drops the shell's `$PAIR_HOME/bin/pair` dependency here).
 func (OSRuntime) RenderScrollback(raw, events, ansi, viewport string) error {
-	if code := scrollbackcmd.Run([]string{"--viewport", viewport, raw, events, ansi}, io.Discard, io.Discard); code != 0 {
+	if code := scrollbackcmd.RunWithEnv([]string{"--viewport", viewport, raw, events, ansi}, os.Getenv, io.Discard, io.Discard); code != 0 {
 		return &renderError{code: code}
 	}
 	return nil
@@ -138,30 +141,88 @@ func (OSRuntime) StartDetached(script string, extraEnv []string, statusPath stri
 	}
 	defer devNull.Close()
 
-	cmd := exec.Command("sh", "-c", script)
+	cmd := exec.Command("sh", "-c", childGate+script)
 	cmd.Env = append(os.Environ(), extraEnv...)
 	cmd.Stdin = devNull
 	cmd.Stdout = devNull
 	cmd.Stderr = statusF
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err := cmd.Start(); err != nil {
+	lease, err := startProtected(cmd)
+	if err != nil {
 		return "", err
 	}
 	pid := strconv.Itoa(cmd.Process.Pid)
 	// Reap the detached child asynchronously so it doesn't linger as a zombie
 	// under this (short-lived) launcher; the setsid child is already reparented
 	// away, so this Wait only cleans our own bookkeeping.
-	go func() { _ = cmd.Wait() }()
+	go func() { _ = cmd.Wait(); _ = lease.Close() }()
 	return pid, nil
 }
 
 // RunViewer execs nvim on file with luaPath config as a HELD child (inherits the
 // floating pane's tty), returning when the user quits.
 func (OSRuntime) RunViewer(luaPath, file string, extraEnv []string) error {
-	cmd := exec.Command("nvim", "-u", luaPath, file)
+	cmd := exec.Command("sh", "-c", childGate+`exec nvim -u "$1" "$2"`, "pair-viewer", luaPath, file)
 	cmd.Env = append(os.Environ(), extraEnv...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	lease, err := startProtected(cmd)
+	if err != nil {
+		return err
+	}
+	defer lease.Close()
+	return cmd.Wait()
+}
+
+// The child cannot touch managed artifacts until its actual incarnation is
+// registered. Parent death before the grant closes the pipe: the child exits.
+const childGate = "IFS= read -r pair_gate <&3 || exit 1\nexec 3<&-\n"
+
+func startProtected(cmd *exec.Cmd) (*storagegc.ProcessLease, error) {
+	env := map[string]string{}
+	for _, entry := range cmd.Env {
+		k, v, ok := strings.Cut(entry, "=")
+		if ok {
+			env[k] = v
+		}
+	}
+	var coordinator *storagegc.Coordinator
+	var ownerErr error
+	owner, ownerErr := storagegc.SelectedOwner(env["PAIR_DATA_DIR"], env["PAIR_SCOPE_KEY"], env["PAIR_TAG"])
+	if ownerErr != nil {
+		return nil, fmt.Errorf("retention child owner: %w", ownerErr)
+	}
+	coordinator, ownerErr = storagegc.NewCoordinator(owner.DataDir)
+	if ownerErr != nil {
+		return nil, ownerErr
+	}
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+	cmd.ExtraFiles = []*os.File{reader}
+	if err := cmd.Start(); err != nil {
+		reader.Close()
+		writer.Close()
+		return nil, err
+	}
+	_ = reader.Close()
+	fail := func(err error) (*storagegc.ProcessLease, error) { _ = writer.Close(); _ = cmd.Wait(); return nil, err }
+	process, err := storagegc.CurrentProcessIdentity(cmd.Process.Pid)
+	if err != nil {
+		return fail(err)
+	}
+	id, err := coordinator.AcquireRoleProcessTarget(context.Background(), owner, process, env["PAIR_RETENTION_ROLE"], env["PAIR_RETENTION_START_ID"], env["PAIR_RETENTION_TARGET"])
+	if err != nil {
+		return fail(err)
+	}
+	lease := &storagegc.ProcessLease{Coordinator: coordinator, Owner: owner, ID: id}
+	if _, err := io.WriteString(writer, "ready\n"); err != nil {
+		_, _ = fail(err)
+		_ = lease.Close()
+		return nil, err
+	}
+	_ = writer.Close()
+	return lease, nil
 }

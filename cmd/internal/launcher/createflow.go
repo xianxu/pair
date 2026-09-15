@@ -128,86 +128,110 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 		}
 		runCleanup(env, rt, step, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir), opts.ParkPromptTimeout, stderr)
 
-		if pendingSession != "" {
-			if step.code != 0 {
-				fmt.Fprintf(stderr, "pair: continuation replacement failed; retry with pair continue --retry %s\n", pendingMarker.Tag)
-				return step.code, nil
+		// Every post-handoff path, including retained or failed continuation
+		// acknowledgments, must release storage lifetimes after its final read.
+		restart, code := func() (restart bool, code int) {
+			var restartUses []RetentionUse
+			defer func() {
+				if !finishRestartOwners(restartUses, stderr) {
+					restart, code = false, 1
+				}
+				if !finishLaunchRetention(step, stderr) {
+					restart, code = false, 1
+				}
+			}()
+			if pendingSession != "" {
+				if step.code != 0 {
+					fmt.Fprintf(stderr, "pair: continuation replacement failed; retry with pair continue --retry %s\n", pendingMarker.Tag)
+					return false, step.code
+				}
+				if err := rt.AcknowledgeRestartMarker(pendingSession, pendingMarker); err != nil {
+					fmt.Fprintf(stderr, "pair: continuation handoff completed but acknowledgment failed: %v\n", err)
+					return false, 1
+				}
+				pendingSession = ""
 			}
-			if err := rt.AcknowledgeRestartMarker(pendingSession, pendingMarker); err != nil {
-				fmt.Fprintf(stderr, "pair: continuation handoff completed but acknowledgment failed: %v\n", err)
-				return 1, nil
+			m, ok, markerErr := rt.ReadRestartMarker(step.session)
+			if markerErr != nil {
+				fmt.Fprintf(stderr, "pair: read restart intent: %v\n", markerErr)
+				return false, 1
 			}
-			pendingSession = ""
-		}
-		m, ok, markerErr := rt.ReadRestartMarker(step.session)
-		if markerErr != nil {
-			fmt.Fprintf(stderr, "pair: read restart intent: %v\n", markerErr)
-			return 1, nil
-		}
-		if !ok {
-			return step.code, nil
-		}
-		if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
-			fmt.Fprintln(stderr, "pair: legacy hosted restart intent refused; use Couch continuation/relaunch recovery")
-			return 1, nil
-		}
+			if !ok {
+				return false, step.code
+			}
+			if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+				fmt.Fprintln(stderr, "pair: legacy hosted restart intent refused; use Couch continuation/relaunch recovery")
+				return false, 1
+			}
 
-		rTag := firstNonEmpty(m.Tag, step.tag)
-		rAgent := firstNonEmpty(m.Agent, step.agent)
-
-		// rename_to re-entry (M5b, shell 743-750): move the tag-scoped sidecars
-		// old→new FIRST — the session was just killed, so the live-old gate passes
-		// — then the config read + relaunch below run under the new tag. A failure
-		// keeps the old tag (don't strand the user).
-		if m.RenameTo != "" {
-			if runRenameScoped(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir), io.Discard, stderr) == 0 {
-				rTag = m.RenameTo
-			} else {
-				fmt.Fprintf(stderr, "pair: rename to '%s' failed; continuing under '%s'.\n", m.RenameTo, rTag)
-			}
-		}
-
-		configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
-		saved := readSavedConfig(rt, configPath)
-		// The restart marker carries the only established identity for re-entry;
-		// saved config contributes launch parameters only.
-		saved.SessionID = ""
-		plan := planRestart(m, rTag, rAgent, saved)
-		if plan.DropConfig {
-			rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
-		}
-		opts.Args = plan.Args
-		opts.SkipConfigPicker = true
-		opts.ContinueDoc = ""
-		opts.ContinueSlug = ""
-		opts.ContinueText = ""
-		opts.ContinueCheckpoint = checkpoint.Checkpoint{}
-		if m.Version != 0 {
-			opts.ContinueCheckpoint = m.Checkpoint
-			opts.ContinueDoc = m.Checkpoint.SourcePath
-		} else if plan.ContinueSlug != "" {
-			path, _, found := rt.ResolveContinuationDoc(plan.ContinueSlug)
-			if !found {
-				fmt.Fprintf(stderr, "pair: continuation %q is unavailable; restart intent retained\n", plan.ContinueSlug)
-				return 1, nil
-			}
-			c, err := rt.ReadCheckpoint(path)
+			uses, err := retainRestartOwners(rt, env.DataDir, step, m)
 			if err != nil {
-				fmt.Fprintf(stderr, "pair: continuation unavailable; restart intent retained: %v\n", err)
-				return 1, nil
+				fmt.Fprintf(stderr, "pair: cannot protect restart namespace: %v\n", err)
+				return false, 1
 			}
-			opts.ContinueCheckpoint = c
-			opts.ContinueDoc = c.SourcePath
-		}
-		if opts.ContinueCheckpoint.Version != 0 {
-			pendingSession, pendingMarker = step.session, m
-		} else {
-			if err := rt.AcknowledgeRestartMarker(step.session, m); err != nil {
-				fmt.Fprintf(stderr, "pair: acknowledge restart: %v\n", err)
-				return 1, nil
-			}
-		}
+			restartUses = uses
+			rt.SetEnv("PAIR_RETENTION_BACKGROUND", "")
+			rTag := firstNonEmpty(m.Tag, step.tag)
+			rAgent := firstNonEmpty(m.Agent, step.agent)
 
+			// rename_to re-entry (M5b, shell 743-750): move the tag-scoped sidecars
+			// old→new FIRST — the session was just killed, so the live-old gate passes
+			// — then the config read + relaunch below run under the new tag. A failure
+			// keeps the old tag (don't strand the user).
+			if m.RenameTo != "" {
+				if runRenameScoped(rt, LaunchArgs{RenameOld: rTag, RenameNew: m.RenameTo}, env.DataDir, scopeKeyFromDataDir(opts.GlobalDataDir, env.DataDir), io.Discard, stderr) == 0 {
+					rTag = m.RenameTo
+				} else {
+					fmt.Fprintf(stderr, "pair: rename to '%s' failed; continuing under '%s'.\n", m.RenameTo, rTag)
+				}
+			}
+
+			configPath := resolveConfigPath(rt, env.DataDir, rTag, rAgent)
+			saved := readSavedConfig(rt, configPath)
+			// The restart marker carries the only established identity for re-entry;
+			// saved config contributes launch parameters only.
+			saved.SessionID = ""
+			plan := planRestart(m, rTag, rAgent, saved)
+			if plan.DropConfig {
+				rt.Remove(configPath) // Shift+Alt+N / compaction: drop the config so create mints fresh.
+			}
+			opts.Args = plan.Args
+			opts.SkipConfigPicker = true
+			opts.ContinueDoc = ""
+			opts.ContinueSlug = ""
+			opts.ContinueText = ""
+			opts.ContinueCheckpoint = checkpoint.Checkpoint{}
+			if m.Version != 0 {
+				opts.ContinueCheckpoint = m.Checkpoint
+				opts.ContinueDoc = m.Checkpoint.SourcePath
+			} else if plan.ContinueSlug != "" {
+				path, _, found := rt.ResolveContinuationDoc(plan.ContinueSlug)
+				if !found {
+					fmt.Fprintf(stderr, "pair: continuation %q is unavailable; restart intent retained\n", plan.ContinueSlug)
+					return false, 1
+				}
+				c, err := rt.ReadCheckpoint(path)
+				if err != nil {
+					fmt.Fprintf(stderr, "pair: continuation unavailable; restart intent retained: %v\n", err)
+					return false, 1
+				}
+				opts.ContinueCheckpoint = c
+				opts.ContinueDoc = c.SourcePath
+			}
+			if opts.ContinueCheckpoint.Version != 0 {
+				pendingSession, pendingMarker = step.session, m
+			} else {
+				if err := rt.AcknowledgeRestartMarker(step.session, m); err != nil {
+					fmt.Fprintf(stderr, "pair: acknowledge restart: %v\n", err)
+					return false, 1
+				}
+			}
+
+			return true, 0
+		}()
+		if !restart {
+			return code, nil
+		}
 	}
 }
 
@@ -216,6 +240,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 // restart plan's current-run defaults), and whether the blocking handoff ran
 // (only then do cleanup + restart apply).
 type launchStep struct {
+	retention RetentionUse
 	code      int
 	session   string
 	tag       string
@@ -346,12 +371,12 @@ func runOnce(opts LaunchOptions, env Env, rt Runtime, stderr io.Writer) (launchS
 			rt.KillTitlePoller(decision.Tag)
 			return launchStep{code: 0, session: decision.SessionName, tag: decision.Tag, agent: agent, relaunch: true}, nil
 		}
-		code, err := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
+		code, err, retained := runAttach(opts, env, rt, decision.Tag, decision.SessionName, agent)
 		if err != nil {
 			fmt.Fprintf(stderr, "pair: failed to attach session '%s': %v\n", decision.SessionName, err)
 			return launchStep{code: 1}, nil
 		}
-		return launchStep{code: code, session: decision.SessionName, tag: decision.Tag, agent: agent, handedOff: true}, nil
+		return launchStep{code: code, session: decision.SessionName, tag: decision.Tag, agent: agent, handedOff: true, retention: retained}, nil
 	case ActionCreate:
 		return runCreate(opts, env, rt, sessions, decision, base, agent, sessionNameEntries[decision.Tag], stderr)
 	default: // ActionPick is resolved above — unreachable; a defensive guard.
@@ -426,7 +451,7 @@ func launchNameTags(args LaunchArgs, base string) []string {
 // runCreate ports the shell's create branch: prompt/validate the tag, run the
 // tag-restart config picker, compose the per-agent launch args, spawn the
 // sidecars, then hand off to the blocking zellij create.
-func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (launchStep, error) {
+func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision LaunchDecision, base, agent string, sessionEntry SessionNameEntry, stderr io.Writer) (result launchStep, resultErr error) {
 	// Validate the agent here (create-only; attach re-uses an existing pane's
 	// agent, so shell 1728 defers this past the attach branch).
 	if !rt.CommandExists(agent) {
@@ -465,6 +490,23 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: cannot resolve thread scope: %v\n", err)
 		return launchStep{code: 1}, nil
+	}
+	use, err := beginRetention(rt, env.DataDir, chosenTag, true)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: cannot reserve storage for '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
+	if use != nil {
+		defer func() {
+			if result.handedOff {
+				result.retention = use
+				return
+			}
+			if err := use.Finish(false); err != nil {
+				fmt.Fprintf(stderr, "pair: retention completion failed for '%s': %v\n", chosenTag, err)
+				result.code = 1
+			}
+		}()
 	}
 	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
 	var addressErr error
@@ -659,7 +701,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	if opts.ContinueCheckpoint.Version != 0 {
 		c := opts.ContinueCheckpoint
 		seed := fmt.Sprintf("Continue from the exact saved checkpoint below (source %q, SHA-256 %s). Follow its NEXT ACTION.\n\n%s", c.SourcePath, c.Digest, c.Body)
-		if err := rt.WriteAtomic(draft, seed); err != nil {
+		if err := writeRetainedDraft(rt, use, draft, seed); err != nil {
 			fmt.Fprintf(stderr, "pair: cannot seed continuation draft: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
@@ -669,7 +711,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			fmt.Fprintf(stderr, "pair: cannot read continuation draft source: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
-		if err := rt.WriteAtomic(draft, fmt.Sprintf("Read %q (SHA-256 %s) and continue from its NEXT ACTION.\n", c.SourcePath, c.Digest)); err != nil {
+		if err := writeRetainedDraft(rt, use, draft, fmt.Sprintf("Read %q (SHA-256 %s) and continue from its NEXT ACTION.\n", c.SourcePath, c.Digest)); err != nil {
 			fmt.Fprintf(stderr, "pair: cannot seed continuation draft: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
@@ -679,7 +721,10 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		if strings.TrimSpace(existing) != "" {
 			text += "\nExisting draft content follows:\n\n" + existing
 		}
-		_ = rt.WriteAtomic(draft, text)
+		if err := writeRetainedDraft(rt, use, draft, text); err != nil {
+			fmt.Fprintf(stderr, "pair: failed to preserve continuation draft: %v\n", err)
+			return launchStep{code: 1}, nil
+		}
 	}
 
 	// Record the agent for `pair list` / the title poller (survives detach).
@@ -708,11 +753,17 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// pre-abbreviated cwd now that no title shows one.
 	rt.SetEnv("PAIR_PANE_TITLE", agent)
 
-	// Truncate the adaptation flight recorder once, before any appender starts.
-	_ = rt.WriteAtomic(artifactPaths.AdaptLog(), "")
+	// The first managed diagnostic emitter creates the recorder. Reusing a tag
+	// preserves young generations across launches.
 
 	// Spawn the (already-Go) sidecars + set the frame title. agentArgs is the
 	// final resolved vector (post mint / codex / resume compose).
+	if use != nil {
+		if err := use.BeforeSpawn(); err != nil {
+			fmt.Fprintf(stderr, "pair: cannot protect child startup for '%s': %v\n", chosenTag, err)
+			return launchStep{code: 1}, nil
+		}
+	}
 	rt.SpawnSessionWatcher(agent, chosenTag, scope.Key, env.Cwd, repoRoot, repoName, launchOrdinal, agentArgs)
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag)

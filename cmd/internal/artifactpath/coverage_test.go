@@ -78,7 +78,7 @@ func TestLifecycleArtifactFamiliesAreClassified(t *testing.T) {
 	}
 	for _, classification := range SourceClassifications {
 		for _, family := range classification.Families {
-			if _, ok := want[family]; ok && classification.Kind == Constructor && classification.Path != "cmd/internal/artifactpath/paths.go" && classification.Path != "cmd/internal/artifactpath/manifest.go" {
+			if _, ok := want[family]; ok && classification.Kind == Constructor && classification.Path != "cmd/internal/artifactpath/paths.go" && classification.Path != "cmd/internal/artifactpath/manifest.go" && classification.Path != "cmd/internal/artifactpath/gc.go" {
 				t.Errorf("lifecycle family %q constructed outside artifactpath by %s", family, classification.Path)
 			}
 		}
@@ -564,6 +564,10 @@ func goVocabularyViolations(rel string, fileSet *token.FileSet, file *ast.File, 
 }
 
 var permittedVocabularyCallees = map[string]bool{
+	"function.retentionEnv": true,
+	"github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess":       true,
+	"github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcessTarget": true,
+	"method.ReserveStart":      true,
 	"builtin.append":           true,
 	"errors.New":               true,
 	"flag.NewFlagSet":          true,

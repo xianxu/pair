@@ -636,6 +636,39 @@ Custom names like `bugfix`, `blogging`, or `research` are allowed (chars: `A-Z a
 
 From a non-agent Pair pane, detach with `Alt+d`. For Couch-managed work, use the switcher’s Detach action. To re-attach: run `pair` again and pick from the list. To fully quit (no resurrect entry): `Alt+x`.
 
+## Storage retention
+
+`pair gc` previews Pair-owned storage by retention bucket, with byte totals and
+reasons for keeping or collecting each group. Use `pair gc --json` for exact
+paths. Preview does not change your files or initialize retention clocks.
+
+- Debug logs and old parked captures expire after seven days. Captures keep
+  their raw output and offset sidecars together; active readers postpone removal.
+- Standalone session data expires after sixty days without meaningful use.
+  Threads visible in Couch's switcher stay protected, including parked threads.
+  Archiving a thread starts a fresh sixty-day grace; old archives without tracking
+  receive the same grace when collection first initializes them.
+- Existing session data receives a full grace period when tracking begins.
+  Unknown ownership or liveness keeps data. Agent-native conversations and
+  repository files are outside this collector.
+
+Before enabling collection, register every Couch store with
+`pair gc --register-store PATH`, then acknowledge the complete list using
+`pair gc --complete-migration --store PATH` (repeat `--store` for every store).
+Use an empty list only when no Couch stores exist. This explicit migration
+step accounts for custom stores that cannot be discovered automatically.
+
+`pair gc --apply` initializes clocks and, after migration, collects eligible
+items in bounded batches: up to 100 eligible groups and the first 100 diagnostic
+paths per invocation. Repeating it can collect remaining session/capture groups;
+the automatic worker uses a saved cursor to cover larger diagnostic inventories.
+Blocked groups report why they remain. Running Pair/Couch schedules these
+resumable daily sweeps after readiness, visiting up to 100 owners per page with
+a cooperative two-second budget. Incomplete inventories retain data.
+Retention does not impose a global disk-space ceiling on active session history.
+See [storage retention](atlas/storage-retention.md) for clocks, migration and
+recovery details.
+
 ## Resume a session by tag
 
 Pair captures each new session's startup args plus the agent's own session id, keyed by tag. After `Alt+x` you'll see:

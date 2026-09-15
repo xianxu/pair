@@ -31,6 +31,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/model"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
@@ -48,7 +49,7 @@ func logf(format string, a ...any) {
 	if path == "" {
 		return
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	f, err := diagnosticlog.Open(path, diagnosticlog.EnvironmentOptions(os.Getenv))
 	if err != nil {
 		return
 	}

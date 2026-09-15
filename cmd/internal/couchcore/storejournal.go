@@ -39,7 +39,13 @@ func assignStoreJournalNonce(journal storeJournal) (storeJournal, error) {
 	return journal, nil
 }
 
-func (s *ThreadStore) recoverStoreJournalLocked() error {
+func (s *ThreadStore) recoverStoreJournalLockedChecked(check func() error) error {
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	if err := s.clearStorePublicationLocked(check); err != nil {
+		return err
+	}
 	raw, err := os.ReadFile(s.journalPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -55,9 +61,12 @@ func (s *ThreadStore) recoverStoreJournalLocked() error {
 		return fmt.Errorf("invalid thread store journal")
 	}
 	for _, entry := range journal.Entries {
-		if err := s.applyJournalEntry(entry); err != nil {
+		if err := s.applyJournalEntryChecked(entry, check); err != nil {
 			return err
 		}
+	}
+	if err := checkStoreContext(check); err != nil {
+		return err
 	}
 	if err := os.Remove(s.journalPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("clear thread store journal: %w", err)
@@ -65,7 +74,10 @@ func (s *ThreadStore) recoverStoreJournalLocked() error {
 	return syncDirectory(s.root)
 }
 
-func (s *ThreadStore) applyJournalEntry(entry storeJournalEntry) error {
+func (s *ThreadStore) applyJournalEntryChecked(entry storeJournalEntry, check func() error) error {
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
 	if entry.Path == "" || filepath.IsAbs(entry.Path) || filepath.Clean(entry.Path) != entry.Path || entry.Path == ".." || len(entry.Path) >= 3 && entry.Path[:3] == "../" {
 		return fmt.Errorf("unsafe thread store journal path %q", entry.Path)
 	}
@@ -80,13 +92,16 @@ func (s *ThreadStore) applyJournalEntry(entry storeJournalEntry) error {
 	if !imageMatches(current, exists, entry.Expected) {
 		return fmt.Errorf("thread store journal target %q is neither expected-before nor exact after-image", entry.Path)
 	}
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
 	if entry.After == nil {
 		if err := os.Remove(target); err != nil && !errors.Is(err, os.ErrNotExist) {
 			return err
 		}
 		return syncDirectory(filepath.Dir(target))
 	}
-	return writeAtomicBytes(target, *entry.After)
+	return s.writeStoreAtomicLockedChecked(target, *entry.After, check)
 }
 
 func imageMatches(current []byte, exists bool, image *[]byte) bool {
@@ -107,6 +122,8 @@ func readOptionalFile(path string) ([]byte, bool, error) {
 	return raw, true, nil
 }
 
+// writeAtomicBytes also serves unlocked continuation materialization. Its old
+// generic staging files are outside coordinated store cleanup authority.
 func writeAtomicBytes(path string, raw []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
@@ -149,4 +166,109 @@ func syncDirectory(path string) error {
 
 func strictThreadStoreJSON(raw []byte, target any) error {
 	return strictjson.Decode(raw, target)
+}
+
+// Exactly one reserved staging pathname belongs to store-lock publications.
+// Generic .thread-store-* files may have live unlocked writers and are not ours
+// to sweep. Interrupted legacy generic staging remains outside GC authority.
+func (s *ThreadStore) publicationPath() string {
+	return filepath.Join(s.root, ".thread-store-publication")
+}
+
+func (s *ThreadStore) clearStorePublicationLocked(check func() error) error {
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	path := s.publicationPath()
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("unsafe thread store publication stage")
+	}
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil {
+		return err
+	}
+	return syncDirectory(s.root)
+}
+
+// writeStoreAtomicLocked requires the existing exclusive store lock. A crash
+// before journal publication leaves only this reclaimable stage; a crash during
+// a target publication leaves the durable journal as replay authority.
+func (s *ThreadStore) writeStoreAtomicLocked(path string, raw []byte) error {
+	return s.writeStoreAtomicLockedChecked(path, raw, nil)
+}
+
+func (s *ThreadStore) writeStoreAtomicLockedChecked(path string, raw []byte, check func() error) (err error) {
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	relative, e := filepath.Rel(s.root, path)
+	if e != nil || relative == "." || relative == ".." || filepath.IsAbs(relative) || len(relative) > 3 && relative[:3] == "../" || path == s.publicationPath() {
+		return errors.New("publication target is outside store payloads")
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	stage := s.publicationPath()
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	file, err := os.OpenFile(stage, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	defer func() {
+		if e := os.Remove(stage); e == nil {
+			err = errors.Join(err, syncDirectory(s.root))
+		} else if !errors.Is(e, os.ErrNotExist) {
+			err = errors.Join(err, e)
+		}
+	}()
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	if _, err := file.Write(raw); err != nil {
+		return err
+	}
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	if s.hooks.AfterPublicationWrite != nil {
+		if err := s.hooks.AfterPublicationWrite(path); err != nil {
+			return err
+		}
+	}
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
+	if err := os.Rename(stage, path); err != nil {
+		return err
+	}
+	targetDir := filepath.Dir(path)
+	if targetDir == s.root {
+		return syncDirectory(s.root)
+	}
+	return errors.Join(syncDirectory(targetDir), syncDirectory(s.root))
+}
+
+func checkStoreContext(check func() error) error {
+	if check != nil {
+		return check()
+	}
+	return nil
 }

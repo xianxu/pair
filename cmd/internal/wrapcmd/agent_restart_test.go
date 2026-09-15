@@ -47,7 +47,11 @@ func TestFreshAgentInvocationDropsRestoreAndPreservesWrapperAndUserArgs(t *testi
 }
 
 func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
-	data := t.TempDir()
+	data := filepath.Join(t.TempDir(), "repos", "scope")
+	if err := os.MkdirAll(data, 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PAIR_RETENTION_START_ID", "")
 	t.Setenv("PAIR_DATA_DIR", data)
 	t.Setenv("PAIR_TAG", "restart-test")
 	t.Setenv("PAIR_SCOPE_KEY", "scope")

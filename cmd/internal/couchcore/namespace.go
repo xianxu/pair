@@ -45,3 +45,26 @@ func ResolveCouchNamespace(storeDir, startupCWD string) (CouchNamespace, error) 
 	}
 	return CouchNamespace{dir: physical}, nil
 }
+
+// ExistingCouchNamespace validates an already registered physical namespace
+// without creating a directory or silently following a changed registration.
+func ExistingCouchNamespace(path string) (CouchNamespace, error) {
+	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
+		return CouchNamespace{}, fmt.Errorf("noncanonical couch namespace %q", path)
+	}
+	physical, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return CouchNamespace{}, err
+	}
+	if physical != path {
+		return CouchNamespace{}, fmt.Errorf("couch namespace changed physical identity: %q", path)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return CouchNamespace{}, err
+	}
+	if !info.IsDir() {
+		return CouchNamespace{}, fmt.Errorf("couch namespace is not a directory: %q", path)
+	}
+	return CouchNamespace{dir: path}, nil
+}

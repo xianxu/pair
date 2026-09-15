@@ -22,6 +22,8 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
+	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -283,9 +285,9 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 	var console *couchtty.Console
 	var runner couchcore.Runner
 	if forceConsole {
-		console, runner = consoleRunnerFor(op.Name, stdin, true, inFile, outFile)
+		console, runner = consoleRunnerFor(op.Name, stdin, true, inFile, outFile, tracesForRuntime(rt))
 	} else {
-		console, runner = consoleRunner(op.Name, stdin, stdout)
+		console, runner = consoleRunner(op.Name, stdin, stdout, tracesForRuntime(rt))
 	}
 
 	c, err := rt.NewCouchWith(runner, namespace)
@@ -393,13 +395,13 @@ func WantsConsole(name string, hasTerminal bool) bool {
 	return operationOwnsLive(name) && name != "archive" && hasTerminal
 }
 
-func consoleRunner(name string, stdin io.Reader, stdout io.Writer) (*couchtty.Console, couchcore.Runner) {
+func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
 	inFile, _ := stdin.(*os.File)
 	outFile, _ := stdout.(*os.File)
 
 	// Typed non-console operations use ExecRunner. Public launch is separately
 	// terminal-gated before it can reach this seam.
-	return consoleRunnerFor(name, stdin, isTerminal(inFile) && isTerminal(outFile), inFile, outFile)
+	return consoleRunnerFor(name, stdin, isTerminal(inFile) && isTerminal(outFile), inFile, outFile, settings...)
 }
 
 // consoleRunnerFor is consoleRunner with the terminal question already answered,
@@ -408,7 +410,7 @@ func consoleRunner(name string, stdin io.Reader, stdout io.Writer) (*couchtty.Co
 // Splitting it is not decoration: pinning only WantsConsole left "does
 // consoleRunner actually use it" uncovered, and forcing consoleRunner to return
 // (nil, ExecRunner) kept the whole suite green (M2 BR-24, twice).
-func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File) (*couchtty.Console, couchcore.Runner) {
+func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, outFile *os.File, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
 	if !WantsConsole(name, hasTerminal) {
 		return nil, couchcore.ExecRunner{}
 	}
@@ -418,13 +420,43 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	// The composition root owns the environment read. A failed open reports
 	// itself on the status row; it must never take the console down, and it must
 	// never be mistaken for "the terminal sent nothing".
-	_ = console.SetInputTrace(os.Getenv("COUCH_INPUT_TRACE"))
-	_ = console.SetEventTrace(os.Getenv("COUCH_TRACE"), processStartedAt)
-	_ = console.SetMouseTrace(os.Getenv("COUCH_MOUSE_TRACE"))
+	getenv := os.Getenv
+	options := diagnosticlog.Options{Proof: diagnosticlog.DefaultProof}
+	if len(settings) > 0 {
+		config := settings[0]
+		getenv = config.getenv
+		// A configured standalone trace belongs to Couch's resolved Pair
+		// root, even when no Pair launcher exported PAIR_DATA_DIR.
+		if getenv("COUCH_INPUT_TRACE") != "" || getenv("COUCH_TRACE") != "" || getenv("COUCH_MOUSE_TRACE") != "" {
+			if e := os.MkdirAll(config.root, 0700); e != nil {
+				options.Registry = func(context.Context, diagnosticlog.RegistryEntry) error { return e }
+			} else {
+				options = diagnosticlog.EnvironmentOptions(func(key string) string {
+					if key == "PAIR_DATA_DIR" {
+						return config.root
+					}
+					return getenv(key)
+				})
+			}
+		}
+	}
+	_ = console.SetInputTrace(getenv("COUCH_INPUT_TRACE"), options)
+	_ = console.SetEventTrace(getenv("COUCH_TRACE"), processStartedAt, options)
+	_ = console.SetMouseTrace(getenv("COUCH_MOUSE_TRACE"), options)
+
 	return console, &couchcore.PtyRunner{
 		Size: console.ChildSize,
 		Sink: console.Deliver,
 	}
+}
+
+type consoleTraceConfig struct {
+	getenv func(string) string
+	root   string
+}
+
+func tracesForRuntime(rt Runtime) consoleTraceConfig {
+	return consoleTraceConfig{getenv: rt.Getenv, root: launcher.ResolveDataDir(rt.Getenv("HOME"), rt.Getenv("XDG_DATA_HOME"))}
 }
 
 // processStartedAt is when this couch process began: package initialisation,
@@ -455,10 +487,16 @@ func runConsole(console *couchtty.Console, c *couchcore.Couch, start couchcore.S
 		}
 		return 1
 	}
-	if err := beginConsole(console, start, armPass); err != nil {
+	root := ""
+	if c != nil && c.PairLifecycle != nil {
+		root = c.PairLifecycle.DataDir
+	}
+	maintenance, err := gcruntime.StartAfterReady(context.Background(), root, func() error { return beginConsole(console, start, armPass) })
+	if err != nil {
 		renderError(stdout, err)
 		return 1
 	}
+	defer func() { maintenance.Stop(); _ = maintenance.Wait() }()
 	return console.Run()
 }
 

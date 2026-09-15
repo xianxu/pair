@@ -198,7 +198,8 @@ func TestSessionDetachLive(t *testing.T) {
 	}
 
 	if got, ok := state(); !ok || got != SessionAttached {
-		t.Fatalf("before detach: state = %q present = %v, want attached", got, ok)
+		raw, _ := exec.Command("zellij", "list-sessions", "--no-formatting").CombinedOutput()
+		t.Fatalf("before detach: state = %q present = %v, want attached; list=%q; startup=%q", got, ok, raw, fixture.StartupOutput())
 	}
 	narrowedFormsAgree(SessionAttached)
 

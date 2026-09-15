@@ -10,6 +10,7 @@
 local M = {}
 
 local MAX_DETAIL = 200
+local pending
 
 -- truncate caps s to at most n bytes without splitting a multi-byte rune, so
 -- the result stays valid UTF-8 (and thus valid JSON). Mirrors adapt.truncate
@@ -55,11 +56,12 @@ function M.log(aspect, signal, outcome, detail, comp)
   end
   local line = '{' .. table.concat(parts, ',') .. '}\n'
 
-  local f = io.open(path, 'a')
-  if f then
-    f:write(line)
-    f:close()
-  end
+  -- Bound optional logging to one child; never wait on terminal/editor input.
+  if pending then return end
+  local ok, process = pcall(vim.system,
+    { 'pair', 'diagnostic', 'append', '--path', path },
+    { stdin = line, text = true }, function() pending = nil end)
+  if ok then pending = process; return process end
 end
 
 return M

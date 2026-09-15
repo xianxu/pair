@@ -15,6 +15,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 func main() {
@@ -98,7 +99,14 @@ func runScenario(helper string, establish bool) error {
 	if err != nil {
 		return err
 	}
-	store := couchcore.NewThreadStore(namespace)
+	coordinator, err := storagegc.NewCoordinator(dataDir)
+	if err != nil {
+		return err
+	}
+	store, err := couchcore.NewCoordinatedThreadStore(namespace, coordinator)
+	if err != nil {
+		return err
+	}
 	created, err := store.CreateThread(record)
 	if err != nil {
 		return err

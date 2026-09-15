@@ -11,6 +11,16 @@ import (
 func TestCompositeBindingsIsolateGoShellNeovimAndBothLayouts(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
 	dataDir := t.TempDir()
+	binDir := t.TempDir()
+	build := exec.Command("go", "build", "-o", filepath.Join(binDir, "pair-go"), "./cmd/pair-go")
+	build.Dir = repoRoot
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build managed emitter: %v: %s", err, out)
+	}
+	if err := os.Symlink("pair-go", filepath.Join(binDir, "pair")); err != nil {
+		t.Fatal(err)
+	}
+	childEnv := append(os.Environ(), "PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"), "PAIR_DATA_DIR="+dataDir, "PAIR_RETENTION_PROTOCOL=1", "PAIR_RETENTION_START_ID=")
 	first, err := Resolve(Address{DataDir: dataDir, RepoScope: "aaaaaaaaaaaaaaaa", Tag: "legacy"})
 	if err != nil {
 		t.Fatal(err)
@@ -37,7 +47,7 @@ func TestCompositeBindingsIsolateGoShellNeovimAndBothLayouts(t *testing.T) {
 	// Representative shell mutation consumes only the exact exported path.
 	shell := exec.Command("bash", "-c", `. bin/lib/adapt-log.sh; adapt_log test codex 1 scope isolated shell`)
 	shell.Dir = repoRoot
-	shell.Env = append(os.Environ(), "PAIR_TAG=legacy", "PAIR_ADAPT_LOG_PATH="+first.AdaptLog())
+	shell.Env = append(childEnv, "PAIR_TAG=legacy", "PAIR_ADAPT_LOG_PATH="+first.AdaptLog())
 	if out, err := shell.CombinedOutput(); err != nil {
 		t.Fatalf("shell consumer: %v: %s", err, out)
 	}
@@ -47,11 +57,11 @@ func TestCompositeBindingsIsolateGoShellNeovimAndBothLayouts(t *testing.T) {
 
 	// Representative Neovim mutation uses the other exact binding. It must not
 	// append to the first scope even though PAIR_TAG is identical.
-	lua := `local adapt = dofile('nvim/adapt.lua'); adapt.log(1, 'scope', 'isolated', 'nvim', 'test')`
+	lua := `local adapt = dofile('nvim/adapt.lua'); assert(adapt.log(1, 'scope', 'isolated', 'nvim', 'test')):wait(5000)`
 	nvim := exec.Command("nvim", "-l", "-")
 	nvim.Dir = repoRoot
 	nvim.Stdin = strings.NewReader(lua)
-	nvim.Env = append(os.Environ(), "PAIR_TAG=legacy", "PAIR_ADAPT_LOG_PATH="+second.AdaptLog())
+	nvim.Env = append(childEnv, "PAIR_TAG=legacy", "PAIR_ADAPT_LOG_PATH="+second.AdaptLog())
 	if out, err := nvim.CombinedOutput(); err != nil {
 		t.Fatalf("Neovim consumer: %v: %s", err, out)
 	}

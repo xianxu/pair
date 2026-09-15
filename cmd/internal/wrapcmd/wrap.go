@@ -36,6 +36,7 @@ package wrapcmd
 import (
 	"bytes"
 	"container/list"
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/json"
@@ -58,11 +59,13 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/adapt"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/draftroute"
+	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/layoutcmd"
 	"github.com/xianxu/pair/cmd/internal/notifyosc"
@@ -70,6 +73,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/sessionwatch"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -211,6 +215,8 @@ type proxy struct {
 	scrollbackEvents string
 	agentBasename    string
 	debugLogPath     string
+	debugMu          sync.Mutex
+	debugWriter      *diagnosticlog.Writer
 	wrapEventsPath   string
 	bellFallback     bool
 
@@ -335,7 +341,7 @@ type proxy struct {
 
 	// Structured forensic trace for pair-wrap ⇄ zellij/agent boundaries.
 	// It is best-effort and redacted: lengths/hashes/timing only, no raw stream.
-	wrapEventsFD *os.File
+	wrapEventsFD io.WriteCloser
 	traceMu      sync.Mutex
 	traceSeq     uint64
 
@@ -565,11 +571,18 @@ func (p *proxy) debug(label, ctx string) {
 	if p.debugLogPath == "" {
 		return
 	}
-	f, err := os.OpenFile(p.debugLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
+	if !p.debugMu.TryLock() {
 		return
 	}
-	defer f.Close()
+	defer p.debugMu.Unlock()
+	if p.debugWriter == nil {
+		f, err := diagnosticlog.Open(p.debugLogPath, diagnosticlog.EnvironmentOptions(os.Getenv))
+		if err != nil {
+			return
+		}
+		p.debugWriter = f
+	}
+	f := p.debugWriter
 	if len(ctx) > 240 {
 		ctx = ctx[:240]
 	}
@@ -2461,6 +2474,16 @@ func writeAtomic(path string, data []byte) error {
 // name). The returned int is the process exit code: the wrapped child's exit
 // code on success, or 1 on a startup/fatal error (printed to stderr).
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	lease, retentionErr := storagegc.AcquireSelectedProcess(context.Background(), os.Getenv, "wrapper")
+	if retentionErr != nil {
+		fmt.Fprintf(stderr, "pair-wrap: protect storage: %v\n", retentionErr)
+		return 1
+	}
+	defer func() {
+		if err := lease.Close(); err != nil {
+			fmt.Fprintf(stderr, "pair-wrap: release storage: %v\n", err)
+		}
+	}()
 	code, err := run(args, stdin, stdout, stderr)
 	if err != nil {
 		var restart *freshExecRequest
@@ -2498,6 +2521,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) (int, error) 
 		now:             time.Now,
 		lifecycleEvents: make(chan TurnObservation, 32),
 	}
+
+	defer func() { p.debugMu.Lock(); w := p.debugWriter; p.debugMu.Unlock(); _ = w.Close() }()
 
 	// Argv: strip our own flags before resolving the command. argparse
 	// would be heavier than needed; this matches the Python loop shape.
@@ -2553,12 +2578,12 @@ argsDone:
 	p.resolvePaths()
 	p.codexFilterKKP = envFlag("PAIR_CODEX_FILTER_KKP") || codexFilterKKPFlag()
 
-	// Open the always-on adaptation flight recorder. bin/pair truncates the
-	// file once per session launch, so we append. nil when PAIR_TAG is unset.
+	// Open the always-on managed adaptation recorder; young generations survive
+	// restarts. nil when PAIR_TAG is unset.
 	p.adapt = adapt.Open("pair-wrap", p.agentBasename)
 
 	if p.wrapEventsPath != "" && os.Getenv("PAIR_WRAP_EVENTS") != "0" {
-		if f, err := os.OpenFile(p.wrapEventsPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644); err == nil {
+		if f, err := diagnosticlog.Open(p.wrapEventsPath, diagnosticlog.EnvironmentOptions(os.Getenv)); err == nil {
 			p.wrapEventsFD = f
 			p.traceWrap("start", map[string]any{
 				"pid":  os.Getpid(),
@@ -2646,9 +2671,16 @@ argsDone:
 			}
 		}
 	}
-	if err := p.publishAgentReady(cmd.Process.Pid); err != nil {
-		p.debug("AGENT-READY-write-fail", err.Error())
+	maintenance, readyErr := gcruntime.StartAfterReady(context.Background(), os.Getenv("PAIR_DATA_DIR"), func() error { return p.publishAgentReady(cmd.Process.Pid) })
+	if readyErr != nil {
+		p.debug("AGENT-READY-write-fail", readyErr.Error())
 	}
+	defer func() {
+		maintenance.Stop()
+		if err := maintenance.Wait(); err != nil {
+			p.debug("RETENTION-maintenance-fail", err.Error())
+		}
+	}()
 
 	// Drop the agent's PID so pair session-watch can bind discovery to
 	// this specific child (lsof -p <pid>) instead of racing peers in the

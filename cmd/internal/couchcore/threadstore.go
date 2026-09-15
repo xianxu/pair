@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 	"github.com/xianxu/pair/cmd/internal/threadrecord"
 )
 
@@ -78,9 +80,10 @@ type threadManifest struct {
 
 // pair:m5-concept integration
 type ThreadStore struct {
-	namespace CouchNamespace
-	root      string
-	hooks     threadStoreHooks
+	namespace   CouchNamespace
+	root        string
+	hooks       threadStoreHooks
+	coordinator *storagegc.Coordinator
 }
 
 func NewThreadStore(namespace CouchNamespace) *ThreadStore {
@@ -88,8 +91,10 @@ func NewThreadStore(namespace CouchNamespace) *ThreadStore {
 }
 
 type threadStoreHooks struct {
-	AfterJournal func() error
-	AfterTarget  func(int) error
+	// AfterPublicationWrite runs after staging fsync and before target rename.
+	AfterPublicationWrite func(string) error
+	AfterJournal          func() error
+	AfterTarget           func(int) error
 	// AfterGetThread fires once GetThread has released the lock, which is the
 	// ONE moment a caller's read-then-CAS window is open. Without it a
 	// revision-conflict retry cannot be reached from a test: every hook that
@@ -130,31 +135,55 @@ func (s *ThreadStore) pathLaunchPreferencePath(repoIdentity, physicalPath string
 }
 
 func (s *ThreadStore) withLock(fn func() error) (err error) {
+	if s != nil && s.coordinator != nil {
+		return s.coordinator.WithLock(context.Background(), func(l *storagegc.Locked) error {
+			if err := l.RegisterStore(s.namespace.Dir()); err != nil {
+				return err
+			}
+			return s.withStoreLock(fn)
+		})
+	}
+	return s.withStoreLock(fn)
+}
+
+func (s *ThreadStore) withStoreLock(fn func() error) error {
+	return s.withStoreLockChecked(fn, nil)
+}
+
+// A maintenance check selects nonblocking nested locking: the root coordinator
+// must never remain held while waiting for an independently busy Couch store.
+// Ordinary writers pass nil and retain their blocking lock semantics.
+func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error) (err error) {
 	if s == nil || s.namespace.Dir() == "" {
 		return errors.New("thread store has no namespace")
 	}
-	lock, err := acquireThreadStoreLock(s.root)
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	lock, err := acquireThreadStoreLockMode(s.root, check != nil)
 	if err != nil {
 		return err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	if err := s.recoverStoreJournalLocked(); err != nil {
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
+	}
+	if err := s.recoverStoreJournalLockedChecked(check); err != nil {
 		return err
+	}
+	if check != nil {
+		if err := check(); err != nil {
+			return err
+		}
 	}
 	return fn()
 }
 
-func (s *ThreadStore) RecoverStoreJournal() (err error) {
-	if s == nil || s.namespace.Dir() == "" {
-		return errors.New("thread store has no namespace")
-	}
-	lock, err := acquireThreadStoreLock(s.root)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, lock.Close()) }()
-	return s.recoverStoreJournalLocked()
-}
+func (s *ThreadStore) RecoverStoreJournal() error { return s.withLock(func() error { return nil }) }
 
 func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 	record = cloneThreadRecord(record)
@@ -661,7 +690,7 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		}
 		nextThreadRaw = append(nextThreadRaw, '\n')
 		if profile == nil {
-			if err := writeAtomicBytes(s.recordPath(address), nextThreadRaw); err != nil {
+			if err := s.writeStoreAtomicLocked(s.recordPath(address), nextThreadRaw); err != nil {
 				return err
 			}
 			result = cloneThreadRecord(next)
@@ -966,6 +995,13 @@ func relativeStorePath(root, path string) string {
 }
 
 func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
+	return s.commitJournalLockedChecked(journal, nil)
+}
+
+func (s *ThreadStore) commitJournalLockedChecked(journal storeJournal, check func() error) error {
+	if err := checkStoreContext(check); err != nil {
+		return err
+	}
 	journal, err := assignStoreJournalNonce(journal)
 	if err != nil {
 		return err
@@ -974,7 +1010,7 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 	if err != nil {
 		return err
 	}
-	if err := writeAtomicBytes(s.journalPath(), append(raw, '\n')); err != nil {
+	if err := s.writeStoreAtomicLockedChecked(s.journalPath(), append(raw, '\n'), check); err != nil {
 		return err
 	}
 	if s.hooks.AfterJournal != nil {
@@ -983,7 +1019,7 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 		}
 	}
 	for i, entry := range journal.Entries {
-		if err := s.applyJournalEntry(entry); err != nil {
+		if err := s.applyJournalEntryChecked(entry, check); err != nil {
 			return err
 		}
 		if s.hooks.AfterTarget != nil {
@@ -991,6 +1027,9 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 				return err
 			}
 		}
+	}
+	if err := checkStoreContext(check); err != nil {
+		return err
 	}
 	if err := os.Remove(s.journalPath()); err != nil {
 		return err
@@ -1075,15 +1114,20 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		if err != nil {
 			return err
 		}
-		// One journal, three effects: the archive copy appears, the record
-		// disappears, the manifest stops listing it. A crash between them would
+		// One journal, four effects: archive bytes and their grace clock appear,
+		// the record disappears, and the manifest stops listing it. A crash between them would
 		// otherwise leave a record in no set or in both.
+		grace, err := s.archiveGraceBytes(address, raw)
+		if err != nil {
+			return err
+		}
 		archived := append([]byte{}, raw...)
 		expectedRecord := append([]byte{}, raw...)
 		expectedManifest := append([]byte{}, manifestRaw...)
 		afterManifest := append(nextRaw, '\n')
 		entries := []storeJournalEntry{
 			{Path: relativeStorePath(s.root, s.archivePath(address)), After: &archived},
+			{Path: relativeStorePath(s.root, s.archiveGracePath(address)), After: &grace},
 			{Path: relativeStorePath(s.root, s.recordPath(address)), Expected: &expectedRecord},
 			{Path: relativeStorePath(s.root, s.manifestPath()), Expected: &expectedManifest, After: &afterManifest},
 		}

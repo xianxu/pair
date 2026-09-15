@@ -4913,3 +4913,67 @@ locally does not prove a change will trigger it in CI.
 
 Preserve executable CI selector checks as committed regressions, including both
 events; an ad hoc red/green check alone does not defend the routing invariant.
+
+
+## 2026-09-14 22:34 PDT — Give retention metadata an ending; enforce pure transitions (#239)
+
+When independently collected payloads leave or recreate owner metadata, follow
+the lifecycle through the metadata's own next expiry and another sweep. An empty
+payload set can be a valid retirement case; rejecting it must not stop unrelated
+collection. Preserve live, unknown and outstanding-handoff evidence while testing
+that eventual metadata-only retirement remains recoverable.
+
+A promised pure state machine needs a production caller and a guard against
+bypassing it. Derive persisted phase changes through the reducer, test invalid
+and repeated events independently of filesystem effects, and keep plan tables
+aligned with real symbols and phases. Filesystem fault tests alone do not prove
+that transition authority is pure or enforced.
+
+
+### #239 review — budget visited work and keep explicit progress
+
+- A maintenance deletion limit is not a work limit: count retained/initializing
+  owners, cap discovery, pass cancellation through effects, and persist the last
+  visited identity. Verify the production batch with oversized inventories and
+  counted probes/writes (ARCH-CONSTRAINTS).
+- Keep explicit collection able to scan past retained owners when automatic work
+  switches to pages; a deletion limit must not repeatedly trap the command at a
+  retained prefix. Test both entrypoints.
+- Cross-store adapters must distinguish standalone flat owners from scoped Couch
+  addresses before constructing store keys; mixed-owner acceptance tests catch
+  assumptions that narrow adapter fixtures miss (ARCH-PURPOSE).
+
+
+### #239 second review — enumerate missing storage and every phase
+
+- Physical directory discovery is not the owner registry: seed namespaces from
+  validated durable references and metadata, then distinguish absent payload
+  directories from unsafe existing paths (ARCH-PURPOSE).
+- Apply maintenance budgets to diagnostic discovery and nested locks too. A
+  session-page limit does not protect another phase that calls full preview;
+  a root deadline cannot interrupt a nested blocking flock (ARCH-CONSTRAINTS).
+- Publish recovery authority before creating unique artifacts. Enumerate shared
+  infrastructure, unpublished stages, unique directories and payload effects;
+  actual process-kill tests must cover each publication boundary. Keep unlocked
+  publishers out of cleanup that assumes a shared lock (ARCH-ORDER, ARCH-FUNERAL).
+
+- #239 review round3: enumerate every atomic publication destination together
+  with the lock that authorizes interrupted-stage recovery; registry publishers
+  and diagnostic state are not exceptions. Pagination must report traversal
+  completion independently of filtered result count.
+- #239 review round3: cancellation belongs in nested process inspection and
+  tree traversal, not only the caller's loop. Durable deletion replay must cover
+  removal of its own parent directories before the intent is retired.
+- #239 hosted conformance: a session-list probe can itself affect a server that
+  has not initialized. Gate disposable fixture readiness on server-rendered
+  output, not socket presence or client bootstrap bytes; preserve server logs
+  before treating an intermittent live test failure as a timeout problem.
+- #239 BR-9: recovery audits must start from payload syscalls (create, append,
+  rename, unlink), not from metadata publishers. For every payload effect, name
+  the durable authority that already exists and test death before the next
+  metadata publication. A passing staging-cleanup test does not establish this.
+- #239 boundary bookkeeping: retain REWORK findings in the issue/ledger, but do
+  not attach Review-Verdict/Review-Window trailers to an implementation fix
+  commit. SDLC treats those trailers as a completed boundary, even for REWORK;
+  verify the emitted review base/head before letting the next review proceed.
+- #239 shortcut conformance: sender sleep cannot establish receiver parser progress. Observe delivered key bytes before sending a printable barrier; incomplete escape prefixes can absorb that barrier under scheduling delays. Reproduce with a stalled disposable client before changing deadlines.

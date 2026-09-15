@@ -345,7 +345,7 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 }
 
 // ResumeContextWith is ResumeContext narrowed by opts.
-func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (ActorRecord, Handle, error) {
+func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (retRecord ActorRecord, retHandle Handle, retErr error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -355,6 +355,11 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	if c == nil || c.Threads == nil {
 		return ActorRecord{}, nil, errors.New("resume: Couch is unavailable")
 	}
+	finishRetention, err := c.beginResumeRetention(ctx, address, !opts.WarmOnly)
+	if err != nil {
+		return ActorRecord{}, nil, err
+	}
+	defer func() { retErr = errors.Join(retErr, finishRetention(retErr == nil)) }()
 	thread, err := c.Threads.GetThread(address)
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -496,7 +501,7 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	return c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
-		ProfileRaw: profileRaw, Resume: true, Warm: detached,
+		ProfileRaw: profileRaw, Resume: true, Warm: detached, Background: opts.WarmOnly,
 	})
 }
 

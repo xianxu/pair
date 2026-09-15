@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -232,8 +233,8 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 // A failed open is REPORTED, at control priority, rather than silently tracing
 // nothing: an empty trace would otherwise read as "no bytes arrived", the exact
 // ambiguity the probe exists to remove.
-func (c *Console) SetInputTrace(path string) error {
-	tracer, err := newInputTracer(path)
+func (c *Console) SetInputTrace(path string, options ...diagnosticlog.Options) error {
+	tracer, err := newInputTracer(path, options...)
 	c.mu.Lock()
 	previous := c.trace
 	c.trace = tracer
@@ -249,8 +250,8 @@ func (c *Console) SetInputTrace(path string) error {
 // path is empty (#207). Same shape as SetInputTrace: the composition root
 // passes the environment's value so a constructor never reaches for ambient env
 // and a test never opens a file it did not ask for.
-func (c *Console) SetMouseTrace(path string) error {
-	tracer, err := newMouseTracer(path)
+func (c *Console) SetMouseTrace(path string, options ...diagnosticlog.Options) error {
+	tracer, err := newMouseTracer(path, options...)
 	c.mu.Lock()
 	previous := c.mouseTrace
 	c.mouseTrace = tracer

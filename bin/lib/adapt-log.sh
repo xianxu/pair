@@ -35,5 +35,5 @@ adapt_log() {
         --arg outcome "$outcome" --arg detail "$detail" \
         '{ts:$ts,comp:$comp,agent:$agent,aspect:$aspect,signal:$signal,outcome:$outcome}
          + (if $detail == "" then {} else {detail:$detail} end)' \
-        >> "$PAIR_ADAPT_LOG_PATH" 2>/dev/null || true
+        | pair diagnostic append --path "$PAIR_ADAPT_LOG_PATH" 2>/dev/null || true
 }

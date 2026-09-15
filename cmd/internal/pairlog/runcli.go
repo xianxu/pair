@@ -14,7 +14,7 @@ type persistFunc func(string, []byte, time.Time, string) error
 // RunCLI implements the streaming `pair session-log append` preparation route.
 func RunCLI(args []string, stdin io.Reader, getenv func(string) string, now time.Time, stderr io.Writer) int {
 	return runCLI(args, stdin, getenv, now, stderr, func(path string, body []byte, now time.Time, appendID string) error {
-		return (SessionLogStore{Runtime: OSRuntime{}}).PrepareWithID(path, body, now, appendID)
+		return managedLogWrite(getenv, path, func(store SessionLogStore) error { return store.PrepareWithID(path, body, now, appendID) })
 	})
 }
 
@@ -29,7 +29,7 @@ func RunCommitCLI(args []string, getenv func(string) string, stderr io.Writer) i
 		_, _ = fmt.Fprintln(stderr, "pair session-log commit: PAIR_LOG_PATH is unset")
 		return 2
 	}
-	err := (SessionLogStore{Runtime: OSRuntime{}}).CommitID(path, args[1])
+	err := managedLogWrite(getenv, path, func(store SessionLogStore) error { return store.CommitID(path, args[1]) })
 	if err == nil || commitoutcome.Of(err) == commitoutcome.Committed {
 		return 0
 	}

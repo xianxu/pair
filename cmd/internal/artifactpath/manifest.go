@@ -57,6 +57,8 @@ type ResolvedBinding struct {
 
 // pair:m5-concept pure
 var ResolvedBindings = append([]ResolvedBinding{
+	{Name: "matched-changelog-family", Family: "changelog", Resolver: "MatchArtifact"},
+	{Name: "parsed-parked-capture", Family: "parked", Resolver: "ParseParkedCapture"},
 	{Name: "cache-restart", Family: "restart", Resolver: "ResolvePairCache", Member: "Restart"},
 	{Name: "direct-draft-command", Family: "draft", Resolver: "CommandReferencesDraftArtifact"},
 	{Name: "direct-draft-history-tag", Family: "draft", Resolver: "TagFromHistorySidecar"},
@@ -220,6 +222,45 @@ var Families = []Family{
 // shell, Lua, and KDL sources.
 // pair:m5-concept pure
 var SourceClassifications = []SourceClassification{
+	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
+	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/changelogcmd/changelogcmd.go", Kind: ResolvedConsumer, Families: []string{"changelog"}, BindingNames: []string{"matched-changelog-family"}, Vocabulary: []VocabularyAllowance{
+		goCallVocabulary("changelog", "changelog-render", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1),
+	}},
+	{Path: "cmd/internal/scrollbackcmd/retention.go", Kind: ResolvedConsumer, Families: []string{"parked", "scrollback"}, BindingNames: []string{"parsed-parked-capture", "scoped-scrollback"}, Vocabulary: []VocabularyAllowance{
+		goComparisonVocabulary("parked", "parked-scrollback", "acquireRenderLease", 1),
+		goCallVocabulary("scrollback", "scrollback-reader", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcessTarget", 2, 1),
+	}},
+	{Path: "cmd/internal/opener/runcli.go", Kind: VocabularyConsumer, Families: []string{"scrollback", "changelog"}, Vocabulary: []VocabularyAllowance{
+		goCallVocabulary("scrollback", "scrollback-opener", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1),
+		goCallVocabulary("changelog", "changelog-opener", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1),
+		goCallVocabulary("scrollback", "pair-scrollback-open: retention: %v\n", "fmt.Fprintf", 1, 1),
+		goCallVocabulary("changelog", "pair-changelog-open: retention: %v\n", "fmt.Fprintf", 1, 1),
+	}},
+	{Path: "cmd/internal/couchcore/retention.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/start.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/launcher/retention.go", Kind: ResolvedConsumer, Vocabulary: []VocabularyAllowance{goCallVocabulary("draft", "draft-editor", "method.ReserveStart", 3, 1)}},
+	{Path: "cmd/internal/storagegc/lease.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/env.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/use.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/coordinator.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/gcruntime/references.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/gcruntime/runtime.go", Kind: ResolvedConsumer, Families: []string{"session-inventory-catalog"}, BindingNames: []string{"scoped-session-inventory-catalog"}},
+	{Path: "cmd/internal/launcher/retention_cleanup.go", Kind: ResolvedConsumer, Families: []string{"session-binding"}, BindingNames: []string{"selected-session-binding"}},
+	{Path: "cmd/internal/storagegc/collector.go", Kind: ResolvedConsumer, Vocabulary: []VocabularyAllowance{
+		goCaseVocabulary("draft", "draft-editor", "knownNonCaptureRole", 1),
+		goCaseVocabulary("scrollback", "scrollback-opener", "knownNonCaptureRole", 1),
+		goCaseVocabulary("scrollback", "scrollback-reader", "knownNonCaptureRole", 1),
+		goCaseVocabulary("changelog", "changelog-opener", "knownNonCaptureRole", 1),
+		goCaseVocabulary("changelog", "changelog-render", "knownNonCaptureRole", 1),
+	}},
+	{Path: "cmd/internal/storagegc/inventory.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/snapshot.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/transaction.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/transaction_model.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/policy.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/storagegc/capture_metadata.go", Kind: ResolvedConsumer, Families: []string{"parked"}, BindingNames: []string{"parsed-parked-capture"}},
+	{Path: "cmd/internal/artifactpath/gc.go", Kind: Constructor, Families: []string{"agent", "lifecycle", "parked", "scrollback"}},
 	{Path: "cmd/internal/artifactpath/paths.go", Kind: Constructor, Families: []string{
 		"adapt", "agent", "agent-default", "agent-pid", "agent-ready", "changelog", "config",
 		"continuation", "draft", "image-capture", "layout", "layout-mode",
@@ -299,18 +340,24 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/opener/run.go", Kind: ResolvedConsumer,
 		Families:     []string{"changelog", "nvim-pid", "scrollback"},
 		BindingNames: []string{"scoped-changelog-artifacts", "scoped-nvim-pid", "scoped-scrollback"},
-		Vocabulary: append(
+		Vocabulary: append([]VocabularyAllowance{
+			goCallVocabulary("scrollback", "scrollback-viewer", "function.retentionEnv", 2, 1),
+			goCallVocabulary("changelog", "changelog-viewer", "function.retentionEnv", 2, 1),
+			goCallVocabulary("changelog", "changelog-distiller", "function.retentionEnv", 2, 1),
+		}, append(
 			goCallVocabularyValues("scrollback", "fmt.Fprintf", 1,
 				"pair-scrollback-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n",
 				"pair-scrollback-open: resolve artifact namespace: %v\n",
 				"pair-scrollback-open: resolve scrollback artifact: %v\n",
 				"pair-scrollback-open: no scrollback yet for %s/%s\n",
-				"pair-scrollback-open: scrollback-render failed: %v\n"),
+				"pair-scrollback-open: scrollback-render failed: %v\n",
+				"pair-scrollback-open: viewer: %v\n"),
 			goCallVocabularyValues("changelog", "fmt.Fprintf", 1,
 				"pair-changelog-open: missing PAIR_DATA_DIR / PAIR_TAG / PAIR_AGENT\n",
 				"pair-changelog-open: resolve artifact namespace: %v\n",
 				"pair-changelog-open: resolve changelog artifact: %v\n",
-				"pair-changelog-open: resolve scrollback artifact: %v\n")...),
+				"pair-changelog-open: resolve scrollback artifact: %v\n",
+				"pair-changelog-open: viewer: %v\n")...)...),
 	},
 	{Path: "cmd/internal/reviewcmd/run.go", Kind: ResolvedConsumer,
 		Families: []string{"nvim-pid", "review"}, BindingNames: []string{"scoped-nvim-pid", "scoped-review"},
@@ -416,6 +463,8 @@ var SourceClassifications = []SourceClassification{
 		goCallVocabulary("scrollback", "pair-scrollback-render", "flag.NewFlagSet", 0, 1),
 		goCallVocabulary("scrollback", "usage: pair-scrollback-render [--plain] [--viewport F] [--max-lines N] [--with-timestamps] <raw> <events.jsonl> <out>\n", "fmt.Fprintf", 1, 1),
 		goCallVocabulary("scrollback", "scrollback-render: %v\n", "fmt.Fprintf", 1, 1),
+		goCallVocabulary("scrollback", "scrollback-render: retention: %v\n", "fmt.Fprintf", 1, 1),
+		goCallVocabulary("scrollback", "scrollback-render: retention handoff: %v\n", "fmt.Fprintf", 1, 1),
 	}},
 	{Path: "cmd/internal/sessionwatch/run.go", Kind: ResolvedConsumer,
 		Families: []string{"agent-pid", "config", "ledger", "log", "session-inventory-catalog"}, BindingNames: []string{"scoped-agent-pid", "scoped-config", "scoped-ledger", "scoped-log", "scoped-session-inventory-catalog"},
@@ -444,6 +493,9 @@ var SourceClassifications = []SourceClassification{
 			goCallVocabulary("agent", "agent-restart-request", "method.traceWrap", 0, 1),
 			goCallVocabulary("scrollback", "scrollback-write", "method.traceWrap", 0, 2),
 		}},
+	{Path: "nvim/init.lua", Kind: VocabularyConsumer, Families: []string{"draft"}, Vocabulary: []VocabularyAllowance{exactLineVocabulary("draft", "local retention = dofile(vim.fn.fnamemodify(debug.getinfo(1, 'S').source:sub(2), ':p:h') .. '/retention.lua').setup('draft-editor')", 1), exactLineVocabulary("draft", "-- `[`, `]` so entity-style tokens get captured whole: `draft-<tag>.md`,", 1), exactLineVocabulary("draft", "-- Exposed for tests/draft-complete-mode-test.sh. The live path reaches this", 1)}},
+	{Path: "nvim/changelog.lua", Kind: VocabularyConsumer, Families: []string{"changelog"}, Vocabulary: []VocabularyAllowance{exactLineVocabulary("changelog", "local retention = dofile((debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './') .. 'retention.lua').setup('changelog-viewer')", 1)}},
+	{Path: "nvim/scrollback.lua", Kind: VocabularyConsumer, Families: []string{"scrollback"}, Vocabulary: []VocabularyAllowance{exactLineVocabulary("scrollback", "local retention = dofile((debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './') .. 'retention.lua').setup('scrollback-viewer')", 1), exactLineVocabulary("scrollback", "-- transitional flat `scrollback-render` alias, so the two tokens are required).", 1)}},
 	{Path: "nvim/review/record.lua", Kind: VocabularyConsumer, Families: []string{"review"}, Vocabulary: []VocabularyAllowance{
 		exactLineVocabulary("review", "local OPEN = '```review-records'", 1),
 	}},
@@ -459,11 +511,12 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/doctor/emitter-health.sh", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/adapt.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/annotate.lua", Kind: GeneratedMirror},
-	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/changelog.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/changelog.lua", Kind: GeneratedMirror, Families: []string{"changelog"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/confirm_quit.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/doctor.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/draft_send.lua", Kind: GeneratedMirror},
-	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/init.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/init.lua", Kind: GeneratedMirror, Families: []string{"draft"}},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/retention.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/marker_codec.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/normalization.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/pairlog.lua", Kind: GeneratedMirror},
@@ -490,7 +543,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/seam.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/spinner.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/review/wrap.lua", Kind: GeneratedMirror},
-	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/scrollback.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/scrollback.lua", Kind: GeneratedMirror, Families: []string{"scrollback"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/slug.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/workbench_actions.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/workbench_route.lua", Kind: GeneratedMirror},
@@ -506,6 +559,33 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/artifactpath/capture_metadata.go",
+	"cmd/internal/diagnosticlog/pages.go",
+	"cmd/internal/gcruntime/schedule.go",
+	"cmd/internal/gccmd/run.go",
+	"cmd/internal/diagnosticcmd/run.go",
+	"cmd/internal/sessioninventory/catalog_gc.go",
+	"cmd/internal/storagegc/runtimes.go",
+	"cmd/internal/storagegc/schedule.go",
+	"cmd/internal/diagnosticlog/append.go",
+	"cmd/internal/diagnosticlog/creation.go",
+	"cmd/internal/diagnosticlog/collect.go",
+	"cmd/internal/diagnosticlog/environment.go",
+	"cmd/internal/diagnosticlog/environment_darwin.go",
+	"cmd/internal/diagnosticlog/environment_linux.go",
+	"cmd/internal/diagnosticlog/environment_other.go",
+	"cmd/internal/diagnosticlog/legacy.go",
+	"cmd/internal/diagnosticlog/proof.go",
+	"cmd/internal/diagnosticlog/registry.go",
+	"cmd/internal/diagnosticlog/writer.go",
+	"cmd/internal/couchcore/archive_gc.go",
+	"nvim/retention.lua",
+	"cmd/internal/retentioncmd/run.go",
+	"cmd/internal/storagegc/stateio.go",
+	"cmd/internal/storagegc/stores.go",
+	"cmd/internal/storagegc/capture.go",
+	"cmd/internal/procutil/strict_identity.go",
+	"cmd/internal/storagegc/process.go",
 	"cmd/internal/checkpoint/checkpoint.go",
 	"cmd/internal/checkpoint/request.go",
 	"cmd/internal/couchcmd/continuation.go",
@@ -519,7 +599,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/switchagent.go",
 	"cmd/internal/couchtty/console_switchagent.go",
 	"cmd/internal/couchtty/menu_switchagent.go",
-	"cmd/internal/orientation/model.go",
 	"bin/lib/adapt-log.sh",
 	"bin/lib/dev-rebuild.sh",
 	"bin/pair-dev",
@@ -528,7 +607,6 @@ var NonArtifactSources = []string{
 	"cmd/couch/main.go",
 	"cmd/internal/hoprttcmd/hoprtt.go",
 	"cmd/internal/ansi/ansi.go",
-	"cmd/internal/changelogcmd/changelogcmd.go",
 	"cmd/internal/changelogcmd/distill.go",
 	"cmd/internal/changelogcmd/prompt.go",
 	"cmd/internal/clipcmd/run.go",
@@ -660,7 +738,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/layoutcmd/layoutcmd.go",
 	"cmd/internal/layoutcmd/resizeplan.go",
 	"cmd/internal/model/model.go",
-	"cmd/internal/opener/runcli.go",
 	"cmd/internal/pairlog/runcli.go",
 	"cmd/internal/pairlog/store.go",
 	"cmd/internal/pairlifecycle/model.go",
@@ -779,11 +856,9 @@ var NonArtifactSources = []string{
 	"doctor/perf.sh",
 	"nvim/adapt.lua",
 	"nvim/annotate.lua",
-	"nvim/changelog.lua",
 	"nvim/confirm_quit.lua",
 	"nvim/doctor.lua",
 	"nvim/draft_send.lua",
-	"nvim/init.lua",
 	"nvim/marker_codec.lua",
 	"nvim/normalization.lua",
 	"nvim/pairlog.lua",
@@ -809,7 +884,6 @@ var NonArtifactSources = []string{
 	"nvim/review/seam.lua",
 	"nvim/review/spinner.lua",
 	"nvim/review/wrap.lua",
-	"nvim/scrollback.lua",
 	"nvim/slug.lua",
 	"nvim/workbench_actions.lua",
 	"nvim/workbench_route.lua",
@@ -874,4 +948,81 @@ func goComparisonVocabulary(family, value, function string, count int) Vocabular
 
 func exactLineVocabulary(family, value string, count int) VocabularyAllowance {
 	return VocabularyAllowance{Family: family, Value: value, Context: ExactLineVocabulary, Count: count}
+}
+
+// GCDisposition states whether a family can be detached with one owner.
+// pair:m5-concept pure
+type GCDisposition string
+
+const (
+	GCCollectable GCDisposition = "collectable"
+	GCShared      GCDisposition = "shared"
+	GCProtected   GCDisposition = "protected"
+)
+
+// RetentionClass selects independently clocked session or diagnostic data.
+// pair:m5-concept pure
+type RetentionClass string
+
+const (
+	SessionRetention RetentionClass = "session"
+	DebugRetention   RetentionClass = "debug"
+	CaptureRetention RetentionClass = "capture"
+)
+
+// GCClassification identifies the constructor behind exact GC matching.
+// pair:m5-concept pure
+type GCClassification struct {
+	Retention   RetentionClass
+	Disposition GCDisposition
+	Authority   string
+}
+
+// GCClassifications must cover every artifact family explicitly.
+// pair:m5-concept pure
+var GCClassifications = map[string]GCClassification{
+	"agent-default":             {SessionRetention, GCShared, "ScopePaths.AgentDefault"},
+	"native-session":            {SessionRetention, GCProtected, "LifecyclePaths.Request (embedded metadata only)"},
+	"session-binding":           {SessionRetention, GCShared, "ScopePaths.SessionBindings"},
+	"session-inventory-catalog": {SessionRetention, GCShared, "ScopePaths.SessionInventoryCatalog"},
+	"draft":                     {SessionRetention, GCCollectable, "Paths.Draft, Paths.AgentDraft"},
+	"ledger":                    {SessionRetention, GCCollectable, "Paths.Ledger"},
+	"log":                       {SessionRetention, GCCollectable, "Paths.Log"},
+	"queue":                     {SessionRetention, GCCollectable, "Paths.QueueDir"},
+	"config":                    {SessionRetention, GCCollectable, "Paths.ConfigChecked, Paths.LegacyCodexConfig"},
+	"pane":                      {SessionRetention, GCCollectable, "Paths.PaneChecked"},
+	"agent":                     {SessionRetention, GCCollectable, "Paths.Agent, Paths.AgentOutput, Paths.AgentPicks"},
+	"agent-ready":               {SessionRetention, GCCollectable, "Paths.AgentReadyChecked"},
+	"agent-pid":                 {SessionRetention, GCCollectable, "Paths.AgentPID"},
+	"outer-tty":                 {SessionRetention, GCCollectable, "Paths.OuterTTY"},
+	"nvim-pid":                  {SessionRetention, GCCollectable, "Paths.NvimPIDChecked"},
+	"parked":                    {SessionRetention, GCCollectable, "Paths.Parked"},
+	"parked-scrollback":         {CaptureRetention, GCCollectable, "Paths.ParkedScrollbackArtifacts"},
+	"adapt":                     {DebugRetention, GCCollectable, "Paths.AdaptLog"},
+	"image-capture":             {SessionRetention, GCCollectable, "Paths.ImageCapture, Paths.ImageCaptureDone"},
+	"continuation":              {SessionRetention, GCCollectable, "Paths.Continuation"},
+	"layout":                    {SessionRetention, GCCollectable, "Paths.WorkbenchLayout"},
+	"layout-mode":               {SessionRetention, GCCollectable, "Paths.LayoutMode"},
+	"restart":                   {SessionRetention, GCCollectable, "Paths.Restart"},
+	"picker":                    {SessionRetention, GCCollectable, "Paths.DraftPane"},
+	"scrollback":                {SessionRetention, GCCollectable, "Paths.ScrollbackArtifacts"},
+	"changelog":                 {SessionRetention, GCCollectable, "Paths.ChangelogArtifacts"},
+	"thread-claim":              {SessionRetention, GCCollectable, "Paths.ThreadClaim"},
+	"quote":                     {SessionRetention, GCCollectable, "Paths.Quote"},
+	"slug":                      {SessionRetention, GCCollectable, "Paths.Slug, Paths.SlugProposed"},
+	"title-pid":                 {SessionRetention, GCCollectable, "Paths.TitlePID"},
+	"pair-wrap-pid":             {SessionRetention, GCCollectable, "Paths.PairWrapPID"},
+	"wrap-events":               {DebugRetention, GCCollectable, "Paths.WrapEvents"},
+	"scrollback-pending":        {SessionRetention, GCCollectable, "Paths.ScrollbackPending"},
+	"last-left-pane":            {SessionRetention, GCCollectable, "Paths.LastLeftPane"},
+	"last-terminal-pane":        {SessionRetention, GCCollectable, "Paths.LastTerminalPane"},
+	"terminal-panes":            {SessionRetention, GCCollectable, "Paths.TerminalPanes"},
+	"zellij-actions":            {SessionRetention, GCCollectable, "Paths.ZellijActions"},
+	"review":                    {SessionRetention, GCCollectable, "Paths.ReviewTarget and Review siblings"},
+	"codex-filter-kkp":          {SessionRetention, GCCollectable, "Paths.CodexFilterKKP"},
+	"lifecycle":                 {SessionRetention, GCCollectable, "Paths.Lifecycle, Paths.LifecycleJournal"},
+	"lifecycle-lock":            {SessionRetention, GCCollectable, "LifecyclePaths.Lock"},
+	"lifecycle-request":         {SessionRetention, GCCollectable, "LifecyclePaths.Request"},
+	"lifecycle-completion":      {SessionRetention, GCCollectable, "LifecyclePaths.Completion"},
+	"lifecycle-trigger":         {SessionRetention, GCCollectable, "LifecyclePaths.Trigger"},
 }

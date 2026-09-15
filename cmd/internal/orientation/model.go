@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -17,6 +18,8 @@ const MaxBodyBytes = 16 * 1024
 const Env = "PAIR_ORIENTATION_REQUEST"
 
 type OrientationContext struct {
+	ReaderIntent                                              string
+	Owner                                                     *artifactpath.StorageOwner
 	Tag, WorkingPath, SourceAgent, SourceSession, TargetAgent string
 	PairLog, ScrollbackRaw, ScrollbackEvents, Renderer        string
 	NativeTranscripts, Unavailable                            []string
@@ -83,6 +86,17 @@ func BuildPrompt(c OrientationContext) (string, error) {
 	if c.ScrollbackRaw != "" && c.Renderer != "" {
 		fmt.Fprintf(&b, "Pair TTY raw capture: %s\nPair TTY events: %s\n", literal(c.ScrollbackRaw), literal(c.ScrollbackEvents))
 		argv := []string{c.Renderer, "scrollback", "render", "--plain", "--with-timestamps", c.ScrollbackRaw, c.ScrollbackEvents, "<temporary-output-file>"}
+		if c.Owner != nil {
+			owner, err := artifactpath.NewStorageOwner(c.Owner.DataDir, c.Owner.RepoScope, c.Owner.Tag)
+			if err != nil || owner != *c.Owner || owner.Tag != c.Tag {
+				return "", errors.New("orientation: invalid source storage owner")
+			}
+			flags := []string{"--owner-dir", owner.Directory(), "--owner-scope", owner.RepoScope, "--owner-tag", owner.Tag}
+			if c.ReaderIntent != "" {
+				flags = append(flags, "--owner-intent", c.ReaderIntent)
+			}
+			argv = append(argv[:len(argv)-3], append(flags, argv[len(argv)-3:]...)...)
+		}
 		raw, _ := json.Marshal(argv)
 		fmt.Fprintf(&b, "Renderer argv (execute directly, replacing the last argument with a temporary file): %s\n", raw)
 		b.WriteString("Read the rendered text, then remove the temporary output. The renderer retains a bounded history window; report context gaps rather than assuming it is the full conversation.\n")

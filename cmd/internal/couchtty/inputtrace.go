@@ -2,6 +2,7 @@ package couchtty
 
 import (
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"strings"
 	"time"
 )
@@ -61,8 +62,8 @@ type inputTracer struct{ file *traceFile }
 // unwritable path produced an empty trace indistinguishable from "no bytes
 // arrived", which is precisely the ambiguity the probe exists to resolve. The
 // INABILITY to observe must never be presentable as an observation.
-func newInputTracer(path string) (*inputTracer, error) {
-	file, err := openTraceFile("COUCH_INPUT_TRACE", path)
+func newInputTracer(path string, options ...diagnosticlog.Options) (*inputTracer, error) {
+	file, err := openTraceFile("COUCH_INPUT_TRACE", path, options...)
 	if file == nil {
 		return nil, err
 	}

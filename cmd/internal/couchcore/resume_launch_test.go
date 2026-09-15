@@ -104,6 +104,7 @@ func TestResumeLaunchExactProfileMatrix(t *testing.T) {
 					"COUCH_TREE=/repo", "COUCH_STORE_DIR=" + env.Dir,
 					"COUCH_THREAD_SCOPE=" + parked.Address.RepoScope,
 					"COUCH_THREAD_TAG=" + string(parked.Address.Tag),
+					"PAIR_RETENTION_BACKGROUND=",
 					"COUCH_THREAD_RESUME=1",
 					launcher.CouchLaunchProfileEnv + "=" + strings.TrimSpace(raw),
 					"PAIR_USE_REPO_DEFAULT=",

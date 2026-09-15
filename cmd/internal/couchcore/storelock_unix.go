@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func acquireThreadStoreLock(root string) (*threadStoreLock, error) {
+func acquireThreadStoreLockMode(root string, nonblocking bool) (*threadStoreLock, error) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		return nil, fmt.Errorf("create thread store root: %w", err)
 	}
@@ -21,7 +21,11 @@ func acquireThreadStoreLock(root string) (*threadStoreLock, error) {
 		return nil, fmt.Errorf("open thread store lock: %w", err)
 	}
 	unix.CloseOnExec(int(file.Fd()))
-	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX); err != nil {
+	mode := unix.LOCK_EX
+	if nonblocking {
+		mode |= unix.LOCK_NB
+	}
+	if err := unix.Flock(int(file.Fd()), mode); err != nil {
 		_ = file.Close()
 		return nil, fmt.Errorf("lock thread store: %w", err)
 	}

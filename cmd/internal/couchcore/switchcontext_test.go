@@ -16,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/pairlifecycle"
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/storagegc"
 )
 
 func TestSwitchContextUsesExactOutgoingOwnerAndArchive(t *testing.T) {
@@ -247,6 +248,44 @@ func TestSwitchContextRejectsNonRegularEvidenceWithoutBlocking(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("context lookup blocked on FIFO")
+	}
+}
+
+func TestOrientationCaptureHasRecoverableReaderHandoff(t *testing.T) {
+	record := verifiedResumeThread(t)
+	record.VerifiedPark.Scrollback = &pairlifecycle.PreservedScrollback{Agent: "codex", Token: "20260913T010101", Events: true}
+	root := t.TempDir()
+	paths, _ := artifactpath.Resolve(artifactpath.Address{DataDir: root, RepoScope: record.Address.RepoScope, Tag: string(record.Address.Tag)})
+	capture, _ := paths.ParkedScrollbackArtifacts(record.VerifiedPark.Scrollback.Token)
+	if err := os.MkdirAll(paths.ScopeDir(), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(capture.Raw, []byte("capture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	resolver := OSSwitchContextResolver{DataDir: root, Renderer: "/bin/pair"}
+	result := orientation.OrientationContext{Tag: string(record.Address.Tag), SourceAgent: "codex"}
+	if err := resolver.ResolveArchive(record, &result); err != nil {
+		t.Fatal(err)
+	}
+	if result.Owner == nil || result.ReaderIntent == "" {
+		t.Fatal("capture handoff not protected")
+	}
+	c, err := storagegc.NewCoordinator(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := c.ReadOwner(*result.Owner)
+	if err != nil || len(state.Intents) != 1 || state.Intents[0].ID != result.ReaderIntent || state.Intents[0].Process.PID != os.Getpid() {
+		t.Fatalf("handoff lacks actual selector: %+v %v", state, err)
+	}
+	record.VerifiedPark.Scrollback = nil
+	if err := resolver.ResolveArchive(record, &result); err != nil {
+		t.Fatal(err)
+	}
+	state, err = c.ReadOwner(*result.Owner)
+	if err != nil || len(state.Intents) != 0 {
+		t.Fatalf("superseded handoff stranded: %+v %v", state, err)
 	}
 }
 
