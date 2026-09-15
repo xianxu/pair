@@ -94,3 +94,5 @@
 - [Storage retention](storage-retention.md) — Pair/Couch clocks, protected users, collection and migration.
 
 - [Managed retention I/O](storage-retention-io.md) — Checked entrypoints, protected artifacts, guard call chains, meaningful-use rules and behavioral evidence.
+
+- [Terminal ownership](terminal.md) — Shared endpoint, presenter, profile, transport and qualification boundaries.

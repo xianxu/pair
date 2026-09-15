@@ -96,3 +96,38 @@ Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests c
 SDLC's third boundary review disposed all five findings with no open blockers. The qualification milestone is complete with a negative adoption decision; #255 remains working. Full repository tests and final focused race checks pass. The next checkpoint is a revised backend choice and detailed production plan, not a runtime rollout.
 
 After adding complete style observation, the same 10-iteration benchmark measured 80x24: 1.73ms/op, 2.90MB/op, 21274 allocations; 240x80: 19.38ms/op, 24.05MB/op, 212267 allocations (`/tmp/pair255-round3-bench.log`). These supersede the earlier diagnostic-map measurements above and remain unrelated to production budgets.
+
+## Revisions
+
+### 2026-09-15 — M2 repaired backend and resource measurements
+
+The unchanged-backend rejection above remains the M1 decision. The checked-in
+fork now passes all 68 original executable cases without weakening their
+predicates. M2 adds attributed endpoint/presenter cases; remaining live consumer
+obligations stay uncovered until their production paths are exercised.
+
+Measured on Apple M2 Max, Go 1.27.1, using the opt-in
+`TestTerminalResourceProbe` with 16 instances and post-GC `HeapAlloc` deltas:
+
+| Geometry / workload | Backend heap MiB | Backend Usage estimate MiB | Endpoint + published + caller frame heap MiB |
+|---|---:|---:|---:|
+| 80×24 empty | 9.08 | 9.67 | 15.87 |
+| 80×24 typical | 13.52 | 14.86 | 20.31 |
+| 80×24 saturated history | 84.68 | 92.51 | 91.50 |
+| 240×80 empty | 68.76 | 77.79 | 134.54 |
+| 240×80 typical | 109.85 | 129.61 | 175.64 |
+| 240×80 saturated history | 143.64 | 169.27 | 209.44 |
+
+These are live Go heap measurements, not RSS, complete application measurements,
+or bounds for simultaneous maximum-sized geometry/metadata. The representative
+512MiB target is met here; M4 still must measure the whole composition path.
+Saturating the largest scenario allocated 1.108GiB cumulatively over 2.81s;
+that is population cost, not input-to-visible latency. `Usage` is a conservative
+engineering estimate with documented allocator allowances, not exact heap usage.
+The history byte cap continues to use logical retained payload accounting.
+
+Reproduce with:
+
+```sh
+PAIR_TERMINAL_RESOURCE_PROBE=1 go test ./cmd/internal/terminal -run '^TestTerminalResourceProbe$' -count=1 -v
+```

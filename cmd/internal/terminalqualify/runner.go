@@ -10,7 +10,14 @@ import (
 type Executor func(context.Context, Case, []string) (Observation, error)
 
 func RunCase(ctx context.Context, c Case, execute Executor) (Result, error) {
-	result := Result{ID: c.ID, Capability: c.Capability, Source: c.Source}
+	target := c.Target
+	if target == "" {
+		target = "backend"
+		if c.Uncovered != "" {
+			target = "integration"
+		}
+	}
+	result := Result{ID: c.ID, Capability: c.Capability, Source: c.Source, Target: target}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
@@ -122,7 +129,23 @@ func CandidateVersion() string {
 func Cases() []Case {
 	all := ScreenCases()
 	all = append(all, InputCases()...)
-	return append(all, Coverage()...)
+	all = append(all, Coverage()...)
+	integrations := append(EndpointCases(), PresenterCases()...)
+	integrations = append(integrations, ResourceCases()...)
+	for _, integration := range integrations {
+		replaced := false
+		for i := range all {
+			if all[i].ID == integration.ID {
+				all[i] = integration
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			all = append(all, integration)
+		}
+	}
+	return all
 }
 func Run(ctx context.Context) (Report, error) {
 	return RunMatrix(ctx, CandidateVersion(), Cases(), executeCandidate)
@@ -147,6 +170,9 @@ func RunMatrix(ctx context.Context, version string, cases []Case, execute Execut
 	return report, report.Validate()
 }
 func executeCandidate(ctx context.Context, c Case, chunks []string) (Observation, error) {
+	if c.Integration != nil {
+		return c.Integration(ctx)
+	}
 	width, height := c.Width, c.Height
 	if width == 0 {
 		width = 80

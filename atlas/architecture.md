@@ -1498,3 +1498,11 @@ Tracked in workshop issues. v2 candidates include a real nvim plugin (for users 
 ## Terminal qualification tooling
 
 `go run ./cmd/probes/terminalqualify` reports the pinned emulator's compatibility with #255's required terminal profile as JSON. Its shared implementation is `cmd/internal/terminalqualify`; it is not used by live Couch/Pair. Exit1 means failed or incomplete qualification, exit2 an infrastructure failure. Literal protocol fixtures and lifecycle tests separate a working diagnostic from an acceptable production backend. The design and current negative result live in `workshop/plans/000255-terminal-abstraction-plan.md` and `000255-terminal-qualification.md` while the issue is active.
+
+### Shared terminal abstraction (#255)
+
+The M2 library establishes explicit per-child terminal state, ordered input/replies,
+immutable frames and physical-parent presentation ownership. See
+[Terminal ownership](terminal.md) for boundaries, profile and verification. Couch
+and Pair production adoption remains the M3 step; library qualification alone
+does not establish the disappearance of the live display or mouse symptoms.

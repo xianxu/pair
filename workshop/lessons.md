@@ -4982,3 +4982,6 @@ that transition authority is pure or enforced.
 - Terminal qualification: literal spot checks and whole/split equivalence serve different purposes. Require both, comparing every observed field across byte partitions; cover style attributes as well as glyphs/colors, and keep bounded structured evidence separate from the full correctness predicate. New runnable probes need README invocation and exit-status documentation. (#255 M1 review, 2026-09-15)
 
 - Partition tests must inspect delivered content and every byte boundary, not merely invocation counts. Mutation-test duplicated whole inputs, dropped bytes and omitted split points; test the executor path as well as the partition generator. (#255 M1 BR-5, 2026-09-15)
+
+- Terminal presentation must compare desired modes with confirmed parent modes. Reasserting mouse-off/on on every repaint can interrupt a live gesture even when the final mode is correct; test continuous drag through repeated redraws and switches. (#255 M2 in-session review, 2026-09-15)
+- An actor call that returns on caller cancellation must not expose a result slice still being mutated by its running closure. Join the admitted operation or transfer the completed result exclusively through a channel; test cancellation while delivery is blocked. (#255 M2 in-session review, 2026-09-15)

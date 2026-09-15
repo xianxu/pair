@@ -20,6 +20,7 @@ const (
 )
 
 type Result struct {
+	Target            string      `json:"target"`
 	Comparison        string      `json:"comparison,omitempty"`
 	ID                string      `json:"id"`
 	Capability        string      `json:"capability"`

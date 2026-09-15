@@ -1,10 +1,16 @@
 package terminalqualify
 
-import "github.com/charmbracelet/x/vt"
+import (
+	"context"
+	"github.com/charmbracelet/x/vt"
+)
 
 // Case expectations are literal protocol observations, never derived by running
 // the candidate. Uncovered identifies an obligation this tool cannot establish.
 type Case struct {
+	// Target distinguishes measured production seams from backend-only fixtures.
+	Target                        string
+	Integration                   func(context.Context) (Observation, error)
 	ID, Capability, Source, Input string
 	Expected                      Observation
 	Action                        func(*vt.Emulator)

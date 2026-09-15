@@ -785,6 +785,14 @@ or establish that live display/selection bugs are fixed. See the
 [#255 qualification report](workshop/plans/000255-terminal-qualification.md)
 for the current negative adoption decision and remaining integration requirements.
 
+The repaired candidate is maintained as a local module in `third_party/vt`;
+`PAIR_PATCHES.md` there records provenance and owned fixes. Its explicit child
+profile is `pair-vt-256color` (`terminfo/`). Run the fork's tests from that module
+as well as the root tests. `sh tests/terminal-oracle/run.sh` installs the locked
+test-only xterm-headless dependency and checks actual renderer output against an
+independent terminal implementation. See [terminal ownership](atlas/terminal.md)
+for the current migration boundary.
+
 ---
 
 Release notes: [`CHANGELOG.md`](CHANGELOG.md). For design rationale and

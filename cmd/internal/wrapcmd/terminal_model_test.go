@@ -241,28 +241,28 @@ func TestTerminalModelValidZWJSplitSnapshotsStayCoherent(t *testing.T) {
 	if err := oneShot.Feed([]byte(stream)); err != nil {
 		t.Fatal(err)
 	}
-	oneShotSnapshot := oneShot.Snapshot()
-
-	split := newTerminalModelForTest(t, 8, 2)
-	splitAt := len("👩")
-	if err := split.Feed([]byte(stream[:splitAt])); err != nil {
-		t.Fatal(err)
+	want := oneShot.Snapshot()
+	assertTerminalSnapshotCoherent(t, want)
+	if cell := want.CellAt(0, 0); cell.Content != stream || cell.Width != 2 {
+		t.Fatalf("one-shot first cell = %+v, want complete two-cell cluster", cell)
 	}
-	if err := split.Feed([]byte(stream[splitAt:])); err != nil {
-		t.Fatal(err)
-	}
-	splitSnapshot := split.Snapshot()
-
-	assertTerminalSnapshotCoherent(t, oneShotSnapshot)
-	assertTerminalSnapshotCoherent(t, splitSnapshot)
-	if reflect.DeepEqual(splitSnapshot, oneShotSnapshot) {
-		t.Fatal("split and one-shot ZWJ snapshots unexpectedly match; regression no longer exercises x/vt's Write-boundary behavior")
-	}
-	if got := oneShotSnapshot.CellAt(0, 0).Content; got != stream {
-		t.Fatalf("one-shot first cell = %q, want %q", got, stream)
-	}
-	if woman, laptop := splitSnapshot.CellAt(0, 0).Content, splitSnapshot.CellAt(2, 0).Content; woman != "👩" || laptop != "💻" {
-		t.Fatalf("split cells = %q/%q, want separate woman/laptop glyphs", woman, laptop)
+	// #255 repairs the backend's incremental grapheme ownership. The old test
+	// deliberately required the known split-ZWJ corruption; preserve coherence
+	// coverage while now requiring the actual correct glyph at every byte split.
+	for splitAt := 0; splitAt <= len(stream); splitAt++ {
+		split := newTerminalModelForTest(t, 8, 2)
+		if err := split.Feed([]byte(stream[:splitAt])); err != nil {
+			t.Fatal(err)
+		}
+		assertTerminalSnapshotCoherent(t, split.Snapshot())
+		if err := split.Feed([]byte(stream[splitAt:])); err != nil {
+			t.Fatal(err)
+		}
+		got := split.Snapshot()
+		assertTerminalSnapshotCoherent(t, got)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("split %d differs from complete ZWJ snapshot", splitAt)
+		}
 	}
 }
 

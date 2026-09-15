@@ -33,10 +33,28 @@ rounds:
           note: The plan correctly attributes partial/error writes to mouseTraceHost and identifies extraction or extension for shared presentation tests.
           round: 2
       blocked: false
-content_hash: 0a00e902a45fa9e5872309d83e350ad0bb6bbaf1dd5b96506b6f1fea49dc9bf8
+    - "n": 3
+      timestamp: "2026-09-15T12:03:20-07:00"
+      agent: codex
+      blocked: false
+      protocol_error: no valid findings block
+    - "n": 4
+      timestamp: "2026-09-15T12:10:05-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Named function-level adversarial strategies and mechanical guards remain in the qualification plan.
+          round: 4
+        - id: PQ-2
+          disposition: addressed
+          note: The plan correctly identifies mouseTraceHost as the existing partial/error-write double and calls for shared extension.
+          round: 4
+      blocked: false
+content_hash: b66ed9821dbe1db096b0f29ad6761fe0ad4afd4918487e59242ebc843de59bf6
 ---
 
-# Gate ledger — pair#255 (plan-quality)
+# Gate ledger — 000255-lifecycle-state-ownership#255 (plan-quality)
 
 Findings this gate raised, the stable ids the binary assigned them, and how
 later rounds disposed of them. Generated — edit the gate, not this file.
@@ -56,6 +74,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards replace repeated case inventories; exact cases move into executable fixtures.
 - PQ-2 — addressed — The plan correctly attributes partial/error writes to mouseTraceHost and identifies extraction or extension for shared presentation tests.
+
+## Round 3 — 2026-09-15T12:03:20-07:00 (codex) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
+
+## Round 4 — 2026-09-15T12:10:05-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards remain in the qualification plan.
+- PQ-2 — addressed — The plan correctly identifies mouseTraceHost as the existing partial/error-write double and calls for shared extension.
 
 ## Open findings
 

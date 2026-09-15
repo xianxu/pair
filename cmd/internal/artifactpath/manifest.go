@@ -559,6 +559,20 @@ var SourceClassifications = []SourceClassification{
 // the artifact namespace requires an explicit SourceClassification.
 // pair:m5-concept pure
 var NonArtifactSources = []string{
+	"cmd/internal/terminalqualify/resource_cases.go",
+	"cmd/internal/terminal/presenter.go",
+	"cmd/internal/terminalqualify/presenter_cases.go",
+	"cmd/internal/terminal/endpoint.go",
+	"cmd/internal/terminal/frame.go",
+	"cmd/internal/terminal/input.go",
+	"cmd/internal/terminal/profile.go",
+	"cmd/internal/terminal/profile_query.go",
+	"cmd/internal/terminal/render.go",
+	"cmd/internal/terminal/transport.go",
+	"cmd/internal/terminal/view.go",
+	"cmd/internal/terminalqualify/endpoint_cases.go",
+	"cmd/internal/ttyio/fake.go",
+	"cmd/internal/ttyio/writer.go",
 	"cmd/internal/terminalqualify/candidate.go",
 	"cmd/internal/terminalqualify/cases.go",
 	"cmd/internal/terminalqualify/coverage.go",
