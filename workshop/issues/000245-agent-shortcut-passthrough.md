@@ -96,3 +96,31 @@ actions of reserved keys.
 This records the operator's candidate list ("maybe"), not a completed design or
 implementation. Finalize the exception set and focused-pane propagation in the
 implementation plan; no code changed as part of this revision.
+
+
+### 2026-09-14 — Routing audit and remaining design decision
+
+Resumed after #250 shipped; ran `sdlc state` and `sdlc start-plan --issue 245`.
+The agent wrapper calls `workbenchshortcut.Decide`, which currently resolves
+all globals before role-specific actions. The agreed exception policy must
+precede this branch. Existing input framing and Return adaptation remain;
+regressions must include reserved chords inside bracketed paste as literal data.
+
+Two upstream consumers also require changes: Couch's `Interceptor` consumes
+Alt+d, Alt+x, Alt+n and Ctrl+Alt+n; Zellij directly runs help/changelog for
+Alt+h/Alt+l. The latter must become pane-local actions so the agent receives
+those chords too. Help classifications currently call these keys global and
+must derive the revised scope.
+
+Couch knows switcher versus hosted actor focus, but not the hosted Zellij's
+inner pane. A list-panes query is an asynchronous snapshot, adds latency and
+cannot establish which pane receives a particular key. No existing general
+command bridge forwards pane-local lifecycle requests to the running Couch
+owner; invoking an owner CLI operation collides with its supervisor lease.
+ARCH-DRY/ARCH-ORDER rule out inventing a second, potentially stale focus owner.
+
+Asked the operator to choose between simplifying Couch's outer interception to
+its three reserved navigation chords everywhere (lifecycle actions remain in
+the switcher), or preserving Couch lifecycle hotkeys in nonagent panes via a
+new owner-addressed command bridge. The first changes nonagent Couch hotkey
+semantics, so that scope choice requires an explicit answer. No code changed.
