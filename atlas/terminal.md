@@ -46,7 +46,11 @@ Output delivery has bounded backpressure; a blocked UI callback does not block
 query/input serialization. EOF ends input immediately, preserves the final
 publication, and only announces drained child exit after callbacks complete.
 Consumer failure cancels the read pump and reaps a silent child. Disposal cancels
-and joins both output delivery and input workers.
+and joins both output delivery and input workers. Couch retains ownership after a
+pane leaves its map: ordinary exit drains, deselects/retires, then disposes; the
+last visible final frame remains owned through parent release. Rejected startup
+and attachment paths dispose their unaccepted client, and teardown disposes all
+remaining accepted children after release.
 
 Normal history carries monotonic row IDs, clear epochs, blank provenance and soft
 wrap metadata. `RenderWithHistory` serializes owned cells in bounded chunks; the
@@ -55,7 +59,9 @@ alternate-screen transitions become presenter-owned parent transitions; panels
 retain the current physical buffer. Release leaves only an alternate buffer the
 presenter actually entered, then restores parent controls.
 
-The runtime bundle includes `tic` output compiled during generation. Both launch
+The runtime bundle includes `tic` output compiled during generation through
+`runtimebundlegen.TerminfoCompiler`. A filesystem-producing fake tests staging,
+normalization and failure preservation; native compiler conformance is separate. Both launch
 roots install the versioned profile and pass `TERM=pair-vt-256color` plus its
 `TERMINFO` directory. Runtime launch does not execute `tic`. `pair wrap` preserves
 Codex synchronized output, focus and keyboard negotiation; notification

@@ -725,6 +725,12 @@ func (c *Couch) AbortStarted(start StartResult, cause error) error {
 // merely represented by an occupied durable record.
 func (c *Couch) quiescePostAckStart(address ThreadAddress, h Handle, shape StartShape) error {
 	var firstErr error
+	// Attachment never committed, so no presenter owns this terminal. Cancel
+	// publication before Wait: a failed UI must not hold the final Sink ack.
+	// Closing this start's PTY client does not quiesce a borrowed Zellij session.
+	if terminal, ok := h.(TerminalHandle); ok {
+		firstErr = terminal.Terminal().Close()
+	}
 	handleQuiet := false
 	handleCleanup := newHandleCleanup(h)
 	for {

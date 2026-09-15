@@ -216,6 +216,7 @@ func TestCouchProductionSoak(t *testing.T) {
 	receipt(a, "READY")
 	receipt(b, "READY")
 	start := time.Now()
+	lastProgress := start
 	iterations, replacements := 0, 0
 	var maxLatency time.Duration
 	for iterations < 8 || time.Since(start) < duration {
@@ -287,6 +288,15 @@ func TestCouchProductionSoak(t *testing.T) {
 			}
 		}
 		iterations++
+		if now := time.Now(); now.Sub(lastProgress) >= time.Minute {
+			var stats runtime.MemStats
+			runtime.ReadMemStats(&stats)
+			host.mu.Lock()
+			written, writes := host.bytes, host.writes
+			host.mu.Unlock()
+			t.Logf("couch soak progress elapsed=%s iterations=%d attachment_replacements=%d parent_bytes=%d writes=%d max_input_visible=%s heap_alloc=%d goroutines=%d", now.Sub(start), iterations, replacements, written, writes, maxLatency, stats.HeapAlloc, runtime.NumGoroutine())
+			lastProgress = now
+		}
 	}
 	con.Stop()
 	input.Close()

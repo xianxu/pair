@@ -339,3 +339,15 @@ total: 18.025
 ### 2026-09-15 — M3 boundary submission
 
 Final source audit found diagnostics could bypass the presenter while stderr shared its TTY, and canceled teardown discarded release errors. Tests first reproduced both; errors/reports are now retained until joined release/raw restoration, and release failure returns nonzero. Full Couch race passed again (`/tmp/pair255-couch-exit-full-race2.log`). M3 is ready for the binary-owned boundary review. Milestone measured increment is unavailable: `sdlc actual --issue 255` reports a multi-issue whole-window value (0.61h, `8a9d900f..HEAD`), which is not substituted for M3. The precise `--no-actual` acknowledgment is retained for this milestone rather than inventing an increment.
+
+### 2026-09-15 — M3 boundary round 1: REWORK
+
+SDLC reviewed `c5ec1728..f32bb4cf` and found BR-13 erased-cell background loss, BR-14 missing exited-child disposal, and BR-15 missing terminfo compiler seam. Fixes are in progress as class-wide sweeps, with the detailed plan revision recording serializer and lifecycle paths. M3 remains open; M4 long runs and operator smoke are pending. Mutation overlays independently detected UTF-8 carry loss, chrome displacement and dropped mouse motion; all corresponding unchanged tests passed, all three mutations failed behavioral assertions (`/tmp/pair255-m4-mutation/`).
+
+### 2026-09-15 — M3 review corrections verified
+
+BR-13 now preserves erased backgrounds through viewport/history append/rebuild and alternate buffers, including native soft-gap copying without an invented space. BR-14 ownership sweep covers accepted natural/last exit, repeated replacement, teardown, failed raw acquisition, rejected/pre-ack startup and Pair explicit close-tab; the last now uses the same removal path as natural exit. Presenter disposal writes no reset when no parent write was attempted, while interrupted setup still resets. BR-15 injects compilation with portable filesystem-fake failure/output tests and separate tic/infocmp conformance.
+
+Verification: shared terminal/qualification/generator full race with independent/native oracles passed (`/tmp/pair255-m3-rework-shared.log`); full Couch race passed17.788s, focused core race4.034s, full core normal111.168s (`/tmp/pair255-disposal-core-normal.log`), native/nvim race5.365s, and full term race2.328s (`/tmp/pair255-term-close-order-race.log`). Corresponding regressions were observed failing before their fixes. Scope whitespace check passed. M3 is resubmitted with all three findings addressed; the gate owns disposition.
+
+Expanded M4 timing preflight exposed periodic saturated-history rebuilds: approximately63KB emitted for an input instead of1KB, with end-to-end samples near98ms. That does not meet the provisional input target and will be addressed before M4 qualification. No long run or operator symptom resolution is claimed.

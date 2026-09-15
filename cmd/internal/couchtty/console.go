@@ -55,6 +55,7 @@ type Console struct {
 	terminalCommands chan terminalCommand
 	terminalFailure  error
 	leaveReport      string
+	ownedChildren    map[*ptychild.Child]struct{}
 
 	mu     sync.Mutex
 	panes  map[string]*pane
@@ -327,10 +328,21 @@ func (c *Console) attachThreadActor(handleID string, actorID couchcore.ActorID, 
 }
 
 func (c *Console) attachObservedThreadActor(handleID string, actorID couchcore.ActorID, thread couchcore.ThreadAddress, tree couchcore.Worktree, label string, child *ptychild.Child, process couchcore.ProcessIdentity) {
-	_ = c.installObservedThreadActor(c.lifetime, handleID, actorID, thread, tree, label, child, process, false)
+	if err := c.installObservedThreadActor(c.lifetime, handleID, actorID, thread, tree, label, child, process, false); err != nil && child != nil {
+		// This compatibility entry point has no StartResult rollback owner. It
+		// consumes a rejected fresh child, but never an already accepted lifetime.
+		c.mu.Lock()
+		_, accepted := c.ownedChildren[child]
+		c.mu.Unlock()
+		if !accepted {
+			_ = child.Close()
+		}
+	}
 }
 
-// installObservedThreadActor commits a complete pane or no pane. The worker
+// installObservedThreadActor transfers terminal disposal ownership only on
+// success. A rejected typed start remains owned by its AbortStarted rollback.
+// It commits a complete pane or no pane. The worker
 // count is reserved under the same mutex as routing state, so teardown's mutex
 // barrier cannot begin its final Wait between a partial map insertion and the
 // exit watcher becoming owned.
@@ -388,6 +400,10 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 		c.mu.Unlock()
 		return err
 	}
+	if c.ownedChildren == nil {
+		c.ownedChildren = make(map[*ptychild.Child]struct{})
+	}
+	c.ownedChildren[child] = struct{}{}
 	c.workers.Add(1)
 	c.panes[handleID] = &pane{
 		tree: tree, thread: thread, process: process, actorID: actorID,
@@ -528,9 +544,10 @@ func (c *Console) Stop() {
 func (c *Console) Run() (code int) {
 	restore, err := c.host.MakeRaw()
 	if err != nil {
-		// Say why. Returning a bare 1 was the other half of BR-23: the
-		// operator saw an exit code and nothing else.
-		fmt.Fprintf(c.errw(), "couch: cannot take the terminal: %v\n", err)
+		// Accepted children and the presenter still need disposal even when
+		// acquisition fails. An untouched presenter releases without writes.
+		c.terminalError(fmt.Errorf("cannot take the terminal: %w", err))
+		_ = c.teardown(func() error { return nil })
 		return 1
 	}
 	defer func() {
@@ -935,7 +952,11 @@ func (c *Console) onExit(event childExit) bool {
 		if c.presenter.View().Selected == p.child.Endpoint().ID() {
 			return
 		}
-		c.terminalError(c.presenter.Retire(c.lifetime, p.child.Endpoint()))
+		if err := c.presenter.Retire(c.lifetime, p.child.Endpoint()); err != nil {
+			c.terminalError(err)
+			return
+		}
+		c.terminalError(c.disposeChild(p.child))
 	}()
 	if last && !panelFocused && !(expected && continuationPending) {
 		return true
@@ -954,6 +975,27 @@ func (c *Console) release() error {
 	defer cancel()
 	err := c.presenter.Release(ctx)
 	c.traceTerminal("release", err)
+	// Accepted children remain owned after their panes disappear. In particular,
+	// the final selected endpoint stays readable until its presenter releases.
+	c.mu.Lock()
+	children := make([]*ptychild.Child, 0, len(c.ownedChildren))
+	for child := range c.ownedChildren {
+		children = append(children, child)
+	}
+	c.mu.Unlock()
+	for _, child := range children {
+		err = errors.Join(err, c.disposeChild(child))
+	}
+	return err
+}
+
+// disposeChild follows retirement (or complete presenter release). Exited
+// children have drained Sink acknowledgements; teardown cancels delivery first.
+func (c *Console) disposeChild(child *ptychild.Child) error {
+	err := child.Close()
+	c.mu.Lock()
+	delete(c.ownedChildren, child)
+	c.mu.Unlock()
 	return err
 }
 

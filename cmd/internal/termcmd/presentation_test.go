@@ -376,3 +376,46 @@ func TestPresentationHiddenPhysicalEffectsStaySuppressedAfterSelection(t *testin
 		t.Fatal("suppressed effects replayed on select")
 	}
 }
+
+func TestPresentationCloseActiveRetiresBeforeEndpointDisposal(t *testing.T) {
+	m, _ := presentationFixture(t)
+	a := addPresentationTab(t, m, 1, "survivor")
+	b := addPresentationTab(t, m, 2, "\x1b[?1002;1006hclosing")
+	m.writeEvent(terminal.InputEvent{Event: uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft}})
+	b.Feed([]byte("\x1b[1;1Hpending"))
+	if err := b.FlushOutput(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	m.closeActive()
+	if m.failure != nil {
+		t.Fatal(m.failure)
+	}
+	if m.presenter.View().Admitted != a.Endpoint().ID() || m.activeTabLocked().child != a {
+		t.Fatal("closed tab was not replaced before disposal")
+	}
+	if !b.Done() {
+		t.Fatal("retired child was not disposed")
+	}
+	if got := string(bytes.Join(b.Writes(), nil)); got != "\x1b[<0;2;2M\x1b[<0;2;2m" {
+		t.Fatalf("drag cancellation=%q", got)
+	}
+	if err := m.presenter.Flush(context.Background()); err != nil {
+		t.Fatalf("closed endpoint remained dirty: %v", err)
+	}
+	m.writeEvent(terminal.InputEvent{Event: uv.MouseReleaseEvent{X: 2, Y: 1, Button: uv.MouseLeft}})
+	m.writeEvent(terminal.InputEvent{Event: uv.KeyPressEvent{Code: 'x', Text: "x"}})
+	if err := a.Endpoint().Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := string(bytes.Join(a.Writes(), nil)); got != "x" {
+		t.Fatalf("survivor input=%q", got)
+	}
+	m.closeActive()
+	if a.Done() || m.presenter.View().Admitted != a.Endpoint().ID() {
+		t.Fatal("close last tab changed existing product policy")
+	}
+	m.nextTab()
+	if m.failure != nil {
+		t.Fatalf("subsequent switch failed: %v", m.failure)
+	}
+}

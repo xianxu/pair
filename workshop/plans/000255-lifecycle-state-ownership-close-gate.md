@@ -270,6 +270,30 @@ rounds:
           round: 9
       boundary: M2
       blocked: false
+    - "n": 10
+      timestamp: "2026-09-15T14:54:01-07:00"
+      agent: codex
+      findings:
+        - id: BR-13
+          severity: Critical
+          title: History serialization drops backgrounds on erased interior cells
+          detail: 'cmd/internal/terminal/history_render.go:213 emits only CUF for empty-content cells; background restoration covers only the trailing extent. A production-presenter scratch regression with red EL2 followed by default-style text fails independent xterm comparison: BG=-1 instead of BG=1. Preserve erased-cell attributes across viewport/history append and rebuild paths, with independent regressions. ARCH-PURPOSE.'
+          family: terminal-cell-attribute-fidelity
+          round: 10
+        - id: BR-14
+          severity: Important
+          title: Couch removes exited children without disposing their publication workers
+          detail: cmd/internal/couchtty/console.go:934 retires the origin without Child.Close; cmd/internal/ptychild/publication.go:93 waits indefinitely without cancellation. A scratch regression confirms the endpoint remains usable after removal and a subsequent console command. This is the 2nd finding in family artifact-lifetime-ownership. State the drain/deselect/retire/dispose rule and sweep natural exit, park/relaunch, failed attachment, and teardown rather than fixing only this instance. ARCH-FUNERAL / ARCH-ORDER.
+          family: artifact-lifetime-ownership
+          round: 10
+        - id: BR-15
+          severity: Important
+          title: Runtime generation directly invokes tic without an injectable compiler seam
+          detail: cmd/internal/runtimebundlegen/generate.go:84 introduces a direct external compiler dependency; generator tests use the installed binary rather than a fake behind the production seam. Inject compilation, model output files and failures in portable test storage, and add a dedicated real-compiler conformance comparison. ARCH-MOCK.
+          family: external-dependency-seam
+          round: 10
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -395,6 +419,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-10 — addressed — Prior disposition retained; scoped temporary-directory cleanup and five native-driver tests pass.
 - BR-11 — addressed — Prior disposition retained; independent interrupted-presentation restoration tests pass.
 
+## Round 10 — 2026-09-15T14:54:01-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-13** [Critical] `terminal-cell-attribute-fidelity` History serialization drops backgrounds on erased interior cells
+  cmd/internal/terminal/history_render.go:213 emits only CUF for empty-content cells; background restoration covers only the trailing extent. A production-presenter scratch regression with red EL2 followed by default-style text fails independent xterm comparison: BG=-1 instead of BG=1. Preserve erased-cell attributes across viewport/history append and rebuild paths, with independent regressions. ARCH-PURPOSE.
+- **BR-14** [Important] `artifact-lifetime-ownership` Couch removes exited children without disposing their publication workers
+  cmd/internal/couchtty/console.go:934 retires the origin without Child.Close; cmd/internal/ptychild/publication.go:93 waits indefinitely without cancellation. A scratch regression confirms the endpoint remains usable after removal and a subsequent console command. This is the 2nd finding in family artifact-lifetime-ownership. State the drain/deselect/retire/dispose rule and sweep natural exit, park/relaunch, failed attachment, and teardown rather than fixing only this instance. ARCH-FUNERAL / ARCH-ORDER.
+- **BR-15** [Important] `external-dependency-seam` Runtime generation directly invokes tic without an injectable compiler seam
+  cmd/internal/runtimebundlegen/generate.go:84 introduces a direct external compiler dependency; generator tests use the installed binary rather than a fake behind the production seam. Inject compilation, model output files and failures in portable test storage, and add a dedicated real-compiler conformance comparison. ARCH-MOCK.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-13** [Critical] `terminal-cell-attribute-fidelity` History serialization drops backgrounds on erased interior cells
+- **BR-14** [Important] `artifact-lifetime-ownership` Couch removes exited children without disposing their publication workers
+- **BR-15** [Important] `external-dependency-seam` Runtime generation directly invokes tic without an injectable compiler seam

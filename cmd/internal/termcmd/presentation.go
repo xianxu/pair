@@ -233,7 +233,9 @@ func (m *terminalMux) closeActive() {
 	canClose := len(m.tabs) > 1
 	m.mu.Unlock()
 	if canClose && tab != nil && tab.child != nil {
-		tab.child.Close()
+		// The product owner must release gestures and retire presentation
+		// before Close disposes the endpoint; the exit watcher is idempotent.
+		m.removeTab(tab.id)
 	}
 }
 func (m *terminalMux) removeTab(id int) {

@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 	"io"
 	"os"
+	"reflect"
 	"runtime"
 	"strings"
 	"sync"
@@ -47,12 +49,12 @@ func TestTerminalSoakChild(t *testing.T) {
 				continue
 			}
 			if bytes.HasPrefix(line, []byte("app")) {
-				fmt.Print("\x1b[?1002h")
+				fmt.Print("\x1b[?1002h\x1b[?1049h")
 			}
 			if bytes.HasPrefix(line, []byte("shell")) {
-				fmt.Print("\x1b[?1002l")
+				fmt.Print("\x1b[?1002l\x1b[?1049l")
 			}
-			fmt.Printf("\x1b[?2026h\x1b[2J\x1b[H%s\x1b[2;1H界 é\x1b]2;soak\a\x1b[?2026l", hex.EncodeToString(line))
+			fmt.Printf("\x1b[?2026h\x1b[2J\x1b[H%s\x1b[2;1H\x1b[1;38;2;1;2;3m界 é\x1b[0m\x1b[2;5H\x1b[?25h\x1b]2;soak\a\x1b[?2026l", hex.EncodeToString(line))
 			line = line[:0]
 		}
 	}
@@ -77,6 +79,37 @@ func (p *soakParent) WriteContext(ctx context.Context, data []byte) (int, error)
 }
 func (p *soakParent) text() string { p.mu.Lock(); defer p.mu.Unlock(); return p.screen.String() }
 
+// Runtime product state stays finite; long runs must not retain action logs.
+type soakRuntime struct{ fakeRuntime }
+
+func (*soakRuntime) RunZellijAction(...string) error      { return nil }
+func (*soakRuntime) RunZellijActionQuiet(...string) error { return nil }
+
+func (p *soakParent) compare(frame terminal.Frame) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	blank := func(s string) string {
+		if s == "" {
+			return " "
+		}
+		return s
+	}
+	for y := 0; y < frame.Geometry.Rows; y++ {
+		for x := 0; x < frame.Geometry.Cols; x++ {
+			got := p.screen.CellAt(x, y)
+			want := frame.Cells[y*frame.Geometry.Cols+x]
+			if got == nil || blank(got.Content) != blank(want.Content) || got.Width != want.Width || !reflect.DeepEqual(got.Style, want.Style) || !reflect.DeepEqual(got.Link, want.Link) {
+				return fmt.Errorf("cell %d,%d got%+v want%+v", x, y, got, want)
+			}
+		}
+	}
+	cursor := p.screen.CursorPosition()
+	if cursor.X != frame.Cursor.X || cursor.Y != frame.Cursor.Y {
+		return fmt.Errorf("cursor%v want%+v", cursor, frame.Cursor)
+	}
+	return nil
+}
+
 // Default is a short deterministic integration run. Opt in with
 // PAIR_TERMINAL_SOAK_DURATION=30m; this alone does not qualify native Zellij or
 // Couch detach/reattach. Captures are bounded to current screens on failure.
@@ -95,7 +128,7 @@ func TestTerminalProductionSoak(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	m := newTerminalMux(binary, []string{"-test.run=^TestTerminalSoakChild$"}, parent, &fakeRuntime{})
+	m := newTerminalMux(binary, []string{"-test.run=^TestTerminalSoakChild$"}, parent, &soakRuntime{})
 	m.rows, m.cols = 8, 80
 	m.shellEnv = []string{"PAIR_TERMINAL_SOAK_CHILD=1"}
 	t.Cleanup(m.closeAll)
@@ -135,6 +168,7 @@ func TestTerminalProductionSoak(t *testing.T) {
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 8, Cols: 80})
 	send := func(raw string) { pumpStdin(strings.NewReader(raw), m, m.rt, io.Discard) }
 	start := time.Now()
+	lastProgress := start
 	iterations := 0
 	var maxLatency time.Duration
 	for iterations < 12 || time.Since(start) < duration {
@@ -164,6 +198,16 @@ func TestTerminalProductionSoak(t *testing.T) {
 		if !strings.Contains(parent.text(), hex.EncodeToString([]byte(want))) {
 			t.Fatalf("acknowledged receipt not visible: %q", parent.text())
 		}
+		frame, err := tab.child.Endpoint().Snapshot(time.Now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if frame.AltScreen != app {
+			t.Fatalf("alternate screen=%v want%v", frame.AltScreen, app)
+		}
+		if err := parent.compare(frame); err != nil {
+			t.Fatal(err)
+		}
 		rows := uint16(8)
 		if iterations%3 == 0 {
 			rows = 6
@@ -180,6 +224,15 @@ func TestTerminalProductionSoak(t *testing.T) {
 			t.Fatal(failure)
 		}
 		iterations++
+		if now := time.Now(); now.Sub(lastProgress) >= time.Minute {
+			var stats runtime.MemStats
+			runtime.ReadMemStats(&stats)
+			parent.mu.Lock()
+			written, writes := parent.bytes, parent.writes
+			parent.mu.Unlock()
+			t.Logf("term soak progress elapsed=%s iterations=%d parent_bytes=%d writes=%d max_input_visible=%s heap_alloc=%d goroutines=%d", now.Sub(start), iterations, written, writes, maxLatency, stats.HeapAlloc, runtime.NumGoroutine())
+			lastProgress = now
+		}
 	}
 	m.closeAll()
 	if m.closeErr != nil {

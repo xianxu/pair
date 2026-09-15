@@ -150,12 +150,21 @@ func reflowHistory(rows []HistoryRow, cols int) ([]historyPaintRow, error) {
 				current.wrapped = true
 				have = true
 			}
+			// A previous physical row may carry painted trailing blanks. New
+			// logical text replaces that padding instead of counting it as text.
+			current.cells = current.cells[:current.used]
 			current.cells = append(current.cells, c)
 			if width == 2 {
 				current.cells = append(current.cells, Cell{})
 				x++
 			}
 			current.used += width
+		}
+		// Keep erase/background paint beyond the text extent. It remains
+		// physical padding and never changes logical-line length or wrapping.
+		current.cells = current.cells[:current.used]
+		for x := row.Meta.UsedColumns; x < len(row.Cells) && len(current.cells) < cols; x++ {
+			current.cells = append(current.cells, row.Cells[x])
 		}
 	}
 	flush()
@@ -211,6 +220,11 @@ func (e *historyEmitter) cells(cells []Cell, used int) {
 			link = c.Link
 		}
 		if c.Content == "" {
+			// Moving over an erased cell alone loses its background. ECH paints
+			// it while retaining an empty-content cell in the terminal model.
+			if c.Style.Bg != nil {
+				e.add("\x1b[X")
+			}
 			e.add("\x1b[C")
 		} else {
 			e.add(c.Content)
@@ -222,9 +236,36 @@ func (e *historyEmitter) cells(cells []Cell, used int) {
 	e.resetStyle()
 }
 
+// blankTail paints physical erase cells without extending the logical text
+// extent. Restoring with CUP-to-start plus CUF avoids inventing default padding
+// in Zellij; callers may immediately establish an outgoing soft wrap.
+func (e *historyEmitter) blankTail(cells []Cell, used, cols, y int, soft bool) {
+	painted := false
+	for x := used; x < len(cells); x++ {
+		// Autowrap paints the final early-wide gap without materializing a
+		// copied space in Zellij. ECH here would destroy that provenance.
+		if soft && x == cols-1 {
+			continue
+		}
+		c := cells[x]
+		if c.Style.Bg != nil {
+			e.cup(x, y)
+			e.add("\x1b[0m" + c.Style.String() + "\x1b[X")
+			painted = true
+		}
+	}
+	if painted {
+		e.resetStyle()
+		e.cup(0, y)
+		if used > 0 {
+			e.add(fmt.Sprintf("\x1b[%dC", used))
+		}
+	}
+}
+
 // wrap sets the following row's soft link without filling a short source with
 // copied spaces. CUF does not materialize padding in Zellij, whereas CUP does.
-func (e *historyEmitter) wrap(used, cols int) {
+func (e *historyEmitter) wrap(cells []Cell, used, cols int) {
 	if used >= cols {
 		e.add("x")
 		return
@@ -232,7 +273,14 @@ func (e *historyEmitter) wrap(used, cols int) {
 	if cols-used > 1 {
 		e.add(fmt.Sprintf("\x1b[%dC", cols-used-1))
 	}
+	// Early-wide autowrap erases the last source column with the current
+	// background. Match its retained blank paint instead of resetting it.
+	if len(cells) >= cols && cells[cols-1].Style.Bg != nil {
+		gap := uv.Style{Bg: cells[cols-1].Style.Bg}
+		e.add(gap.String())
+	}
 	e.add("界")
+	e.resetStyle()
 }
 func (p HistoryRender) Emit(write func([]byte) error) error {
 	if !p.dirty {
@@ -283,8 +331,9 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 			if i+1 < len(p.rows) {
 				soft = p.rows[i+1].wrapped
 			}
+			e.blankTail(row.cells, row.used, cols, 0, soft)
 			if soft {
-				e.wrap(row.used, cols)
+				e.wrap(row.cells, row.used, cols)
 			}
 			if height > 1 {
 				e.cup(0, 1)
@@ -317,16 +366,9 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 		row := p.next.Cells[y*cols : (y+1)*cols]
 		meta := p.next.rowMetadata(y)
 		e.cells(row, meta.UsedColumns)
-		// Preserve erased-cell backgrounds beyond text without printing spaces.
-		// Default padding remains untouched, including early-wide wrap gaps.
-		for x := meta.UsedColumns; x < cols; x++ {
-			c := row[x]
-			if c.Style.Bg != nil {
-				e.cup(x, y)
-				e.add("\x1b[0m" + c.Style.String() + "\x1b[X")
-			}
-		}
-		if y+1 < height && p.next.rowMetadata(y+1).Wrapped {
+		soft := y+1 < height && p.next.rowMetadata(y+1).Wrapped
+		e.blankTail(row, meta.UsedColumns, cols, y, soft)
+		if soft {
 			e.cup(0, y)
 			if meta.UsedColumns > 0 {
 				e.add(fmt.Sprintf("\x1b[%dC", meta.UsedColumns))
@@ -341,7 +383,7 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 				e.cup(last, y)
 				e.cells(row[last:], cols-last)
 			}
-			e.wrap(meta.UsedColumns, cols)
+			e.wrap(row, meta.UsedColumns, cols)
 		}
 	}
 	e.resetStyle()

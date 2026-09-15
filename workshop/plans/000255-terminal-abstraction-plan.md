@@ -443,3 +443,13 @@ The initial owned full-window publication is intentionally uncached. Saturated-h
 ### 2026-09-15 — M3 implementation complete, boundary review requested
 
 Both production consumers, wrapper passthrough, typed native history, bundled profile and shadow-authority removal are implemented. Detailed M3 work items are checked for completed implementation/verification; the issue-level M3 row remains owned by the SDLC review result. Native held-drag highlight and copied-text checks pass in direct and wrapped Zellij. Parent failure/leave diagnostics are deferred until joined release and raw restoration; release failures affect the exit status. M4 sustained runs, final performance comparison, persistent native reattachment and the operator smoke pause remain outstanding. No deployed binary or operator session was changed.
+
+## Revisions — 2026-09-15 M3 review class sweep (BR-13–BR-15)
+
+The first M3 boundary review returned REWORK. Complete these corrections before retrying the boundary; M4's long runs remain gated.
+
+- **Terminal cell attributes:** erased/unprinted blanks retain rendition independently of printed provenance. Sweep viewport, retained history, incremental append, rebuild, and alternate-screen serialization; compare interior and trailing erased backgrounds through the independent wire oracle. ARCH-PURPOSE.
+- **Terminal resource ownership:** every accepted child has a last owner. Final output drains before deselection/retirement; retirement is followed by disposal. Enumerate natural exit (including last visible child), park/relaunch, failed attachment/acknowledgment, replacement, and Console teardown. Tests must prove endpoint/publication disposal and joined workers, not only absence from a pane map. ARCH-FUNERAL / ARCH-ORDER.
+- **Build-time dependency:** inject a TerminfoCompiler that writes entries into caller-owned temporary storage. Unit tests use a stateful filesystem fake for platform-specific entry directories, failed/empty compilation and preservation of prior output. Production uses tic; separate native conformance checks decode its generated entry with infocmp. Temporary compiler/staging storage is removed on success and failure. ARCH-MOCK.
+
+M4 harness preparation additionally removes the test runtime's growing action transcript, records bounded once-per-minute progress, and compares term cells/styles/cursor plus normal/alternate buffers. These are qualification changes, not evidence of completed sustained tests.

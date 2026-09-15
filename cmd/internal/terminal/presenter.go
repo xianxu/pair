@@ -60,6 +60,7 @@ type Presenter struct {
 	altOwned       bool
 	history        HistoryState
 	modesKnown     bool
+	parentTouched  bool // actor-owned; even an interrupted first write requires release
 }
 
 func NewPresenter(w ttyio.Writer, policy ParentMousePolicy) *Presenter {
@@ -125,7 +126,10 @@ func (p *Presenter) run() {
 		select {
 		case ctx := <-p.stop:
 			cancelErr := p.cancelDrag(ctx)
-			p.releaseErr = errors.Join(cancelErr, p.write(ctx, append(p.releaseAlt(), parentReleaseControls(p.keyboardOwned)...), false))
+			p.releaseErr = cancelErr
+			if p.parentTouched {
+				p.releaseErr = errors.Join(cancelErr, p.write(ctx, append(p.releaseAlt(), parentReleaseControls(p.keyboardOwned)...), false))
+			}
 			p.transition(ViewEvent{Kind: ReleaseView})
 			return
 		case r := <-p.requests:
@@ -178,6 +182,9 @@ func (p *Presenter) run() {
 	}
 }
 func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
+	if len(data) > 0 {
+		p.parentTouched = true
+	}
 	ctx, cancel := context.WithTimeout(ctx, WriteTimeout)
 	defer cancel()
 	if normal {

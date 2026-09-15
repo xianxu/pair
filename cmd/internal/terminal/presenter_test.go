@@ -26,6 +26,18 @@ func selectPresenter(t *testing.T, p *Presenter, e *Endpoint) {
 		t.Fatal(err)
 	}
 }
+func TestPresenterUnwrittenReleaseDoesNotTouchParent(t *testing.T) {
+	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	if err := p.Register(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Release(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if parent.Calls() != 0 {
+		t.Fatalf("unacquired parent changed by disposal: %q", parent.Bytes())
+	}
+}
 func TestPresenterAdmissionWaitsForCompletePaint(t *testing.T) {
 	p, parent, e, input := presenterFixture(t, CouchAnyMotion)
 	block := make(chan struct{})

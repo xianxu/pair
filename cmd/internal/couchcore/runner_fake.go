@@ -232,9 +232,9 @@ func (h *fakeBlockedHandle) Acknowledge() error {
 
 func (h *fakeBlockedHandle) Cancel() error {
 	h.runner.mu.Lock()
-	defer h.runner.mu.Unlock()
 	c, ok := h.runner.children[h.id]
 	if !ok || !c.alive || !c.Blocked {
+		h.runner.mu.Unlock()
 		return fmt.Errorf("fake runner: blocked start %s already resolved", h.id)
 	}
 	c.Blocked = false
@@ -243,7 +243,8 @@ func (h *fakeBlockedHandle) Cancel() error {
 	close(c.done)
 	c.terminal.Exit(1)
 	h.runner.Ops = append(h.runner.Ops, "cancel "+h.id)
-	return nil
+	h.runner.mu.Unlock()
+	return c.terminal.Close()
 }
 
 func (h *fakeHandle) ID() string { return h.id }

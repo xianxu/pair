@@ -5001,3 +5001,9 @@ that transition authority is pure or enforced.
 Replacing raw output with typed effects must preserve selected-versus-hidden behavior for each effect, independently of terminal parsing. A hidden clipboard write was previously suppressed with hidden raw output; enabling every typed effect for every origin leaked it to the operator. Test selected delivery, hidden suppression, later selection without replay, and local query replies separately. Notification attention may still use delivery-time focus while clipboard/title/bell emission uses the selected surface.
 
 Owned terminal teardown must finish before fallback stderr writes: stderr often aliases the same physical TTY. Record failures during ownership, cancel and join IO, release parent modes, then report; cancellation must not discard a release failure.
+
+### 2026-09-15 — #255 M3 boundary review
+
+- Erased terminal cells still carry rendition. Preserving unprinted provenance with cursor movement is insufficient unless background attributes are also reproduced. Compare literal interior and trailing blanks across viewport/history/alternate serializers with an independent terminal.
+- Removing an origin from a UI map is not resource disposal. Enumerate each terminal ownership exit and require drained final output, deselection/retirement, then joined disposal; retained final frames still need an explicit last owner.
+- A build-time executable is an external dependency too. Inject its filesystem-producing boundary, test output/error behavior with a stateful fake, and keep real-tool conformance separate from unit tests.
