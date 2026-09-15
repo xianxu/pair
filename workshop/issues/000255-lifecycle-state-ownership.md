@@ -4,7 +4,7 @@ status: open
 deps: []
 github_issue:
 created: 2026-09-14
-updated: 2026-09-14
+updated: 2026-09-15
 estimate_hours:
 ---
 
@@ -56,15 +56,45 @@ A process may host several state machines; an operation may coordinate several p
 - Return structured external outcomes as events, with exact process/attempt identities; preserve unknown through observation, projection and recovery.
 - Test independent invariants after generated event sequences and force orderings at production scheduling boundaries. Reducer fuzzing alone cannot prove IO-shell wiring or cross-resource ordering.
 
+### Terminal abstraction contract
+
+Specify the terminal abstraction presented to each inner program before assigning implementation fields to owners. Adding a status bar, switching threads or intercepting shortcuts must preserve that abstraction within a declared supported protocol. Serialization and race freedom alone do not establish correct terminal semantics (ARCH-ORDER). Selective parsing plus passthrough needs an explicit preservation contract; terminal complexity is not an exemption from it.
+
+Document supported features, capability advertisement and deliberate transformations, including geometry, cursor/save state, scrolling regions, screen buffers, rendering attributes, UTF-8/control framing, synchronized drawing, mouse and keyboard modes, and terminal queries/replies. Define how unsupported sequences are forwarded or handled without corrupting framing or falsely advertising support. This is a design requirement, not a decision to build another complete emulator or to filter additional sequences.
+
+Separate three kinds of state:
+
+- **Child-requested state:** derived from each child's continuous output, including background output; exposed as a coherent snapshot tied to an output position and child identity.
+- **Selected-view state:** region ownership, selected source, geometry, input destination and the output/replay boundary for a switch.
+- **Parent-terminal state:** desired configuration and evidence of emitted effects, with explicit partial-write/error uncertainty. A scanner's belief and successful byte acceptance are not a terminal-state query.
+
+Each state has one transition owner; multiple parsers are legitimate when they represent distinct terminal connections or delivery stages. Consumers must not reconstruct competing versions of the same authority from different stream fragments. One compositor owns parent output and mode reconciliation. Switching must order old-source admission, pending output, establishment of new state/view and admission of the new source; generation/position checks prevent queued old output from becoming current. Bounded replay may restore content but is not authority for persistent terminal modes.
+
+Input modes apply to a terminal connection, while event routing follows region/focus and an explicit press/drag/release policy. Couch's child is the Zellij client; Zellij owns routing among its panes. Couch need not infer whether Claude, Codex or nvim occupies an inner pane. If Couch requests a superset such as mouse mode1003, define filtering to each child's requested event set and encoding. Using1003 is a candidate policy, not a substitute for ownership, switch restoration or input conformance.
+
+### Terminal acceptance properties
+
+- **Chunk independence:** every split of equivalent valid bytes produces equivalent child-visible and parent-rendered behavior; control injection cannot divide UTF-8 characters or terminal sequences. Malformed/incomplete streams have explicit bounded handling.
+- **Switch preservation:** after switching away/back, the selected child's view and input contract match its current state, including background mode changes and commands that aged out of replay.
+- **UI isolation:** composing Couch/Pair UI preserves the inner program's cursor/save state, attributes, scrolling region, buffers and drawing semantics under the declared geometry mapping.
+- **Input fidelity:** only the intended destination receives an event, in the negotiated encoding/event set; parent-only shortcuts are consumed and mouse coordinates/drag ownership remain consistent.
+- **Ordered effects:** live output, replay, focus changes, resize and failed/partial writes cannot silently publish contradictory ownership or confirmed host state.
+
+Test these through production composition with an independent terminal interpreter/stateful fake and live conformance where practical. Force byte splits and switch/output schedules; checking internal fields with the same parser is insufficient. Preserve existing local reducers and parser tests as supporting coverage (ARCH-MOCK, ARCH-DRY).
+
 ### Related work
 
 - #224 owns the typed console-writer door. Coordinate or expand its scope for whole focus/screen transactions; avoid a second parallel implementation.
 - #250 owns stale-thread recovery and currently changes the audited surfaces. Reconcile this design against its final implementation.
 - #253 owns default bounded attachment-disconnect telemetry. Reuse its structured outcomes; telemetry is evidence collection, not proof of the past incident's cause.
 
+- #207 (mouse ownership/restoration), #252 (UTF-8 injection boundaries), #254 (minimal filtering), and #241 (private-mode reconciliation) provide concrete terminal-contract acceptance cases. Revalidate fixes against current code; avoid parallel owners or duplicated parsers.
+
 These are coordination references, not a claim that all work is blocked on all three. Set actual dependencies and child issues during design. No live-session repairs or production refactoring are authorized by this capture alone.
 
 ## Done when
+
+- A dedicated terminal-contract design specifies the supported abstraction, state authorities, transformations and all terminal acceptance properties above; composed conformance tests enforce them. Keep this as an independently verifiable part of the broader lifecycle design.
 
 - A canonical vocabulary/ownership map names real code components and explains independent thread, native-session, process and attachment lifetimes.
 - The reproduced race is covered by a committed regression; the terminal transition design also prevents stale output/input ownership across switches.
@@ -74,6 +104,8 @@ These are coordination references, not a claim that all work is blocked on all t
 - Existing local FSM guarantees remain valid; focused integration/conformance evidence demonstrates production routing, and #224/#250/#253 ownership is resolved without duplicated work.
 
 ## Plan
+
+- [ ] Design the terminal-contract portion explicitly and map #207/#241/#252/#254 acceptance cases and #224 writer ownership to it; decide implementation boundaries or child issues without replacing the broader lifecycle scope.
 
 - [ ] Revalidate findings against the latest implementation and coordinate with #224, #250 and #253.
 - [ ] Claim/start-plan and author an approved durable design with vocabulary, owners, transition contracts, uncertainty semantics and implementation boundaries.
@@ -116,3 +148,13 @@ func TestAuditConcurrentOutputAndSwitch(t *testing.T) {
 ```
 
 The overlay maps an additional `cmd/internal/couchtty/audit_temp_test.go` to the temporary source above. Observed result: `WARNING: DATA RACE`, followed by test failure. This demonstrates the field race only; it neither reproduces the random disconnect nor proves every hypothesized interleaving.
+
+### 2026-09-15 — Terminal abstraction discussion
+
+Operator challenged the explanation that adding UI and interception inherently makes interference unavoidable: a faithful terminal abstraction should preserve inner-program behavior. Accepted that correction. The missing requirement is a semantic terminal contract, not merely more locks or single-owner fields. Current #252 reproduction violates chunk independence. The #207 trace records click-only writes during panel display and subsequent takeover with no restored mouse modes; this supports a mode-restoration gap, while the initial background mouse-off source remains unresolved. These observations do not establish the disconnect cause. No production changes or live repairs were made for this issue update.
+
+## Revisions
+
+### 2026-09-15 — Make terminal semantics explicit within generic ownership scope
+
+Reason: operator requested a rigorous terminal abstraction rather than attributing interference to inevitable layered complexity. Added a dedicated terminal-contract design requirement, separated child-requested/selected-view/parent-terminal state, defined observable acceptance properties and connected the concrete mouse, UTF-8, filtering and mode-reconciliation issues. Preserved the original lifecycle, external-outcome and uncertainty scope and historical audit evidence. Implementation remains open and requires the existing durable-design approval; this update does not select a full emulator or authorize a blanket1003 change.
