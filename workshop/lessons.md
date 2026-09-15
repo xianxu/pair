@@ -4980,3 +4980,5 @@ that transition authority is pure or enforced.
 
 
 - Terminal qualification: literal spot checks and whole/split equivalence serve different purposes. Require both, comparing every observed field across byte partitions; cover style attributes as well as glyphs/colors, and keep bounded structured evidence separate from the full correctness predicate. New runnable probes need README invocation and exit-status documentation. (#255 M1 review, 2026-09-15)
+
+- Partition tests must inspect delivered content and every byte boundary, not merely invocation counts. Mutation-test duplicated whole inputs, dropped bytes and omitted split points; test the executor path as well as the partition generator. (#255 M1 BR-5, 2026-09-15)

@@ -201,3 +201,8 @@ The executable qualification is implemented under `cmd/internal/terminalqualify`
 ### 2026-09-15 review-driven qualification corrections
 
 Reason: first M1 review found sparse split predicates, unobserved style fields and incomplete evidence/documentation. Delta: full-observation split equivalence plus independent literals; attribute/underline fixtures; bounded structured evidence with explicit truncation and comparison kind; README usage. Matrix expands from 70 to 82 obligations. This corrects the qualification instrument without changing production scope or final operator acceptance.
+
+
+### 2026-09-15 — M1 review round 2 partition-test correction
+
+Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests counted calls without proving delivered bytes. Added literal partitions for empty, single-byte, multi-byte UTF-8 and CSI inputs, plus independent byte-preservation and every-boundary assertions over all 256 byte values and mixed Unicode/control streams. The production RunCase executor path is checked with the same invariant. Four mutations are detected by failed assertions: repeating whole input, dropping a byte, skipping alternating boundaries and omitting the first boundary. No production implementation changed in this correction. Final full Go suite passed after round 1 corrections; focused race verification covers these additional tests.

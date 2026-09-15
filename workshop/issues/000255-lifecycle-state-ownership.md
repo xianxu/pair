@@ -197,3 +197,8 @@ Full Go suite passed after generating runtime assets; focused normal/race and ar
 ### 2026-09-15 — M1 boundary review round 1: REWORK
 
 Four findings addressed before resubmission: BR-1 complete observation equivalence, BR-2 non-color text attribute coverage, BR-3 bounded structured JSON evidence, BR-4 README probe documentation. Added regression tests first; focused race tests pass. Updated matrix: 53 pass, 15 fail, 14 not-covered, still rejecting unchanged production adoption. Added the general qualification lesson to workshop/lessons.md. No REWORK verdict is recorded as a completed review boundary.
+
+
+### 2026-09-15 — M1 review round 2 partition-test correction
+
+Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests counted calls without proving delivered bytes. Added literal partitions for empty, single-byte, multi-byte UTF-8 and CSI inputs, plus independent byte-preservation and every-boundary assertions over all 256 byte values and mixed Unicode/control streams. The production RunCase executor path is checked with the same invariant. Four mutations are detected by failed assertions: repeating whole input, dropping a byte, skipping alternating boundaries and omitting the first boundary. No production implementation changed in this correction. Final full Go suite passed after round 1 corrections; focused race verification covers these additional tests.

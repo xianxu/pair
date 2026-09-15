@@ -31,7 +31,7 @@ M1 correctly isolates qualification from production and reproducibly rejects unc
 
 ## 2. Critical findings
 
-**Whole/split equivalence is never checked — ARCH-PURPOSE.**  
+**Whole/split equivalence is never checked — ARCH-PURPOSE.**
 `cmd/internal/terminalqualify/runner.go:43` compares each delivery variant only against the fixture’s sparse expectations. It never retains the whole-input observation or compares subsequent observations against it.
 
 For example, the ASCII fixture can still pass if split delivery corrupts `cell:7,3`, changes its color, or emits an unexpected reply: none is in that fixture’s expected subset. This contradicts the completed Task 2 promise that any changed cell/cursor/style/link is detected.
@@ -40,13 +40,13 @@ For example, the ASCII fixture can still pass if split delivery corrupts `cell:7
 
 ## 3. Important findings
 
-- **Rendering attributes are unobservable — ARCH-PURPOSE.**  
+- **Rendering attributes are unobservable — ARCH-PURPOSE.**
   `cmd/internal/terminalqualify/candidate.go:204` copies foreground/background colors but drops `Style.Attrs`, `Underline`, and `UnderlineColor`. The matrix neither exercises these attributes nor lists them as uncovered. Bold, underline, and inverse are distinct rendering semantics in the [xterm protocol](https://invisible-island.net/xterm/ctlseqs/ctlseqs.html). Extend snapshots and literal set/reset/preservation fixtures; test that dropping these fields fails.
 
-- **JSON lacks promised expected/observed evidence — ARCH-PURPOSE.**  
+- **JSON lacks promised expected/observed evidence — ARCH-PURPOSE.**
   `cmd/internal/terminalqualify/report.go:21` stores status and detail only. Passing results contain a delivery-count sentence; failures contain only the first mismatch. Plan line 135 explicitly promises expected/observed results. Add bounded structured evidence identifying what was checked and observed, with JSON regression tests.
 
-- **README update appears missing for the qualification probe.**  
+- **README update appears missing for the qualification probe.**
   `cmd/probes/terminalqualify/main.go:41` introduces a runnable command with meaningful exit statuses. Atlas documents it, but README is unchanged in the pinned range. Add invocation, output, exit-status meanings, and the qualification-report link.
 
 ## 4. Minor findings
@@ -115,3 +115,106 @@ findings:
     detail: |
       cmd/probes/terminalqualify/main.go:41 adds a runnable diagnostic with distinct exit statuses, but README.md is unchanged in the pinned range. Document invocation, JSON output, exit meanings, and the qualification report.
 ```
+
+---
+
+## Re-review — 2026-09-15T10:26:56-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | b11ab67ff1d290386cf12177f2dacdccbc8551c0..021afbe2cf803bbfaa80dfb6dced63b898785f68 |
+| command | sdlc milestone-close --issue 255 --milestone M1 |
+| reviewer | codex |
+| timestamp | 2026-09-15T10:26:56-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All four prior findings are addressed, including regression tests that fail when the executable fixes are removed. The probe reproduces **53 pass, 15 fail, 14 not-covered**, correctly rejecting unchanged backend adoption. One Important testing gap remains: the plan claims missed byte partitions are detected, but the complete harness suite passes when every two-part split is replaced with unsplit input.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      runner.go:53 compares complete observations in both directions. Disabling this comparison makes TestRunCaseDetectsUnassertedSplitStateChanges fail for cells, attributes, links, replies, and added keys.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      candidate.go:207 captures attributes, underline style, and underline color; screen_cases.go adds 12 literal set/reset/preservation cases. Removing attribute capture makes TestCandidateCapturesCompleteStyle fail.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      report.go:29 and runner.go:94 provide bounded expected/observed evidence. Removing expected JSON serialization makes TestRunJSONPreservesStructuredEvidence fail; the real probe emits evidence for every executable case.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The pinned README.md:773 addition documents invocation, JSON evidence, exit meanings, and the qualification report. These match cmd/probes/terminalqualify/main.go:16 and the reproduced negative qualification.
+findings:
+  - id: new
+    severity: Important
+    family: qualification-observation-equivalence
+    title: |
+      Promised partition-coverage regression tests do not verify delivered bytes
+    detail: |
+      cmd/internal/terminalqualify/runner_test.go:11 checks chunk counts and call counts, but never their contents; the completed plan checkbox at workshop/plans/000255-terminal-abstraction-plan.md:161 promises detection of missed splits. Replacing cases.go:20 with []string{input, ""} leaves both complete harness packages green. This is the 2nd finding in family qualification-observation-equivalence. Earlier corrections covered observation comparison; enforce the complete rule across partition generation and comparison: preserve the input bytes, enumerate every byte boundary, include byte-at-a-time delivery, and detect changed observations. Add independent partition expectations covering empty, single-byte, multibyte, and control-sequence inputs, and require this mutation to fail. ARCH-PURPOSE.
+```
+
+## 1. Strengths
+
+- Full-observation comparison is separate from bounded presentation evidence.
+- Candidate tests exercise origin isolation, blocked replies, cancellation, and joined cleanup through the actual transport seam.
+- README, atlas, and qualification report consistently distinguish diagnostic success from backend suitability.
+- The M1 implementation remains isolated from production consumers.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**Partition coverage lacks the promised regression protection** — `cmd/internal/terminalqualify/cases.go:20`, `runner_test.go:11`.
+
+Add tests that inspect the actual partitions, independently asserting byte preservation and complete boundary coverage. Current partition generation appears correct; the demonstrated gap is in its regression protection and the completed Plan claim.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+- Passed focused race tests for `terminalqualify`, its probe, and `artifactpath`.
+- Reproduced the documented probe results and exit status.
+- Temporary overlays confirmed BR-1, BR-2, and BR-3 regressions fail without their fixes.
+- The partition mutation unexpectedly passed both complete harness packages.
+- Source/docs diff checks passed; the full range reports four Markdown trailing-space occurrences in the archived review.
+- Full repository and live conformance suites were not rerun. Repository files remained unchanged.
+
+## 6. Architectural notes
+
+| Marker | Assessment |
+|---|---|
+| ARCH-DRY | **Pass:** shared runner/comparator; executable fixtures supply requirements. |
+| ARCH-PURE | **Pass:** observation/report logic uses direct tests; candidate IO remains separate. |
+| ARCH-PURPOSE | **Flag:** promised partition regression protection is incomplete. Negative qualification otherwise fulfills M1’s approved scope. |
+| ARCH-MOCK | **Pass for M1:** controlled transport doubles share the candidate seam; production/live obligations remain explicitly not-covered. |
+| ARCH-CONSTRAINTS | **Pass for M1:** fixture, geometry, reply, evidence, and execution bounds are explicit. |
+| ARCH-SECURE | **Pass:** synthetic inputs, visible infrastructure failures, and no production credentials or sessions touched. |
+| ARCH-ORDER | **Pass for M1:** serialized execution and joined teardown have controlled lifecycle tests. |
+| ARCH-FUNERAL | **Pass:** disposable candidates close their workers; ordinary launches gain no durable artifacts. |
+
+The M1 concept-table entities exist at their stated locations. The broader production entities remain explicitly future work.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry acknowledging the partition-test gap and recording the byte-preservation/boundary-coverage invariant plus mutation evidence once corrected. Keep M2–M4 behind the documented backend re-plan checkpoint.
