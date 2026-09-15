@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"syscall"
 	"testing"
+	"time"
 )
 
 func TestKeyboardShutdownPaths(t *testing.T) {
@@ -21,7 +22,14 @@ func TestKeyboardShutdownPaths(t *testing.T) {
 			case "signal":
 				h.Terminate(syscall.SIGTERM)
 			}
-			waitFor(t, "shell keyboard restored", func() bool { return h.flags() == 0 && h.RawDepth() == 0 })
+			select {
+			case <-f.done:
+			case <-time.After(3 * time.Second):
+				t.Fatal("Console did not complete teardown")
+			}
+			if h.flags() != 0 || h.RawDepth() != 0 || !h.Closed() {
+				t.Fatal("completed teardown did not restore shell keyboard and host")
+			}
 			if !bytes.Equal(h.ctrlReturn(), []byte("\r")) {
 				t.Fatal("main screen retained keyboard mode")
 			}

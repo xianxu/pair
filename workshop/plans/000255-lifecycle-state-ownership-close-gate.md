@@ -294,6 +294,43 @@ rounds:
           round: 10
       boundary: M3
       blocked: true
+    - "n": 11
+      timestamp: "2026-09-15T15:11:38-07:00"
+      agent: codex
+      dispose:
+        - id: BR-13
+          disposition: addressed
+          note: Independent erased-background oracle tests pass at head; restoring the previous serializer makes indexed, RGB, and alternate viewport regressions fail.
+          round: 11
+        - id: BR-14
+          disposition: addressed
+          note: Production ownership and disposal paths plus exit, teardown, refusal, and rollback tests were inspected; restoring the previous Console makes the exited-origin disposal regression fail.
+          round: 11
+        - id: BR-15
+          disposition: addressed
+          note: Injected compiler and real tic/infocmp conformance tests pass; bypassing the injected compiler makes the PATH-isolated regression fail.
+          round: 11
+      findings:
+        - id: BR-16
+          severity: Critical
+          title: Presenter resize allocates before validating geometry
+          detail: cmd/internal/terminal/presenter.go:582 allocates using host.Cols before validation. A scratch production-API regression with selected chrome and Cols=-1 crashes the presenter goroutine. Validate before allocating and cover invalid and over-limit geometry through both resize entrypoints. ARCH-SECURE / ARCH-CONSTRAINTS.
+          family: validate-before-allocation
+          round: 11
+        - id: BR-17
+          severity: Important
+          title: Teardown regression mistakes ordinary paint output for shutdown completion
+          detail: 'cmd/internal/couchtty/vtscreen_test.go:165 accepts ResetRegion already emitted by history_render.go:301; simulated shell writes race teardown. Reproduced in the normal suite and 2 of 20 isolated repetitions. This is the 3rd finding in this family: require lifecycle completion acknowledgments and sweep teardown assertions across both consumers. ARCH-ORDER / ARCH-PURPOSE.'
+          family: qualification-observation-equivalence
+          round: 11
+        - id: BR-18
+          severity: Minor
+          title: Harness guide still recommends deleted wrapper filtering
+          detail: atlas/how-to-bring-up-a-new-harness-cli.md:108 describes stdoutChunk and Codex synchronized-output stripping, both removed by this range. Update the guide to the implemented wrapper contract.
+          family: documentation-surface-accuracy
+          round: 11
+      boundary: M3
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -430,8 +467,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-15** [Important] `external-dependency-seam` Runtime generation directly invokes tic without an injectable compiler seam
   cmd/internal/runtimebundlegen/generate.go:84 introduces a direct external compiler dependency; generator tests use the installed binary rather than a fake behind the production seam. Inject compilation, model output files and failures in portable test storage, and add a dedicated real-compiler conformance comparison. ARCH-MOCK.
 
+## Round 11 — 2026-09-15T15:11:38-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-13 — addressed — Independent erased-background oracle tests pass at head; restoring the previous serializer makes indexed, RGB, and alternate viewport regressions fail.
+- BR-14 — addressed — Production ownership and disposal paths plus exit, teardown, refusal, and rollback tests were inspected; restoring the previous Console makes the exited-origin disposal regression fail.
+- BR-15 — addressed — Injected compiler and real tic/infocmp conformance tests pass; bypassing the injected compiler makes the PATH-isolated regression fail.
+
+### Raised
+
+- **BR-16** [Critical] `validate-before-allocation` Presenter resize allocates before validating geometry
+  cmd/internal/terminal/presenter.go:582 allocates using host.Cols before validation. A scratch production-API regression with selected chrome and Cols=-1 crashes the presenter goroutine. Validate before allocating and cover invalid and over-limit geometry through both resize entrypoints. ARCH-SECURE / ARCH-CONSTRAINTS.
+- **BR-17** [Important] `qualification-observation-equivalence` Teardown regression mistakes ordinary paint output for shutdown completion
+  cmd/internal/couchtty/vtscreen_test.go:165 accepts ResetRegion already emitted by history_render.go:301; simulated shell writes race teardown. Reproduced in the normal suite and 2 of 20 isolated repetitions. This is the 3rd finding in this family: require lifecycle completion acknowledgments and sweep teardown assertions across both consumers. ARCH-ORDER / ARCH-PURPOSE.
+- **BR-18** [Minor] `documentation-surface-accuracy` Harness guide still recommends deleted wrapper filtering
+  atlas/how-to-bring-up-a-new-harness-cli.md:108 describes stdoutChunk and Codex synchronized-output stripping, both removed by this range. Update the guide to the implemented wrapper contract.
+
 ## Open findings
 
-- **BR-13** [Critical] `terminal-cell-attribute-fidelity` History serialization drops backgrounds on erased interior cells
-- **BR-14** [Important] `artifact-lifetime-ownership` Couch removes exited children without disposing their publication workers
-- **BR-15** [Important] `external-dependency-seam` Runtime generation directly invokes tic without an injectable compiler seam
+- **BR-16** [Critical] `validate-before-allocation` Presenter resize allocates before validating geometry
+- **BR-17** [Important] `qualification-observation-equivalence` Teardown regression mistakes ordinary paint output for shutdown completion
+- **BR-18** [Minor] `documentation-surface-accuracy` Harness guide still recommends deleted wrapper filtering

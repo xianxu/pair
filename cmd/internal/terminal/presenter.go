@@ -379,7 +379,10 @@ func (p *Presenter) Select(ctx context.Context, e *Endpoint, host Geometry, bott
 	if e == nil {
 		return errors.New("terminal: missing endpoint")
 	}
-	bottom = append([]Cell(nil), bottom...)
+	if err := validateLayout(host, bottom); err != nil {
+		return err
+	}
+	bottom = cloneCells(bottom)
 	return p.call(ctx, func(ctx context.Context) error {
 		f, err := e.Snapshot(time.Now())
 		if err != nil {
@@ -420,6 +423,9 @@ func (p *Presenter) Present(ctx context.Context, e *Endpoint) error {
 	return nil
 }
 func (p *Presenter) Panel(ctx context.Context, f Frame) error {
+	if err := f.Validate(); err != nil {
+		return err
+	}
 	f = f.Clone()
 	if f.EndpointID != "" {
 		return errors.New("terminal: panel has endpoint")
@@ -576,9 +582,15 @@ func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 	return nil
 }
 func (p *Presenter) Resize(ctx context.Context, host Geometry, apply func(Geometry) error) error {
+	if err := host.Validate(); err != nil {
+		return err
+	}
 	return p.call(ctx, func(ctx context.Context) error {
 		var bottom []Cell
 		if len(p.bottom) > 0 {
+			if host.Rows <= 1 {
+				return errors.New("terminal: no child rows")
+			}
 			bottom = make([]Cell, host.Cols)
 		}
 		return p.resizeLayout(ctx, host, bottom, apply)
@@ -587,16 +599,13 @@ func (p *Presenter) Resize(ctx context.Context, host Geometry, apply func(Geomet
 
 // ResizeLayout changes geometry and chrome reservation as one admitted layout.
 func (p *Presenter) ResizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
-	owned := make([]Cell, len(bottom))
-	for i, c := range bottom {
-		owned[i] = cloneCell(c)
+	if err := validateLayout(host, bottom); err != nil {
+		return err
 	}
+	owned := cloneCells(bottom)
 	return p.call(ctx, func(ctx context.Context) error { return p.resizeLayout(ctx, host, owned, apply) })
 }
-func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
-	if p.selected == nil {
-		return errors.New("terminal: resize requires endpoint")
-	}
+func validateLayout(host Geometry, bottom []Cell) error {
 	if err := host.Validate(); err != nil {
 		return err
 	}
@@ -610,12 +619,26 @@ func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Ce
 	if host.Rows <= reserved {
 		return errors.New("terminal: no child rows")
 	}
-	// Validate chrome before mutating child or physical geometry.
-	chromeFrame := Frame{Geometry: Geometry{Cols: host.Cols, Rows: 1}, Cells: bottom}
-	if reserved > 0 {
-		if err := chromeFrame.Validate(); err != nil {
-			return err
-		}
+	return validateChrome(bottom)
+}
+
+func validateChrome(cells []Cell) error {
+	if len(cells) == 0 {
+		return nil
+	}
+	return (Frame{Geometry: Geometry{Cols: len(cells), Rows: 1}, Cells: cells}).Validate()
+}
+
+func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
+	if p.selected == nil {
+		return errors.New("terminal: resize requires endpoint")
+	}
+	if err := validateLayout(host, bottom); err != nil {
+		return err
+	}
+	reserved := 0
+	if len(bottom) > 0 {
+		reserved = 1
 	}
 	if err := p.cancelDrag(ctx); err != nil {
 		return p.fail(err)
@@ -751,10 +774,10 @@ func (p *Presenter) Flush(ctx context.Context) error {
 // UpdateChrome publishes a new reserved row without changing selection or drag
 // ownership. Validation precedes retained-state mutation.
 func (p *Presenter) UpdateChrome(ctx context.Context, cells []Cell) error {
-	owned := make([]Cell, len(cells))
-	for i, c := range cells {
-		owned[i] = cloneCell(c)
+	if err := validateChrome(cells); err != nil {
+		return err
 	}
+	owned := cloneCells(cells)
 	return p.call(ctx, func(ctx context.Context) error {
 		if p.selected == nil {
 			return errors.New("terminal: chrome requires selected endpoint")

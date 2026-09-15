@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -96,6 +97,12 @@ func (h *vtHost) row(n int) string {
 
 func newVTFixture(t *testing.T, rows, cols uint16) (*vtHost, *ptychild.Child, *Console) {
 	t.Helper()
+	host, child, con, _ := newVTFixtureWithDone(t, rows, cols)
+	return host, child, con
+}
+
+func newVTFixtureWithDone(t *testing.T, rows, cols uint16) (*vtHost, *ptychild.Child, *Console, <-chan int) {
+	t.Helper()
 	host := newVTHost(rows, cols)
 	pr, pw := io.Pipe()
 	con := New(host, pr)
@@ -105,7 +112,7 @@ func newVTFixture(t *testing.T, rows, cols uint16) (*vtHost, *ptychild.Child, *C
 	con.Attach("c1", "brain", child)
 
 	done := make(chan int, 1)
-	go func() { done <- con.Run() }()
+	go func() { done <- con.Run(); close(done) }()
 	t.Cleanup(func() {
 		con.Stop()
 		_ = pw.Close()
@@ -113,7 +120,7 @@ func newVTFixture(t *testing.T, rows, cols uint16) (*vtHost, *ptychild.Child, *C
 		_ = child.Close()
 	})
 	waitFor(t, "initial endpoint presentation", func() bool { con.mu.Lock(); defer con.mu.Unlock(); return con.framePainted })
-	return host, child, con
+	return host, child, con, done
 }
 
 // The property the whole reserved-row design rests on: a child scrolling at the
@@ -158,25 +165,33 @@ func TestReservedRowComesBackAfterAChildResetsMargins(t *testing.T) {
 // Teardown must leave a terminal the operator's shell can use: full-height
 // region, no stale row.
 func TestReleaseLeavesAUsableScreen(t *testing.T) {
-	host, child, con := newVTFixture(t, 8, 40)
+	host, _, con, done := newVTFixtureWithDone(t, 8, 40)
 	waitFor(t, "the status row", func() bool { return strings.Contains(host.row(8), "brain") })
-
 	con.Stop()
-	waitFor(t, "the region reset", func() bool {
-		return strings.Contains(host.Written(), hostty.ResetRegion)
-	})
-
-	// And the shell that follows can scroll the WHOLE screen again. The last
-	// write has no trailing newline, so the cursor -- and the text -- land on
-	// the bottom row, which is the row that was fenced off a moment ago.
-	for i := 0; i < 40; i++ {
-		_, _ = host.Write([]byte("shell line\r\n"))
+	// A reset occurs during ordinary painting too. Only Run's return proves
+	// that input/workers, presentation, host ownership and raw restoration ended.
+	select {
+	case code := <-done:
+		if code != 0 {
+			t.Fatalf("Run=%d", code)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Console did not complete teardown")
 	}
-	_, _ = host.Write([]byte("bottom row is usable"))
+	if host.RawDepth() != 0 || !host.Closed() {
+		t.Fatal("Run returned before restoring host ownership")
+	}
+	// The successor shell has its own writer lease. Probe the retained physical
+	// terminal model directly, not the now-closed Console Host adapter.
+	host.mu.Lock()
+	_, err := host.em.Write([]byte(strings.Repeat("shell line\r\n", 40) + "bottom row is usable"))
+	host.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got := host.row(8); !strings.Contains(got, "bottom row is usable") {
 		t.Fatalf("row 8 is still fenced off after release: %q", got)
 	}
-	_ = child
 }
 
 // Reported from the M2 operator smoke: the row appeared, then vanished about a

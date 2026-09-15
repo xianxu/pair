@@ -38,6 +38,31 @@ func TestPresenterUnwrittenReleaseDoesNotTouchParent(t *testing.T) {
 		t.Fatalf("unacquired parent changed by disposal: %q", parent.Bytes())
 	}
 }
+func TestPresenterResizeRejectsInvalidGeometryWithoutMutation(t *testing.T) {
+	for _, layout := range []bool{false, true} {
+		for _, g := range []Geometry{{-1, 5}, {8, -1}, {0, 5}, {8, 0}, {MaxCells + 1, 5}, {8, MaxCells}, {8, 1}} {
+			t.Run(fmt.Sprintf("layout=%v/%dx%d", layout, g.Cols, g.Rows), func(t *testing.T) {
+				p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+				selectPresenter(t, p, e)
+				before, calls := p.View(), parent.Calls()
+				applied := false
+				apply := func(Geometry) error { applied = true; return nil }
+				var err error
+				if layout {
+					err = p.ResizeLayout(context.Background(), g, make([]Cell, 8), apply)
+				} else {
+					err = p.Resize(context.Background(), g, apply)
+				}
+				if err == nil || applied || parent.Calls() != calls || p.View() != before {
+					t.Fatalf("invalid resize changed state: err=%v applied=%v view=%+v", err, applied, p.View())
+				}
+				if err := p.Input(context.Background(), uv.KeyPressEvent{Code: 'x', Text: "x"}); err != nil {
+					t.Fatalf("invalid resize broke existing endpoint: %v", err)
+				}
+			})
+		}
+	}
+}
 func TestPresenterAdmissionWaitsForCompletePaint(t *testing.T) {
 	p, parent, e, input := presenterFixture(t, CouchAnyMotion)
 	block := make(chan struct{})

@@ -33,12 +33,20 @@ type Frame struct {
 }
 
 func (f Frame) Clone() Frame {
-	f.Cells = append([]Cell(nil), f.Cells...)
+	f.Cells = cloneCells(f.Cells)
 	f.Rows = append([]RowMetadata(nil), f.Rows...)
-	for i := range f.Cells {
-		f.Cells[i] = cloneCell(f.Cells[i])
-	}
 	return f
+}
+
+func cloneCells(cells []Cell) []Cell {
+	if cells == nil {
+		return nil
+	}
+	owned := make([]Cell, len(cells))
+	for i, c := range cells {
+		owned[i] = cloneCell(c)
+	}
+	return owned
 }
 
 func cloneCell(c Cell) Cell {

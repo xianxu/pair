@@ -29,6 +29,12 @@ type dispatched struct {
 
 func newMouseFixture(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, chan dispatched) {
 	t.Helper()
+	con, input, host, calls, _ := newMouseFixtureWithDone(t)
+	return con, input, host, calls
+}
+
+func newMouseFixtureWithDone(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, chan dispatched, <-chan struct{}) {
+	t.Helper()
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
 	reader, writer := io.Pipe()
 	con := New(host, reader)
@@ -78,7 +84,7 @@ func newMouseFixture(t *testing.T) (*Console, *io.PipeWriter, *hostty.FakeHost, 
 		_ = second.Close()
 	})
 	waitFor(t, "the console to start", func() bool { return host.Written() != "" })
-	return con, writer, host, calls
+	return con, writer, host, calls, done
 }
 
 func clickAt(t *testing.T, w *io.PipeWriter, col, row int) {
@@ -257,15 +263,20 @@ func TestForwardPreservesRawBytes(t *testing.T) {
 // Teardown leaves the host terminal with mouse reporting off, or the operator's
 // shell starts emitting SGR bytes on pointer movement.
 func TestTeardownDisablesMouseTracking(t *testing.T) {
-	con, _, host, _ := newMouseFixture(t)
+	con, _, host, _, done := newMouseFixtureWithDone(t)
 	waitFor(t, "couch to enable its own tracking", func() bool {
 		return strings.Contains(host.Written(), "\x1b[?1003h")
 	})
 	host.Reset()
 	con.Stop()
-	waitFor(t, "teardown to reset the terminal", func() bool {
-		return strings.Contains(host.Written(), "\x1b[?1003l")
-	})
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Console did not complete teardown")
+	}
+	if !strings.Contains(host.Written(), "\x1b[?1003l") {
+		t.Fatal("completed teardown did not disable mouse capture")
+	}
 }
 
 // couch must ENABLE its own tracking, or the terminal sends nothing and no click

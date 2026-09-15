@@ -103,11 +103,23 @@ The `pair-slug` script summarizes what the current agent session is about to dis
 
 ---
 
-### Aspect 5: Mouse Scroll & PTY Output Filtering
-Some agents emit DEC synchronized-output markers or other terminal control characters that interfere with Zellij's mouse scrollback.
-- **PTY Filter:** If an agent behaves poorly with mouse scrolling, `pair-wrap` can intercept and strip specific sequences (e.g., Codex's `ESC[?2026h` synchronized-output toggles) in `stdoutChunk()` before queueing filtered visible stdout for batched delivery to Zellij. Raw scrollback capture remains immediate and unfiltered.
+### Aspect 5: Mouse Scroll & Terminal Output
 
-**Telemetry Signal** (aspect `5`, see §3): `output-filter` from `pair-wrap` (`stripCodexSyncOutput`) — `fired` once per distinct marker stripped per session (deduped; the markers repeat many times per render, so presence is the signal). If a codex update renames a sequence, its `fired` line stops appearing — an *absence* the operator reads against the expected marker set.
+Preserve the agent's terminal protocol through `pair wrap`. Couch and Pair term
+interpret it through the shared endpoint and presenter; child mouse requests
+control forwarding, and parent capture belongs to the compositor. Do not add
+agent-specific stripping of synchronized-output, focus or keyboard negotiation.
+
+The wrapper retains notification normalization and product Return adaptation.
+Its observer consumes normalized queued visual output; raw scrollback capture
+remains separate. Queued observation is not physical-write acknowledgment.
+Diagnose scroll or display problems with partitioned protocol tests and native
+Zellij conformance before changing this contract; see [terminal.md](terminal.md).
+
+**Telemetry Signal** (aspect `5`, see §3): the former `output-filter` event was
+removed with Codex stripping. Its absence is expected. Use terminal connection,
+Couch input/mouse traces, and normalized-versus-raw stream evidence to locate
+an ownership or protocol failure.
 
 ---
 
@@ -196,7 +208,7 @@ write the same line shape directly):
 | 2 Overlay suspend | `overlay-detect` | pair-wrap | fired, near-miss | any `near-miss` |
 | 3 Session watch | `session-id` | pair session-watch | fired, near-miss, fail | `fail` (timeout) / `near-miss` (file found, id unparsed) |
 | 4 Slug gen | `slug-parse` | pair-slug | fired, near-miss, fail | `near-miss` (transcript parsed, 0 turns) / `fail` (resolved a transcript but couldn't read/parse it) |
-| 5 PTY filter | `output-filter` | pair-wrap | fired | a `fired` line that *stops* appearing (its absence is the signal — the sequence was renamed) |
+| 5 Terminal output | connection/input/mouse traces | shared terminal + Couch | path-specific evidence | retired `output-filter` absence is expected; compare raw, normalized and presented state |
 | 6 Settings | — | — | — | static config; no signal |
 | 7 Prompt search | `prompt-search` | nvim/scrollback.lua | fired, near-miss | `near-miss` (0 matches in non-empty scrollback) |
 

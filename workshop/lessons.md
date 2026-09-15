@@ -5007,3 +5007,6 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
 - Erased terminal cells still carry rendition. Preserving unprinted provenance with cursor movement is insufficient unless background attributes are also reproduced. Compare literal interior and trailing blanks across viewport/history/alternate serializers with an independent terminal.
 - Removing an origin from a UI map is not resource disposal. Enumerate each terminal ownership exit and require drained final output, deselection/retirement, then joined disposal; retained final frames still need an explicit last owner.
 - A build-time executable is an external dependency too. Inject its filesystem-producing boundary, test output/error behavior with a stateful fake, and keep real-tool conformance separate from unit tests.
+
+- Validate dimensions and payload bounds before allocating or cloning at every public adapter entrypoint, including convenience APIs that derive chrome. A private validator reached after make is too late; invalid geometry must leave the established view usable. (#255 M3 BR-16)
+- Teardown assertions must observe the lifecycle's completion acknowledgment. A reset byte, restored-looking frame, or intermediate mode flag may occur before shutdown finishes; join Run/Release/closeAll before probing a returned terminal. (#255 M3 BR-17)

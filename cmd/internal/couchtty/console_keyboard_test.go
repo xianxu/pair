@@ -23,7 +23,7 @@ func keyboardFixture(t *testing.T) (*consoleFixture, *keyboardHost, *ptychild.Ch
 	c.Attach("c2", "second", b)
 	setTestOps(c, func(string, map[string]string) (any, error) { return nil, nil })
 	f := &consoleFixture{host: h.FakeHost, child: a, con: c, stdin: pw, done: make(chan int, 1)}
-	go func() { f.done <- c.Run() }()
+	go func() { f.done <- c.Run(); close(f.done) }()
 	waitFor(t, "keyboard console startup", func() bool { return strings.Contains(h.Written(), "\x1b[?1003h") })
 	c.switchTo("c1", true, arrivalOrdinary)
 	t.Cleanup(func() {
@@ -114,7 +114,12 @@ func TestKeyboardChildControlsNeverChangeParentProtocol(t *testing.T) {
 
 func TestKeyboardReleaseRejectsLatePresentation(t *testing.T) {
 	f, h, _ := keyboardFixture(t)
-	f.con.release()
+	f.con.Stop()
+	select {
+	case <-f.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Console did not complete teardown")
+	}
 	if got := h.ctrlReturn(); !bytes.Equal(got, []byte("\r")) {
 		t.Fatalf("shell inherited keyboard state: %q", got)
 	}

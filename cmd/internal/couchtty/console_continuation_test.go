@@ -6,6 +6,7 @@ import (
 	"io"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -280,7 +281,11 @@ func TestContinuationWorkerPicksUpQuietActorAndJoinsOnStop(t *testing.T) {
 		t.Fatalf("operation = %q", name)
 	}
 	c.Stop()
-	waitFor(t, "continuation worker shutdown", func() bool { return len(done) > 0 })
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Console did not join continuation worker")
+	}
 }
 
 func TestRecoveryResultStartsWatchOnlyForPublishedRequest(t *testing.T) {
