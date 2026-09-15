@@ -297,3 +297,11 @@ and measured 3.73 hours. Review independently passed focused Go/native Neovim
 checks and verified the CI selector mutation. Current binaries are built.
 Awaiting a fresh Couch process and relaunched test thread for whole-workbench
 operator acceptance; no PR, merge or publication has occurred.
+
+
+### 2026-09-14 — Operator smoke accepted; authorized to land
+
+Operator confirms #245 works: Option+Up now opens the Codex question that was
+previously inaccessible. Authorized landing. A separate Return-selection issue
+on the last menu option is reported and will be investigated after shipping;
+it concerns the existing Return adaptation, not shortcut ownership.

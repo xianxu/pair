@@ -127,7 +127,7 @@ The deterministic environment models terminal bytes delivered, focused role, ope
 - [x] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/termcmd ./cmd/internal/keyhelp ./cmd/internal/keyscmd -count=1`, then relevant race packages, `make test`, and `git diff --check`. Build current binaries with the existing Make target before operator smoke.
 - [x] Compare every concept-table row with the final diff, including any extracted framing/executor file and generated artifact. Append a timestamped revision for actual deviations; keep original design history. Record exact portable/live test results and limitations in the issue.
 - [x] Commit verified implementation with an issue reference and author trailer. Root runs `sdlc close --issue 245 --verified '<actual behavior and verification evidence>'`; fix Critical/Important findings before crossing the single issue-close boundary.
-- [ ] Pause for operator smoke on current binaries: focused agent receives Alt+Up/Down, ordinary Alt+Left/Right and former lifecycle/help chords; six exceptions perform the agreed actions; mouse focus leaves the agent; draft/terminal retain their actions. Do not claim this operator acceptance from automated stand-in fixtures.
+- [x] Pause for operator smoke on current binaries: focused agent receives Alt+Up/Down, ordinary Alt+Left/Right and former lifecycle/help chords; six exceptions perform the agreed actions; mouse focus leaves the agent; draft/terminal retain their actions. Do not claim this operator acceptance from automated stand-in fixtures.
 
 ## Revisions
 
