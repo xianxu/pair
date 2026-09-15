@@ -46,7 +46,7 @@ TerminalEndpoint is not labeled pure: the candidate backend has reply pipes and 
 
 ### Terminal profile and effects
 
-The required initial profile preserves current interactive Zellij, nvim, shell and agent behavior: UTF-8 including wide/combining characters; indexed/truecolor styles; cursor/save, erase, scroll regions and origin mode; primary/alternate buffers; application cursor/keypad; bracketed paste; focus; SGR mouse with off/click/drag/all-motion; the extended keyboard negotiation/encoding needed by existing shortcuts; hyperlinks; synchronized drawing; clipboard and Pair notifications. Backend qualification must enumerate exact sequences/queries from these features, advertise only implemented capabilities and provide matching terminfo/environment. Existing required shortcuts cannot be removed to make a deficient backend pass.
+The required initial profile preserves current interactive Zellij, nvim, shell and agent behavior: UTF-8 including wide/combining characters; indexed/truecolor styles; cursor position/style/save, erase, scroll regions and origin mode; primary/alternate buffers; application cursor/keypad; bracketed paste; focus; SGR mouse with off/click/drag/all-motion; the extended keyboard negotiation/encoding needed by existing shortcuts; hyperlinks; synchronized drawing; clipboard and Pair notifications. Backend qualification must enumerate exact sequences/queries from these features, advertise only implemented capabilities and provide matching terminfo/environment. Existing required shortcuts cannot be removed to make a deficient backend pass.
 
 Each child query is answered from its own endpoint, including hidden children. No raw query is forwarded to a parent whose reply could reach a different child. Clipboard, title, bell, cwd and notification effects retain existing product policy and exact origin identity; they are emitted once from ingestion, never from drawing a frame. Clipboard query/read behavior must be specified against current policy before admission; no new ambient clipboard reads are implied. Unknown strings remain framed and handled according to the declared profile, never passed into the parent's drawing parser as an escape hatch. Unsupported graphics/pixel protocols are not advertised; required existing behavior discovered during qualification cannot be silently reclassified as unsupported.
 
@@ -103,7 +103,7 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 
 ### M4 — Live conformance and publication
 
-- [ ] Compare baseline/candidate startup, sustained output CPU/memory, redraw throughput, switch latency and idle mouse movement; approve measured budgets before rollout rather than inventing a performance claim.
+- [ ] Compare baseline/candidate startup, sustained output CPU/memory, redraw throughput, switch latency and idle mouse movement; verify the provisional budgets established in M1 before rollout; M4 must not be the first point where acceptable bounds are decided.
 - [ ] Run full Go/race and existing Lua/shell/shortcut/retention suites appropriate to integration; add isolated native terminal conformance to CI.
 - [ ] Smoke-test an isolated candidate before any operator runtime replacement; document capabilities, failure/recovery and diagnostics in atlas/README.
 - [ ] Close and publish #255 only when both consumers satisfy the declared terminal contract.
@@ -121,3 +121,7 @@ ARCH-DRY: shared endpoint/presenter for both consumers, reuse PTY/Host and quali
 ### 2026-09-15 — Qualification review refinements
 
 Made Pair wrapper coverage explicit, distinguished raw/transformed observation, required one ordered child-input writer for operator events and query replies, and specified input admission after successful presentation. The proposal is for architectural approval and M1 qualification; detailed M2–M4 implementation plans and numerical limits remain subject to that evidence and a subsequent approval checkpoint.
+
+### 2026-09-15 — Fresh spec review accepted
+
+Fresh-context reviewer terminal_spec_review approved the architectural proposal and M1 qualification with no blocking findings. It did not approve M2–M4 implementation details or establish backend suitability. Advisory input serialization, presentation-failure admission, wrapper stream semantics and M1 budget timing are incorporated; normal-screen history, cursor style, hyperlinks and grapheme fidelity remain explicit qualification cases.
