@@ -1,11 +1,12 @@
 ---
 id: 000255
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-15
 estimate_hours:
+started: 2026-09-15T09:20:10-07:00
 ---
 
 # Establish a faithful terminal abstraction for Couch and Pair
