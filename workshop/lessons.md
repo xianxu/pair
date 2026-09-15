@@ -4991,3 +4991,5 @@ that transition authority is pure or enforced.
 - Gesture cancellation is its own committed transition: later resize/selection failure cannot roll it back. Track an admitted but unfinished release explicitly so retry drains that delivery rather than enqueueing another release; enumerate every cancellation caller and test downstream failure. (#255 M2 BR9, 2026-09-15)
 
 - Discovery scripts committed as evidence still own real artifact/process lifetimes. Scope temporary directories around the entire run, including setup/spawn failures, and remove after joined teardown; test both success and failure. (#255 M2 BR10, 2026-09-15)
+
+- Enumerate terminal state mutations in both setup and renderer, then test successful release after every accepted control-stream prefix using an independent interpreter. Cleanup that works after complete frames can still leak autowrap, hyperlink or cursor style after interruption. (#255 M2 BR11, 2026-09-15)

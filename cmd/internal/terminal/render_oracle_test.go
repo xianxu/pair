@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +14,7 @@ import (
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/xianxu/pair/cmd/internal/ttyio"
 )
 
 type oracleCell struct {
@@ -23,10 +25,13 @@ type oracleCell struct {
 	Bold, Italic, Underline, Inverse bool
 }
 type oracleScreen struct {
-	Lines []string
-	Cells [][]oracleCell
-	X, Y  int
-	Links []string
+	Lines       []string
+	Cells       [][]oracleCell
+	X, Y        int
+	Links       []string
+	Modes       map[string]any
+	CursorStyle string
+	CursorBlink bool
 }
 
 func runOracle(t *testing.T, cols, rows int, chunks []string) []oracleScreen {
@@ -168,6 +173,68 @@ func TestRendererIndependentWideBoundaryDiff(t *testing.T) {
 			if screens[i].Lines[y] != want[i][y] {
 				t.Fatalf("snapshot %d row %d: %q, want %q", i, y, screens[i].Lines[y], want[i][y])
 			}
+		}
+	}
+}
+
+// Every accepted prefix is a possible physical terminal state when writing
+// fails. Exercise production Select and Release, then ordinary shell text;
+// the independent interpreter must see the documented released state.
+func TestRendererIndependentInterruptedPresentationRelease(t *testing.T) {
+	paint := func(prefix int) string {
+		t.Helper()
+		parent := ttyio.NewFake()
+		e, err := NewEndpoint("release", Geometry{8, 4}, ttyio.NewFake())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer e.Close()
+		if _, err := e.Feed([]byte("\x1b[31;44;1;3;4m\x1b]8;id=test;https://example.com\x1b\\LINK\x1b[6 q\x1b[?25l"), time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		p := NewPresenter(parent, CouchAnyMotion)
+		boom := errors.New("interrupted presentation")
+		if prefix >= 0 {
+			parent.Enqueue(ttyio.WriteStep{Limit: prefix, ZeroProgress: prefix == 0, Err: boom})
+		}
+		err = p.Select(context.Background(), e, Geometry{8, 5}, make([]Cell, 8))
+		if prefix < 0 && err != nil || prefix >= 0 && !errors.Is(err, boom) {
+			t.Fatalf("prefix %d: select %v", prefix, err)
+		}
+		if err := p.Release(context.Background()); err != nil {
+			t.Fatalf("prefix %d: release %v", prefix, err)
+		}
+		return string(parent.Bytes())
+	}
+	// The successful wire contains both painting and cleanup. Testing extra
+	// offsets beyond paint length also covers a fully accepted failing write.
+	complete := paint(-1)
+	chunks := make([]string, 0, len(complete)+1)
+	for prefix := 0; prefix <= len(complete); prefix++ {
+		chunks = append(chunks, "\x1bc\x1b[2;4r\x1b[?6h"+paint(prefix)+"\x1b[H\x1b[2JABCDEFGHI")
+	}
+	for prefix, screen := range runOracle(t, 8, 5, chunks) {
+		if screen.Lines[0] != "ABCDEFGH" || screen.Lines[1] != "I       " || screen.X != 1 || screen.Y != 1 {
+			t.Errorf("prefix %d: released text/cursor rows=%q cursor=%d,%d", prefix, screen.Lines[:2], screen.X, screen.Y)
+			break
+		}
+		for _, mode := range []string{"originMode", "bracketedPasteMode", "sendFocusMode"} {
+			if screen.Modes[mode] != false {
+				t.Errorf("prefix %d: %s=%v", prefix, mode, screen.Modes[mode])
+			}
+		}
+		if screen.Modes["wraparoundMode"] != true || screen.Modes["mouseTrackingMode"] != "none" {
+			t.Errorf("prefix %d: modes=%v", prefix, screen.Modes)
+		}
+		if screen.CursorStyle != "block" || !screen.CursorBlink {
+			t.Errorf("prefix %d: cursor style=%s blink=%v", prefix, screen.CursorStyle, screen.CursorBlink)
+		}
+		cell := screen.Cells[0][0]
+		if cell.Bold || cell.Italic || cell.Underline || cell.Inverse || cell.FG != -1 || cell.BG != -1 {
+			t.Errorf("prefix %d: leaked rendition %+v", prefix, cell)
+		}
+		if len(screen.Links) > 0 && screen.Links[len(screen.Links)-1] != ";" {
+			t.Errorf("prefix %d: open hyperlink=%q", prefix, screen.Links[len(screen.Links)-1])
 		}
 	}
 }

@@ -32,7 +32,8 @@ async function main() {
         }
         cells.push(row);
       }
-      result.push({ Lines: lines, Cells: cells, X: buffer.cursorX, Y: buffer.cursorY, Links: [...links] });
+      result.push({ Lines: lines, Cells: cells, X: buffer.cursorX, Y: buffer.cursorY, Links: [...links],
+        Modes: terminal.modes, CursorStyle: terminal.options.cursorStyle, CursorBlink: terminal.options.cursorBlink });
     }
   } finally { terminal.dispose(); }
   process.stdout.write(JSON.stringify(result));

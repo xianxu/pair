@@ -179,6 +179,10 @@ Operator approved the architectural direction and qualification phase. Added exe
 
 - 2026-09-15 BR10 verified: three cleanup regressions first reproduced leaks; all five success/spawn/runtime/teardown/capture tests now pass. TemporaryDirectory owns the entire run; both PTY descriptors close on spawn failure; diagnostic capture retains at most 8KiB. Typed-history and dirty-rebuild probes still pass; process snapshot found no surviving disposable Zellij processes. Evidence `/tmp/pair255-br10-cleanup-tests.log`, `/tmp/pair255-br10-{typed,dirty}.jsonl`, `/tmp/pair255-br10-processes-after.log`. Terminal production code unchanged since passing race/oracle checks.
 
+- 2026-09-15 M2 fourth boundary review disposed BR10 but reproduced BR11 (parent restoration). Independent production Select/Release regression now fails at accepted prefix93: ordinary text overwrites the last column because autowrap remains disabled. Sweep renderer/setup state and test every accepted output prefix, including hyperlink/rendition/cursor style and input-reporting cleanup. Red: `/tmp/pair255-br11-oracle-red.log`.
+
+- 2026-09-15 BR11 corrected: centralized parent release inventory restores autowrap, origin/full margins, OSC8, rendition and default cursor style/visibility after aborting partial framing, while retaining confirmed-owned keyboard pop. Every-prefix production Select/Release test now passes in independent xterm, including ordinary post-release text, modes, styles, link closure and cursor shape/blink. Shared terminal/ttyio/qualification race checks pass; evidence `/tmp/pair255-br11-{oracle-green,race}.log`. No live symptom acceptance claimed.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. This is approved M1 qualification only; M2–M4 require later estimates after their designs settle. Calibration is marked stale by estimate-source, so the result is provisional.

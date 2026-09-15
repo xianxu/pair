@@ -332,3 +332,111 @@ The M2 core-concept implementations exist at the mapped locations. No additional
 ## 7. Plan revision recommendations
 
 Add a `## Revisions` entry defining discovery-artifact ownership: the driver creates temporary storage, teardown removes it, and retained failure evidence—if supported—has an explicit bound. The existing cancellation revision accurately describes the BR-9 correction.
+
+---
+
+## Re-review — 2026-09-15T13:31:32-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 29101ebf157ba9663609f5e75278449f34eea722..bc0d1bcbf41deaea5e134df8caa325ebbec11dde |
+| command | sdlc milestone-close --issue 255 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-15T13:31:32-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-10 is addressed with verified cleanup regressions. The shared M2 implementation passes focused normal/race tests and the independent renderer oracle. One newly reproduced correctness bug blocks close: an interrupted paint can leave the parent terminal’s autowrap disabled even after `Release` succeeds. Repository files were unchanged.
+
+```findings
+dispose:
+  - id: BR-10
+    disposition: addressed
+    note: |
+      zellij_oracle.py:34 scopes setup, execution and teardown inside TemporaryDirectory. All five discovery tests pass; replacing cleanup with a no-op in memory makes all four cleanup tests fail on leaked directories.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Explicit parent/child gesture ownership remains enforced; presenter_test.go:507 exercises chrome, panel and orphan gestures. Focused normal/race suites pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      parameterGuard preserves overflow evidence and rejects dispatch; pair_parameter_test.go:13 covers atomic rejection. Fork normal/race suites pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Endpoint captures the backend's authoritative cursor; endpoint_test.go:294 covers reset, restore and buffer transitions. Focused normal/race suites pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Cancellation revokes ownership before delivery and tracks pending release. presenter_test.go:608, :638 and :661 cover failed resize, interrupted delivery and cancellation callers.
+findings:
+  - id: new
+    severity: Critical
+    family: parent-terminal-restoration
+    title: |
+      Successful release leaves autowrap disabled after an interrupted paint
+    detail: |
+      ARCH-ORDER: render.go:34 emits CSI ?7l, but presenter.go:127 omits CSI ?7h from release cleanup. A production-presenter test injecting failure immediately after ?7l, followed by successful Release, reproduces ABCDEFGI on one eight-column row instead of ABCDEFGH followed by I in the independent xterm oracle. Enumerate all parent state changed during painting and restore the required post-release state after any accepted prefix; add interrupted-paint cleanup regressions, including hyperlink state.
+```
+
+## 1. Strengths
+
+- BR-10’s directory ownership covers setup and teardown failures; mutation testing establishes causal regression coverage.
+- Pure View transitions enforce identity, generation and geometry admission separately from IO.
+- Stateful transport doubles preserve accepted bytes and support controlled partial writes and cancellation.
+- README and atlas document the new library, profile, fork and independent oracle, while preserving the M3/M4 acceptance boundaries.
+
+## 2. Critical findings
+
+**Restore parent state after interrupted painting.**
+[Presenter cleanup](/Users/xianxu/workspace/worktree/pair/000255-lifecycle-state-ownership/cmd/internal/terminal/presenter.go:127) does not undo autowrap suppression from [Render](/Users/xianxu/workspace/worktree/pair/000255-lifecycle-state-ownership/cmd/internal/terminal/render.go:34).
+
+The temporary overlay regression exercised actual `Select`, partial-write failure and `Release`, then interpreted their accepted bytes with xterm-headless. Subsequent ordinary text overwrote the last column. Add autowrap restoration and audit the complete renderer state inventory, including OSC 8 hyperlinks. Test interruption at relevant byte boundaries.
+
+## 3. Important findings
+
+None additional.
+
+## 4. Minor findings
+
+None.
+
+## 5. Test coverage notes
+
+- Passed: terminal, ttyio and terminalqualify normal/race suites; fork normal/race suites; both independent renderer tests; changed wrapper ZWJ regression.
+- Passed: five discovery tests. Cleanup mutation produced four expected assertion failures.
+- Qualification: **84 pass, 0 fail, 6 not-covered**, with intentional exit 1.
+- Pinned-range `git diff --check` passed.
+- Broader wrapper tests encountered sandbox-denied storage protection in existing argument-error tests; that suite was not fully validated.
+- Existing release tests miss the reproduced mid-render state leak.
+
+## 6. Architectural notes
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass: shared terminal ownership and capability-table-derived terminfo. |
+| ARCH-PURE | Pass: frame/render/View logic has direct tests; backend and transport remain integrations. |
+| ARCH-PURPOSE | Pass for M2: consumer migration and native-history obligations remain explicit M3 work. |
+| ARCH-MOCK | Pass for M2: injected stateful transport, real-PTY checks and independent interpretation; sustained native conformance remains M4. |
+| ARCH-CONSTRAINTS | Pass: geometry, parser, queue and history bounds are explicit; performance acceptance remains provisional. |
+| ARCH-SECURE | Pass: typed effects and validated drawing data prevent raw child-control passthrough. |
+| ARCH-ORDER | **Flag:** successful release does not restore parent state after partial painting. |
+| ARCH-FUNERAL | Pass: BR-10 cleanup is causally verified; transport workers have joined teardown. |
+
+The M2 core-concept table matches the implementation boundaries; no additional classification contradiction was identified.
+
+## 7. Plan revision recommendations
+
+Add a `## Revisions` entry defining **parent state restoration after interrupted writes**: enumerate renderer/setup state, specify the required release state, and require independent-oracle tests across partial-write boundaries. Preserve conditional keyboard-stack restoration rather than blindly popping unowned state.

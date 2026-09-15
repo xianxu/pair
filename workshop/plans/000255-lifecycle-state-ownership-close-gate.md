@@ -166,6 +166,39 @@ rounds:
           round: 6
       boundary: M2
       blocked: true
+    - "n": 7
+      timestamp: "2026-09-15T13:31:32-07:00"
+      agent: codex
+      dispose:
+        - id: BR-10
+          disposition: addressed
+          note: zellij_oracle.py:34 scopes setup, execution and teardown inside TemporaryDirectory. All five discovery tests pass; replacing cleanup with a no-op in memory makes all four cleanup tests fail on leaked directories.
+          round: 7
+        - id: BR-6
+          disposition: addressed
+          note: Explicit parent/child gesture ownership remains enforced; presenter_test.go:507 exercises chrome, panel and orphan gestures. Focused normal/race suites pass.
+          round: 7
+        - id: BR-7
+          disposition: addressed
+          note: parameterGuard preserves overflow evidence and rejects dispatch; pair_parameter_test.go:13 covers atomic rejection. Fork normal/race suites pass.
+          round: 7
+        - id: BR-8
+          disposition: addressed
+          note: Endpoint captures the backend's authoritative cursor; endpoint_test.go:294 covers reset, restore and buffer transitions. Focused normal/race suites pass.
+          round: 7
+        - id: BR-9
+          disposition: addressed
+          note: Cancellation revokes ownership before delivery and tracks pending release. presenter_test.go:608, :638 and :661 cover failed resize, interrupted delivery and cancellation callers.
+          round: 7
+      findings:
+        - id: BR-11
+          severity: Critical
+          title: Successful release leaves autowrap disabled after an interrupted paint
+          detail: 'ARCH-ORDER: render.go:34 emits CSI ?7l, but presenter.go:127 omits CSI ?7h from release cleanup. A production-presenter test injecting failure immediately after ?7l, followed by successful Release, reproduces ABCDEFGI on one eight-column row instead of ABCDEFGH followed by I in the independent xterm oracle. Enumerate all parent state changed during painting and restore the required post-release state after any accepted prefix; add interrupted-paint cleanup regressions, including hyperlink state.'
+          family: parent-terminal-restoration
+          round: 7
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -248,6 +281,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Important] `artifact-lifetime-ownership` Native discovery runs retain temporary artifacts without cleanup or a bound
   tests/terminal-oracle/discovery/zellij_oracle.py:5 creates a new /tmp/pw* directory for every invocation, while its finally block at lines 34–46 only stops processes and closes handles. All six discovery probes share this driver, and README.md:24–26 explicitly retains the directories without defining removal or a retention bound. ARCH-FUNERAL: make the driver remove its directory after teardown, including failure paths; any retained diagnostic mode needs an explicit bounded lifecycle. Cover successful and failed runs with cleanup regression tests.
 
+## Round 7 — 2026-09-15T13:31:32-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-10 — addressed — zellij_oracle.py:34 scopes setup, execution and teardown inside TemporaryDirectory. All five discovery tests pass; replacing cleanup with a no-op in memory makes all four cleanup tests fail on leaked directories.
+- BR-6 — addressed — Explicit parent/child gesture ownership remains enforced; presenter_test.go:507 exercises chrome, panel and orphan gestures. Focused normal/race suites pass.
+- BR-7 — addressed — parameterGuard preserves overflow evidence and rejects dispatch; pair_parameter_test.go:13 covers atomic rejection. Fork normal/race suites pass.
+- BR-8 — addressed — Endpoint captures the backend's authoritative cursor; endpoint_test.go:294 covers reset, restore and buffer transitions. Focused normal/race suites pass.
+- BR-9 — addressed — Cancellation revokes ownership before delivery and tracks pending release. presenter_test.go:608, :638 and :661 cover failed resize, interrupted delivery and cancellation callers.
+
+### Raised
+
+- **BR-11** [Critical] `parent-terminal-restoration` Successful release leaves autowrap disabled after an interrupted paint
+  ARCH-ORDER: render.go:34 emits CSI ?7l, but presenter.go:127 omits CSI ?7h from release cleanup. A production-presenter test injecting failure immediately after ?7l, followed by successful Release, reproduces ABCDEFGI on one eight-column row instead of ABCDEFGH followed by I in the independent xterm oracle. Enumerate all parent state changed during painting and restore the required post-release state after any accepted prefix; add interrupted-paint cleanup regressions, including hyperlink state.
+
 ## Open findings
 
-- **BR-10** [Important] `artifact-lifetime-ownership` Native discovery runs retain temporary artifacts without cleanup or a bound
+- **BR-11** [Critical] `parent-terminal-restoration` Successful release leaves autowrap disabled after an interrupted paint

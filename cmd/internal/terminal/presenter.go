@@ -120,11 +120,7 @@ func (p *Presenter) run() {
 		select {
 		case ctx := <-p.stop:
 			cancelErr := p.cancelDrag(ctx)
-			cleanup := "\x18\x1b\\"
-			if p.keyboardOwned {
-				cleanup += "\x1b[<u"
-			}
-			p.releaseErr = errors.Join(cancelErr, p.write(ctx, []byte(cleanup+"\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l\x1b[0m\x1b[r\x1b[?25h"), false))
+			p.releaseErr = errors.Join(cancelErr, p.write(ctx, parentReleaseControls(p.keyboardOwned), false))
 			p.transition(ViewEvent{Kind: ReleaseView})
 			return
 		case r := <-p.requests:
@@ -237,6 +233,22 @@ func (p *Presenter) settleCancellation() {
 		p.transition(ViewEvent{Kind: SettleMouseCancellation, EndpointID: p.cancelTarget.id})
 		p.cancelTarget = nil
 	}
+}
+
+// parentReleaseControls restores the post-presentation baseline even after an
+// arbitrary accepted prefix. CAN/ST first abort incomplete CSI/OSC controls.
+// Setup owns mouse, focus, paste and one keyboard-stack push. Render owns
+// origin, margins, autowrap, SGR, hyperlinks and cursor style/visibility. Its
+// pixels and cursor position remain; one-shot effects (including permitted
+// title/clipboard changes) are not rolled back or replayed during cleanup.
+func parentReleaseControls(keyboardOwned bool) []byte {
+	controls := "\x18\x1b\\"
+	if keyboardOwned {
+		controls += "\x1b[<u"
+	}
+	controls += "\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l"
+	controls += "\x1b[?6l\x1b[r\x1b[?7h\x1b[0m\x1b]8;;\x1b\\\x1b[0 q\x1b[?25h"
+	return []byte(controls)
 }
 
 type parentModes struct{ tracking int }
