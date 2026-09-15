@@ -567,3 +567,113 @@ The M2 concept table matches the implementation. Both consumer migrations and su
 ## 7. Plan revision recommendations
 
 Add a `## Revisions` entry defining the zero-width cell invariant and enumerating standalone marks, joiners, variation selectors, and marks after controls. Require every-split backend tests plus production presenter regressions demonstrating valid frames and continued admission.
+
+---
+
+## Re-review — 2026-09-15T13:57:53-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 29101ebf157ba9663609f5e75278449f34eea722..214d43e87969cf68d8cb615288318e55fc6af8f5 |
+| command | sdlc milestone-close --issue 255 --milestone M2 |
+| reviewer | codex |
+| timestamp | 2026-09-15T13:57:53-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range satisfies the M2 shared-library boundary. BR-12 is addressed with meaningful regression evidence, and no new blocking findings emerged. Consumer migration and live acceptance remain explicitly pending for M3/M4. Confidence is qualified by one timing failure in the full suite; that unchanged test passed ten isolated reruns.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Backend orphan handling, strict grapheme validation, and StyledRows now agree. Production presentation/input and split-input regressions pass at HEAD and fail with the three pre-fix implementation files restored through a temporary Go overlay.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Prior disposition retained; parent/orphan gesture and negotiation-epoch regressions pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Prior disposition retained; atomic parameter-overflow handling and fork regressions pass.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Prior disposition retained; snapshots consume authoritative cursor state and cursor qualification cases pass.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Prior disposition retained; failed-resize and interrupted-cancellation regressions pass.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      Prior disposition retained; scoped temporary-directory cleanup and five native-driver tests pass.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Prior disposition retained; independent interrupted-presentation restoration tests pass.
+```
+
+### 1. Strengths
+
+- BR-12 covers the class: orphan Unicode scalars, control boundaries, byte splits, pending wrap, and continued presentation/input (`zero_width_test.go:14`, `pair_zero_width_test.go:33`).
+- Presenter admission depends on completed output; controlled partial-write and cancellation tests exercise the production seam (`presenter_test.go:29`).
+- Terminfo derives from the capability table, with compiled-contract verification (`profile_query_test.go:51`).
+- README and atlas explain the new surface and distinguish M2 completion from consumer/live acceptance.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+None.
+
+### 4. Minor findings
+
+None.
+
+### 5. Test coverage notes
+
+Passed:
+
+- Focused terminal, transport, qualification, and wrapper tests.
+- Focused race tests; fork normal and race suites.
+- Independent xterm renderer tests.
+- Native-driver cleanup tests.
+- BR-12 negative-control overlay: regressions fail without the fix.
+- Qualification: **84 pass, six not-covered**, matching M3/M4 obligations.
+- Representative benchmarks and pinned-range whitespace check.
+
+Full `go test ./...` failed only at `TestParkCoordinatorConstructorDoesNotQueryPairSession`, which exceeded its 100ms deadline (`cmd/internal/couchcore/park_test.go:744`). The package is unchanged in this range; ten isolated repetitions passed. The full run therefore cannot be reported as green.
+
+### 6. Architectural notes for upcoming work
+
+| Principle | Result |
+|---|---|
+| ARCH-DRY | Pass: shared protocol ownership and mechanically checked capability source. |
+| ARCH-PURE | Pass: direct pure-core tests; backend, decoder, and transport classified as integration. |
+| ARCH-PURPOSE | Pass for M2: consumer migration remains explicit M3 work. |
+| ARCH-MOCK | Pass for M2: stateful transport doubles and independent renderer interpretation. |
+| ARCH-CONSTRAINTS | Pass: bounded admission/retention and representative measurements; sustained targets remain M4. |
+| ARCH-SECURE | Pass: validated frames, constrained control serialization, origin-bound effects. |
+| ARCH-ORDER | Pass: private presenter state transitions, controlled ordering, partial-write and cancellation coverage. |
+| ARCH-FUNERAL | Pass: joined transport teardown, origin retirement, bounded history, scoped discovery artifacts. |
+
+The M2 concepts table matches the implementation. Preserve the documented M3 shadow sweep across both consumers and the M4 native/live acceptance requirements.
+
+### 7. Plan revision recommendations
+
+None.

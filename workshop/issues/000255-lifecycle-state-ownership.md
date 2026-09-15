@@ -91,7 +91,7 @@ The primary acceptance is operator-visible: the ongoing display corruption and m
 ## Plan
 
 - [x] M1 — Qualify the required terminal contract and candidate backend; record failures, untested obligations and an evidence-based adoption decision.
-- [ ] M2 — Implement the shared endpoint/presenter after qualification and detailed design approval.
+- [x] M2 — Implement the shared endpoint/presenter after qualification and detailed design approval.
 - [ ] M3 — Migrate Couch and Pair, including wrapper transformation conformance, to the shared contract.
 - [ ] M4 — Complete composed/live conformance, measured rollout verification and publication.
 
@@ -133,6 +133,7 @@ func TestAuditConcurrentOutputAndSwitch(t *testing.T) {
 The overlay maps an additional `cmd/internal/couchtty/audit_temp_test.go` to the temporary source above. Observed result: `WARNING: DATA RACE`, followed by test failure. This demonstrates the field race only; it neither reproduces the random disconnect nor proves every hypothesized interleaving.
 
 ### 2026-09-15 — Terminal abstraction discussion
+- 2026-09-15: closed M2 — BR12 red regressions corrected across backend/frame/chrome: every-byte split production presentation and subsequent input; all2172zero-width Unicode scalars in three contexts yield valid frames; intact ASCII combining/CJK rendering passes independent xterm. Full root Go suite, fork normal/race, shared terminal/ttyio/qualification race, final terminal race and independent oracle pass. Qualification84pass0fail6M3/M4uncovered. BR6-BR11 disposed by prior reviews. Precise no-actual: milestone-window measurement unavailable, cumulative historical attribution not a substitute. Production/live acceptance pending.; review verdict: SHIP
 - 2026-09-15: closed M1 — Full Go suite PASS after implementation corrections; focused race on terminalqualify, probe, artifactpath PASS after BR-5 test-only correction; four partition mutations detected; probe 53 pass, 15 fail, 14 not-covered rejects unchanged adoption; git diff --check PASS. No production fix claimed. Actual unavailable: sdlc actual found no transcript events.; review verdict: SHIP
 
 Operator challenged the explanation that adding UI and interception inherently makes interference unavoidable: a faithful terminal abstraction should preserve inner-program behavior. Accepted that correction. The missing requirement is a semantic terminal contract, not merely more locks or single-owner fields. Current #252 reproduction violates chunk independence. The #207 trace records click-only writes during panel display and subsequent takeover with no restored mouse modes; this supports a mode-restoration gap, while the initial background mouse-off source remains unresolved. These observations do not establish the disconnect cause. No production changes or live repairs were made for this issue update.
@@ -186,6 +187,8 @@ Operator approved the architectural direction and qualification phase. Added exe
 - 2026-09-15 M2 fifth boundary review disposed BR11; BR12 exposed zero-width characters permanently failing Presenter. Backend now consumes orphan zero-width runes without cell/cursor/wrap mutation while retaining valid contiguous clusters. Audit also found ANSI decoder ASCII fast paths incorrectly splitting `é` in Frame.Validate/StyledRows; both now use complete grapheme segmentation. Strict continuation-cell validation remains. Backend every-split normal/race tests pass; production split tests preserve presentation and subsequent input, and StyledRows literal tests cover the shared policy. Red evidence `/tmp/pair255-br12-{backend,presenter,styled}-red.log`; full integration verification running. Explicit policy matches native Zellij orphan behavior; xterm representation differs and is documented.
 
 - 2026-09-15 BR12 final verification: full root Go suite passed (`/tmp/pair255-br12-full-go.log`); fork normal/race, shared terminal/ttyio/qualification race, final terminal race and independent renderer oracle passed. Exhaustive scalar classification tested all2172zero-width Unicode scalars in three contexts (orphan, printable base, post-control), with valid frames throughout (`/tmp/pair255-br12-scalar-class.log`). Qualification remains84pass0fail6M3/M4not-covered. Contiguous ASCII combining/CJK output is verified in independent xterm for both endpoint and chrome.
+
+- 2026-09-15 M2 SHIP after six rounds, BR6–BR12 independently disposed. Root full suite passed; reviewer full run had one unchanged100msconstructor-test timeout, with ten isolated retries passing. Record as timing instability, not a second full-suite pass. Starting authorized M3; final operator smoke remains after M4 and before merge.
 
 ## Estimate
 

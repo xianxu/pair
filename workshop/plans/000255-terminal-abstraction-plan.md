@@ -93,7 +93,7 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 
 - [x] Implement endpoint/profile/frame/view/presenter under the approved backend decision; use Host/Child seams and lifetime-bound reply transport.
 - [x] Add forced-order and partial-IO tests through production event/effect paths; ensure typed doors prevent raw bypass.
-- [ ] Document actual capability/resource bounds and complete SDLC review before integrating a console.
+- [x] Document actual capability/resource bounds and complete SDLC review before integrating a console.
 
 ### M3 — Couch and Pair adoption
 
@@ -283,7 +283,7 @@ Geometry/payload theoretical ceilings are not a license to allocate that ceiling
 - [x] **Implement ParentPresenter.** presenter_test.go forces select+typing ordering, delayed stale frame, partial parent write, blocked output, release racing paint/effect, resize failure, panel/no-input state, drag across selection and chrome clipping. It owns a context-aware writer and ordered event stream, coalesces frames, and commits admitted selection/hit geometry only after complete presentation. No exported generic raw-write door. Extend host fake behavior where necessary through the common transport seam.
 - [x] **Implement InputDecoder and profile queries.** input_test.go covers every split of existing shortcuts, legacy/application cursor, CSI-u press/repeat/release, focus, bracketed paste with embedded escape bytes, mouse protocol variants, orphaned release and parent reply suppression. Feed production decoder into Endpoint.Send and assert literal wire bytes, not only round-trip equivalence. Add terminfo/profile query tests and record unsupported capabilities explicitly.
 - [x] **Integrate qualification evidence.** Add executable adapter cases for M2's previously uncovered endpoint/presenter obligations without deleting original required IDs. Keep wrapper/live obligations uncovered until M3/M4. Update CLI report attribution to distinguish backend from integration cases and preserve bounded expected/observed evidence. Test no profile can qualify by omitting obligations.
-- [ ] **Measure, document and close M2.** Run local fork tests, focused normal/race, qualification probe, representative benchmarks and git diff --check. Update atlas/architecture.md and README terminal profile/maintenance documentation, issue Log and patch ledger. Commit and run `sdlc milestone-close --issue 255 --milestone M2 --verified '<measured evidence>'`; fix all blocking findings before M3.
+- [x] **Measure, document and close M2.** Run local fork tests, focused normal/race, qualification probe, representative benchmarks and git diff --check. Update atlas/architecture.md and README terminal profile/maintenance documentation, issue Log and patch ledger. Commit and run `sdlc milestone-close --issue 255 --milestone M2 --verified '<measured evidence>'`; fix all blocking findings before M3.
 
 
 ## Chunk 3: M3 both compositors and wrapper
@@ -422,3 +422,7 @@ BR11 independently reproduced an interrupted paint leaving autowrap disabled aft
 ### 2026-09-15 — M2 Unicode cell coherence
 
 BR12 reproduced legal zero-width input creating nonempty Width0 cells and permanently failing presentation. Preserve the strict cell invariant: zero-width continuation cells have no content. Contiguous marks, joiners and selectors extend their printable grapheme; controls seal that cluster. An orphan zero-width rune is consumed without cell, cursor or pending-wrap mutation, matching measured native Zellij behavior. Pinned xterm uses a different zero-width-cell representation, so do not claim identical orphan semantics. Apply the same policy to StyledRows. Use complete grapheme segmentation for Frame validation and UI text; ANSI DecodeSequence's ASCII fast path is not a complete-grapheme validator. Require every-byte-split backend and production presentation/input regressions plus independent rendering of intact ASCII-base combining clusters. ARCH-PURPOSE / ARCH-DRY: backend, frame and serializer must agree on what one cell contains.
+
+### 2026-09-15 — M2 closed; M3 begins
+
+M2 SHIP at window29101ebf..214d43e8 after six boundary rounds, BR6–BR12 disposed. Shared terminal, maintained backend, bounds/profile, independent renderer and failure/Unicode regression suites are implemented. Root full Go suite passed; the reviewer's separate full run hit unchanged `TestParkCoordinatorConstructorDoesNotQueryPairSession` at its100msdeadline, then ten isolated repetitions passed. Retain that distinction in final evidence and verify the full suite again after M3/M4. M2 closes library work only; production migration, native history and sustained display/selection acceptance remain pending.

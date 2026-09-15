@@ -236,6 +236,40 @@ rounds:
           round: 8
       boundary: M2
       blocked: true
+    - "n": 9
+      timestamp: "2026-09-15T13:57:53-07:00"
+      agent: codex
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: Backend orphan handling, strict grapheme validation, and StyledRows now agree. Production presentation/input and split-input regressions pass at HEAD and fail with the three pre-fix implementation files restored through a temporary Go overlay.
+          round: 9
+        - id: BR-6
+          disposition: addressed
+          note: Prior disposition retained; parent/orphan gesture and negotiation-epoch regressions pass.
+          round: 9
+        - id: BR-7
+          disposition: addressed
+          note: Prior disposition retained; atomic parameter-overflow handling and fork regressions pass.
+          round: 9
+        - id: BR-8
+          disposition: addressed
+          note: Prior disposition retained; snapshots consume authoritative cursor state and cursor qualification cases pass.
+          round: 9
+        - id: BR-9
+          disposition: addressed
+          note: Prior disposition retained; failed-resize and interrupted-cancellation regressions pass.
+          round: 9
+        - id: BR-10
+          disposition: addressed
+          note: Prior disposition retained; scoped temporary-directory cleanup and five native-driver tests pass.
+          round: 9
+        - id: BR-11
+          disposition: addressed
+          note: Prior disposition retained; independent interrupted-presentation restoration tests pass.
+          round: 9
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -349,6 +383,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Critical] `unicode-cell-coherence` Zero-width Unicode output permanently fails the presenter
   third_party/vt/utf8.go:49-51 stores an initial zero-width grapheme as a nonempty Width:0 cell, which cmd/internal/terminal/frame.go:97-100 rejects. Production Feed → Present → Flush reproduces Failed state for U+0301, U+200D, U+FE0F, and a combining mark following SGR or cursor movement. ARCH-PURPOSE: define coherent zero-width rendering across backend, frame validation, and serialization; cover the entire class with split-input and production-presentation regressions rather than weakening frame validation.
 
+## Round 9 — 2026-09-15T13:57:53-07:00 (codex) — passed
+
+### Disposed
+
+- BR-12 — addressed — Backend orphan handling, strict grapheme validation, and StyledRows now agree. Production presentation/input and split-input regressions pass at HEAD and fail with the three pre-fix implementation files restored through a temporary Go overlay.
+- BR-6 — addressed — Prior disposition retained; parent/orphan gesture and negotiation-epoch regressions pass.
+- BR-7 — addressed — Prior disposition retained; atomic parameter-overflow handling and fork regressions pass.
+- BR-8 — addressed — Prior disposition retained; snapshots consume authoritative cursor state and cursor qualification cases pass.
+- BR-9 — addressed — Prior disposition retained; failed-resize and interrupted-cancellation regressions pass.
+- BR-10 — addressed — Prior disposition retained; scoped temporary-directory cleanup and five native-driver tests pass.
+- BR-11 — addressed — Prior disposition retained; independent interrupted-presentation restoration tests pass.
+
 ## Open findings
 
-- **BR-12** [Critical] `unicode-cell-coherence` Zero-width Unicode output permanently fails the presenter
+(none — every finding has been disposed)
