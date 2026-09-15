@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -642,5 +643,91 @@ func TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard(t *testing.T) {
 	before, _, _ = it.FeedHit([]byte("hello"))
 	if !strings.Contains(string(before), "hello") {
 		t.Fatalf("keystrokes behind the junk did not reach the child: %q", before)
+	}
+}
+
+func TestInterceptorCandidateByteConservation(t *testing.T) {
+	candidates := [][]byte{{hotkeyByte}, {previousByte}, []byte("\x1b[999;9u"), []byte("\x1b[<0;4;5M"), []byte("\x1b[<" + strings.Repeat("9", 2*mouseinput.MaxReport))}
+	maxHeld := mouseinput.MaxReport
+	for _, s := range knownSequences {
+		if len(s.bytes)-1 > maxHeld {
+			maxHeld = len(s.bytes) - 1
+		}
+	}
+	for _, s := range knownSequences {
+		if s.kind.intercepts() {
+			candidates = append(candidates, s.bytes)
+		}
+	}
+	for _, candidate := range candidates {
+		for _, paste := range []bool{false, true} {
+			input := append([]byte("prefix"), candidate...)
+			input = append(input, []byte("suffix")...)
+			if paste {
+				input = append(append([]byte("\x1b[200~"), input...), []byte("\x1b[201~")...)
+			}
+			for split := 0; split <= len(input); split++ {
+				var it Interceptor
+				var reconstructed []byte
+				for _, chunk := range [][]byte{input[:split], input[split:]} {
+					for len(chunk) > 0 {
+						before, hit, rest := it.FeedHit(chunk)
+						reconstructed = append(reconstructed, before...)
+						if hit == HitNone {
+							if len(it.RawHit()) != 0 {
+								t.Fatal("stale raw candidate")
+							}
+							break
+						}
+						if paste {
+							t.Fatalf("pasted candidate fired: %q split=%d", input, split)
+						}
+						if len(it.RawHit()) == 0 {
+							t.Fatal("candidate has no raw payload")
+						}
+						reconstructed = append(reconstructed, it.RawHit()...)
+						chunk = rest
+					}
+					if len(it.held) > maxHeld {
+						t.Fatalf("unbounded hold: %d", len(it.held))
+					}
+				}
+				reconstructed = append(reconstructed, it.Flush()...)
+				if !bytes.Equal(reconstructed, input) {
+					t.Fatalf("input=%q split=%d got=%q", input, split, reconstructed)
+				}
+			}
+		}
+	}
+}
+
+func TestCouchNavigationReservationContract(t *testing.T) {
+	bindings := CouchNavigationBindings()
+	if len(bindings) != 3 {
+		t.Fatalf("navigation reservations=%d", len(bindings))
+	}
+	seen := map[string]bool{}
+	for _, binding := range bindings {
+		if binding.Key == "" || binding.Help == "" || len(binding.Encodings) == 0 {
+			t.Fatalf("incomplete binding: %+v", binding)
+		}
+		for _, encoding := range binding.Encodings {
+			if seen[string(encoding)] {
+				t.Fatalf("duplicate encoding %q", encoding)
+			}
+			seen[string(encoding)] = true
+			var it Interceptor
+			_, hit, _ := it.FeedHit(encoding)
+			if hit != binding.Hit || !hit.actorReserved() {
+				t.Fatalf("binding disagrees with parser: %+v %v", binding, hit)
+			}
+		}
+	}
+	for _, encoding := range []string{"\x1b[3;5~", "\x1b[57349;5u", "\r"} {
+		var it Interceptor
+		_, hit, _ := it.FeedHit([]byte(encoding))
+		if hit != HitNone {
+			t.Fatalf("invented navigation alias %q", encoding)
+		}
 	}
 }

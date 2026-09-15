@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"os"
@@ -48,7 +49,7 @@ func newChordFixture(t *testing.T) (*Console, *io.PipeWriter, couchcore.ThreadAd
 // processInput's switch to receive them, so alt+n was swallowed and silently
 // dropped while every interceptor test stayed green. This is the test that
 // fails when that happens.
-func TestRelaunchChordBytesFromAnActorReachTheConfirmation(t *testing.T) {
+func TestRelaunchChordBytesFromThePanelReachTheConfirmation(t *testing.T) {
 	for _, chord := range []struct {
 		name  string
 		chord workbenchshortcut.Chord
@@ -59,6 +60,7 @@ func TestRelaunchChordBytesFromAnActorReachTheConfirmation(t *testing.T) {
 		for _, encoding := range workbenchshortcut.ChordEncodings(chord.chord) {
 			t.Run(chord.name+"/"+renderInputBytes(encoding), func(t *testing.T) {
 				con, stdin, address := newChordFixture(t)
+				con.onHotkey()
 				waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
 
 				if _, err := stdin.Write(encoding); err != nil {
@@ -143,7 +145,7 @@ func relaunchConfirmationRoundTrip(t *testing.T, arrowDown string) {
 	})
 	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
 
-	if _, err := stdin.Write([]byte("\x1b[110;3u")); err != nil {
+	if _, err := stdin.Write([]byte("\x00\x1b[110;3u")); err != nil {
 		t.Fatalf("write alt+n: %v", err)
 	}
 	waitFor(t, "the relaunch confirmation", func() bool {
@@ -240,7 +242,7 @@ func TestRefusedRelaunchKeepsItsConfirmationAndSaysWhy(t *testing.T) {
 	})
 	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
 
-	if _, err := stdin.Write([]byte("\x1b[110;3u\x1b[B\r")); err != nil {
+	if _, err := stdin.Write([]byte("\x00\x1b[110;3u\x1b[B\r")); err != nil {
 		t.Fatalf("write chord, arrow and enter: %v", err)
 	}
 	waitFor(t, "the refusal notice on its own confirmation", func() bool {
@@ -379,5 +381,77 @@ func TestSwitcherRelaunchFindsTheThreadFromAnyDepth(t *testing.T) {
 					depth.name, frame.Kind, frame.Action, frame.Thread, snapshot.Notice.Text)
 			}
 		})
+	}
+}
+
+func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
+	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltD, workbenchshortcut.ChordAltX, workbenchshortcut.ChordAltN, workbenchshortcut.ChordCtrlAltN} {
+		for _, encoding := range workbenchshortcut.ChordEncodings(chord) {
+			t.Run(renderInputBytes(encoding), func(t *testing.T) {
+				con, stdin, _ := newChordFixture(t)
+				child := con.activeChild()
+				input := append(append([]byte("before"), encoding...), []byte("after")...)
+				if _, err := stdin.Write(input); err != nil {
+					t.Fatal(err)
+				}
+				waitFor(t, "forwarded lifecycle bytes", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), input) })
+				con.mu.Lock()
+				focus := con.focus
+				con.mu.Unlock()
+				if focus.IsPanel() || con.menuSnapshot().CurrentFrame().Kind == MenuFrameConfirmation {
+					t.Fatal("actor input opened lifecycle confirmation")
+				}
+			})
+		}
+	}
+}
+
+func TestLifecycleCandidateUsesFocusAfterPrefix(t *testing.T) {
+	for _, prefix := range []string{"\x00", "\x00\x08"} {
+		t.Run(renderInputBytes([]byte(prefix)), func(t *testing.T) {
+			con, stdin, _ := newChordFixture(t)
+			child := con.activeChild()
+			if prefix != "\x00" {
+				con.attachThreadActor("other", "other", menuAddress("other"), "/w/other", "other", ptychild.NewFakeChild(nil))
+				con.switchTo("other", true, arrivalOrdinary)
+				child = con.activeChild()
+				con.switchTo("c1", true, arrivalOrdinary)
+			}
+			chord := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX)[0]
+			input := append([]byte(prefix), chord...)
+			if _, err := stdin.Write(input); err != nil {
+				t.Fatal(err)
+			}
+			if prefix == "\x00" {
+				waitFor(t, "panel park confirmation", func() bool {
+					frame := con.menuSnapshot().CurrentFrame()
+					return frame.Kind == MenuFrameConfirmation && frame.Action == "leave"
+				})
+				if len(child.Writes()) != 0 {
+					t.Fatal("panel candidate leaked")
+				}
+			} else {
+				waitFor(t, "post-navigation actor bytes", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), chord) })
+			}
+		})
+	}
+}
+
+func TestCandidateAdmissionReadsFocusAfterRoutingPrefix(t *testing.T) {
+	con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80}), nil)
+	con.focus = FocusPanel()
+	raw := []byte("\x1b[120;3u")
+	var delivered [][]byte
+	con.dispatchInputCandidate([]byte("prefix"), HitPark, raw, func(input []byte) {
+		if bytes.Equal(input, []byte("prefix")) {
+			con.mu.Lock()
+			con.focus = FocusActor("actor")
+			con.mu.Unlock()
+			return
+		}
+		delivered = append(delivered, append([]byte(nil), input...))
+	})
+	if !bytes.Equal(bytes.Join(delivered, nil), raw) {
+		t.Fatalf("prefix focus change ignored: %q", delivered)
 	}
 }

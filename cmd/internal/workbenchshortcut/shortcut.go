@@ -53,6 +53,8 @@ const (
 	ChordAltShiftLeft
 	ChordAltShiftRight
 	ChordAltShiftT
+	ChordAltH
+	ChordAltL
 	// chordMax is one past the last chord. Enumerations over the chord space
 	// derive their bound from it, so a chord appended above is covered without
 	// editing the consumer. Both documentation guards previously stopped at
@@ -105,6 +107,8 @@ const (
 	// moving focus (#243). Like Prev/Next it is a HandledInPane global, so it
 	// survives #227's passthrough when the right pane shows a full-screen app.
 	ActionTerminalNewTab
+	ActionOpenHelp
+	ActionOpenChangelog
 )
 
 type ShortcutInput struct {
@@ -140,6 +144,9 @@ type GlobalBinding struct {
 	// LuaFunction stays populated regardless — it is what RenderLuaGlobalMaps
 	// emits for the draft's own keymap.
 	HandledInPane bool
+	// AgentReserved keeps this action available when the agent owns input.
+	// Every other workbench chord passes through that role.
+	AgentReserved bool
 	// Help is the user-facing description shown by `pair keys` / Alt+h (#132).
 	// It is authored HERE because these chords reach nvim through the generated
 	// workbench_actions.lua rather than literal vim.keymap.set calls, so no
@@ -166,12 +173,16 @@ var globalBindings = []GlobalBinding{
 		Help: "shrink the draft pane along the height ladder"},
 	{Chord: ChordAltC, Action: ActionToggleReview, LuaFunction: "PairReviewToggle", NvimKey: "<M-c>", FocusDraft: false,
 		Help: "open / show / hide the review pane"},
-	{Chord: ChordAltShiftLeft, Action: ActionTerminalPrevTab, LuaFunction: "PairTermPrevTab", NvimKey: "<S-M-Left>", FocusDraft: false, HandledInPane: true,
+	{Chord: ChordAltShiftLeft, Action: ActionTerminalPrevTab, LuaFunction: "PairTermPrevTab", NvimKey: "<S-M-Left>", FocusDraft: false, HandledInPane: true, AgentReserved: true,
 		Help: "previous terminal tab, from any pane, without moving focus"},
-	{Chord: ChordAltShiftRight, Action: ActionTerminalNextTab, LuaFunction: "PairTermNextTab", NvimKey: "<S-M-Right>", FocusDraft: false, HandledInPane: true,
+	{Chord: ChordAltShiftRight, Action: ActionTerminalNextTab, LuaFunction: "PairTermNextTab", NvimKey: "<S-M-Right>", FocusDraft: false, HandledInPane: true, AgentReserved: true,
 		Help: "next terminal tab, from any pane, without moving focus"},
-	{Chord: ChordAltShiftT, Action: ActionTerminalNewTab, LuaFunction: "PairTermNewTab", NvimKey: "<M-T>", FocusDraft: false, HandledInPane: true,
+	{Chord: ChordAltShiftT, Action: ActionTerminalNewTab, LuaFunction: "PairTermNewTab", NvimKey: "<M-T>", FocusDraft: false, HandledInPane: true, AgentReserved: true,
 		Help: "new terminal tab in the right pane, from any pane"},
+	{Chord: ChordAltH, Action: ActionOpenHelp, LuaFunction: "PairOpenHelp", NvimKey: "<M-h>",
+		Help: "show this keybinding help"},
+	{Chord: ChordAltL, Action: ActionOpenChangelog, LuaFunction: "PairOpenChangelog", NvimKey: "<M-l>",
+		Help: "open the changelog"},
 }
 
 // RoleBinding describes a chord whose behaviour is PANE-LOCAL — it does something
@@ -253,6 +264,12 @@ func TitleIdentifiesRightTerminal(title string) bool {
 }
 
 func Decide(in ShortcutInput) ShortcutDecision {
+	if in.Role == PaneRoleLeftAgent {
+		binding, ok := globalDraftAction(in.Chord)
+		if !ok || !binding.AgentReserved {
+			return ShortcutDecision{Disposition: DispositionPass}
+		}
+	}
 	if in.Role == PaneRoleLeftAgent || in.Role == PaneRoleLeftDraft || in.Role == PaneRoleRightTerminal {
 		if decision, ok := DecideGlobal(in.Chord); ok {
 			return decision
@@ -377,6 +394,8 @@ var chordSequences = []struct {
 	sequence string
 	chord    Chord
 }{
+	{"\x1bh", ChordAltH}, {"\x1b[104;3u", ChordAltH},
+	{"\x1bl", ChordAltL}, {"\x1b[108;3u", ChordAltL},
 	{"\x1bj", ChordAltJ}, {"\x1b[106;3u", ChordAltJ},
 	{"\x1bk", ChordAltK}, {"\x1b[107;3u", ChordAltK},
 	{"\x1bt", ChordAltT}, {"\x1b[116;3u", ChordAltT},
@@ -479,6 +498,10 @@ func FindChord(data []byte) ([]byte, Chord, []byte, []byte, bool) {
 
 func ChordName(chord Chord) string {
 	switch chord {
+	case ChordAltH:
+		return "Alt+h"
+	case ChordAltL:
+		return "Alt+l"
 	case ChordAltJ:
 		return "Alt+j"
 	case ChordAltK:

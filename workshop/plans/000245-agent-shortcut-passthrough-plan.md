@@ -71,61 +71,61 @@ The deterministic environment models terminal bytes delivered, focused role, ope
 
 **Files:** Modify `cmd/internal/workbenchshortcut/shortcut.go`, `shortcut_test.go`, `render_lua.go`; regenerate `nvim/workbench_actions.lua`. Modify `cmd/internal/keyhelp/catalog.go`, `sections.go` and colocated tests for reservation-derived help.
 
-- [ ] Write a complete role × chord decision matrix: every known unreserved chord is passthrough for every agent role instance; exactly the three tab chords retain pane actions. Include new help/changelog chords, Alt+Up/Down, ordinary Alt+Left/Right, lifecycle chords and unknown bytes. Draft/terminal decisions remain unchanged apart from adding previously Zellij-owned actions.
-- [ ] Add pure reservation tests proving exactly three Couch-owned and three pane-owned entries, no duplicate/ambiguous encoding ownership, and no Forward Delete alias for Ctrl+Backspace. Help coverage must derive from the declared set.
-- [ ] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/keyhelp -count=1`; record the expected policy/help regression failures before implementation.
-- [ ] Add the minimal shared policy and move the agent-role gate before unconditional globals in `Decide`. Add help/changelog declarations and generated nvim mappings. Keep non-agent global routing intact; do not use `DecideGlobal` as an agent-policy bypass.
-- [ ] Run `go run ./cmd/internal/workbenchshortcut/generatecmd --out nvim/workbench_actions.lua`, then rerun the two packages. Generated-map drift and complete decision tests must pass.
+- [x] Write a complete role × chord decision matrix: every known unreserved chord is passthrough for every agent role instance; exactly the three tab chords retain pane actions. Include new help/changelog chords, Alt+Up/Down, ordinary Alt+Left/Right, lifecycle chords and unknown bytes. Draft/terminal decisions remain unchanged apart from adding previously Zellij-owned actions.
+- [x] Add pure reservation tests proving exactly three Couch-owned and three pane-owned entries, no duplicate/ambiguous encoding ownership, and no Forward Delete alias for Ctrl+Backspace. Help coverage must derive from the declared set.
+- [x] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/keyhelp -count=1`; record the expected policy/help regression failures before implementation.
+- [x] Add the minimal shared policy and move the agent-role gate before unconditional globals in `Decide`. Add help/changelog declarations and generated nvim mappings. Keep non-agent global routing intact; do not use `DecideGlobal` as an agent-policy bypass.
+- [x] Run `go run ./cmd/internal/workbenchshortcut/generatecmd --out nvim/workbench_actions.lua`, then rerun the two packages. Generated-map drift and complete decision tests must pass.
 
 ### Task 2: Make wrapper shortcut recognition respect paste framing
 
 **Files:** Create `cmd/internal/workbenchshortcut/framing.go`, `framing_test.go`; modify `cmd/internal/wrapcmd/wrap.go`, `translate_test.go` and existing relevant Return/paste tests.
 
-- [ ] Add red boundary tests through `translateStdin`: literal unreserved chords reach the agent unchanged and perform no action; reserved tab chords execute once outside paste and never inside paste. Run with Return adaptation enabled and disabled, including an agent without a harness profile.
-- [ ] Enumerate every split point of each accepted chord and paste-start/end marker. Test ordinary prefix + partial marker, start/chord/end in one chunk, already-in-paste next chunk, end marker followed immediately by a real reserved chord, repeated adjacent chords, unknown escape sequences and final timeout/EOF flush. Verify byte concatenation, exact action count, unchanged pasted CRs and no false lifecycle submission observation.
-- [ ] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd -run 'Fram|Translate|Paste|Return|Submitting' -count=1`; capture the existing `FindChord`-inside-paste failure and remap-disabled split-marker failure where reproduced.
-- [ ] Replace unconditional `FindChord(data)` dispatch with incremental paste-aware framing. Keep original raw chord bytes when `handleWorkbenchChord` declines them. Resolve partial marker/chord suffixes before the next chunk; reuse the existing escape timer, with a bounded buffer derived from marker/chord lengths.
-- [ ] Ensure Return adaptation and shortcut dispatch agree on framing; do not independently scan a raw chunk for shortcuts before interpreting its paste boundaries. Preserve orientation/turn observation behavior outside the shortcut change.
-- [ ] Rerun focused tests and `go test ./cmd/internal/wrapcmd ./cmd/internal/workbenchshortcut -count=1`; require all supported agent configurations to pass the same passthrough policy.
+- [x] Add red boundary tests through `translateStdin`: literal unreserved chords reach the agent unchanged and perform no action; reserved tab chords execute once outside paste and never inside paste. Run with Return adaptation enabled and disabled, including an agent without a harness profile.
+- [x] Enumerate every split point of each accepted chord and paste-start/end marker. Test ordinary prefix + partial marker, start/chord/end in one chunk, already-in-paste next chunk, end marker followed immediately by a real reserved chord, repeated adjacent chords, unknown escape sequences and final timeout/EOF flush. Verify byte concatenation, exact action count, unchanged pasted CRs and no false lifecycle submission observation.
+- [x] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd -run 'Fram|Translate|Paste|Return|Submitting' -count=1`; capture the existing `FindChord`-inside-paste failure and remap-disabled split-marker failure where reproduced.
+- [x] Replace unconditional `FindChord(data)` dispatch with incremental paste-aware framing. Keep original raw chord bytes when `handleWorkbenchChord` declines them. Resolve partial marker/chord suffixes before the next chunk; reuse the existing escape timer, with a bounded buffer derived from marker/chord lengths.
+- [x] Ensure Return adaptation and shortcut dispatch agree on framing; do not independently scan a raw chunk for shortcuts before interpreting its paste boundaries. Preserve orientation/turn observation behavior outside the shortcut change.
+- [x] Rerun focused tests and `go test ./cmd/internal/wrapcmd ./cmd/internal/workbenchshortcut -count=1`; require all supported agent configurations to pass the same passthrough policy.
 
 ### Task 3: Scope Couch interception to its actual focus authority
 
 **Files:** Modify `cmd/internal/couchtty/keys.go`, `console.go`, `keys_test.go`, `console_test.go`, `console_relaunch_chord_test.go`; add `cmd/internal/couchtty/console_shortcut_passthrough_test.go` for focused integration cases.
 
-- [ ] Add red tests for actor input: every encoding of Alt+d/Alt+x/Alt+n/Ctrl+Alt+n reaches the child unchanged, no confirmation opens, no lifecycle operation runs. The three Couch navigation chords still work; all existing mouse/paste cases remain valid.
-- [ ] Add panel counterparts retaining detach/park/relaunch confirmation and operation payload behavior. Update previous actor-relaunch expectations to assert the accepted new behavior instead of deleting useful confirmation coverage.
-- [ ] Add same-read transition tests: ordinary bytes + Ctrl+Space + lifecycle chord routes suffix to panel; panel selection returning to an actor + unreserved suffix routes it to the child. Cover a chord split across reads, mouse focus changes and pasted navigation/lifecycle encodings.
-- [ ] Run `go test ./cmd/internal/couchtty -run 'Interceptor|Hotkey|Relaunch|Shortcut|Paste' -count=1`; record expected actor-interception failures.
-- [ ] Add the pure panel/actor scope to interception and read it per `FeedHit` iteration in `Console.processInput`. Preserve `route(before) → handle → process(rest)` ordering, handler exhaustiveness and mouse payload lifetime. Avoid cached inner-pane role or special-case agent names.
-- [ ] Rerun focused tests and `go test -race ./cmd/internal/couchtty -count=1`; confirm no menu/confirmation/notification regressions.
+- [x] Add red tests for actor input: every encoding of Alt+d/Alt+x/Alt+n/Ctrl+Alt+n reaches the child unchanged, no confirmation opens, no lifecycle operation runs. The three Couch navigation chords still work; all existing mouse/paste cases remain valid.
+- [x] Add panel counterparts retaining detach/park/relaunch confirmation and operation payload behavior. Update previous actor-relaunch expectations to assert the accepted new behavior instead of deleting useful confirmation coverage.
+- [x] Add same-read transition tests: ordinary bytes + Ctrl+Space + lifecycle chord routes suffix to panel; panel selection returning to an actor + unreserved suffix routes it to the child. Cover a chord split across reads, mouse focus changes and pasted navigation/lifecycle encodings.
+- [x] Run `go test ./cmd/internal/couchtty -run 'Interceptor|Hotkey|Relaunch|Shortcut|Paste' -count=1`; record expected actor-interception failures.
+- [x] Add the pure panel/actor scope to interception and read it per `FeedHit` iteration in `Console.processInput`. Preserve `route(before) → handle → process(rest)` ordering, handler exhaustiveness and mouse payload lifetime. Avoid cached inner-pane role or special-case agent names.
+- [x] Rerun focused tests and `go test -race ./cmd/internal/couchtty -count=1`; confirm no menu/confirmation/notification regressions.
 
 ### Task 4: Remove earlier Zellij consumption and preserve non-agent actions
 
 **Files:** Modify `zellij/config.kdl`, `nvim/init.lua`, `nvim/workbench_route.lua`, `nvim/workbench_route_test.lua`, `cmd/internal/termcmd/run.go`, `run_test.go`, `tests/term-pane-shortcuts-test.sh`, `tests/workbench-route-nvim-test.sh`. Reuse generated `nvim/workbench_actions.lua` from Task 1.
 
-- [ ] Add failing config/action-contract tests for Alt+h and Alt+l: KDL delivers bytes to the focused pane; agent receives them; draft/terminal opens the same help/changelog UI with the same command and geometry. Verify action failure reports do not silently swallow a requested non-agent action.
-- [ ] Sweep all active KDL bind blocks and inherited defaults for unreserved keys consumed before a pane. List each direct Run/action binding encountered in the implementation log; migrate any workbench sibling of help/changelog to the same role-local policy. Do not reintroduce Zellij defaults when removing a binding: explicitly unbind inherited consuming defaults where necessary.
-- [ ] Replace the help/changelog direct Run bindings with canonical chord forwarding. Add non-agent action handlers through the existing generated draft-routing model; terminal consumers continue their existing role-specific tab/focus behavior. Preserve floating help/changelog dimensions and close-on-exit, and do not focus the draft unnecessarily.
-- [ ] Run `go test ./cmd/internal/termcmd ./cmd/internal/keyhelp ./cmd/internal/keyscmd -count=1`, `nvim -l nvim/workbench_route_test.lua`, `bash tests/workbench-route-nvim-test.sh`, and `bash tests/term-pane-shortcuts-test.sh`. Run `zellij --config-dir zellij setup --check`; verify successful config parsing and no remaining direct unreserved workbench consumption.
+- [x] Add failing config/action-contract tests for Alt+h and Alt+l: KDL delivers bytes to the focused pane; agent receives them; draft/terminal opens the same help/changelog UI with the same command and geometry. Verify action failure reports do not silently swallow a requested non-agent action.
+- [x] Sweep all active KDL bind blocks and inherited defaults for unreserved keys consumed before a pane. List each direct Run/action binding encountered in the implementation log; migrate any workbench sibling of help/changelog to the same role-local policy. Do not reintroduce Zellij defaults when removing a binding: explicitly unbind inherited consuming defaults where necessary.
+- [x] Replace the help/changelog direct Run bindings with canonical chord forwarding. Add non-agent action handlers through the existing generated draft-routing model; terminal consumers continue their existing role-specific tab/focus behavior. Preserve floating help/changelog dimensions and close-on-exit, and do not focus the draft unnecessarily.
+- [x] Run `go test ./cmd/internal/termcmd ./cmd/internal/keyhelp ./cmd/internal/keyscmd -count=1`, `nvim -l nvim/workbench_route_test.lua`, `bash tests/workbench-route-nvim-test.sh`, and `bash tests/term-pane-shortcuts-test.sh`. Run `zellij --config-dir zellij setup --check`; verify successful config parsing and no remaining direct unreserved workbench consumption.
 
 ### Task 5: Prove real input delivery through the composed stack
 
 **Files:** Create `cmd/internal/couchcmd/shortcut_conformance_live_test.go`; modify `Makefile.local` and `.github/workflows/couch-zellij-conformance.yml` to include the test and its source paths. Reuse existing Couch command/process fixtures and controlled Zellij helpers.
 
-- [ ] Add a portable composed Console/child/role-consumer fixture first. Its oracle records the exact agent byte stream, role-local actions and Couch menu transitions, including paste and same-read focus changes. Actual process/stream state must support the assertions; do not merely assert which callback was invoked.
-- [ ] Add gated `TestAgentShortcutInputConformanceLive`: temporary HOME/data namespace/repo, random owned Zellij session, real input connection through Couch Console, and a fixture byte-recording agent behind production `pair wrap`. Keep real Zellij input routing and production wrapper active. Any stand-in at the agent application or helper seam must be described in the test and evidence.
-- [ ] Drive unreserved lifecycle/arrows/help/changelog chords through outer host input and assert agent receipt with zero workbench effects. Use terminal-equivalent canonical encodings where Zellij legitimately rewrites a chord; separately prove wrapper passthrough preserves received bytes. Test reserved tabs outside paste, reserved chords inside paste, and the three Couch navigation actions without leaking them to the agent.
-- [ ] Change to draft/right-terminal using the real fixture's focus actions, then verify representative retained actions including help/changelog; return to the agent by mouse/focus and repeat delivery. Prove no polling-based role authority is needed. Record session/pane/process identities before actions and clean up only those resources.
-- [ ] Add the gated command `PAIR_LIVE_COUCH=1 go test ./cmd/internal/couchcmd -run '^TestAgentShortcutInputConformanceLive$' -count=1 -v` to the existing live conformance target. Extend PR/push filters for changed wrapper, shortcut, Couch input, KDL/nvim and fixture files so recurring coverage runs for the actual sources, not just the new test.
-- [ ] Run the live case directly and record byte/action evidence. If the environment cannot exercise a layer, leave that obligation unchecked and report the exact limitation; a fake-only result does not satisfy the composed live row.
+- [x] Add a portable composed Console/child/role-consumer fixture first. Its oracle records the exact agent byte stream, role-local actions and Couch menu transitions, including paste and same-read focus changes. Actual process/stream state must support the assertions; do not merely assert which callback was invoked.
+- [x] Add gated `TestAgentShortcutInputConformanceLive`: temporary HOME/data namespace/repo, random owned Zellij session, real input connection through Couch Console, and a fixture byte-recording agent behind production `pair wrap`. Keep real Zellij input routing and production wrapper active. Any stand-in at the agent application or helper seam must be described in the test and evidence.
+- [x] Drive unreserved lifecycle/arrows/help/changelog chords through outer host input and assert agent receipt with zero workbench effects. Use terminal-equivalent canonical encodings where Zellij legitimately rewrites a chord; separately prove wrapper passthrough preserves received bytes. Test reserved tabs outside paste, reserved chords inside paste, and the three Couch navigation actions without leaking them to the agent.
+- [x] Change to draft/right-terminal using the real fixture's focus actions, then verify representative retained actions including help/changelog; return to the agent by mouse/focus and repeat delivery. Prove no polling-based role authority is needed. Record session/pane/process identities before actions and clean up only those resources.
+- [x] Add the gated command `PAIR_LIVE_COUCH=1 go test ./cmd/internal/couchcmd -run '^TestAgentShortcutInputConformanceLive$' -count=1 -v` to the existing live conformance target. Extend PR/push filters for changed wrapper, shortcut, Couch input, KDL/nvim and fixture files so recurring coverage runs for the actual sources, not just the new test.
+- [x] Run the live case directly and record byte/action evidence. If the environment cannot exercise a layer, leave that obligation unchecked and report the exact limitation; a fake-only result does not satisfy the composed live row.
 
 ### Task 6: Verify, document and close
 
 **Files:** Modify `README.md`, `atlas/couch.md`, relevant existing shortcut atlas page discovered through `atlas/index.md`, and `atlas/index.md` only if adding a page. Root updates `workshop/issues/000245-agent-shortcut-passthrough.md`.
 
-- [ ] Render `pair keys` and Couch help, verify both derive the six exceptions and pane scope from the declared policy. Remove actor-wide lifecycle claims. Explain the switcher as the Couch lifecycle entrypoint and the accepted Pair-local behavior in draft/terminal panes.
-- [ ] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/termcmd ./cmd/internal/keyhelp ./cmd/internal/keyscmd -count=1`, then relevant race packages, `make test`, and `git diff --check`. Build current binaries with the existing Make target before operator smoke.
-- [ ] Compare every concept-table row with the final diff, including any extracted framing/executor file and generated artifact. Append a timestamped revision for actual deviations; keep original design history. Record exact portable/live test results and limitations in the issue.
+- [x] Render `pair keys` and Couch help, verify both derive the six exceptions and pane scope from the declared policy. Remove actor-wide lifecycle claims. Explain the switcher as the Couch lifecycle entrypoint and the accepted Pair-local behavior in draft/terminal panes.
+- [x] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd ./cmd/internal/couchtty ./cmd/internal/couchcmd ./cmd/internal/termcmd ./cmd/internal/keyhelp ./cmd/internal/keyscmd -count=1`, then relevant race packages, `make test`, and `git diff --check`. Build current binaries with the existing Make target before operator smoke.
+- [x] Compare every concept-table row with the final diff, including any extracted framing/executor file and generated artifact. Append a timestamped revision for actual deviations; keep original design history. Record exact portable/live test results and limitations in the issue.
 - [ ] Commit verified implementation with an issue reference and author trailer. Root runs `sdlc close --issue 245 --verified '<actual behavior and verification evidence>'`; fix Critical/Important findings before crossing the single issue-close boundary.
 - [ ] Pause for operator smoke on current binaries: focused agent receives Alt+Up/Down, ordinary Alt+Left/Right and former lifecycle/help chords; six exceptions perform the agreed actions; mouse focus leaves the agent; draft/terminal retain their actions. Do not claim this operator acceptance from automated stand-in fixtures.
 
@@ -280,3 +280,61 @@ row's oracle; avoid duplicating the same matrix across packages. Record red/gree
 evidence at the named function or composed boundary, then run the package commands
 already prescribed by each task. Operator smoke remains unchecked until the
 operator exercises the running workbench.
+
+
+### 2026-09-14 — Implemented boundaries and verification mapping
+
+Tasks 1–5 are complete under the authoritative refinements above. The portable
+composition uses one mixed lifecycle/arrows/help/paste/tab stream through real
+Console output into the wrapper. Generated two-way/bytewise partition matrices
+exercise the component stream owners separately (Couch candidate conservation
+and wrapper, for Claude/Codex/Muse and adaptation disabled). This combines actual
+consumer transport with partition invariants without duplicating every matrix
+in the composition fixture. The real-Zellij fixture proves 13 representative
+key encodings and unchanged pane/tab layout. Its prior-config overlay fails on
+Alt+f. It opens its recorder layout with an owned `new-tab --layout` action after
+session startup, because startup layout flags did not select it reliably.
+
+Panel Enter/Escape selections are queued asynchronously in the existing owner.
+Their suffix remains on the panel until the switch actually occurs. The tested
+synchronous reverse transition uses Ctrl+Backspace; a private production
+`dispatchInputCandidate` also proves prefix delivery precedes authorization.
+No queue/focus lifecycle semantics were changed.
+
+Authoritative concept/diff inventory (supersedes prospective placeholder rows):
+
+| Entity | Kind | Path | Change |
+|---|---|---|---|
+| `GlobalBinding.AgentReserved`, `Decide`, `ChordAltH`, `ChordAltL` | PURE | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
+| `FindChordOutsidePaste`, `PendingInputSuffix`, paste marker constants | PURE | `cmd/internal/workbenchshortcut/framing.go` | new |
+| `Interceptor.RawHit`, `CouchNavigationBindings`, `actorReserved` | PURE | `cmd/internal/couchtty/keys.go` | modified |
+| `Console.dispatchInputCandidate` and Run input loop | INTEGRATION | `cmd/internal/couchtty/console.go` | modified |
+| `proxy.translateStdinFrom`, `translateChunk`, `passThroughChunk` | INTEGRATION | `cmd/internal/wrapcmd/wrap.go` | modified |
+| `ContextWorkbench`, `Sections`, catalog source classification | PURE | `cmd/internal/keyhelp/{keyhelp,sections,catalog}.go` | modified |
+| generated global maps | PURE | `nvim/workbench_actions.lua` | modified |
+| `PairOpenHelp`, `PairOpenChangelog`, minimized hint | INTEGRATION | `nvim/init.lua` | modified |
+| `usage` reservation rendering | INTEGRATION | `cmd/internal/couchcmd/run.go` | modified |
+| `ControlledZellij`, `StartControlledZellijWithOptions`, `WriteInput` | INTEGRATION | `cmd/internal/pairlifecycletest/live_zellij.go` | modified |
+| explicit forwarding configuration | INTEGRATION | `zellij/config.kdl` | modified |
+
+`RenderLuaGlobalMaps`, `nvim/workbench_route.lua`, terminal action executors and
+existing typed lifecycle operations are unchanged reuse. The added framing file
+is classified as a non-artifact source in the exhaustive artifact inventory.
+Couch CLI help derives all six reservations; standalone Pair help derives its
+three tab reservations without importing the Couch UI package. README, both
+architecture atlas pages and the minimized draft hint describe current scope.
+
+The first full make run found a legacy source assertion requiring literal
+`unbind "Alt o"`; it now asserts closed defaults. Full make is being rerun after
+that test and the corrected minimized hint. Final close and operator smoke
+remain pending; no publication is authorized by this checklist update.
+
+
+### 2026-09-14 — Final verification
+
+All shell/Lua prerequisites passed on the second full make run. Its Go phase
+exposed only an obsolete term fixture and a misplaced comment; corrected, then
+full `go test ./... -count=1` passed. Race packages and build passed. The technical
+verification obligation is complete; the issue-close review and operator smoke
+are still open. The quoted full make command itself exited nonzero before those
+two final corrections; do not report that invocation as green.

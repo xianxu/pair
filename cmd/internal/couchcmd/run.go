@@ -24,6 +24,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
 // Runtime is the seam for everything ambient: env lookup and where the store
@@ -756,4 +757,16 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  --layout2  use the two-pane workbench without the right-hand terminal.")
 	fmt.Fprintln(w, "             One layout per couch: it refuses to run alongside a thread")
 	fmt.Fprintln(w, "             already holding a session in the other layout.")
+	fmt.Fprintln(w, "\nWhile a Pair pane is displayed:")
+	for _, binding := range couchtty.CouchNavigationBindings() {
+		fmt.Fprintf(w, "  %s  %s\n", binding.Key, binding.Help)
+	}
+	fmt.Fprintln(w, "The agent also reserves these terminal-tab keys:")
+	for _, binding := range workbenchshortcut.GlobalBindings() {
+		if binding.AgentReserved {
+			fmt.Fprintf(w, "  %s  %s\n", workbenchshortcut.ChordName(binding.Chord), binding.Help)
+		}
+	}
+	fmt.Fprintln(w, "Other workbench keys reach the focused agent. Click another pane to leave it.")
+	fmt.Fprintln(w, "Use the switcher for Couch lifecycle operations.")
 }

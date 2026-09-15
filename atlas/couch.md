@@ -641,15 +641,15 @@ produce two stories. Ambiguous and legacy-unverified records now appear in both
 views, named rather than hidden. Ephemeral console targets bind only to durable proven-live rows,
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
-available for the refreshed resumable row. The two LIFECYCLE chords read as a
-2x2 (Alt+n is a third intercepted chord and deliberately not part of this grid;
-see **Alt+n is Couch's own relaunch** below): the KEY chooses the disposition (Alt+x parks, Alt+d detaches) and the
-SURFACE chooses the scope (an actor means that thread, the switcher means every
-live thread and then leaving). Alt+x on the switcher therefore opens the typed
-`leave` confirmation in its park disposition, parks every live thread
-sequentially, and closes the console only after durable success and exact
-Pair-child death; Alt+d there does the same sweep with detach and no
-confirmation. Confirmation rides the disposition, not the scope.
+available for the refreshed resumable row. Lifecycle shortcuts are panel-only
+(#245): Alt+x opens the typed `leave` confirmation in its park disposition;
+Alt+d performs the detach sweep without confirmation. Individual thread actions
+remain in the switcher. While an actor is displayed, those raw chords reach
+Zellij and the receiving pane. No inner-pane focus cache or key-time query exists.
+The agent consumes only Shift+Alt+T/Left/Right; Couch consumes its three navigation
+chords. `Interceptor` frames candidates, then Console routes the preceding bytes
+before resolving focus and authorizing or forwarding the raw candidate. This
+preserves ordering when a read contains navigation followed by a lifecycle key.
 That confirmation is a **global frame** -- `menuFrameBindsThread` is false for
 it -- because it names couch rather than a thread. It used to ride the root
 actor's live address, so five thread lookups passed by accident; one of them,
@@ -724,30 +724,16 @@ recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
 same-address/same-nonce overlap shares one future, while other work overloads
 without lifecycle effects.
 
-**Alt+n is Couch's own relaunch** (`pair#182`), and it is the THIRD intercepted
-chord — the lifecycle grid above covers only Alt+x and Alt+d, which is why this
-one is easy to miss. It is intercepted for a sharper reason than they are:
-un-intercepted, Pair handles Alt+n INSIDE the process couch spawned, re-entering
-its loop in the same process image, so the binary in memory is still the old one
-and a rebuilt Pair is not what comes back. For Pair development that is worse
-than not working, because it looks like it worked. `Ctrl+Alt+n` aliases it and is
-not a nicety — on newer macOS Option+n is a dead-tilde composer. `Alt+Shift+N` is
-deliberately NOT taken: it restarts the conversation and keeps the code, the
-exact inverse, and it stays the cheap in-session escape hatch.
+**Alt+n / Ctrl+Alt+n relaunch the highlighted switcher row** (`pair#182`,
+`pair#245`). Couch replaces the helper with the current binary and keeps the
+conversation. While a Pair pane is displayed these chords pass inward: the agent
+receives input; other panes retain Pair's existing in-process reload. There is
+no whole-Couch relaunch; leave the switcher, rebuild and run Couch again.
 
-Alt+n does not follow the lifecycle grid's scope rule, and the deviation is the
-point rather than an oversight: there is no whole-couch relaunch (that is Alt+d,
-rebuild, re-run couch), so from the switcher it relaunches the HIGHLIGHTED ROW.
-From an actor it relaunches that actor and leaves the operator in the SWITCHER,
-not on the actor, because until a pane can outlive its child there is no actor
-surface to stay on — the child is being replaced. Ending on the actor is
-`pair#186`.
-
-**Alt+d is Couch's own detach** (`pair#170`), intercepted like Alt+x and for the
-same reason: un-intercepted, Pair's `PairConfirmDetach` runs `zellij action
-detach` from inside the session, leaving Couch with a dead child and a stale live
-incarnation that the fail-closed projection hides -- the operator's safest
-gesture would make the thread disappear. Detach is park's WARM counterpart:
+**Detach is available in the switcher** (`pair#170`, `pair#245`). Alt+d there
+detaches all live threads; a thread's Detach action operates on that thread.
+Use this route for durable Couch retirement. Pair's own draft/right-pane detach
+only detaches its Zellij client. Detach is park's warm counterpart:
 `Couch.Detach` SIGTERMs the actor's process group (never SIGKILL -- it does not
 reuse `handleCleanup`, whose own comment calls that path rollback rather than
 graceful shutdown), waits bounded for exit, proves the zellij session is still

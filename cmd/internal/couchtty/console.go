@@ -749,32 +749,15 @@ func (c *Console) Run() int {
 	processInput := func(raw []byte) {
 		for {
 			before, hit, rest := it.FeedHit(raw)
-			route(before)
-			if hit == HitNone {
-				return
-			}
-			// One table, walked by a test against AllInterceptorHits, rather
-			// than a switch whose exhaustiveness is a promise. A `default:
-			// c.onHotkey()` would turn an unhandled hit into "open the
-			// switcher"; a switch with no default drops it silently, which is
-			// what alt+n did on its first ship. Neither can report the case it
-			// is missing -- the table can.
+			rawHit := it.RawHit()
 			if hit == HitMouse {
-				// Read from the same Interceptor that produced it, before the
-				// next Feed overwrites it, then dispatched through the table
-				// like every other hit.
 				c.mu.Lock()
 				c.mouseHit = it.Mouse()
 				c.mu.Unlock()
 			}
-			if handle := c.hitHandlers()[hit]; handle != nil {
-				handle()
-			} else {
-				// The bytes are already consumed, so silence here is a chord
-				// that does nothing with no way to tell. The test catches this
-				// at build time; this makes it observable to an operator in a
-				// build where it did not.
-				c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
+			c.dispatchInputCandidate(before, hit, rawHit, route)
+			if hit == HitNone {
+				return
 			}
 			raw = rest
 		}
@@ -1993,8 +1976,29 @@ func (c *Console) switchToThread(thread couchcore.ThreadAddress) {
 	c.reduceMenu(MenuEvent{Kind: MenuEventMouseSwitch, Address: thread})
 }
 
+// dispatchInputCandidate resolves ownership after prefix delivery. The route
+// callback is the input loop's existing panel/child writer, not a focus cache.
+func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawHit []byte, route func([]byte)) {
+	route(before)
+	if hit == HitNone {
+		return
+	}
+	c.mu.Lock()
+	actorFocused := !c.focus.IsPanel()
+	c.mu.Unlock()
+	if actorFocused && hit != HitMouse && !hit.actorReserved() {
+		route(rawHit)
+		return
+	}
+	// The declared handler table is checked against AllInterceptorHits.
+	if handle := c.hitHandlers()[hit]; handle != nil {
+		handle()
+	} else {
+		c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
+	}
+}
+
 // hitHandlers maps every intercepted chord to what the console does about it.
-//
 // A method rather than a package var because the handlers are bound to this
 // Console; the point is that the mapping is DATA a test can walk, not control
 // flow it can only execute.

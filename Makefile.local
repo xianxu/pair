@@ -83,6 +83,7 @@ test-session-inventory-conformance:
 test-couch-zellij-live:
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/launcher -run '^(TestSessionQuiescenceLive|TestSessionDetachLive|TestQuitLifecycleLive|TestTheAcceptorAgreesWithRealZellijLive)$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcore -run '^(TestParkLifecycleLive|TestParkLifecycleLiveIntentOnlyMutation|TestContinuationZellijSeedTransportLive|TestRecoveryRealHelperAndSessionConformanceLive)$$' -count=1 -v
+	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcmd -run '^TestAgentShortcutInputConformanceLive$$' -count=1 -v
 
 .PHONY: test-perf-capture
 # Shape tests for the #208 capture. perf.sh's VALUES are whatever the machine is

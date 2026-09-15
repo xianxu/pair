@@ -23,9 +23,10 @@ package keyhelp
 type Context int
 
 const (
-	ContextGlobal   Context = iota // works from any Pair pane
-	ContextDraft                   // the nvim draft pane
-	ContextTerminal                // the right workbench terminal
+	ContextGlobal    Context = iota // works from any Pair pane
+	ContextDraft                    // the nvim draft pane
+	ContextTerminal                 // the right workbench terminal
+	ContextWorkbench                // Pair-owned panes except the agent
 )
 
 func (c Context) String() string {
@@ -34,6 +35,8 @@ func (c Context) String() string {
 		return "draft"
 	case ContextTerminal:
 		return "terminal"
+	case ContextWorkbench:
+		return "outside-agent"
 	default:
 		return "global"
 	}
@@ -47,7 +50,6 @@ const (
 	SourceNvim   Source = iota // desc = 'pair: …' in nvim/init.lua
 	SourceGlobal               // workbenchshortcut.GlobalBinding.Help
 	SourceRole                 // workbenchshortcut.RoleBinding.Help
-	SourceZellij               // authored in the catalog: zellij Run binds have no upstream prose
 )
 
 // Binding is one rendered help row.

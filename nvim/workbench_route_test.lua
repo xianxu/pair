@@ -19,6 +19,8 @@ assert(route.find_draft_pane(panes) == '42')
 assert(route.find_draft_pane({ panes[1], panes[3] }) == nil)
 
 local expected = {
+  ['<M-h>'] = { fn = 'PairOpenHelp', focus = false },
+  ['<M-l>'] = { fn = 'PairOpenChangelog', focus = false },
   ['<M-d>'] = { fn = 'PairConfirmDetach', focus = true },
   ['<M-x>'] = { fn = 'PairConfirmQuit', focus = true },
   ['<M-n>'] = { fn = 'PairConfirmRestart', focus = true },

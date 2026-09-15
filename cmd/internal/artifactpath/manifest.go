@@ -750,6 +750,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/titlepoller/runcli.go",
 	"cmd/internal/titlepoller/titlepoller.go",
 	"cmd/internal/workbenchshortcut/generatecmd/main.go",
+	"cmd/internal/workbenchshortcut/framing.go",
 	"cmd/internal/workbenchshortcut/render_lua.go",
 	"cmd/internal/wrapcmd/composer_recognizers.go",
 	"cmd/internal/wrapcmd/codex_working.go",

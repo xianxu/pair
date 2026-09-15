@@ -20,6 +20,9 @@ on:
       - "cmd/internal/couchcore/ops.go"
       - "cmd/internal/couchcore/threadstore.go"
       - "cmd/internal/couchcmd/recovery*.go"
+      - "cmd/internal/couchcmd/shortcut_conformance_live_test.go"
+      - "cmd/internal/workbenchshortcut/**"
+      - "zellij/config.kdl"
       - "cmd/internal/couchtty/menu_recovery*.go"
       - "tests/couch-recovery-smoke.sh"
       - "cmd/internal/couchcore/switchcontext.go"
@@ -58,6 +61,9 @@ on:
       - "cmd/internal/couchcore/ops.go"
       - "cmd/internal/couchcore/threadstore.go"
       - "cmd/internal/couchcmd/recovery*.go"
+      - "cmd/internal/couchcmd/shortcut_conformance_live_test.go"
+      - "cmd/internal/workbenchshortcut/**"
+      - "zellij/config.kdl"
       - "cmd/internal/couchtty/menu_recovery*.go"
       - "tests/couch-recovery-smoke.sh"
       - "cmd/internal/couchcore/switchcontext.go"
@@ -87,5 +93,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install zellij
         run: brew install zellij
-      - name: Exercise Zellij teardown and continuation seed transport
+      - name: Exercise Zellij teardown, continuation transport, and shortcut input
         run: make test-couch-zellij-live

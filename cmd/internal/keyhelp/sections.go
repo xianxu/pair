@@ -3,7 +3,6 @@ package keyhelp
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -20,10 +19,6 @@ func Sections(src SourceReader) ([]Section, error) {
 	lua, err := src.Read(nvimInitPath)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", nvimInitPath, err)
-	}
-	kdl, err := src.Read(zellijConfigPath)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", zellijConfigPath, err)
 	}
 
 	nvimDesc := map[string]string{}
@@ -42,8 +37,13 @@ func Sections(src SourceReader) ([]Section, error) {
 	}
 
 	globalHelp := map[string]string{}
+	globalBindings := map[string]workbenchshortcut.GlobalBinding{}
 	for _, b := range workbenchshortcut.GlobalBindings() {
 		globalHelp[b.NvimKey] = b.Help
+		globalBindings[b.NvimKey] = b
+		if !b.AgentReserved {
+			globalHelp[b.NvimKey] += " (outside the agent pane)"
+		}
 	}
 	roleHelp := map[string]string{}
 	for _, rb := range workbenchshortcut.RoleBindings() {
@@ -51,16 +51,19 @@ func Sections(src SourceReader) ([]Section, error) {
 			roleHelp[k] = rb.Help
 		}
 	}
-	zellijLive := map[string]bool{}
-	for _, z := range ParseZellijRunBinds(string(kdl)) {
-		zellijLive[z.Key] = true
-	}
 
 	byGroup := map[string][]Binding{}
 	for _, e := range Catalog.include {
-		desc, err := descFor(e, nvimDesc, globalHelp, roleHelp, zellijLive)
+		desc, err := descFor(e, nvimDesc, globalHelp, roleHelp)
 		if err != nil {
 			return nil, err
+		}
+		if e.Source == SourceGlobal {
+			if globalBindings[e.Key].AgentReserved {
+				e.Group, e.Context = groupAgent, ContextGlobal
+			} else {
+				e.Context = ContextWorkbench
+			}
 		}
 		byGroup[e.Group] = append(byGroup[e.Group], Binding{
 			Key:     displayFor(e),
@@ -84,7 +87,7 @@ func Sections(src SourceReader) ([]Section, error) {
 }
 
 // descFor resolves a row's wording from the source it names — and only that source.
-func descFor(e entry, nvimDesc, globalHelp, roleHelp map[string]string, zellijLive map[string]bool) (string, error) {
+func descFor(e entry, nvimDesc, globalHelp, roleHelp map[string]string) (string, error) {
 	switch e.Source {
 	case SourceNvim:
 		if d := nvimDesc[e.Key]; d != "" {
@@ -101,17 +104,7 @@ func descFor(e entry, nvimDesc, globalHelp, roleHelp map[string]string, zellijLi
 			return d, nil
 		}
 		return "", fmt.Errorf("keyhelp: %q names SourceRole but no RoleBinding.Help matches", e.Key)
-	case SourceZellij:
-		// The only rows whose wording is authored in the catalog: zellij's KDL has no
-		// description field, so there is no upstream prose to derive. Still verify the
-		// bind exists, so a removed bind cannot linger as help.
-		if !zellijLive[e.Key] {
-			return "", fmt.Errorf("keyhelp: %q names SourceZellij but config.kdl has no such Run bind", e.Key)
-		}
-		if strings.TrimSpace(e.Help) == "" {
-			return "", fmt.Errorf("keyhelp: %q is SourceZellij and must carry Help in the catalog", e.Key)
-		}
-		return e.Help, nil
+
 	}
 	return "", fmt.Errorf("keyhelp: %q has no Source", e.Key)
 }

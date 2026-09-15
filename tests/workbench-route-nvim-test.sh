@@ -15,6 +15,10 @@ if [ "\$*" = "action list-panes --json --command --state" ]; then
   printf '%s\n' '[{"id":9,"title":"terminal","terminal_command":"pair term"},{"id":42,"title":"draft","terminal_command":"nvim -u $ROOT/nvim/init.lua /tmp/draft.md"}]'
   exit 0
 fi
+if [ "\${FAIL_VIEW:-}" = "1" ] && [ "\$1" = "run" ]; then
+  printf 'view launch failed\n'
+  exit 1
+fi
 if [ "\${FAIL_FOCUS:-}" = "1" ] && [ "\$*" = "action focus-pane-id 42" ]; then
   exit 1
 fi
@@ -149,4 +153,36 @@ done
 grep -Fq "PAIR_DRAFT_PANE_PATH" "$ROOT/nvim/init.lua" ||
   { printf 'FAIL draft init does not publish pane locator\n'; exit 1; }
 
+
+# Exercise the actual draft functions, preserving the former Zellij Run argv.
+cat > "$tmp/view-driver.lua" <<'LUA'
+vim.fn.writefile({}, vim.env.PAIR_ACTION_LOG)
+PairOpenHelp()
+PairOpenChangelog()
+vim.cmd('qa!')
+LUA
+PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
+  PAIR_ACTION_LOG="$tmp/actions" \
+  run_headless -- nvim --headless -u "$ROOT/nvim/init.lua" "$tmp/draft.md" -l "$tmp/view-driver.lua"
+want_views='run --floating --close-on-exit --name pair help --width 100% --height 70% --x 0 --y 15% -- pair-help
+run --floating --close-on-exit --name changelog --width 100% --height 100% --x 0 --y 0 -- pair changelog open'
+[ "$(cat "$tmp/actions")" = "$want_views" ] || {
+  printf 'FAIL role-local help/changelog argv:\n%s\n' "$(cat "$tmp/actions")"
+  exit 1
+}
+
+cat > "$tmp/view-failure-driver.lua" <<'LUA'
+local notices = {}
+vim.notify = function(message, level) table.insert(notices, { message, level }) end
+PairOpenHelp()
+PairOpenChangelog()
+assert(#notices == 2, vim.inspect(notices))
+for _, notice in ipairs(notices) do
+  assert(notice[1]:find('view launch failed', 1, true), notice[1])
+  assert(notice[2] == vim.log.levels.ERROR)
+end
+vim.cmd('qa!')
+LUA
+PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t FAIL_VIEW=1 \
+  run_headless -- nvim --headless -u "$ROOT/nvim/init.lua" "$tmp/draft.md" -l "$tmp/view-failure-driver.lua"
 printf 'workbench-route-nvim-test ok\n'

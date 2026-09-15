@@ -2229,7 +2229,7 @@ function _G.PairStatusline()
   -- Minimized rung: nvim is collapsed to this single statusline row, so
   -- the buffer is invisible and the usual history/queue/position
   -- cluster has nothing to refer to. Replace it with a hint that names
-  -- the keybind that grows the pane back. (the cheatsheet is
+  -- the click that establishes draft focus, then the expansion key. (the cheatsheet is
   -- intentionally omitted — the row is meant to read as a single
   -- focused hint.)
   --
@@ -2239,7 +2239,7 @@ function _G.PairStatusline()
   -- on redraws and we can't reliably suppress that, so the cursor
   -- block stays visible — but on a leading space it's unobtrusive.
   if pair_layout_state == 'minimized' then
-    local base = '    %#PairAltKey#Alt+↑%* for pair input box '
+    local base = '    Click here, then %#PairAltKey#Alt+↑%* to expand '
     -- Surface an active notification even when collapsed — the build-complete
     -- flash matters most when the operator has minimized the draft to work.
     if pair_notify then
@@ -3261,7 +3261,7 @@ vim.api.nvim_create_user_command('PairTTYRawPath', function() _G.PairTTYRawPath(
 -- ---------------------------------------------------------------------------
 -- Layout sizing: minimized (statusline only) ↔ small (12 rows, initial) ↔ third (1/3).
 -- ---------------------------------------------------------------------------
--- Two keys drive this: Alt+Up (PairLayoutBigger) and Alt+Down
+-- Outside the agent pane, Alt+Up (PairLayoutBigger) and Alt+Down
 -- (PairLayoutSmaller) step along the ladder, clamped at the ends.
 --
 -- Sizing is exact — zellij/layouts/main-{2,3}.kdl declare each rung as a
@@ -3332,10 +3332,9 @@ local function layout_goto(target)
   local to = LAYOUT_LADDER[target]
   if not to or from == to then
     -- Clamped at the ladder boundary (Alt+Up at third, or Alt+Down at
-    -- minimized). The zellij keybind has already moved focus to nvim
-    -- and forced normal mode (Ctrl-\ Ctrl-N), expecting the post-step
-    -- recovery below to either move focus back (for minimized) or
-    -- startinsert (for any expanded rung). Mirror that recovery here
+    -- minimized). Pane-local routing may have entered normal mode to
+    -- address the draft. Apply the same post-step recovery here: move
+    -- focus back for minimized, or startinsert for an expanded rung,
     -- so the keystroke is a true no-op visually.
     if cur == 'minimized' then
       if has_ui() then
@@ -3434,6 +3433,28 @@ local function pair_scrollback_prev_prompt()
   })
 end
 
+-- Help/changelog are pane-local so their chords can belong to the agent.
+-- Preserve the former Zellij Run geometry without switching to the draft first.
+local function pair_open_workbench_view(name, height, y, command)
+  local argv = {
+    'zellij', 'run', '--floating', '--close-on-exit', '--name', name,
+    '--width', '100%', '--height', height, '--x', '0', '--y', y, '--',
+  }
+  vim.list_extend(argv, command)
+  local output = vim.fn.system(argv)
+  if vim.v.shell_error ~= 0 then
+    vim.notify('pair: cannot open ' .. name .. ': ' .. output, vim.log.levels.ERROR)
+  end
+end
+
+function _G.PairOpenHelp()
+  pair_open_workbench_view('pair help', '70%', '15%', { 'pair-help' })
+end
+
+function _G.PairOpenChangelog()
+  pair_open_workbench_view('changelog', '100%', '0', { 'pair', 'changelog', 'open' })
+end
+
 function _G.PairScrollbackOpen()
   vim.fn.system({
     'zellij', 'run', '--floating', '--close-on-exit', '--name', 'scrollback',
@@ -3490,10 +3511,10 @@ vim.keymap.set({ 'n', 'i' }, '<M-/>', function() _G.PairScrollbackOpen() end,
   { silent = true, desc = 'pair: open scrollback viewer' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-j>', function() _G.PairFocusAgent() end,
-  { silent = true, desc = 'pair: focus agent pane' })
+  { silent = true, desc = 'pair: focus agent pane from the draft' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-k>', function() _G.PairFocusTerminal() end,
-  { silent = true, desc = 'pair: focus terminal pane' })
+  { silent = true, desc = 'pair: focus terminal pane from the draft' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-C>', function() _G.PairConfirmCompact() end,
   { silent = true, desc = 'pair: compact session' })

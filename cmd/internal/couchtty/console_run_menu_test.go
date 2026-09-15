@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"bytes"
 	"context"
 	"strings"
 	"sync/atomic"
@@ -426,34 +427,24 @@ func TestConsoleRunOrdinarySwitchAdvancesPrevious(t *testing.T) {
 	}
 }
 
-// alt+d dispatches detach for the attached thread, with NO confirmation --
-// unlike alt+x, which confirms because park destroys the agent. Driven through
-// the production input path, because a reducer that supports the operation
-// proves nothing about the key reaching it.
-func TestConsoleRunAltDDetachesWithoutConfirmation(t *testing.T) {
+// Actor input belongs to Pair; Couch does not turn its detach chord into an
+// owner operation. The switcher retains that lifecycle operation explicitly.
+func TestConsoleRunAltDActorInputDoesNotDispatchDetach(t *testing.T) {
 	f, _, _ := twoThreadMenuFixture(t)
 	f.con.switchTo("c1", true, arrivalOrdinary)
-
+	child := f.con.activeChild()
 	dispatched := make(chan string, 4)
-	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
-		dispatched <- name
-		return nil, nil
-	})
-
+	setTestOps(f.con, func(name string, _ map[string]string) (any, error) { dispatched <- name; return nil, nil })
+	var expected []byte
 	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltD) {
+		expected = append(expected, encoding...)
 		_, _ = f.stdin.Write(encoding)
 	}
-
+	waitFor(t, "Pair detach input", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), expected) })
 	select {
 	case name := <-dispatched:
-		if name != "detach" {
-			t.Fatalf("alt+d dispatched %q, want detach", name)
-		}
-	case <-time.After(500 * time.Millisecond):
-		t.Fatal("alt+d dispatched nothing")
-	}
-	if screen := lastConsoleScreen(f.host.Written()); strings.Contains(screen, "cancel") {
-		t.Fatalf("alt+d rendered a confirmation: %q", screen)
+		t.Fatalf("actor input dispatched %q", name)
+	default:
 	}
 }
 
@@ -565,7 +556,7 @@ func TestConsoleRunLeavesFromASwitcherWithNothingLive(t *testing.T) {
 // console exits with its final child only when an actor still owns the focus,
 // so without this the safe gesture would quit couch out from under an operator
 // who detached their last thread.
-func TestConsoleRunAltDOnTheLastActorLandsInTheSwitcher(t *testing.T) {
+func TestConsoleRunMenuDetachOnTheLastActorStaysInTheSwitcher(t *testing.T) {
 	f := liveMenuFixture(t)
 	dispatched := make(chan string, 4)
 	setTestOps(f.con, func(name string, _ map[string]string) (any, error) {
@@ -576,7 +567,9 @@ func TestConsoleRunAltDOnTheLastActorLandsInTheSwitcher(t *testing.T) {
 		return nil, nil
 	})
 
-	_, _ = f.stdin.Write([]byte("\x1b[100;3u"))
+	f.con.onHotkey()
+	address := f.con.menuSnapshot().ActiveAddress
+	f.con.reduceMenu(MenuEvent{Kind: MenuEventParkHotkey, Operation: "detach", Address: address})
 	select {
 	case name := <-dispatched:
 		if name != "detach" {

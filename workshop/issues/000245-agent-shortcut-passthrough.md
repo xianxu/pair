@@ -84,7 +84,7 @@ total: 4.379
 ## Plan
 
 - [x] Confirm proposed scope and author the implementation plan ([durable plan](../plans/000245-agent-shortcut-passthrough-plan.md)).
-- [ ] Implement and verify agent shortcut ownership across routing layers.
+- [x] Implement and verify agent shortcut ownership across routing layers.
 - [ ] Update operator documentation and close through the SDLC review gate.
 
 ## Log
@@ -224,3 +224,26 @@ passed all 13 cases with exact bytes and unchanged layout; the old configuration
 failed on Alt+f. Existing live recovery fixtures still passed. These fixtures
 use deterministic recorders, not real coding agents. Full make/race checks are
 running; operator smoke and SDLC close review remain pending.
+
+
+### 2026-09-14 — Verification complete; entering close review
+
+Final full `go test ./... -count=1` passed (exit 0), recorded in
+`/tmp/pair245-final-go.log`. All shell/Lua prerequisites of the second full
+`make test` run passed; that run then found an obsolete term test expecting an
+agent Alt+k focus action and a displaced function comment. Both were corrected,
+the affected term package passed, and the entire Go suite was rerun successfully.
+The earlier literal Alt+o unbind assertion was also migrated to the closed-default
+contract. No production shortcut behavior needed changing for these final checks.
+
+Full shortcut/wrapper/Couch/help race packages passed in `/tmp/pair245-race.log`;
+`make build` exited 0 (`/tmp/pair245-build.log`), and built `couch --help` /
+`pair keys` showed metadata-derived reservations. Diff check passed. Live
+conformance evidence was reported by the fixture agent in exec session 24270
+(chunk c6d7f5): all 13 cases passed under race (1.62s; package 2.930s), existing
+recovery conformance passed (3.052s). Prior-config failure was session 17465
+(chunk e33e1d), Alt+f consumed instead of delivered. Those live runs have no saved
+log file; their tool results are the evidence, not a claimed filesystem log.
+
+The full suite, targeted race coverage, live protocol fixture and actual built
+help are verified. Operator smoke is deliberately pending after the close gate.

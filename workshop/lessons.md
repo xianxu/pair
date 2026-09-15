@@ -4889,3 +4889,11 @@ Exact external evidence does not authorize an ad-hoc persisted lifecycle state
 assignment. Represent receipt-backed recovery in the owned pure transition
 model and revision-checked store operation. Test interruption between that
 transition and attachment; avoid publishing a synthetic live intermediate state.
+
+## 2026-09-14 — Authorize shortcuts after routing their preceding input (#245)
+
+A byte chunk can contain a menu selection followed by a lifecycle shortcut.
+Framing the shortcut before delivering its prefix is valid; deciding its scope
+then is not. Route the prefix first, read the resulting focus, and only then
+consume or forward the original candidate bytes. Test both focus directions
+with same-read input; per-read focus snapshots cannot establish key ownership.
