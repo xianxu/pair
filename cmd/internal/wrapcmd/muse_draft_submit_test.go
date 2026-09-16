@@ -33,18 +33,22 @@ func TestMuseDraftAltEnterSubmission(t *testing.T) {
 					t.Fatalf("Alt+Enter %q translated to %q, want CR", seq, out)
 				}
 			}
-			// Muse submits on both plain Return and Alt+Return, regardless of
-			// composer state.
+			// Muse's composer uses Shift+Return for a newline; Alt+Return
+			// remains the unconditional submit chord.
 			outPlain, _, _ := f.proxy.translateChunk([]byte{'\r'}, false)
-			if !bytes.Equal(outPlain, []byte{'\r'}) {
-				t.Fatalf("plain Enter translated to %q, want CR", outPlain)
+			wantPlain := []byte{'\r'}
+			if name == "with composer" {
+				wantPlain = []byte("\x1b[13;2u")
+			}
+			if !bytes.Equal(outPlain, wantPlain) {
+				t.Fatalf("plain Enter translated to %q, want %q", outPlain, wantPlain)
 			}
 		})
 	}
 }
 
-// TestMuseAgentPaneReturn verifies that Muse uses bare CR for both plain and
-// Alt+Return, including while its composer and picker overlay are active.
+// TestMuseAgentPaneReturn verifies that Muse uses Shift+Return for plain input
+// inside its composer and bare CR for Alt+Return or picker confirmation.
 func TestMuseAgentPaneReturn(t *testing.T) {
 	f := newHarnessSessionFake(t, "muse", true)
 	defer f.close()
@@ -54,13 +58,13 @@ func TestMuseAgentPaneReturn(t *testing.T) {
 		t.Fatalf("plain enter without composer = %q, want CR", got)
 	}
 
-	// Active composer → plain is still send.
+	// Active composer → plain inserts a native Shift+Return newline.
 	f.output("\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ hello\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;8H")
 	if !museComposerActive(f.proxy.terminal.Snapshot()) {
 		t.Fatal("composer should be active")
 	}
-	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
-		t.Fatalf("plain enter with composer = %q, want CR", got)
+	if got := f.enter(); !bytes.Equal(got, []byte("\x1b[13;2u")) {
+		t.Fatalf("plain enter with composer = %q, want Shift+Return", got)
 	}
 	if got := f.altEnter(); !bytes.Equal(got, []byte{'\r'}) {
 		t.Fatalf("alt enter with composer = %q, want CR", got)
@@ -71,9 +75,9 @@ func TestMuseAgentPaneReturn(t *testing.T) {
 	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
 		t.Fatalf("plain enter with overlay = %q, want CR", got)
 	}
-	// Overlay is one-shot: next plain remains send.
-	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
-		t.Fatalf("plain enter after overlay = %q, want CR", got)
+	// Overlay is one-shot: next plain returns to composer newline.
+	if got := f.enter(); !bytes.Equal(got, []byte("\x1b[13;2u")) {
+		t.Fatalf("plain enter after overlay = %q, want Shift+Return", got)
 	}
 }
 

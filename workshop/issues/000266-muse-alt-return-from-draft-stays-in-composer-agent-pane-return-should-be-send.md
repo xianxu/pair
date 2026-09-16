@@ -49,7 +49,7 @@ This is the exact gap pair's return-remap seam exists to close (`cmd/internal/wr
 - [x] Trace draft paste coalesce: `nvim/draft_send.lua` `write-chars` body is wrapped as `\x1b[200~...\x1b[201~}` when the agent has `?2004h` enabled; Zellij's `write-chars` + `send-keys Alt Enter` can coalesce into one `translateChunk` read. Prior `translateChunk` treated bytes inside bracketed paste as literal, swallowing the Alt submit — draft text sat idle.
 - [x] Fix paste-aware Alt handling: `wrap.go:translateChunk` now scans for `Alt+Enter` (`\x1b\r` / `\x1b[13;3u`) before `pasteEnd` when `inPaste`, emitting an unconditional `\r` submit even inside the paste window, and holds back split `Alt` partials across chunk boundaries. Covers both legacy and KKP forms.
 - [x] Add paste tests: `translate_test.go` adds `Alt+Enter inside/before paste` cases; `muse_draft_submit_test.go:TestMuseDraftAltEnterSubmission_InsidePaste` covers muse paste-coalesced draft path. `GOCACHE=/tmp/gocache go test -run TestMuse|TestTranslateChunk -count=1` passes.
-- [ ] Manual smoke: `pair muse` Alt+Return from draft + agent-pane Return/Alt-Return, plus overlay case (operator to verify live).
+- [x] Manual smoke: `pair muse` Alt+Return from draft + agent-pane Return/Alt-Return, plus overlay case (operator verified live; short-draft submit required the post-write settle delay).
 
 ## Log
 
@@ -83,3 +83,8 @@ The live Muse 1.3.0 session disproved the earlier assumption that an active Muse
 - Verification after correction: `go test ./cmd/internal/wrapcmd -count=1`, `lua nvim/draft_send_test.lua`, `git diff --check`, and live `PAIR_LIVE_HARNESS=muse ... TestHarnessTTYLiveConformance` all pass; live output reports `composer=true` and plain Return `"\r"`.
 - `go test ./... -count=1` reaches the Muse package but remains red on unrelated existing failures in `couchcore`, `couchtty`, `diagnosticlog`, and `wrapcmd` notification startup-hook timing. The focused Muse tests remain green.
 - Follow-up live trace: the short draft's `write-chars` and `send-keys Alt Enter` completed successfully, but the wrapper received them only 18 ms apart. `draft_send.lua` settled only multiline or large bodies, so short bodies had no queue-drain delay. Added the same 100 ms settle after every successful body write (`ARCH-CONSTRAINTS`: measured keystroke delivery ordering).
+- Operator confirmed the timing change fixes the live Muse draft submission. Manual smoke is complete.
+
+### 2026-09-16 — Muse composer newline mapping clarified
+
+The intended agent-pane contract is not “Muse plain Return submits.” Muse's native composer uses bare Return/CR for submission and Shift+Return for an inserted newline. Pair now translates an intercepted plain Return in a recognized Muse composer to Kitty's Shift+Return sequence `ESC [13;2u`, while Alt+Return remains bare CR. Outside the composer and inside overlays, plain Return remains bare CR. The prior timing fix remains necessary for draft delivery; this change only restores the expected composer editing semantics (`ARCH-PURE`, `ARCH-DRY`).

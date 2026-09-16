@@ -54,7 +54,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 	},
 	"muse": {
 		keymap: sendKeymap{
-			plainCR: []byte{'\r'},
+			plainCR: []byte("\x1b[13;2u"),
 			altCR:   []byte{'\r'},
 			altBS:   []byte{0x15},
 		},

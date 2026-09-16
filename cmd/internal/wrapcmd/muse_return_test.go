@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestEmitPlainCR_MuseComposerActiveSendsBareCR(t *testing.T) {
+func TestEmitPlainCR_MuseComposerActiveSendsShiftReturn(t *testing.T) {
 	f := newHarnessSessionFake(t, "muse", true)
 	t.Cleanup(f.close)
 	raw, err := os.ReadFile("testdata/tty/muse/0.1.0-R708.1/composer.raw")
@@ -14,8 +14,8 @@ func TestEmitPlainCR_MuseComposerActiveSendsBareCR(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.output(string(raw))
-	if got := f.proxy.emitPlainCR(nil); !bytes.Equal(got, []byte{'\r'}) {
-		t.Fatalf("got %q, want bare CR while Muse composer is active", got)
+	if got := f.proxy.emitPlainCR(nil); !bytes.Equal(got, []byte("\x1b[13;2u")) {
+		t.Fatalf("got %q, want Shift+Return while Muse composer is active", got)
 	}
 }
 

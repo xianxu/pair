@@ -27,7 +27,7 @@ func TestHarnessTTYProfileRegistry(t *testing.T) {
 		"claude": {[]byte{'\\', '\r'}, []byte{'\r'}, ctrlU, detectClaudeOverlayOpen, composerGatePositive, false},
 		"codex":  {[]byte{'\n'}, []byte{'\r'}, ctrlU, detectCodexOverlayOpen, composerGatePositive, true},
 		"agy":    {[]byte{'\n'}, []byte{'\r'}, ctrlU, detectAgyOverlayOpen, composerGatePositive, false},
-		"muse":   {[]byte{'\r'}, []byte{'\r'}, ctrlU, detectMuseOverlayOpen, composerGatePositive, false},
+		"muse":   {[]byte("\x1b[13;2u"), []byte{'\r'}, ctrlU, detectMuseOverlayOpen, composerGatePositive, false},
 	}
 
 	for harness, want := range tests {

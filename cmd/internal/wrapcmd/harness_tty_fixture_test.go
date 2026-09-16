@@ -388,7 +388,7 @@ func TestComposerReturnExpectationMatchesProfile(t *testing.T) {
 	want := map[string]string{
 		"claude": "\\\r",
 		"codex":  "\n",
-		"muse":   "\r",
+		"muse":   "\x1b[13;2u",
 		"agy":    "\n",
 	}
 	for harness, wantBytes := range want {
