@@ -102,12 +102,12 @@ the plan at `workshop/plans/000265-couch-crashes-on-switch-to-brain-no-admitted-
 
 - [x] Reproduce / narrow: log the `View` state (`State`, `Admitted`, `Selected`) with the panel focused; confirm which guard fails at `presenter.go:470`. *(Done 2026-09-16: `state=0 selected="" admitted=""`; `Admitted == ""` is the failing term, and it is the panel's correct state.)*
 - [x] Identify why the endpoint is unadmitted. *(Done: it is not a `brain` harness fault. `Presenter.Panel` clears `selected` by design; three event kinds skip the panel check and ask anyway. Root cause is routing, not admission.)*
-- [ ] Add the typed no-destination answer in `cmd/internal/terminal` and return it from both refusal sites.
-- [ ] Route every couch input through one panel-aware door so unadmitted input is non-fatal, and the panel check governs key release, focus and blur.
-- [ ] Pin the door with an AST guard, proven red against a deliberate violation.
-- [ ] Sweep the class: `termcmd/presentation.go` has the same escalation via `stopLocked`.
-- [ ] Add regression coverage for input on an unadmitted endpoint (all three event kinds), plus the mirror that a focused actor still receives them.
-- [ ] Atlas + lessons; operator smoke test.
+- [x] Add the typed no-destination answer in `cmd/internal/terminal` and return it from every refusal site (three, not two — `UpdateChrome` was found by the plan gate).
+- [x] Route every couch input through one panel-aware door so unadmitted input is non-fatal, and the panel check governs key release, focus and blur. `paintNow` classifies the same answer.
+- [x] Pin the door with an AST guard, proven red against a deliberate violation.
+- [x] Sweep the class: `termcmd/presentation.go` has the same escalation via `stopLocked`.
+- [x] Add regression coverage for input on an unadmitted endpoint (all three kinds), the mirror that a focused actor still receives them, and the decoder's full closed set (9 kinds).
+- [ ] Atlas + lessons done; **operator smoke test outstanding**.
 
 Moved out of scope (see `## Revisions`): "why paint is blank" → `pair#273`;
 "fix or surface the blank-viewport case" → `pair#273`.
@@ -289,3 +289,36 @@ wrong, which is recorded inline rather than silently ticked. The remaining rows
 now mirror the durable plan's tasks one-to-one. Also corrected the stale
 `presenter.go:494` citation in row 1 and in `## Problem`: the guard is at
 `presenter.go:470` today, and `mouseInput`'s at `:478`.
+
+### 2026-09-16 (implementation)
+
+Tasks 1–5 landed; Task 6 done bar the operator smoke test.
+
+- `terminal/destination.go` — `ErrNoDestination` + `noDestination`, the one
+  constructor, carrying the `View` so a surfaced refusal names its state.
+- Three refusal sites converted: `Input` (`presenter.go:470`), `mouseInput`
+  (`:478`), `UpdateChrome` (`:783`).
+- `couchtty`: `deliverPresenterInput` is the one door and classifies the answer;
+  `deliverChildInput` adds the panel check, and the three bypassing kinds now go
+  through it. `paintNow` stops escalating `UpdateChrome`'s refusal — the same
+  crash reachable with no input at all, through the window `showMenu` opens
+  between `presenter.Panel` and the focus flip.
+- `termcmd/presentation.go` swept (same escalation via `stopLocked`).
+- 14 new couchtty assertions + the AST guard + 2 terminal + 1 termcmd. The guard
+  was proven red against a planted `c.presenter.Input(...)` before being trusted.
+
+Two things the run surfaced that the plan did not predict:
+
+1. `cmd/internal/artifactpath` holds an **exhaustive production-source
+   inventory**, so a new file fails `TestProductionArtifactReferencesAreExactlyClassified`
+   until it is registered. `destination.go` added to `NonArtifactSources`.
+2. `TestConsoleRunRootEscapeClearsFilterThenReplaysActor` is **flaky and
+   pre-existing** — ~1-in-40, more likely under `make test` load. Proven
+   pre-existing by reverting this issue's two couchtty production files to the
+   base commit and reproducing it identically. Recorded in `lessons.md`; wants
+   its own issue.
+
+Verification: `make test` with the retention-owner env scrubbed and a
+non-symlinked `TMPDIR` — 209 packages ok, the only failure being the flake
+above. Two couchtty tests and one termcmd test need the sandbox off
+(`ptychild` spawn, `mkdir /tmp`), which is environmental and documented.

@@ -364,6 +364,38 @@ while a thread is loading.
 
 ## Navigation
 
+### Where input is allowed to go (#265)
+
+Couch and the presenter are two state machines over the same question, and they
+can legitimately disagree. `Focus` (couchtty) says whether the operator is
+pointed at an actor or at couch's own panel. `View` (terminal) says whether the
+presenter currently holds an admitted endpoint. The panel's healthy shape is
+`State=Ready, Admitted="", selected=nil` -- `Presenter.Panel` clears the
+endpoint on purpose -- so "no admitted endpoint" is a *description of the panel*,
+not an error.
+
+`terminal.ErrNoDestination` is how the presenter says that, and it is distinct
+from a write failure (which latches `View` into `Failed` and closes `Failed()`).
+Three sites answer with it: `Presenter.Input`, `Presenter.mouseInput` and
+`Presenter.UpdateChrome`.
+
+Every console path to `Presenter.Input` goes through `deliverPresenterInput`,
+which classifies that answer instead of handing it to `terminalError` -- pinned
+by `TestConsoleReachesPresenterInputOnlyThroughItsDoor`. Child-bound events
+additionally go through `deliverChildInput`, which drops them when the panel is
+focused. `paintNow` classifies the same answer from `UpdateChrome`, because
+`showMenu` clears the endpoint before it flips focus and a repaint landing in
+that window would otherwise exit couch with no input involved at all.
+
+This matters because couch *asks* the terminal for the events that exposed it:
+the first mode delta writes `\x1b[?1004h` (focus reporting) and `\x1b[>3u`
+(kitty flags 1|2, where flag 2 is "report event types", i.e. key release) on the
+very first paint, panel or not. Before #265 those three kinds bypassed the panel
+check, so a focus change or a key release with the switcher open exited couch.
+
+`ErrBackpressure` is deliberately NOT in this scheme: it is a capacity answer,
+still fatal, and changing that is its own decision.
+
 `ctrl-space` is intercepted before the child sees it. It arrives in TWO
 encodings and both are recognised: the legacy `0x00`, and CSI-u
 `\x1b[32;5u` under the Kitty keyboard protocol, whose disambiguation Couch maintains -- so the

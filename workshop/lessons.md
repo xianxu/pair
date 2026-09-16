@@ -5097,3 +5097,47 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
 - A test-case **name that asserts the shape of its input is a claim**: a row called "split across the boundary" that feeds a complete sequence tests the case it is named against. (BR-23)
 
 - Editing a file from a script: build the new content, write a temp file, then `os.replace`. `open(path, 'w')` truncates *before* the write, so a failure between the two leaves an empty file — this session lost a 757-line test file that way and recovered it only because it was committed. Commit before scripted edits, or never truncate in place. (#266, 2026-09-16)
+
+### 2026-09-16 — #265 panel-safe input routing
+
+- **A cross-layer answer channel needs a third value.** `Presenter.Input` could
+  only answer "fine" or "error", and the console's `terminalError` could only
+  hear "fine" or "fatal" — so "I hold no endpoint for this", which is the
+  panel's *normal* state, exited couch on a keystroke. When one component asks
+  another about state the second owns, "not applicable" is an answer, not a
+  failure; give it a type. `couchcore` already models exactly this as
+  `ProofStatus` (`ProofUnresolved` = "never asked, or asking failed") and
+  `reattachCandidate` consumes it deliberately; `couchtty` had no equivalent.
+
+- **When a routing decision has an allowlist of event kinds, the kinds NOT in
+  the list are the bug surface.** `routeInputEvent` checked the panel for
+  printable keys, ESC and paste, and forwarded key release, focus and blur
+  straight through — for events couch itself had asked the terminal to send
+  (`\x1b[?1004h` and `\x1b[>3u` go out on the first paint, panel or not). Test
+  the decoder's *closed set*, not the kinds the bug report happened to name.
+
+- **Enumerate the answer, not the call site.** The first enumeration of "who
+  escalates a routing answer" was `grep '\.Input('`, which found three families
+  and missed `UpdateChrome` entirely — a fourth site returning the same answer,
+  escalated by `paintNow`, reachable with no input at all. The class was
+  "everywhere this answer is produced", and grepping the *caller* could never
+  find it. Found by the plan-quality gate, not by the author.
+
+- **A "non-fatal" recovery path can re-enter the escalation it was added to
+  avoid.** Publishing a notice on a refused keystroke looked harmless;
+  `setNotice` → `publishNotice` → `repaint` → `paintNow` → `UpdateChrome` →
+  `terminalError` → `Stop`. Trace a recovery path all the way down before
+  calling it recovery.
+
+- **Pin a mechanical guard by planting a violation before trusting it.** The AST
+  guard for the input door was proven to fail — naming the right function —
+  against a deliberately planted `c.presenter.Input(...)`, then the plant was
+  removed. A guard test that has never been red reports nothing.
+
+- **`TestConsoleRunRootEscapeClearsFilterThenReplaysActor` is flaky** (couchtty,
+  `console_run_menu_test.go:193`, "returned actor was not admitted"). Roughly
+  1-in-40 at `-count=40`, and more likely under `make test`'s parallel load.
+  Confirmed **pre-existing** during #265 by reverting that issue's two couchtty
+  production files to the base commit and reproducing the failure identically —
+  isolate a suspect flake that way rather than re-running until it passes. Not
+  yet filed; it wants its own issue with the admission race written down.
