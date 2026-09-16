@@ -18,12 +18,16 @@ reparented to init, still holding their pty.
 
 Measured on the operator's machine, 2026-09-16:
 
-- **106 orphaned `pair term` trees** (`ppid=1`), holding **16.93 GB** RSS.
-- The largest single trees are 2.42 GB, 1.97 GB and 1.87 GB.
+- **106 orphaned `pair term` trees** (`ppid=1`), plus **29 orphaned `nvim`**
+  holding **16 GB each at the top end**.
+- Machine state before cleanup: **95 GB PhysMem used, 54 GB in the compressor,
+  69 MB unused**. After killing the orphans: **18 GB used, 3 GB compressor,
+  77 GB unused**. The leak was ~77 GB.
 - Oldest survivor started **Sep 6** — ten days of accumulation.
-- For comparison, all 18 *live* zellij sessions together hold 4.88 GB, and the
-  operator's three attached sessions are 3.11 GB of that. The leak is more
-  than three times the entire live working set.
+- **Measure with `top`, not `ps -o rss`.** These processes keep nearly all
+  their pages in the compressor, so RSS reports a few hundred MB for a process
+  whose real footprint is 16 GB. An RSS-based estimate under-reported this leak
+  by more than an order of magnitude.
 
 This was found while diagnosing a machine-wide memory shortage: a build step
 in a sibling repo was killed by the OS for lack of memory, with ~73 MB of free
@@ -67,8 +71,13 @@ disown` … a terminal teardown would SIGHUP us and freeze the pane"*, and
 behavior". Confirming the inheritance path is the first task below; macOS `ps`
 will not show signal masks, so it needs a deliberate probe.
 
-`SIGTERM` does work on these processes, so recovery is straightforward once
-something is responsible for sending it.
+**`SIGTERM` is NOT sufficient**, corrected after measuring the cleanup: sending
+SIGTERM to all 362 pids in the orphaned trees killed the `pair term` leaders
+but the embedded `nvim` children **survived it and were reparented to init**,
+converting "orphaned trees" into "orphaned nvim" and freeing comparatively
+little. They needed `SIGKILL`. Any sweep this issue adds must escalate, and
+must verify descendants are gone rather than assuming the leader's death
+cascades.
 
 ## Spec
 
