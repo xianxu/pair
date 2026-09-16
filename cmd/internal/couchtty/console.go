@@ -1113,6 +1113,14 @@ func (c *Console) paintNow() {
 	if err == nil {
 		err = c.presenter.UpdateChrome(c.lifetime, cells)
 	}
+	if errors.Is(err, terminal.ErrNoDestination) {
+		// Mid-transition: showMenu's presenter.Panel has cleared the endpoint and
+		// c.focus has not caught up yet, so this arm ran with nothing to paint
+		// chrome onto. The paint that follows the flip is the authoritative one,
+		// so skipping this one loses nothing -- and escalating it would be the
+		// pair#265 exit reached with no input involved at all.
+		return
+	}
 	if err != nil {
 		c.terminalError(err)
 		return

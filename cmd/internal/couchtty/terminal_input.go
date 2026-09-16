@@ -2,11 +2,50 @@ package couchtty
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/terminal"
 )
+
+// deliverPresenterInput is the ONE door from the console to Presenter.Input.
+//
+// It exists because the two are separate state machines that can legitimately
+// disagree: the console tracks Focus, the presenter tracks View, and "I have no
+// endpoint for this" is a correct answer from the second, not a failure of it.
+// terminalError means "terminal ownership is lost"; routing a domain answer
+// into it is what exited couch on a keystroke (pair#265). Every call site goes
+// through here, and TestConsoleReachesPresenterInputOnlyThroughItsDoor pins it.
+func (c *Console) deliverPresenterInput(event uv.Event) error {
+	err := c.presenter.Input(c.lifetime, event)
+	if errors.Is(err, terminal.ErrNoDestination) {
+		return err
+	}
+	c.terminalError(err)
+	return nil
+}
+
+// deliverChildInput routes an event that only means something to a child.
+//
+// On the panel there is no child, and a key release, focus or blur has no panel
+// meaning, so it is dropped.
+//
+// A no-destination answer with an actor focused is ignored too, deliberately.
+// The obvious move is to surface it as a notice -- and that is a trap. setNotice
+// is publishNotice (console.go), documented as "push and paint are therefore one
+// operation", so it repaints through paintNow, which hands any UpdateChrome
+// error to terminalError. That is the very exit this issue exists to remove,
+// reached by a longer path.
+func (c *Console) deliverChildInput(event uv.Event) {
+	c.mu.Lock()
+	panel := c.focus.IsPanel()
+	c.mu.Unlock()
+	if panel {
+		return
+	}
+	_ = c.deliverPresenterInput(event)
+}
 
 func (c *Console) routeInputEvent(event terminal.InputEvent) {
 	if event.Reply {
@@ -31,15 +70,20 @@ func (c *Console) routeInputEvent(event terminal.InputEvent) {
 				c.onMenuInput(raw)
 			}
 		} else {
-			c.terminalError(c.presenter.Input(c.lifetime, event.Event))
+			c.deliverChildInput(event.Event)
 		}
 	}
 	switch event.Event.(type) {
 	case uv.PasteEvent:
 		route(event.Raw)
 		return
+	// These three reach the console because couch ASKS for them: the first mode
+	// delta writes \x1b[?1004h (focus reporting) and \x1b[>3u (kitty flags 1|2,
+	// whose flag 2 is "report event types", i.e. key release) on the very first
+	// paint -- panel or not. They carry no panel meaning, so the panel check
+	// governs them exactly as it governs printable keys and paste (pair#265).
 	case uv.KeyReleaseEvent, uv.FocusEvent, uv.BlurEvent:
-		c.terminalError(c.presenter.Input(c.lifetime, event.Event))
+		c.deliverChildInput(event.Event)
 		return
 	}
 	if bytes.Equal(event.Canonical, []byte{27}) {
@@ -68,7 +112,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	// Release/motion always visit the presenter, including over panels and
 	// chrome, so its gesture owner can cancel or clip them consistently.
 	if _, ok := event.Event.(uv.MouseReleaseEvent); ok {
-		c.terminalError(c.presenter.Input(c.lifetime, event.Event))
+		_ = c.deliverPresenterInput(event.Event)
 		return
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
@@ -90,7 +134,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			return
 		}
 	}
-	c.terminalError(c.presenter.Input(c.lifetime, event.Event))
+	_ = c.deliverPresenterInput(event.Event)
 }
 
 // Some product chords intentionally exist only in enhanced encoding (Alt+d
