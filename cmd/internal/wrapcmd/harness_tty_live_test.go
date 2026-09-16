@@ -673,6 +673,19 @@ type harnessTTYDrivenScenario struct {
 	// timeout overrides the default startup budget. A scenario that needs the
 	// agent to think and call a tool cannot fit in the startup window.
 	timeout time.Duration
+	// pressesReturn marks a scenario that sends Return ON the captured screen
+	// and asserts what the harness did with it. `send` cannot express this:
+	// driveHarnessTTYScenario dispatches it exactly once, from the composer, to
+	// REACH the target screen — so a "\r" in `send` is a Return pressed
+	// somewhere else. This is the only thing that retires a
+	// ttyFixtureReactionGaps entry, so it is a field rather than something
+	// inferred from the keystroke (#266 close BR-15).
+	pressesReturn bool
+	// discriminating marks a declining screen painted in the SAME shape as the
+	// harness's composer — the only kind of negative that proves the gate
+	// separates the two rather than declining on something incidental. It is
+	// what retires a ttyFixtureDiscriminationGaps entry.
+	discriminating bool
 }
 
 var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
@@ -683,6 +696,10 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 		{
 			name: "update interstitial", args: []string{"--no-alt-screen"},
 			until: "Press enter to continue", wantComposer: false, file: "overlay.raw",
+			// Codex paints the interstitial's selection with the same U+203A at
+			// column 0 as its composer, unemphasized — so rejecting it proves
+			// the gate discriminates on more than the glyph.
+			discriminating: true,
 		},
 		{
 			name: "working status", args: []string{"--no-alt-screen", "-c", "check_for_update_on_startup=false"},
@@ -733,8 +750,9 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 		// paints the menu's selection marker in the SAME bright blue as the
 		// composer prompt — so prompt color cannot separate the two. Pinned
 		// because that is the assumption an Agy recognizer is most likely to
-		// make wrongly. Sending LF here inserts a newline rather than
-		// selecting, which is why the gate staying open is tolerable.
+		// make wrongly. The gate staying open is tolerable if Agy inserts a
+		// newline here rather than selecting — see ttyFixtureReactionGaps,
+		// which records that nobody has pressed the key to find out.
 		{name: "slash menu", args: []string{"--dangerously-skip-permissions"},
 			send: "/", until: "Navigate", wantComposer: true, file: "menu.raw"},
 	},

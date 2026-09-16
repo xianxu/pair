@@ -229,6 +229,98 @@ rounds:
           family: boundary-semantics-unverified
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-16T12:29:05-07:00"
+      agent: claude
+      dispose:
+        - id: BR-12
+          disposition: addressed
+          note: 'Verified by reapplying 41812c20^''s wrap.go in a scratch copy of HEAD: 5 subtests go red (translate_test.go x3, TestMuseDraftBodyPasteStaysLiteral x2).'
+          round: 3
+        - id: BR-13
+          disposition: addressed
+          note: TestTTYFixtureReferencesResolve walks every .go incl. comments and self-disables loudly; verified red on a planted testdata/tty/muse/9.9.9-nope path. Both cited instances corrected; the `?` sheet is now a registered driven scenario with shortcuts.raw captured.
+          round: 3
+        - id: BR-14
+          disposition: addressed
+          note: ttyFixtureReactionGaps exists and is enforced, and the KKP guard now requires the disambiguate bit (muse fixtures push >3u/>1u, so the assert runs on real bytes). Residual soundness gaps in the new mechanism raised fresh as I-1, not as a re-raise.
+          round: 3
+      findings:
+        - id: BR-15
+          severity: Important
+          title: Reaction-gap retirement oracle cannot prove what it names, and exempts composer.raw
+          detail: |-
+            4th in family. RULE: a check that retires an acknowledged gap must test the
+            exact property the gap names; if the data model cannot express it, add the
+            field rather than approximating it. (a) drivenReturnOnOpenGateScreen
+            (harness_tty_fixture_test.go:200) accepts a "\r" anywhere in scenario.send as
+            proof Return was pressed ON the captured screen, but driveHarnessTTYScenario's
+            Input callback (harness_tty_live_test.go:809) dispatches send exactly once, on
+            the COMPOSER, to reach the target screen — so the predicate can only ever
+            observe a Return pressed elsewhere, while :196 claims the opposite. Nothing
+            misfires today (claude's "\r" scenario targets overlay.raw, codex's targets
+            working.raw; neither is in its harness's ttyFixtureExpectation map), but the
+            first open-gate screen reached via Return silently retires its gap.
+            (b) anyOpenGateScreen (:212) skips composer.raw by construction, exempting the
+            one screen this issue turns on: Muse reading ESC[13;2u as a newline is inferred
+            from shortcuts.raw plus the KKP push, never driven, and the Plan's manual-smoke
+            checkbox predates 204bbe24 which introduced that mapping.
+            CLASS, enumerated: three gap ledgers in this file, one exact expiry.
+            ttyFixtureNegativeGaps errors on found && acknowledged (exact);
+            ttyFixtureReactionGaps uses the approximation above (new this round);
+            ttyFixtureDiscriminationGaps (:145) has NO expiry branch at all, so an entry
+            outlives its gap forever (pre-existing). Sweep = give all three the same shape.
+            (ARCH-PURPOSE, ARCH-MOCK)
+          family: boundary-semantics-unverified
+          round: 3
+        - id: BR-16
+          severity: Important
+          title: Deleting the in-paste branch took three rows that pinned a surviving behavior
+          detail: |-
+            3rd in family. RULE: when a branch is deleted, its test rows are triaged, not
+            deleted with it — a row pinning behavior the deletion leaves intact must move,
+            or the deletion silently drops coverage. 41812c20 removed three translate_test
+            rows ("Alt+Enter inside bracketed paste is still a submit", its KKP twin, and
+            "Alt+Enter with paste end in same chunk before submit"). All three pinned
+            Alt+Enter arriving AFTER bpEnd in one read — not the removed branch's behavior,
+            but the ordinary post-paste path, and the exact shape the draft send produces
+            when write-chars and send-keys coalesce with the close marker first. Verified
+            still correct at HEAD ("\x1b[200~ok\x1b[201~\x1b\r" -> "\x1b[200~ok\x1b[201~\r"),
+            so this is a lost pin rather than a bug — but it is the pin on the POSITIVE half
+            of the contract this issue exists to defend, dropped in the same commit that
+            added the pin on the negative half. Restore one row per protocol.
+          family: regression-evidence-missing
+          round: 3
+        - id: BR-17
+          severity: Minor
+          title: Agy gap status is stated in two places in one file, contradictorily
+          detail: |-
+            3rd in family. RULE: the gap ledger is the single authority for whether a
+            harness-reaction claim is verified; comments may cite it, never restate a
+            verdict about it. harness_tty_fixture_test.go:320 says the Agy newline-on-LF
+            behavior is "pinned so that stays a checked property" and
+            harness_tty_live_test.go:736 states it flatly, while the new
+            ttyFixtureReactionGaps["agy"] added in this same window records it as "never
+            sent". The BR-14 sweep corrected the Muse comment and left both Agy ones — the
+            instance, not the class (ARCH-PURPOSE). The new check cannot detect this: it
+            only requires an entry to exist, never that prose agrees with it.
+          family: duplicated-authority
+          round: 3
+        - id: BR-18
+          severity: Minor
+          title: Doc comment opens with drivenReturnScenario, a symbol that does not exist
+          detail: |-
+            4th in family. RULE, generalized from the paths this round enforced: a
+            comment's leading identifier is a claim the tree can check, and a doc comment
+            must name the declaration it precedes. harness_tty_fixture_test.go:196 opens
+            "drivenReturnScenario" for func drivenReturnOnOpenGateScreen. Measured
+            prevalence in this package: 2 — this one, and wrap.go:1768 where
+            observationProfile was inserted underneath checkOverlayOpen's doc comment
+            (799fb6c3, #184). A go/ast sibling of TestTTYFixtureReferencesResolve over doc
+            groups retires the family; fixing these two sites does not.
+          family: stale-comment
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#266 (boundary-review)
@@ -361,8 +453,74 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   hatch (Alt+Return to bare CR, exactly what Muse receives natively) is sound
   by construction, so the consequence is bounded.
 
+## Round 3 — 2026-09-16T12:29:05-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-12 — addressed — Verified by reapplying 41812c20^'s wrap.go in a scratch copy of HEAD: 5 subtests go red (translate_test.go x3, TestMuseDraftBodyPasteStaysLiteral x2).
+- BR-13 — addressed — TestTTYFixtureReferencesResolve walks every .go incl. comments and self-disables loudly; verified red on a planted testdata/tty/muse/9.9.9-nope path. Both cited instances corrected; the `?` sheet is now a registered driven scenario with shortcuts.raw captured.
+- BR-14 — addressed — ttyFixtureReactionGaps exists and is enforced, and the KKP guard now requires the disambiguate bit (muse fixtures push >3u/>1u, so the assert runs on real bytes). Residual soundness gaps in the new mechanism raised fresh as I-1, not as a re-raise.
+
+### Raised
+
+- **BR-15** [Important] `boundary-semantics-unverified` Reaction-gap retirement oracle cannot prove what it names, and exempts composer.raw
+  4th in family. RULE: a check that retires an acknowledged gap must test the
+  exact property the gap names; if the data model cannot express it, add the
+  field rather than approximating it. (a) drivenReturnOnOpenGateScreen
+  (harness_tty_fixture_test.go:200) accepts a "\r" anywhere in scenario.send as
+  proof Return was pressed ON the captured screen, but driveHarnessTTYScenario's
+  Input callback (harness_tty_live_test.go:809) dispatches send exactly once, on
+  the COMPOSER, to reach the target screen — so the predicate can only ever
+  observe a Return pressed elsewhere, while :196 claims the opposite. Nothing
+  misfires today (claude's "\r" scenario targets overlay.raw, codex's targets
+  working.raw; neither is in its harness's ttyFixtureExpectation map), but the
+  first open-gate screen reached via Return silently retires its gap.
+  (b) anyOpenGateScreen (:212) skips composer.raw by construction, exempting the
+  one screen this issue turns on: Muse reading ESC[13;2u as a newline is inferred
+  from shortcuts.raw plus the KKP push, never driven, and the Plan's manual-smoke
+  checkbox predates 204bbe24 which introduced that mapping.
+  CLASS, enumerated: three gap ledgers in this file, one exact expiry.
+  ttyFixtureNegativeGaps errors on found && acknowledged (exact);
+  ttyFixtureReactionGaps uses the approximation above (new this round);
+  ttyFixtureDiscriminationGaps (:145) has NO expiry branch at all, so an entry
+  outlives its gap forever (pre-existing). Sweep = give all three the same shape.
+  (ARCH-PURPOSE, ARCH-MOCK)
+- **BR-16** [Important] `regression-evidence-missing` Deleting the in-paste branch took three rows that pinned a surviving behavior
+  3rd in family. RULE: when a branch is deleted, its test rows are triaged, not
+  deleted with it — a row pinning behavior the deletion leaves intact must move,
+  or the deletion silently drops coverage. 41812c20 removed three translate_test
+  rows ("Alt+Enter inside bracketed paste is still a submit", its KKP twin, and
+  "Alt+Enter with paste end in same chunk before submit"). All three pinned
+  Alt+Enter arriving AFTER bpEnd in one read — not the removed branch's behavior,
+  but the ordinary post-paste path, and the exact shape the draft send produces
+  when write-chars and send-keys coalesce with the close marker first. Verified
+  still correct at HEAD ("\x1b[200~ok\x1b[201~\x1b\r" -> "\x1b[200~ok\x1b[201~\r"),
+  so this is a lost pin rather than a bug — but it is the pin on the POSITIVE half
+  of the contract this issue exists to defend, dropped in the same commit that
+  added the pin on the negative half. Restore one row per protocol.
+- **BR-17** [Minor] `duplicated-authority` Agy gap status is stated in two places in one file, contradictorily
+  3rd in family. RULE: the gap ledger is the single authority for whether a
+  harness-reaction claim is verified; comments may cite it, never restate a
+  verdict about it. harness_tty_fixture_test.go:320 says the Agy newline-on-LF
+  behavior is "pinned so that stays a checked property" and
+  harness_tty_live_test.go:736 states it flatly, while the new
+  ttyFixtureReactionGaps["agy"] added in this same window records it as "never
+  sent". The BR-14 sweep corrected the Muse comment and left both Agy ones — the
+  instance, not the class (ARCH-PURPOSE). The new check cannot detect this: it
+  only requires an entry to exist, never that prose agrees with it.
+- **BR-18** [Minor] `stale-comment` Doc comment opens with drivenReturnScenario, a symbol that does not exist
+  4th in family. RULE, generalized from the paths this round enforced: a
+  comment's leading identifier is a claim the tree can check, and a doc comment
+  must name the declaration it precedes. harness_tty_fixture_test.go:196 opens
+  "drivenReturnScenario" for func drivenReturnOnOpenGateScreen. Measured
+  prevalence in this package: 2 — this one, and wrap.go:1768 where
+  observationProfile was inserted underneath checkOverlayOpen's doc comment
+  (799fb6c3, #184). A go/ast sibling of TestTTYFixtureReferencesResolve over doc
+  groups retires the family; fixing these two sites does not.
+
 ## Open findings
 
-- **BR-12** [Important] `regression-evidence-missing` No test pins that an Alt+Enter chord inside a bracketed paste stays literal
-- **BR-13** [Minor] `stale-comment` Comment cites a fixture directory this same window deleted
-- **BR-14** [Minor] `boundary-semantics-unverified` KKP push guard is flags-agnostic and the menu's Return behavior is asserted from reasoning
+- **BR-15** [Important] `boundary-semantics-unverified` Reaction-gap retirement oracle cannot prove what it names, and exempts composer.raw
+- **BR-16** [Important] `regression-evidence-missing` Deleting the in-paste branch took three rows that pinned a surviving behavior
+- **BR-17** [Minor] `duplicated-authority` Agy gap status is stated in two places in one file, contradictorily
+- **BR-18** [Minor] `stale-comment` Doc comment opens with drivenReturnScenario, a symbol that does not exist

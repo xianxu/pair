@@ -396,3 +396,185 @@ findings:
       hatch (Alt+Return to bare CR, exactly what Muse receives natively) is sound
       by construction, so the consequence is bounded.
 ```
+
+---
+
+## Re-review — 2026-09-16T12:29:05-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 266 — muse Alt+Return from draft stays in composer; agent pane Return should be Send |
+| repo | pair |
+| issue file | workshop/issues/000266-muse-alt-return-from-draft-stays-in-composer-agent-pane-return-should-be-send.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c6edff3386b9269d3327242898932477a75601af..89a9a243a342ad2ca0c4780bd7971651b2709f7a |
+| command | sdlc close --issue 266 |
+| reviewer | claude |
+| timestamp | 2026-09-16T12:29:05-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All three open findings are genuinely addressed, and I verified each mechanically rather than from prose: reverting the in-paste interception into a scratch copy of HEAD turns five subtests red (`translate_test.go` ×3 + `TestMuseDraftBodyPasteStaysLiteral` ×2), planting a dead `testdata/tty/muse/9.9.9-nope/composer.raw` comment turns `TestTTYFixtureReferencesResolve` red, and every muse fixture really does carry a `CSI > u` push with the disambiguate bit (`>3u` on 1.3.0-R3233.1, `>1u` on 0.1.0-R708.1) so `assertKittyKeyboardPrecondition` passes on real bytes, not vacuously. `go build ./...` and `go vet ./cmd/internal/wrapcmd` are clean, `lua nvim/draft_send_test.lua` passes, and the focused wrapcmd suite is green (the only red, `TestOrientationChildEnvironmentAndReadinessStatus` and friends, is the known `mkdir /tmp/...: operation not permitted` environment trap, reproduced across unrelated tests in the same run). What keeps this from SHIP is cheap and confined to the new evidence machinery: the reaction-gap ledger's expiry predicate cannot prove the property it names and exempts the one screen this issue turns on, and the commit that deleted the in-paste branch took three test rows with it that pinned a *surviving* behavior — Alt+Enter arriving after `bpEnd` in the same read, which is the production draft path. Neither is a broken build; both are one commit.
+
+## 1. Strengths
+
+- **The non-behavior is pinned in both places it matters, and it is real evidence.** `translate_test.go:52-75` plus `muse_draft_submit_test.go:TestMuseDraftBodyPasteStaysLiteral` go red the moment the branch comes back — I confirmed by reapplying `41812c20^`'s `wrap.go` in a scratch tree. Four flips across this issue produced zero red tests; the fifth cannot.
+- **`TestTTYFixtureReferencesResolve` is a real enforcement, not a wrapper around the two known sites** (`harness_tty_fixture_test.go:458`). It walks every `.go` in the package, checks comments as well as code, and `t.Fatal`s if it ever stops finding references — the self-disabling guard is the part most such tests omit.
+- **BR-2's precondition is checked against the *capture*, not the profile** (`harness_tty_fixture_test.go:540`), in both the frozen replay and `assertHarnessTTYLiveDecision`. Requiring the disambiguate bit rather than any `CSI > … u` is the correct tightening: `CSI > 0 u` is a push that disables every enhancement.
+- **`shortcuts.raw` is the right kind of evidence.** Muse printing "shift + enter for newline / enter to submit message" turns this profile's inverted keymap from a Log entry into a captured, replayed artifact — and it incidentally documents `alt + enter to queue while running`, which is worth knowing given pair rewrites Alt+Enter before Muse sees it.
+- **One prompt authority, pinned against drift.** `musePromptGlyphs` (`composer_recognizers.go:100`) with `TestMusePromptAuthorityIsShared` and `TestMuseComposerActive_RejectsSelectionMarkers` closes BR-3 and BR-4 together, and the live prompt on 1.3.0-R3233.1 really is `❯` — so the relaxation was load-bearing, not speculative.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**I-1 `cmd/internal/wrapcmd/harness_tty_fixture_test.go:200` — the reaction-gap retirement oracle cannot prove what it names, and exempts the screen that matters.**
+This is the **4th finding in family `boundary-semantics-unverified`.** Do not fix the instance — state the rule and fix the class.
+
+The rule: **a check that retires an acknowledged gap must test the exact property the gap names; if the data model cannot express that property, add the field rather than approximating it — an approximate expiry retires evidence-free.** Two ways this instance breaks it:
+
+(a) `drivenReturnOnOpenGateScreen` accepts `strings.Contains(scenario.send, "\r")` as proof that Return was pressed *on* the captured screen. It cannot be: `driveHarnessTTYScenario`'s `Input` callback (`harness_tty_live_test.go:809-816`) fires `scenario.send` exactly once, the instant the *composer* is recognized, in order to reach the target screen. A `\r` in `send` is therefore always a Return pressed on the composer. The doc comment at `:196` claims the opposite ("actually presses Return on the screen a fixture file captures"). Nothing misfires today — `claude`'s `permission prompt` (`send: "…ls -la\r"`) targets `overlay.raw` and `codex`'s `working status` targets `working.raw`, neither of which appears in its harness's `ttyFixtureExpectation` map — but the first harness that pins an open-gate screen reached by a Return will silently be told to drop its gap entry. Fix: add an explicit field (`returnOnScreen bool`, or a `sendAfter` dispatched once `settled`) and key the check on that.
+
+(b) `anyOpenGateScreen` (`:212`) skips `composer.raw` by construction, so the ledger demands reaction evidence for menus and exempts the composer — the one screen where this issue's whole change lives. Muse reading `ESC[13;2u` as a newline is currently inferred from `shortcuts.raw` plus the KKP push, never driven and never operator-smoked under the shipped mapping (the `## Plan` manual-smoke checkbox predates `204bbe24`, which introduced it). The inference is strong and I would not block on it, but it should be named in `sdlc close --verified` rather than left implicit.
+
+The class, enumerated: three gap ledgers live in this file, and only one has an exact expiry. `ttyFixtureNegativeGaps` errors on `found && acknowledged` (exact). `ttyFixtureReactionGaps` errors on `driven && acknowledged` where `driven` is the approximation above (new this round). `ttyFixtureDiscriminationGaps` at `:145` has **no expiry branch at all** — `if _, listed := …; !listed && !found` only demands an entry; a harness that later gains a discriminating negative keeps a stale entry forever (pre-existing). Sweeping the enumeration means giving all three the same exact-expiry shape.
+
+**I-2 `cmd/internal/wrapcmd/translate_test.go` — deleting the in-paste branch took three rows that pinned a *surviving* behavior.**
+This is the **3rd finding in family `regression-evidence-missing`.** Do not fix the instance — state the rule and fix the class.
+
+The rule: **when a branch is deleted, its test rows are triaged, not deleted with it — a row that pinned behavior the deletion leaves intact has to move, or the deletion silently drops coverage.** `41812c20` removed `"Alt+Enter inside bracketed paste is still a submit"` (`\x1b[200~hello\x1b[201~\x1b\r`), its KKP twin, and `"Alt+Enter with paste end in same chunk before submit"`. All three pinned Alt+Enter arriving *after* `bpEnd` in the same read — which is not the removed branch's behavior at all, it is the ordinary post-paste path, and it is exactly the shape the production draft send produces when `write-chars` and `send-keys Alt Enter` coalesce with the close marker first. I verified the behavior still works (`\x1b[200~ok\x1b[201~\x1b\r` → `\x1b[200~ok\x1b[201~\r`), so this is a lost pin, not a bug — but it is the pin on the positive half of the very contract this issue exists to defend, removed in the same commit that added the pin on the negative half. Restore one row per protocol.
+
+## 4. Minor findings
+
+- **M-1 `harness_tty_fixture_test.go:320` and `harness_tty_live_test.go:736`** — the Agy gap's *status* is now stated in two places that disagree: the expectation comment says the newline-on-LF behavior is "pinned so that stays a checked property" and the driven-scenario comment states it flatly, while the new `ttyFixtureReactionGaps["agy"]` says it "was never sent." **3rd finding in family `duplicated-authority`** — the rule is that the ledger is the single authority for whether a harness-reaction claim is verified; comments cite it, never restate a verdict about it. The BR-14 sweep corrected the Muse comment and left the two Agy ones, which is the instance-not-class shape (`ARCH-PURPOSE`).
+- **M-2 `harness_tty_fixture_test.go:196`** — the doc comment opens `// drivenReturnScenario …` for a function named `drivenReturnOnOpenGateScreen`. **4th finding in family `stale-comment`** — the rule generalizes the one this round enforced for paths: *a comment's leading identifier is a claim the tree can check, and a doc comment must name the declaration it precedes*. Measured prevalence in this package: 2 — this one, and `wrap.go:1768`, where `observationProfile` was inserted underneath `checkOverlayOpen`'s doc comment back in `799fb6c3` (#184). A sibling of `TestTTYFixtureReferencesResolve` over `go/ast` doc groups retires the family; fixing only these two does not.
+- **M-3 `composer_recognizers.go:196`** — a 118-char comment line in a file that wraps at ~72; the mechanical edit that inserted "the admitted glyphs are musePromptGlyphs" left the rest of the sentence unwrapped.
+- **M-4 `translate_test.go:69`** — the row named "Alt+Enter chord split across a paste boundary" is not split across a boundary; it is a complete chord inside a continuing paste (`startPase: true`, single `translateChunk` call). The table cannot express a two-chunk feed, so a genuinely split chord (chunk 1 ending `…\x1b[13;3`, chunk 2 `u\x1b[201~`) is still unpinned — which is the case the deleted `trailingPartial` holdback actually governed.
+- **M-5 `nvim/draft_send.lua:44-48`** — two separate `if cmd.kind == 'write'` branches three lines apart; fold the `settle()` into the existing one.
+- **M-6** `draft_send_test.lua` pins the settle count on the submit path only; the `no_submit` (Alt+Shift+Return) path now settles too and has no count assertion.
+
+## 5. Test coverage notes
+
+- Regression evidence for all three dispositions is real and I reproduced it: interception restored → 5 red; dead fixture path planted → red; the KKP guard reads the capture, and the captures carry flag words 3 / 1 / 5 so the assert is exercised rather than short-circuited.
+- `TestHarnessTTYFixtureConformance` grew 13.8 s → 16.7 s between base and head (measured) for two added Muse fixtures. The stride bound (`harnessTTYExhaustiveSplitBytes` + `harnessTTYSplitStride`) already governs this and reports what it skipped; no action needed, but the per-fixture cost is roughly 1.5 s and worth remembering before the next capture.
+- Gap relative to the issue's Done-when: the agent-pane half is asserted entirely wrapper-side. Every green assertion about `\x1b[13;2u` reads the expectation from the profile or is a deliberate restatement of it; the only capture-side evidence is `shortcuts.raw`'s prose and the KKP push. See I-1(b).
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** `musePromptGlyphs` is one authority read by both gates and pinned by `TestMusePromptAuthorityIsShared`; expectations read from the profile via `composerReturnBytes`. M-1 and M-5 are the residual duplications.
+- **ARCH-PURE — pass.** Recognizers stay pure over `terminalSnapshot`; `translateChunk` is pure; the 100 ms settle is injected as a callback so `draft_send_test.lua` pins it with no sleep and no IO.
+- **ARCH-PURPOSE — flag (M-1, I-1b).** BR-14's fix named the class correctly and built the mechanism, then swept two of the three comment sites and scoped the mechanism to exclude the composer. That is the instance, not the class.
+- **ARCH-MOCK — pass, strengthened.** Capture + driven scenario + live conformance is the stateful-fake triad, and this round added the first assertion that reads the capture rather than the profile. Residual limit is I-1: the fake models bytes we emit, never Muse's reaction to them.
+- **ARCH-CONSTRAINTS — pass.** Fixture replay cost measured and bounded (above). The blocking `vim.cmd('sleep 100m')` now on every send including short drafts is BR-11, already filed as **#269**; not re-raised.
+- **ARCH-SECURE — pass, improved.** Removing the interception removes the path where arbitrary paste payload containing one chord was reinterpreted as a trusted out-of-band submit, and that removal is now pinned. Unknown glyph → `false`; absent profile → fails closed to bare CR.
+- **ARCH-ORDER — pass, strongest part of the diff.** The illegal `(inPaste=true, altCR emitted, ObservationUserSubmission published)` state is now unreachable, and `replayHarnessTTYFixture` exercises every chunk boundary rather than the one the author happened to get — a real ordering oracle. M-4 is the one ordering case the table shape cannot reach.
+- **ARCH-FUNERAL — pass, with an unwritten rule (round 2 raised this; still unapplied).** Fixture version directories are a growing per-harness-release family, and this window demonstrated the removal path by deleting R3057.1 when superseded — but that rule lives only in the issue Log. `atlas/architecture.md`'s conformance paragraph documents capture and recapture and says nothing about pruning; Muse now carries two versions, Codex two. One sentence ("a version is retained only while a test names it; superseded captures are deleted, not archived") makes the practice checkable before the directory count becomes the question.
+
+## 7. Plan revision recommendations
+
+Round 2's two section-7 recommendations were **not applied** — I re-state them, since the close gate reads Done-when:
+
+- **`## Spec`, bullet 4** still reads "relaxed to allow any prompt glyph in `{⟩,›,❯,>,!,●,▶,▸}`". BR-3 narrowed it to the chevron family `{⟩ › ❯ >}`. Add a `## Revisions` entry naming `musePromptGlyphs` (`composer_recognizers.go:100`) as the authority and `TestMuseComposerActive_RejectsSelectionMarkers` / `TestMusePromptAuthorityIsShared` as the pins.
+- **`## Spec` bullet 2 and `## Done when` bullet 2** still say bare Return "must insert a **newline** (`\n`)". The shipped contract is `ESC [13;2u`. Extend the "Muse composer newline mapping clarified" revision to restate the Done-when explicitly — a closer reading it today would find the criterion contradicted by the code that satisfies it.
+- New this round: **`## Plan`, the manual-smoke checkbox** ("operator verified live") and the line "Operator re-confirmed the fix at HEAD (`0a05b283`)" both read as covering the agent-pane contract, but the smoke predates `204bbe24` (the Shift+Return mapping) and the re-confirmation is recorded as being about draft submission. Say which half each confirmed, and name the agent-pane Return check in `sdlc close --verified`.
+- Process note, not a finding: a 24-file / ~1200-line window landed with no durable design plan under `workshop/plans/` — only the two generated gate ledgers. AGENTS.md §2 asks for one above 3 files / 100 lines. Worth a Log line acknowledging the deviation rather than leaving it implicit.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: addressed
+    note: |
+      Verified by reapplying 41812c20^'s wrap.go in a scratch copy of HEAD: 5 subtests go red (translate_test.go x3, TestMuseDraftBodyPasteStaysLiteral x2).
+  - id: BR-13
+    disposition: addressed
+    note: |
+      TestTTYFixtureReferencesResolve walks every .go incl. comments and self-disables loudly; verified red on a planted testdata/tty/muse/9.9.9-nope path. Both cited instances corrected; the `?` sheet is now a registered driven scenario with shortcuts.raw captured.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      ttyFixtureReactionGaps exists and is enforced, and the KKP guard now requires the disambiguate bit (muse fixtures push >3u/>1u, so the assert runs on real bytes). Residual soundness gaps in the new mechanism raised fresh as I-1, not as a re-raise.
+findings:
+  - id: new
+    severity: Important
+    family: boundary-semantics-unverified
+    title: |
+      Reaction-gap retirement oracle cannot prove what it names, and exempts composer.raw
+    detail: |
+      4th in family. RULE: a check that retires an acknowledged gap must test the
+      exact property the gap names; if the data model cannot express it, add the
+      field rather than approximating it. (a) drivenReturnOnOpenGateScreen
+      (harness_tty_fixture_test.go:200) accepts a "\r" anywhere in scenario.send as
+      proof Return was pressed ON the captured screen, but driveHarnessTTYScenario's
+      Input callback (harness_tty_live_test.go:809) dispatches send exactly once, on
+      the COMPOSER, to reach the target screen — so the predicate can only ever
+      observe a Return pressed elsewhere, while :196 claims the opposite. Nothing
+      misfires today (claude's "\r" scenario targets overlay.raw, codex's targets
+      working.raw; neither is in its harness's ttyFixtureExpectation map), but the
+      first open-gate screen reached via Return silently retires its gap.
+      (b) anyOpenGateScreen (:212) skips composer.raw by construction, exempting the
+      one screen this issue turns on: Muse reading ESC[13;2u as a newline is inferred
+      from shortcuts.raw plus the KKP push, never driven, and the Plan's manual-smoke
+      checkbox predates 204bbe24 which introduced that mapping.
+      CLASS, enumerated: three gap ledgers in this file, one exact expiry.
+      ttyFixtureNegativeGaps errors on found && acknowledged (exact);
+      ttyFixtureReactionGaps uses the approximation above (new this round);
+      ttyFixtureDiscriminationGaps (:145) has NO expiry branch at all, so an entry
+      outlives its gap forever (pre-existing). Sweep = give all three the same shape.
+      (ARCH-PURPOSE, ARCH-MOCK)
+  - id: new
+    severity: Important
+    family: regression-evidence-missing
+    title: |
+      Deleting the in-paste branch took three rows that pinned a surviving behavior
+    detail: |
+      3rd in family. RULE: when a branch is deleted, its test rows are triaged, not
+      deleted with it — a row pinning behavior the deletion leaves intact must move,
+      or the deletion silently drops coverage. 41812c20 removed three translate_test
+      rows ("Alt+Enter inside bracketed paste is still a submit", its KKP twin, and
+      "Alt+Enter with paste end in same chunk before submit"). All three pinned
+      Alt+Enter arriving AFTER bpEnd in one read — not the removed branch's behavior,
+      but the ordinary post-paste path, and the exact shape the draft send produces
+      when write-chars and send-keys coalesce with the close marker first. Verified
+      still correct at HEAD ("\x1b[200~ok\x1b[201~\x1b\r" -> "\x1b[200~ok\x1b[201~\r"),
+      so this is a lost pin rather than a bug — but it is the pin on the POSITIVE half
+      of the contract this issue exists to defend, dropped in the same commit that
+      added the pin on the negative half. Restore one row per protocol.
+  - id: new
+    severity: Minor
+    family: duplicated-authority
+    title: |
+      Agy gap status is stated in two places in one file, contradictorily
+    detail: |
+      3rd in family. RULE: the gap ledger is the single authority for whether a
+      harness-reaction claim is verified; comments may cite it, never restate a
+      verdict about it. harness_tty_fixture_test.go:320 says the Agy newline-on-LF
+      behavior is "pinned so that stays a checked property" and
+      harness_tty_live_test.go:736 states it flatly, while the new
+      ttyFixtureReactionGaps["agy"] added in this same window records it as "never
+      sent". The BR-14 sweep corrected the Muse comment and left both Agy ones — the
+      instance, not the class (ARCH-PURPOSE). The new check cannot detect this: it
+      only requires an entry to exist, never that prose agrees with it.
+  - id: new
+    severity: Minor
+    family: stale-comment
+    title: |
+      Doc comment opens with drivenReturnScenario, a symbol that does not exist
+    detail: |
+      4th in family. RULE, generalized from the paths this round enforced: a
+      comment's leading identifier is a claim the tree can check, and a doc comment
+      must name the declaration it precedes. harness_tty_fixture_test.go:196 opens
+      "drivenReturnScenario" for func drivenReturnOnOpenGateScreen. Measured
+      prevalence in this package: 2 — this one, and wrap.go:1768 where
+      observationProfile was inserted underneath checkOverlayOpen's doc comment
+      (799fb6c3, #184). A go/ast sibling of TestTTYFixtureReferencesResolve over doc
+      groups retires the family; fixing these two sites does not.
+```

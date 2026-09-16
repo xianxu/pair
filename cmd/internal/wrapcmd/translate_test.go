@@ -48,6 +48,28 @@ func TestTranslateChunk(t *testing.T) {
 			wantOut:   []byte("\x1b[200~line1\rline2\r\x1b[201~"),
 			wantPaste: false, // ends out of paste mode
 		},
+		// The POSITIVE half of the same contract, and the shape the draft send
+		// actually produces: the close marker arrives first, so the chord is
+		// outside the window and must become a submit. Restored after the
+		// in-paste branch's deletion took these rows with it (#266 close BR-16)
+		// — they pin the surviving path, not the removed one, and losing them
+		// left the contract pinned on one side only.
+		{
+			name:    "legacy Alt+Enter after the paste closes is a submit",
+			in:      []byte("\x1b[200~hello\x1b[201~\x1b\r"),
+			wantOut: []byte("\x1b[200~hello\x1b[201~\r"),
+		},
+		{
+			name:    "KKP Alt+Enter after the paste closes is a submit",
+			in:      []byte("\x1b[200~hello\x1b[201~\x1b[13;3u"),
+			wantOut: []byte("\x1b[200~hello\x1b[201~\r"),
+		},
+		{
+			name:      "paste close, trailing text, then Alt+Enter in one read",
+			in:        []byte("\x1b[200~pasted\x1b[201~X\x1b\r"),
+			wantOut:   []byte("\x1b[200~pasted\x1b[201~X\r"),
+			wantPaste: false,
+		},
 		// A deliberate NON-behavior needs its own test: the translator must not
 		// read an Alt+Enter chord inside a paste window as a submit. Emitting
 		// the submit CR there cannot work — the harness has ?2004h on, so a CR

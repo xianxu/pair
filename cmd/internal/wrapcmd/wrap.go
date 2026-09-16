@@ -1763,9 +1763,9 @@ type overlayDetection struct {
 	nearMiss    string
 }
 
-// checkOverlayOpen flips pickerActive when the current agent's output
-// indicates that a blocking overlay opened. Idempotent — repeated
-// rerenders within one overlay don't re-debug-log.
+// observationProfile is the profile the observation layers read: the wrapped
+// harness's own when stdin is being translated, and orientation's otherwise, so
+// an orientation-only session still detects overlays.
 func (p *proxy) observationProfile() *harnessTTYProfile {
 	if p.ttyProfile != nil {
 		return p.ttyProfile
@@ -1775,6 +1775,10 @@ func (p *proxy) observationProfile() *harnessTTYProfile {
 	}
 	return nil
 }
+
+// checkOverlayOpen flips pickerActive when the current agent's output
+// indicates that a blocking overlay opened. Idempotent — repeated
+// rerenders within one overlay don't re-debug-log.
 func (p *proxy) checkOverlayOpen(data, rolling []byte) {
 	if p.observationProfile() == nil || p.observationProfile().overlay == nil {
 		return

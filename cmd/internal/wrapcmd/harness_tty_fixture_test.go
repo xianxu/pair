@@ -5,6 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -142,33 +145,55 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 		// separates a live composer from a picker painted in the same shape.
 		// A harness that declines only on cursor state has not shown that, so
 		// it must say so rather than reading as covered.
-		if _, listed := ttyFixtureDiscriminationGaps[harness]; !listed && !found {
+		if _, listed := ttyFixtureDiscriminationGaps[harness]; !listed && !harnessHasDiscriminatingNegative(harness) {
 			t.Errorf("%s has neither a discriminating negative nor a ttyFixtureDiscriminationGaps entry", harness)
 		}
 	}
 
-	// A `menu.raw: true` expectation says the gate deliberately stays OPEN on a
-	// menu screen, which makes what the harness does with the remapped Return
-	// the whole question — and that is the one thing no fixture replay can
-	// answer. So each such harness must either press Return in a driven
-	// scenario or carry a reaction-gap entry; a comment asserting the outcome
-	// is not evidence (#266 close BR-14).
-	for harness, files := range ttyFixtureExpectation {
-		if harness == "" || !anyOpenGateScreen(files) {
-			continue
-		}
+	// Every positively gated harness remaps Return on SOME screen, and what the
+	// harness then does with the remapped key is the one thing no fixture
+	// replay can answer — a replay proves what the wrapper emitted, full stop.
+	// That includes the composer itself: Muse reading `ESC[13;2u` as a newline
+	// is inferred from its own shortcut sheet plus a KKP push, never driven. So
+	// each harness must either press Return in a driven scenario or carry a
+	// reaction-gap entry; a comment asserting the outcome is not evidence
+	// (#266 close BR-14, BR-15).
+	for harness := range required {
 		reason, acknowledged := ttyFixtureReactionGaps[harness]
-		driven := drivenReturnOnOpenGateScreen(harness, files)
+		driven := harnessPressesReturn(harness)
 		switch {
 		case driven && acknowledged:
-			t.Errorf("%s now drives Return on its menu capture; drop its ttyFixtureReactionGaps entry (%q)", harness, reason)
+			t.Errorf("%s now presses Return on a captured screen; drop its ttyFixtureReactionGaps entry (%q)", harness, reason)
 		case !driven && !acknowledged:
-			t.Errorf("%s keeps its gate open on a non-composer screen with no driven Return and no ttyFixtureReactionGaps entry: drive it, or record what is unproven", harness)
+			t.Errorf("%s remaps Return with no driven Return and no ttyFixtureReactionGaps entry: drive it, or record what is unproven", harness)
 		}
 	}
-	for harness := range ttyFixtureReactionGaps {
-		if _, ok := harnessTTYProfiles[harness]; !ok {
-			t.Errorf("ttyFixtureReactionGaps names %q, which has no profile", harness)
+
+	// The discrimination ledger gets the same exact expiry the negative ledger
+	// has. It had none at all, so an entry outlived its gap silently; and
+	// "has an overlay.raw" was never the property it acknowledges — a negative
+	// that declines on a hidden cursor proves nothing about a picker painted in
+	// the composer's shape. That property is now declared by the scenario that
+	// reaches such a screen (#266 close BR-15).
+	for harness := range required {
+		reason, listed := ttyFixtureDiscriminationGaps[harness]
+		if harnessHasDiscriminatingNegative(harness) && listed {
+			t.Errorf("%s now has a discriminating negative; drop its ttyFixtureDiscriminationGaps entry (%q)", harness, reason)
+		}
+	}
+
+	for _, ledger := range []struct {
+		name    string
+		entries map[string]string
+	}{
+		{"ttyFixtureNegativeGaps", ttyFixtureNegativeGaps},
+		{"ttyFixtureDiscriminationGaps", ttyFixtureDiscriminationGaps},
+		{"ttyFixtureReactionGaps", ttyFixtureReactionGaps},
+	} {
+		for harness := range ledger.entries {
+			if _, ok := harnessTTYProfiles[harness]; !ok {
+				t.Errorf("%s names %q, which has no profile", ledger.name, harness)
+			}
 		}
 	}
 }
@@ -188,30 +213,31 @@ var ttyFixtureNegativeGaps = map[string]string{
 // cannot, so such a claim either gets driven or gets recorded here. An entry
 // names the screen, the unproven reaction, and how to drive it.
 var ttyFixtureReactionGaps = map[string]string{
-	"muse":   "muse/1.3.0-R3233.1/menu.raw pins that plain Return on the slash menu emits Shift+Return, but nobody has pressed it there: whether Muse leaves the highlighted command unpicked (the Agy tradeoff) or acts on it is undriven.",
-	"agy":    "the agy menu.raw comment states that Agy inserts a newline on LF there rather than selecting. That is an observation from reading the screen, not a driven result; the keystroke was never sent.",
-	"claude": "claude/2.1.237/menu.raw pins that the gate stays open on the slash menu, so plain Return remaps to Claude's newline there. What Claude does with it — and with a Return in bash mode — is undriven.",
+	"muse":   "no Return has been pressed on any captured Muse screen. That `ESC[13;2u` inserts a newline in the composer is inferred from Muse's own shortcut sheet (`shortcuts.raw`: \"shift + enter for newline\") plus the KKP push in every capture, and from live operator smoke — not from a driven assertion. On the slash menu, whether Muse leaves the highlighted command unpicked (the Agy tradeoff) is likewise undriven.",
+	"agy":    "no Return has been pressed on any captured Agy screen. That Agy inserts a newline on LF in its slash menu rather than selecting is an observation from reading the screen, not a driven result.",
+	"claude": "no Return has been pressed on any captured Claude screen. The gate stays open on the slash menu and in bash mode, so Return remaps to Claude's newline on both; what Claude does with it is undriven.",
+	"codex":  "no Return has been pressed on any captured Codex screen. The composer remap to LF is undriven; the overlay path is the one with independent evidence, since the interstitial's own footer says Enter continues.",
 }
 
-// drivenReturnScenario reports whether a harness has a driven scenario that
+// harnessPressesReturn reports whether a harness has a driven scenario that
 // actually presses Return on the screen a fixture file captures. That is the
 // only thing that retires a reaction gap: a fixture replay can prove what the
 // wrapper emits, never what the harness makes of it.
-func drivenReturnOnOpenGateScreen(harness string, files map[string]bool) bool {
+func harnessPressesReturn(harness string) bool {
 	for _, scenario := range harnessTTYDrivenScenarios[harness] {
-		if files[scenario.file] && scenario.file != "composer.raw" && strings.Contains(scenario.send, "\r") {
+		if scenario.pressesReturn {
 			return true
 		}
 	}
 	return false
 }
 
-// anyOpenGateScreen reports whether a harness pins any NON-composer capture the
-// gate must stay open on — the screens where the remapped Return is a tradeoff
-// rather than the intended edit.
-func anyOpenGateScreen(files map[string]bool) bool {
-	for file, open := range files {
-		if open && file != "composer.raw" {
+// harnessHasDiscriminatingNegative reports whether a harness has a declining
+// screen painted in its composer's own shape — the exact property
+// ttyFixtureDiscriminationGaps acknowledges the absence of.
+func harnessHasDiscriminatingNegative(harness string) bool {
+	for _, scenario := range harnessTTYDrivenScenarios[harness] {
+		if scenario.discriminating {
 			return true
 		}
 	}
@@ -316,10 +342,12 @@ var ttyFixtureExpectation = map[string]map[string]bool{
 		"composer.raw": true,
 		"overlay.raw":  false,
 	},
-	// Agy's slash menu keeps the composer live below its own box. The gate
-	// stays open, which is safe only because Agy inserts a newline on LF there
-	// rather than selecting; pinned so that stays a checked property. Keyed per
-	// harness because another harness's menu may have to decline.
+	// Agy's slash menu keeps the composer live below its own box, so the gate
+	// stays open and Return remaps there. What this entry checks is the
+	// wrapper's half; the tolerability argument rests on Agy inserting a
+	// newline rather than selecting, which ttyFixtureReactionGaps records as
+	// undriven. Keyed per harness because another harness's menu may have to
+	// decline.
 	"agy": {"menu.raw": true},
 	// Claude's bash mode is still a composer — it repaints the glyph and rule
 	// colour, not the shape — so the gate must stay open.
@@ -445,6 +473,151 @@ func replayHarnessTTYSplit(t *testing.T, harness string, raw []byte, split int) 
 	result.returnBytes = string(p.emitPlainCR(nil))
 	result.reason = decidePlainReturn(*p.ttyProfile, result.overlayArmed, &snapshot).reason
 	return result
+}
+
+// TestDocCommentsNameTheirSubject checks the one claim a doc comment makes that
+// the tree can verify: when it opens with a camelCase SYMBOL name, that symbol
+// must exist and must be the thing being documented (or, for a test, the symbol
+// under test). Most comments here open with prose, which says nothing checkable
+// and is left alone. The two failure modes this catches both happened in this
+// package: a comment opening on a function that was later renamed (#266), and a
+// comment stranded above a declaration inserted underneath it (#184). Sibling of
+// TestTTYFixtureReferencesResolve, over doc groups instead of paths.
+func TestDocCommentsNameTheirSubject(t *testing.T) {
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, ".", nil, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("parse package: %v", err)
+	}
+	declared := map[string]bool{}
+	var subjects []docCommentSubject
+	for _, pkg := range pkgs {
+		for name, file := range pkg.Files {
+			for _, decl := range file.Decls {
+				for _, named := range declaredNames(decl) {
+					declared[named] = true
+				}
+				for _, subject := range docCommentSubjects(decl) {
+					subject.file = filepath.Base(name)
+					subject.line = fset.Position(subject.pos).Line
+					subjects = append(subjects, subject)
+				}
+			}
+		}
+	}
+	if len(declared) == 0 || len(subjects) == 0 {
+		t.Fatal("no declarations with doc comments found; this test has stopped checking anything")
+	}
+	for _, subject := range subjects {
+		lead, ok := leadingSymbol(subject.doc)
+		if !ok {
+			continue
+		}
+		switch {
+		case !declared[lead]:
+			t.Errorf("%s:%d: doc comment opens with %q, which this package does not declare",
+				subject.file, subject.line, lead)
+		case lead != subject.name && !strings.Contains(strings.ToLower(subject.name), strings.ToLower(lead)):
+			t.Errorf("%s:%d: doc comment opens with %q but documents %q",
+				subject.file, subject.line, lead, subject.name)
+		}
+	}
+}
+
+type docCommentSubject struct {
+	name string
+	doc  *ast.CommentGroup
+	pos  token.Pos
+	file string
+	line int
+}
+
+// declaredNames lists the names a declaration introduces.
+func declaredNames(decl ast.Decl) []string {
+	switch d := decl.(type) {
+	case *ast.FuncDecl:
+		return []string{d.Name.Name}
+	case *ast.GenDecl:
+		var names []string
+		for _, spec := range d.Specs {
+			switch sp := spec.(type) {
+			case *ast.TypeSpec:
+				names = append(names, sp.Name.Name)
+			case *ast.ValueSpec:
+				for _, name := range sp.Names {
+					names = append(names, name.Name)
+				}
+			}
+		}
+		return names
+	}
+	return nil
+}
+
+// docCommentSubjects pairs a declaration's doc comment with the name it should
+// name. A grouped `var (...)`/`const (...)` block documents the group rather
+// than one name, so only its individually documented specs are paired.
+func docCommentSubjects(decl ast.Decl) []docCommentSubject {
+	switch d := decl.(type) {
+	case *ast.FuncDecl:
+		if d.Doc == nil {
+			return nil
+		}
+		return []docCommentSubject{{name: d.Name.Name, doc: d.Doc, pos: d.Pos()}}
+	case *ast.GenDecl:
+		var subjects []docCommentSubject
+		for _, spec := range d.Specs {
+			var (
+				name string
+				doc  *ast.CommentGroup
+			)
+			switch sp := spec.(type) {
+			case *ast.TypeSpec:
+				name, doc = sp.Name.Name, sp.Doc
+			case *ast.ValueSpec:
+				if len(sp.Names) == 0 {
+					continue
+				}
+				name, doc = sp.Names[0].Name, sp.Doc
+			default:
+				continue
+			}
+			if doc == nil && len(d.Specs) == 1 {
+				doc = d.Doc
+			}
+			if doc != nil {
+				subjects = append(subjects, docCommentSubject{name: name, doc: doc, pos: spec.Pos()})
+			}
+		}
+		return subjects
+	}
+	return nil
+}
+
+// leadingSymbol reports a doc comment's first word when it is shaped like a Go
+// symbol rather than prose: mixed case with an internal capital and nothing but
+// identifier characters. "drivenReturnScenario" qualifies; "The", "Codex" and
+// "NO_COLOR" do not, and neither does a word carrying punctuation.
+func leadingSymbol(doc *ast.CommentGroup) (string, bool) {
+	fields := strings.Fields(strings.TrimSpace(doc.Text()))
+	if len(fields) < 2 {
+		return "", false
+	}
+	word := fields[0]
+	internalCapital := false
+	for i, r := range word {
+		switch {
+		case r == '_' || r >= '0' && r <= '9':
+			return "", false
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z':
+		default:
+			return "", false
+		}
+		if i > 0 && r >= 'A' && r <= 'Z' && word[i-1] >= 'a' && word[i-1] <= 'z' {
+			internalCapital = true
+		}
+	}
+	return word, internalCapital
 }
 
 // ttyFixtureReference matches a fixture path — in code or in a comment — as

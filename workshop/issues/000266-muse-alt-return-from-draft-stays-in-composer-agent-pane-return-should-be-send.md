@@ -187,3 +187,38 @@ New evidence captured live off 1.3.0-R3233.1: `shortcuts.raw`, the `?` sheet in 
 Muse states its own key contract — "shift + enter for newline", "enter to submit
 message". That is the documentary basis for this profile's inverted keymap, which until
 now rested on a live observation recorded only in this Log.
+
+### 2026-09-16 — close boundary review round 3
+
+Two Important, both fair, plus two Minors:
+
+- **BR-16** — the revert of `0a05b283` took three `translate_test` rows with it that
+  pinned the *surviving* path: an Alt+Enter arriving **after** `bpEnd` in the same read,
+  which is the ordinary post-paste submit and the exact shape the draft send produces
+  when the close marker lands first. So the deletion left this issue's contract pinned
+  on the negative half only. Restored with accurate names (the originals said "inside
+  bracketed paste" for a chord that is outside it). The rule: when a branch is deleted
+  its test rows get triaged, not deleted with it.
+- **BR-15** — my own round-2 retirement oracle was unsound. It read a `\r` anywhere in
+  `scenario.send` as proof Return was pressed on the captured screen, but `send` is
+  dispatched once, from the composer, to *reach* that screen — so the predicate could
+  only ever see a Return pressed somewhere else, and the first open-gate screen reached
+  via Return would have retired its own gap silently. The data model couldn't express
+  the property, so it does now: `pressesReturn` and `discriminating` are declared by the
+  scenario. Also dropped the `composer.raw` exemption — the composer is the screen this
+  issue turns on, and that Muse reads `ESC[13;2u` as a newline is inferred from its
+  shortcut sheet plus the KKP push, never driven. With the exemption gone, all four
+  harnesses need an entry, which is the honest state: **no Return has ever been pressed
+  on any captured screen**. And `ttyFixtureDiscriminationGaps` had no expiry branch at
+  all, so an entry could outlive its gap forever; all three ledgers now share one shape.
+- **BR-17** — the Agy comments still asserted "inserts a newline rather than selecting"
+  as a checked property while the new ledger recorded it as never driven. Both now cite
+  the ledger instead of restating a verdict (`ARCH-DRY`: one authority per fact).
+- **BR-18** — a doc comment opening on `drivenReturnScenario`, a symbol my own rename
+  had removed. The generalized rule "a doc comment must open with its declaration's
+  name" does **not** fit this package — most comments open with prose, and a first pass
+  flagged 17 of them. Narrowed to the claim that is actually checkable: a first word
+  shaped like a *symbol* (internal capital) must resolve to a declared name and must be
+  the documented one, or the symbol under test. That reports exactly the two real
+  instances — mine, and a pre-existing comment for `checkOverlayOpen` stranded above
+  `observationProfile` (#184) — and both are fixed.
