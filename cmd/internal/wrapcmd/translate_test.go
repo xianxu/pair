@@ -155,6 +155,21 @@ func TestTranslateChunk(t *testing.T) {
 			wantOut:  []byte("hi"),
 			wantHold: []byte("\x1b[127;3"),
 		},
+		{
+			name:    "Alt+Enter inside bracketed paste is still a submit",
+			in:      []byte("\x1b[200~hello\x1b[201~\x1b\r"),
+			wantOut: []byte("\x1b[200~hello\x1b[201~\r"),
+		},
+		{
+			name:    "Alt+Enter before paste end is still a submit",
+			in:      []byte("\x1b[200~hello\x1b\r\x1b[201~"),
+			wantOut: []byte("\x1b[200~hello\r\x1b[201~"),
+		},
+		{
+			name:    "KKP Alt+Enter before paste end is still a submit",
+			in:      []byte("\x1b[200~hello\x1b[13;3u\x1b[201~"),
+			wantOut: []byte("\x1b[200~hello\r\x1b[201~"),
+		},
 	}
 
 	t.Run("codex keymap", func(t *testing.T) {

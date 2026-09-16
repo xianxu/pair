@@ -47,6 +47,22 @@ func TestMuseDraftAltEnterSubmission(t *testing.T) {
 	}
 }
 
+func TestMuseDraftAltEnterSubmissionInsidePaste(t *testing.T) {
+	for _, seq := range [][]byte{[]byte("\x1b\r"), []byte("\x1b[13;3u")} {
+		t.Run(string(seq), func(t *testing.T) {
+			f := newHarnessSessionFake(t, "muse", true)
+			defer f.close()
+			input := append([]byte("\x1b[200~draft body"), seq...)
+			input = append(input, "\x1b[201~"...)
+			out, leftover, inPaste := f.proxy.translateChunk(input, false)
+			want := []byte("\x1b[200~draft body\r\x1b[201~")
+			if len(leftover) != 0 || inPaste || !bytes.Equal(out, want) {
+				t.Fatalf("translated=%q leftover=%q paste=%v, want %q/no leftover/not paste", out, leftover, inPaste, want)
+			}
+		})
+	}
+}
+
 // TestMuseAgentPaneReturn verifies that Muse uses Shift+Return for plain input
 // inside its composer and bare CR for Alt+Return or picker confirmation.
 func TestMuseAgentPaneReturn(t *testing.T) {

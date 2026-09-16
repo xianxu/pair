@@ -1940,6 +1940,30 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 	i := 0
 	for i < len(data) {
 		if inPaste {
+			// The draft submits with Alt+Enter. Zellij can deliver the
+			// semantic send-keys event before the bracketed-paste close
+			// marker from write-chars, so recognize that out-of-band chord
+			// while preserving all other paste bytes literally.
+			endIdx := indexOfSubseq(data[i:], bpEnd)
+			kkpIdx := indexOfSubseq(data[i:], enterKKPAlt)
+			legacyIdx := indexOfSubseq(data[i:], enterLegacyAlt)
+			altIdx := -1
+			altLen := 0
+			if kkpIdx >= 0 && (altIdx < 0 || kkpIdx < altIdx) {
+				altIdx = kkpIdx
+				altLen = len(enterKKPAlt)
+			}
+			if legacyIdx >= 0 && (altIdx < 0 || legacyIdx < altIdx) {
+				altIdx = legacyIdx
+				altLen = len(enterLegacyAlt)
+			}
+			if altIdx >= 0 && (endIdx < 0 || altIdx < endIdx) {
+				out = append(out, data[i:i+altIdx]...)
+				out = append(out, p.ttyProfile.keymap.altCR...)
+				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
+				i += altIdx + altLen
+				continue
+			}
 			// Scan for end-of-paste marker. Anything before it is
 			// literal pasted content — forward verbatim.
 			if idx := indexOfSubseq(data[i:], bpEnd); idx >= 0 {
@@ -1951,6 +1975,11 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 			// Marker not in this chunk. Forward everything but hold back
 			// a trailing partial bpEnd in case it splits the boundary.
 			tail := trailingPartial(data[i:], bpEnd)
+			for _, pat := range [][]byte{enterKKPAlt, enterLegacyAlt} {
+				if partial := trailingPartial(data[i:], pat); partial > tail {
+					tail = partial
+				}
+			}
 			out = append(out, data[i:len(data)-tail]...)
 			leftover := append([]byte(nil), data[len(data)-tail:]...)
 			return out, leftover, true
