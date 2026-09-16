@@ -108,9 +108,32 @@ Pick one of two shapes and say why:
 Option 1 looks right; option 2 alone would not have prevented the measured
 leak. They are not exclusive.
 
-Out of scope: the per-session memory growth that makes each leaked tree so
-expensive (one embedded nvim at 2.42 GB). That is worth its own issue — this
-one is only about the trees outliving their session.
+**The orphan is not dormant — it is a runaway, and that is why it is so
+expensive.** Measured against the healthy population on the same machine
+minutes later:
+
+| | count | size each | %CPU | accumulated CPU |
+|---|---|---|---|---|
+| healthy embedded nvim (attached sessions) | 30 | **25–92 MB** | **0.0%** | seconds |
+| orphaned nvim | 29 | **6–16 GB** | 5–47% | **28–49 min** |
+
+An embedded nvim is ~50 MB when its session is alive. It reaches 16 GB only
+after being orphaned, while burning CPU the whole time — the machine's load
+average was **43.38** with nothing actually running. So the memory is a
+*symptom* of the orphaning, not an independent leak or a configuration
+problem: something in the orphan retries forever (most plausibly writing to a
+pty whose master is gone and getting an error back) and accumulates as it
+spins.
+
+That makes the fix more urgent than "stale processes linger": every abnormally
+ended session leaves behind a process that actively consumes CPU and grows
+without bound until the machine runs out of memory.
+
+Worth confirming during the fix: identify the loop. If the orphan's growth is
+the retry path, then making it die on carrier loss removes both problems at
+once; if it can also spin while *attached*, that is a second bug and needs its
+own issue. No evidence of the latter — the healthy population is flat at 0.0%
+CPU and under 100 MB.
 
 ## Done when
 
