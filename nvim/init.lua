@@ -724,13 +724,10 @@ local function send_to_agent(body, no_submit, resume_phase)
   -- the chip in its input as the attachment, and the "[Image #N]" string
   -- in our body as a reference to it. Complementary, not duplicate.
   --
-  -- Multi-line / large bodies get wrapped by zellij as bracketed paste
-  -- (`\e[200~...\e[201~`). zellij's write-chars returns once the bytes
-  -- are queued, not delivered — sending the submit immediately after
-  -- can land inside the paste boundary and get treated as a literal
-  -- newline rather than submit. Settle for ~100ms in that case so the
-  -- agent has time to ingest the paste and return to the input prompt
-  -- before we hit submit. Single-line sends skip the wait.
+  -- zellij's write-chars returns once the bytes are queued, not delivered.
+  -- Sending the submit immediately after can land before the agent has
+  -- ingested the body (including short single-line bodies), so settle for
+  -- ~100ms after every body write before sending the submit.
   --
   -- Submit is Alt+Enter, not plain Enter:
   -- pair-wrap's stdin translator rewrites incoming \r into the agent's

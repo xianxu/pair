@@ -82,3 +82,4 @@ The live Muse 1.3.0 session disproved the earlier assumption that an active Muse
 
 - Verification after correction: `go test ./cmd/internal/wrapcmd -count=1`, `lua nvim/draft_send_test.lua`, `git diff --check`, and live `PAIR_LIVE_HARNESS=muse ... TestHarnessTTYLiveConformance` all pass; live output reports `composer=true` and plain Return `"\r"`.
 - `go test ./... -count=1` reaches the Muse package but remains red on unrelated existing failures in `couchcore`, `couchtty`, `diagnosticlog`, and `wrapcmd` notification startup-hook timing. The focused Muse tests remain green.
+- Follow-up live trace: the short draft's `write-chars` and `send-keys Alt Enter` completed successfully, but the wrapper received them only 18 ms apart. `draft_send.lua` settled only multiline or large bodies, so short bodies had no queue-drain delay. Added the same 100 ms settle after every successful body write (`ARCH-CONSTRAINTS`: measured keystroke delivery ordering).
