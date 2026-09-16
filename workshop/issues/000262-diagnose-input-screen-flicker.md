@@ -45,3 +45,10 @@ and fix the root cause without reducing input fidelity.
 Filed as a follow-up to #255 from operator smoke testing. Flicker is subtle and
 non-corrupting, appears during rapid input, and has not appeared during similar
 right-pane output.
+
+### 2026-09-15 — post-reload observation
+
+The symptom may be specific to the pre-reload Pair session or its accumulated
+state. The brain thread flickered before reload, but the flicker was not
+observable after reloading the Pair. Treat the report as unconfirmed for now;
+continue observing before investing in instrumentation or a fix.
