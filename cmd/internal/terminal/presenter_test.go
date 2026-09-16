@@ -824,3 +824,30 @@ func TestPresenterCanceledSelectionJoinsExistingReleaseWithoutRetry(t *testing.T
 		t.Fatalf("selection retry duplicated release:%q", got)
 	}
 }
+
+// pair#265: every site that refuses for want of an endpoint answers with the
+// same classifiable error, so a caller can tell "nothing to deliver to" from
+// "the terminal is lost". Input and UpdateChrome are the two a console reaches
+// on its ordinary paths; mouseInput's is covered through Input.
+func TestPresenterRefusalsWithoutADestinationAreClassifiable(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		call func(*Presenter) error
+	}{
+		{"input", func(p *Presenter) error {
+			return p.Input(context.Background(), uv.KeyPressEvent{Code: 'x', Text: "x"})
+		}},
+		{"update-chrome", func(p *Presenter) error {
+			return p.UpdateChrome(context.Background(), make([]Cell, 8))
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := NewPresenter(ttyio.NewFake(), CouchAnyMotion)
+			t.Cleanup(func() { p.Release(context.Background()) })
+			err := tc.call(p)
+			if !errors.Is(err, ErrNoDestination) {
+				t.Fatalf("%s with no endpoint = %v, want ErrNoDestination", tc.name, err)
+			}
+		})
+	}
+}
