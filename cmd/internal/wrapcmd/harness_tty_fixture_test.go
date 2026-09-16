@@ -383,12 +383,12 @@ func sortedKeys(files map[string][]byte) []string {
 // TestComposerReturnExpectationMatchesProfile pins that a recognized composer's
 // expected Return bytes come from the harness's own keymap. Codex, Muse and Agy
 // all remap to LF, which made a hardcoded "\n" look correct until Claude — whose
-// plainCR is backslash-CR — joined the positively gated set.
+// plainCR is the profile's active-composer Return bytes.
 func TestComposerReturnExpectationMatchesProfile(t *testing.T) {
 	want := map[string]string{
 		"claude": "\\\r",
 		"codex":  "\n",
-		"muse":   "\n",
+		"muse":   "\x1b[13;2u",
 		"agy":    "\n",
 	}
 	for harness, wantBytes := range want {

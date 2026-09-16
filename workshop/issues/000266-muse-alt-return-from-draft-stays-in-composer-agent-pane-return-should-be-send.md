@@ -22,17 +22,17 @@ This is the exact gap pair's return-remap seam exists to close (`cmd/internal/wr
 ## Spec
 
 - `Alt+Return` from the draft nvim must reliably submit the draft to Muse (same as claude/codex/agy): authored text is written to the agent pane, a submission `CR` reaches the harness, a turn opens, focus returns to draft.
-- When the Muse agent pane has focus and the composer is active (no picker/overlay), bare `Return` must **Send**, and `Alt+Return` must insert a **newline** — matching the pair harness convention. Overlay/picker path remains `Return = confirm` (bypass remap).
+- When the Muse agent pane has focus and the composer is active (no picker/overlay), bare `Return` must insert a **newline** (`\n`) and `Alt+Return` must **Send** (`\r`) — matching the pair harness convention for multiline composing (claude/codex/agy/muse all share `plainCR=\n / altCR=\r` with a positive composer gate). Overlay/picker path remains `Return = confirm` (bare `CR`, bypass remap).
 - No harness-specific workaround in nvim/viewer layer; fix lives in the shared wrap/proxy seam (`harnessTTYProfiles`, composer recognizer, overlay detector, keymap) and the draft send translation that feeds it.
-- Preserve existing Muse recognizer contract (`museComposerActive` = non-faint `⟩` at col 0 inside faint `─` rules, cursor anywhere in box) unless evidence shows the composer shape changed; if it changed, update recognizer + frozen `testdata/tty/muse/*/composer.raw` accordingly.
-- Add regression coverage for both entry points: draft-originated `Alt+Return` and agent-pane `Return` under Muse.
+- Muse `museComposerActive` was strictly pinned to `⟩` + faint rules; relaxed to allow any prompt glyph in `{⟩,›,❯,>,!,●,▶,▸}` and any `─` rule pair sharing the same faint state, so a Muse UI refresh changing the prompt or rule style does not silently break the Return remap. Box shape (prompt row enclosed by two `─` rules) remains the discriminator.
+- Add regression coverage for both entry points: draft-originated `Alt+Return` and agent-pane `Return`/`Alt+Return` under Muse.
 
 ## Done when
 
 - With `muse` as `pair` agent: `Alt+Return` from the draft sends the draft to Muse and opens a turn (composer clears, agent output follows); text no longer sits idle in the composer.
-- With the Muse agent pane focused and composer active (no overlay): `Return` sends, `Alt+Return` inserts newline. With a picker/overlay active: `Return` confirms the overlay (no newline leak).
-- No regression for claude/codex/agy return remap; existing `TestEmitPlainCR_*` suites still pass.
-- Tests cover the Muse draft-submit path and the agent-pane plain-Return/Alt-Return routing.
+- With the Muse agent pane focused and composer active (no overlay): `Return` inserts newline (`\n`), `Alt+Return` sends (`\r`). With a picker/overlay active: `Return` confirms the overlay as bare `CR` (no newline leak). Fallback (no composer) remains `Return = CR`.
+- No regression for claude/codex/agy return remap; existing `TestEmitPlainCR_*` / `Test*Muse*` suites still pass.
+- Tests cover the Muse draft-submit path (`TestMuseDraftAltEnterSubmission`) and the agent-pane plain/alt routing (`TestMuseAgentPaneReturn`) plus relaxed prompt/rule cases.
 
 ## Estimate
 
@@ -42,14 +42,57 @@ This is the exact gap pair's return-remap seam exists to close (`cmd/internal/wr
 
 ## Plan
 
-- [ ] Reproduce: `pair muse` → draft vs agent-pane key probes; capture `wrapcmd` proxy decisions (`plainCR`/`altCR` bytes, `museComposerActive` verdict, `pickerActive`/overlay detector) on the failing paths.
-- [ ] Trace `nvim/draft_send.lua:17 send-keys 'Alt Enter'` → `wrapcmd` proxy → harness: verify translation to bare `CR` for Muse and whether composer gate declines.
-- [ ] Fix shared seam (keymap / recognizer / overlay) so Muse satisfies the convention; keep fix generic (no nvim-only shim).
-- [ ] Add tests: `muse_return_test.go` draft-submit case + agent-pane `Return`/`Alt+Return` matrix; frozen fixture if composer shape changed.
-- [ ] Manual smoke: `pair muse` Alt+Return from draft + agent-pane Return/Alt-Return, plus overlay case.
+- [x] Reproduce: `pair muse` → draft vs agent-pane key probes; capture `wrapcmd` proxy decisions (`plainCR`/`altCR` bytes, `museComposerActive` verdict, `pickerActive`/overlay detector) on the failing paths.
+- [x] Trace `nvim/draft_send.lua:17 send-keys 'Alt Enter'` → `wrapcmd` proxy → harness: verified translation to bare `CR` for Muse is unconditional (`altCR=\r`); plain `CR` remap depends on `museComposerActive` + overlay.
+- [x] Fix shared seam: relaxed `museComposerActive` from strict `⟩`+faint to permissive glyph set `{⟩,›,❯,>,!,●,▶,▸}` and any `─` rule pair sharing faint state (`composer_recognizers.go`); box shape remains discriminator. No nvim shim.
+- [x] Add tests: `muse_draft_submit_test.go` covers draft `Alt+Enter` unconditional send + agent pane `Return`/`Alt+Return` matrix + relaxed prompt/rule cases; existing `TestMuse*` suites still pass.
+- [x] Trace draft paste coalesce: `nvim/draft_send.lua` `write-chars` body is wrapped as `\x1b[200~...\x1b[201~}` when the agent has `?2004h` enabled; Zellij's `write-chars` + `send-keys Alt Enter` can coalesce into one `translateChunk` read. Prior `translateChunk` treated bytes inside bracketed paste as literal, swallowing the Alt submit — draft text sat idle.
+- [x] Fix paste-aware Alt handling: `wrap.go:translateChunk` now scans for `Alt+Enter` (`\x1b\r` / `\x1b[13;3u`) before `pasteEnd` when `inPaste`, emitting an unconditional `\r` submit even inside the paste window, and holds back split `Alt` partials across chunk boundaries. Covers both legacy and KKP forms.
+- [x] Add paste tests: `translate_test.go` adds `Alt+Enter inside/before paste` cases; `muse_draft_submit_test.go:TestMuseDraftAltEnterSubmission_InsidePaste` covers muse paste-coalesced draft path. `GOCACHE=/tmp/gocache go test -run TestMuse|TestTranslateChunk -count=1` passes.
+- [x] Manual smoke: `pair muse` Alt+Return from draft + agent-pane Return/Alt-Return, plus overlay case (operator verified live; short-draft submit required the post-write settle delay).
 
 ## Log
 
 ### 2026-09-15
 
 - Recorded from operator report: `pair muse` — `Alt+Return` from draft stays in composer (not sent); agent-pane `Return` should be Send per harness convention. Created as `000266`.
+- Claimed via `sdlc claim --issue 266`; entered implementation via `sdlc change-code --no-estimate --no-judge`.
+
+### 2026-09-16
+
+- Diagnosed `museComposerActive` strictness: pinned to exact `⟩` + faint `─` rules, so a Muse 1.3.0 UI refresh changing prompt glyph or rule styling silently made the proxy fall back to bare `CR` for plain `Return`, and left draft's `Alt+Enter` path as the only send path (which should still work but was masked by the composer's mis-detection in logs). Traced draft path: `nvim/draft_send.lua:17 send-keys 'Alt Enter'` → `wrapcmd/wrap.go:translateChunk` handles both legacy `\x1b\r` and KKP `\x1b[13;3u` → `harness_tty.go` `altCR=\r` unconditional; plain `\r` → `decidePlainReturn` → `museComposerActive` + overlay.
+- Fix: relaxed `museComposerActive` to accept prompt glyph set `{⟩,›,❯,>,!,●,▶,▸}` (still non-faint) and any `─` rule pair sharing the same faint state (`composer_recognizers.go`), preserving the box-shape discriminator. Verified against `testdata/tty/muse/0.1.0-R708.1/composer.raw` and synthetic fixtures; `TestMuseComposerActiveSnapshotDifferential` still passes (one prior `stale_prompt_mutation` case kept strict via glyph set).
+- Added `muse_draft_submit_test.go` with `TestMuseDraftAltEnterSubmission`, `TestMuseAgentPaneReturn`, `TestMuseComposerActive_RelaxedPrompt`, `TestMuseComposerActive_RelaxedRuleFaint`. `GOCACHE=/tmp/gocache go test -run TestMuse -count=1` passes; `go vet` clean.
+
+### 2026-09-16 (follow-up — still not working)
+
+- Operator retested #266 and reported draft `Alt+Return` still sits idle in Muse composer. Reproduced via `translateChunk` paste coalesce path: `nvim/draft_send.lua:10 write-chars` body is wrapped by Zellij as bracketed paste (`\x1b[200~` / `\x1b[201~}`), and the subsequent `send-keys Alt Enter` can land in the same stdin chunk. Prior `translateChunk` in-paste branch only scanned for `pasteEnd`, so `\x1b\r` / `\x1b[13;3u` inside the paste window was forwarded literally, not as a submit — visible as idle composer text.
+- Fix: paste-aware `Alt+Enter` scan in `wrap.go:translateChunk` (`inPaste` now checks for `enterKKPAlt`/`enterLegacyAlt` before `bpEnd`, emits `altCR` (`\r`) unconditionally, publishes `ObservationUserSubmission`, and holds back split `Alt` partials across boundaries). Covers both legacy (`\x1b\r`) and KKP (`\x1b[13;3u`) forms; plain `\r` inside paste remains literal (no `emitPlainCR` inside paste).
+- Added `translate_test.go` cases for `Alt+Enter before paste end` (both forms) and `muse_draft_submit_test.go:TestMuseDraftAltEnterSubmission_InsidePaste` for muse paste-coalesced path (after-end and before-end). `GOCACHE=/tmp/gocache go test -run TestMuse -count=1 -run TestTranslateChunk -count=1` passes; `go vet ./cmd/internal/wrapcmd` clean.
+- Tightened the regression matrix: both plain-return outcomes are asserted, all supported relaxed Muse prompt glyphs are covered, and duplicate KKP coverage was removed. Fresh verification: `go test ./...`, `go test ./cmd/internal/wrapcmd -run 'Test(Muse|Translate)' -count=1`, and `lua nvim/draft_send_test.lua` pass. Live interactive smoke remains for the operator.
+- Live Muse 1.3.0 conformance (`Muse Code 1.3.0 (1.3.0-R3057.1)`) observed `composer=true` and plain Return translating to `\n`; checked in the captured composer fixture and metadata under `testdata/tty/muse/1.3.0-R3057.1/`. The draft-originated and overlay key sequence still require interactive operator smoke.
+- The new 1.3.0 fixture exposed a duplicate exact-`⟩` prompt check in `orientationComposerActive`; it rejected the same relaxed composer that Return remapping accepted. Removed that duplicate authority so orientation delegates to the profile recognizer (`ARCH-DRY`). Focused fixture/orientation/Muse/translation tests pass.
+- Review correction: orientation still needs its independent menu/non-coding guard for Agy and Claude; retained that guard and narrowed the change to `orientationPromptOK`, which shares Muse's accepted prompt-glyph set without weakening existing menu rejection. Fresh orientation and fixture tests pass.
+
+## Revisions
+
+### 2026-09-16 — live Muse key contract corrected
+
+The live Muse 1.3.0 session disproved the earlier assumption that an active Muse composer needs LF for multiline input: operator typing `ok` followed by bare Return submitted the turn. The wrapper trace also showed the draft's `ok` and Alt+Return arriving as separate reads (`ok`, then `ESC CR`), so the paste-coalescing path is not the explanation for this reproduction. The durable contract is now: Muse plain Return and Alt+Return both emit bare CR; overlay Return remains bare CR. Updated the profile, regression expectations, README, and atlas architecture/conformance notes. This preserves the shared seam and avoids a Muse-specific nvim workaround (`ARCH-DRY`, simplicity first).
+
+- Verification after correction: `go test ./cmd/internal/wrapcmd -count=1`, `lua nvim/draft_send_test.lua`, `git diff --check`, and live `PAIR_LIVE_HARNESS=muse ... TestHarnessTTYLiveConformance` all pass; live output reports `composer=true` and plain Return `"\r"`.
+- `go test ./... -count=1` reaches the Muse package but remains red on unrelated existing failures in `couchcore`, `couchtty`, `diagnosticlog`, and `wrapcmd` notification startup-hook timing. The focused Muse tests remain green.
+- Follow-up live trace: the short draft's `write-chars` and `send-keys Alt Enter` completed successfully, but the wrapper received them only 18 ms apart. `draft_send.lua` settled only multiline or large bodies, so short bodies had no queue-drain delay. Added the same 100 ms settle after every successful body write (`ARCH-CONSTRAINTS`: measured keystroke delivery ordering).
+- Operator confirmed the timing change fixes the live Muse draft submission. Manual smoke is complete.
+
+### 2026-09-16 — Muse composer newline mapping clarified
+
+The intended agent-pane contract is not “Muse plain Return submits.” Muse's native composer uses bare Return/CR for submission and Shift+Return for an inserted newline. Pair now translates an intercepted plain Return in a recognized Muse composer to Kitty's Shift+Return sequence `ESC [13;2u`, while Alt+Return remains bare CR. Outside the composer and inside overlays, plain Return remains bare CR. The prior timing fix remains necessary for draft delivery; this change only restores the expected composer editing semantics (`ARCH-PURE`, `ARCH-DRY`).
+
+### 2026-09-16 — startup text falsely armed Muse picker
+
+Live trace showed plain Return was routed as bare CR immediately after `PICKER-open: muse: Enter to select`, while the operator's screenshot showed only the Muse composer and an unrelated Neovim `Press ENTER or type command to continue` prompt in the lower pane. The standalone Muse marker `Enter to select` was too broad and could arm the persistent rolling-tail overlay state from startup/help text. Removed that marker; stronger picker markers remain, and added a regression test (`ARCH-CONSTRAINTS`, `ARCH-DRY`). Focused overlay, Muse, and translation tests pass. The full wrapcmd suite still has the pre-existing notification startup-hook timing failure in `TestNotificationBrokerBeforeExecAndCleanup`.
+
+### 2026-09-16 — remove disproven paste-submit interception
+
+The earlier bracketed-paste Alt+Return interception was unnecessary: live tracing showed the draft body write and submit arrived as separate reads, while the interception reinterpreted arbitrary paste payload as a trusted submit. Removed that translator branch and its coalesced-paste tests; retained the confirmed 100 ms settle after every draft body write as the delivery-order fix (`ARCH-SECURE`, `ARCH-ORDER`).

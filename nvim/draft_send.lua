@@ -45,7 +45,7 @@ function M.send(body, no_submit, action, settle, resume_phase)
     if cmd.kind == 'write' then phase = 'written' end
     if cmd.kind == 'submit' then phase = 'dispatched' end
     if cmd.kind == 'compose' then phase = 'composed' end
-    if cmd.kind == 'write' and (body:find('\n') or #body > 200) then settle() end
+    if cmd.kind == 'write' then settle() end
   end
   return true, phase
 end

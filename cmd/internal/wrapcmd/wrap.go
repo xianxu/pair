@@ -850,7 +850,6 @@ var musePickerMarkers = []string{
 	"Choose an option",
 	"Use arrow keys",
 	"Press Enter to select",
-	"Enter to select",
 }
 
 func detectMuseOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
@@ -1950,7 +1949,7 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 				continue
 			}
 			// Marker not in this chunk. Forward everything but hold back
-			// a trailing partial ESC[201~ in case it splits the boundary.
+			// a trailing partial bpEnd in case it splits the boundary.
 			tail := trailingPartial(data[i:], bpEnd)
 			out = append(out, data[i:len(data)-tail]...)
 			leftover := append([]byte(nil), data[len(data)-tail:]...)

@@ -179,13 +179,12 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 	if !recognized || p.orientation.codexStartupPending {
 		return false
 	}
-	prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">", "muse": "⟩"}[p.agentBasename]
 	for y := snapshot.Cursor.Y; y >= 0; y-- {
 		cell := snapshot.CellAt(0, y)
 		if cell == nil || strings.TrimSpace(cell.Content) == "" {
 			continue
 		}
-		if cell.Content != prompt {
+		if !orientationPromptOK(p.agentBasename, cell.Content) {
 			return false
 		}
 		for x := 2; x < snapshot.Width; x++ {
@@ -198,6 +197,19 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 		return true
 	}
 	return false
+}
+
+func orientationPromptOK(agent, content string) bool {
+	if agent == "muse" {
+		switch content {
+		case "⟩", "›", "❯", ">", "!", "●", "▶", "▸":
+			return true
+		default:
+			return false
+		}
+	}
+	prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">"}[agent]
+	return content == prompt
 }
 
 func (d *orientationDelivery) inputForwarded() bool {

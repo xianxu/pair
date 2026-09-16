@@ -136,6 +136,12 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			raw:      []byte("+----------------------------------------+\r\n| > write a message                       |"),
 			wantOpen: false,
 		},
+		{
+			name:     "muse startup text does not open overlay from generic enter hint",
+			agent:    "muse",
+			raw:      []byte("Enter to select"),
+			wantOpen: false,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

@@ -26,7 +26,7 @@ By default, the bottom Neovim draft pane maps **Enter** to insert a newline, and
       // ... overlay, composerGate, recognize
   },
   ```
-- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex, Antigravity (`agy`), and Muse (`muse`) use LF (`\n`) for newline and CR (`\r`) for send.
+- **Note:** Claude uses `\<Enter>` (`[]byte{'\\', '\r'}`) as a newline, while Codex and Antigravity (`agy`) use LF (`\n`) for newline and CR (`\r`) for send. Muse's native composer uses Shift+Return (`ESC [13;2u`) for newline and bare CR for submit.
 - **Composer detection:** Do not rewrite plain Enter merely because no menu was detected. New integrations should positively detect the agent's composer/input box from stable raw terminal signals (cursor position/visibility, prompt/composer chrome, or agent OSC). Prefer the agent's native composer-availability signal; do not copy another agent's terminal heuristic unless captured logs prove the same signal is stable. If the composer is unknown or inactive, plain Enter should pass through as the agent's normal Enter key.
 
 **Telemetry Signal** (aspect `1`, see §3): `return-remap` — `fired` each time a plain Enter is remapped to the agent's newline; `bypass` each time it passes through as a bare `\r` while an overlay is active or the composer is not positively detected. Emitted from `emitPlainCR`. The `fired:bypass` ratio is the health signal; an all-`bypass` or zero-`fired` session means the remap stopped engaging or composer detection drifted.

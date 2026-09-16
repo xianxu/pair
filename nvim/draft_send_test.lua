@@ -35,6 +35,10 @@ local settled = 0
 delivery.send(string.rep('x', 201), false, function() return { code = 0 } end, function() settled = settled + 1 end)
 assert(settled == 1, 'large body settles exactly once between write and submit')
 
+settled = 0
+delivery.send('short body', false, function() return { code = 0 } end, function() settled = settled + 1 end)
+assert(settled == 1, 'short body settles exactly once between write and submit')
+
 local function stateful_zellij(fail_once)
   local state = { focus = 'draft', composer = '', dispatches = {}, calls = {} }
   local failed = false
