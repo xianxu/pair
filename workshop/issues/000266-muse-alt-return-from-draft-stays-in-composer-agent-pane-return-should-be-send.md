@@ -1,11 +1,12 @@
 ---
 id: 000266
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+started: 2026-09-15T22:29:06-07:00
 ---
 
 # muse Alt+Return from draft stays in composer; agent pane Return should be Send
