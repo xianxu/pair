@@ -614,7 +614,7 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 	if _, err := os.Stat(metadataPath); err != nil {
 		t.Fatalf("%s has no fixture for installed version %q; capture one to %s", harness, version, recaptureDestination)
 	}
-	metadata, _ := readHarnessTTYFixture(t, metadataPath)
+	metadata, _, _ := readHarnessTTYFixture(t, metadataPath)
 	if metadata.Version != version || !reflect.DeepEqual(metadata.Command, command) {
 		t.Logf("%s fixture identity drift (not a failure): live version=%q argv=%q, fixture version=%q argv=%q; recapture destination: %s",
 			harness, version, command, metadata.Version, metadata.Command, recaptureDestination)
@@ -679,12 +679,18 @@ type harnessTTYDrivenScenario struct {
 	// REACH the target screen — so a "\r" in `send` is a Return pressed
 	// somewhere else. This is the only thing that retires a
 	// ttyFixtureReactionGaps entry, so it is a field rather than something
-	// inferred from the keystroke (#266 close BR-15).
+	// inferred from the keystroke (#266 close BR-15). NOTHING verifies that a
+	// scenario setting this actually asserts a reaction: the property has no
+	// checkable component, so it is honor-system by nature — unlike
+	// `discriminating`, whose oracle conjoins what the model can express.
 	pressesReturn bool
 	// discriminating marks a declining screen painted in the SAME shape as the
 	// harness's composer — the only kind of negative that proves the gate
 	// separates the two rather than declining on something incidental. It is
-	// what retires a ttyFixtureDiscriminationGaps entry.
+	// what retires a ttyFixtureDiscriminationGaps entry; the oracle conjoins
+	// the two components it can check — the gate must decline, and the screen
+	// must be captured — so only "same shape as the composer" rests on this
+	// flag being set honestly.
 	discriminating bool
 }
 
@@ -914,7 +920,7 @@ func TestMuseFixtureEvidence(t *testing.T) {
 		t.Fatal("captured Muse glyph and geometry without faint rules unexpectedly qualify")
 	}
 
-	metadata, rawFiles := readHarnessTTYFixture(t, filepath.Join(fixtureDir, "metadata.json"))
+	metadata, rawFiles, _ := readHarnessTTYFixture(t, filepath.Join(fixtureDir, "metadata.json"))
 	if metadata.Agent != "muse" || metadata.Version != "Muse Code 0.1.0 (0.1.0-R708.1)" {
 		t.Fatalf("fixture identity = %q %q, want captured Muse version", metadata.Agent, metadata.Version)
 	}

@@ -64,6 +64,10 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 	// where the gate must decline. A harness without one ships a positive gate
 	// backed by no evidence that it refuses anything.
 	negatives := map[string]bool{}
+	// embedsHomePath tracks which harnesses have ANY capture carrying an
+	// absolute home path, so a per-harness acknowledgment expires on the whole
+	// set rather than on whichever directory the walk reached last.
+	embedsHomePath := map[string]bool{}
 	for harness, profile := range harnessTTYProfiles {
 		if profile.composerGate == composerGatePositive {
 			required[harness] = false
@@ -82,7 +86,10 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 		t.Fatal("fixture metadata inventory is empty")
 	}
 	for _, metadataPath := range metadataPaths {
-		metadata, rawFiles := readHarnessTTYFixture(t, metadataPath)
+		metadata, rawFiles, machineBound := readHarnessTTYFixture(t, metadataPath)
+		if machineBound {
+			embedsHomePath[metadata.Agent] = true
+		}
 		if _, ok := required[metadata.Agent]; !ok {
 			t.Errorf("%s: agent %q has no positive-gated profile", metadataPath, metadata.Agent)
 			continue
@@ -176,6 +183,13 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 	// the composer's shape. That property is now declared by the scenario that
 	// reaches such a screen (#266 close BR-15).
 	for harness := range required {
+		reason, acknowledged := ttyFixtureEnvironmentGaps[harness]
+		if acknowledged && !embedsHomePath[harness] {
+			t.Errorf("%s captures are all machine-neutral now; drop its ttyFixtureEnvironmentGaps entry (%q)", harness, reason)
+		}
+	}
+
+	for harness := range required {
 		reason, listed := ttyFixtureDiscriminationGaps[harness]
 		if harnessHasDiscriminatingNegative(harness) && listed {
 			t.Errorf("%s now has a discriminating negative; drop its ttyFixtureDiscriminationGaps entry (%q)", harness, reason)
@@ -234,10 +248,18 @@ func harnessPressesReturn(harness string) bool {
 
 // harnessHasDiscriminatingNegative reports whether a harness has a declining
 // screen painted in its composer's own shape — the exact property
-// ttyFixtureDiscriminationGaps acknowledges the absence of.
+// ttyFixtureDiscriminationGaps acknowledges the absence of. Two of its three
+// components are expressible, so the oracle conjoins them rather than trusting
+// one boolean: the screen must be one the gate DECLINES, and it must actually
+// be captured. Only "painted in the composer's own shape" is honor-system,
+// which is the residue the field's doc owns (#266 close BR-19).
 func harnessHasDiscriminatingNegative(harness string) bool {
 	for _, scenario := range harnessTTYDrivenScenarios[harness] {
-		if scenario.discriminating {
+		if !scenario.discriminating || scenario.wantComposer || scenario.file == "" {
+			continue
+		}
+		captures, err := filepath.Glob(filepath.Join("testdata", "tty", harness, "*", scenario.file))
+		if err == nil && len(captures) > 0 {
 			return true
 		}
 	}
@@ -255,7 +277,47 @@ var ttyFixtureDiscriminationGaps = map[string]string{
 	"muse":   "no captured declining state at all; see ttyFixtureNegativeGaps. muse/1.3.0-R3233.1/menu.raw does rule out the Agy failure mode: Muse's slash menu paints its rows below the box and leaves column 0 blank, so it never reuses the prompt glyph as a selection marker. What is still unproven is a blocking dialog the gate must refuse.",
 }
 
-func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadata, map[string][]byte) {
+// ttyFixtureEnvironmentGaps records harnesses whose captures cannot be taken
+// without embedding the capture machine's filesystem, and why. An entry is a
+// measured impossibility, not a waiver: it must name what blocks a neutral
+// capture, and it expires the moment one is clean.
+var ttyFixtureEnvironmentGaps = map[string]string{
+	"muse": "Muse prints `warning: rules file at <abs>/CLAUDE.md is ignored ... because AGENTS.md takes precedence` whenever it starts anywhere inside this repo — it reads the rules files from the git root, so capturing from a subdirectory does not help (measured 2026-09-16 from testdata/tty: the warning is still painted). Capturing from outside the checkout is not available either: a fresh directory puts Muse in workspace-trust, which the conformance classifier reports as `workspace-trust` rather than a composer. So every Muse capture carries one absolute path until Muse stops printing it or offers a way to silence it.",
+}
+
+// assertFixtureIsMachineNeutral requires a frozen capture to contain no
+// absolute home path. A fixture that embeds the capture machine's filesystem
+// differs on recapture elsewhere for reasons unrelated to harness drift, which
+// is the only thing it exists to detect. The check is mechanical rather than a
+// convention because these were the first machine-bound captures in the tree
+// and nothing noticed (#266 close BR-21).
+func assertFixtureIsMachineNeutral(t *testing.T, metadataPath, harness string, rawFiles map[string][]byte) bool {
+	t.Helper()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("resolve home directory: %v", err)
+	}
+	homeRoot := filepath.Dir(home) + string(filepath.Separator)
+	_, acknowledged := ttyFixtureEnvironmentGaps[harness]
+	embedded := false
+	for _, name := range sortedKeys(rawFiles) {
+		body := string(rawFiles[name])
+		if !strings.Contains(body, home) && !strings.Contains(body, homeRoot) {
+			continue
+		}
+		embedded = true
+		if !acknowledged {
+			t.Errorf("%s: %s embeds an absolute home path; recapture somewhere neutral, or record in ttyFixtureEnvironmentGaps why that is not possible", metadataPath, name)
+		}
+	}
+	// The acknowledgment is per harness, so its expiry is judged across ALL of
+	// that harness's captures at once, by the caller — an older capture taken
+	// before the harness started printing the path is clean without making the
+	// gap stale.
+	return embedded
+}
+
+func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadata, map[string][]byte, bool) {
 	t.Helper()
 	encoded, err := os.ReadFile(metadataPath)
 	if err != nil {
@@ -302,6 +364,7 @@ func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadat
 	if len(metadata.Files) != len(rawFiles) {
 		t.Errorf("%s: metadata has %d digests for %d raw files", metadataPath, len(metadata.Files), len(rawFiles))
 	}
+	machineBound := assertFixtureIsMachineNeutral(t, metadataPath, metadata.Agent, rawFiles)
 	for name, data := range rawFiles {
 		digest := sha256.Sum256(data)
 		want := hex.EncodeToString(digest[:])
@@ -326,7 +389,7 @@ func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadat
 	if len(rawFiles) == 0 {
 		t.Errorf("%s: fixture contains no raw files", metadataPath)
 	}
-	return metadata, rawFiles
+	return metadata, rawFiles, machineBound
 }
 
 func fixtureLabel(metadata ttyFixtureMetadata) string {

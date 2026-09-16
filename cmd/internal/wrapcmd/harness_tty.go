@@ -52,9 +52,13 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		composerGate: composerGatePositive,
 		recognize:    agyComposerActive,
 	},
-	// Muse's composer submits on bare CR and inserts a newline on Shift+Return,
-	// the inverse of the other three, so the remap translates plain Return into
-	// Shift+Return rather than into a literal newline byte.
+	// Muse's composer submits on bare CR and inserts a newline on Shift+Return
+	// — the inverse of the other three — so the remap translates plain Return
+	// into Shift+Return rather than into a literal newline byte. That reading
+	// of Muse comes from its own shortcut sheet (captured as shortcuts.raw:
+	// "shift + enter for newline", "enter to submit message") and from live
+	// operator smoke; no test presses the key, which ttyFixtureReactionGaps
+	// records rather than leaving this comment to imply otherwise.
 	//
 	// PRECONDITION: `\x1b[13;2u` is a Kitty keyboard protocol key, parseable
 	// only while Muse keeps progressive enhancement pushed. Muse 1.3.0 does push

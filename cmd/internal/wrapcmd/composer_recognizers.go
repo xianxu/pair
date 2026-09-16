@@ -277,8 +277,9 @@ func agyComposerActive(snapshot terminalSnapshot) bool {
 		// with, so an unstyled ">" never qualifies. This is a necessary
 		// condition, NOT a picker discriminator: agy/1.1.15/menu.raw captures
 		// Agy painting a slash-menu selection marker in this same bright blue.
-		// Tolerable because Agy inserts a newline on LF there rather than
-		// selecting; a real permission-picker capture is still outstanding.
+		// Tolerable IF Agy inserts a newline on LF there rather than
+		// selecting — see ttyFixtureReactionGaps, which records that as
+		// undriven; a real permission-picker capture is still outstanding.
 		agyPromptColor  = xansi.BrightBlue
 		minBorderLength = 5
 		maxBoxHeight    = 25

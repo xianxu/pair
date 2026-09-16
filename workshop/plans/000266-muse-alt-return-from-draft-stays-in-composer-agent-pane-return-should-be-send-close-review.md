@@ -578,3 +578,190 @@ findings:
       (799fb6c3, #184). A go/ast sibling of TestTTYFixtureReferencesResolve over doc
       groups retires the family; fixing these two sites does not.
 ```
+
+---
+
+## Re-review — 2026-09-16T12:55:33-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 266 — muse Alt+Return from draft stays in composer; agent pane Return should be Send |
+| repo | pair |
+| issue file | workshop/issues/000266-muse-alt-return-from-draft-stays-in-composer-agent-pane-return-should-be-send.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c6edff3386b9269d3327242898932477a75601af..ea415e980673a0bea767d42d462f7134b7804745 |
+| command | sdlc close --issue 266 |
+| reviewer | claude |
+| timestamp | 2026-09-16T12:55:33-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The shipped behavior is delivered and coherent: Muse's profile now maps plain Return to its native Shift+Return (`ESC[13;2u`) and Alt+Return to bare CR, the draft path settles after *every* body write, the unsafe in-paste submit interception is gone for good, and one `musePromptGlyphs` authority feeds both the Return gate and orientation. I ran the pinned range's tests: `go build ./...` and `go vet ./cmd/internal/wrapcmd` clean, `lua nvim/draft_send_test.lua` passes, and every Muse/translate/fixture/doc-comment test passes (`TestHarnessTTYFixtureConformance` 18.9s, green). The remaining package failures are all environmental in this sandbox (pty child `start … operation not permitted`, `mkdir /tmp/pair255-notify-*`), not from this diff. Three of the four open findings are genuinely addressed — I verified the new oracles by mutation rather than by reading them, and both expiry branches and both doc-comment branches fire. What blocks a clean SHIP is that BR-17's class was not swept (a third site still asserts the Agy reaction as a checked fact while the new ledger records it as undriven), plus one soundness hole the BR-15 fix introduced in its sibling ledger: `discriminating` is a bare declared boolean, so flagging a screen the gate stays *open* on retires a discrimination gap.
+
+## 1. Strengths
+
+- **The oracles are reachable, not decorative.** I reverted each new guard in a scratch copy: dropping `ttyFixtureReactionGaps["codex"]` yields `codex remaps Return with no driven Return and no ttyFixtureReactionGaps entry` (`harness_tty_fixture_test.go:168`); setting `pressesReturn: true` yields the expiry error at `:166`; and planting both a renamed and a stranded doc comment yields exactly the two `TestDocCommentsNameTheirSubject` branches (`:518`, `:521`). That is the class fix BR-18 asked for, and it is measurably narrow — it flags 2 sites, not the 17 a stricter rule would.
+- **Dropping the `composer.raw` exemption made the honest state visible.** `harness_tty_fixture_test.go:159` now iterates `required`, so all four harnesses need an entry and all four have one. "No Return has ever been pressed on any captured screen" is an uncomfortable fact that the previous oracle structurally could not surface.
+- **BR-16's triage is correct and slightly over-delivered.** `translate_test.go:56-72` restores the post-`bpEnd` chord for both protocols plus a trailing-text variant, with names that say where the chord actually is. Verified against `41812c20`: of the three deleted rows only one was the surviving path, and the replacement covers it for both protocols.
+- **`assertKittyKeyboardPrecondition` checks the one thing the profile can't self-confirm** (`harness_tty_fixture_test.go:717`), and it runs in both the frozen replay and the live path (`harness_tty_live_test.go:655`). Both muse captures pass; the disambiguate-bit requirement is the right sharpening.
+- **The in-paste removal is the right ARCH-SECURE/ARCH-ORDER call and is now pinned on both halves** — `TestMuseDraftBodyPasteStaysLiteral` on the profile the regression was found on, plus three `translate_test` rows. `ObservationUserSubmission` is no longer published for a non-submit.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+**`discriminating` retires a gap without any conjunct the data model already offers** — `cmd/internal/wrapcmd/harness_tty_fixture_test.go:240` (`harnessHasDiscriminatingNegative`), field at `harness_tty_live_test.go:685`.
+
+This is the **5th finding in family `boundary-semantics-unverified`.** Do not fix the instance — state and apply the rule.
+
+The rule: *when a declared retirement property has components the existing data model can check, the oracle must conjoin them; only the genuinely uncheckable residue may be honor-system, and the field doc must say which part that is.* `ttyFixtureDiscriminationGaps` acknowledges the absence of **a declining screen painted in the composer's own shape**. The oracle reads only `scenario.discriminating`. Two components are already expressible and unused: `!scenario.wantComposer` (it must *decline*) and "`scenario.file` is a captured fixture" (it must exist in the tree). Demonstrated: setting `discriminating: true` on muse's `slash menu` scenario — `wantComposer: true`, a screen the gate deliberately stays **open** on, categorically not a negative — makes the test demand muse's ledger entry be dropped (`harness_tty_fixture_test.go:181`). That is the exact silent-retirement failure BR-15 named, reintroduced in the sibling ledger by BR-15's own fix. Note the asymmetry the sweep left: `negatives[agent]` is anchored to `rawFiles["overlay.raw"]` existing (`:95`), so the negative ledger is exact; the other two now rest on booleans. `pressesReturn` has no checkable component, which is fine — but its doc should say that nothing verifies a scenario setting it actually asserts a reaction.
+
+**BR-17 re-raised as not-addressed** — see the dispositions below; the class was not enumerated.
+
+## 4. Minor findings
+
+- **`atlas/how-to-bring-up-a-new-harness-cli.md:66`** still reads "`composer.raw` is required and must remap to LF" while `:29` was corrected in this same window. **5th in family `stale-comment`** — the rule: the per-harness Return-newline mapping has one authority (`harnessTTYProfiles`) and is restated in prose in four places (`atlas/architecture.md:707`, `how-to:29`, `how-to:66`, `README.md:120`); the tree now checks *code* comments (`TestTTYFixtureReferencesResolve`, `TestDocCommentsNameTheirSubject`) but nothing checks markdown. Fix the class by stopping the per-harness enumeration in the how-to (point at the profile), not by patching line 66. Measured prevalence: 4 prose restatements, 1 currently wrong (and it was already wrong for Claude before this window).
+- **The three new Muse captures are the only fixtures in the tree that embed the capture machine's filesystem** — `testdata/tty/muse/1.3.0-R3233.1/{composer,menu,shortcuts}.raw` each contain Muse's `warning: rules file at /Users/xianxu/workspace/pair/CLAUDE.md is ignored`; the other 11 fixtures have 0 occurrences. **2nd in family `fixture-provenance`** — the rule: *a frozen capture must not embed capture-environment-specific content, because a recapture elsewhere then differs for reasons unrelated to harness drift, which is the one thing the fixture exists to detect.* `readHarnessTTYFixture` (`harness_tty_fixture_test.go:259`) is the natural place to assert it (no raw file contains `os.UserHomeDir()` or a `/Users/<name>/` path), with capture driven from a neutral directory. Not a credential leak — `/Users/xianxu` already appears in 98 tracked files.
+- **Fixture version dirs have no retirement rule; the reader is capped and the writer isn't** (ARCH-FUNERAL). `harnessTTYExhaustiveSplitBytes`/`harnessTTYSplitStride` bound the replay cost *per file*, but nothing bounds how many version dirs × screens accumulate, and every one replays on every `go test`. Measured: removing this window's three new files takes `TestHarnessTTYFixtureConformance` from 18.9s to 13.0s (+45% for one capture set). Muse now keeps two version dirs and codex two. One line in the atlas conformance section naming the retention rule (newest per harness, plus any older one a test names by path) would close it.
+- **`translate_test.go:91` "Alt+Enter chord split across a paste boundary stays literal" does not split the chord** — `startPase: true` with `in: "body\x1b[13;3u\x1b[201~"` feeds a *complete* chord inside a paste that began in an earlier chunk. **4th in family `regression-evidence-missing`** — the rule: *a test-case name that asserts the shape of its input is a claim; the chunk-boundary cases are exactly the ones the removed holdback used to handle, so the split must be fed, not named.* The genuinely uncovered row is a chunk ending mid-chord (`in: "body\x1b[13;3"`, `wantHold` empty, `wantPaste: true`) — with the Alt holdback removed, nothing pins that those bytes now flow through untouched.
+
+## 5. Test coverage notes
+
+Coverage for the shipped behavior is good and mostly anchored to production entities rather than restatements: `TestMuseComposerActive_RelaxedPrompt` iterates `musePromptGlyphs` itself, `TestMusePromptAuthorityIsShared` pins the two gates against each other, `TestComposerReturnExpectationMatchesProfile` reads the profile, and `TestMuseDraftAltEnterSubmission` keys its expectation off a table field (BR-10). The gap that remains after this round is not in the diff's own logic but in the *evidence* layer: `pressesReturn` is set nowhere, so the reaction-retirement branch has no fixture that enters it in the committed tree (I had to synthesize one), and no test pins the ledger oracles themselves — a future edit that loosens `harnessPressesReturn` or `harnessHasDiscriminatingNegative` goes green. A small table-driven test over synthetic scenario/ledger pairs would pin all three ledgers' both-direction behavior without needing a live harness.
+
+One environment note for the close: I could not run the full `make test` here — the sandbox refuses pty-child spawn and `/tmp` mkdir, which accounts for every remaining red test in `./cmd/internal/wrapcmd` (all `operation not permitted`). Per `workshop/lessons.md` this class needs the retention-owner env scrubbed and a non-symlinked `TMPDIR`; that run is the operator's.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY** — pass on code (`musePromptGlyphs` is one authority, pinned). Flagged in prose only (Minor above).
+- **ARCH-PURE** — pass. Recognizers stay pure functions over `terminalSnapshot`; `orientationPromptOK` is a pure helper; the new oracles are pure over tables and the AST.
+- **ARCH-PURPOSE** — pass on the shipped behavior (both entry points, operator-confirmed live). Flagged on BR-17: instance fixed, enumerable sibling left.
+- **ARCH-MOCK** — mostly pass; the fixture seam plus three gap ledgers *is* the evidence model, and live conformance is the (documented, manual) drift check. Flagged: the `discriminating` oracle now lets the model claim coverage the artifacts don't back.
+- **ARCH-CONSTRAINTS** — flagged: frozen-replay cost +45%, capped per file but not per capture. The 100 ms per-send settle stays bounded by #269, as agreed in round 1.
+- **ARCH-SECURE** — the in-paste removal is the right call: a paste payload can no longer be reinterpreted as a trusted submit. Flagged only on capture-environment content.
+- **ARCH-ORDER** — pass. The paste state machine reduces to `inPaste → bpEnd`, the non-behavior is pinned in two places across four historical flips, and no submission observation is published for a non-submit.
+- **ARCH-FUNERAL** — flagged (fixture family, above). Worth noting for #269: whatever replaces the fixed settle should not add a per-send artifact without naming its removal.
+
+## 7. Plan revision recommendations
+
+Two `## Plan` items are still checked and describe code that HEAD does not contain. The `## Revisions` entries do record the reversal, so the artifact is self-correcting for a careful reader — but the bullets name a grep-able test that no longer exists:
+
+- `- [x] Fix paste-aware Alt handling: wrap.go:translateChunk now scans for Alt+Enter … before pasteEnd when inPaste, emitting an unconditional \r submit even inside the paste window …` — that branch was reverted; the confirmed fix is the 100 ms settle plus the pinned non-behavior.
+- `- [x] Add paste tests: … muse_draft_submit_test.go:TestMuseDraftAltEnterSubmission_InsidePaste …` — that symbol does not exist; the surviving test is `TestMuseDraftBodyPasteStaysLiteral`.
+
+Add a `## Revisions` entry (or amend those two bullets in place with a pointer) stating the delta: the in-paste interception is removed, the non-behavior is pinned in `translate_test.go` + `TestMuseDraftBodyPasteStaysLiteral`, and the post-`bpEnd` positive half is pinned by the three restored rows. Also worth one line: the round-3 Log entry says the revert "took three `translate_test` rows with it that pinned the *surviving* path" — only one of the three did (verified against `41812c20`); the commit message states this correctly, the Log does not.
+
+```findings
+dispose:
+  - id: BR-15
+    disposition: addressed
+    note: |
+      Both parts fixed and verified by mutation, not by reading: the `\r`-in-send inference is gone (pressesReturn is declared at harness_tty_live_test.go:685), the composer.raw exemption is gone (the loop at harness_tty_fixture_test.go:159 iterates `required`, and codex gained the entry that exposes), and all three ledgers now carry both-direction expiry plus the profile-existence check. Setting pressesReturn:true fires :166; the discrimination expiry fires :181. See the new Important finding for the conjunct the discrimination half still lacks.
+  - id: BR-16
+    disposition: addressed
+    note: |
+      translate_test.go:56-72 restores the post-bpEnd chord for both protocols plus a trailing-text variant, with names that place the chord correctly. Verified against 41812c20 that only one of the three deleted rows was the surviving path, so the restoration covers it for both protocols.
+  - id: BR-17
+    disposition: not-addressed
+    note: |
+      The two named sites now cite the ledger, but the class was not enumerated: composer_recognizers.go:280-281 still states "Tolerable because Agy inserts a newline on LF there rather than selecting" as the checked tolerability fact. `grep -n "inserts a newline" cmd/internal/wrapcmd/*.go` finds it in one line. harness_tty.go:55 is a borderline sibling (Muse's reaction asserted flatly, though shortcuts.raw is documentary basis) — the enumeration should rule on it explicitly.
+  - id: BR-18
+    disposition: addressed
+    note: |
+      TestDocCommentsNameTheirSubject retires the family mechanically, and both branches fire under mutation (planted rename -> :518, stranded comment -> :521). Both instances fixed (harnessPressesReturn doc, and checkOverlayOpen's comment moved back off observationProfile in wrap.go).
+findings:
+  - id: new
+    severity: Important
+    family: boundary-semantics-unverified
+    title: |
+      discriminating retires a gap with no conjunct tying it to a declining screen or a captured file
+    detail: |
+      5th in family. RULE: when a declared retirement property has components the
+      data model can already check, the oracle must conjoin them; only the
+      genuinely uncheckable residue may be honor-system, and the field doc must
+      say which part that is. harnessHasDiscriminatingNegative
+      (harness_tty_fixture_test.go:240) reads only scenario.discriminating, while
+      the gap it retires names "a DECLINING screen painted in the composer's own
+      shape". Two components are expressible and unused: !scenario.wantComposer,
+      and scenario.file existing as a capture. Demonstrated: flagging muse's
+      `slash menu` scenario (wantComposer:true, a screen the gate stays OPEN on)
+      makes the test demand muse's ledger entry be dropped (:181) — the exact
+      silent retirement BR-15 named, reintroduced by BR-15's own fix in the
+      sibling ledger. Note the sweep's asymmetry: negatives[] is anchored to
+      rawFiles["overlay.raw"] existing (:95) and is therefore exact; the other two
+      now rest on booleans. pressesReturn has no checkable component, which is
+      fine, but its doc should say nothing verifies that a scenario setting it
+      actually asserts a reaction. (ARCH-MOCK, ARCH-PURPOSE)
+  - id: new
+    severity: Minor
+    family: stale-comment
+    title: |
+      atlas how-to still says composer.raw must remap to LF, 37 lines from the line this window fixed
+    detail: |
+      5th in family. RULE: the per-harness Return-newline mapping has one
+      authority (harnessTTYProfiles) and is restated in prose in four places —
+      atlas/architecture.md:707, how-to:29, how-to:66, README.md:120. This window
+      corrected :29 and left :66 ("composer.raw is required and must remap to
+      LF"), which is false for Muse now and was already false for Claude. The
+      tree now checks code comments (TestTTYFixtureReferencesResolve,
+      TestDocCommentsNameTheirSubject) but nothing checks markdown, so the class
+      fix is to stop enumerating per-harness mappings in the how-to and point at
+      the profile — not to patch line 66. Measured prevalence: 4 restatements, 1
+      wrong. (ARCH-DRY)
+  - id: new
+    severity: Minor
+    family: fixture-provenance
+    title: |
+      The three new Muse captures are the only fixtures embedding the capture machine's filesystem
+    detail: |
+      2nd in family. RULE: a frozen capture must not embed
+      capture-environment-specific content, because a recapture elsewhere then
+      differs for reasons unrelated to harness drift — the one thing the fixture
+      exists to detect. All three of testdata/tty/muse/1.3.0-R3233.1/{composer,
+      menu,shortcuts}.raw contain Muse's "warning: rules file at
+      /Users/xianxu/workspace/pair/CLAUDE.md is ignored"; the other 11 fixtures
+      have 0 occurrences, so the driven scenarios' Dir:repoRoot made these the
+      first machine-bound captures. Mechanize in readHarnessTTYFixture
+      (harness_tty_fixture_test.go:259): no raw file may contain
+      os.UserHomeDir() or a /Users/<name>/ path. Not a credential leak —
+      /Users/xianxu already appears in 98 tracked files. (ARCH-SECURE)
+  - id: new
+    severity: Minor
+    family: unbounded-artifact-family
+    title: |
+      Fixture version dirs have no retirement rule; the replay reader is capped and the writer is not
+    detail: |
+      harnessTTYExhaustiveSplitBytes and harnessTTYSplitStride bound replay cost
+      per file, but nothing bounds how many version directories and screens
+      accumulate, and every one replays on every `go test`. Measured: removing
+      this window's three new files takes TestHarnessTTYFixtureConformance from
+      18.9s to 13.0s, so one capture set cost +45%. Muse now keeps two version
+      dirs and codex two, and this window's own deletion of R3057.1 was ad hoc.
+      One line in the atlas conformance section naming the retention rule
+      (newest per harness, plus any older one a test names by path) closes it.
+      (ARCH-FUNERAL, ARCH-CONSTRAINTS)
+  - id: new
+    severity: Minor
+    family: regression-evidence-missing
+    title: |
+      The "chord split across a paste boundary" row does not split the chord
+    detail: |
+      4th in family. RULE: a test-case name that asserts the shape of its input is
+      a claim, and the chunk-boundary cases are exactly the ones the removed Alt
+      holdback used to handle — so the split must be fed, not named.
+      translate_test.go:91 feeds startPase:true with a COMPLETE chord
+      ("body\x1b[13;3u\x1b[201~"); the paste spans the boundary, the chord does
+      not. The uncovered row is a chunk ending mid-chord ("body\x1b[13;3",
+      wantHold empty, wantPaste true), which is what pins that those bytes now
+      flow through untouched after the holdback's removal. Same misnaming class
+      BR-16 corrected in the sibling rows.
+```

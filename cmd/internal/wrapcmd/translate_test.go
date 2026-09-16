@@ -90,11 +90,23 @@ func TestTranslateChunk(t *testing.T) {
 			wantPaste: false,
 		},
 		{
-			name:      "Alt+Enter chord split across a paste boundary stays literal",
+			name:      "complete Alt+Enter chord mid-paste stays literal",
 			startPase: true,
 			in:        []byte("body\x1b[13;3u\x1b[201~"),
 			wantOut:   []byte("body\x1b[13;3u\x1b[201~"),
 			wantPaste: false,
+		},
+		{
+			// The chord itself split by the read boundary — the case the
+			// removed holdback existed to handle. Nothing is held back now:
+			// only a partial bpEnd is, so these bytes flow through untouched
+			// and the paste stays open. A row named for a split must feed one
+			// (#266 close BR-23).
+			name:      "Alt+Enter chord split by the chunk boundary stays literal",
+			startPase: true,
+			in:        []byte("body\x1b[13;3"),
+			wantOut:   []byte("body\x1b[13;3"),
+			wantPaste: true,
 		},
 		{
 			name:      "Enter after paste end gets rewritten",

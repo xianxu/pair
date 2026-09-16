@@ -1,12 +1,13 @@
 ---
 id: 000266
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-16
 estimate_hours:
 started: 2026-09-15T22:29:06-07:00
+actual_hours: 4.09
 ---
 
 # muse Alt+Return from draft stays in composer; agent pane Return should be Send
@@ -60,6 +61,7 @@ This is the exact gap pair's return-remap seam exists to close (`cmd/internal/wr
 - Claimed via `sdlc claim --issue 266`; entered implementation via `sdlc change-code --no-estimate --no-judge`.
 
 ### 2026-09-16
+- 2026-09-16: closed — Operator confirmed the live fix; the 100ms settle is the mechanism and the in-paste branch is gone by their decision (BR-1). Full make test green: exit 0, every shell target plus go test ./... -count=1, unsandboxed, with the retention-owner env scrubbed and a real TMPDIR. Live PAIR_LIVE_HARNESS=muse conformance + both driven scenarios pass on the installed 1.3.0-R3233.1. Rounds 1 (11) and 2 (3) disposed addressed. Round 3: BR-16 restored the three translate_test rows the revert took that pinned the surviving post-paste submit (the positive half of this contract), with accurate names; BR-15 replaced round-2 unsound retirement oracle with declared scenario properties (pressesReturn, discriminating), dropped the composer.raw exemption so the reaction ledger covers every harness (honest state: no Return has ever been pressed on a captured screen), and gave ttyFixtureDiscriminationGaps the expiry branch it never had, so all three ledgers share one exact shape; BR-17 the Agy comments now cite the ledger instead of restating a verdict it contradicts; BR-18 narrowed the doc-comment rule to symbol-shaped leading words (the generalized form flagged 17 prose comments, so it does not fit this package) which reports exactly the two real instances, both fixed, including a pre-existing one from #184. BR-11 stays filed as #269. Atlas updated for the ledger shape and the declared properties.; review verdict: FIX-THEN-SHIP
 
 - Diagnosed `museComposerActive` strictness: pinned to exact `⟩` + faint `─` rules, so a Muse 1.3.0 UI refresh changing prompt glyph or rule styling silently made the proxy fall back to bare `CR` for plain `Return`, and left draft's `Alt+Enter` path as the only send path (which should still work but was masked by the composer's mis-detection in logs). Traced draft path: `nvim/draft_send.lua:17 send-keys 'Alt Enter'` → `wrapcmd/wrap.go:translateChunk` handles both legacy `\x1b\r` and KKP `\x1b[13;3u` → `harness_tty.go` `altCR=\r` unconditional; plain `\r` → `decidePlainReturn` → `museComposerActive` + overlay.
 - Fix: relaxed `museComposerActive` to accept prompt glyph set `{⟩,›,❯,>,!,●,▶,▸}` (still non-faint) and any `─` rule pair sharing the same faint state (`composer_recognizers.go`), preserving the box-shape discriminator. Verified against `testdata/tty/muse/0.1.0-R708.1/composer.raw` and synthetic fixtures; `TestMuseComposerActiveSnapshotDifferential` still passes (one prior `stale_prompt_mutation` case kept strict via glyph set).
@@ -222,3 +224,43 @@ Two Important, both fair, plus two Minors:
   the documented one, or the symbol under test. That reports exactly the two real
   instances — mine, and a pre-existing comment for `checkOverlayOpen` stranded above
   `observationProfile` (#184) — and both are fixed.
+
+### 2026-09-16 — close boundary review round 4 (finalized, advisory findings fixed)
+
+The close finalized: round cap reached, `codecomplete`, 4.09h measured. BR-15/16/18
+disposed addressed, BR-17 came back **not-addressed** (I had fixed the two named sites
+and not enumerated the class), and five advisory findings landed. All fixed before the
+close commit, per the FIX-THEN-SHIP protocol:
+
+- **BR-17 (re-opened)** — enumerated with `grep -n "inserts a newline"`: the third site
+  was `composer_recognizers.go`, asserting Agy's reaction as the checked tolerability
+  fact. It and the Muse profile comment now cite `ttyFixtureReactionGaps` (`ARCH-DRY`).
+- **BR-19** — my `discriminating` oracle read one boolean while the gap it retires names
+  three properties. Two are expressible, so they are conjoined: the gate must DECLINE the
+  screen and the screen must be captured. `pressesReturn` has no checkable component,
+  which its doc now says outright rather than leaving implied.
+- **BR-20** — the how-to still told a new integrator that `composer.raw` "must remap to
+  LF", false for Muse and already false for Claude. Rather than patch the line, both
+  restatements now point at `harnessTTYProfiles`, the one authority.
+- **BR-21** — the three new Muse captures were the first fixtures in the tree embedding
+  the capture machine's filesystem. Mechanized: no fixture may contain an absolute home
+  path, both branches mutation-verified. Muse cannot comply, and the reason is measured
+  rather than assumed — it reads rules files from the **git root**, so the
+  `CLAUDE.md is ignored` warning is painted from anywhere inside the checkout (tried
+  `testdata/tty`: still there), and from outside it Muse demands workspace trust, which
+  the classifier reports as `workspace-trust` instead of a composer. Recorded in the new
+  `ttyFixtureEnvironmentGaps`, which expires the moment any Muse capture comes out clean.
+  Incidental evidence: recapturing `composer.raw` reproduced the stored bytes exactly.
+- **BR-22** — fixture retention rule written down (newest version dir per harness, plus
+  any older one a test names by path) in both the atlas and the how-to, with the measured
+  cost that motivates it: one three-screen capture set is ~45% of that suite's runtime.
+- **BR-23** — the row named "chord split across a paste boundary" fed a complete chord.
+  Renamed to what it tests and a real mid-chord split added (`body\x1b[13;3`, nothing
+  held back, paste still open) — the case the removed holdback used to serve.
+
+Verification of the final state: full `make test` green except one flake in an unrelated
+package — `couchcore.TestParkCoordinatorConstructorDoesNotQueryPairSession`
+("New blocked before returning: <nil>") failed once under full-suite load at 163s, then
+passed 3/3 in isolation and on a full clean `go test ./cmd/internal/couchcore -count=1`
+(111s). This window touches `cmd/internal/wrapcmd` and docs only; nothing it changes is
+reachable from couchcore.
