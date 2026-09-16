@@ -1,5 +1,12 @@
 # Lessons
 
+## Route migrations require a documentation consumer sweep (#255 M4)
+
+Search diagnostic tables, helper comments and hook instructions as well as the
+architecture overview when retiring a transport. Every current-route description
+must name the new owner; retain legacy names only as explicit compatibility
+metadata. ARCH-PURPOSE.
+
 ## Test evidence needs the same lifetime as its fixture (#255 M4 BR-21)
 
 Retaining captures for debugging creates an artifact lifecycle even in tests.

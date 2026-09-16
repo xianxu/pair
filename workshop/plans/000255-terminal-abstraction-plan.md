@@ -313,7 +313,7 @@ M4 ends with a tested candidate and operator instructions. The operator explicit
 - [x] **Run sustained isolated conformance.** Add cmd/probes/terminalconformance and/or tests/terminal-conformance-test.sh using disposable PTYs/Zellij sessions and synthetic inputs. Exercise at least 30 minutes of continuous mixed Unicode/control output, panel/thread/tab switches, resize, detach/reattach and active drag gestures; compare expected screen/cursor/style and event destinations throughout. Log versions, duration, seed and operation counts, with bounded synthetic captures on failure. Add a shorter deterministic CI target and document a scheduled longer run. The harness must send real events through the production parent-input and child-output paths.
 - [x] **Verify resource/latency targets.** Measure startup, active output throughput, idle CPU, 16-endpoint memory/history saturation, input-to-visible and switch latency at 80x24/240x80; compare baseline and candidate in the same isolated environment. Check frame coalescing, bounded queues and sync recovery under sustained load. Resolve material target breaches before calling the candidate ready; record results and limitations without claiming production acceptance.
 - [x] **Final automated validation.** Run full Go suite, local fork suite, focused race/integration, relevant Lua/shell/shortcut/retention suites, profile/terminfo and native conformance. Mutation-check the causal Unicode/chrome isolation and mouse drag/mode regressions. No expected-failure labels may hide required production semantics. Record exactly which terminal programs/versions were tested.
-- [ ] **Prepare operator candidate and close M4.** Build isolated candidate binaries and provide exact launch/revert steps and a smoke checklist: agent and right-pane selection highlights while dragging; active output; Codex/Claude interaction; panel/thread/tab switches; long session; reattachment; normal/alternate screen and clipboard/paste. Keep current installation and sessions intact. Update issue/atlas/README qualification evidence, run M4 milestone-close and fix blockers. Leave operator acceptance/issue close/merge pending.
+- [x] **Prepare operator candidate and close M4.** Build isolated candidate binaries and provide exact launch/revert steps and a smoke checklist: agent and right-pane selection highlights while dragging; active output; Codex/Claude interaction; panel/thread/tab switches; long session; reattachment; normal/alternate screen and clipboard/paste. Keep current installation and sessions intact. Update issue/atlas/README qualification evidence, run M4 milestone-close and fix blockers. Leave operator acceptance/issue close/merge pending.
 - [ ] **Pause for operator smoke test before merge.** Report M1–M4 evidence, remaining limits and candidate command. Await the operator's result; do not merge, publish or claim the original symptoms resolved before that acceptance.
 
 ### M2 API refinements from source audit
@@ -521,7 +521,7 @@ Limits: sanitized body4096 bytes; datagram receiver uses4097 bytes and rejects o
 - [x] Implement wrapper framing/output owner and ordered rewriter, then broker startup before child creation and consumption in `masterPump`. Remove `writeTTY`/outer-TTY emission. Sweep wrapper lifecycle/idle/progress tests to observe production stdout. Handle partial output writes explicitly: continue accepted-prefix writes, latch terminal failure on unrecoverable error/zero progress, and report failure rather than claiming complete notification delivery. No retry from byte zero after partial acceptance.
 - [x] Register the mappedOSC9 handler in Endpoint using `notifyosc` shared decoding, preserving ordinary non-Pair OSC9 handling. Pin `host_notification_protocol "osc9"` in Zellij config. Keep domain-specific mapping out of the generic backend fork. Add both consumers' hidden/focused effect tests and no-replay tests.
 - [x] Update strict native fixtures: actual wrapper -> Zellij -> Endpoint -> Presenter, hidden origin attention and focused suppression, max body, delayed split Unicode, broker CLI message, and persistent reattach with unchanged PID/nonce/counter and no outer-TTY sidecar rewrite. Every fixture must join Run and assert exit0; private environment clears inherited diagnostic bindings. Rerun native race tests and affected package/full suites.
-- [ ] Update README, atlas notification routes, runtime bundle and qualification evidence. Preserve earlier failed logs. Attribute completed synthetic30m soaks to their immutable binaries; these do not qualify the new wrapper broker. Add sustained native notification/output stress for the changed path, then rebuild isolated smoke candidate. Re-run M4 SDLC boundary review and fix blockers. Pause for the operator's long-running visual/held-drag smoke before merge.
+- [x] Update README, atlas notification routes, runtime bundle and qualification evidence. Preserve earlier failed logs. Attribute completed synthetic30m soaks to their immutable binaries; these do not qualify the new wrapper broker. Add sustained native notification/output stress for the changed path, then rebuild isolated smoke candidate. Re-run M4 SDLC boundary review and fix blockers. Pause for the operator's long-running visual/held-drag smoke before merge.
 
 Commands: `go test ./cmd/internal/notifyosc ./cmd/internal/notifytransport ./cmd/internal/notifycmd ./cmd/internal/wrapcmd ./cmd/internal/terminal ./cmd/internal/couchtty ./cmd/internal/termcmd -count=1`, followed by affected `-race` suites and the existing native qualification flags. Run `go test ./... -count=1`, runtime-bundle drift checks and scoped whitespace verification before the M4 boundary. Success requires behavioral assertions, not merely process startup or absence of stderr.
 
@@ -612,3 +612,17 @@ The same lifetime holds on a failed invocation. Diagnostic reads/logging cannot
 abort mandatory teardown. Private native/PTY root removal errors are reported.
 Sibling discovery/performance tools already use `TemporaryDirectory`; existing
 PTY socket roots have registered cleanup. No new production surface is introduced.
+
+## Revisions — 2026-09-15 M4 closed; pre-merge smoke handoff
+
+M4 SHIP after three boundary rounds, window `12c301ac..ea98f0c7`; all blocking
+findings addressed. The advisory documentation-route finding is corrected across
+atlas diagnostics/hook instructions, wrapper overview and compatibility shim.
+Rule: current notification descriptions name the wrapper broker and serialized
+pane output; outer-TTY references describe compatibility metadata only. These
+post-review edits are documentation/comments only. The qualified candidate keeps
+its recorded pre-comment source and binary hashes; no behavior has changed.
+
+The prepared operator command/checklist is `000255-terminal-smoke.md`. Pause now
+for sustained display/held-selection smoke and responsiveness acceptance. Original
+symptoms, issue closure and merge remain pending that result.

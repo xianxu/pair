@@ -7,9 +7,9 @@
 // What it does:
 //   - Spawns the agent in a fresh pty so the wrapper sees the raw output.
 //   - Forwards stdin → agent and agent → stdout transparently.
-//   - On agent OSC 9 / OSC 777 (and optional bare BEL), writes OSC 9
-//     directly to pair's recorded outer-TTY — bypassing zellij, which
-//     would otherwise eat the OSC.
+//   - Normalizes agent OSC 9 / OSC 777 (and optional bare BEL) and hook
+//     broker messages into canonical notifications, serialized with pane
+//     output for Zellij and the parent terminal owner to deliver.
 //   - Per-agent notify mode: native (forward agent's OSC), idle (after
 //     no output for IDLE_S), or marker (on first sighting of an
 //     end-of-turn regex over extracted colored spans).

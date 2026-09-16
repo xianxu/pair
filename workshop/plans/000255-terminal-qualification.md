@@ -296,3 +296,13 @@ passes (`/tmp/pair255-br21-artifact.log`), scoped whitespace is clean, and all42
 production source hashes remain unchanged. Existing candidate is still exactly
 the qualified production binary. Third M4 boundary review is next; operator
 acceptance and merge remain pending.
+
+### 2026-09-15 — M4 SHIP; operator smoke pending
+
+Third boundary round SHIP (`12c301ac..ea98f0c7`), no blocking findings. Advisory
+stale notification-route prose is corrected across atlas, wrapper overview and
+shim comments. No executable behavior changed after reviewed/tested source.
+Candidate remains `/tmp/pair255-smoke-gfr6g7pd`, with its qualified binary/source
+hashes in build.json. Launch and acceptance checklist: `workshop/plans/000255-terminal-smoke.md`.
+M1–M4 are complete; issue stays working. Await operator sustained visual/live
+held-drag acceptance and responsiveness before issue close or merge.

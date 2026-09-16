@@ -10,7 +10,7 @@
 #   pair-notify --osc 777 "Claude needs input"
 #
 # Intended for Claude Code Notification/Stop hooks. Designed to never
-# fail loudly — if the outer-tty file is missing or stale, exits 0 with
+# fail loudly — if the owning wrapper broker is unavailable, exits 0 with
 # a stderr warning so a misconfigured hook doesn't break the agent.
 
 set -euo pipefail

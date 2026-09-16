@@ -400,6 +400,31 @@ rounds:
           round: 14
       boundary: M4
       blocked: true
+    - "n": 15
+      timestamp: "2026-09-15T18:07:40-07:00"
+      agent: codex
+      dispose:
+        - id: BR-21
+          disposition: addressed
+          note: terminal_native_test.go:43 allocates invocation-owned reattachment scratch; its failure path no longer creates retained files. NativeEvidenceLifetime passes for success/failure, and both cases fail with cleanup disabled in a temporary overlay. DiagnosticBound also fails when its cap is removed. Sibling native/PTY/discovery/performance writers have invocation cleanup.
+          round: 15
+        - id: BR-19
+          disposition: addressed
+          note: Dead-owner reclamation remains independent of PID binding survival. Crash/failed-close reclamation, live/foreign preservation and namespace capacity regressions pass.
+          round: 15
+        - id: BR-20
+          disposition: addressed
+          note: Socket addressing, locking and sweeping use private injected namespaces; Close retains its admitted root. Cross-namespace contention/routing coverage passes under the race detector.
+          round: 15
+      findings:
+        - id: BR-22
+          severity: Minor
+          title: Notification documentation still contains the retired outer-TTY route
+          detail: atlas/architecture.md:743-748, cmd/internal/wrapcmd/wrap.go:10-12 and bin/pair-notify:13 contradict the implemented broker/serialized-output route (ARCH-PURPOSE). This is the 2nd finding in family documentation-surface-accuracy. State the current-route documentation rule and sweep these sibling passages together, preserving outer-TTY references only where they describe compatibility metadata.
+          family: documentation-surface-accuracy
+          round: 15
+      boundary: M4
+      blocked: false
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -585,6 +610,19 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-21** [Important] `artifact-lifetime-ownership` Native conformance evidence accumulates without cleanup or retention bounds
   cmd/internal/couchtty/terminal_native_test.go:244 creates a retained directory for each successful direct/wrapped run; line 127 creates another family on failure. Neither has cleanup, a sweep, or a count/age bound. This is the 4th finding in family artifact-lifetime-ownership (ARCH-FUNERAL, ARCH-PURPOSE). Do NOT fix only one allocation: state and enforce the ownership rule across both evidence families and enumerate sibling writers. Prefer invocation-scoped storage and bounded reported diagnostics, or explicit bounded retention, with success/failure cleanup regressions.
 
+## Round 15 — 2026-09-15T18:07:40-07:00 (codex) — passed
+
+### Disposed
+
+- BR-21 — addressed — terminal_native_test.go:43 allocates invocation-owned reattachment scratch; its failure path no longer creates retained files. NativeEvidenceLifetime passes for success/failure, and both cases fail with cleanup disabled in a temporary overlay. DiagnosticBound also fails when its cap is removed. Sibling native/PTY/discovery/performance writers have invocation cleanup.
+- BR-19 — addressed — Dead-owner reclamation remains independent of PID binding survival. Crash/failed-close reclamation, live/foreign preservation and namespace capacity regressions pass.
+- BR-20 — addressed — Socket addressing, locking and sweeping use private injected namespaces; Close retains its admitted root. Cross-namespace contention/routing coverage passes under the race detector.
+
+### Raised
+
+- **BR-22** [Minor] `documentation-surface-accuracy` Notification documentation still contains the retired outer-TTY route
+  atlas/architecture.md:743-748, cmd/internal/wrapcmd/wrap.go:10-12 and bin/pair-notify:13 contradict the implemented broker/serialized-output route (ARCH-PURPOSE). This is the 2nd finding in family documentation-surface-accuracy. State the current-route documentation rule and sweep these sibling passages together, preserving outer-TTY references only where they describe compatibility metadata.
+
 ## Open findings
 
-- **BR-21** [Important] `artifact-lifetime-ownership` Native conformance evidence accumulates without cleanup or retention bounds
+- **BR-22** [Minor] `documentation-surface-accuracy` Notification documentation still contains the retired outer-TTY route

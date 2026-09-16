@@ -740,12 +740,12 @@ Zellij owns its outer terminal connection. Both automatic attention signals and 
      | `BEL-skip: b'<context>'` | bare BEL detected but not forwarded (default) |
      | `EMIT` / output delivery diagnostics | notification admission and serialized stdout delivery; delivery is not proof that the host displayed a badge |
      | `EMIT-skip: 'rate-limited (...)'` | within 0.5s of last emit; collapsed |
-     | `EMIT-skip: 'no outer-tty file...'` | not running under pair, or `record_outer_tty` failed |
-     | `EMIT-fail: '<path>: ...'` | tried to write but the recorded path is gone or unwritable |
+     | broker admission / boundary diagnostics | transport unavailable, queue full, unsafe framing, expiry or shutdown prevented notification delivery |
+     | stdout delivery failure | accepted prefix is recorded; the output owner stops rather than replaying it |
 
      Reading strategy: look for `OSC` or `BEL` lines that fired around moments where the agent was waiting — that's the actionable signal. If only `-skip` lines appear, either (a) the agent has no attention notification protocol and you'll need a hook-based path (`pair-notify`), or (b) the agent uses an OSC family `is_actionable_osc()` doesn't yet recognize — extend the filter.
 
-   - **`pair notify`** (Go, with `bin/pair-notify` as a compatibility shim). Hook-driven helper for richer signals. `pair-notify [--osc 9|777] "msg"` accepts the legacy selector but always sanitizes and emits the same canonical Pair envelope through `$PAIR_OUTER_TTY_PATH`. Intended for agent `Notification`/`Stop` hooks where semantic text is available directly.
+   - **`pair notify`** (Go, with `bin/pair-notify` as a compatibility shim). Hook-driven helper for richer signals. `pair-notify [--osc 9|777] "msg"` accepts the legacy selector but always sanitizes and sends through the broker addressed by `$PAIR_PAIR_WRAP_PID_PATH`; the owning wrapper serializes the canonical envelope with pane output. Intended for agent `Notification`/`Stop` hooks where semantic text is available directly.
 
 **Couch ephemeral attention.** The origin Endpoint converts notification bytes to a typed, ordered effect. Presenter owns parent encoding and delivery. Hidden delivery adds bounded deduplicated messages to the existing AttentionLedger; focused delivery is consumed immediately. A successful switch acknowledges the captured message identities. Screen snapshots and history contain no replayable notification effects.
 

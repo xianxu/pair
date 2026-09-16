@@ -174,3 +174,97 @@ findings:
 7. **Plan revision recommendations**
 
    Add a `## Revisions` entry enumerating both native evidence families, their owner, retention limit and removal mechanism. Reconcile this with the existing discovery-artifact rule at plan line 416, which requires invocation cleanup and disallows implicit diagnostic retention.
+
+---
+
+## Re-review — 2026-09-15T18:07:40-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | 12c301ac47491e5ab9fe5128f845961c6b3ab55f..ea98f0c714f504232e202b7435397b77bf7d25ad |
+| command | sdlc milestone-close --issue 255 --milestone M4 |
+| reviewer | codex |
+| timestamp | 2026-09-15T18:07:40-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+BR-21 is addressed: both native evidence families now have invocation-scoped ownership, and cleanup/bounds regressions fail when the fixes are disabled. No blocking code findings remain. One minor documentation inconsistency needs cleanup. This verdict covers M4’s automated boundary; operator smoke acceptance, issue closure and merge remain pending.
+
+1. **Strengths**
+
+   - Evidence cleanup preserves scratch through owner teardown, then removes it on success and failure.
+   - Notification tests exercise split UTF-8/control sequences, bounded queues, partial writes and incomplete EOF.
+   - Shutdown tests force cancellation during zero/partial paints and preserve genuine host failures.
+   - All 424 recorded production source hashes and three candidate binary hashes match. Qualification distinguishes measured limitations from operator acceptance.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   None.
+
+4. **Minor findings**
+
+   **Stale notification-route descriptions — ARCH-PURPOSE.** [atlas/architecture.md:748](atlas/architecture.md:748) still says hooks deliver through `PAIR_OUTER_TTY_PATH`; lines 743–744 describe obsolete diagnostics. [wrap.go:10](cmd/internal/wrapcmd/wrap.go:10) and [pair-notify:13](bin/pair-notify:13) repeat the retired route. Production now uses the broker and serialized pane output.
+
+   **This is the 2nd finding in family `documentation-surface-accuracy`.** Apply one rule across the enumerated passages: notification documentation must describe the current broker route; outer-TTY metadata is compatibility-only. Sweep the class rather than correcting only the atlas paragraph.
+
+5. **Test coverage notes**
+
+   - Passed all seven affected package suites and the local VT fork suite.
+   - Passed focused race checks for evidence lifetime, socket reclamation/isolation, shutdown and consumer effect policies.
+   - Temporary overlay mutations made both success/failure cleanup tests fail; removing the diagnostic cap failed the size regression.
+   - Pinned-range whitespace checks passed. Checkout changes were preserved.
+   - Inspected recorded native and sustained-run evidence; did not rerun native interactive conformance or thirty-minute soaks.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared framing, codec and history rendering.
+   - **ARCH-PURE — pass:** pure identity/mapping/framing responsibilities match the revised concept classifications.
+   - **ARCH-PURPOSE — flag, minor:** functional consumers use the new route; documentation still contains the retired model.
+   - **ARCH-MOCK — pass:** stateful doubles, controlled IO seams and isolated native fixtures.
+   - **ARCH-CONSTRAINTS — pass:** explicit queue, message, deadline and storage bounds; switch-latency misses remain disclosed.
+   - **ARCH-SECURE — pass:** private namespaces and validated binding/socket inputs.
+   - **ARCH-ORDER — pass:** ordered output receipts, accepted-prefix accounting and forced shutdown sequences.
+   - **ARCH-FUNERAL — pass:** invocation-owned evidence and binding-independent dead-socket reclamation.
+
+7. **Plan revision recommendations**
+
+   Add a short `## Revisions` entry recording the documentation-route sweep above. The BR-21 ownership revision matches the implementation.
+
+```findings
+dispose:
+  - id: BR-21
+    disposition: addressed
+    note: |
+      terminal_native_test.go:43 allocates invocation-owned reattachment scratch; its failure path no longer creates retained files. NativeEvidenceLifetime passes for success/failure, and both cases fail with cleanup disabled in a temporary overlay. DiagnosticBound also fails when its cap is removed. Sibling native/PTY/discovery/performance writers have invocation cleanup.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      Dead-owner reclamation remains independent of PID binding survival. Crash/failed-close reclamation, live/foreign preservation and namespace capacity regressions pass.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      Socket addressing, locking and sweeping use private injected namespaces; Close retains its admitted root. Cross-namespace contention/routing coverage passes under the race detector.
+findings:
+  - id: new
+    severity: Minor
+    family: documentation-surface-accuracy
+    title: |
+      Notification documentation still contains the retired outer-TTY route
+    detail: |
+      atlas/architecture.md:743-748, cmd/internal/wrapcmd/wrap.go:10-12 and bin/pair-notify:13 contradict the implemented broker/serialized-output route (ARCH-PURPOSE). This is the 2nd finding in family documentation-surface-accuracy. State the current-route documentation rule and sweep these sibling passages together, preserving outer-TTY references only where they describe compatibility metadata.
+```
