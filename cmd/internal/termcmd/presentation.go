@@ -204,6 +204,13 @@ func (m *terminalMux) writeEvents(events []terminal.InputEvent) {
 			continue
 		}
 		if err := m.presenter.Input(context.Background(), event.Event); err != nil {
+			// A routing answer is not a failure of the terminal: the presenter
+			// simply holds no endpoint for this event right now. A tab can exist
+			// while nothing is admitted, so activeTabLocked above does not settle
+			// it. Stopping the mux over that is the pair#265 escalation.
+			if errors.Is(err, terminal.ErrNoDestination) {
+				continue
+			}
 			m.stopLocked(err)
 			return
 		}
