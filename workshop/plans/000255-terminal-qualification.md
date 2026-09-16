@@ -306,3 +306,15 @@ Candidate remains `/tmp/pair255-smoke-gfr6g7pd`, with its qualified binary/sourc
 hashes in build.json. Launch and acceptance checklist: `workshop/plans/000255-terminal-smoke.md`.
 M1–M4 are complete; issue stays working. Await operator sustained visual/live
 held-drag acceptance and responsiveness before issue close or merge.
+
+### 2026-09-15 — Operator smoke accepted; merge authorized
+
+Operator: “ok, consider the smoke test passed. any issue we discover later, we
+will fix forward. merge please”. The isolated candidate appeared to work, and the
+branch was subsequently built in the normal `~/workspace/pair` checkout. This is
+operator acceptance; no unreported duration or exhaustive manual coverage is
+claimed. Alt+N confirmation/no-result is captured as #259 for fix-forward work.
+Mouse-trace startup warning was diagnosed as old log content diverging from its
+retention metadata (357929 actual bytes vs194506 recorded); no log was deleted.
+No production code changed after M4 except its already-recorded comment sweep.
+Proceed to issue close and merge; performance limitations remain documented.

@@ -105,7 +105,7 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 
 - [x] Compare baseline/candidate startup, sustained output CPU/memory, redraw throughput, switch latency and idle mouse movement; verify the provisional budgets established in M1 before rollout; M4 must not be the first point where acceptable bounds are decided.
 - [x] Run full Go/race and existing Lua/shell/shortcut/retention suites appropriate to integration; add isolated native terminal conformance to CI.
-- [ ] Smoke-test an isolated candidate before any operator runtime replacement; document capabilities, failure/recovery and diagnostics in atlas/README.
+- [x] Smoke-test an isolated candidate before any operator runtime replacement; document capabilities, failure/recovery and diagnostics in atlas/README.
 - [ ] Close and publish #255 only when both consumers satisfy the declared terminal contract.
 
 ## Bounds, failure and artifacts
@@ -314,7 +314,7 @@ M4 ends with a tested candidate and operator instructions. The operator explicit
 - [x] **Verify resource/latency targets.** Measure startup, active output throughput, idle CPU, 16-endpoint memory/history saturation, input-to-visible and switch latency at 80x24/240x80; compare baseline and candidate in the same isolated environment. Check frame coalescing, bounded queues and sync recovery under sustained load. Resolve material target breaches before calling the candidate ready; record results and limitations without claiming production acceptance.
 - [x] **Final automated validation.** Run full Go suite, local fork suite, focused race/integration, relevant Lua/shell/shortcut/retention suites, profile/terminfo and native conformance. Mutation-check the causal Unicode/chrome isolation and mouse drag/mode regressions. No expected-failure labels may hide required production semantics. Record exactly which terminal programs/versions were tested.
 - [x] **Prepare operator candidate and close M4.** Build isolated candidate binaries and provide exact launch/revert steps and a smoke checklist: agent and right-pane selection highlights while dragging; active output; Codex/Claude interaction; panel/thread/tab switches; long session; reattachment; normal/alternate screen and clipboard/paste. Keep current installation and sessions intact. Update issue/atlas/README qualification evidence, run M4 milestone-close and fix blockers. Leave operator acceptance/issue close/merge pending.
-- [ ] **Pause for operator smoke test before merge.** Report M1–M4 evidence, remaining limits and candidate command. Await the operator's result; do not merge, publish or claim the original symptoms resolved before that acceptance.
+- [x] **Pause for operator smoke test before merge.** Report M1–M4 evidence, remaining limits and candidate command. Await the operator's result; do not merge, publish or claim the original symptoms resolved before that acceptance.
 
 ### M2 API refinements from source audit
 
@@ -626,3 +626,15 @@ its recorded pre-comment source and binary hashes; no behavior has changed.
 The prepared operator command/checklist is `000255-terminal-smoke.md`. Pause now
 for sustained display/held-selection smoke and responsiveness acceptance. Original
 symptoms, issue closure and merge remain pending that result.
+
+## Revisions — 2026-09-15 operator acceptance and merge authorization
+
+Operator accepted the isolated candidate, tested the rebuilt branch in the usual
+`~/workspace/pair` setup, then explicitly said to consider smoke passed and merge,
+with later discoveries fixed forward. Record this as operator acceptance without
+inventing a session duration or claiming every possible interaction was exercised.
+The Alt+N confirmation report remains unresolved and is tracked in #259, with no
+source changes bundled into #255 for that report. The old mouse-trace warning was
+traced to content/metadata divergence after a legacy writer; old evidence was
+preserved and a fresh trace path supplied. Existing performance exceptions remain
+visible. Proceed through issue close and publish gates.
