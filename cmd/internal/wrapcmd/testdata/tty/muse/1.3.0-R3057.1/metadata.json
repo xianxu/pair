@@ -1,0 +1,9 @@
+{
+  "agent": "muse",
+  "version": "Muse Code 1.3.0 (1.3.0-R3057.1)",
+  "captured_at": "2026-09-16T06:00:00Z",
+  "command": ["muse"],
+  "files": {
+    "composer.raw": "9cfd5dc6b090e749daa476beed9f3d244f966e39237819d77b1c5840fce4b557"
+  }
+}
