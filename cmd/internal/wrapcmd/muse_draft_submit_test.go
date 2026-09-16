@@ -80,6 +80,49 @@ func TestMuseAgentPaneReturn(t *testing.T) {
 	}
 }
 
+// TestMuseDraftAltEnterSubmission_InsidePaste verifies the draft's Alt+Enter
+// still submits when Zellij coalesces the write-chars paste and the
+// send-keys into one stdin chunk. Without the paste-aware Alt handling,
+// the proxy would forward Alt as literal paste content and the draft would
+// sit idle in the composer.
+func TestMuseDraftAltEnterSubmission_InsidePaste(t *testing.T) {
+	for _, seq := range [][]byte{[]byte("\x1b\r"), []byte("\x1b[13;3u")} {
+		t.Run(string(seq), func(t *testing.T) {
+			f := newHarnessSessionFake(t, "muse", true)
+			defer f.close()
+			f.output("\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ hello\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;8H")
+			// Simulate Zellij's write-chars body wrapped as bracketed paste
+			// followed immediately by Alt+Enter in the same chunk.
+			body := "\x1b[200~draft body\x1b[201~"
+			in := append([]byte(body), seq...)
+			out, leftover, inPaste := f.proxy.translateChunk(in, false)
+			if len(leftover) != 0 || inPaste {
+				t.Fatalf("leftover=%q paste=%v", leftover, inPaste)
+			}
+			want := append([]byte(body), '\r')
+			if !bytes.Equal(out, want) {
+				t.Fatalf("inside-paste Alt+Enter %q translated to %q, want %q", seq, out, want)
+			}
+			// Also cover the coalesced-before-end case where Alt arrives
+			// before the paste close marker (chunked body streaming).
+			in2 := []byte("\x1b[200~draft body")
+			in2 = append(in2, seq...)
+			in2 = append(in2, "\x1b[201~"...)
+			out2, leftover2, paste2 := f.proxy.translateChunk(in2, false)
+			if len(leftover2) != 0 || paste2 {
+				t.Fatalf("inside-paste-before-end leftover=%q paste=%v", leftover2, paste2)
+			}
+			// Alt inside paste must still become a CR, not literal ESC CR.
+			if !bytes.Contains(out2, []byte{'\r'}) {
+				t.Fatalf("Alt inside paste before end not translated: %q", out2)
+			}
+			if bytes.Contains(out2, []byte("\x1b\r")) || bytes.Contains(out2, []byte("\x1b[13;3u")) {
+				t.Fatalf("Alt inside paste leaked as literal: %q", out2)
+			}
+		})
+	}
+}
+
 // TestMuseComposerActive_RelaxedPrompt ensures a Muse UI refresh that changes
 // the prompt glyph (e.g. "❯" or ">" instead of "⟩") does not silently break
 // the Return remap. The box shape remains the discriminator.

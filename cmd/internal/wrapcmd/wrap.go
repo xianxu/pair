@@ -1941,17 +1941,54 @@ func (p *proxy) translateChunk(data []byte, inPaste bool) ([]byte, []byte, bool)
 	i := 0
 	for i < len(data) {
 		if inPaste {
+			// Alt+Enter is the draft's submit chord — it must reach the
+			// agent as a send even if it arrives while a bracketed paste
+			// is still open. Zellij's write-chars (body) and send-keys
+			// (Alt Enter) can land in the same chunk. Scan for the
+			// earliest of paste-end vs submit; a submit before the end
+			// is an out-of-band submit, not pasted content.
+			endIdx := indexOfSubseq(data[i:], bpEnd)
+			kkpIdx := indexOfSubseq(data[i:], enterKKPAlt)
+			legIdx := indexOfSubseq(data[i:], enterLegacyAlt)
+			altIdx := -1
+			altLen := 0
+			if kkpIdx >= 0 && (altIdx < 0 || kkpIdx < altIdx) {
+				altIdx = kkpIdx
+				altLen = len(enterKKPAlt)
+			}
+			if legIdx >= 0 && (altIdx < 0 || legIdx < altIdx) {
+				altIdx = legIdx
+				altLen = len(enterLegacyAlt)
+			}
+			if altIdx >= 0 && (endIdx < 0 || altIdx < endIdx) {
+				// Forward paste content up to the submit literally, then
+				// emit the submit as an unconditional send.
+				out = append(out, data[i:i+altIdx]...)
+				out = append(out, p.ttyProfile.keymap.altCR...)
+				p.publishLifecycleObservation(TurnObservation{Kind: ObservationUserSubmission})
+				i += altIdx + altLen
+				// Paste remains open — the \x1b[201~ still has to arrive
+				// to close it.
+				continue
+			}
 			// Scan for end-of-paste marker. Anything before it is
 			// literal pasted content — forward verbatim.
-			if idx := indexOfSubseq(data[i:], bpEnd); idx >= 0 {
-				out = append(out, data[i:i+idx+len(bpEnd)]...)
-				i += idx + len(bpEnd)
+			if endIdx >= 0 {
+				out = append(out, data[i:i+endIdx+len(bpEnd)]...)
+				i += endIdx + len(bpEnd)
 				inPaste = false
 				continue
 			}
 			// Marker not in this chunk. Forward everything but hold back
-			// a trailing partial ESC[201~ in case it splits the boundary.
+			// a trailing partial marker in case it splits the boundary.
 			tail := trailingPartial(data[i:], bpEnd)
+			// Also hold back a split Alt Enter so it isn't forwarded as
+			// literal paste content.
+			for _, pat := range [][]byte{enterKKPAlt, enterLegacyAlt} {
+				if t2 := trailingPartial(data[i:], pat); t2 > tail {
+					tail = t2
+				}
+			}
 			out = append(out, data[i:len(data)-tail]...)
 			leftover := append([]byte(nil), data[len(data)-tail:]...)
 			return out, leftover, true
