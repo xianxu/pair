@@ -50,6 +50,7 @@ This is the exact gap pair's return-remap seam exists to close (`cmd/internal/wr
 - [x] Fix paste-aware Alt handling: `wrap.go:translateChunk` now scans for `Alt+Enter` (`\x1b\r` / `\x1b[13;3u`) before `pasteEnd` when `inPaste`, emitting an unconditional `\r` submit even inside the paste window, and holds back split `Alt` partials across chunk boundaries. Covers both legacy and KKP forms.
 - [x] Add paste tests: `translate_test.go` adds `Alt+Enter inside/before paste` cases; `muse_draft_submit_test.go:TestMuseDraftAltEnterSubmission_InsidePaste` covers muse paste-coalesced draft path. `GOCACHE=/tmp/gocache go test -run TestMuse|TestTranslateChunk -count=1` passes.
 - [x] Manual smoke: `pair muse` Alt+Return from draft + agent-pane Return/Alt-Return, plus overlay case (operator verified live; short-draft submit required the post-write settle delay).
+- [x] Operator re-confirmed the fix at HEAD (`0a05b283`) on 2026-09-16.
 
 ## Log
 
@@ -96,3 +97,9 @@ Live trace showed plain Return was routed as bare CR immediately after `PICKER-o
 ### 2026-09-16 — remove disproven paste-submit interception
 
 The earlier bracketed-paste Alt+Return interception was unnecessary: live tracing showed the draft body write and submit arrived as separate reads, while the interception reinterpreted arbitrary paste payload as a trusted submit. Removed that translator branch and its coalesced-paste tests; retained the confirmed 100 ms settle after every draft body write as the delivery-order fix (`ARCH-SECURE`, `ARCH-ORDER`).
+
+### 2026-09-16 — paste-coalesced Alt+Return interception restored
+
+The previous revision's removal went too far. Live delivery can still put the draft's `send-keys "Alt Enter"` ahead of the `write-chars` bracketed-paste close marker, and with the in-paste branch scanning only for `bpEnd` that submit is forwarded as literal composer text — the original symptom. `translateChunk` again recognizes an Alt+Enter chord (legacy `\x1b\r`, KKP `\x1b[13;3u`) before `bpEnd`, emits `keymap.altCR`, publishes `ObservationUserSubmission`, and holds back a split Alt partial across the chunk boundary; all other paste bytes stay literal and a plain `\r` inside a paste is never remapped. Regression coverage for both protocols is back in `translate_test.go` and `muse_draft_submit_test.go`. Landed as `0a05b283`.
+
+The `ARCH-SECURE` objection that motivated the removal is not void, only accepted and bounded: a paste whose own payload contains that one chord reads as a submit. The wrapper cannot distinguish zellij's out-of-band `send-keys` event from payload bytes once they coalesce into one read, so the choice is between that narrow misread and a draft send that silently does nothing. Both the interception and the 100 ms post-write settle (`e3864896`) are needed — the settle keeps the common case ordered, the interception covers the coalesced case. Documented in `atlas/architecture.md` (Enter remap + draft keybinding rows).
