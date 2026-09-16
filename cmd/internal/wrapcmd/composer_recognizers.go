@@ -97,6 +97,25 @@ func rowPaintedBetween(snapshot terminalSnapshot, y, x0, x1 int) bool {
 // museComposerMaxRows bounds how tall a Muse composer box may be.
 const museComposerMaxRows = 20
 
+// musePromptGlyphs is the ONE authority for what may sit at column 0 of a Muse
+// composer prompt row. Both consumers read it — museComposerActive (the Return
+// remap's gate) and orientationPromptOK (the orientation auto-submit gate) —
+// because a glyph accepted by one and rejected by the other is a state where
+// Return inserts a newline in a composer orientation refuses to submit into.
+//
+// The set is the chevron family Muse's own prompt belongs to. `⟩` is the
+// captured glyph (see testdata/tty/muse/*); the other three are the shapes a UI
+// refresh plausibly swaps it for, admitted because for Muse a false NEGATIVE is
+// the expensive direction: plain Return then falls through as bare CR, which
+// Muse reads as submit, so a half-written draft ships.
+//
+// Selection markers are deliberately NOT here. `!`, `●`, `▶` and `▸` were
+// admitted speculatively and removed (#266 close BR-3): they are how TUIs mark
+// a highlighted menu row, so accepting them invites the opposite failure — the
+// gate calling a picker a composer — and `!` also contradicts orientation's own
+// non-coding-mode guard, which rejects that glyph as row content.
+var musePromptGlyphs = map[string]bool{"⟩": true, "›": true, "❯": true, ">": true}
+
 // ruledBoxComposerSpec parameterises the composer shape Claude and Muse share:
 // a prompt glyph at column 0 forming the first row inside a pair of rule rows.
 // Anchoring on the *enclosing* rules rather than on rules directly above and
@@ -174,7 +193,7 @@ func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, pr
 // of faint rule rows, with the cursor within that box. Relaxed from the
 // original strict "⟩" + faint-only check so a Muse UI refresh that changes
 // the prompt glyph or rule faintness does not silently break the Return
-// remap. The box shape (prompt row enclosed by two "─" rules) remains the
+// remap; the admitted glyphs are musePromptGlyphs. The box shape (prompt row enclosed by two "─" rules) remains the
 // discriminator; faint agreement is checked via rulesMatch rather than
 // requiring every rule to be faint.
 func museComposerActive(snapshot terminalSnapshot) bool {
@@ -183,12 +202,7 @@ func museComposerActive(snapshot terminalSnapshot) bool {
 			if c.Style.Attrs&uv.AttrFaint != 0 {
 				return false
 			}
-			switch c.Content {
-			case "⟩", "›", "❯", ">", "!", "●", "▶", "▸":
-				return true
-			default:
-				return false
-			}
+			return musePromptGlyphs[c.Content]
 		},
 		ruleAt: func(s terminalSnapshot, y int) bool {
 			cell := s.CellAt(0, y)

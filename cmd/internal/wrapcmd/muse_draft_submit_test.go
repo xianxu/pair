@@ -10,14 +10,24 @@ import (
 // state. This is the user-visible path for `Alt+Return` from the nvim draft:
 // it must not sit idle in the composer.
 func TestMuseDraftAltEnterSubmission(t *testing.T) {
-	for _, name := range []string{"without composer", "with composer"} {
-		t.Run(name, func(t *testing.T) {
+	// The composer state and the plain-Return expectation it implies are table
+	// fields, not decisions keyed off the subtest name: renaming a case must not
+	// be able to silently flip which bytes the assertion demands.
+	for _, tc := range []struct {
+		name      string
+		composer  bool
+		wantPlain []byte
+	}{
+		{name: "without composer", composer: false, wantPlain: []byte{'\r'}},
+		{name: "with composer", composer: true, wantPlain: []byte("\x1b[13;2u")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			f := newHarnessSessionFake(t, "muse", true)
 			defer f.close()
-			if name == "with composer" {
+			if tc.composer {
 				// Paint a live Muse composer so the proxy's terminal is in the
 				// "active" state. The draft's Alt+Enter must still be a send.
-				f.output("\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ hello\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;8H")
+				f.output(musePaintedComposer("⟩"))
 				if !museComposerActive(f.proxy.terminal.Snapshot()) {
 					t.Fatal("composer should be active")
 				}
@@ -36,28 +46,8 @@ func TestMuseDraftAltEnterSubmission(t *testing.T) {
 			// Muse's composer uses Shift+Return for a newline; Alt+Return
 			// remains the unconditional submit chord.
 			outPlain, _, _ := f.proxy.translateChunk([]byte{'\r'}, false)
-			wantPlain := []byte{'\r'}
-			if name == "with composer" {
-				wantPlain = []byte("\x1b[13;2u")
-			}
-			if !bytes.Equal(outPlain, wantPlain) {
-				t.Fatalf("plain Enter translated to %q, want %q", outPlain, wantPlain)
-			}
-		})
-	}
-}
-
-func TestMuseDraftAltEnterSubmissionInsidePaste(t *testing.T) {
-	for _, seq := range [][]byte{[]byte("\x1b\r"), []byte("\x1b[13;3u")} {
-		t.Run(string(seq), func(t *testing.T) {
-			f := newHarnessSessionFake(t, "muse", true)
-			defer f.close()
-			input := append([]byte("\x1b[200~draft body"), seq...)
-			input = append(input, "\x1b[201~"...)
-			out, leftover, inPaste := f.proxy.translateChunk(input, false)
-			want := []byte("\x1b[200~draft body\r\x1b[201~")
-			if len(leftover) != 0 || inPaste || !bytes.Equal(out, want) {
-				t.Fatalf("translated=%q leftover=%q paste=%v, want %q/no leftover/not paste", out, leftover, inPaste, want)
+			if !bytes.Equal(outPlain, tc.wantPlain) {
+				t.Fatalf("plain Enter translated to %q, want %q", outPlain, tc.wantPlain)
 			}
 		})
 	}
@@ -75,7 +65,7 @@ func TestMuseAgentPaneReturn(t *testing.T) {
 	}
 
 	// Active composer → plain inserts a native Shift+Return newline.
-	f.output("\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ hello\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;8H")
+	f.output(musePaintedComposer("⟩"))
 	if !museComposerActive(f.proxy.terminal.Snapshot()) {
 		t.Fatal("composer should be active")
 	}
@@ -97,22 +87,65 @@ func TestMuseAgentPaneReturn(t *testing.T) {
 	}
 }
 
-// TestMuseComposerActive_RelaxedPrompt ensures a Muse UI refresh that changes
-// the prompt glyph (e.g. "❯" or ">" instead of "⟩") does not silently break
-// the Return remap. The box shape remains the discriminator.
+// musePaintedComposer paints a minimal Muse-style composer box — two rule rows
+// enclosing a prompt row, cursor inside — with the given prompt glyph.
+func musePaintedComposer(glyph string) string {
+	return "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m" + glyph + " hello\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;8H"
+}
+
+// TestMuseComposerActive_RelaxedPrompt ensures a Muse UI refresh that swaps the
+// prompt glyph for another chevron does not silently break the Return remap.
+// The case list is musePromptGlyphs itself, so a glyph admitted to the shared
+// authority cannot arrive without coverage.
 func TestMuseComposerActive_RelaxedPrompt(t *testing.T) {
-	for _, glyph := range []string{"⟩", "›", "❯", ">", "!", "●", "▶", "▸"} {
+	if len(musePromptGlyphs) == 0 {
+		t.Fatal("musePromptGlyphs is empty")
+	}
+	for glyph := range musePromptGlyphs {
 		t.Run(glyph, func(t *testing.T) {
 			model := newTerminalModelForTest(t, 80, 38)
-			// Paint a minimal Muse-style box with the given glyph.
-			paint := "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m" + glyph + " hello\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;8H"
-			if err := model.Feed([]byte(paint)); err != nil {
+			if err := model.Feed([]byte(musePaintedComposer(glyph))); err != nil {
 				t.Fatal(err)
 			}
 			if !museComposerActive(model.Snapshot()) {
 				t.Fatalf("prompt %q not recognised as active muse composer", glyph)
 			}
 		})
+	}
+}
+
+// TestMuseComposerActive_RejectsSelectionMarkers pins the glyphs deliberately
+// kept OUT of musePromptGlyphs (#266 close BR-3). These are how TUIs mark a
+// highlighted menu row, so admitting them would let the positive gate call a
+// picker a composer — and for Muse that means plain Return inserts a newline
+// where the picker wanted a confirmation.
+func TestMuseComposerActive_RejectsSelectionMarkers(t *testing.T) {
+	for _, glyph := range []string{"!", "●", "▶", "▸", "◆", "*"} {
+		t.Run(glyph, func(t *testing.T) {
+			if musePromptGlyphs[glyph] {
+				t.Fatalf("%q is a selection marker and must not be an admitted Muse prompt glyph", glyph)
+			}
+			model := newTerminalModelForTest(t, 80, 38)
+			if err := model.Feed([]byte(musePaintedComposer(glyph))); err != nil {
+				t.Fatal(err)
+			}
+			if museComposerActive(model.Snapshot()) {
+				t.Fatalf("selection marker %q recognised as a muse composer", glyph)
+			}
+		})
+	}
+}
+
+// TestMusePromptAuthorityIsShared pins the invariant BR-4 names: the Return
+// remap's gate and the orientation auto-submit gate must admit exactly the same
+// prompt glyphs. A glyph accepted by one and refused by the other is a state
+// where Return inserts a newline into a composer orientation will not submit
+// into — the drift that put the same literal list in two files twice.
+func TestMusePromptAuthorityIsShared(t *testing.T) {
+	for _, glyph := range []string{"⟩", "›", "❯", ">", "!", "●", "▶", "▸", "◆", "x", "─"} {
+		if got, want := orientationPromptOK("muse", glyph), musePromptGlyphs[glyph]; got != want {
+			t.Errorf("orientationPromptOK(muse, %q) = %t, musePromptGlyphs = %t", glyph, got, want)
+		}
 	}
 }
 

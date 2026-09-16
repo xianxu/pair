@@ -87,8 +87,10 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 		if filepath.Base(filepath.Dir(metadataPath)) != ttyFixtureVersionDir(metadata.Version) {
 			t.Errorf("%s: version directory %q does not match normalized version %q", metadataPath, filepath.Base(filepath.Dir(metadataPath)), ttyFixtureVersionDir(metadata.Version))
 		}
-		if _, ok := rawFiles["composer.raw"]; !ok {
+		if composer, ok := rawFiles["composer.raw"]; !ok {
 			t.Errorf("%s: missing composer.raw", metadataPath)
+		} else {
+			assertKittyKeyboardPrecondition(t, metadata.Agent, harnessTTYProfiles[metadata.Agent].keymap.plainCR, composer)
 		}
 		if _, ok := rawFiles["overlay.raw"]; ok {
 			negatives[metadata.Agent] = true
@@ -151,7 +153,7 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 // the gap is reviewable, and it must be removed once the capture exists.
 var ttyFixtureNegativeGaps = map[string]string{
 	"claude": "Claude's declining state is its permission prompt. A child spawned from an agent session inherits auto-approve mode — verified 2026-08-20: the child ran Bash(uptime) and returned output with no prompt, despite `uptime` not being allowlisted — so the prompt is unreachable from here. The route is registered as the `permission prompt` scenario in harnessTTYDrivenScenarios; run it from a plain terminal with default (ask) permissions to capture overlay.raw.",
-	"muse":   "Muse's declining states are tool-approval and selection menus, none reachable without a live tool call; capture one when a real approval is available",
+	"muse":   "Muse's slash menu and `?` shortcut sheet were both driven live on 1.3.0-R3233.1 (see harnessTTYDrivenScenarios) and neither declines: each paints below the composer box and leaves it intact, so menu.raw is discrimination evidence rather than a negative. The remaining declining state is a tool-approval dialog, which needs a real tool call; capture overlay.raw when one is available.",
 }
 
 // ttyFixtureDiscriminationGaps records positively gated harnesses whose
@@ -162,7 +164,7 @@ var ttyFixtureNegativeGaps = map[string]string{
 var ttyFixtureDiscriminationGaps = map[string]string{
 	"claude": "no captured declining state at all; see ttyFixtureNegativeGaps. Claude does not reuse its prompt glyph as a menu marker — menu.raw pins its slash menu rendering below the box with column 0 blank — so the Agy failure mode does not apply; what is still unproven is a blocking dialog the gate must refuse.",
 	"agy":    "agy/1.1.15/overlay.raw declines on hidden cursor and cursor position, not on any composer-vs-picker rule, and menu.raw shows Agy painting a menu marker in the SAME bright blue as the composer prompt. The permission-picker capture is reachable by dropping --dangerously-skip-permissions from the agy driven scenario and driving one tool call; attempted 2026-08-19 and blocked, the account was in \"Verifying your account...\" and would not execute tool calls.",
-	"muse":   "no captured declining state at all; see ttyFixtureNegativeGaps",
+	"muse":   "no captured declining state at all; see ttyFixtureNegativeGaps. muse/1.3.0-R3233.1/menu.raw does rule out the Agy failure mode: Muse's slash menu paints its rows below the box and leaves column 0 blank, so it never reuses the prompt glyph as a selection marker. What is still unproven is a blocking dialog the gate must refuse.",
 }
 
 func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadata, map[string][]byte) {
@@ -260,6 +262,12 @@ var ttyFixtureExpectation = map[string]map[string]bool{
 	// Claude's bash mode is still a composer — it repaints the glyph and rule
 	// colour, not the shape — so the gate must stay open.
 	"claude": {"bash-mode.raw": true, "menu.raw": true},
+	// Muse's slash menu paints below the composer box with column 0 blank, so
+	// the box shape still selects the composer and the gate stays open. Enter
+	// therefore inserts a newline instead of picking the highlighted command —
+	// accepted because Alt+Return submits, which is how a command gets run
+	// under Pair's convention for every harness.
+	"muse": {"menu.raw": true},
 }
 
 // ttyFixtureReturnExpectation reports whether a fixture file must remap Return,
@@ -371,6 +379,32 @@ func replayHarnessTTYSplit(t *testing.T, harness string, raw []byte, split int) 
 	return result
 }
 
+// plainCRNeedsKittyKeyboard reports whether a profile's composer Return bytes
+// are a Kitty keyboard protocol key — CSI <params> u — rather than a literal
+// control byte. Muse's newline is one (`\x1b[13;2u`, Shift+Return).
+func plainCRNeedsKittyKeyboard(plainCR []byte) bool {
+	return len(plainCR) > len("\x1b[u") && strings.HasPrefix(string(plainCR), "\x1b[") && plainCR[len(plainCR)-1] == 'u'
+}
+
+// kittyKeyboardPush matches a progressive-enhancement push, CSI > <flags> u.
+var kittyKeyboardPush = regexp.MustCompile("\x1b\\[>[0-9;]*u")
+
+// assertKittyKeyboardPrecondition fails a harness whose composer Return is
+// KKP-encoded but whose own capture pushes no Kitty keyboard flags. That
+// precondition is invisible to every other assertion here: both the frozen
+// replay and the live check read their expected bytes FROM the profile, so they
+// agree with it by construction and cannot notice the day a harness stops
+// parsing the encoding. The failure is otherwise silent in the worst way —
+// Return does nothing at all while return-remap telemetry still reports
+// `fired`, because the wrapper did emit its remap (#266 close BR-2).
+func assertKittyKeyboardPrecondition(t *testing.T, harness string, plainCR, raw []byte) {
+	t.Helper()
+	if !plainCRNeedsKittyKeyboard(plainCR) || kittyKeyboardPush.Match(raw) {
+		return
+	}
+	t.Errorf("%s composer Return is KKP-encoded (%q) but its capture pushes no Kitty keyboard flags (CSI > ... u): the harness would read those bytes as literal text", harness, plainCR)
+}
+
 func sortedKeys(files map[string][]byte) []string {
 	names := make([]string, 0, len(files))
 	for name := range files {
@@ -381,9 +415,11 @@ func sortedKeys(files map[string][]byte) []string {
 }
 
 // TestComposerReturnExpectationMatchesProfile pins that a recognized composer's
-// expected Return bytes come from the harness's own keymap. Codex, Muse and Agy
-// all remap to LF, which made a hardcoded "\n" look correct until Claude — whose
-// plainCR is the profile's active-composer Return bytes.
+// expected Return bytes come from the harness's own keymap, not from a constant
+// restated here. Codex and Agy remap to LF, which made a hardcoded "\n" look
+// correct until Claude arrived with `\\<CR>` and Muse with a KKP Shift+Return.
+// Each value below is the harness's documented composer newline; the profile is
+// the authority the production path reads.
 func TestComposerReturnExpectationMatchesProfile(t *testing.T) {
 	want := map[string]string{
 		"claude": "\\\r",

@@ -649,6 +649,10 @@ func assertHarnessTTYLiveDecision(t *testing.T, harness string, raw []byte, want
 	want := []byte{'\r'}
 	if wantComposer {
 		want = p.ttyProfile.keymap.plainCR
+		// The expectation comes from the profile, so it cannot disagree with it.
+		// Check the one thing the profile asserts about the harness instead:
+		// that a KKP-encoded newline is parseable in this live session.
+		assertKittyKeyboardPrecondition(t, harness, want, raw)
 	}
 	if !bytes.Equal(got, want) {
 		t.Fatalf("%s plain Return = %q, want %q (overlay armed=%t, composer=%t)",
@@ -704,6 +708,16 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 		{name: "permission prompt", send: "run the shell command: ls -la\r",
 			until: "do you want to proceed", wantComposer: false, file: "overlay.raw",
 			timeout: 120 * time.Second},
+	},
+	// Muse's slash menu and its `?` shortcut sheet both paint BELOW the composer
+	// box and leave the box — and column 0 — intact, so neither is a declining
+	// state; both were driven live on 1.3.0-R3233.1 and the gate stayed open on
+	// each. The slash menu is the one pinned as a fixture: it is the screen a
+	// recognizer is most likely to mistake for a picker, and it is reachable
+	// without a tool call (#266 close BR-3).
+	"muse": {
+		{name: "slash menu", send: "/", until: "Clear terminal",
+			wantComposer: true, file: "menu.raw"},
 	},
 	"agy": {
 		// The shortcut sheet replaces the composer entirely.

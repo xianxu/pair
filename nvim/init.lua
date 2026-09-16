@@ -731,8 +731,9 @@ local function send_to_agent(body, no_submit, resume_phase)
   --
   -- Submit is Alt+Enter, not plain Enter:
   -- pair-wrap's stdin translator rewrites incoming \r into the agent's
-  -- "insert newline" sequence (claude: `\<Enter>`, codex/agy: \n),
-  -- so a bare CR here would insert a newline rather than submit. Use
+  -- "insert newline" sequence (claude: `\<Enter>`, codex/agy: \n,
+  -- muse: Shift+Return as `ESC [13;2u`), so a bare CR here would insert
+  -- a newline rather than submit. Use
   -- zellij's semantic send-keys action for the modified chord instead
   -- of synthesizing it as raw ESC+CR bytes.
   --

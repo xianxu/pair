@@ -103,3 +103,56 @@ The earlier bracketed-paste Alt+Return interception was unnecessary: live tracin
 The previous revision's removal went too far. Live delivery can still put the draft's `send-keys "Alt Enter"` ahead of the `write-chars` bracketed-paste close marker, and with the in-paste branch scanning only for `bpEnd` that submit is forwarded as literal composer text — the original symptom. `translateChunk` again recognizes an Alt+Enter chord (legacy `\x1b\r`, KKP `\x1b[13;3u`) before `bpEnd`, emits `keymap.altCR`, publishes `ObservationUserSubmission`, and holds back a split Alt partial across the chunk boundary; all other paste bytes stay literal and a plain `\r` inside a paste is never remapped. Regression coverage for both protocols is back in `translate_test.go` and `muse_draft_submit_test.go`. Landed as `0a05b283`.
 
 The `ARCH-SECURE` objection that motivated the removal is not void, only accepted and bounded: a paste whose own payload contains that one chord reads as a submit. The wrapper cannot distinguish zellij's out-of-band `send-keys` event from payload bytes once they coalesce into one read, so the choice is between that narrow misread and a draft send that silently does nothing. Both the interception and the 100 ms post-write settle (`e3864896`) are needed — the settle keeps the common case ordered, the interception covers the coalesced case. Documented in `atlas/architecture.md` (Enter remap + draft keybinding rows).
+
+### 2026-09-16 — close boundary review round 1: in-paste interception dropped for good
+
+`sdlc close` refused (FIX-THEN-SHIP, 5 Important). BR-1 settled the flip-flop with
+the fact both earlier rounds missed: the restored branch emitted `altCR` *before*
+`bpEnd` and left `inPaste` true, so Muse — which has `?2004h` on — received
+`ESC[200~ body \r ESC[201~` and read that `\r` as **pasted text, not an Enter key**.
+The branch could never have submitted; it added a newline and published
+`ObservationUserSubmission` anyway, so a non-submit opened a turn that would later
+raise a spurious idle alert. Reverted `0a05b283` with the operator's decision; the
+100 ms settle (`e3864896`) remains the confirmed fix, and the coalesced read the
+branch was written for has not been observed since the settle landed. This closes
+BR-1 and, with the branch, BR-5 (its untested holdback), BR-7 and BR-8.
+
+Round-1 findings and their disposal:
+
+- **BR-1 / BR-5 / BR-7 / BR-8** — the in-paste branch is gone (`ARCH-ORDER`, `ARCH-SECURE`).
+- **BR-2** — `plainCR: ESC[13;2u` is a Kitty keyboard key, parseable only while Muse
+  pushes progressive enhancement. The dependency is now recorded on the profile and,
+  more to the point, *checked*: `assertKittyKeyboardPrecondition` fails any harness
+  whose KKP-encoded `plainCR` has no `CSI > … u` push in its own capture, in both the
+  frozen replay and the live check. Every other assertion reads its expectation from
+  the profile, so none of them could have caught it (`ARCH-MOCK`).
+- **BR-3** — dropped `!`, `●`, `▶`, `▸` from the admitted Muse prompt glyphs: they are
+  selection markers, and `!` contradicted orientation's own non-coding-mode guard. The
+  set is now the chevron family `{⟩ › ❯ >}` — and the live prompt on 1.3.0-R3233.1 is
+  `❯`, not the `⟩` the original recognizer pinned, so the relaxation itself was right.
+  `TestMuseComposerActive_RejectsSelectionMarkers` pins the exclusion (`ARCH-PURPOSE`).
+- **BR-4** — one authority, `musePromptGlyphs`, read by `museComposerActive` and
+  `orientationPromptOK`; orientation keeps its menu guard layered on top.
+  `TestMusePromptAuthorityIsShared` pins that the two gates cannot drift (`ARCH-DRY`).
+- **BR-6 / BR-10** — stale comments corrected (`harness_tty_fixture_test.go`,
+  `nvim/init.lua`); the draft-submit test now keys its expectation off a table field
+  instead of the subtest name.
+- **BR-9** — the hand-rounded `captured_at` is gone with the fixture that carried it.
+  Captured Muse 1.3.0-R3233.1 live (`composer.raw` + `menu.raw`) with a real capture
+  second, and deleted the hand-authored R3057.1 fixture rather than keeping unverifiable
+  provenance.
+- **BR-11** — filed as **#269**: the settle is the confirmed fix and stays, but a fixed
+  sleep against an ordering problem needs a bound and a detector, which is a redesign of
+  the delivery handshake rather than a close-time patch.
+
+Evidence gaps narrowed while here: the reviewer was right that a Muse menu needs no tool
+call. Drove `/` and `?` live — both paint below the composer box and leave column 0
+blank, so neither declines, and the gate correctly stays open on each. `menu.raw` is
+therefore discrimination evidence (Muse never reuses its prompt glyph as a highlight,
+so the Agy failure mode is ruled out); the remaining negative gap is a tool-approval
+dialog, and both ledger entries now say exactly that instead of "no captured state".
+
+Verification: `go test ./cmd/internal/wrapcmd -count=1`, live
+`PAIR_LIVE_HARNESS=muse` conformance **and** driven conformance both pass against the
+installed 1.3.0-R3233.1 (`composer=true`, plain Return `"\x1b[13;2u"`), and
+`lua nvim/draft_send_test.lua` passes.

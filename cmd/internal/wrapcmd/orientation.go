@@ -200,13 +200,12 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 }
 
 func orientationPromptOK(agent, content string) bool {
+	// Muse shares the Return remap's prompt authority (musePromptGlyphs) so the
+	// two gates cannot disagree about what a composer looks like; the row-content
+	// guard below this call stays layered on top, and it is what keeps a menu
+	// from reading as a composer. Every other harness has one captured glyph.
 	if agent == "muse" {
-		switch content {
-		case "⟩", "›", "❯", ">", "!", "●", "▶", "▸":
-			return true
-		default:
-			return false
-		}
+		return musePromptGlyphs[content]
 	}
 	prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">"}[agent]
 	return content == prompt
