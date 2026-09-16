@@ -1,5 +1,13 @@
 # Lessons
 
+## Test evidence needs the same lifetime as its fixture (#255 M4 BR-21)
+
+Retaining captures for debugging creates an artifact lifecycle even in tests.
+Audit success and failure writers together, including native/discovery siblings;
+use invocation storage removed after joined teardown and bounded test-log
+diagnostics. Prove both success and failure cleanup instead of treating `/tmp`
+as a retention policy. ARCH-FUNERAL / ARCH-PURPOSE.
+
 ## Temporary bindings do not isolate a global transport (#255 M4 review)
 
 Broker fixtures used temporary PID files but still acquired the production

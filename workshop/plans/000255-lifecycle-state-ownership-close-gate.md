@@ -379,6 +379,27 @@ rounds:
           round: 13
       boundary: M4
       blocked: true
+    - "n": 14
+      timestamp: "2026-09-15T17:51:20-07:00"
+      agent: codex
+      dispose:
+        - id: BR-19
+          disposition: addressed
+          note: address.go:244 reclaims dead-owner sockets independently of PID bindings. TestSweepReclaimsCrashSocketWithoutPIDBinding passes; disabling the sweep makes both crash and failed-close cases fail. Live/foreign preservation and capacity tests also pass.
+          round: 14
+        - id: BR-20
+          disposition: addressed
+          note: Socket addresses, locks and sweeps share the injected namespace; Broker.Close retains its admitted root. Cross-namespace coverage passes. Removing namespace injection makes the regression fail before accessing the production lock.
+          round: 14
+      findings:
+        - id: BR-21
+          severity: Important
+          title: Native conformance evidence accumulates without cleanup or retention bounds
+          detail: 'cmd/internal/couchtty/terminal_native_test.go:244 creates a retained directory for each successful direct/wrapped run; line 127 creates another family on failure. Neither has cleanup, a sweep, or a count/age bound. This is the 4th finding in family artifact-lifetime-ownership (ARCH-FUNERAL, ARCH-PURPOSE). Do NOT fix only one allocation: state and enforce the ownership rule across both evidence families and enumerate sibling writers. Prefer invocation-scoped storage and bounded reported diagnostics, or explicit bounded retention, with success/failure cleanup regressions.'
+          family: artifact-lifetime-ownership
+          round: 14
+      boundary: M4
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -552,7 +573,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-20** [Important] `test-state-isolation` Broker contention tests acquire the live user's production notification lock
   cmd/internal/notifytransport/transport_test.go:361 deliberately holds lockDirectory through a startup timeout, while address.go:54 hardcodes the production UID-wide namespace. Concurrent live wrapper startup or Close can time out; transport.go:135 then abandons artifact cleanup (ARCH-SECURE, ARCH-MOCK). Inject a transport namespace covering both socket addresses and locks, and move all broker fixtures into private temporary storage with cross-namespace isolation coverage.
 
+## Round 14 — 2026-09-15T17:51:20-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-19 — addressed — address.go:244 reclaims dead-owner sockets independently of PID bindings. TestSweepReclaimsCrashSocketWithoutPIDBinding passes; disabling the sweep makes both crash and failed-close cases fail. Live/foreign preservation and capacity tests also pass.
+- BR-20 — addressed — Socket addresses, locks and sweeps share the injected namespace; Broker.Close retains its admitted root. Cross-namespace coverage passes. Removing namespace injection makes the regression fail before accessing the production lock.
+
+### Raised
+
+- **BR-21** [Important] `artifact-lifetime-ownership` Native conformance evidence accumulates without cleanup or retention bounds
+  cmd/internal/couchtty/terminal_native_test.go:244 creates a retained directory for each successful direct/wrapped run; line 127 creates another family on failure. Neither has cleanup, a sweep, or a count/age bound. This is the 4th finding in family artifact-lifetime-ownership (ARCH-FUNERAL, ARCH-PURPOSE). Do NOT fix only one allocation: state and enforce the ownership rule across both evidence families and enumerate sibling writers. Prefer invocation-scoped storage and bounded reported diagnostics, or explicit bounded retention, with success/failure cleanup regressions.
+
 ## Open findings
 
-- **BR-19** [Important] `artifact-lifetime-ownership` Dead notification sockets become uncollectable when their PID binding is removed
-- **BR-20** [Important] `test-state-isolation` Broker contention tests acquire the live user's production notification lock
+- **BR-21** [Important] `artifact-lifetime-ownership` Native conformance evidence accumulates without cleanup or retention bounds

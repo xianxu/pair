@@ -40,6 +40,9 @@ func TestNativeConsoleWrapperZellij(t *testing.T) {
 }
 
 func runNativeConsoleJoin(t *testing.T, wrapped bool) {
+	// Register scratch ownership before any process cleanup, so exact comparison
+	// inputs survive until Console and the private server have joined.
+	evidenceDir := nativeEvidenceDirectory(t, "reattach")
 	binary := os.Getenv("PAIR_NATIVE_BINARY")
 	if !filepath.IsAbs(binary) {
 		t.Fatal("PAIR_NATIVE_BINARY must name an absolute, freshly built candidate")
@@ -57,7 +60,11 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("remove private native fixture: %v", err)
+		}
+	})
 	write := func(name, body string, mode os.FileMode) string {
 		t.Helper()
 		path := filepath.Join(dir, name)
@@ -124,14 +131,18 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	go func() { done <- con.Run() }()
 	t.Cleanup(func() {
 		if t.Failed() {
-			evidence, _ := os.MkdirTemp("/tmp", "pair255-native-failure-")
-			rawReceipts, _ := os.ReadFile(receipts)
-			wrapLog, _ := os.ReadFile(filepath.Join(dir, "wrapper.log"))
-			_ = os.WriteFile(filepath.Join(evidence, "wrapper.log"), wrapLog, 0600)
-			_ = os.WriteFile(filepath.Join(evidence, "receipts.txt"), rawReceipts, 0600)
-			_ = os.WriteFile(filepath.Join(evidence, "child.raw"), child.Snapshot(), 0600)
-			_ = os.WriteFile(filepath.Join(evidence, "parent.raw"), []byte(host.Written()), 0600)
-			t.Logf("native failure evidence: %s; receipts=%q", evidence, rawReceipts)
+			for name, data := range map[string][]byte{"child.raw": child.Snapshot(), "parent.raw": []byte(host.Written())} {
+				t.Logf("native %s bytes=%d diagnostic-prefix=%q", name, len(data), nativeEvidenceDiagnostic(data))
+			}
+			for name, path := range map[string]string{"wrapper.log": filepath.Join(dir, "wrapper.log"), "receipts.txt": receipts} {
+				data, err := os.ReadFile(path)
+				if err != nil {
+					t.Logf("native %s read: %v", name, err)
+					continue
+				}
+				t.Logf("native %s bytes=%d diagnostic-prefix=%q", name, len(data), nativeEvidenceDiagnostic(data))
+			}
+			t.Log("native failure diagnostics are bounded test-report prefixes; no failure artifacts are retained")
 		}
 		// Console owns accepted children until presentation release. Join it
 		// before killing the private server or disposing any terminal handle.
@@ -241,12 +252,8 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 	waitUpTo(t, 3*time.Second, "original in-memory state", func() bool {
 		return strings.Contains(readReceipts(), "STATE="+boot+":1\n") && strings.Contains(host.childArea(), "persistent-counter=1")
 	})
-	evidenceDir, err := os.MkdirTemp("/tmp", "pair255-native-reattach-")
-	if err != nil {
-		t.Fatal(err)
-	}
 	captureNativeReattachEvidence(t, evidenceDir, "before-detach", child)
-	t.Logf("persistent reattach exact child wire/frame evidence (wrapped=%t): %s", wrapped, evidenceDir)
+	t.Logf("persistent reattach exact child wire/frame scratch (wrapped=%t; removed at test completion): %s", wrapped, evidenceDir)
 	var brokerBinding []byte
 	if wrapped {
 		brokerBinding, err = os.ReadFile(paths.PairWrapPID())
@@ -566,7 +573,8 @@ func assertNativeHighlight(t *testing.T, before, after string, cols, rows int) {
 	t.Fatal("native held selection did not reach independent xterm styles")
 }
 
-// Keep measured baseline limitations reviewable after disposable session cleanup.
+// Exact comparison inputs live only for this invocation; bounded diagnostics
+// belong to the test report, and old explicitly preserved reports stay separate.
 func captureNativeReattachEvidence(t *testing.T, dir, phase string, child *ptychild.Child) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, phase+"-child.raw"), child.Snapshot(), 0600); err != nil {
@@ -616,6 +624,6 @@ func assertNativeReattachFrames(t *testing.T, dir string, cols, rows int) {
 		frames = append(frames, result[0])
 	}
 	if !bytes.Equal(frames[0].Cells, frames[1].Cells) || frames[0].X != frames[1].X || frames[0].Y != frames[1].Y {
-		t.Fatalf("native pre/post viewport cells/styles/cursor differ; exact evidence: %s", dir)
+		t.Fatalf("native pre/post viewport cells/styles/cursor differ; before=%q after=%q", nativeEvidenceDiagnostic(frames[0].Cells), nativeEvidenceDiagnostic(frames[1].Cells))
 	}
 }

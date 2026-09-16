@@ -584,3 +584,31 @@ Retain earlier long-run and timing source attribution. Refresh the isolated
 smoke candidate, commit corrections and rerun the same M4 gate. Operator
 acceptance, issue close and merge stay pending. ARCH-FUNERAL / ARCH-SECURE /
 ARCH-MOCK / ARCH-PURPOSE.
+
+## Revisions — 2026-09-15 M4 review BR-21: conformance evidence lifetime
+
+Round2 disposes BR-19/BR-20 but finds implicit retention in both successful native
+reattachment and failed native fixture evidence. Apply the existing M2 discovery
+ownership rule to the entire conformance writer family (ARCH-FUNERAL / ARCH-PURPOSE):
+all configuration, sockets, captures, receipts and oracle JSON belong to one test
+invocation, and are removed after joined process/PTY teardown on success and
+failure. Diagnostics retained in test output must be bounded; no automatic
+unbounded `/tmp/pair255-native-*` evidence family remains. Existing historical
+qualification logs are preserved as explicitly recorded session evidence.
+
+Enumerate sibling native/PTY/discovery/performance writers; reuse invocation
+storage rather than inventing a second persistent artifact lifecycle. Add cleanup
+regressions for both success and failure, verify bounded diagnostics, and rerun
+native/nvim/broker race checks using the frozen candidate. This changes test
+ownership only; production source, binary hashes and prior soak attribution stay
+unchanged. Commit the corrections and rerun M4 review. Operator smoke/merge remain
+pending.
+
+BR-21 implementation refinement: remove the failure-artifact family entirely;
+failure output retains at most4096 raw bytes per reported capture, escaped by the
+test logger. Successful reattachment comparisons use `testing.T.TempDir` scratch
+allocated before process cleanup registration, so joined teardown runs first.
+The same lifetime holds on a failed invocation. Diagnostic reads/logging cannot
+abort mandatory teardown. Private native/PTY root removal errors are reported.
+Sibling discovery/performance tools already use `TemporaryDirectory`; existing
+PTY socket roots have registered cleanup. No new production surface is introduced.

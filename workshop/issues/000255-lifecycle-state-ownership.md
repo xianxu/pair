@@ -508,3 +508,33 @@ The refreshed private smoke Pair binary is identical to the native-tested binary
 `/tmp/pair255-smoke-gfr6g7pd/build.json` records binary/source hashes. Earlier
 long-run/performance evidence keeps its original source attribution and recorded
 budget exceptions. M4 round2 review is next; operator smoke and merge remain pending.
+
+### 2026-09-15 — M4 review round2: REWORK
+
+BR-19/BR-20 are addressed; independent mutations prove their tests detect disabled
+fixes. New Important BR-21 identifies unbounded native success/failure evidence
+retention. The plan applies invocation ownership to both families and audits
+sibling writers, with cleanup and bounded-output regressions. Test-only correction
+is in progress. Reviewer's native run was blocked by `/dev/tty` sandbox denial in
+both direct and wrapped fixtures; its broad Go run was stopped incomplete. These
+are not counted as passing; our frozen-source full suite and native race×3 remain
+recorded separately. No operator smoke handoff or merge yet.
+
+### 2026-09-15 — BR-21 verification complete
+
+Removed native failure files entirely; bounded diagnostic prefixes go to the test
+report. Successful reattachment's six comparison files use invocation scratch
+registered before process teardown. Success/failure subprocess lifetime tests also
+verify scratch survives owner cleanup and disappears afterwards. Race×3 passes
+(`/tmp/pair255-br21-evidence-green.log`,4.691s); deliberate restoration of unowned
+storage/unbounded diagnostics fails both cleanup cases and the1MiB bound case
+(`/tmp/pair255-br21-evidence-mutation-red.log`). Mutation scratch is itself removed.
+
+Native Zellij/nvim/broker-PTY plus new lifetime checks pass race×1,30.281s
+(`/tmp/pair255-br21-native-race.log`); both native scratch directories were absent
+after completion. Sibling discovery/performance helpers use TemporaryDirectory;
+private native/PTY root cleanup now reports removal errors. Artifact coverage
+passes (`/tmp/pair255-br21-artifact.log`), scoped whitespace is clean, and all424
+production source hashes remain unchanged. Existing candidate is still exactly
+the qualified production binary. Third M4 boundary review is next; operator
+acceptance and merge remain pending.

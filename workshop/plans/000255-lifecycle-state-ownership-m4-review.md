@@ -88,3 +88,89 @@ findings:
     detail: |
       cmd/internal/notifytransport/transport_test.go:361 deliberately holds lockDirectory through a startup timeout, while address.go:54 hardcodes the production UID-wide namespace. Concurrent live wrapper startup or Close can time out; transport.go:135 then abandons artifact cleanup (ARCH-SECURE, ARCH-MOCK). Inject a transport namespace covering both socket addresses and locks, and move all broker fixtures into private temporary storage with cross-namespace isolation coverage.
 ```
+
+---
+
+## Re-review — 2026-09-15T17:51:20-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | 000255-lifecycle-state-ownership |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | milestone M4 |
+| milestone | M4 |
+| window | 12c301ac47491e5ab9fe5128f845961c6b3ab55f..f5449fe5e1ba9dd9037e7ac76d2ea62fb91c81bf |
+| command | sdlc milestone-close --issue 255 --milestone M4 |
+| reviewer | codex |
+| timestamp | 2026-09-15T17:51:20-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-19 and BR-20 are addressed, with regression tests confirmed to fail when their fixes are disabled. The notification and terminal changes have substantial passing coverage. One Important artifact-retention finding blocks this boundary: native conformance creates persistent evidence directories without cleanup or a retention bound. Operator smoke acceptance remains appropriately pending.
+
+```findings
+dispose:
+  - id: BR-19
+    disposition: addressed
+    note: |
+      address.go:244 reclaims dead-owner sockets independently of PID bindings. TestSweepReclaimsCrashSocketWithoutPIDBinding passes; disabling the sweep makes both crash and failed-close cases fail. Live/foreign preservation and capacity tests also pass.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      Socket addresses, locks and sweeps share the injected namespace; Broker.Close retains its admitted root. Cross-namespace coverage passes. Removing namespace injection makes the regression fail before accessing the production lock.
+findings:
+  - id: new
+    severity: Important
+    family: artifact-lifetime-ownership
+    title: |
+      Native conformance evidence accumulates without cleanup or retention bounds
+    detail: |
+      cmd/internal/couchtty/terminal_native_test.go:244 creates a retained directory for each successful direct/wrapped run; line 127 creates another family on failure. Neither has cleanup, a sweep, or a count/age bound. This is the 4th finding in family artifact-lifetime-ownership (ARCH-FUNERAL, ARCH-PURPOSE). Do NOT fix only one allocation: state and enforce the ownership rule across both evidence families and enumerate sibling writers. Prefer invocation-scoped storage and bounded reported diagnostics, or explicit bounded retention, with success/failure cleanup regressions.
+```
+
+1. **Strengths**
+
+   - Dead-socket reclamation checks filename grammar, ownership, file type and owner liveness, independently of binding survival.
+   - Namespace isolation covers publication, routing, contention and teardown, including environment changes after admission.
+   - Wrapper tests exercise byte boundaries, malformed streams and partial writes; Console tests force shutdown/write ordering.
+   - README and atlas describe the changed notification route and qualification limits. The candidate hash matches its manifest; all 424 recorded production source hashes match the checkout.
+
+2. **Critical findings**
+
+   None.
+
+3. **Important findings**
+
+   The evidence directories at `terminal_native_test.go:127` and `:244` outlive their tests without an implemented end. Failure residue was observed during this review; successful retention is unconditional in the code. Apply one retention rule to both families and test cleanup after success and failure.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed: seven affected package suites, focused race suites for transport/terminal/Couch/Pair term, and the local VT fork suite. Both prior-finding mutation checks went red as expected.
+
+   Fresh native conformance was blocked by sandbox denial of `/dev/tty` in both direct and wrapped fixtures. The broad repository run was stopped incomplete; neither is claimed as passing. Earlier sustained-run logs were inspected, not rerun.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared framing and notification mapping.
+   - **ARCH-PURE — pass:** pure transformations remain separate from transport; revised concept classifications match their responsibilities.
+   - **ARCH-PURPOSE — flag:** artifact ownership still omits two evidence families.
+   - **ARCH-MOCK — pass:** stateful CLI fake, controlled IO seams and native conformance coverage.
+   - **ARCH-CONSTRAINTS — pass:** bounded admission and queues; measured latency exceptions are disclosed.
+   - **ARCH-SECURE — pass:** private namespaces and validated binding/socket inputs.
+   - **ARCH-ORDER — pass:** ordered output receipts, partial-write handling and forced shutdown sequences.
+   - **ARCH-FUNERAL — flag:** retained test evidence has no implemented removal policy.
+
+7. **Plan revision recommendations**
+
+   Add a `## Revisions` entry enumerating both native evidence families, their owner, retention limit and removal mechanism. Reconcile this with the existing discovery-artifact rule at plan line 416, which requires invocation cleanup and disallows implicit diagnostic retention.

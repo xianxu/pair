@@ -79,7 +79,11 @@ func TestNotificationPTYConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
+	t.Cleanup(func() {
+		if err := os.RemoveAll(socketDir); err != nil {
+			t.Errorf("remove private notification fixture: %v", err)
+		}
+	})
 	f := newFixture(t, 24, 80)
 	dir := t.TempDir()
 	binding := dir + "/wrapper-pid"
