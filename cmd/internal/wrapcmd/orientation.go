@@ -176,11 +176,40 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 			p.orientation.codexStartupPending = pending
 		}
 	}
-	// The profile recognizer is the single composer authority. Do not repeat
-	// its prompt-glyph check here: Muse's recognizer intentionally accepts
-	// compatible prompt glyphs across UI revisions, and a second exact check
-	// would make orientation disagree with Return remapping.
-	return recognized && !p.orientation.codexStartupPending
+	if !recognized || p.orientation.codexStartupPending {
+		return false
+	}
+	for y := snapshot.Cursor.Y; y >= 0; y-- {
+		cell := snapshot.CellAt(0, y)
+		if cell == nil || strings.TrimSpace(cell.Content) == "" {
+			continue
+		}
+		if !orientationPromptOK(p.agentBasename, cell.Content) {
+			return false
+		}
+		for x := 2; x < snapshot.Width; x++ {
+			c := snapshot.CellAt(x, y)
+			if c == nil || strings.TrimSpace(c.Content) == "" {
+				continue
+			}
+			return c.Content != "/" && c.Content != "!"
+		}
+		return true
+	}
+	return false
+}
+
+func orientationPromptOK(agent, content string) bool {
+	if agent == "muse" {
+		switch content {
+		case "⟩", "›", "❯", ">", "!", "●", "▶", "▸":
+			return true
+		default:
+			return false
+		}
+	}
+	prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">"}[agent]
+	return content == prompt
 }
 
 func (d *orientationDelivery) inputForwarded() bool {
