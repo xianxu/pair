@@ -88,3 +88,11 @@ The live Muse 1.3.0 session disproved the earlier assumption that an active Muse
 ### 2026-09-16 — Muse composer newline mapping clarified
 
 The intended agent-pane contract is not “Muse plain Return submits.” Muse's native composer uses bare Return/CR for submission and Shift+Return for an inserted newline. Pair now translates an intercepted plain Return in a recognized Muse composer to Kitty's Shift+Return sequence `ESC [13;2u`, while Alt+Return remains bare CR. Outside the composer and inside overlays, plain Return remains bare CR. The prior timing fix remains necessary for draft delivery; this change only restores the expected composer editing semantics (`ARCH-PURE`, `ARCH-DRY`).
+
+### 2026-09-16 — startup text falsely armed Muse picker
+
+Live trace showed plain Return was routed as bare CR immediately after `PICKER-open: muse: Enter to select`, while the operator's screenshot showed only the Muse composer and an unrelated Neovim `Press ENTER or type command to continue` prompt in the lower pane. The standalone Muse marker `Enter to select` was too broad and could arm the persistent rolling-tail overlay state from startup/help text. Removed that marker; stronger picker markers remain, and added a regression test (`ARCH-CONSTRAINTS`, `ARCH-DRY`). Focused overlay, Muse, and translation tests pass. The full wrapcmd suite still has the pre-existing notification startup-hook timing failure in `TestNotificationBrokerBeforeExecAndCleanup`.
+
+### 2026-09-16 — remove disproven paste-submit interception
+
+The earlier bracketed-paste Alt+Return interception was unnecessary: live tracing showed the draft body write and submit arrived as separate reads, while the interception reinterpreted arbitrary paste payload as a trusted submit. Removed that translator branch and its coalesced-paste tests; retained the confirmed 100 ms settle after every draft body write as the delivery-order fix (`ARCH-SECURE`, `ARCH-ORDER`).

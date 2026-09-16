@@ -155,32 +155,6 @@ func TestTranslateChunk(t *testing.T) {
 			wantOut:  []byte("hi"),
 			wantHold: []byte("\x1b[127;3"),
 		},
-		{
-			name:    "Alt+Enter inside bracketed paste is still a submit",
-			in:      []byte("\x1b[200~hello\x1b[201~\x1b\r"),
-			wantOut: []byte("\x1b[200~hello\x1b[201~\r"),
-		},
-		{
-			name:    "KKP Alt+Enter inside bracketed paste is still a submit",
-			in:      []byte("\x1b[200~hello\x1b[201~\x1b[13;3u"),
-			wantOut: []byte("\x1b[200~hello\x1b[201~\r"),
-		},
-		{
-			name:      "Alt+Enter with paste end in same chunk before submit",
-			in:        []byte("\x1b[200~pasted\x1b[201~X\x1b\r"),
-			wantOut:   []byte("\x1b[200~pasted\x1b[201~X\r"),
-			wantPaste: false,
-		},
-		{
-			name:    "Alt+Enter before paste end is still a submit (draft coalesce)",
-			in:      []byte("\x1b[200~hello\x1b\r\x1b[201~"),
-			wantOut: []byte("\x1b[200~hello\r\x1b[201~"),
-		},
-		{
-			name:    "KKP Alt+Enter before paste end is still a submit",
-			in:      []byte("\x1b[200~hello\x1b[13;3u\x1b[201~"),
-			wantOut: []byte("\x1b[200~hello\r\x1b[201~"),
-		},
 	}
 
 	t.Run("codex keymap", func(t *testing.T) {
