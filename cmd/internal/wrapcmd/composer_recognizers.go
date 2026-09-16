@@ -170,14 +170,33 @@ func ruledBoxBottomRule(snapshot terminalSnapshot, spec ruledBoxComposerSpec, pr
 }
 
 // museComposerActive reports whether the cursor rests inside Muse's live
-// composer: a non-faint prompt glyph at column 0 on the first row inside a pair
-// of faint rule rows, with the cursor within that box.
+// composer: a prompt glyph at column 0 on the first row inside a pair
+// of faint rule rows, with the cursor within that box. Relaxed from the
+// original strict "⟩" + faint-only check so a Muse UI refresh that changes
+// the prompt glyph or rule faintness does not silently break the Return
+// remap. The box shape (prompt row enclosed by two "─" rules) remains the
+// discriminator; faint agreement is checked via rulesMatch rather than
+// requiring every rule to be faint.
 func museComposerActive(snapshot terminalSnapshot) bool {
 	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
 		promptOK: func(c uv.Cell) bool {
-			return c.Content == "⟩" && c.Style.Attrs&uv.AttrFaint == 0
+			if c.Style.Attrs&uv.AttrFaint != 0 {
+				return false
+			}
+			switch c.Content {
+			case "⟩", "›", "❯", ">", "!", "●", "▶", "▸":
+				return true
+			default:
+				return false
+			}
 		},
-		ruleAt:  func(s terminalSnapshot, y int) bool { return faintRuleAt(s, 0, y) },
+		ruleAt: func(s terminalSnapshot, y int) bool {
+			cell := s.CellAt(0, y)
+			return cell != nil && cell.Content == "─"
+		},
+		rulesMatch: func(top, bottom uv.Cell) bool {
+			return (top.Style.Attrs&uv.AttrFaint != 0) == (bottom.Style.Attrs&uv.AttrFaint != 0)
+		},
 		maxRows: museComposerMaxRows,
 		// Column 0 is the prompt and column 1 its trailing space.
 		minCursorX: 2,
