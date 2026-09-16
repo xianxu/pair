@@ -638,3 +638,16 @@ source changes bundled into #255 for that report. The old mouse-trace warning wa
 traced to content/metadata divergence after a legacy writer; old evidence was
 preserved and a fresh trace path supplied. Existing performance exceptions remain
 visible. Proceed through issue close and publish gates.
+
+## Revisions — 2026-09-15 whole-issue close BR-23: enforce native CI coverage
+
+The whole-issue close review disposed BR-22 but found that the M4 checklist
+claimed CI delivery while the existing scheduled/PR workflow only ran lifecycle
+conformance. Local native passes do not establish CI execution (ARCH-PURPOSE /
+ARCH-MOCK). Wire the new terminal native suites through a repeatable target with
+an explicitly fresh candidate, strict opt-in flags, native and independent-oracle
+dependencies, and triggers covering the terminal/backend/consumer sources. Keep
+existing lifecycle coverage. Missing dependencies, missing test execution or
+skipped required suites must fail qualification; verify the exact target locally.
+This is test/CI delivery only, not a product behavior change. Record actual
+execution and then retry issue close before the authorized merge.

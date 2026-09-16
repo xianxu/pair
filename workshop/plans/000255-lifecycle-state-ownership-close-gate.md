@@ -425,9 +425,25 @@ rounds:
           round: 15
       boundary: M4
       blocked: false
+    - "n": 16
+      timestamp: "2026-09-15T18:34:01-07:00"
+      agent: codex
+      dispose:
+        - id: BR-22
+          disposition: addressed
+          note: The pinned correction updates atlas/architecture.md:743-748, wrapcmd/wrap.go:10-12 and bin/pair-notify:13 together. Current descriptions name the wrapper broker and serialized pane output; outer-TTY references describe compatibility metadata. notifycmd/run.go:34-40 and wrapcmd/wrap.go:730-736 support those descriptions. This correction changes prose/comments only.
+          round: 16
+      findings:
+        - id: BR-23
+          severity: Important
+          title: Claimed native terminal CI coverage is not wired into any workflow
+          detail: workshop/plans/000255-terminal-abstraction-plan.md:107 marks native terminal CI complete, but .github/workflows/couch-zellij-conformance.yml:108 invokes Makefile.local:83-86, which runs only lifecycle suites. cmd/internal/couchtty/terminal_native_test.go:30 skips without PAIR_LIVE_COUCH_NATIVE=1, and no CI entrypoint supplies that flag or PAIR_NATIVE_BINARY. Wire the native terminal suites into CI with dependencies, a freshly built candidate and relevant source triggers; verify actual execution rather than skips. ARCH-PURPOSE and ARCH-MOCK.
+          family: conformance-ci-enforcement
+          round: 16
+      blocked: true
 ---
 
-# Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
+# Gate ledger — pair#255 (boundary-review)
 
 Findings this gate raised, the stable ids the binary assigned them, and how
 later rounds disposed of them. Generated — edit the gate, not this file.
@@ -623,6 +639,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-22** [Minor] `documentation-surface-accuracy` Notification documentation still contains the retired outer-TTY route
   atlas/architecture.md:743-748, cmd/internal/wrapcmd/wrap.go:10-12 and bin/pair-notify:13 contradict the implemented broker/serialized-output route (ARCH-PURPOSE). This is the 2nd finding in family documentation-surface-accuracy. State the current-route documentation rule and sweep these sibling passages together, preserving outer-TTY references only where they describe compatibility metadata.
 
+## Round 16 — 2026-09-15T18:34:01-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-22 — addressed — The pinned correction updates atlas/architecture.md:743-748, wrapcmd/wrap.go:10-12 and bin/pair-notify:13 together. Current descriptions name the wrapper broker and serialized pane output; outer-TTY references describe compatibility metadata. notifycmd/run.go:34-40 and wrapcmd/wrap.go:730-736 support those descriptions. This correction changes prose/comments only.
+
+### Raised
+
+- **BR-23** [Important] `conformance-ci-enforcement` Claimed native terminal CI coverage is not wired into any workflow
+  workshop/plans/000255-terminal-abstraction-plan.md:107 marks native terminal CI complete, but .github/workflows/couch-zellij-conformance.yml:108 invokes Makefile.local:83-86, which runs only lifecycle suites. cmd/internal/couchtty/terminal_native_test.go:30 skips without PAIR_LIVE_COUCH_NATIVE=1, and no CI entrypoint supplies that flag or PAIR_NATIVE_BINARY. Wire the native terminal suites into CI with dependencies, a freshly built candidate and relevant source triggers; verify actual execution rather than skips. ARCH-PURPOSE and ARCH-MOCK.
+
 ## Open findings
 
-- **BR-22** [Minor] `documentation-surface-accuracy` Notification documentation still contains the retired outer-TTY route
+- **BR-23** [Important] `conformance-ci-enforcement` Claimed native terminal CI coverage is not wired into any workflow

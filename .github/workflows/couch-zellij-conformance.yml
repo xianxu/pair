@@ -23,6 +23,23 @@ on:
       - "cmd/internal/couchcmd/shortcut_conformance_live_test.go"
       - "cmd/internal/workbenchshortcut/**"
       - "cmd/internal/wrapcmd/**"
+      - "cmd/internal/terminal/**"
+      - "cmd/internal/terminalqualify/**"
+      - "cmd/internal/ptychild/**"
+      - "cmd/internal/ttyio/**"
+      - "cmd/internal/hostty/**"
+      - "cmd/internal/notifytransport/**"
+      - "cmd/internal/notifycmd/**"
+      - "cmd/internal/termcmd/**"
+      - "cmd/internal/couchtty/**"
+      - "cmd/internal/couchcore/**"
+      - "cmd/internal/runtimebundle/**"
+      - "cmd/pair-go/**"
+      - "third_party/vt/**"
+      - "tests/terminal-oracle/**"
+      - "tests/native-terminal-ci*.py"
+      - "go.mod"
+      - "go.sum"
       - "cmd/internal/couchtty/keys*.go"
       - "cmd/internal/couchtty/console*.go"
       - "nvim/**"
@@ -68,6 +85,23 @@ on:
       - "cmd/internal/couchcmd/shortcut_conformance_live_test.go"
       - "cmd/internal/workbenchshortcut/**"
       - "cmd/internal/wrapcmd/**"
+      - "cmd/internal/terminal/**"
+      - "cmd/internal/terminalqualify/**"
+      - "cmd/internal/ptychild/**"
+      - "cmd/internal/ttyio/**"
+      - "cmd/internal/hostty/**"
+      - "cmd/internal/notifytransport/**"
+      - "cmd/internal/notifycmd/**"
+      - "cmd/internal/termcmd/**"
+      - "cmd/internal/couchtty/**"
+      - "cmd/internal/couchcore/**"
+      - "cmd/internal/runtimebundle/**"
+      - "cmd/pair-go/**"
+      - "third_party/vt/**"
+      - "tests/terminal-oracle/**"
+      - "tests/native-terminal-ci*.py"
+      - "go.mod"
+      - "go.sum"
       - "cmd/internal/couchtty/keys*.go"
       - "cmd/internal/couchtty/console*.go"
       - "nvim/**"
@@ -97,12 +131,38 @@ on:
 jobs:
   conformance:
     runs-on: macos-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - name: Install zellij
-        run: brew install zellij
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install native applications
+        run: |
+          brew install neovim
+          case "$(uname -m)" in
+            arm64) arch=aarch64 ;;
+            x86_64) arch=x86_64 ;;
+            *) echo "Unsupported Darwin architecture" >&2; exit 1 ;;
+          esac
+          asset="zellij-${arch}-apple-darwin"
+          install_dir="$RUNNER_TEMP/pair-zellij-0.45.1"
+          mkdir -p "$install_dir"
+          cd "$install_dir"
+          curl -fsSLO "https://github.com/zellij-org/zellij/releases/download/v0.45.1/${asset}.tar.gz"
+          curl -fsSLO "https://github.com/zellij-org/zellij/releases/download/v0.45.1/${asset}.sha256sum"
+          tar -xzf "${asset}.tar.gz"
+          # Upstream checksum names its build-tree binary, not the archive.
+          expected=$(cut -d " " -f 1 "${asset}.sha256sum")
+          echo "$expected  zellij" | shasum -a 256 -c -
+          echo "$install_dir" >> "$GITHUB_PATH"
+      - name: Exercise native terminal, nvim, and notification PTY conformance
+        run: make -f Makefile.local test-native-terminal-ci
       - name: Exercise Zellij teardown, continuation transport, and shortcut input
         run: make -f Makefile.local test-couch-zellij-live

@@ -97,3 +97,13 @@ provably dead same-UID socket owners independently of PID-binding survival,
 covering crash followed by launcher or artifact-GC cleanup. Live, unknown and
 foreign entries survive; the1024-entry namespace capacity refuses admission
 explicitly rather than permitting unbounded crash residue.
+
+## Native CI qualification
+
+`make -f Makefile.local test-native-terminal-ci` builds a fresh temporary Pair
+candidate and runs native Couch/Zellij direct and wrapped paths, nvim, scrolling
+and broker-PTY checks under the race detector. Its test-event gate rejects missing
+or skipped required tests. `.github/workflows/couch-zellij-conformance.yml` runs
+this alongside existing lifecycle conformance, installing the pinned native and
+independent-oracle dependencies. Terminal, backend, consumer, runtime and oracle
+source paths trigger it. Temporary state is removed after the invocation.

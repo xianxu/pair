@@ -318,3 +318,21 @@ Mouse-trace startup warning was diagnosed as old log content diverging from its
 retention metadata (357929 actual bytes vs194506 recorded); no log was deleted.
 No production code changed after M4 except its already-recorded comment sweep.
 Proceed to issue close and merge; performance limitations remain documented.
+
+### 2026-09-15 — BR-23 native CI delivery verified
+
+The macOS workflow now pins Zellij0.45.1 (official architecture-specific release
+and extracted-binary checksum), installs nvim/Node/Python, retains existing
+lifecycle conformance and runs `make -f Makefile.local test-native-terminal-ci`.
+Both PR and main source triggers include terminal/backend/consumer/transport/
+runtime/oracle changes. The target builds a fresh invocation-owned candidate,
+sets explicit native gates, runs the race suite and requires all six named test/
+subtest pass events, rejecting missing/skipped/failed coverage.
+
+Exact target passes29.250s (`/tmp/pair255-br23-native-ci.log`), including direct
+and wrapped Zellij, nvim, scrolling and broker-PTY. Five gate/cleanup tests pass;
+disabling validation makes four tests fail. The driver joins its process group
+on errors/interruption before scratch removal. Artifact/runtime guards pass
+(`/tmp/pair255-br23-artifact-runtime.log`); documentation and workflow whitespace
+checks pass. README/atlas describe the actual entrypoint. No product behavior
+changed. Retry whole-issue close, then proceed with authorized publication.

@@ -1,5 +1,12 @@
 # Lessons
 
+## Opt-in conformance is not CI coverage until invoked (#255 close BR-23)
+
+A test file and local green log do not fulfill a CI promise. Follow the workflow
+to its actual target, flags, fresh binary and dependencies; cover relevant source
+triggers and require evidence that required tests ran rather than skipped.
+ARCH-PURPOSE / ARCH-MOCK.
+
 ## Route migrations require a documentation consumer sweep (#255 M4)
 
 Search diagnostic tables, helper comments and hook instructions as well as the

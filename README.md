@@ -820,6 +820,19 @@ PAIR_LIVE_COUCH_NATIVE=1 PAIR_LIVE_COUCH=1 \
   -count=1 -timeout=2m -v
 ```
 
+CI runs these native checks, plus broker-PTY conformance, through a strict target:
+
+```sh
+make -f Makefile.local test-native-terminal-ci
+```
+
+The target builds a fresh temporary candidate and rejects missing or skipped
+required tests. It needs Go, Python, Node with the pinned `tests/terminal-oracle`
+dependencies, nvim and Zellij. The macOS `couch-zellij-conformance` workflow
+installs the dependencies, pins Zellij 0.45.1, and invokes the target on relevant
+pull requests, main changes, scheduled runs and manual dispatch. Scratch state
+is invocation-owned; native checks do not attach operator sessions.
+
 `tests/terminal-performance.py --help` describes isolated baseline/candidate
 measurements using real Pair terminal processes and independent screen receipts.
 Those timings include interpreter IPC and parsing; measured resource figures are
