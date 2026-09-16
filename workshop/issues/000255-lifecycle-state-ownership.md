@@ -1,12 +1,13 @@
 ---
 id: 000255
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-15
 estimate_hours: 18.025
 started: 2026-09-15T09:20:10-07:00
+actual_hours: 25.48
 ---
 
 # Establish a faithful terminal abstraction for Couch and Pair
@@ -98,6 +99,7 @@ The primary acceptance is operator-visible: the ongoing display corruption and m
 ## Log
 
 ### 2026-09-15 — M3 migration in progress
+- 2026-09-15: closed — Operator accepted isolated and usual-local-setup smoke and authorized merge with later issues fixed forward (#259). M1-M4 SHIP; BR-23 CI correction runs exact strict native target successfully (29.250s, all six required test/subtest passes), five gate/cleanup tests green and disabled-validation mutations red; artifact/runtime guards pass. Previous full Go/fork/race/native and attributed 30-minute soaks remain recorded. Performance exceptions switch p95 101-115ms versus100ms and active-output CPU are explicit. No product behavior changed after accepted M4; corrected CI delivery and docs.; review verdict: SHIP
 - 2026-09-15: closed M4 — BR-19/20 disposed by round2. BR-21 test-only correction passes lifetime race x3 and strict native Zellij/nvim/broker-PTY race x1; success/failure cleanup mutations fail as intended, actual scratch absent post-run. Artifact suite passes; all 424 production hashes unchanged. Prior full Go and strict native race x3 pass on same production source; prior 30-minute soaks retain exact attribution. Performance exception: post-history switch p95 101-115ms versus provisional 100ms and active-output CPU increase documented. Precise no-actual exception: cumulative attribution across ten issues supplies no defensible M4 increment; do not guess. Operator smoke and merge pending.; review verdict: SHIP
 - 2026-09-15: closed M3 — BR16-18 corrected after prior BR13-15 disposition. Red invalid resize panic now rejected before allocation with view/input preserved; shared terminal+qualification+term native/oracle race passed (/tmp/pair255-br16-final-race.log). Teardown failure reproduced2/50 then100normal+100race+100late-presentation repetitions and full Couch/term race passed (/tmp/pair255-br17-*.log). Geometry/clone entrypoints and both consumer teardown suites swept; stale harness guide corrected. Prior full Go, fork, compiler, wrapper, Lua/shell/Linux evidence logged; source whitespace clean, generated review has Markdown hard breaks. No measured per-milestone increment available; whole-window0.61h not substituted. M4 history latency correction, longruns and operator smoke remain pending.; review verdict: SHIP
 
@@ -590,3 +592,7 @@ on errors/interruption before scratch removal. Artifact/runtime guards pass
 (`/tmp/pair255-br23-artifact-runtime.log`); documentation and workflow whitespace
 checks pass. README/atlas describe the actual entrypoint. No product behavior
 changed. Retry whole-issue close, then proceed with authorized publication.
+
+### 2026-09-15 — Whole-issue close SHIP
+
+Second close round SHIP, window `c01ec7c6..85fded93`; all23 findings addressed. SDLC adopted measured actual25.48h. Operator acceptance is recorded; proceeding to the deterministic publish gate and PR merge.

@@ -77,3 +77,115 @@ findings:
     detail: |
       workshop/plans/000255-terminal-abstraction-plan.md:107 marks native terminal CI complete, but .github/workflows/couch-zellij-conformance.yml:108 invokes Makefile.local:83-86, which runs only lifecycle suites. cmd/internal/couchtty/terminal_native_test.go:30 skips without PAIR_LIVE_COUCH_NATIVE=1, and no CI entrypoint supplies that flag or PAIR_NATIVE_BINARY. Wire the native terminal suites into CI with dependencies, a freshly built candidate and relevant source triggers; verify actual execution rather than skips. ARCH-PURPOSE and ARCH-MOCK.
 ```
+
+---
+
+## Re-review — 2026-09-15T18:42:21-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 255 — Establish a faithful terminal abstraction for Couch and Pair |
+| repo | pair |
+| issue file | workshop/issues/000255-lifecycle-state-ownership.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | c01ec7c67637040feb371c3aeb32d24b6c9ce002..85fded9312e4e5f04a466fe411449ec4221ddf64 |
+| command | sdlc close --issue 255 |
+| reviewer | codex |
+| timestamp | 2026-09-15T18:42:21-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+BR-23 is addressed: the workflow invokes native conformance with dependencies, a fresh candidate, explicit opt-ins, and enforcement against skipped or missing tests. No new blocking defect was found. Independent verification was partially limited by the sandbox denying `/dev/tty` access; the retained execution log records the complete native pass.
+
+1. **Strengths**
+   - CI invokes the new target while retaining lifecycle coverage (`.github/workflows/couch-zellij-conformance.yml:165`).
+   - Execution validation requires six named pass events and rejects skips/failures (`tests/native-terminal-ci.py:24`).
+   - Mutation verification confirms the validator matters: disabling it produced four failed assertions.
+   - README and atlas document the actual entrypoint and dependencies.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None raised.
+
+5. **Test coverage**
+   - Five Python gate/cleanup tests passed.
+   - Eleven relevant Go packages and the vendored VT suite passed.
+   - Terminal, PTY-child, and transport race suites passed.
+   - Native nvim, scrolling, and notification PTY tests passed independently.
+   - Direct/wrapped Zellij fixtures executed but failed because this sandbox denied opening `/dev/tty`. The inspected `/tmp/pair255-br23-native-ci.log` records all six required pass events and the execution validator’s success. This is retained evidence, not an independently reproduced complete pass.
+   - The full pinned-range whitespace check reports Markdown hard-break trailing spaces in an earlier review artifact.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** Couch and Pair term use shared endpoint/presenter ownership.
+   - **ARCH-PURE — pass:** view transitions remain pure; backend and transport are explicitly integration components.
+   - **ARCH-PURPOSE — pass:** native CI coverage now reaches the promised suites and rejects absent execution.
+   - **ARCH-MOCK — pass:** stateful transport tests complement native conformance; the scheduled workflow supplies the live check.
+   - **ARCH-CONSTRAINTS — pass:** bounded queues, geometry validation, write deadlines, and CI timeouts are present.
+   - **ARCH-SECURE — pass:** native fixtures isolate session state; candidate paths are explicit.
+   - **ARCH-ORDER — pass:** presenter state mutation passes through its transition function; forced-order and partial-write coverage exercises ownership.
+   - **ARCH-FUNERAL — pass:** endpoint/publication teardown and invocation-owned candidate/evidence cleanup have explicit owners.
+
+7. **Plan revisions:** None required. The appended BR-23 revision matches the delivered CI change.
+
+Earlier disposed findings retain their supplied dispositions; none is reopened.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+  - id: BR-2
+    disposition: addressed
+  - id: BR-3
+    disposition: addressed
+  - id: BR-4
+    disposition: addressed
+  - id: BR-5
+    disposition: addressed
+  - id: BR-6
+    disposition: addressed
+  - id: BR-7
+    disposition: addressed
+  - id: BR-8
+    disposition: addressed
+  - id: BR-9
+    disposition: addressed
+  - id: BR-10
+    disposition: addressed
+  - id: BR-11
+    disposition: addressed
+  - id: BR-12
+    disposition: addressed
+  - id: BR-13
+    disposition: addressed
+  - id: BR-14
+    disposition: addressed
+  - id: BR-15
+    disposition: addressed
+  - id: BR-16
+    disposition: addressed
+  - id: BR-17
+    disposition: addressed
+  - id: BR-18
+    disposition: addressed
+  - id: BR-19
+    disposition: addressed
+  - id: BR-20
+    disposition: addressed
+  - id: BR-21
+    disposition: addressed
+  - id: BR-22
+    disposition: addressed
+  - id: BR-23
+    disposition: addressed
+    note: |
+      Workflow lines 140–166 install dependencies and invoke the native target; tests/native-terminal-ci.py:63–83 builds a fresh candidate, enables both native flags, and requires six pass events. Five regression tests pass; disabling validation produces four failures. Retained execution evidence records the complete native pass. Independent rerun passed nvim, scrolling, and notification PTY checks but Zellij fixtures encountered sandbox-denied /dev/tty access.
+```

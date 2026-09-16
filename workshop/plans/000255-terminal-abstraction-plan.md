@@ -106,7 +106,7 @@ Known candidate gaps must be reproduced, fixed via maintained upstream changes o
 - [x] Compare baseline/candidate startup, sustained output CPU/memory, redraw throughput, switch latency and idle mouse movement; verify the provisional budgets established in M1 before rollout; M4 must not be the first point where acceptable bounds are decided.
 - [x] Run full Go/race and existing Lua/shell/shortcut/retention suites appropriate to integration; add isolated native terminal conformance to CI.
 - [x] Smoke-test an isolated candidate before any operator runtime replacement; document capabilities, failure/recovery and diagnostics in atlas/README.
-- [ ] Close and publish #255 only when both consumers satisfy the declared terminal contract.
+- [x] Close #255 after both consumers pass qualification and the operator accepts smoke; publication follows through the SDLC merge gate.
 
 ## Bounds, failure and artifacts
 
@@ -651,3 +651,7 @@ existing lifecycle coverage. Missing dependencies, missing test execution or
 skipped required suites must fail qualification; verify the exact target locally.
 This is test/CI delivery only, not a product behavior change. Record actual
 execution and then retry issue close before the authorized merge.
+
+## Revisions — 2026-09-15 close accepted; publication gate next
+
+Whole-issue close SHIP after two rounds; all23 findings addressed. The final checklist row distinguishes completed local acceptance from the following publish operation. Operator authorized merge; SDLC owns publication and archival.

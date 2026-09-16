@@ -441,6 +441,81 @@ rounds:
           family: conformance-ci-enforcement
           round: 16
       blocked: true
+    - "n": 17
+      timestamp: "2026-09-15T18:42:21-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          round: 17
+        - id: BR-2
+          disposition: addressed
+          round: 17
+        - id: BR-3
+          disposition: addressed
+          round: 17
+        - id: BR-4
+          disposition: addressed
+          round: 17
+        - id: BR-5
+          disposition: addressed
+          round: 17
+        - id: BR-6
+          disposition: addressed
+          round: 17
+        - id: BR-7
+          disposition: addressed
+          round: 17
+        - id: BR-8
+          disposition: addressed
+          round: 17
+        - id: BR-9
+          disposition: addressed
+          round: 17
+        - id: BR-10
+          disposition: addressed
+          round: 17
+        - id: BR-11
+          disposition: addressed
+          round: 17
+        - id: BR-12
+          disposition: addressed
+          round: 17
+        - id: BR-13
+          disposition: addressed
+          round: 17
+        - id: BR-14
+          disposition: addressed
+          round: 17
+        - id: BR-15
+          disposition: addressed
+          round: 17
+        - id: BR-16
+          disposition: addressed
+          round: 17
+        - id: BR-17
+          disposition: addressed
+          round: 17
+        - id: BR-18
+          disposition: addressed
+          round: 17
+        - id: BR-19
+          disposition: addressed
+          round: 17
+        - id: BR-20
+          disposition: addressed
+          round: 17
+        - id: BR-21
+          disposition: addressed
+          round: 17
+        - id: BR-22
+          disposition: addressed
+          round: 17
+        - id: BR-23
+          disposition: addressed
+          note: Workflow lines 140–166 install dependencies and invoke the native target; tests/native-terminal-ci.py:63–83 builds a fresh candidate, enables both native flags, and requires six pass events. Five regression tests pass; disabling validation produces four failures. Retained execution evidence records the complete native pass. Independent rerun passed nvim, scrolling, and notification PTY checks but Zellij fixtures encountered sandbox-denied /dev/tty access.
+          round: 17
+      blocked: false
 ---
 
 # Gate ledger — pair#255 (boundary-review)
@@ -650,6 +725,34 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-23** [Important] `conformance-ci-enforcement` Claimed native terminal CI coverage is not wired into any workflow
   workshop/plans/000255-terminal-abstraction-plan.md:107 marks native terminal CI complete, but .github/workflows/couch-zellij-conformance.yml:108 invokes Makefile.local:83-86, which runs only lifecycle suites. cmd/internal/couchtty/terminal_native_test.go:30 skips without PAIR_LIVE_COUCH_NATIVE=1, and no CI entrypoint supplies that flag or PAIR_NATIVE_BINARY. Wire the native terminal suites into CI with dependencies, a freshly built candidate and relevant source triggers; verify actual execution rather than skips. ARCH-PURPOSE and ARCH-MOCK.
 
+## Round 17 — 2026-09-15T18:42:21-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed
+- BR-2 — addressed
+- BR-3 — addressed
+- BR-4 — addressed
+- BR-5 — addressed
+- BR-6 — addressed
+- BR-7 — addressed
+- BR-8 — addressed
+- BR-9 — addressed
+- BR-10 — addressed
+- BR-11 — addressed
+- BR-12 — addressed
+- BR-13 — addressed
+- BR-14 — addressed
+- BR-15 — addressed
+- BR-16 — addressed
+- BR-17 — addressed
+- BR-18 — addressed
+- BR-19 — addressed
+- BR-20 — addressed
+- BR-21 — addressed
+- BR-22 — addressed
+- BR-23 — addressed — Workflow lines 140–166 install dependencies and invoke the native target; tests/native-terminal-ci.py:63–83 builds a fresh candidate, enables both native flags, and requires six pass events. Five regression tests pass; disabling validation produces four failures. Retained execution evidence records the complete native pass. Independent rerun passed nvim, scrolling, and notification PTY checks but Zellij fixtures encountered sandbox-denied /dev/tty access.
+
 ## Open findings
 
-- **BR-23** [Important] `conformance-ci-enforcement` Claimed native terminal CI coverage is not wired into any workflow
+(none — every finding has been disposed)
