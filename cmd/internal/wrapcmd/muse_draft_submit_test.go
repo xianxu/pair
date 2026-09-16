@@ -53,6 +53,35 @@ func TestMuseDraftAltEnterSubmission(t *testing.T) {
 	}
 }
 
+// TestMuseDraftBodyPasteStaysLiteral pins the non-behavior for the profile the
+// regression was found on. Zellij wraps the draft's write-chars body in a
+// bracketed paste, and Muse enables ?2004h — so anything the translator emits
+// between the markers arrives as pasted text, including a CR. The translator
+// must therefore forward an Alt+Enter chord inside that window verbatim rather
+// than "helpfully" turning it into a submit that cannot be one (#266).
+func TestMuseDraftBodyPasteStaysLiteral(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		in   []byte
+	}{
+		{name: "legacy chord", in: []byte("\x1b[200~ok\x1b\r\x1b[201~")},
+		{name: "KKP chord", in: []byte("\x1b[200~ok\x1b[13;3u\x1b[201~")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newHarnessSessionFake(t, "muse", true)
+			defer f.close()
+			f.output(musePaintedComposer("⟩"))
+			out, leftover, inPaste := f.proxy.translateChunk(tc.in, false)
+			if !bytes.Equal(out, tc.in) {
+				t.Fatalf("paste window rewritten: got %q, want %q", out, tc.in)
+			}
+			if len(leftover) != 0 || inPaste {
+				t.Fatalf("leftover=%q paste=%v after a complete paste", leftover, inPaste)
+			}
+		})
+	}
+}
+
 // TestMuseAgentPaneReturn verifies that Muse uses Shift+Return for plain input
 // inside its composer and bare CR for Alt+Return or picker confirmation.
 func TestMuseAgentPaneReturn(t *testing.T) {

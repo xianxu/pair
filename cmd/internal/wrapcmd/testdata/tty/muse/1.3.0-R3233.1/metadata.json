@@ -5,6 +5,7 @@
   "command": ["muse"],
   "files": {
     "composer.raw": "359ca6438e082c69ee674352169f4d50ab410de7c54ee127cf4613c900ca7041",
-    "menu.raw": "29fb1b7b6e842b422f00be55d31b5d03ddc0cc459055fa6fbdfcdcf2c57edf89"
+    "menu.raw": "29fb1b7b6e842b422f00be55d31b5d03ddc0cc459055fa6fbdfcdcf2c57edf89",
+    "shortcuts.raw": "58db748f8a7f27e7b5fbcf0b5ed7a207a08fc99b75c3a968e87bb68956519808"
   }
 }

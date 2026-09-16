@@ -718,6 +718,12 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 	"muse": {
 		{name: "slash menu", send: "/", until: "Clear terminal",
 			wantComposer: true, file: "menu.raw"},
+		// The shortcut sheet is documentary: it is Muse stating its own key
+		// contract ("shift + enter for newline", "enter to submit message"),
+		// which is the contract this profile's inverted keymap exists to match.
+		// It also paints below the box, so the gate stays open here too.
+		{name: "shortcut sheet", send: "?", until: "to submit message",
+			wantComposer: true, file: "shortcuts.raw"},
 	},
 	"agy": {
 		// The shortcut sheet replaces the composer entirely.

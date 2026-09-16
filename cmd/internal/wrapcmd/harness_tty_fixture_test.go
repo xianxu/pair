@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -145,6 +146,31 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 			t.Errorf("%s has neither a discriminating negative nor a ttyFixtureDiscriminationGaps entry", harness)
 		}
 	}
+
+	// A `menu.raw: true` expectation says the gate deliberately stays OPEN on a
+	// menu screen, which makes what the harness does with the remapped Return
+	// the whole question — and that is the one thing no fixture replay can
+	// answer. So each such harness must either press Return in a driven
+	// scenario or carry a reaction-gap entry; a comment asserting the outcome
+	// is not evidence (#266 close BR-14).
+	for harness, files := range ttyFixtureExpectation {
+		if harness == "" || !anyOpenGateScreen(files) {
+			continue
+		}
+		reason, acknowledged := ttyFixtureReactionGaps[harness]
+		driven := drivenReturnOnOpenGateScreen(harness, files)
+		switch {
+		case driven && acknowledged:
+			t.Errorf("%s now drives Return on its menu capture; drop its ttyFixtureReactionGaps entry (%q)", harness, reason)
+		case !driven && !acknowledged:
+			t.Errorf("%s keeps its gate open on a non-composer screen with no driven Return and no ttyFixtureReactionGaps entry: drive it, or record what is unproven", harness)
+		}
+	}
+	for harness := range ttyFixtureReactionGaps {
+		if _, ok := harnessTTYProfiles[harness]; !ok {
+			t.Errorf("ttyFixtureReactionGaps names %q, which has no profile", harness)
+		}
+	}
 }
 
 // ttyFixtureNegativeGaps records positively gated harnesses with no captured
@@ -154,6 +180,42 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 var ttyFixtureNegativeGaps = map[string]string{
 	"claude": "Claude's declining state is its permission prompt. A child spawned from an agent session inherits auto-approve mode — verified 2026-08-20: the child ran Bash(uptime) and returned output with no prompt, despite `uptime` not being allowlisted — so the prompt is unreachable from here. The route is registered as the `permission prompt` scenario in harnessTTYDrivenScenarios; run it from a plain terminal with default (ask) permissions to capture overlay.raw.",
 	"muse":   "Muse's slash menu and `?` shortcut sheet were both driven live on 1.3.0-R3233.1 (see harnessTTYDrivenScenarios) and neither declines: each paints below the composer box and leaves it intact, so menu.raw is discrimination evidence rather than a negative. The remaining declining state is a tool-approval dialog, which needs a real tool call; capture overlay.raw when one is available.",
+}
+
+// ttyFixtureReactionGaps records claims about how a harness REACTS to bytes we
+// emit that are not backed by a capture or a live drive. A gate's decision can
+// be replayed from a fixture; what the harness then does with the remapped key
+// cannot, so such a claim either gets driven or gets recorded here. An entry
+// names the screen, the unproven reaction, and how to drive it.
+var ttyFixtureReactionGaps = map[string]string{
+	"muse":   "muse/1.3.0-R3233.1/menu.raw pins that plain Return on the slash menu emits Shift+Return, but nobody has pressed it there: whether Muse leaves the highlighted command unpicked (the Agy tradeoff) or acts on it is undriven.",
+	"agy":    "the agy menu.raw comment states that Agy inserts a newline on LF there rather than selecting. That is an observation from reading the screen, not a driven result; the keystroke was never sent.",
+	"claude": "claude/2.1.237/menu.raw pins that the gate stays open on the slash menu, so plain Return remaps to Claude's newline there. What Claude does with it — and with a Return in bash mode — is undriven.",
+}
+
+// drivenReturnScenario reports whether a harness has a driven scenario that
+// actually presses Return on the screen a fixture file captures. That is the
+// only thing that retires a reaction gap: a fixture replay can prove what the
+// wrapper emits, never what the harness makes of it.
+func drivenReturnOnOpenGateScreen(harness string, files map[string]bool) bool {
+	for _, scenario := range harnessTTYDrivenScenarios[harness] {
+		if files[scenario.file] && scenario.file != "composer.raw" && strings.Contains(scenario.send, "\r") {
+			return true
+		}
+	}
+	return false
+}
+
+// anyOpenGateScreen reports whether a harness pins any NON-composer capture the
+// gate must stay open on — the screens where the remapped Return is a tradeoff
+// rather than the intended edit.
+func anyOpenGateScreen(files map[string]bool) bool {
+	for file, open := range files {
+		if open && file != "composer.raw" {
+			return true
+		}
+	}
+	return false
 }
 
 // ttyFixtureDiscriminationGaps records positively gated harnesses whose
@@ -263,11 +325,17 @@ var ttyFixtureExpectation = map[string]map[string]bool{
 	// colour, not the shape — so the gate must stay open.
 	"claude": {"bash-mode.raw": true, "menu.raw": true},
 	// Muse's slash menu paints below the composer box with column 0 blank, so
-	// the box shape still selects the composer and the gate stays open. Enter
-	// therefore inserts a newline instead of picking the highlighted command —
-	// accepted because Alt+Return submits, which is how a command gets run
-	// under Pair's convention for every harness.
-	"muse": {"menu.raw": true},
+	// the box shape still selects the composer and the gate stays open. What
+	// this entry checks is the wrapper's half: a plain Return on that screen
+	// emits the profile's Shift+Return rather than a bare CR. What Muse then
+	// does with it — whether the highlighted command stays unpicked — was not
+	// driven, and is recorded in ttyFixtureReactionGaps rather than asserted
+	// here. The escape hatch needs no capture either way: Alt+Return reaches
+	// Muse as the bare CR it submits on natively.
+	// shortcuts.raw is the `?` sheet — Muse printing its own key contract,
+	// which is the evidence this profile's inverted keymap rests on. It paints
+	// below the box like the menu, so the gate stays open there too.
+	"muse": {"menu.raw": true, "shortcuts.raw": true},
 }
 
 // ttyFixtureReturnExpectation reports whether a fixture file must remap Return,
@@ -379,6 +447,58 @@ func replayHarnessTTYSplit(t *testing.T, harness string, raw []byte, split int) 
 	return result
 }
 
+// ttyFixtureReference matches a fixture path — in code or in a comment — as
+// the agent/version directory under the fixture root, optionally with a `*`
+// glob or a file name.
+var ttyFixtureReference = regexp.MustCompile(`testdata/tty/[A-Za-z0-9._*-]+(?:/[A-Za-z0-9._*-]+)*`)
+
+// TestTTYFixtureReferencesResolve requires every fixture path this package
+// mentions to exist — including the ones named only in comments. A comment that
+// cites a fixture directory is a claim the tree can check, so nothing should
+// have to notice by reading: #266 shipped a profile comment pointing at a
+// fixture the same change deleted, and a version directory is exactly the kind
+// of referent that dies quietly when a harness self-updates.
+func TestTTYFixtureReferencesResolve(t *testing.T) {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("read package directory: %v", err)
+	}
+	checked := 0
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		source, err := os.ReadFile(entry.Name())
+		if err != nil {
+			t.Fatalf("read %s: %v", entry.Name(), err)
+		}
+		for _, match := range ttyFixtureReference.FindAllString(string(source), -1) {
+			// A path at the end of a sentence keeps the period; a bare root
+			// with no agent is the regexp in this file, not a reference.
+			reference := strings.TrimRight(match, ".")
+			if strings.Count(reference, "/") < 3 {
+				continue
+			}
+			checked++
+			if strings.Contains(reference, "*") {
+				hits, err := filepath.Glob(reference)
+				if err != nil {
+					t.Errorf("%s: bad fixture glob %q: %v", entry.Name(), reference, err)
+				} else if len(hits) == 0 {
+					t.Errorf("%s: fixture glob %q matches nothing", entry.Name(), reference)
+				}
+				continue
+			}
+			if _, err := os.Stat(reference); err != nil {
+				t.Errorf("%s: fixture reference %q does not resolve: %v", entry.Name(), reference, err)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no fixture references found; this test has stopped checking anything")
+	}
+}
+
 // plainCRNeedsKittyKeyboard reports whether a profile's composer Return bytes
 // are a Kitty keyboard protocol key — CSI <params> u — rather than a literal
 // control byte. Muse's newline is one (`\x1b[13;2u`, Shift+Return).
@@ -386,8 +506,32 @@ func plainCRNeedsKittyKeyboard(plainCR []byte) bool {
 	return len(plainCR) > len("\x1b[u") && strings.HasPrefix(string(plainCR), "\x1b[") && plainCR[len(plainCR)-1] == 'u'
 }
 
-// kittyKeyboardPush matches a progressive-enhancement push, CSI > <flags> u.
-var kittyKeyboardPush = regexp.MustCompile("\x1b\\[>[0-9;]*u")
+// kittyKeyboardPush matches a progressive-enhancement push, CSI > <flags> u,
+// capturing the flag word.
+var kittyKeyboardPush = regexp.MustCompile("\x1b\\[>([0-9]*)(?:;[0-9]*)?u")
+
+// kittyDisambiguateFlag is bit 0 of the KKP flag word, "disambiguate escape
+// codes" — the level at which a modified key is reported as CSI code;mods u.
+// A push is not enough on its own: `CSI > 0 u` is a push that DISABLES every
+// enhancement, and any flag word without this bit leaves a modified Return
+// unencodable, so it would not parse the sequence we emit.
+const kittyDisambiguateFlag = 1
+
+// kittyKeyboardDisambiguates reports whether a capture pushes KKP with the
+// disambiguate bit set.
+func kittyKeyboardDisambiguates(raw []byte) bool {
+	for _, match := range kittyKeyboardPush.FindAllSubmatch(raw, -1) {
+		flags, err := strconv.Atoi(string(match[1]))
+		if err != nil {
+			// An omitted flag word defaults to 1 in the protocol.
+			flags = kittyDisambiguateFlag
+		}
+		if flags&kittyDisambiguateFlag != 0 {
+			return true
+		}
+	}
+	return false
+}
 
 // assertKittyKeyboardPrecondition fails a harness whose composer Return is
 // KKP-encoded but whose own capture pushes no Kitty keyboard flags. That
@@ -399,10 +543,10 @@ var kittyKeyboardPush = regexp.MustCompile("\x1b\\[>[0-9;]*u")
 // `fired`, because the wrapper did emit its remap (#266 close BR-2).
 func assertKittyKeyboardPrecondition(t *testing.T, harness string, plainCR, raw []byte) {
 	t.Helper()
-	if !plainCRNeedsKittyKeyboard(plainCR) || kittyKeyboardPush.Match(raw) {
+	if !plainCRNeedsKittyKeyboard(plainCR) || kittyKeyboardDisambiguates(raw) {
 		return
 	}
-	t.Errorf("%s composer Return is KKP-encoded (%q) but its capture pushes no Kitty keyboard flags (CSI > ... u): the harness would read those bytes as literal text", harness, plainCR)
+	t.Errorf("%s composer Return is KKP-encoded (%q) but its capture pushes no Kitty keyboard flags with the disambiguate bit set: the harness would read those bytes as literal text", harness, plainCR)
 }
 
 func sortedKeys(files map[string][]byte) []string {

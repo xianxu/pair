@@ -156,3 +156,34 @@ Verification: `go test ./cmd/internal/wrapcmd -count=1`, live
 `PAIR_LIVE_HARNESS=muse` conformance **and** driven conformance both pass against the
 installed 1.3.0-R3233.1 (`composer=true`, plain Return `"\x1b[13;2u"`), and
 `lua nvim/draft_send_test.lua` passes.
+
+### 2026-09-16 — close boundary review round 2: rules, not instances
+
+11/11 round-1 findings disposed as addressed. Round 2 raised three, all asking for the
+RULE behind the instance:
+
+- **BR-12** (Important) — a deliberate *non-behavior* is still a behavior and needs a
+  named test; absence of code is not regression evidence. The in-paste Alt branch was
+  added, removed, restored and removed again across four commits with no test red on any
+  flip. Pinned now in both places it matters: `translate_test.go` rows for the legacy
+  chord, the KKP chord and a chord split across the paste boundary, plus
+  `TestMuseDraftBodyPasteStaysLiteral` on the profile the regression was found on.
+- **BR-13** (Minor) — a comment that names a path, version or registry entry is a claim
+  the tree can check. `TestTTYFixtureReferencesResolve` now walks every `.go` file in the
+  package and requires each fixture path it mentions — comments included — to resolve
+  (verified by planting a dead path and watching it fail). Both instances fixed: the
+  profile comment no longer cites the deleted R3057.1 directory, and the `?` sheet it
+  claimed was driven is now actually registered as a scenario and captured.
+- **BR-14** (Minor) — a claim about how the harness *reacts* to bytes we emit is not
+  replayable: a fixture proves what the wrapper emits, full stop. Added
+  `ttyFixtureReactionGaps`, enforced for every harness that pins a non-composer screen
+  the gate stays open on — drive Return there or record what is unproven. That caught
+  three standing claims, not one: Muse's menu, Agy's "inserts a newline rather than
+  selecting", and Claude's slash menu and bash mode. The KKP guard also now requires the
+  disambiguate bit, since `CSI > 0 u` is a push that disables every enhancement — the old
+  check established "the harness spoke KKP", not "the harness parses this key".
+
+New evidence captured live off 1.3.0-R3233.1: `shortcuts.raw`, the `?` sheet in which
+Muse states its own key contract — "shift + enter for newline", "enter to submit
+message". That is the documentary basis for this profile's inverted keymap, which until
+now rested on a live observation recorded only in this Log.

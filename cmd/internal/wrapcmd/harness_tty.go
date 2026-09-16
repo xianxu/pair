@@ -58,7 +58,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 	//
 	// PRECONDITION: `\x1b[13;2u` is a Kitty keyboard protocol key, parseable
 	// only while Muse keeps progressive enhancement pushed. Muse 1.3.0 does push
-	// it (`\x1b[>3u`, in testdata/tty/muse/1.3.0-R3057.1). If that ever stops,
+	// it (a `CSI > ... u` push, in every captured muse fixture). If that stops,
 	// Return would insert those bytes as literal text while return-remap
 	// telemetry still reported `fired` — so the push is asserted against the
 	// capture itself by assertKittyKeyboardPrecondition, not trusted from here.

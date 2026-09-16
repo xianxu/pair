@@ -125,6 +125,110 @@ rounds:
           family: timing-heuristic-without-bound
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-16T12:05:07-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: In-paste branch removed; wrap.go:1942-1956 scans only bpEnd, no altCR or ObservationUserSubmission is reachable inside a paste.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: assertKittyKeyboardPrecondition checks the capture (not the profile) in both the frozen replay and the live path; both muse fixtures carry a real CSI > u push.
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: Selection markers dropped and pinned by TestMuseComposerActive_RejectsSelectionMarkers; slash menu driven live and captured as muse/1.3.0-R3233.1/menu.raw.
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: One musePromptGlyphs authority read by both gates, pinned by TestMusePromptAuthorityIsShared.
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: The untested holdback is gone with the branch it served.
+          round: 2
+        - id: BR-6
+          disposition: addressed
+          note: harness_tty_fixture_test.go:418 and nvim/init.lua:733 both corrected; a new instance appeared elsewhere, raised separately under the family rule.
+          round: 2
+        - id: BR-7
+          disposition: addressed
+          note: Test removed with the branch; the surviving cases carry rationale comments.
+          round: 2
+        - id: BR-8
+          disposition: addressed
+          note: Single indexOfSubseq call at wrap.go:1945.
+          round: 2
+        - id: BR-9
+          disposition: addressed
+          note: R3057.1 deleted; muse/1.3.0-R3233.1/metadata.json records captured_at 2026-09-16T18:44:17Z, a real capture second.
+          round: 2
+        - id: BR-10
+          disposition: addressed
+          note: muse_draft_submit_test.go:19 keys composer state and expected bytes off table fields.
+          round: 2
+        - id: BR-11
+          disposition: addressed
+          note: Filed as pair#269 with the defect stated correctly (budget from one measurement, no detector) and the phase machine named as the seam; settle retained as the confirmed fix.
+          round: 2
+      findings:
+        - id: BR-12
+          severity: Important
+          title: No test pins that an Alt+Enter chord inside a bracketed paste stays literal
+          detail: |-
+            2nd in family. RULE: a deliberate decision that the translator will NOT do
+            something is a behavior and needs a named test asserting the non-behavior;
+            absence of code is not regression evidence. Prevalence on this issue alone:
+            the in-paste Alt branch was added, removed, restored and removed again
+            (901074d3, 0a05b283, 41812c20) with no red test blocking any flip. Existing
+            paste cases (translate_test.go:47, :59, :169) all use plain CR; none
+            contains an ESC, so the intercepted sequence is uncovered in either
+            direction. Applying the rule here is one row per protocol form asserting
+            "\x1b[200~body\x1b\r\x1b[201~" and the KKP variant forward verbatim, named
+            so the failure says why (Muse has ?2004h on; a CR inside the window is
+            pasted text, not an Enter key).
+          family: regression-evidence-missing
+          round: 2
+        - id: BR-13
+          severity: Minor
+          title: Comment cites a fixture directory this same window deleted
+          detail: |-
+            3rd in family. RULE: a comment must not restate a fact the tree can check;
+            where it names a path, version or registry entry, a test asserts the
+            referent resolves. Measured: 5 testdata/tty/<agent>/<version> references in
+            non-workshop source, 4 resolve, 1 dead — harness_tty.go:61 points at
+            testdata/tty/muse/1.3.0-R3057.1, removed later in this same range. Second
+            instance of the same rule: harness_tty_fixture_test.go:156 claims the slash
+            menu and the `?` sheet were both driven "see harnessTTYDrivenScenarios",
+            but harness_tty_live_test.go:719 registers only the slash menu. The
+            enforcement template already exists in this file (the gap-acknowledgment
+            expiry check); walking package comments for testdata/tty paths retires the
+            family rather than these two sites.
+          family: stale-comment
+          round: 2
+        - id: BR-14
+          severity: Minor
+          title: KKP push guard is flags-agnostic and the menu's Return behavior is asserted from reasoning
+          detail: |-
+            3rd in family. RULE: a claim about what the harness does with bytes we emit
+            is either backed by a capture or a live drive, or it is recorded in the
+            acknowledged-gap tables — never asserted in a comment as if settled. The
+            mechanism already exists and expires; the rule is to route unverified
+            harness-reaction claims through it. Two instances: (a)
+            harness_tty_fixture_test.go:390 matches "\x1b[>0u" (KKP disabled) and is
+            agnostic to bit 1, the flag that makes CSI 13;2u the encoding of
+            Shift+Enter, so it establishes "Muse spoke KKP" not "Muse parses this key";
+            (b) harness_tty_fixture_test.go:265 states "Enter therefore inserts a
+            newline instead of picking the highlighted command" for the slash menu with
+            nobody having pressed Return there — contrast the Agy entry three lines
+            above, which states the same tradeoff as a checked property. The escape
+            hatch (Alt+Return to bare CR, exactly what Muse receives natively) is sound
+            by construction, so the consequence is bounded.
+          family: boundary-semantics-unverified
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#266 (boundary-review)
@@ -199,16 +303,66 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   draft_send.lua already carries a phase state machine that could confirm delivery
   instead of sleeping (ARCH-CONSTRAINTS, ARCH-ORDER).
 
+## Round 2 — 2026-09-16T12:05:07-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — In-paste branch removed; wrap.go:1942-1956 scans only bpEnd, no altCR or ObservationUserSubmission is reachable inside a paste.
+- BR-2 — addressed — assertKittyKeyboardPrecondition checks the capture (not the profile) in both the frozen replay and the live path; both muse fixtures carry a real CSI > u push.
+- BR-3 — addressed — Selection markers dropped and pinned by TestMuseComposerActive_RejectsSelectionMarkers; slash menu driven live and captured as muse/1.3.0-R3233.1/menu.raw.
+- BR-4 — addressed — One musePromptGlyphs authority read by both gates, pinned by TestMusePromptAuthorityIsShared.
+- BR-5 — addressed — The untested holdback is gone with the branch it served.
+- BR-6 — addressed — harness_tty_fixture_test.go:418 and nvim/init.lua:733 both corrected; a new instance appeared elsewhere, raised separately under the family rule.
+- BR-7 — addressed — Test removed with the branch; the surviving cases carry rationale comments.
+- BR-8 — addressed — Single indexOfSubseq call at wrap.go:1945.
+- BR-9 — addressed — R3057.1 deleted; muse/1.3.0-R3233.1/metadata.json records captured_at 2026-09-16T18:44:17Z, a real capture second.
+- BR-10 — addressed — muse_draft_submit_test.go:19 keys composer state and expected bytes off table fields.
+- BR-11 — addressed — Filed as pair#269 with the defect stated correctly (budget from one measurement, no detector) and the phase machine named as the seam; settle retained as the confirmed fix.
+
+### Raised
+
+- **BR-12** [Important] `regression-evidence-missing` No test pins that an Alt+Enter chord inside a bracketed paste stays literal
+  2nd in family. RULE: a deliberate decision that the translator will NOT do
+  something is a behavior and needs a named test asserting the non-behavior;
+  absence of code is not regression evidence. Prevalence on this issue alone:
+  the in-paste Alt branch was added, removed, restored and removed again
+  (901074d3, 0a05b283, 41812c20) with no red test blocking any flip. Existing
+  paste cases (translate_test.go:47, :59, :169) all use plain CR; none
+  contains an ESC, so the intercepted sequence is uncovered in either
+  direction. Applying the rule here is one row per protocol form asserting
+  "\x1b[200~body\x1b\r\x1b[201~" and the KKP variant forward verbatim, named
+  so the failure says why (Muse has ?2004h on; a CR inside the window is
+  pasted text, not an Enter key).
+- **BR-13** [Minor] `stale-comment` Comment cites a fixture directory this same window deleted
+  3rd in family. RULE: a comment must not restate a fact the tree can check;
+  where it names a path, version or registry entry, a test asserts the
+  referent resolves. Measured: 5 testdata/tty/<agent>/<version> references in
+  non-workshop source, 4 resolve, 1 dead — harness_tty.go:61 points at
+  testdata/tty/muse/1.3.0-R3057.1, removed later in this same range. Second
+  instance of the same rule: harness_tty_fixture_test.go:156 claims the slash
+  menu and the `?` sheet were both driven "see harnessTTYDrivenScenarios",
+  but harness_tty_live_test.go:719 registers only the slash menu. The
+  enforcement template already exists in this file (the gap-acknowledgment
+  expiry check); walking package comments for testdata/tty paths retires the
+  family rather than these two sites.
+- **BR-14** [Minor] `boundary-semantics-unverified` KKP push guard is flags-agnostic and the menu's Return behavior is asserted from reasoning
+  3rd in family. RULE: a claim about what the harness does with bytes we emit
+  is either backed by a capture or a live drive, or it is recorded in the
+  acknowledged-gap tables — never asserted in a comment as if settled. The
+  mechanism already exists and expires; the rule is to route unverified
+  harness-reaction claims through it. Two instances: (a)
+  harness_tty_fixture_test.go:390 matches "\x1b[>0u" (KKP disabled) and is
+  agnostic to bit 1, the flag that makes CSI 13;2u the encoding of
+  Shift+Enter, so it establishes "Muse spoke KKP" not "Muse parses this key";
+  (b) harness_tty_fixture_test.go:265 states "Enter therefore inserts a
+  newline instead of picking the highlighted command" for the slash menu with
+  nobody having pressed Return there — contrast the Agy entry three lines
+  above, which states the same tradeoff as a checked property. The escape
+  hatch (Alt+Return to bare CR, exactly what Muse receives natively) is sound
+  by construction, so the consequence is bounded.
+
 ## Open findings
 
-- **BR-1** [Important] `boundary-semantics-unverified` In-paste submit emits CR inside the still-open bracketed-paste window
-- **BR-2** [Important] `boundary-semantics-unverified` Muse plainCR uses a KKP sequence whose precondition is unrecorded and unguarded
-- **BR-3** [Important] `positive-gate-needs-declining-evidence` Orientation now accepts menu-bullet glyphs and bang as Muse composer prompts
-- **BR-4** [Important] `duplicated-authority` Muse prompt-glyph set is hand-maintained in two places with nothing pinning them
-- **BR-5** [Important] `regression-evidence-missing` Restored split-Alt-partial holdback inside a paste has no test
-- **BR-6** [Minor] `stale-comment` Fixture expectation comment is stale and ungrammatical after the Muse change
-- **BR-7** [Minor] `stale-comment` Coalesced-paste test lost the doc comment explaining why the case exists
-- **BR-8** [Minor] `duplicated-authority` bpEnd index recomputed one line after endIdx already holds it
-- **BR-9** [Minor] `fixture-provenance` New Muse fixture records a hand-rounded captured_at
-- **BR-10** [Minor] `test-asserts-on-subtest-name` Muse draft submit test branches on the subtest name string
-- **BR-11** [Minor] `timing-heuristic-without-bound` 100ms settle is a fixed sleep against an ordering problem, with no detector
+- **BR-12** [Important] `regression-evidence-missing` No test pins that an Alt+Enter chord inside a bracketed paste stays literal
+- **BR-13** [Minor] `stale-comment` Comment cites a fixture directory this same window deleted
+- **BR-14** [Minor] `boundary-semantics-unverified` KKP push guard is flags-agnostic and the menu's Return behavior is asserted from reasoning

@@ -48,6 +48,32 @@ func TestTranslateChunk(t *testing.T) {
 			wantOut:   []byte("\x1b[200~line1\rline2\r\x1b[201~"),
 			wantPaste: false, // ends out of paste mode
 		},
+		// A deliberate NON-behavior needs its own test: the translator must not
+		// read an Alt+Enter chord inside a paste window as a submit. Emitting
+		// the submit CR there cannot work — the harness has ?2004h on, so a CR
+		// between the paste markers is pasted text, not the Enter key — and the
+		// attempt to do it anyway was added, removed, restored and removed again
+		// on #266 with no test red on any of the four flips. One row per input
+		// protocol, because the interception recognized both.
+		{
+			name:      "legacy Alt+Enter inside a paste stays literal",
+			in:        []byte("\x1b[200~body\x1b\r\x1b[201~"),
+			wantOut:   []byte("\x1b[200~body\x1b\r\x1b[201~"),
+			wantPaste: false,
+		},
+		{
+			name:      "KKP Alt+Enter inside a paste stays literal",
+			in:        []byte("\x1b[200~body\x1b[13;3u\x1b[201~"),
+			wantOut:   []byte("\x1b[200~body\x1b[13;3u\x1b[201~"),
+			wantPaste: false,
+		},
+		{
+			name:      "Alt+Enter chord split across a paste boundary stays literal",
+			startPase: true,
+			in:        []byte("body\x1b[13;3u\x1b[201~"),
+			wantOut:   []byte("body\x1b[13;3u\x1b[201~"),
+			wantPaste: false,
+		},
 		{
 			name:      "Enter after paste end gets rewritten",
 			in:        []byte("\x1b[200~x\r\x1b[201~\r"),
