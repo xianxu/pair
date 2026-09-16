@@ -33,27 +33,18 @@ func TestMuseDraftAltEnterSubmission(t *testing.T) {
 					t.Fatalf("Alt+Enter %q translated to %q, want CR", seq, out)
 				}
 			}
-			// Plain Enter's behaviour depends on composer state, but Alt must
-			// never be mistaken for a plain newline. Plain is \n when active,
-			// \r otherwise — Alt is always \r.
+			// Muse submits on both plain Return and Alt+Return, regardless of
+			// composer state.
 			outPlain, _, _ := f.proxy.translateChunk([]byte{'\r'}, false)
-			wantPlain := []byte{'\r'}
-			if name == "with composer" {
-				wantPlain = []byte{'\n'}
-			}
-			if !bytes.Equal(outPlain, wantPlain) {
-				t.Fatalf("plain Enter translated to %q, want %q", outPlain, wantPlain)
+			if !bytes.Equal(outPlain, []byte{'\r'}) {
+				t.Fatalf("plain Enter translated to %q, want CR", outPlain)
 			}
 		})
 	}
 }
 
-// TestMuseAgentPaneReturn follows the pair convention for coding harnesses:
-// when the Muse composer is positively recognised, plain Return inserts a
-// newline (\n) so the user can compose multi-line prompts; otherwise it
-// falls through as a bare CR (send). Alt+Return always sends. When a picker
-// overlay is active, plain Return must also send (confirm), regardless of
-// composer state.
+// TestMuseAgentPaneReturn verifies that Muse uses bare CR for both plain and
+// Alt+Return, including while its composer and picker overlay are active.
 func TestMuseAgentPaneReturn(t *testing.T) {
 	f := newHarnessSessionFake(t, "muse", true)
 	defer f.close()
@@ -63,13 +54,13 @@ func TestMuseAgentPaneReturn(t *testing.T) {
 		t.Fatalf("plain enter without composer = %q, want CR", got)
 	}
 
-	// Active composer → plain is newline.
+	// Active composer → plain is still send.
 	f.output("\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ hello\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[8;8H")
 	if !museComposerActive(f.proxy.terminal.Snapshot()) {
 		t.Fatal("composer should be active")
 	}
-	if got := f.enter(); !bytes.Equal(got, []byte{'\n'}) {
-		t.Fatalf("plain enter with composer = %q, want LF", got)
+	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("plain enter with composer = %q, want CR", got)
 	}
 	if got := f.altEnter(); !bytes.Equal(got, []byte{'\r'}) {
 		t.Fatalf("alt enter with composer = %q, want CR", got)
@@ -80,9 +71,9 @@ func TestMuseAgentPaneReturn(t *testing.T) {
 	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
 		t.Fatalf("plain enter with overlay = %q, want CR", got)
 	}
-	// Overlay is one-shot: next plain returns to newline.
-	if got := f.enter(); !bytes.Equal(got, []byte{'\n'}) {
-		t.Fatalf("plain enter after overlay = %q, want LF", got)
+	// Overlay is one-shot: next plain remains send.
+	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) {
+		t.Fatalf("plain enter after overlay = %q, want CR", got)
 	}
 }
 

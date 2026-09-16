@@ -73,3 +73,12 @@ This is the exact gap pair's return-remap seam exists to close (`cmd/internal/wr
 - Live Muse 1.3.0 conformance (`Muse Code 1.3.0 (1.3.0-R3057.1)`) observed `composer=true` and plain Return translating to `\n`; checked in the captured composer fixture and metadata under `testdata/tty/muse/1.3.0-R3057.1/`. The draft-originated and overlay key sequence still require interactive operator smoke.
 - The new 1.3.0 fixture exposed a duplicate exact-`⟩` prompt check in `orientationComposerActive`; it rejected the same relaxed composer that Return remapping accepted. Removed that duplicate authority so orientation delegates to the profile recognizer (`ARCH-DRY`). Focused fixture/orientation/Muse/translation tests pass.
 - Review correction: orientation still needs its independent menu/non-coding guard for Agy and Claude; retained that guard and narrowed the change to `orientationPromptOK`, which shares Muse's accepted prompt-glyph set without weakening existing menu rejection. Fresh orientation and fixture tests pass.
+
+## Revisions
+
+### 2026-09-16 — live Muse key contract corrected
+
+The live Muse 1.3.0 session disproved the earlier assumption that an active Muse composer needs LF for multiline input: operator typing `ok` followed by bare Return submitted the turn. The wrapper trace also showed the draft's `ok` and Alt+Return arriving as separate reads (`ok`, then `ESC CR`), so the paste-coalescing path is not the explanation for this reproduction. The durable contract is now: Muse plain Return and Alt+Return both emit bare CR; overlay Return remains bare CR. Updated the profile, regression expectations, README, and atlas architecture/conformance notes. This preserves the shared seam and avoids a Muse-specific nvim workaround (`ARCH-DRY`, simplicity first).
+
+- Verification after correction: `go test ./cmd/internal/wrapcmd -count=1`, `lua nvim/draft_send_test.lua`, `git diff --check`, and live `PAIR_LIVE_HARNESS=muse ... TestHarnessTTYLiveConformance` all pass; live output reports `composer=true` and plain Return `"\r"`.
+- `go test ./... -count=1` reaches the Muse package but remains red on unrelated existing failures in `couchcore`, `couchtty`, `diagnosticlog`, and `wrapcmd` notification startup-hook timing. The focused Muse tests remain green.
