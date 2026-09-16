@@ -85,6 +85,12 @@ test-couch-zellij-live:
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcore -run '^(TestParkLifecycleLive|TestParkLifecycleLiveIntentOnlyMutation|TestContinuationZellijSeedTransportLive|TestRecoveryRealHelperAndSessionConformanceLive)$$' -count=1 -v
 	PAIR_LIVE_COUCH=1 go test -p 20 ./cmd/internal/couchcmd -run '^TestAgentShortcutInputConformanceLive$$' -count=1 -v
 
+.PHONY: test-native-terminal-ci
+# Strict gate: fresh temporary candidate, native dependencies, no skipped tests.
+test-native-terminal-ci: runtimebundle-generate
+	python3 tests/native-terminal-ci-test.py
+	python3 tests/native-terminal-ci.py
+
 .PHONY: test-perf-capture
 # Shape tests for the #208 capture. perf.sh's VALUES are whatever the machine is
 # doing, so this pins the report's shape -- which is what consumers parse and

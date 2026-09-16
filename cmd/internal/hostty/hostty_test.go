@@ -1,6 +1,7 @@
 package hostty
 
 import (
+	"errors"
 	"os"
 	"strings"
 	"syscall"
@@ -289,8 +290,8 @@ func TestHostsAgreeAfterClose(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	for _, h := range []Host{real, fake} {
-		if _, err := h.Write([]byte("post-close")); err != nil {
-			t.Fatalf("%T: Write after Close returned %v; the other host does not", h, err)
+		if _, err := h.Write([]byte("post-close")); !errors.Is(err, os.ErrClosed) {
+			t.Fatalf("%T: Write after Close returned %v; want os.ErrClosed", h, err)
 		}
 		if err := h.Close(); err != nil {
 			t.Fatalf("%T: second Close returned %v", h, err)

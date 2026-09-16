@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -41,6 +42,23 @@ var assetDirs = []string{
 type GenerateOptions struct {
 	RepoRoot string
 	OutRoot  string
+	Compiler TerminfoCompiler
+}
+
+// TerminfoCompiler writes compiled entries beneath a caller-owned temporary
+// directory. Generate validates and normalizes that tree before publication.
+type TerminfoCompiler interface {
+	Compile(source, destination string) error
+}
+
+type TicCompiler struct{}
+
+func (TicCompiler) Compile(source, destination string) error {
+	compiler := exec.Command("tic", "-x", "-o", destination, source)
+	if output, err := compiler.CombinedOutput(); err != nil {
+		return fmt.Errorf("tic: %w: %s", err, output)
+	}
+	return nil
 }
 
 func Generate(opts GenerateOptions) (manifestmodel.RuntimeManifest, error) {
@@ -75,7 +93,50 @@ func Generate(opts GenerateOptions) (manifestmodel.RuntimeManifest, error) {
 	}()
 	filesRoot := filepath.Join(stageRoot, "files")
 
+	compiledRoot, err := os.MkdirTemp(outParent, ".pair-terminfo-")
+	if err != nil {
+		return manifestmodel.RuntimeManifest{}, err
+	}
+	defer os.RemoveAll(compiledRoot)
+	compiler := opts.Compiler
+	if compiler == nil {
+		compiler = TicCompiler{}
+	}
+	if err := compiler.Compile(filepath.Join(repoRoot, "terminfo", "pair-vt-256color.ti"), compiledRoot); err != nil {
+		return manifestmodel.RuntimeManifest{}, fmt.Errorf("compile terminal profile: %w", err)
+	}
+	generated := map[string]string{}
+	if err := filepath.WalkDir(compiledRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(compiledRoot, path)
+		if err != nil {
+			return err
+		}
+		// ncurses accepts hex directory names on every supported host; normalize
+		// tic's platform-specific p/ versus70/ output for reproducible manifests.
+		if rel != filepath.Join("p", "pair-vt-256color") && rel != filepath.Join("70", "pair-vt-256color") {
+			return fmt.Errorf("unexpected compiled terminal entry %s", rel)
+		}
+		if !d.Type().IsRegular() || len(generated) != 0 {
+			return fmt.Errorf("invalid or duplicate compiled terminal entry %s", rel)
+		}
+		generated["terminfo/70/pair-vt-256color"] = path
+		return nil
+	}); err != nil {
+		return manifestmodel.RuntimeManifest{}, err
+	}
+	if len(generated) != 1 {
+		return manifestmodel.RuntimeManifest{}, fmt.Errorf("compiler did not produce pair-vt-256color")
+	}
 	paths := map[string]bool{}
+	for logical := range generated {
+		paths[logical] = true
+	}
 	for _, p := range explicitAssetPaths {
 		paths[p] = true
 	}
@@ -115,6 +176,9 @@ func Generate(opts GenerateOptions) (manifestmodel.RuntimeManifest, error) {
 	manifest := manifestmodel.RuntimeManifest{Assets: make([]manifestmodel.RuntimeAsset, 0, len(ordered))}
 	for _, logical := range ordered {
 		src := filepath.Join(repoRoot, filepath.FromSlash(logical))
+		if compiled, ok := generated[logical]; ok {
+			src = compiled
+		}
 		info, err := os.Stat(src)
 		if err != nil {
 			return manifestmodel.RuntimeManifest{}, fmt.Errorf("asset %s: %w", logical, err)

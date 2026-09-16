@@ -326,10 +326,9 @@ layouts.
 puts the operator's terminal in raw mode, and routes bytes -- so it no longer
 hands the child its own stdio and blocks. The mechanism is shared with `pair term`
 rather than written twice: `cmd/internal/ptychild` (a child on a pty, its
-bounded replay ring, the #127 query deny-list, one scanner over its output) and
+endpoint, bounded diagnostic capture and acknowledged output publication) and
 `cmd/internal/hostty` (the operator's terminal: size, raw mode, coalesced
-resizes, the control constants). See `atlas/architecture.md`, "The terminal
-plumbing is shared with couch".
+resizes, the control constants). See [Terminal ownership](terminal.md).
 
 Public launch requires terminal stdin and stdout before store, lease, or
 actor work. The stdio runner remains an injected domain seam and live
@@ -342,43 +341,17 @@ capability check no runner can fail is vacuous. `Terminal()` returns the
 concrete `*ptychild.Child` rather than an interface, because `FakeRunner`'s
 double IS one, so a test takes the branch production takes.
 
-## The reserved row: a reservation, not compositing
+## The reserved row and terminal ownership
 
-The child is given a terminal one row shorter and the host's scrolling region is
-pinned above the last row (DECSTBM). The child is never told, so this is a
-resize rather than compositing.
+Couch gives its child one fewer row and composes the child publication with its
+status row through `terminal.Presenter`. The endpoint interprets all child output
+before presentation; child escape sequences never surround or interrupt chrome
+writes. Child cursor, margins, modes, alternate screen and synchronized output
+are virtual terminal state. The presenter alone owns the physical parent writes
+and admits child input only after the complete selected frame is written.
 
-Three things that design has to survive, each learned the expensive way:
-
-- **Scrolling.** What DECSTBM is for. A child scrolling at the bottom of its own
-  screen scrolls inside the region.
-- **Erasing.** DECSTBM does *not* cover it. Every full-screen app clears the
-  display on startup and that takes the row with it while the region stays
-  intact -- which is why the signal is `Screen.TakeRowDirty` (erase, margin
-  reset, RIS, alt-screen transition) rather than anything named for the region.
-  The console repaints on it.
-- **Not corrupting the child.** A pty read boundary falls wherever the kernel
-  puts it, so a paint written between two chunks can land inside one of the
-  child's escape sequences. Two rules keep that impossible rather than unlikely:
-  **`Console.Run` is the only goroutine that writes to the host** (resizes and
-  hotkeys are events it drains, not writers), and every console-originated write
-  goes through `ptychild.Screen.SafeToPaint`, one shared gate asking TWO
-  questions of the CHILD's stream -- mid-sequence, and whether the child is
-  holding the terminal's single cursor-save slot outside the alt screen -- and
-  paying the debt on the next chunk where both are clear.
-
-  Both halves were learned by getting them wrong. Asking the *child* whether it
-  was mid-sequence answered about a later chunk, because ptychild's pump feeds
-  its scanner before the console has drained the earlier one -- so the tracking
-  belongs to the stream the console WRITES. And feeding the console's own
-  escapes into that scanner let it frame our bytes together with the child's
-  partial and report "safe" precisely when it was not, so the scanner is fed
-  child bytes only.
-
-Verified against a real terminal emulator (`vtscreen_test.go`) and against a
-real pty child (`console_live_test.go`, `PAIR_LIVE_COUCH=1`), and confirmed by
-operator smoke on the full Ghostty -> couch -> pair -> zellij -> claude stack
-2026-08-23.
+Snapshots and typed normal history replace raw replay and resize nudges. See
+[Terminal ownership](terminal.md) for bounds, decoding, effect policy and teardown.
 
 **Placeholders** (`pair#206`). While the reattach pass runs, each pending
 thread is drawn after the attached chips as a greyed placeholder
@@ -447,20 +420,11 @@ Three edge cases:
 
 The chord uses Kitty keyboard disambiguation (`newestPageSequence`,
 `\x1b[13;5u`); explicit press and repeat forms also jump, while release does
-not. Couch owns the disambiguation flag its shortcuts require (`pair#251`):
-startup, completed active output, and actor/panel takeovers add that flag without
-clearing the child's other flags or pushing stack entries. This survives an
-aged-out startup sequence or replayed reset/pop. Plain Return still reaches the
-agent; an unsupported terminal retains Ctrl+Space then Return as the fallback.
-Inside the switcher the chord retains the panel's Return behavior.
-
-Couch serializes scanner decisions and terminal writes with `terminalMu`,
-acquired before its state mutex. Keyboard assertions wait for complete escape
-framing, including skipped oversized strings, but do not wait for cursor-save
-release: they do not touch the cursor. A takeover releases the output lock before
-requesting a child repaint. Cleanup closes output ownership and clears modes on
-both the current buffer and the main buffer after leaving alternate screen;
-later writes are dropped. The typed-interface enforcement remains #224's scope.
+not. The presenter owns its keyboard-protocol stack entry and restores it at release.
+Child protocol negotiation stays in the endpoint and determines child input
+encoding. Plain Return still reaches the agent; terminals without enhanced keys
+retain Ctrl+Space then Return as the fallback. In the switcher, Return keeps its
+panel behavior. Selection and input share one acknowledged presentation order.
 
 `SwitchTracker` (`couchtty/switchrule.go`) is the whole rule: one `previous`
 slot and one boolean carried on the CURRENT actor. `Console.switchTo` is the
@@ -504,70 +468,16 @@ the same declared operation surface. Each accepted slow action paints an
 identity-owned spinner before dispatch, and stale completions cannot mutate a
 replacement frame.
 
-**Mouse ownership is the hard half, because the mode is terminal-GLOBAL**
-(`pair#172`). couch asks the terminal for click reporting in SGR encoding
-(`?1000;1006`, never `?1002`/`?1003` — motion arrives at pointer rates for a
-feature that wants click rates), so a child that never asked starts receiving
-reports unless something withholds them. `RouteMouseReport` is that decision, and
-it is three-way rather than a bool: "the child asked for this" and "the child
-must never see this" are the two cases the feature exists to separate.
+**Mouse ownership (#255).** Couch's parent presenter requests any-motion SGR
+reports. It owns the status row and panel; the admitted child's endpoint receives
+only the mouse events its virtual tracking mode asks for. An ongoing child drag
+keeps that owner when crossing chrome. Switching, resize, EOF or teardown settles
+the gesture once. Tracking and coordinate encoding remain separate endpoint
+facts, so a legacy-mode child receives its requested encoding. The policy avoids
+reasserting click-only mode over a child that needs drag motion.
 
-- couch's own row (the last, held by reservation): a button-0 press acts;
-  anything else forwards if the child has mouse mode, else is swallowed.
-- With the SWITCHER up couch owns the whole screen, because no child is
-  displayed and a forward would deliver the click somewhere invisible.
-- Everywhere else: forward verbatim if the child enabled tracking, else swallow.
-
-One report is REWRITTEN rather than merely routed (`pair#213`).
-`stripWheelResizeModifier` clears the ctrl bit from a vertical-wheel report
-before routing, so ctrl+scroll scrolls instead of resizing a zellij pane. It
-strips rather than swallows — swallowing would make the gesture do nothing,
-where the operator wants it to scroll — and it is narrow on three axes: wheel
-buttons only, vertical wheel only (`66`/`67` are left alone; zellij maps the
-resize off the vertical wheel), and the ctrl bit only, so ctrl+shift+wheel still
-arrives as shift+wheel. The predicate reads the modifier-MASKED button, because
-modifier bits live *in* the button field: ctrl+wheel-up is `80`, so a test
-against `WheelUp` would match nothing and the filter would silently do nothing.
-The byte splice itself lives in `mouseinput.WithButton`, which replaces only the
-button field and leaves every other byte as the terminal sent it — the format
-stays owned by the package that owns the format, and this is deliberately not
-the re-encoder that package rejects. **This is deletable:** it exists because
-zellij 0.44.3 maps ctrl+wheel to a pane resize with no way to disable it (its
-config parser silently ignores unknown keys, so setting the newer
-`mouse_scroll_resize` there is a no-op that looks accepted); upgrading zellij to
-a version carrying that option supersedes the filter for couch *and* for
-standalone pair, which this cannot reach. couch is the only interception point
-above the resize because it owns the host tty — `pair wrap` sits inside the
-pane, downstream of zellij's decision.
-
-The release rule is deliberately NARROWER than `termcmd`'s, which forwards every
-release unconditionally — correct where the child is already receiving presses,
-wrong here, where a child with no tracking must receive nothing and a release it
-never saw a press for is an unpaired event.
-
-couch owns only its OWN mode. `ptychild` replay re-asserts the child's across a
-switch, and a second writer would be two authorities for one terminal state.
-couch re-asserts its own on every paint — a child writing DECRST `?1000l` turns
-couch's clicks off globally, and without the re-assert the feature would stop
-with no signal — but ONLY while no child holds tracking.
-
-That caveat is the whole rule, and this paragraph used to deny it: "DECSET is
-additive and idempotent, so this cannot clobber a mode the child set for itself"
-is **false**. Modes 1000/1002/1003 are one mutually-exclusive tracking state
-(xterm's `send_mouse_pos`; Alacritty, kitty, Ghostty and iTerm2 all replace
-rather than union), so asserting 1000 under a child holding 1002 demotes it to
-press/release and its drag never closes — nvim wedged in visual selection. The
-transition table, one rule: **the child's mode wins whenever it has one, and
-couch takes the terminal back the moment it does not.**
-
-TRACKING and ENCODING are separate facts, and collapsing them cost the same bug
-twice. `?1000`/`?1002`/`?1003` say the child wants events; `?1006` says only how
-coordinates are encoded. `ptychild.Screen` tracks them apart (`Mouse()` and
-`SGRMouse()`) because a child doing `?1002h` then `?1006l` otherwise reads as
-"no mouse" — reaching the demotion through the OBSERVATION instead of the write —
-and because couch must forward SGR only to a child that asked for SGR: one
-holding `?1000h` alone requested the legacy form and cannot parse what the
-terminal now sends.
+The existing Ctrl+vertical-wheel product policy remains explicit in the typed
+input adapter; it is separate from terminal mode ownership and tracked by #226.
 
 A click dispatches the SAME declared `switch` (or `resume`) operation Enter
 dispatches, chosen by the same `enterOperationFor` rule — one authority, because
@@ -576,11 +486,8 @@ click is always MANUAL: it suppresses the attention capture, so the landing is
 `arrivalOrdinary` and `ctrl+backspace` undoes it even on a paging actor, where
 Enter would be a non-pinning notification hop.
 
-The `Interceptor` had to learn the SGR shape for any of this to be possible: it
-forwards whatever it does not recognise, so couch could not WITHHOLD a report
-until it could see one. The hold is bounded (`mouseinput.MaxReport`) — an
-unterminated introducer held forever parks every following keystroke, which is
-`#127` and has shipped once.
+The shared incremental decoder recognizes mouse reports before product routing.
+It bounds incomplete frames; raw read boundaries never authorize a partial event.
 
 **A click maps to an ACTOR, and the geometry comes from the render** (`pair#172`
 M1). `RenderStatusRow` returns `RenderedStatusRow{Body, Chips}`: each chip's
@@ -1396,30 +1303,12 @@ Ariadne #200's normalized policy provider is implemented and consumed at the
 #149 M1 boundary.
 
 
-### Mouse diagnostic trace (#207 M1)
+### Mouse diagnostic trace (#207, #255)
 
-`COUCH_MOUSE_TRACE=<path>` enables the opt-in `mouseTracer` in
-`cmd/internal/couchtty/mousetrace.go`. Its `<unix-ms>\t<event>\t<detail>` records
-cover live `child-mode` changes, every `takeover` (including scanner reset and
-empty/panel replay), `assert-clicks` with startup/paint source, and `cleanup`.
-Each carries active handle, actor and durable thread identity when attached,
-plus actor/panel surface. Takeover also names its target handle (or panel).
-Free-form fields are quoted and truncated after 128 bytes with an ellipsis.
-
-`scanner-before`, `scanner-reset`, and `scanner-after` are Couch's scanner
-beliefs, never terminal queries. Couch's own assertions still do not update
-that scanner. `outcome=emitted` means the complete Write was accepted with no
-error; `deferred` means the existing paint gate wrote no bytes; `short-write`
-and `error` carry accepted/requested counts and quoted errors. A deferred
-attempt is not queued byte delivery: a later repaint produces another attempt.
-Mode scanning retains its existing behavior even when a host write fails.
-Snapshots precede IO, so changing active thread during a blocked write does
-not relabel that attempt. These records do not establish ordering among
-concurrent writers or prove what the terminal applied.
-
-The file uses the existing 0600 append sink and Console teardown closes it.
-No child body, replay content or keystrokes are logged. Records stay below
-4 KiB (normally below 1 KiB); at ten events/s, a 15-minute diagnostic capture
-normally costs less than 9 MiB. The existing sink has no rotation or size cap;
-the operator disables tracing and removes the temporary capture after diagnosis.
-This instrumentation preserves mouse policy and does not fix #207 recovery.
+`COUCH_MOUSE_TRACE=<path>` enables `cmd/internal/couchtty/mousetrace.go`.
+Records carry endpoint mode observations and presenter admission/gesture state,
+with active handle, actor and durable thread identity. Presentation errors are
+reported rather than hidden behind a raw-output scanner's belief. These are local
+state and write-result observations, not terminal queries or proof of pixels.
+The existing opt-in 0600 append sink closes at Console teardown and records no
+child body or keystrokes. The operator removes the temporary trace after diagnosis.

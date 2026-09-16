@@ -56,6 +56,23 @@ func TestDecodeOSCRejectsNearCanonicalInput(t *testing.T) {
 	}
 }
 
+func TestDecodeZellijOSC9UsesBodyLimit(t *testing.T) {
+	for _, body := range []string{"", "ready; café", strings.Repeat("x", MaxMessageBytes), strings.Repeat("é", MaxMessageBytes/2)} {
+		got, ok := DecodeZellijOSC9([]byte("9;pair: " + body))
+		if !ok || got.Message != body {
+			t.Fatalf("body bytes=%d: %+v %v", len(body), got, ok)
+		}
+	}
+	for _, input := range []string{"pair: ready", "9;other: ready", "9;pair:ready", "19;pair: ready", "9;pair: " + strings.Repeat("x", MaxMessageBytes+1)} {
+		if got, ok := DecodeZellijOSC9([]byte(input)); ok {
+			t.Fatalf("accepted %q: %+v", input, got)
+		}
+	}
+	if got, ok := DecodeZellijOSC9([]byte("9;pair: \xff\x00safe")); !ok || got.Message != "�safe" {
+		t.Fatalf("sanitization: %+v %v", got, ok)
+	}
+}
+
 func FuzzCodec(f *testing.F) {
 	f.Add([]byte("hello"))
 	f.Add([]byte{0xff, 0x1b, 0x07, 'x'})

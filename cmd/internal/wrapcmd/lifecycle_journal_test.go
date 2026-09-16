@@ -192,14 +192,10 @@ func TestLifecycleJournalRecordsDriveCanonicalNotification(t *testing.T) {
 	dir := t.TempDir()
 	journal := filepath.Join(dir, "lifecycle.jsonl")
 	outer := filepath.Join(dir, "outer")
-	sidecar := filepath.Join(dir, "outer-path")
 	if err := os.WriteFile(journal, nil, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(outer, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	tailer, err := OpenLifecycleJournalTailer(journal, 7)
@@ -225,7 +221,7 @@ func TestLifecycleJournalRecordsDriveCanonicalNotification(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Unix(200, 0)
-	p := &proxy{outerTTYFile: sidecar, lastSlug: now, now: func() time.Time { return now }}
+	p := &proxy{stdout: notificationFileWriter(t, outer), lastSlug: now, now: func() time.Time { return now }}
 	for _, record := range observed {
 		p.processLifecycleRecord(record)
 	}

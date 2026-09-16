@@ -30,6 +30,7 @@ func (w *retentionObserver) Write(p []byte) (int, error) {
 }
 
 func TestRunProtectsActualWrapperLifetime(t *testing.T) {
+	isolateNotificationSockets(t)
 	root := t.TempDir()
 	t.Setenv("PAIR_DATA_DIR", root)
 	t.Setenv("PAIR_TAG", "retention-test")
@@ -66,6 +67,7 @@ func TestRunProtectsActualWrapperLifetime(t *testing.T) {
 }
 
 func TestInvalidManagedOwnerRefusesWrapper(t *testing.T) {
+	isolateNotificationSockets(t)
 	t.Setenv("PAIR_DATA_DIR", t.TempDir())
 	t.Setenv("PAIR_TAG", "../escape")
 	t.Setenv("PAIR_SCOPE_KEY", "")

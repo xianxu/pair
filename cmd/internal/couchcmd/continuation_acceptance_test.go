@@ -421,6 +421,9 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 		if err != nil {
 			t.Fatal(err)
 		}
+		if err := pty.Setsize(slave, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
+			t.Fatal(err)
+		}
 		defer master.Close()
 		defer slave.Close()
 		op, _ := Resolve("retry-continuation")
@@ -481,7 +484,9 @@ func completeContinuationAcceptance(t *testing.T, rt testRT, c *couchcore.Couch,
 	inputReader, input := io.Pipe()
 	console := couchtty.New(host, inputReader)
 	terminal := start.Handle.(couchcore.TerminalHandle).Terminal()
-	terminal.SetSink(func(batch ptychild.OutputBatch) { console.Deliver(start.Handle.ID(), batch) })
+	terminal.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error {
+		return console.Deliver(ctx, start.Handle.ID(), batch)
+	})
 	wireResolver(console, c)
 	if err := dispatchInitialAttach(console, start); err != nil {
 		t.Fatal(err)

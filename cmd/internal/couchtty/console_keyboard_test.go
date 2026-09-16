@@ -2,12 +2,12 @@ package couchtty
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
@@ -17,16 +17,18 @@ func keyboardFixture(t *testing.T) (*consoleFixture, *keyboardHost, *ptychild.Ch
 	pr, pw := io.Pipe()
 	c := New(h, pr)
 	a, b := ptychild.NewFakeChild(nil), ptychild.NewFakeChild(nil)
-	a.SetSink(func(batch ptychild.OutputBatch) { c.Deliver("c1", batch) })
-	b.SetSink(func(batch ptychild.OutputBatch) { c.Deliver("c2", batch) })
+	a.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return c.Deliver(ctx, "c1", batch) })
+	b.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return c.Deliver(ctx, "c2", batch) })
 	c.Attach("c1", "first", a)
 	c.Attach("c2", "second", b)
 	setTestOps(c, func(string, map[string]string) (any, error) { return nil, nil })
 	f := &consoleFixture{host: h.FakeHost, child: a, con: c, stdin: pw, done: make(chan int, 1)}
-	go func() { f.done <- c.Run() }()
-	waitFor(t, "keyboard console startup", func() bool { return strings.Contains(h.Written(), hostty.EnableMouseClicks) })
+	go func() { f.done <- c.Run(); close(f.done) }()
+	waitFor(t, "keyboard console startup", func() bool { return strings.Contains(h.Written(), "\x1b[?1003h") })
 	c.switchTo("c1", true, arrivalOrdinary)
 	t.Cleanup(func() {
+		defer a.Close()
+		defer b.Close()
 		c.Stop()
 		_ = pw.Close()
 		select {
@@ -84,7 +86,7 @@ func TestKeyboardReplayAndBackground(t *testing.T) {
 		if h.flags()&1 == 0 {
 			t.Fatal("replay lost keyboard disambiguation")
 		}
-		f.con.takeOverScreen(nil, nil)
+		f.con.showMenu()
 		if h.flags()&1 == 0 {
 			t.Fatal("panel takeover lost keyboard disambiguation")
 		}
@@ -92,59 +94,43 @@ func TestKeyboardReplayAndBackground(t *testing.T) {
 	}
 }
 
-func TestKeyboardCompleteFramingAndCursorSave(t *testing.T) {
-	// The mode control must never become part of a split or oversized string.
-	for _, seq := range []string{"\x1b[=0u", "\x1b]title\x07", "\x1bPpayload\x1b\\", "\x1b_payload\x1b\\", "\x1b]" + strings.Repeat("x", 70*1024) + "\x07"} {
-		cuts := []int{1, len(seq) - 1}
-		if len(seq) < 40 {
-			for n := 2; n < len(seq)-1; n++ {
-				cuts = append(cuts, n)
+func TestKeyboardChildControlsNeverChangeParentProtocol(t *testing.T) {
+	for _, seq := range []string{"\x1b[=0u", "\x1b]title\x07", "\x1bPpayload\x1b\\", "\x1b_payload\x1b\\", "\x1b7\x1b[=6u", "\x1b]" + strings.Repeat("x", 70*1024) + "\x07"} {
+		t.Run(seq[:min(8, len(seq))], func(t *testing.T) {
+			f, h, _ := keyboardFixture(t)
+			depth := h.depth()
+			for _, part := range [][]byte{[]byte(seq[:1]), []byte(seq[1:])} {
+				f.child.Feed(part)
+				if err := f.con.presenter.Flush(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+				if h.flags() != 3 || h.depth() != depth {
+					t.Fatalf("child altered parent flags=%d depth=%d", h.flags(), h.depth())
+				}
 			}
-		}
-		for _, cut := range cuts {
-			h := newKeyboardHost(24, 80)
-			c := New(h, strings.NewReader(""))
-			c.writeChild([]byte(seq[:cut]))
-			if got := h.Written(); got != seq[:cut] {
-				t.Fatalf("injected inside control at %d: %q", cut, got)
-			}
-			c.writeChild([]byte(seq[cut:]))
-			if h.flags()&1 == 0 {
-				t.Fatalf("completion did not restore mode at cut %d", cut)
-			}
-		}
-	}
-	h := newKeyboardHost(24, 80)
-	c := New(h, strings.NewReader(""))
-	c.writeChild([]byte("\x1b7\x1b[=6u"))
-	if got := h.flags(); got != 7 {
-		t.Fatalf("cursor save or other flags blocked mode: %d", got)
-	}
-	depth := h.depth()
-	for range 100 {
-		c.writeChild([]byte("x"))
-	}
-	if h.depth() != depth {
-		t.Fatal("Couch assertions grew keyboard stack")
+		})
 	}
 }
 
-func TestKeyboardReleaseBothBuffersAndRejectLateOutput(t *testing.T) {
-	h := newKeyboardHost(24, 80)
-	c := New(h, strings.NewReader(""))
-	c.writeChild([]byte("\x1b[=1u\x1b[?1049h\x1b[=1u"))
-	c.release()
+func TestKeyboardReleaseRejectsLatePresentation(t *testing.T) {
+	f, h, _ := keyboardFixture(t)
+	f.con.Stop()
+	select {
+	case <-f.done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("Console did not complete teardown")
+	}
 	if got := h.ctrlReturn(); !bytes.Equal(got, []byte("\r")) {
-		t.Fatalf("restored main screen leaked key mode: %q", got)
+		t.Fatalf("shell inherited keyboard state: %q", got)
 	}
 	before := h.Written()
-	c.writeChild([]byte("late child"))
-	c.takeOverScreen(nil, []byte("late takeover"))
-	c.writeOwn("late paint")
-	c.showMenu()
-	c.release()
+	if err := f.con.presenter.Present(context.Background(), f.child.Endpoint()); err == nil {
+		t.Fatal("released presenter accepted output")
+	}
+	f.con.showMenu()
+	f.con.release()
 	if h.Written() != before {
-		t.Fatal("output reached terminal after release")
+		t.Fatal("late output reached terminal")
 	}
 }
 

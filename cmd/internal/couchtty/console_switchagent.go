@@ -2,7 +2,6 @@ package couchtty
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"time"
 
@@ -121,14 +120,11 @@ func (c *Console) finishOrientation(result orientationWatchResult) {
 }
 
 func (c *Console) copyOrientation(request orientation.Request) {
-	c.mu.Lock()
-	safe := c.hostScan.SafeToPaint()
-	c.mu.Unlock()
-	if !safe {
-		c.reduceMenu(MenuEvent{Kind: MenuEventNotice, Error: "Copy unavailable while terminal output is incomplete; retry."})
+	if err := c.presenter.Copy(c.lifetime, []byte(request.Body)); err != nil {
+		c.terminalError(err)
 		return
 	}
-	c.writeOwn("\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(request.Body)) + "\x07")
+
 	c.mu.Lock()
 	c.menu.Notice = infoMenuNotice("Clipboard copy requested; your terminal may not support it.")
 	panel := c.focus.IsPanel()

@@ -1,12 +1,13 @@
 ---
 id: 000255
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-14
 updated: 2026-09-15
-estimate_hours: 2.204
+estimate_hours: 18.025
 started: 2026-09-15T09:20:10-07:00
+actual_hours: 25.48
 ---
 
 # Establish a faithful terminal abstraction for Couch and Pair
@@ -90,12 +91,28 @@ The primary acceptance is operator-visible: the ongoing display corruption and m
 
 ## Plan
 
-- [ ] M1 — Qualify the required terminal contract and candidate backend; record failures, untested obligations and an evidence-based adoption decision.
-- [ ] M2 — Implement the shared endpoint/presenter after qualification and detailed design approval.
-- [ ] M3 — Migrate Couch and Pair, including wrapper transformation conformance, to the shared contract.
-- [ ] M4 — Complete composed/live conformance, measured rollout verification and publication.
+- [x] M1 — Qualify the required terminal contract and candidate backend; record failures, untested obligations and an evidence-based adoption decision.
+- [x] M2 — Implement the shared endpoint/presenter after qualification and detailed design approval.
+- [x] M3 — Migrate Couch and Pair, including wrapper transformation conformance, to the shared contract.
+- [x] M4 — Complete composed/live conformance and measured verification; prepare the isolated smoke candidate.
 
 ## Log
+
+### 2026-09-15 — M3 migration in progress
+- 2026-09-15: closed — Operator accepted isolated and usual-local-setup smoke and authorized merge with later issues fixed forward (#259). M1-M4 SHIP; BR-23 CI correction runs exact strict native target successfully (29.250s, all six required test/subtest passes), five gate/cleanup tests green and disabled-validation mutations red; artifact/runtime guards pass. Previous full Go/fork/race/native and attributed 30-minute soaks remain recorded. Performance exceptions switch p95 101-115ms versus100ms and active-output CPU are explicit. No product behavior changed after accepted M4; corrected CI delivery and docs.; review verdict: SHIP
+- 2026-09-15: closed M4 — BR-19/20 disposed by round2. BR-21 test-only correction passes lifetime race x3 and strict native Zellij/nvim/broker-PTY race x1; success/failure cleanup mutations fail as intended, actual scratch absent post-run. Artifact suite passes; all 424 production hashes unchanged. Prior full Go and strict native race x3 pass on same production source; prior 30-minute soaks retain exact attribution. Performance exception: post-history switch p95 101-115ms versus provisional 100ms and active-output CPU increase documented. Precise no-actual exception: cumulative attribution across ten issues supplies no defensible M4 increment; do not guess. Operator smoke and merge pending.; review verdict: SHIP
+- 2026-09-15: closed M3 — BR16-18 corrected after prior BR13-15 disposition. Red invalid resize panic now rejected before allocation with view/input preserved; shared terminal+qualification+term native/oracle race passed (/tmp/pair255-br16-final-race.log). Teardown failure reproduced2/50 then100normal+100race+100late-presentation repetitions and full Couch/term race passed (/tmp/pair255-br17-*.log). Geometry/clone entrypoints and both consumer teardown suites swept; stale harness guide corrected. Prior full Go, fork, compiler, wrapper, Lua/shell/Linux evidence logged; source whitespace clean, generated review has Markdown hard breaks. No measured per-milestone increment available; whole-window0.61h not substituted. M4 history latency correction, longruns and operator smoke remain pending.; review verdict: SHIP
+
+M2 closed with SHIP (`c5ec1728`, review window `29101ebf..214d43e8`). M3 now routes Couch and Pair through endpoint publications and the shared presenter. PTY output delivery is bounded and acknowledged; child EOF disables input immediately while final output remains publishable, and drained exit cannot overtake it. Host IO owns nonblocking descriptor flags for its lifetime and joins transport/watchers on teardown. Removed the production resize-nudge authority; terminal history now comes from typed bounded state. Build-time terminfo compilation is included in the runtime bundle, avoiding a runtime `tic` dependency. Focused publication race tests passed; full consumer migration checks are in progress. Native history oracle caught a one-column-to-wider soft-wrap/copy edge, still under investigation; no completion claim or live operator runtime change. User stop remains after M4 for smoke acceptance before merge.
+
+
+### 2026-09-15 — M3 production verification
+
+Couch and Pair now use typed endpoint publications, ordered input/effects and one presenter. Removed raw replay/nudge/scanner display authority. Full root Go suite passes (`/tmp/pair255-m3-full-final.log`); fork and shared packages pass race/native oracle checks. Wrapper full suite and targeted race, both consumer race suites, runtime profile/inventory tests, Lua, terminal shortcut and retention tests pass. Focused vet and Linux build pass. Real startup/query tests prove endpoint replies progress before a blocked UI publication callback completes; EOF/exit tests prove final output drains before removal.
+
+Disposable native Zellij joins the real candidate wrapper, synthetic Codex-named peer, PTY and Console. Direct and wrapped baselines cover query/key/paste/focus/drag receipts, Return-triggered canonical notification once, shell/panel/resize, real nvim content and independent xterm chrome. Actual native selection highlights before mouse release and emits the expected copied text (`/tmp/pair255-couch-native-final.log`). Upstream Zellij's loss of the tested combining accent is reproduced directly and is not claimed fixed by Pair; endpoint split-grapheme behavior remains separately checked. A one-column viewport clips an unrepresentable wide glyph while retaining it for widening; that extreme native-copy limit is explicit.
+
+Typed history adds bounded row identity, clear epochs, blank provenance and primary reflow. A redundant ordinary history snapshot initially exceeded the representative memory target; removing it without mutable aliasing brought sixteen saturated 240×80 endpoints plus caller publications to 287.5MB live heap and 427.7MB peak RSS. 80×24 measured 170.0MB heap /244.3MB peak RSS. These measurements do not replace M4 sustained production and latency evidence. Short real-PTY Couch/Pair soak harnesses are prepared and pass, with long runs pending the M3 gate. Operator smoke remains after M4, before issue close or merge.
 
 ### 2026-09-14 — Audit capture
 
@@ -133,8 +150,18 @@ func TestAuditConcurrentOutputAndSwitch(t *testing.T) {
 The overlay maps an additional `cmd/internal/couchtty/audit_temp_test.go` to the temporary source above. Observed result: `WARNING: DATA RACE`, followed by test failure. This demonstrates the field race only; it neither reproduces the random disconnect nor proves every hypothesized interleaving.
 
 ### 2026-09-15 — Terminal abstraction discussion
+- 2026-09-15: closed M2 — BR12 red regressions corrected across backend/frame/chrome: every-byte split production presentation and subsequent input; all2172zero-width Unicode scalars in three contexts yield valid frames; intact ASCII combining/CJK rendering passes independent xterm. Full root Go suite, fork normal/race, shared terminal/ttyio/qualification race, final terminal race and independent oracle pass. Qualification84pass0fail6M3/M4uncovered. BR6-BR11 disposed by prior reviews. Precise no-actual: milestone-window measurement unavailable, cumulative historical attribution not a substitute. Production/live acceptance pending.; review verdict: SHIP
+- 2026-09-15: closed M1 — Full Go suite PASS after implementation corrections; focused race on terminalqualify, probe, artifactpath PASS after BR-5 test-only correction; four partition mutations detected; probe 53 pass, 15 fail, 14 not-covered rejects unchanged adoption; git diff --check PASS. No production fix claimed. Actual unavailable: sdlc actual found no transcript events.; review verdict: SHIP
 
 Operator challenged the explanation that adding UI and interception inherently makes interference unavoidable: a faithful terminal abstraction should preserve inner-program behavior. Accepted that correction. The missing requirement is a semantic terminal contract, not merely more locks or single-owner fields. Current #252 reproduction violates chunk independence. The #207 trace records click-only writes during panel display and subsequent takeover with no restored mouse modes; this supports a mode-restoration gap, while the initial background mouse-off source remains unresolved. These observations do not establish the disconnect cause. No production changes or live repairs were made for this issue update.
+
+- 2026-09-15 M2 implementation progress: checked-in backend fork now passes all 68 original executable qualification cases without weakening predicates. Added erase regressions for ED1 preserving the cursor-row suffix, ED2 background, ED3 history-only clearing, and bounded ECH. Shared immutable Frame/View/Render, incremental input decoder, context-aware descriptor transport, FIFO input writer and Endpoint are implemented; focused normal/race tests pass. Independent xterm-headless renderer oracle also passes. Presenter and attributed integration qualification remain in progress; production Couch/Pair migration has not begun.
+- Endpoint verification now covers hidden query origin, actual decoder-to-negotiated-input delivery, every split of Unicode/control output across input/snapshot operations, synchronized-output recovery, no-prior-snapshot sync capture, once-only effects, unsupported clipboard reads, acknowledged resize and teardown rejection. Transport tests include blocked/partial/zero-progress writes and joined cancellation.
+- M2 provisional microbenchmarks on Apple M2 Max: feed+owned snapshot 80×24 ≈90µs/443KB and 240×80 ≈893µs/4.31MB per operation; renderer unchanged frame ≈49µs/496µs respectively with zero allocations. These are per-operation allocation measurements, not retained RSS or sustained latency acceptance; M4 must measure the complete path.
+
+- 2026-09-15 M2 pre-gate verification: final `go test ./... -count=1` passed; shared terminal/ttyio/terminalqualify race tests passed; independent xterm-headless renderer oracle passed; fork normal/race tests passed. Qualification is 81 pass, 0 fail, six correctly uncovered M3/M4 obligations. Updated the exhaustive source inventory and replaced the wrapper test that deliberately expected split-ZWJ corruption with every-split correct-cluster assertions. Presenter in-session review fixes stable mouse modes during drag, joined cancellation, hidden refresh isolation, typed origin retirement, panel release, and owned keyboard cleanup. Native scrollback export is explicitly retained as M3 work. SDLC M2 boundary review is next.
+
+- 2026-09-15 M2 boundary round 1 returned REWORK with BR6–BR8. BR6 reproduced chrome/panel/orphan mouse gesture leakage; View now represents parent/child/no ownership and Presenter admits mouse events atomically against a backend negotiation epoch. BR7 reproduced truncated CSI effects (including exactly32 parameters losing one); the fork now retains bounded overflow evidence and rejects the entire CSI/DCS command before dispatch. BR8 reproduced stale cursor shape/visibility after reset, restore and buffer switching; Endpoint and the qualification observer now read copied authoritative cursor state. Each class has a failing-before regression and passing-after verification. Extended qualification adds three cursor-state cases (84 pass, six consumer/live obligations uncovered). Wider verification and the second boundary review follow.
 
 ## Revisions
 
@@ -162,13 +189,31 @@ Fresh spec review approved the proposed direction and M1 qualification, with no 
 
 Operator approved the architectural direction and qualification phase. Added executable M1 tool/matrix plan, explicit negative qualification semantics and bounded candidate lifecycle; later production migration remains subject to qualification and detailed plan approval. Replaced generic plan rows with the four actual review boundaries from the approved proposal.
 
+- 2026-09-15 M2 second boundary review: BR6–BR8 independently verified addressed; BR9 blocks closure. Failed resize revived an already-canceled child gesture. Sweep all cancellation callers (release, failure, selection, panel, negotiation, resize), committing ownership revocation separately from delivery and subsequent operation success. Interrupted delivery must retain the existing release admission rather than enqueue a duplicate on retry. M3 remains pending this gate.
+
+- 2026-09-15 M2 BR9 correction verified: explicit pending cancellation commits child-to-parent ownership before admission, retries Flush rather than enqueue, and Release attempts parent cleanup while reporting child cancellation errors. Red evidence: `/tmp/pair255-br9-red.log`, `/tmp/pair255-br9-callers-red.log`, `/tmp/pair255-br9-child-red.log`; final shared terminal/ttyio/qualification race checks and independent renderer oracle passed (`/tmp/pair255-m2-round3-{race,oracle}.log`). Six-caller matrix plus actual interrupted Select, physical remainder, fresh press, failed resize and permanent child failure regressions pass. Previous full root suite remains valid for unchanged consumers. M3 history discovery prototypes are preserved under `tests/terminal-oracle/discovery`; all six probes passed, with typed/dirty smoke repeated after oracle error/cleanup hardening. These are preparation evidence, not production qualification.
+
+- 2026-09-15 M2 third boundary review: BR9 independently mutation-verified addressed; terminal implementation checks passed. BR10 blocks closure because newly preserved discovery probes retain temporary directories without a lifecycle. Correct the shared driver to remove all owned artifacts after process/PTY teardown on success and failure, with cleanup regressions. No retained-directory mode is needed. Separately prepared baseline binaries from b11ab67f under `/tmp/pair255-baseline-b11ab67f/out`; preliminary direct-PTY synthetic startup/input samples are `/tmp/pair255-baseline-startup.json` (includes cold first launch; not final M4 comparison).
+
+- 2026-09-15 BR10 verified: three cleanup regressions first reproduced leaks; all five success/spawn/runtime/teardown/capture tests now pass. TemporaryDirectory owns the entire run; both PTY descriptors close on spawn failure; diagnostic capture retains at most 8KiB. Typed-history and dirty-rebuild probes still pass; process snapshot found no surviving disposable Zellij processes. Evidence `/tmp/pair255-br10-cleanup-tests.log`, `/tmp/pair255-br10-{typed,dirty}.jsonl`, `/tmp/pair255-br10-processes-after.log`. Terminal production code unchanged since passing race/oracle checks.
+
+- 2026-09-15 M2 fourth boundary review disposed BR10 but reproduced BR11 (parent restoration). Independent production Select/Release regression now fails at accepted prefix93: ordinary text overwrites the last column because autowrap remains disabled. Sweep renderer/setup state and test every accepted output prefix, including hyperlink/rendition/cursor style and input-reporting cleanup. Red: `/tmp/pair255-br11-oracle-red.log`.
+
+- 2026-09-15 BR11 corrected: centralized parent release inventory restores autowrap, origin/full margins, OSC8, rendition and default cursor style/visibility after aborting partial framing, while retaining confirmed-owned keyboard pop. Every-prefix production Select/Release test now passes in independent xterm, including ordinary post-release text, modes, styles, link closure and cursor shape/blink. Shared terminal/ttyio/qualification race checks pass; evidence `/tmp/pair255-br11-{oracle-green,race}.log`. No live symptom acceptance claimed.
+
+- 2026-09-15 M2 fifth boundary review disposed BR11; BR12 exposed zero-width characters permanently failing Presenter. Backend now consumes orphan zero-width runes without cell/cursor/wrap mutation while retaining valid contiguous clusters. Audit also found ANSI decoder ASCII fast paths incorrectly splitting `é` in Frame.Validate/StyledRows; both now use complete grapheme segmentation. Strict continuation-cell validation remains. Backend every-split normal/race tests pass; production split tests preserve presentation and subsequent input, and StyledRows literal tests cover the shared policy. Red evidence `/tmp/pair255-br12-{backend,presenter,styled}-red.log`; full integration verification running. Explicit policy matches native Zellij orphan behavior; xterm representation differs and is documented.
+
+- 2026-09-15 BR12 final verification: full root Go suite passed (`/tmp/pair255-br12-full-go.log`); fork normal/race, shared terminal/ttyio/qualification race, final terminal race and independent renderer oracle passed. Exhaustive scalar classification tested all2172zero-width Unicode scalars in three contexts (orphan, printable base, post-control), with valid frames throughout (`/tmp/pair255-br12-scalar-class.log`). Qualification remains84pass0fail6M3/M4not-covered. Contiguous ASCII combining/CJK output is verified in independent xterm for both endpoint and chrome.
+
+- 2026-09-15 M2 SHIP after six rounds, BR6–BR12 independently disposed. Root full suite passed; reviewer full run had one unchanged100msconstructor-test timeout, with ten isolated retries passing. Record as timing instability, not a second full-suite pass. Starting authorized M3; final operator smoke remains after M4 and before merge.
+
 ## Estimate
 
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. This is approved M1 qualification only; M2–M4 require later estimates after their designs settle. Calibration is marked stale by estimate-source, so the result is provisional.
 
 Candidate integration uses the existing vt library: 1.0 design ×0.5 library ×0.2 thorough-spec =0.10; implementation0.8 ×0.4 =0.32. Matrix/independent expectations are a separate greenfield concern with no library for the oracle:1.0 ×0.2 =0.20, impl0.8 ×0.4 =0.32. Report and CLI are two smaller modules, each0.3 ×0.2 =0.06 design and0.5 ×0.4 =0.20 impl. Docs0.2 ×0.2 =0.04 design and0.2 ×0.4 =0.08 impl. Review0.1 design and0.5 ×0.4 =0.20 impl. One real-API discovery allowance0.6 ×0.4 =0.24 impl covers behavioral qualification of the unfamiliar backend. Familiarity1.0; design buffer15%. Total0.56 ×1.15 +1.56 =2.204h.
 
-```estimate
+```text
 model: estimate-logic-v3.1
 familiarity: 1.0
 item: greenfield-go-module design=0.10 impl=0.32
@@ -185,3 +230,369 @@ total: 2.204
 ### 2026-09-15 — Operator-visible acceptance takes precedence
 
 Operator clarified that #255 acceptance is the ongoing display corruption and loss of selection highlight going away. Promoted these to primary Done when criteria, requiring both causal regressions and sustained actual-use acceptance across panes/switches. The abstraction is the means, not a substitute deliverable. M1 qualification still cannot close #255.
+
+
+### 2026-09-15 — M1 qualification implemented, negative backend result
+
+Added the isolated terminal qualification probe and literal screen/input/query fixtures. Current result: 41 pass, 15 fail, 14 not-covered; unchanged adoption is rejected. Controlled blocked/failing reply transport, cancellation, isolation, teardown and race tests pass; a comparator mutation is detected. Production Couch/Pair behavior is unchanged. The qualification report records the Pair wrapper raw/transformed-stream audit and the integration obligations that remain. Final acceptance remains sustained absence of display corruption and continuous mouse-drag highlights in both panes, confirmed by the operator. M1 review is pending; M2–M4 require the approved backend re-plan checkpoint.
+
+Full Go suite passed after generating runtime assets; focused normal/race and artifact-inventory checks passed. One existing orientation reply test failed intermittently in an earlier full run, then passed 30 focused repetitions and the final suite; recorded without claiming a fix. `sdlc actual` could not find transcript events, so M1 uses the specific unavailable-telemetry exception rather than guessed hours.
+
+
+### 2026-09-15 — M1 boundary review round 1: REWORK
+
+Four findings addressed before resubmission: BR-1 complete observation equivalence, BR-2 non-color text attribute coverage, BR-3 bounded structured JSON evidence, BR-4 README probe documentation. Added regression tests first; focused race tests pass. Updated matrix: 53 pass, 15 fail, 14 not-covered, still rejecting unchanged production adoption. Added the general qualification lesson to workshop/lessons.md. No REWORK verdict is recorded as a completed review boundary.
+
+
+### 2026-09-15 — M1 review round 2 partition-test correction
+
+Round 2 disposed BR-1 through BR-4 and raised BR-5: partition regression tests counted calls without proving delivered bytes. Added literal partitions for empty, single-byte, multi-byte UTF-8 and CSI inputs, plus independent byte-preservation and every-boundary assertions over all 256 byte values and mixed Unicode/control streams. The production RunCase executor path is checked with the same invariant. Four mutations are detected by failed assertions: repeating whole input, dropping a byte, skipping alternating boundaries and omitting the first boundary. No production implementation changed in this correction. Final full Go suite passed after round 1 corrections; focused race verification covers these additional tests.
+
+
+### 2026-09-15 — M1 complete, implementation decision pending
+
+Third boundary review: SHIP, all five findings disposed. Qualification result remains 53 pass, 15 fail, 14 not-covered. The approved qualification phase is complete; backend re-plan is next. Production migration and the user-visible acceptance gate remain open.
+
+### 2026-09-15 — Operator authorizes M2–M4 continuation
+
+Continue autonomously through M4, including backend re-plan and all implementation/review gates. Then pause for operator smoke test before merge. This supersedes the earlier stop after negative M1 qualification; it does not waive final sustained display/selection acceptance. Durable plan Chunks 2–4 select a checked-in narrow x/vt fork plus shared endpoint/presenter, both compositor migrations, wrapper audit and isolated sustained conformance. Production installation and merge remain held for the final smoke test.
+
+
+### 2026-09-15 — Expanded estimate after M2–M4 plan-quality pass
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Preserve the historical M1 estimate of 2.204h above; the executable derivation below includes those unchanged item values plus M2–M4. The earlier fence is now historical text rather than a second active derivation.
+
+Source ranges were read from v2/v2.1 and the v3.1 implementation scaling. New Go concerns use the upper 0.8h implementation range ×0.4=0.32; TUI concerns use 1h×0.4=0.40; API harnesses use 1.5h×0.4=0.60; smaller/refactor use 0.5h×0.4=0.20. Design uses the documented library half-discount for usable vt/ultraviolet/ANSI/syscall/oracle libraries, then ×0.2 for settled decisions; grapheme/bounds/fd/composed-harness decisions use ×0.5 because implementation details still need discovery. Familiarity remains 1.0 for this now-audited Go/backend/repo surface, with two explicit real-API discovery allowances. Review/docs are counted once per remaining milestone, and sustained/native verification has its own API-harness items. This is a provisional calibration estimate, not a deadline or measured actual.
+
+| Scope | Primitive | Design h | Impl h |
+|---|---|---:|---:|
+| M2 grapheme repair | greenfield-go-module | 0.50 | 0.32 |
+| M2 keyboard state | greenfield-go-module | 0.20 | 0.32 |
+| M2 protocol repairs | smaller-go-module | 0.06 | 0.20 |
+| M2 backend bounds | greenfield-go-module | 0.50 | 0.32 |
+| M2 endpoint | greenfield-go-module | 0.20 | 0.32 |
+| M2 fd/packet transport | greenfield-go-module | 0.50 | 0.32 |
+| M2 input decoder | greenfield-go-module | 0.20 | 0.32 |
+| M2 view transitions | tui-screen | 0.40 | 0.40 |
+| M2 renderer | greenfield-go-module | 0.20 | 0.32 |
+| M2 presenter | tui-screen | 0.40 | 0.40 |
+| M2 wire oracle | api-integration | 0.10 | 0.60 |
+| M3 child migration | cross-cutting-refactor | 0.20 | 0.20 |
+| M3 Couch output | tui-screen | 0.40 | 0.40 |
+| M3 Couch input | tui-screen | 0.40 | 0.40 |
+| M3 Pair terminal | tui-screen | 0.40 | 0.40 |
+| M3 wrapper | cross-cutting-refactor | 0.20 | 0.20 |
+| M3 composed harness | api-integration | 0.50 | 0.60 |
+| M4 sustained harness | api-integration | 0.20 | 0.60 |
+| M4 performance | api-integration | 0.10 | 0.60 |
+| M4 candidate handoff | smaller-go-module | 0.06 | 0.20 |
+| M2 documentation | atlas-docs | 0.04 | 0.08 |
+| M2 review | milestone-review | 0.10 | 0.20 |
+| M3 documentation | atlas-docs | 0.04 | 0.08 |
+| M3 review | milestone-review | 0.10 | 0.20 |
+| M4 documentation | atlas-docs | 0.04 | 0.08 |
+| M4 review | milestone-review | 0.10 | 0.20 |
+| OS nonblocking API discovery | real-api-discovery | 0.00 | 0.24 |
+| independent oracle/native conformance discovery | real-api-discovery | 0.00 | 0.24 |
+
+Cumulative design 6.700 ×1.15 + implementation 10.320 = 18.025h. Added scope estimate: 15.821h.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: greenfield-go-module design=0.50 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: greenfield-go-module design=0.50 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.50 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: tui-screen design=0.40 impl=0.40
+item: greenfield-go-module design=0.20 impl=0.32
+item: tui-screen design=0.40 impl=0.40
+item: api-integration design=0.10 impl=0.60
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: tui-screen design=0.40 impl=0.40
+item: tui-screen design=0.40 impl=0.40
+item: tui-screen design=0.40 impl=0.40
+item: cross-cutting-refactor design=0.20 impl=0.20
+item: api-integration design=0.50 impl=0.60
+item: api-integration design=0.20 impl=0.60
+item: api-integration design=0.10 impl=0.60
+item: smaller-go-module design=0.06 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.10 impl=0.20
+item: real-api-discovery design=0.00 impl=0.24
+item: real-api-discovery design=0.00 impl=0.24
+design-buffer: 0.15
+total: 18.025
+```
+
+
+### 2026-09-15 — M3 boundary submission
+
+Final source audit found diagnostics could bypass the presenter while stderr shared its TTY, and canceled teardown discarded release errors. Tests first reproduced both; errors/reports are now retained until joined release/raw restoration, and release failure returns nonzero. Full Couch race passed again (`/tmp/pair255-couch-exit-full-race2.log`). M3 is ready for the binary-owned boundary review. Milestone measured increment is unavailable: `sdlc actual --issue 255` reports a multi-issue whole-window value (0.61h, `8a9d900f..HEAD`), which is not substituted for M3. The precise `--no-actual` acknowledgment is retained for this milestone rather than inventing an increment.
+
+### 2026-09-15 — M3 boundary round 1: REWORK
+
+SDLC reviewed `c5ec1728..f32bb4cf` and found BR-13 erased-cell background loss, BR-14 missing exited-child disposal, and BR-15 missing terminfo compiler seam. Fixes are in progress as class-wide sweeps, with the detailed plan revision recording serializer and lifecycle paths. M3 remains open; M4 long runs and operator smoke are pending. Mutation overlays independently detected UTF-8 carry loss, chrome displacement and dropped mouse motion; all corresponding unchanged tests passed, all three mutations failed behavioral assertions (`/tmp/pair255-m4-mutation/`).
+
+### 2026-09-15 — M3 review corrections verified
+
+BR-13 now preserves erased backgrounds through viewport/history append/rebuild and alternate buffers, including native soft-gap copying without an invented space. BR-14 ownership sweep covers accepted natural/last exit, repeated replacement, teardown, failed raw acquisition, rejected/pre-ack startup and Pair explicit close-tab; the last now uses the same removal path as natural exit. Presenter disposal writes no reset when no parent write was attempted, while interrupted setup still resets. BR-15 injects compilation with portable filesystem-fake failure/output tests and separate tic/infocmp conformance.
+
+Verification: shared terminal/qualification/generator full race with independent/native oracles passed (`/tmp/pair255-m3-rework-shared.log`); full Couch race passed17.788s, focused core race4.034s, full core normal111.168s (`/tmp/pair255-disposal-core-normal.log`), native/nvim race5.365s, and full term race2.328s (`/tmp/pair255-term-close-order-race.log`). Corresponding regressions were observed failing before their fixes. Scope whitespace check passed. M3 is resubmitted with all three findings addressed; the gate owns disposition.
+
+Expanded M4 timing preflight exposed periodic saturated-history rebuilds: approximately63KB emitted for an input instead of1KB, with end-to-end samples near98ms. That does not meet the provisional input target and will be addressed before M4 qualification. No long run or operator symptom resolution is claimed.
+
+### 2026-09-15 — M3 boundary round2: prior fixes accepted; further corrections
+
+Review disposed BR-13–BR-15. New BR-16 reproduces a panic from negative-width Resize after selecting chrome; BR-17 finds shutdown evidence racing teardown because ResetRegion also appears in ordinary paints. BR-18 notes the stale harness guide. Geometry-before-allocation and completion-acknowledgment sweeps are in progress; M3 remains unclosed. The per-boundary round cap is3 by default (global ledger sequence numbers span milestones); subsequent M3 review uses the default cap.
+
+### 2026-09-15 — M3 round3 submission evidence
+
+BR-16 regression first crashed on negative width; both resize entrypoints now reject negative, zero, over-limit and chrome-only dimensions without changing admission, issuing PTY resize, or writing parent bytes. Select/Panel/UpdateChrome also validate before cloning; endpoint allocation, composition and styled-row constructors were already bounded before allocation. Shared cloning preserves owned color data. Full terminal/qualification/term race with native and independent oracles passed (`/tmp/pair255-br16-final-race.log`).
+
+BR-17 originally reproduced2/50 shell-usability failures. Couch shell, mouse and keyboard restoration probes now receive Run completion; continuation completion uses a channel receive, and late-presentation probes run after joined shutdown. Other Couch exit/signal/failed acquisition/disposal/diagnostic/input-join tests already join. Pair runShellOnHost/closeAll tests and soak already wait synchronously, so no change there.100normal repetitions,100race repetitions,100late-presentation race repetitions and full Couch+term race passed (`/tmp/pair255-br17-{repeat,race-repeat,late-repeat,full-race}.log`). BR-18 guide and telemetry row now describe preserved protocol and current traces. Source whitespace check passed; generated prior review text retains Markdown hard breaks.
+
+### 2026-09-15 — M4 extended runs found harness observation gaps
+
+The first30-minute term run failed after67.45s: the harness observed a receipt in Endpoint state before the corresponding batch had enqueued/reached the parent. Flushing an empty current queue did not acknowledge that concurrent producer step. Fix the receipt wait to observe the selected parent screen, retaining full frame/style/cursor comparison. The analogous Couch wait is swept. Initial Couch run was stopped deliberately after several minutes to restart on the renderer optimization; neither initial run counts as30-minute completion (`/tmp/pair255-{term,couch}-soak-initial.log`).
+
+The expanded timing run completed11samples then encountered PTY EOF after sleeping2s without draining output. Investigate as harness backpressure against the2s parent-write deadline; idle must consume output like a real terminal, and EOF diagnostics must retain bounded screen/exit evidence. Preserved `/tmp/pair255-m4-performance-before-idle-fix.*`. Partial80x24 candidate p95 saturated input20.953ms meets50ms after prefix-eviction repair; saturated switch107.389ms remains above100ms. Remove redundant per-row default style/link resets, preserving frame-level and nondefault cleanup, then restart measurements and soaks on stable source. No threshold is relaxed.
+
+### 2026-09-15 — M4 stable qualification restart
+
+The soak receipt barrier now observes selected physical-screen content after presentation; a scratch Go overlay delaying publication reproduces both original harness failures and the corrected tests pass the same forced schedule (race ×3), plus ordinary race ×10. Hidden READY remains endpoint-only. `/tmp/pair255-soak-ack-{red,race,overlay-green}.log` retains evidence; no production scheduling change was made for this harness race.
+
+The renderer avoids rebuilding already-delivered history solely because endpoint retention evicted an older prefix; gaps, clear/owner/geometry changes still rebuild the retained suffix. Redundant default row resets are removed while frame boundaries and styled/linked cleanup remain. Independent xterm and native Zellij tests, erased-background/copy fixtures and interrupted-write restoration pass with race detection (`/tmp/pair255-m4-style-reset-final.log`). Fresh immutable binaries started both thirty-minute production soaks; final latency/resource measurement is running against the rebuilt candidate. No partial duration counts as completion.
+
+### 2026-09-15 — M4 regression fixture correction and measured limits
+
+The first full final Go run caught `TestLifecycleCandidateUsesFocusAfterPrefix` waiting for actor bytes. Focused reproduction failed2/100: the fixture navigated before Run completed initial selection. A Console-loop acknowledgment now fences initialization, and cleanup joins Run. This is test-only;100 race repetitions and the full Couch race suite pass (`/tmp/pair255-focus-prefix-{repeat,race-green,full-race}.log`). The complete root suite is rerunning.
+
+All twenty performance sessions and four16-tab memory sessions completed. Typing and sampled memory meet provisional targets; pooled saturated-switch p95101.060ms/115.416ms exceeds100ms at80×24/240×80, versus baseline187.129ms/215.472ms. Maximum observed16-tab candidate RSS203.156/386.594MiB remains under512MiB; active-output CPU is higher than baseline. Exact evidence, attribution limits and provisional-budget disposition are recorded in the qualification report and appended plan revision. No samples are removed and no interpreter cost is subtracted. The isolated operator candidate and launch/revert checklist are in `workshop/plans/000255-terminal-smoke.md`; it has not been launched into an operator session.
+
+### 2026-09-15 — M4 final suite green; sustained qualification continuing
+
+The complete root Go suite passes after the fixture correction (`/tmp/pair255-m4-full-confirmed.log`), together with fork tests, all targeted race suites, Lua/shell/shortcut/retention, native three-repeat conformance, runtime packaging/determinism and Linux compilation. Three causal mutations fail as intended while unmodified controls pass. Both thirty-minute tests remain running on the same fingerprinted production source; no partial duration is substituted for the planned completion.
+
+M4 actual-time preview reports0.80h across cumulative window `8a9d900f..HEAD`, attributed among ten issue IDs; the tool explicitly asks for a per-milestone increment at milestone close. No defensible M4 increment is available from that mixed window, so the precise `--no-actual` exception will be recorded rather than treating the cumulative total as M4 hours or inventing a value.
+
+### 2026-09-15 — M4 sustained-run outcome and shutdown blocker
+
+Pair term passed30m0.017s with141,796 iterations,6,778,538,818 rendered parent bytes and maximum receipt latency30.244ms; final worker count returned to2 (`/tmp/pair255-term-soak-30m.log`). Couch completed its thirty-minute operational loop without a screen/routing assertion failure but returned exit1 during final Stop/join, so its test **failed** (`/tmp/pair255-couch-soak-30m-before-stop-fix.log`). No M4 close attempt is made while this remains unexplained. The frozen production fingerprint still matches421 files. Investigating cancellation/teardown ordering and adding retained diagnostics rather than accepting a nonzero exit or counting the run as a pass.
+
+### 2026-09-15 — M4 shutdown cause fixed; Couch soak restarted
+
+The short reproducer fails3/100; captured failure is `terminal: input write accepted 0/450 bytes: context canceled` with empty teardown diagnostics. Stop and Presenter.Failed were both ready, but only the Failed branch unconditionally returned1. The result is now classified after Presenter release joins its worker. New cancellation-only trees after Stop are expected; genuine host errors (including joined cancellation), deadlines, cleanup errors and live-latched cancellation still fail. Forced blocked-paint red/green regressions and full Couch race pass (`/tmp/pair255-couch-stop-{red,green,full-race}.log`).
+
+Only `cmd/internal/couchtty/console.go` and `terminal.go` changed in production. Couch's new30m run uses `/tmp/pair255-couch-soak-after-stop-fix.test`, logging to `/tmp/pair255-couch-soak-30m-after-stop-fix.log`. The previous failed log and source manifest are retained. Pair's passed30m run and measured Pair-term performance predate this Couch-only fix; their executed paths are unchanged. The smoke binaries are refreshed and affected full/native tests will be repeated before M4 closure.
+
+The first native rerun after the shutdown fix exposed a separate fixture observation race: it checked endpoint highlight then flushed once, before the Feed→enqueue publication gap closed. Captured native wire contains the correct highlight. A parent-visible barrier is being proved with the delayed-publication overlay. That run also had a notification timeout and post-Stop fixture diagnostics; investigate and preserve these independently (`/tmp/pair255-m4-native-after-stop-fix.log`) rather than treating the failed run as a pass. Couch's new long run remains active on unchanged production code.
+
+### 2026-09-15 — M4 notification ownership revision
+
+Strict native failure capture shows wrapper outer-TTY `EAGAIN`; retrying would
+still leave two independent writers on Zellij's terminal connection. Producer
+sweep also finds the hook CLI. The durable plan's notification transport revision
+replaces both with a bounded wrapper broker and serialized in-band OSC, qualified
+against pinned Zellij0.45.1. Plan-quality round5 passed after reading that revision
+(`/tmp/pair255-m4-notification-plan-gate.log`); implementation and native stress
+remain in progress. Endpoint mapping red/green proves typed Pair origin, exact
+4096-byte bodies and unchanged generic limits. Native probe equality includes
+Zellij's existing grapheme limitations; it is not broader Unicode conformance.
+The canonical plan uses a descriptive filename that SDLC does not inline; this
+round's log confirms the reviewer explicitly read it. Future revisions must also
+change this issue log so the gate's issue-content fingerprint cannot skip them.
+
+### 2026-09-15 — Corrected Couch sustained run passed
+
+`/tmp/pair255-couch-soak-30m-after-stop-fix.log` passes30m0.015s, including
+Stop/join and exit0:78,772 iterations,19,693 attachment replacements,
+3,059,548,059 parent bytes,853,486 writes and maximum visible receipt22.293ms.
+Operational worker count remains16; final measured heap is5,779,392 bytes.
+Together with the earlier passed Pair30m run, this supplies the two sustained
+consumer runs. These immutable binaries predate the new notification broker and
+OSC9 adapter; the unchanged screen/input stress paths remain attributed to those
+binaries, while the new notification path requires its own native stress and
+full/race verification. No operator display/highlight acceptance is claimed.
+
+Native-fixture isolation correction: earlier runs inherited
+`PAIR_SCROLLBACK_EVENTS_PATH` despite private `PAIR_DATA_DIR`; synthetic
+diagnostic events may have appended to the invoking session's event log. The
+fixture now clears every inherited `PAIR_*` binding and supplies explicit private
+paths. Existing operator logs were not removed or rewritten. Strict native
+cleanup now joins Console.Run and checks exit0 before terminating only the
+fixture's exact private Zellij session.
+
+### 2026-09-15 — Final notification revision verification
+
+The final production source has424 non-test Go files in
+`/tmp/pair255-notification-production-source.json`, with zero drift through
+verification. Full root `go test ./... -count=1` passes
+(`/tmp/pair255-m4-full-after-notifications.log`); full wrapper race passes165.300s
+(`/tmp/pair255-notify-wrapper-race.log`). Broker/CLI race, full Couch/term race,
+shared terminal/qualification race and local fork normal suites pass. The
+additional real-PTY blocked/flooding-child output-failure regression passes
+race×5; the startup test with the real private PID binding passes race×3.
+
+Strict actual-wrapper/Zellij/nvim qualification passes race×3 in79.614s
+(`/tmp/pair255-native-inband-final.log`):96 hook notifications exactly once,
+three4096-byte UTF-8 messages,48 hidden/48 focused attention cases,12 resizes,
+persistent reattachment with unchanged PID/nonce/counter, held selection/copy,
+independent xterm screen comparison and every Console exit0. A delayed
+Feed→enqueue overlay also passes, after proving the original highlight assertion
+race. These synthetic native checks do not replace the operator's real Codex/
+Claude sustained visual acceptance. The probe inventory remains84pass/0fail/
+6not-covered, qualified=false; placeholders are not silently promoted.
+
+Artifact coverage and runtime-bundle suites pass; regenerated Zellij config
+checks and Linux/amd64 builds pass. The initial cross-build command targeted an
+existing file as a directory and failed; corrected output directory succeeds
+(`/tmp/pair255-notification-linux-build-final.log`). Previous Lua/shell/retention
+and causal mutation evidence remains valid for unchanged paths.
+
+Final smoke Pair hash:
+`b4db037d0760d26f4069e4357721be1e7c7df75c589ce1418eae795a3ab7b7ef`,
+identical to the native-tested binary. Candidate root
+`/tmp/pair255-smoke-gfr6g7pd` holds refreshed runtime assets, Pair/Couch/helper,
+private launcher and build manifest. `couch --list` through that launcher reports
+no threads; no interactive operator session was launched. See the smoke guide
+for exact launch/revert and acceptance steps. M4 boundary review remains pending.
+
+### 2026-09-15 — M4 review round1: REWORK
+
+Boundary `12c301ac..d36fef21` found BR-19 (socket lifetime after independent PID
+binding deletion) and BR-20 (real-broker fixtures share production's UID lock).
+Both are verified: launcher/GC can delete the binding without the socket, and
+the contention fixture holds that shared lock for its200ms timeout. The durable
+plan now requires binding-independent dead-owner reclamation and a fully
+injected namespace shared by addresses, locks and sweeps. All broker, wrapper,
+CLI, PTY/native and smoke fixtures are being moved to private namespaces. M4
+remains open; no smoke handoff or merge yet.
+
+BR-19/BR-20 corrections implemented: each broker captures its absolute namespace
+for addresses, locking and cleanup. Bounded admission reclaims only strict owned
+socket identities with a provably dead PID, independently of binding survival;
+capacity is1024 entries including a colocated PID binding. All real broker
+fixtures and the smoke launcher select private namespaces. Actual crash, deleted
+binding and failed-close residue tests, live/foreign preservation, strict filename
+grammar, cross-namespace lock/routing isolation and environment-change cleanup
+pass race×3 (`/tmp/pair255-notify-review-fixes-race.log`,22.746s/1.549s).
+Wrapper entrypoint isolation passes focused race; native/full final verification
+is running on frozen source. Only `notifytransport/address.go` and `transport.go`
+changed in production since `d36fef21`; the424-file source manifest is
+`/tmp/pair255-namespace-production-source.json`.
+
+### 2026-09-15 — M4 BR-19/BR-20 final verification
+
+Full root Go suite passes after namespace correction
+(`/tmp/pair255-m4-full-after-namespace.log`). Fresh native/nvim/broker-PTY race×3
+passes87.347s (`/tmp/pair255-namespace-native-final.log`), including private socket
+assertions,96 hook cycles,4096-byte UTF-8 bodies,48 hidden/48 focused attention
+cases,12 resizes, persistent reattachment and held selection/copy. Broker/CLI
+race×3 and focused wrapper entrypoint race pass. Linux/amd64 binaries build.
+All424 production source hashes remain unchanged since the frozen manifest.
+
+The refreshed private smoke Pair binary is identical to the native-tested binary:
+`9b51f6cd05f5b8468be033f502b068322cbf0d7ef53a53a17cb3eae9b82c0afe`.
+`/tmp/pair255-smoke-gfr6g7pd/build.json` records binary/source hashes. Earlier
+long-run/performance evidence keeps its original source attribution and recorded
+budget exceptions. M4 round2 review is next; operator smoke and merge remain pending.
+
+### 2026-09-15 — M4 review round2: REWORK
+
+BR-19/BR-20 are addressed; independent mutations prove their tests detect disabled
+fixes. New Important BR-21 identifies unbounded native success/failure evidence
+retention. The plan applies invocation ownership to both families and audits
+sibling writers, with cleanup and bounded-output regressions. Test-only correction
+is in progress. Reviewer's native run was blocked by `/dev/tty` sandbox denial in
+both direct and wrapped fixtures; its broad Go run was stopped incomplete. These
+are not counted as passing; our frozen-source full suite and native race×3 remain
+recorded separately. No operator smoke handoff or merge yet.
+
+### 2026-09-15 — BR-21 verification complete
+
+Removed native failure files entirely; bounded diagnostic prefixes go to the test
+report. Successful reattachment's six comparison files use invocation scratch
+registered before process teardown. Success/failure subprocess lifetime tests also
+verify scratch survives owner cleanup and disappears afterwards. Race×3 passes
+(`/tmp/pair255-br21-evidence-green.log`,4.691s); deliberate restoration of unowned
+storage/unbounded diagnostics fails both cleanup cases and the1MiB bound case
+(`/tmp/pair255-br21-evidence-mutation-red.log`). Mutation scratch is itself removed.
+
+Native Zellij/nvim/broker-PTY plus new lifetime checks pass race×1,30.281s
+(`/tmp/pair255-br21-native-race.log`); both native scratch directories were absent
+after completion. Sibling discovery/performance helpers use TemporaryDirectory;
+private native/PTY root cleanup now reports removal errors. Artifact coverage
+passes (`/tmp/pair255-br21-artifact.log`), scoped whitespace is clean, and all424
+production source hashes remain unchanged. Existing candidate is still exactly
+the qualified production binary. Third M4 boundary review is next; operator
+acceptance and merge remain pending.
+
+### 2026-09-15 — M4 SHIP; operator smoke pending
+
+Third boundary round SHIP (`12c301ac..ea98f0c7`), no blocking findings. Advisory
+stale notification-route prose is corrected across atlas, wrapper overview and
+shim comments. No executable behavior changed after reviewed/tested source.
+Candidate remains `/tmp/pair255-smoke-gfr6g7pd`, with its qualified binary/source
+hashes in build.json. Launch and acceptance checklist: `workshop/plans/000255-terminal-smoke.md`.
+M1–M4 are complete; issue stays working. Await operator sustained visual/live
+held-drag acceptance and responsiveness before issue close or merge.
+
+M4 row wording now matches the approved smoke-ready boundary; publication is deferred. Documentation-only runtime-bundle/artifact checks pass (`/tmp/pair255-m4-doc-sweep-check.log`).
+
+### 2026-09-15 — Operator smoke accepted; merge authorized
+
+Operator: “ok, consider the smoke test passed. any issue we discover later, we
+will fix forward. merge please”. The isolated candidate appeared to work, and the
+branch was subsequently built in the normal `~/workspace/pair` checkout. This is
+operator acceptance; no unreported duration or exhaustive manual coverage is
+claimed. Alt+N confirmation/no-result is captured as #259 for fix-forward work.
+Mouse-trace startup warning was diagnosed as old log content diverging from its
+retention metadata (357929 actual bytes vs194506 recorded); no log was deleted.
+No production code changed after M4 except its already-recorded comment sweep.
+Proceed to issue close and merge; performance limitations remain documented.
+
+### 2026-09-15 — Whole-issue close round1: REWORK
+
+BR-22 documentation correction accepted. New Important BR-23: native terminal
+conformance is not invoked by CI despite the completed plan row. The existing
+workflow runs lifecycle suites only. Correcting Makefile/workflow delivery with
+fresh candidate, dependencies, flags, source triggers and execution verification;
+no production behavior change. Operator smoke acceptance and merge authorization
+remain valid. No bypass of the close gate is used.
+
+### 2026-09-15 — BR-23 native CI delivery verified
+
+The macOS workflow now pins Zellij0.45.1 (official architecture-specific release
+and extracted-binary checksum), installs nvim/Node/Python, retains existing
+lifecycle conformance and runs `make -f Makefile.local test-native-terminal-ci`.
+Both PR and main source triggers include terminal/backend/consumer/transport/
+runtime/oracle changes. The target builds a fresh invocation-owned candidate,
+sets explicit native gates, runs the race suite and requires all six named test/
+subtest pass events, rejecting missing/skipped/failed coverage.
+
+Exact target passes29.250s (`/tmp/pair255-br23-native-ci.log`), including direct
+and wrapped Zellij, nvim, scrolling and broker-PTY. Five gate/cleanup tests pass;
+disabling validation makes four tests fail. The driver joins its process group
+on errors/interruption before scratch removal. Artifact/runtime guards pass
+(`/tmp/pair255-br23-artifact-runtime.log`); documentation and workflow whitespace
+checks pass. README/atlas describe the actual entrypoint. No product behavior
+changed. Retry whole-issue close, then proceed with authorized publication.
+
+### 2026-09-15 — Whole-issue close SHIP
+
+Second close round SHIP, window `c01ec7c6..85fded93`; all23 findings addressed. SDLC adopted measured actual25.48h. Operator acceptance is recorded; proceeding to the deterministic publish gate and PR merge.

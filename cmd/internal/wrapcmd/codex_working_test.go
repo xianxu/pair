@@ -11,6 +11,8 @@ import (
 	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
+	vt "github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -89,16 +91,12 @@ func captureCodexVisualNotification(t *testing.T) []byte {
 	}
 	dir := t.TempDir()
 	outer := filepath.Join(dir, "outer")
-	sidecar := filepath.Join(dir, "outer-path")
 	if err := os.WriteFile(outer, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	p := &proxy{
 		agentBasename: "codex", notifyModeActive: notifyModeDefault,
-		outerTTYFile: sidecar, lastSlug: time.Now(),
+		stdout: notificationFileWriter(t, outer), lastSlug: time.Now(),
 	}
 	if err := p.configureHarnessTTY(true, 120, 38); err != nil {
 		t.Fatal(err)
@@ -123,6 +121,14 @@ func captureCodexVisualNotification(t *testing.T) []byte {
 	p.processLifecycleObservation(TurnObservation{
 		Kind: ObservationGraceExpired, Token: p.notificationLifecycle.GraceToken,
 	})
+	// The captured file ends in ESC[3. Completion must wait for a genuine
+	// boundary; append the missing CSI final byte rather than injecting into it.
+	if len(p.stdoutPump.notifications) != 1 {
+		t.Fatal("truncated capture did not hold notification")
+	}
+	p.handleChunk([]byte("m"), &rolling)
+	p.flushStdout("fixture-complete")
+
 	written, err := os.ReadFile(outer)
 	if err != nil {
 		t.Fatal(err)
@@ -146,8 +152,8 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 		}, nil
 	})
 	one, two := ptychild.NewFakeChild(nil), ptychild.NewFakeChild(nil)
-	one.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) })
-	two.SetSink(func(batch ptychild.OutputBatch) { con.Deliver("c2", batch) })
+	one.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return con.Deliver(ctx, "c1", batch) })
+	two.SetSink(func(ctx context.Context, batch ptychild.OutputBatch) error { return con.Deliver(ctx, "c2", batch) })
 	con.Attach("c1", "one", one)
 	con.Attach("c2", "two", two)
 	done := make(chan int, 1)
@@ -166,11 +172,12 @@ func TestCodexWorkingNotificationReachesCouchStatusAndSwitcher(t *testing.T) {
 	wantStatus := couchtty.RenderStatusRow(80, couchtty.StatusModel{Actors: []couchtty.StatusActor{
 		{Label: "one", Active: true}, {Label: "two", Bell: true},
 	}}).Body
-	waitForCodexCouch(t, func() bool { return strings.Contains(host.Written(), wantStatus) }, "pending status chip")
+	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(host.Written()), ansi.Strip(wantStatus)) }, "pending status chip")
 	if _, err := writer.Write([]byte{0}); err != nil {
 		t.Fatal(err)
 	}
-	waitForCodexCouch(t, func() bool { return strings.Contains(host.Written(), "agent stopped working") }, "switcher message")
+
+	waitForCodexCouch(t, func() bool { return strings.Contains(codexCouchRendered(host.Written()), "agent stopped working") }, "switcher message")
 }
 
 func waitForCodexCouch(t *testing.T, ready func() bool, what string) {
@@ -214,4 +221,11 @@ func FuzzRecognizeCodexWorkingArbitraryRenderedCells(f *testing.F) {
 		}
 		_ = RecognizeCodexWorking(snapshot)
 	})
+}
+
+func codexCouchRendered(raw string) string {
+	e := vt.NewEmulator(80, 24)
+	defer e.Close()
+	e.Write([]byte(raw))
+	return e.String()
 }

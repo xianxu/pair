@@ -40,7 +40,7 @@ func lastPaintedRow(written string) string {
 // row expires. Nothing else is guaranteed to happen at that moment, and the
 // operator's report was precisely that the sentence stayed on screen.
 func TestAnIdleConsoleRepaintsWhenItsNoticeExpires(t *testing.T) {
-	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	host := newVTHost(24, 80)
 	reader, writer := io.Pipe()
 	con := New(host, reader)
 	t.Cleanup(func() {
@@ -78,14 +78,14 @@ func TestAnIdleConsoleRepaintsWhenItsNoticeExpires(t *testing.T) {
 	// the Reset, and the test then waits three seconds for a repaint that
 	// already happened. A test must not discard the evidence it is waiting for.
 	waitFor(t, "the row to repaint without the expired notice", func() bool {
-		return !strings.Contains(lastPaintedRow(host.Written()), "nowhere to return to")
+		return !strings.Contains(host.row(24), "nowhere to return to")
 	})
 }
 
 // And an exit stands: it says why a pane disappeared, which does not stop being
 // true just because time passed.
 func TestAnExitNoticeSurvivesAnIdleConsole(t *testing.T) {
-	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
+	host := newVTHost(24, 80)
 	reader, writer := io.Pipe()
 	con := New(host, reader)
 	t.Cleanup(func() {
@@ -107,6 +107,6 @@ func TestAnExitNoticeSurvivesAnIdleConsole(t *testing.T) {
 	time.Sleep(5 * testLifetime)
 	con.repaint()
 	waitFor(t, "the row to be repainted after the wait", func() bool {
-		return strings.Contains(lastPaintedRow(host.Written()), "exited (1)")
+		return strings.Contains(host.row(24), "exited (1)")
 	})
 }

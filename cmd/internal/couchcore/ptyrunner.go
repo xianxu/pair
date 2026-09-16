@@ -22,6 +22,8 @@ import (
 // that a terminal exists.
 type PtyRunner struct {
 	LaunchHelper string
+	// Environment prepares the advertised terminal profile once at the composition root.
+	Environment func() ([]string, error)
 
 	// Size supplies a new child's dimensions, called at Start. A func rather
 	// than a value because the console's size changes: the reserved row means
@@ -31,7 +33,7 @@ type PtyRunner struct {
 	// Sink receives every chunk a child writes, tagged with its handle id.
 	// Installed INSIDE Start so a child that writes immediately cannot lose
 	// chunks from the live path to a race with the caller wiring it up.
-	Sink func(id string, batch ptychild.OutputBatch)
+	Sink func(context.Context, string, ptychild.OutputBatch) error
 }
 
 var _ Runner = (*PtyRunner)(nil)
@@ -74,6 +76,13 @@ func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File)
 	// first chunks of every session with a zero id. ExecRunner can use the pid
 	// because nothing reads ITS id from another goroutine; this one is read
 	// from the pump.
+	if r.Environment != nil {
+		profile, err := r.Environment()
+		if err != nil {
+			return nil, err
+		}
+		env = append(append([]string(nil), env...), profile...)
+	}
 	h := &ptyHandle{id: fmt.Sprintf("couch-pty-%d", ptySeq.Add(1))}
 	child, err := ptychild.Start(ptychild.Options{
 		Dir:        dir,
@@ -81,10 +90,12 @@ func (r *PtyRunner) start(dir string, argv, env []string, extraFiles []*os.File)
 		Env:        env,
 		Size:       size,
 		ExtraFiles: extraFiles,
-		Sink: func(batch ptychild.OutputBatch) {
+		EndpointID: h.ID(),
+		Sink: func(ctx context.Context, batch ptychild.OutputBatch) error {
 			if r.Sink != nil {
-				r.Sink(h.ID(), batch)
+				return r.Sink(ctx, h.ID(), batch)
 			}
+			return nil
 		},
 	})
 	if err != nil {

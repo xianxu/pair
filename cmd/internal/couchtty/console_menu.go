@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
-	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 )
 
 // ActionableThreadProvider is the Console's only inventory I/O seam. The
@@ -56,7 +56,7 @@ func (c *Console) snapshotMenuObservationsLocked() []couchcore.LiveTTYObservatio
 	observations := make([]couchcore.LiveTTYObservation, 0, len(c.order))
 	for _, id := range c.order {
 		p := c.panes[id]
-		if p == nil || p.child.Done() || p.process.PID <= 0 || p.process.Identity == "" {
+		if p == nil || p.child.Endpoint().InputEnded() || p.process.PID <= 0 || p.process.Identity == "" {
 			continue
 		}
 		observations = append(observations, couchcore.LiveTTYObservation{Address: p.thread, Process: p.process})
@@ -196,30 +196,38 @@ func (c *Console) onMenuInput(raw []byte) {
 
 func (c *Console) showMenu() {
 	c.mu.Lock()
-	state := cloneMenuState(c.menu)
-	size := c.size
+	state, size := cloneMenuState(c.menu), c.size
 	c.mu.Unlock()
-	height := int(size.Rows) - 1
-	if height < 1 {
-		height = 1
-	}
+	height := max(1, int(size.Rows)-1)
 	view := RenderMenuView(state, int(size.Cols), height, time.Now(), true)
-	// Kept so a click can be mapped against what is ON SCREEN rather than
-	// against a re-render: the operator clicked the rows they could see, and a
-	// second render could differ (a refresh, a notice) between paint and click.
-	c.mu.Lock()
-	c.menuExtents = view.Extents
-	c.mu.Unlock()
-	c.writeHostControl(hostty.HideCursor)
-	// couch's OWN surface, not a child's: nobody to ask for a repaint, and no
-	// child modes to assert (#209).
-	c.takeOverScreen(nil, []byte(view.Body))
-	c.paintNow()
-	if view.Cursor == nil {
-		c.writeHostControl(hostty.HideCursor)
+	cells, err := terminal.StyledRows(view.Body, int(size.Cols), height)
+	if err != nil {
+		c.terminalError(err)
 		return
 	}
-	c.writeHostControl(hostty.MoveTo(view.Cursor.Row, view.Cursor.Col) + hostty.ShowCursor)
+	row, bottom, err := c.chrome()
+	if err != nil {
+		c.terminalError(err)
+		return
+	}
+	cells = append(cells, bottom...)
+	cursor := terminal.Cursor{}
+	if view.Cursor != nil {
+		cursor = terminal.Cursor{X: view.Cursor.Col - 1, Y: view.Cursor.Row - 1, Visible: true}
+	}
+	frame, err := terminal.PanelFrame(terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, cells, cursor)
+	if err == nil {
+		err = c.presenter.Panel(c.lifetime, frame)
+	}
+	if err != nil {
+		c.terminalError(err)
+		return
+	}
+	c.mu.Lock()
+	c.menuExtents = view.Extents
+	c.focus = FocusPanel()
+	c.mu.Unlock()
+	c.commitChrome(row)
 }
 
 // dispatchMenuEffects is the thin stateful shell around the pure menu. Preview

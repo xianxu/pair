@@ -1,13 +1,14 @@
 package ptychild
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"sync"
 )
 
-// NewFakeChild returns a Child with no process behind it: a seeded replay ring,
-// a live screen scanner, and recorded writes and resizes.
+// NewFakeChild returns a Child with no process behind it: a seeded diagnostic ring,
+// an authoritative Endpoint, and recorded writes and resizes.
 //
 // It is the stateful double ARCH-MOCK asks for on this seam, and it lives in a
 // non-test file for the same reason FakeRunner and FakeHost do -- a switcher's
@@ -19,12 +20,10 @@ import (
 // boundary review caught this doc claiming the opposite of the code (BR-3), so
 // TestFakeChildConformsToRealChildLifecycle now pins the pairing:
 //
-//   - Feed(p) appends to the ring and the screen, exactly as the real pump does.
+//   - Feed(p) feeds the Endpoint and diagnostic ring, exactly as the real pump does.
 //   - It HAS GEOMETRY from the start, like a real child: Start sizes the pty
 //     before the process runs, so production can never reach the zero-size
-//     state (#209 I-3). A fake that started at 0x0 declined every repaint
-//     request until a test remembered to resize it, which is a green test for
-//     a path production would have nudged.
+//     state.
 //   - Write records into Writes() instead of reaching a pty.
 //   - Resize records into Resizes().
 //   - A fresh fake is RUNNING: Done() is false and Wait() BLOCKS, exactly as a
@@ -40,11 +39,13 @@ import (
 //     test pass against a sequence production would have rejected (BR-18).
 func NewFakeChild(output []byte) *Child {
 	c := &Child{
-		ring:   NewRing(DefaultRingBytes),
-		screen: &Screen{},
-		done:   make(chan struct{}),
-		fake:   &fakeState{},
-		size:   fakeChildSize,
+		ring: NewRing(DefaultRingBytes),
+		done: make(chan struct{}),
+		fake: &fakeState{},
+		size: fakeChildSize,
+	}
+	if err := c.initTerminal(""); err != nil {
+		panic(err)
 	}
 	if len(output) > 0 {
 		c.Feed(output)
@@ -71,21 +72,12 @@ type fakeState struct {
 // Feed pushes bytes through the same path the real pump uses. On a real child
 // it is how a test would inject output; on a fake it is the only source.
 func (c *Child) Feed(p []byte) {
-	chunk := append([]byte(nil), p...)
-	c.mu.Lock()
-	c.ring.Append(chunk)
-	c.screen.Feed(chunk)
-	batch := c.outputBatchLocked(chunk)
-	sink := c.sink
-	c.mu.Unlock()
-	if sink != nil {
-		sink(batch)
-	}
+	_ = c.ingest(p)
 }
 
 // SetSink installs a sink after construction, for a fake whose consumer is not
 // known at the point it is built.
-func (c *Child) SetSink(sink func(OutputBatch)) {
+func (c *Child) SetSink(sink Sink) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sink = sink
@@ -96,6 +88,7 @@ func (c *Child) Writes() [][]byte {
 	if c.fake == nil {
 		return nil
 	}
+	_ = c.endpoint.Flush(context.Background())
 	c.fake.mu.Lock()
 	defer c.fake.mu.Unlock()
 	return append([][]byte(nil), c.fake.writes...)
@@ -123,8 +116,8 @@ func (c *Child) Exit(code int) {
 	if already {
 		return
 	}
-	c.code = code
-	close(c.done)
+	c.endpoint.EndInput()
+	go c.finish(code)
 }
 
 // fakeSignal succeeds while the child is running and fails once it has ended --

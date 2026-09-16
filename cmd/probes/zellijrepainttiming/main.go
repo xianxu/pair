@@ -28,7 +28,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/probes/zellijprobe"
 	"golang.org/x/sys/unix"
 )
@@ -95,7 +94,7 @@ func run() int {
 		return 2
 	}
 
-	settle := ptychild.RepaintSettle
+	settle := 20 * time.Millisecond
 	fmt.Printf("--- settle %v, %d runs, quiescence = %v with no growth\n", settle, runs, quietFor)
 	fmt.Printf("%-4s %12s %12s %12s %10s\n", "run", "1st@shrink", "1st@restore", "quiet", "bytes")
 

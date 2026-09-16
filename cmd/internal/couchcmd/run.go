@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/term"
@@ -26,6 +27,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -416,6 +418,9 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	}
 
 	host := hostty.NewOSHost(inFile, outFile)
+	if inFile != nil {
+		stdin = host
+	}
 	console := couchtty.New(host, stdin)
 	// The composition root owns the environment read. A failed open reports
 	// itself on the status row; it must never take the console down, and it must
@@ -444,9 +449,17 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	_ = console.SetEventTrace(getenv("COUCH_TRACE"), processStartedAt, options)
 	_ = console.SetMouseTrace(getenv("COUCH_MOUSE_TRACE"), options)
 
+	profile := sync.OnceValues(func() ([]string, error) {
+		root := workbenchshortcut.DataDirFromEnv()
+		if len(settings) > 0 && settings[0].root != "" {
+			root = settings[0].root
+		}
+		return runtimebundle.TerminalEnvironment(root)
+	})
 	return console, &couchcore.PtyRunner{
-		Size: console.ChildSize,
-		Sink: console.Deliver,
+		Environment: profile,
+		Size:        console.ChildSize,
+		Sink:        console.Deliver,
 	}
 }
 

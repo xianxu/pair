@@ -2,7 +2,9 @@ package couchtty
 
 import (
 	"bytes"
+	"context"
 	"testing"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -16,16 +18,19 @@ func notificationConsole(t *testing.T) (*Console, *hostty.FakeHost) {
 	con := New(host, bytes.NewReader(nil))
 	con.Attach("c1", "one", ptychild.NewFakeChild(nil))
 	con.Attach("c2", "two", ptychild.NewFakeChild(nil))
-	t.Cleanup(con.Stop)
+	t.Cleanup(func() {
+		con.Stop()
+		con.release()
+		for _, p := range con.panes {
+			_ = p.child.Close()
+		}
+	})
 	return con, host
 }
 
-func observedBatch(screen *ptychild.Screen, raw []byte) ptychild.OutputBatch {
-	screen.Feed(raw)
-	return ptychild.OutputBatch{
-		Raw: raw, Parts: screen.TakeOutputParts(), RingEnd: screen.StreamEnd(),
-		ReplaySafeEnd: screen.ReplaySafeEnd(),
-	}
+func observedBatch(child *ptychild.Child, raw []byte) ptychild.OutputBatch {
+	output, err := child.Endpoint().Feed(raw, time.Now())
+	return ptychild.OutputBatch{Terminal: output, Err: err}
 }
 
 func TestOutputBatchFocusOrder(t *testing.T) {
@@ -35,13 +40,11 @@ func TestOutputBatchFocusOrder(t *testing.T) {
 
 	// Delivery happened while c1 was inactive, but processing happens after
 	// c1 becomes active. Processing-time focus owns ordinary output.
-	queued := chunk{id: "c1", batch: ptychild.OutputBatch{
-		Raw: []byte("queued"), Parts: []ptychild.OutputPart{{Bytes: []byte("queued")}},
-		RingEnd: 6, ReplaySafeEnd: 6,
-	}}
+	queued := chunk{id: "c1", batch: observedBatch(con.panes["c1"].child, []byte("queued"))}
+
 	con.switchTo("c1", false, arrivalOrdinary)
-	host.Reset()
 	con.onChunk(queued)
+	_ = con.presenter.Flush(context.Background())
 	if got := host.Written(); !stringsContains(got, "queued") {
 		t.Fatalf("newly focused actor output was lost: %q", got)
 	}
@@ -57,46 +60,34 @@ func TestOutputBatchFocusOrder(t *testing.T) {
 
 func TestSplitNotificationAcrossTakeover(t *testing.T) {
 	con, host := notificationConsole(t)
-	var screen ptychild.Screen
 	envelope := notifyosc.Encode("review ready")
 	cut := len(notifyosc.Prefix) + 2
 	host.Reset()
-	con.onChunk(chunk{id: "c1", batch: observedBatch(&screen, envelope[:cut])})
+	con.onChunk(chunk{id: "c1", batch: observedBatch(con.panes["c1"].child, envelope[:cut])})
 	if got := host.Written(); bytes.Contains([]byte(got), envelope[:cut]) {
 		t.Fatalf("partial canonical envelope reached host: %q", got)
 	}
 
 	con.switchTo("c2", false, arrivalOrdinary)
 	host.Reset()
-	con.onChunk(chunk{id: "c1", batch: observedBatch(&screen, envelope[cut:])})
-	if got := []byte(host.Written()); !bytes.Contains(got, envelope) {
+	con.onChunk(chunk{id: "c1", batch: observedBatch(con.panes["c1"].child, envelope[cut:])})
+	if got := []byte(host.Written()); !bytes.Contains(got, []byte("\x1b]777;notify;pair;review ready\x1b\\")) {
 		t.Fatalf("completed envelope was not forwarded atomically: %q", got)
 	}
 }
 
-func TestCrossActorNotificationDeferral(t *testing.T) {
+func TestHiddenNotificationDoesNotWaitForActivePartialSequence(t *testing.T) {
 	con, host := notificationConsole(t)
-	var active, inactive ptychild.Screen
-	envelope := notifyosc.Encode("tests need approval")
-	host.Reset()
-
-	con.onChunk(chunk{id: "c1", batch: observedBatch(&active, []byte("\x1b[31"))})
-	before := host.Written()
-	con.onChunk(chunk{id: "c2", batch: observedBatch(&inactive, envelope)})
-	if got := host.Written(); got != before {
-		t.Fatalf("inactive notification spliced into partial active sequence: before %q after %q", before, got)
-	}
-
-	con.onChunk(chunk{id: "c1", batch: observedBatch(&active, []byte("m"))})
-	if got := []byte(host.Written()); !bytes.Contains(got, append([]byte("\x1b[31m"+hostty.EnableKeyboardDisambiguation), envelope...)) {
-		t.Fatalf("deferred notification did not flush after safe boundary: %q", got)
+	con.onChunk(chunk{id: "c1", batch: observedBatch(con.panes["c1"].child, []byte("\x1b[31"))})
+	con.onChunk(chunk{id: "c2", batch: observedBatch(con.panes["c2"].child, notifyosc.Encode("tests need approval"))})
+	if !stringsContains(host.Written(), "\x1b]777;notify;pair;tests need approval\x1b\\") {
+		t.Fatalf("hidden notification blocked: %q", host.Written())
 	}
 }
 
 func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing.T) {
 	con, _ := notificationConsole(t)
-	var screen ptychild.Screen
-	inactive := observedBatch(&screen, notifyosc.Encode("review ready"))
+	inactive := observedBatch(con.panes["c2"].child, notifyosc.Encode("review ready"))
 	con.onChunk(chunk{id: "c2", batch: inactive, focusedAtDelivery: false})
 	con.mu.Lock()
 	c2 := con.panes["c2"].thread
@@ -111,8 +102,7 @@ func TestConsoleInactiveNotificationCreatesAttentionAndFocusedDoesNot(t *testing
 	con.syncAttentionLocked()
 	con.mu.Unlock()
 	con.switchTo("c2", false, arrivalOrdinary)
-	var focusedScreen ptychild.Screen
-	con.onChunk(chunk{id: "c2", batch: observedBatch(&focusedScreen, notifyosc.Encode("already seen")), focusedAtDelivery: true})
+	con.onChunk(chunk{id: "c2", batch: observedBatch(con.panes["c2"].child, notifyosc.Encode("already seen")), focusedAtDelivery: true})
 	con.mu.Lock()
 	got = attentionTexts(con.attention.Projection(c2))
 	con.mu.Unlock()
@@ -187,8 +177,7 @@ func TestExpectedParkExitDropsOnlyExitedActorAttention(t *testing.T) {
 
 func TestAttentionHandlingStartsNoAuxiliaryWork(t *testing.T) {
 	con, _ := notificationConsole(t)
-	var screen ptychild.Screen
-	con.onChunk(chunk{id: "c2", batch: observedBatch(&screen, notifyosc.Encode("ready"))})
+	con.onChunk(chunk{id: "c2", batch: observedBatch(con.panes["c2"].child, notifyosc.Encode("ready"))})
 	if len(con.refreshRequests) != 0 || len(con.operationQueue.requests) != 0 {
 		t.Fatalf("attention started auxiliary work: refresh=%d operations=%d", len(con.refreshRequests), len(con.operationQueue.requests))
 	}

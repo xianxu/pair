@@ -193,8 +193,8 @@ func TestTheFirstFrameIsTracedOnce(t *testing.T) {
 	if err := con.SetEventTrace(path, time.UnixMilli(1757600000000)); err != nil {
 		t.Fatal(err)
 	}
-	con.paintNow()
-	con.paintNow()
+	con.showMenu()
+	con.showMenu()
 	if got := countTraceEvents(traceLines(t, path), traceFirstFrame); got != 1 {
 		t.Fatalf("first-frame traced %d times over two paints, want once", got)
 	}

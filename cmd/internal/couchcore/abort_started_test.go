@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAbortStartedQuiescesExactHandleAndReconcilesOwnership(t *testing.T) {
@@ -21,6 +22,11 @@ func TestAbortStartedQuiescesExactHandleAndReconcilesOwnership(t *testing.T) {
 	}
 	if handle.Alive() {
 		t.Fatal("aborted exact handle remained alive")
+	}
+	if terminal, ok := handle.(TerminalHandle); ok {
+		if _, err := terminal.Terminal().Endpoint().Snapshot(time.Now()); !errors.Is(err, os.ErrClosed) {
+			t.Fatalf("failed attachment retained terminal resources: %v", err)
+		}
 	}
 	if got := env.Couch.reg.Records(); len(got) != 0 {
 		t.Fatalf("aborted actor remained in registry: %+v", got)

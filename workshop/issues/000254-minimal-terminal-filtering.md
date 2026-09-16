@@ -100,3 +100,10 @@ resets it and own mouse assertions bypass it. Recent no-output-terminal errors
 wrote zero bytes and therefore did not change terminal modes. No runtime or
 code changes during inspection. Any minimal-filtering solution must still
 restore terminal modes it changes when ownership returns to the child.
+
+
+## Revisions
+
+### 2026-09-15 — #255 M3 integration evidence
+
+Codex synchronized-update, focus and keyboard negotiation stripping is removed from pair wrap. Notification normalization and product Return adaptation remain. The Return observer consumes the normalized queued visual stream; raw capture is separate. Every-marker/every-split passthrough tests, full wrapper suite and targeted race pass. This records #255 implementation evidence, not a blanket closure of all terminal-filtering questions.

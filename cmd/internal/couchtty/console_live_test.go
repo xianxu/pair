@@ -1,6 +1,8 @@
 package couchtty
 
 import (
+	"bytes"
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -8,21 +10,12 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
+	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 )
 
-// Live console checks: the real Console, a REAL pty child running a REAL
-// full-screen app, and a real terminal emulator reading the screen.
-//
-// Why this exists rather than more fake-child tests: M2's first operator smoke
-// found the reserved row vanishing as pair drew its first screen, and every
-// emulator test I had was green. The gap was that a FAKE child only emits what
-// the test feeds it, so it never emitted the startup clear a real full-screen
-// app always does. nvim is in the real stack, does clear on startup, and emits
-// the margin reset on exit -- the two things that actually broke.
-//
-// Gated on PAIR_LIVE_COUCH=1 with t.Skip and deliberately NO build tag, so it
-// keeps compiling under `go test ./cmd/...` rather than rotting invisibly.
-// Reachable via `make test-live`.
+// Live conformance runs real applications on a PTY with the packaged virtual
+// terminal profile. The parent screen is observed independently below.
+// Gated at runtime so these paths keep compiling in ordinary CI.
 func liveConsoleOnly(t *testing.T) string {
 	t.Helper()
 	if os.Getenv("PAIR_LIVE_COUCH") != "1" {
@@ -45,13 +38,19 @@ func startLiveChild(t *testing.T, argv []string, rows, cols uint16) (*vtHost, *p
 		t.Fatalf("os.Pipe: %v", err)
 	}
 	con := New(host, stdinR)
+	var diagnostics bytes.Buffer
+	con.SetErrorWriter(&diagnostics)
 
+	profileEnv, err := runtimebundle.TerminalEnvironment(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	child, err2 := ptychild.Start(ptychild.Options{
 		Dir:  t.TempDir(),
 		Argv: argv,
-		Env:  []string{"TERM=xterm-256color"},
+		Env:  profileEnv,
 		Size: con.ChildSize(),
-		Sink: func(batch ptychild.OutputBatch) { con.Deliver("c1", batch) },
+		Sink: func(ctx context.Context, batch ptychild.OutputBatch) error { return con.Deliver(ctx, "c1", batch) },
 	})
 	if err2 != nil {
 		t.Fatalf("start %v: %v", argv, err2)
@@ -62,46 +61,22 @@ func startLiveChild(t *testing.T, argv []string, rows, cols uint16) (*vtHost, *p
 	go func() { done <- con.Run() }()
 	t.Cleanup(func() {
 		con.Stop()
-		_ = child.Close()
 		_ = stdinW.Close()
 		select {
-		case <-done:
+		case code := <-done:
+			if code != 0 {
+				t.Errorf("live Console exit%d: %s", code, diagnostics.String())
+			}
 		case <-time.After(3 * time.Second):
+			t.Error("live Console did not join")
 		}
 	})
 	return host, child, con
 }
 
-// A real full-screen app, judged on the BYTE STREAM rather than the rendered
-// screen.
-//
-// Scope, stated because it bounds what this proves: the vt harness does not
-// faithfully render an alt-screen app -- nvim's own content comes back
-// truncated, which is a limitation of reading `vt` this way, not of couch. So
-// the nvim case asserts what the harness CAN judge, and the rendered-screen
-// question stays an operator smoke item (Task 2.7) rather than being claimed
-// here.
-//
-// What it does prove is the bug this file was written to find: a real
-// full-screen app emits escape sequences that SPLIT across pty reads, and the
-// console must not write its status row into the gap. The first run of this
-// test produced
-//
-//	\x1b7\x1b[12;1H\x1b[2K[brain]\x1b8;82;88m
-//
-// -- a paint spliced into the middle of nvim's `\x1b[38;2;76;82;88m`. No
-// fake-child test could produce it, because a fake only emits what the test
-// hands it whole.
-//
-// It FINDS that class of bug; it does not PIN it. Reverting the fix leaves this
-// test green, because whether a read boundary lands inside a sequence depends
-// on kernel timing. The deterministic guard is
-// TestConsoleNeverInjectsInsideAChildEscapeSequence, which constructs the
-// boundary rather than hoping for one -- verified red on the revert. Both are
-// worth having, and it is worth being explicit about which does which: a live
-// test treated as a regression guard is a gated-only pin that also cannot
-// fail.
-func TestLiveConsoleNeverSplicesIntoARealChildsSequences(t *testing.T) {
+// Startup clears, alternate-screen use, cursor motion and redraws from a real
+// editor must preserve both its buffer and the Console's reserved chrome.
+func TestLiveConsoleNvimPreservesContentAndChrome(t *testing.T) {
 	nvim := liveConsoleOnly(t)
 	host, child, _ := startLiveChild(t, []string{nvim, "-u", "NONE"}, 12, 60)
 
@@ -117,36 +92,10 @@ func TestLiveConsoleNeverSplicesIntoARealChildsSequences(t *testing.T) {
 		time.Sleep(250 * time.Millisecond)
 	}
 
-	if bad, ok := splicedPaint(host.Written()); ok {
-		t.Fatalf("a status-row paint was spliced into the child's stream: %q", bad)
-	}
-	if !strings.Contains(host.Written(), "[brain]") {
-		t.Fatal("the console never painted the reserved row at all")
-	}
-}
-
-// splicedPaint looks for a paint that begins while an escape sequence is still
-// open. A paint is `\x1b7`; it is legitimate only when the bytes before it end
-// at a sequence boundary.
-func splicedPaint(stream string) (string, bool) {
-	for i := 0; i < len(stream); {
-		j := strings.Index(stream[i:], "\x1b7")
-		if j < 0 {
-			return "", false
-		}
-		at := i + j
-		var sc ptychild.Screen
-		sc.Feed([]byte(stream[:at]))
-		if sc.Pending() > 0 {
-			lo := at - 24
-			if lo < 0 {
-				lo = 0
-			}
-			return stream[lo:minInt(at+24, len(stream))], true
-		}
-		i = at + 2
-	}
-	return "", false
+	waitLong(t, "nvim buffer and reserved chrome", func() bool {
+		return strings.Contains(host.childArea(), "hello") && strings.Contains(host.row(12), "brain")
+	})
+	assertNativeOracle(t, host.Written(), 60, 12, "hello", "brain")
 }
 
 // A child that scrolls hard, for real, through a real pty.
@@ -162,11 +111,4 @@ func TestLiveReservedRowSurvivesRealScrolling(t *testing.T) {
 	if got := host.row(12); !strings.Contains(got, "brain") {
 		t.Fatalf("200 lines of real scrolling ate the row: %q", got)
 	}
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

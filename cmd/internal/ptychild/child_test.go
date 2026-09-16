@@ -2,8 +2,9 @@ package ptychild
 
 import (
 	"bytes"
+	"context"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 	"os"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -77,7 +78,7 @@ func TestChildExitClosesThePump(t *testing.T) {
 	var mu sync.Mutex
 	chunks := 0
 	c := startSh(t, "printf hello; exit 0", func(o *Options) {
-		o.Sink = func(OutputBatch) { mu.Lock(); chunks++; mu.Unlock() }
+		o.Sink = func(context.Context, OutputBatch) error { mu.Lock(); chunks++; mu.Unlock(); return nil }
 	})
 	c.Wait()
 	waitFor(t, "the pump to finish", func() bool { return c.Done() })
@@ -89,32 +90,53 @@ func TestChildExitClosesThePump(t *testing.T) {
 	}
 }
 
-func TestChildLatchesBell(t *testing.T) {
-	c := startSh(t, `printf '\007'; sleep 5`)
-	waitFor(t, "the bell", func() bool { return c.TakeBell() })
-	if c.TakeBell() {
-		t.Fatal("TakeBell did not clear the latch")
+func TestChildPublishesBellOnce(t *testing.T) {
+	var mu sync.Mutex
+	count := 0
+	c := startSh(t, `printf '\007'; exit 0`, func(o *Options) {
+		o.Sink = func(_ context.Context, b OutputBatch) error {
+			mu.Lock()
+			defer mu.Unlock()
+			for _, e := range b.Terminal.Effects {
+				if e.Kind == terminal.BellEffect {
+					count++
+				}
+			}
+			return nil
+		}
+	})
+	c.Wait()
+	mu.Lock()
+	defer mu.Unlock()
+	if count != 1 {
+		t.Fatalf("bell effects=%d", count)
 	}
 }
 
-// The sink is the live path and the ring is the replay path; a chunk must reach
-// BOTH, and the ring must be current before the sink runs -- otherwise a switch
-// racing a chunk replays a screen missing bytes the operator already saw.
+// Diagnostic snapshots include output before its publication callback runs.
 func TestChildSinkSeesEveryChunkAndTheRingIsCurrentFirst(t *testing.T) {
 	var mu sync.Mutex
 	var ringAtSink [][]byte
 	var child *Child
+	registered := make(chan struct{})
 
 	o := Options{
 		Argv: []string{"sh", "-c", "printf one; sleep 0.1; printf two; sleep 5"},
 		Size: Size{Rows: 24, Cols: 80},
-		Sink: func(batch OutputBatch) {
+		Sink: func(ctx context.Context, batch OutputBatch) error {
+			select {
+			case <-registered:
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 			mu.Lock()
 			defer mu.Unlock()
 			ringAtSink = append(ringAtSink, child.Snapshot())
+			return nil
 		},
 	}
 	child, err := Start(o)
+	close(registered)
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -129,8 +151,7 @@ func TestChildSinkSeesEveryChunkAndTheRingIsCurrentFirst(t *testing.T) {
 		t.Fatal("the sink never ran")
 	}
 	// Every snapshot taken from inside Sink must already contain the chunk that
-	// triggered it: the ring is updated before the sink runs, so a caller that
-	// switches away inside Sink still repaints a current screen.
+	// triggered it: the ring is updated before the sink runs.
 	if !bytes.Contains(ringAtSink[0], []byte("one")) {
 		t.Fatalf("ring was behind the sink: first chunk saw ring %q", ringAtSink[0])
 	}
@@ -138,24 +159,12 @@ func TestChildSinkSeesEveryChunkAndTheRingIsCurrentFirst(t *testing.T) {
 
 func TestChildScreenTracksAltScreen(t *testing.T) {
 	c := startSh(t, `printf '\033[?1049h'; sleep 5`)
-	waitFor(t, "alt screen", func() bool { return c.AltScreen() })
+	waitFor(t, "alt screen", func() bool { return c.Endpoint().Modes().AltScreen })
 }
 
 func TestChildStartRejectsEmptyArgv(t *testing.T) {
 	if _, err := Start(Options{Size: Size{Rows: 24, Cols: 80}}); err == nil {
 		t.Fatal("Start with no argv returned nil error")
-	}
-}
-
-// A repaint reads through StripQueries, so a child that emitted a capability
-// query at startup cannot re-ask the host terminal on landing (#127).
-func TestChildReplayStripsQueries(t *testing.T) {
-	c := startSh(t, `printf '\033[cvisible'; sleep 5`)
-	waitFor(t, "the output", func() bool {
-		return bytes.Contains(c.Snapshot(), []byte("visible"))
-	})
-	if got := string(c.Replay()); strings.Contains(got, "\x1b[c") {
-		t.Fatalf("Replay() contains a capability query: %q", got)
 	}
 }
 
@@ -172,9 +181,9 @@ func TestChildSnapshotDuringPumpIsRaceFree(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for j := 0; j < 300; j++ {
-				_ = c.Replay()
-				_ = c.AltScreen()
-				_ = c.TakeBell()
+				_ = c.Snapshot()
+				_, _ = c.Endpoint().Snapshot(time.Now())
+				_ = c.Endpoint().Modes()
 			}
 		}()
 	}
@@ -280,15 +289,7 @@ func TestFakeAndRealChildAgreeAfterTheChildHasEnded(t *testing.T) {
 	}
 }
 
-// GEOMETRY IS A CONFORMANCE SURFACE, because it is the state #209's repaint
-// request reads (BR-17). `Start` sizes the pty before the process runs, so a
-// real child ALWAYS has geometry and a nudge always nudges; a fake that began
-// at 0x0 declined silently until a test remembered to resize it, and every test
-// that worked around it was green for a path production would have taken.
-// Production cannot reach the zero-geometry state, so neither may the double.
-//
-// This is the red-on-revert test the last two rounds shipped without: deleting
-// `size: fakeChildSize` from NewFakeChild fails it.
+// Both real and fake children have valid geometry before their first resize.
 func TestFakeAndRealChildAgreeOnGeometryBeforeAnyoneResizes(t *testing.T) {
 	real := startSh(t, "sleep 5")
 	t.Cleanup(func() { _ = real.Close() })
@@ -298,23 +299,11 @@ func TestFakeAndRealChildAgreeOnGeometryBeforeAnyoneResizes(t *testing.T) {
 	for name, c := range map[string]*Child{"real": real, "fake": fake} {
 		if got := c.Size(); got.Rows < 2 || got.Cols == 0 {
 			t.Fatalf("%s: a fresh child reports Size() = %v — a child with no geometry "+
-				"declines every repaint request, and production has no such state", name, got)
+				"cannot model production terminal state", name, got)
 		}
 	}
 	if got, want := real.Size(), (Size{Rows: 24, Cols: 80}); got != want {
 		t.Fatalf("real child started at %v, want %v — the size startSh asked for", got, want)
 	}
 
-	// And the request that geometry exists to serve fires on a fresh fake,
-	// unprompted. The real child has no recorder behind its pty, so its half is
-	// Size() above plus cmd/probes/zellijrepaint — stated rather than faked.
-	before := len(fake.Resizes())
-	fake.RequestRepaint()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) && len(fake.Resizes()) < before+2 {
-		time.Sleep(time.Millisecond)
-	}
-	if got := fake.Resizes(); len(got) < before+2 {
-		t.Fatalf("RequestRepaint on a fresh fake issued %v, want a shrink-and-restore pair", got)
-	}
 }

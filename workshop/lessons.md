@@ -1,5 +1,68 @@
 # Lessons
 
+## Opt-in conformance is not CI coverage until invoked (#255 close BR-23)
+
+A test file and local green log do not fulfill a CI promise. Follow the workflow
+to its actual target, flags, fresh binary and dependencies; cover relevant source
+triggers and require evidence that required tests ran rather than skipped.
+ARCH-PURPOSE / ARCH-MOCK.
+
+## Route migrations require a documentation consumer sweep (#255 M4)
+
+Search diagnostic tables, helper comments and hook instructions as well as the
+architecture overview when retiring a transport. Every current-route description
+must name the new owner; retain legacy names only as explicit compatibility
+metadata. ARCH-PURPOSE.
+
+## Test evidence needs the same lifetime as its fixture (#255 M4 BR-21)
+
+Retaining captures for debugging creates an artifact lifecycle even in tests.
+Audit success and failure writers together, including native/discovery siblings;
+use invocation storage removed after joined teardown and bounded test-log
+diagnostics. Prove both success and failure cleanup instead of treating `/tmp`
+as a retention policy. ARCH-FUNERAL / ARCH-PURPOSE.
+
+## Temporary bindings do not isolate a global transport (#255 M4 review)
+
+Broker fixtures used temporary PID files but still acquired the production
+UID-wide lock, including a deliberate contention timeout. Inject one namespace
+for sockets, locks and reclamation, propagate it through subprocesses, and
+assert that the resulting socket lives there. Test isolation must include
+coordination resources, not only message destinations. ARCH-SECURE / ARCH-MOCK.
+
+## Crash reclamation cannot depend on a separately collected sidecar (#255)
+
+Launcher cleanup and artifact GC could delete a dead wrapper's PID binding,
+stranding its temporary socket. Give ephemeral resources independently readable
+owner identity and a bounded reclamation path that survives sidecar deletion.
+Enumerate normal close, crash, independent cleanup, failed cleanup and owner
+replacement; preserve live, unknown and foreign resources. ARCH-FUNERAL.
+
+## Terminal side effects must use the connection's output owner (#255)
+
+An independently opened outer TTY let wrapper and hook notifications compete
+with Zellij's display writes. Retrying EAGAIN would fix one dropped message while
+leaving UTF-8/control framing vulnerable. Enumerate every producer, including
+hook commands, and route each through the owning serializer. Prove the composed
+native route under backpressure and detach/reattach; two isolated codec tests do
+not establish delivery or single-writer ownership.
+
+## Resource identity checks need serialized replacement (#255)
+
+Lstat/SameFile followed by Remove can still delete a replacement when two
+starters race to reclaim the same dead owner. Serialize publication and cleanup
+under one stable lock inode, retain the identity check, and test concurrent
+starters plus replacement preservation. Never unlink the lock file during use.
+
+## Observe physical publication before asserting a visible state (#255)
+
+Endpoint ingestion can finish before its publication reaches the presentation
+queue. A single Flush after reading the endpoint does not close that gap. For
+visible selection, wait for the parent-rendered style and then compare the
+independent screen. Insert a delay between ingestion and enqueue to prove the
+test actually detects this ordering error. Teardown must likewise join Run and
+assert its result rather than accepting an earlier cleanup escape.
+
 ## Query failure cannot prove an empty external state (#248)
 
 Zellij snapshot code swallowed listing/client-query errors; a failed client
@@ -4977,3 +5040,42 @@ that transition authority is pure or enforced.
   commit. SDLC treats those trailers as a completed boundary, even for REWORK;
   verify the emitted review base/head before letting the next review proceed.
 - #239 shortcut conformance: sender sleep cannot establish receiver parser progress. Observe delivered key bytes before sending a printable barrier; incomplete escape prefixes can absorb that barrier under scheduling delays. Reproduce with a stalled disposable client before changing deadlines.
+
+
+- Terminal qualification: literal spot checks and whole/split equivalence serve different purposes. Require both, comparing every observed field across byte partitions; cover style attributes as well as glyphs/colors, and keep bounded structured evidence separate from the full correctness predicate. New runnable probes need README invocation and exit-status documentation. (#255 M1 review, 2026-09-15)
+
+- Partition tests must inspect delivered content and every byte boundary, not merely invocation counts. Mutation-test duplicated whole inputs, dropped bytes and omitted split points; test the executor path as well as the partition generator. (#255 M1 BR-5, 2026-09-15)
+
+- Terminal presentation must compare desired modes with confirmed parent modes. Reasserting mouse-off/on on every repaint can interrupt a live gesture even when the final mode is correct; test continuous drag through repeated redraws and switches. (#255 M2 in-session review, 2026-09-15)
+- An actor call that returns on caller cancellation must not expose a result slice still being mutated by its running closure. Join the admitted operation or transfer the completed result exclusively through a channel; test cancellation while delivery is blocked. (#255 M2 in-session review, 2026-09-15)
+- Terminal snapshot metadata must come from the same authoritative screen as its cells. Reconstructing cursor shape/visibility from callbacks misses whole-value replacement during reset, restore and buffer switches; test those transitions directly. Also reject an overflowing protocol command atomically rather than executing its retained parameter prefix. (#255 M2 BR7–BR8, 2026-09-15)
+- Track parent-owned as well as child-owned gestures from their initial press; dropping a chrome press alone does not prevent its motion/release from leaking later. Check the negotiation epoch atomically with mouse encoding. (#255 M2 BR6, 2026-09-15)
+
+- Gesture cancellation is its own committed transition: later resize/selection failure cannot roll it back. Track an admitted but unfinished release explicitly so retry drains that delivery rather than enqueueing another release; enumerate every cancellation caller and test downstream failure. (#255 M2 BR9, 2026-09-15)
+
+- Discovery scripts committed as evidence still own real artifact/process lifetimes. Scope temporary directories around the entire run, including setup/spawn failures, and remove after joined teardown; test both success and failure. (#255 M2 BR10, 2026-09-15)
+
+- Enumerate terminal state mutations in both setup and renderer, then test successful release after every accepted control-stream prefix using an independent interpreter. Cleanup that works after complete frames can still leak autowrap, hyperlink or cursor style after interruption. (#255 M2 BR11, 2026-09-15)
+
+- A terminal cell validator must use complete grapheme segmentation, not an ANSI decoder whose ASCII fast path returns one byte. Test valid ASCII-base combining clusters and orphan zero-width input through Feed→Frame→Presenter→input, including controls and every byte split. Keep backend and UI text policy coherent without permitting nonempty continuation cells. (#255 M2 BR12, 2026-09-15)
+
+### 2026-09-15 — #255 terminal migration preserves effect policy
+
+Replacing raw output with typed effects must preserve selected-versus-hidden behavior for each effect, independently of terminal parsing. A hidden clipboard write was previously suppressed with hidden raw output; enabling every typed effect for every origin leaked it to the operator. Test selected delivery, hidden suppression, later selection without replay, and local query replies separately. Notification attention may still use delivery-time focus while clipboard/title/bell emission uses the selected surface.
+
+Owned terminal teardown must finish before fallback stderr writes: stderr often aliases the same physical TTY. Record failures during ownership, cancel and join IO, release parent modes, then report; cancellation must not discard a release failure.
+
+### 2026-09-15 — #255 M3 boundary review
+
+- Erased terminal cells still carry rendition. Preserving unprinted provenance with cursor movement is insufficient unless background attributes are also reproduced. Compare literal interior and trailing blanks across viewport/history/alternate serializers with an independent terminal.
+- Removing an origin from a UI map is not resource disposal. Enumerate each terminal ownership exit and require drained final output, deselection/retirement, then joined disposal; retained final frames still need an explicit last owner.
+- A build-time executable is an external dependency too. Inject its filesystem-producing boundary, test output/error behavior with a stateful fake, and keep real-tool conformance separate from unit tests.
+
+- Validate dimensions and payload bounds before allocating or cloning at every public adapter entrypoint, including convenience APIs that derive chrome. A private validator reached after make is too late; invalid geometry must leave the established view usable. (#255 M3 BR-16)
+- Teardown assertions must observe the lifecycle's completion acknowledgment. A reset byte, restored-looking frame, or intermediate mode flag may occur before shutdown finishes; join Run/Release/closeAll before probing a returned terminal. (#255 M3 BR-17)
+
+- Endpoint ingestion, output enqueue, and physical presentation are distinct acknowledgments. Concurrent snapshot visibility plus an empty publication queue does not prove screen visibility; integration receipts must observe the selected parent. Performance harnesses must also keep draining the PTY during idle, as a real terminal does, or their own backpressure can trigger write deadlines. (#255 M4 extended qualification)
+
+- A prepopulated menu/inventory does not prove an asynchronous console finished startup. Tests that mutate focus must await a command acknowledgment after the initial selection and join Run during teardown; otherwise fixture navigation can be overwritten by startup.
+
+- Stop and failure notifications can become ready together. Classify the terminal result after joining its presenter, not by which select branch wins. Ignore only cancellation-only error trees caused by shutdown; preserve failures already latched while live, mixed cancellation/host failures, and every cleanup error.

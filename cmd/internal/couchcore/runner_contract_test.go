@@ -50,6 +50,11 @@ func TestBlockedRunnerCancellationConformance(t *testing.T) {
 				t.Fatalf("Cancel: %v", err)
 			}
 			_ = h.Wait()
+			if terminal, ok := h.(TerminalHandle); ok {
+				if _, err := terminal.Terminal().Endpoint().Snapshot(time.Now()); !errors.Is(err, os.ErrClosed) {
+					t.Fatalf("canceled unaccepted terminal was not disposed: %v", err)
+				}
+			}
 			if h.Alive() {
 				t.Fatal("canceled blocked child remained alive")
 			}

@@ -81,11 +81,12 @@ func TestPtyRunnerInstallsTheSinkBeforeTheChildCanWrite(t *testing.T) {
 	var got []string
 	r := &PtyRunner{
 		Size: func() ptychild.Size { return ptychild.Size{Rows: 24, Cols: 80} },
-		Sink: func(id string, batch ptychild.OutputBatch) {
+		Sink: func(ctx context.Context, id string, batch ptychild.OutputBatch) error {
 			// The sink runs on the child's pump goroutine.
 			mu.Lock()
 			defer mu.Unlock()
 			got = append(got, id)
+			return nil
 		},
 	}
 	h, err := r.Start(t.TempDir(), []string{"sh", "-c", "printf hello; sleep 5"}, nil)

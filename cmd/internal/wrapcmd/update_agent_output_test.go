@@ -3,8 +3,6 @@ package wrapcmd
 import (
 	"bytes"
 	"container/list"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -84,26 +82,15 @@ func TestUpdateAgentOutput_DefaultFGNotCaptured(t *testing.T) {
 }
 
 func TestUpdateAgentOutput_SautedMarkerEmitsOuterNotification(t *testing.T) {
-	dir := t.TempDir()
-	tty := filepath.Join(dir, "tty")
-	if err := os.WriteFile(tty, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sidecar := filepath.Join(dir, "outer-path")
-	if err := os.WriteFile(sidecar, []byte(tty+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-
 	p := newAgentProxy()
 	p.agentBasename = "claude"
 	p.endOfTurnRe = endOfTurnByAgent["claude"]
-	p.outerTTYFile = sidecar
 	p.lastSlug = time.Now()
 	var written []byte
-	p.writeTTY = func(_ int, data []byte) (int, error) {
+	p.stdout = notificationWriter(func(data []byte) (int, error) {
 		written = append(written, data...)
 		return len(data), nil
-	}
+	})
 
 	marker := "✻ Sautéed for 34s · done 1:39 PM"
 	p.updateAgentOutput([]byte(sgr("31") + marker + sgr("0")))

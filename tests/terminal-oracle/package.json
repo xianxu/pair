@@ -1,0 +1,9 @@
+{
+  "name": "pair-terminal-oracle",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Independent test-only interpreter for Pair terminal renderer output",
+  "dependencies": {
+    "@xterm/headless": "5.5.0"
+  }
+}

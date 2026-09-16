@@ -552,7 +552,7 @@ pair rename <old> <new>          # rename every tag-scoped file in
                                  # Ctrl+Alt+n's (R) inside a session for
                                  # the live equivalent)
 pair keys                        # in-session keybindings (what Alt+h shows)
-pair notify "review ready"      # emit Pair's canonical outer-TTY notification
+pair notify "review ready"      # send an attention message through the live wrapper
 pair notify --osc 9 "ready"     # legacy selector accepted; output is canonical
 pair session-inventory          # stable native forests + Pair binding status
 pair session-inventory --json   # schema-v1 JSON for agents/tools
@@ -725,10 +725,11 @@ Pair forwards "agent needs attention" signals to your outer terminal automatical
 Agent hooks can send the same signal explicitly with `pair notify "message"`
 or the compatibility name `pair-notify "message"`. Legacy `--osc 9` and
 `--osc 777` options remain accepted, but Pair always sanitizes the message and
-emits its single canonical `OSC 777;notify;pair;…` envelope. Hook delivery is
-best-effort: outside a Pair session, or when the recorded outer TTY is missing
-or stale, the command warns on stderr and exits successfully so a notification
-failure does not break the agent hook.
+sends it to the live wrapper. The wrapper serializes the notification with its
+output through Zellij; it never writes directly to the outer terminal. Hook
+delivery is best-effort: outside a Pair session, or when the wrapper is unavailable,
+the command warns on stderr and exits successfully so a notification failure
+does not break the agent hook.
 
 **The idle floor.** Attention signals depend on recognizing what the agent is
 doing, and recognition fails — most turns emit no progress signal at all, which
@@ -768,6 +769,83 @@ ten seconds"), and on a successful send that buffer is **cleared**, because the
 note has been handed over. If the capture or the send fails, your text is kept
 and you are told so. The full capture goes to a file and the prompt carries a
 headline plus that file's path.
+
+
+### Terminal backend qualification
+
+From the repository root, run `go run ./cmd/probes/terminalqualify > /tmp/terminal-qualification.json`
+to exercise the pinned candidate against synthetic terminal fixtures. JSON contains
+the candidate version, required cases, statuses, bounded expected/observed evidence
+and summary. Truncation flags identify shortened evidence; comparisons use complete
+observations. Exit 0 means every declared requirement passed; exit 1 means failed
+or untested requirements remain; exit 2 means an invocation, infrastructure or
+report-output error. `go run` prints the child exit status for nonzero results.
+
+This is development qualification tooling. It does not change the running terminal
+or establish that live display/selection bugs are fixed. See the
+[#255 qualification report](workshop/plans/000255-terminal-qualification.md)
+for the original adoption rejection, repaired-backend evidence, and remaining
+operator acceptance requirements.
+
+The repaired candidate is maintained as a local module in `third_party/vt`;
+`PAIR_PATCHES.md` there records provenance and owned fixes. Its explicit child
+profile is `pair-vt-256color` (`terminfo/`). Run the fork's tests from that module
+as well as the root tests. The runtime build compiles `terminfo/pair-vt-256color.ti` with `tic`; copied binaries include that profile and need no runtime compiler. `sh tests/terminal-oracle/run.sh` installs the locked
+test-only xterm-headless dependency and checks actual renderer output against an
+independent terminal implementation. See [terminal ownership](atlas/terminal.md)
+for the current migration boundary.
+
+The default Go suite includes short production-path soak tests for Couch and Pair
+term. A scheduled or pre-release sustained run can use disposable synthetic PTY
+children for thirty minutes (it does not attach operator sessions):
+
+```sh
+env -u PAIR_TAG -u PAIR_SESSION_ID -u PAIR_DATA_DIR \
+  -u COUCH_THREAD_SCOPE -u COUCH_THREAD_TAG \
+  -u ZELLIJ -u ZELLIJ_SESSION_NAME -u ZELLIJ_PANE_ID \
+  PAIR_TERMINAL_SOAK_DURATION=30m \
+  go test ./cmd/internal/couchtty ./cmd/internal/termcmd \
+  -run '^(TestCouchProductionSoak|TestTerminalProductionSoak)$' \
+  -count=1 -timeout=35m -v
+```
+
+The harnesses keep bounded current-screen evidence and log progress at most once
+per minute. Native Zellij reattachment/selection and nvim conformance are separate:
+
+```sh
+PAIR_LIVE_COUCH_NATIVE=1 PAIR_LIVE_COUCH=1 \
+  PAIR_NATIVE_BINARY=/absolute/path/to/candidate/pair \
+  go test -race ./cmd/internal/couchtty \
+  -run '^(TestNativeConsoleWrapperZellij|TestLiveConsoleNvimPreservesContentAndChrome|TestLiveReservedRowSurvivesRealScrolling)$' \
+  -count=1 -timeout=2m -v
+```
+
+CI runs these native checks, plus broker-PTY conformance, through a strict target:
+
+```sh
+make -f Makefile.local test-native-terminal-ci
+```
+
+The target builds a fresh temporary candidate and rejects missing or skipped
+required tests. It needs Go, Python, Node with the pinned `tests/terminal-oracle`
+dependencies, nvim and Zellij. The macOS `couch-zellij-conformance` workflow
+installs the dependencies, pins Zellij 0.45.1, and invokes the target on relevant
+pull requests, main changes, scheduled runs and manual dispatch. Scratch state
+is invocation-owned; native checks do not attach operator sessions.
+
+`tests/terminal-performance.py --help` describes isolated baseline/candidate
+measurements using real Pair terminal processes and independent screen receipts.
+Those timings include interpreter IPC and parsing; measured resource figures are
+workload evidence, not universal bounds. Automated checks support the required
+[operator smoke test](workshop/plans/000255-terminal-smoke.md) for sustained
+display and selection behavior before rollout.
+
+The text profile preserves contiguous combining, joiner and variation-selector
+clusters. Controls seal the current cluster. An orphan zero-width character
+(including one after a control) is consumed without creating a cell or moving the
+cursor, matching the tested native Zellij behavior. This intentionally differs
+from xterm-headless’s zero-width-cell representation. Frame validation and UI
+text rendering use the same grapheme segmentation as the backend.
 
 ---
 

@@ -2,7 +2,6 @@ package couchtty
 
 import (
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
-	"github.com/xianxu/pair/cmd/internal/hostty"
 	"strconv"
 	"strings"
 	"time"
@@ -118,19 +117,20 @@ func (c *Console) mouseTraceContextLocked() (*mouseTracer, string) {
 	detail := "active=" + mouseTraceQuote(c.active) + " surface=" + surface
 	if p := c.panes[c.active]; p != nil {
 		detail += " actor=" + mouseTraceQuote(string(p.actorID)) + " thread=" + mouseTraceQuote(p.thread.RepoScope+"/"+string(p.thread.Tag)) +
-			" child-mouse=" + strconv.FormatBool(p.child.Mouse()) + " child-observed=" + strconv.FormatBool(p.child.MouseObserved())
+			" child-mouse=" + strconv.FormatBool(p.child.Endpoint().Modes().Tracking != 0)
 	}
 	return c.mouseTrace, detail
 }
 
-func (c *Console) traceMouseClicks(source string) {
+// traceTerminal records typed presentation outcomes, never child escape bytes.
+func (c *Console) traceTerminal(event string, err error) {
 	c.mu.Lock()
-	tracer, context := c.mouseTraceContextLocked()
-	before := c.hostScan.MouseModes()
+	tracer, detail := c.mouseTraceContextLocked()
 	c.mu.Unlock()
-	result := c.writeOwn(hostty.EnableMouseClicks)
-	if tracer == nil {
-		return
+	outcome := "presented"
+	if err != nil {
+		outcome = "failed"
+		detail += " error=" + mouseTraceQuote(err.Error())
 	}
-	tracer.record("assert-clicks", context+" source="+source+" scanner-before="+formatMouseModes(before)+" "+result.detail(len(hostty.EnableMouseClicks)))
+	tracer.record(event, detail+" policy=couch-any-motion outcome="+outcome)
 }

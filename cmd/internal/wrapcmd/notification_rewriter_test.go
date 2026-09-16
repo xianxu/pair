@@ -3,32 +3,19 @@ package wrapcmd
 import (
 	"bytes"
 	"io"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
 
-func TestEmitOuterDoesNotCommitRateLimitAfterShortWrite(t *testing.T) {
-	dir := t.TempDir()
-	tty := filepath.Join(dir, "tty")
-	if err := os.WriteFile(tty, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sidecar := filepath.Join(dir, "outer")
-	if err := os.WriteFile(sidecar, []byte(tty+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	p := &proxy{
-		outerTTYFile: sidecar,
-		lastSlug:     time.Now(),
-		writeTTY: func(_ int, p []byte) (int, error) {
-			return len(p) - 1, nil
-		},
-	}
+func TestEmitOuterDoesNotCommitRateLimitAfterFailedPrefix(t *testing.T) {
+	writer := &prefixWriter{limit: 3, fail: io.ErrClosedPipe}
+	p := &proxy{stdout: writer, lastSlug: time.Now()}
 	p.emitOuter("ready")
 	if !p.lastEmit.IsZero() {
-		t.Fatal("short write was committed as a successful notification")
+		t.Fatal("failed prefix committed notification")
+	}
+	if writer.Len() != 3 {
+		t.Fatal("accepted prefix not retained")
 	}
 }
 
@@ -114,13 +101,13 @@ func TestNotificationRewriterOverlongIsBoundedAndTransparent(t *testing.T) {
 	var r NotificationRewriter
 	start := append([]byte("\x1b]9;"), bytes.Repeat([]byte("x"), notificationRewriteMaxPending+1)...)
 	got := r.Feed(start, true)
-	if !bytes.Equal(got.Passthrough, start) || len(r.pending) != 0 || !r.skippingOSC {
-		t.Fatalf("overlong result=%+v pending=%d skipping=%v", got, len(r.pending), r.skippingOSC)
+	if !bytes.Equal(got.Passthrough, start) || len(r.pending) != 0 || r.boundary.stringKind != ']' {
+		t.Fatalf("overlong result=%+v pending=%d skipping=%v", got, len(r.pending), r.boundary.stringKind)
 	}
 	end := []byte("tail\x07after")
 	got = r.Feed(end, true)
-	if !bytes.Equal(got.Passthrough, end) || r.skippingOSC || len(got.Notifications) != 0 {
-		t.Fatalf("terminator result=%+v skipping=%v", got, r.skippingOSC)
+	if !bytes.Equal(got.Passthrough, end) || r.boundary.stringKind != 0 || len(got.Notifications) != 0 {
+		t.Fatalf("terminator result=%+v skipping=%v", got, r.boundary.stringKind)
 	}
 }
 
@@ -139,22 +126,13 @@ func equalStrings(a, b []string) bool {
 func TestProxyNativeNotificationCanonicalEmission(t *testing.T) {
 	for _, harness := range []string{"codex", "claude"} {
 		t.Run(harness, func(t *testing.T) {
-			dir := t.TempDir()
-			outer := filepath.Join(dir, "outer")
-			if err := os.WriteFile(outer, nil, 0o600); err != nil {
-				t.Fatal(err)
-			}
-			sidecar := filepath.Join(dir, "outer-path")
-			if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
-				t.Fatal(err)
-			}
 			var stdout bytes.Buffer
 			now := time.Unix(1_800_000_000, 0)
 			f := newHarnessSessionFake(t, harness, true)
 			t.Cleanup(f.close)
 			p := f.proxy
 			p.notifyModeActive = "native"
-			p.outerTTYFile = sidecar
+			p.stdout = &stdout
 			p.stdoutPump = newStdoutPump(&stdout)
 			p.lastSlug = now
 			p.now = func() time.Time { return now }
@@ -169,11 +147,12 @@ func TestProxyNativeNotificationCanonicalEmission(t *testing.T) {
 
 			p.handleChunk([]byte("a\x1b]777;notify;Agent;needs input\x07b"), &f.rolling)
 			p.flushStdout("test")
-			written, err := os.ReadFile(outer)
+			written := stdout.Bytes()
+			var err error
 			if err != nil {
 				t.Fatal(err)
 			}
-			if string(written) != "\x1b]777;notify;pair;needs input\x07" {
+			if !bytes.Contains(written, []byte("a\x1b]777;notify;pair;needs input\x07b")) {
 				t.Fatalf("outer = %q", written)
 			}
 		})
@@ -181,25 +160,18 @@ func TestProxyNativeNotificationCanonicalEmission(t *testing.T) {
 }
 
 func TestProxyProgressOpenedNativeNotificationCanonicalEmission(t *testing.T) {
-	dir := t.TempDir()
-	outer := filepath.Join(dir, "outer")
-	if err := os.WriteFile(outer, nil, 0o600); err != nil {
-		t.Fatal(err)
-	}
-	sidecar := filepath.Join(dir, "outer-path")
-	if err := os.WriteFile(sidecar, []byte(outer+"\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	now := time.Unix(1_800_000_000, 0)
-	p := &proxy{agentBasename: "claude", notifyModeActive: "native", outerTTYFile: sidecar, stdoutPump: newStdoutPump(io.Discard), lastSlug: now, now: func() time.Time { return now }}
+	var stdout bytes.Buffer
+	p := &proxy{agentBasename: "claude", notifyModeActive: "native", stdoutPump: newStdoutPump(&stdout), lastSlug: now, now: func() time.Time { return now }}
 	rolling := []byte(nil)
 	p.handleChunk([]byte("\x1b]9;4;3;\x07\x1b]777;notify;Agent;done\x07"), &rolling)
 	p.flushStdout("test")
-	written, err := os.ReadFile(outer)
+	written := stdout.Bytes()
+	var err error
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(written) != "\x1b]777;notify;pair;done\x07" {
+	if string(written) != "\x1b]9;4;3;\x07\x1b]777;notify;pair;done\x07" {
 		t.Fatalf("outer = %q", written)
 	}
 }

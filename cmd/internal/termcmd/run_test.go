@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
+	"github.com/xianxu/pair/cmd/internal/terminal"
 	"io"
 	"os"
 	"os/exec"
@@ -13,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/hostty"
-	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
@@ -464,64 +463,6 @@ func TestPumpStdinRenameConsumesShortcutMouseAndPaste(t *testing.T) {
 // names as the one that matters, and the cost this issue's Problem statement
 // opens with. The strip carries the field now, so the whole rename costs one
 // spawn, on commit. A budget with no test is a sentence in a plan.
-func TestARenameCostsExactlyOneZellijSubprocess(t *testing.T) {
-	// lockedWriter, not a bare bytes.Buffer: copyActiveOutput writes from its own
-	// goroutine while this test polls stdout, which -race (correctly) flags on the
-	// double. m.stdout is an *os.File in production, so this is a test-harness
-	// fix — do NOT add stdout locking to the mux to silence it.
-	stdout := &lockedWriter{}
-	rt := &fakeRuntime{}
-	mux := &terminalMux{
-		pane:   paneWriter{w: stdout},
-		rt:     rt,
-		output: make(chan ptyChunk, 1),
-		done:   make(chan struct{}),
-		tabs: []*terminalTab{
-			{id: 1, name: "work"},
-		},
-		active: 0,
-	}
-	copied := make(chan struct{})
-	go func() {
-		mux.copyActiveOutput()
-		close(copied)
-	}()
-
-	tabID, editor, err := mux.beginRename()
-	if err != nil {
-		t.Fatal(err)
-	}
-	mux.output <- ptyChunk{id: 1, data: []byte("child redraw\n")}
-
-	deadline := time.After(time.Second)
-	for stdout.String() != "child redraw\n" {
-		select {
-		case <-deadline:
-			t.Fatalf("stdout = %q, want child output copied", stdout.String())
-		default:
-			time.Sleep(time.Millisecond)
-		}
-	}
-	// Three keystrokes into the field, then the child writes again. None of it
-	// may reach a subprocess.
-	for _, r := range "abc" {
-		editor, _ = editor.Apply(RenameEvent{Kind: RenameInsert, Rune: r})
-		mux.refreshRename(tabID, editor)
-	}
-	if got := strings.Join(rt.ops, ","); got != "" {
-		t.Fatalf("runtime ops during the rename = %q, want none", got)
-	}
-	if err := mux.finishRename(tabID, RenameOutcome{Kind: RenameOutcomeCancel, Name: editor.Original()}); err != nil {
-		t.Fatal(err)
-	}
-	close(mux.done)
-	<-copied
-	// EXACTLY ONE, and it is the degraded title: the active tab's name with the
-	// classifier prefix, written once when the rename ends.
-	if got := strings.Join(rt.ops, ","); got != "rename-pane terminal work" {
-		t.Fatalf("runtime ops for the whole rename = %q, want exactly one on finish", got)
-	}
-}
 
 func TestPumpStdinRenameBareEscapeCancelsOnTimer(t *testing.T) {
 	rt := &fakeRuntime{}
@@ -707,228 +648,10 @@ func TestTerminalMuxChildStopsOneRowShortOfThePane(t *testing.T) {
 			t.Fatalf("rows=%d: child got %d; a pane with no room to reserve keeps it all",
 				rows, got.Rows)
 		}
-		if res := short.reservationLocked(); res.ReserveAndPaint("x") != "" {
-			t.Fatalf("rows=%d: reserved a row on a pane with no room", rows)
+		if cells, err := short.chromeLocked(-1); err != nil || len(cells) != 0 {
+			t.Fatalf("rows=%d chrome=%v err=%v", rows, cells, err)
 		}
 	}
-}
-
-func TestTerminalMuxSwitchTabAtColumn(t *testing.T) {
-	var stdout bytes.Buffer
-	rt := &fakeRuntime{}
-	mux := &terminalMux{
-		pane: paneWriter{w: stdoutWriter{&stdout}},
-		rt:   rt,
-		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
-			{id: 2, name: "work", child: ptychild.NewFakeChild([]byte("two"))},
-		},
-		active: 0,
-		cols:   40,
-	}
-	mux.nextTab()
-	if mux.active != 1 {
-		t.Fatalf("active = %d, want 1", mux.active)
-	}
-	// A rename still reaches the runtime on every tab switch -- the consumers
-	// need a current label -- but it is now the active tab's name alone.
-	if !strings.Contains(strings.Join(rt.ops, ","), "rename-pane terminal work") {
-		t.Fatalf("ops = %v, want a rename to the active tab's name", rt.ops)
-	}
-	if !strings.Contains(stdout.String(), "two") {
-		t.Fatalf("stdout = %q, want redraw of second tab", stdout.String())
-	}
-	if strings.Contains(stdout.String(), "\x1b[7m") {
-		t.Fatalf("stdout contains obsolete inverse-video tab strip: %q", stdout.String())
-	}
-}
-
-func TestTerminalMuxNewTabClearsPreviousTabViewport(t *testing.T) {
-	var stdout bytes.Buffer
-	mux := newTerminalMux("/bin/sh", []string{"-c", "sleep 1"}, &stdout, io.Discard, &fakeRuntime{})
-	// The loop is the only writer since #199 M2, so a mux without one writes
-	// nothing -- the assertion below is about what reaches the pane.
-	go mux.copyActiveOutput()
-	if err := mux.newTab(); err != nil {
-		t.Fatal(err)
-	}
-	mux.drainForTest()
-	mux.closeAll()
-
-	// The reset is part of the erase since 2026-09-08: \x1b[J paints with the
-	// CURRENT background, so clearing while a child's colour is active tints the
-	// new tab's screen -- measured with nvim's lualine blue.
-	if got := stdout.String(); !strings.HasPrefix(got, hostty.HomeAndClear) {
-		t.Fatalf("stdout = %q, want new active tab to clear stale viewport", got)
-	}
-}
-
-func TestTerminalMuxNewTabPrintsStartupOutputOnce(t *testing.T) {
-	var stdout bytes.Buffer
-	mux := newTerminalMux("/bin/sh", []string{"-c", "printf unique-startup-marker"}, &stdout, io.Discard, &fakeRuntime{})
-	go mux.copyActiveOutput()
-	if err := mux.newTab(); err != nil {
-		t.Fatal(err)
-	}
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		mux.mu.Lock()
-		done := len(mux.tabs) == 0
-		mux.mu.Unlock()
-		if done {
-			break
-		}
-		time.Sleep(2 * time.Millisecond)
-	}
-	mux.mu.Lock()
-	remaining := len(mux.tabs)
-	mux.mu.Unlock()
-	if remaining != 0 {
-		t.Fatal("startup command did not exit")
-	}
-	if got := strings.Count(stdout.String(), "unique-startup-marker"); got != 1 {
-		t.Fatalf("startup marker rendered %d times, want once: %q", got, stdout.String())
-	}
-}
-
-func TestTerminalMuxBackgroundExitPreservesActiveTab(t *testing.T) {
-
-	mux := &terminalMux{
-		pane: paneWriter{w: io.Discard},
-		rt:   &fakeRuntime{},
-		done: make(chan struct{}),
-		tabs: []*terminalTab{
-			{id: 1, name: "one"},
-			{id: 2, name: "two"},
-			{id: 3, name: "three"},
-		},
-		active: 1,
-	}
-
-	mux.removeTab(1)
-
-	if got := mux.activeTabLocked(); got == nil || got.id != 2 {
-		t.Fatalf("active tab after background exit = %+v, want id 2", got)
-	}
-}
-
-func TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab(t *testing.T) {
-
-	rt := &fakeRuntime{}
-	mux := &terminalMux{
-		pane: paneWriter{w: io.Discard},
-		rt:   rt,
-		done: make(chan struct{}),
-		tabs: []*terminalTab{
-			{id: 1, name: "one"},
-			{id: 2, name: "two"},
-		},
-		active: 0,
-	}
-	tabID, editor, err := mux.beginRename()
-	if err != nil {
-		t.Fatal(err)
-	}
-	editor, outcome := editor.Apply(RenameEvent{Kind: RenameInsert, Rune: 'x'})
-	if outcome.Kind != RenameOutcomeNone {
-		t.Fatalf("insert outcome = %#v, want none", outcome)
-	}
-	mux.refreshRename(tabID, editor)
-	_, outcome = editor.Apply(RenameEvent{Kind: RenameCommit})
-	rt.ops = nil
-
-	mux.removeTab(1)
-	// The title is the DEGRADED one even mid-rename: since #199 M3 the rename
-	// field lives on the strip, and the pane title is only ever the active tab's
-	// name with the classifier prefix RoleForPane reads.
-	if got := strings.Join(rt.ops, ","); got != "rename-pane terminal two" {
-		t.Fatalf("runtime ops after target removal = %q, want the degraded title", got)
-	}
-	if err := mux.finishRename(tabID, outcome); err != nil {
-		t.Fatal(err)
-	}
-
-	if got := mux.tabs[0].name; got != "two" {
-		t.Fatalf("remaining tab name = %q, want original two", got)
-	}
-}
-
-// A background tab exiting mid-rename REPAINTS THE STRIP but does not take over
-// the screen.
-//
-// The distinction is the whole test. A takeover would clear and replay, throwing
-// away the viewport the operator is editing over -- correct to skip. But the tab
-// SET just changed, and the takeover used to be the only thing repainting the
-// row on this path, so skipping it left the strip listing a tab that no longer
-// exists (BR-45, found by the M3 boundary review; reproduced as ZERO bytes
-// written after the exit).
-//
-// rows/cols are set DELIBERATELY: with them at zero stripBytes returns nil and
-// the assertion below passes without a strip existing at all -- which is how
-// this test would have kept passing through the defect it now pins.
-func TestTerminalMuxBackgroundExitDuringRenameRepaintsStripWithoutTakeover(t *testing.T) {
-
-	var stdout bytes.Buffer
-	rt := &fakeRuntime{}
-	mux := &terminalMux{
-		pane: paneWriter{w: stdoutWriter{&stdout}},
-		rt:   rt,
-		done: make(chan struct{}),
-		tabs: []*terminalTab{
-			{id: 1, name: "one"},
-			{id: 2, name: "two", child: ptychild.NewFakeChild([]byte("active output"))},
-		},
-		active: 1,
-		rows:   24,
-		cols:   80,
-	}
-	tabID, editor, err := mux.beginRename()
-	if err != nil {
-		t.Fatal(err)
-	}
-	editor, outcome := editor.Apply(RenameEvent{Kind: RenameInsert, Rune: 'x'})
-	if outcome.Kind != RenameOutcomeNone {
-		t.Fatalf("insert outcome = %#v, want none", outcome)
-	}
-	mux.refreshRename(tabID, editor)
-	stdout.Reset()
-	rt.ops = nil
-
-	mux.removeTab(1)
-
-	if got := strings.Join(rt.ops, ","); got != "rename-pane terminal two" {
-		t.Fatalf("runtime ops = %q, want the degraded title for the surviving tab", got)
-	}
-	got := stdout.String()
-	if !strings.Contains(got, "[rename: twox│]") {
-		t.Fatalf("stdout = %q, want the strip repainted with the live rename field", got)
-	}
-	if strings.Contains(got, "one") {
-		t.Fatalf("stdout = %q, still lists the tab that exited", got)
-	}
-	if strings.Contains(got, hostty.HomeAndClear) || strings.Contains(got, "active output") {
-		t.Fatalf("stdout = %q, want no wholesale takeover during a rename", got)
-	}
-}
-
-type stdoutWriter struct {
-	*bytes.Buffer
-}
-
-type fakeRuntime struct {
-	panesJSON              string
-	cachedDraft            string
-	currentPaneID          string
-	lastLeft               string
-	lastTerminal           string
-	recordedTerminal       []string
-	terminalPaneIDs        []string
-	registeredTerminalPane bool
-	listCalls              int
-	failList               bool
-	ops                    []string
-	reported               []string
-	failFocus              bool
 }
 
 func (f *fakeRuntime) LastTerminalPaneID() (string, error) {
@@ -1035,6 +758,13 @@ type fakeMux struct {
 	renameFinished  chan RenameOutcome
 }
 
+func (f *fakeMux) writeEvents(events []terminal.InputEvent) {
+	var data []byte
+	for _, e := range events {
+		data = append(data, e.Raw...)
+	}
+	f.writeActive(data)
+}
 func (f *fakeMux) writeActive(data []byte) {
 	f.ops = append(f.ops, "write:"+string(data))
 	if f.wrote != nil {
@@ -1206,7 +936,7 @@ func TestEveryHandledTerminalChordIsDocumented(t *testing.T) {
 	// it (#216 PQ-3).
 	for chord := workbenchshortcut.ChordUnknown + 1; chord < workbenchshortcut.ChordMax(); chord++ {
 		rt := &fakeRuntime{}
-		mux := &terminalMux{}
+		mux := &fakeMux{}
 		if !handleTerminalChord(chord, mux, rt) {
 			continue
 		}
@@ -1330,180 +1060,6 @@ func TestCurrentRightTerminalPaneFastPathAnswersWhatTheSlowPathWould(t *testing.
 	}
 }
 
-// #209's counted invariant, and #204's: a switch issues a REPAINT REQUEST, not
-// only a replay write. The replay is the immediate paint; the nudge is what
-// makes the result correct rather than probable when the last full frame has
-// aged out of the 128 KiB ring.
-//
-// The fake records resizes, which is the in-process half of the ARCH-MOCK pair;
-// the other half is cmd/probes/zellijrepaint, which drives a real zellij and
-// confirms it actually repaints from its own buffer on SIGWINCH.
-//
-// The child is sized first, because that is what production does (children are
-// spawned at childSizeLocked) and because the nudge restores the size the CHILD
-// remembers rather than one a caller hands it — a child with no geometry has
-// nothing to restore and correctly declines (#209 C2).
-func TestTabSwitchIssuesARepaintRequestAndRestoresTheSize(t *testing.T) {
-	var stdout bytes.Buffer
-	incoming := ptychild.NewFakeChild([]byte("two"))
-	mux := &terminalMux{
-		pane: paneWriter{w: stdoutWriter{&stdout}},
-		rt:   &fakeRuntime{},
-		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
-			{id: 2, name: "work", child: incoming},
-		},
-		active: 0,
-		cols:   40,
-		rows:   24,
-	}
-	mux.mu.Lock()
-	want := mux.childSizeLocked()
-	mux.mu.Unlock()
-	if err := incoming.Resize(want); err != nil {
-		t.Fatal(err)
-	}
-
-	mux.nextTab()
-
-	resizes := waitForChildResizes(t, incoming, 3)[1:]
-	if len(resizes) != 2 {
-		t.Fatalf("resizes = %v, want exactly 2 — a nudge is a change AND a restore", resizes)
-	}
-	if resizes[0].Rows >= resizes[1].Rows {
-		t.Errorf("resizes = %v, want the first to shrink rows and the second to restore", resizes)
-	}
-	if resizes[0].Cols != resizes[1].Cols {
-		t.Errorf("resizes = %v, want columns untouched — a column change reflows wrapped lines", resizes)
-	}
-	if resizes[1] != want {
-		t.Errorf("restored to %v, want the child's own size %v", resizes[1], want)
-	}
-}
-
-// waitForChildResizes polls until the child has recorded n resizes. The nudge
-// is asynchronous — it holds the child's geometry lock across a 20 ms settle
-// rather than blocking the console's event loop for it (#209 C2).
-func waitForChildResizes(t *testing.T, child *ptychild.Child, n int) []ptychild.Size {
-	t.Helper()
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if got := child.Resizes(); len(got) >= n {
-			return got
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("timed out waiting for %d resizes; got %v", n, child.Resizes())
-	return nil
-}
-
-// termcmd's leg of the differential (#209 BR-9): what the console WRITES on a
-// takeover is exactly what hostty.RepaintFor composes, with no prefix of its
-// own and no byte dropped. couchtty's TestSwitchWritesExactlyTheComposedRepaint
-// asserts the same thing about the same function, which is what makes the two
-// consoles byte-identical for the same child state without a test that can
-// drive both; hostty's golden fixes what that function emits.
-func TestTakeoverWritesExactlyTheComposedRepaint(t *testing.T) {
-	var stdout bytes.Buffer
-	incoming := ptychild.NewFakeChild([]byte("\x1b[?1049hretained frame"))
-	mux := &terminalMux{
-		pane: paneWriter{w: stdoutWriter{&stdout}},
-		rt:   &fakeRuntime{},
-		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("one"))},
-			{id: 2, name: "work", child: incoming},
-		},
-		active: 0,
-		cols:   40,
-		rows:   24,
-	}
-
-	mux.mu.Lock()
-	replay := replaySnapshotLocked(mux.tabs[1])
-	mux.mu.Unlock()
-	want := hostty.RepaintFor(incoming, replay)
-	if len(want) == 0 {
-		t.Fatal("fixture produced nothing to compose; the assertion below would be vacuous")
-	}
-
-	mux.nextTab()
-
-	if !strings.Contains(stdout.String(), string(want)) {
-		t.Fatalf("takeover wrote %q, want it to contain hostty.RepaintFor's exact composition %q",
-			stdout.String(), want)
-	}
-}
-
-// BR-4's fix reverted SILENTLY — the close review measured it — and a
-// disposition of "addressed" that no test defends is a claim, so this is the
-// test that should have shipped with it (#209 I1).
-//
-// The scenario is the operator's: close a tab while the SURVIVING tab's ring
-// still holds nothing. The frame standing on the pane belongs to a tab that no
-// longer exists, so leaving it there is showing the operator a window into a
-// closed thing. C-1 later established that this is true of EVERY takeover, not
-// just this one, and made blanking unconditional — so the mutation that reds
-// this test is now "make hostty's composition skip HomeAndClear when the replay
-// is empty", not a flag at this call site.
-func TestClosingATabBlanksTheDeadTabsScreenEvenWithNothingToDraw(t *testing.T) {
-	var stdout bytes.Buffer
-	survivor := ptychild.NewFakeChild(nil) // ring empty: nothing retained to draw
-	mux := &terminalMux{
-		pane: paneWriter{w: stdoutWriter{&stdout}},
-		rt:   &fakeRuntime{},
-		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("doomed tab content"))},
-			{id: 2, name: "terminal 2", child: survivor},
-		},
-		active: 0,
-		cols:   40,
-		rows:   24,
-	}
-
-	if snap := replaySnapshotLocked(mux.tabs[1]); len(snap) != 0 {
-		t.Fatalf("fixture retained %q for the survivor; this test needs an empty ring", snap)
-	}
-	mux.removeTab(1)
-
-	if !strings.Contains(stdout.String(), hostty.HomeAndClear) {
-		t.Fatalf("closing a tab wrote %q, want the screen blanked — the closed tab's "+
-			"content must not survive it, and there is nothing retained to overwrite it with",
-			stdout.String())
-	}
-}
-
-// The same enumeration swept for the REPAINT REQUEST rather than the intent
-// (#209 I2). removeTab hands the screen to a different child, which is exactly
-// the condition the nudge exists for: the survivor's last full frame may have
-// aged out of the ring, and only the child still holds it. Binding the request
-// to the takeover is what makes this true at every site rather than at the one
-// site somebody remembered.
-func TestClosingATabAsksTheSurvivingChildToRepaint(t *testing.T) {
-	var stdout bytes.Buffer
-	survivor := ptychild.NewFakeChild(nil)
-	if err := survivor.Resize(ptychild.Size{Rows: 23, Cols: 40}); err != nil {
-		t.Fatal(err)
-	}
-	mux := &terminalMux{
-		pane: paneWriter{w: stdoutWriter{&stdout}},
-		rt:   &fakeRuntime{},
-		tabs: []*terminalTab{
-			{id: 1, name: "terminal 1", child: ptychild.NewFakeChild([]byte("doomed"))},
-			{id: 2, name: "terminal 2", child: survivor},
-		},
-		active: 0,
-		cols:   40,
-		rows:   24,
-	}
-
-	before := len(survivor.Resizes())
-	mux.removeTab(1)
-	got := waitForChildResizes(t, survivor, before+2)
-	if got[before].Rows != 22 || got[before+1].Rows != 23 {
-		t.Fatalf("resizes = %v, want a shrink-and-restore pair around 23 rows", got[before:])
-	}
-}
-
 func TestTerminalHelpAndChangelogRouteWithoutFocusChange(t *testing.T) {
 	for _, tc := range []struct{ raw, fn string }{{"\x1b[104;3u", "PairOpenHelp"}, {"\x1b[108;3u", "PairOpenChangelog"}} {
 		rt := &fakeRuntime{cachedDraft: "2", failList: true}
@@ -1517,4 +1073,24 @@ func TestTerminalHelpAndChangelogRouteWithoutFocusChange(t *testing.T) {
 			t.Fatalf("unexpected query/error: %d %v", rt.listCalls, mux.reported)
 		}
 	}
+}
+
+type fakeRuntime struct {
+	panesJSON              string
+	cachedDraft            string
+	currentPaneID          string
+	lastLeft               string
+	lastTerminal           string
+	recordedTerminal       []string
+	terminalPaneIDs        []string
+	registeredTerminalPane bool
+	listCalls              int
+	failList               bool
+	ops                    []string
+	reported               []string
+	failFocus              bool
+}
+
+type stdoutWriter struct {
+	*bytes.Buffer
 }

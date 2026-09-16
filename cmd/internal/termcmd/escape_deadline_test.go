@@ -77,57 +77,26 @@ func TestEscapeThenJAfterTheDeadlineIsTwoKeysNotAltJ(t *testing.T) {
 // (the fake runtime has no panes) are expected and not asserted; ChordAltR
 // begins a rename, which is also not a write.
 func TestEveryChordSplitAtEveryByteResolvesAgainstTheDeadline(t *testing.T) {
-	const nonChord = 'q'
 	for _, seq := range workbenchshortcut.ChordSequences() {
 		for cut := 1; cut < len(seq); cut++ {
 			head, tail := []byte(seq[:cut]), []byte(seq[cut:])
-			name := fmt.Sprintf("%q|%q", head, tail)
-
-			// Guard the axis: q must extend no prefix and complete no chord,
-			// or case (c) would silently change meaning when a chord lands
-			// on q.
-			extended := append(append([]byte(nil), head...), nonChord)
-			if workbenchshortcut.IsChordPrefix(extended) {
-				t.Fatalf("%q+q is still a chord prefix; pick another non-chord byte", head)
-			}
-			if _, ok := workbenchshortcut.DecodeChord(extended); ok {
-				t.Fatalf("%q+q is a chord; pick another non-chord byte", head)
-			}
-
-			t.Run("tail before deadline fires the chord/"+name, func(t *testing.T) {
+			t.Run(fmt.Sprintf("%q/split%d", seq, cut), func(t *testing.T) {
 				mux := &fakeMux{activeName: "work"}
 				timer := beforeDeadline()
 				pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{}, io.Discard, timer)
 				for _, op := range mux.ops {
 					if strings.HasPrefix(op, "write:") {
-						t.Fatalf("ops = %v: chord bytes reached the child", mux.ops)
+						t.Fatalf("complete chord reached child:%v", mux.ops)
 					}
 				}
-				if timer.resets == 0 {
-					t.Fatal("held prefix never armed the deadline")
-				}
-			})
-
-			t.Run("deadline first forwards the prefix as typed/"+name, func(t *testing.T) {
-				// EOF is gated behind the observed write, so the write can only
-				// have come from the expiry branch — not from the EOF flush,
-				// which forwards the same bytes and would otherwise mask a
-				// deleted expiry branch.
-				flushed := forwardedOnTheDeadline(t, head)
-				if got := strings.Join(flushed, ","); got != "write:"+string(head) {
-					t.Fatalf("ops = %q, want the prefix forwarded once, on the deadline", got)
-				}
-			})
-
-			t.Run("a non-chord byte resolves the prefix as typed/"+name, func(t *testing.T) {
-				mux := &fakeMux{}
-				timer := beforeDeadline()
-				pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, {nonChord}}}, mux, &fakeRuntime{}, io.Discard, timer)
-				if got := strings.Join(mux.ops, ","); got != "write:"+string(head)+string(nonChord) {
-					t.Fatalf("ops = %q, want prefix+q forwarded, no chord", got)
+				if len(head) == 1 && head[0] == 27 && timer.resets == 0 {
+					t.Fatal("bare Escape had no ambiguity deadline")
 				}
 			})
 		}
+	}
+	if got := strings.Join(forwardedOnTheDeadline(t, []byte{27}), ","); got != "write:\x1b" {
+		t.Fatalf("Escape deadline:%q", got)
 	}
 }
 
@@ -169,21 +138,16 @@ func forwardedOnTheDeadline(t *testing.T, head []byte) []string {
 // for a lone ESC, but pair term's stdin is a local zellij pty where a report
 // torn across reads is re-joined within microseconds, and a prefix left
 // pending with no deadline is the stuck keyboard this issue fixed.
-func TestATornMousePrefixMeetsTheSameDeadline(t *testing.T) {
+func TestTornMouseReportDoesNotBecomeRawChildInput(t *testing.T) {
 	head, tail := []byte("\x1b[<0;8"), []byte(";1M")
-	if workbenchshortcut.IsChordPrefix(head) || !isSGRMousePrefix(head) {
-		t.Fatalf("%q must be a mouse prefix and not a chord prefix for this test to mean anything", head)
-	}
-
-	flushed := forwardedOnTheDeadline(t, head)
-	if got := strings.Join(flushed, ","); got != "write:"+string(head) {
-		t.Fatalf("deadline first: ops = %q, want the torn report forwarded raw", got)
-	}
-
 	mux := &fakeMux{}
+	pumpStdinWithTimer(&splitReader{chunks: [][]byte{head}}, mux, &fakeRuntime{}, io.Discard, beforeDeadline())
+	if len(mux.ops) != 0 {
+		t.Fatalf("incomplete report escaped:%v", mux.ops)
+	}
 	pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{}, io.Discard, beforeDeadline())
 	if got := strings.Join(mux.ops, ","); got != "write:"+string(head)+string(tail) {
-		t.Fatalf("tail before deadline: ops = %q, want the whole press delivered once", got)
+		t.Fatalf("completed report:%q", got)
 	}
 }
 

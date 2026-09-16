@@ -39,7 +39,7 @@ func TestTerminalModelConstructorReturnsEmptySnapshot(t *testing.T) {
 		if len(snapshot.Cells) != size.width*size.height {
 			t.Errorf("cell count = %d, want %d", len(snapshot.Cells), size.width*size.height)
 		}
-		if cell := snapshot.CellAt(0, 0); cell == nil || cell.Content != " " || cell.Width != 1 {
+		if cell := snapshot.CellAt(0, 0); cell == nil || cell.Content != "" || cell.Width != 1 {
 			t.Errorf("CellAt(0,0) = %#v, want x/vt's blank cell", cell)
 		}
 		for _, point := range [][2]int{{-1, 0}, {0, -1}, {size.width, 0}, {0, size.height}} {
@@ -241,28 +241,28 @@ func TestTerminalModelValidZWJSplitSnapshotsStayCoherent(t *testing.T) {
 	if err := oneShot.Feed([]byte(stream)); err != nil {
 		t.Fatal(err)
 	}
-	oneShotSnapshot := oneShot.Snapshot()
-
-	split := newTerminalModelForTest(t, 8, 2)
-	splitAt := len("👩")
-	if err := split.Feed([]byte(stream[:splitAt])); err != nil {
-		t.Fatal(err)
+	want := oneShot.Snapshot()
+	assertTerminalSnapshotCoherent(t, want)
+	if cell := want.CellAt(0, 0); cell.Content != stream || cell.Width != 2 {
+		t.Fatalf("one-shot first cell = %+v, want complete two-cell cluster", cell)
 	}
-	if err := split.Feed([]byte(stream[splitAt:])); err != nil {
-		t.Fatal(err)
-	}
-	splitSnapshot := split.Snapshot()
-
-	assertTerminalSnapshotCoherent(t, oneShotSnapshot)
-	assertTerminalSnapshotCoherent(t, splitSnapshot)
-	if reflect.DeepEqual(splitSnapshot, oneShotSnapshot) {
-		t.Fatal("split and one-shot ZWJ snapshots unexpectedly match; regression no longer exercises x/vt's Write-boundary behavior")
-	}
-	if got := oneShotSnapshot.CellAt(0, 0).Content; got != stream {
-		t.Fatalf("one-shot first cell = %q, want %q", got, stream)
-	}
-	if woman, laptop := splitSnapshot.CellAt(0, 0).Content, splitSnapshot.CellAt(2, 0).Content; woman != "👩" || laptop != "💻" {
-		t.Fatalf("split cells = %q/%q, want separate woman/laptop glyphs", woman, laptop)
+	// #255 repairs the backend's incremental grapheme ownership. The old test
+	// deliberately required the known split-ZWJ corruption; preserve coherence
+	// coverage while now requiring the actual correct glyph at every byte split.
+	for splitAt := 0; splitAt <= len(stream); splitAt++ {
+		split := newTerminalModelForTest(t, 8, 2)
+		if err := split.Feed([]byte(stream[:splitAt])); err != nil {
+			t.Fatal(err)
+		}
+		assertTerminalSnapshotCoherent(t, split.Snapshot())
+		if err := split.Feed([]byte(stream[splitAt:])); err != nil {
+			t.Fatal(err)
+		}
+		got := split.Snapshot()
+		assertTerminalSnapshotCoherent(t, got)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("split %d differs from complete ZWJ snapshot", splitAt)
+		}
 	}
 }
 
@@ -282,7 +282,7 @@ func TestTerminalModelSnapshotCellsAreIndependent(t *testing.T) {
 	if got := second.CellAt(0, 0).Content; got != "A" {
 		t.Fatalf("mutating first snapshot changed model cell to %q", got)
 	}
-	if got := first.CellAt(1, 0).Content; got != " " {
+	if got := first.CellAt(1, 0).Content; got != "" {
 		t.Fatalf("later Feed changed first snapshot cell to %q", got)
 	}
 }
@@ -733,7 +733,7 @@ func TestTerminalModelSnapshotTracksActiveScreen(t *testing.T) {
 			if !alternate.AltScreen || alternate.CursorVisible {
 				t.Fatalf("alternate identity/visibility = (%v,%v), want (true,false)", alternate.AltScreen, alternate.CursorVisible)
 			}
-			if got := alternate.CellAt(0, 0).Content; got != " " {
+			if got := alternate.CellAt(0, 0).Content; got != "" {
 				t.Fatalf("new alternate screen retained primary cell %q", got)
 			}
 
@@ -1115,7 +1115,12 @@ func FuzzTerminalModelControlObserverChunkPartitions(f *testing.F) {
 func snapshotRow(snapshot terminalSnapshot, y int) string {
 	var row strings.Builder
 	for x := 0; x < snapshot.Width; x++ {
-		row.WriteString(snapshot.CellAt(x, y).Content)
+		cell := snapshot.CellAt(x, y)
+		if cell.Content == "" && cell.Width > 0 {
+			row.WriteByte(' ')
+		} else {
+			row.WriteString(cell.Content)
+		}
 	}
 	return row.String()
 }

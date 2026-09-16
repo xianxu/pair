@@ -33,7 +33,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/probes/zellijprobe"
 	"golang.org/x/sys/unix"
 )
@@ -103,7 +102,7 @@ func run() int {
 	// nothing between the two ioctls zellij may take a single SIGWINCH, read a
 	// winsize already back to 24, and re-render nothing. That is not a
 	// hypothesis — it is what this probe measured at 6 of 12 runs, which is why
-	// production settles ptychild.RepaintSettle here (BR-3, C1).
+	// production settles 20*time.Millisecond here (BR-3, C1).
 	//
 	// THE SETTLE IS READ FROM PRODUCTION, not restated here (#209 C1). A probe
 	// that hard-codes the sequence it exists to verify measures itself: this
@@ -115,7 +114,7 @@ func run() int {
 	//
 	// PAIR_PROBE_SETTLE overrides it, which is how the table was measured and
 	// how it gets re-measured after a zellij upgrade.
-	settle := ptychild.RepaintSettle
+	settle := 20 * time.Millisecond
 	if raw := os.Getenv("PAIR_PROBE_SETTLE"); raw != "" {
 		d, err := time.ParseDuration(raw)
 		if err != nil {

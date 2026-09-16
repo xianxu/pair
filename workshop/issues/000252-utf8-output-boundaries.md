@@ -89,3 +89,10 @@ but this log does not prove it caused the operator's observed flashing. The
 separate confirmed UTF-8 injection defect above remains applicable downstream;
 raw capture is upstream of Couch and cannot show Couch-added corruption.
 No filter, terminal mode, or live session changed during this inspection.
+
+
+## Revisions
+
+### 2026-09-15 — #255 M3 integration evidence
+
+Incremental UTF-8/grapheme handling now belongs to the per-child endpoint before any UI paint. Every-split tests cover supported combining/ZWJ/CJK clusters; presenter chrome cannot interrupt child escape frames because only typed cells cross the boundary. Core and migrated adapter checks pass; observed long-session display acceptance remains M4 plus operator smoke.

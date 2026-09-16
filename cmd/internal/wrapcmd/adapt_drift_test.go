@@ -123,27 +123,16 @@ func TestEmitPlainCR_LogsFiredAndBypass(t *testing.T) {
 	}
 }
 
-// TestOutputFilter_LogsFiredDedupedPerMarker covers aspect 5: stripping a
-// codex sync-output marker logs `fired` once per distinct marker (deduped —
-// the markers repeat many times per render).
-func TestOutputFilter_LogsFiredDedupedPerMarker(t *testing.T) {
-	var buf bytes.Buffer
-	p := &proxy{agentBasename: "codex"}
-	p.adapt = adapt.New(&buf, "pair-wrap", "codex")
-
-	// Same marker twice + a different one, interleaved with normal bytes.
-	p.stripCodexOutputMarkers(
-		[]byte("a\x1b[?2026hb\x1b[?2026hc\x1b[?1004hd"),
-		codexSyncOutputMarkers,
-	)
-
-	recs := decodeAdapt(t, &buf)
-	if len(recs) != 2 {
-		t.Fatalf("want 2 deduped fired lines (one per distinct marker), got %d: %s", len(recs), buf.String())
-	}
-	for _, r := range recs {
-		if r["signal"] != "output-filter" || r["outcome"] != "fired" || r["aspect"] != float64(5) {
-			t.Errorf("bad record: %v", r)
+// Terminal negotiation is no longer an adaptation filter owned by the wrapper.
+func TestTerminalNegotiationDoesNotLogOutputFilter(t *testing.T) {
+	var log, out bytes.Buffer
+	p := &proxy{agentBasename: "codex", stdout: &out, adapt: adapt.New(&log, "pair-wrap", "codex")}
+	var rolling []byte
+	p.handleChunk([]byte("a\x1b[?2026hb\x1b[?1004hc"), &rolling)
+	p.flushStdout("test")
+	for _, r := range decodeAdapt(t, &log) {
+		if r["signal"] == "output-filter" {
+			t.Fatalf("obsolete filter fired: %v", r)
 		}
 	}
 }

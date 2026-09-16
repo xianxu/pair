@@ -10,10 +10,9 @@
 // We wrap the commands in `sh -c` so the shell does the env interpolation.
 // zellij itself does not expand env vars in `command`/`args` fields.
 //
-// The agent runs under pair-wrap, a transparent PTY proxy that translates
-// the agent's BEL/OSC notifications into an OSC 9 written directly to pair's
-// outer TTY, so outer wrappers (e.g. cmux) see attention markers despite
-// zellij's escape filtering. #000011
+// The agent runs under pair-wrap. Attention messages share its serialized
+// pane output as OSC777; Zellij's configured OSC9 host protocol forwards them.
+// No notification producer writes independently to Zellij's outer TTY. #255
 //
 // LAYOUT RUNGS — the draft pane has three sizes: minimized (1 row,
 // statusline only) ↔ small (fixed 12 rows, initial) ↔ third (1/3). Alt+Up /

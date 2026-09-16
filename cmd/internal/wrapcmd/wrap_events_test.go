@@ -68,7 +68,6 @@ func TestHandleChunkTracesMasterStdoutAndScrollback(t *testing.T) {
 		agentBasename: "codex",
 		wrapEventsFD:  traceFD,
 		scrollbackFD:  scrollFD,
-		filterSeen:    make(map[string]bool),
 		now:           func() time.Time { return time.Unix(0, 0).UTC() },
 	}
 	var stdout bytes.Buffer
@@ -88,9 +87,9 @@ func TestHandleChunkTracesMasterStdoutAndScrollback(t *testing.T) {
 		`"label":"stdout-queue"`,
 		`"label":"scrollback-write"`,
 		`"raw_len":10`,
-		`"stdout_len":2`,
+		`"stdout_len":10`,
 		`"queued_chunks":1`,
-		`"queued_bytes":2`,
+		`"queued_bytes":10`,
 	} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("trace missing %s in:\n%s", want, body)
@@ -105,8 +104,8 @@ func TestHandleChunkTracesMasterStdoutAndScrollback(t *testing.T) {
 	if stdout.String() != "" {
 		t.Fatalf("stdout written before flush: %q", stdout.String())
 	}
-	if p.stdoutPump.pendingBytes() != 2 {
-		t.Fatalf("pending stdout bytes = %d, want 2", p.stdoutPump.pendingBytes())
+	if p.stdoutPump.pendingBytes() != 10 {
+		t.Fatalf("pending stdout bytes = %d, want 10", p.stdoutPump.pendingBytes())
 	}
 	raw, err := os.ReadFile(scrollPath)
 	if err != nil {

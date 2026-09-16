@@ -9,83 +9,100 @@ import (
 
 const notificationRewriteMaxPending = 64 << 10
 
+type RewriteEvent struct {
+	Passthrough  []byte
+	Notification *notifyosc.Notification
+	Observation  *TurnObservation
+}
 type RewriteResult struct {
 	Passthrough   []byte
 	Notifications []notifyosc.Notification
 	Observations  []TurnObservation
+	Events        []RewriteEvent
+}
+
+func (r *RewriteResult) pass(data []byte) {
+	if len(data) == 0 {
+		return
+	}
+	r.Passthrough = append(r.Passthrough, data...)
+	if len(r.Events) > 0 && r.Events[len(r.Events)-1].Passthrough != nil {
+		r.Events[len(r.Events)-1].Passthrough = append(r.Events[len(r.Events)-1].Passthrough, data...)
+	} else {
+		r.Events = append(r.Events, RewriteEvent{Passthrough: append([]byte(nil), data...)})
+	}
 }
 
 type NotificationRewriter struct {
-	pending     []byte
-	skippingOSC bool
-	skipLastESC bool
+	pending  []byte
+	boundary outputBoundary
 }
 
 func (r *NotificationRewriter) Feed(chunk []byte, normalize bool) RewriteResult {
-	buf := append(append([]byte(nil), r.pending...), chunk...)
-	r.pending = nil
 	var result RewriteResult
-
-	if r.skippingOSC {
-		n := r.skipThroughOSC(buf)
-		result.Passthrough = append(result.Passthrough, buf[:n]...)
-		if r.skippingOSC {
-			return result
+	pass := func(data []byte) {
+		result.pass(data)
+		for _, c := range data {
+			r.boundary.advance(c)
 		}
-		buf = buf[n:]
 	}
-
-	for len(buf) > 0 {
-		i := bytes.IndexByte(buf, 0x1b)
-		if i < 0 {
-			result.Passthrough = append(result.Passthrough, buf...)
-			break
-		}
-		result.Passthrough = append(result.Passthrough, buf[:i]...)
-		buf = buf[i:]
-		if len(buf) == 1 {
-			r.pending = append(r.pending, buf...)
-			break
-		}
-		if buf[1] != ']' {
-			result.Passthrough = append(result.Passthrough, buf[0])
-			buf = buf[1:]
+	for _, c := range chunk {
+		if len(r.pending) == 0 {
+			if c == 0x1b && r.boundary.safe() {
+				r.pending = append(r.pending, c)
+			} else {
+				pass([]byte{c})
+			}
 			continue
 		}
-		size, complete, malformed := rewriteOSCEnd(buf)
-		if malformed {
-			result.Passthrough = append(result.Passthrough, buf[:2]...)
-			buf = buf[2:]
+		if len(r.pending) == 1 && c != ']' {
+			pass(r.pending)
+			r.pending = nil
+			pass([]byte{c})
+			continue
+		}
+		r.pending = append(r.pending, c)
+		if len(r.pending) == 2 {
+			continue
+		}
+		n := len(r.pending)
+		complete := c == 7 || (c == '\\' && r.pending[n-2] == 0x1b)
+		if c == 0x18 || c == 0x1a || n > notificationRewriteMaxPending {
+			pass(r.pending)
+			r.pending = nil
 			continue
 		}
 		if !complete {
-			if len(buf) > notificationRewriteMaxPending {
-				result.Passthrough = append(result.Passthrough, buf...)
-				r.skippingOSC = true
-				r.skipLastESC = len(buf) > 0 && buf[len(buf)-1] == 0x1b
-				break
-			}
-			r.pending = append(r.pending, buf...)
-			break
+			continue
 		}
-		seq := buf[:size]
+		seq := r.pending
+		r.pending = nil
 		ps, body, ok := splitOSC(seq)
-		if observation, progress := progressObservation(ps, body); ok && progress {
-			result.Passthrough = append(result.Passthrough, seq...)
-			result.Observations = append(result.Observations, observation)
-		} else if message, actionable := nativeNotification(ps, body); ok && actionable {
-			if normalize {
-				result.Notifications = append(result.Notifications, notifyosc.Notification{Message: notifyosc.Sanitize([]byte(message))})
-			} else {
-				result.Passthrough = append(result.Passthrough, seq...)
-			}
-		} else {
-			result.Passthrough = append(result.Passthrough, seq...)
+		// Bare ESC inside a string is ambiguous; preserve it without interpreting
+		// nested OSC payload as an independent notification.
+		end := len(seq) - 1
+		if seq[end] == '\\' {
+			end--
 		}
-		buf = buf[size:]
+		if bytes.IndexByte(seq[2:end], 0x1b) >= 0 {
+			pass(seq)
+			continue
+		}
+		if observation, progress := progressObservation(ps, body); ok && progress {
+			pass(seq)
+			result.Observations = append(result.Observations, observation)
+			result.Events = append(result.Events, RewriteEvent{Observation: &observation})
+		} else if message, actionable := nativeNotification(ps, body); ok && actionable && normalize {
+			notification := notifyosc.Notification{Message: notifyosc.Sanitize([]byte(message))}
+			result.Notifications = append(result.Notifications, notification)
+			result.Events = append(result.Events, RewriteEvent{Notification: &notification})
+		} else {
+			pass(seq)
+		}
 	}
 	return result
 }
+func (r *NotificationRewriter) Finish() []byte { out := r.pending; r.pending = nil; return out }
 
 func progressObservation(ps, body []byte) (TurnObservation, bool) {
 	if string(ps) != "9" || !bytes.HasPrefix(body, []byte("4;")) {
@@ -110,24 +127,6 @@ func progressObservation(ps, body []byte) (TurnObservation, bool) {
 // transparent terminal output for every agent; only Claude may drive Reduce.
 func progressOSCAuthorized(agent string) bool {
 	return agent == "claude"
-}
-
-func rewriteOSCEnd(buf []byte) (size int, complete, malformed bool) {
-	for i := 2; i < len(buf); i++ {
-		switch buf[i] {
-		case 0x07:
-			return i + 1, true, false
-		case 0x1b:
-			if i+1 == len(buf) {
-				return 0, false, false
-			}
-			if buf[i+1] == '\\' {
-				return i + 2, true, false
-			}
-			return 0, false, true
-		}
-	}
-	return 0, false, false
 }
 
 func splitOSC(seq []byte) (ps, body []byte, ok bool) {
@@ -168,30 +167,4 @@ func nativeNotification(ps, body []byte) (string, bool) {
 	default:
 		return "", false
 	}
-}
-
-func (r *NotificationRewriter) skipThroughOSC(buf []byte) int {
-	if r.skipLastESC {
-		r.skipLastESC = false
-		if len(buf) > 0 && buf[0] == '\\' {
-			r.skippingOSC = false
-			return 1
-		}
-	}
-	for i := 0; i < len(buf); i++ {
-		if buf[i] == 0x07 {
-			r.skippingOSC = false
-			return i + 1
-		}
-		if buf[i] == 0x1b {
-			if i+1 < len(buf) && buf[i+1] == '\\' {
-				r.skippingOSC = false
-				return i + 2
-			}
-			if i+1 == len(buf) {
-				r.skipLastESC = true
-			}
-		}
-	}
-	return len(buf)
 }

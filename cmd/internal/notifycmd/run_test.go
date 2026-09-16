@@ -3,97 +3,109 @@ package notifycmd
 import (
 	"bytes"
 	"errors"
-	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/xianxu/pair/cmd/internal/notifytransport"
 )
 
+// The fake resolves a mutable binding to live inboxes, so replacement and
+// unavailable brokers exercise the same state transitions as real senders.
 type fakeRuntime struct {
 	env      map[string]string
-	files    map[string][]byte
-	writes   map[string][][]byte
-	writeErr error
-}
-
-func TestOSRuntimeReportsShortNonblockingWrite(t *testing.T) {
-	file, err := os.CreateTemp(t.TempDir(), "outer-tty")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := file.Close(); err != nil {
-		t.Fatal(err)
-	}
-	rt := OSRuntime{write: func(_ int, p []byte) (int, error) { return len(p) - 1, nil }}
-	if err := rt.WriteNonblocking(file.Name(), []byte("envelope")); !errors.Is(err, io.ErrShortWrite) {
-		t.Fatalf("short write error = %v, want io.ErrShortWrite", err)
-	}
+	bindings map[string]string
+	inboxes  map[string][]string
 }
 
 func (f *fakeRuntime) Getenv(key string) string { return f.env[key] }
-func (f *fakeRuntime) ReadFile(path string) ([]byte, error) {
-	b, ok := f.files[path]
+func (f *fakeRuntime) SendNotification(binding, message string) error {
+	id, ok := f.bindings[binding]
 	if !ok {
-		return nil, errors.New("missing")
+		return errors.New("missing PID binding")
 	}
-	return append([]byte(nil), b...), nil
-}
-func (f *fakeRuntime) WriteNonblocking(path string, p []byte) error {
-	if f.writeErr != nil {
-		return f.writeErr
+	if _, ok = f.inboxes[id]; !ok {
+		return errors.New("broker unavailable")
 	}
-	f.writes[path] = append(f.writes[path], append([]byte(nil), p...))
+	f.inboxes[id] = append(f.inboxes[id], message)
 	return nil
 }
-
 func validRuntime() *fakeRuntime {
-	return &fakeRuntime{
-		env:    map[string]string{"PAIR_TAG": "pair", "PAIR_OUTER_TTY_PATH": "/state/outer"},
-		files:  map[string][]byte{"/state/outer": []byte("/dev/tty42\n")},
-		writes: map[string][][]byte{},
-	}
+	return &fakeRuntime{env: map[string]string{"PAIR_TAG": "pair", "PAIR_PAIR_WRAP_PID_PATH": "/state/wrapper"}, bindings: map[string]string{"/state/wrapper": "first"}, inboxes: map[string][]string{"first": nil}}
 }
-
-func TestRunWritesCanonicalEnvelopeForLegacyOptions(t *testing.T) {
+func TestRunSendsMessagesForLegacyOptions(t *testing.T) {
 	for _, args := range [][]string{{"ready"}, {"--osc", "9", "ready"}, {"--osc=777", "ready"}} {
 		t.Run(strings.Join(args, "_"), func(t *testing.T) {
 			rt := validRuntime()
 			var stderr bytes.Buffer
-			if code := Run(args, rt, &stderr); code != 0 {
-				t.Fatalf("Run() = %d, stderr=%q", code, stderr.String())
+			if code := Run(args, rt, &stderr); code != 0 || stderr.Len() != 0 {
+				t.Fatalf("code=%d stderr=%q", code, stderr.String())
 			}
-			writes := rt.writes["/dev/tty42"]
-			if len(writes) != 1 || string(writes[0]) != "\x1b]777;notify;pair;ready\x07" {
-				t.Fatalf("writes = %q", writes)
+			if got := rt.inboxes["first"]; len(got) != 1 || got[0] != "ready" {
+				t.Fatalf("messages=%q", got)
 			}
 		})
 	}
 }
-
+func TestRunFollowsCurrentBrokerBinding(t *testing.T) {
+	rt := validRuntime()
+	var stderr bytes.Buffer
+	Run([]string{"before"}, rt, &stderr)
+	rt.bindings["/state/wrapper"] = "second"
+	rt.inboxes["second"] = nil
+	Run([]string{"after"}, rt, &stderr)
+	if strings.Join(rt.inboxes["first"], ",") != "before" || strings.Join(rt.inboxes["second"], ",") != "after" {
+		t.Fatalf("inboxes=%v", rt.inboxes)
+	}
+}
 func TestRunRejectsUsageErrors(t *testing.T) {
 	for _, args := range [][]string{nil, {"--osc", "8", "ready"}, {"--osc"}} {
 		rt := validRuntime()
 		var stderr bytes.Buffer
-		if code := Run(args, rt, &stderr); code != 2 || stderr.Len() == 0 || len(rt.writes) != 0 {
-			t.Fatalf("Run(%v) = %d, stderr=%q writes=%v", args, code, stderr.String(), rt.writes)
+		if code := Run(args, rt, &stderr); code != 2 || stderr.Len() == 0 || len(rt.inboxes["first"]) != 0 {
+			t.Fatalf("args=%v code=%d stderr=%q", args, code, stderr.String())
 		}
 	}
 }
-
-func TestRunToleratesUnavailableOuterTTY(t *testing.T) {
-	cases := []func(*fakeRuntime){
-		func(rt *fakeRuntime) { delete(rt.env, "PAIR_TAG") },
-		func(rt *fakeRuntime) { delete(rt.env, "PAIR_OUTER_TTY_PATH") },
-		func(rt *fakeRuntime) { delete(rt.files, "/state/outer") },
-		func(rt *fakeRuntime) { rt.files["/state/outer"] = []byte("\n") },
-		func(rt *fakeRuntime) { rt.writeErr = errors.New("stale tty") },
-	}
+func TestRunWarnsWithoutOuterTTYFallback(t *testing.T) {
+	cases := []func(*fakeRuntime){func(rt *fakeRuntime) { delete(rt.env, "PAIR_TAG") }, func(rt *fakeRuntime) { delete(rt.env, "PAIR_PAIR_WRAP_PID_PATH") }, func(rt *fakeRuntime) { delete(rt.bindings, "/state/wrapper") }, func(rt *fakeRuntime) { delete(rt.inboxes, "first") }}
 	for i, mutate := range cases {
 		rt := validRuntime()
+		rt.env["PAIR_OUTER_TTY_PATH"] = "/unrelated/tty"
 		mutate(rt)
 		var stderr bytes.Buffer
 		if code := Run([]string{"ready"}, rt, &stderr); code != 0 || stderr.Len() == 0 {
-			t.Fatalf("case %d: code=%d stderr=%q", i, code, stderr.String())
+			t.Fatalf("case%d code=%d stderr=%q", i, code, stderr.String())
 		}
+	}
+}
+func TestOSRuntimeSendsToRealBroker(t *testing.T) {
+	root, err := os.MkdirTemp("/tmp", "pnc-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	t.Setenv("PAIR_NOTIFY_SOCKET_DIR", root)
+	binding := filepath.Join(t.TempDir(), "pid")
+	b, err := notifytransport.Start(binding, os.Getpid())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer b.Close()
+	t.Setenv("PAIR_TAG", "test")
+	t.Setenv("PAIR_PAIR_WRAP_PID_PATH", binding)
+	var stderr bytes.Buffer
+	if code := Run([]string{"actual hook"}, OSRuntime{}, &stderr); code != 0 || stderr.Len() != 0 {
+		t.Fatalf("code=%d stderr=%q", code, stderr.String())
+	}
+	select {
+	case msg := <-b.Messages():
+		if msg != "actual hook" {
+			t.Fatalf("msg=%q", msg)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("no hook message")
 	}
 }

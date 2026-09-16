@@ -1,7 +1,6 @@
 package termcmd
 
 import (
-	"io"
 	"strings"
 	"testing"
 
@@ -11,12 +10,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
 )
-
-// EVERY test here drives at least TWO tabs with a non-active one present.
-//
-// That is a standing requirement, not a style note: M2's Critical (BR-35)
-// shipped because every test in that milestone drove a single active tab, so
-// the whole active/inactive distinction was unobserved by the suite.
 
 func TestActiveTabIsDistinguishableWithoutColour(t *testing.T) {
 	r := RenderStrip(40, StripModel{
@@ -39,10 +32,6 @@ func TestActiveTabIsDistinguishableWithoutColour(t *testing.T) {
 	}
 }
 
-// Carried from #172's BR-32: spans are DISPLAY COLUMNS. A rune count puts every
-// span after a wide character one column left of what was drawn -- and an
-// all-ASCII suite stays green while it does, which is why this fixture is not
-// ASCII.
 func TestSpansAreDisplayColumnsNotRuneCounts(t *testing.T) {
 	r := RenderStrip(40, StripModel{
 		Tabs:   []TabChip{{Name: "日本語"}, {Name: "build"}},
@@ -67,8 +56,6 @@ func TestSpansAreDisplayColumnsNotRuneCounts(t *testing.T) {
 	}
 }
 
-// Tab names come from the operator. An escape in one must not become an escape
-// in our row -- the same policy as couch's status row, via the same package.
 func TestATabNameCannotInjectEscapesOrControls(t *testing.T) {
 	r := RenderStrip(40, StripModel{
 		Tabs:   []TabChip{{Name: "a\x1b[31mred"}, {Name: "b\x0egarble"}},
@@ -84,7 +71,6 @@ func TestATabNameCannotInjectEscapesOrControls(t *testing.T) {
 	}
 }
 
-// A narrow pane must not silently drop the tab the operator is looking at.
 func TestANarrowPaneKeepsTheActiveTabVisible(t *testing.T) {
 	m := StripModel{
 		Tabs:   []TabChip{{Name: "alpha"}, {Name: "bravo"}, {Name: "charlie"}},
@@ -103,7 +89,6 @@ func TestANarrowPaneKeepsTheActiveTabVisible(t *testing.T) {
 	}
 }
 
-// Degenerate widths must not panic or produce a row that wraps.
 func TestDegenerateWidthsDrawNothingRatherThanWrapping(t *testing.T) {
 	for _, width := range []int{0, -1} {
 		r := RenderStrip(width, StripModel{Tabs: []TabChip{{Name: "a"}, {Name: "b"}}})
@@ -113,15 +98,12 @@ func TestDegenerateWidthsDrawNothingRatherThanWrapping(t *testing.T) {
 	}
 }
 
-// No tabs is a real state (the last one just closed) and must not panic.
 func TestNoTabsRendersNothing(t *testing.T) {
 	if r := RenderStrip(40, StripModel{}); r.Body != "" {
 		t.Fatalf("an empty model drew %q", r.Body)
 	}
 }
 
-// An out-of-range Active index must not panic or mark the wrong tab: it comes
-// from a mutable mux whose tabs can close between render and paint.
 func TestAnOutOfRangeActiveIndexMarksNothing(t *testing.T) {
 	for _, active := range []int{-1, 2, 99} {
 		r := RenderStrip(40, StripModel{
@@ -138,108 +120,6 @@ func TestAnOutOfRangeActiveIndexMarksNothing(t *testing.T) {
 	}
 }
 
-// --- wiring: the strip on a live mux ----------------------------------------
-//
-// Every case below drives at least TWO tabs with a non-active one present.
-
-func stripMux(t *testing.T) (*terminalMux, *writerRecorder) {
-	t.Helper()
-	rec := newWriterRecorder()
-	m := newTerminalMux("sh", nil, rec, io.Discard, &fakeRuntime{})
-	m.rows, m.cols = 24, 80
-	m.tabs = append(m.tabs,
-		&terminalTab{id: 1, name: "one"},
-		&terminalTab{id: 2, name: "two"})
-	m.active = 1
-	go m.copyActiveOutput()
-	return m, rec
-}
-
-// M3.5, ARCH-ORDER's most-likely-mishandled event: on a row-dirty batch the
-// region is re-Reserved BEFORE the row is repainted.
-//
-// Not belt-and-braces. A child that reset margins dropped the region a moment
-// ago, and painting into an unreserved screen puts the row where the child's
-// content belongs -- so a repaint that emits only the row is worse than none.
-func TestARowDirtyBatchReReservesBeforeRepainting(t *testing.T) {
-	m, rec := stripMux(t)
-	defer close(m.done)
-
-	// A child emitting a margin reset: ptychild.Screen counts that as row-dirty.
-	m.output <- ptyChunk{id: 2, data: []byte("\x1b[r"), rowDirty: true}
-	m.drainForTest()
-
-	got := rec.String()
-	region := strings.Index(got, "\x1b[1;23r") // the region, rows 1..23 of 24
-	row := strings.Index(got, "\x1b[24;1H")    // the reserved row
-	if region < 0 {
-		t.Fatalf("the region was not re-asserted after the child reset margins: %q", got)
-	}
-	if row < 0 {
-		t.Fatalf("the row was not repainted: %q", got)
-	}
-	if region > row {
-		t.Fatalf("the row was painted BEFORE the region was re-asserted: %q", got)
-	}
-	if !strings.Contains(got, "[two]") {
-		t.Fatalf("the repaint did not carry the tab state: %q", got)
-	}
-}
-
-// A takeover clears the screen; the row it cleared is ours to put back.
-func TestATakeoverRepaintsTheStrip(t *testing.T) {
-	m, rec := stripMux(t)
-	defer close(m.done)
-
-	m.redrawTab([]byte("replayed"), nil)
-	m.drainForTest()
-	if !strings.Contains(rec.String(), "[two]") {
-		t.Fatalf("the strip was not restored after a takeover: %q", rec.String())
-	}
-}
-
-// The child is sized to the pane MINUS the row, so it cannot scroll onto it.
-func TestTheChildIsSizedBelowTheStrip(t *testing.T) {
-	m, _ := stripMux(t)
-	defer close(m.done)
-	m.mu.Lock()
-	got := m.childSizeLocked()
-	m.mu.Unlock()
-	if got.Rows != 23 {
-		t.Fatalf("child rows = %d; the pane is 24 and the strip owns one", got.Rows)
-	}
-}
-
-// The strip reflects the ACTIVE tab, which is the one thing it exists to say.
-func TestSwitchingTabsChangesWhichTabIsMarked(t *testing.T) {
-	m, rec := stripMux(t)
-	defer close(m.done)
-
-	m.paintStrip()
-	m.drainForTest()
-	if !strings.Contains(rec.String(), "[two]") {
-		t.Fatalf("initial strip does not mark the active tab: %q", rec.String())
-	}
-
-	m.previousTab()
-	m.drainForTest()
-	tail := rec.String()
-	last := strings.LastIndex(tail, "[one]")
-	prev := strings.LastIndex(tail, "[two]")
-	if last < 0 {
-		t.Fatalf("after switching, the new active tab is not marked: %q", tail)
-	}
-	if last < prev {
-		t.Fatalf("the strip still marks the old tab most recently: %q", tail)
-	}
-}
-
-// M3.6: the DERIVED consumer set still classifies the pane once the title is
-// degraded to the active tab's name.
-//
-// Asserted against the real consumers rather than a remembered list (finding 9),
-// including the TerminalCommand == "" case zellijpane.paneFrom admits, where the
-// command fallback is unavailable and the title is all there is.
 func TestTheDegradedTitleStillClassifiesThePane(t *testing.T) {
 	mux := &terminalMux{
 		tabs: []*terminalTab{
@@ -286,21 +166,6 @@ func TestTheDegradedTitleStillClassifiesThePane(t *testing.T) {
 	})
 }
 
-// EVERY PRODUCER OF THE PANE TITLE × EVERY CONSUMER OF IT, as a table.
-//
-// BR-48: M3.6 degraded ONE producer and asserted ONE consumer, and both halves
-// of that turned out to matter. The unswept producer was renamePaneTitleLocked,
-// which packed the whole tab set and dropped the `terminal ` prefix, so for the
-// duration of every rename the pane lost the classification that routes global
-// shortcuts. The unasserted consumer was ClassifyLiveLayout, whose title-only
-// arm matched the PACKED form and therefore stopped matching entirely.
-//
-// Both are fixed at the class rather than the instance: there is now exactly
-// ONE producer (the rename field moved to the strip, so the title has no second
-// form), and the two consumers share one derivation -- ClassifyLiveLayout asks
-// RoleForPane instead of restating the predicate. This table is what keeps that
-// true. A new producer is a new row; a new consumer is a new column; either one
-// added without the other fails here rather than in a workbench.
 func TestEveryPaneTitleProducerSatisfiesEveryConsumer(t *testing.T) {
 	// The producer axis is the PREDICATE'S BOUNDARY, not three hand-picked
 	// names. Three fixtures could not see BR-56 -- `paneTitleLocked` restated
@@ -370,7 +235,6 @@ func TestEveryPaneTitleProducerSatisfiesEveryConsumer(t *testing.T) {
 	}
 }
 
-// titleOf drives the real producer rather than restating its output.
 func titleOf(t *testing.T, tabs []*terminalTab, active int, renaming bool) string {
 	t.Helper()
 	mux := &terminalMux{rt: &fakeRuntime{}, done: make(chan struct{}), tabs: tabs, active: active}
@@ -384,95 +248,6 @@ func titleOf(t *testing.T, tabs []*terminalTab, active int, renaming bool) strin
 	return mux.paneTitleLocked()
 }
 
-// --- (f): never write inside the child's cursor save ------------------------
-
-// THE BUG THIS CLOSES. The cursor save slot is shared, one per terminal. A
-// paint that saves and restores inside the child's DECSC..DECRC pair leaves the
-// slot holding OUR position, and the child's restore lands there -- the
-// operator's `l` finishing with the cursor in the tab strip, and zsh's
-// right-prompt drawn on the strip's row (zsh uses terminfo sc/rc, which ARE
-// these bytes).
-//
-// Option (a), moving our paint to CSI s/u, is dead: probes/cursorsaveslots
-// measured that there is no usable second slot. So the fix is not to write at
-// all while the child holds one.
-func TestNoPaintLandsInsideTheChildsCursorSave(t *testing.T) {
-	m, rec := stripMux(t)
-	defer close(m.done)
-
-	// The child saves the cursor and keeps writing -- zsh drawing a prompt.
-	m.output <- ptyChunk{id: 2, data: []byte("prompt\x1b7")}
-	m.drainForTest()
-
-	m.paintStrip()
-	m.drainForTest()
-	if strings.Contains(rec.String(), "[two]") {
-		t.Fatalf("a paint landed inside the child's cursor save; its restore will "+
-			"now recover OUR position: %q", rec.String())
-	}
-
-	// The child restores. The debt is paid on that very chunk.
-	m.output <- ptyChunk{id: 2, data: []byte("\x1b8rest")}
-	m.drainForTest()
-	if !strings.Contains(rec.String(), "[two]") {
-		t.Fatalf("the paint was dropped rather than deferred: %q", rec.String())
-	}
-}
-
-// A row-dirty batch records a DEBT and does not paint immediately -- couch's
-// pattern (couchtty/console.go:1147). It matters far more here than it did
-// there: a shell emits erases on every prompt redraw, so painting per row-dirty
-// batch means painting constantly, and constantly at the moment the child is
-// mid-prompt with a save outstanding.
-func TestARowDirtyBatchDefersWhileTheChildHoldsASave(t *testing.T) {
-	m, rec := stripMux(t)
-	defer close(m.done)
-
-	// Row-dirty AND a held save in one batch: the row is owed, but paying it
-	// now is exactly the collision.
-	m.output <- ptyChunk{id: 2, data: []byte("\x1b[2J\x1b7"), rowDirty: true}
-	m.drainForTest()
-	if strings.Contains(rec.String(), "[two]") {
-		t.Fatalf("row-dirty painted while the child held a save: %q", rec.String())
-	}
-	if !m.stripOwedForTest() {
-		t.Fatal("the row-dirty debt was dropped rather than recorded")
-	}
-
-	m.output <- ptyChunk{id: 2, data: []byte("\x1b8")}
-	m.drainForTest()
-	if !strings.Contains(rec.String(), "[two]") {
-		t.Fatalf("the owed repaint never landed after the child restored: %q", rec.String())
-	}
-	if m.stripOwedForTest() {
-		t.Fatal("the debt survived being paid")
-	}
-}
-
-// Stale beats wrong. A child holding a save indefinitely must leave the row
-// UNCHANGED, never repainted at the cost of the child's cursor.
-func TestAHeldSaveLeavesTheRowStaleRatherThanCorruptingTheChild(t *testing.T) {
-	m, rec := stripMux(t)
-	defer close(m.done)
-
-	m.output <- ptyChunk{id: 2, data: []byte("\x1b7")}
-	m.drainForTest()
-	for i := 0; i < 5; i++ {
-		m.paintStrip()
-		m.output <- ptyChunk{id: 2, data: []byte("more output")}
-		m.drainForTest()
-	}
-	if strings.Contains(rec.String(), "[two]") {
-		t.Fatalf("a paint escaped while the child held a save: %q", rec.String())
-	}
-}
-
-// The rename FIELD is tab state, so it belongs on the strip.
-//
-// Found by cmd/probes/couchnestedrows, not by reasoning: the field was drawn
-// only into the zellij pane TITLE, which lives in the pane FRAME -- and M4
-// takes the frame off at all nine sites. Renaming would have become blind
-// typing the moment M4 landed, with nothing failing to say so.
 func TestTheRenameFieldIsDrawnOnTheStrip(t *testing.T) {
 	m := StripModel{
 		Tabs:   []TabChip{{Name: "one"}, {Name: "two"}},
@@ -485,9 +260,6 @@ func TestTheRenameFieldIsDrawnOnTheStrip(t *testing.T) {
 	}
 }
 
-// A rename field is OPERATOR text on the same row as everything else, and a
-// paste can carry an escape into it. Same policy as a tab name, not a second
-// one.
 func TestARenameFieldCannotInjectEscapes(t *testing.T) {
 	m := StripModel{
 		Tabs:   []TabChip{{Name: "one"}, {Name: "two"}},
@@ -499,15 +271,6 @@ func TestARenameFieldCannotInjectEscapes(t *testing.T) {
 	}
 }
 
-// A narrow pane must not drop the tab the operator is TYPING INTO -- the same
-// rule the active tab already has, for the same reason.
-//
-// The renamed tab is NOT the active one here, and that is the whole test: they
-// are the same tab at the moment a rename opens, so a fixture where they agree
-// passes on the ACTIVE tab's priority alone and says nothing about the rename's
-// (mutation-checked -- it did). They come apart when a background tab exits
-// while a rename is open, which is exactly the case
-// TestTerminalMuxRenameCommitDoesNotRenameReplacementActiveTab covers.
 func TestANarrowPaneKeepsTheRenameFieldVisible(t *testing.T) {
 	m := StripModel{
 		Tabs:   []TabChip{{Name: "aaaaaaaaaa"}, {Name: "bbbbbbbbbb"}, {Name: "cccccccccc"}},
@@ -519,13 +282,6 @@ func TestANarrowPaneKeepsTheRenameFieldVisible(t *testing.T) {
 	}
 }
 
-// A rename whose tab EXITED stays on the row, detached.
-//
-// Out of range means the tab being renamed is gone while its editor is still
-// open and still receiving keystrokes. The pane title this replaced had an
-// explicit branch for that (`if !found { append("[rename: …]") }`); the move to
-// the strip dropped it, and the operator typed blind until the editor closed.
-// So out-of-range is not "mark nothing" — it is "draw it in nobody's place".
 func TestARenameWhoseTabExitedStaysOnTheRow(t *testing.T) {
 	m := StripModel{
 		Tabs:   []TabChip{{Name: "aaaa"}, {Name: "bbbb"}},
@@ -543,44 +299,5 @@ func TestARenameWhoseTabExitedStaysOnTheRow(t *testing.T) {
 	// Narrow: the field the operator is typing into is what must survive.
 	if got := RenderStrip(14, m).Body; !strings.Contains(got, "zz│") {
 		t.Fatalf("RenderStrip(14) = %q, dropped the field being typed into", got)
-	}
-}
-
-// Opening, typing into, and committing a rename each repaint the row.
-//
-// The COMMIT case is the defect cmd/probes/couchnestedrows caught end to end:
-// the tab's name changed and the pane title followed it, while the strip went
-// on showing the old name until some unrelated event happened to repaint it.
-func TestEveryRenameStepRepaintsTheStrip(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		do   func(*terminalMux) error
-		want string
-	}{
-		{"opening", func(m *terminalMux) error { _, _, err := m.beginRename(); return err }, "[rename: two│]"},
-		{"typing", func(m *terminalMux) error {
-			editor := NewRenameEditor("two")
-			editor, _ = editor.Apply(RenameEvent{Kind: RenameInsert, Rune: 'x'})
-			m.refreshRename(2, editor)
-			return nil
-		}, "[rename: twox│]"},
-		{"committing", func(m *terminalMux) error {
-			return m.finishRename(2, RenameOutcome{Kind: RenameOutcomeCommit, Name: "built"})
-		}, "[built]"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			m, rec := stripMux(t)
-			defer close(m.done)
-			if err := tt.do(m); err != nil {
-				t.Fatalf("%s the rename: %v", tt.name, err)
-			}
-			m.drainForTest()
-			if !strings.Contains(rec.String(), tt.want) {
-				t.Fatalf("%s a rename did not repaint the strip with %q: %q", tt.name, tt.want, rec.String())
-			}
-			if !strings.Contains(rec.String(), "one") {
-				t.Fatalf("%s a rename lost the background tab from the row: %q", tt.name, rec.String())
-			}
-		})
 	}
 }

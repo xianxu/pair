@@ -43,8 +43,7 @@ func startBlockedChild(ctx context.Context, start blockedChildStarter, helper, d
 		return nil, errors.Join(err, closeErr, writer.Close())
 	}
 	if closeErr != nil {
-		_ = writer.Close()
-		return nil, closeErr
+		return nil, errors.Join(closeErr, newAcknowledgedHandle(h, writer).Cancel())
 	}
 	return newAcknowledgedHandle(h, writer), nil
 }
@@ -173,6 +172,15 @@ type acknowledgedTerminalHandle struct {
 }
 
 func (h *acknowledgedTerminalHandle) Terminal() *ptychild.Child { return h.terminal }
+
+// A canceled pre-ack terminal cannot be adopted by a presenter; Cancel owns
+// publication and endpoint disposal as well as the acknowledgement pipe.
+func (h *acknowledgedTerminalHandle) Cancel() error {
+	if err := h.acknowledgedHandle.Cancel(); err != nil {
+		return err
+	}
+	return h.terminal.Close()
+}
 
 func (h *acknowledgedHandle) Acknowledge() error { return h.resolve(true) }
 func (h *acknowledgedHandle) Cancel() error      { return h.resolve(false) }

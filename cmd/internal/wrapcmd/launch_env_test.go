@@ -13,6 +13,7 @@ import (
 )
 
 func TestLaunchEnvCommandExactArguments(t *testing.T) {
+	isolateNotificationSockets(t)
 	t.Setenv("PAIR_TAG", "")
 	t.Setenv("PAIR_DATA_DIR", "")
 	target := filepath.Join(t.TempDir(), "args")
@@ -48,6 +49,7 @@ func TestLaunchEnvCommandExactArguments(t *testing.T) {
 	}
 }
 func TestLaunchEnvRequiresSoleCommandAuthority(t *testing.T) {
+	isolateNotificationSockets(t)
 	t.Setenv(launcher.AgentCommandEnv, `{"executable":"sh","argv":[]}`)
 	for _, args := range [][]string{{"--from-launch-env", "sh"}, {"--from-launch-env", "--from-launch-env"}} {
 		var stderr bytes.Buffer

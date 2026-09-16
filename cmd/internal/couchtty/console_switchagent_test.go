@@ -15,7 +15,7 @@ func TestCopyOrientationUsesExactOSC52AndLeavesDraftUntouched(t *testing.T) {
 	request := orientation.Request{Tag: "work", Agent: "codex", Attempt: "one", Body: "Read the outgoing log.\nWait for instructions."}
 	f.host.Reset()
 	f.con.copyOrientation(request)
-	want := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(request.Body)) + "\x07"
+	want := "\x1b]52;c;" + base64.StdEncoding.EncodeToString([]byte(request.Body)) + "\x1b\\"
 	if !strings.Contains(string(f.host.Written()), want) {
 		t.Fatalf("missing exact copy sequence: %q", f.host.Written())
 	}
@@ -53,7 +53,7 @@ func TestConsoleSwitchAgentInputPreviewAndWarningAdoptsOnPanel(t *testing.T) {
 		f.con.mu.Lock()
 		defer f.con.mu.Unlock()
 		_, ok := f.con.panes[started.Handle.ID()]
-		return ok && f.con.menu.InFlight.Operation == ""
+		return ok && f.con.menu.InFlight.Operation == "" && strings.Contains(f.con.menu.Notice.Text, "native transcript unavailable")
 	})
 	f.con.mu.Lock()
 	defer f.con.mu.Unlock()
