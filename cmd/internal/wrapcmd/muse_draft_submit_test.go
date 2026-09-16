@@ -24,7 +24,7 @@ func TestMuseDraftAltEnterSubmission(t *testing.T) {
 			}
 			// Legacy Alt+Enter (\x1b\r) and KKP Alt+Enter (\x1b[13;3u) must
 			// both become a single CR for Muse.
-			for _, seq := range [][]byte{[]byte("\x1b\r"), []byte("\x1b[13;3u"), []byte("\x1b[13;3u")} {
+			for _, seq := range [][]byte{[]byte("\x1b\r"), []byte("\x1b[13;3u")} {
 				out, leftover, inPaste := f.proxy.translateChunk(seq, false)
 				if len(leftover) != 0 || inPaste {
 					t.Fatalf("leftover=%q paste=%v for %q", leftover, inPaste, seq)
@@ -37,7 +37,13 @@ func TestMuseDraftAltEnterSubmission(t *testing.T) {
 			// never be mistaken for a plain newline. Plain is \n when active,
 			// \r otherwise — Alt is always \r.
 			outPlain, _, _ := f.proxy.translateChunk([]byte{'\r'}, false)
-			_ = outPlain
+			wantPlain := []byte{'\r'}
+			if name == "with composer" {
+				wantPlain = []byte{'\n'}
+			}
+			if !bytes.Equal(outPlain, wantPlain) {
+				t.Fatalf("plain Enter translated to %q, want %q", outPlain, wantPlain)
+			}
 		})
 	}
 }
@@ -127,7 +133,7 @@ func TestMuseDraftAltEnterSubmission_InsidePaste(t *testing.T) {
 // the prompt glyph (e.g. "❯" or ">" instead of "⟩") does not silently break
 // the Return remap. The box shape remains the discriminator.
 func TestMuseComposerActive_RelaxedPrompt(t *testing.T) {
-	for _, glyph := range []string{"⟩", "›", "❯", ">", "!"} {
+	for _, glyph := range []string{"⟩", "›", "❯", ">", "!", "●", "▶", "▸"} {
 		t.Run(glyph, func(t *testing.T) {
 			model := newTerminalModelForTest(t, 80, 38)
 			// Paint a minimal Muse-style box with the given glyph.
