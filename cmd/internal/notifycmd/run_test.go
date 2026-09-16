@@ -82,6 +82,12 @@ func TestRunWarnsWithoutOuterTTYFallback(t *testing.T) {
 	}
 }
 func TestOSRuntimeSendsToRealBroker(t *testing.T) {
+	root, err := os.MkdirTemp("/tmp", "pnc-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(root) })
+	t.Setenv("PAIR_NOTIFY_SOCKET_DIR", root)
 	binding := filepath.Join(t.TempDir(), "pid")
 	b, err := notifytransport.Start(binding, os.Getpid())
 	if err != nil {

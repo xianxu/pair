@@ -543,3 +543,44 @@ smoke, issue close and merge are still pending. The measured100ms switch-budget
 exception remains explicit; no additional threshold or visual acceptance is
 claimed. Earlier long-run/performance evidence retains its immutable binary
 attribution rather than being relabeled as measurements of this final build.
+
+## Revisions — 2026-09-15 M4 review BR-19 / BR-20
+
+The first M4 boundary returns REWORK with two Important findings. Ownership rule:
+the wrapper owns its socket, but reclaimability must not depend on another
+subsystem retaining the PID binding. Normal close removes admitted owned inodes
+under the namespace lock; after crash, independently deleted bindings, artifact
+GC or failed close cleanup, the next namespace admission reclaims only strict
+Pair socket names whose same-UID owner PID is provably dead. Live, unknown,
+foreign and symlink entries are preserved. Sweep/admission is bounded (at most
+1024 entries per scan, with explicit capacity refusal rather than unbounded
+growth); socket identity is independently readable from its name. Sidecar
+cleanup remains its existing owner's responsibility. The lock inode survives
+broker close and is never unlinked as a contention workaround.
+
+Namespace rule: socket paths, publication/cleanup locks and dead-owner sweeps
+all use the same injected root. Default production root remains UID-private;
+`PAIR_NOTIFY_SOCKET_DIR` selects an absolute private root for subprocess
+conformance and the smoke launcher. All real-broker fixtures, including wrapper
+startup, CLI, PTY and native Zellij, supply private short `/tmp` namespaces and
+propagate them to sender and receiver. Tests may not acquire production locks or
+sweep production sockets. Cross-namespace tests must prove a held lock has no
+effect on another namespace and cannot route a message across that boundary.
+
+| Name | Kind | Lives in | Status |
+|------|------|----------|--------|
+| Socket address/owner identity | PURE | `cmd/internal/notifytransport/address.go` | modified |
+| Notification framing/ordered events | PURE | `cmd/internal/wrapcmd/notification_output.go`, `notification_rewriter.go` | unchanged in this correction |
+| Mapped Pair notification | PURE | `cmd/internal/notifyosc/notification.go` | unchanged in this correction |
+| Notification namespace and reclamation | INTEGRATION | `cmd/internal/notifytransport/address.go`, `transport.go` | modified |
+| Wrapper/hook and native fixtures | INTEGRATION | `wrapcmd`, `notifycmd`, `couchtty` tests | modified |
+
+Add failing regressions for dead socket after binding deletion, failed cleanup
+followed by admission, live/foreign/symlink preservation, bounded capacity, and
+isolated contention/routing. Sweep every real-socket test seam, not just the
+review's named contention test. Re-run broker/wrapper/consumer affected tests,
+full repository verification and freshly rebuilt strict native conformance.
+Retain earlier long-run and timing source attribution. Refresh the isolated
+smoke candidate, commit corrections and rerun the same M4 gate. Operator
+acceptance, issue close and merge stay pending. ARCH-FUNERAL / ARCH-SECURE /
+ARCH-MOCK / ARCH-PURPOSE.

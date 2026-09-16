@@ -10,7 +10,7 @@ Open a **new outer terminal window/tab outside an existing Zellij session**, the
 python3 /tmp/pair255-smoke-gfr6g7pd/launch.py
 ```
 
-The launcher uses candidate Couch, Pair and its sibling launch helper plus copied runtime assets. It creates fresh threads in a scratch Git repository with agent, draft and right terminal panes. Couch registry, Pair artifacts, cache and Zellij socket live under `/tmp/pair255-smoke-gfr6g7pd/`; installed binaries and current sessions are unchanged. HOME and agent authentication/configuration remain available; this is session isolation, not an agent sandbox. Agent transcripts may still use their ordinary user storage.
+The launcher uses candidate Couch, Pair and its sibling launch helper plus copied runtime assets. It creates fresh threads in a scratch Git repository with agent, draft and right terminal panes. Couch registry, Pair artifacts, cache, notification transport and Zellij socket live under `/tmp/pair255-smoke-gfr6g7pd/`; installed binaries and current sessions are unchanged. HOME and agent authentication/configuration remain available; this is session isolation, not an agent sandbox. Agent transcripts may still use their ordinary user storage.
 
 A real fresh outer terminal matters: clearing Zellij environment variables inside an existing pane does not remove actual process ancestry. The launcher clears inherited Pair/Couch/Zellij/CMUX identity and supplies candidate paths. Shell startup may override PATH; in the right pane, `command -v pair`, `command -v couch` and `$PAIR_HOME` should refer to this candidate root.
 

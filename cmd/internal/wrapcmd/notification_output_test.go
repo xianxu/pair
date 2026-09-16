@@ -252,11 +252,30 @@ func TestNotificationRewriterEOFAndHugeContainingString(t *testing.T) {
 }
 
 func TestNotificationBrokerClosedWhileMasterLives(t *testing.T) {
+	socketDir := isolateNotificationSockets(t)
 	binding := filepath.Join(t.TempDir(), "pair-wrap-pid")
 	broker, err := notifytransport.Start(binding, os.Getpid())
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(func() { broker.Close() })
+	entries, err := os.ReadDir(socketDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foundSocket, foundLock := false, false
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSocket != 0 {
+			foundSocket = true
+		}
+		if entry.Name() == "lock" {
+			foundLock = true
+		}
+	}
+	if !foundSocket || !foundLock {
+		t.Fatalf("broker escaped private namespace: socket=%t lock=%t", foundSocket, foundLock)
+	}
+
 	reader, writer, err := os.Pipe()
 	if err != nil {
 		t.Fatal(err)
@@ -323,12 +342,16 @@ func TestNotificationHookChild(t *testing.T) {
 	if os.Getenv("PAIR_TEST_EARLY_NOTIFY") != "1" {
 		return
 	}
+	if expected := os.Getenv("PAIR_TEST_NOTIFY_SOCKET_DIR"); expected == "" || os.Getenv("PAIR_NOTIFY_SOCKET_DIR") != expected {
+		os.Exit(24)
+	}
 	if err := notifytransport.Send(os.Getenv("PAIR_PAIR_WRAP_PID_PATH"), "first child instruction"); err != nil {
 		os.Exit(23)
 	}
 	os.Exit(0)
 }
 func TestNotificationBrokerBeforeExecAndCleanup(t *testing.T) {
+	isolateNotificationSockets(t)
 	t.Setenv("PAIR_DATA_DIR", t.TempDir())
 	t.Setenv("PAIR_TAG", "notify-startup")
 	t.Setenv("PAIR_SCOPE_KEY", "")
@@ -336,6 +359,7 @@ func TestNotificationBrokerBeforeExecAndCleanup(t *testing.T) {
 	var paths proxy
 	paths.resolvePaths()
 	t.Setenv("PAIR_TEST_EARLY_NOTIFY", "1")
+	t.Setenv("PAIR_TEST_NOTIFY_SOCKET_DIR", os.Getenv("PAIR_NOTIFY_SOCKET_DIR"))
 	t.Setenv("PAIR_PAIR_WRAP_PID_PATH", paths.capturePIDPath)
 	executable, err := os.Executable()
 	if err != nil {
@@ -397,4 +421,21 @@ func TestNotificationOutputFailureStopsRealPTYAndJoinsReader(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Keep all broker sockets and arbitration locks away from the operator namespace.
+// macOS t.TempDir paths exceed Unix socket limits, so own a short /tmp directory.
+func isolateNotificationSockets(t *testing.T) string {
+	t.Helper()
+	dir, err := os.MkdirTemp("/tmp", "pair255-notify-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("remove owned notification fixture: %v", err)
+		}
+	})
+	t.Setenv("PAIR_NOTIFY_SOCKET_DIR", dir)
+	return dir
 }

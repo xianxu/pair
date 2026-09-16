@@ -261,3 +261,19 @@ identical to the native-tested binary. Candidate root
 private launcher and build manifest. `couch --list` through that launcher reports
 no threads; no interactive operator session was launched. See the smoke guide
 for exact launch/revert and acceptance steps. M4 boundary review remains pending.
+
+### 2026-09-15 — M4 BR-19/BR-20 final verification
+
+Full root Go suite passes after namespace correction
+(`/tmp/pair255-m4-full-after-namespace.log`). Fresh native/nvim/broker-PTY race×3
+passes87.347s (`/tmp/pair255-namespace-native-final.log`), including private socket
+assertions,96 hook cycles,4096-byte UTF-8 bodies,48 hidden/48 focused attention
+cases,12 resizes, persistent reattachment and held selection/copy. Broker/CLI
+race×3 and focused wrapper entrypoint race pass. Linux/amd64 binaries build.
+All424 production source hashes remain unchanged since the frozen manifest.
+
+The refreshed private smoke Pair binary is identical to the native-tested binary:
+`9b51f6cd05f5b8468be033f502b068322cbf0d7ef53a53a17cb3eae9b82c0afe`.
+`/tmp/pair255-smoke-gfr6g7pd/build.json` records binary/source hashes. Earlier
+long-run/performance evidence keeps its original source attribution and recorded
+budget exceptions. M4 round2 review is next; operator smoke and merge remain pending.

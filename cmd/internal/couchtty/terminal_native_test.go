@@ -101,7 +101,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 			env = append(env, key+"=")
 		}
 	}
-	env = append(env, "PAIR_PAIR_WRAP_PID_PATH="+paths.PairWrapPID(), "PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(dir, "scrollback.events.jsonl"), "PAIR_WRAP_LOG="+filepath.Join(dir, "wrapper.log"), "ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME="+filepath.Join(dir, "cache"), "XDG_CONFIG_HOME="+filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR="+filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME="+dir, "PAIR_DATA_DIR="+filepath.Join(dir, "pair-data"))
+	env = append(env, "PAIR_NOTIFY_SOCKET_DIR="+filepath.Join(dir, "notify"), "PAIR_PAIR_WRAP_PID_PATH="+paths.PairWrapPID(), "PAIR_SCROLLBACK_EVENTS_PATH="+filepath.Join(dir, "scrollback.events.jsonl"), "PAIR_WRAP_LOG="+filepath.Join(dir, "wrapper.log"), "ZELLIJ=", "ZELLIJ_SESSION_NAME=", "ZELLIJ_PANE_ID=", "XDG_CACHE_HOME="+filepath.Join(dir, "cache"), "XDG_CONFIG_HOME="+filepath.Join(dir, "config"), "ZELLIJ_SOCKET_DIR="+filepath.Join(dir, "socket"), "PAIR_TAG=native-fixture", "PAIR_SCOPE_KEY=", "PAIR_HOME="+dir, "PAIR_DATA_DIR="+filepath.Join(dir, "pair-data"))
 	session := filepath.Base(dir)
 	host := newVTHost(24, 100)
 	inputR, inputW, err := os.Pipe()
@@ -193,6 +193,7 @@ func runNativeConsoleJoin(t *testing.T, wrapped bool) {
 		waitUpTo(t, 3*time.Second, "one native notification through Zellij output", func() bool {
 			return strings.Count(host.Written(), "\x1b]777;notify;pair;native-fixture-complete\x1b\\") == 1
 		})
+		assertPrivateNotificationSocket(t, filepath.Join(dir, "notify"))
 		nextNotification = time.Now().Add(600 * time.Millisecond)
 	}
 	// A real second PTY exercises actor switching, hidden output and panel entry.

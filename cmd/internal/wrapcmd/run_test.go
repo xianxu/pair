@@ -13,6 +13,7 @@ import (
 
 // Argument errors are reported before any PTY/terminal op, so they need no tty.
 func TestRunArgErrors(t *testing.T) {
+	isolateNotificationSockets(t)
 	cases := []struct {
 		name    string
 		args    []string
@@ -44,6 +45,7 @@ func TestRunArgErrors(t *testing.T) {
 // binary did this via os.Exit(exitErr.ExitCode()); Run now returns it, so both
 // the shim and the `pair wrap` route agree.
 func TestRunPropagatesChildExitCode(t *testing.T) {
+	isolateNotificationSockets(t)
 	// Isolate from any leaked live-session env (PAIR_TAG/PAIR_DATA_DIR) so the
 	// proxy's optional pidfile/scrollback side effects stay disabled.
 	t.Setenv("PAIR_TAG", "")

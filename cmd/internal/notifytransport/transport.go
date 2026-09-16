@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -17,6 +18,7 @@ const QueueSize = 32
 const SendTimeout = 200 * time.Millisecond
 
 type Broker struct {
+	root                    string
 	conn                    *net.UnixConn
 	binding, socket         string
 	bindingInfo, socketInfo os.FileInfo
@@ -37,15 +39,27 @@ func Start(binding string, pid int) (*Broker, error) {
 	if err != nil {
 		return nil, err
 	}
-	unlock, err := lockDirectory()
+	root := rootDirectory()
+	unlock, err := lockNamespace(root)
 	if err != nil {
 		return nil, err
 	}
 	defer unlock()
-	if err = clearDeadBinding(canonical); err != nil {
+	reserve := 1
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
 		return nil, err
 	}
-	socket, err := address(canonical, pid)
+	if filepath.Dir(canonical) == canonicalRoot {
+		reserve++
+	} // binding also consumes namespace storage
+	if err = sweepDeadSockets(root, reserve); err != nil {
+		return nil, err
+	}
+	if err = clearDeadBinding(root, canonical); err != nil {
+		return nil, err
+	}
+	socket, err := addressIn(root, canonical, pid)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +73,7 @@ func Start(binding string, pid int) (*Broker, error) {
 		conn.Close()
 		return nil, err
 	}
-	b := &Broker{conn: conn, binding: canonical, socket: socket, socketInfo: info, messages: make(chan string, QueueSize), diagnostics: make(chan error, 1), done: make(chan struct{})}
+	b := &Broker{root: root, conn: conn, binding: canonical, socket: socket, socketInfo: info, messages: make(chan string, QueueSize), diagnostics: make(chan error, 1), done: make(chan struct{})}
 	fail := func(err error) (*Broker, error) { conn.Close(); _ = removeOwned(socket, info); return nil, err }
 	if err = conn.SetReadBuffer(4 * (notifyosc.MaxMessageBytes + 1)); err != nil {
 		return fail(err)
@@ -132,7 +146,7 @@ func (b *Broker) Close() error {
 	b.once.Do(func() {
 		err := b.conn.Close()
 		<-b.done
-		unlock, lockErr := lockDirectory()
+		unlock, lockErr := lockNamespace(b.root)
 		if lockErr != nil {
 			b.closeErr = errors.Join(err, lockErr)
 			return

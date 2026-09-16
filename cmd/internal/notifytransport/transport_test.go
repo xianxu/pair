@@ -12,6 +12,24 @@ import (
 	"time"
 )
 
+func testNamespace(t *testing.T) string {
+	t.Helper()
+	root, err := os.MkdirTemp("/tmp", "pnt-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(root); err != nil {
+			t.Error(err)
+		}
+	})
+	t.Setenv("PAIR_NOTIFY_SOCKET_DIR", root)
+	if got := rootDirectory(); got != root {
+		t.Fatalf("namespace ignored: got %q want %q", got, root)
+	}
+	return root
+}
+
 func startTestBroker(t *testing.T) (string, *Broker) {
 	t.Helper()
 	binding := filepath.Join(t.TempDir(), "wrapper-pid")
@@ -38,6 +56,7 @@ func receive(t *testing.T, b *Broker, want string) {
 	}
 }
 func TestBrokerRoundTripIsolationAndJoinedClose(t *testing.T) {
+	testNamespace(t)
 	a, ba := startTestBroker(t)
 	raw, err := os.ReadFile(a)
 	if err != nil || string(raw) != fmt.Sprint(os.Getpid()) {
@@ -80,11 +99,11 @@ func TestBrokerRoundTripIsolationAndJoinedClose(t *testing.T) {
 }
 
 func TestPureSocketAddressIdentity(t *testing.T) {
-	base := socketAddress("/exact/binding", 123, 501)
-	if base != socketAddress("/exact/binding", 123, 501) || len(base) > 100 {
+	base := socketAddressIn("/tmp/pair-notify-501", "/exact/binding", 123)
+	if base != socketAddressIn("/tmp/pair-notify-501", "/exact/binding", 123) || len(base) > 100 {
 		t.Fatalf("unstable/long address %q", base)
 	}
-	for _, other := range []string{socketAddress("/other/binding", 123, 501), socketAddress("/exact/binding", 124, 501), socketAddress("/exact/binding", 123, 502)} {
+	for _, other := range []string{socketAddressIn("/tmp/pair-notify-501", "/other/binding", 123), socketAddressIn("/tmp/pair-notify-501", "/exact/binding", 124), socketAddressIn("/tmp/pair-notify-502", "/exact/binding", 123)} {
 		if other == base {
 			t.Fatalf("identity collision: %q", other)
 		}
@@ -94,6 +113,7 @@ func TestPureSocketAddressIdentity(t *testing.T) {
 	}
 }
 func TestBrokerRejectsOversizeAndDiagnosesQueueOverflow(t *testing.T) {
+	testNamespace(t)
 	binding, b := startTestBroker(t)
 	addr, _ := address(binding, os.Getpid())
 	c, err := net.DialUnix("unixgram", nil, &net.UnixAddr{Name: addr, Net: "unixgram"})
@@ -141,6 +161,7 @@ func TestBrokerRejectsOversizeAndDiagnosesQueueOverflow(t *testing.T) {
 	receive(t, b, "recovered")
 }
 func TestBrokerRefusesLiveBindingAndUnsafePaths(t *testing.T) {
+	testNamespace(t)
 	binding, b := startTestBroker(t)
 	if other, err := Start(binding, os.Getpid()); err == nil {
 		other.Close()
@@ -172,6 +193,7 @@ func TestBrokerRefusesLiveBindingAndUnsafePaths(t *testing.T) {
 	}
 }
 func TestCloseDoesNotRemoveReplacementBinding(t *testing.T) {
+	testNamespace(t)
 	binding, b := startTestBroker(t)
 	replacement := binding + ".new"
 	os.WriteFile(replacement, []byte("replacement"), 0600)
@@ -186,6 +208,7 @@ func TestCloseDoesNotRemoveReplacementBinding(t *testing.T) {
 }
 
 func TestAddressCanonicalIsolationAndPrivateDirectory(t *testing.T) {
+	testNamespace(t)
 	root := t.TempDir()
 	real := filepath.Join(root, "real")
 	if err := os.Mkdir(real, 0700); err != nil {
@@ -230,6 +253,7 @@ func deadPID(t *testing.T) int {
 	return pid
 }
 func TestBrokerReclaimsOnlyVerifiedDeadSocket(t *testing.T) {
+	testNamespace(t)
 	binding := filepath.Join(t.TempDir(), "pid")
 	pid := deadPID(t)
 	socket, err := address(binding, pid)
@@ -262,6 +286,7 @@ func TestBrokerReclaimsOnlyVerifiedDeadSocket(t *testing.T) {
 	receive(t, b, "new")
 }
 func TestUnsafeStaleAndOccupiedPathsAreNeverUnlinked(t *testing.T) {
+	testNamespace(t)
 	for _, stale := range []bool{false, true} {
 		t.Run(fmt.Sprint(stale), func(t *testing.T) {
 			binding := filepath.Join(t.TempDir(), "pid")
@@ -292,6 +317,7 @@ func TestUnsafeStaleAndOccupiedPathsAreNeverUnlinked(t *testing.T) {
 	}
 }
 func TestSendToUnavailableReaderIsBounded(t *testing.T) {
+	testNamespace(t)
 	binding := filepath.Join(t.TempDir(), "pid")
 	socket, _ := address(binding, os.Getpid())
 	conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{Name: socket, Net: "unixgram"})
@@ -319,6 +345,7 @@ func TestSendToUnavailableReaderIsBounded(t *testing.T) {
 }
 
 func TestConcurrentStartsKeepOnePublishedOwner(t *testing.T) {
+	testNamespace(t)
 	binding := filepath.Join(t.TempDir(), "pid")
 	pid := deadPID(t)
 	os.WriteFile(binding, []byte(fmt.Sprint(pid)), 0600)
@@ -359,6 +386,7 @@ func TestConcurrentStartsKeepOnePublishedOwner(t *testing.T) {
 }
 
 func TestDirectoryLockBoundsStartupAndPreservesBinding(t *testing.T) {
+	testNamespace(t)
 	unlock, err := lockDirectory()
 	if err != nil {
 		t.Fatal(err)
@@ -397,6 +425,7 @@ func TestDirectoryLockBoundsStartupAndPreservesBinding(t *testing.T) {
 }
 
 func TestBrokerRejectsInvalidDatagramsWithoutPoisoningNext(t *testing.T) {
+	testNamespace(t)
 	binding, b := startTestBroker(t)
 	socket, _ := address(binding, os.Getpid())
 	c, err := net.DialUnix("unixgram", nil, &net.UnixAddr{Name: socket, Net: "unixgram"})
@@ -424,6 +453,7 @@ func TestBrokerRejectsInvalidDatagramsWithoutPoisoningNext(t *testing.T) {
 }
 
 func TestPublicationFailureRemovesReadySocket(t *testing.T) {
+	testNamespace(t)
 	if os.Getuid() == 0 {
 		t.Skip("root bypasses directory write permission")
 	}
@@ -443,5 +473,195 @@ func TestPublicationFailureRemovesReadySocket(t *testing.T) {
 	}
 	if _, err = os.Lstat(socket); !os.IsNotExist(err) {
 		t.Fatalf("ready socket leaked on failed publication: %v", err)
+	}
+}
+
+func TestBrokerCrashHelper(t *testing.T) {
+	mode := os.Getenv("PAIR_NOTIFY_CRASH_HELPER")
+	if mode == "" {
+		return
+	}
+	if os.Getenv("PAIR_NOTIFY_SOCKET_DIR") == "" {
+		os.Exit(30)
+	}
+	b, err := Start(os.Getenv("PAIR_NOTIFY_TEST_BINDING"), os.Getpid())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(31)
+	}
+	if mode == "failed-close" {
+		unlock, err := lockDirectory()
+		if err != nil {
+			os.Exit(32)
+		}
+		err = b.Close()
+		unlock()
+		if err == nil {
+			os.Exit(33)
+		}
+	}
+	// Simulate process death without resource defers, including failed cleanup.
+	os.Exit(0)
+}
+
+func TestSweepReclaimsCrashSocketWithoutPIDBinding(t *testing.T) {
+	for _, mode := range []string{"crash", "failed-close"} {
+		t.Run(mode, func(t *testing.T) {
+			testNamespace(t)
+			binding := filepath.Join(t.TempDir(), "pid")
+			exe, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command(exe, "-test.run=^TestBrokerCrashHelper$")
+			cmd.Env = append(os.Environ(), "PAIR_NOTIFY_CRASH_HELPER="+mode, "PAIR_NOTIFY_TEST_BINDING="+binding)
+			if output, err := cmd.CombinedOutput(); err != nil {
+				t.Fatalf("crash helper: %v %s", err, output)
+			}
+			pid := cmd.Process.Pid
+			socket, err := address(binding, pid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err = os.Lstat(socket); err != nil {
+				t.Fatalf("fixture has no residue: %v", err)
+			}
+			if err = os.Remove(binding); err != nil {
+				t.Fatal(err)
+			}
+			_, b := startTestBroker(t)
+			_ = b
+			if _, err = os.Lstat(socket); !os.IsNotExist(err) {
+				t.Fatalf("dead socket without binding survived: %v", err)
+			}
+		})
+	}
+}
+
+func TestNamespacesIsolateLockSendAndClose(t *testing.T) {
+	first := testNamespace(t)
+	binding, b := startTestBroker(t)
+	original, _ := address(binding, os.Getpid())
+	unlock, err := lockDirectory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { unlock() }()
+	second, err := os.MkdirTemp("/tmp", "pnt-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(second)
+	t.Setenv("PAIR_NOTIFY_SOCKET_DIR", second)
+	if err = Send(binding, "wrong namespace"); err == nil {
+		t.Fatal("cross-namespace Send reached broker")
+	}
+	other, err := Start(filepath.Join(t.TempDir(), "pid"), os.Getpid())
+	if err != nil {
+		t.Fatalf("other namespace blocked by lock in %s: %v", first, err)
+	}
+	defer other.Close()
+	unlock()
+	unlock = func() {}
+	if err = b.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Lstat(original); !os.IsNotExist(err) {
+		t.Fatalf("Close used changed namespace: %v", err)
+	}
+	if _, err = os.Lstat(binding); !os.IsNotExist(err) {
+		t.Fatalf("Close lost binding: %v", err)
+	}
+}
+
+func TestSweepPreservesLiveAndForeignEntriesAndBoundsCapacity(t *testing.T) {
+	root := testNamespace(t)
+	pid := deadPID(t)
+	owner := exec.Command("/bin/sleep", "30")
+	if err := owner.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = owner.Process.Kill(); _ = owner.Wait() }()
+	otherLive := socketAddressIn(root, "/other-live-owner", owner.Process.Pid)
+	liveSocket, err := net.ListenUnixgram("unixgram", &net.UnixAddr{Name: otherLive, Net: "unixgram"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer liveSocket.Close()
+	foreign := filepath.Join(root, "foreign.sock")
+	c, err := net.ListenUnixgram("unixgram", &net.UnixAddr{Name: foreign, Net: "unixgram"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.Close()
+	regular := socketAddressIn(root, "/foreign-regular", pid)
+	if err = os.WriteFile(regular, []byte("foreign"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	link := socketAddressIn(root, "/foreign-link", pid)
+	if err = os.Symlink(foreign, link); err != nil {
+		t.Fatal(err)
+	}
+	binding, live := startTestBroker(t)
+	_, other := startTestBroker(t)
+	_ = other
+	for _, path := range []string{foreign, regular, link, otherLive} {
+		if _, err = os.Lstat(path); err != nil {
+			t.Fatalf("foreign entry removed: %s %v", path, err)
+		}
+	}
+	if err = Send(binding, "still live"); err != nil {
+		t.Fatal(err)
+	}
+	receive(t, live, "still live")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := len(entries); i < 1024; i++ {
+		if err = os.WriteFile(filepath.Join(root, fmt.Sprintf("foreign-%d", i)), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if b, err := Start(filepath.Join(t.TempDir(), "pid"), os.Getpid()); err == nil {
+		b.Close()
+		t.Fatal("namespace admitted beyond1024entry capacity")
+	}
+}
+
+func TestPureSocketFilenameOwnerGrammar(t *testing.T) {
+	hash := strings.Repeat("a", 32)
+	for _, test := range []struct {
+		name  string
+		pid   int
+		valid bool
+	}{
+		{hash + "-1.sock", 1, true}, {hash + "-2147483647.sock", 2147483647, true},
+		{hash + "-0.sock", 0, false}, {hash + "-01.sock", 0, false}, {hash + "-+1.sock", 0, false},
+		{hash + "--1.sock", 0, false}, {hash + "-2147483648.sock", 0, false},
+		{strings.Repeat("A", 32) + "-1.sock", 0, false}, {strings.Repeat("z", 32) + "-1.sock", 0, false},
+		{hash + "-1.sock.extra", 0, false}, {"foreign.sock", 0, false},
+	} {
+		pid, valid := socketOwnerPID(test.name)
+		if valid != test.valid || (valid && pid != test.pid) {
+			t.Fatalf("%q = %d,%t", test.name, pid, valid)
+		}
+	}
+}
+
+func TestNamespaceCapacityIncludesInNamespacePIDBinding(t *testing.T) {
+	root := testNamespace(t)
+	for i := 0; i < 1022; i++ {
+		if err := os.WriteFile(filepath.Join(root, fmt.Sprintf("foreign-%d", i)), nil, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Lock is the1023rdentry; a socket AND its binding would exceed1024.
+	if b, err := Start(filepath.Join(root, "pid"), os.Getpid()); err == nil {
+		b.Close()
+		t.Fatal("two-entry broker exceeded capacity")
+	}
+	if _, err := os.Stat(filepath.Join(root, "pid")); !os.IsNotExist(err) {
+		t.Fatalf("capacity refusal published binding: %v", err)
 	}
 }

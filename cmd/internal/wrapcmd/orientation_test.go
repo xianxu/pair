@@ -210,6 +210,7 @@ func TestOrientationCapturedComposersWithoutReturnRemap(t *testing.T) {
 	}
 }
 func TestOrientationChildEnvironmentAndReadinessStatus(t *testing.T) {
+	isolateNotificationSockets(t)
 	t.Setenv("PAIR_SCOPE_KEY", "")
 	t.Setenv("PAIR_RETENTION_START_ID", "")
 	dir := t.TempDir()

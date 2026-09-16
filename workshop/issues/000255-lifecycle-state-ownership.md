@@ -468,3 +468,43 @@ identical to the native-tested binary. Candidate root
 private launcher and build manifest. `couch --list` through that launcher reports
 no threads; no interactive operator session was launched. See the smoke guide
 for exact launch/revert and acceptance steps. M4 boundary review remains pending.
+
+### 2026-09-15 — M4 review round1: REWORK
+
+Boundary `12c301ac..d36fef21` found BR-19 (socket lifetime after independent PID
+binding deletion) and BR-20 (real-broker fixtures share production's UID lock).
+Both are verified: launcher/GC can delete the binding without the socket, and
+the contention fixture holds that shared lock for its200ms timeout. The durable
+plan now requires binding-independent dead-owner reclamation and a fully
+injected namespace shared by addresses, locks and sweeps. All broker, wrapper,
+CLI, PTY/native and smoke fixtures are being moved to private namespaces. M4
+remains open; no smoke handoff or merge yet.
+
+BR-19/BR-20 corrections implemented: each broker captures its absolute namespace
+for addresses, locking and cleanup. Bounded admission reclaims only strict owned
+socket identities with a provably dead PID, independently of binding survival;
+capacity is1024 entries including a colocated PID binding. All real broker
+fixtures and the smoke launcher select private namespaces. Actual crash, deleted
+binding and failed-close residue tests, live/foreign preservation, strict filename
+grammar, cross-namespace lock/routing isolation and environment-change cleanup
+pass race×3 (`/tmp/pair255-notify-review-fixes-race.log`,22.746s/1.549s).
+Wrapper entrypoint isolation passes focused race; native/full final verification
+is running on frozen source. Only `notifytransport/address.go` and `transport.go`
+changed in production since `d36fef21`; the424-file source manifest is
+`/tmp/pair255-namespace-production-source.json`.
+
+### 2026-09-15 — M4 BR-19/BR-20 final verification
+
+Full root Go suite passes after namespace correction
+(`/tmp/pair255-m4-full-after-namespace.log`). Fresh native/nvim/broker-PTY race×3
+passes87.347s (`/tmp/pair255-namespace-native-final.log`), including private socket
+assertions,96 hook cycles,4096-byte UTF-8 bodies,48 hidden/48 focused attention
+cases,12 resizes, persistent reattachment and held selection/copy. Broker/CLI
+race×3 and focused wrapper entrypoint race pass. Linux/amd64 binaries build.
+All424 production source hashes remain unchanged since the frozen manifest.
+
+The refreshed private smoke Pair binary is identical to the native-tested binary:
+`9b51f6cd05f5b8468be033f502b068322cbf0d7ef53a53a17cb3eae9b82c0afe`.
+`/tmp/pair255-smoke-gfr6g7pd/build.json` records binary/source hashes. Earlier
+long-run/performance evidence keeps its original source attribution and recorded
+budget exceptions. M4 round2 review is next; operator smoke and merge remain pending.

@@ -361,6 +361,24 @@ rounds:
           round: 12
       boundary: M3
       blocked: false
+    - "n": 13
+      timestamp: "2026-09-15T16:59:48-07:00"
+      agent: codex
+      findings:
+        - id: BR-19
+          severity: Important
+          title: Dead notification sockets become uncollectable when their PID binding is removed
+          detail: 'cmd/internal/notifytransport/address.go:170 requires the PID binding to reclaim a socket, but cmd/internal/launcher/lifecycle.go:349 and artifact GC remove that binding independently. Abnormal wrapper termination followed by binding cleanup strands socket files with no implemented sweep or growth bound (ARCH-FUNERAL, ARCH-PURPOSE). This is the 3rd finding in family artifact-lifetime-ownership: state and enforce the ownership rule across normal close, crash, sidecar deletion, GC, and failed cleanup. Add dead-owner reclamation independent of binding survival and regression tests preserving live/foreign sockets.'
+          family: artifact-lifetime-ownership
+          round: 13
+        - id: BR-20
+          severity: Important
+          title: Broker contention tests acquire the live user's production notification lock
+          detail: cmd/internal/notifytransport/transport_test.go:361 deliberately holds lockDirectory through a startup timeout, while address.go:54 hardcodes the production UID-wide namespace. Concurrent live wrapper startup or Close can time out; transport.go:135 then abandons artifact cleanup (ARCH-SECURE, ARCH-MOCK). Inject a transport namespace covering both socket addresses and locks, and move all broker fixtures into private temporary storage with cross-namespace isolation coverage.
+          family: test-state-isolation
+          round: 13
+      boundary: M4
+      blocked: true
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (boundary-review)
@@ -525,6 +543,16 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-14 — addressed — Prior disposition retained; inspected retirement/disposal ownership and passing consumer disposal tests support the correction.
 - BR-15 — addressed — Prior disposition retained; injected compiler failure/preservation tests and native compiler conformance pass.
 
+## Round 13 — 2026-09-15T16:59:48-07:00 (codex) — BLOCKED
+
+### Raised
+
+- **BR-19** [Important] `artifact-lifetime-ownership` Dead notification sockets become uncollectable when their PID binding is removed
+  cmd/internal/notifytransport/address.go:170 requires the PID binding to reclaim a socket, but cmd/internal/launcher/lifecycle.go:349 and artifact GC remove that binding independently. Abnormal wrapper termination followed by binding cleanup strands socket files with no implemented sweep or growth bound (ARCH-FUNERAL, ARCH-PURPOSE). This is the 3rd finding in family artifact-lifetime-ownership: state and enforce the ownership rule across normal close, crash, sidecar deletion, GC, and failed cleanup. Add dead-owner reclamation independent of binding survival and regression tests preserving live/foreign sockets.
+- **BR-20** [Important] `test-state-isolation` Broker contention tests acquire the live user's production notification lock
+  cmd/internal/notifytransport/transport_test.go:361 deliberately holds lockDirectory through a startup timeout, while address.go:54 hardcodes the production UID-wide namespace. Concurrent live wrapper startup or Close can time out; transport.go:135 then abandons artifact cleanup (ARCH-SECURE, ARCH-MOCK). Inject a transport namespace covering both socket addresses and locks, and move all broker fixtures into private temporary storage with cross-namespace isolation coverage.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-19** [Important] `artifact-lifetime-ownership` Dead notification sockets become uncollectable when their PID binding is removed
+- **BR-20** [Important] `test-state-isolation` Broker contention tests acquire the live user's production notification lock

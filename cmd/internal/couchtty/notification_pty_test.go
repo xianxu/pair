@@ -55,7 +55,31 @@ func TestNotificationPTYHelper(t *testing.T) {
 	time.Sleep(time.Second)
 }
 
+func assertPrivateNotificationSocket(t *testing.T, dir string) {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sockets := 0
+	for _, entry := range entries {
+		if entry.Type()&os.ModeSocket != 0 {
+			sockets++
+		}
+	}
+	if sockets != 1 {
+		t.Fatalf("private notification namespace %s contains %d sockets, want 1", dir, sockets)
+	}
+}
+
 func TestNotificationPTYConformance(t *testing.T) {
+	// macOS Unix-domain addresses need a short path. Register cleanup before
+	// the Console fixture so its accepted broker child is joined first.
+	socketDir, err := os.MkdirTemp("/tmp", "pcnotify-")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(socketDir) })
 	f := newFixture(t, 24, 80)
 	dir := t.TempDir()
 	binding := dir + "/wrapper-pid"
@@ -69,7 +93,7 @@ func TestNotificationPTYConformance(t *testing.T) {
 			env = append(env, key+"=")
 		}
 	}
-	env = append(env, "PAIR_NOTIFICATION_PTY_HELPER=1", "PAIR_TAG=conformance", "PAIR_PAIR_WRAP_PID_PATH="+binding, "PAIR_NOTIFICATION_GATE="+gate)
+	env = append(env, "PAIR_NOTIFY_SOCKET_DIR="+socketDir, "PAIR_NOTIFICATION_PTY_HELPER=1", "PAIR_TAG=conformance", "PAIR_PAIR_WRAP_PID_PATH="+binding, "PAIR_NOTIFICATION_GATE="+gate)
 	child, err := ptychild.Start(ptychild.Options{
 		Argv: []string{os.Args[0], "-test.run=^TestNotificationPTYHelper$"},
 		Env:  env,
@@ -94,6 +118,8 @@ func TestNotificationPTYConformance(t *testing.T) {
 		f.con.mu.Unlock()
 		return bytes.Count([]byte(f.host.Written()), envelope) == 1 && len(retained) == 1 && retained[0].Text == message
 	})
+
+	assertPrivateNotificationSocket(t, socketDir)
 
 	f.con.mu.Lock()
 	address := f.con.panes["notify"].thread

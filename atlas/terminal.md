@@ -88,3 +88,12 @@ OSC9, and Endpoint's registered adapter restores the Pair title and full4096-byt
 message before Presenter delivery. Generic backend metadata limits stay unchanged.
 Native qualification covers delayed Unicode chunks, maximum message size,
 focused/hidden attention and persistent-client reattachment.
+
+The broker namespace owns both socket addresses and its persistent lock.
+`PAIR_NOTIFY_SOCKET_DIR` selects an absolute private root; conformance tests and
+the smoke launcher always provide one. Each broker captures its admitted root
+for teardown. Normal close removes owned inodes; bounded admission sweeps reclaim
+provably dead same-UID socket owners independently of PID-binding survival,
+covering crash followed by launcher or artifact-GC cleanup. Live, unknown and
+foreign entries survive; the1024-entry namespace capacity refuses admission
+explicitly rather than permitting unbounded crash residue.

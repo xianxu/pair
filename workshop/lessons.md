@@ -1,5 +1,21 @@
 # Lessons
 
+## Temporary bindings do not isolate a global transport (#255 M4 review)
+
+Broker fixtures used temporary PID files but still acquired the production
+UID-wide lock, including a deliberate contention timeout. Inject one namespace
+for sockets, locks and reclamation, propagate it through subprocesses, and
+assert that the resulting socket lives there. Test isolation must include
+coordination resources, not only message destinations. ARCH-SECURE / ARCH-MOCK.
+
+## Crash reclamation cannot depend on a separately collected sidecar (#255)
+
+Launcher cleanup and artifact GC could delete a dead wrapper's PID binding,
+stranding its temporary socket. Give ephemeral resources independently readable
+owner identity and a bounded reclamation path that survives sidecar deletion.
+Enumerate normal close, crash, independent cleanup, failed cleanup and owner
+replacement; preserve live, unknown and foreign resources. ARCH-FUNERAL.
+
 ## Terminal side effects must use the connection's output owner (#255)
 
 An independently opened outer TTY let wrapper and hook notifications compete

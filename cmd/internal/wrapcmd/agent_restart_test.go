@@ -47,6 +47,7 @@ func TestFreshAgentInvocationDropsRestoreAndPreservesWrapperAndUserArgs(t *testi
 }
 
 func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
+	isolateNotificationSockets(t)
 	data := filepath.Join(t.TempDir(), "repos", "scope")
 	if err := os.MkdirAll(data, 0700); err != nil {
 		t.Fatal(err)
