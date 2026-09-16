@@ -631,7 +631,7 @@ func validateChrome(cells []Cell) error {
 
 func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
 	if p.selected == nil {
-		return errors.New("terminal: resize requires endpoint")
+		return noDestination("resize requires endpoint", p.View())
 	}
 	if err := validateLayout(host, bottom); err != nil {
 		return err

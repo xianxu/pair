@@ -17,13 +17,13 @@ import (
 // terminalError means "terminal ownership is lost"; routing a domain answer
 // into it is what exited couch on a keystroke (pair#265). Every call site goes
 // through here, and TestConsoleReachesPresenterInputOnlyThroughItsDoor pins it.
-func (c *Console) deliverPresenterInput(event uv.Event) error {
+func (c *Console) deliverPresenterInput(event uv.Event) {
 	err := c.presenter.Input(c.lifetime, event)
 	if errors.Is(err, terminal.ErrNoDestination) {
-		return err
+		c.traceDropped("input", err)
+		return
 	}
 	c.terminalError(err)
-	return nil
 }
 
 // deliverChildInput routes an event that only means something to a child.
@@ -42,9 +42,10 @@ func (c *Console) deliverChildInput(event uv.Event) {
 	panel := c.focus.IsPanel()
 	c.mu.Unlock()
 	if panel {
+		c.traceDropped("panel", nil)
 		return
 	}
-	_ = c.deliverPresenterInput(event)
+	c.deliverPresenterInput(event)
 }
 
 func (c *Console) routeInputEvent(event terminal.InputEvent) {
@@ -112,7 +113,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	// Release/motion always visit the presenter, including over panels and
 	// chrome, so its gesture owner can cancel or clip them consistently.
 	if _, ok := event.Event.(uv.MouseReleaseEvent); ok {
-		_ = c.deliverPresenterInput(event.Event)
+		c.deliverPresenterInput(event.Event)
 		return
 	}
 	hit, _, _, ok := mouseinput.ParsePrefix(event.Raw)
@@ -134,7 +135,7 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			return
 		}
 	}
-	_ = c.deliverPresenterInput(event.Event)
+	c.deliverPresenterInput(event.Event)
 }
 
 // Some product chords intentionally exist only in enhanced encoding (Alt+d

@@ -153,3 +153,60 @@ Also observed in the same sitting, and not yet separate issues:
   healthy `verified_park` record to two stale ones; `parley.nvim` from one
   healthy parked record to one stale one. Remaining repos still holding a
   resumable thread: `xianxu.dev`, `ariadne`, `arc-agi-3`.
+
+### 2026-09-16 — same family, louder face: resume reports what spawn hides
+
+Operator ran `couch` in `xianxu.dev` (a healthy `verified_park` thread) on the
+`pair#265` build:
+
+```
+couch: await Pair registration {RepoScope:4cc8889b46e02f8e Tag:couch-d83b2d736a8d5815}:
+  context deadline exceeded (waited 15s; NO Pair session is live. Pair never started,
+  or exited before registering -- look at the launch, not registration)
+quiesce post-ack child 61698/"1789600904.76668": operation not permitted
+```
+
+**This is very likely the same root cause as the blank viewport, with a better
+error message.** Both are "pair does not come up under couch"; they differ only
+in whether couch waits for a registration it can name:
+
+| path | couch's behaviour when pair never comes up |
+|---|---|
+| **spawn** (no resumable thread) | paints its own chrome, child pane stays blank, sits there silently |
+| **resume** (parked thread) | waits 15s for registration, then reports it and rolls back |
+
+The resume face is the useful one to debug from: it says outright *"look at the
+launch, not registration"*. Retitle this issue accordingly — it is not about
+`brain` and not only about painting.
+
+Ruled out, with evidence:
+
+- **Not caused by `pair#265`.** That branch's production diff is
+  `terminal/{destination,presenter}.go`, `couchtty/{terminal_input,console}.go`,
+  `termcmd/presentation.go` and `artifactpath/manifest.go` — **zero** files in
+  `couchcore` (which owns launch, registration and quiesce), `launcher`,
+  `ptychild` or `pairlifecycle`.
+- **Not a broken `pair` binary.** `bin/pair --help` exits 0, and the operator is
+  working inside a direct `pair` session while couch cannot launch one.
+- **Pre-existing.** The operator hit the same "resume a parked thread failed"
+  on `parley.nvim` earlier the same day, before any `#265` code was written.
+
+Good news worth recording: **this failure does not burn the thread.**
+`xianxu.dev`'s record still reads `incarnations=[] verified_park=True
+last_active=2026-09-15T20:58:36` — untouched. `quiescePostAckStart`
+(`couchcore/couch.go:726`) plus the pristine rollback did their job. That is the
+difference between a clean refusal and the crash-burn loop in `pair#272`.
+
+Unexplained and worth chasing: `quiesce post-ack child 61698/... : operation not
+permitted` is EPERM cleaning up the child couch just spawned — a process it
+owns. That may be the same thread as `pair#272`'s launcher-vs-agent confusion.
+
+Next diagnostic, in order:
+
+- [ ] Capture what the spawned `pair` actually writes. couch discards it today;
+      the registration error says "look at the launch" but does not show it.
+- [ ] Check the runtime bundle couch injects (`TerminalEnvironment` →
+      `TERM=pair-vt-256color`, `TERMINFO=<root>/terminfo`). A fresh generation
+      extracted at 16:21 alongside the failed start; `Keep: 2` yet three
+      generations are present, so pruning may also be misbehaving.
+- [ ] Explain the EPERM on quiesce.

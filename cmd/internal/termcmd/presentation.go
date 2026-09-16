@@ -358,7 +358,9 @@ func (m *terminalMux) paintStripLocked() {
 	if err == nil {
 		err = m.presenter.UpdateChrome(context.Background(), chrome)
 	}
-	if err != nil {
+	// activeTabLocked above asks pair term's own tab model, which can disagree
+	// with the presenter's view -- the same disagreement writeEvents handles.
+	if err != nil && !errors.Is(err, terminal.ErrNoDestination) {
 		m.stopLocked(err)
 	}
 }
@@ -395,7 +397,9 @@ func (m *terminalMux) inheritSize(host hostty.Host) {
 		return active.child.ResizePTY(ptychild.Size{Rows: uint16(g.Rows), Cols: uint16(g.Cols)})
 	})
 	if err != nil {
-		m.stopLocked(err)
+		if !errors.Is(err, terminal.ErrNoDestination) {
+			m.stopLocked(err)
+		}
 		return
 	}
 	m.rows, m.cols = size.Rows, size.Cols

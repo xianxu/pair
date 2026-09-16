@@ -376,16 +376,24 @@ not an error.
 
 `terminal.ErrNoDestination` is how the presenter says that, and it is distinct
 from a write failure (which latches `View` into `Failed` and closes `Failed()`).
-Three sites answer with it: `Presenter.Input`, `Presenter.mouseInput` and
-`Presenter.UpdateChrome`.
+Four sites answer with it: `Presenter.Input`, `Presenter.mouseInput`,
+`Presenter.UpdateChrome` and `Presenter.resizeLayout`. The enumeration is "every
+refusal that reports the ABSENCE of an endpoint", not "every caller of `Input`";
+the by-caller reading is what missed `UpdateChrome` in planning and
+`resizeLayout` at the close boundary.
 
 Every console path to `Presenter.Input` goes through `deliverPresenterInput`,
 which classifies that answer instead of handing it to `terminalError` -- pinned
 by `TestConsoleReachesPresenterInputOnlyThroughItsDoor`. Child-bound events
 additionally go through `deliverChildInput`, which drops them when the panel is
-focused. `paintNow` classifies the same answer from `UpdateChrome`, because
-`showMenu` clears the endpoint before it flips focus and a repaint landing in
-that window would otherwise exit couch with no input involved at all.
+focused. `paintNow` and `onResize` classify it too, because `showMenu` clears
+the endpoint before it flips focus, and because `installObservedThreadActor`
+sets focus to an actor WITHOUT selecting it when no pane is active. That second
+state is DURABLE, not transient -- the operator sits on a pane the presenter
+does not hold until they switch away -- so every drop is recorded on the
+`no-destination` trace event. That is the only channel that can report it
+without repainting, and repainting is what re-enters the escalation
+(`publishNotice` is "push and paint are one operation").
 
 This matters because couch *asks* the terminal for the events that exposed it:
 the first mode delta writes `\x1b[?1004h` (focus reporting) and `\x1b[>3u`

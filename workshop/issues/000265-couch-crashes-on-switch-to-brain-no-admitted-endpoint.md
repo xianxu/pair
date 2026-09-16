@@ -107,7 +107,7 @@ the plan at `workshop/plans/000265-couch-crashes-on-switch-to-brain-no-admitted-
 - [x] Pin the door with an AST guard, proven red against a deliberate violation.
 - [x] Sweep the class: `termcmd/presentation.go` has the same escalation via `stopLocked`.
 - [x] Add regression coverage for input on an unadmitted endpoint (all three kinds), the mirror that a focused actor still receives them, and the decoder's full closed set (9 kinds).
-- [ ] Atlas + lessons done; **operator smoke test outstanding**.
+- [x] Atlas + lessons; operator smoke test passed (2026-09-16).
 
 Moved out of scope (see `## Revisions`): "why paint is blank" → `pair#273`;
 "fix or surface the blank-viewport case" → `pair#273`.
@@ -322,3 +322,74 @@ Verification: `make test` with the retention-owner env scrubbed and a
 non-symlinked `TMPDIR` — 209 packages ok, the only failure being the flake
 above. Two couchtty tests and one termcmd test need the sandbox off
 (`ptychild` spawn, `mkdir /tmp`), which is environmental and documented.
+
+### 2026-09-16 — operator smoke test PASSED
+
+The gesture that produced this issue no longer exits couch. Operator ran the
+`#265` build in `brain` (the spawn path, so couch comes up over a blank pane —
+`pair#273`), opened the switcher, and **switched the thread's harness from
+`muse` to `claude`**. Before this change, `ctrl+space` on a blank pane exited
+with `couch: terminal: terminal: no admitted endpoint`; now the switcher paints
+and a full switcher operation completes.
+
+That is the real verification. The 14 new couchtty assertions prove the console
+does not latch a failure; only the operator's terminal proves the event that
+was killing couch is actually gone, and the dogfood rule
+(`memory: feedback_pair_dogfood_and_agnostic`, violated once in `#209`) is that
+the operator says so, not the tests.
+
+Incidental, and a lead for `pair#273`: the harness switch to `claude` succeeded
+from a blank `muse` pane. If the pane became usable afterwards, the blank
+viewport may be `muse`-specific rather than generic to couch's spawn path —
+which would contradict this issue's earlier reasoning that every fresh spawn
+blanks. Worth confirming before `#273` is designed.
+
+### 2026-09-16 — close boundary review round 1: REWORK, addressed
+
+Four blocking findings, all real, all reproduced by the reviewer before being
+raised. The two Criticals are the same failure of mine twice: **I enumerated the
+callers instead of the answer.**
+
+- **BR-1 (Critical) — `resizeLayout` is a fourth refusal site.**
+  `presenter.go:634` returned a plain `errors.New("terminal: resize requires
+  endpoint")` for the same `p.selected == nil` condition, and `Console.onResize`
+  handed it to `terminalError` — so *resizing the terminal window* still exited
+  couch. `termcmd.inheritSize` had it too. The plan's own Task 2 acceptance
+  said "re-run the real enumeration… a fourth would belong in Task 2"; I wrote
+  that instruction and did not execute it. Converted, classified in both
+  consumers, and `onResize` now falls through to resize the children rather than
+  returning.
+- **BR-2 (Critical) — `pair term`'s repaint path.** Task 5 swept `writeEvents`
+  only. `paintStripLocked` guards on `activeTabLocked()` — pair term's own tab
+  model, the exact disagreement the shipped test encodes — then fed
+  `UpdateChrome`'s (already typed) answer to `stopLocked`. Fixed with
+  `inheritSize`, and both now have a test row.
+- **BR-3 (Important) — two halves of the fix had no red oracle.** Measured by
+  the reviewer: deleting the `paintNow` classification left the package green,
+  and restoring the `#255` bypass kept all 16 assertions green *and* passed the
+  AST guard, because the door is the allowlisted callee either way. Three new
+  tests, each **mutation-proven red** against its own fix:
+  `TestChromeRepaintWithNoEndpointDoesNotStopTheConsole`,
+  `TestResizeWithNoEndpointDoesNotStopTheConsole`, and
+  `TestPanelDropsChildOnlyEventsWithoutAskingThePresenter` — which distinguishes
+  the two arms at the trace, because the panel check drops *before* the
+  presenter is asked (`panel`) while a bypass is classified *at* it (`input`).
+- **BR-4 (Important) — every non-fatal path was silent, in a durable state.**
+  The reviewer's insight is the important part: `installObservedThreadActor`
+  sets `c.focus` to an actor **without selecting it** when `c.active` is empty,
+  and nothing later selects. So `(focus=actor, selected=nil)` persists, and the
+  operator sits with a blank viewport, no chrome and dead keys — with my change,
+  now guaranteed silent. Added the `no-destination` trace event; `traceEvent` is
+  the non-repainting channel my own notice analysis was looking for and did not
+  find. **This is a lead for `pair#273`** and is recorded there.
+
+Minors: `deliverPresenterInput` returned an error nothing consumed and reported
+fatal errors as nil — now void; both atlas files said "three sites" — now four,
+with the enumeration rule spelled out; `mouseInput` has no test row, and that is
+now a *measured* absence rather than an omission (see the comment on
+`TestPresenterRefusalsWithoutADestinationAreClassifiable`: `Ready` is
+`ViewState`'s zero value, so an idle presenter never reaches that guard).
+
+Verification after rework: `make test`, same env scrubs — **210 packages, exit
+0, zero failures**. The pre-existing
+`TestConsoleRunRootEscapeClearsFilterThenReplaysActor` flake did not recur.

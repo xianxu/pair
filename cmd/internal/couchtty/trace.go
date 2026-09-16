@@ -78,6 +78,15 @@ const (
 	tracePassSeeded    = "pass-seeded"    // the pass took its queue from an inventory
 	traceReattachStart = "reattach-start" // one pass attempt was dispatched
 	traceReattachDone  = "reattach-done"  // ... and finished
+	// traceNoDestination is an operation dropped because the presenter held no
+	// endpoint for it. It exists because the state that produces it is DURABLE,
+	// not transient: focus can sit on an actor the presenter does not hold
+	// (installObservedThreadActor sets focus without selecting when c.active is
+	// empty), and the operator then has a blank viewport, no chrome and dead
+	// keys. Every other channel for saying so repaints -- publishNotice is "push
+	// and paint are one operation" -- and repainting is what re-enters the
+	// escalation pair#265 removed. This one only writes a line. (pair#265 BR-4)
+	traceNoDestination = "no-destination"
 )
 
 // eventTracer writes the timing trace, and does nothing at all when it is off.
@@ -163,6 +172,16 @@ func (c *Console) SetEventTrace(path string, processStart time.Time, options ...
 // traceEvent records one timing-trace event, stamped now. The caller must not
 // hold c.mu. The lock is taken only to read the tracer; the write happens
 // outside it, as all of the console's IO does.
+// traceDropped records one operation abandoned for want of an endpoint. See
+// traceNoDestination for why this is a trace line and not a notice.
+func (c *Console) traceDropped(where string, err error) {
+	detail := where
+	if err != nil {
+		detail += " " + err.Error()
+	}
+	c.traceEvent(traceNoDestination, couchcore.ThreadAddress{}, detail)
+}
+
 func (c *Console) traceEvent(event string, address couchcore.ThreadAddress, detail string) {
 	c.mu.Lock()
 	events := c.events

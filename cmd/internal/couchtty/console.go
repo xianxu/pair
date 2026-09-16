@@ -1114,6 +1114,7 @@ func (c *Console) paintNow() {
 		err = c.presenter.UpdateChrome(c.lifetime, cells)
 	}
 	if errors.Is(err, terminal.ErrNoDestination) {
+		c.traceDropped("chrome", err)
 		// Mid-transition: showMenu's presenter.Panel has cleared the endpoint and
 		// c.focus has not caught up yet, so this arm ran with nothing to paint
 		// chrome onto. The paint that follows the flip is the authoritative one,
@@ -1223,8 +1224,14 @@ func (c *Console) onResize() {
 			return selected.child.ResizePTY(ptychild.Size{Cols: uint16(g.Cols), Rows: uint16(g.Rows)})
 		})
 		if err != nil {
-			c.terminalError(err)
-			return
+			if !errors.Is(err, terminal.ErrNoDestination) {
+				c.terminalError(err)
+				return
+			}
+			// A pane exists but the presenter holds no endpoint for it. Resizing
+			// the window must not exit couch over that -- and the children below
+			// still need their new size, so this skips the parent paint only.
+			c.traceDropped("resize", err)
 		}
 	}
 	childSize := c.ChildSize()

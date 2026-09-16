@@ -1,7 +1,10 @@
 package couchtty
 
 import (
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xianxu/pair/cmd/internal/hostty"
@@ -108,5 +111,70 @@ func TestNoDecodedEventKindCanStopThePanelConsole(t *testing.T) {
 			con.routeInputEvent(terminal.InputEvent{Event: tc.event, Raw: []byte("x"), Canonical: []byte("x")})
 			assertConsoleAlive(t, con, "panel "+tc.name)
 		})
+	}
+}
+
+// The durable disagreement: a foreground attach with no active pane sets
+// c.focus to that actor WITHOUT selecting it (installObservedThreadActor), so
+// the console believes an actor is focused while the presenter holds nothing.
+// It persists until the operator switches. Every console path that talks to the
+// presenter has to survive it (pair#265 BR-1, BR-3, BR-4).
+func focusedButUnselected(t *testing.T) (*Console, *ptychild.Child) {
+	t.Helper()
+	con, child := panelConsole(t)
+	con.mu.Lock()
+	focus, selected := con.focus, con.active
+	con.started = true
+	con.mu.Unlock()
+	if focus.IsPanel() || selected != "only" {
+		t.Fatalf("fixture is not focused-but-unselected: focus=%v active=%q", focus, selected)
+	}
+	if v := con.presenter.View(); v.Admitted != "" {
+		t.Fatalf("fixture presenter already holds an endpoint: %+v", v)
+	}
+	return con, child
+}
+
+// Red without the errors.Is block in paintNow: UpdateChrome refuses for want of
+// an endpoint and the console exits.
+func TestChromeRepaintWithNoEndpointDoesNotStopTheConsole(t *testing.T) {
+	con, _ := focusedButUnselected(t)
+	con.paintNow()
+	assertConsoleAlive(t, con, "chrome repaint with no endpoint")
+}
+
+// Red without noDestination on resizeLayout: a terminal resize exits couch.
+func TestResizeWithNoEndpointDoesNotStopTheConsole(t *testing.T) {
+	con, _ := focusedButUnselected(t)
+	con.onResize()
+	assertConsoleAlive(t, con, "resize with no endpoint")
+}
+
+// Red if the pair#255 bypass is restored. The two arms are distinguishable at
+// the trace: the panel check drops BEFORE the presenter is asked ("panel"),
+// while a bypass reaches it and is classified there ("input"). Without this,
+// deleting the panel check leaves every other assertion green -- the door is
+// the AST guard's allowlisted callee either way.
+func TestPanelDropsChildOnlyEventsWithoutAskingThePresenter(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "trace.jsonl")
+	con, _ := panelConsole(t)
+	if err := con.SetEventTrace(path, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	con.showMenu()
+
+	con.routeInputEvent(terminal.InputEvent{Event: uv.FocusEvent{}, Raw: []byte("\x1b[I")})
+
+	var dropped []string
+	for _, line := range traceLines(t, path) {
+		if strings.Contains(line, traceNoDestination) {
+			dropped = append(dropped, line)
+		}
+	}
+	if len(dropped) != 1 {
+		t.Fatalf("want exactly one %s line, got %d: %q", traceNoDestination, len(dropped), dropped)
+	}
+	if !strings.Contains(dropped[0], "\tpanel") {
+		t.Fatalf("panel drop was recorded as %q -- the presenter was asked, so the panel check is gone", dropped[0])
 	}
 }

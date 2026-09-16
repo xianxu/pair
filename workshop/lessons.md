@@ -5141,3 +5141,26 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   production files to the base commit and reproducing the failure identically —
   isolate a suspect flake that way rather than re-running until it passes. Not
   yet filed; it wants its own issue with the admission race written down.
+
+- **Enumerate the ANSWER, not the callers.** #265 was fixed by typing a
+  presenter refusal and classifying it at the consumers. The enumeration used
+  was `grep '\.Input('` — the callers — and it missed `UpdateChrome` (caught by
+  the plan gate) and then `resizeLayout` (caught by the close gate), both of
+  which return the same answer from paths with no input in them at all. The
+  right enumeration was "every refusal that reports the ABSENCE of an endpoint".
+  Two gates caught the same mistake twice because the fix was re-applied to the
+  same wrong index. (#265 BR-1)
+
+- **A guard test can pass a mutation it was written to catch.** Restoring the
+  #255 bypass kept all 16 new assertions green AND passed the AST door guard,
+  because the bypass called the allowlisted door directly — the guard pins
+  *where* the presenter is reached, not *whether the panel rule ran*. Mutation-
+  test each half of a fix separately; "the suite is green with the fix" says
+  nothing until "the suite is red without it" is measured. (#265 BR-3)
+
+- **Making a path non-fatal makes it silent — check what state it goes quiet
+  in.** `(focus=actor, presenter selected=nil)` is DURABLE in couch, not
+  transient: `installObservedThreadActor` sets focus without selecting and
+  nothing later selects. Degrading quietly there means a blank viewport with
+  dead keys and no signal. Where a notice would repaint (and re-enter the very
+  escalation being removed), a trace event is the channel that does not. (#265 BR-4)

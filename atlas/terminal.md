@@ -82,7 +82,8 @@ separate; observation does not claim physical-write acknowledgment.
 
 `ErrNoDestination` (`destination.go`) is the presenter's typed answer when it
 holds no endpoint to deliver an input event to. `Presenter.Input`,
-`Presenter.mouseInput` and `Presenter.UpdateChrome` all wrap it through the one
+`Presenter.mouseInput`, `Presenter.UpdateChrome` and `Presenter.resizeLayout`
+all wrap it through the one
 constructor `noDestination`, which carries the `View` so a caller that surfaces
 it can say which endpoint in which state.
 
