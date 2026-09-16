@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-15
 updated: 2026-09-16
-estimate_hours: 1.08
+estimate_hours: 1.70
 started: 2026-09-16T09:04:38-07:00
 ---
 
@@ -71,18 +71,28 @@ Derivation, so the numbers can be checked rather than trusted:
 
 The largest risk to this number is not the code — it is `make test`, which must run with the retention-owner env scrubbed and a non-symlinked `TMPDIR` (see `workshop/lessons.md`). That is carried in the *milestone-review* impl hours.
 
+**Revised after the estimate-quality gate (2026-09-16), 1.08 → 1.70.** Three of its four points are folded in; the fourth is recorded rather than adopted.
+
+- *Operator verification was itemized nowhere.* Correct — the plan has a standalone `## Operator verification` section, mandatory per `#209`, and the Step 2 enumeration walked tasks, so a plan section fell through it. Added as `ux-rename-iteration`, the primitive that fits an operator round-trip.
+- *`milestone-review` was carrying three things in 8.4 minutes* — the close review, the full `make test` with its env scrub, and any rework. The ledger says pair closes actually run 2 gate rounds (`#248`) to 5 (`#255`). Now two `milestone-review` items at the top of the band, because the primitive models one chunk each and two rounds is the observed floor here.
+- *`tui-screen` was underweighted.* Task 3 spans Steps 1, 3, 3b and 3c, touches `terminal_input.go` and `console.go`, and adds three test families against the `(focus, event)` table — larger than Tasks 1, 2, 4 and 5 combined, yet it had `impl=0.20` against their 0.36. Raised to the upper-middle of its band on both columns.
+
+Recorded, not adopted — **the nearest comparator is `pair#248`**, which carried this exact triple (`estimate=1.08, design=0.28, impl=0.76`) under the same model in the same couch/console subsystem with a thorough plan, and landed at **7.21h (ratio 0.15)**. Deduped pair rows run a median ≈0.94, so the fleet-wide "v3.1 runs ~2× high" cushion does not apply here. This estimate expects to land nearer 1.0 than 0.15, because the design dialogue that `#248` paid for during implementation has already been paid here — two plan-review passes and a plan-quality round closed every open question, and the churn is mostly test code whose content is written out in the plan. **If the close gate runs more than two rounds, expect this to drift toward `#248`'s ratio**; that is the number to check at close rather than explain away.
+
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
 item: smaller-go-module design=0.02 impl=0.08
 item: cross-cutting-refactor design=0.04 impl=0.08
-item: tui-screen design=0.16 impl=0.20
+item: tui-screen design=0.24 impl=0.32
 item: smaller-go-module design=0.02 impl=0.10
 item: smaller-go-module design=0.02 impl=0.10
 item: atlas-docs design=0.02 impl=0.06
-item: milestone-review design=0.00 impl=0.14
-design-buffer: 0.04
-total: 1.08
+item: ux-rename-iteration design=0.06 impl=0.08
+item: milestone-review design=0.00 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.06
+total: 1.70
 ```
 
 ## Plan
