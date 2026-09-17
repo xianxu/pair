@@ -508,94 +508,123 @@ func TestMultipleTrackedStartsKeepTheRowBusy(t *testing.T) { … }
   guard (M1, round 6).
 - [x] **Step 7: Commit** — `#256 M2: a start nobody is driving is not in flight`
 
-### Task 4a: The released row's archive must actually work
+### Task 4a + Task 5: archive clears the debris that outlived its process
 
 **Files:**
-- Modify: `cmd/internal/couchcore/detach.go:226` (`ArchiveThread`)
-- Test: `cmd/internal/couchcore/archive_test.go`
+- Create: `cmd/internal/couchcore/lifecycledebris.go` (`clearLifecycleDebris`, `ErrThreadRolledBack`)
+- Modify: `cmd/internal/couchcore/resume.go` (the function moves out; `ResumeStarting` added), `cmd/internal/couchcore/detach.go:226` (`ArchiveThread`)
+- Test: `cmd/internal/couchcore/archivedebris_test.go`, `cmd/internal/couchcore/sessionevidence_test.go`
 
-Task 4 alone moves a driverless row out of `busy` and, when its session is also
-gone, into `unusable/session-gone` — where `menuActionsFor` offers `archive`.
-That archive **fails**: `archivableRecord` refuses on `occupiedIncarnation`,
-which counts `creating`. Offering an action that always fails is the exact
-anti-pattern the menu's own comments name, so the two halves ship together.
+**Merged in execution 2026-09-17.** Task 4a (archive must be able to clear a
+driverless start claim) and Task 5 (`DecideRecovery` stops gating on an open
+park) turned out to be one change, because **the rule they both need was already
+written**: `retireDeadIncarnationBeforeStart`, hardened across four M1 boundary
+rounds, screens every precondition before its first write and authorizes each
+write with a probe of the entity that write acts on. Re-deriving it inside
+`DecideRecovery` would have been the same rule in a second place — the
+duplication ARCH-DRY exists to stop, and the exact shape that produced four
+rounds of findings.
 
-The rollback already exists and is correct — `rollbackTrackedStart` deletes the
-claim and releases the capacity — and, as in Task 6, it is simply unreachable
-from here. Same shape as `retireDeadIncarnationBeforeStart`: screen before
-writing, and authorize the write with a probe of the entity it acts on.
+So it moves to its own file as `clearLifecycleDebris`, gains the start-claim arm,
+and archive calls it.
 
-- [ ] **Step 1: Write the failing test** — a record carrying a start claim whose
-  owner is dead and whose helper is dead is archivable; one whose owner cannot be
-  probed is refused, **with a diagnostic naming what could not be proved**.
-- [ ] **Step 2:** Red — "is creating; park or detach it before archiving".
-- [ ] **Step 3:** Before archiving, roll back a start claim whose owner is
-  provably `Dead` **and** whose helper is not `Live`. Probe each entity
-  separately — the owner couch and the helper are different processes, which is
-  the round-4 lesson. Refuse with a code otherwise.
-- [ ] **Step 4:** Green.
-- [ ] **Step 5: Commit** — `#256 M2: archive can clear a claim with no claimant`
+**Task 5 re-scoped: nothing is removed.** The plan said to delete
+`DecideRecovery`'s park and incarnation-shape gates. Reading them, each protects
+a real downstream precondition — `observeRecovery` computes `Helper` only at
+exactly one incarnation, and `RetireIncarnation` accepts only a `live` one — so
+deleting them reproduces the M1 round-1 defect: a shape made reachable whose
+precondition then fails uncoded. They stay, and they **stop being the operator's
+wall** because by the time they run the debris is gone. Dissolution rather than
+deletion, which is the same move M1 made on the classifier.
 
-### Task 5: `DecideRecovery` stops gating on an open park
+**The start-claim arm.** Three processes can be named by one record — the park's
+owner, the start's owner, and the helper the start forked — and any can outlive
+the others. The claim is rolled back (`DeleteStart`) rather than retired, because
+`RetireIncarnation` takes only a live incarnation. When the rollback removes the
+record entirely — a husk with no profile, no park and no metadata — that fact is
+reported as `ErrThreadRolledBack` and each consumer decides: resume calls it a
+refusal, archive calls it success, because the row is gone.
 
-**Files:**
-- Modify: `cmd/internal/couchcore/recovery.go:33-47`
-- Test: `cmd/internal/couchcore/recovery_test.go`
-
-`ArchiveThread` refuses **earlier** than `archivableRecord`, at
-`DecideRecovery:33` — *"a park transaction is still open; let lifecycle recovery
-finish."* Task 2 alone therefore changes the row's label and nothing else: the
-gesture still fails. Same for `:38-47`, which gate on incarnation shape.
-
-- [ ] **Step 1:** Write the failing test — the wedged record is archivable.
-- [ ] **Step 2:** Red — the park gate refuses.
-- [ ] **Step 3:** Remove the park gate and the incarnation-shape gates; keep the
-  helper-liveness gate, which guards an irreversible act.
-- [ ] **Step 4:** Green.
-- [ ] **Step 5:** Commit.
+- [x] **Step 1:** Write the failing tests — `TestArchiveClearsAnOrphanedPark`
+  (#271's record, rev-bumped through `ApplyThreadMetadata` so `AbandonPark`'s
+  revision precondition matches the live one) and
+  `TestArchiveClearsADriverlessStartClaim`, plus a fail-closed row for each.
+- [x] **Step 2:** Red — "a park transaction is still open" and "helper start or
+  ownership is unresolved".
+- [x] **Step 3:** Move and rename the function; add the start-claim arm and the
+  `ResumeStarting` code.
+- [x] **Step 4:** `ArchiveThread` clears before it reconciles.
+- [x] **Step 5:** Green.
+- [x] **Step 6: Widen the totality table.** `TestReAdoptionExitsAreTotalAndCoded`
+  gains a shape dimension folding the incarnation state together with the claim
+  it may carry and that claim's owner liveness — the validator ties the two, so
+  independent dimensions would only generate cells the oracle skips. 110 cells,
+  36 skipped, up from 38.
+- [x] **Step 7: Mutation-check all three screens.** The park-owner screen needed
+  a **second** fixture to be pinned at all: in the operator's record the park
+  owner IS the incarnation, so the incarnation screen refuses first and a
+  mutation that removed the park screen left the test green. The foreign-owned
+  row is what pins it.
+- [x] **Step 8: Commit** — `#256 M2: archive clears the debris that outlived its process`
 
 ### Task 6: An absent binding must not shield a dead incarnation
 
 **Files:**
-- Modify: `cmd/internal/couchcore/recovery_execute.go:63-68` (`observeRecoverySession` — where the absent-binding error is **raised**; `reconcileRecoveryHelper:105` only propagates it), `cmd/internal/couchcore/detach.go:262-272`
-- Test: `cmd/internal/couchcore/archive_test.go`
+- Modify: `cmd/internal/couchcore/recovery_execute.go` (`observeRecovery`), `cmd/internal/couchcore/recovery.go` (`RecoverySessionRefusal`), `cmd/internal/couchcore/artifactcollision_fake.go`
+- Test: `cmd/internal/couchcore/archivedebris_test.go`
 
-**The task that actually makes the operator's two `brain` rows archivable.**
-Traced live 2026-09-16 — both carry one incarnation with `state: live`,
-`start: nil`, a pid confirmed gone (ESRCH), and **no session-name binding**
-(`repos/2e51fcf9799b1d8f/session-names.jsonl` holds only
-`couch-dbc88727c6378a0f`). `ArchiveThread`'s binding-absent escape hatch admits a
-record only when `len(Incarnations) == 0 && Park == nil && Continuation == nil`.
+**The task that makes the operator's second `brain` row archivable.** Traced live
+2026-09-16: `couch-3b82bfd593cac896` carries one incarnation with `state: live`,
+`start: nil`, a pid confirmed gone (ESRCH), and **no session-name binding** —
+`repos/2e51fcf9799b1d8f/session-names.jsonl` holds only
+`couch-dbc88727c6378a0f`. The retirement that fixes it already exists and is
+correct (`reconcileRecoveryHelper:120-123` re-probes the exact `{PID, Identity}`,
+requires `Dead`, retires). It was unreachable.
 
-The retirement logic that fixes this **already exists and is correct** —
-`reconcileRecoveryHelper:120-123` re-probes the exact `{PID, Identity}`, requires
-`Dead`, and calls `RetireIncarnation`. It is **unreachable**: `observeRecovery`
-errors at `:105` on the absent binding, fifteen lines earlier.
+**Delivered by dissolution, not by the planned edit.** The plan proposed teaching
+`observeRecoverySession` to read an absent binding as `SessionAbsent` under
+conditions. That turned out to be unnecessary: with archive clearing debris ahead
+of reconciliation, the record reaches the reconciler carrying no incarnation at
+all, and `ArchiveThread`'s existing binding-absent hatch — which admits exactly
+that shape — takes it. One less rule, which is the re-cut's whole premise.
 
-The rule: **an absent session binding is not a reason to skip retiring a
-provably-dead incarnation — it is corroborating evidence the thread is gone.**
+Two changes were needed, and both are the same class of defect this issue exists
+to remove:
 
-- [ ] **Step 1: Write the failing test**
+- **`observeRecovery` stopped skipping the session probe** for records carrying
+  an open park, a start claim or an occupied incarnation. It is the identical
+  structural defect M1 removed from `gatherThreadEvidence`: the bookkeeping
+  decided whether the world got asked. Worse for archive, it made the session
+  verdict unavailable until the debris was cleared — forcing a write before a
+  check.
+- **The fake stopped lying about the error.** `FakeThreadArtifactCollisionChecker`
+  returned an absent-binding error whose TEXT matched production but which did
+  not wrap `ErrPairSessionBindingAbsent`, so `errors.Is` could never recognise it
+  and every hatch keyed to that sentinel was untestable through the fake
+  (ARCH-MOCK).
 
-```go
-func TestSpawnedButNeverBoundThreadIsArchivable(t *testing.T) {
-	// couch-3b82bfd593cac896: one incarnation {pid 87309, state live, start
-	// nil}, pid gone, no row in session-names.jsonl, last_active_at at the zero
-	// time — #273's fresh-spawn shape. Archive refuses today.
-	…
-	if _, err := couch.ArchiveThread(ctx, address); err != nil {
-		t.Fatalf("a thread with a dead helper and no binding is unarchivable: %v", err)
-	}
-}
-```
+- [x] **Step 1: Write the failing tests** —
+  `TestSpawnedButNeverBoundThreadIsArchivable` and, because the rule is a
+  predicate rather than "no binding means gone",
+  `TestAbsentBindingProvesNothingAboutALiveHelper`: a helper that is alive or
+  unprovable may still be about to publish one.
+- [x] **Step 2:** Red — "recovery session state could not be checked".
+- [x] **Step 3:** The two changes above. No new rule in `observeRecoverySession`.
+- [x] **Step 4:** Green.
+- [x] **Step 5: Mutation-check** both — removing archive's clearing step and
+  un-wrapping the fake's sentinel each fail the test they are supposed to pin.
+- [x] **Step 6: Commit** — `#256 M2: an absent binding corroborates death, it does not hide it`
 
-- [ ] **Step 2:** Red — "recovery session state could not be checked".
-- [ ] **Step 3:** When the binding is absent **and** the single incarnation is
-  provably `Dead` with `Start == nil`, treat presence as `SessionAbsent` rather
-  than erroring, so `:120-123` runs. Do **not** widen to `Unknown` liveness — an
-  unanswerable probe must still fail closed.
-- [ ] **Step 4:** Green.
-- [ ] **Step 5: Commit** — `#256 M2: an absent binding corroborates death, it does not hide it`
+**Ordering, recorded because it was a regression first.** Putting
+`clearLifecycleDebris` ahead of the session observation broke
+`TestRecoveryArchiveRetiresOnlyExactDeadSettledHelper/session-unknown`: archive
+refused for an unanswerable session *after* retiring an incarnation. That is
+round 2's rule — an irreversible step must never precede a revocable check — so
+the session half of `DecideRecovery` was extracted as `RecoverySessionRefusal`
+and archive now asks it first, with nothing written. A second, quieter break came
+with it: the extra observation shifted which pair of looks
+`TestRecoveryArchiveRefusesSessionAppearingBeforeStop` compared, so the final
+recheck is now compared against the FIRST look as well as the reconciler's.
 
 ### Task 6b: The ledger is cold-resume authority; the park receipt is not
 

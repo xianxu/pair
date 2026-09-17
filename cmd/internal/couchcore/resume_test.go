@@ -328,7 +328,7 @@ func TestReAdoptionRefusalsClaimOnlyWhatWasProved(t *testing.T) {
 	proc := NewFakeProcOps()
 	proc.SetUnknown(4242)
 
-	_, err = (&Couch{Threads: store, Proc: proc}).retireDeadIncarnationBeforeStart(created)
+	_, err = (&Couch{Threads: store, Proc: proc}).clearLifecycleDebris(created)
 	if got := ResumeDiagnosticOf(err); got != ResumeUnknown {
 		t.Fatalf("an unprovable process reports %q; it must claim ignorance, not %q — the agent may well be running", got, ResumeNotRunning)
 	}

@@ -248,6 +248,47 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	// the store, so a park-in-flight thread had its session killed and was then
 	// refused -- the agent dead, the record still listed.
 	if readErr == nil {
+		// ORDER, in two steps, and the order is the guard (#256 M2).
+		//
+		// 1. Ask the session. It is read-only, and it is the one refusal that
+		//    is nobody's fault and may change on its own -- an unanswerable
+		//    zellij, a client that is still attached. Refusing here has written
+		//    nothing, which is what makes a retry honest.
+		// 2. Then clear the debris, on the same terms resume does.
+		//
+		// The other guards below -- DecideRecovery's park and incarnation-shape
+		// gates, archivableRecord's occupancy rule -- are structural: they say
+		// what the recovery may safely act on, and each protects a real
+		// precondition downstream, so none of them is removed. They stopped
+		// being the OPERATOR's wall instead, because by the time they run, a
+		// park whose owner is provably gone and a start claim whose couch is
+		// provably gone are no longer there.
+		first, observeErr := c.observeRecovery(ctx, record)
+		switch {
+		case observeErr != nil && !errors.Is(observeErr, ErrPairSessionBindingAbsent):
+			// An unanswerable session is not an absent one, and nothing has
+			// been written yet, so the honest move is to say so and stop.
+			return ArchiveResult{}, fmt.Errorf("archive %s: %w", address.Tag, observeErr)
+		case observeErr == nil:
+			if refusal := RecoverySessionRefusal(first); refusal != "" {
+				return ArchiveResult{}, fmt.Errorf("archive %s: %s", address.Tag, refusal)
+			}
+		}
+		// clearLifecycleDebris refuses, with a code, whenever it cannot prove
+		// the debris orphaned -- and it screens every precondition before its
+		// first write, so a refusal there has changed nothing either. Quiesce,
+		// the irreversible act on the world, is still far below.
+		if cleared, clearErr := c.clearLifecycleDebris(record); clearErr != nil {
+			if errors.Is(clearErr, ErrThreadRolledBack) {
+				// The record carried nothing but an unfinished start, so
+				// rolling it back removed the row -- which is the whole of what
+				// archive promises the operator.
+				return ArchiveResult{Record: record}, nil
+			}
+			return ArchiveResult{}, fmt.Errorf("archive %s: %w", address.Tag, clearErr)
+		} else if cleared != nil {
+			record = *cleared
+		}
 		reconciled, evidence, err := c.reconcileRecoveryHelper(ctx, address)
 		if err != nil {
 			// A pre-session launch failure can leave a readable empty record
@@ -287,7 +328,13 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		if err != nil {
 			return ArchiveResult{}, err
 		}
-		if latest.Session != evidence.Session || latest.Presence != evidence.Presence || !DecideRecovery(latest).Archive {
+		// Compared against BOTH earlier looks, not just the reconciler's. The
+		// window that matters runs from the FIRST observation -- a session that
+		// appears after it and settles before the reconciler's would otherwise
+		// look stable across the last two and be quiesced (#256 M2).
+		if latest.Session != evidence.Session || latest.Presence != evidence.Presence ||
+			(observeErr == nil && (latest.Session != first.Session || latest.Presence != first.Presence)) ||
+			!DecideRecovery(latest).Archive {
 			return ArchiveResult{}, fmt.Errorf("archive %s: helper or session ownership changed before stop", address.Tag)
 		}
 		if err := c.archiveContinuationVacant(record, latest); err != nil {

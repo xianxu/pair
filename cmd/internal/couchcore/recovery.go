@@ -49,12 +49,12 @@ func DecideRecovery(in RecoveryEvidence) RecoveryDecision {
 			return d
 		}
 	}
+	if refusal := RecoverySessionRefusal(in); refusal != "" {
+		d.Diagnosis = refusal
+		return d
+	}
 	switch in.Presence {
 	case PresencePresent:
-		if !in.Detached {
-			d.Diagnosis = "the session has an active client or ambiguous ownership"
-			return d
-		}
 		d.Recover, d.Archive = true, true
 		d.Diagnosis = "session survives; reattach to the running agent"
 	case PresenceAbsent:
@@ -63,10 +63,32 @@ func DecideRecovery(in RecoveryEvidence) RecoveryDecision {
 		if in.Checkpoint {
 			d.Diagnosis = "session is gone; recover a new conversation from the retained checkpoint"
 		}
-	default:
-		d.Diagnosis = "session state could not be checked; inspect and retry"
 	}
 	return d
+}
+
+// RecoverySessionRefusal is the SESSION half of DecideRecovery, on its own so
+// archive can ask it before it writes anything.
+//
+// Everything else DecideRecovery refuses on is debris -- an open park, a start
+// claim, an incarnation shape -- and clearing debris is a durable write. An
+// irreversible step must never precede a revocable check (#256 M1, round 2), so
+// archive asks this first, refuses on it with nothing changed, and only then
+// clears. Keeping it here rather than restating it at the call site is what
+// stops the two from drifting into different answers about the same session.
+//
+// "" means the session does not stand in the way.
+func RecoverySessionRefusal(in RecoveryEvidence) string {
+	switch in.Presence {
+	case PresencePresent:
+		if !in.Detached {
+			return "the session has an active client or ambiguous ownership"
+		}
+		return ""
+	case PresenceAbsent:
+		return ""
+	}
+	return "session state could not be checked; inspect and retry"
 }
 
 // ProjectRecoveryChoices offers inspection, not execution authority. It uses

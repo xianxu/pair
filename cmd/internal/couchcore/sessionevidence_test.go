@@ -354,6 +354,10 @@ func TestParkedRowSurvivesAnUnresolvedSessionQuestion(t *testing.T) {
 //   - incarnation COUNT — round 5: an open park with zero incarnations was never
 //     cleared, so CommitStartClaim refused uncoded and couch would not start
 //   - process liveness and incarnation state — the destructive-act guards
+//   - the START CLAIM and its OWNER — #256 M2: a claim is a THIRD process, the
+//     couch that began the transaction, and it outlives neither the helper nor
+//     the park owner reliably. Folded into the shape dimension because the
+//     validator ties a claim to `creating` and forbids it anywhere else.
 //
 // It fails whenever a new exit appears, which is what the hand-written tests it
 // replaced could not do.
@@ -373,25 +377,56 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 	// defects were shapes nobody had -- a foreign-owned park, then an open park
 	// with zero incarnations -- so the domain must come from `validateLifecycle`,
 	// not from here. A new exit without a cell now fails this test.
+	// shape folds the incarnation's state together with the start claim it may
+	// carry, because validateLifecycle ties the two: a claim is legal only on a
+	// `creating` incarnation, and `creating` is legal only with a claim. Keeping
+	// them as independent dimensions would generate only cells the oracle skips.
+	type shape struct {
+		name  string
+		state IncarnationState
+		// claimOwner is the liveness of the couch that made the start claim, or
+		// nil when this shape carries no claim. It is a SEPARATE process from
+		// the incarnation, which is the whole reason it needs its own column.
+		claimOwner *liveness
+	}
+	ownerDead, ownerUnknown, ownerAlive := dead, unknown, alive
+	shapes := []shape{
+		{name: "live", state: IncarnationLive},
+		{name: "unknown-state", state: IncarnationUnknown},
+		{name: "creating-no-claim", state: IncarnationCreating},
+		{name: "claim/owner-dead", state: IncarnationCreating, claimOwner: &ownerDead},
+		{name: "claim/owner-unknown", state: IncarnationCreating, claimOwner: &ownerUnknown},
+		{name: "claim/owner-alive", state: IncarnationCreating, claimOwner: &ownerAlive},
+	}
+	const claimOwnerPID = 4242
+
 	for _, park := range []string{"none", "matching", "foreign"} {
 		for _, count := range []int{0, 1, 2} {
 			for _, live := range []liveness{dead, unknown, alive} {
-				for _, state := range []IncarnationState{IncarnationLive, IncarnationUnknown} {
+				for _, sh := range shapes {
+					state := sh.state
 					if count == 0 && (live != dead || state != IncarnationLive) {
 						continue // liveness/state are meaningless with no incarnation
 					}
 					if park == "none" && count == 0 {
 						continue // nothing in the way; the function declines by design
 					}
-					name := fmt.Sprintf("%s-park/%d-incarnation/%s/%s", park, count, names[live], state)
+					name := fmt.Sprintf("%s-park/%d-incarnation/%s/%s", park, count, names[live], sh.name)
 					t.Run(name, func(t *testing.T) {
 						store, _ := newTestThreadStore(t)
 						record := actionableTestThread("couch-00000000000000e1", time.Unix(100, 0).UTC())
 						record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
 						for i := 0; i < count; i++ {
-							record.Incarnations = append(record.Incarnations, ThreadIncarnation{
+							incarnation := ThreadIncarnation{
 								PID: 64734 + i, Identity: fmt.Sprintf("tok-%d", i), State: state,
-							})
+							}
+							if sh.claimOwner != nil {
+								incarnation.Start = &ThreadStartClaim{
+									Nonce:    fmt.Sprintf("start-0123456789abcde%d", i),
+									OwnerPID: claimOwnerPID, OwnerIdentity: "supervisor",
+								}
+							}
+							record.Incarnations = append(record.Incarnations, incarnation)
 						}
 						if count == 1 {
 							record.Incarnations[0].Identity = "tok"
@@ -440,9 +475,17 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 						case alive:
 							proc.Set(64734, "tok")
 						}
+						if sh.claimOwner != nil {
+							switch *sh.claimOwner {
+							case unknown:
+								proc.SetUnknown(claimOwnerPID)
+							case alive:
+								proc.Set(claimOwnerPID, "supervisor")
+							}
+						}
 
 						couch := &Couch{Threads: store, Proc: proc}
-						retired, err := couch.retireDeadIncarnationBeforeStart(created)
+						retired, err := couch.clearLifecycleDebris(created)
 
 						// Which cells MAY clear: the process (and, when a park is
 						// present, its owner -- the same pid in this fixture)
@@ -452,7 +495,18 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 						// fixture leaves it unset -- i.e. dead -- so it clears on
 						// the same terms. Two incarnations never clear: the
 						// function refuses rather than guessing which is current.
-						wantClear := live == dead && count <= 1 && (count == 0 || state == IncarnationLive)
+						// A start claim is cleared on its OWN owner's death plus
+						// the forked process's -- two probes, two processes --
+						// and rolls back rather than retiring, because
+						// RetireIncarnation takes only a live incarnation.
+						wantClear := live == dead && count <= 1
+						if count == 1 {
+							if sh.claimOwner != nil {
+								wantClear = wantClear && *sh.claimOwner == dead
+							} else {
+								wantClear = wantClear && state == IncarnationLive
+							}
+						}
 						if wantClear && err != nil {
 							t.Fatalf("a clearable shape refused: %v", err)
 						}
@@ -511,7 +565,7 @@ func TestUnobservableLauncherWithLiveSessionRefusesLegibly(t *testing.T) {
 	proc.SetUnknown(4242)
 
 	couch := &Couch{Threads: store, Proc: proc}
-	_, err = couch.retireDeadIncarnationBeforeStart(created)
+	_, err = couch.clearLifecycleDebris(created)
 	if err == nil {
 		t.Fatal("an unobservable launcher was silently accepted; CommitStartClaim will refuse next, uncoded")
 	}
@@ -623,7 +677,7 @@ func TestForeignOwnedParkIsRepresentableAndRefused(t *testing.T) {
 	proc.Set(42, "original-owner")
 
 	couch := &Couch{Threads: store, Proc: proc}
-	_, err = couch.retireDeadIncarnationBeforeStart(created)
+	_, err = couch.clearLifecycleDebris(created)
 	if err == nil {
 		t.Fatal("abandoned a park whose owner is alive and was never probed")
 	}

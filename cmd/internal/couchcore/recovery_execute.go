@@ -51,10 +51,16 @@ func (c *Couch) observeRecovery(ctx context.Context, record ThreadRecord) (Recov
 		inc := record.Incarnations[0]
 		in.Helper = observeExactProcess(c.Proc, ProcessIdentity{PID: inc.PID, Identity: inc.Identity})
 	}
-	// Open transactions and live/unknown owners need no external session probes.
-	if record.Park != nil || len(record.Incarnations) > 1 || len(record.Incarnations) == 1 && (record.Incarnations[0].Start != nil || record.Incarnations[0].State != IncarnationLive || in.Helper != Dead) {
-		return in, nil
-	}
+	// The session is probed for EVERY record (#256 M2), including ones carrying
+	// an open park, a start claim or an occupied incarnation.
+	//
+	// This used to skip them -- "open transactions and live/unknown owners need
+	// no external session probes" -- which is the same structural defect #256 M1
+	// removed from gatherThreadEvidence: the bookkeeping decided whether the
+	// world got asked, so the evidence that would have freed the record was
+	// never collected. Worse for the caller, it made the session verdict
+	// UNAVAILABLE until the debris was cleared, which forced archive to write
+	// before it could check -- an irreversible step ahead of a revocable one.
 	return c.observeRecoverySession(ctx, record, in)
 }
 

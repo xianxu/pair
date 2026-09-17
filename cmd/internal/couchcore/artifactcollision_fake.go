@@ -249,7 +249,11 @@ func (f *FakeThreadArtifactCollisionChecker) PairSession(address ThreadAddress) 
 	defer f.mu.Unlock()
 	binding, ok := f.pairSessions[address]
 	if !ok || binding.Name == "" {
-		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
+		// Wraps the sentinel, as production does (artifactcollision.go:223).
+		// A fake whose error only READS the same cannot be recognised by
+		// errors.Is, so every hatch keyed to this condition was untestable
+		// through it (ARCH-MOCK, #256 M2).
+		return PairSessionBinding{}, fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
 	}
 	return binding, nil
 }
