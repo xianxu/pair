@@ -8,7 +8,7 @@ updated: 2026-09-16
 estimate_hours:
 ---
 
-# Diagnose input-triggered screen flicker
+# Screen flicker: the compositor writes unsynchronized frames (#255)
 
 ## Problem
 
@@ -19,17 +19,69 @@ same symptom.
 
 ## Spec
 
-Instrument and reproduce the flicker at the terminal/input and compositor
-boundaries. Compare rapid editor input with right-pane output, identify whether
-extra redraws, synchronization, cursor updates, or scheduling cause the flash,
-and fix the root cause without reducing input fidelity.
+**Leading cause, grounded but NOT yet confirmed** (evidence in `## Log`,
+2026-09-16): #255 made pair a compositor. Child bytes are parsed into a cell grid
+and pair re-derives the parent update as a frame diff — `paintPublication`
+(`cmd/internal/terminal/presenter.go:304`) → `Render(p.previous, f)` (`:338`) →
+`p.write`. Synchronized output (DECSET 2026) is implemented at NEITHER boundary, so
+a partially-applied diff of a possibly mid-update frame can reach the screen. Before
+#255 the child's own synchronized update passed through intact, which is why the
+symptom is new.
+
+A synchronized-output bracket is **a framing assertion by whoever writes to a
+terminal**, not payload forwarded down a pipeline. #255 created a second writer, so
+there are two independent obligations. They do not correspond 1:1 — `Present`
+(`presenter.go:406`) coalesces N child frames into one write via a non-blocking
+`wake` send, `Compose` adds chrome no child authored, and a child that never emits
+2026 still produces diffs that tear. A forward-what-was-wrapped design cannot
+express any of those.
+
+**Obligation 1 — emit (M1).** The presenter brackets its own write: BSU before the
+rendered diff, ESU after, around the `Render` → `write` pair at
+`presenter.go:336-341`, gated on the parent advertising the capability. This is the
+half that should stop the operator-visible flicker.
+
+**Obligation 2 — ingest (M2).** `Endpoint.capturePublication`
+(`endpoint.go:242`) publishes unconditionally while the child's 2026 bit is tracked
+and never read (`third_party/vt/mode.go:15`). Gate publication on that bit so a
+frame captured mid-update is not published. #255's plan contracted this behavior and
+it was never built.
+
+**Constraints.**
+
+- Bracket only the synchronous render-and-write. Never hold BSU open across an
+  await, a blocking write, or the partial-write retry path `paintPublication`
+  already has (`accepted`, `WriteFailure`). An ESU that never arrives is a frozen
+  screen, which is worse than a tear. M2's gate needs the same bounded timeout, so a
+  child that opens BSU and stalls cannot freeze the view.
+- Verify 2026 nesting under zellij before shipping. Couch hosts a zellij client that
+  may bracket to the real terminal itself, and nesting is handled inconsistently
+  across implementations. Do not assume counters.
+- Advertise only what is implemented. #255's profile already lists *"synchronized
+  drawing"* as required, so this closes a contract rather than adding a capability.
 
 ## Done when
 
-- A bounded reproduction captures the input sequence and redraw/flush timing.
-- The cause is corrected with no output corruption or lost input.
-- Coverage distinguishes rapid editor input from high-volume right-pane output.
-- Operator smoke testing confirms fast typing and held Delete no longer flicker.
+- **The cause is confirmed before it is fixed.** A bare shell echoing keystrokes —
+  a child that never emits 2026 — reproduces the flicker, and a capture of one
+  frame's parent-bound bytes shows the rendered diff going out unwrapped. If either
+  fails, this Spec is wrong and the issue returns to diagnosis.
+- The parent terminal's 2026 support is detected rather than assumed, and the
+  bracket is skipped when absent, with the no-support path covered.
+- M1: every presenter write that takes the parent through an incoherent
+  intermediate state is bracketed, asserted at the write seam rather than by
+  eyeballing a terminal.
+- M1: no path can emit BSU without a matching ESU — including partial write, write
+  failure, context cancellation and release. Tested for each.
+- M2: a frame captured while the child holds 2026 is not published until the child
+  releases it or the bounded timeout fires; both branches tested.
+- Coverage distinguishes a QUIET screen from a busy one, in either pane — replacing
+  the original rapid-input-vs-heavy-output axis, which the 2026-09-16 revision
+  showed was measuring the masking rather than the bug.
+- Nesting under zellij is verified, and the finding recorded here whichever way it
+  goes.
+- Operator smoke confirms the flicker is gone in both reported regimes: a static
+  agent pane while typing, and a quiet draft nvim while the agent works.
 
 ## Revisions
 
@@ -54,12 +106,38 @@ Delta to `## Done when`: the coverage bullet distinguishing *rapid editor input
 from high-volume right-pane output* is no longer the right axis. It should
 distinguish a QUIET screen from a busy one, in either pane.
 
+### 2026-09-16 — cause identified; this issue turns from diagnosis to repair
+
+`## Spec`, `## Done when` and `## Plan` are rewritten from "instrument and find the
+cause" to the two-obligation repair above. Reason: the 2026-09-16 Log entries trace
+the symptom to #255's compositor boundary and establish that DECSET 2026 is
+implemented at neither end, which also explains why the flicker is NEW — the one
+thing no earlier hypothesis accounted for.
+
+Kept deliberately: `## Problem` stands as filed, and the Spec states the cause as a
+leading hypothesis with a confirming step as the first `## Done when` bullet, rather
+than as settled fact. Nothing here has been measured yet.
+
+Superseded and recorded in `## Log` rather than deleted: H1' (spinner-driven
+repaint — retracted, both spinner timers are gated to transient states that do not
+hold in either regime) and H2 (stdout batching — killed by the flicker being
+global, since `stdoutPump` feeds one pane).
+
+The title changes to match. The filename slug does NOT, because it is the branch
+name.
+
+
 ## Plan
 
-- [ ] Build a focused reproduction and lightweight redraw/input timing trace.
-- [ ] Compare editor input, held Delete, and high-volume right-pane output.
-- [ ] Correct the responsible path and add regression/performance coverage.
-- [ ] Run terminal/compositor tests and obtain operator smoke confirmation.
+- [ ] M1 — Confirm: bare-shell repro + capture one frame's parent-bound bytes
+      showing the diff unwrapped + confirm the terminal advertises 2026. STOP and
+      re-diagnose if this does not hold.
+- [ ] M1 — Bracket the presenter's write; cover every no-ESU-escape path (partial
+      write, failure, cancellation, release) and the terminal-without-2026 path.
+- [ ] M1 — Verify 2026 nesting under zellij; record the finding either way.
+- [ ] M1 — Operator smoke in both quiet regimes.
+- [ ] M2 — Gate `capturePublication` on the child's tracked 2026 bit, with a
+      bounded timeout; test both branches.
 
 ## Log
 
