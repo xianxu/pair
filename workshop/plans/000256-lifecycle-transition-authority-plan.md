@@ -435,29 +435,106 @@ together: `threadreason_test.go`'s `defining` map, `menu_test.go:1259`
 
 ## Chunk 2: M2 — make the rows reachable and prove it
 
-### Task 4: The wedged row offers something
+### Task 4: A start nobody is driving is not a start in flight
 
 **Files:**
-- Modify: `cmd/internal/couchtty/menu.go:1238-1242`, `cmd/internal/couchtty/menu_render.go:432`, `cmd/internal/couchcmd/run.go:770`
-- Test: `cmd/internal/couchtty/menu_test.go`, `cmd/internal/couchcmd/run_test.go`
+- Modify: `cmd/internal/couchcore/actionableinventory.go` (`ThreadEvidence`, `ClassifyThread`, `gatherThreadEvidence`)
+- Test: `cmd/internal/couchcore/classify_test.go`, `cmd/internal/couchcore/startclaim_test.go`
 
-`menu.go:1238` gives a `ThreadBusy` row exactly `name` and `describe`, behind a
-comment asserting the thing Task 2 disproves: *"It resolves on its own."* After
-Task 2 that row is no longer `busy`, so the branch is dead code stating a false
-premise — delete both.
+**Re-scoped 2026-09-17.** The original premise — "after Task 2 that row is no
+longer `busy`, so the branch is dead code" — is **false**. `ThreadBusy` survived
+M1 with a new producer, `startClaimed`, so the busy row needs an **escape**, not
+a deletion. Step 3b already landed in M1: both renderers say *starting*, not
+*parking*.
 
-- [ ] **Step 1:** Write the failing test — the wedged fixture offers `archive`.
-- [ ] **Step 2:** Red.
-- [ ] **Step 3:** Delete the comment and the branch; let `menuActionsFor` fall
-  through to the non-live action set.
-- [ ] **Step 3b: Re-word both renderers.** An earlier draft said the wording
-  "follows automatically — verify, do not edit". That was **wrong**: `ThreadBusy`
-  survives Task 2 with a new referent, so `menu_render.go:432` (`"parking…"`) and
-  `couchcmd/run.go:770` (`"parking in progress"`) now describe the wrong thing.
-  Both become a starting-up wording. Two renderers, one meaning — assert they
-  agree, the way `ThreadReason.Label()` is single-sourced for exactly this reason.
+`startClaimed` is the one piece of bookkeeping M1 deliberately left in the
+classification path, justified because a `ThreadStartClaim` "is recoverable on
+its own terms". It carries `{OwnerPID, OwnerIdentity}` — the couch that began
+the transaction — precisely so those terms can be checked. Nothing checks them.
+So a couch that dies mid-start leaves a row that reads `starting…` forever and
+offers only `name` and `describe`: no detach, no park, no archive, no resume.
+`retireDeadIncarnationBeforeStart` bails on it too (`resume.go:578`, "not
+debris"). That is the #271/#272 wedge in its last hiding place — bookkeeping
+outliving the process it describes.
+
+**The rule: a start is in flight while its claiming couch is alive or
+unprovable. A claim whose owner is provably `Dead` has no driver, and the row
+must report what the world shows instead.** `Unknown` fails closed, as
+`ReconcileStart` already does ("Unknown evidence always keeps capacity
+occupied").
+
+Two domains meet here and the gap must fail closed: `startClaimed` is true when
+**any** incarnation carries a `Start`, while `CurrentStartTransaction` resolves
+only when **exactly one** does. Multiple tracked starts therefore leave
+`StartOwner` at its zero value — `Unknown` — and the row stays `busy`. That is
+the right answer (ownership is unresolved), but it is an answer by construction
+rather than by intent, so it gets its own test.
+
+- [x] **Step 1: Write the failing tests.** Three, against `ClassifyThread`
+  directly, plus one through `gatherThreadEvidence`:
+
+```go
+// A start claimed by a couch that is gone, whose session survived, is detached
+// -- not "starting" forever.
+func TestDriverlessStartClaimClassifiesFromTheWorld(t *testing.T) { … }
+
+// Fail closed: an owner we could not probe keeps the row busy.
+func TestUnprovableStartOwnerKeepsTheRowBusy(t *testing.T) { … }
+
+// The normal case must not regress: this couch's own in-flight start is busy,
+// and stays busy BEFORE the launcher has a pid or a session.
+func TestOwnStartInFlightStaysBusy(t *testing.T) { … }
+
+// The domain gap: two tracked starts cannot resolve an owner, so the row stays
+// busy rather than being released by a zero value read as Dead.
+func TestMultipleTrackedStartsKeepTheRowBusy(t *testing.T) { … }
+```
+
+- [x] **Step 2:** Red — all three release cases currently return `ThreadBusy`.
+- [x] **Step 3: Add the evidence.** `ThreadEvidence.StartOwner Liveness`. Its
+  zero value is `Unknown` (`procops.go:27`), so a record no gather branch
+  reached cannot claim its owner is dead — the same fail-closed-by-construction
+  shape as `SessionUnresolved`. `gatherThreadEvidence` fills it for every record
+  via `CurrentStartTransaction` + the existing `observeExactProcess` helper; a
+  resolution error leaves it `Unknown`.
+- [x] **Step 4: Replace the branch.** `startClaimed(record)` becomes
+  `startInFlight(record, evidence)` — claimed **and** `evidence.StartOwner !=
+  Dead`. Keep it ahead of the live branch: a start this couch is driving still
+  has no session yet, and the comment explaining that ordering stays true.
+- [x] **Step 5:** Green.
+- [x] **Step 6: Mutation-check.** Invert the probe (`== Dead`) and confirm
+  `TestOwnStartInFlightStaysBusy` fails; drop the fail-closed arm and confirm
+  `TestUnprovableStartOwnerKeepsTheRowBusy` fails. A guard nothing pins is not a
+  guard (M1, round 6).
+- [x] **Step 7: Commit** — `#256 M2: a start nobody is driving is not in flight`
+
+### Task 4a: The released row's archive must actually work
+
+**Files:**
+- Modify: `cmd/internal/couchcore/detach.go:226` (`ArchiveThread`)
+- Test: `cmd/internal/couchcore/archive_test.go`
+
+Task 4 alone moves a driverless row out of `busy` and, when its session is also
+gone, into `unusable/session-gone` — where `menuActionsFor` offers `archive`.
+That archive **fails**: `archivableRecord` refuses on `occupiedIncarnation`,
+which counts `creating`. Offering an action that always fails is the exact
+anti-pattern the menu's own comments name, so the two halves ship together.
+
+The rollback already exists and is correct — `rollbackTrackedStart` deletes the
+claim and releases the capacity — and, as in Task 6, it is simply unreachable
+from here. Same shape as `retireDeadIncarnationBeforeStart`: screen before
+writing, and authorize the write with a probe of the entity it acts on.
+
+- [ ] **Step 1: Write the failing test** — a record carrying a start claim whose
+  owner is dead and whose helper is dead is archivable; one whose owner cannot be
+  probed is refused, **with a diagnostic naming what could not be proved**.
+- [ ] **Step 2:** Red — "is creating; park or detach it before archiving".
+- [ ] **Step 3:** Before archiving, roll back a start claim whose owner is
+  provably `Dead` **and** whose helper is not `Live`. Probe each entity
+  separately — the owner couch and the helper are different processes, which is
+  the round-4 lesson. Refuse with a code otherwise.
 - [ ] **Step 4:** Green.
-- [ ] **Step 5:** Commit.
+- [ ] **Step 5: Commit** — `#256 M2: archive can clear a claim with no claimant`
 
 ### Task 5: `DecideRecovery` stops gating on an open park
 
@@ -519,6 +596,68 @@ func TestSpawnedButNeverBoundThreadIsArchivable(t *testing.T) {
   unanswerable probe must still fail closed.
 - [ ] **Step 4:** Green.
 - [ ] **Step 5: Commit** — `#256 M2: an absent binding corroborates death, it does not hide it`
+
+### Task 6b: The ledger is cold-resume authority; the park receipt is not
+
+**Files:**
+- Modify: `cmd/internal/couchcore/actionableinventory.go` (`gatherThreadEvidence`, `ClassifyThread`)
+- Test: `cmd/internal/couchcore/classify_test.go`
+
+**Added 2026-09-17**, answering both questions the M1 continuation left open —
+they are one fact seen from two sides, and the operator chose the unified rule.
+
+`ResolveEstablished` is the ledger read that answers *"is there a native
+conversation to resume into?"* Today it runs only when `record.VerifiedPark !=
+nil` (`actionableinventory.go:522`). So:
+
+- A thread whose session is gone but whose `ledger-<tag>.jsonl` still names a
+  resolvable conversation reads `session-gone` — **archive-eligible** — and
+  nobody asked. M2's other tasks make archive *easier* to reach, so this is the
+  safety half and ships with them.
+- `VerifiedPark` is a **receipt**. It carries a `ParkIdentity`, not a native id.
+  Letting it decide `parked` is bookkeeping deciding recoverability — the exact
+  thing #256 exists to stop, surviving one level below where M1 cut.
+
+**The rule: cold-resumability is a fact about the ledger.** Ask
+`ResolveEstablished` for every resume-shaped record whose session is not
+present, and let the answer — not the receipt — produce the state. `VerifiedPark`
+leaves the classification path entirely, the way `record.Park` and the
+incarnation liveness fields did in M1.
+
+The three-valued discipline carries over unchanged: a ledger that could not be
+read is `ProofUnresolved` → `unusable/unknown`, never `session-gone`.
+
+- [ ] **Step 1: Write the failing tests.**
+
+```go
+// The safety half: a resolvable conversation is not "gone", whatever the
+// bookkeeping says about parks.
+func TestSessionAbsentWithResolvableLedgerIsResumable(t *testing.T) { … }
+
+// The collapse: a park receipt whose ledger no longer resolves is NOT parked.
+func TestParkReceiptWithoutALedgerEntryIsNotParked(t *testing.T) { … }
+
+// Fail closed: an unreadable ledger is unknown, never session-gone.
+func TestUnreadableLedgerIsUnknownNotGone(t *testing.T) { … }
+
+// Cost guard: the extra read happens only when the session is NOT present.
+func TestLiveAndDetachedRowsAskNoLedgerQuestion(t *testing.T) { … }
+```
+
+- [ ] **Step 2:** Red.
+- [ ] **Step 3: Widen the gather.** Resolve the binding for every resume-shaped
+  record whose `Session.State != SessionPresent`, not only the parked ones.
+  Reuse the existing `resumable`/`ParkedStatus` plumbing rather than adding a
+  second channel — the question is the same one, asked of more rows.
+- [ ] **Step 4: Delete the `record.VerifiedPark != nil` gate** from
+  `ClassifyThread`; the proof status and the observation decide.
+- [ ] **Step 5:** Green, and re-run the refresh call-count guard
+  (`countingArtifacts`, `classify_test.go:516`) — the ARCH-CONSTRAINTS budget is
+  what bounds this widening.
+- [ ] **Step 6: Mutation-check** the fail-closed arm, then update the
+  `everyThreadShape` table so the new rows are part of the totality claim rather
+  than beside it.
+- [ ] **Step 7: Commit** — `#256 M2: the ledger decides resumability, not the receipt`
 
 ### Task 7: Sequence tests against the real failure modes
 
@@ -782,6 +921,43 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — M2 opening: Task 4 re-scoped, two tasks added
+
+**Task 4's premise was false, and the M1 close is what disproved it.** The task
+said the `ThreadBusy` menu branch becomes dead code after Task 2, so both the
+branch and its comment should go. But `ThreadBusy` *survived* M1 with a new
+producer — `startClaimed` — so deleting the branch would have left a live state
+with no menu treatment. The row needs an **escape**, not a deletion. Step 3b of
+the old task (re-word both renderers) already landed in M1; the rest is replaced.
+
+**What the escape is.** `startClaimed` is the one piece of bookkeeping M1 left in
+the classification path, on the grounds that a `ThreadStartClaim` is "recoverable
+on its own terms". Those terms are `{OwnerPID, OwnerIdentity}`, and nothing
+consulted them — so a couch dying mid-start left a row reading `starting…`
+forever, offering neither archive nor resume. That is #271/#272's wedge in its
+last hiding place. Task 4 now probes the owner and fails closed on `Unknown`,
+exactly as `ReconcileStart` already does.
+
+**Task 4a added, because half an escape is the anti-pattern.** Releasing the row
+from `busy` lands it on `archive`, and `archivableRecord` refuses a `creating`
+incarnation — an action that always fails. The rollback exists
+(`rollbackTrackedStart`) and is unreachable from archive, the same shape as Task
+6. The two halves ship together or neither does.
+
+**Task 6b added**, resolving both questions the M1 continuation left open. They
+turned out to be one fact: `ResolveEstablished` — the ledger read that answers
+whether a resumable conversation exists — runs only for records carrying a
+`VerifiedPark`. So a session-gone row with a live conversation in its ledger is
+archive-eligible and unasked (the safety half), while a park *receipt* carrying
+no native id is what decides `parked` (the authority half). One rule covers
+both: cold-resumability is a fact about the ledger, and `VerifiedPark` leaves the
+classification path the way `record.Park` did in M1. The operator chose this over
+shipping only the safety half. Deletion, not addition — the rule that re-cut this
+plan the first time.
+
+M2 is now Tasks 4, 4a, 5, 6, 6b, 7.
+
 
 ### 2026-09-17 — M1 boundary review, round 5 (REWORK)
 

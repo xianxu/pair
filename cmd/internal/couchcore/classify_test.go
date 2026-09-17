@@ -218,9 +218,33 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			// between claiming a start and the launcher acquiring a pid would
 			// classify `session-gone` -- an archive-eligible reason -- for a
 			// thread starting normally.
-			name: "start claimed and not yet finished", record: starting,
+			name: "start this couch is driving", record: starting,
+			evidence:  resolved(ThreadEvidence{StartOwner: Live}),
+			wantState: ThreadBusy,
+		},
+		{
+			// Fail closed. An owner nothing could probe is not a dead owner,
+			// and releasing the row on ignorance would offer archive on a
+			// thread that is starting normally.
+			name: "start whose owner could not be probed", record: starting,
 			evidence:  resolved(ThreadEvidence{}),
 			wantState: ThreadBusy,
+		},
+		{
+			// #256 M2: the claim outlived the couch that made it. The agent it
+			// started is still there, so the row reports the world -- it used
+			// to read `starting...` forever, offering neither resume nor
+			// archive.
+			name: "start claimed by a couch that is gone, session survived", record: starting,
+			evidence:  withSession(ThreadEvidence{StartOwner: Dead}),
+			wantState: ThreadDetached, newlyActionable: true,
+		},
+		{
+			// The same driverless claim with nothing left behind it. Archive is
+			// the only honest offer, and `session-gone` is what makes it.
+			name: "start claimed by a couch that is gone, session too", record: starting,
+			evidence:  resolved(ThreadEvidence{StartOwner: Dead}),
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
 			name: "record that fails validation", record: invalid,

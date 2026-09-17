@@ -121,7 +121,7 @@ Rows are the milestones of the durable plan at
 
 - [x] Revalidate the preserved audit findings against current code and coordinate #250/#253/#255. *(Done 2026-09-16: findings 2 and 4 confirmed against HEAD; finding 4's collapse is `actionableinventory.go:582`. Measured the process tree — see Log.)*
 - [x] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion. *(Done 2026-09-17; the class turned out to have FOUR sites, found one at a time — see Log.)*
-- [ ] M2 — Make the operator's rows reachable (`DecideRecovery`'s park gate, the binding-absent hatch, the busy-row menu branch) and verify against real sessions.
+- [ ] M2 — Make the operator's rows reachable (a start claim with no living owner, `DecideRecovery`'s park gate, the binding-absent hatch, the ledger as cold-resume authority) and verify against real sessions.
 - [ ] M3 — Guards consume the classification; preserve Unknown on the destructive paths; archive confirms before stopping a live agent; close the arbitrary lifecycle-mutation door; atlas + lessons.
 
 Split out, both depending on this issue: **#275** (replace the park transaction

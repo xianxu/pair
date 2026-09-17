@@ -116,6 +116,16 @@ type ThreadEvidence struct {
 	// its ~250 ms.
 	Parked       []ParkedResumeObservation
 	ParkedStatus ProofStatus
+	// StartOwner is the liveness of the couch process that CLAIMED this
+	// thread's start -- not the helper it was starting. The two are different
+	// processes, and a claim outlives its claimant.
+	//
+	// Its zero value is Unknown (procops.go:27), so a record no gather branch
+	// reached cannot have its start declared driverless. That is the same
+	// fail-closed-by-construction shape as SessionUnresolved, and it is what
+	// makes the multiple-tracked-starts case safe: CurrentStartTransaction
+	// refuses to resolve one, so nothing is written here at all.
+	StartOwner Liveness
 	// PathError is a working path that could not be physicalized.
 	PathError error
 }
@@ -289,11 +299,12 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if record.Reservation {
 		return ThreadUnusable, ReasonNeverStarted
 	}
-	// A start couch claimed but has not finished. This must precede every
-	// session verdict: between claiming a start and the launcher acquiring a
-	// pid there is no session yet, and without this branch a thread starting
-	// NORMALLY would classify `session-gone` -- an archive-eligible reason.
-	if startClaimed(record) {
+	// A start couch claimed, has not finished, and is still driving. This must
+	// precede every session verdict: between claiming a start and the launcher
+	// acquiring a pid there is no session yet, and without this branch a thread
+	// starting NORMALLY would classify `session-gone` -- an archive-eligible
+	// reason.
+	if startInFlight(record, evidence) {
 		return ThreadBusy, ""
 	}
 	// Couch hosts this thread's process right now. The union behind
@@ -371,6 +382,29 @@ func startClaimed(record ThreadRecord) bool {
 		}
 	}
 	return false
+}
+
+// startInFlight is the whole of that "on its own terms" clause, made to happen.
+//
+// A start is in flight while the couch that claimed it is alive, or while its
+// liveness cannot be established. A claim whose owner is provably Dead has no
+// driver: nothing will advance it, nothing will roll it back until the next
+// couch starts, and reporting it as `starting...` tells the operator to wait for
+// an event that is never coming -- while withholding archive and resume, because
+// `busy` offers neither. That is #271's wedge in its last hiding place, one
+// level below where the classifier's other deletions cut.
+//
+// Unknown keeps the row busy, which is the same direction ReconcileStart already
+// fails ("Unknown evidence always keeps capacity occupied"). Releasing on
+// ignorance would offer to archive a thread that is starting normally.
+//
+// Releasing does not decide anything on its own: the row falls through to the
+// world, and reads live, detached or session-gone exactly as any other record
+// with the same evidence would. The claim itself is untouched -- clearing it is
+// a write, and writes belong to reconcileInterruptedStarts and to the archive
+// path, each of which re-probes before acting.
+func startInFlight(record ThreadRecord, evidence ThreadEvidence) bool {
+	return startClaimed(record) && evidence.StartOwner != Dead
 }
 
 // detachedResumeProofMatches is the warm-session contract shared by execution
@@ -475,6 +509,19 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			return ThreadSnapshot{}, nil, err
 		}
 		item := ThreadEvidence{Live: observed[record.Address]}
+		// Who is driving this thread's start, if anything is. Gathered BEFORE
+		// the resume-shaped gate below, because a record mid-start has no
+		// LatestLaunchProfile yet -- it is written when the start registers --
+		// so gating this on resume shape would leave every driverless claim
+		// unprobed and every such row wedged at `starting...`.
+		//
+		// An unresolvable transaction leaves StartOwner at Unknown, which is
+		// the fail-closed answer. See startInFlight.
+		if c.Proc != nil {
+			if transaction, transactionErr := CurrentStartTransaction(record); transactionErr == nil {
+				item.StartOwner = observeExactProcess(c.Proc, transaction.Owner)
+			}
+		}
 		// Physicalization and binding resolution are RESUME-SHAPED work, and
 		// since #256 that is decided by RESUME AUTHORITY rather than by the
 		// bookkeeping. A record carrying an incarnation DOES reach both now --
