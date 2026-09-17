@@ -351,6 +351,64 @@ func SwitchableState(state ActionableThreadState, reason ThreadReason) bool {
 	return false
 }
 
+// ArchivableState is archive's admission rule as a PURE predicate over the
+// classification, the same shape and for the same reason as SwitchableState:
+// the switcher's offer and the guard's permission cannot be kept in agreement
+// by two authors remembering to.
+//
+// Archive used to ask this of the record, through a predicate over
+// `record.Incarnations`. The incarnation names the launcher -- couch's own
+// child, dead in every crash -- so that answered a question about couch's
+// bookkeeping where the operator was asking one about the world.
+//
+// The rule is NOTHING COUCH IS ACTING ON, and the world decides it:
+//
+//   - `detached` / `parked` -- nothing couch hosts. The ordinary retirement,
+//     and for `detached` the session is stopped first, behind a confirmation
+//     that names the agent.
+//   - `unusable` -- debris, whatever kind. That includes `unreadable`, which is
+//     deliberate: a record couch cannot decode is the one the operator most
+//     wants gone, and refusing would leave a row that can be neither used nor
+//     removed (ThreadStore.archiveThread says the same at its decode).
+//
+// Refused: `unknown`, which is the evidence failing to resolve THIS ROUND and
+// not a verdict about the thread -- archive is irreversible and stops a
+// session, so acting on ignorance is how an operator retires a thread whose
+// agent is still up; `live`, which couch hosts (park or detach it); `busy`,
+// where couch's own start is in flight; and `archived`, which has already left.
+func ArchivableState(state ActionableThreadState, reason ThreadReason) bool {
+	switch state {
+	case ThreadDetached, ThreadParked:
+		return true
+	case ThreadUnusable:
+		return reason != ReasonUnknown
+	}
+	return false
+}
+
+// ResumableState is resume's admission rule over the classification.
+//
+// It reads no reason, and that is a property of ClassifyThread rather than an
+// oversight: resume authority is checked BEFORE either resume-shaped state is
+// emitted (the path, the profile, the agent, and for `parked` the ledger), so a
+// row that carries a reason at all is a row whose resume was already refused.
+// The parameter stays for the signature the action table iterates.
+//
+// Unlike the other two this has no couch-level guard to pair with:
+// ResumeContextWith gathers its own strict evidence -- one `list-clients` for
+// the thread the operator pressed Enter on, then the ledger only if that did
+// not answer -- and re-deriving the classification there would buy a second
+// whole evidence round for a question already decided (ARCH-CONSTRAINTS). Its
+// consumer is SelectResumableRoot, which is the other place production asks
+// "can this row be resumed" and hand-listed the same two states.
+func ResumableState(state ActionableThreadState, _ ThreadReason) bool {
+	switch state {
+	case ThreadDetached, ThreadParked:
+		return true
+	}
+	return false
+}
+
 // ClassifyThread is the single, TOTAL lifecycle rule: every record and its
 // evidence produce a state, and an unusable one always says why.
 //

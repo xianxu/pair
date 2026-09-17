@@ -1395,9 +1395,10 @@ been the same rule in a second place, which is the shape that produced four
 rounds of findings in the first place.
 
 Nothing was deleted to get there. `DecideRecovery`'s park and incarnation-shape
-gates and `archivableRecord`'s occupancy rule each protect a real precondition
-downstream, so they stay; they stop being the **operator's** wall because the
-debris is gone before they run. The operator's second wedged row needed no new
+gates and `archivableRecord`'s unfinished-transaction rule each protect a real
+precondition downstream, so they stay; they stop being the **operator's** wall
+because the debris is gone before they run. (M3 narrowed `archivableRecord`
+itself: the occupancy half moved up to `Couch.ArchiveThread`, which classifies.) The operator's second wedged row needed no new
 rule at all: the cleared record reaches the reconciler carrying no incarnation,
 which the existing binding-absent hatch already admits.
 

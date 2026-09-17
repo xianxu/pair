@@ -32,6 +32,11 @@ var issue256RetiredClaims = map[string]string{
 	"verified-park resume":             "#256 M2: the park receipt is not resume authority; the ledger is",
 	"parked` has two producers":        "#256 M2: there are four, enumerated in everyThreadShape",
 	"switchableWhenNothingRuns":        "#256 M2 round 2 deleted it: asking the session was a second re-derivation",
+	// The store's archive guard. M1 took the occupancy rule out of DecideResume
+	// and M3 took it out of archive: whether a process is running is a fact
+	// about the world, and a decoded record cannot supply one.
+	"archivableRecord's occupancy": "#256 M3: archive's occupancy question moved to ArchivableState over the classification",
+	"occupiedIncarnation":          "#256 M3 folded it into hasOccupiedIncarnation; archive no longer asks it",
 }
 
 // A line that explicitly narrates the retirement is not a restatement of it.

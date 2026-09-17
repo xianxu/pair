@@ -1220,7 +1220,7 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		if recovery.FromCheckpoint {
 			items = append(items, "recover-checkpoint")
 		}
-		if recovery.Archive {
+		if recovery.Archive && menuArchiveOffered(thread) {
 			items = append(items, "archive")
 		}
 		return append(items, "name", "describe")
@@ -1252,6 +1252,9 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		// Naming a thread you cannot enter is still useful -- it is how the
 		// operator marks what a lost row was for -- and archiving is how it
 		// leaves, which is the point of a row that cannot be entered.
+		if !menuArchiveOffered(thread) {
+			return []string{"name", "describe"}
+		}
 		return []string{"archive", "name", "describe"}
 	}
 	if thread.Live() {
@@ -1267,6 +1270,24 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		return []string{"resume", "switch-agent", "archive", "name", "describe"}
 	}
 	return []string{"resume", "archive", "name", "describe"}
+}
+
+// menuArchiveOffered is the ONE place the switcher decides to put archive on a
+// row. Two branches reach that decision -- a row carrying a recovery offer, and
+// a row nothing can be entered on -- and a rule written at one of them is a
+// rule the other keeps not having.
+//
+// It is stated here rather than delegated to couchcore.ArchivableState on
+// purpose, for the reason menuActionItems already carries above: filtering the
+// offer through the guard makes offered-implies-permitted true by construction,
+// and a guard that cannot fail is not a guard. The offer is written, the
+// permission is written, and TestActionOfferedImpliesPermitted compares them.
+func menuArchiveOffered(thread couchcore.ActionableThreadSummary) bool {
+	// "checking..." is not a verdict about the thread -- it says the evidence
+	// did not resolve this round. Archive stops a session and cannot be undone,
+	// so offering it here is how an operator retires a thread whose agent is
+	// still up.
+	return !(thread.State == couchcore.ThreadUnusable && thread.Reason == couchcore.ReasonUnknown)
 }
 
 // confirmationMenuItems names what the operator is about to accept.

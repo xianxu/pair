@@ -184,10 +184,14 @@ view is either machine-checked or it is prose.
 | `ResumeStarting` | `cmd/internal/couchcore/resume.go` | new | M2 |
 | `ResumeLegacyUnverified` | `cmd/internal/couchcore/resume.go` | deleted | M2 |
 | `ThreadParked` | `cmd/internal/couchcore/actionableinventory.go` | modified | M2 |
-| `ArchivableState` | `cmd/internal/couchcore/thread.go` | new | M3 |
 | `AllThreadStates` | `cmd/internal/couchcore/actionableinventory.go` | new | M2 |
-| `archivableRecord` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
+| `ArchivableState` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `ResumableState` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `archiveRefusal` | `cmd/internal/couchcore/detach.go` | new | M3 |
+| `archivableRecord` | `cmd/internal/couchcore/thread.go` | modified | M3 |
+| `hasOccupiedIncarnation` | `cmd/internal/couchcore/thread.go` | modified | M3 |
 | `occupiedIncarnation` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
+| `menuArchiveOffered` | `cmd/internal/couchtty/menu.go` | new | M3 |
 
 - **SessionObservation** — one thread's zellij session as a **three-state**
   answer:
@@ -1051,6 +1055,72 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — M3 opening: three premises re-derived from the tree
+
+Each M3 task's premise was checked against HEAD before starting, the same way
+M2's opening was. Three did not survive, and all three failed in the same
+direction: **M2 moved the layer the task was written against.**
+
+| Task | Premise as written | What the tree says |
+|---|---|---|
+| **8** | "have the **menu** and `Couch.ArchiveThread` consume `ArchivableState`" | The menu must NOT consume it. M2's round-4 finding is explicit at `menu.go:1205`: *"a filter made the sweep's offered-implies-declared direction unfalsifiable — offered became a subset of declared by construction"*. So the offer stays hand-written and only the GUARD (`Couch.ArchiveThread`) consumes; the table compares. Written after the plan, so it supersedes it. |
+| **8a** | resume needs `DecideResume` to consume the classification | It cannot, and should not: `ResumeContextWith` already gathers its own strict evidence (`DetachedSessions`, then the ledger) and would pay a SECOND whole evidence round to classify (ARCH-CONSTRAINTS). The resumable question is answered at the classification layer instead, by `ResumableState`, whose production consumer is `SelectResumableRoot`'s `rank` — which hand-lists `detached`/`parked` today. |
+| **9** | "`ObserveRecordedProcesses`… its consumers are `DecideRecovery` and archive" | False. Its **only** consumer is `gatherThreadEvidence`, feeding the positive-only `evidence.Live`. `DecideRecovery` and `archiveContinuationVacant` probe through `observeExactProcess` and already fail closed on `Unknown`, as does every write in `clearLifecycleDebris`. |
+
+**Task 9 survives with a different defect, and it is the same class as Task 8.**
+An unresolvable probe today produces no live proof, which is indistinguishable
+from a proved-dead one, so the record falls through to the session and can reach
+`session-gone` — an archive-eligible row. Press archive and `observeRecovery`
+probes the same process, gets `Unknown`, and `DecideRecovery` refuses with *"the
+recorded helper is live or its death cannot be proved"*. That is an action the
+switcher offers and the guard always refuses: exactly the invariant Task 8's
+table exists to forbid, reached through the evidence rather than through the
+vocabulary. So Task 9 preserves the uncertainty in `ThreadEvidence` and the
+classifier reports `unusable/unknown`, which `ArchivableState` refuses.
+
+The distinction is narrow on purpose: `Exists` returning `Dead`, and an identity
+token that READS and DIFFERS, are both confirmed answers and still fall through
+(that is #272's fix and it must not regress). Only `Exists == Unknown` and an
+identity that could not be read at all are unresolved.
+
+**`ArchivableState`, derived rather than asserted:**
+
+```
+detached, parked                 -> true   (nothing couch hosts; the ordinary retirement)
+unusable, any reason but unknown -> true   (debris, including `unreadable` — the escape
+                                            that keeps a corrupt record from locking a repo)
+unusable, unknown                -> false  (the evidence did not resolve; archive is
+                                            irreversible and stops a session)
+live, busy, archived             -> false  (couch hosts it / is starting it / it is gone)
+```
+
+`ThreadArchived` is skipped by the table with the same justification the existing
+switch table uses for impossible state/reason pairs — `ProjectActionableThreads`
+cannot produce it — and that justification is pinned rather than asserted, by
+`TestProjectionNeverProducesArchived`.
+
+**Two more shapes this milestone must not hand-wave**, both found while checking
+the above and both the "one more site" pattern M1 and M2 each hit four times:
+
+1. A record whose incarnation is `unknown` and whose process is proved DEAD can
+   never be archived. `clearLifecycleDebris` refuses it, correctly — I first read
+   `RetireIncarnation` as accepting `unknown` and was wrong; that was
+   `FinalizePark` at `threadstore.go:450`, and `RetireIncarnation` refuses
+   `unknown` on purpose, because the detach path has no death proof and retiring
+   there would let an unproven thread present as cleanly detached. The gap is
+   that archive DOES have the proof (`clearLifecycleDebris` establishes exact-identity
+   `Dead` immediately above) and has no transition that accepts it. The shape is
+   production-reachable: `markLiveRecordUnknown` (`couch.go`) marks an incarnation
+   unknown when a start reached a live helper and the console attach then failed,
+   and that helper dies with couch. So the row classifies `detached`/`parked`,
+   offers archive, and refuses every time — a permanent wedge of exactly the kind
+   #271 and #272 were. This is the archive-side record-level gap the M2 re-scope
+   said to expect rather than discover.
+2. The store's narrowed guard (Task 8b) keeps the refusals a DECODED RECORD
+   proves on its own — an open park, an outstanding start claim, both of which
+   are couch's own unfinished transactions — and drops `occupiedIncarnation`,
+   which is a claim about a process the record cannot prove anything about.
 
 ### 2026-09-17 — M2 boundary review, round 4 (FIX-THEN-SHIP) + M3 re-scope
 

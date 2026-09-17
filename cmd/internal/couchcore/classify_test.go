@@ -394,6 +394,39 @@ func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
 	}
 }
 
+// The STATE vocabulary's produced-by guard, and the justification the action
+// tables lean on when they skip `archived`.
+//
+// Both directions, because each catches a different drift: a state with no
+// producer is a branch no test can reach (the reason half of this has caught
+// two), and `archived` having one would mean the switcher can render a row the
+// action predicates were written to consider impossible. `archived` belongs to
+// BuildArchivedInventory, which projects retired records WITHOUT classifying
+// them, so the classifying projection must never emit it.
+func TestProjectionNeverProducesArchived(t *testing.T) {
+	produced := map[ActionableThreadState]bool{}
+	for _, tc := range everyThreadShape(t) {
+		state, _ := ClassifyThread(tc.record, tc.evidence)
+		produced[state] = true
+	}
+	for _, row := range ProjectActionableThreads(ThreadProjectionInput{
+		Unreadable: []ThreadAddress{{RepoScope: "scope", Tag: "couch-0000000000000001"}},
+	}) {
+		produced[row.State] = true
+	}
+	if produced[ThreadArchived] {
+		t.Errorf("the classifying projection produced %q; the action tables skip it as impossible", ThreadArchived)
+	}
+	for _, state := range AllThreadStates() {
+		if state == ThreadArchived {
+			continue
+		}
+		if !produced[state] {
+			t.Errorf("nothing produces state %q", state)
+		}
+	}
+}
+
 var errTestPathBroken = errTestPath{}
 
 type errTestPath struct{}

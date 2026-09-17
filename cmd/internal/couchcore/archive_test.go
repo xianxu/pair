@@ -61,30 +61,22 @@ func TestArchiveThreadRemovesItFromTheWorkingSetAndKeepsTheRecord(t *testing.T) 
 	}
 }
 
-// Archiving a thread couch is hosting would leave the console owning a record
-// the store no longer lists -- a stale incarnation manufactured on purpose.
-func TestArchiveThreadRefusesALiveOrParkingThread(t *testing.T) {
+// The store's half of the archive guard, driven through the REAL store rather
+// than the predicate: what a decoded record proves on its own.
+//
+// An unfinished transaction -- a park in flight, an outstanding start claim --
+// must not be archived through, because it strands a transaction pointing at a
+// record the working set no longer lists.
+//
+// The occupied-incarnation half moved UP in #256 M3 to Couch.ArchiveThread,
+// which classifies: the store cannot probe a process, and since M1 a thread
+// couch is HOSTING can carry no incarnation at all, so the record was never able
+// to answer that question. TestArchiveRefusesEveryOccupiedIncarnationNotJustLive
+// is where the protection lives now.
+func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 
-	live := archivableThread(t, store, "couch-0000000000000001")
-	updated, err := store.UpdateExistingThread(live.Address, live.Revision, func(record *ThreadRecord) error {
-		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-live", State: IncarnationLive}}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	live = updated
-	if err := store.ArchiveThread(live.Address); err == nil {
-		t.Fatal("archived a live thread")
-	}
-	if _, err := store.GetThread(live.Address); err != nil {
-		t.Fatalf("refused archive still removed the record: %v", err)
-	}
-
-	// The mid-park branch this test was named for and never built. A park in
-	// flight is a teardown already underway; archiving through it would leave
-	// the transaction owning a record the store no longer lists.
+	// A park in flight is a teardown already underway.
 	parking := archivableThread(t, store, "couch-0000000000000002")
 	parked, err := store.UpdateExistingThread(parking.Address, parking.Revision, func(record *ThreadRecord) error {
 		record.Incarnations = []ThreadIncarnation{{PID: 43, Identity: "pair-parking", State: IncarnationLive}}
@@ -102,6 +94,9 @@ func TestArchiveThreadRefusesALiveOrParkingThread(t *testing.T) {
 	if err := store.ArchiveThread(begun.Address); err == nil {
 		t.Fatal("archived a thread with a park in flight")
 	}
+	if _, err := store.GetThread(begun.Address); err != nil {
+		t.Fatalf("a refused archive still moved the record: %v", err)
+	}
 	// DISCRIMINATING: the refusal must come from the park, not from the live
 	// incarnation the park needed in order to exist. Deleting the Park branch
 	// left this test green until it asked which rule fired.
@@ -109,6 +104,37 @@ func TestArchiveThreadRefusesALiveOrParkingThread(t *testing.T) {
 		Address: begun.Address, Park: begun.Park,
 	}); err == nil {
 		t.Fatal("a park in flight with no incarnation was archivable -- the park branch is unexercised")
+	}
+
+	// A start claim is couch's own in-flight operation, recoverable on its own
+	// terms; archiving through it loses the transaction that would roll it back.
+	starting := archivableThread(t, store, "couch-0000000000000003")
+	claimed, err := store.CommitStartClaim(starting.Address, starting.Revision, "repo", time.Unix(200, 0).UTC(), StartEvent{
+		Kind: StartClaimed, Nonce: "start-0123456789abcdef", Shape: StartFreshExisting,
+		Owner:   SupervisorOwner{PID: 77, Identity: "owner-couch"},
+		Profile: starting.LatestLaunchProfile,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ArchiveThread(claimed.Address); err == nil {
+		t.Fatal("archived a thread with a start claim outstanding")
+	}
+	if _, err := store.GetThread(claimed.Address); err != nil {
+		t.Fatalf("a refused archive still moved the record: %v", err)
+	}
+
+	// And the half that MOVED: an incarnation alone no longer refuses here.
+	live := archivableThread(t, store, "couch-0000000000000001")
+	occupied, err := store.UpdateExistingThread(live.Address, live.Revision, func(record *ThreadRecord) error {
+		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-live", State: IncarnationLive}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ArchiveThread(occupied.Address); err != nil {
+		t.Fatalf("the store refused on a process it cannot probe: %v", err)
 	}
 }
 
@@ -306,6 +332,14 @@ func TestARefusedArchiveStopsNothing(t *testing.T) {
 	}
 }
 
+// The occupied-incarnation protection, at the layer that can now answer it.
+//
+// #256 M3 moved it out of the store, because whether a recorded process is
+// still running is a fact about the WORLD and a record cannot supply one.
+// Couch.ArchiveThread classifies instead: an incarnation naming a process the
+// OS still vouches for makes the row `live`, and archive refuses there --
+// whatever lifecycle state the record claims for it, which is the half this
+// test's name has always insisted on.
 func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
 		t.Run(string(state), func(t *testing.T) {
@@ -318,8 +352,23 @@ func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := store.ArchiveThread(updated.Address); err == nil {
-				t.Fatalf("archived a thread with a %s incarnation", state)
+			proc := NewFakeProcOps()
+			proc.Set(42, "pair-x")
+			artifacts := NewFakeThreadArtifactCollisionChecker()
+			artifacts.SetPairSession(updated.Address, "pair-x-session", true)
+			couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+
+			_, err = couch.ArchiveThread(context.Background(), updated.Address)
+			if err == nil {
+				t.Fatalf("archived a thread whose %s incarnation is still running", state)
+			}
+			// DISCRIMINATING: several record-shaped guards downstream would also
+			// produce an error here, and this test is about the classification.
+			if !strings.Contains(err.Error(), string(ThreadLive)) {
+				t.Fatalf("refusal does not name the classification that produced it: %v", err)
+			}
+			if got := artifacts.Quiesces(); len(got) != 0 {
+				t.Fatalf("a REFUSED archive stopped %+v", got)
 			}
 			if _, err := store.GetThread(updated.Address); err != nil {
 				t.Fatalf("a refused archive still moved the record: %v", err)

@@ -42,7 +42,11 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 		return 0
 	}
 	for _, row := range rows {
-		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath || rank(row) == 0 {
+		// Eligibility is ResumableState, shared with the switcher's own
+		// resume offer; rank only breaks ties among rows already eligible.
+		// They were two hand-written lists of the same two states.
+		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath ||
+			!ResumableState(row.State, row.Reason) {
 			continue
 		}
 		// A row with no recorded activity carries the ZERO time, which is Before
@@ -65,12 +69,13 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 // The occupancy questions, and why they are not one function.
 //
 // Three predicates read a thread's state and they are deliberately distinct,
-// because they ask different things: `occupiedIncarnation` asks whether
-// something is still ACTING on a thread (archive's rule since #256 -- resume no
-// longer reads it, because the launcher it names dies with couch); `PathHoldsUsableThread` asks whether a
-// path already holds work; `PathHoldsUnreadableThread` asks whether a scope
-// holds something couch could not read. Collapsing them would force one answer
-// onto three questions.
+// because they ask different things: `hasOccupiedIncarnation` asks whether couch
+// itself is mid-operation on a thread, which is what relaunch and switch-agent
+// need in order to know there is a source to park (archive stopped asking it in
+// #256 M3 -- it is bookkeeping, and archive's question is about the world);
+// `PathHoldsUsableThread` asks whether a path already holds work;
+// `PathHoldsUnreadableThread` asks whether a scope holds something couch could
+// not read. Collapsing them would force one answer onto three questions.
 //
 // What must not drift is their OVERLAP: anything `PathHoldsUsableThread`
 // counts as holding a path must also be something the operator can reach, and

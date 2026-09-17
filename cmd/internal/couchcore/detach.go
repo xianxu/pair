@@ -248,6 +248,29 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	// the store, so a park-in-flight thread had its session killed and was then
 	// refused -- the agent dead, the record still listed.
 	if readErr == nil {
+		// ADMISSION FIRST, through the same door the switcher's offer is
+		// compared against (#256 M3): ArchivableState over the classification.
+		//
+		// `archivableRecord` used to answer this, and it asked the RECORD. Since
+		// M1 the record cannot answer it: couch's own hosting is the live proof,
+		// so a thread couch is hosting may carry no incarnation at all -- and
+		// that row passed the occupancy rule and went straight to Quiesce, which
+		// kills the session its agent is running in. The record keeps a
+		// narrower, record-only guard below; this is the one that knows what the
+		// thread IS.
+		//
+		// It is read-only, so it costs nothing to be wrong about and precedes
+		// every write. Its cost is one evidence round -- one host-wide
+		// `list-sessions`, and the ledger only for this address, because the
+		// `ask` predicate narrows it -- on an operator keypress, the same bill
+		// PrepareAgentSwitch pays for the same reason.
+		state, reason, classifyErr := c.classifyForAction(ctx, address)
+		if classifyErr != nil {
+			return ArchiveResult{}, fmt.Errorf("archive %s: its state could not be classified; inspect and retry: %w", address.Tag, classifyErr)
+		}
+		if !ArchivableState(state, reason) {
+			return ArchiveResult{}, fmt.Errorf("archive %s: %s", address.Tag, archiveRefusal(state, reason))
+		}
 		// ORDER, in two steps, and the order is the guard (#256 M2).
 		//
 		// 1. Ask the session. It is read-only, and it is the one refusal that
@@ -257,12 +280,12 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		// 2. Then clear the debris, on the same terms resume does.
 		//
 		// The other guards below -- DecideRecovery's park and incarnation-shape
-		// gates, archivableRecord's occupancy rule -- are structural: they say
-		// what the recovery may safely act on, and each protects a real
-		// precondition downstream, so none of them is removed. They stopped
-		// being the OPERATOR's wall instead, because by the time they run, a
-		// park whose owner is provably gone and a start claim whose couch is
-		// provably gone are no longer there.
+		// gates, archivableRecord's unfinished-transaction rule -- are
+		// structural: they say what the recovery may safely act on, and each
+		// protects a real precondition downstream, so none of them is removed.
+		// They stopped being the OPERATOR's wall instead, because by the time
+		// they run, a park whose owner is provably gone and a start claim whose
+		// couch is provably gone are no longer there.
 		first, observeErr := c.observeRecovery(ctx, record)
 		switch {
 		case observeErr != nil && !errors.Is(observeErr, ErrPairSessionBindingAbsent):
@@ -373,6 +396,28 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 		return ArchiveResult{}, err
 	}
 	return ArchiveResult{Record: record, SessionNotStopped: readErr != nil}, nil
+}
+
+// archiveRefusal says what to DO about a row archive will not take, and it is
+// called only for a classification ArchivableState refuses -- so its arms are
+// exactly `live`, `busy`, `archived` and `unusable/unknown`, pinned by
+// TestArchiveRefusalCoversEveryRefusedClassification.
+//
+// Guidance lives here, at the consumer, rather than as a field every producer
+// carries (#256 M1, round 3): the classification says what the thread IS, and
+// archive is the only caller that needs to say what to do about it instead.
+func archiveRefusal(state ActionableThreadState, reason ThreadReason) string {
+	switch state {
+	case ThreadLive:
+		return "it is live -- couch is hosting its agent; detach or park it first"
+	case ThreadBusy:
+		return "it is busy -- a start is in flight; let it finish or be released"
+	case ThreadArchived:
+		return "it is archived already"
+	case ThreadUnusable:
+		return "its state is unresolved (" + reason.Label() + "); nothing is known well enough to stop it, so retry"
+	}
+	return "it is " + string(state) + " and cannot be archived"
 }
 
 // A retained request may name a live source/target even after its incarnation
