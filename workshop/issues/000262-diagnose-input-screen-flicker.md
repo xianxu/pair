@@ -42,24 +42,32 @@ the caret's blink timer — small, global, non-corrupting, and worse when quiet,
 because under heavy output the cursor sits hidden between `?25l` and the next
 `?25h` with no blink to disturb.
 
-**Repair: emit invariant parent state ON CHANGE, not per frame.** The pattern is
-already in this file — `parentModeDelta` (`presenter.go:287`) returns `""` when
-mouse tracking is unchanged, backed by `confirmedModes` + `modesKnown`. The preamble
-does not participate. Six of the eight sequences are state the presenter itself
-established on the previous frame:
+**Candidate repair: emit invariant parent state ON CHANGE, not per frame.** The
+pattern is already in this file — `parentModeDelta` (`presenter.go:287`) returns
+`""` when mouse tracking is unchanged, backed by `confirmedModes` + `modesKnown`.
+The preamble does not participate.
 
-| sequence | purpose | delta-able |
+**But "invariant across frames" is the wrong test on its own** (see the 2026-09-17
+Log entry, from ariadne#232). Deltaing requires a SOUND BELIEF about the parent,
+which needs two things the sequences do not share: a single writer, and a confirm
+path. Both columns matter:
+
+| sequence | invariant across frames | belief sound? |
 |---|---|---|
-| `ESC[?6l` | origin mode off | yes |
-| `ESC[r` | DECSTBM reset | yes |
-| `ESC[?7l` | autowrap off | yes |
-| `ESC[0m` | SGR reset | yes — `Render` already tracks `style` through the paint |
-| OSC8 close | close hyperlink | yes — it tracks `link` too |
-| `ESC[<N> q` | DECSCUSR shape+blink | **yes — do this one first** |
-| `ESC[?25l` / `?25h` | hide/show during paint | keep; legitimate |
+| `ESC[?6l` | yes | needs exclusivity (M2) + confirm path |
+| `ESC[r` | yes | **two writers today**; confirm is async-only |
+| `ESC[?7l` | yes | needs exclusivity (M2) + confirm path |
+| `ESC[0m` | yes | `Render` tracks `style` internally — belief is local |
+| OSC8 close | yes | `Render` tracks `link` internally — belief is local |
+| `ESC[<N> q` | yes | **single writer, idempotent — sound. Do this one first** |
+| `ESC[?25l` / `?25h` | no | keep; legitimate per-frame |
 
 The cursor hide/show pair stays: it exists so the caret is not seen crossing the
 screen mid-paint. DECSCUSR is cleanly separable from it.
+
+The right-hand column is the whole difference between M1 and M3. The two rows whose
+belief is LOCAL to `Render` (`ESC[0m`, OSC8) are tractable; the mode rows are not,
+for the reason in the prerequisite below.
 
 **Invalidate and re-assert the full preamble on:** first paint (the existing
 `!known` branch), partial or failed write, and resize. #255's plan already mandates
@@ -79,9 +87,23 @@ rather than being paranoia.
 
 Deltaing the preamble while a second writer can silently reset margins behind the
 presenter would trade a subtle flicker for occasional real corruption — strictly
-worse. Hence the milestone order below: the DECSCUSR fix needs NO exclusivity
-(nothing else writes cursor style), so it ships first; the rest waits on
-reconciliation.
+worse.
+
+**And exclusivity is only half the blocker. The other half is confirmability.**
+Even with M2 done, the presenter would be maintaining belief about state it cannot
+synchronously read back: confirming a DEC mode or the scroll region means DECRQM /
+DECRQSS, whose reply returns ASYNCHRONOUSLY through the input stream. So the belief
+is permanently one round-trip stale — the async-confirm case, which sits nearer
+write-only than controlled-proxy.
+
+Under that classification **`render.go`'s convergent re-assert may be CORRECT for
+the class, not waste to be eliminated.** A convergent write is the standard
+treatment for state you cannot cheaply confirm. That reframes M3: its job is to
+decide whether there is a job, not to finish one that was assumed.
+
+Hence the milestone order below: the DECSCUSR fix needs neither exclusivity nor a
+confirm path, so it ships first; the mode sequences wait on M2 and then on that
+decision.
 
 **Synchronized output (DECSET 2026) is a COMPLEMENT, not the fix.** It is
 implemented at neither boundary (`grep -rn 2026 cmd/` is empty; the child's bit is
@@ -112,13 +134,24 @@ sequenced after the delta work, not instead of it.
 - M1: DECSCUSR is emitted only when cursor shape or blink actually changed, asserted
   at the render seam — a one-cell diff with an unchanged cursor emits no cursor-style
   sequence. Operator smoke confirms both reported regimes.
+- M1: **the comparison participates in the existing invalidation discipline.**
+  `prev.Cursor` is what pair last RENDERED, which equals what the terminal holds
+  only if that write landed. So the belief resets on partial write, write failure
+  and resize — the way `modesKnown` already does — rather than trusting `prev`
+  unconditionally. Tested for each. (Narrow and sound because cursor style has a
+  single writer and the write is idempotent; it is still a belief.)
 - M2: the parent has exactly ONE writer, or every other writer reports what it
   changed so the presenter's belief stays accurate. `hostty/control.go:27`'s
   *"lives here and only here"* claim is either made true or corrected.
-- M3: each remaining invariant preamble sequence is emitted on change only, with
-  re-assert covered for first paint, partial write, write failure and resize.
-- M3: no frame can leave the parent in a state the presenter does not believe it is
-  in — pinned by a test diffing believed-vs-emitted across a frame sequence.
+- M3: each remaining preamble sequence is CLASSIFIED against the primitives that
+  back it — single writer or not, confirm path synchronous, asynchronous, or absent
+  — and the classification recorded. Deltaing a sequence whose belief cannot be
+  kept sound is a finding, not a win; keeping a convergent re-assert because it is
+  correct for the class is a valid outcome of M3 and closes it.
+- M3: for any sequence that IS deltaed, re-assert is covered for first paint,
+  partial write, write failure and resize, and no frame can leave the parent in a
+  state the presenter does not believe it is in — pinned by a test diffing
+  believed-vs-emitted across a frame sequence.
 - M4: a frame captured while the child holds 2026 is not published until it is
   released or the bounded timeout fires; both branches tested. Nesting under zellij
   verified and the finding recorded whichever way it goes.
@@ -202,13 +235,16 @@ fails.
 
 - [ ] M1 — Confirm the premise (see the test-inference Log entry). STOP and
       re-diagnose if it does not hold.
-- [ ] M1 — Emit DECSCUSR only on shape/blink change. Needs no exclusivity; nothing
-      else writes cursor style. Operator smoke in both quiet regimes.
+- [ ] M1 — Emit DECSCUSR only on shape/blink change, with the comparison hooked
+      into the existing partial-write/failure/resize invalidation. Needs no
+      exclusivity and no confirm path. Operator smoke in both quiet regimes.
 - [ ] M2 — Reconcile the two parent writers: route `hostty.Reservation`'s paints
       through the presenter, or have them report their mutations. Make
       `hostty/control.go:27`'s claim true or correct it.
-- [ ] M3 — Delta the remaining preamble sequences; cover re-assert on first paint,
-      partial write, failure and resize.
+- [ ] M3 — Classify each remaining preamble sequence against its primitives
+      (writer count, confirm path). Delta only what the primitives sustain;
+      keeping a convergent re-assert is a valid outcome. Cover re-assert on first
+      paint, partial write, failure and resize for anything deltaed.
 - [ ] M3 — Optional, once the churn is gone: BSU/ESU around the write, gated on the
       parent advertising 2026, with no path able to emit BSU without ESU.
 - [ ] M4 — Gate `capturePublication` on the child's tracked 2026 bit with a bounded
@@ -685,3 +721,39 @@ which is a further reason to lead with the byte check. If the premise confirms b
 M1 does not fix the flicker, this assumption is the first place to look, and the
 DECSTBM reset (`\x1b[r`, emitted every frame) becomes the next suspect among the
 preamble items.
+
+### 2026-09-17 — M3's premise is in question (from ariadne#232)
+
+A design discussion on ariadne's ARCH-ORDER produced a classification that applies
+directly here, and it is recorded in **ariadne#232** (a revision to ARCH-ORDER:
+separate provenance from authority, and bound the modeled extent of external
+state). Referenced, NOT a dependency — the principle revision does not gate this
+fix.
+
+**The rule:** a model of external state should be closed under the primitives that
+state exposes. A modeled attribute needs both a single writer and a confirm path
+before you may maintain belief about it instead of re-asserting it.
+
+**Applied to the preamble:** confirming a DEC mode or the scroll region requires
+DECRQM / DECRQSS, whose replies return asynchronously through the input stream.
+Belief is therefore permanently one round-trip stale — the async-confirm case,
+nearer write-only than controlled-proxy. Combined with the second writer
+(`hostty.Reservation`), the mode sequences fail both tests.
+
+**So `render.go`'s convergent re-assert may be correct for the class.** A convergent
+write is the standard treatment for state you cannot cheaply confirm, and this
+issue's earlier framing — that the re-assert is waste to be eliminated — was itself
+the over-modeling the rule forbids. M3 is re-scoped accordingly: classify first,
+and closing M3 by KEEPING the re-assert with the classification written down is a
+legitimate outcome.
+
+**M1 is unaffected in substance but gained a requirement.** Cursor style has a
+single writer and an idempotent write, so the belief is sound. But it IS a belief:
+`prev.Cursor` is what pair last rendered, not what the terminal holds, and
+`paintPublication` has a partial-write path. M1 must therefore reset on partial
+write, failure and resize like `modesKnown` does. That requirement was not written
+down before and is exactly the kind of thing a one-line-looking change drops.
+
+Two rows are unaffected by all of this: `ESC[0m` and the OSC8 close have beliefs
+LOCAL to `Render` (it already tracks `style` and `link` through the paint), so they
+need no external confirm path at all.
