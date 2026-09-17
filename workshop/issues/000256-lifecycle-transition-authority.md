@@ -1,11 +1,12 @@
 ---
 id: 000256
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-16
 estimate_hours:
+started: 2026-09-16T20:08:18-07:00
 ---
 
 # Enforce lifecycle transition authority and outcome uncertainty
