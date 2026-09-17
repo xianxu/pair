@@ -251,11 +251,21 @@ matters, not turned speculatively.
    operator archived it anyway, which is a legitimate choice; the record is in
    `archive/` and `RestoreThread` exists if that conversation is ever wanted.
 
-3. **M2's new producer via `zellij kill-session`. OUTSTANDING**, owner: the
-   operator. Kill a live thread's session out from under couch and confirm the
-   row reads `parked` rather than `session-gone`, that Enter cold-resumes into
-   the same conversation, and that `switch-agent` on it succeeds — the last is
-   BR-33's own shape and the least exercised outside tests.
+3. **M2's new producer via `zellij kill-session`. ✓** `zellij kill-session
+   '📁ariadne-couch-10'` (thread `couch-ff764f69b258e5d6`) killed the session out
+   from under couch. The row read **`parked`**, not `session-gone`, and Enter
+   reattached into the same conversation. This is the behaviour Task 6b
+   introduced and the single best end-to-end test of M2: before it, nothing asked
+   the ledger for a thread with no park receipt, so the row was archive-eligible
+   with a live conversation still recorded.
+
+**No orphan from the cycle.** After the kill and the resume the store holds five
+records, each with exactly one incarnation and no verified park, and the resumed
+thread reused `couch-ff764f69b258e5d6` with its original binding
+(`📁ariadne-couch-10`) rather than minting a new one. That is evidence for the
+RESUME path; #273's orphans came from *fresh starts* failing before
+registration, which this cycle did not exercise. The fresh-start count stays
+worth a glance over the next few days, but nothing here reproduces it.
 
 **M2's operator verification is DEFERRED, owner: the operator.** Three items in
 the plan need a live couch and cannot be discharged by the suite:
