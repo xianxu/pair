@@ -141,6 +141,12 @@ justification for the inversion existing.
 
 ### Later, same predicate
 
+**CORRECTED 2026-09-17 — this paragraph is wrong.** The picker case is not
+deferred work awaiting this predicate; it already works through the overlay
+branch of `decidePlainReturn`, which emits bare CR on `overlayActive`. Whatever
+remains is overlay-DETECTION coverage, not a shared rule. Kept for the record;
+see `## Plan` and the 2026-09-17 `## Log`.
+
 Named so the rule reads as a rule, not scoped in: a numbered menu answer
 (`1`, `2`) or `y`/`n` while a picker is up is the same shape — a closed
 utterance addressed to the harness. That one keys on agent *state* rather than
@@ -171,25 +177,32 @@ predicate, different input.
 
 ## Plan
 
-TENTATIVE — written 2026-09-17 without a brainstorm. Three decisions below are
-open and may reshape it; settle them first. One boundary, no `Mx`: shipping the
-agent pane without the draft pane leaves the two panes disagreeing, and that
-agreement is the stated justification for the inversion existing at all.
+TENTATIVE — written 2026-09-17, decisions settled by the operator the same day
+(see `## Log`). One boundary, no `Mx`: shipping the agent pane without the draft
+pane leaves the two panes disagreeing, and that agreement is the stated
+justification for the inversion existing at all.
 
-**Open decisions (settle before the plan is trusted):**
+**Decisions, settled:**
 
-- **Leading whitespace.** The predicate says the sigil is the FIRST character.
-  Confirm that is wanted — an indented ` /usage` is more likely a paste than a
-  command, which argues for first-character, but it should be a decision rather
-  than a side effect.
-- **Which sigils per harness.** `/` is the motivating one. Claude also has
-  line-committed `!` (bash) and `#` (memory); Codex, agy and muse have their own
-  sets. Enumerate per harness rather than generalising from Claude, and decide
-  whether a sigil with a *different* grammar (`!ls -la` has spaces and slashes in
-  its tail) needs a per-sigil pattern rather than one shared token grammar.
-- **Whether the draft pane ships in the same pass.** The Spec says yes. If the
-  recognizer refactor turns out larger than it looks, that is the natural place
-  to cut — but cutting it is a scope decision, not a discovery.
+- **No leading whitespace — but measure from the TEXT REGION, not the row.** The
+  `\s*` in the operator's original sketch was composer CHROME (the box border,
+  the prompt indicator, the padding), not user-typed space: *"the white space I
+  mentioned is not something cursor can be, just part of prompt."* The harness
+  already models this — `minCursorX` is *"the first column the harness leaves for
+  composer text"* (`composer_recognizers.go:136`; 2 for both Claude and muse) and
+  `ruledBoxComposerActive` already refuses when `Cursor.X < spec.minCursorX`
+  (`:145`). So the predicate reads from `minCursorX`, and "first character" means
+  first character of the text region. No `\s*` in the pattern; user-typed leading
+  space disqualifies.
+- **Sigils are configurable per harness; `/` and `!` are the common two.** Ship
+  both as the default set, configurable rather than hardcoded. The existing token
+  grammar covers both (`!ls -la` → sigil, `[A-Za-z]` head, `\s.*` tail), so one
+  shared pattern is enough for now. The case to check during implementation is a
+  sigil followed by a non-alpha — `!./script.sh`, `!../x` — which today's grammar
+  REJECTS (falls back to newline). Confirm that is wanted rather than discovering
+  it in use.
+- **The draft pane ships in the same pass.** Per the Spec. If the recognizer
+  refactor grows, cutting it is a scope decision to state, not a discovery.
 
 **Steps:**
 
@@ -224,10 +237,15 @@ agreement is the stated justification for the inversion existing at all.
       is a screen-reading change on a live tty. Cover all four harnesses, or state
       which were not exercised and why.
 
-**Explicitly out of scope** (named in the Spec as "later, same predicate"): the
-picker/`y`/`n`/numbered-answer case. It keys on agent state via `overlayDetector`
-rather than composer text, so it is the same rule over a different input and a
-separate issue.
+**Explicitly out of scope: the picker / `y`/`n` / numbered-answer case — and it
+needs no predicate at all.** The Spec's "Later, same predicate" paragraph
+mischaracterises it (corrected there). It is ALREADY handled, by a different
+mechanism: `decidePlainReturn`'s first branch emits bare `\r` with `adapt.Bypass`
+when `overlayActive` (`harness_tty.go:112-120`), and the composer-inactive path
+never remaps. Operator: *"that's handled generically, basically without a cursor
+we default to `<CR>` as submission."* Any residual work there is COVERAGE of
+`overlayDetector` — which overlays it recognises — not a new rule, and belongs to
+its own issue.
 
 
 ## Log
@@ -271,3 +289,30 @@ while writing it, so the plan does not rest on the Spec's prose alone:
   and picks up muse with no extra case. Muse is also the one whose `plainCR`
   carries a runtime precondition (progressive-enhancement push); this branch does
   not touch that path.
+
+### 2026-09-17 — decisions settled, and one Spec paragraph corrected
+
+Operator answered all three open questions.
+
+**Leading whitespace** — the answer reframed the question rather than picking a
+side. The `\s*` in the original sketch was never user input; it was composer
+chrome. *"there shouldn't be leading white space. but really depending on where
+you measure. the white space I mentioned is not something cursor can be, just
+part of prompt."* Confirmed in code: `minCursorX` already names that boundary
+(`composer_recognizers.go:136`) and the recognizer already refuses a cursor left
+of it (`:145`). So the predicate is first-character-of-text-region, with the
+region's origin being `minCursorX` — which is also why the recognizer returning
+its located region (the structural change this issue turns on) is what makes the
+predicate expressible at all. The two halves fit better than they looked.
+
+**Sigils** — configurable per harness, `/` and `!` as the common pair, shipped as
+defaults. One shared token grammar covers both; the open sub-case is a sigil
+followed by non-alpha (`!./script.sh`), which today's pattern rejects.
+
+**Picker case** — out of scope, and the Spec's "Later, same predicate" framing was
+wrong. Confirmed in code before correcting it: `decidePlainReturn`'s FIRST branch
+already returns bare `\r` with `adapt.Bypass` and `submits: false` when
+`overlayActive` (`harness_tty.go:112-120`), commented *"pair-local picker confirm;
+never reaches the agent"*. So it is handled by overlay detection, not by a
+composer-text predicate, and it shares no machinery with this rule. The Spec
+paragraph is annotated rather than deleted.
