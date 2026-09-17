@@ -153,9 +153,9 @@ CPU and under 100 MB.
 
 ## Plan
 
-- [ ] Prove the disposition and its origin: probe a live pane for its SIGHUP
-  disposition and walk the launch chain (zellij server → `sh -c` → `pair
-  term`) to find where `SIG_IGN` enters. The hypothesis above is unproven.
+- [ ] Prove the disposition and its origin. *(Disposition PROVED 2026-09-17 from
+  #256 M3 — see Log; what remains is the ORIGIN: walk the launch chain (zellij
+  server → `sh -c` → `pair term`) to find where `SIG_IGN` enters.)*
 - [ ] Enumerate every process pair spawns and classify each as session-scoped
   or deliberately detached — the fix must not reap the second group.
 - [ ] Implement the chosen shape; restore `SIG_DFL` for pane processes.
@@ -165,6 +165,37 @@ CPU and under 100 MB.
   reaping pre-existing orphans.
 
 ## Log
+
+### 2026-09-17 — the inheritance hypothesis is PROVED, from #256 M3
+
+#256 M3 Task 10 needed to know what `zellij delete-session --force` reaps before
+it could word archive's confirmation, so it ran the probe this issue's first Plan
+item asks for. Recorded here because the answer is this issue's, not #256's.
+
+Two runs, `zellij 0.45.1`, same fixture, throwaway session
+(`pair256-quiesce-probe` / `pair256-inherit-probe`), one variable — the SIGHUP
+disposition of the shell that launched the session:
+
+| Launching shell | Pane child after `zellij delete-session --force` |
+|---|---|
+| default SIGHUP | **gone** |
+| `trap '' HUP` (SIG_IGN) | **alive**, reparented to PID 1 |
+
+Within the first run, a child with `trap '' HUP` survived while its sibling with
+the default disposition died, so the reaping mechanism is confirmed to be
+**SIGHUP to the pane's foreground process group** — not SIGKILL, and not a
+zellij-side process sweep.
+
+So the hypothesis in **Why it happens** is right: the disposition is inherited,
+`SIG_IGN` anywhere up the launch chain reaches every pane process, and Go
+preserves it. The first Plan item narrows from "prove the disposition and its
+origin" to just the origin — *which* link in couch's chain (bin/pair's historical
+`& disown`, the zellij server's own launch, or `pair wrap`) introduces it.
+
+**Consequence already shipped in #256 M3:** archive's confirmation on a detached
+row says the session stops *and its running agent may survive*, rather than
+promising a stop couch cannot deliver. When this issue lands, that wording gets
+to become a promise.
 
 ### 2026-09-16
 

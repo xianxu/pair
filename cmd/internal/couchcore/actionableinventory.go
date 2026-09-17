@@ -148,6 +148,17 @@ type ThreadEvidence struct {
 	// makes the multiple-tracked-starts case safe: CurrentStartTransaction
 	// refuses to resolve one, so nothing is written here at all.
 	StartOwner Liveness
+	// Unproven is the NEGATIVE side of Live: recorded processes the OS would
+	// not answer about, either way.
+	//
+	// Live is positive-only and its absence proves nothing, which is #272's
+	// fix -- but "nothing" was reached identically by a probe that said Dead
+	// and by one that could not say. The first is a confirmed answer the
+	// session verdict may safely override; the second is not, and following it
+	// produces an archive-eligible row for a thread whose helper may still be
+	// running. Its zero value is empty, which is correct: a record with no
+	// recorded process has nothing to be uncertain about.
+	Unproven []ProcessIdentity
 	// PathError is a working path that could not be physicalized.
 	PathError error
 }
@@ -155,15 +166,23 @@ type ThreadEvidence struct {
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
 type ActionableThreadSummary struct {
-	Recovery         *RecoveryDecision     `json:"recovery,omitempty"`
-	Continuation     *ContinuationStatus   `json:"continuation,omitempty"`
-	Address          ThreadAddress         `json:"address"`
-	StartingPath     string                `json:"starting_path"`
-	WorkingPath      string                `json:"working_path"`
-	Name             string                `json:"name,omitempty"`
-	Description      string                `json:"description,omitempty"`
-	PublishedSummary string                `json:"published_summary,omitempty"`
-	State            ActionableThreadState `json:"state"`
+	Recovery         *RecoveryDecision   `json:"recovery,omitempty"`
+	Continuation     *ContinuationStatus `json:"continuation,omitempty"`
+	Address          ThreadAddress       `json:"address"`
+	StartingPath     string              `json:"starting_path"`
+	WorkingPath      string              `json:"working_path"`
+	Name             string              `json:"name,omitempty"`
+	Description      string              `json:"description,omitempty"`
+	PublishedSummary string              `json:"published_summary,omitempty"`
+	// Agent is the agent this thread would launch, read from its saved launch
+	// profile. Empty when there is no profile to read one from, which is the
+	// `never-started` and `profile-missing` shapes.
+	//
+	// It exists so a destructive confirmation can NAME what it is about to
+	// stop: the frame title never reaches the screen, so the item is the only
+	// place the operator learns which agent archive is aimed at.
+	Agent string                `json:"agent,omitempty"`
+	State ActionableThreadState `json:"state"`
 	// Reason is set exactly when State is ThreadUnusable, and says why.
 	Reason       ThreadReason `json:"reason,omitempty"`
 	LastActiveAt time.Time    `json:"last_active_at,omitempty"`
@@ -277,6 +296,7 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 			Name:             record.Name,
 			Description:      record.Description,
 			PublishedSummary: record.PublishedSummary,
+			Agent:            launchProfileAgent(record),
 			State:            state,
 			Reason:           reason,
 			LastActiveAt:     record.LastActiveAt,
@@ -293,6 +313,16 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 		return rows[i].Address.Tag < rows[j].Address.Tag
 	})
 	return rows
+}
+
+// launchProfileAgent is the row's agent, or "" when the record names no
+// profile. One reader of LatestLaunchProfile.Agent for the projection, so a
+// nil-profile record cannot panic its way into the switcher.
+func launchProfileAgent(record ThreadRecord) string {
+	if record.LatestLaunchProfile == nil {
+		return ""
+	}
+	return record.LatestLaunchProfile.Agent
 }
 
 // AllThreadStates is the state vocabulary itself, for the same reason
@@ -451,6 +481,24 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	// running thread as detached -- #181's "one store, two stories".
 	if len(evidence.Live) != 0 {
 		return ThreadLive, ""
+	}
+	// No live proof, and a recorded process couch could not ask about. That is
+	// ignorance, not absence, and every verdict below is a positive claim: the
+	// session branch would call this thread `detached` or `session-gone` on
+	// evidence that says nothing about the helper still recorded against it.
+	//
+	// It sits here, ahead of the durable refusals, because it is the one that
+	// must not lose a tie -- `session-gone` and `profile-missing` are both
+	// archive-eligible, and `unknown` is the reason archive declines. It sits
+	// BELOW the live branch because a confirmed live proof is not undone by a
+	// second incarnation nobody could reach, and below `busy` because a start in
+	// flight is decided by its own owner's liveness, not the helper's.
+	//
+	// A probe that answers Dead, and an identity token that reads and DIFFERS,
+	// are confirmed answers and never land here -- they fall through to the
+	// session, which is the whole of #272's fix.
+	if len(evidence.Unproven) != 0 {
+		return ThreadUnusable, ReasonUnknown
 	}
 	// Resume authority gates BOTH the warm and the cold path, and must be
 	// checked before either. Reattaching still goes through DecideResume, which
@@ -659,8 +707,17 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	for _, observation := range observations {
 		add(observation.Address, observation.Process)
 	}
+	unproven := map[ThreadAddress][]ProcessIdentity{}
 	for _, observation := range c.ObserveRecordedProcesses(snapshot.Records) {
-		add(observation.Address, observation.Process)
+		switch observation.Liveness {
+		case Live:
+			add(observation.Address, observation.Process)
+		case Unknown:
+			// Kept rather than dropped: a probe that could not answer is the
+			// one case where falling through to the session would turn
+			// ignorance into a confirmed verdict (#256 M3).
+			unproven[observation.Address] = append(unproven[observation.Address], observation.Process)
+		}
 	}
 
 	// Session presence for EVERY record, not only the resume-shaped ones. One
@@ -698,7 +755,10 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		if err := ctx.Err(); err != nil {
 			return ThreadSnapshot{}, nil, err
 		}
-		item := ThreadEvidence{Live: observed[record.Address], Session: presence[record.Address]}
+		item := ThreadEvidence{
+			Live: observed[record.Address], Unproven: unproven[record.Address],
+			Session: presence[record.Address],
+		}
 		// Who is driving this thread's start, if anything is. Gathered BEFORE
 		// the resume-shaped gate below, because a record mid-start has no
 		// LatestLaunchProfile yet -- it is written when the start registers --
@@ -810,11 +870,18 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 // the switcher about the same store -- the exact split (#181) exists to close.
 // The defence against a recycled PID is the same either way: the kernel start
 // token must match the one recorded at launch.
-func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []LiveTTYObservation {
-	if c == nil || c.Proc == nil {
-		return nil
-	}
-	var observations []LiveTTYObservation
+// RecordedProcessObservation is one recorded process and what the OS said about
+// it. The Liveness is the POINT of the type: this pass used to return only the
+// positive answers, so "could not ask" and "proved gone" arrived at the
+// classifier as the same silence.
+type RecordedProcessObservation struct {
+	Address  ThreadAddress
+	Process  ProcessIdentity
+	Liveness Liveness
+}
+
+func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []RecordedProcessObservation {
+	var observations []RecordedProcessObservation
 	for _, record := range records {
 		for _, incarnation := range record.Incarnations {
 			// Every recorded incarnation, not only the ones claiming to be
@@ -824,20 +891,27 @@ func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []LiveTTYObserv
 			if incarnation.PID <= 0 || incarnation.Identity == "" {
 				continue
 			}
-			if c.Proc.Exists(incarnation.PID) != Live {
-				continue
-			}
-			identity, err := c.Proc.Identity(incarnation.PID)
-			if err != nil || identity != incarnation.Identity {
-				continue
-			}
-			observations = append(observations, LiveTTYObservation{
-				Address: record.Address,
-				Process: ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity},
+			process := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
+			observations = append(observations, RecordedProcessObservation{
+				Address: record.Address, Process: process,
+				// No prober at all is ignorance, not absence -- the same
+				// reading gatherThreadEvidence gives a session resolver that
+				// is missing or fails. Production always supplies one.
+				Liveness: observeExactProcessOrUnknown(c, process),
 			})
 		}
 	}
 	return observations
+}
+
+// observeExactProcessOrUnknown is observeExactProcess with the nil-prober case
+// spelled out, so the one caller that runs over EVERY record does not have to
+// decide what a missing prober means on its own.
+func observeExactProcessOrUnknown(c *Couch, process ProcessIdentity) Liveness {
+	if c == nil || c.Proc == nil {
+		return Unknown
+	}
+	return observeExactProcess(c.Proc, process)
 }
 
 // LabelRow is one row's identity for display: what it would like to be called,

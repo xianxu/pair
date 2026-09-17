@@ -1329,6 +1329,24 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		// the session first: a record filed while its agent keeps running is
 		// the forgotten thread couch exists to prevent.
 		item += " — stops its session"
+		if thread.Detached() {
+			// A detached row's agent is RUNNING behind a session couch does not
+			// host, so this confirmation is the last thing between the operator
+			// and stopping it. Naming it is the operator's decision (2026-09-16).
+			//
+			// "may survive" is a MEASUREMENT, not hedging: `zellij
+			// delete-session --force` reaps a pane by SIGHUP, and a pane process
+			// that inherited SIG_IGN outlives it. Measured both ways on
+			// 2026-09-17 -- same fixture, the only variable being the launching
+			// shell's disposition -- and #274's 106 orphaned `pair term` trees
+			// are that regime in production. Promising the agent stops would be
+			// a claim couch cannot keep; #274 owns making it keepable.
+			agent := thread.Agent
+			if agent == "" {
+				agent = "agent"
+			}
+			item += ", though its running " + agent + " may survive"
+		}
 	case "relaunch":
 		// Same reason, different confusion: the one thing an operator needs to
 		// know here is what park would have destroyed and this does not, and

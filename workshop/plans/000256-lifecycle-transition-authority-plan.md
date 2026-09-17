@@ -194,6 +194,11 @@ view is either machine-checked or it is prose.
 | `menuArchiveOffered` | `cmd/internal/couchtty/menu.go` | new | M3 |
 | `RetireUnprovenIncarnation` | `cmd/internal/couchcore/threadstore.go` | new | M3 |
 | `retireIncarnation` | `cmd/internal/couchcore/threadstore.go` | new | M3 |
+| `RecordedProcessObservation` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `observeExactProcessOrUnknown` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `ThreadEvidence.Unproven` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `ActionableThreadSummary.Agent` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `launchProfileAgent` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
 
 - **SessionObservation** — one thread's zellij session as a **three-state**
   answer:

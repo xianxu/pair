@@ -192,6 +192,15 @@ func TestArchiveRetiresAnUnprovenIncarnationItProvedDead(t *testing.T) {
 // The other direction, which is why the transition is separate rather than a
 // widened RetireIncarnation: an `unknown` incarnation whose process CANNOT be
 // proved dead stays exactly where it is.
+//
+// Since Task 9 the refusal arrives one layer EARLIER than it used to, and that
+// is the point rather than an accident: an unprovable recorded process makes the
+// row classify `unusable/unknown`, so archive declines at the admission rule,
+// having asked nothing further and written nothing. clearLifecycleDebris's own
+// death-proof screen is still there and still refuses with a code --
+// TestReAdoptionExitsAreTotalAndCoded drives it over every record shape -- but
+// this path no longer reaches it, so asserting that code here would pin a
+// layer this test does not exercise.
 func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
@@ -213,8 +222,10 @@ func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
 	if err == nil {
 		t.Fatal("archived a thread whose recorded helper could not be proved dead")
 	}
-	if code := ResumeDiagnosticOf(err); code != ResumeUnknown {
-		t.Fatalf("refusal code = %q, want %q -- the death-proof screen is what must refuse here", code, ResumeUnknown)
+	// DISCRIMINATING: the classification is what must refuse, so its answer has
+	// to be in the message. A bare err != nil would pass on any of four guards.
+	if !strings.Contains(err.Error(), ReasonUnknown.Label()) {
+		t.Fatalf("refusal does not name the unresolved classification: %v", err)
 	}
 	if got := artifacts.Quiesces(); len(got) != 0 {
 		t.Fatalf("a REFUSED archive stopped %+v", got)
