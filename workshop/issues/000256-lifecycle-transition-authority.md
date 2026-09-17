@@ -120,7 +120,7 @@ Rows are the milestones of the durable plan at
 `workshop/plans/000256-lifecycle-transition-authority-plan.md`.
 
 - [x] Revalidate the preserved audit findings against current code and coordinate #250/#253/#255. *(Done 2026-09-16: findings 2 and 4 confirmed against HEAD; finding 4's collapse is `actionableinventory.go:582`. Measured the process tree — see Log.)*
-- [ ] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion.
+- [x] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion. *(Done 2026-09-17; the class had three sites — see Log.)*
 - [ ] M2 — Make the operator's rows reachable (`DecideRecovery`'s park gate, the binding-absent hatch, the busy-row menu branch) and verify against real sessions.
 - [ ] M3 — Guards consume the classification; preserve Unknown on the destructive paths; archive confirms before stopping a live agent; close the arbitrary lifecycle-mutation door; atlas + lessons.
 
@@ -129,6 +129,63 @@ with an ordered idempotent write) and **#276** (surface couch-tagged agents with
 no thread record — carries #272's corresponding Done-when).
 
 ## Log
+
+### 2026-09-17 — M1: one class, three sites
+
+`ClassifyThread` no longer reads `Incarnation` liveness or `record.Park`. Both
+filed bugs fall out of the deletion, and the two shapes are asserted to classify
+IDENTICALLY, which is the claim: the zellij server is PPID 1 at birth, so a
+couch death kills only the launcher and a clean detach leaves the same external
+state a crash does.
+
+**The class had three sites, and only running it found the last two.**
+
+1. `ClassifyThread` — the one the plan named.
+2. `DecideResume` (`resume.go:98,104`) refused on the incarnation, so a row the
+   switcher advertised as `detached` could not resume. This was the
+   plan-quality gate's Critical finding; the over-engineering re-cut had
+   dissolved it for the classifier only. Pulled forward from M3 — M1 cannot be
+   green while a guard contradicts the classification it feeds.
+3. `CommitStartClaim` then refused a record still carrying the dead launcher's
+   incarnation. Its own comment is right that one-incarnation-at-a-time is a
+   store invariant rather than a lifecycle opinion, so the CALLER retires the
+   stale claim, gated on confirmed `Dead` — an unobservable process must never
+   cause a running agent to be abandoned.
+
+Site 3 is the **re-adoption** task the re-cut dropped, on the reasoning "you do
+not re-adopt what you never disowned". That held for the classifier and was false
+for every guard downstream of it. Both plan reviewers had flagged re-adoption;
+the re-cut talked itself out of it one layer too early.
+
+`ThreadBusy` survives with exactly one producer — a `ThreadStartClaim`, which is
+couch's record of its OWN in-flight operation, not a claim about an external
+process. Without it, the window between claiming a start and the launcher
+acquiring a pid would classify `session-gone`, an archive-eligible reason, for a
+thread starting normally.
+
+Retired `stale-incarnation` and `unrecorded-child`: both named a disagreement
+between record and observation, and there are no longer two sides to disagree.
+`unrecorded-child` returns with #276, which gives it a producer; keeping it as a
+placeholder would have silenced the guard that found it.
+
+The refresh stopped counting clients entirely — presence is one host-wide
+`list-sessions` — so the optimistic-inventory decision is now in the code.
+
+Scale, for the calibration ledger: ~20 test expectations restated, each with why.
+Several encoded the bugs as requirements (*"a stale live incarnation stays
+hidden"*, *"an occupied incarnation refuses even with the detached proof"*). None
+weakened to pass. Two repo guards fired correctly — the new file had to join
+`artifactpath`'s exhaustive inventory, and `occupiedResumeCode` became dead and
+was deleted rather than allowlisted.
+
+Verification: `make test` with the retention-owner env scrub and a non-symlinked
+`TMPDIR` — **210 packages ok, exit 0, zero failures.**
+
+A note on method: two earlier "failures" in this milestone were **pipe
+artifacts**, not code. Piping `make test` into `head`/`tail` SIGPIPEs the run and
+make reports an error with no failing package. Redirect to a file and grep the
+file.
+
 
 ### 2026-09-16 — Over-engineering audit; re-cut around one rule
 
