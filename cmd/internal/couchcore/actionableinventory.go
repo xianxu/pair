@@ -23,10 +23,11 @@ const (
 	//
 	// The authority is the LEDGER, not `record.VerifiedPark` (#256 M2): a
 	// receipt names a ParkIdentity and no conversation, so it attests that a
-	// park happened and never that anything survived it. Two records therefore
-	// produce this state -- one parked deliberately, one whose session simply
-	// died while its ledger kept the conversation -- and every consumer must
-	// accept BOTH. That enumeration is the rule
+	// park happened and never that anything survived it. FOUR record shapes
+	// produce this state -- a receipt whose session is absent; a ledger that
+	// resolves with no receipt at all; a receipt whose session could not be
+	// asked about; and a driverless start claim whose ledger still resolves --
+	// and every consumer must accept ALL of them. That enumeration is the rule
 	// `TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` pins, after
 	// a widened producer set reached one reader that had not been swept.
 	ThreadParked ActionableThreadState = "parked"
@@ -622,8 +623,12 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		for i := range snapshot.Records {
 			addresses = append(addresses, snapshot.Records[i].Address)
 		}
-		if observed, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil {
-			presence = observed
+		// Named `resolved`, not `observed`: the outer `observed` is the LIVE
+		// proof map, and two different "what we saw" values under one name in
+		// one function is how a reader loses track of which world is being
+		// described.
+		if resolved, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil {
+			presence = resolved
 		}
 	}
 

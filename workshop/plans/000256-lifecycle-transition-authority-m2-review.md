@@ -455,3 +455,192 @@ Suite state at HEAD: `couchcore`, `couchtty`, `couchcmd` fail only on `ptychild:
 3. **`## Revisions` — I1: the atlas.** `:1488` "two producers" → four, enumerated; `:1498` delete the `switchableWhenNothingRuns` sentence so the paragraph pair stops contradicting itself.
 4. **Record `SwitchableState`'s widening as a decision, not a side effect.** It permits `unusable/binding-lost` and `unusable/session-gone`, which the menu does not offer — the doc calls that a deliberate superset. Note that the superset removed the `verified live actor` refusal for records carrying an occupied incarnation in those states, and say which guard owns it now.
 5. **Move the Minor test-coverage rules into M3's task list as checked steps**, since both are the same shape as Task 8's plan: a guard's test discriminates the guard's own exit, and a test named for a production entry point invokes it.
+
+---
+
+## Re-review — 2026-09-17T15:35:59-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 256 — Enforce lifecycle transition authority and outcome uncertainty |
+| repo | pair |
+| issue file | workshop/issues/000256-lifecycle-transition-authority.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2d137941e1ccc9a28b1f83683e41e9ba2295a963..1857eaefb7b73d19f1ab5ea95d3b53fd76a6e3f5 |
+| command | sdlc milestone-close --issue 256 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-17T15:35:59-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 3's two headline fixes are real and pinned: I reverted each in a scratch tree at HEAD and watched the regression go red (reverting `SwitchAgent`'s park predicate to `hasOccupiedIncarnation` reds `TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted`, `…OnTheUnusableStatesItPermits/session-gone…` and the `driverless_start_claim_with_a_ledger/switch-agent` cell; deleting the hosted-no-incarnation guard reds its message-discriminating test; dropping `parked` from `SelectResumableRoot` reds the new `TestStartInteractiveAdopts…`; reverting `startInFlight` to `startClaimed` reds all four worlds of the orphaned-claim shape). BR-33, BR-35, BR-36 and BR-37 are all genuinely closed. What blocks a clean SHIP is BR-34, which is **not addressed**: round 3 swept the `verified park` string but never grepped the *second* retired referent, so six sites still state rules the code deleted — including two production doc comments (`resume.go:239,245`, `relaunch.go:111`) that describe a `DecideResume` occupancy refusal M1 removed, the `ThreadParked` declaration itself claiming **two** producers where the code, the test and the atlas all say four, and the atlas paragraph this window *edited* (`atlas/couch.md:33-38`) still gating `parked` on "no active park transaction … or occupied incarnation" when `everyThreadShape` has two `parked` rows that carry exactly those. That is prose-only — no runtime effect — so it should not cost a fourth round, but the rule has now failed to land seven times and the finding is the rule, not the sites.
+
+## 1. Strengths
+
+- **The enumeration finally crosses the right axis.** `parkedproducers_test.go` runs 4 producers × 3 actions, each driven to *completion* in a fresh env (`:105-145`), and its totality domain is derived from `everyThreadShape` rather than its own literal (`:186-196`). Reverting the classifier to receipt-authority reds 8 tests across the package — the class is now covered from several independent directions.
+- **`SwitchableState` (`actionableinventory.go:327-348`) is the right shape**: a pure predicate over `(state, reason)` that both the offer (`couchtty/menu.go`) and the guard call, with `TestSwitchAgentOfferedImpliesPermitted` deriving its domain from `AllThreadStates() × AllThreadReasons()`. Offered-implies-permitted now holds by construction.
+- **Archive's revocable-before-irreversible ordering** (`detach.go:253-290`) is correctly built: `RecoverySessionRefusal` is asked with nothing written, `clearLifecycleDebris` screens every precondition before its first write, and the final recheck compares `latest` against *both* earlier looks (`:327-336`) so a session that appears and settles between them cannot look stable.
+- **ARCH-SECURE on the new probe is airtight by construction**: `threadrecord/record.go:177` makes `OwnerPID > 0 && OwnerIdentity != ""` a validation requirement, so a persisted claim can never be probed as PID ≤ 0, and `couch.go:944` turns an identity mismatch into `Dead` — pinned by the "pid recycled by another process" row at `startclaim_test.go:52`.
+- **The fake now wraps the production sentinel** (`artifactcollision_fake.go:252-256`) and that is pinned, not just asserted: unwrapping it reds `TestSpawnedButNeverBoundThreadIsArchivable`. Good ARCH-MOCK repair.
+
+## 2. Critical findings
+
+None.
+
+## 3. Important findings
+
+- **BR-34 remains open** — see the disposition below. Six sites, two retired referents, one of them never grepped.
+
+## 4. Minor findings
+
+- `warm_failure_test.go:176` — the assertion was widened to `parked || (unusable && session-gone)`; only one route (`3-registration-timed-out`) reaches that branch and it deterministically yields `parked`, so the `session-gone` arm is the **pre-M2 verdict** kept alive as dead slack. Measured: reverting `ClassifyThread` to receipt-authority leaves this test green.
+- `switchagent.go:34-41` — `PreparedAgentSwitch.state`, the round-3 C1 fix, has no row in the plan's Core-concepts tables; `TestIssue256PlanTablesMatchTheTree` only checks rows→tree, never tree→rows, which is the half of round 3's C2 finding ("four production symbols with no row") that stayed unchecked.
+- `actionableinventory.go:624` — `if observed, presenceErr := …` shadows the outer `observed` live-proof map inside the presence block. Harmless today, confusing in a file where both names mean "what we saw".
+- ARCH-CONSTRAINTS: the cold-side ledger read (`actionableinventory.go:707`) is now per-record-without-a-live-session on **every** refresh. `TestWarmRowsAskNoLedgerQuestion` bounds the warm side; nothing bounds the cold side, and the 0.62 ms figure in the `## Log` is 6 records against fakes. Honestly declared as a known gap — noted so M3 does not lose it.
+
+## 5. Test coverage notes
+
+Full-suite run at HEAD (`go test ./cmd/internal/{couchcore,couchtty,couchcmd,artifactpath}/...` with the retention-owner env scrub): every failure is a sandbox `operation not permitted` on a pty child — 23 occurrences, all in `ptychild`/`pty.Open`/`mkdir /tmp/pcnotify-*`. No logic failure. `go vet` clean on both changed packages.
+
+Four independent mutation checks confirmed the new guards are pinned (listed in the summary). The one uncovered direction is the `couchcmd` half of BR-35: `run_test.go:406` was retuned to `BindingUnbound` and no `TestInteractiveLaunch…Adopts…` sibling was added, but the decision it would exercise lives in `StartInteractive`, which the new `couchcore` test drives end-to-end — so this is not a gap worth a round.
+
+## 6. Architectural notes for upcoming work
+
+- **ARCH-DRY** pass — `clearLifecycleDebris` gives the four-site sweep one home that resume, archive *and* switch-agent all call; `RecoverySessionRefusal` is extracted rather than restated at the call site.
+- **ARCH-PURE** pass — `ClassifyThread`, `startInFlight`, `SwitchableState`, `RecoverySessionRefusal`, `coldResumeAuthorized` are all pure over `(record, evidence)`; `classify_test.go` and `lifecyclesequence_test.go` run them with no IO at all.
+- **ARCH-PURPOSE** flag — the executable half of the purpose is delivered and swept as a class; the documentation half of BR-34's own stated rule is the instance-fix again (one referent grepped, the other not).
+- **ARCH-MOCK** pass; **ARCH-ORDER** pass (the four cannot-block events are enumerated and tested as a property, and `StartOwner`'s zero value makes Unknown fail closed by construction — `startclaim_test.go:101` asserts that zero value directly, which is the right way to pin a by-construction claim).
+- **ARCH-FUNERAL** pass — no new durable family; `clearLifecycleDebris` *is* a removal path, and `ErrThreadRolledBack` names the case where the record itself goes.
+- For **M3 Task 8**: `SwitchableState` + `classifyForAction` is the template to copy for `ArchivableState`. One thing to carry over deliberately — `PrepareAgentSwitch` needed a second, record-level guard (`!hasOccupiedIncarnation`) *after* consuming the classification, because `live` does not imply "there is bookkeeping to act on". Archive will have the same gap in the other direction.
+
+## 7. Plan revision recommendations
+
+- Add a `## Revisions` entry recording that BR-34's grep is a **two-referent** check, and add `PreparedAgentSwitch.state` to the Integration-points table (or state why an unexported field is out of scope, given `ThreadEvidence.StartOwner` is in).
+- Extend `TestIssue256PlanTablesMatchTheTree` with the tree→rows direction, or record in the plan that the check is deliberately one-way and the other half stays manual.
+
+```findings
+dispose:
+  - id: BR-33
+    disposition: addressed
+    note: |
+      Mutation-verified: reverting the commit's park predicate to hasOccupiedIncarnation reds 3 tests; deleting the hosted-no-incarnation guard reds its message-discriminating test; everyThreadShape now carries the driverless-claim row and the producers table derives totality from it.
+  - id: BR-34
+    disposition: not-addressed
+    note: |
+      One referent was grepped, the second never was; six sites remain, two of them production doc comments.
+  - id: BR-35
+    disposition: addressed
+    note: |
+      TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves drives StartInteractive and reds when ThreadParked leaves SelectResumableRoot's rank (mutation-verified).
+  - id: BR-36
+    disposition: addressed
+    note: |
+      The subsumed late unresolved-session branch is deleted; the receipt exception now decides the distinction where it is made.
+  - id: BR-37
+    disposition: addressed
+    note: |
+      Renamed TestResumeTombstonedIsReachableFromProduction, t.Skipf is now t.Fatalf, and it drives ResumeContext rather than DecideResume.
+findings:
+  - id: new
+    severity: Important
+    family: stale-wording-after-referent-change
+    title: |
+      BR-34 not addressed: only one of the two retired referents was grepped, and the ThreadParked declaration itself now states the wrong producer count
+    detail: |
+      This is the 7th finding in family stale-wording-after-referent-change. Do NOT fix
+      these six sites one at a time. Round 3 swept the string "verified park" and
+      reported the rule as landed, but the sweep covered ONE referent. A SECOND
+      referent retired in M1 -- "DecideResume refuses any occupied incarnation" -- was
+      never grepped, and a THIRD claim (the producer COUNT of ThreadParked) was fixed
+      in the atlas by round 3 and left wrong at the declaration.
+      Measured, at HEAD: actionableinventory.go:26-28, the doc comment ON ThreadParked,
+      says "Two records therefore produce this state" while the code, everyThreadShape,
+      parkedproducers_test.go and atlas/couch.md:1462 all say FOUR. resume.go:239 says
+      CheckResumePreconditions exists because "it cannot ask DecideResume, which refuses
+      any occupied incarnation", and resume.go:245 says "what stays with DecideResume is
+      ... the occupancy refusal"; relaunch.go:111 repeats it verbatim -- M1 deleted that
+      refusal, and DecideResume now ADMITS a live relaunch target, so the stated
+      rationale for the split is false. atlas/couch.md:881 is BR-34's own fourth named
+      site, edited around and left intact. atlas/couch.md:33-38 is BR-34's second named
+      site: round 3 replaced "verified park exists" with "its LEDGER resolves" but kept
+      "with no active park transaction, reservation or occupied incarnation" (false --
+      the "park timed out" and "driverless start claim with a ledger" shapes in
+      everyThreadShape classify parked while carrying exactly those) and never touched
+      the `live` half, which still states the pre-M1 rule "one durable live PID/start
+      identity exactly matches one observed TTY owner" (false -- TestSwitchAgentRefuses
+      AThreadCouchHostsWithNoIncarnation builds a live row with no incarnation at all).
+      atlas/couch.md:597 names "legacy-unverified records" and :1631 defines a parked
+      thread as one with "an exact verified resume handle and no occupied incarnation";
+      ResumeLegacyUnverified was deleted in this very window.
+      The rule, stated at the level that covers all of them: NO PROSE RESTATES THE
+      CLASSIFICATION OR GUARD BRANCH TABLE. Every such passage -- atlas, terminology
+      entry, and exported/unexported doc comment alike -- points at ClassifyThread,
+      everyThreadShape or the named guard instead of paraphrasing it, which is the
+      decision M1 round 5 already made FOR THE PLAN and never applied anywhere else.
+      Where a count or a rule must appear in prose, it carries the test that derives it,
+      the way TestIssue256PlanTablesMatchTheTree now does for the Core-concepts tables.
+      And the boundary close's grep step takes a LIST of retired referents, checked in,
+      not the one string the last finding happened to name.
+  - id: new
+    severity: Minor
+    family: fixture-retuned-to-preserve-old-verdict
+    title: |
+      warm_failure_test's row assertion was widened to keep admitting the pre-M2 verdict, so its only reachable route cannot detect a revert
+    detail: |
+      This is the 2nd finding in family fixture-retuned-to-preserve-old-verdict, so the
+      rule is the deliverable: an assertion must pin the verdict its premise DETERMINES,
+      never a disjunction that still admits the verdict the change replaced.
+      Measured at warm_failure_test.go:176. Exactly one route reaches the else-branch
+      (3-registration-timed-out; the other five set sessionSurvives), and instrumenting
+      it shows it deterministically yields state="parked" reason="". The added
+      `|| (unusable && session-gone)` arm is therefore unreachable -- and it is exactly
+      the pre-M2 answer. Confirmed by mutation: restoring `record.VerifiedPark != nil &&`
+      in front of the parkedResumeProofMatches branch of ClassifyThread -- the receipt-
+      as-authority defect this milestone exists to remove -- leaves this test GREEN.
+      (Eight other tests do red, so nothing ships uncovered; the finding is the
+      assertion, not the coverage.) The comment above it claims it was "re-derived from
+      the premise rather than loosened until it passed", which is the claim the
+      disjunction contradicts.
+  - id: new
+    severity: Minor
+    family: plan-code-divergence
+    title: |
+      The derived-view check runs rows-to-tree only, so the "production symbols with no row" half of round 3's C2 is still unchecked -- and this window added one
+    detail: |
+      This is the 5th finding in family plan-code-divergence. TestIssue256PlanTablesMatch
+      TheTree (plan_contract_256_test.go:113-165) asserts every landed row's symbol is
+      declared (or, for `deleted`, is not) at its stated path. It never walks the other
+      way, which is the direction round 3's C2 finding named as "four production symbols
+      with no row at all". The plan's own prose still carries that half as a manual step
+      ("git diff --stat <prev boundary>..HEAD -- '*.go' for files whose new symbols have
+      no row"), and it was not run: PreparedAgentSwitch.state (switchagent.go:34-41) --
+      the field that IS round 3's C1 fix -- has no row, while ThreadEvidence.StartOwner,
+      an equally structural field, does. The rule: a derived view is machine-checked in
+      BOTH directions, or the unchecked direction is written down as deliberately manual
+      with the reason, rather than left as prose the check appears to cover.
+  - id: new
+    severity: Minor
+    family: envelope-declared-not-enforced
+    title: |
+      The cold-side ledger read now scales with store size on every refresh and no test bounds it
+    detail: |
+      actionableinventory.go:707 asks ResolveEstablished for every resume-shaped record
+      whose session is not present, on every refresh -- replacing a gate that fired only
+      for park-receipt holders. TestWarmRowsAskNoLedgerQuestion bounds the warm side (a
+      hosted row and a detached row pay nothing) and nothing bounds the cold side; the
+      recorded figure (0.62 ms, 6 records, fakes) does not establish growth. The issue
+      Log declares this honestly as a known gap, which is why this is Minor and not
+      Important -- the finding is that a declared envelope needs an enforcing assertion
+      the way SessionPresenceQueries()==1 and DetachedQueries()==0 got one in M1, not a
+      prose note that a later reader has to find. Same shape one layer out:
+      observeRecovery (recovery_execute.go:54-64) now probes the session for record
+      shapes that previously short-circuited, and reconcileRecoveryHelper calls it in an
+      8-attempt loop where a present session costs a ~250 ms list-clients per pass.
+```

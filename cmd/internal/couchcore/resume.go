@@ -236,15 +236,20 @@ func (c *Couch) resumeEvidence(ctx context.Context, thread ThreadRecord) (Native
 // CheckResumePreconditions is every resume rule that a park cannot change.
 //
 // It exists because relaunch has to ask "would this thread be resumable ONCE
-// PARKED?" -- and it cannot ask DecideResume, which refuses any occupied
-// incarnation and so always refuses a relaunch target. Splitting the rules is
-// what stops relaunch re-deriving them: two parallel derivations drift toward
-// whichever cases each author thought about, which is how the archive guard came
-// to admit `creating` while resume refused it (pair#181 M3).
+// PARKED?" -- a question about the thread's durable shape, not about what is
+// running on it right now. Splitting the rules is what stops relaunch
+// re-deriving them: two parallel derivations drift toward whichever cases each
+// author thought about, which is how the archive guard came to admit `creating`
+// while resume refused it (pair#181 M3).
 //
-// What stays with DecideResume is everything about THIS resume: the occupancy
-// refusal, the choice between park and detached authority, and the tombstone
-// scan. Those are not preconditions a park would satisfy.
+// What stays with DecideResume is everything about THIS resume: the choice
+// between cold authority (a ledger that resolves a conversation) and warm
+// (proved detachment), and the tombstone scan. Those are not preconditions a
+// park would satisfy.
+//
+// It no longer says DecideResume "refuses any occupied incarnation": #256 M1
+// deleted that refusal, because the incarnation names a launcher that dies with
+// couch.
 //
 // The binding rule is included, and the caller decides whether it applies: it is
 // the COLD path's proof, which a warm reattach consumes nowhere.

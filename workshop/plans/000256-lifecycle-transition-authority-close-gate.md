@@ -483,6 +483,128 @@ rounds:
       boundary: M2
       blocked: true
       protocol_error: no valid findings block
+    - "n": 10
+      timestamp: "2026-09-17T15:35:59-07:00"
+      agent: claude
+      dispose:
+        - id: BR-33
+          disposition: addressed
+          note: 'Mutation-verified: reverting the commit''s park predicate to hasOccupiedIncarnation reds 3 tests; deleting the hosted-no-incarnation guard reds its message-discriminating test; everyThreadShape now carries the driverless-claim row and the producers table derives totality from it.'
+          round: 10
+        - id: BR-34
+          disposition: not-addressed
+          note: One referent was grepped, the second never was; six sites remain, two of them production doc comments.
+          round: 10
+        - id: BR-35
+          disposition: addressed
+          note: TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves drives StartInteractive and reds when ThreadParked leaves SelectResumableRoot's rank (mutation-verified).
+          round: 10
+        - id: BR-36
+          disposition: addressed
+          note: The subsumed late unresolved-session branch is deleted; the receipt exception now decides the distinction where it is made.
+          round: 10
+        - id: BR-37
+          disposition: addressed
+          note: Renamed TestResumeTombstonedIsReachableFromProduction, t.Skipf is now t.Fatalf, and it drives ResumeContext rather than DecideResume.
+          round: 10
+      findings:
+        - id: BR-38
+          severity: Important
+          title: 'BR-34 not addressed: only one of the two retired referents was grepped, and the ThreadParked declaration itself now states the wrong producer count'
+          detail: |-
+            This is the 7th finding in family stale-wording-after-referent-change. Do NOT fix
+            these six sites one at a time. Round 3 swept the string "verified park" and
+            reported the rule as landed, but the sweep covered ONE referent. A SECOND
+            referent retired in M1 -- "DecideResume refuses any occupied incarnation" -- was
+            never grepped, and a THIRD claim (the producer COUNT of ThreadParked) was fixed
+            in the atlas by round 3 and left wrong at the declaration.
+            Measured, at HEAD: actionableinventory.go:26-28, the doc comment ON ThreadParked,
+            says "Two records therefore produce this state" while the code, everyThreadShape,
+            parkedproducers_test.go and atlas/couch.md:1462 all say FOUR. resume.go:239 says
+            CheckResumePreconditions exists because "it cannot ask DecideResume, which refuses
+            any occupied incarnation", and resume.go:245 says "what stays with DecideResume is
+            ... the occupancy refusal"; relaunch.go:111 repeats it verbatim -- M1 deleted that
+            refusal, and DecideResume now ADMITS a live relaunch target, so the stated
+            rationale for the split is false. atlas/couch.md:881 is BR-34's own fourth named
+            site, edited around and left intact. atlas/couch.md:33-38 is BR-34's second named
+            site: round 3 replaced "verified park exists" with "its LEDGER resolves" but kept
+            "with no active park transaction, reservation or occupied incarnation" (false --
+            the "park timed out" and "driverless start claim with a ledger" shapes in
+            everyThreadShape classify parked while carrying exactly those) and never touched
+            the `live` half, which still states the pre-M1 rule "one durable live PID/start
+            identity exactly matches one observed TTY owner" (false -- TestSwitchAgentRefuses
+            AThreadCouchHostsWithNoIncarnation builds a live row with no incarnation at all).
+            atlas/couch.md:597 names "legacy-unverified records" and :1631 defines a parked
+            thread as one with "an exact verified resume handle and no occupied incarnation";
+            ResumeLegacyUnverified was deleted in this very window.
+            The rule, stated at the level that covers all of them: NO PROSE RESTATES THE
+            CLASSIFICATION OR GUARD BRANCH TABLE. Every such passage -- atlas, terminology
+            entry, and exported/unexported doc comment alike -- points at ClassifyThread,
+            everyThreadShape or the named guard instead of paraphrasing it, which is the
+            decision M1 round 5 already made FOR THE PLAN and never applied anywhere else.
+            Where a count or a rule must appear in prose, it carries the test that derives it,
+            the way TestIssue256PlanTablesMatchTheTree now does for the Core-concepts tables.
+            And the boundary close's grep step takes a LIST of retired referents, checked in,
+            not the one string the last finding happened to name.
+          family: stale-wording-after-referent-change
+          round: 10
+        - id: BR-39
+          severity: Minor
+          title: warm_failure_test's row assertion was widened to keep admitting the pre-M2 verdict, so its only reachable route cannot detect a revert
+          detail: |-
+            This is the 2nd finding in family fixture-retuned-to-preserve-old-verdict, so the
+            rule is the deliverable: an assertion must pin the verdict its premise DETERMINES,
+            never a disjunction that still admits the verdict the change replaced.
+            Measured at warm_failure_test.go:176. Exactly one route reaches the else-branch
+            (3-registration-timed-out; the other five set sessionSurvives), and instrumenting
+            it shows it deterministically yields state="parked" reason="". The added
+            `|| (unusable && session-gone)` arm is therefore unreachable -- and it is exactly
+            the pre-M2 answer. Confirmed by mutation: restoring `record.VerifiedPark != nil &&`
+            in front of the parkedResumeProofMatches branch of ClassifyThread -- the receipt-
+            as-authority defect this milestone exists to remove -- leaves this test GREEN.
+            (Eight other tests do red, so nothing ships uncovered; the finding is the
+            assertion, not the coverage.) The comment above it claims it was "re-derived from
+            the premise rather than loosened until it passed", which is the claim the
+            disjunction contradicts.
+          family: fixture-retuned-to-preserve-old-verdict
+          round: 10
+        - id: BR-40
+          severity: Minor
+          title: The derived-view check runs rows-to-tree only, so the "production symbols with no row" half of round 3's C2 is still unchecked -- and this window added one
+          detail: |-
+            This is the 5th finding in family plan-code-divergence. TestIssue256PlanTablesMatch
+            TheTree (plan_contract_256_test.go:113-165) asserts every landed row's symbol is
+            declared (or, for `deleted`, is not) at its stated path. It never walks the other
+            way, which is the direction round 3's C2 finding named as "four production symbols
+            with no row at all". The plan's own prose still carries that half as a manual step
+            ("git diff --stat <prev boundary>..HEAD -- '*.go' for files whose new symbols have
+            no row"), and it was not run: PreparedAgentSwitch.state (switchagent.go:34-41) --
+            the field that IS round 3's C1 fix -- has no row, while ThreadEvidence.StartOwner,
+            an equally structural field, does. The rule: a derived view is machine-checked in
+            BOTH directions, or the unchecked direction is written down as deliberately manual
+            with the reason, rather than left as prose the check appears to cover.
+          family: plan-code-divergence
+          round: 10
+        - id: BR-41
+          severity: Minor
+          title: The cold-side ledger read now scales with store size on every refresh and no test bounds it
+          detail: |-
+            actionableinventory.go:707 asks ResolveEstablished for every resume-shaped record
+            whose session is not present, on every refresh -- replacing a gate that fired only
+            for park-receipt holders. TestWarmRowsAskNoLedgerQuestion bounds the warm side (a
+            hosted row and a detached row pay nothing) and nothing bounds the cold side; the
+            recorded figure (0.62 ms, 6 records, fakes) does not establish growth. The issue
+            Log declares this honestly as a known gap, which is why this is Minor and not
+            Important -- the finding is that a declared envelope needs an enforcing assertion
+            the way SessionPresenceQueries()==1 and DetachedQueries()==0 got one in M1, not a
+            prose note that a later reader has to find. Same shape one layer out:
+            observeRecovery (recovery_execute.go:54-64) now probes the session for record
+            shapes that previously short-circuited, and reconcileRecoveryHelper calls it in an
+            8-attempt loop where a present session costs a ~250 ms list-clients per pass.
+          family: envelope-declared-not-enforced
+          round: 10
+      boundary: M2
+      blocked: false
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -708,6 +830,94 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 10 — 2026-09-17T15:35:59-07:00 (claude) — passed
+
+### Disposed
+
+- BR-33 — addressed — Mutation-verified: reverting the commit's park predicate to hasOccupiedIncarnation reds 3 tests; deleting the hosted-no-incarnation guard reds its message-discriminating test; everyThreadShape now carries the driverless-claim row and the producers table derives totality from it.
+- BR-34 — not-addressed — One referent was grepped, the second never was; six sites remain, two of them production doc comments.
+- BR-35 — addressed — TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves drives StartInteractive and reds when ThreadParked leaves SelectResumableRoot's rank (mutation-verified).
+- BR-36 — addressed — The subsumed late unresolved-session branch is deleted; the receipt exception now decides the distinction where it is made.
+- BR-37 — addressed — Renamed TestResumeTombstonedIsReachableFromProduction, t.Skipf is now t.Fatalf, and it drives ResumeContext rather than DecideResume.
+
+### Raised
+
+- **BR-38** [Important] `stale-wording-after-referent-change` BR-34 not addressed: only one of the two retired referents was grepped, and the ThreadParked declaration itself now states the wrong producer count
+  This is the 7th finding in family stale-wording-after-referent-change. Do NOT fix
+  these six sites one at a time. Round 3 swept the string "verified park" and
+  reported the rule as landed, but the sweep covered ONE referent. A SECOND
+  referent retired in M1 -- "DecideResume refuses any occupied incarnation" -- was
+  never grepped, and a THIRD claim (the producer COUNT of ThreadParked) was fixed
+  in the atlas by round 3 and left wrong at the declaration.
+  Measured, at HEAD: actionableinventory.go:26-28, the doc comment ON ThreadParked,
+  says "Two records therefore produce this state" while the code, everyThreadShape,
+  parkedproducers_test.go and atlas/couch.md:1462 all say FOUR. resume.go:239 says
+  CheckResumePreconditions exists because "it cannot ask DecideResume, which refuses
+  any occupied incarnation", and resume.go:245 says "what stays with DecideResume is
+  ... the occupancy refusal"; relaunch.go:111 repeats it verbatim -- M1 deleted that
+  refusal, and DecideResume now ADMITS a live relaunch target, so the stated
+  rationale for the split is false. atlas/couch.md:881 is BR-34's own fourth named
+  site, edited around and left intact. atlas/couch.md:33-38 is BR-34's second named
+  site: round 3 replaced "verified park exists" with "its LEDGER resolves" but kept
+  "with no active park transaction, reservation or occupied incarnation" (false --
+  the "park timed out" and "driverless start claim with a ledger" shapes in
+  everyThreadShape classify parked while carrying exactly those) and never touched
+  the `live` half, which still states the pre-M1 rule "one durable live PID/start
+  identity exactly matches one observed TTY owner" (false -- TestSwitchAgentRefuses
+  AThreadCouchHostsWithNoIncarnation builds a live row with no incarnation at all).
+  atlas/couch.md:597 names "legacy-unverified records" and :1631 defines a parked
+  thread as one with "an exact verified resume handle and no occupied incarnation";
+  ResumeLegacyUnverified was deleted in this very window.
+  The rule, stated at the level that covers all of them: NO PROSE RESTATES THE
+  CLASSIFICATION OR GUARD BRANCH TABLE. Every such passage -- atlas, terminology
+  entry, and exported/unexported doc comment alike -- points at ClassifyThread,
+  everyThreadShape or the named guard instead of paraphrasing it, which is the
+  decision M1 round 5 already made FOR THE PLAN and never applied anywhere else.
+  Where a count or a rule must appear in prose, it carries the test that derives it,
+  the way TestIssue256PlanTablesMatchTheTree now does for the Core-concepts tables.
+  And the boundary close's grep step takes a LIST of retired referents, checked in,
+  not the one string the last finding happened to name.
+- **BR-39** [Minor] `fixture-retuned-to-preserve-old-verdict` warm_failure_test's row assertion was widened to keep admitting the pre-M2 verdict, so its only reachable route cannot detect a revert
+  This is the 2nd finding in family fixture-retuned-to-preserve-old-verdict, so the
+  rule is the deliverable: an assertion must pin the verdict its premise DETERMINES,
+  never a disjunction that still admits the verdict the change replaced.
+  Measured at warm_failure_test.go:176. Exactly one route reaches the else-branch
+  (3-registration-timed-out; the other five set sessionSurvives), and instrumenting
+  it shows it deterministically yields state="parked" reason="". The added
+  `|| (unusable && session-gone)` arm is therefore unreachable -- and it is exactly
+  the pre-M2 answer. Confirmed by mutation: restoring `record.VerifiedPark != nil &&`
+  in front of the parkedResumeProofMatches branch of ClassifyThread -- the receipt-
+  as-authority defect this milestone exists to remove -- leaves this test GREEN.
+  (Eight other tests do red, so nothing ships uncovered; the finding is the
+  assertion, not the coverage.) The comment above it claims it was "re-derived from
+  the premise rather than loosened until it passed", which is the claim the
+  disjunction contradicts.
+- **BR-40** [Minor] `plan-code-divergence` The derived-view check runs rows-to-tree only, so the "production symbols with no row" half of round 3's C2 is still unchecked -- and this window added one
+  This is the 5th finding in family plan-code-divergence. TestIssue256PlanTablesMatch
+  TheTree (plan_contract_256_test.go:113-165) asserts every landed row's symbol is
+  declared (or, for `deleted`, is not) at its stated path. It never walks the other
+  way, which is the direction round 3's C2 finding named as "four production symbols
+  with no row at all". The plan's own prose still carries that half as a manual step
+  ("git diff --stat <prev boundary>..HEAD -- '*.go' for files whose new symbols have
+  no row"), and it was not run: PreparedAgentSwitch.state (switchagent.go:34-41) --
+  the field that IS round 3's C1 fix -- has no row, while ThreadEvidence.StartOwner,
+  an equally structural field, does. The rule: a derived view is machine-checked in
+  BOTH directions, or the unchecked direction is written down as deliberately manual
+  with the reason, rather than left as prose the check appears to cover.
+- **BR-41** [Minor] `envelope-declared-not-enforced` The cold-side ledger read now scales with store size on every refresh and no test bounds it
+  actionableinventory.go:707 asks ResolveEstablished for every resume-shaped record
+  whose session is not present, on every refresh -- replacing a gate that fired only
+  for park-receipt holders. TestWarmRowsAskNoLedgerQuestion bounds the warm side (a
+  hosted row and a detached row pay nothing) and nothing bounds the cold side; the
+  recorded figure (0.62 ms, 6 records, fakes) does not establish growth. The issue
+  Log declares this honestly as a known gap, which is why this is Minor and not
+  Important -- the finding is that a declared envelope needs an enforcing assertion
+  the way SessionPresenceQueries()==1 and DetachedQueries()==0 got one in M1, not a
+  prose note that a later reader has to find. Same shape one layer out:
+  observeRecovery (recovery_execute.go:54-64) now probes the session for record
+  shapes that previously short-circuited, and reconcileRecoveryHelper calls it in an
+  8-attempt loop where a present session costs a ~250 ms list-clients per pass.
+
 ## Open findings
 
 - **BR-19** [Important] `atlas-contradicts-code` The atlas records "One class, three sites" while the code and the plan record four
@@ -717,8 +927,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-30** [Minor] `plan-code-divergence` Round 4's own table edit left the sentence below it false, and two Core-concepts statements still direct the reversed design
 - **BR-31** [Important] `fail-closed-guard-untested` The totality table's dimensions are hand-written, so the totality claim is unproven for shapes the store accepts
 - **BR-32** [Minor] `vocabulary-entry-without-producer` SessionObservation.Name is written in four places and read nowhere
-- **BR-33** [Critical] `classification-not-authority` switch-agent re-derives "nothing runs" instead of consuming the classification: 2 of 4 parked producers refuse, and a hosted `live` row now fails OPEN
 - **BR-34** [Important] `stale-wording-after-referent-change` I2's rule was written down but the git grep it prescribes was never run -- four sites still state the retired `parked` referent
-- **BR-35** [Important] `fixture-retuned-to-preserve-old-verdict` Two fixtures were retuned to keep their old verdict and the new startup behaviour they used to cover has no test
-- **BR-36** [Minor] `fail-closed-guard-untested` ClassifyThread's late unresolved-session guard is unreachable after the M2 reordering
-- **BR-37** [Minor] `test-name-contradicts-assertion` TestEveryResumeDiagnosticCodeIsReachableFromProduction asserts exactly one code
+- **BR-38** [Important] `stale-wording-after-referent-change` BR-34 not addressed: only one of the two retired referents was grepped, and the ThreadParked declaration itself now states the wrong producer count
+- **BR-39** [Minor] `fixture-retuned-to-preserve-old-verdict` warm_failure_test's row assertion was widened to keep admitting the pre-M2 verdict, so its only reachable route cannot detect a revert
+- **BR-40** [Minor] `plan-code-divergence` The derived-view check runs rows-to-tree only, so the "production symbols with no row" half of round 3's C2 is still unchecked -- and this window added one
+- **BR-41** [Minor] `envelope-declared-not-enforced` The cold-side ledger read now scales with store size on every refresh and no test bounds it

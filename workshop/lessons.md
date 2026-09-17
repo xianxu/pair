@@ -5199,3 +5199,56 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   whose message explained BR-13. Writing the lesson is not the sweep: when a
   finding names a shape, grep the shape — this diff had seven survivable arms
   and one of them was still wrong. (#265 BR-17)
+
+- **A liveness proof keyed to a process that dies with couch reports every crash
+  as a lost thread.** Couch classified threads from `Incarnation{PID, Identity}`
+  and `record.Park`, both of which name the LAUNCHER — couch's own child. The
+  zellij server is PPID 1 at birth and outlives both, so a clean `alt+d` detach
+  and a couch crash leave *identical* external state, and the only thing telling
+  them apart was whether couch survived long enough to write a record. Eleven of
+  the operator's records claimed a live incarnation with a dead pid; three had an
+  agent still running behind a session nobody asked about. Before keying a proof
+  to a process, ask which process actually owns the resource, and measure the
+  parentage rather than assuming it. (#256 M1)
+
+- **A receipt is not authority.** `VerifiedPark` carries a `ParkIdentity` and no
+  conversation id, so it can attest that a park happened and never that anything
+  survived it — yet it gated the ledger read that answers "is there something to
+  resume into?". Two consequences in opposite directions: a thread whose session
+  died without a park read `session-gone` (archive-eligible) with a live
+  conversation still recorded, and a receipt with nothing behind it read
+  `parked`. When a value stands in for a fact, check that it can actually carry
+  that fact. (#256 M2)
+
+- **An action guard must CONSUME the classification, not re-derive one — and the
+  class hides one layer deeper each time you fix it.** Four review rounds found
+  the same defect at four layers: the menu's offer, the guard's admission (where
+  my replacement re-derivation failed OPEN on a thread couch was hosting), the
+  commit's own execution path, and the preview/commit agreement. Each round I
+  fixed the layer the finding named and the next layer was the one nobody had
+  enumerated. The rule that finally covered them: *the classification an action
+  was admitted on is the value its execution branches on*, and the enumeration
+  that proves it must cross producers × actions **driven to completion** — a
+  table that stops at the preflight cannot catch a preflight/commit
+  disagreement, which is the only kind this class produced. (#256 M2, BR-33/38)
+
+- **A derived view is either machine-checked or it is prose.** A plan's
+  Core-concepts tables were declared "re-derived at every boundary" three times
+  and were wrong at every boundary anyway — a row for a function the same commit
+  deleted, a live symbol marked `deleted`, four symbols with no row. The same
+  happened to a referent sweep whose own rule named `git grep` as the mechanical
+  check: written down three times, failed to land seven. Both are now tests
+  (`TestIssue256PlanTablesMatchTheTree`, `TestRetiredClaimsAreNotRestatedAsCurrent`)
+  and both found live divergences on their first run. If a rule about documents
+  has failed twice, stop writing it better and make it fail the build. (#256 M2,
+  BR-34/C2)
+
+- **A totality assertion built from its own input cannot fail.** A guard table
+  compared `len(classified)` against `len(producers)` where both came from the
+  same literal — it claimed to catch a new producer and could not. Deriving the
+  domain from the classifier's own shape table instead immediately surfaced two
+  producers the hand-written list had missed. Same family: an assertion widened
+  until it passes (`parked || session-gone` where only `parked` is reachable)
+  pins neither answer, and a guard whose test asserts a bare `err != nil` stays
+  green when the guard is deleted and a later check refuses the same input.
+  Mutate every guard you claim is pinned. (#256 M2)

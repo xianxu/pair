@@ -165,15 +165,16 @@ func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
 				if row.State != ThreadDetached {
 					t.Fatalf("row = %+v, want ThreadDetached: its session survived, so it is reattachable again", row)
 				}
-			} else if row.State != ThreadParked && !(row.State == ThreadUnusable && row.Reason == ReasonSessionGone) {
-				// RESTATED for #256 M2, and re-derived from the premise rather
-				// than loosened until it passed. `sessionSurvives == false`
-				// EXCLUDES detached, so the earlier `!row.Resumable()` form
-				// admitted a state this branch cannot reach. Exactly two
-				// outcomes are correct here: the ledger still names the
-				// conversation, so the row is cold-resumable (`parked`), or it
-				// resolves nothing and the row is `session-gone`.
-				t.Fatalf("row = %+v, want parked or unusable/session-gone: this route's session died mid-reattach", row)
+			} else if row.State != ThreadParked {
+				// RESTATED for #256 M2, and narrowed to what this route
+				// DETERMINISTICALLY yields. An earlier version also admitted
+				// `unusable/session-gone` -- the pre-M2 verdict, kept alive as
+				// slack: only `3-registration-timed-out` reaches this branch and
+				// its ledger always resolves, so the alternative arm could never
+				// fire and reverting the classifier to receipt-authority left
+				// the test green. An assertion wide enough to hold both the old
+				// and the new answer pins neither.
+				t.Fatalf("row = %+v, want parked: this route's session died mid-reattach and its ledger still resolves", row)
 			}
 		})
 	}

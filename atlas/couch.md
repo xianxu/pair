@@ -32,9 +32,11 @@ incarnation states are shown even when Couch cannot prove a usable terminal.
 M1 exposes `ActionableThreadInventory`, a pure fail-closed projection over the
 same snapshot plus exact owner observations. It emits only `live` when one
 durable live PID/start identity exactly matches one observed TTY owner, or
-`parked` when its LEDGER resolves a conversation to resume into, with no active
-park transaction, reservation or occupied incarnation — the park receipt is not
-the authority and has not been since #256 M2. Contradictory and undecodable records stay available to
+`parked` when its LEDGER resolves a conversation to resume into and nothing is
+running on it — the park receipt is not the authority and has not been since #256
+M2, and neither is the incarnation: two of the four `parked` shapes carry one
+(a dead launcher, a driverless start claim), which is why the rule is "no LIVE
+evidence" rather than "no incarnation". Contradictory and undecodable records stay available to
 diagnostics. Since #151 M3, Console refreshes this projection asynchronously
 from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.

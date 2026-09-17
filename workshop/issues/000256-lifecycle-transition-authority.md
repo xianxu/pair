@@ -121,7 +121,7 @@ Rows are the milestones of the durable plan at
 
 - [x] Revalidate the preserved audit findings against current code and coordinate #250/#253/#255. *(Done 2026-09-16: findings 2 and 4 confirmed against HEAD; finding 4's collapse is `actionableinventory.go:582`. Measured the process tree — see Log.)*
 - [x] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion. *(Done 2026-09-17; the class turned out to have FOUR sites, found one at a time — see Log.)*
-- [ ] M2 — Make the operator's rows reachable (a start claim with no living owner, `DecideRecovery`'s park gate, the binding-absent hatch, the ledger as cold-resume authority) and verify against real sessions.
+- [x] M2 — Make the operator's rows reachable (a start claim with no living owner, `DecideRecovery`'s park gate, the binding-absent hatch, the ledger as cold-resume authority) and verify against real sessions.
 - [ ] M3 — Guards consume the classification; preserve Unknown on the destructive paths; archive confirms before stopping a live agent; close the arbitrary lifecycle-mutation door; atlas + lessons.
 
 Split out, both depending on this issue: **#275** (replace the park transaction
@@ -131,6 +131,7 @@ no thread record — carries #272's corresponding Done-when).
 ## Log
 
 ### 2026-09-17 — M2: what the tasks turned out to be
+- 2026-09-17: closed M2 — Both wedged brain rows archive; a driverless start claim no longer wedges a row at "starting..."; the ledger, not the park receipt, decides cold resumability; and every switch-agent layer -- menu offer, guard admission, and execution -- now branches on the classification rather than re-deriving it, pinned by 4 producers x 3 actions driven to completion plus an offered-implies-permitted table over AllThreadStates x AllThreadReasons. The plan Core-concepts tables are machine-checked by TestIssue256PlanTablesMatchTheTree rather than asserted. go test ./... green (88 packages, 71 ok, 17 no-test-files, 0 failures); every guard mutation-checked, including the two the reviewer proved unpinned. Action-path cost measured on that path. Operator verification deferred with an owner in ## Log. test-changelog fails pre-existing, reproduced on origin/main under env -i.; review verdict: FIX-THEN-SHIP
 
 Recorded because four of the six tasks changed shape once the code was read, and
 in every case the change was the same kind: **the rule already existed and was

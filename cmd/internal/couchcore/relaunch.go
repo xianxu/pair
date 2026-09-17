@@ -107,9 +107,10 @@ func (c *Couch) Relaunch(ctx context.Context, address ThreadAddress) (RelaunchRe
 		return refused, refuseResume(ResumeLive, err.Error())
 	}
 
-	// Would this thread resume ONCE PARKED? DecideResume cannot answer -- it
-	// refuses any occupied incarnation, and a relaunch target is live by
-	// definition -- so relaunch asks the rules a park cannot change.
+	// Would this thread resume ONCE PARKED? DecideResume answers a different
+	// question -- whether THIS thread is resumable now, from a surviving session
+	// or a resolvable conversation -- and a relaunch target is live by
+	// definition, so relaunch asks the rules a park cannot change instead.
 	// Relaunch is always a COLD resume -- it parks first -- so it needs the
 	// binding, unlike a warm reattach.
 	pathExists := c.workingPathExists(thread)

@@ -22,6 +22,24 @@ import (
 // whereas this has to run against a plan still being edited.
 const issue256PlanPath = "workshop/plans/000256-lifecycle-transition-authority-plan.md"
 
+// issue256OwnedFiles are the files #256 CREATED. Every package-scope symbol they
+// declare is this issue's to account for, so the tree->rows direction has a
+// domain that needs no git.
+var issue256OwnedFiles = []string{
+	"cmd/internal/couchcore/sessionevidence.go",
+	"cmd/internal/couchcore/lifecycledebris.go",
+}
+
+// issue256ConceptSymbols are the symbols the tables are expected to carry. A
+// helper that exists only to keep a function readable is detail, not a concept,
+// and the plan says so; listing the concepts here is what stops this check from
+// demanding a row for every unexported closure.
+var issue256ConceptSymbols = map[string]bool{
+	"SessionState": true, "SessionObservation": true, "ProjectSessionPresence": true,
+	"SessionPresenceResolver": true, "indexSessionsByName": true, "uniquelyClaimed": true,
+	"clearLifecycleDebris": true, "ErrThreadRolledBack": true,
+}
+
 type planConceptRow struct {
 	name   string
 	path   string
@@ -169,6 +187,36 @@ func TestIssue256PlanTablesMatchTheTree(t *testing.T) {
 			}
 		}
 	}
+	// THE OTHER DIRECTION. Rows->tree catches a row that lies; tree->rows
+	// catches a symbol with no row at all, which is the half of C2 that let four
+	// M2 symbols go unlisted and then let a fifth (`PreparedAgentSwitch.state`)
+	// go unlisted in the very commit that added the check.
+	//
+	// The domain is the production symbols this milestone's own files declare at
+	// package scope. It is deliberately narrow: an exhaustive git-diff sweep
+	// needs git, which is unavailable in the pinned scratch trees the boundary
+	// reviewer builds, and a check that silently skips there is a check that
+	// stops checking exactly where it is being audited.
+	listed := map[string]bool{}
+	for _, row := range rows {
+		for _, name := range strings.Split(row.name, "/") {
+			name = strings.TrimSpace(name)
+			if idx := strings.LastIndex(name, "."); idx >= 0 {
+				name = name[idx+1:]
+			}
+			listed[name] = true
+		}
+	}
+	for _, owned := range issue256OwnedFiles {
+		for name := range declaredIdentifiers(t, filepath.Join(root, owned)) {
+			if !issue256ConceptSymbols[name] || listed[name] {
+				continue
+			}
+			t.Errorf("%s declares %q, which #256 owns, and neither Core-concepts table has a row for it",
+				owned, name)
+		}
+	}
+
 	if checked < 10 {
 		t.Fatalf("only %d symbols were decidable; the check has stopped checking", checked)
 	}
