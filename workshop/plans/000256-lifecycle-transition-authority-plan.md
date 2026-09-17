@@ -235,7 +235,7 @@ Last re-derived: the M2 boundary, 2026-09-17.
 - **`ThreadParked`'s producer set widened in M2**, which is a *modification of
   the state*, not of the evidence field that carries the proof. Its consumers are
   therefore the enumeration —
-  `TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` holds that, after
+  `TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` holds that, after
   one reader (`switch-agent`) was left behind.
 
 ### Integration points
@@ -1115,8 +1115,11 @@ meaning in the same commit and its seven readers were never listed. Fixed by
 replacing the receipt check with `switchableWhenNothingRuns` — a switch launches
 a FRESH agent, so the hazard is a surviving session, not a missing receipt — and
 by making the class mechanically checkable:
-`TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` crosses every
-producer of `parked` with every action the menu offers it. Restoring the old
+`TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` crosses every
+producer of `parked` with the three guarded actions a parked row offers, and
+`TestSwitchAgentOfferedImpliesPermitted` checks the complementary claim — that
+the menu's offer set is within the guard's permission set — over
+`AllThreadStates() × AllThreadReasons()`. Restoring the old
 guard reds the ledger-only row; dropping the new session refusal reds the
 fail-closed row.
 

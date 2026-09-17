@@ -1497,8 +1497,10 @@ a ledger-parked row was offered an action that always failed — the thing
 distrust it. The guard now asks the session instead
 (`switchableWhenNothingRuns`): a switch launches a FRESH agent and resumes no
 conversation, so a surviving session is the whole hazard, and `Unknown` fails
-closed. `TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` makes the
-class checkable rather than re-derived per milestone.
+closed. Two derived tables make the class checkable rather than re-derived per
+milestone: `TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` takes its
+producers from `everyThreadShape`, and `TestSwitchAgentOfferedImpliesPermitted`
+takes its domain from `AllThreadStates() × AllThreadReasons()`.
 
 **An action guard CONSUMES the classification; it does not re-derive one.** This
 took two attempts to get right and both failures are worth keeping. The first

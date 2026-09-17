@@ -27,7 +27,7 @@ const (
 	// produce this state -- one parked deliberately, one whose session simply
 	// died while its ledger kept the conversation -- and every consumer must
 	// accept BOTH. That enumeration is the rule
-	// `TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` pins, after
+	// `TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` pins, after
 	// a widened producer set reached one reader that had not been swept.
 	ThreadParked ActionableThreadState = "parked"
 	// ThreadBusy is a START couch has claimed and not yet finished -- see

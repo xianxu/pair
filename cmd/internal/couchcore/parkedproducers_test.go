@@ -10,7 +10,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
-// TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers is the class guard
+// TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive is the class guard
 // for #256 M2's C1, and it is the enumeration the finding asked for.
 //
 // The defect: Task 6b widened who PRODUCES `ThreadParked` -- a record with no
@@ -30,9 +30,14 @@ import (
 // offers a parked row. A new producer with no cell here fails the totality
 // check below; a guard that refuses one producer and not another fails its row.
 //
-// `menu.go`'s parked row offers {resume, switch-agent, archive, name, describe}.
-// `name` and `describe` are metadata and have no guard.
-func TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers(t *testing.T) {
+// SCOPE, stated because the name used to claim more than the body checks: this
+// covers the three guarded actions a parked row offers — resume, switch-agent,
+// archive. `name` and `describe` are metadata with no guard. That the menu's
+// OFFER set matches the guards' permission set is a separate claim, derived from
+// `AllThreadStates() × AllThreadReasons()` in couchtty's
+// `TestSwitchAgentOfferedImpliesPermitted`; this test asks the complementary
+// question, whether every way of REACHING the state survives those guards.
+func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
 	// The producers of ThreadParked, as ClassifyThread can reach it. Both run
 	// through the production gather path, so a classification that stops
 	// agreeing fails here rather than in a hand-built evidence literal.
@@ -262,5 +267,60 @@ func TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
 	}
 	if _, err := env.Couch.PrepareAgentSwitch(context.Background(), created.Address, "codex", nil); err == nil {
 		t.Fatal("switch-agent accepted a thread couch is hosting with nothing to park; that starts a second agent on one tree")
+	}
+}
+
+// TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted closes the preview/commit
+// half of the same class.
+//
+// `PrepareAgentSwitch` consumes the classification, but `SwitchAgent` decided
+// whether to park the source from `hasOccupiedIncarnation` -- bookkeeping, and
+// only an approximation of "an agent is running". A thread can be `parked` and
+// still carry a `creating` incarnation whose couch died mid-start, so the
+// preview admitted it and the commit then tried to park a thread with no agent
+// and failed `park-incomplete`. An action whose preview says yes and whose
+// commit says no is the same lie as a row that offers what its guard refuses.
+//
+// The classification the preview was ADMITTED on is now carried to the commit,
+// so both rest on one observation.
+func TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+	record.Reservation = false
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.LatestLaunchProfile = &profile
+	record.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Start: &ThreadStartClaim{Nonce: "start-0123456789abcdef", OwnerPID: 4242, OwnerIdentity: "supervisor"},
+	}}
+	created, err := env.Couch.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionAbsent})
+
+	if state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address); err != nil || state != ThreadParked {
+		t.Fatalf("fixture classified %q/%q (%v), not parked -- it no longer exercises the driverless claim", state, reason, err)
+	}
+	prepared, err := env.Couch.PrepareAgentSwitch(context.Background(), created.Address, "codex", nil)
+	if err != nil {
+		t.Fatalf("preview refused: %v", err)
+	}
+	env.Runner.AfterAcknowledge = func(string) error {
+		env.Artifacts.SetPairSession(created.Address, "pair-switched", true)
+		return nil
+	}
+	result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
+		Address: created.Address, Agent: "codex", Argv: prepared.Profile.Argv, AcceptedFingerprint: prepared.Fingerprint,
+	})
+	if err != nil {
+		t.Fatalf("the commit refused what its own preview accepted: outcome=%q %v", result.Outcome, err)
+	}
+	if _, started := result.Started(); !started {
+		t.Fatalf("switch did not start: outcome=%q", result.Outcome)
 	}
 }

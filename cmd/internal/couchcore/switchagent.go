@@ -31,6 +31,14 @@ type PreparedAgentSwitch struct {
 	Fingerprint    string        `json:"fingerprint"`
 	record         ThreadRecord
 	repoIdentity   string
+	// state is the classification this preparation was ADMITTED on, carried to
+	// the commit so both decisions rest on one observation. SwitchAgent used to
+	// re-read `hasOccupiedIncarnation` to decide whether to park the source,
+	// which is bookkeeping: a thread can be `parked` and still carry a start
+	// claim its couch died mid-flight, so the preview admitted it and the commit
+	// then tried to park a thread with no agent and failed `park-incomplete`
+	// (#256 M2, round 3).
+	state ActionableThreadState
 }
 
 type SwitchAgentOutcome string
@@ -230,6 +238,7 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	return PreparedAgentSwitch{
 		Address: address, SourceAgent: source, WorkingPath: record.WorkingPath, SourceRevision: record.Revision,
 		Profile: resolution.Profile, Fingerprint: hex.EncodeToString(digest[:]), record: record, repoIdentity: repoIdentity,
+		state: state,
 	}, nil
 }
 
@@ -285,7 +294,11 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 		return result, errors.New("switch-agent: context references exceed the launch envelope budget")
 	}
 	thread := prepared.record
-	if hasOccupiedIncarnation(thread) {
+	// Park the source only when an agent is actually RUNNING, which is what the
+	// classification says and what `hasOccupiedIncarnation` only approximates.
+	// PrepareAgentSwitch has already refused a live row with nothing to park, so
+	// this branch always has an incarnation to act on.
+	if prepared.state == ThreadLive {
 		parked, err := c.PairLifecycle.ParkExpected(ctx, thread.Address, thread.Revision)
 		if err != nil {
 			var revisionErr *ThreadRevisionError
