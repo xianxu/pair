@@ -198,3 +198,17 @@ func TestResizeWithNoEndpointStillResizesTheFocusedChild(t *testing.T) {
 		t.Fatalf("focused child size = %+v, want %+v", got, want)
 	}
 }
+
+// Red without ErrInputEnded joining the routing set: the PTY read loop ends as
+// soon as the agent exits, while the console learns of that exit
+// asynchronously, so an ordinary keystroke lands in the gap and takes every
+// pane down (pair#265 BR-16).
+func TestKeystrokeAfterTheChildsInputEndsDoesNotStopTheConsole(t *testing.T) {
+	con, child := panelConsole(t)
+	con.switchTo("only", true, arrivalOrdinary)
+	child.Endpoint().EndInput()
+
+	con.routeInputEvent(terminal.InputEvent{Event: uv.KeyPressEvent{Code: 'x', Text: "x"}, Raw: []byte("x"), Canonical: []byte("x")})
+
+	assertConsoleAlive(t, con, "keystroke after child input ended")
+}

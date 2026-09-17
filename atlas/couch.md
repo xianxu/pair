@@ -382,8 +382,16 @@ refusal that reports the ABSENCE of an endpoint", not "every caller of `Input`";
 the by-caller reading is what missed `UpdateChrome` in planning and
 `resizeLayout` at the close boundary.
 
+The classification is `terminal.IsRoutingAnswer`, not an `errors.Is` per site:
+the set has more than one member (`ErrNoDestination` and `ErrInputEnded`, the
+latter because a child's input closes the moment its agent exits while the
+console learns of that asynchronously), and widening one `errors.Is` at a time
+is how this class survived five review findings. `ErrBackpressure` is
+deliberately NOT a member — a full queue is a capacity answer, and dropping
+input under load is its own decision.
+
 Every console path to `Presenter.Input` goes through `deliverPresenterInput`,
-which classifies that answer instead of handing it to `terminalError` -- pinned
+which asks that question instead of handing the error to `terminalError` -- pinned
 by `TestConsoleReachesPresenterInputOnlyThroughItsDoor`. Child-bound events
 additionally go through `deliverChildInput`, which drops them when the panel is
 focused. `paintNow` and `onResize` classify it too, because `showMenu` clears

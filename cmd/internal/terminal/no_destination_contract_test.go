@@ -201,7 +201,8 @@ func TestConsumersOfNoDestinationMethodsClassifyIt(t *testing.T) {
 				}
 				classifies := false
 				ast.Inspect(fn.Body, func(node ast.Node) bool {
-					if sel, ok := node.(*ast.SelectorExpr); ok && sel.Sel.Name == "ErrNoDestination" {
+					if sel, ok := node.(*ast.SelectorExpr); ok &&
+						(sel.Sel.Name == "IsRoutingAnswer" || sel.Sel.Name == "ErrNoDestination") {
 						classifies = true
 					}
 					return true

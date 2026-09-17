@@ -551,3 +551,123 @@ findings:
       terminalqualify is correct as-is — an oracle that wants != nil — but that
       is a fact about it, not a property the guard establishes.
 ```
+
+---
+
+## Re-review — 2026-09-16T17:36:10-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 265 — couch crashes on switch to brain: no admitted endpoint |
+| repo | pair |
+| issue file | workshop/issues/000265-couch-crashes-on-switch-to-brain-no-admitted-endpoint.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 220a965a21838bd2265967db5c9be7870816b64e..e64a88147925b2b2ae0e466dc63e6d7e63eb086a |
+| command | sdlc close --issue 265 |
+| reviewer | claude |
+| timestamp | 2026-09-16T17:36:10-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The declared scope lands and lands well: `ErrNoDestination` is one typed answer produced by exactly four sites, the producer set is derived from source by AST rather than retyped, all six consumer call sites across `couchtty` and `termcmd` classify it, and BR-13's fix is real — I reverted `presenterResized` to the old skip condition on a scratch copy of HEAD and `TestResizeWithNoEndpointStillResizesTheFocusedChild` went red with `focused child size = {Rows:23 Cols:80}, want {Rows:29 Cols:100}`. BR-15 is genuinely fixed: `discoverConsumerPackages` reads the tree (I confirmed only `couchtty`, `termcmd`, `terminalqualify` hold a presenter in production, and the exemption logs its reason at runtime). What keeps this off SHIP is that the sweep was anchored on the wrong index one last time — the enumeration chosen was "every call to `noDestination()`", not "every error `Presenter.Input` can return", and `terminal.ErrInputEnded` still exits the whole couch on a keystroke after a child exits (measured red, below) — plus `termcmd.inheritSize`'s new non-fatal arm reproducing BR-13's exact shape one layer over. Both are cheap; neither is a regression this diff introduced, and the two open Minors from round 3 are still untouched.
+
+**1. Strengths**
+
+- `cmd/internal/terminal/no_destination_contract_test.go:170` — `TestNoDestinationProducersAreEnumerated` derives the producer set by AST and diffs it against `producerEntryPoints`, so the hand-written fact is reduced to the *mapping* (internal method → exported entry points). I verified the mapping against the tree: `resizeLayout` is reachable only via `Resize`/`ResizeLayout`, `mouseInput` only via `Input`. This is the right shape and it is the thing three earlier rounds were reaching for.
+- `cmd/internal/terminal/destination.go:11-29` — one sentinel, one constructor, the `View` travelling with the error. `destination_test.go` runs with no writer, no host, no endpoint: genuinely PURE, as the plan's Core-concepts table claims.
+- `cmd/internal/couchtty/panel_input_routing_test.go:165` — `TestPanelDropsChildOnlyEventsWithoutAskingThePresenter` distinguishes "dropped at the panel check" from "classified at the presenter" via the trace detail (`panel` vs `input`). That is the one assertion that catches restoring the #255 bypass, and it exists because BR-3 measured that nothing else did.
+- `atlas/couch.md:404` — `ErrBackpressure` is named as deliberately *outside* the scheme, with the reason. Recording the boundary of an enumeration is what stops the next round re-litigating it.
+- `cmd/internal/couchtty/console.go:1220-1225` — the `presenterResized` comment explains why the flag exists rather than what it does. That is the comment BR-13 asked for.
+
+**2. Critical findings**
+
+None.
+
+**3. Important findings**
+
+- **`cmd/internal/couchtty/terminal_input.go:26` — the door classifies one member of `Presenter.Input`'s error set; `ErrInputEnded` still exits couch.** *(5th in `routing-answer-escalation` — do not fix this instance.)* Measured on HEAD with a scratch test in `couchtty`: `panelConsole` → `switchTo("only", …)` → `child.Endpoint().EndInput()` → `routeInputEvent(KeyPressEvent{'x'})` ⇒ `con.terminalFailure = terminal: child input ended`, console stopped. `Endpoint.EndInput` fires the moment the PTY read loop ends (`ptychild/child.go:162`), while couch learns of the exit asynchronously (`console.go:441` → `c.exited` → `onExit` on the Run goroutine), so the operator's next keystroke after an agent quits can take the whole couch — every other pane included — down with `couch: terminal: terminal: child input ended`: the original bug report's symptom one endpoint-state over. Couch already treats this state as survivable elsewhere (`console.go:1247` skips `child.Endpoint().InputEnded()` children on resize), so the two paths disagree about the same condition. **The rule**, which is what the four prior findings in this family were circling: the enumeration is *the set of errors `Presenter.Input` can return*, each declared routing-vs-ownership, derived and pinned — not "every caller", not "every `noDestination()` producer". Measured membership today: `ErrNoDestination` (classified ✓), `ErrInputEnded` (fatal ✗), `ErrBackpressure` (deferred, documented in `atlas/couch.md:404` ✓), `os.ErrClosed` / `presenter unavailable` / `presenter released` (lifecycle, plausibly correct to be fatal — but undeclared). Fix the *rule*: write that enumeration down with a declared classification per member, extend the contract test to pin it, and either sweep or file with this measurement. Adding a second `errors.Is` at the door is the easy subset again.
+- **`cmd/internal/termcmd/presentation.go:409-413` — the new non-fatal arm returns before the work the refused step was assumed to have done.** *(2nd in `degraded-path-skips-dependent-work` — do not fix this instance.)* On `ErrNoDestination` `inheritSize` returns, skipping `m.rows, m.cols = size.Rows, size.Cols` (:414) and the loop that resizes every non-active tab (:415-420); the active tab gets nothing either, because its `ResizePTY` callback lives inside the call that just refused. That is BR-13's failure verbatim, shipped in the same diff as BR-13's fix, and it leaves the two consumers of the same answer behaving oppositely — couch continues and resizes everything, `pair term` bails. **The rule** BR-13 already produced (`workshop/lessons.md`: "when you make a failure survivable, re-read what the code after it assumed the failed step had done") is enumerable over this diff — it has exactly seven survivable arms: `paintNow` ✓ (nothing after depends), `onResize` ✓ (fixed), `deliverPresenterInput` ✓, `deliverChildInput` ✓, `writeEvents` ✓ (`continue` keeps the loop), `paintStripLocked` ✓, `inheritSize` ✗. Write that enumeration into the fix so the seventh is closed as a sweep, not as a seventh instance. Also note it is silent — no trace, no notice — where couch's equivalent records `resize`.
+
+**4. Minor findings**
+
+- BR-10 is unchanged at `trace.go:172-183`: `traceEvent`'s three-line doc comment still sits directly above `traceDropped`, so `traceDropped` carries a comment whose first half describes a different function and `traceEvent` (`:185`) is undocumented.
+- BR-14's two residuals are unchanged: `trace_test.go:269-270` still hand-lists the seven trace constants (the block at `trace.go:74-90` is single, prefixed, trivially walkable by AST — `TestNoDestinationProducersAreEnumerated` is the template), and `plan.md:40` still says the sentinel is wrapped by "`Input`'s non-mouse arm and `mouseInput`'s unpresented arm" where the table at `:57` correctly says four. Same sweep, third residual: `plan.md`'s own Out-of-scope says to "record it [`ErrBackpressure`] in the `## Log` at close"; that line was never written to the issue.
+- `terminal_input.go:40-42` re-reads `c.focus.IsPanel()` under the lock after `routeInputEvent:59-61` already read it for the same dispatch. Harmless (both on the Run goroutine, and the second read is the authoritative one at delivery), but it is state passed by re-reading rather than by parameter.
+
+**5. Test coverage notes**
+
+- The kind of bug this diff could ship is covered where it was measured: I re-confirmed the BR-13 oracle goes red under mutation, and the whole `#265` set (13 test functions across three packages) passes. The `ptychild`/`mkdir` failures in `termcmd` and `couchtty` are the documented environmental ones, not this diff.
+- `TestRoutingAnswerDoesNotStopTheMuxOnRepaintOrResize` (`termcmd/routing_answer_test.go:41`) asserts only `m.failure == nil` and `done` not closed. That is exactly why the `inheritSize` gap above shipped green: no row asserts `m.rows/m.cols` advanced or that sibling tabs were resized. The couch-side test learned this lesson (`TestResizeWithNoEndpointStillResizesTheFocusedChild` asserts geometry, not just liveness); the termcmd-side test did not.
+- No test pins `Presenter.Input`'s non-`ErrNoDestination` returns at all — which is the coverage shape of the `ErrInputEnded` finding, not a separate one.
+
+**6. Architectural notes**
+
+- **ARCH-DRY — pass, with a note.** One sentinel, one constructor, producer set derived. Two hand-rolled AST walkers now exist for adjacent rules (`couchtty/input_door_guard_test.go` for "one door", `terminal/no_destination_contract_test.go` for "classify the answer"), plus `menu_inventory_guard_test.go`. They enforce different rules so this is not duplication today, but a third guard should motivate a shared `internal/astguard` test helper rather than a fourth copy of `parseDir`.
+- **ARCH-PURE — pass.** `ErrNoDestination`/`noDestination` are pure and tested without IO; the classification decisions sit in the thin IO methods (`deliverPresenterInput`, `paintNow`, `onResize`) where they belong. No business logic moved into IO.
+- **ARCH-PURPOSE — flag.** The shadow-sweep over *consumers* is complete and mechanically enforced. The sweep over the *answer set* was never run; see the `ErrInputEnded` finding. The declared narrowing of Spec bullet 4 / Done-when #2 to `pair#273` is properly recorded in both artifacts and I verified `pair#273` actually carries BR-4's lead (`000273-…md:214-251`), so that deferral is honest.
+- **ARCH-MOCK — pass.** `ttyio.NewFake`, `hostty.NewFakeHost`, `ptychild.NewFakeChild` all sit behind the production seam; the fixtures drive the real `Presenter` and real `Console`, not doubles of them.
+- **ARCH-CONSTRAINTS — pass.** The added work on the keystroke path is one `errors.Is` plus, when `COUCH_TRACE` is on, one line per dropped event. I checked the mouse case specifically: `mouseInput` guards on `State != Ready` and `Ready` is `ViewState`'s zero value, so the any-motion stream does *not* amplify into trace writes in the durable no-endpoint state. Keystroke-rate writes to that file already exist (`inputtrace.go`), so this introduces no new rate class.
+- **ARCH-SECURE — pass.** Endpoint ids reach the error text `%q`-quoted, which keeps the TSV framing intact (tab/newline escaped) and preserves the trace's "addresses, counts and timings, never content" rule; `atlas/couch.md:1113` states this explicitly. No credentials, no untrusted-input parsing added.
+- **ARCH-ORDER — pass, with the known deferral.** The Focus/View disagreement is now a typed answer rather than an implicit crash, and `presenterResized` makes the resize sequencing explicit instead of re-derived. The durable `(focus=actor, selected=nil)` state is still unreconciled by design, with `traceNoDestination` as the non-repainting signal and `pair#273` owning the reconciliation — declared, not drifted.
+- **ARCH-FUNERAL — pass.** No new durable artifact family; `no-destination` joins an existing opt-in trace file whose lifecycle the operator owns, and growth per event is unchanged in kind.
+
+**7. Plan revision recommendations**
+
+- `workshop/plans/000265-…-plan.md` `## Revisions` — add an entry correcting `:40` and `:46`, which still describe two refusal sites ("`Input`'s non-mouse arm and `mouseInput`'s unpresented arm", "the two refusal sites") against the four the table at `:57` and the shipped code carry. This is BR-14's open residual, not a new observation.
+- Same `## Revisions` — record that the enumeration the plan settled on ("every refusal that reports the ABSENCE of an endpoint") is narrower than the class that produces the operator-visible symptom, and name `Presenter.Input`'s error set as the correct index, with `ErrInputEnded` measured fatal. Without this the plan continues to claim a sweep it did not run.
+- `## Out of scope` — the `ErrBackpressure` bullet instructs "record it in the `## Log` at close". Either execute it (one `## Log` line in the issue, or an issue id) or amend the bullet to say the atlas sentence at `couch.md:404` is the record.
+
+```findings
+dispose:
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      Unchanged at trace.go:172-183 -- traceEvent's comment still sits above traceDropped, and traceEvent at :185 is undocumented.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Verified: reverting presenterResized to the old skip condition on a scratch HEAD turns TestResizeWithNoEndpointStillResizesTheFocusedChild red (got {Rows:23 Cols:80}, want {Rows:29 Cols:100}).
+  - id: BR-14
+    disposition: not-addressed
+    note: |
+      Both residuals unchanged (trace_test.go:269 hand-list, plan.md:40 "two sites"), plus a third from the same sweep -- plan.md's "record ErrBackpressure in the Log at close" was never executed.
+  - id: BR-15
+    disposition: addressed
+    note: |
+      discoverConsumerPackages reads the tree and presenterValued tracks locals; the terminalqualify exemption logs its reason at runtime, and I confirmed only couchtty, termcmd and terminalqualify hold a presenter in production.
+findings:
+  - id: new
+    severity: Important
+    family: routing-answer-escalation
+    title: |
+      The door classifies one member of Presenter.Input's error set; ErrInputEnded still exits couch on a keystroke
+    detail: |
+      5th in this family -- do NOT fix the instance. Measured on HEAD: panelConsole, switchTo("only"),
+      child.Endpoint().EndInput(), routeInputEvent(KeyPressEvent) leaves terminalFailure = "terminal: child input ended"
+      and the console stopped. EndInput fires when the PTY read loop ends (ptychild/child.go:162) while couch learns of
+      the exit asynchronously (console.go:441), so a keystroke after an agent quits can take every pane down. Couch already
+      treats the same state as survivable at console.go:1247. Rule: the enumeration is the SET of errors Presenter.Input
+      can return, each declared routing-vs-ownership and pinned by the contract test -- not the callers and not the
+      noDestination() producers. Membership measured today: ErrNoDestination classified, ErrInputEnded fatal,
+      ErrBackpressure deferred-and-documented, os.ErrClosed / presenter-unavailable / presenter-released undeclared.
+  - id: new
+    severity: Important
+    family: degraded-path-skips-dependent-work
+    title: |
+      termcmd inheritSize's new non-fatal arm returns before the work the refused step was assumed to have done
+    detail: |
+      2nd in this family -- do NOT fix the instance. presentation.go:409-413 returns on ErrNoDestination, skipping
+      "m.rows, m.cols = size.Rows, size.Cols" (:414) and the loop resizing every non-active tab (:415-420); the active
+      tab gets nothing either, since its ResizePTY callback lived inside the refused call. That is BR-13 verbatim,
+      shipped in the same diff as BR-13's fix, and the two consumers of the same answer now behave oppositely (couch
+      continues and resizes everything). The rule is already written in lessons.md; make it a sweep -- this diff has
+      exactly seven survivable arms (paintNow, onResize, deliverPresenterInput, deliverChildInput, writeEvents,
+      paintStripLocked, inheritSize) and inheritSize is the one residual. It is also silent where couch traces "resize".
+```

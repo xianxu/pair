@@ -77,3 +77,30 @@ func TestRoutingAnswerDoesNotStopTheMuxOnRepaintOrResize(t *testing.T) {
 		})
 	}
 }
+
+// Red without BR-17's presenterResized: inheritSize returned on a routing
+// answer, skipping the mux's own geometry update AND every tab's resize -- the
+// active tab included, since its only resize lives in the refused call's apply
+// callback. Same defect as couch's BR-13, in the other consumer.
+func TestResizeWithNoEndpointStillResizesEveryTab(t *testing.T) {
+	p := terminal.NewPresenter(ttyio.NewFake(), terminal.ChildRequested)
+	t.Cleanup(func() { _ = p.Release(context.Background()) })
+	active := &terminalTab{id: 1, child: ptychild.NewFakeChild(nil)}
+	other := &terminalTab{id: 2, child: ptychild.NewFakeChild(nil)}
+	m := &terminalMux{
+		tabs: []*terminalTab{active, other}, active: 0,
+		rows: 24, cols: 80, presenter: p, done: make(chan struct{}),
+	}
+
+	m.inheritSize(hostty.NewFakeHost(ptychild.Size{Rows: 30, Cols: 100}))
+
+	if m.rows != 30 || m.cols != 100 {
+		t.Fatalf("mux geometry = %dx%d, want 30x100", m.rows, m.cols)
+	}
+	want := m.childSizeLocked()
+	for _, tab := range []*terminalTab{active, other} {
+		if got := tab.child.Size(); got != want {
+			t.Errorf("tab %d size = %+v, want %+v", tab.id, got, want)
+		}
+	}
+}

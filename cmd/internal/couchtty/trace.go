@@ -169,9 +169,6 @@ func (c *Console) SetEventTrace(path string, processStart time.Time, options ...
 	return nil
 }
 
-// traceEvent records one timing-trace event, stamped now. The caller must not
-// hold c.mu. The lock is taken only to read the tracer; the write happens
-// outside it, as all of the console's IO does.
 // traceDropped records one operation abandoned for want of an endpoint. See
 // traceNoDestination for why this is a trace line and not a notice.
 func (c *Console) traceDropped(where string, err error) {
@@ -182,6 +179,9 @@ func (c *Console) traceDropped(where string, err error) {
 	c.traceEvent(traceNoDestination, couchcore.ThreadAddress{}, detail)
 }
 
+// traceEvent records one timing-trace event, stamped now. The caller must not
+// hold c.mu. The lock is taken only to read the tracer; the write happens
+// outside it, as all of the console's IO does.
 func (c *Console) traceEvent(event string, address couchcore.ThreadAddress, detail string) {
 	c.mu.Lock()
 	events := c.events

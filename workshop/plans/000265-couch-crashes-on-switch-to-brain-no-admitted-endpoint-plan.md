@@ -38,7 +38,7 @@ The record-versus-world half of the brain diagnosis (a park wedged in `ThreadBus
 
 - **ErrNoDestination** — the sentinel for "the presenter has no endpoint to deliver this input to". Its own file, not `presenter.go`, so the purity boundary is visible from outside: `destination_test.go` runs with no writer, no host and no endpoint.
   - **Relationships:** 1:N — one sentinel, wrapped by every refusal site in `Presenter` (`Input`'s non-mouse arm and `mouseInput`'s unpresented arm). N callers classify with `errors.Is`.
-  - **DRY rationale:** Today two sites hand-build two different unrelated strings for the same answer (`"terminal: no admitted endpoint"`, `"terminal: no presented mouse destination"`), and no caller can tell either from a write failure. One sentinel, one message shape (ARCH-DRY).
+  - **DRY rationale:** Today four sites hand-build two different unrelated strings for the same answer (`"terminal: no admitted endpoint"`, `"terminal: no presented mouse destination"`), and no caller can tell either from a write failure. One sentinel, one message shape (ARCH-DRY).
   - **Future extensions:** If a third "cannot deliver" condition appears (a retired origin, a released endpoint), it wraps the same sentinel and every existing caller classifies it correctly with no edit.
 
 - **noDestination** — builds the wrapped error, carrying the reason and the `View` that produced it. Pure: `(reason string, v View) -> error`.

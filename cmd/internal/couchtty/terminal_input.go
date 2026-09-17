@@ -2,7 +2,6 @@ package couchtty
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
@@ -19,7 +18,7 @@ import (
 // through here, and TestConsoleReachesPresenterInputOnlyThroughItsDoor pins it.
 func (c *Console) deliverPresenterInput(event uv.Event) {
 	err := c.presenter.Input(c.lifetime, event)
-	if errors.Is(err, terminal.ErrNoDestination) {
+	if terminal.IsRoutingAnswer(err) {
 		c.traceDropped("input", err)
 		return
 	}

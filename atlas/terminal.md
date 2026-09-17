@@ -89,7 +89,12 @@ it can say which endpoint in which state.
 
 It is deliberately separate from physical failure: `Presenter.fail` latches the
 view into `Failed` and closes `Failed()`, and nothing about this sentinel touches
-that channel. The distinction exists because a consumer that cannot tell the two
+that channel.
+
+Consumers ask `IsRoutingAnswer(err)` rather than testing one sentinel. That
+function carries the declared membership of `Presenter.Input`'s error set —
+which members are routing, which are ownership, and why — so a new sentinel
+joins the set in one place instead of at every call site. The distinction exists because a consumer that cannot tell the two
 apart tears down terminal ownership over a question it merely asked at the wrong
 moment -- which is what exited couch on a keystroke before #265. Consumers
 classify with `errors.Is`.

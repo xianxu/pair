@@ -1,12 +1,13 @@
 ---
 id: 000265
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-15
 updated: 2026-09-16
 estimate_hours: 1.70
 started: 2026-09-16T09:04:38-07:00
+actual_hours: 3.66
 ---
 
 # couch crashes on switch to brain: no admitted endpoint
@@ -119,6 +120,7 @@ Moved out of scope (see `## Revisions`): "why paint is blank" → `pair#273`;
 - Recorded from operator report: switch to `brain` → tab appears but viewport blank → key/Esc leaks escape sequence at top-left → `couch: terminal: terminal: no admitted endpoint` and exit. Source pinned to `cmd/internal/terminal/presenter.go:494`. Issue created as `000265`.
 
 ### 2026-09-16 — state-machine inspection (startup lifecycle)
+- 2026-09-16: closed — Routing crash fixed as a RULE, swept, operator-verified. (1) Reproduced first; panel-focused key-release/focus/blur each stopped the console, now green. (2) CLASS = every presenter refusal reporting absence of an endpoint. Four producers (Input, mouseInput, UpdateChrome, resizeLayout) classified at every consumer in couchtty (deliverPresenterInput/deliverChildInput/paintNow/onResize) and termcmd (writeEvents/paintStripLocked/inheritSize). BOTH halves of the contract are derived, not typed: no_destination_contract_test.go reads producers off the source, discovers consumer packages by scanning the tree for terminal.NewPresenter/*terminal.Presenter, and sees presenters held in locals; terminalqualify is an explicit exemption with a stated reason -- removing it turns the test red on all six of its sites. (3) Every oracle mutation-proven red: AST door guard vs a planted violation; paintNow classification; resizeLayout typing; the panel check (distinguished at the trace, since a bypass classifies AT the presenter while the panel check drops BEFORE it); TestAtlasNamesEveryTraceEvent vs a renamed constant; producer-set drift; consumer unclassification in both packages; and BR-13 vs the old skip condition. (4) BR-13 fixed: onResize no longer leaves the focused child at its old size when the presenter refuses. (5) BR-4: drops record a no-destination trace event; (focus=actor, selected=nil) is durable, and the lead is recorded in pair#273. (6) make test, retention-owner env scrubbed, non-symlinked TMPDIR: 210 packages, exit 0, ZERO failures. (7) Operator smoke test 2026-09-16: ran this build in brain, opened the switcher on a blank pane and switched harness muse->claude; the gesture that used to exit with "couch: terminal: terminal: no admitted endpoint" now completes. Out of scope and filed: pair#271, pair#272, pair#273; ErrBackpressure deliberately deferred and recorded.; review verdict: FIX-THEN-SHIP
 
 New symptom from the operator: couch also cannot **start** in `brain` — tab bar
 appears, viewport blank, couch sits there; `ctrl+space` then exits with
@@ -462,3 +464,45 @@ detection works.
 
 Verification: `make test`, same env scrubs — **210 packages, exit 0, zero
 failures.**
+
+### 2026-09-16 — close round 4: FIX-THEN-SHIP, findings fixed before the close commit
+
+The gate finalized (`codecomplete`, actual 3.66h against a 1.70h estimate —
+ratio 0.5×, recorded trusted-window). Four findings were fixed in the close
+commit per the `#174` protocol.
+
+- **BR-16 (Important, 5th in family) — `ErrInputEnded` still exited couch on a
+  keystroke.** The door classified one member of `Presenter.Input`'s error set.
+  A child's PTY read loop ends the moment its agent exits, while the console
+  learns of that exit asynchronously — so an ordinary keystroke in that gap took
+  **every pane** down. The rule, not the instance: the enumeration is the SET of
+  errors `Input` can return, each declared routing-vs-ownership in one place.
+  `terminal.IsRoutingAnswer` is that place; every consumer now asks it.
+- **BR-17 (Important, 2nd in family) — `termcmd.inheritSize` returned before the
+  work the refused step was assumed to have done.** This is BR-13 verbatim,
+  shipped in the same diff as BR-13's fix: the active tab is resized only by
+  `ResizeLayout`'s apply callback, so returning on a routing answer left the
+  visible tab *and* the mux's own `rows`/`cols` stale, while couch's `onResize`
+  continued. Both consumers of the same answer now behave the same way.
+- **BR-10 (Minor)** — `traceEvent`'s doc comment had been orphaned onto
+  `traceDropped` by my insertion; moved back.
+- **BR-14 (Minor)** — `TestAtlasNamesEveryTraceEvent` restated its own
+  enumeration by hand, which is the defect the test exists to prevent. It now
+  reads the constants out of `trace.go` by AST. The plan's remaining "two sites"
+  is corrected, and the third residual is executed below.
+
+**`ErrBackpressure`, recorded as the plan required.** `p.call` returns it when
+the presenter's request queue is full (`presenter.go:94`). It is *not* in the
+routing set and remains fatal. That is deliberate: "no endpoint to deliver to"
+is a routing fact, while "the queue is full" is a capacity fact, and whether to
+drop operator input under load is a decision with its own operating envelope
+(ARCH-CONSTRAINTS) rather than something to settle as a side effect of this
+issue. It is documented in `IsRoutingAnswer`'s membership list so the next
+person meets the decision rather than the omission. If dropped input under load
+is wanted, it needs its own issue.
+
+Every fix carries a mutation-proven oracle:
+`TestKeystrokeAfterTheChildsInputEndsDoesNotStopTheConsole` (red without
+`ErrInputEnded` in the set), `TestResizeWithNoEndpointStillResizesEveryTab` (red
+both without `presenterResized` and against an early return),
+`TestAtlasNamesEveryTraceEvent` (red against a renamed constant).

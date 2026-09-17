@@ -5183,3 +5183,19 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   never ran, so the one pane the operator is looking at kept its old size, and
   the comment I wrote claimed the opposite. When you make a failure survivable,
   re-read what the code after it assumed the failed step had done. (#265 BR-13)
+
+- **Classify the error SET, not one sentinel.** #265's door tested
+  `errors.Is(err, ErrNoDestination)` — one member of what `Presenter.Input` can
+  return. `ErrInputEnded` stayed fatal, and because a child's PTY read loop ends
+  the instant its agent exits while the console learns of that asynchronously, a
+  keystroke in that gap took every pane down. Five review findings in one family
+  each widened one `errors.Is` at one site. The fix that ends it is a single
+  predicate carrying the declared membership — every member, each marked routing
+  or ownership, in one place a consumer can ask. (#265 BR-16)
+
+- **The same defect can ship in the same diff as its own fix.** BR-13 (couch's
+  `onResize` skipping work the refused step was assumed to have done) and BR-17
+  (termcmd's `inheritSize` doing exactly that) were both present in the commit
+  whose message explained BR-13. Writing the lesson is not the sweep: when a
+  finding names a shape, grep the shape — this diff had seven survivable arms
+  and one of them was still wrong. (#265 BR-17)

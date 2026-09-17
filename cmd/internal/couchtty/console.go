@@ -1113,7 +1113,7 @@ func (c *Console) paintNow() {
 	if err == nil {
 		err = c.presenter.UpdateChrome(c.lifetime, cells)
 	}
-	if errors.Is(err, terminal.ErrNoDestination) {
+	if terminal.IsRoutingAnswer(err) {
 		c.traceDropped("chrome", err)
 		// Mid-transition: showMenu's presenter.Panel has cleared the endpoint and
 		// c.focus has not caught up yet, so this arm ran with nothing to paint
@@ -1232,7 +1232,7 @@ func (c *Console) onResize() {
 		switch {
 		case err == nil:
 			presenterResized = true
-		case !errors.Is(err, terminal.ErrNoDestination):
+		case !terminal.IsRoutingAnswer(err):
 			c.terminalError(err)
 			return
 		default:

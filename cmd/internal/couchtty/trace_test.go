@@ -2,6 +2,9 @@ package couchtty
 
 import (
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -265,12 +268,48 @@ func TestAtlasNamesEveryTraceEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 	atlas := string(raw)
-	for _, event := range []string{
-		traceStartup, traceFirstFrame, traceInventory,
-		tracePassSeeded, traceReattachStart, traceReattachDone, traceNoDestination,
-	} {
+	// Derived, not restated. A test whose whole purpose is to stop an
+	// enumeration going stale must not keep its own copy of that enumeration
+	// (pair#265 BR-14) -- so the constants are read out of trace.go.
+	for _, event := range traceEventConstants(t) {
 		if !strings.Contains(atlas, "`"+event+"`") {
 			t.Errorf("atlas/couch.md does not document the %q trace event", event)
 		}
 	}
+}
+
+// traceEventConstants reads every trace-event constant out of trace.go, so the
+// atlas check cannot pass by agreeing with a stale hand-written list.
+func traceEventConstants(t *testing.T) []string {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "trace.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			value, ok := spec.(*ast.ValueSpec)
+			if !ok || len(value.Names) != 1 || len(value.Values) != 1 {
+				continue
+			}
+			if !strings.HasPrefix(value.Names[0].Name, "trace") {
+				continue
+			}
+			lit, ok := value.Values[0].(*ast.BasicLit)
+			if !ok || lit.Kind != token.STRING {
+				continue
+			}
+			out = append(out, strings.Trim(lit.Value, `"`))
+		}
+	}
+	if len(out) < 5 {
+		t.Fatalf("read only %d trace constants from trace.go -- the reader is broken, not the tree: %v", len(out), out)
+	}
+	return out
 }
