@@ -732,3 +732,168 @@ findings:
     detail: |
       plan:294-300 requires both figures in the issue Log — the startup evidence round and one steady-state refresh, on the 7-record 4-scope store. Neither is there. The envelope itself is enforced well and structurally (SessionPresenceQueries()==1, DetachedQueries()==0 at three sites, TestSessionPresenceCountsNoClients), which is stronger evidence than a timing number, so this is bookkeeping rather than risk.
 ```
+
+---
+
+## Re-review — 2026-09-17T11:15:39-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 256 — Enforce lifecycle transition authority and outcome uncertainty |
+| repo | pair |
+| issue file | workshop/issues/000256-lifecycle-transition-authority.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | b6a0766ac340596f2f5889f6a183cfcb9f5795ed..4b23a713721488ef13888e2ef59bb12aaa5a90b2 |
+| command | sdlc milestone-close --issue 256 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-17T11:15:39-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Round 4's Critical is genuinely closed, and closed the way the rule asked for: `TestForeignOwnedParkIsRepresentableAndRefused` builds the foreign-owned park **through the production `ThreadStore`**, the store accepts it, and deleting the owner probe reddens it — I ran that mutation. The `ResumeUnknown` re-code is likewise mutation-proven, and all six doc-sweep members of BR-24 are corrected, two of them with the "name the test that pins it" mechanism the finding asked for. What blocks SHIP is that the same enumeration is still short one member: `retireDeadIncarnationBeforeStart` declines silently for any incarnation count other than one (`resume.go:555`), so a record the validator accepts — active park, **zero** incarnations, via the very `replacementUnknown` exception round 4 discovered — classifies `detached`, is auto-selected at startup, and makes `couch` refuse to start in the whole tree. I ran the same fixture at base `b6a0766` (`StartInteractive err = <nil>`, couch spawns) and at head (refusal), and confirmed the record can be neither resumed nor archived. Secondary: the disproved premise that caused round 4's Critical is still stated as current in `atlas/couch.md` and in the enclosing comment of the function that was fixed.
+
+### 1. Strengths
+
+- **`sessionevidence_test.go:548-613` is the right shape of proof.** The test does not assert unrepresentability — it *attempts* the fixture through `store.CreateThread` and fails with "the store REFUSED the fixture, so the unrepresentability claim would have held" if it ever becomes impossible. That inverts the failure mode that produced the Critical. Mutation-verified: removing the owner probe at `resume.go:625-629` reddens it on "abandoned a park whose owner is alive and was never probed".
+- **`resume.go:625` probes the entity it acts on.** `ProcessIdentity{PID: thread.Park.Identity.PID, Identity: thread.Park.Identity.ProcessIdentity}` — and I checked the guard is sound at its edges: `validateParkIdentity` (`threadrecord/lifecycle.go:185`) requires a non-empty `ProcessIdentity` with no exception, so `observeExactProcess`'s empty-identity→`Dead` path cannot be reached here.
+- **`resume_test.go:319-335` pins *which* code each exit emits**, the gap that let "not running at all" be rendered over a live conversation. Mutation-verified: reverting to `ResumeNotRunning` reddens it. `ResumeNotRunning` keeps a producer (`relaunch.go:103`), so `TestEveryResumeDiagnosticCodeIsProducedBySomeSite` stays honest.
+- **`startup.go:221-256` is the correct resolution of round 2's over-reach.** Both shapes get a way forward, `ResumeDiagnosticCode` goes back to meaning "structured refusal", and `errors.Is`/`Unwrap` survive. It is why today's uncoded store error degrades legibly instead of muting — including for the Critical below.
+- **The doc-sweep grew a mechanism, not more diligence.** `actionableinventory.go:446` and `artifactcollision_fake.go:59-62` now name the test that pins the claim (`TestAbsentLiveEvidenceProvesNothing`, `TestSessionPresenceAnswersThroughTheProductionChecker`), and `actionableinventory.go:424-425` points at `startup.go`'s one home instead of restating it.
+
+### 2. Critical findings
+
+**C1 — `resume.go:555`: the re-adoption declines an open-park record with zero incarnations, and couch then refuses to start in the whole tree.** (`classification-not-authority`, **3rd in family** — do not fix this site; fix the rule.)
+
+Confirmed by execution against the production store, not by inspection:
+
+```
+store ACCEPTED: incarnations=0 park=true
+classify with present session = "detached"/""
+retireDeadIncarnationBeforeStart -> retired=false err=<nil>      # len(Incarnations) != 1
+CommitStartClaim err = thread {...} has an open park transaction  (diagnostic="")
+```
+
+and end to end through `StartInteractive` on a `startupFixture`:
+
+```
+head 4b23a713: StartInteractive err = thread {...} has an open park transaction
+                 couch could not resume the thread in this tree ... will not start a second one.
+base b6a0766a: StartInteractive err = <nil>      # couch spawns normally
+```
+
+The shape is the *same* validator exception round 4 found — `threadrecord/lifecycle.go:91`'s `replacementUnknown` permits `matches == 0` when the phase is `unknown` and the transaction carries a `replacement_incarnation` failure — read at a different incarnation count. `hasExactParkIncarnation` (`park.go:671`) returns false for zero incarnations too, so `park.go:653-662` records that failure code without requiring a replacement to exist; `recovery_execute.go:323` and `continuation_recovery.go:310` both set `next.Incarnations = nil` with no park check, and the result validates. I did not trace that chain to a single reproducible production sequence — that is the honest limit of this finding — but the store accepts the record, which is the standard round 4 itself installed, and ARCH-SECURE treats a persisted record written by another version as untrusted input.
+
+It is also a dead end: `ArchiveThread` refuses ("a park transaction is still open; let lifecycle recovery finish"), `CommitStartClaim` refuses forever, and `RecoverActiveParks` (`couchcmd/run.go:342-350`) runs *after* the dispatch returns, so a failed `start` exits at `run.go:338-340` before park recovery could clear it. Unresumable, unarchivable, and now blocking `couch` in that tree.
+
+Round 2 already stated the rule — *"the enumeration is not 'four sites', it is every guard that refuses on a record's incarnation or park"* — and `resume.go:604-608` writes it down as four **sites** rather than as that predicate, which is why the predicate's other half was never checked. The rule to enforce: **the re-adoption must be total over the record shapes `validateLifecycle` accepts; every `return nil, nil` arm is a claim about what the store cannot hold and needs the same treatment `thread.Park`'s guard just got.** Concretely: hoist the park-abandon above the `len(Incarnations) != 1` gate (its own owner probe already authorizes it independently of any incarnation), and refuse-with-a-code rather than declining silently for the counts it still cannot clear. Mechanism: extend `TestReAdoptionExitsAreTotalAndCoded` (`sessionevidence_test.go:365`) with an incarnation-count dimension `{0, 1}` × the existing park/liveness/state axes, asserting that a record `ClassifyThread` calls resumable is either cleared or refused with a non-empty diagnostic *and* an in-product escape.
+
+### 3. Important findings
+
+**I1 — the premise round 4 disproved is still stated as current in two homes, one of them inside the function that was fixed.** (`atlas-contradicts-code`, **3rd in family** — do not fix these sites; fix the rule.)
+
+- `atlas/couch.md:1343-1345`: *"An orphaned park is abandoned alongside the dead incarnation — **one probe answers both, since the park identity is copied from the incarnation** — and every precondition is screened before that write."* That is precisely the claim `TestForeignOwnedParkIsRepresentableAndRefused` now falsifies, and the atlas is the map AGENTS.md §8 requires be current. The atlas's "Two rules fell out of the sweep" paragraph (`:1349-1354`) also predates round 4's two new rules and does not carry them.
+- `cmd/internal/couchcore/resume.go:597-600`: *"But the park identity is COPIED from the incarnation (park.go, soleParkableIncarnation), so the probe above already proved the park's own owner dead."* — contradicted ten lines later by its own correction at `:606-624`. A reader who stops at the outer comment gets the retracted reasoning.
+
+This is one rule with BR-19, which remains open on the site-count homes: **when a boundary round changes a claim, every home of that claim is re-derived in the same round — code comment, plan Revisions, atlas, issue Log.** Three rounds of hand-sweeping have each left homes behind, so the rule needs the mechanism BR-24 introduced applied here too: the claim that justifies a guard's *shape* should cite the test that pins it (`TestForeignOwnedParkIsRepresentableAndRefused`), so the claim and its evidence move together. Measured prevalence in this window: 2 stale homes for the park-identity claim, 3 for the site count (BR-19), 6 for BR-24's referent change, 5 for BR-7's.
+
+### 4. Minor findings
+
+- `actionableinventory.go:567` — `presenceErr` is discarded entirely (`if presence, presenceErr := ...; presenceErr == nil`). A host-wide `zellij` failure or an unreadable scope path renders every row `checking…` with the cause recorded nowhere, while `PathError` on the same struct is carried per record. Fail-closed is right; anonymous is the thing `#181` removed. (`degradation-without-diagnostic`)
+- `workshop/plans/...-plan.md:363-364` — round 4's own swap of rows 6/7 left the sentence below the table false: *"Rows 7–9 read only resume authority, which is genuinely durable"*, where row 7 is now `SessionUnresolved`. Row 8 (`binding-lost`) is reachable only *inside* the `VerifiedPark` branch in the code, above row 7, and the `VerifiedPark` + `ProofUnresolved → unknown` sub-case is absent from the table; `:355` still says "(in-memory observation)" and `:213-215` still says *"Ephemeral state stays ephemeral"*. (`plan-code-divergence`, **4th in family** — the rule has now been stated twice and hand-applied twice; the mechanism is to stop restating the branch table in the plan and point at `ClassifyThread` + `classify_test.go`'s `everyThreadShape`, which is derived and tested.)
+- `resume_test.go:333` — the failure message prints `ResumeNotRunning` as the value it must *not* be, so under the mutation it reads *"reports "resume-not-running" … not "resume-not-running""*. Name the expected value (`ResumeUnknown`).
+- `sessionevidence_test.go` now holds four tests that exercise `resume.go` (`TestUnknownLivenessNeverRetiresAnIncarnation`, `TestOrphanedParkDoesNotWedgeTheResumeChain`, `TestReAdoptionExitsAreTotalAndCoded`, `TestForeignOwnedParkIsRepresentableAndRefused`) while round 4 correctly put the fifth in `resume_test.go`. One file or the other.
+- `artifactcollision.go:329` duplicates `park.go:812`'s `var _ PairSessionIO = ScopedThreadArtifactCollisionChecker{}` — two homes for one fact.
+
+### 5. Test coverage notes
+
+- **Suite state:** `couchcore`, `couchtty`, `couchcmd` fail only on `ptychild: operation not permitted` and `mkdir /tmp/pcnotify-*`. I enumerated every `--- FAIL` and ran the same set at base `b6a0766a`: **identical failure set, zero logic failures.** `threadrecord` is green.
+- **Mutation checks I ran this round** (scratch copy of the pinned head, both reverted after): deleting the park-owner probe reddens `TestForeignOwnedParkIsRepresentableAndRefused`; reverting `ResumeUnknown` → `ResumeNotRunning` reddens `TestReAdoptionRefusalsClaimOnlyWhatWasProved`. Two for two on the round's behavioural claims.
+- **Gap (C1):** `TestReAdoptionExitsAreTotalAndCoded` iterates `{none, matching} park × {dead, unknown, alive} × {Live, Unknown}` but holds incarnation **count** fixed at one — which is exactly the dimension the early return at `resume.go:555` keys on, and the one that is unswept. The `foreign` row is now covered separately, correctly.
+- Carried from round 3, still true: the abandon→retire pair has no seam to inject a crash between the two writes, so "safe to repeat" (`resume.go:634-640`) remains reasoned rather than exercised. A `ThreadStore` whose `RetireIncarnation` fails once would pin it.
+- No live conformance check against a real `zellij` for `SessionPresence`; `sandboxedChecker` is the standing seam when `#276` lands.
+
+### 6. Architectural notes
+
+- **ARCH-DRY — pass.** `indexSessionsByName`/`uniquelyClaimed`/`resolveScopedBindings` serve both projectors; `detachedsessions.go:62-82` reduces to the shared predicate. Only the duplicated `var _ PairSessionIO` above.
+- **ARCH-PURE — pass.** `ClassifyThread`, `startClaimed`, `ProjectSessionPresence`, `indexSessionsByName`, `uniquelyClaimed` run with no IO. `retireDeadIncarnationBeforeStart` sits on `*Couch` and calls named store transitions; its tests run against the real `ThreadStore`, not a mock.
+- **ARCH-PURPOSE — flag (C1).** Fifth round, same axis: the enumeration is written as four *sites* rather than as the predicate round 2 named, so the predicate's other half was never checked. The finding names one instance; the deliverable is the class.
+- **ARCH-MOCK — pass.** Production `SessionPresence` is exercised through the stubbed-`zellij` harness including the archive-deciding readable/unreadable branch; the fake is stateful and couples detached ⇒ present; the compile-time bindings (`artifactcollision.go:320-331`) close the silent-assertion class. The foreign-park fixture goes through the real store rather than a double — that is the right instinct applied in the right place.
+- **ARCH-CONSTRAINTS — pass.** One host-wide `list-sessions`, zero `list-clients`, pinned at four sites and against the production checker; the accounting is now in the issue `## Log` with wall-clock explicitly owned by M2. The park-owner probe adds one `Exists`/`Identity` pair per park-open record — negligible and off the keystroke path.
+- **ARCH-SECURE — flag, contributing to C1.** The persisted record is input this process did not necessarily produce, and `validateLifecycle`'s exceptions define what it may hold. Round 4 fixed one reading of `replacementUnknown`; the zero-incarnation reading of the *same* exception is still un-enumerated. Otherwise pass: no credentials, `zellij list-sessions` parsed fail-closed on contested and duplicated names, `SessionUnresolved` as zero value.
+- **ARCH-ORDER — pass, with BR-21 open.** The exit table is a real `(state, event) → (state, effects)` enumeration asserting outcomes rather than restating the implementation, and the identity fix is this entry's canonical case handled correctly ("an observation is evidence about an *exact entity*"). Carried: the abandon still bypasses `PairLifecycleController`'s per-thread worker (two authorities for one durable transition), and no test can inject the crash-between-writes interleaving.
+- **ARCH-FUNERAL — pass.** No new durable family. `AbandonPark` gains one caller bounded at one tombstone per orphaned-park re-adoption; `ParkHistory` is unbounded but pre-existing and owned by `#275`. `SessionObservation` dies with its refresh.
+
+### 7. Plan revision recommendations
+
+1. **The enumeration is a predicate, not a list of four.** Record C1: `retireDeadIncarnationBeforeStart`'s `len(Incarnations) != 1` early return is an unstated claim about what the store can hold, and `validateLifecycle`'s `replacementUnknown` exception falsifies it at zero incarnations. State which layer clears an orphaned park when there is no incarnation to retire, and name the test dimension that keeps the exits total.
+2. **Correct the branch table's surroundings** (`:355`, `:363-364`, row 8, the missing `VerifiedPark`+`ProofUnresolved` sub-case) — or better, delete the restatement and point at `ClassifyThread` plus `everyThreadShape`, so the plan stops being a hand-maintained second copy of the model.
+3. **Bring `:213-215` into line with the adopted decision** — "Ephemeral state stays ephemeral" still directs the design the Revisions entry reversed.
+4. Outside the plan: correct `atlas/couch.md:1343-1345` and `resume.go:597-600` (I1), and the issue's three "three sites" homes (lines 123, 176, 184 — BR-19, third round open).
+
+```findings
+dispose:
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      Round 4 prepended a new Log section mentioning a fourth site but left all three named homes unchanged: issue lines 123, 176 and 184 still say "three sites" with an enumeration of 1-3. The issue file now contradicts itself.
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      classify_test.go was untouched in 4b23a713 (last change b5fce898); name, doc and failure message still disagree with the body. The round's own new test resume_test.go:333 adds a fourth instance — its failure message prints ResumeNotRunning as the value it must not be.
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      resume.go:630 still calls c.Threads.AbandonPark directly; no change in park.go or couchcmd/run.go, and no comment saying why the per-thread worker is not needed here. Minor, CAS-protected.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      Mutation-verified: deleting the owner probe at resume.go:625-629 reddens TestForeignOwnedParkIsRepresentableAndRefused, which builds the fixture through the production ThreadStore and the store accepts it. Checked the guard's edge: validateParkIdentity requires a non-empty ProcessIdentity with no exception, so observeExactProcess's empty-identity path is unreachable here. The residual stale premise in two other homes is raised separately.
+  - id: BR-24
+    disposition: addressed
+    note: |
+      All six re-derived. Behavioural member mutation-verified (ResumeUnknown -> ResumeNotRunning reddens resume_test.go:319). ResumeNotRunning keeps its producer at relaunch.go:103. Two sites gained the requested mechanism by naming the test that pins the claim.
+  - id: BR-25
+    disposition: addressed
+    note: |
+      plan:355-364 branch order inverted, :423-427 records the ReasonUnrecordedChild reversal with its reason, :594-598 marks Task 8a LANDED IN M1 and flags its deleted red state; the widened rule is in the round-4 Revisions entry. Siblings it did not reach are raised as a Minor rather than re-raised here.
+  - id: BR-26
+    disposition: addressed
+    note: |
+      The issue Log now carries the ARCH-CONSTRAINTS accounting — 0 client queries where the old path made up to 6, Physical on 4 records rather than 3, four sites asserting SessionPresenceQueries()==1 — and names M2's operator verification as the owner of the wall-clock figure.
+findings:
+  - id: new
+    severity: Critical
+    family: classification-not-authority
+    title: |
+      An open park with zero incarnations makes couch refuse to start in the whole tree
+    detail: |
+      3rd in family — fix the RULE, not this site. retireDeadIncarnationBeforeStart returns (nil, nil) whenever len(Incarnations) != 1 (resume.go:555), so an open-park record with ZERO incarnations is never cleared. Confirmed by execution against the production store — the same replacementUnknown exception round 4 found (threadrecord/lifecycle.go:91), read at a different incarnation count: CreateThread ACCEPTS the record, ClassifyThread returns detached, the re-adoption declines silently, and CommitStartClaim refuses with an uncoded "has an open park transaction". Through StartInteractive on a startupFixture, head refuses couch in the tree while the identical fixture at base b6a0766a returns err = nil and spawns normally. The record is also unarchivable (ArchiveThread — "a park transaction is still open"), and RecoverActiveParks runs after the dispatch returns (couchcmd/run.go:342) so a failed start exits before it. I did not trace a single reproducible production sequence that writes the shape; the store accepting it is the standard round 4 installed, and ARCH-SECURE treats a record from another version as untrusted input. The rule round 2 stated — "every guard refusing on record.Incarnations or record.Park" — was written into resume.go:604-608 as four SITES rather than as that predicate, which is why its other half went unchecked. Make the re-adoption total over the shapes validateLifecycle accepts — hoist the park abandon above the count gate, since its own owner probe authorizes it independently, and refuse with a code rather than declining silently for counts it cannot clear. Mechanism: add an incarnation-count dimension to TestReAdoptionExitsAreTotalAndCoded.
+  - id: new
+    severity: Important
+    family: atlas-contradicts-code
+    title: |
+      The premise round 4 disproved is still current in the atlas and in the fixed function's own comment
+    detail: |
+      3rd in family — fix the RULE, not these sites. atlas/couch.md:1343-1345 still reads "one probe answers both, since the park identity is copied from the incarnation", the exact claim TestForeignOwnedParkIsRepresentableAndRefused now falsifies, and :1349-1354's "two rules fell out of the sweep" predates round 4's two new rules. resume.go:597-600 states the same retracted reasoning ten lines above its own correction at :606-624, so a reader who stops at the outer comment gets the disproved version. This is one rule with BR-19, still open on the site-count homes: when a boundary round changes a claim, every home of it is re-derived in the same round — code comment, plan Revisions, atlas, issue Log. Three rounds of hand-sweeping have each left homes behind, so apply BR-24's mechanism here: a claim that justifies a guard's shape cites the test that pins it, so the claim and its evidence move together. Measured prevalence in this window: 2 stale homes for the park-identity claim, 3 for the site count, 6 for BR-24's referent change, 5 for BR-7's.
+  - id: new
+    severity: Minor
+    family: degradation-without-diagnostic
+    title: |
+      SessionPresence's error is discarded, so a host-wide failure renders every row checking… with no cause
+    detail: |
+      actionableinventory.go:567 does `if presence, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil` and drops the error entirely — no trace, no carried field. A zellij failure or an unreadable scope path turns every row in every tree into unusable/unknown with the reason recorded nowhere, while PathError on the same ThreadEvidence struct is carried per record. Fail-closed is correct and tested; anonymous is the shape #181 removed. Carry it the way PathError is carried, or surface it once in the banner.
+  - id: new
+    severity: Minor
+    family: plan-code-divergence
+    title: |
+      Round 4's own table edit left the sentence below it false, and two Core-concepts statements still direct the reversed design
+    detail: |
+      4th in family — the rule has been stated twice and hand-applied twice, so state the mechanism instead. plan:363-364 says "Rows 7-9 read only resume authority, which is genuinely durable" while row 7 is now SessionUnresolved after round 4's swap. Row 8's binding-lost is reachable only INSIDE the VerifiedPark branch in the code, above row 7, and the VerifiedPark + ProofUnresolved -> unknown sub-case is missing from the table entirely. plan:355 still says "(in-memory observation)" and plan:213-215 still says "Ephemeral state stays ephemeral", both describing the design the Revisions entry adopted the opposite of. The mechanism: stop restating the branch table in the plan and point at ClassifyThread plus classify_test.go's everyThreadShape, which is derived and tested — a hand-maintained restatement of the model is a deferred consumer (ARCH-PURPOSE).
+```

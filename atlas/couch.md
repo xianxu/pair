@@ -1340,18 +1340,39 @@ point: the enumeration is the deliverable, not any single site.
    confirmed `Dead`, never on an unobservable process, since retiring a live one
    would abandon a running agent.
 4. `RetireIncarnation`'s open-park precondition, which became reachable **because
-   of** site 3. An orphaned park is abandoned alongside the dead incarnation —
-   one probe answers both, since the park identity is copied from the
-   incarnation — and every precondition is screened before that write, because
-   `AbandonPark`'s tombstone is permanent and a failure after it leaves a thread
-   that can be neither resumed nor archived.
+   of** site 3. An orphaned park is abandoned alongside the dead incarnation, and
+   every precondition is screened before that write — `AbandonPark`'s tombstone
+   is permanent, and a failure after it leaves a thread that can be neither
+   resumed nor archived.
 
-Two rules fell out of the sweep and outlive it. **An irreversible step never
-precedes a revocable check.** And **startup supplies its own guidance**: it
-decorates any resume failure with what to do next, rather than requiring every
-producer to carry a marker — an earlier attempt at the latter changed what
-`ResumeDiagnosticCode` *meant*, from "is a structured refusal" to "came out of
-resume", and broke every reader that used the distinction.
+The sweep is written as a **predicate**, not a list: *every guard refusing on
+`record.Incarnations` or `record.Park`*. Writing it as four sites is what let two
+further shapes through — a park owned by a process that is not the incarnation,
+and an open park with **zero** incarnations. Both are the same
+`replacementUnknown` escape in `threadrecord/lifecycle.go`, read at different
+incarnation counts, and both wedged `couch` in the whole tree. The clearing pass
+is therefore **total over the shapes `validateLifecycle` accepts** — which is the
+domain, because ARCH-SECURE treats a record written by another version as
+untrusted input — and `TestReAdoptionExitsAreTotalAndCoded` enumerates it.
+
+Four rules outlive the sweep:
+
+- **An irreversible step never precedes a revocable check**, and its precondition
+  is proved about **the exact entity the step acts on**. The park's owner and the
+  incarnation's process are not always the same process
+  (`TestForeignOwnedParkIsRepresentableAndRefused`).
+- **A guard omitted as "unrepresentable" cites the validator clause that makes it
+  so, read including its exceptions**, and is pinned by a test that builds the
+  fixture through the real store. That test exists here because the claim was
+  made twice and was wrong twice.
+- **Guidance belongs at the consumer that needs it**, not as a marker every
+  producer must carry: `startupResumeRefusal` decorates any failure. An earlier
+  attempt at the latter changed what `ResumeDiagnosticCode` *meant* — from "is a
+  structured refusal" to "came out of resume" — and broke every reader that used
+  the distinction.
+- **A diagnostic code is a claim.** `ResumeNotRunning` must not be emitted where
+  couch could only establish ignorance, or the switcher renders "not running"
+  over a live conversation.
 
 `hasOccupiedIncarnation` survives for `relaunch` and `switch-agent`, which ask a
 different question: not "is this recoverable" but "is couch itself already

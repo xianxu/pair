@@ -349,19 +349,21 @@ func TestParkedRowSurvivesAnUnresolvedSessionQuestion(t *testing.T) {
 	}
 }
 
-// TestReAdoptionExitsAreTotalAndCoded is the RULE the M1 review's round 2 asked
-// for, replacing two ad-hoc tests that between them reached one of three exits.
+// TestReAdoptionExitsAreTotalAndCoded is the RULE, replacing tests written one
+// per incident.
 //
-// Every combination of {park shape} x {process liveness} x {incarnation state}
-// must either retire cleanly or refuse with a NON-EMPTY ResumeDiagnosticCode,
-// and must never leave the record half-changed. It fails whenever a new exit is
-// added, which is what the two hand-written tests could not do -- the round-1
-// fix coded the store's retire error, and round 2 reproduced the identical wedge
-// through a different uncoded exit.
+// Every shape `validateLifecycle` ACCEPTS must either be cleared or refused with
+// a non-empty ResumeDiagnosticCode, and must never leave the record
+// half-changed. The dimensions are the ones whose absence let a shape through:
 //
-// It also carries both round-2 Criticals as regressions:
-//   - unobservable launcher + surviving session must not wedge startup (BR-11)
-//   - a failed retirement must not have already destroyed the park (BR-12)
+//   - park presence — round 4: a foreign-owned park was tombstoned on the
+//     strength of a probe of a different process
+//   - incarnation COUNT — round 5: an open park with zero incarnations was never
+//     cleared, so CommitStartClaim refused uncoded and couch would not start
+//   - process liveness and incarnation state — the destructive-act guards
+//
+// It fails whenever a new exit appears, which is what the hand-written tests it
+// replaced could not do.
 func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 	type liveness int
 	const (
@@ -369,94 +371,103 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 		unknown
 		alive
 	)
-	// "foreign" is covered separately by TestForeignOwnedParkIsRepresentableAndRefused,
-	// which builds that record through the real store -- it IS representable via
-	// validateLifecycle's replacement_incarnation exception, contrary to an
-	// earlier note here that read only the main clause.
+	names := map[liveness]string{dead: "dead", unknown: "unknown", alive: "alive"}
+
 	for _, park := range []string{"none", "matching"} {
-		for _, live := range []liveness{dead, unknown, alive} {
-			for _, state := range []IncarnationState{IncarnationLive, IncarnationUnknown} {
-				name := park + "-park/" + map[liveness]string{dead: "dead", unknown: "unknown", alive: "alive"}[live] + "/" + string(state)
-				t.Run(name, func(t *testing.T) {
-					store, _ := newTestThreadStore(t)
-					record := actionableTestThread("couch-00000000000000e1", time.Unix(100, 0).UTC())
-					record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
-					record.Incarnations = []ThreadIncarnation{{PID: 64734, Identity: "tok", State: state}}
-					if park != "none" {
-						record.Park = wedgedParkFixture(record.Address)
-						record.Park.Identity.PID = 64734
-						record.Park.Identity.ProcessIdentity = "tok"
+		for _, count := range []int{0, 1} {
+			for _, live := range []liveness{dead, unknown, alive} {
+				for _, state := range []IncarnationState{IncarnationLive, IncarnationUnknown} {
+					if count == 0 && (live != dead || state != IncarnationLive) {
+						continue // liveness/state are meaningless with no incarnation
 					}
-					created, err := store.CreateThread(record)
-					if err != nil {
-						t.Fatal(err)
+					if park == "none" && count == 0 {
+						continue // nothing in the way; the function declines by design
 					}
-					if park != "none" {
-						// Advance past the park's own RecordRevision so an
-						// abandon could legitimately land; otherwise the CAS
-						// would refuse for an unrelated reason.
-						label := "brain"
-						if created, err = store.ApplyThreadMetadata(created.Address, created.Revision, ThreadMetadataPatch{Name: &label}); err != nil {
-							t.Fatal(err)
+					name := fmt.Sprintf("%s-park/%d-incarnation/%s/%s", park, count, names[live], state)
+					t.Run(name, func(t *testing.T) {
+						store, _ := newTestThreadStore(t)
+						record := actionableTestThread("couch-00000000000000e1", time.Unix(100, 0).UTC())
+						record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+						if count == 1 {
+							record.Incarnations = []ThreadIncarnation{{PID: 64734, Identity: "tok", State: state}}
 						}
-					}
-
-					proc := NewFakeProcOps()
-					switch live {
-					case unknown:
-						proc.SetUnknown(64734)
-					case alive:
-						proc.Set(64734, "tok")
-					}
-
-					couch := &Couch{Threads: store, Proc: proc}
-					retired, err := couch.retireDeadIncarnationBeforeStart(created)
-
-					// The expected outcome per cell, not merely
-					// self-consistency: retirement is destructive, so exactly
-					// which combinations MAY perform it is the rule. Only a
-					// confirmed-dead process and a live recorded incarnation --
-					// everything else must refuse, and refuse legibly.
-					wantRetire := live == dead && state == IncarnationLive
-					if wantRetire && err != nil {
-						t.Fatalf("a dead process with a live incarnation must retire, got %v", err)
-					}
-					if !wantRetire && err == nil {
-						t.Fatalf("retired on %s: an unprovable process or a non-live incarnation must refuse, or CommitStartClaim refuses later with a bare store error", name)
-					}
-
-					after, readErr := store.GetThread(created.Address)
-					if readErr != nil {
-						t.Fatal(readErr)
-					}
-					if err != nil {
-						if ResumeDiagnosticOf(err) == "" {
-							t.Fatalf("refusal carries no diagnostic code: %v — startup cannot decorate it, so it wedges the whole tree", err)
+						if park != "none" {
+							record.Park = wedgedParkFixture(record.Address)
+							record.Park.Identity.PID = 64734
+							record.Park.Identity.ProcessIdentity = "tok"
+							if count == 0 {
+								// The replacementUnknown escape: zero matches are
+								// valid when the phase is `unknown` and the
+								// transaction carries a replacement_incarnation
+								// failure. This is the shape round 5 found.
+								record.Park.Phase = ParkUnknown
+								record.Park.Attempts = []ParkAttempt{{
+									Number: 1,
+									Failure: &ParkFailure{
+										Code:       pairlifecycle.FailureReplacementIncarnation,
+										Diagnostic: "a replacement incarnation appeared",
+									},
+								}}
+							}
 						}
-						// BR-12: a refusal must not have already destroyed the
-						// park. AbandonPark's tombstone is permanent, so a
-						// failure after it leaves a thread that can be neither
-						// resumed nor archived.
-						if created.Park != nil && after.Park == nil {
-							t.Fatalf("the park was abandoned and then the retirement refused (%v); the tombstone is permanent, so this thread is now unrecoverable", err)
+						created, err := store.CreateThread(record)
+						if err != nil {
+							t.Skipf("validateLifecycle refuses this shape, so it is outside the domain: %v", err)
 						}
-						return
-					}
-					if retired == nil {
-						// Declining to act is only honest when there was
-						// nothing to act on.
+						if park != "none" {
+							label := "brain"
+							if created, err = store.ApplyThreadMetadata(created.Address, created.Revision, ThreadMetadataPatch{Name: &label}); err != nil {
+								t.Fatal(err)
+							}
+						}
+
+						proc := NewFakeProcOps()
+						switch live {
+						case unknown:
+							proc.SetUnknown(64734)
+						case alive:
+							proc.Set(64734, "tok")
+						}
+
+						couch := &Couch{Threads: store, Proc: proc}
+						retired, err := couch.retireDeadIncarnationBeforeStart(created)
+
+						// Which cells MAY clear: the process (and, when a park is
+						// present, its owner -- the same pid in this fixture)
+						// proved dead, and a live recorded incarnation if there
+						// is one at all.
+						wantClear := live == dead && (count == 0 || state == IncarnationLive)
+						if wantClear && err != nil {
+							t.Fatalf("a clearable shape refused: %v", err)
+						}
+						if !wantClear && err == nil {
+							t.Fatalf("cleared %s: an unprovable process or a non-live incarnation must refuse, or a later store guard refuses uncoded", name)
+						}
+
+						after, readErr := store.GetThread(created.Address)
+						if readErr != nil {
+							t.Fatal(readErr)
+						}
+						if err != nil {
+							if ResumeDiagnosticOf(err) == "" {
+								t.Fatalf("refusal carries no diagnostic code: %v — startup cannot decorate it, so it wedges the whole tree", err)
+							}
+							if created.Park != nil && after.Park == nil {
+								t.Fatalf("the park was abandoned and then the call refused (%v); the tombstone is permanent, so this thread is now unrecoverable", err)
+							}
+							return
+						}
+						if retired == nil {
+							t.Fatalf("no refusal and no result for %s; the record still carries %d incarnation(s) and park=%v", name, len(after.Incarnations), after.Park != nil)
+						}
 						if len(after.Incarnations) != 0 {
-							t.Fatalf("no refusal and no retirement, but the record still carries %d incarnation(s) — CommitStartClaim will refuse with a bare store error", len(after.Incarnations))
+							t.Fatalf("reported clearance but %d incarnation(s) remain — CommitStartClaim refuses those", len(after.Incarnations))
 						}
-						return
-					}
-					if len(after.Incarnations) != 0 {
-						t.Fatalf("reported retirement but %d incarnation(s) remain", len(after.Incarnations))
-					}
-					if after.Park != nil {
-						t.Fatal("reported retirement but the park survives; the next CommitStartClaim refuses")
-					}
-				})
+						if after.Park != nil {
+							t.Fatal("reported clearance but the park survives — CommitStartClaim refuses that too, uncoded")
+						}
+					})
+				}
 			}
 		}
 	}

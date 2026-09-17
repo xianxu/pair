@@ -448,20 +448,14 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		return ActorRecord{}, nil, err
 	}
 	// RE-ADOPTION (#272, #256). A thread whose launcher died while its session
-	// survived still carries that launcher's incarnation, and CommitStartClaim
-	// refuses a record that already has one -- correctly, since one incarnation
-	// at a time is a structural invariant of the store, not a lifecycle opinion.
+	// survived still carries that launcher's bookkeeping, and the store's guards
+	// refuse a record that does -- correctly, since one incarnation at a time
+	// and no open park are structural invariants, not lifecycle opinions.
 	//
-	// So the stale claim must be retired HERE, by the caller that has both the
-	// evidence and the authority. Only on proof: the recorded process must be
-	// confirmed Dead, never merely unobservable, because retiring an incarnation
-	// whose process is actually alive would abandon a running agent.
-	//
-	// Without this the whole chain still fails at its last link: the classifier
-	// says detached, the menu offers resume, DecideResume permits it, and the
-	// store refuses. That is the third site of one class -- a guard reading
-	// bookkeeping the classification no longer trusts -- and it is why fixing
-	// the classifier alone was never going to be enough.
+	// So the stale claims are cleared HERE, by the caller that has both the
+	// evidence and the authority. See retireDeadIncarnationBeforeStart for the
+	// rules that govern it; do not restate them here, because a claim restated
+	// away from its test is how two of them came to be wrong.
 	if retired, retireErr := c.retireDeadIncarnationBeforeStart(thread); retireErr != nil {
 		return ActorRecord{}, nil, retireErr
 	} else if retired != nil {
@@ -544,105 +538,101 @@ func (c *Couch) confirmStillDetached(ctx context.Context, thread ThreadRecord, s
 	return refuseResume(ResumeSessionGone, "the same session can no longer be proved live, uniquely owned and detached")
 }
 
-// retireDeadIncarnationBeforeStart clears a single incarnation whose process is
-// PROVABLY dead, so a resume can claim its own.
+// retireDeadIncarnationBeforeStart clears the bookkeeping that would otherwise
+// make a resumable thread unstartable, and refuses -- with a code -- whenever it
+// cannot.
 //
-// Returns (nil, nil) when there is nothing to retire or nothing can be proved --
-// both leave the record untouched and let CommitStartClaim's own guard speak.
-// Unknown liveness is not proof: `procops.go` states the rule this obeys --
-// "prune only on Dead. Unknown must fail CLOSED."
+// It is TOTAL over the record shapes `validateLifecycle` accepts. That totality
+// is the rule, not a property of the shapes anyone has enumerated: round 2 wrote
+// "every guard refusing on record.Incarnations or record.Park" as four SITES,
+// and the shapes it had not thought of -- a foreign-owned park, then an open
+// park with ZERO incarnations -- each reached the store and wedged `couch` in
+// the whole tree with an uncoded refusal. Both are the same
+// `replacementUnknown` escape in threadrecord/lifecycle.go, read at different
+// incarnation counts.
+//
+// ARCH-SECURE: a record written by another version is untrusted input, so what
+// the validator ACCEPTS is the domain, not what this codebase happens to write.
+//
+// Order is load-bearing in two directions:
+//
+//   - Every precondition is screened BEFORE any write. AbandonPark's tombstone
+//     is permanent, so discovering afterwards that the retirement cannot proceed
+//     destroys the park and leaves a thread that can be neither resumed nor
+//     archived.
+//   - Each write is authorized by a probe of the entity IT acts on. The park's
+//     owner and the incarnation's process are not always the same process.
 func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRecord, error) {
-	if c == nil || c.Proc == nil || c.Threads == nil || len(thread.Incarnations) != 1 {
+	if c == nil || c.Proc == nil || c.Threads == nil {
 		return nil, nil
 	}
-	incarnation := thread.Incarnations[0]
-	if incarnation.Start != nil || incarnation.PID <= 0 || incarnation.Identity == "" {
-		// A start still in flight is couch's own operation, not debris.
-		return nil, nil
+	if thread.Park == nil && len(thread.Incarnations) == 0 {
+		return nil, nil // nothing in the way
 	}
-	identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
-	if observeExactProcess(c.Proc, identity) != Dead {
-		// Not provably dead. Declining is correct -- retiring a live agent's
-		// incarnation would abandon it -- but the record still carries an
-		// incarnation, so CommitStartClaim will refuse. Refuse HERE, with a
-		// code, rather than letting the store's bare error wedge the tree.
-		// ResumeUnknown, not ResumeNotRunning. The declared meaning of
-		// ResumeNotRunning is "not running at all -- the OPPOSITE of
-		// ResumeLive", and this exit is reached precisely when couch could NOT
-		// tell. On a #272 row the agent is very often still running, so the
-		// background reattach pass would render "resume-not-running" over a live
-		// conversation. A code is a claim; this one must claim only ignorance.
+
+	// ---- screen ----
+	var incarnation *ThreadIncarnation
+	switch len(thread.Incarnations) {
+	case 0:
+	case 1:
+		candidate := thread.Incarnations[0]
+		if candidate.Start != nil {
+			// A start couch itself claimed is not debris, and classification
+			// reports it `busy` rather than resumable.
+			return nil, nil
+		}
+		if candidate.PID <= 0 || candidate.Identity == "" {
+			return nil, refuseResume(ResumeUnknown,
+				"the recorded incarnation names no process, so it cannot be proved dead or retired")
+		}
+		if observeExactProcess(c.Proc, ProcessIdentity{PID: candidate.PID, Identity: candidate.Identity}) != Dead {
+			return nil, refuseResume(ResumeUnknown,
+				"recorded process could not be proved dead, so its incarnation cannot be retired; inspect it or archive the thread")
+		}
+		if candidate.State != IncarnationLive {
+			// RetireIncarnation refuses anything else, and finding that out
+			// after abandoning the park is what destroys the park.
+			return nil, refuseResume(ResumeUnknown,
+				"recorded incarnation is "+string(candidate.State)+"; only a live one can be retired")
+		}
+		incarnation = &candidate
+	default:
 		return nil, refuseResume(ResumeUnknown,
-			"recorded process could not be proved dead, so its incarnation cannot be retired; inspect it or archive the thread")
+			"thread carries more than one recorded incarnation; ownership must be resolved before it can be resumed")
 	}
-	// EVERY precondition RetireIncarnation enforces is screened BEFORE the
-	// irreversible write below.
-	//
-	// AbandonPark appends a permanent tombstone. Running it first and
-	// discovering the retirement's precondition afterwards destroys the park --
-	// and with it the cold-resume authority and #275's audit trail -- while
-	// leaving the incarnation in place, so every retry repeats the failure and
-	// the thread can be neither resumed nor archived. `soleParkableIncarnation`
-	// explicitly permits parking an `unknown` incarnation and
-	// `markLiveRecordUnknown` produces one, so this is reachable, not theoretical.
-	//
-	// The rule: an irreversible step never precedes a revocable check.
-	if incarnation.State != IncarnationLive {
-		return nil, refuseResume(ResumeUnknown,
-			"recorded incarnation is "+string(incarnation.State)+"; only a live one can be retired")
-	}
-	// An ORPHANED PARK blocks the retirement, so it has to go first.
-	//
-	// RetireIncarnation refuses while a park transaction is open -- correctly,
-	// since retiring the process a park is driving would strand it. But the park
-	// identity is COPIED from the incarnation (park.go, soleParkableIncarnation),
-	// so the probe above already proved the park's own owner dead. A park whose
-	// owner cannot come back is not "in progress"; it is debris in the way.
-	//
-	// This is the FOURTH site of the class, and it exists BECAUSE of the fix for
-	// the third: re-adoption made a park-open record reachable, so the store's
-	// open-park precondition became live. The enumeration is now: ClassifyThread,
-	// DecideResume, CommitStartClaim's caller, and this.
 	if thread.Park != nil {
-		// The park's OWN owner is probed, not the incarnation's.
-		//
-		// An earlier version omitted this on the claim that a park owned by
-		// another process is unrepresentable -- read from `validateLifecycle`'s
-		// main clause ("active park identity matches %d incarnations") without
-		// its exception. `threadrecord/lifecycle.go:91` permits zero matches
-		// when the phase is `unknown` and the transaction carries a
-		// `replacement_incarnation` failure, and `park.go` produces exactly
-		// that. So the record IS representable, and probing the incarnation
-		// while tombstoning the park meant writing a permanent, irreversible
-		// claim about a process nothing had looked at -- one that could still be
-		// alive and mid-park.
-		//
-		// The rule: an irreversible step's precondition is proved about the
-		// EXACT entity the step acts on. Two entities, two probes. And a guard
-		// omitted as "unrepresentable" has to cite the validator clause that
-		// makes it so, read including its exceptions, and be pinned by a test
-		// that tries to build the fixture through the real store.
+		// The park's OWN owner, which validateLifecycle does not require to be
+		// one of the incarnations: zero matches are permitted when the phase is
+		// `unknown` and the transaction carries a replacement_incarnation
+		// failure. Probing the incarnation here would write a permanent
+		// tombstone about a process nothing looked at, one that may be alive and
+		// mid-park -- its FinalizePark would then never match again. Pinned by
+		// TestForeignOwnedParkIsRepresentableAndRefused.
 		owner := ProcessIdentity{PID: thread.Park.Identity.PID, Identity: thread.Park.Identity.ProcessIdentity}
 		if observeExactProcess(c.Proc, owner) != Dead {
 			return nil, refuseResume(ResumeParking,
 				"the park transaction's own owner could not be proved dead, so its record must not be abandoned")
 		}
+	}
+
+	// ---- write ----
+	//
+	// Two writes, not one transaction. Each is independently correct -- a park
+	// whose owner is dead, an incarnation whose process is dead -- so a crash
+	// between them leaves a record the next resume repeats safely.
+	if thread.Park != nil {
 		abandoned, err := c.Threads.AbandonPark(thread.Address, thread.Revision, thread.Park.Identity)
 		if err != nil {
 			return nil, refuseResume(ResumeParking, "orphaned park could not be abandoned: "+err.Error())
 		}
 		thread = abandoned
 	}
-	// Two writes, not one transaction. Benign because each is independently
-	// correct -- abandoning a park whose owner is dead, and retiring an
-	// incarnation whose process is dead, are both true regardless of the other --
-	// but they are NOT atomic, so a crash between them leaves a record with the
-	// park gone and the incarnation still present. The next resume repeats the
-	// retirement, which is why it is written to be safe to repeat.
-	retired, err := c.Threads.RetireIncarnation(thread.Address, thread.Revision, identity, thread.LastActiveAt)
+	if incarnation == nil {
+		return &thread, nil
+	}
+	retired, err := c.Threads.RetireIncarnation(thread.Address, thread.Revision,
+		ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}, thread.LastActiveAt)
 	if err != nil {
-		// Same reasoning as above: a store error with no diagnostic code reaches
-		// startup as an undecorated failure and refuses the whole tree.
 		return nil, refuseResume(ResumeUnknown, "stale incarnation could not be retired: "+err.Error())
 	}
 	return &retired, nil

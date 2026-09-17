@@ -208,11 +208,13 @@ plan intended.
   ThreadReason)`, consumed by both the menu and the store so the offer and the
   permission cannot disagree.
 
-- **`startInFlight` is deleted, not narrowed.** A start in flight is
-  **couch-local, in-memory** knowledge — couch knows what it is currently
-  spawning. It arrives as an observation alongside `Live`, the same way the pty
-  children do, rather than being inferred from a durable `creating` incarnation
-  that outlives the process it describes. Ephemeral state stays ephemeral.
+- **`startInFlight` is deleted and replaced by `startClaimed`.** An earlier
+  draft said a start in flight is in-memory knowledge and "ephemeral state stays
+  ephemeral". The code reads the durable `ThreadStartClaim` instead — adopted,
+  not reverted, because a start claim genuinely IS couch's record of its own
+  operation, and plumbing a second observation channel for a value couch already
+  writes down buys nothing. See the 2026-09-17 round-1 Revisions entry for the
+  bound and the residual risk.
 
 ### Integration points
 
@@ -348,19 +350,21 @@ referent is not — the failure mode a rename would have caught:
 **This one task fixes both #271 and #272**, by removing reads rather than adding
 rules. The new branch order:
 
-| # | Condition | State |
-|---|---|---|
-| 1 | record fails validation | `unusable` / `invalid` |
-| 2 | reservation | `unusable` / `never-started` |
-| 3 | couch is starting this thread **right now** (in-memory observation) | `busy` |
-| 4 | couch hosts this pty | `live` |
-| 5 | `SessionPresent` | `detached` |
-| 6 | `VerifiedPark` payload + resolvable native id | `parked` |
-| 7 | `SessionUnresolved` | `unusable` / `unknown` |
-| 8 | ledger holds a resolvable native id | `unusable` / `binding-lost` |
-| 9 | otherwise | `unusable` / `session-gone` |
+The branch order is **not restated here**. It moved twice during the boundary
+rounds — `SessionUnresolved` was above `VerifiedPark` and had to be inverted —
+and each time this table became a set of instructions to undo the fix. A
+hand-maintained restatement of the model is a deferred consumer (ARCH-PURPOSE).
 
-`record.Incarnations` and `record.Park` appear **nowhere**. Rows 7–9 read only
+The model is `ClassifyThread`, and the enumeration that proves it total is
+`classify_test.go`'s `everyThreadShape` plus
+`TestEveryReasonIsProducedBySomeShape`. Read those.
+
+What this task commits to, which is stable:
+
+`record.Incarnations` liveness fields and `record.Park` appear **nowhere** in
+`ClassifyThread`. The one exception is `startClaimed`, which reads
+`Incarnation.Start` — couch's record of its own in-flight operation, not a claim
+about an external process. Rows 7–9 read only
 resume authority, which is genuinely durable.
 
 - [ ] **Step 1: Write the two failing tests — the operator's actual rows**
@@ -780,6 +784,34 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — M1 boundary review, round 5 (REWORK)
+
+**The same validator exception, at a different incarnation count.** Round 4 found
+a foreign-owned park; round 5 found an open park with **zero** incarnations. Both
+are `threadrecord/lifecycle.go`'s `replacementUnknown` escape, and both wedged
+`couch` in the whole tree with an uncoded refusal.
+
+The cause is not the shapes — it is that round 2's rule, *"every guard refusing
+on `record.Incarnations` or `record.Park`"*, was **written into the code as four
+sites rather than as that predicate**. A predicate covers shapes nobody thought
+of; a list covers the ones someone did.
+
+So the clearing pass is now **total over the shapes `validateLifecycle`
+accepts**, which is the right domain because ARCH-SECURE treats a record from
+another version as untrusted input. Screening completes before any write (round
+4's rule), each write is authorized by a probe of the entity it acts on (round
+4's other rule), and `TestReAdoptionExitsAreTotalAndCoded` gained an
+incarnation-count dimension — mutation-proven against the old count bail.
+
+Also: **the plan stops restating the branch table.** It moved twice during these
+rounds, and each time the restatement became instructions to undo the fix. The
+model is `ClassifyThread` and the enumeration that proves it total is
+`everyThreadShape`; a hand-maintained copy is a deferred consumer
+(ARCH-PURPOSE). Same treatment for the atlas passage that still carried round 4's
+disproved premise, and for the outer comment in `resume.go` that restated rules
+ten lines above their own correction — **a claim restated away from its test is
+how two of them came to be wrong.**
 
 ### 2026-09-17 — M1 boundary review, round 4 (REWORK)
 
