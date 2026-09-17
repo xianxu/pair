@@ -388,7 +388,7 @@ func TestResumeTombstonedIsReachableFromProduction(t *testing.T) {
 	}
 	// A park this couch abandoned, and no conversation left to resume into --
 	// the shape whose honest answer is "abandoned", not "unbound".
-	abandoned, err := env.Couch.Threads.UpdateExistingThread(created.Address, created.Revision, func(r *ThreadRecord) error {
+	abandoned, err := env.Couch.Threads.updateExistingThread(created.Address, created.Revision, func(r *ThreadRecord) error {
 		r.ParkHistory = []ParkTransaction{{
 			Identity:     ParkIdentity{Nonce: "park-0123456789abcdef", Address: created.Address, PID: 42, ProcessIdentity: "gone"},
 			BaseRevision: 1, RecordRevision: 2, Phase: ParkUnknown,

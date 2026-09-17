@@ -180,12 +180,12 @@ func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *t
 	}
 
 	other := NewThreadStore(ns)
-	updated, err := other.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	updated, err := other.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.Description = "first description"
 		return nil
 	})
 	if err != nil {
-		t.Fatalf("UpdateExistingThread: %v", err)
+		t.Fatalf("updateExistingThread: %v", err)
 	}
 	if updated.Revision != created.Revision+1 || updated.Description != "first description" {
 		t.Fatalf("updated = %+v", updated)
@@ -198,7 +198,7 @@ func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *t
 		t.Fatalf("single-record update changed manifest generation: %d -> %d", before.Generation, after.Generation)
 	}
 
-	_, err = store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	_, err = store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.Description = "stale overwrite"
 		return nil
 	})
@@ -218,7 +218,7 @@ func TestThreadStoreUpdateExistingThreadUsesRevisionWithoutChangingManifest(t *t
 func TestThreadStoreUpdateMissingPreservesNotFoundContract(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	address := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-0123456789abcdef"}
-	_, err := store.UpdateExistingThread(address, 1, func(*ThreadRecord) error { return nil })
+	_, err := store.updateExistingThread(address, 1, func(*ThreadRecord) error { return nil })
 	if !errors.Is(err, ErrThreadNotFound) {
 		t.Fatalf("missing update err = %T %v, want ErrThreadNotFound", err, err)
 	}
@@ -432,7 +432,7 @@ func TestThreadStoreIndependentInstancesSerializeRevisionUpdates(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, errs[i] = stores[i].UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+			_, errs[i] = stores[i].updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 				next.Description = string(rune('a' + i))
 				return nil
 			})
@@ -478,7 +478,7 @@ func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *
 	store, ns := newTestThreadStore(t)
 	created, identity, profile := createParkableThread(t, store, ns, "park-0123456789abcdef")
 	previousActive := time.Unix(50, 0).UTC()
-	created, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	created, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.LastActiveAt = previousActive
 		return nil
 	})
@@ -553,7 +553,7 @@ func TestThreadStoreParkLifecycleUsesRevisionCASAndFinalizesExactIncarnation(t *
 func TestThreadStoreParkConflictsAndAbandonNeverReleaseOccupancy(t *testing.T) {
 	store, ns := newTestThreadStore(t)
 	created, identity, _ := createParkableThread(t, store, ns, "park-1111111111111111")
-	concurrent, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	concurrent, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.Description = "competing writer"
 		return nil
 	})
@@ -572,7 +572,7 @@ func TestThreadStoreParkConflictsAndAbandonNeverReleaseOccupancy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	competing, err := store.UpdateExistingThread(begun.Address, begun.Revision, func(next *ThreadRecord) error {
+	competing, err := store.updateExistingThread(begun.Address, begun.Revision, func(next *ThreadRecord) error {
 		next.Name = "concurrent name"
 		return nil
 	})
@@ -619,7 +619,7 @@ func TestThreadStoreBeginParkRequiresOneExactLiveOrUnknownIncarnation(t *testing
 		t.Run(name, func(t *testing.T) {
 			store, ns := newTestThreadStore(t)
 			created, identity, _ := createParkableThread(t, store, ns, "park-2222222222222222")
-			current, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+			current, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 				mutate(next, &identity)
 				return nil
 			})

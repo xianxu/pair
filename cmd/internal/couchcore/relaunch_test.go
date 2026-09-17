@@ -108,7 +108,7 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 		{
 			name: "the thread is not running at all",
 			breaks: func(env *relaunchEnv, live ThreadRecord) {
-				if _, err := env.Couch.Threads.UpdateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error {
+				if _, err := env.Couch.Threads.updateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error {
 					r.Incarnations = nil
 					return nil
 				}); err != nil {
@@ -121,7 +121,7 @@ func TestRelaunchRefusesBeforeParkingWhenTheResumeCouldNotSucceed(t *testing.T) 
 		{
 			name: "two incarnations -- park's own precondition",
 			breaks: func(env *relaunchEnv, live ThreadRecord) {
-				_, err := env.Couch.Threads.UpdateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error {
+				_, err := env.Couch.Threads.updateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error {
 					r.Incarnations = append(r.Incarnations, ThreadIncarnation{
 						PID: 43, Identity: "pair-second", State: IncarnationLive,
 					})

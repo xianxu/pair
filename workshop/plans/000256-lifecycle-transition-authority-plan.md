@@ -199,6 +199,11 @@ view is either machine-checked or it is prose.
 | `ThreadEvidence.Unproven` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
 | `ActionableThreadSummary.Agent` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
 | `launchProfileAgent` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `updateExistingThread` | `cmd/internal/couchcore/threadstore.go` | modified | M3 |
+| `ClearVerifiedPark` | `cmd/internal/couchcore/threadstore.go` | new | M3 |
+| `RetireProvedDeadIncarnations` | `cmd/internal/couchcore/threadstore.go` | new | M3 |
+| `noOpenStartClaim` | `cmd/internal/couchcore/threadstore.go` | new | M3 |
+| `BeginContinuationFromRetiredIncarnations` | `cmd/internal/couchcore/continuation_store.go` | new | M3 |
 
 - **SessionObservation** — one thread's zellij session as a **three-state**
   answer:

@@ -48,7 +48,7 @@ func newDetachFixture(t *testing.T) *detachFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	record, err = store.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+	record, err = store.updateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
 		next.Reservation = false
 		next.Incarnations = []ThreadIncarnation{{
 			State: IncarnationLive, PID: identity.PID, Identity: identity.Identity, StartedAt: time.Unix(10, 0).UTC(),
@@ -210,7 +210,7 @@ func TestCouchDetachAbsorbsAConcurrentWriteBeforeItsLoop(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, err = f.store.UpdateExistingThread(f.address, record.Revision, func(next *ThreadRecord) error {
+		_, err = f.store.updateExistingThread(f.address, record.Revision, func(next *ThreadRecord) error {
 			next.Description = "edited mid-detach"
 			return nil
 		})
@@ -270,7 +270,7 @@ func TestDetachNeverMovesTheActivityTimeBackwards(t *testing.T) {
 	f := newDetachFixture(t)
 	// Later than the fixture's clock (Unix 100), as a park would have left it.
 	const parked = 500
-	if _, err := f.store.UpdateExistingThread(f.address, f.revision, func(next *ThreadRecord) error {
+	if _, err := f.store.updateExistingThread(f.address, f.revision, func(next *ThreadRecord) error {
 		next.LastActiveAt = time.Unix(parked, 0).UTC()
 		return nil
 	}); err != nil {
@@ -329,7 +329,7 @@ func TestDetachRecordsOneActivityTimeHoweverManyAttemptsItTakes(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		_, err = f.unhooked.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+		_, err = f.unhooked.updateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
 			next.Description = "edited between the read and the CAS"
 			return nil
 		})

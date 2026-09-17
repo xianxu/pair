@@ -79,7 +79,7 @@ func warmFailureRoutes() []warmFailureRoute {
 					if err != nil {
 						return err
 					}
-					_, err = env.Couch.Threads.UpdateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+					_, err = env.Couch.Threads.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
 						next.Description = "changed under the start"
 						return nil
 					})

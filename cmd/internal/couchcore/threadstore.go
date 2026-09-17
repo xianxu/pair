@@ -290,7 +290,7 @@ func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string)
 	return result, found, err
 }
 
-func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
+func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevision uint64, mutate func(*ThreadRecord) error) (ThreadRecord, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, err
 	}
@@ -343,7 +343,7 @@ func (s *ThreadStore) UpdateExistingThread(address ThreadAddress, expectedRevisi
 }
 
 func (s *ThreadStore) BeginPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
 			return fmt.Errorf("thread %+v already has active park %q", address, next.Park.Identity.Nonce)
 		}
@@ -394,7 +394,7 @@ func (s *ThreadStore) AdvancePark(address ThreadAddress, expectedRevision uint64
 	default:
 		return ThreadRecord{}, fmt.Errorf("park event %q requires its dedicated store operation", event.Kind)
 	}
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil {
 			return errors.New("thread has no active park transaction")
 		}
@@ -416,7 +416,7 @@ func (s *ThreadStore) AdvancePark(address ThreadAddress, expectedRevision uint64
 }
 
 func (s *ThreadStore) AppendParkAttempt(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity {
 			return errors.New("park attempt identity does not match active transaction")
 		}
@@ -438,7 +438,7 @@ func (s *ThreadStore) FinalizePark(address ThreadAddress, expectedRevision uint6
 	if len(scrollback) > 1 {
 		return ThreadRecord{}, errors.New("only one preserved scrollback is allowed")
 	}
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity || next.Park.Tombstoned || next.Park.Closed {
 			return errors.New("park success does not match an active non-tombstoned transaction")
 		}
@@ -496,7 +496,7 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 	if repoIdentity == "" {
 		return ThreadRecord{}, errors.New("start claim has no repository identity")
 	}
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Continuation != nil && next.Continuation.Phase != checkpoint.Complete {
 			allowedFresh := event.Shape == StartFreshExisting && next.Continuation.Phase == checkpoint.Running && event.Nonce == next.Continuation.Attempt
 			if !allowedFresh && event.Shape != StartWarmReattach {
@@ -570,7 +570,7 @@ func (s *ThreadStore) RetireUnprovenIncarnation(address ThreadAddress, expectedR
 }
 
 func (s *ThreadStore) retireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity, detachedAt time.Time, accepted IncarnationState) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
 			return errors.New("cannot retire an incarnation while a park transaction is open")
 		}
@@ -593,8 +593,55 @@ func (s *ThreadStore) retireIncarnation(address ThreadAddress, expectedRevision 
 	})
 }
 
+// ClearVerifiedPark retires the park RECEIPT, and only the receipt.
+//
+// The caller's authority is that it has PROVED the thread is attached again --
+// a uniquely detached session it is about to reattach to -- which makes the
+// receipt a statement about a teardown that has been undone. #256 M2 established
+// that the receipt is never resume authority; this is the transition that
+// retires it, rather than a callback that happened to assign nil.
+func (s *ThreadStore) ClearVerifiedPark(address ThreadAddress, expectedRevision uint64) (ThreadRecord, error) {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if next.VerifiedPark == nil {
+			return errors.New("thread carries no verified park to clear")
+		}
+		next.VerifiedPark = nil
+		return nil
+	})
+}
+
+// RetireProvedDeadIncarnations drops every recorded incarnation, on the
+// caller's proof that each names a process observed Dead by exact identity.
+//
+// It refuses one carrying an open start claim, and that is the whole difference
+// between this and the callback it replaced: a claim is couch's own in-flight
+// transaction with a rollback of its own (DeleteStart), and dropping the
+// incarnation underneath it loses the record that would undo it. The caller
+// routes those to rollbackTrackedStart; before this transition existed, nothing
+// made it.
+func (s *ThreadStore) RetireProvedDeadIncarnations(address ThreadAddress, expectedRevision uint64) (ThreadRecord, error) {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+		if err := noOpenStartClaim(*next); err != nil {
+			return err
+		}
+		next.Incarnations = nil
+		return nil
+	})
+}
+
+// noOpenStartClaim is the precondition both retire-everything transitions share:
+// a start claim outlives the incarnation that carries it and owns its own undo.
+func noOpenStartClaim(record ThreadRecord) error {
+	for _, incarnation := range record.Incarnations {
+		if incarnation.Start != nil {
+			return errors.New("an incarnation carries an open start claim; roll the start back rather than retiring under it")
+		}
+	}
+	return nil
+}
+
 func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64, identity ParkIdentity) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park == nil || next.Park.Identity != identity {
 			return errors.New("park abandon identity does not match active transaction")
 		}
@@ -659,7 +706,7 @@ func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint6
 	if event.Kind == StartRegistered {
 		return s.advanceSuccessfulStart(address, expectedRevision, event)
 	}
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		advanced, err := AdvanceStartTransaction(*next, event)
 		if err != nil {
 			return err
@@ -809,7 +856,7 @@ func (s *ThreadStore) MarkIncarnationUnknown(address ThreadAddress, expected Pro
 		if !found {
 			return ThreadRecord{}, fmt.Errorf("live incarnation %d/%q not found in thread %+v", expected.PID, expected.Identity, address)
 		}
-		updated, err := s.UpdateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+		updated, err := s.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
 			for i := range next.Incarnations {
 				incarnation := &next.Incarnations[i]
 				if incarnation.PID == expected.PID && incarnation.Identity == expected.Identity && incarnation.State == IncarnationLive {
@@ -839,7 +886,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 		return err
 	}
 	if current.VerifiedPark != nil {
-		_, err := s.UpdateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+		_, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
 			if record.Reservation || record.VerifiedPark == nil || len(record.Incarnations) != 1 {
 				return fmt.Errorf("thread %+v is no longer parked start %q at revision %d", address, nonce, expectedRevision)
 			}
@@ -866,7 +913,7 @@ func (s *ThreadStore) DeleteStart(address ThreadAddress, expectedRevision uint64
 		//
 		// threadHasMetadata already protects a NAMED record; this protects the
 		// unnamed one, whose LatestLaunchProfile nothing else guards.
-		_, err := s.UpdateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+		_, err := s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
 			if record.Reservation || len(record.Incarnations) != 1 {
 				return fmt.Errorf("thread %+v is no longer start %q at revision %d", address, nonce, expectedRevision)
 			}
@@ -1215,7 +1262,7 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 // ReconcileRegisteredTarget persists the owned retirement transition at the
 // exact revision whose receipt, helper identity and session were observed.
 func (s *ThreadStore) ReconcileRegisteredTarget(address ThreadAddress, expectedRevision uint64, proof RegisteredTargetProof) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		reconciled, err := ReconcileRegisteredTarget(*next, proof)
 		if err != nil {
 			return err

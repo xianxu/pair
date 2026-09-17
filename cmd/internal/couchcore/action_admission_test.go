@@ -167,7 +167,7 @@ func TestStoreArchiveGuardAsksOnlyWhatARecordProves(t *testing.T) {
 func TestArchiveRetiresAnUnprovenIncarnationItProvedDead(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
-	unproven, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+	unproven, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
 		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: IncarnationUnknown}}
 		return nil
 	})
@@ -204,7 +204,7 @@ func TestArchiveRetiresAnUnprovenIncarnationItProvedDead(t *testing.T) {
 func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
-	unproven, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+	unproven, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
 		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: IncarnationUnknown}}
 		return nil
 	})
@@ -252,7 +252,7 @@ func TestRetirementTransitionsTakeExactlyTheStateTheyName(t *testing.T) {
 			t.Run(transition.name+"/"+string(state), func(t *testing.T) {
 				store, _ := newTestThreadStore(t)
 				thread := archivableThread(t, store, "couch-0000000000000001")
-				with, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+				with, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
 					record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: state}}
 					return nil
 				})

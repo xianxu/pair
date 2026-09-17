@@ -5252,3 +5252,51 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   pins neither answer, and a guard whose test asserts a bare `err != nil` stays
   green when the guard is deleted and a later check refuses the same input.
   Mutate every guard you claim is pinned. (#256 M2)
+
+- **When a clean shutdown and a crash leave identical external state, the record
+  of the shutdown must not decide recoverability.** The zellij server is PPID 1
+  at birth, so `alt+d` and a couch crash leave the same session, the same agent
+  and the same pty — the ONLY difference is whether couch lived long enough to
+  write a park receipt. Reading that receipt as authority made the difference
+  between "recoverable" and "debris" a fact about couch's luck rather than about
+  the thread. Ask what the two paths leave behind IN THE WORLD before letting a
+  local record distinguish them. (#256 M3)
+
+- **A positive-only proof still has to carry its negative side.** `evidence.Live`
+  was deliberately positive-only — its absence proves nothing — which is exactly
+  right and hid a second collapse one level down: the probe that produced it
+  dropped "could not ask" and "proved dead" with the same `continue`. So absence
+  meant two different things and the classifier took the confident reading, put
+  an archive item on a row whose helper might be running, and the guard behind
+  that item then refused every press. A three-valued source needs a three-valued
+  sink; check the PRODUCER of an honest field, not only its consumers. (#256 M3)
+
+- **A mutation callback is not a transition, however well guarded.** The store's
+  `UpdateExistingThread` had CAS, immutable-field checks and full record
+  validation on the way out — and three production callers still wrote lifecycle
+  fields nothing had authorized, because those guards protect a COHERENT record
+  and none of them requires an AUTHORIZED change. The fix is the transition's
+  NAME: `RetireProvedDeadIncarnations` says what the caller proved, so the
+  precondition has somewhere to live. The guard that keeps it shut is
+  receiver-scoped, not file-scoped — all three leaks were in the store's own
+  package, two in its own directory, so a package or sibling-package check could
+  not see them. (#256 M3)
+
+- **A guard's test must discriminate that guard's own exit, by code or message —
+  never a bare `err != nil`.** Four refusals stood between the fixture and the
+  assertion in one of M2's tests, so deleting the guard under test left it green.
+  Its sibling rule: a test named for a production entry point must invoke it. I
+  tried to mechanize the second one and did not ship it — matching test names
+  against declared identifiers produced 50 reports in one package, nearly all
+  partial-word noise (`Registered` inside `Registration`), and a guard that cries
+  wolf is worse than none. Some rules stay review rules; say so rather than
+  shipping a check nobody will trust. (#256 M3)
+
+- **Ask the measurement before writing the sentence.** Archive's confirmation was
+  going to say it stops the thread's agent. `zellij delete-session --force`
+  reaps a pane by SIGHUP, so a process that inherited `SIG_IGN` survives it —
+  measured both ways in ten minutes with a throwaway session, one variable. The
+  confirmation now says the agent MAY survive, which is true, and the same probe
+  proved the standing hypothesis in #274 that nobody had tested in a day of
+  reasoning about it. A UI string that asserts a system property is a claim; go
+  and check it. (#256 M3)

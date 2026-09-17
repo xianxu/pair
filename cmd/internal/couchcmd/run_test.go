@@ -328,14 +328,7 @@ func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRe
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := c.Threads.UpdateExistingThread(created.Address, created.Revision, func(next *couchcore.ThreadRecord) error {
-		next.Reservation = false
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return updated
+	return created
 }
 
 // The M3 acceptance case, across a RESTART: a couch that detached a thread and

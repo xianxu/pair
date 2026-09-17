@@ -1551,6 +1551,86 @@ thread the session may be **alive**, and `parked` invites a relaunch that would
 put a second agent on a live conversation. The receipt is a fact about what couch
 did — that is all it is still read for.
 
+### Admission is a predicate over the classification (M3)
+
+Every action the switcher offers has a **pure predicate over `(state, reason)`**,
+consumed by the guard that would otherwise re-derive one:
+
+| Action | Predicate | Guard that consumes it | Permits |
+|---|---|---|---|
+| switch-agent | `SwitchableState` | `PrepareAgentSwitch` | `live`, `parked`, `binding-lost`, `session-gone` |
+| archive | `ArchivableState` | `Couch.ArchiveThread` (via `classifyForAction`) | `detached`, `parked`, every unusable reason **except** `unknown` |
+| resume | `ResumableState` | `SelectResumableRoot` | `detached`, `parked` |
+
+The switcher's **offer** is written separately, at `menuActionItems` /
+`menuArchiveOffered`, and `couchtty`'s `TestActionOfferedImpliesPermitted`
+compares the two over `AllThreadStates × AllThreadReasons`. It is deliberately
+not filtered through the predicate: a filter makes offered-implies-permitted true
+by construction, and a guard that cannot fail is not a guard.
+
+Two layers, not one. The predicate answers *what is this thread*; the record-shaped
+guards below it (`archivableRecord`, `DecideRecovery`, `clearLifecycleDebris`)
+answer *is there bookkeeping to act on*, which a classification cannot see.
+`archivableRecord` narrowed to exactly that in M3: an open park and an
+outstanding start claim — couch's own unfinished transactions, which a decoded
+record proves by carrying them — and no longer an occupied incarnation, which is
+a claim about a process the store cannot probe.
+
+### Unknown survives the projection (M3)
+
+`ObserveRecordedProcesses` returns `RecordedProcessObservation{Address, Process,
+Liveness}`. It used to return only the positive answers, so a probe that could
+not answer and one that proved the process dead reached the classifier as the
+same silence — and since M1 that silence falls through to the session, which can
+say `session-gone`. `ThreadEvidence.Unproven` is the negative side of `Live`, and
+the classifier fails closed on it ahead of every durable refusal, because
+`session-gone` is archive-eligible and `unknown` is the one reason archive
+declines.
+
+Narrow on purpose: `Exists` answering **Dead**, and an identity token that reads
+and **differs** (a recycled pid), are confirmed answers and keep falling through.
+That is `#272`'s fix and it must not regress.
+
+### Lifecycle changes go through named transitions (M3)
+
+`ThreadStore.updateExistingThread` is **unexported**, and inside `couchcore` it
+is reachable only from a `*ThreadStore` method —
+`TestArbitraryLifecycleMutationHasNoDoor` derives that from the receiver rather
+than a file list, because all three leaking callers lived in the store's own
+package and two in its own directory.
+
+CAS, immutable-field checks and final validation protect a *coherent* record;
+none of them requires an *authorized* change. The transition's **name** is where
+the caller's authority is recorded:
+
+| Transition | What the caller is asserting |
+|---|---|
+| `RetireIncarnation` | this live incarnation's process was just stopped |
+| `RetireUnprovenIncarnation` | this exact `{PID, identity}` was observed **Dead** |
+| `RetireProvedDeadIncarnations` | every recorded process was observed Dead, and none carries a start claim |
+| `ClearVerifiedPark` | the thread is attached again, so the receipt describes an undone teardown |
+| `BeginContinuationFromRetiredIncarnations` | the request and the retirement are ONE write, because a record must never carry both |
+
+`RetireUnprovenIncarnation` exists because `RetireIncarnation` refuses an
+`unknown` incarnation on purpose — detach holds no death proof, and retiring one
+there would let an unproven thread present as cleanly detached. Archive does hold
+the proof. Without the split, a record marked unknown by `markLiveRecordUnknown`
+could never be archived once its helper died, which it always does.
+
+### Archive stops a session, not necessarily an agent (M3)
+
+`Quiesce` runs `zellij delete-session --force`, and **that reaps a pane by
+SIGHUP**. Measured 2026-09-17 on zellij 0.45.1 with a throwaway session: a pane
+child with the default disposition dies; one whose launching shell had `SIG_IGN`
+survives and is reparented to init. Same fixture, one variable. `#274`'s 106
+orphaned `pair term` trees are that regime in production, and this measurement
+proves its standing hypothesis.
+
+So archive's confirmation on a **detached** row names the agent and says it *may*
+survive, rather than promising a stop couch cannot deliver. `#274` owns making it
+a promise. The agent name reaches the confirmation through
+`ActionableThreadSummary.Agent`, projected from the saved launch profile.
+
 ### Retired reasons
 
 `stale-incarnation` and `unrecorded-child` both named a *disagreement* between

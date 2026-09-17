@@ -78,7 +78,7 @@ func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
 
 	// A park in flight is a teardown already underway.
 	parking := archivableThread(t, store, "couch-0000000000000002")
-	parked, err := store.UpdateExistingThread(parking.Address, parking.Revision, func(record *ThreadRecord) error {
+	parked, err := store.updateExistingThread(parking.Address, parking.Revision, func(record *ThreadRecord) error {
 		record.Incarnations = []ThreadIncarnation{{PID: 43, Identity: "pair-parking", State: IncarnationLive}}
 		return nil
 	})
@@ -126,7 +126,7 @@ func TestStoreArchiveRefusesAnUnfinishedTransaction(t *testing.T) {
 
 	// And the half that MOVED: an incarnation alone no longer refuses here.
 	live := archivableThread(t, store, "couch-0000000000000001")
-	occupied, err := store.UpdateExistingThread(live.Address, live.Revision, func(record *ThreadRecord) error {
+	occupied, err := store.updateExistingThread(live.Address, live.Revision, func(record *ThreadRecord) error {
 		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-live", State: IncarnationLive}}
 		return nil
 	})
@@ -313,7 +313,7 @@ func TestArchivingAnUnreadableRecordNeverStopsItsSession(t *testing.T) {
 func TestARefusedArchiveStopsNothing(t *testing.T) {
 	store, _ := newTestThreadStore(t)
 	thread := archivableThread(t, store, "couch-0000000000000001")
-	live, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+	live, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
 		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-live", State: IncarnationLive}}
 		return nil
 	})
@@ -345,7 +345,7 @@ func TestArchiveRefusesEveryOccupiedIncarnationNotJustLive(t *testing.T) {
 		t.Run(string(state), func(t *testing.T) {
 			store, _ := newTestThreadStore(t)
 			thread := archivableThread(t, store, "couch-0000000000000001")
-			updated, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+			updated, err := store.updateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
 				record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: state}}
 				return nil
 			})
@@ -462,7 +462,7 @@ func TestRecoveryArchiveRetiresOnlyExactDeadSettledHelper(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			store, _ := newTestThreadStore(t)
 			record := archivableThread(t, store, "couch-0000000000000250")
-			record, err := store.UpdateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error {
+			record, err := store.updateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error {
 				r.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "original", State: IncarnationLive}}
 				if mode == "creating" {
 					r.Incarnations[0].State = IncarnationCreating
@@ -512,7 +512,7 @@ func TestRecoveryArchiveRejectsRecordChangedDuringQuiesce(t *testing.T) {
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetPairSession(record.Address, "pair-source", false)
 	artifacts.QuiesceHook = func(ThreadAddress) error {
-		_, err := store.UpdateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error { r.Name = "concurrent update"; return nil })
+		_, err := store.updateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error { r.Name = "concurrent update"; return nil })
 		return err
 	}
 	c := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
@@ -567,7 +567,7 @@ func TestRecoveryArchiveRefusesLiveContinuationReferences(t *testing.T) {
 			request.Attempt = "attempt"
 			request.SourceAbsence = &checkpoint.SourceAbsence{Session: request.Source.Session, LaunchOrdinal: request.Source.LaunchOrdinal, ObservedAt: record.CreatedAt, RecordRevision: record.Revision}
 			request.Target = &checkpoint.Target{Process: checkpoint.Process{PID: 43, Identity: "target"}, ObservedAt: record.CreatedAt}
-			record, err := store.UpdateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error { r.Continuation = &request; return nil })
+			record, err := store.updateExistingThread(record.Address, record.Revision, func(r *ThreadRecord) error { r.Continuation = &request; return nil })
 			if err != nil {
 				t.Fatal(err)
 			}

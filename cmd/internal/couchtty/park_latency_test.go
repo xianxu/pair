@@ -45,10 +45,9 @@ func TestParkLatencySmoke(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			_, err = store.UpdateExistingThread(record.Address, current.Revision, func(next *couchcore.ThreadRecord) error {
-				next.Description = fmt.Sprintf("sample-%d", sample)
-				return nil
-			})
+			description := fmt.Sprintf("sample-%d", sample)
+			_, err = store.ApplyThreadMetadata(record.Address, current.Revision,
+				couchcore.ThreadMetadataPatch{Description: &description})
 			return nil, err
 		}})
 		feedback = append(feedback, time.Since(started))

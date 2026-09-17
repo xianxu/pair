@@ -31,8 +31,12 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 	// Layout2 rather than empty: since #198 the projection normalizes the layout
 	// witness, and neither record carries one -- which is every record written
 	// before that change, and they are layout2.
+	//
+	// Agent is projected from the saved launch profile, so the parked row
+	// carries one and the live row -- which has no profile in this fixture --
+	// does not. A destructive confirmation names it (#256 M3).
 	want := []ActionableThreadSummary{
-		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadParked, LastActiveAt: parked.LastActiveAt, Layout: Layout2},
+		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", Agent: "claude", State: ThreadParked, LastActiveAt: parked.LastActiveAt, Layout: Layout2},
 		{Address: live.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadLive, LastActiveAt: live.LastActiveAt, Layout: Layout2},
 	}
 	if !reflect.DeepEqual(rows, want) {
@@ -534,7 +538,7 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	if _, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.Reservation = false
 		next.LatestLaunchProfile = profile
 		return nil

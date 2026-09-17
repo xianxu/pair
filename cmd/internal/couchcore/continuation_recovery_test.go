@@ -108,7 +108,7 @@ func TestContinuationRegistrationCrashReconcilesWithoutSpawn(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, _ := c.Threads.GetThread(f.source.Address)
-	if _, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Continuation.Target = nil; return nil }); err != nil {
+	if _, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Continuation.Target = nil; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	f.delivery = orientation.DeliveryState{Phase: orientation.DeliverySubmitted}
@@ -153,7 +153,7 @@ func TestContinuationWarmTargetRecoveryAfterOwnerDeath(t *testing.T) {
 	f.env.Runner.SetExited(first.Handle.ID(), 0)
 	c.reg = c.reg.RemoveActor(first.Record.Args.Worktree, first.Record.ID)
 	record, _ := c.Threads.GetThread(f.source.Address)
-	if _, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
+	if _, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
 		next.Incarnations[0].State = IncarnationUnknown
 		next.Continuation.Target = nil
 		return nil
@@ -230,7 +230,7 @@ func TestContinuationArchivePreservesSnapshotRemovesDerivedCopy(t *testing.T) {
 		t.Fatal(err)
 	}
 	record, _ := c.Threads.GetThread(f.source.Address)
-	if _, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Incarnations = nil; return nil }); err != nil {
+	if _, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Incarnations = nil; return nil }); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Threads.ArchiveThread(record.Address); err != nil {
@@ -339,7 +339,7 @@ func TestRegisteredUnknownTargetRecoveryInterruptionAndProofRefusals(t *testing.
 			f.env.Runner.SetExited(first.Handle.ID(), 0)
 			c.reg = c.reg.RemoveActor(first.Record.Args.Worktree, first.Record.ID)
 			record, _ := c.Threads.GetThread(f.source.Address)
-			record, err = c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
+			record, err = c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
 				next.Incarnations[0].State = IncarnationUnknown
 				next.Continuation.Target = nil
 				return nil
@@ -364,7 +364,7 @@ func TestRegisteredUnknownTargetRecoveryInterruptionAndProofRefusals(t *testing.
 				}
 			case "revision-changed":
 				c.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) {
-					_, err := originalStore.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.PublishedSummary = "concurrent"; return nil })
+					_, err := originalStore.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.PublishedSummary = "concurrent"; return nil })
 					return true, err
 				}
 			}

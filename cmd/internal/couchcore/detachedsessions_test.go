@@ -120,7 +120,7 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		if _, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 			next.Reservation = false
 			next.LatestLaunchProfile = profile
 			mutate(next)
@@ -189,7 +189,7 @@ func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	if _, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.Reservation = false
 		next.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 5, Identity: "id-5", StartedAt: time.Unix(2, 0).UTC()}}
 		return nil

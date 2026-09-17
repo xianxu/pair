@@ -323,12 +323,7 @@ func (c *Couch) prepareAbsentContinuation(ctx context.Context, address ThreadAdd
 		if err := c.verifyAbsentContinuation(ctx, candidate); err != nil {
 			return record, err
 		}
-		next, err := c.Threads.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
-			copy := request.Clone()
-			next.Continuation = &copy
-			next.Incarnations = nil
-			return nil
-		})
+		next, err := c.Threads.BeginContinuationFromRetiredIncarnations(address, record.Revision, request)
 		var conflict *ThreadRevisionError
 		if errors.As(err, &conflict) {
 			continue

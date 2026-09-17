@@ -530,7 +530,7 @@ func TestParkCoordinatorTransitionMatrix(t *testing.T) {
 					}
 					return
 				}
-				_, err = store.UpdateExistingThread(thread.Address, current.Revision, func(next *ThreadRecord) error {
+				_, err = store.updateExistingThread(thread.Address, current.Revision, func(next *ThreadRecord) error {
 					next.LastActiveAt = now.Add(time.Second)
 					return nil
 				})

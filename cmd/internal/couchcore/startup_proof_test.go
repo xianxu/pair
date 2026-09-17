@@ -80,7 +80,7 @@ func bumpLayout(t *testing.T, env *testEnv, address ThreadAddress, layout Layout
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.Threads.UpdateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+	if _, err := env.Couch.Threads.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
 		next.Layout = layout
 		return nil
 	}); err != nil {
@@ -311,7 +311,7 @@ func parkThread(t *testing.T, env *testEnv, address ThreadAddress) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	withIncarnation, err := env.Couch.Threads.UpdateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+	withIncarnation, err := env.Couch.Threads.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
 		profile := *next.LatestLaunchProfile
 		next.Incarnations = []ThreadIncarnation{{
 			PID: 42, Identity: "pair-helper", State: IncarnationLive,

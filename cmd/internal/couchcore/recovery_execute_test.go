@@ -74,7 +74,7 @@ func TestRecoverThreadImportsLegacyCheckpointAfterRetirement(t *testing.T) {
 	cp := old.Continuation.Checkpoint
 	f.env.Proc.Kill(f.source.Incarnations[0].PID)
 	f.env.Artifacts.SetPairSession(f.source.Address, "pair-exact", false)
-	_, err := c.Threads.UpdateExistingThread(old.Address, old.Revision, func(r *ThreadRecord) error { r.Continuation = nil; r.Incarnations = nil; return nil })
+	_, err := c.Threads.updateExistingThread(old.Address, old.Revision, func(r *ThreadRecord) error { r.Continuation = nil; r.Incarnations = nil; return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestRecoverThreadRefusesUnprovedOwnershipBeforeMutation(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if _, err := c.Threads.UpdateExistingThread(existing.Address, existing.Revision, func(next *ThreadRecord) error { next.Continuation = nil; return nil }); err != nil {
+					if _, err := c.Threads.updateExistingThread(existing.Address, existing.Revision, func(next *ThreadRecord) error { next.Continuation = nil; return nil }); err != nil {
 						t.Fatal(err)
 					}
 				}
@@ -197,7 +197,7 @@ func TestRecoverContinuationRetryDistinguishesOwnTargetGeneration(t *testing.T) 
 			}
 			if scenario == "registration-crash" {
 				record, _ := c.Threads.GetThread(f.source.Address)
-				_, err = c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Continuation.Target = nil; return nil })
+				_, err = c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.Continuation.Target = nil; return nil })
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -241,7 +241,7 @@ func TestRecoveryRetirementBoundedConflictsAndCancellation(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				_, err = plain.UpdateExistingThread(address, r.Revision, func(next *ThreadRecord) error { next.Description = "concurrent metadata"; return nil })
+				_, err = plain.updateExistingThread(address, r.Revision, func(next *ThreadRecord) error { next.Description = "concurrent metadata"; return nil })
 				return err
 			}
 			_, _, err := c.reconcileRecoveryHelper(context.Background(), source.Address)
@@ -381,7 +381,7 @@ func TestContinuationRecoveryRefusesMultipleDeadIncarnations(t *testing.T) {
 		t.Fatal("target death ignored")
 	}
 	record, _ := c.Threads.GetThread(f.source.Address)
-	before, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
+	before, err := c.Threads.updateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error {
 		next.Incarnations = append(next.Incarnations, ThreadIncarnation{PID: 778, Identity: "unrelated", State: IncarnationLive})
 		return nil
 	})
@@ -472,7 +472,7 @@ func TestRecoveryCancellationBetweenRevisionAttemptsStopsReobservation(t *testin
 			if err != nil {
 				return err
 			}
-			expected, err = plain.UpdateExistingThread(address, original.Revision, func(next *ThreadRecord) error {
+			expected, err = plain.updateExistingThread(address, original.Revision, func(next *ThreadRecord) error {
 				next.Description = "concurrent metadata forced revision conflict"
 				return nil
 			})

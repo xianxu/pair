@@ -102,13 +102,8 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	}
 	c.Proc = recoveryAcceptanceProc{FakeProcOps: rt.proc, sourcePID: helper.Process.Pid}
 	if mode != "retired-checkpoint" {
-		source, err = c.Threads.UpdateExistingThread(source.Address, source.Revision, func(next *couchcore.ThreadRecord) error {
-			next.Incarnations = []couchcore.ThreadIncarnation{{PID: helper.Process.Pid, Identity: identity, State: couchcore.IncarnationLive, LaunchProfile: next.LatestLaunchProfile}}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		source = seedLiveIncarnation(t, c.Threads, source,
+			couchcore.ProcessIdentity{PID: helper.Process.Pid, Identity: identity})
 	}
 	if err := helper.Process.Kill(); err != nil {
 		t.Fatal(err)

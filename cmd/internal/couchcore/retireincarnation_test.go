@@ -89,7 +89,7 @@ func TestThreadStoreRetireIncarnation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			record, err = store.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+			record, err = store.updateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
 				next.Reservation = false
 				next.Incarnations = []ThreadIncarnation{live()}
 				next.LatestLaunchProfile = profile
@@ -143,7 +143,7 @@ func TestThreadStoreRetireIncarnation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		record, err = store.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+		record, err = store.updateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
 			next.Reservation = false
 			next.Incarnations = []ThreadIncarnation{live()}
 			next.LatestLaunchProfile = profile
@@ -185,7 +185,7 @@ func TestDeleteStartKeepsARecordThatHasEverStarted(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			record, err = store.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
+			record, err = store.updateExistingThread(address, record.Revision, func(next *ThreadRecord) error {
 				next.Reservation = false
 				next.LatestLaunchProfile = test.profile
 				if test.named {

@@ -176,13 +176,7 @@ func TestSwitcherWarmSelectionCannotColdResumeAfterPark(t *testing.T) {
 	}
 	// Park after selection. Supply a valid native binding so an unrestricted
 	// resume would really start a cold replacement instead of failing incidentally.
-	current, err := c.Threads.UpdateExistingThread(thread.Address, thread.Revision, func(next *couchcore.ThreadRecord) error {
-		next.Incarnations = []couchcore.ThreadIncarnation{{PID: 42, Identity: "parked-helper", State: couchcore.IncarnationLive, RepoIdentity: "/repo/.git", LaunchProfile: next.LatestLaunchProfile}}
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	current := seedLiveIncarnation(t, c.Threads, thread, couchcore.ProcessIdentity{PID: 42, Identity: "parked-helper"})
 	identity := couchcore.ParkIdentity{Nonce: "selected-warm-then-parked", Address: thread.Address, PID: 42, ProcessIdentity: "parked-helper"}
 	begun, err := c.Threads.BeginPark(thread.Address, current.Revision, identity)
 	if err != nil {

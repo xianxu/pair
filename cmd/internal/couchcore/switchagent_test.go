@@ -70,7 +70,7 @@ func TestSwitchAgentStalePreviewParksNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = env.Couch.Threads.UpdateExistingThread(source.Address, source.Revision, func(r *ThreadRecord) error { r.Description = "changed"; return nil })
+	_, err = env.Couch.Threads.updateExistingThread(source.Address, source.Revision, func(r *ThreadRecord) error { r.Description = "changed"; return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +157,7 @@ func TestSwitchAgentRefusesForeignOrUnknownSource(t *testing.T) {
 	for _, unknown := range []bool{false, true} {
 		env, source := envWithLiveThread(t)
 		if unknown {
-			source, _ = env.Couch.Threads.UpdateExistingThread(source.Address, source.Revision, func(r *ThreadRecord) error { r.Incarnations[0].State = IncarnationUnknown; return nil })
+			source, _ = env.Couch.Threads.updateExistingThread(source.Address, source.Revision, func(r *ThreadRecord) error { r.Incarnations[0].State = IncarnationUnknown; return nil })
 		}
 		args := []string{}
 		if _, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", &args); err == nil {
@@ -180,7 +180,7 @@ func TestSwitchAgentSourceChangeDuringContextLookupDoesNotParkReplacement(t *tes
 		t.Fatal(err)
 	}
 	env.Couch.SwitchContext = switchContextFunc(func(_ context.Context, r ThreadRecord) (orientation.OrientationContext, error) {
-		_, err := env.Couch.Threads.UpdateExistingThread(r.Address, r.Revision, func(next *ThreadRecord) error { next.Description = "concurrent edit"; return nil })
+		_, err := env.Couch.Threads.updateExistingThread(r.Address, r.Revision, func(next *ThreadRecord) error { next.Description = "concurrent edit"; return nil })
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -75,7 +75,7 @@ func TestAnUnprovableRecordedProcessIsNotConfirmedAbsence(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			withIncarnation, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+			withIncarnation, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 				next.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: IncarnationLive}}
 				return nil
 			})

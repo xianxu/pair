@@ -124,7 +124,7 @@ func (c *Couch) ensureContinuationAttached(ctx context.Context, record ThreadRec
 		if evidence.Presence != PresencePresent || !evidence.Detached {
 			return record, ActorRecord{}, nil, errors.New("continuation target is not uniquely detached")
 		}
-		updated, err := c.Threads.UpdateExistingThread(record.Address, record.Revision, func(next *ThreadRecord) error { next.VerifiedPark = nil; return nil })
+		updated, err := c.Threads.ClearVerifiedPark(record.Address, record.Revision)
 		if err != nil {
 			return record, ActorRecord{}, nil, err
 		}
@@ -307,7 +307,7 @@ func (c *Couch) RetryContinuation(ctx context.Context, address ThreadAddress, id
 					return ContinuationResult{}, err
 				}
 			} else {
-				record, err = c.Threads.UpdateExistingThread(address, record.Revision, func(next *ThreadRecord) error { next.Incarnations = nil; return nil })
+				record, err = c.Threads.RetireProvedDeadIncarnations(address, record.Revision)
 				if err != nil {
 					return ContinuationResult{}, err
 				}
