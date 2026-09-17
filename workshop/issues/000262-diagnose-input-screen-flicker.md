@@ -204,3 +204,46 @@ only make the flashes rarer, not absent.
 
 Still unverified: no trace taken, and no confirmation that a spinner was active during
 either reported sighting. Check 1 settles that for free.
+
+### 2026-09-16 — RETRACTION: the spinner is not the frequency source
+
+The "does the flicker stop when no spinner is running" check in the entry above is
+**void**, and H1's step 1 was wrong. Couch's spinner (`spinnerGlyph`, `◐◓◑◒`,
+`couchtty/reserve.go:176`) is pair's own status-row animation, not the coding
+agent's — and both timers that drive it are gated to narrow transient states:
+
+- the 100ms `spinnerTimer` arms only when `focused && notice.Level ==
+  MenuNoticeProgress && notice.Owner != (MenuProgressOwner{})` (`console.go`,
+  `syncSpinner`) — the switcher panel focused AND showing a progress notice;
+- `statusTimer` arms only while `c.menu.Reattach.Loading != (ThreadAddress{})`
+  (`syncStatusTick`) — a thread mid-reattach.
+
+Neither holds in either reported regime. There is no 10Hz repaint on a quiet
+screen, so the frequency source is still open.
+
+**What survives, and is still verified:** the paint itself is unsynchronized. No
+DECSET 2026 anywhere in `cmd/` (grep returns nothing), and every strip paint erases
+a full-width row, with the `ReserveAndPaint` path additionally asserting DECSTBM,
+which homes the cursor (`hostty/reserve.go:115`, `:124`, `:144`). That remains a
+real mechanism for a global subtle flash. It just needs a driver.
+
+**Corrected candidate driver — the wake loop, not a timer.**
+`Presenter.Present` (`cmd/internal/terminal/presenter.go:406`) does not paint: it
+sets `p.dirty = e` and does a NON-BLOCKING send on `p.wake`, so a paint loop
+elsewhere does the drawing and multiple events collapse into one wake. It is called
+unconditionally on every child output event (`couchtty/console.go:1181`, outside the
+`if changed` that guards `repaint()`).
+
+That shape fits all three data points without a timer:
+
+- **held Delete** (the original 2026-09-15 report) — many keystrokes, many wakes;
+- **quiet agent, sparse output** — discrete individual wakes, each repaint
+  individually perceptible;
+- **heavy output** — wakes coalesce via the non-blocking send and successive
+  repaints overdraw each other before the terminal presents them, masking it.
+
+**Unverified, and the next thing to check:** what the wake loop actually emits per
+frame — specifically whether it reaches `ReserveAndPaint` (DECSTBM + cursor homing
+every frame, which would explain GLOBAL) or only `Paint`. That is the same question
+listed as check 2 above; it is now the FIRST check, since the free spinner test is
+void.
