@@ -142,3 +142,65 @@ would lengthen the window during which an erased region sits blank.
 
 If H1 holds, the repair is containment or a repaint that closes the gap, not anything
 in the batching path — a different fix from the one `## Spec` currently anticipates.
+
+### 2026-09-16 — operator: the flicker is GLOBAL and very subtle
+
+Ran the free discriminator from the entry above. The answer kills H2 and narrows H1
+to one path.
+
+**H2 (output batching) is dead.** `stdoutPump` feeds ONE pane's stream; it cannot
+produce a whole-screen artifact.
+
+**H1' — the reserved-row repaint is unsynchronized, and it runs on a 10Hz timer.**
+Three verified facts compose into the symptom:
+
+1. **A 100ms spinner timer drives repaints with no input and no output.**
+   `cmd/internal/couchtty/console.go:681` — `spinnerTimer = time.NewTimer(100 *
+   time.Millisecond)`, reset at `:683`, with `spinnerGlyph(phase)` at
+   `couchtty/reserve.go:176`. While a spinner is up the strip repaints ~10×/sec
+   whether or not anything else is happening.
+
+2. **Every repaint emits a whole-screen state change, and an erase.**
+   `hostty/reserve.go:124` — `ReserveAndPaint` = `SaveCursor` + `SetRegion(1,
+   Rows-1)` + `drawRow` + `RestoreCursor`, where `drawRow` (`:144`) is `MoveTo(Rows,
+   1)` + `ResetSGR` + `ClearLine` + text + `ResetSGR`. Two of those are not
+   pane-local: DECSTBM is whole-screen scrolling state, and the code states its side
+   effect outright — *"`SetRegion` (DECSTBM) HOMES THE CURSOR as a documented side
+   effect"* (`:115`). So each frame blanks a full-width row and, on the
+   `ReserveAndPaint` path, sends the cursor to 1,1 and back.
+
+3. **Nothing is wrapped in synchronized output.** `grep -rn '2026h\|2026l\|?2026'`
+   over `cmd/` returns NOTHING — DECSET 2026 (BSU/ESU) is not used anywhere in this
+   repo. So the terminal is free to present intermediate frames: row erased but not
+   yet redrawn, cursor homed but not yet restored.
+
+Ten unsynchronized frames per second, each briefly blanking a row and moving the
+cursor globally, on a screen where nothing else is changing, is a global very subtle
+flicker. Heavy output masks it because the intermediate states are overdrawn before
+the terminal presents them — which is why the original "heavy output does not show
+it" control was misleading rather than informative.
+
+**This also reframes the operator's own guess, and lands next to it.** The
+intuition was *"adding some sequence so the effect of those printed escape sequences
+stops at the boundary."* The missing containment is not spatial, it is TEMPORAL:
+BSU/ESU bound which intermediate states get presented, not where they land.
+
+**Next checks, cheapest first:**
+
+1. **Free:** does the flicker stop when no spinner is running? If it tracks spinner
+   activity, H1' is confirmed without instrumentation.
+2. **Cheap:** confirm which painter the 100ms path actually reaches — `ReserveAndPaint`
+   (DECSTBM + cursor homing every frame) or `Paint` (`reserve.go:160`, no region
+   assert). Only the former explains a GLOBAL disturbance; if the timer path uses
+   `Paint`, the whole-screen part needs another source.
+3. Whether `termcmd`'s tab strip (`presentation.go:360` `paintStripLocked`, 8+ call
+   sites) repaints on the same beat, compounding it.
+
+**Likely repair, if H1' holds:** wrap each strip paint in DECSET 2026
+(`\x1b[?2026h` … `\x1b[?2026l`) in `hostty/control.go` beside the other sequence
+constants, applied in `drawRow` so both painters inherit it. Ghostty supports it. That
+is a containment fix, not a rate fix — dropping the spinner to a slower beat would
+only make the flashes rarer, not absent.
+
+Still unverified: no trace taken, and no confirmation that a spinner was active during
+either reported sighting. Check 1 settles that for free.
