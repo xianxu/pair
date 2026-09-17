@@ -162,6 +162,32 @@ against the first look as well as the reconciler's.
 conversation still resolves is now offered a cold resume, and startup adopts it
 rather than starting a second thread in the same tree.
 
+**How M2's `--actual` was derived, because it is not a clean measurement.**
+`sdlc actual` reports only the CUMULATIVE figure for an issue (7.82h, window
+`b98b1192 → HEAD`) and has no window flag, and **M1's close recorded no
+increment** — not in this file, the plan, the project file, or brain's
+calibration ledger. The engine's own attribution segments end at
+`2026-09-17 12:16`, which covers the M1 close and the compaction; M2's work ran
+from ~12:25 and is not yet in the flushed transcripts. So 7.82h is essentially
+M1-and-earlier, and M2's increment is this session's span: **1.4h**, chosen by
+the operator over passing the cumulative. The issue close will adopt the measured
+cumulative as usual, so calibration is unaffected either way.
+
+**Verification.** `go test ./...` with the five-variable retention scrub: 88
+packages, 71 ok, 17 with no test files, **0 failures**. `make -k test` shows one
+failure, `test-changelog`
+(`pair-changelog-open: viewer: process target is outside selected owner
+directory`, from `validateProcessTarget` in `storagegc/lease.go`), reproduced on
+`origin/main` in a throwaway worktree **and** under `env -i` — pre-existing and
+unrelated. `make` halts the suite at it, so `-k` is required to see past it.
+
+**One regression the package-scoped runs could not see.**
+`TestProductionArtifactReferencesAreExactlyClassified` lives in
+`cmd/internal/artifactpath` and refused the new `lifecycledebris.go` for being
+absent from the exhaustive production-source inventory. Every couch-package run
+was green. That is the argument for `go test ./...` at a boundary rather than the
+packages you touched.
+
 ### 2026-09-17 — M1 boundary: four review rounds, and what each found
 - 2026-09-17: closed M1 — make test with the retention-owner env scrub and a non-symlinked TMPDIR: 210 packages ok, exit 0. Round 5 REWORK addressed. BR-27 Critical: the same replacementUnknown validator escape at a different incarnation count -- an open park with ZERO incarnations was never cleared, so CommitStartClaim refused uncoded and couch would not start in the tree. Root cause is that round 2 rule was written into the code as four sites rather than as the predicate "every guard refusing on record.Incarnations or record.Park"; the clearing pass is now total over the shapes validateLifecycle accepts, with screening complete before any write and each write authorized by a probe of the entity it acts on. TestReAdoptionExitsAreTotalAndCoded gained an incarnation-count dimension, mutation-proven against the old bail. BR-28 and BR-19: the disproved premise and the site count re-derived in every home -- atlas, the function comment, the plan -- and the plan now points at ClassifyThread and everyThreadShape instead of restating the branch table, which had moved twice and each time became instructions to undo a boundary fix.; review verdict: FIX-THEN-SHIP
 
