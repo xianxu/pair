@@ -457,9 +457,6 @@ func TestSessionPresenceAnswersThroughTheProductionChecker(t *testing.T) {
 			t.Errorf("%s: state = %v, want %v", tc.name, state, tc.want)
 		}
 	}
-	if name := got[live].Name; name != "📁repo-live" {
-		t.Errorf("present observation carries name %q, want the bound session", name)
-	}
 }
 
 // TestSessionPresenceCountsNoClients pins the optimistic-inventory trade at the

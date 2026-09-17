@@ -309,7 +309,7 @@ holding the state vocabulary, evidence types, label helpers, the pure classifier
 `launcher.RequireAttachState` — keep that governing the **action** path and add
 the existence pass beside it, rather than relaxing it.
 
-- [ ] **Step 1: Write the failing test** — a table over the three values,
+- [x] **Step 1: Write the failing test** — a table over the three values,
   including the two that today collapse into "no observation":
 
 ```go
@@ -319,15 +319,15 @@ the existence pass beside it, rather than relaxing it.
 {"live session bound", …, want: SessionPresent},
 ```
 
-- [ ] **Step 2: Run it and watch it fail** — the type does not exist.
-- [ ] **Step 3: Implement.** Preserve `ProjectDetachedSessions`' fail-closed
+- [x] **Step 2: Run it and watch it fail** — the type does not exist.
+- [x] **Step 3: Implement.** Preserve `ProjectDetachedSessions`' fail-closed
   uniqueness rules (`claims == 1`, no duplicate rows) — those stand in for #272's
   "exact `ProcessIdentity` match", since a session *name* carries no start token.
   State that equivalence in the doc comment rather than dropping #272's bullet.
   Gather for **every** record, not only resume-shaped ones — the `resumeShaped`
   gate at `:460` is why a record carrying an incarnation never got asked about.
-- [ ] **Step 4:** `go test ./cmd/internal/couchcore/` → PASS.
-- [ ] **Step 5: Commit** — `#256 M1: session existence is evidence for every record`
+- [x] **Step 4:** `go test ./cmd/internal/couchcore/` → PASS.
+- [x] **Step 5: Commit** — `#256 M1: session existence is evidence for every record`
 
 ### Task 2: Delete the bookkeeping from the classification path
 
@@ -348,9 +348,7 @@ referent is not — the failure mode a rename would have caught:
 | `couchcmd/run.go:770`, `couchtty/menu_render.go:432` | **wording is now wrong** — see Task 4 |
 
 **This one task fixes both #271 and #272**, by removing reads rather than adding
-rules. The new branch order:
-
-The branch order is **not restated here**. It moved twice during the boundary
+rules. The branch order is **not restated here**. It moved twice during the boundary
 rounds — `SessionUnresolved` was above `VerifiedPark` and had to be inverted —
 and each time this table became a set of instructions to undo the fix. A
 hand-maintained restatement of the model is a deferred consumer (ARCH-PURPOSE).
@@ -367,7 +365,7 @@ What this task commits to, which is stable:
 about an external process. Rows 7–9 read only
 resume authority, which is genuinely durable.
 
-- [ ] **Step 1: Write the two failing tests — the operator's actual rows**
+- [x] **Step 1: Write the two failing tests — the operator's actual rows**
 
 ```go
 func TestWedgedParkDoesNotWedgeClassification(t *testing.T) {
@@ -398,16 +396,16 @@ func TestDeadLauncherWithLiveSessionIsDetached(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run them and watch them fail** — `busy` and
+- [x] **Step 2: Run them and watch them fail** — `busy` and
   `unusable/stale-incarnation` respectively.
-- [ ] **Step 3: Implement** the branch table above. Delete `liveProofMatches` and
+- [x] **Step 3: Implement** the branch table above. Delete `liveProofMatches` and
   `startInFlight`. Delete the disproved comment at `:21-23` ("ThreadBusy … it
   resolves on its own") — its twin in `menu.go` goes in Task 4.
-- [ ] **Step 4:** Run the suite. Existing stale-incarnation and busy tests will
+- [x] **Step 4:** Run the suite. Existing stale-incarnation and busy tests will
   fail; restate each expectation **with the reason in the test name or a
   comment**. Do not weaken an assertion to make it pass — a test that cannot be
   restated is evidence the rule is wrong.
-- [ ] **Step 5: Commit** — `#256 M1: recoverability is a fact about the session`
+- [x] **Step 5: Commit** — `#256 M1: recoverability is a fact about the session`
 
 ### Task 3: Retire the reasons the rule made unreachable
 
@@ -424,14 +422,14 @@ together: `threadreason_test.go`'s `defining` map, `menu_test.go:1259`
 `TestEveryReasonExplainsItselfOnEnter` (via `unusableThreadNotice`), and
 `classify_test.go:271`.
 
-- [ ] **Step 1:** Run the three guards; let them name the orphaned reasons.
-- [ ] **Step 2:** Remove what is genuinely unreachable. **Both** are removed,
+- [x] **Step 1:** Run the three guards; let them name the orphaned reasons.
+- [x] **Step 2:** Remove what is genuinely unreachable. **Both** are removed,
   including `ReasonUnrecordedChild` — an earlier draft said keep it for #276, but
   a vocabulary entry with no producer is exactly what
   `TestEveryReasonIsProducedBySomeShape` forbids, and an exemption would silence
   that guard for every future orphan. #276 re-adds it with its producer.
-- [ ] **Step 3:** Re-run → PASS.
-- [ ] **Step 4:** Commit, then `sdlc milestone-close --issue 256 --milestone M1`.
+- [x] **Step 3:** Re-run → PASS.
+- [x] **Step 4:** Commit, then `sdlc milestone-close --issue 256 --milestone M1`.
 
 ---
 

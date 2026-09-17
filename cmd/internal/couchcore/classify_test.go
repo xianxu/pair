@@ -67,7 +67,7 @@ func everyThreadShape(t *testing.T) []classifyCase {
 	}
 	withSession := func(e ThreadEvidence) ThreadEvidence {
 		e.ParkedStatus = ProofResolved
-		e.Session = SessionObservation{State: SessionPresent, Name: "pair-three"}
+		e.Session = SessionObservation{State: SessionPresent}
 		return e
 	}
 	// A start couch has claimed and not finished: the ONE thing still read from
@@ -477,7 +477,7 @@ func actionableRows(records []ThreadRecord, live []LiveTTYObservation, parked []
 			// so the helper must model the same refusal.
 			item.Session = SessionObservation{State: SessionUnresolved}
 		default:
-			item.Session = SessionObservation{State: SessionPresent, Name: observation.SessionName}
+			item.Session = SessionObservation{State: SessionPresent}
 		}
 		seenDetached[observation.Address] = true
 		evidence[observation.Address] = item

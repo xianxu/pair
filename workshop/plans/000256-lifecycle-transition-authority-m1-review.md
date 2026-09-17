@@ -897,3 +897,130 @@ findings:
     detail: |
       4th in family — the rule has been stated twice and hand-applied twice, so state the mechanism instead. plan:363-364 says "Rows 7-9 read only resume authority, which is genuinely durable" while row 7 is now SessionUnresolved after round 4's swap. Row 8's binding-lost is reachable only INSIDE the VerifiedPark branch in the code, above row 7, and the VerifiedPark + ProofUnresolved -> unknown sub-case is missing from the table entirely. plan:355 still says "(in-memory observation)" and plan:213-215 still says "Ephemeral state stays ephemeral", both describing the design the Revisions entry adopted the opposite of. The mechanism: stop restating the branch table in the plan and point at ClassifyThread plus classify_test.go's everyThreadShape, which is derived and tested — a hand-maintained restatement of the model is a deferred consumer (ARCH-PURPOSE).
 ```
+
+---
+
+## Re-review — 2026-09-17T11:37:32-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 256 — Enforce lifecycle transition authority and outcome uncertainty |
+| repo | pair |
+| issue file | workshop/issues/000256-lifecycle-transition-authority.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | b6a0766ac340596f2f5889f6a183cfcb9f5795ed..5211cd9e0b79337694c17181b2f5ece04848eb5f |
+| command | sdlc milestone-close --issue 256 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-17T11:37:32-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+I've completed the review. Working tree is clean (all mutation probes restored).
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Round 5's Critical is genuinely fixed and I proved it: restoring the old `len(Incarnations) != 1` bail in a scratch copy reddens `TestReAdoptionExitsAreTotalAndCoded/matching-park/0-incarnation/dead/live` with exactly the message the finding predicted. The screen-then-write restructure of `retireDeadIncarnationBeforeStart` (resume.go:565-639) is the right shape — every precondition clears before the irreversible `AbandonPark`, each write is authorized by a probe of the entity it acts on, and the count dimension now refuses with a code instead of declining silently. The atlas and the `resume.go` outer comment no longer carry round 4's disproved park-identity premise, and the plan stopped restating the branch table. What holds SHIP back is not behavior: the issue file still says "three sites" in three places while the atlas, the plan and the code all say four (open since round 4); the totality table that is supposed to be the mechanism preventing the shape-by-shape recurrence has hand-written loop bounds, so the very claim it backs — total over what `validateLifecycle` accepts — is unproven for shapes I confirmed the production store accepts; and BR-30's own fix deleted the branch table but left the sentence that referred to its rows. All of it is cheap.
+
+Environment note: `go test ./...` here fails 14 packages, every failure `operation not permitted` from `ptychild`/`pty.Open`/`mkdir /tmp/...`. Those are this shell's restrictions, not the diff — `couchcore`'s only failures are the six pty runner tests, and every classify/resume/session-evidence test passes. I could not independently reproduce the "210 packages ok" claim.
+
+### 1. Strengths
+
+- **`retireDeadIncarnationBeforeStart` (resume.go:565-639) is now a screen phase and a write phase, and the comment says why in both directions.** The `// ---- screen ----` / `// ---- write ----` split makes the irreversible-ordering rule structural rather than a thing the next editor has to remember. Mutation-verified reachable.
+- **The outer comment at resume.go:450-458 refuses to restate the rules** — "do not restate them here, because a claim restated away from its test is how two of them came to be wrong." That is the correct fix for a family that recurred four times: one home, cited from the others.
+- **`SessionUnresolved` as the zero value** (sessionevidence.go:28) with `TestUnresolvedIsTheZeroValue` — fail-closed by construction, not by remembering to set a flag. Confirmed-good; reuse it for M3's three-valued liveness.
+- **`TestSessionPresenceAnswersThroughTheProductionChecker`** (artifactcollision_zellij_test.go:416) exercises the real checker with a stubbed `zellij` across all four branches including the unreadable-scope one. This is the ARCH-MOCK conformance half that round 1 found missing, and it is real.
+- **Compile-time seam binding** (artifactcollision.go, the `var _ SessionPresenceResolver = ...` block) with a comment explaining that type assertions on `c.Artifacts` fail silently. That converts a whole class of "evidence never gathered, everything reads unknown" into a build error.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+**The totality table's dimensions are hand-written, so the totality claim is unproven for shapes the store accepts.** (`fail-closed-guard-untested`, 3rd in family — see the rule below, not the site.)
+
+`sessionevidence_test.go:376-377` loops `park ∈ {"none","matching"}` and `count ∈ {0,1}`. `resume.go:545` and `atlas/couch.md:1354-1356` both claim the function is total over what `validateLifecycle` accepts and that this test enumerates it. I checked the domain against the production store: `CreateThread` **accepts** a record with two live incarnations; `ClassifyThread` returns `detached` (so startup ranks it highest and auto-selects it); `retireDeadIncarnationBeforeStart` refuses `resume-unknown: thread carries more than one recorded incarnation`. The behavior is correct — it is simply untested. Measured: 4 of the function's ~10 exits have no cell — `Start != nil` (silent decline), `default:` count ≥ 2, `PID <= 0 || Identity == ""`, and a *foreign* park (covered only by a separately-named test, not by the table).
+
+BR-19 and BR-30 both asked for "the mechanism, not the sweep"; this is the same request one layer down. **The rule:** a table asserting totality over a domain must take its dimensions from the domain's own oracle, not from the author's enumeration — exactly the "a predicate, not a list of sites" rule round 5 applied to the *code*, applied to its *test*. The table already has the oracle: `t.Skipf` on `CreateThread` refusal. Widen `count` to `{0,1,2}`, add `park: "foreign"` and a `startClaimed` variant, and let the skip decide what is out of domain. Then adding a new exit without a cell fails the test instead of passing it.
+
+### 4. Minor findings
+
+- `sessionevidence.go:52` — `SessionObservation.Name` is written in four places and read nowhere (production or test); its doc justifies it by a drift-prevention property nothing exercises.
+- The plan's `- [ ] Step 1` bullets under Task 2 still read `- [ ]` at a milestone the issue marks `[x]` — cosmetic, but it is the plan-checklist gate's input.
+- `plan.md:350-353` — "The new branch order:" now runs straight into "The branch order is **not restated here**", leaving a dangling colon.
+
+### 5. Test coverage notes
+
+- The new-shape coverage that matters is real and mutation-checked: I reverted the count bail and the regression went red at the predicted cell.
+- `everyThreadShape` carries three `newlyActionable` cases (not four); the `VerifiedPark + SessionUnresolved` sub-case lives outside it in `TestParkedRowSurvivesAnUnresolvedSessionQuestion`, so the "cross product, not a sample" claim in the test's own doc is slightly stronger than the fixture set.
+- IO budget is pinned structurally at five sites (`SessionPresenceQueries() == 1`, `DetachedQueries() == 0`), which is better evidence than a timing number.
+
+### 6. Architectural notes
+
+Worked through each marker on the diff:
+
+- **ARCH-DRY** — pass. `indexSessionsByName`/`uniquelyClaimed` extract the fail-closed *rule* after round 1 extracted only the read; `resolveScopedBindings` is shared by both seams.
+- **ARCH-PURE** — pass. `ClassifyThread` and `ProjectSessionPresence` are pure and total; `SessionPresence` is the thin IO seam; no mocks needed to run either.
+- **ARCH-PURPOSE** — flagged, in the Important finding and in BR-19. The code delivers the purpose; the *shadow-sweep* over the claim's homes still leaves the issue file as a hand-maintained restatement that has drifted.
+- **ARCH-MOCK** — pass. Stateful fake, coupled correctly (`SetDetachedSession` also sets presence, with a comment on why a host that answers otherwise cannot exist), plus a production-checker conformance test through the stubbed-`zellij` harness.
+- **ARCH-CONSTRAINTS** — pass. Budget enforced structurally and recorded in the Log; the regression the plan flagged (snapshot on every refresh, `Physical` on 4 records not 3) is named and bounded, with M2 owning wall-clock.
+- **ARCH-SECURE** — pass, and this is the round's best move: naming `validateLifecycle`'s accept-set as the domain because a record from another version is untrusted input is the correct framing, and it is what makes the totality claim meaningful. The Important finding is that the claim is not yet proven over that domain.
+- **ARCH-ORDER** — flagged (BR-21, Minor). Park abandonment now has two authorities: `PairLifecycleController.Abandon` serializes through `submit` per thread, `resume.go:624` does not. I checked the concurrency premise in BR-21 and it is weaker than stated — `RecoverActiveParks` is launched at `couchcmd/run.go:342` *after* the dispatch returns, so it does not overlap startup resume. The revision CAS makes a loser fail safely. What remains is the design point: two doors to an irreversible write, with no comment at the second saying why the worker is not needed.
+- **ARCH-FUNERAL** — pass. `AbandonPark` appends one tombstone per orphaned park, and a record with no `Park` cannot append a second, so the new writer is bounded at one row per resume of a shape that occurs once.
+
+### 7. Plan revision recommendations
+
+- **`plan.md:367-368`** — delete or rewrite "Rows 7–9 read only resume authority, which is genuinely durable." The table it refers to was removed in round 5; the sentence now points at nothing and its substance is the claim BR-30 flagged as false (row 7 became `SessionUnresolved` in round 4).
+- **A `## Revisions` entry recording that the totality claim's evidence is narrower than the claim**, and what widening the table's dimensions from the domain oracle changes — so the plan does not assert a totality the test does not establish.
+
+```findings
+dispose:
+  - id: BR-19
+    disposition: not-addressed
+    note: |
+      Round 5 did not touch the issue file. Lines 123, 176 and 184 still say "three sites" with an enumeration of 1-3, while atlas:1328 says four and plan:935 says FOUR — and the issue's own round-table Log section says a fourth site was found, so the file contradicts itself.
+  - id: BR-20
+    disposition: not-addressed
+    note: |
+      classify_test.go untouched since b5fce898. :270 name says "exactly what the old projector accepted", :268-269 doc cites only the #248 exception, :275 failure message prints tc.wasActionableBefore alone, while :274 asserts (wasActionableBefore || newlyActionable) over three #256 shapes.
+  - id: BR-21
+    disposition: not-addressed
+    note: |
+      resume.go:624 still calls c.Threads.AbandonPark directly; no change in park.go, no comment saying why the per-thread worker is unnecessary. Correcting the finding's premise: RecoverActiveParks is launched after the dispatch returns (run.go:342), so it does not run concurrently with startup resume. CAS-protected, Minor.
+  - id: BR-27
+    disposition: addressed
+    note: |
+      Mutation-verified — restoring `if len(thread.Incarnations) != 1 { return nil, nil }` reddens TestReAdoptionExitsAreTotalAndCoded/matching-park/0-incarnation/dead/live with "no refusal and no result ... park=true". The fixture builds through the production store and is not skipped. Residual: the table's dimensions are hand-written, raised separately.
+  - id: BR-28
+    disposition: addressed
+    note: |
+      atlas:1343-1345's "one probe answers both" is gone; :1349-1360 now carries four rules, each citing the test that pins it. resume.go:450-458 no longer restates the park rules and points at retireDeadIncarnationBeforeStart instead. The surviving copy at plan:943 is inside an append-only round-1 Revisions entry, which is a dated record rather than current guidance.
+  - id: BR-29
+    disposition: not-addressed
+    note: |
+      actionableinventory.go:567 unchanged — `if presence, presenceErr := ...; presenceErr == nil` still drops the error with no trace and no carried field.
+  - id: BR-30
+    disposition: not-addressed
+    note: |
+      Two of three fixed — plan:213-215 now adopts the durable start claim, and the "(in-memory observation)" table is gone. The third survives verbatim: plan:367-368 still reads "Rows 7-9 read only resume authority, which is genuinely durable", now a dangling reference to a deleted table and still the false claim the finding named.
+findings:
+  - id: new
+    severity: Important
+    family: fail-closed-guard-untested
+    title: |
+      The totality table's dimensions are hand-written, so the totality claim is unproven for shapes the store accepts
+    detail: |
+      This is the 3rd finding in family `fail-closed-guard-untested`, so the rule, not the site. resume.go:545 and atlas/couch.md:1354-1356 claim retireDeadIncarnationBeforeStart is total over what validateLifecycle accepts and that TestReAdoptionExitsAreTotalAndCoded enumerates it, but sessionevidence_test.go:376-377 loops park in {none,matching} and count in {0,1} — constants, not the domain. Verified against the production store: CreateThread ACCEPTS a two-incarnation record, ClassifyThread returns detached so startup ranks it highest, and the function refuses resume-unknown "thread carries more than one recorded incarnation" with no cell covering it. Measured: 4 of ~10 exits uncovered — Start != nil (silent decline), default count >= 2, PID <= 0 or empty Identity, and a foreign park (only a separately-named test). The rule is round 5's own, applied one layer down: a table asserting totality takes its dimensions from the domain's oracle, not from the author's enumeration. The oracle is already there — t.Skipf on CreateThread refusal. Widen count to {0,1,2}, add park "foreign" and a startClaimed variant, and let the skip exclude what is out of domain, so a new exit without a cell fails instead of passing.
+  - id: new
+    severity: Minor
+    family: vocabulary-entry-without-producer
+    title: |
+      SessionObservation.Name is written in four places and read nowhere
+    detail: |
+      2nd in family — the rule is BR-22's dual. sessionevidence.go:48-52 documents Name as carried "so a consumer that acts on the observation does not re-derive the name from a second index read", but no production path and no test reads it; only evidence.Session.State is consumed (actionableinventory.go:323,351). BR-22's guard proves every ResumeDiagnosticCode has a producer; the same surface needs the other end — a declared element of a closed surface is guarded at BOTH ends, or the unguarded end rots. Either give it the consumer its doc describes or drop the field.
+```

@@ -120,7 +120,7 @@ Rows are the milestones of the durable plan at
 `workshop/plans/000256-lifecycle-transition-authority-plan.md`.
 
 - [x] Revalidate the preserved audit findings against current code and coordinate #250/#253/#255. *(Done 2026-09-16: findings 2 and 4 confirmed against HEAD; finding 4's collapse is `actionableinventory.go:582`. Measured the process tree — see Log.)*
-- [x] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion. *(Done 2026-09-17; the class had three sites — see Log.)*
+- [x] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion. *(Done 2026-09-17; the class turned out to have FOUR sites, found one at a time — see Log.)*
 - [ ] M2 — Make the operator's rows reachable (`DecideRecovery`'s park gate, the binding-absent hatch, the busy-row menu branch) and verify against real sessions.
 - [ ] M3 — Guards consume the classification; preserve Unknown on the destructive paths; archive confirms before stopping a live agent; close the arbitrary lifecycle-mutation door; atlas + lessons.
 
@@ -131,6 +131,7 @@ no thread record — carries #272's corresponding Done-when).
 ## Log
 
 ### 2026-09-17 — M1 boundary: four review rounds, and what each found
+- 2026-09-17: closed M1 — make test with the retention-owner env scrub and a non-symlinked TMPDIR: 210 packages ok, exit 0. Round 5 REWORK addressed. BR-27 Critical: the same replacementUnknown validator escape at a different incarnation count -- an open park with ZERO incarnations was never cleared, so CommitStartClaim refused uncoded and couch would not start in the tree. Root cause is that round 2 rule was written into the code as four sites rather than as the predicate "every guard refusing on record.Incarnations or record.Park"; the clearing pass is now total over the shapes validateLifecycle accepts, with screening complete before any write and each write authorized by a probe of the entity it acts on. TestReAdoptionExitsAreTotalAndCoded gained an incarnation-count dimension, mutation-proven against the old bail. BR-28 and BR-19: the disproved premise and the site count re-derived in every home -- atlas, the function comment, the plan -- and the plan now points at ClassifyThread and everyThreadShape instead of restating the branch table, which had moved twice and each time became instructions to undo a boundary fix.; review verdict: FIX-THEN-SHIP
 
 The M1 close took **four** boundary-review rounds. Recorded because the pattern
 is the finding, not any single defect: each round found something the previous
@@ -173,7 +174,7 @@ detachable, and `Physical` is called for 4 records rather than 3. Both are off
 the keystroke path (the refresh runs in a coalesced worker goroutine), and M2's
 operator verification owns the wall-clock figure.
 
-### 2026-09-17 — M1: one class, three sites
+### 2026-09-17 — M1: one class, and it kept having one more site
 
 `ClassifyThread` no longer reads `Incarnation` liveness or `record.Park`. Both
 filed bugs fall out of the deletion, and the two shapes are asserted to classify
@@ -181,7 +182,11 @@ IDENTICALLY, which is the claim: the zellij server is PPID 1 at birth, so a
 couch death kills only the launcher and a clean detach leaves the same external
 state a crash does.
 
-**The class had three sites, and only running it found the last two.**
+**The class had four sites, and each was found by fixing the one before it.**
+Three were found by running it; the fourth by a boundary reviewer disproving a
+claim of mine. The enumeration — *every guard refusing on `record.Incarnations`
+or `record.Park`* — is the deliverable, not any single site, and writing it as a
+list rather than a predicate is what let two later shapes through.
 
 1. `ClassifyThread` — the one the plan named.
 2. `DecideResume` (`resume.go:98,104`) refused on the incarnation, so a row the

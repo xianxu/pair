@@ -68,9 +68,6 @@ func TestSessionPresenceIsThreeValued(t *testing.T) {
 		}
 	}
 
-	if name := got[live].Name; name != "live-session" {
-		t.Errorf("a present observation must carry its session name, got %q", name)
-	}
 }
 
 // TestUnresolvedIsTheZeroValue is a guard, not a tautology: every consumer that
@@ -176,9 +173,7 @@ func TestSessionEvidenceReachesEveryRecord(t *testing.T) {
 			t.Fatalf("%s: %v", name, err)
 		}
 		addresses[name] = created.Address
-		artifacts.SetSessionPresence(created.Address, SessionObservation{
-			State: SessionPresent, Name: "session-" + string(tags[name]),
-		})
+		artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
 	}
 
 	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
@@ -289,9 +284,7 @@ func TestDeadLauncherWithLiveSessionIsDetached(t *testing.T) {
 	detached := crashed
 	detached.Incarnations = nil
 
-	evidence := ThreadEvidence{Session: SessionObservation{
-		State: SessionPresent, Name: "📁pair-couch-32",
-	}}
+	evidence := ThreadEvidence{Session: SessionObservation{State: SessionPresent}}
 
 	crashedState, crashedReason := ClassifyThread(crashed, evidence)
 	detachedState, _ := ClassifyThread(detached, evidence)
@@ -373,8 +366,15 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 	)
 	names := map[liveness]string{dead: "dead", unknown: "unknown", alive: "alive"}
 
-	for _, park := range []string{"none", "matching"} {
-		for _, count := range []int{0, 1} {
+	// The dimensions are DELIBERATELY wider than the shapes anyone enumerated,
+	// and `CreateThread`'s refusal is the oracle that trims them back. Writing
+	// the bounds by hand is the same mistake as writing the sweep as a list of
+	// sites: it covers the shapes the author thought of. Two of this function's
+	// defects were shapes nobody had -- a foreign-owned park, then an open park
+	// with zero incarnations -- so the domain must come from `validateLifecycle`,
+	// not from here. A new exit without a cell now fails this test.
+	for _, park := range []string{"none", "matching", "foreign"} {
+		for _, count := range []int{0, 1, 2} {
 			for _, live := range []liveness{dead, unknown, alive} {
 				for _, state := range []IncarnationState{IncarnationLive, IncarnationUnknown} {
 					if count == 0 && (live != dead || state != IncarnationLive) {
@@ -388,14 +388,26 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 						store, _ := newTestThreadStore(t)
 						record := actionableTestThread("couch-00000000000000e1", time.Unix(100, 0).UTC())
 						record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+						for i := 0; i < count; i++ {
+							record.Incarnations = append(record.Incarnations, ThreadIncarnation{
+								PID: 64734 + i, Identity: fmt.Sprintf("tok-%d", i), State: state,
+							})
+						}
 						if count == 1 {
-							record.Incarnations = []ThreadIncarnation{{PID: 64734, Identity: "tok", State: state}}
+							record.Incarnations[0].Identity = "tok"
 						}
 						if park != "none" {
 							record.Park = wedgedParkFixture(record.Address)
 							record.Park.Identity.PID = 64734
 							record.Park.Identity.ProcessIdentity = "tok"
-							if count == 0 {
+							if park == "foreign" {
+								// Owned by a process that is NOT an incarnation.
+								// Valid only through the replacementUnknown
+								// escape, which the oracle below enforces.
+								record.Park.Identity.PID = 42
+								record.Park.Identity.ProcessIdentity = "original-owner"
+							}
+							if count == 0 || park == "foreign" {
 								// The replacementUnknown escape: zero matches are
 								// valid when the phase is `unknown` and the
 								// transaction carries a replacement_incarnation
@@ -436,7 +448,11 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 						// present, its owner -- the same pid in this fixture)
 						// proved dead, and a live recorded incarnation if there
 						// is one at all.
-						wantClear := live == dead && (count == 0 || state == IncarnationLive)
+						// A foreign park's owner is a different process, and this
+						// fixture leaves it unset -- i.e. dead -- so it clears on
+						// the same terms. Two incarnations never clear: the
+						// function refuses rather than guessing which is current.
+						wantClear := live == dead && count <= 1 && (count == 0 || state == IncarnationLive)
 						if wantClear && err != nil {
 							t.Fatalf("a clearable shape refused: %v", err)
 						}

@@ -43,13 +43,14 @@ func (s SessionState) String() string {
 }
 
 // SessionObservation is one thread's session, and whether couch could look.
+//
+// It deliberately carries NO session name. An earlier version did, justified by
+// a drift-prevention property no consumer exercised -- nothing production read
+// it. #256's own discipline is delete-or-justify, applied twice in this
+// milestone already, so it is deleted; M2's action work re-adds it together with
+// the consumer that needs it.
 type SessionObservation struct {
 	State SessionState
-	// Name is the zellij session this address is bound to. Carried so a
-	// consumer that acts on the observation does not re-derive the name from a
-	// second index read, which is how the name a thread is judged by and the
-	// name it is acted on could drift apart.
-	Name string
 }
 
 func (o SessionObservation) Present() bool { return o.State == SessionPresent }
@@ -95,7 +96,7 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 	index := indexSessionsByName(sessions)
 
 	for _, binding := range bindings {
-		observation := SessionObservation{Name: binding.SessionName}
+		var observation SessionObservation
 		switch {
 		case !uniquelyClaimed(binding.SessionName, claims, index):
 			// Either no name at all -- the caller decides whether that means
