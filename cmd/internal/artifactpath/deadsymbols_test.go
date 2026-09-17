@@ -42,6 +42,7 @@ var deadSymbolAllowlist = map[string]string{
 	// guards -- Go cannot check a switch for exhaustiveness, so the enumeration
 	// is what does. A production caller would be the tail wagging the dog.
 	"AllThreadReasons": "the ThreadReason vocabulary; iterated by the guards that prove every reason is produced and rendered",
+	"AllThreadStates":  "the ActionableThreadState vocabulary; iterated by the offered-implies-permitted guards, which derive their domain from it rather than hand-listing states (pair#256 M2, BR-33)",
 
 	// Genuinely unreferenced, and NOT dispositioned here. Deleting each means
 	// deleting its tests, which is a judgement call per symbol rather than part

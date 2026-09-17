@@ -1045,6 +1045,61 @@ corrective. #272's corresponding Done-when transfers there.
 
 ## Revisions
 
+### 2026-09-17 — M2 boundary review, round 2 (REWORK)
+
+Five findings, three blocking. The headline is that **round 1's C1 fix was itself
+an instance fix wearing a class fix's clothes**, which is worth recording as
+plainly as the defect.
+
+**BR-33 — `classification-not-authority`, 5th, and a fail-open I introduced.**
+Round 1 replaced `switch-agent`'s receipt check with a direct session probe. That
+is a SECOND re-derivation of "nothing runs here", and it was wrong in a new
+direction: a thread couch is HOSTING with no recorded incarnation classifies
+`live` (M1 made the console's own proof sufficient), and the probe admitted it
+whenever the session index held no binding — while `SwitchAgent` parks the source
+only when an incarnation exists. Two agents on one tree. Measured and reproduced
+before fixing.
+
+The rule, finally applied rather than approximated: **an action guard CONSUMES
+the classification; it does not re-derive one.** `SwitchableState(state, reason)`
+is now a pure predicate that both the switcher and `PrepareAgentSwitch` call, and
+the guard classifies through `classifyForAction` — the same evidence pass and the
+same rule the rows come from, with couch's own registry as live proof. The rule
+it encodes is *nothing is running that a switch would orphan*, which admits
+`live` (parked first, and now refused outright when there is nothing to park),
+`parked`, and the two unusable reasons that also mean nothing runs.
+`TestSwitchAgentOfferedImpliesPermitted` derives its domain from
+`AllThreadStates() × AllThreadReasons()` and reds under the original C1 defect.
+
+Round 1's test could not have caught this: its totality assertion compared a map
+filled from its own literal, so it could not fail. It now derives the producer
+set from `everyThreadShape`, which immediately found **two** producers the
+hand-written table had missed — the receipt-plus-unresolved-session row and the
+driverless-claim-with-ledger row. The latter also made `SwitchAgent` clear
+lifecycle debris before its target claim, as resume and archive already do.
+
+**BR-34 — `stale-wording-after-referent-change`, 6th.** Round 1 wrote the rule
+and never ran the `git grep` the rule prescribes. Four sites remained: `ops.go`'s
+operator-facing `resume` summary, and three in `atlas/couch.md` including the
+atlas's own statement of the classification rule. A fifth turned up in the same
+sweep — the atlas still described the inventory's pre-M1 candidate gate. **The
+grep is the deliverable; writing it down is not running it.**
+
+**BR-35 — the retuned fixtures.** Two startup tests had their ledger changed to
+unbound so they would keep their old verdict, which preserved the premise and
+left M2's new startup behaviour untested.
+`TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves` covers it: the
+row reads `parked`, is resumable, and `SelectResumableRoot` picks it rather than
+minting a second thread in the tree.
+
+**Minor.** `ClassifyThread`'s late unresolved-session branch was subsumed by the
+guard above it — dead by construction, with a comment defending a distinction
+nothing checked; deleted, and the distinction now lives only where it is decided.
+The reachability guard is renamed for the single code it pins, and its `t.Skipf`
+is a `t.Fatalf`, because a reachability guard that silently stops running is the
+failure mode it exists to catch.
+
+
 ### 2026-09-17 — M2 boundary review, round 1 (REWORK)
 
 Six findings. Each is recorded as the RULE, because four of them are repeat

@@ -340,3 +340,53 @@ func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 		t.Fatalf("startup reattached %+v with no surviving session", stale.Address)
 	}
 }
+
+// TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves is the
+// behaviour #256 M2 introduced at startup, and BR-35 caught missing: the two
+// "starts new when no session survives" fixtures were RETUNED to an unbound
+// ledger so they would keep their old verdict, which preserved their premise and
+// left the new one untested.
+//
+// Before M2 a thread whose session had died read `session-gone` — nobody asked
+// its ledger — so startup created a second thread in the same tree. Now the
+// ledger answers, the row is cold-resumable, and couch's core promise applies:
+// it found a resumable thread here and will not start a second one.
+func TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+	stale := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	stale.StartingPath, stale.WorkingPath = "/repo", "/repo/sub"
+	stale.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
+	var err error
+	stale, err = env.Couch.Threads.CreateThread(stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The session is gone — no SetDetachedSession, no presence — but the ledger
+	// still names the conversation.
+	env.Artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+
+	rows, err := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row ActionableThreadSummary
+	for _, candidate := range rows {
+		if candidate.Address == stale.Address {
+			row = candidate
+		}
+	}
+	if row.State != ThreadParked {
+		t.Fatalf("row = %q/%q, want parked: the ledger resolves, so there IS something to resume into",
+			row.State, row.Reason)
+	}
+	if !row.Resumable() {
+		t.Fatal("a row the ledger resolves must be offered as resumable, or startup cannot adopt it")
+	}
+	// The startup selector must pick it rather than mint a second thread here.
+	selected, found := SelectResumableRoot(rows, stale.Address.RepoScope, "/repo/sub")
+	if !found || selected != stale.Address {
+		t.Fatalf("startup selected %+v (found=%v), want the thread whose conversation resolves", selected, found)
+	}
+}

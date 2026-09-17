@@ -57,42 +57,42 @@ func (r SwitchAgentResult) Started() (StartResult, bool) {
 	return StartResult{Record: r.Record, Handle: r.Handle}, true
 }
 
-// switchableWhenNothingRuns is the inactive-thread half of switch-agent's
-// admission, for a record couch's own bookkeeping says nothing is running on.
+// classifyForAction answers "what is this thread, right now" through the SAME
+// evidence pass and the SAME rule the switcher's rows come from.
 //
-// It used to be `record.VerifiedPark == nil` -> refuse, which read the park
-// RECEIPT as proof of inactivity. #256 M2 widened who produces `parked`: a
-// thread whose session is gone and whose ledger still resolves a conversation is
-// parked with no receipt at all, and the switcher offers `switch-agent` on every
-// parked row -- so the receipt check turned that offer into an action that
-// always fails, which menu.go:1254 names as the way a switcher teaches an
-// operator to distrust it.
+// An action guard consumes the classification; it does not re-derive one. Two
+// successive re-derivations of "nothing runs here" shipped in #256 M2 and both
+// were wrong in a different direction, which is the whole argument: a second
+// derivation drifts toward whichever cases its author thought about.
 //
-// The fact the guard actually needs is that nothing is RUNNING, and since #256
-// that is a fact about the session, not about bookkeeping. A switch launches a
-// FRESH agent (launchTrackedThread with Fresh: true) and resumes no
-// conversation, so a surviving session is the whole hazard: starting a second
-// agent behind one is exactly the #272 shape from the other side.
-//
-// Strict at the action, per the optimistic-inventory rule: one exact observation
-// for the single thread the operator chose. Unknown fails closed -- an
-// unanswerable session is not an absent one, and the cost of being wrong here is
-// two agents on one tree.
-func (c *Couch) switchableWhenNothingRuns(ctx context.Context, record ThreadRecord) error {
-	binding, err := c.recoverySession(ctx, record.Address)
-	if errors.Is(err, ErrPairSessionBindingAbsent) {
-		// No binding at all corroborates absence: nothing this record names can
-		// be publishing one, because the occupied branch above already excluded
-		// every incarnation that could.
-		return nil
+// Live proof comes from couch's OWN registry, which is what a console hosting a
+// pty child records, so a thread couch is hosting reads `live` here exactly as
+// it does in the switcher. The evidence pass is one round for the single thread
+// the operator acted on -- the strict half of optimistic inventory.
+func (c *Couch) classifyForAction(ctx context.Context, address ThreadAddress) (ActionableThreadState, ThreadReason, error) {
+	hosted := make([]LiveTTYObservation, 0, 4)
+	for _, actor := range c.reg.Records() {
+		if actor.PID > 0 && actor.Identity != "" {
+			hosted = append(hosted, LiveTTYObservation{
+				Address: actor.Thread,
+				Process: ProcessIdentity{PID: actor.PID, Identity: actor.Identity},
+			})
+		}
 	}
+	snapshot, evidence, err := c.gatherThreadEvidence(ctx, hosted, func(record ThreadRecord) bool {
+		return record.Address == address
+	})
 	if err != nil {
-		return fmt.Errorf("switch-agent: its session state could not be checked; inspect and retry: %w", err)
+		return "", "", err
 	}
-	if binding.Present {
-		return errors.New("switch-agent: its session is still up; park or detach the thread first")
+	for i := range snapshot.Records {
+		if snapshot.Records[i].Address != address {
+			continue
+		}
+		state, reason := ClassifyThread(snapshot.Records[i], evidence[address])
+		return state, reason, nil
 	}
-	return nil
+	return "", "", fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 }
 
 // PrepareAgentSwitch reads the authoritative thread and shared path preference.
@@ -123,7 +123,29 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 	if record.Park != nil {
 		return PreparedAgentSwitch{}, errors.New("switch-agent: park is incomplete; use park retry/recover/abandon")
 	}
-	if hasOccupiedIncarnation(record) {
+	// The admission rule, consumed rather than re-derived: exactly the states
+	// the switcher offers switch-agent on, decided by the same classification
+	// that produced the offer (#256 M2, BR-33).
+	state, reason, err := c.classifyForAction(ctx, address)
+	if err != nil {
+		return PreparedAgentSwitch{}, fmt.Errorf("switch-agent: its state could not be classified; inspect and retry: %w", err)
+	}
+	if !SwitchableState(state, reason) {
+		detail := string(state)
+		if reason != "" {
+			detail += "/" + string(reason)
+		}
+		return PreparedAgentSwitch{}, fmt.Errorf(
+			"switch-agent: thread is %s; only a live thread this couch hosts or one with nothing running can switch agents", detail)
+	}
+	if state == ThreadLive {
+		if !hasOccupiedIncarnation(record) {
+			// Couch hosts it, but the record names no incarnation to park --
+			// and SwitchAgent parks the source only when it does. Admitting this
+			// starts a second agent on the same tree.
+			return PreparedAgentSwitch{}, errors.New(
+				"switch-agent: couch hosts this thread but its record names no incarnation to park; detach or park it first")
+		}
 		if c.PairLifecycle == nil {
 			return PreparedAgentSwitch{}, errors.New("switch-agent: Pair lifecycle controller unavailable")
 		}
@@ -145,8 +167,6 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		if !owned {
 			return PreparedAgentSwitch{}, errors.New("switch-agent: source belongs to another owner; attach it to this Couch first")
 		}
-	} else if err := c.switchableWhenNothingRuns(ctx, record); err != nil {
-		return PreparedAgentSwitch{}, err
 	}
 	if !c.workingPathExists(record) {
 		return PreparedAgentSwitch{}, refuseResume(ResumePathMissing, "switch-agent: saved working path is unavailable")
@@ -279,6 +299,22 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 		if parked.CleanupError != nil {
 			result.Warning = parked.CleanupError.Error()
 		}
+	}
+	// Clear whatever the last couch left behind, on the same terms resume and
+	// archive do (#256 M2). A thread can be `parked` and still carry a start
+	// claim its couch died mid-flight -- the store's one-incarnation-at-a-time
+	// invariant would then refuse the target claim below, uncoded, after the
+	// source had already been parked. Screened before any write, and refusing
+	// with a code if the debris cannot be proved orphaned.
+	if cleared, clearErr := c.clearLifecycleDebris(thread); clearErr != nil {
+		if errors.Is(clearErr, ErrThreadRolledBack) {
+			result.Outcome = SwitchStartFailed
+			return result, fmt.Errorf("switch-agent: the source carried nothing but an unfinished start and was rolled back; start a new thread instead")
+		}
+		result.Outcome = SwitchStartFailed
+		return result, fmt.Errorf("switch-agent: %w", clearErr)
+	} else if cleared != nil {
+		thread = *cleared
 	}
 	if c.SwitchContext != nil {
 		// Only update the preserved Pair paths after park. Native evidence was

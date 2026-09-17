@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
 
@@ -57,6 +58,40 @@ func TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers(t *testing.T) {
 			}
 			return created
 		},
+		"driverless start claim with a ledger": func(t *testing.T, env *testEnv) ThreadRecord {
+			// BR-33's shape: a couch died mid-start, so the record still carries
+			// a `creating` incarnation, and the ledger still names the
+			// conversation. It classifies `parked` -- and reaches every action
+			// guard with debris the guard must clear rather than trip over.
+			record := validThreadRecord(t)
+			record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+			env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+			record.Reservation = false
+			profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+			record.LatestLaunchProfile = &profile
+			record.Incarnations = []ThreadIncarnation{{
+				State: IncarnationCreating,
+				Start: &ThreadStartClaim{
+					Nonce: "start-0123456789abcdef", OwnerPID: 4242, OwnerIdentity: "supervisor",
+				},
+			}}
+			created, err := env.Couch.Threads.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return created
+		},
+		"park receipt whose session could not be asked about": func(t *testing.T, env *testEnv) ThreadRecord {
+			// The asymmetry ClassifyThread keeps deliberately: a receipt says
+			// couch tore the session down itself, so an unanswerable
+			// `list-sessions` does not demote the row. It is a producer like any
+			// other and every action must accept it.
+			record := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+			env.Artifacts.SessionPresenceHook = func([]ThreadAddress) error {
+				return errTestSessionUnanswerable
+			}
+			return record
+		},
 	}
 
 	classified := map[string]bool{}
@@ -106,26 +141,50 @@ func TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers(t *testing.T) {
 		})
 	}
 
-	// Totality: a producer added to ClassifyThread without a cell above is the
-	// exact gap C1 came through, so the count is asserted rather than assumed.
-	if len(classified) != len(producers) {
-		t.Fatalf("classified %d of %d parked producers", len(classified), len(producers))
+	// Totality, DERIVED rather than restated. Counting `classified` against
+	// `producers` was vacuous -- both come from the literal above, so the
+	// assertion could not fail, which is the same "input derived from the
+	// expectation" defect this milestone already fixed in a different table.
+	//
+	// The domain is the classifier's own shape table: every fixture there that
+	// classifies `parked` is a producer, and every producer needs a cell here.
+	shaped := map[string]bool{}
+	for _, shape := range everyThreadShape(t) {
+		if state, _ := ClassifyThread(shape.record, shape.evidence); state == ThreadParked {
+			shaped[shape.name] = true
+		}
+	}
+	if len(shaped) > len(classified) {
+		t.Fatalf("everyThreadShape produces %d parked shapes (%v) but this table covers %d; "+
+			"a producer with no cell is the gap BR-33 came through", len(shaped), keysOf(shaped), len(classified))
 	}
 }
 
-// TestSwitchAgentRefusesAParkedRowWhoseSessionSurvives is the fail-closed half
-// of the guard C1 replaced. Dropping the receipt check must not make
-// switch-agent start a second agent behind a session that is still up -- that is
-// #272's shape from the other side, and a switch launches FRESH rather than
-// reattaching.
-func TestSwitchAgentRefusesAParkedRowWhoseSessionSurvives(t *testing.T) {
+func keysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// TestSwitchAgentRefusesARowWhoseSessionSurvives is the fail-closed half of the
+// guard BR-33 replaced. Admitting a thread whose agent is alive gives one tree
+// two agents -- #272's shape from the other side, because a switch launches
+// FRESH rather than reattaching.
+//
+// It drives SessionPresence, the world fact the CLASSIFICATION reads, not
+// recoverySession, which the guard this test was written for used to read. An
+// earlier version set the other channel and so proved nothing about the guard
+// that exists: a test must read the same world fact the same way the code does.
+func TestSwitchAgentRefusesARowWhoseSessionSurvives(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		present bool
-		absent  bool
 	}{
-		{name: "session still up", present: true},
-		{name: "session unanswerable"},
+		{name: "session still up, so the agent is too", present: true},
+		{name: "session unanswerable, so ignorance fails closed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			env := newTestEnv(t, "/repo")
@@ -141,9 +200,9 @@ func TestSwitchAgentRefusesAParkedRowWhoseSessionSurvives(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tc.present {
-				env.Artifacts.SetPairSession(created.Address, "pair-"+string(created.Address.Tag), true)
+				env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionPresent})
 			} else {
-				env.Artifacts.BeforePairSession = func(ThreadAddress) error {
+				env.Artifacts.SessionPresenceHook = func([]ThreadAddress) error {
 					return errTestSessionUnanswerable
 				}
 			}
@@ -160,3 +219,48 @@ func TestSwitchAgentRefusesAParkedRowWhoseSessionSurvives(t *testing.T) {
 }
 
 var errTestSessionUnanswerable = errors.New("zellij is not answering")
+
+// TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation pins the FAIL-OPEN
+// that the first BR-33 fix introduced and the second closed.
+//
+// #256 M1 made `unrecorded` a live row: couch hosting the process IS the proof,
+// and the record's incarnation is not consulted. So a thread couch hosts can
+// carry no incarnation at all -- and SwitchAgent parks the source only when one
+// is there (`hasOccupiedIncarnation`). A guard that asked the session instead of
+// the classification admitted exactly that row whenever the session index had no
+// binding, which is two agents on one tree.
+//
+// The classification says `live`; the guard consumes it and then demands
+// something to park.
+func TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+	record.Reservation = false
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.LatestLaunchProfile = &profile
+	created, err := env.Couch.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Couch hosts a pty child for it; the record names no incarnation. The
+	// registry is what classifyForAction reads as live proof, so this is the
+	// production shape rather than an injected observation.
+	env.Couch.reg = env.Couch.reg.Insert(ActorRecord{
+		ID: ActorID("hosted-actor"), Thread: created.Address,
+		Args: StartArgs{Worktree: Worktree(created.StartingPath), Cwd: created.WorkingPath},
+		PID:  4242, Identity: "hosted",
+	})
+
+	state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != ThreadLive {
+		t.Fatalf("fixture classified %q/%q, not live -- it no longer exercises the hosted shape", state, reason)
+	}
+	if _, err := env.Couch.PrepareAgentSwitch(context.Background(), created.Address, "codex", nil); err == nil {
+		t.Fatal("switch-agent accepted a thread couch is hosting with nothing to park; that starts a second agent on one tree")
+	}
+}

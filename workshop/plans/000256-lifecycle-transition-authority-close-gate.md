@@ -386,6 +386,97 @@ rounds:
       boundary: M2
       blocked: false
       protocol_error: no valid findings block
+    - "n": 8
+      timestamp: "2026-09-17T14:33:47-07:00"
+      agent: claude
+      findings:
+        - id: BR-33
+          severity: Critical
+          title: 'switch-agent re-derives "nothing runs" instead of consuming the classification: 2 of 4 parked producers refuse, and a hosted `live` row now fails OPEN'
+          detail: |-
+            This is the 5th finding in family classification-not-authority; fix the rule, not
+            these sites. Measured through the production gather path in a git archive scratch
+            tree: a driverless start claim with a resolvable ledger classifies `parked` and
+            PrepareAgentSwitch refuses permanently ("occupied thread: park requires exactly one
+            identified live or unknown incarnation"); the receipt+SessionUnresolved producer the
+            classifier keeps deliberately is refused where the pre-M2 guard admitted it; and a
+            record couch HOSTS with no incarnation and no session binding classifies `live` and is
+            now ACCEPTED, while SwitchAgent parks the source only if hasOccupiedIncarnation
+            (switchagent.go:267) -- two agents on one tree. Reverting the else-if to
+            record.VerifiedPark == nil refuses that row, so it is a regression in this window.
+            The rule: an action guard consumes the classification (state, reason, live evidence)
+            as M3 Task 8 plans for archive; where a strict re-observation is needed the policy is
+            a pure predicate beside RecoverySessionRefusal and must read the same world fact the
+            same way (switchagent.go:71 treats ErrPairSessionBindingAbsent as proof of absence
+            against its own doc at artifactcollision.go:15). And the offered-implies-permitted
+            enumeration must be DERIVED from ClassifyThread/everyThreadShape, not hand-listed:
+            parkedproducers_test.go:111 compares a map filled from its own two-cell literal, so
+            its totality assertion cannot fail, and everyThreadShape is itself missing the
+            driverless-claim-with-ledger row.
+          family: classification-not-authority
+          round: 8
+        - id: BR-34
+          severity: Important
+          title: I2's rule was written down but the git grep it prescribes was never run -- four sites still state the retired `parked` referent
+          detail: |-
+            This is the 6th finding in family stale-wording-after-referent-change; the rule is the
+            deliverable, not the sites. The Revisions entry names the homes (atlas + plan +
+            function comment + every exported doc comment + README.md) and "git grep of the old
+            referent string as the mechanical check"; the check was not executed. Remaining:
+            cmd/internal/couchcore/ops.go:381, the operator/advisor-facing `resume` summary
+            ("resume a verified-parked one"), the same class of surface as README.md:470 which was
+            swept; atlas/couch.md:35, the atlas's own statement of the classification rule
+            ("parked when verified park exists ... or incarnation"); atlas/couch.md:498; and
+            atlas/couch.md:863-871 ("Resume accepts verified park or proved detachment ... The
+            occupied-incarnation refusal is unchanged"), which DecideResume contradicts at
+            resume.go:118. Make the grep a checked step of the boundary close, the way C2 just did
+            for the Core-concepts tables.
+          family: stale-wording-after-referent-change
+          round: 8
+        - id: BR-35
+          severity: Important
+          title: Two fixtures were retuned to keep their old verdict and the new startup behaviour they used to cover has no test
+          detail: |-
+            startup_test.go:328 and couchcmd/run_test.go:406 both changed BindingEstablished ->
+            BindingUnbound so "startup creates a NEW thread" still passes. The behaviour the issue
+            Log advertises as what the operator will notice -- startup adopts a session-gone row
+            whose ledger resolves rather than starting a second thread in the same tree -- has no
+            test at the startup level in either direction. Restoring the established binding in a
+            scratch tree shows the adoption path IS taken: startup selected the cold row and
+            reported "couch could not resume the thread in this tree ... and will not start a
+            second one" after a 15 s registration wait, extending
+            TestStartInteractiveResumeRefusalDoesNotCreateFallbackRoot's deliberate no-fallback
+            policy to a new class of rows. The rule: when a fixture is retuned so an existing test
+            keeps its old verdict under new behaviour, the new behaviour gets its own test in the
+            same commit -- the retune is the signal that a branch changed owner.
+          family: fixture-retuned-to-preserve-old-verdict
+          round: 8
+        - id: BR-36
+          severity: Minor
+          title: ClassifyThread's late unresolved-session guard is unreachable after the M2 reordering
+          detail: |-
+            actionableinventory.go:412 is subsumed: :395 returns for Unresolved with no receipt and
+            :405 returns for every remaining receipt-holder, so the branch is dead by construction.
+            Replacing its body with a panic and running the whole couchcore suite produced zero
+            hits. 4th in this family, as the dual of "a guard nothing pins is not a guard": a
+            branch subsumed by an earlier predicate is a guard no test can reach, and the comment
+            defending its load-bearing distinction is a claim nothing checks. Delete it, or move
+            the receipt exception so the distinction is decided there.
+          family: fail-closed-guard-untested
+          round: 8
+        - id: BR-37
+          severity: Minor
+          title: TestEveryResumeDiagnosticCodeIsReachableFromProduction asserts exactly one code
+          detail: |-
+            resume_test.go:373 pins ResumeTombstoned only; its own comment admits it. Its sibling
+            TestEveryResumeDiagnosticCodeIsProducedBySomeSite:295 derives the identifier set from
+            the declaration so it cannot be satisfied by forgetting a row -- do the same here, or
+            name the test for the one code. It also t.Skipf's if the store rejects its fixture
+            (:396); it passes today, but a silent skip is how a reachability guard stops guarding.
+          family: test-name-contradicts-assertion
+          round: 8
+      boundary: M2
+      blocked: true
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -542,6 +633,71 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 8 — 2026-09-17T14:33:47-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-33** [Critical] `classification-not-authority` switch-agent re-derives "nothing runs" instead of consuming the classification: 2 of 4 parked producers refuse, and a hosted `live` row now fails OPEN
+  This is the 5th finding in family classification-not-authority; fix the rule, not
+  these sites. Measured through the production gather path in a git archive scratch
+  tree: a driverless start claim with a resolvable ledger classifies `parked` and
+  PrepareAgentSwitch refuses permanently ("occupied thread: park requires exactly one
+  identified live or unknown incarnation"); the receipt+SessionUnresolved producer the
+  classifier keeps deliberately is refused where the pre-M2 guard admitted it; and a
+  record couch HOSTS with no incarnation and no session binding classifies `live` and is
+  now ACCEPTED, while SwitchAgent parks the source only if hasOccupiedIncarnation
+  (switchagent.go:267) -- two agents on one tree. Reverting the else-if to
+  record.VerifiedPark == nil refuses that row, so it is a regression in this window.
+  The rule: an action guard consumes the classification (state, reason, live evidence)
+  as M3 Task 8 plans for archive; where a strict re-observation is needed the policy is
+  a pure predicate beside RecoverySessionRefusal and must read the same world fact the
+  same way (switchagent.go:71 treats ErrPairSessionBindingAbsent as proof of absence
+  against its own doc at artifactcollision.go:15). And the offered-implies-permitted
+  enumeration must be DERIVED from ClassifyThread/everyThreadShape, not hand-listed:
+  parkedproducers_test.go:111 compares a map filled from its own two-cell literal, so
+  its totality assertion cannot fail, and everyThreadShape is itself missing the
+  driverless-claim-with-ledger row.
+- **BR-34** [Important] `stale-wording-after-referent-change` I2's rule was written down but the git grep it prescribes was never run -- four sites still state the retired `parked` referent
+  This is the 6th finding in family stale-wording-after-referent-change; the rule is the
+  deliverable, not the sites. The Revisions entry names the homes (atlas + plan +
+  function comment + every exported doc comment + README.md) and "git grep of the old
+  referent string as the mechanical check"; the check was not executed. Remaining:
+  cmd/internal/couchcore/ops.go:381, the operator/advisor-facing `resume` summary
+  ("resume a verified-parked one"), the same class of surface as README.md:470 which was
+  swept; atlas/couch.md:35, the atlas's own statement of the classification rule
+  ("parked when verified park exists ... or incarnation"); atlas/couch.md:498; and
+  atlas/couch.md:863-871 ("Resume accepts verified park or proved detachment ... The
+  occupied-incarnation refusal is unchanged"), which DecideResume contradicts at
+  resume.go:118. Make the grep a checked step of the boundary close, the way C2 just did
+  for the Core-concepts tables.
+- **BR-35** [Important] `fixture-retuned-to-preserve-old-verdict` Two fixtures were retuned to keep their old verdict and the new startup behaviour they used to cover has no test
+  startup_test.go:328 and couchcmd/run_test.go:406 both changed BindingEstablished ->
+  BindingUnbound so "startup creates a NEW thread" still passes. The behaviour the issue
+  Log advertises as what the operator will notice -- startup adopts a session-gone row
+  whose ledger resolves rather than starting a second thread in the same tree -- has no
+  test at the startup level in either direction. Restoring the established binding in a
+  scratch tree shows the adoption path IS taken: startup selected the cold row and
+  reported "couch could not resume the thread in this tree ... and will not start a
+  second one" after a 15 s registration wait, extending
+  TestStartInteractiveResumeRefusalDoesNotCreateFallbackRoot's deliberate no-fallback
+  policy to a new class of rows. The rule: when a fixture is retuned so an existing test
+  keeps its old verdict under new behaviour, the new behaviour gets its own test in the
+  same commit -- the retune is the signal that a branch changed owner.
+- **BR-36** [Minor] `fail-closed-guard-untested` ClassifyThread's late unresolved-session guard is unreachable after the M2 reordering
+  actionableinventory.go:412 is subsumed: :395 returns for Unresolved with no receipt and
+  :405 returns for every remaining receipt-holder, so the branch is dead by construction.
+  Replacing its body with a panic and running the whole couchcore suite produced zero
+  hits. 4th in this family, as the dual of "a guard nothing pins is not a guard": a
+  branch subsumed by an earlier predicate is a guard no test can reach, and the comment
+  defending its load-bearing distinction is a claim nothing checks. Delete it, or move
+  the receipt exception so the distinction is decided there.
+- **BR-37** [Minor] `test-name-contradicts-assertion` TestEveryResumeDiagnosticCodeIsReachableFromProduction asserts exactly one code
+  resume_test.go:373 pins ResumeTombstoned only; its own comment admits it. Its sibling
+  TestEveryResumeDiagnosticCodeIsProducedBySomeSite:295 derives the identifier set from
+  the declaration so it cannot be satisfied by forgetting a row -- do the same here, or
+  name the test for the one code. It also t.Skipf's if the store rejects its fixture
+  (:396); it passes today, but a silent skip is how a reachability guard stops guarding.
+
 ## Open findings
 
 - **BR-19** [Important] `atlas-contradicts-code` The atlas records "One class, three sites" while the code and the plan record four
@@ -551,3 +707,8 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-30** [Minor] `plan-code-divergence` Round 4's own table edit left the sentence below it false, and two Core-concepts statements still direct the reversed design
 - **BR-31** [Important] `fail-closed-guard-untested` The totality table's dimensions are hand-written, so the totality claim is unproven for shapes the store accepts
 - **BR-32** [Minor] `vocabulary-entry-without-producer` SessionObservation.Name is written in four places and read nowhere
+- **BR-33** [Critical] `classification-not-authority` switch-agent re-derives "nothing runs" instead of consuming the classification: 2 of 4 parked producers refuse, and a hosted `live` row now fails OPEN
+- **BR-34** [Important] `stale-wording-after-referent-change` I2's rule was written down but the git grep it prescribes was never run -- four sites still state the retired `parked` referent
+- **BR-35** [Important] `fixture-retuned-to-preserve-old-verdict` Two fixtures were retuned to keep their old verdict and the new startup behaviour they used to cover has no test
+- **BR-36** [Minor] `fail-closed-guard-untested` ClassifyThread's late unresolved-session guard is unreachable after the M2 reordering
+- **BR-37** [Minor] `test-name-contradicts-assertion` TestEveryResumeDiagnosticCodeIsReachableFromProduction asserts exactly one code

@@ -136,3 +136,203 @@ The plan needs one `## Revisions` entry, dated at this boundary, covering:
 3. **Task 6b's tombstone claim is not delivered (I1).** The Log at `:733-741` and `atlas/couch.md:1478-1482` both state the tombstone survives as the better explanation; record that `resumeEvidence` errors first so the branch never fires in production, and say which way it is being resolved — carry the resolution into `DecideResume`, or delete the branch and the claim together. Add the missing produced-by guard for `ResumeDiagnosticCode` (M1 round 3 identified its absence; nothing has added it).
 4. **The referent-staleness enumeration (I2).** Amend the "homes" list the M1 round-5 entry established to include `README.md` and exported doc comments, and record the six sites swept.
 5. **M2's operator verification (I3).** Either the four figures/observations, or an explicit deferral naming what is outstanding and who owns it.
+
+---
+
+## Re-review — 2026-09-17T14:33:47-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 256 — Enforce lifecycle transition authority and outcome uncertainty |
+| repo | pair |
+| issue file | workshop/issues/000256-lifecycle-transition-authority.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2d137941e1ccc9a28b1f83683e41e9ba2295a963..c5f55f31a30ec8f1ee253da9e15694488f5011d8 |
+| command | sdlc milestone-close --issue 256 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-17T14:33:47-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+M2's substance is strong and I verified it adversarially rather than by reading: every guard the round-1 fixes introduced goes red when reverted (`switchableWhenNothingRuns`' receipt replacement, its session refusal, the `isBindingDiagnostic` carry in `ResumeContextWith`), `clearLifecycleDebris` is the right ARCH-DRY consolidation with screen-before-write intact, archive's read-before-write ordering plus the triple-look comparison is the best part of the diff, and the new partial-write crash test is real ARCH-ORDER evidence rather than a comment. What blocks SHIP is that round 1's C1 was fixed as the **instance, not the class**: `PrepareAgentSwitch` still disagrees with the classification for 2 of the 4 reachable producers of `ThreadParked`/live-without-incarnation, and in one direction it now fails **open** — I measured `PrepareAgentSwitch` accepting a row couch is hosting *right now* (classified `live`), where the pre-fix guard refused it. The class guard added this round cannot catch that, because its producer list is hand-written (two cells) and its "totality" assertion compares that list to itself; the classifier's own shape table already lists three parked producers and I demonstrated a fourth. Secondarily, I2's rule was written down but the `git grep` the rule prescribes was never run — an operator-facing `resume` summary and the atlas's own statement of the `parked` rule still state the retired referent.
+
+## 1. Strengths
+
+- `cmd/internal/couchcore/lifecycledebris.go:52` — the four-round-hardened rule as one function that both resume and archive call, with screening complete before the first write and each write authorized by a probe of the entity it acts on. The `clearStart bool` split (`:66-70`) removes the nonce/flag coupling round 1 flagged and cites why rather than restating a validator clause.
+- `cmd/internal/couchcore/detach.go:268-281` and `:330-336` — `RecoverySessionRefusal` asked first with nothing written, and the final recheck compared against the **first** look as well as the reconciler's. I reverted the `first`-look arm in a scratch tree and it reds `TestRecoveryArchiveRefusesSessionAppearingBeforeStop`.
+- `cmd/internal/couchcore/archivedebris_test.go:349` — `TestClearingDebrisResumesSafelyAfterACrashBetweenItsWrites` reproduces the interleaving through the real `AfterTarget` seam and *guards its own fixture* (`:389`, "this seam no longer splits the two"). That is the ARCH-ORDER partial-progress claim moved from a comment to an oracle.
+- `cmd/internal/couchcore/resume.go:454-465` — carrying the binding diagnostic to `DecideResume` instead of bailing at `resumeEvidence` is the right read of "guidance at the consumer". Reverting it to `if err != nil` reds `TestEveryResumeDiagnosticCodeIsReachableFromProduction` with `resume-binding-unbound` instead of `resume-tombstoned` — verified.
+- `cmd/internal/couchcore/recovery.go:80-90` — extracting the session half is behaviour-preserving (I traced every `Presence` value through both shapes) and the extraction is what makes archive's ordering fix possible without a second derivation.
+- Core-concepts tables: I grepped all 21 rows plus the integration table. Every row now matches the tree, and all eight new M2 production symbols have one. C2 is genuinely closed.
+
+## 2. Critical findings
+
+**C1 — `PrepareAgentSwitch` is a third authority, and the class it was supposed to close is 2 of 4 producers. One direction now fails OPEN.** `cmd/internal/couchcore/switchagent.go:60-95`
+
+> **This is the 5th finding in family `classification-not-authority`.** Earlier rounds fixed instances. Do NOT fix these instances — state the rule that covers all of them, and fix that.
+
+The fix replaced one receipt check with a *fresh session probe*, which is neither the classification nor the live evidence couch already holds. Three measured disagreements, all through the production gather path in a `git archive` scratch tree (working tree untouched):
+
+| Producer | `ClassifyThread` | `PrepareAgentSwitch` |
+|---|---|---|
+| park receipt, session absent | `parked` | accepted ✓ |
+| ledger only, session absent (M2's new producer) | `parked` | accepted ✓ (the fix) |
+| **driverless start claim + resolvable ledger** | `parked` | **refuses permanently**: `switch-agent: occupied thread: park requires exactly one identified live or unknown incarnation` |
+| park receipt + `SessionUnresolved` (the asymmetry the classifier keeps *deliberately*) | `parked` | refuses: `its session state could not be checked` — and the **pre-M2 guard admitted this row**, because the receipt was the admission |
+| hosted pty child, no incarnation, no session binding | `live` | **ACCEPTED** — and `SwitchAgent` parks the source only `if hasOccupiedIncarnation` (`switchagent.go:267`), so a fresh agent launches beside the one couch is hosting: two agents on one tree, the exact cost the guard's own comment names |
+
+The last row is a regression introduced in this window: I reverted the `else if` to `record.VerifiedPark == nil` and the same probe refused. The third row is reachable exactly as often as the producer M2 shipped for — the issue Log records #273 minting one orphaned claim per attempt — and round 1 named this arm explicitly ("The #272 shape hits the same wall by the other arm"), so the fix skipped a site the finding pointed at.
+
+**The rule.** An action guard must **consume** the classification (state + reason + the live evidence already gathered), the way M3 Task 8 plans `ArchivableState` — not re-derive a parallel predicate in the IO shell. Where a strict re-observation is genuinely needed at the action, the *policy* belongs in a pure predicate beside `RecoverySessionRefusal` (which this same diff got right) and must agree with the classifier's own reading of the same fact: the classifier calls an absent session-name binding `SessionUnresolved` and fails closed; `switchableWhenNothingRuns:71-76` calls it proof of absence and fails open, against `ErrPairSessionBindingAbsent`'s own doc ("It does not prove session absence", `artifactcollision.go:15-17`).
+
+**And the enumeration must be derived, not listed.** `parkedproducers_test.go:38-60` hand-writes two producers, and its totality check (`:111`, `len(classified) != len(producers)`) compares a map filled from that same literal — it cannot fail when a producer is added, which is precisely the gap it claims to close. Its sibling `TestEveryResumeDiagnosticCodeIsProducedBySomeSite:295` already shows the shape: derive the set from the declaration. Derive the producer set from `everyThreadShape` (which already carries three parked rows and a totality test, and is itself missing the driverless-claim-with-ledger row) and cross it with `menuActionItems`, so `offered ⇒ permitted` holds by construction for `switch-agent`, `resume` **and** `archive` together.
+
+## 3. Important findings
+
+**I1 — the referent sweep's own mechanical check was never run.** `cmd/internal/couchcore/ops.go:381`
+
+> **This is the 6th finding in family `stale-wording-after-referent-change`.** Do NOT fix these four sites — the rule is the deliverable.
+
+The Revisions entry states the rule correctly ("the homes are atlas + plan + the function comment + every exported doc comment naming it + `README.md`, with `git grep` of the old referent string as the mechanical check") and then the grep was not executed. `git grep -n 'verified.park'` still returns, among historical uses that are fine, four statements of the retired referent:
+
+| Site | Says | Why it is wrong now |
+|---|---|---|
+| `cmd/internal/couchcore/ops.go:381` | `resume` — "Reattach a detached work thread, or resume a **verified-parked** one" | The operation catalog the TUI and the advisor both render (`ops.go:92-94`). Identical class to `README.md:470`, which *was* swept. |
+| `atlas/couch.md:35` | "`parked` when **verified park exists** with no active park transaction, reservation, or incarnation" | The atlas's own statement of the classification rule, contradicted by M2 (ledger authority) and by M1 (park/incarnation unread) |
+| `atlas/couch.md:498` | "Enter … resumes an exact **verified-park** row" | |
+| `atlas/couch.md:863-871` | "Resume accepts **verified park** or proved detachment… The occupied-incarnation refusal is unchanged" | `DecideResume` reads neither (`resume.go:118`, "the park transaction and the incarnation are NOT read here") |
+
+The rule needs the step, not the sites: make the grep a *checked* item of the boundary close (the same treatment C2 just gave the Core-concepts tables), or the enumeration will be re-derived and re-missed next milestone. `launch_existing.go:33` is a fifth, lower-confidence site (unexported comment).
+
+**I2 — two fixtures were retuned to preserve their old verdict, and the new behaviour they used to cover has no test.** `cmd/internal/couchcore/startup_test.go:328`, `cmd/internal/couchcmd/run_test.go:406`
+
+Both `…StartsNewWhenNoSessionSurvives` tests were changed from `BindingEstablished` to `BindingUnbound` so they keep asserting "startup creates a NEW thread". That is honest and documented — but the behaviour the issue Log advertises as *"what the operator will notice"* ("startup adopts it rather than starting a second thread in the same tree") now has **no** test at the startup level. I restored the established binding in a scratch tree and confirmed the adoption path is taken: startup selected the cold row and reported *"couch could not resume the thread in this tree … and will not start a second one"* after a 15 s registration wait. So the widening extends `TestStartInteractiveResumeRefusalDoesNotCreateFallbackRoot`'s deliberate no-fallback policy to a new class of rows, and neither direction is pinned — the positive (adopt, resume succeeds) nor the negative (adopt, resume fails, couch declines to start in that tree at all).
+
+The rule: **when a fixture is retuned so an existing test keeps its old verdict under new behaviour, the new behaviour gets its own test in the same commit.** The retune is the signal that a branch just changed owner, and the commit that moves it is the only one that knows.
+
+## 4. Minor findings
+
+- `cmd/internal/couchcore/actionableinventory.go:412-416` — the late `evidence.Session.State == SessionUnresolved` guard is **unreachable by construction**: `:395` already returns for `Unresolved && VerifiedPark == nil`, and `:405` returns for every remaining receipt-holder. I replaced its body with a panic and ran the whole `couchcore` suite: zero hits. Delete it, or move the receipt exception so the distinction its comment defends is actually decided there. (4th in `fail-closed-guard-untested` — the rule's dual: a branch subsumed by an earlier predicate is a guard no test can reach, and its comment is a claim nothing checks.)
+- `cmd/internal/couchcore/resume_test.go:373` — `TestEveryResumeDiagnosticCodeIsReachableFromProduction` asserts **one** code (`ResumeTombstoned`); its own comment admits it. Derive the set from the declaration as its sibling does, or name it for the one code. (5th in `test-name-contradicts-assertion`.)
+- `cmd/internal/couchcore/resume.go:426-437` — `DetachedSessions` now runs on every resume including cold ones, and an observation **error** aborts a cold resume that consumes no session evidence. Fail-closed and loud, but it is a newly widened dependency that the Log records only as a cost.
+- `cmd/internal/couchcore/resume_test.go:396` — the new reachability test `t.Skipf`s if the store rejects its fixture. It passes today (verified), but a silent skip is how a reachability guard stops guarding.
+
+## 5. Test coverage notes
+
+Mutations I ran, all red as claimed: restore `record.VerifiedPark == nil` in `PrepareAgentSwitch` → `…ParkedProducer…/ledger_only`; drop `binding.Present` → `…RowWhoseSessionSurvives/session_still_up`; revert the `isBindingDiagnostic` carry → `…ReachableFromProduction`. Suite state: `couchcore`, `couchtty`, `couchcmd`, `artifactpath`, `threadrecord` — every failure is `ptychild: … operation not permitted` (sandbox PTY restriction), no logic failures.
+
+Gaps: (a) nothing crosses the classifier's output with `menuActionItems` **and** the guards behind it — that is what C1 needs, and it must derive both sides (§C1); (b) the `parked` producer set is under-enumerated in `everyThreadShape` too — the driverless-claim-with-ledger row has no cell, so `TestClassifyThreadIsTotalOverEveryRecordShape`'s totality claim does not cover the shape C1 breaks on; (c) `PrepareAgentSwitch` has no row for a `live` record carrying no incarnation, which is the shape M1 deliberately admits and the one that now fails open; (d) ARCH-MOCK — the fake/production error-shape conformance is still per-site (`TestSessionPresenceAnswersThroughTheProductionChecker` covers presence; refusal shapes have no shared contract table). Round 1 raised (d) as a note; it is unchanged and is the 3rd in `production-seam-only-tested-through-fake`, so it belongs in M3's plan rather than another per-site fix.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — pass.** `clearLifecycleDebris` and `RecoverySessionRefusal` both consolidate. The one new duplication is C1's: `switchableWhenNothingRuns` re-derives "is anything running", which the classification already answers.
+- **ARCH-PURE — flag (C1).** Inconsistent within one diff: the archive session refusal was extracted as a pure predicate; the switch-agent one was written inline in the IO shell, so its policy is only testable through a fake.
+- **ARCH-PURPOSE — flag (C1, I1, I2).** Two shadow-sweeps stopped one level short of their own rule: the `parked` consumer sweep fixed the site the finding named, and the referent sweep wrote the grep without running it.
+- **ARCH-MOCK — pass with a gap.** The sentinel wrap is correct and mutation-pinned; production wraps the same sentinel (`artifactcollision.go:223`), and the fake's `SessionAbsent` default is faithful to production's readable-scope-no-row rule (`artifactcollision.go:370-385`). No conformance guard against the next divergence.
+- **ARCH-CONSTRAINTS — pass.** Both widened costs are measured into `## Log` (ledger reads 2/6 → 4/6, 0.62 ms per round), and the unbounded cold side is named as a known gap rather than left implicit. C1's fix adds one exact session observation per `switch-agent` — strict at the action, correct.
+- **ARCH-SECURE — pass.** The validator-accepted domain is the untrusted-input boundary (`lifecycledebris.go:41`), every probe is an exact `{PID, Identity}`. One soft spot: C1's fail-open reads a missing index row as proof rather than as the absence of evidence.
+- **ARCH-ORDER — pass.** Read-before-write in archive, the triple-look comparison, and the crash-between-writes test are all genuine. The remaining unreproducible interleaving is C1's TOCTOU (probe, then launch), which is inherent to the action path.
+- **ARCH-FUNERAL — pass.** No new artifact family; `AbandonPark`'s tombstone growth is bounded per park attempt and the decision to stop vetoing on tombstones is the removal-path reasoning, written down.
+
+## 7. Plan revision recommendations
+
+1. **C1 is not closed — record the class and the enumeration (`## Revisions`).** State that `ThreadParked` has **four** reachable producers (receipt+absent, ledger-only+absent, receipt+unresolved via the kept asymmetry, driverless claim + resolvable ledger), not two; correct the Core-concepts bullet and `atlas/couch.md:1478` ("`parked` has two producers now"), both of which currently assert two. Add the missing producer row to `everyThreadShape`. Move `switch-agent`'s admission into M3 Task 8/8a's `offered ⇒ permitted` predicate rather than a second session probe, and record the fail-open on a `live` record with no incarnation as the regression this round introduced.
+2. **Make the two derived views checked steps, not stated rules.** C2 wrote "re-derived by grep at each boundary close" for the Core-concepts tables and I1 wrote the same for the referent homes; neither is a checkbox in any task. Add both to each milestone's final task, with the exact grep.
+3. **Task 6b's startup consequence.** Record that the widening changes startup adoption for session-gone/ledger-resolving rows, that the two `…StartsNewWhenNoSessionSurvives` fixtures were retuned to keep their old verdict, and that the new behaviour (and its no-fallback failure mode) needs its own test — this is also the closest thing in the suite to M2's deferred operator-verification item 3.
+4. **Note the dead branch.** `ClassifyThread`'s late unresolved-session guard is unreachable after the M2 reordering; say which way it is resolved so the comment stops defending a distinction decided elsewhere.
+
+```findings
+findings:
+  - id: new
+    severity: Critical
+    family: classification-not-authority
+    title: |
+      switch-agent re-derives "nothing runs" instead of consuming the classification: 2 of 4 parked producers refuse, and a hosted `live` row now fails OPEN
+    detail: |
+      This is the 5th finding in family classification-not-authority; fix the rule, not
+      these sites. Measured through the production gather path in a git archive scratch
+      tree: a driverless start claim with a resolvable ledger classifies `parked` and
+      PrepareAgentSwitch refuses permanently ("occupied thread: park requires exactly one
+      identified live or unknown incarnation"); the receipt+SessionUnresolved producer the
+      classifier keeps deliberately is refused where the pre-M2 guard admitted it; and a
+      record couch HOSTS with no incarnation and no session binding classifies `live` and is
+      now ACCEPTED, while SwitchAgent parks the source only if hasOccupiedIncarnation
+      (switchagent.go:267) -- two agents on one tree. Reverting the else-if to
+      record.VerifiedPark == nil refuses that row, so it is a regression in this window.
+      The rule: an action guard consumes the classification (state, reason, live evidence)
+      as M3 Task 8 plans for archive; where a strict re-observation is needed the policy is
+      a pure predicate beside RecoverySessionRefusal and must read the same world fact the
+      same way (switchagent.go:71 treats ErrPairSessionBindingAbsent as proof of absence
+      against its own doc at artifactcollision.go:15). And the offered-implies-permitted
+      enumeration must be DERIVED from ClassifyThread/everyThreadShape, not hand-listed:
+      parkedproducers_test.go:111 compares a map filled from its own two-cell literal, so
+      its totality assertion cannot fail, and everyThreadShape is itself missing the
+      driverless-claim-with-ledger row.
+  - id: new
+    severity: Important
+    family: stale-wording-after-referent-change
+    title: |
+      I2's rule was written down but the git grep it prescribes was never run -- four sites still state the retired `parked` referent
+    detail: |
+      This is the 6th finding in family stale-wording-after-referent-change; the rule is the
+      deliverable, not the sites. The Revisions entry names the homes (atlas + plan +
+      function comment + every exported doc comment + README.md) and "git grep of the old
+      referent string as the mechanical check"; the check was not executed. Remaining:
+      cmd/internal/couchcore/ops.go:381, the operator/advisor-facing `resume` summary
+      ("resume a verified-parked one"), the same class of surface as README.md:470 which was
+      swept; atlas/couch.md:35, the atlas's own statement of the classification rule
+      ("parked when verified park exists ... or incarnation"); atlas/couch.md:498; and
+      atlas/couch.md:863-871 ("Resume accepts verified park or proved detachment ... The
+      occupied-incarnation refusal is unchanged"), which DecideResume contradicts at
+      resume.go:118. Make the grep a checked step of the boundary close, the way C2 just did
+      for the Core-concepts tables.
+  - id: new
+    severity: Important
+    family: fixture-retuned-to-preserve-old-verdict
+    title: |
+      Two fixtures were retuned to keep their old verdict and the new startup behaviour they used to cover has no test
+    detail: |
+      startup_test.go:328 and couchcmd/run_test.go:406 both changed BindingEstablished ->
+      BindingUnbound so "startup creates a NEW thread" still passes. The behaviour the issue
+      Log advertises as what the operator will notice -- startup adopts a session-gone row
+      whose ledger resolves rather than starting a second thread in the same tree -- has no
+      test at the startup level in either direction. Restoring the established binding in a
+      scratch tree shows the adoption path IS taken: startup selected the cold row and
+      reported "couch could not resume the thread in this tree ... and will not start a
+      second one" after a 15 s registration wait, extending
+      TestStartInteractiveResumeRefusalDoesNotCreateFallbackRoot's deliberate no-fallback
+      policy to a new class of rows. The rule: when a fixture is retuned so an existing test
+      keeps its old verdict under new behaviour, the new behaviour gets its own test in the
+      same commit -- the retune is the signal that a branch changed owner.
+  - id: new
+    severity: Minor
+    family: fail-closed-guard-untested
+    title: |
+      ClassifyThread's late unresolved-session guard is unreachable after the M2 reordering
+    detail: |
+      actionableinventory.go:412 is subsumed: :395 returns for Unresolved with no receipt and
+      :405 returns for every remaining receipt-holder, so the branch is dead by construction.
+      Replacing its body with a panic and running the whole couchcore suite produced zero
+      hits. 4th in this family, as the dual of "a guard nothing pins is not a guard": a
+      branch subsumed by an earlier predicate is a guard no test can reach, and the comment
+      defending its load-bearing distinction is a claim nothing checks. Delete it, or move
+      the receipt exception so the distinction is decided there.
+  - id: new
+    severity: Minor
+    family: test-name-contradicts-assertion
+    title: |
+      TestEveryResumeDiagnosticCodeIsReachableFromProduction asserts exactly one code
+    detail: |
+      resume_test.go:373 pins ResumeTombstoned only; its own comment admits it. Its sibling
+      TestEveryResumeDiagnosticCodeIsProducedBySomeSite:295 derives the identifier set from
+      the declaration so it cannot be satisfied by forgetting a row -- do the same here, or
+      name the test for the one code. It also t.Skipf's if the store rejects its fixture
+      (:396); it passes today, but a silent skip is how a reachability guard stops guarding.
+```

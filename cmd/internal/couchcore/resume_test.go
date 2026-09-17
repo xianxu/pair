@@ -357,20 +357,24 @@ func TestReAdoptionRefusalsClaimOnlyWhatWasProved(t *testing.T) {
 	}
 }
 
-// TestEveryResumeDiagnosticCodeIsReachableFromProduction is the stronger form of
-// the produced-by guard, added for #256 M2's I1.
+// TestResumeTombstonedIsReachableFromProduction pins ONE code, and is named for
+// it. An earlier name promised every code and delivered this one, which is the
+// same defect as a test whose assertion is wider than its premise.
 //
-// The existing guard asks whether a code is EMITTED anywhere in the package. It
-// is, and it passed while the branch emitting ResumeTombstoned could not be
+// Its sibling, TestEveryResumeDiagnosticCodeIsProducedBySomeSite, derives the
+// identifier set from the declaration and so cannot be satisfied by forgetting a
+// row -- but it asks only whether a code is EMITTED anywhere in the package. It
+// passed the whole time the branch emitting ResumeTombstoned could not be
 // reached from the only production caller: ResumeContextWith bailed on a binding
 // diagnostic before DecideResume ever saw the resolution, so the tombstone
 // answer both the plan and the atlas promise never reached an operator, and
-// resume_launch_test even asserted that it did not.
+// resume_launch_test even asserted that it did not (#256 M2, I1).
 //
 // A code nothing emits is a branch no test can reach; a code no PRODUCTION PATH
-// emits is a claim the operator is promised and never gets. This pins the
-// second, for the one code whose reachability was the finding.
-func TestEveryResumeDiagnosticCodeIsReachableFromProduction(t *testing.T) {
+// emits is a claim the operator is promised and never gets. Generalising this to
+// every code needs a production entry point per code and is its own piece of
+// work; this pins the one whose unreachability was the finding.
+func TestResumeTombstonedIsReachableFromProduction(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	record := validThreadRecord(t)
 	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
@@ -394,7 +398,10 @@ func TestEveryResumeDiagnosticCodeIsReachableFromProduction(t *testing.T) {
 		return nil
 	})
 	if err != nil {
-		t.Skipf("the store no longer accepts a tombstoned-history record directly: %v", err)
+		// NOT a skip: a reachability guard that silently stops running is a
+		// guard that has stopped guarding, which is the failure mode this test
+		// exists to catch one level down.
+		t.Fatalf("the store no longer accepts a tombstoned-history record, so this guard has no fixture: %v", err)
 	}
 	_ = abandoned
 	// No SetNativeBinding: the ledger resolves nothing. No detached session

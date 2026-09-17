@@ -285,6 +285,15 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
+			// #256 M2, BR-33: the driverless claim whose LEDGER still resolves.
+			// A fourth producer of `parked`, and the one that reaches the action
+			// guards still carrying a `creating` incarnation -- so every guard
+			// must clear that debris rather than trip over it.
+			name: "start claimed by a couch that is gone, but the ledger resolves", record: starting,
+			evidence:  resolved(ThreadEvidence{StartOwner: Dead, Parked: parkedProof(starting)}),
+			wantState: ThreadParked, newlyActionable: true,
+		},
+		{
 			name: "record that fails validation", record: invalid,
 			evidence:  resolved(ThreadEvidence{}),
 			wantState: ThreadUnusable, wantReason: ReasonInvalid,

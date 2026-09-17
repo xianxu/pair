@@ -378,7 +378,7 @@ func Operations() []Operation {
 			},
 		},
 		{
-			Name: "resume", Summary: "Reattach a detached work thread, or resume a verified-parked one",
+			Name: "resume", Summary: "Reattach a detached work thread, or resume one whose conversation still resolves",
 			Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart,
 			Presentation: PresentationTUI, RowAction: true,
 			Args: []ArgSpec{

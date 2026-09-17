@@ -294,6 +294,62 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 	return rows
 }
 
+// AllThreadStates is the state vocabulary itself, for the same reason
+// AllThreadReasons exists: Go cannot check a switch for exhaustiveness, so this
+// enumeration is what does. A states x reasons guard table is derived from it
+// rather than hand-listed, which is how a widened producer set reached a
+// consumer nobody swept (#256 M2, BR-33).
+func AllThreadStates() []ActionableThreadState {
+	return []ActionableThreadState{
+		ThreadLive,
+		ThreadDetached,
+		ThreadParked,
+		ThreadBusy,
+		ThreadUnusable,
+		ThreadArchived,
+	}
+}
+
+// SwitchableState is switch-agent's admission rule as a PURE predicate over the
+// classification, so the switcher's offer and the guard's permission cannot
+// disagree: both call this, and offered-implies-permitted holds by construction
+// rather than by two authors agreeing.
+//
+// This replaces two successive re-derivations of "nothing runs here". The first
+// read `record.VerifiedPark != nil`, which #256 M2 turned into an action that
+// always failed for the new ledger-parked producer. The second asked the session
+// directly and was worse: it admitted a row couch is HOSTING whenever the
+// session index had no binding, and SwitchAgent parks the source only when the
+// record names an incarnation -- so a hosted thread with none got a second agent
+// on the same tree.
+//
+// The rule is NOTHING IS RUNNING THAT A SWITCH WOULD ORPHAN, because a switch
+// launches a fresh agent and resumes no conversation:
+//
+//   - `live` -- couch hosts it, and SwitchAgent parks the source first.
+//   - `parked` -- nothing runs; the conversation is simply left behind.
+//   - `binding-lost` / `session-gone` -- nothing runs either, and having no
+//     conversation to resume is no obstacle to starting a DIFFERENT agent. The
+//     switcher does not offer switch-agent on these rows, so permitting them is
+//     a superset of the offer, not a contradiction of it; a caller reaching the
+//     API directly is answered by the same rule.
+//
+// Refused: `detached`, whose agent is alive behind a session couch does not
+// host, so it must be parked or attached first; `busy`, where a start is in
+// flight; `unusable/unknown`, which is ignorance and fails closed; `archived`;
+// and the reasons that describe a thread nothing could launch anyway
+// (path, profile, agent, invalid, never-started, unreadable), which the
+// preconditions below refuse with a better message.
+func SwitchableState(state ActionableThreadState, reason ThreadReason) bool {
+	switch state {
+	case ThreadLive, ThreadParked:
+		return true
+	case ThreadUnusable:
+		return reason == ReasonBindingLost || reason == ReasonSessionGone
+	}
+	return false
+}
+
 // ClassifyThread is the single, TOTAL lifecycle rule: every record and its
 // evidence produce a state, and an unusable one always says why.
 //
@@ -406,11 +462,12 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 		// simply ended, and the operator reads the difference.
 		return ThreadUnusable, ReasonBindingLost
 	}
-	if evidence.Session.State == SessionUnresolved {
-		// Not "no session" -- "we could not ask". The distinction is
-		// load-bearing: session-gone is archive-eligible.
-		return ThreadUnusable, ReasonUnknown
-	}
+	// No late unresolved-session branch: reaching here means VerifiedPark is
+	// nil, and the guard above already returned for that with an unresolved
+	// session. A branch subsumed by an earlier predicate is a guard no test can
+	// reach, and a comment defending its distinction is a claim nothing checks.
+	// The distinction still holds -- it is decided above, where the receipt
+	// exception lives.
 	return ThreadUnusable, ReasonSessionGone
 }
 
