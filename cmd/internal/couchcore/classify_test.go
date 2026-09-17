@@ -167,6 +167,26 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadUnusable, wantReason: ReasonUnknown,
 		},
 		{
+			// The asymmetry #256 M2 keeps deliberately. A failed
+			// `list-sessions` must not demote every parked row -- couch tore
+			// this session down itself, so the session answer adds nothing that
+			// the receipt has not already settled. Contrast with "no park
+			// receipt and an unaskable session" below, where the session may be
+			// ALIVE and `parked` would invite a second agent onto it.
+			name: "verified park whose session could not be asked about", record: parkedRecord,
+			evidence: ThreadEvidence{
+				ParkedStatus: ProofResolved, Parked: parkedProof(parkedRecord),
+			},
+			wantState: ThreadParked, wasActionableBefore: true,
+		},
+		{
+			name: "no park receipt and an unaskable session", record: detachedRecord,
+			evidence: ThreadEvidence{
+				ParkedStatus: ProofResolved, Parked: parkedProof(detachedRecord),
+			},
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
+		},
+		{
 			// The session's own presence is the warm proof. It no longer needs a
 			// separate detached observation, which cost a `list-clients` per
 			// candidate to produce and answered a question the ACTION path
