@@ -178,3 +178,23 @@ func TestPanelDropsChildOnlyEventsWithoutAskingThePresenter(t *testing.T) {
 		t.Fatalf("panel drop was recorded as %q -- the presenter was asked, so the panel check is gone", dropped[0])
 	}
 }
+
+// Red without BR-13's presenterResized: the loop skips the focused child on the
+// assumption the presenter's apply callback resized it, so when the presenter
+// refuses, the one pane the operator is looking at keeps its old size.
+func TestResizeWithNoEndpointStillResizesTheFocusedChild(t *testing.T) {
+	con, child := focusedButUnselected(t)
+	host, ok := con.host.(*hostty.FakeHost)
+	if !ok {
+		t.Fatalf("fixture host is %T, not a FakeHost", con.host)
+	}
+	host.SetSize(ptychild.Size{Rows: 30, Cols: 100})
+
+	con.onResize()
+
+	// The focused child must agree with the console's own geometry. Without the
+	// fix it keeps the size it was attached at, because the loop skips it.
+	if got, want := child.Size(), con.ChildSize(); got != want {
+		t.Fatalf("focused child size = %+v, want %+v", got, want)
+	}
+}

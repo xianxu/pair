@@ -5175,3 +5175,11 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   the other artifact before claiming anything about it. Where the list lives in
   code, pin it: `TestAtlasNamesEveryTraceEvent` now fails if a trace event ships
   undocumented. (#265 BR-8)
+
+- **A non-fatal arm inherits the assumptions of the arm it replaced.** #265 made
+  `onResize` skip the parent paint when the presenter had no endpoint — but the
+  loop underneath skipped the focused child *because the presenter's apply
+  callback normally resizes it*. With the presenter refusing, that callback
+  never ran, so the one pane the operator is looking at kept its old size, and
+  the comment I wrote claimed the opposite. When you make a failure survivable,
+  re-read what the code after it assumed the failed step had done. (#265 BR-13)

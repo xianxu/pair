@@ -431,3 +431,34 @@ not instances."* Both were fixed as rules.
 
 Verification: `make test`, same env scrubs — **210 packages, exit 0, zero
 failures.**
+
+### 2026-09-16 — close boundary review round 3
+
+One blocking finding, and it was a bug this issue introduced rather than one it
+missed.
+
+- **BR-13 — `onResize`'s no-destination arm left the focused child at its old
+  size, and my comment claimed the opposite.** The loop under the presenter call
+  skips the focused child *because the presenter's apply callback normally
+  resizes it*. When the presenter refuses, that callback never runs — so the one
+  pane the operator is looking at kept its attach-time geometry. Fixed by
+  tracking `presenterResized` rather than re-deriving the skip from
+  `!panel && selected != nil`. `TestResizeWithNoEndpointStillResizesTheFocusedChild`
+  asserts the focused child agrees with `ChildSize()`, and is mutation-proven
+  red against the old condition.
+
+Also addressed, though the gate recorded it as non-blocking, because it was the
+**4th finding in the `routing-answer-escalation` family** and the gate's standing
+note is "fix rules, not instances": `consumerPackages` was a typed list of two,
+so a third package acquiring a presenter would be unchecked, and the matcher saw
+only `X.presenter.Method(...)` — blind to a presenter held in a local, which is
+exactly how `terminalqualify` holds one. Both halves are now derived:
+`discoverConsumerPackages` reads the tree for anything referencing
+`terminal.NewPresenter` or `*terminal.Presenter`, and `presenterValued` tracks
+locals assigned from `NewPresenter`. `terminalqualify` is now an **explicit
+exemption with a reason** rather than an invisible gap — removing that exemption
+turns the test red on all six of its sites, which is how I verified the local
+detection works.
+
+Verification: `make test`, same env scrubs — **210 packages, exit 0, zero
+failures.**

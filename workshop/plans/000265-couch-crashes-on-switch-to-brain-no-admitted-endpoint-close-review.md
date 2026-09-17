@@ -379,3 +379,175 @@ findings:
       states the opposite convention and neither cites the other. One sentence at
       atlas/couch.md:1115 settling which applies.
 ```
+
+---
+
+## Re-review — 2026-09-16T17:16:04-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 265 — couch crashes on switch to brain: no admitted endpoint |
+| repo | pair |
+| issue file | workshop/issues/000265-couch-crashes-on-switch-to-brain-no-admitted-endpoint.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 220a965a21838bd2265967db5c9be7870816b64e..feebbf9836fa764a277f47da116220ca2768669e |
+| command | sdlc close --issue 265 |
+| reviewer | claude |
+| timestamp | 2026-09-16T17:16:04-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The core of the issue is delivered and the two Important findings from round 2 are genuinely closed — I reproduced BR-9's exact failure scenario (a new unclassified `c.presenter.UpdateChrome` in couchtty) and watched the new contract test name it at file:line, and I mutation-proved both halves of the new guard plus `TestAtlasNamesEveryTraceEvent`. What blocks a clean SHIP is one substantive gap the de-escalation opened: in `onResize`, the `ErrNoDestination` arm falls through to a child-resize loop that deliberately *skips the focused child* because the presenter's `apply` was supposed to have resized it — but `resizeLayout` refuses before ever calling `apply`. I reproduced this: in the durable focused-but-unselected state the focused child stays at 23×80 while the console wants 49×120, and the inline comment at `console.go:1232` asserts the opposite is true. BR-10 is still open (the fix was not applied); BR-8, BR-11 and BR-12 are closed.
+
+### 1. Strengths
+
+- `cmd/internal/terminal/no_destination_contract_test.go:74-100` derives the producer set from source rather than restating it. I dropped `resizeLayout` from `producerEntryPoints` in a scratch copy and the test named the drift with an actionable message. This is the right shape for the rule BR-9 asked for.
+- `no_destination_contract_test.go:103-153` covers *both* consumer packages. Unclassifying `termcmd`'s `paintStripLocked` went red with `../termcmd/presentation.go:366:9: paintStripLocked calls presenter.UpdateChrome without classifying ErrNoDestination` — a cross-package AST check that actually fires.
+- `destination.go:20-28` — one constructor carrying the `View`, in its own file, with a genuinely IO-free test. ARCH-PURE and ARCH-DRY both pass cleanly here.
+- `panel_input_routing_test.go:145-180` (`TestPanelDropsChildOnlyEventsWithoutAskingThePresenter`) distinguishes *drop-before-asking* from *asked-and-classified* via the trace detail. That is the assertion that survives restoring the #255 bypass, and it is the hard one to think of.
+- The termcmd comments now say "defensive, and unreachable today" with the four-step reason (`presentation.go:208-217`). Replacing an unsubstantiated hazard claim with a substantiated non-claim, rather than deleting the guard, is the right call.
+
+### 2. Critical findings
+
+None.
+
+### 3. Important findings
+
+**`cmd/internal/couchtty/console.go:1227-1241` — the no-destination resize path leaves the focused child at its old size, and the comment says otherwise.**
+
+`resizeLayout` returns `noDestination` *before* invoking `apply` (`presenter.go:633`), so `selected.child.ResizePTY` never runs. The loop at :1239 then skips that same child (`child == selected.child`). Net effect in the durable `(focus=actor, presenter selected=nil)` state: every pane except the focused one gets the new geometry.
+
+Reproduced on a scratch copy of HEAD with the existing fixture shape:
+
+```
+child size before={Rows:23 Cols:80} after={Rows:23 Cols:80}  console childSize={Rows:49 Cols:120}
+```
+
+This is newly reachable — before the diff the same path called `terminalError` and the process exited, so the stale size was never observable. It is exactly the state `pair#273` reports, so the operator most likely to hit it is the one already looking at a blank pane.
+
+Fix sketch: in the `ErrNoDestination` arm, drop the skip rather than only the paint — e.g. set `selected = nil` after `c.traceDropped("resize", err)` so the loop resizes every child (this is already the panel branch's behaviour), and correct the comment at :1232-1233, which currently claims the children below still get their size. Add the assertion to `TestResizeWithNoEndpointDoesNotStopTheConsole`: after `con.onResize()`, `child.Size()` must equal `con.ChildSize()`. That assertion is red today.
+
+### 4. Minor findings
+
+- **`cmd/internal/couchtty/trace.go:172-184` — BR-10 is not addressed.** `traceEvent`'s three-line doc comment still sits immediately above `traceDropped`, so `traceDropped` carries a comment whose first half documents a different function and `traceEvent` (:185) is undocumented. Moving `traceDropped` below `traceEvent` is still the fix.
+- **`cmd/internal/couchtty/trace_test.go:265-272` and `workshop/plans/…-plan.md:40` — two enumerations still restated by hand.** See the findings block; 4th in `stale-enumeration-claim`, so the recommendation is the rule, not these two sites.
+- **`cmd/internal/terminal/no_destination_contract_test.go:37` — `consumerPackages` is a hand-written two-element list.** 4th in `routing-answer-escalation`; rule stated in the findings block.
+- `traceDropped` builds `err.Error()` unconditionally, including when the tracer is off. Off the happy path and cheap; noting only.
+
+### 5. Test coverage notes
+
+All new tests pass, and I independently mutation-proved four of them (drop a producer; unclassify `paintStripLocked`; plant a fresh unclassified `UpdateChrome` consumer; rename `traceNoDestination`). The remaining `make test` failures in this environment are the known sandbox pty/mkdir denials (`ptychild: start /bin/sh: operation not permitted`), not code.
+
+The one uncovered class is the Important finding: no test asserts what the non-fatal paths still *accomplish*, only that they do not stop the console. `TestResizeWithNoEndpointDoesNotStopTheConsole` would pass if `onResize` returned immediately and resized nothing at all. When a fatal path becomes non-fatal, the test needs to pin the work that still has to happen, not just the absence of the exit.
+
+### 6. Architectural notes
+
+- **ARCH-DRY** — pass. One sentinel, one constructor; the six classification sites differ in their follow-on behaviour, so they are not duplication.
+- **ARCH-PURE** — pass. `destination.go` is pure and its test runs with no writer, host or endpoint.
+- **ARCH-PURPOSE** — flag (Minor, in the findings block). The shadow-sweep now derives the *producer* set from source, which is the real win. Two restatements remain hand-maintained: the consumer *package* list, and the atlas-pinning test's own event list.
+- **ARCH-MOCK** — pass. `hostty.NewFakeHost` + `ptychild.NewFakeChild` are the same seam production uses; no new fake introduced.
+- **ARCH-CONSTRAINTS** — pass. The keystroke path gets strictly cheaper on the panel; the refusal path allocates one wrapped error, and the notice-per-refusal design was correctly removed for both correctness and cost.
+- **ARCH-SECURE** — pass. The error text embeds only couch-minted endpoint ids, `%q`-quoted, and the trace file's framing tolerates that (now stated in the atlas).
+- **ARCH-ORDER** — flag, folded into the Important finding. The plan's `(focus, event)` table is honest about the router, but the *resize* transition's effect set is what is wrong: the caller's downstream step (resize the remaining children) was written assuming the presenter's effect ran. The lesson generalises — when an effect is downgraded from fatal to dropped, re-derive what the caller was skipping *because* that effect existed.
+- **ARCH-FUNERAL** — pass. The new trace writer joins an existing family that already rotates on `MaxBytes`/`GenerationPeriod` with retirement (`diagnosticlog/writer.go:260`); no new artifact family.
+
+### 7. Plan revision recommendations
+
+The plan gained its `## Revisions` section this round and it is good — it records both scope growths and the removed notice. One further entry is needed once the Important finding is fixed:
+
+```
+### 2026-09-16 — close gate round 3: de-escalation left dependent work undone
+
+Task 3's resize classification made `onResize` non-fatal but kept the loop's
+skip of `selected.child`, which only made sense while the presenter's `apply`
+had run. In the no-destination state `resizeLayout` refuses before `apply`, so
+the focused child kept its old geometry. The rule the plan should carry: when a
+fatal path becomes a dropped one, re-derive what the caller skipped *because*
+the failed call was going to do it.
+```
+
+Also fold the corrected producer count into the `ErrNoDestination` bullet at `plan.md:40`, which still reads as two sites — see the findings block for why that is the family's rule rather than this line's fix.
+
+```findings
+dispose:
+  - id: BR-8
+    disposition: addressed
+    note: |
+      All seven named sites corrected; atlas half now pinned by TestAtlasNamesEveryTraceEvent (mutation-proved red by renaming the constant), and pair#273 now genuinely carries the BR-4 lead.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Reproduced BR-9's exact scenario — a new unclassified c.presenter.UpdateChrome in couchtty — and the contract test named it at file:line; also red on dropping a producer and on unclassifying termcmd's paintStripLocked.
+  - id: BR-10
+    disposition: not-addressed
+    note: |
+      trace.go:172-184 is unchanged: traceEvent's doc comment still sits above traceDropped, and traceEvent at :185 is undocumented.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      The plan-gate duplicate was deleted; one "Enumerate the ANSWER, not the callers" entry remains at lessons.md:5138, keeping BR-1's two-gates measurement.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      atlas/couch.md now states which convention applies and why %q-quoted ids are safe in the TSV detail field.
+findings:
+  - id: new
+    severity: Important
+    family: degraded-path-skips-dependent-work
+    title: |
+      onResize's no-destination arm leaves the focused child at its old size, and the comment claims the opposite
+    detail: |
+      console.go:1227-1241. resizeLayout refuses before calling apply
+      (presenter.go:633), so selected.child.ResizePTY never runs; the loop at
+      :1239 then skips that same child because apply was assumed to have
+      resized it. Reproduced on a scratch copy of HEAD with the
+      focused-but-unselected fixture: child stays {Rows:23 Cols:80} while
+      con.ChildSize() is {Rows:49 Cols:120}, and every other pane is resized.
+      Newly reachable — before this diff the path exited the process. The
+      comment at :1232-1233 asserts the children below still get their size.
+      Fix: set selected = nil after traceDropped so the loop covers it (the
+      panel branch already behaves this way), correct the comment, and assert
+      child.Size() == con.ChildSize() in
+      TestResizeWithNoEndpointDoesNotStopTheConsole — red today.
+  - id: new
+    severity: Minor
+    family: stale-enumeration-claim
+    title: |
+      The test that exists to stop enumerations going stale restates its own enumeration by hand
+    detail: |
+      This is the 4th finding in family stale-enumeration-claim. Do NOT fix
+      these two sites one at a time. Rule: an enumeration that a durable
+      artifact restates is DERIVED from its source in code, never retyped —
+      including inside the test that pins it. Measured, 2 residual
+      restatements: trace_test.go:265-272 hand-lists the seven trace constants,
+      so a new traceFoo added to trace.go's const block (trace.go:74-90, a
+      single prefixed block trivially walkable by AST, exactly as
+      TestNoDestinationProducersAreEnumerated already walks the producers)
+      ships undocumented with the test still green; and plan.md:40 still says
+      the sentinel is "wrapped by every refusal site in Presenter (Input's
+      non-mouse arm and mouseInput's unpresented arm)" — two, where the table
+      eight lines above now correctly says four.
+  - id: new
+    severity: Minor
+    family: routing-answer-escalation
+    title: |
+      The contract test derives the producer set from source but hand-lists the consumer packages
+    detail: |
+      This is the 4th finding in family routing-answer-escalation. Do NOT add a
+      third entry to the list. Rule: both halves of the contract are derived —
+      the set of packages that hold a terminal.Presenter is read off the tree,
+      not typed. no_destination_contract_test.go:37 pins
+      consumerPackages = {"../couchtty", "../termcmd"}, so a third package that
+      acquires a presenter and escalates its routing answer is unchecked; the
+      guard also matches only X.presenter.Method(...), so a presenter held in a
+      local (as terminalqualify/presenter_cases.go:72 does) is invisible to it.
+      terminalqualify is correct as-is — an oracle that wants != nil — but that
+      is a fact about it, not a property the guard establishes.
+```

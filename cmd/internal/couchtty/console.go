@@ -1219,24 +1219,32 @@ func (c *Console) onResize() {
 		children = append(children, p.child)
 	}
 	c.mu.Unlock()
+	// presenterResized records whether the presenter's apply callback actually
+	// ran. The loop below skips the focused child ONLY because that callback
+	// normally resizes it; when the presenter refuses, the callback never ran
+	// and skipping would leave the one pane the operator is looking at at its
+	// old size (pair#265 BR-13).
+	presenterResized := false
 	if !panel && selected != nil {
 		err = c.presenter.Resize(c.lifetime, terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, func(g terminal.Geometry) error {
 			return selected.child.ResizePTY(ptychild.Size{Cols: uint16(g.Cols), Rows: uint16(g.Rows)})
 		})
-		if err != nil {
-			if !errors.Is(err, terminal.ErrNoDestination) {
-				c.terminalError(err)
-				return
-			}
+		switch {
+		case err == nil:
+			presenterResized = true
+		case !errors.Is(err, terminal.ErrNoDestination):
+			c.terminalError(err)
+			return
+		default:
 			// A pane exists but the presenter holds no endpoint for it. Resizing
-			// the window must not exit couch over that -- and the children below
-			// still need their new size, so this skips the parent paint only.
+			// the window must not exit couch over that; the child still gets its
+			// new size from the loop below, which no longer skips it.
 			c.traceDropped("resize", err)
 		}
 	}
 	childSize := c.ChildSize()
 	for _, child := range children {
-		if (!panel && selected != nil && child == selected.child) || child.Endpoint().InputEnded() {
+		if (presenterResized && child == selected.child) || child.Endpoint().InputEnded() {
 			continue
 		}
 		if err := child.Resize(childSize); err != nil {

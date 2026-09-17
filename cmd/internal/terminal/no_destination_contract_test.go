@@ -32,9 +32,86 @@ var producerEntryPoints = map[string][]string{
 	"resizeLayout": {"Resize", "ResizeLayout"},
 }
 
-// consumerPackages are the packages that hold a presenter and must classify its
-// answer. Both had an unclassified site at some point in pair#265.
-var consumerPackages = []string{"../couchtty", "../termcmd"}
+// consumerExemptions are packages that hold a presenter and deliberately do not
+// classify its answer, with the reason. Everything else that holds one is
+// discovered, not listed -- a typed list is what let the guard cover one of four
+// methods for a whole round (pair#265, 4th finding in this family).
+var consumerExemptions = map[string]string{
+	"terminalqualify": "a qualification oracle: it records `Input(...) != nil` as an observation, so classifying would destroy what it measures",
+}
+
+// discoverConsumerPackages finds every sibling package that holds a Presenter.
+func discoverConsumerPackages(t *testing.T) []string {
+	t.Helper()
+	dirs, err := filepath.Glob(filepath.Join("..", "*"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []string
+	for _, dir := range dirs {
+		if filepath.Base(dir) == "terminal" {
+			continue
+		}
+		paths, err := filepath.Glob(filepath.Join(dir, "*.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range paths {
+			if strings.HasSuffix(path, "_test.go") {
+				continue
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := string(raw)
+			if strings.Contains(body, "terminal.NewPresenter") || strings.Contains(body, "*terminal.Presenter") {
+				out = append(out, dir)
+				break
+			}
+		}
+	}
+	if len(out) == 0 {
+		t.Fatal("found no package holding a terminal.Presenter -- the discovery is broken, not the tree")
+	}
+	sort.Strings(out)
+	return out
+}
+
+// presenterValued reports the expressions in fn that hold a Presenter: a
+// `.presenter` field, or a local assigned from NewPresenter. The second is why
+// this is not a selector match -- terminalqualify holds one in a local, and a
+// guard that cannot see it cannot claim anything about it.
+func presenterValued(fn *ast.FuncDecl) map[string]bool {
+	locals := map[string]bool{}
+	ast.Inspect(fn.Body, func(node ast.Node) bool {
+		assign, ok := node.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, rhs := range assign.Rhs {
+			call, ok := rhs.(*ast.CallExpr)
+			if !ok || i >= len(assign.Lhs) {
+				continue
+			}
+			name := ""
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				name = fun.Name
+			case *ast.SelectorExpr:
+				name = fun.Sel.Name
+			}
+			if name != "NewPresenter" {
+				continue
+			}
+			if ident, ok := assign.Lhs[i].(*ast.Ident); ok {
+				locals[ident.Name] = true
+			}
+		}
+		return true
+	})
+	return locals
+}
 
 func parseDir(t *testing.T, dir string) ([]*ast.File, *token.FileSet) {
 	t.Helper()
@@ -110,7 +187,11 @@ func TestConsumersOfNoDestinationMethodsClassifyIt(t *testing.T) {
 		}
 	}
 	var violations []string
-	for _, dir := range consumerPackages {
+	for _, dir := range discoverConsumerPackages(t) {
+		if reason, exempt := consumerExemptions[filepath.Base(dir)]; exempt {
+			t.Logf("exempt: %s -- %s", filepath.Base(dir), reason)
+			continue
+		}
 		files, fset := parseDir(t, dir)
 		for _, file := range files {
 			for _, decl := range file.Decls {
@@ -125,6 +206,7 @@ func TestConsumersOfNoDestinationMethodsClassifyIt(t *testing.T) {
 					}
 					return true
 				})
+				locals := presenterValued(fn)
 				ast.Inspect(fn.Body, func(node ast.Node) bool {
 					call, ok := node.(*ast.CallExpr)
 					if !ok {
@@ -134,8 +216,14 @@ func TestConsumersOfNoDestinationMethodsClassifyIt(t *testing.T) {
 					if !ok || !guarded[sel.Sel.Name] {
 						return true
 					}
-					inner, ok := sel.X.(*ast.SelectorExpr)
-					if !ok || inner.Sel.Name != "presenter" {
+					held := false
+					switch recv := sel.X.(type) {
+					case *ast.SelectorExpr:
+						held = recv.Sel.Name == "presenter"
+					case *ast.Ident:
+						held = locals[recv.Name]
+					}
+					if !held {
 						return true
 					}
 					if !classifies {

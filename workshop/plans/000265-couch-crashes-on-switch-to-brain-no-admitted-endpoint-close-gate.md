@@ -187,6 +187,84 @@ rounds:
           family: stale-enumeration-claim
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-16T17:16:04-07:00"
+      agent: claude
+      dispose:
+        - id: BR-8
+          disposition: addressed
+          note: All seven named sites corrected; atlas half now pinned by TestAtlasNamesEveryTraceEvent (mutation-proved red by renaming the constant), and pair#273 now genuinely carries the BR-4 lead.
+          round: 3
+        - id: BR-9
+          disposition: addressed
+          note: Reproduced BR-9's exact scenario — a new unclassified c.presenter.UpdateChrome in couchtty — and the contract test named it at file:line; also red on dropping a producer and on unclassifying termcmd's paintStripLocked.
+          round: 3
+        - id: BR-10
+          disposition: not-addressed
+          note: 'trace.go:172-184 is unchanged: traceEvent''s doc comment still sits above traceDropped, and traceEvent at :185 is undocumented.'
+          round: 3
+        - id: BR-11
+          disposition: addressed
+          note: The plan-gate duplicate was deleted; one "Enumerate the ANSWER, not the callers" entry remains at lessons.md:5138, keeping BR-1's two-gates measurement.
+          round: 3
+        - id: BR-12
+          disposition: addressed
+          note: atlas/couch.md now states which convention applies and why %q-quoted ids are safe in the TSV detail field.
+          round: 3
+      findings:
+        - id: BR-13
+          severity: Important
+          title: onResize's no-destination arm leaves the focused child at its old size, and the comment claims the opposite
+          detail: |-
+            console.go:1227-1241. resizeLayout refuses before calling apply
+            (presenter.go:633), so selected.child.ResizePTY never runs; the loop at
+            :1239 then skips that same child because apply was assumed to have
+            resized it. Reproduced on a scratch copy of HEAD with the
+            focused-but-unselected fixture: child stays {Rows:23 Cols:80} while
+            con.ChildSize() is {Rows:49 Cols:120}, and every other pane is resized.
+            Newly reachable — before this diff the path exited the process. The
+            comment at :1232-1233 asserts the children below still get their size.
+            Fix: set selected = nil after traceDropped so the loop covers it (the
+            panel branch already behaves this way), correct the comment, and assert
+            child.Size() == con.ChildSize() in
+            TestResizeWithNoEndpointDoesNotStopTheConsole — red today.
+          family: degraded-path-skips-dependent-work
+          round: 3
+        - id: BR-14
+          severity: Minor
+          title: The test that exists to stop enumerations going stale restates its own enumeration by hand
+          detail: |-
+            This is the 4th finding in family stale-enumeration-claim. Do NOT fix
+            these two sites one at a time. Rule: an enumeration that a durable
+            artifact restates is DERIVED from its source in code, never retyped —
+            including inside the test that pins it. Measured, 2 residual
+            restatements: trace_test.go:265-272 hand-lists the seven trace constants,
+            so a new traceFoo added to trace.go's const block (trace.go:74-90, a
+            single prefixed block trivially walkable by AST, exactly as
+            TestNoDestinationProducersAreEnumerated already walks the producers)
+            ships undocumented with the test still green; and plan.md:40 still says
+            the sentinel is "wrapped by every refusal site in Presenter (Input's
+            non-mouse arm and mouseInput's unpresented arm)" — two, where the table
+            eight lines above now correctly says four.
+          family: stale-enumeration-claim
+          round: 3
+        - id: BR-15
+          severity: Minor
+          title: The contract test derives the producer set from source but hand-lists the consumer packages
+          detail: |-
+            This is the 4th finding in family routing-answer-escalation. Do NOT add a
+            third entry to the list. Rule: both halves of the contract are derived —
+            the set of packages that hold a terminal.Presenter is read off the tree,
+            not typed. no_destination_contract_test.go:37 pins
+            consumerPackages = {"../couchtty", "../termcmd"}, so a third package that
+            acquires a presenter and escalates its routing answer is unchecked; the
+            guard also matches only X.presenter.Method(...), so a presenter held in a
+            local (as terminalqualify/presenter_cases.go:72 does) is invisible to it.
+            terminalqualify is correct as-is — an oracle that wants != nil — but that
+            is a fact about it, not a property the guard establishes.
+          family: routing-answer-escalation
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#265 (boundary-review)
@@ -300,10 +378,59 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   states the opposite convention and neither cites the other. One sentence at
   atlas/couch.md:1115 settling which applies.
 
+## Round 3 — 2026-09-16T17:16:04-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-8 — addressed — All seven named sites corrected; atlas half now pinned by TestAtlasNamesEveryTraceEvent (mutation-proved red by renaming the constant), and pair#273 now genuinely carries the BR-4 lead.
+- BR-9 — addressed — Reproduced BR-9's exact scenario — a new unclassified c.presenter.UpdateChrome in couchtty — and the contract test named it at file:line; also red on dropping a producer and on unclassifying termcmd's paintStripLocked.
+- BR-10 — not-addressed — trace.go:172-184 is unchanged: traceEvent's doc comment still sits above traceDropped, and traceEvent at :185 is undocumented.
+- BR-11 — addressed — The plan-gate duplicate was deleted; one "Enumerate the ANSWER, not the callers" entry remains at lessons.md:5138, keeping BR-1's two-gates measurement.
+- BR-12 — addressed — atlas/couch.md now states which convention applies and why %q-quoted ids are safe in the TSV detail field.
+
+### Raised
+
+- **BR-13** [Important] `degraded-path-skips-dependent-work` onResize's no-destination arm leaves the focused child at its old size, and the comment claims the opposite
+  console.go:1227-1241. resizeLayout refuses before calling apply
+  (presenter.go:633), so selected.child.ResizePTY never runs; the loop at
+  :1239 then skips that same child because apply was assumed to have
+  resized it. Reproduced on a scratch copy of HEAD with the
+  focused-but-unselected fixture: child stays {Rows:23 Cols:80} while
+  con.ChildSize() is {Rows:49 Cols:120}, and every other pane is resized.
+  Newly reachable — before this diff the path exited the process. The
+  comment at :1232-1233 asserts the children below still get their size.
+  Fix: set selected = nil after traceDropped so the loop covers it (the
+  panel branch already behaves this way), correct the comment, and assert
+  child.Size() == con.ChildSize() in
+  TestResizeWithNoEndpointDoesNotStopTheConsole — red today.
+- **BR-14** [Minor] `stale-enumeration-claim` The test that exists to stop enumerations going stale restates its own enumeration by hand
+  This is the 4th finding in family stale-enumeration-claim. Do NOT fix
+  these two sites one at a time. Rule: an enumeration that a durable
+  artifact restates is DERIVED from its source in code, never retyped —
+  including inside the test that pins it. Measured, 2 residual
+  restatements: trace_test.go:265-272 hand-lists the seven trace constants,
+  so a new traceFoo added to trace.go's const block (trace.go:74-90, a
+  single prefixed block trivially walkable by AST, exactly as
+  TestNoDestinationProducersAreEnumerated already walks the producers)
+  ships undocumented with the test still green; and plan.md:40 still says
+  the sentinel is "wrapped by every refusal site in Presenter (Input's
+  non-mouse arm and mouseInput's unpresented arm)" — two, where the table
+  eight lines above now correctly says four.
+- **BR-15** [Minor] `routing-answer-escalation` The contract test derives the producer set from source but hand-lists the consumer packages
+  This is the 4th finding in family routing-answer-escalation. Do NOT add a
+  third entry to the list. Rule: both halves of the contract are derived —
+  the set of packages that hold a terminal.Presenter is read off the tree,
+  not typed. no_destination_contract_test.go:37 pins
+  consumerPackages = {"../couchtty", "../termcmd"}, so a third package that
+  acquires a presenter and escalates its routing answer is unchecked; the
+  guard also matches only X.presenter.Method(...), so a presenter held in a
+  local (as terminalqualify/presenter_cases.go:72 does) is invisible to it.
+  terminalqualify is correct as-is — an oracle that wants != nil — but that
+  is a fact about it, not a property the guard establishes.
+
 ## Open findings
 
-- **BR-8** [Important] `stale-enumeration-claim` Third in family: the enumeration sweep stopped at atlas; five restatements stale, one cross-artifact claim false
-- **BR-9** [Important] `routing-answer-escalation` Third in family: the AST guard pins 1 of the 4 answer-producing methods, and termcmd has no guard at all
 - **BR-10** [Minor] `orphaned-doc-comment` traceEvent's doc comment is now orphaned onto traceDropped
-- **BR-11** [Minor] `duplicated-lesson` lessons.md ships the same lesson twice in the same section
-- **BR-12** [Minor] `stale-enumeration-claim` traceDropped writes the error text where the sibling helper documents "a code, never the error's text"
+- **BR-13** [Important] `degraded-path-skips-dependent-work` onResize's no-destination arm leaves the focused child at its old size, and the comment claims the opposite
+- **BR-14** [Minor] `stale-enumeration-claim` The test that exists to stop enumerations going stale restates its own enumeration by hand
+- **BR-15** [Minor] `routing-answer-escalation` The contract test derives the producer set from source but hand-lists the consumer packages
