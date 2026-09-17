@@ -1274,12 +1274,101 @@ A separate macOS workflow runs it on relevant changes and weekly/manual cadence.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its
 child inline and unseamed.
 
+## Recoverability is a fact about the session (#256)
+
+**The classifier reads the world, not couch's bookkeeping about the world.**
+`ClassifyThread` does not consult `Incarnation` liveness fields or
+`record.Park`.
+
+The measurement it rests on: the zellij **server is PPID 1 at birth** — it
+daemonizes, it is not reparented — so `pair wrap`, `pair term`, nvim and the
+agent are its children, not couch's. `Detach` SIGTERMs the **launcher**, which is
+couch's own child and dies with couch anyway. Therefore:
+
+> A clean `alt+d` detach and a couch crash leave **identical external state**.
+> The only difference is whether the bookkeeping ran.
+
+Before #256 that difference decided everything: with the record, `detached`
+(recoverable, ranked highest at startup); without it, `stale — helper ownership
+unresolved` (debris). Measured on the operator's store, all 11 records carrying a
+`live` incarnation had a dead pid and three had an agent still running.
+
+### What durable state earns its place
+
+Durable state is justified only when it records something **not derivable from
+the world**:
+
+| Kept — not observable | Not read for classification — a shadow of what you can look at |
+|---|---|
+| native session id (the conversation) | `Incarnation{PID, Identity, State}` |
+| address → session-name binding | `ParkTransaction{Phase, Attempts, …}` |
+| launch profile, paths, name | — |
+
+Neither field is deleted from the record; they stop being **read** by the
+classifier. Replacing the park transaction itself is `#275`.
+
+### `SessionObservation` — three values, not a boolean
+
+`couchcore/sessionevidence.go`. `SessionUnresolved` is the **zero value**, so an
+observation nobody populated fails closed: if absence were the zero value, a
+gather branch that silently stopped running would assert "no session" for every
+thread it skipped — the anonymous refusals `#181` removed. `session-gone` is
+archive-eligible, which is what makes the distinction load-bearing.
+
+There is deliberately no fourth "held elsewhere" value. The refresh never counts
+clients — `list-clients` costs ~250 ms per live session (`#228`) — and the
+reattach path re-observes attach state before committing. **Optimistic inventory,
+strict action:** the expensive question is asked for the one thread the operator
+pressed Enter on, so cost is proportional to what you *do*, not what you *have*.
+`DetachedSessions` remains the action path's authority, guarded by
+`RequireAttachState`.
+
+### One class, three sites
+
+A guard reading bookkeeping the classification no longer trusts is one defect
+with several homes. All three had to move together, and the last two surfaced
+only by running it:
+
+1. `ClassifyThread` — session-first.
+2. `DecideResume` — stopped vetoing on the incarnation and the open park, or a
+   row the switcher advertised as `detached` could not resume.
+3. `CommitStartClaim`'s caller — **re-adoption**: retire the dead launcher's
+   incarnation before claiming a new one. One-incarnation-at-a-time is a store
+   invariant, not a lifecycle opinion, so the *caller* clears it — gated on
+   confirmed `Dead`, never on an unobservable process, since retiring a live one
+   would abandon a running agent.
+
+`hasOccupiedIncarnation` survives for `relaunch` and `switch-agent`, which ask a
+different question: not "is this recoverable" but "is couch itself already
+operating on this thread", where couch's own record *is* authority.
+
+### `ThreadBusy` has exactly one producer
+
+A `ThreadStartClaim` — couch's record of its **own** in-flight operation, not a
+claim about an external process. Without it, the window between claiming a start
+and the launcher acquiring a pid would classify `session-gone`, an
+archive-eligible reason, for a thread starting normally.
+
+### Retired reasons
+
+`stale-incarnation` and `unrecorded-child` both named a *disagreement* between
+the record and observation, one per direction. There are no longer two sides to
+disagree. `unrecorded-child` returns with `#276`, which gives it a producer — a
+couch-tagged session with no record at all.
+
 ## Liveness is recomputed, never stored
 
 Because Couch owns the console, diagnostic flags run in a **second process**
 with no `Handle`. So `ActorRecord` persists `{PID, Identity}` where `Identity`
 is `procutil`'s kernel start token, and a reader recompares it: a recycled PID
 reports not-live because the token differs.
+
+That correlation is still exact, and still positive-only: after #256 the
+**absence** of a live observation proves nothing and falls through to the
+session. The `Live` union — console pty children plus OS-vouched recorded
+processes — stays a union, because the CLI passes no observations of its own and
+narrowing it would make every running thread read `detached` there (`#181`'s
+"one store, two stories").
 
 Within one process, `ExecRunner` reaps its children in a background goroutine
 and liveness is a closed channel — **not** `kill -0`, which succeeds for a
