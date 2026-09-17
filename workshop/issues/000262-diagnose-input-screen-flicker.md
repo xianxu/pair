@@ -8,7 +8,7 @@ updated: 2026-09-16
 estimate_hours:
 ---
 
-# Screen flicker: the compositor writes unsynchronized frames (#255)
+# Screen flicker: the compositor re-emits global terminal state every frame (#255)
 
 ## Problem
 
@@ -19,73 +19,111 @@ same symptom.
 
 ## Spec
 
-**Leading cause, grounded but NOT yet confirmed** (evidence in `## Log`,
-2026-09-16): #255 made pair a compositor. Child bytes are parsed into a cell grid
-and pair re-derives the parent update as a frame diff — `paintPublication`
-(`cmd/internal/terminal/presenter.go:304`) → `Render(p.previous, f)` (`:338`) →
-`p.write`. Synchronized output (DECSET 2026) is implemented at NEITHER boundary, so
-a partially-applied diff of a possibly mid-update frame can reach the screen. Before
-#255 the child's own synchronized update passed through intact, which is why the
-symptom is new.
+**Leading cause** (evidence in `## Log`, 2026-09-16). #255 made pair a compositor:
+child bytes are parsed into a cell grid and pair re-derives the parent update —
+`paintPublication` (`cmd/internal/terminal/presenter.go:304`) → `Render(p.previous,
+f)` (`:338`) → `p.write`. The flicker is NOT the diff tearing. The diff is
+dirty-gated (`render.go:29-31`) and usually a few cells. It is the **fixed
+preamble/postamble `Render` emits on every dirty frame**, constant-size and touching
+WHOLE-SCREEN state no matter how small the diff:
 
-A synchronized-output bracket is **a framing assertion by whoever writes to a
-terminal**, not payload forwarded down a pipeline. #255 created a second writer, so
-there are two independent obligations. They do not correspond 1:1 — `Present`
-(`presenter.go:406`) coalesces N child frames into one write via a non-blocking
-`wake` send, `Compose` adds chrome no child authored, and a child that never emits
-2026 still produces diffs that tear. A forward-what-was-wrapped design cannot
-express any of those.
+```
+preamble  render.go:35     ESC[?25l  ESC[?6l  ESC[r  ESC[?7l  ESC[0m  OSC8-close
+postamble render.go:85-92  ESC[<N> q   ESC[?25h
+```
 
-**Obligation 1 — emit (M1). SHARPENED 2026-09-16 — see the "why GLOBAL" Log
-entry.** The global component is NOT the diff tearing; it is the fixed
-preamble/postamble `Render` emits on every frame (`render.go:35`, `:85-92`):
-`\x1b[r` (DECSTBM reset), a cursor hide/show pair, and DECSCUSR re-issued with its
-blink bit, which resets the caret's blink phase. Preferred repair is to emit that
-state ON CHANGE rather than per frame — the `parentModeDelta` pattern
-(`presenter.go:287`) already in this file. Bracketing the write in BSU/ESU is the
-fallback: it masks every intermediate state, but does not remove the cause.
+That is why the effect is global while the change is one keystroke, and why it is
+new: before #255 pair authored no frames, so it emitted no per-frame preamble.
 
-**Obligation 2 — ingest (M2).** `Endpoint.capturePublication`
-(`endpoint.go:242`) publishes unconditionally while the child's 2026 bit is tracked
-and never read (`third_party/vt/mode.go:15`). Gate publication on that bit so a
-frame captured mid-update is not published. #255's plan contracted this behavior and
-it was never built.
+**The prime suspect inside that preamble is DECSCUSR** (`ESC[<N> q`), re-issued
+every frame carrying the blink bit (`if next.Cursor.Blink { code-- }`). Most
+terminals RESET THE BLINK PHASE on receipt. On a sparse stream every frame restarts
+the caret's blink timer — small, global, non-corrupting, and worse when quiet,
+because under heavy output the cursor sits hidden between `?25l` and the next
+`?25h` with no blink to disturb.
+
+**Repair: emit invariant parent state ON CHANGE, not per frame.** The pattern is
+already in this file — `parentModeDelta` (`presenter.go:287`) returns `""` when
+mouse tracking is unchanged, backed by `confirmedModes` + `modesKnown`. The preamble
+does not participate. Six of the eight sequences are state the presenter itself
+established on the previous frame:
+
+| sequence | purpose | delta-able |
+|---|---|---|
+| `ESC[?6l` | origin mode off | yes |
+| `ESC[r` | DECSTBM reset | yes |
+| `ESC[?7l` | autowrap off | yes |
+| `ESC[0m` | SGR reset | yes — `Render` already tracks `style` through the paint |
+| OSC8 close | close hyperlink | yes — it tracks `link` too |
+| `ESC[<N> q` | DECSCUSR shape+blink | **yes — do this one first** |
+| `ESC[?25l` / `?25h` | hide/show during paint | keep; legitimate |
+
+The cursor hide/show pair stays: it exists so the caret is not seen crossing the
+screen mid-paint. DECSCUSR is cleanly separable from it.
+
+**Invalidate and re-assert the full preamble on:** first paint (the existing
+`!known` branch), partial or failed write, and resize. #255's plan already mandates
+the second — *"on partial parent writes, retain the known accepted prefix and
+invalidate the rendered-screen cache"* — and `paintPublication` already commits
+`confirmedModes` only after a successful write. Same discipline, wider struct.
+
+**PREREQUISITE — the exclusivity this rests on is false today.** The delta is only
+safe if the presenter is the sole writer to the parent. #255's plan calls
+`ParentPresenter` the *"exclusive typed parent-output door"* with *"no exported
+generic raw-write door"*, but `hostty.Reservation` writes to the same terminal:
+`SetRegion` and the DECSTBM reset. And `hostty/control.go:27` claims that sequence
+*"lives here and only here"* while `terminal/render.go:35` and
+`history_render.go:313` both emit it. So there are two writers, the stated invariant
+is false, and `render.go`'s defensive re-assert is compensating for exactly that
+rather than being paranoia.
+
+Deltaing the preamble while a second writer can silently reset margins behind the
+presenter would trade a subtle flicker for occasional real corruption — strictly
+worse. Hence the milestone order below: the DECSCUSR fix needs NO exclusivity
+(nothing else writes cursor style), so it ships first; the rest waits on
+reconciliation.
+
+**Synchronized output (DECSET 2026) is a COMPLEMENT, not the fix.** It is
+implemented at neither boundary (`grep -rn 2026 cmd/` is empty; the child's bit is
+tracked and never read at `third_party/vt/mode.go:15`). Under BSU/ESU no
+intermediate state is presented, which would also make the cursor hide/show pair
+unnecessary. But it MASKS the per-frame churn rather than removing it, so it is
+sequenced after the delta work, not instead of it.
 
 **Constraints.**
 
-- Bracket only the synchronous render-and-write. Never hold BSU open across an
-  await, a blocking write, or the partial-write retry path `paintPublication`
-  already has (`accepted`, `WriteFailure`). An ESU that never arrives is a frozen
-  screen, which is worse than a tear. M2's gate needs the same bounded timeout, so a
-  child that opens BSU and stalls cannot freeze the view.
+- Never hold BSU open across an await, a blocking write, or the partial-write retry
+  path `paintPublication` already has (`accepted`, `WriteFailure`). An ESU that
+  never arrives is a frozen screen, worse than a tear. The ingest gate needs the
+  same bounded timeout so a child that opens BSU and stalls cannot freeze the view.
 - Verify 2026 nesting under zellij before shipping. Couch hosts a zellij client that
-  may bracket to the real terminal itself, and nesting is handled inconsistently
-  across implementations. Do not assume counters.
-- Advertise only what is implemented. #255's profile already lists *"synchronized
-  drawing"* as required, so this closes a contract rather than adding a capability.
+  may bracket to the real terminal itself; nesting is handled inconsistently across
+  implementations. Do not assume counters.
+- Advertise only what is implemented. #255's profile lists *"synchronized drawing"*
+  as required, so that work closes a contract rather than adding a capability.
 
 ## Done when
 
-- **The cause is confirmed before it is fixed.** A bare shell echoing keystrokes —
-  a child that never emits 2026 — reproduces the flicker, and a capture of one
-  frame's parent-bound bytes shows the rendered diff going out unwrapped. If either
-  fails, this Spec is wrong and the issue returns to diagnosis.
-- The parent terminal's 2026 support is detected rather than assumed, and the
-  bracket is skipped when absent, with the no-support path covered.
-- M1: every presenter write that takes the parent through an incoherent
-  intermediate state is bracketed, asserted at the write seam rather than by
-  eyeballing a terminal.
-- M1: no path can emit BSU without a matching ESU — including partial write, write
-  failure, context cancellation and release. Tested for each.
-- M2: a frame captured while the child holds 2026 is not published until the child
-  releases it or the bounded timeout fires; both branches tested.
+- **The cause is confirmed before it is fixed.** Ghostty with `cursor-style-blink =
+  false` changes or removes the flicker, OR a capture of one frame's parent-bound
+  bytes shows the full preamble/postamble going out on a one-cell diff. If neither
+  holds, this Spec is wrong and the issue returns to diagnosis.
+- M1: DECSCUSR is emitted only when cursor shape or blink actually changed, asserted
+  at the render seam — a one-cell diff with an unchanged cursor emits no cursor-style
+  sequence. Operator smoke confirms both reported regimes.
+- M2: the parent has exactly ONE writer, or every other writer reports what it
+  changed so the presenter's belief stays accurate. `hostty/control.go:27`'s
+  *"lives here and only here"* claim is either made true or corrected.
+- M3: each remaining invariant preamble sequence is emitted on change only, with
+  re-assert covered for first paint, partial write, write failure and resize.
+- M3: no frame can leave the parent in a state the presenter does not believe it is
+  in — pinned by a test diffing believed-vs-emitted across a frame sequence.
+- M4: a frame captured while the child holds 2026 is not published until it is
+  released or the bounded timeout fires; both branches tested. Nesting under zellij
+  verified and the finding recorded whichever way it goes.
 - Coverage distinguishes a QUIET screen from a busy one, in either pane — replacing
   the original rapid-input-vs-heavy-output axis, which the 2026-09-16 revision
   showed was measuring the masking rather than the bug.
-- Nesting under zellij is verified, and the finding recorded here whichever way it
-  goes.
-- Operator smoke confirms the flicker is gone in both reported regimes: a static
-  agent pane while typing, and a quiet draft nvim while the agent works.
 
 ## Revisions
 
@@ -131,17 +169,49 @@ The title changes to match. The filename slug does NOT, because it is the branch
 name.
 
 
+### 2026-09-16 — restructured around the per-frame preamble; M1 is now a one-condition fix
+
+Second restructure today, prompted by the operator challenge *"if synchronization
+was the issue, why is the effect global?"* — which was correct and changed the
+diagnosis. The tearing story could not explain a global effect from a one-keystroke
+diff. The per-frame preamble can, because it is constant-size and touches
+whole-screen state.
+
+Deltas:
+
+- **Cause** narrows from "unsynchronized diff" to "per-frame re-emission of
+  invariant global state", with DECSCUSR's blink-phase reset as prime suspect.
+- **Fix** changes from "bracket the write in BSU/ESU" to "emit on change". BSU/ESU
+  is demoted to a complement — it masks the churn instead of removing it.
+- **Milestones** re-cut. The old M1 (bracket) and M2 (ingest gate) become M3's
+  option and M4. The new M1 is a single condition on DECSCUSR that depends on
+  nothing and plausibly fixes the whole reported symptom.
+- **A prerequisite appears** that was not previously visible: the presenter is not
+  the parent's exclusive writer, so most of the delta work is blocked on M2's
+  reconciliation. M1 is carved out precisely because it escapes that.
+- **Confirming test** changes from the bare-shell repro to `cursor-style-blink =
+  false`, which is cheaper and more discriminating.
+
+`## Problem` still stands as filed. The cause is still stated as leading rather than
+settled, and the first `## Done when` bullet still exits to diagnosis if the test
+fails.
+
+
 ## Plan
 
-- [ ] M1 — Confirm: bare-shell repro + capture one frame's parent-bound bytes
-      showing the diff unwrapped + confirm the terminal advertises 2026. STOP and
-      re-diagnose if this does not hold.
-- [ ] M1 — Bracket the presenter's write; cover every no-ESU-escape path (partial
-      write, failure, cancellation, release) and the terminal-without-2026 path.
-- [ ] M1 — Verify 2026 nesting under zellij; record the finding either way.
-- [ ] M1 — Operator smoke in both quiet regimes.
-- [ ] M2 — Gate `capturePublication` on the child's tracked 2026 bit, with a
-      bounded timeout; test both branches.
+- [ ] M1 — Confirm (`cursor-style-blink = false`, and/or capture one frame's bytes).
+      STOP and re-diagnose if it does not hold.
+- [ ] M1 — Emit DECSCUSR only on shape/blink change. Needs no exclusivity; nothing
+      else writes cursor style. Operator smoke in both quiet regimes.
+- [ ] M2 — Reconcile the two parent writers: route `hostty.Reservation`'s paints
+      through the presenter, or have them report their mutations. Make
+      `hostty/control.go:27`'s claim true or correct it.
+- [ ] M3 — Delta the remaining preamble sequences; cover re-assert on first paint,
+      partial write, failure and resize.
+- [ ] M3 — Optional, once the churn is gone: BSU/ESU around the write, gated on the
+      parent advertising 2026, with no path able to emit BSU without ESU.
+- [ ] M4 — Gate `capturePublication` on the child's tracked 2026 bit with a bounded
+      timeout; verify nesting under zellij.
 
 ## Log
 
@@ -519,3 +589,54 @@ bracket. Costs one config line and a restart.
 This supersedes the tearing mechanism in the 2026-09-16 H3 entry. The #255 origin
 story is UNCHANGED and still holds — before #255 pair emitted no per-frame preamble
 at all, because it was not authoring frames.
+
+### 2026-09-16 — fix design: why "emit on change", and the exclusivity prerequisite
+
+Recording the design discussion behind M1-M3 so the plan does not re-derive it.
+
+**Why the per-frame re-assert exists.** It is deliberate, not sloppy.
+`render.go:33-34` states the reason: *"Disable autowrap while painting the
+lower-right cell, and reset origin and margins independently of whatever was on the
+parent's screen before us."* The presenter declines to trust the parent's state and
+re-establishes a known baseline every frame. That is a coherent position — it just
+costs a constant global disturbance per frame.
+
+**The argument against it is architectural, not stylistic.** #255's plan calls
+`ParentPresenter` the *"exclusive typed parent-output door"* with *"no exported
+generic raw-write door"* (plan lines 38, 283). If that holds, then after painting
+frame N the presenter KNOWS the parent's margins, origin mode, autowrap, SGR and
+link state, because it put them there. Re-asserting on frame N+1 defends against a
+second writer the architecture says cannot exist. Either exclusivity holds and the
+re-assert is dead weight, or it does not and considerably more than the preamble is
+unsound.
+
+**It does not hold.** `hostty.Reservation` writes `SetRegion` and the DECSTBM reset
+to the same parent terminal, and `hostty/control.go:27` asserts that sequence
+*"lives here and only here"* while `terminal/render.go:35` and
+`history_render.go:313` both emit it. Two writers; the stated invariant is false.
+This is a finding in its own right and may deserve its own issue — the flicker is
+only how it surfaced.
+
+**Which is why M1 is carved out the way it is.** Nothing except `Render` writes
+cursor style, so making DECSCUSR conditional needs no exclusivity, no reconciliation
+and no new state — it is one comparison against `prev.Cursor`, which `Render`
+already holds as a parameter and already compares for dirtiness (`render.go:19`).
+If the blink test implicates the cursor, this alone plausibly closes the reported
+symptom. Everything else waits on M2 because deltaing margins while another writer
+can reset them behind you trades a subtle flicker for occasional real corruption.
+
+**Shape of the M3 state, when it comes.** Widen the existing pair — `confirmedModes`
++ `modesKnown` (`presenter.go:58,62`) — into a believed-parent-state struct covering
+region, origin mode, autowrap, SGR, link and cursor style, with one `known` flag.
+`parentModeDelta` (`:287`) is the template: return empty when unchanged, full
+re-assert when `!known`. Invalidate `known` on first paint, partial write, write
+failure and resize. The partial-write case is already contracted by #255's plan
+(*"retain the known accepted prefix and invalidate the rendered-screen cache"*) and
+`paintPublication` already commits `confirmedModes` only on success, so the
+discipline exists and only needs widening.
+
+**What stays per-frame.** The cursor hide/show pair (`?25l` … `?25h`). It exists so
+the caret is not seen crossing the screen during the paint, which is a real job. It
+becomes redundant only under BSU/ESU, where no intermediate state is presented at
+all — one of the reasons 2026 remains worth doing after the churn is gone, as M3's
+option rather than as the fix.
