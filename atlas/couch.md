@@ -247,8 +247,7 @@ manifest in one journal entry, so a crash cannot leave a record in both sets or
 neither. Restoring is that move reversed plus a manifest re-add -- `Snapshot`
 walks the manifest, so a restored file the manifest does not list stays
 invisible. It refuses a live/unknown helper or an open start/park transaction: archiving a record couch is
-hosting would leave the console owning a thread the store no longer lists, which
-is the stale-incarnation shape by construction. Exact helper-death proof permits
+hosting would leave the console owning a thread the store no longer lists. Exact helper-death proof permits
 reconciliation; unknown ownership still refuses destructive effects.
 
 Park cannot do the stopping and that is why Quiesce does: park drives a
@@ -580,14 +579,16 @@ re-derive it.
 
 **The projection is TOTAL** (`pair#181`): every record in the manifest becomes a
 row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
-a `ThreadReason` from one closed vocabulary -- `binding-lost`,
-`stale-incarnation`, `unrecorded-child`, `session-gone`, `never-started`,
-`invalid`, `path-missing`, `profile-missing`, `unsupported-agent`, `unknown`.
+a `ThreadReason` from one closed vocabulary -- `binding-lost`, `session-gone`,
+`never-started`, `invalid`, `unreadable`, `path-missing`, `profile-missing`,
+`unsupported-agent`, `unknown`. (`stale-incarnation` and `unrecorded-child` were
+retired by #256; see "Recoverability is a fact about the session" below.)
 Failing closed is unchanged -- an unproved row is not actionable and startup
 never selects it -- but it is expressed as a state rather than as absence. The
 IO shell (`gatherThreadEvidence`) resolves evidence and decides nothing;
-`ThreadEvidence` carries a `ProofStatus` per question, so "we asked and the
-answer was no" and "we could not ask" are different answers. Without that
+`ThreadEvidence` keeps "we asked and the answer was no" distinct from "we could
+not ask" -- as a `ProofStatus` for the parked proof, and as
+`SessionObservation`'s three-valued state for the session. Without that
 distinction one failed zellij query would assert `session-gone` on every
 detached row, and `session-gone` is a reason retirement acts on. `couch --list`
 and `--show` classify through the same function over the same evidence, with
@@ -960,10 +961,11 @@ view so a name does not change as the operator types.
 
 Automatic startup never adopts two neighbouring states, though both are
 listed. A session **attached elsewhere** yields no detached observation, so
-couch cannot steal it. A **stale `IncarnationLive` whose helper is no longer hosted** shows
-as `unusable/stale-incarnation`. The label makes no claim that the supervisor
-died. Explicit recovery rechecks helper/session ownership before effects
-(`pair#250`); startup does not infer a dead agent from that row.
+couch cannot steal it. A record whose recorded helper is no longer hosted is **no longer a state of its
+own**: since #256 the classifier does not consult the incarnation, so such a
+record shows as `detached` when its session survived -- which is the case #272
+was filed for -- and `session-gone` when it did not. Explicit recovery rechecks
+helper/session ownership before effects (`pair#250`).
 
 **Warm attachment and cold conversation resume use different evidence**
 (`pair#248`). Warm access requires the surviving session; cold resume requires

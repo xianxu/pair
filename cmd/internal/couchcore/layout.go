@@ -76,8 +76,9 @@ type LayoutConflict struct {
 // holdsSession reports the states whose zellij session is alive right now, and
 // whose layout couch therefore cannot change: asking a live session for a
 // different layout sends pair down the conflict path that offers to DELETE it
-// (#179). Busy is included because a park in flight can still fail, leaving the
-// session alive in its old layout.
+// (#179). Busy is included because a thread whose START is still in flight may
+// already have its zellij session up -- #256 changed what Busy means (a claimed
+// start, not a park in flight), and this arm holds for the new referent too.
 //
 // Parked is excluded deliberately -- park ends the session via the lifecycle
 // quit protocol, so a parked thread's next cold resume takes couch's layout

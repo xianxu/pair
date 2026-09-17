@@ -82,10 +82,13 @@ func TestUnresolvedIsTheZeroValue(t *testing.T) {
 	}
 }
 
-// TestAbsentBindingIsAbsentNotUnresolved keeps the two IO failures apart: a
-// thread with no row in the index HAS been asked about and has no session, while
-// a scope whose index could not be read has not been asked at all.
-func TestAbsentBindingIsAbsentNotUnresolved(t *testing.T) {
+// TestProjectionAnswersOnlyForBindingsItWasGiven pins the division of labour:
+// the PURE projector answers only for bindings handed to it, and the CALLER owns
+// the distinction between "no row in a readable index" (asked, absent) and
+// "scope unreadable" (never asked), because only the caller knows which
+// happened. That caller-side branch is covered against the production checker in
+// TestSessionPresenceAnswersThroughTheProductionChecker.
+func TestProjectionAnswersOnlyForBindingsItWasGiven(t *testing.T) {
 	address := presenceAddress("couch-0000000000000007")
 	got := ProjectSessionPresence(nil, []launcher.Session{{Name: "something", State: launcher.SessionLive}}, nil)
 	if state := got[address].State; state != SessionUnresolved {
@@ -310,5 +313,181 @@ func TestAbsentLiveEvidenceProvesNothing(t *testing.T) {
 		Session: SessionObservation{State: SessionUnresolved},
 	}); state != ThreadUnusable || reason != ReasonUnknown {
 		t.Fatalf("got %v/%q, want unusable/unknown — we could not ask, so nothing is settled", state, reason)
+	}
+}
+
+// TestUnknownLivenessNeverRetiresAnIncarnation is the fail-closed half of
+// re-adoption, and it was unpinned: the M1 boundary review mutation-checked
+// `!= Dead` into `== Live` and NOTHING failed across three packages.
+//
+// The guard's own comment says retiring an incarnation whose process is alive
+// "would abandon a running agent", and #256's Done-when states it directly --
+// Unknown observations cannot authorize destructive recovery. A rule that
+// expensive needs a test that fails when it is inverted.
+func TestUnknownLivenessNeverRetiresAnIncarnation(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		liveness   func(*FakeProcOps, int)
+		wantRetire bool
+	}{
+		// An unset pid is Dead to FakeProcOps -- the honest "no such process".
+		{"dead is the only proof that retires", func(p *FakeProcOps, pid int) {}, true},
+		{"unknown must not retire", func(p *FakeProcOps, pid int) { p.SetUnknown(pid) }, false},
+		{"live must not retire", func(p *FakeProcOps, pid int) { p.Set(pid, "tok") }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			record := actionableTestThread("couch-00000000000000d1", time.Unix(100, 0).UTC())
+			record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+			record.Incarnations = []ThreadIncarnation{{PID: 4242, Identity: "tok", State: IncarnationLive}}
+			created, err := store.CreateThread(record)
+			if err != nil {
+				t.Fatal(err)
+			}
+			proc := NewFakeProcOps()
+			tc.liveness(proc, 4242)
+
+			couch := &Couch{Threads: store, Proc: proc}
+			retired, err := couch.retireDeadIncarnationBeforeStart(created)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tc.wantRetire != (retired != nil) {
+				t.Fatalf("retired=%v, want %v", retired != nil, tc.wantRetire)
+			}
+			current, err := store.GetThread(created.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := len(current.Incarnations); tc.wantRetire == (got == 1) {
+				t.Fatalf("durable incarnations = %d with wantRetire=%v; an unprovable process must leave the record untouched", got, tc.wantRetire)
+			}
+		})
+	}
+}
+
+// TestParkedRowSurvivesAnUnresolvedSessionQuestion pins I1 from the M1 review.
+//
+// A parked thread's resume authority is DURABLE -- a verified park plus a
+// resolvable native id -- and does not depend on the session existing, because
+// park tore that session down on purpose. Refusing it because one
+// `list-sessions` failed would demote every parked row in the store at once.
+func TestParkedRowSurvivesAnUnresolvedSessionQuestion(t *testing.T) {
+	record := actionableTestThread("couch-00000000000000d2", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	markActionableParked(&record, record.LastActiveAt)
+	proof := []ParkedResumeObservation{{Address: record.Address, Agent: "claude", NativeID: "native-1"}}
+
+	for _, tc := range []struct {
+		name    string
+		session SessionState
+	}{
+		{"session answered absent", SessionAbsent},
+		{"session question failed", SessionUnresolved},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state, reason := ClassifyThread(record, ThreadEvidence{
+				Parked: proof, ParkedStatus: ProofResolved,
+				Session: SessionObservation{State: tc.session},
+			})
+			if state != ThreadParked {
+				t.Fatalf("got %v/%q, want parked — cold-resume authority does not depend on the session", state, reason)
+			}
+		})
+	}
+}
+
+// TestOrphanedParkDoesNotWedgeTheResumeChain is C1 from the M1 boundary review:
+// a regression this milestone INTRODUCED, and the fourth site of its own class.
+//
+// Re-adoption made a park-open record reachable for the first time, which made
+// RetireIncarnation's open-park precondition live. The chain was: classify →
+// detached, SelectResumableRoot ranks detached highest, DecideResume permits,
+// and then the store refuses with a raw error carrying no ResumeDiagnosticCode --
+// so startup, which only decorates coded refusals, wedged `couch` in that tree
+// entirely. Before M1 the record classified `busy` and startup spawned normally.
+//
+// This is #271's own live fixture: couch-e1a31510b7033d08 sat park-open for ~18
+// hours across restarts while its zellij session survived, because
+// `zellij delete-session` never ran.
+func TestOrphanedParkDoesNotWedgeTheResumeChain(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-e1a31510b7033d08", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{PID: 64734, Identity: "1789535173.46673", State: IncarnationLive}}
+	record.Park = wedgedParkFixture(record.Address)
+	record.Park.Identity.PID = 64734
+	record.Park.Identity.ProcessIdentity = "1789535173.46673"
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Advance the record past the park's own RecordRevision, which is what a
+	// park that has been sitting open across restarts looks like: AbandonPark
+	// writes at expectedRevision+1 and refuses to reuse a revision the
+	// transaction already claimed.
+	name := "brain"
+	bumped, err := store.ApplyThreadMetadata(created.Address, created.Revision, ThreadMetadataPatch{Name: &name})
+	if err != nil {
+		t.Fatal(err)
+	}
+	created = bumped
+
+	// The park's owner is the incarnation's process -- park copies it -- so the
+	// one probe that proves the incarnation dead proves the park orphaned too.
+	couch := &Couch{Threads: store, Proc: NewFakeProcOps()}
+	retired, err := couch.retireDeadIncarnationBeforeStart(created)
+	if err != nil {
+		t.Fatalf("an orphaned park still blocks re-adoption: %v", err)
+	}
+	if retired == nil {
+		t.Fatal("nothing was retired; the park-open record stayed occupied")
+	}
+	if retired.Park != nil {
+		t.Fatal("the orphaned park survived; RetireIncarnation would refuse the next attempt too")
+	}
+	if len(retired.Incarnations) != 0 {
+		t.Fatalf("incarnations = %d, want none — CommitStartClaim refuses a record that still has one", len(retired.Incarnations))
+	}
+}
+
+// TestResumeFailuresCarryADiagnosticCode is the other half of C1, and the more
+// general rule: startup decorates a refusal only when it carries a
+// ResumeDiagnosticCode (startup.go). A bare store error therefore reaches the
+// operator as an internal message with no next step, and refuses the whole tree.
+func TestResumeFailuresCarryADiagnosticCode(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-00000000000000d3", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{PID: 4242, Identity: "tok", State: IncarnationLive}}
+	record.Park = wedgedParkFixture(record.Address)
+	// A park owned by a DIFFERENT process than the incarnation: this probe
+	// cannot prove it dead, so the resume must refuse -- but legibly.
+	record.Park.Identity.PID = 4242
+	record.Park.Identity.ProcessIdentity = "tok"
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		next.Park.Attempts = append(next.Park.Attempts, ParkAttempt{Number: 2})
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := store.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stale revision: AbandonPark will refuse on the CAS.
+	stale.Revision = created.Revision
+
+	couch := &Couch{Threads: store, Proc: NewFakeProcOps()}
+	_, err = couch.retireDeadIncarnationBeforeStart(stale)
+	if err == nil {
+		t.Fatal("expected a refusal")
+	}
+	if ResumeDiagnosticOf(err) == "" {
+		t.Fatalf("refusal carries no diagnostic code: %v — startup cannot decorate it, so it wedges the tree", err)
 	}
 }

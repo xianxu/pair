@@ -19,8 +19,16 @@ type ActionableThreadState string
 const (
 	ThreadLive   ActionableThreadState = "live"
 	ThreadParked ActionableThreadState = "parked"
-	// ThreadBusy is a park transaction in flight: not actionable, but not
-	// broken either, and it resolves on its own.
+	// ThreadBusy is a START couch has claimed and not yet finished -- see
+	// startClaimed. It is NOT a park in flight: #256 removed `record.Park` from
+	// the classification path entirely, because a park whose owner died read
+	// "parking in progress" forever with no timeout and no owner check (#271).
+	//
+	// Its predecessor's doc said "it resolves on its own", which was the bug
+	// stated as a comment. A start claim does resolve -- reconcileInterruptedStarts
+	// runs at couch.New (couch.go) -- but a row that reads busy must still have
+	// an escape, because ReconcileStart deliberately keeps a claim occupied when
+	// its evidence is Unknown.
 	ThreadBusy ActionableThreadState = "busy"
 	// ThreadUnusable is a real thread the operator cannot act on right now.
 	// It always carries a ThreadReason.
@@ -312,19 +320,24 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil {
 		return ThreadUnusable, ReasonAgentUnsupported
 	}
-	switch evidence.Session.State {
-	case SessionPresent:
+	if evidence.Session.State == SessionPresent {
 		// The session outlived whatever hosted it. Reattaching is a fresh
 		// `pair resume` onto the surviving session; no cold-resume proof is
-		// needed, because nothing is being relaunched.
+		// needed, because nothing is being relaunched. Warm beats cold, so this
+		// stays above the park branch.
 		return ThreadDetached, ""
-	case SessionUnresolved:
-		// Not "no session" -- "we could not ask". The distinction is
-		// load-bearing: session-gone is archive-eligible.
-		return ThreadUnusable, ReasonUnknown
 	}
-	// Session absent. Below is COLD-RESUME authority: once the session is gone,
-	// nothing external says which conversation belonged to this thread.
+	// COLD-RESUME authority is DURABLE and does not depend on the session
+	// existing -- a parked thread's session was torn down on purpose. So it is
+	// consulted before the unresolved-session refusal below.
+	//
+	// Ordering the refusal first would mean one failed `list-sessions` demoted
+	// EVERY parked row in the store to `unusable/unknown`, despite their resume
+	// authority being intact. Fail-closed is right where the unknown answer
+	// could flip an actionable verdict into a destructive one; here the only two
+	// verdicts a session answer can produce for a verified-park record are
+	// `detached` and `parked`, both actionable, so refusing both is strictly
+	// worse than taking the durable one.
 	if record.VerifiedPark != nil {
 		switch {
 		case evidence.ParkedStatus == ProofUnresolved:
@@ -334,6 +347,11 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 		default:
 			return ThreadUnusable, ReasonBindingLost
 		}
+	}
+	if evidence.Session.State == SessionUnresolved {
+		// Not "no session" -- "we could not ask". The distinction is
+		// load-bearing: session-gone is archive-eligible.
+		return ThreadUnusable, ReasonUnknown
 	}
 	return ThreadUnusable, ReasonSessionGone
 }

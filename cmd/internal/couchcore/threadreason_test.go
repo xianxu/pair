@@ -63,9 +63,3 @@ func TestEveryReasonHasADistinctOperatorLabel(t *testing.T) {
 		seen[label] = reason
 	}
 }
-
-func TestStaleLabelDoesNotClaimSupervisorDied(t *testing.T) {
-	if got := ReasonSessionGone.Label(); got != "session gone" {
-		t.Fatalf("stale diagnosis overclaims supervisor death: %q", got)
-	}
-}

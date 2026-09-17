@@ -430,7 +430,9 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 	case couchcore.ThreadParked:
 		return withMenuAge("parked", now, thread.LastActiveAt)
 	case couchcore.ThreadBusy:
-		return "parking…"
+		// #256 changed the referent: busy is a START couch has claimed and not
+		// finished, never a park in flight.
+		return "starting…"
 	case couchcore.ThreadArchived:
 		return "archived"
 	}

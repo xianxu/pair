@@ -514,8 +514,10 @@ file or silently start an empty conversation. The actions show the retained
 checkpoint path and digest. Native resume of a parked conversation still needs
 its verified binding.
 
-Unknown ownership, active clients, and open start or park transactions leave a
-diagnostic instead of guessing that a process died. Once a stale helper is
+Unknown ownership and active clients leave a diagnostic instead of guessing that
+a process died. An open **park** transaction no longer decides anything: a park
+whose owner died used to read `parking…` forever, so the classification consults
+the session instead (`#256`). Once a stale helper is
 proved dead, explicit **archive** remains an escape even with an incomplete
 continuation: the archived record keeps the checkpoint and history. A live
 continuation source or target must be resolved first. Inspection and recovery
@@ -523,8 +525,9 @@ do not stop a surviving session; archive remains a separate confirmed action.
 
 Slow start/park/resume actions show local progress, and validation or operation
 failures remain in the switcher banner. Every thread in the store gets a row
-and says what it is: `live`, `detached`, `parked`, `parking…`, or a reason it
-cannot be entered — `binding lost — repairable`, `stale — helper ownership unresolved`, `session gone`, and so on. Nothing is hidden for want of proof;
+and says what it is: `live`, `detached`, `parked`, `starting…`, or a reason it
+cannot be entered — `binding lost — repairable`, `session gone`, `no saved
+launch`, and so on. Nothing is hidden for want of proof;
 `Enter` on a row it cannot act on explains instead of doing nothing, and
 `couch --list` / `couch --show` report the same population and the same states
 with more room to describe them.

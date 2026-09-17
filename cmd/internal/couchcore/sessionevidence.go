@@ -92,29 +92,16 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 		return out
 	}
 
-	live := make(map[string]bool, len(sessions))
-	ambiguous := make(map[string]bool, len(sessions))
-	for _, session := range sessions {
-		if session.Name == "" {
-			continue
-		}
-		if _, seen := live[session.Name]; seen {
-			ambiguous[session.Name] = true
-			continue
-		}
-		live[session.Name] = session.State != launcher.SessionExited
-	}
+	index := indexSessionsByName(sessions)
 
 	for _, binding := range bindings {
 		observation := SessionObservation{Name: binding.SessionName}
 		switch {
-		case binding.SessionName == "":
-			// A binding with no name answers nothing; the caller decides
-			// whether that means "no row" or "could not read".
+		case !uniquelyClaimed(binding.SessionName, claims, index):
+			// Either no name at all -- the caller decides whether that means
+			// "no row" or "could not read" -- or a name nobody can attribute.
 			observation.State = SessionUnresolved
-		case claims[binding.SessionName] != 1 || ambiguous[binding.SessionName]:
-			observation.State = SessionUnresolved
-		case live[binding.SessionName]:
+		case index.live[binding.SessionName]:
 			observation.State = SessionPresent
 		default:
 			// Listed and exited, or not listed at all. Both are the honest
@@ -125,4 +112,48 @@ func ProjectSessionPresence(bindings []SessionNameBinding, sessions []launcher.S
 		out[binding.Address] = observation
 	}
 	return out
+}
+
+// sessionNameIndex is one pass over a zellij snapshot: which names are live, and
+// which the snapshot contradicts itself about.
+type sessionNameIndex struct {
+	live      map[string]bool
+	ambiguous map[string]bool
+}
+
+// indexSessionsByName and uniquelyClaimed are the fail-closed rule the two
+// session projectors share.
+//
+// The read was extracted first (resolveScopedBindings); this is the RULE, and
+// leaving it copy-pasted was the other half of the same ARCH-DRY problem --
+// divergence between "is this name attributable" in the presence projector and
+// in the detached one would be silent, and both decide whether a thread is
+// recoverable or debris.
+func indexSessionsByName(sessions []launcher.Session) sessionNameIndex {
+	index := sessionNameIndex{
+		live:      make(map[string]bool, len(sessions)),
+		ambiguous: make(map[string]bool, len(sessions)),
+	}
+	for _, session := range sessions {
+		if session.Name == "" {
+			continue
+		}
+		if _, seen := index.live[session.Name]; seen {
+			// Two rows for one name: the snapshot contradicts itself, so that
+			// name proves nothing either way.
+			index.ambiguous[session.Name] = true
+			continue
+		}
+		index.live[session.Name] = session.State != launcher.SessionExited
+	}
+	return index
+}
+
+// uniquelyClaimed reports whether one session name identifies exactly one thread
+// AND appears once in the snapshot. Anything else is unattributable, and an
+// unattributable name must never decide a thread's fate: a name two addresses
+// claim would otherwise let couch resume a thread whose session belongs to
+// something else (#206).
+func uniquelyClaimed(name string, claims map[string]int, index sessionNameIndex) bool {
+	return name != "" && claims[name] == 1 && !index.ambiguous[name]
 }

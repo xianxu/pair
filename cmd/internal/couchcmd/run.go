@@ -768,7 +768,7 @@ func threadStateText(thread couchcore.ThreadSummary) string {
 	case couchcore.ThreadParked:
 		return "parked (no agent running; resumable)"
 	case couchcore.ThreadBusy:
-		return "parking in progress"
+		return "starting (couch claimed this start and has not finished it)"
 	case couchcore.ThreadArchived:
 		return "archived (restore by moving it back and re-adding the address)"
 	}

@@ -561,13 +561,47 @@ func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRe
 		// A start still in flight is couch's own operation, not debris.
 		return nil, nil
 	}
-	if observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Dead {
+	identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
+	if observeExactProcess(c.Proc, identity) != Dead {
 		return nil, nil
 	}
-	retired, err := c.Threads.RetireIncarnation(thread.Address, thread.Revision,
-		ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}, thread.LastActiveAt)
+	// An ORPHANED PARK blocks the retirement, so it has to go first.
+	//
+	// RetireIncarnation refuses while a park transaction is open -- correctly,
+	// since retiring the process a park is driving would strand it. But the park
+	// identity is COPIED from the incarnation (park.go, soleParkableIncarnation),
+	// so the probe above already proved the park's own owner dead. A park whose
+	// owner cannot come back is not "in progress"; it is debris in the way.
+	//
+	// This is the FOURTH site of the class, and it exists BECAUSE of the fix for
+	// the third: re-adoption made a park-open record reachable, so the store's
+	// open-park precondition became live. The enumeration is now: ClassifyThread,
+	// DecideResume, CommitStartClaim's caller, and this.
+	if thread.Park != nil {
+		if thread.Park.Identity.PID != identity.PID || thread.Park.Identity.ProcessIdentity != identity.Identity {
+			// A park owned by some OTHER process is not proved dead by this
+			// probe. Refuse with a diagnostic rather than a raw store error --
+			// startup only decorates refusals that carry a code, so a bare error
+			// here wedges `couch` in the tree with no next step.
+			return nil, refuseResume(ResumeParking, "park transaction is owned by a process this resume did not prove dead")
+		}
+		abandoned, err := c.Threads.AbandonPark(thread.Address, thread.Revision, thread.Park.Identity)
+		if err != nil {
+			return nil, refuseResume(ResumeParking, "orphaned park could not be abandoned: "+err.Error())
+		}
+		thread = abandoned
+	}
+	// Two writes, not one transaction. Benign because each is independently
+	// correct -- abandoning a park whose owner is dead, and retiring an
+	// incarnation whose process is dead, are both true regardless of the other --
+	// but they are NOT atomic, so a crash between them leaves a record with the
+	// park gone and the incarnation still present. The next resume repeats the
+	// retirement, which is why it is written to be safe to repeat.
+	retired, err := c.Threads.RetireIncarnation(thread.Address, thread.Revision, identity, thread.LastActiveAt)
 	if err != nil {
-		return nil, err
+		// Same reasoning as above: a store error with no diagnostic code reaches
+		// startup as an undecorated failure and refuses the whole tree.
+		return nil, refuseResume(ResumeNotRunning, "stale incarnation could not be retired: "+err.Error())
 	}
 	return &retired, nil
 }

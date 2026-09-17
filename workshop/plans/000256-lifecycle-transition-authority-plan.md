@@ -758,6 +758,48 @@ corrective. #272's corresponding Done-when transfers there.
 
 ## Revisions
 
+### 2026-09-17 — M1 boundary review, round 1 (REWORK)
+
+Ten findings, eight blocking. The two that change the plan rather than the code:
+
+- **The class has FOUR sites, not three.** `RetireIncarnation` refuses while a
+  park is open (`threadstore.go:551`), and the M1 re-adoption fix made a
+  park-open record reachable for the first time — so the store's precondition
+  went live and `couch` refused to start in that tree with a raw store message.
+  The reviewer reproduced it end to end. This is the instance-vs-class failure
+  ARCH-PURPOSE names: the Log enumerated three sites and stopped, and the fourth
+  became reachable *because of* the fix for the third. `retireDeadIncarnationBeforeStart`
+  now abandons an orphaned park when the same probe proves its owner dead — the
+  park identity is copied from the incarnation, so one probe answers both — and
+  every residual failure is wrapped in a `refuseResume` diagnostic, because
+  startup only decorates coded refusals.
+- **`ThreadBusy` is produced by a durable `ThreadStartClaim`, not an in-memory
+  observation.** The plan said *"ephemeral state stays ephemeral"* and the branch
+  table's row 3 says "(in-memory observation)". The code reads
+  `Incarnation.Start != nil` off the record. **Adopted, not reverted**: the
+  alternative is plumbing a second observation channel through `Couch.Spawn` and
+  the console for a value couch already writes down, and a start claim is
+  genuinely couch's record of its *own* operation rather than a claim about an
+  external process. The bound: `reconcileInterruptedStarts` runs at
+  `couch.New` (`couch.go:153`). The residual risk the reviewer names is real —
+  `ReconcileStart` keeps a claim occupied on Unknown evidence
+  (`starttransaction.go:186-210`), so such a record reads `busy` indefinitely —
+  and **M2's Task 4 is re-scoped accordingly**: its stated premise ("after Task 2
+  that row is no longer busy, so the branch is dead code") is false, so the busy
+  row needs an escape rather than a deletion.
+
+Also folded in, with mutation checks where the review found a guard unpinned:
+`SessionUnresolved` no longer masks a parked row's durable cold-resume authority
+(one failed `list-sessions` was demoting every parked thread in the store); the
+`Dead`-only re-adoption gate is now pinned by a test proven red under mutation;
+the production `SessionPresence` seam is tested through the stubbed-`zellij`
+harness, including the readable-vs-unreadable-scope branch that decides
+archive-eligibility, also mutation-proven; the shared fail-closed *rule*
+(`indexSessionsByName` + `uniquelyClaimed`) is extracted, the read having been
+extracted already; and the docs half of the boundary is finished — three atlas
+passages and two README claims still presented the retired vocabulary and the
+park-diagnostic behaviour as current.
+
 ### 2026-09-16 (fourth) — plan-quality gate, round 1
 
 Five findings; three blocking. All verified against current code before fixing.
