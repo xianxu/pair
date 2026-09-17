@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-15
 updated: 2026-09-16
-estimate_hours:
+estimate_hours: 5.44
 started: 2026-09-16T20:08:18-07:00
 ---
 
@@ -37,14 +37,223 @@ Make lifecycle transitions authoritative without flattening thread, native-sessi
 - Process/attachment errors and partial outcomes preserve evidence and lead to defined reconciliation behavior.
 - Composed lifecycle tests establish attachment loss does not imply session death and retain existing recovery guarantees; #253 and #255 outcome ownership is explicit.
 
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+Derivation, so the numbers can be checked rather than trusted:
+
+- **Step 2 — primitives.** Twenty-two, mapping to the plan's 14 tasks plus
+  operator verification and the boundary reviews. Most tasks are
+  *smaller-go-module*: they extend machinery that already exists and the plan
+  carries the code. Three are *cross-cutting-refactor* — Task 8 and Task 8a are
+  the same class applied at two call sites (archive, resume), Task 11 is the
+  mutation door across four packages. Two are *tui-screen*: **Task 2** because
+  its blast radius is the whole classifier plus every existing
+  stale-incarnation/busy test expectation (`couch_test.go` is 1747 lines,
+  `plan_contract_test.go` 1750), and Task 10 for the confirmation screen. Task
+  10's Step 0 is *scope-pivot*, because it is a measurement whose "no" answer
+  makes `#274` a mid-flight dependency.
+- **Step 2.5 — library availability.** N/A, stated rather than skipped: this is
+  routing between our own packages and querying a binary we already wrap. No
+  library short-circuits it.
+- **Step 3 — spec-quality discount ×0.2 on design.** Applied to every primitive.
+  The plan carries the branch table, file:line for every call site, the consumer
+  enumeration for each evidence producer, and full test bodies; it cleared
+  plan-quality in two rounds with three blocking findings resolved. Design hours
+  here are the cost of *reading* that, not making it.
+- **Step 4 — Method B.** Not used; every primitive matched the table.
+- **Step 5 — familiarity ×1.0.** Familiar territory: every symbol the plan names
+  has been read and verified against HEAD during planning, and both bugs have
+  live reproductions in the operator's store.
+- **Step 6 — buffer +15%**, the thorough-plan-doc case, not +30%.
+- **v3.1 scaling.** Each `impl=` is 40% of the v2 primitive-table implementation
+  hours. Design hours are unscaled.
+
+**Five `milestone-review` items for three boundaries.** `pair#265`'s close ran 3
+rounds and `#255` ran 5; budgeting one per boundary is the error the ledger keeps
+recording. Three boundary reviews plus two expected extra rounds.
+
+**Calibration note — recorded, not adopted.** The last nine pair closes with both
+figures run a **median estimate/actual ratio of 0.71** (0.15, 0.46, 0.63, 0.70,
+0.71, 0.97, 1.17, 1.27, 1.33), so this method currently lands ~1.4x low here.
+`#265`, the nearest v3.1 comparator in this same subsystem, estimated 1.70 and
+landed at 3.66 (ratio 0.46). Applying that bias would put this issue near 7.7h. I
+have **not** inflated the total to match — back-fitting to a predicted actual is
+exactly what the estimate-quality gate exists to catch, and the per-item hours
+above are the honest reading of the table. **If this closes above ~7h, the signal
+is the model's implementation scale, not this decomposition**; that is the number
+to check at close rather than explain away.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.06 impl=0.20
+item: tui-screen design=0.30 impl=0.32
+item: smaller-go-module design=0.02 impl=0.12
+item: smaller-go-module design=0.02 impl=0.08
+item: smaller-go-module design=0.03 impl=0.12
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: cross-cutting-refactor design=0.12 impl=0.16
+item: cross-cutting-refactor design=0.12 impl=0.16
+item: smaller-go-module design=0.04 impl=0.12
+item: smaller-go-module design=0.04 impl=0.16
+item: tui-screen design=0.16 impl=0.24
+item: scope-pivot design=0.06 impl=0.16
+item: cross-cutting-refactor design=0.16 impl=0.20
+item: atlas-docs design=0.03 impl=0.08
+item: ux-rename-iteration design=0.10 impl=0.12
+item: ux-rename-iteration design=0.10 impl=0.12
+item: milestone-review design=0.00 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+item: milestone-review design=0.00 impl=0.20
+design-buffer: 0.15
+total: 5.44
+```
+
 ## Plan
 
-- [ ] Revalidate the preserved audit findings against current code and coordinate #250/#253/#255.
-- [ ] Claim/start-plan and obtain approval for a durable lifecycle design and scoped implementation boundaries.
-- [ ] Implement named transitions and structured outcomes with production-boundary sequence/fault tests.
-- [ ] Verify, document ownership and close through SDLC.
+Rows are the milestones of the durable plan at
+`workshop/plans/000256-lifecycle-transition-authority-plan.md`.
+
+- [x] Revalidate the preserved audit findings against current code and coordinate #250/#253/#255. *(Done 2026-09-16: findings 2 and 4 confirmed against HEAD; finding 4's collapse is `actionableinventory.go:582`. Measured the process tree — see Log.)*
+- [ ] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion.
+- [ ] M2 — Make the operator's rows reachable (`DecideRecovery`'s park gate, the binding-absent hatch, the busy-row menu branch) and verify against real sessions.
+- [ ] M3 — Guards consume the classification; preserve Unknown on the destructive paths; archive confirms before stopping a live agent; close the arbitrary lifecycle-mutation door; atlas + lessons.
+
+Split out, both depending on this issue: **#275** (replace the park transaction
+with an ordered idempotent write) and **#276** (surface couch-tagged agents with
+no thread record — carries #272's corresponding Done-when).
 
 ## Log
+
+### 2026-09-16 — Over-engineering audit; re-cut around one rule
+
+Operator observation, which the plan is now built on:
+
+> if couch crash, since we know zellij is not affected, thus all threads'
+> essentially live, we should pick the default, that that state is recoverable,
+> not relying on clean "shutdown" signal. that shutdown seems to be cosmetic?
+
+Verified in code. `Detach` (`detach.go:91-99`) SIGTERMs the **launcher's** process
+group, waits for that pid, and clears the incarnation. The launcher is couch's own
+child; the zellij server is PPID 1. So **a clean detach and a couch crash leave
+identical external state** — the only difference is whether the bookkeeping ran,
+and today that difference is `detached` (recoverable, ranked highest) versus
+`stale` (debris). Same world, opposite verdicts. That is the whole family.
+
+The plan inverted from addition to deletion: the classifier stops reading
+`Incarnation` and `record.Park`. **One task now fixes both #271 and #272.**
+Four milestones → three, 18 tasks → 12. Dropped the re-adoption task (you do not
+re-adopt what you never disowned), cut `SessionObservation` from four states to
+three (under optimistic inventory the refresh can never emit the fourth), deleted
+`startInFlight` rather than narrowing it (a start in flight is couch-local
+in-memory knowledge, not durable state), and demoted three-valued liveness from a
+foundational milestone to one guard on the destructive paths.
+
+Split out rather than absorbed:
+
+- **#275** — replace the park transaction with an ordered idempotent write. Park's
+  one non-cosmetic property is that it is irreversible and ordered; that needs
+  ordering and idempotence, not phases, attempts, nonces and tombstones. #256 only
+  stops the *classifier* reading it.
+- **#276** — surface couch-tagged agents with no thread record. Needs a `repos/*`
+  enumeration, a new seam and fake, and a projection field, for a report-only row:
+  additive, not corrective. #272's corresponding Done-when transfers there.
+
+### 2026-09-16 — Operator cleanup; #272's primary fixture is gone
+
+The operator archived every thread not live-attached to the running couch: **17
+records → 7**, across 4 scopes, 40 archived. Verified no new orphan was created —
+`ArchiveThread`'s Quiesce-first ordering held, and every live `pair wrap` on the
+host maps to a remaining record, a direct (non-couch) `pair` session, or an
+orphan that predates the cleanup.
+
+Consequence for verification: the three muse threads with dead launchers and live
+agents — #272's headline evidence — were among the archived, so "eleven records
+carrying `recorded: live` with a dead pid" is **no longer reproducible**. That
+path now needs a built fixture (kill a couch while a thread runs) rather than an
+observed one.
+
+Still live and still recordless, and now the only standing #272 fixture:
+`couch-797c45e8e649a9bb` (📁parley-couch, `pair wrap` 84488) and
+`couch-2583ed61c0ab6ebe` (📁parley-couch-2, `pair wrap` 1130), both running since
+2026-08-30 with intact conversations couch cannot see.
+
+The two `brain` records remain the oddity and are the live fixtures for the M2
+work: `couch-3b82bfd593cac896` (dead incarnation, no session binding) and
+`couch-e1a31510b7033d08` (orphaned park, then the same wall). Tracing why the
+operator could not archive them found a gap the plan had missed — see the plan's
+new Task 8.
+
+### 2026-09-16 — Plan reviewed; the re-base alone was a regression
+
+Two fresh-context reviews over disjoint halves of the durable plan converged
+independently on one defect, which the plan would otherwise have shipped.
+
+**Re-basing liveness onto the session is only half the fix.** Reclassifying
+`#272`'s eleven records to `detached` does not make them reattachable:
+`DecideResume` (`resume.go:101`) refuses any record with an occupied incarnation,
+and all eleven carry a stale `live` one. Meanwhile `SelectResumableRoot` ranks
+`detached` **highest**, so startup auto-selects them, and `ProjectRecoveryChoices`'
+gate on `reason == ReasonStaleIncarnation` (`recovery.go:84`) stops matching — so
+the one gesture that works today disappears. Net: auto-selected, offered a resume
+that always fails, recovery removed. M3 now carries an explicit **re-adoption**
+task that retires the stale incarnation once the session proves survival.
+
+**The park branch needs no new observation channel.** `ParkIdentity` is copied
+from `soleParkableIncarnation` (`park.go:302`) — the process *being parked*,
+already probed by `ObserveRecordedProcesses`. The earlier reading (that
+`resumeShaped` starves the park branch of evidence) was wrong: `item.Live` is
+populated at `:455`, before that gate. So M1's Unknown plumbing is the entire fix
+and the proposed `observeParkOwners` would have duplicated an existing probe.
+
+Also corrected: `RecoverActiveParks` is already wired in production
+(`couchcmd/run.go:348`) over the identical record set, so the orphan rule lands
+there and the unused `ReconcileActiveParks` is deleted rather than wired; session
+*existence* is not `detached` (attached-elsewhere, and server-alive-agent-gone —
+`87464` 📁brain-couch-2 — both misclassify); and adding a `ThreadReason`
+hard-fails three guards that a task now owns.
+
+Milestones reordered: `#271` moves ahead of the liveness re-base. It is
+self-contained, needs only M1, unwedges `brain` soonest, and carries none of M3's
+risk. Full delta in the plan's `## Revisions`.
+
+### 2026-09-16 — Measured the lifetime that liveness should key to
+
+`#272` asked for measurement rather than assumption. Taken from the live process
+table with couch pid 65018 **still running**:
+
+```
+65018   61189    bin/couch
+66197   65018      pair resume couch-dbc88727c6378a0f --layout3   ← launcher
+66242   66197        zellij (client)
+66246       1    zellij --server … 📁brain-couch-26               ← PPID 1 AT BIRTH
+66247   66246      pair wrap → 66261 claude --session-id d16964c6-…
+```
+
+The zellij **server** is PPID 1 while couch is alive — it daemonized, it was not
+reparented. `pair wrap`, `pair term`, nvim and the agent are its children, not
+couch's. A couch death therefore kills exactly the launcher, the zellij client
+and `pair title`.
+
+So the liveness referent is the **zellij session**, not `pair wrap` as `#272`
+hypothesised: it is independent from birth rather than surviving by reparenting,
+it dominates `pair wrap` and the agent in lifetime, and it is the same entity
+`zellij list-sessions` already reports — which collapses "is the thread alive"
+and "is its session alive" into one question with one authority (ARCH-DRY).
+
+Corroborating orphans in the same snapshot: `84487` 📁parley-couch and `1127`
+📁parley-couch-2 (both PPID 1, live agents, no store record — `#272`'s
+unrecorded-child case); `87464` 📁brain-couch-2 (server alive, agent gone).
+
+Also confirmed the structural root of `#271`: `gatherThreadEvidence`'s
+`resumeShaped` gate (`actionableinventory.go:460`) excludes `record.Park != nil`
+from **every** evidence branch, so the park branch consults nothing because the
+shell gathers nothing for it.
 
 ### 2026-09-15 — Scope extracted from #255
 
