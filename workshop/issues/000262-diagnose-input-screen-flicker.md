@@ -36,10 +36,14 @@ there are two independent obligations. They do not correspond 1:1 — `Present`
 2026 still produces diffs that tear. A forward-what-was-wrapped design cannot
 express any of those.
 
-**Obligation 1 — emit (M1).** The presenter brackets its own write: BSU before the
-rendered diff, ESU after, around the `Render` → `write` pair at
-`presenter.go:336-341`, gated on the parent advertising the capability. This is the
-half that should stop the operator-visible flicker.
+**Obligation 1 — emit (M1). SHARPENED 2026-09-16 — see the "why GLOBAL" Log
+entry.** The global component is NOT the diff tearing; it is the fixed
+preamble/postamble `Render` emits on every frame (`render.go:35`, `:85-92`):
+`\x1b[r` (DECSTBM reset), a cursor hide/show pair, and DECSCUSR re-issued with its
+blink bit, which resets the caret's blink phase. Preferred repair is to emit that
+state ON CHANGE rather than per frame — the `parentModeDelta` pattern
+(`presenter.go:287`) already in this file. Bracketing the write in BSU/ESU is the
+fallback: it masks every intermediate state, but does not remove the cause.
 
 **Obligation 2 — ingest (M2).** `Endpoint.capturePublication`
 (`endpoint.go:242`) publishes unconditionally while the child's 2026 bit is tracked
@@ -452,3 +456,66 @@ it and the emit-side bracket is mandatory.
 - Check nesting under zellij. Couch hosts a zellij client that may itself bracket to
   the real terminal; 2026 nesting is handled inconsistently across implementations.
   Verify before shipping rather than assuming counters.
+
+### 2026-09-16 — why GLOBAL: the per-frame preamble, not the diff
+
+Operator challenge: *"if synchronization was the issue, why is the effect global?"*
+Correct objection — a one-keystroke diff is a couple of cells, and tearing that
+would be local and imperceptible. The answer is that the diff is not what carries
+the global effect. `Render` (`cmd/internal/terminal/render.go:15`) wraps EVERY
+frame in a constant-size preamble and postamble of WHOLE-SCREEN state, regardless of
+how small the diff is.
+
+Preamble, `render.go:35`, emitted on every dirty frame:
+
+```
+\x1b[?25l  \x1b[?6l  \x1b[r  \x1b[?7l  \x1b[0m  \x1b]8;;\x1b\\
+```
+
+Postamble, `render.go:85-92`:
+
+```
+\x1b[<N> q        (DECSCUSR — cursor shape AND blink; `if next.Cursor.Blink { code-- }`)
+\x1b[?25h         (when the cursor is visible)
+```
+
+Three of those are global per-frame state changes that a small diff does not
+justify:
+
+1. **`\x1b[r` — DECSTBM reset to full screen, every frame.** Whole-screen scrolling
+   state. Note this also contradicts `hostty/control.go:27`'s stated invariant that
+   *"`\x1b[r` lives here and only here"* — `terminal/render.go:35` and
+   `history_render.go:313` both emit it. Worth reconciling regardless of this issue.
+2. **Cursor hidden and re-shown every frame** (`?25l` … `?25h`).
+3. **DECSCUSR re-issued every frame**, carrying the blink bit. On most terminals
+   re-issuing it RESETS THE BLINK PHASE.
+
+(3) is the best fit for "global and very subtle", and it explains the quiet-screen
+correlate better than tearing does: on a sparse stream each frame restarts the
+caret's blink timer, so the cursor blinks irregularly — a small, global, non-
+corrupting disturbance. Under heavy output frames are back-to-back, so the cursor
+spends most of its time hidden between `?25l` and the next `?25h` and there is no
+blink to disturb.
+
+**Consequences for the Spec.**
+
+- The framing "an unsynchronized diff tears" is DEMOTED. The diff is dirty-gated
+  (`render.go:29-31` early-returns when nothing changed) and small. The global
+  component is the fixed preamble/postamble.
+- **Synchronized output remains a valid remedy** — BSU/ESU would stop every
+  intermediate state above from being presented — but it is now the SECOND-choice
+  fix, because it masks the symptom rather than removing the cause.
+- **The better fix is to stop re-emitting invariant global state per frame.**
+  `\x1b[r`, `?6l`, `?7l` and DECSCUSR are unchanged across almost every frame. The
+  file already has the pattern: `parentModeDelta` (`presenter.go:287`) returns `""`
+  when nothing changed. The preamble simply does not use it. Emit on change, not
+  per frame.
+
+**New free test, better than the bare-shell one:** disable cursor blink in Ghostty
+(`cursor-style-blink = false`) and see whether the flicker stops or changes
+character. If it does, (3) is implicated and the repair is the delta, not the
+bracket. Costs one config line and a restart.
+
+This supersedes the tearing mechanism in the 2026-09-16 H3 entry. The #255 origin
+story is UNCHANGED and still holds — before #255 pair emitted no per-frame preamble
+at all, because it was not authoring frames.
