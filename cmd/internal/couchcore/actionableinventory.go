@@ -92,6 +92,15 @@ const (
 type ThreadEvidence struct {
 	// Live is this console's proof that it hosts the recorded process.
 	Live []ProcessIdentity
+	// Session is this thread's zellij session: present, absent, or unresolved.
+	// Unlike Parked/Detached it needs no separate status field -- its zero value
+	// IS unresolved, so a record no gather branch reached cannot claim absence.
+	//
+	// Gathered for EVERY record, including ones carrying an incarnation or an
+	// open park. That is the difference #256 turns on: the resume-shaped gate
+	// below meant a record with an incarnation was never asked about its
+	// session, so the evidence that its agent survived was never collected.
+	Session SessionObservation
 	// Parked and Detached are the two resume proofs, each with the status of
 	// the question that produced it.
 	Parked         []ParkedResumeObservation
@@ -547,6 +556,26 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 				item := evidence[observation.Address]
 				item.Detached = append(item.Detached, observation)
 				evidence[observation.Address] = item
+			}
+		}
+	}
+	// Session presence for EVERY record, not only the resume-shaped ones. One
+	// host-wide `list-sessions`, no `list-clients` -- see SessionPresence for
+	// why that is both affordable and sufficient here.
+	//
+	// A resolver that is absent or fails leaves every observation at its zero
+	// value, which is unresolved. That is the honest degraded answer: couch
+	// could not look, so no thread is told its session is gone.
+	if presenceResolver, ok := c.Artifacts.(SessionPresenceResolver); ok && len(snapshot.Records) > 0 {
+		addresses := make([]ThreadAddress, 0, len(snapshot.Records))
+		for i := range snapshot.Records {
+			addresses = append(addresses, snapshot.Records[i].Address)
+		}
+		if presence, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil {
+			for address, observation := range presence {
+				item := evidence[address]
+				item.Session = observation
+				evidence[address] = item
 			}
 		}
 	}

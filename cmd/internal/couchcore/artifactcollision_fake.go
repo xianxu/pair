@@ -44,6 +44,57 @@ type FakeThreadArtifactCollisionChecker struct {
 	// DetachedSessionsHook lets a test fail the observation, or interleave a
 	// durable change at the moment the projector asks who is detached.
 	DetachedSessionsHook func([]ThreadAddress) error
+
+	sessionPresence map[ThreadAddress]SessionObservation
+	// presenceQueries counts SessionPresence calls, mirroring detachedQueries:
+	// #256 gathers presence for EVERY record, so "one host-wide call, not one
+	// per record" is a budget a test must be able to pin rather than trust.
+	presenceQueries int
+	// SessionPresenceHook lets a test fail the observation. A failure must leave
+	// every thread UNRESOLVED, never "no session".
+	SessionPresenceHook func([]ThreadAddress) error
+}
+
+// SetSessionPresence declares what the host's zellij sessions say about one
+// address. An address never set is absent from the answer, so it reads the zero
+// value -- unresolved -- which is what an unasked question must look like.
+func (f *FakeThreadArtifactCollisionChecker) SetSessionPresence(address ThreadAddress, observation SessionObservation) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessionPresence == nil {
+		f.sessionPresence = map[ThreadAddress]SessionObservation{}
+	}
+	f.sessionPresence[address] = observation
+}
+
+// SessionPresenceQueries is the IO budget: how many times the host was asked.
+func (f *FakeThreadArtifactCollisionChecker) SessionPresenceQueries() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.presenceQueries
+}
+
+func (f *FakeThreadArtifactCollisionChecker) SessionPresence(ctx context.Context, addresses []ThreadAddress) (map[ThreadAddress]SessionObservation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	f.presenceQueries++
+	f.mu.Unlock()
+	if hook := f.SessionPresenceHook; hook != nil {
+		if err := hook(addresses); err != nil {
+			return nil, err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make(map[ThreadAddress]SessionObservation, len(addresses))
+	for _, address := range addresses {
+		if observation, ok := f.sessionPresence[address]; ok {
+			out[address] = observation
+		}
+	}
+	return out, nil
 }
 
 type nativeBindingKey struct {

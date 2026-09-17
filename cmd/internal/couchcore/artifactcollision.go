@@ -276,6 +276,120 @@ type DetachedCandidate struct {
 // this rule exists to prevent. Its rows still count as claims where another read
 // saw them. Pinned by TestDetachedSessionsBindsNothingForAnUnreadableScope. A
 // snapshot failure is returned, because that one IS the whole answer.
+// resolveScopedBindings reads each requested scope's session-name index ONCE and
+// returns the {address -> session name} bindings it established, plus the
+// effective binding map the claim count derives from.
+//
+// Extracted so the two session questions -- detached (needs clients) and
+// presence (existence only) -- read the index the same way. Splitting the
+// QUESTION without splitting the READ is what would let them disagree about
+// which name a thread is bound to (ARCH-DRY).
+//
+// Index reads fail closed per scope: a scope whose index cannot be read binds
+// none of its threads -- not even from legacy rows another scope's read
+// replayed, because the unreadable file may hold a NEWER row that supersedes
+// them, and judging a thread by a name it has left is the wrong-answer failure
+// this rule exists to prevent. Its rows still count as claims where another read
+// saw them.
+func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.Context, addresses []ThreadAddress, agentOf func(ThreadAddress) string) ([]SessionNameBinding, map[ThreadAddress]string, error) {
+	byScope := make(map[string][]ThreadAddress, len(addresses))
+	var scopes []string
+	for _, address := range addresses {
+		if err := validateThreadAddress(address); err != nil {
+			return nil, nil, err
+		}
+		if _, seen := byScope[address.RepoScope]; !seen {
+			scopes = append(scopes, address.RepoScope)
+		}
+		byScope[address.RepoScope] = append(byScope[address.RepoScope], address)
+	}
+
+	var reads []scopedIndexRead
+	readable := make(map[string]bool, len(scopes))
+	for _, scope := range scopes {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+		scoped := byScope[scope]
+		paths, err := artifactpath.Resolve(artifactpath.Address{
+			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
+		if err != nil {
+			continue
+		}
+		reads = append(reads, scopedIndexRead{scope: scope, index: index})
+		readable[scope] = true
+	}
+	// One derivation of "this thread's current session name", used for both the
+	// binding and the claim count, so the name a thread is judged by and the
+	// name its claim is counted under are the same value by construction rather
+	// than by two lookups agreeing.
+	current := effectiveBindings(reads)
+
+	var bindings []SessionNameBinding
+	for _, scope := range scopes {
+		if !readable[scope] {
+			continue // fail closed: see the reach rule above
+		}
+		for _, address := range byScope[scope] {
+			name := current[address]
+			if name == "" {
+				continue
+			}
+			binding := SessionNameBinding{Address: address, SessionName: name}
+			if agentOf != nil {
+				binding.Agent = agentOf(address)
+			}
+			bindings = append(bindings, binding)
+		}
+	}
+	return bindings, current, nil
+}
+
+// SessionPresence answers EXISTENCE for every supplied address from one
+// host-wide liveness snapshot.
+//
+// Liveness, not a full snapshot: present is "listed and not exited", so no
+// session is asked for its clients. That is what makes this affordable for every
+// record rather than only the resume-shaped ones -- a `list-clients` costs about
+// 250 ms against a real detached session (#228), and #256 needs a session answer
+// for records carrying an incarnation, which is exactly the set the detached
+// question was never asked about.
+//
+// The attached-versus-detached distinction stays with DetachedSessions, which the
+// ACTION path uses and which `RequireAttachState` guards. A thread whose session
+// someone else attached to reads present here and is refused at the action, which
+// is the deliberate optimistic-inventory trade.
+//
+// A scope whose index could not be read contributes no binding, so its threads
+// are absent from the result and read UNRESOLVED -- never "no session".
+func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Context, addresses []ThreadAddress) (map[ThreadAddress]SessionObservation, error) {
+	if len(addresses) == 0 {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	bindings, current, err := c.resolveScopedBindings(ctx, addresses, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(bindings) == 0 {
+		// Asked, and nothing is bound. An empty map is a RESOLVED answer for
+		// nobody: every address reads the zero value, which is unresolved.
+		return map[ThreadAddress]SessionObservation{}, nil
+	}
+	sessions, err := c.Zellij.LivenessContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("observe zellij sessions: %w", err)
+	}
+	return ProjectSessionPresence(bindings, sessions, claimsFromBindings(current)), nil
+}
+
 func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
 	addresses := make([]ThreadAddress, 0, len(candidates))
 	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))
@@ -289,59 +403,11 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	byScope := make(map[string][]ThreadAddress, len(addresses))
-	var scopes []string
-	for _, address := range addresses {
-		if err := validateThreadAddress(address); err != nil {
-			return nil, err
-		}
-		if _, seen := byScope[address.RepoScope]; !seen {
-			scopes = append(scopes, address.RepoScope)
-		}
-		byScope[address.RepoScope] = append(byScope[address.RepoScope], address)
-	}
-
-	var bindings []SessionNameBinding
-	// Every read is kept, so claims can be counted ONCE over their union rather
-	// than summed per read -- see effectiveBindings for why summing was wrong.
-	var reads []scopedIndexRead
-	readable := make(map[string]bool, len(scopes))
-	for _, scope := range scopes {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		scoped := byScope[scope]
-		paths, err := artifactpath.Resolve(artifactpath.Address{
-			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
-		})
-		if err != nil {
-			return nil, err
-		}
-		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
-		if err != nil {
-			continue
-		}
-		reads = append(reads, scopedIndexRead{scope: scope, index: index})
-		readable[scope] = true
-	}
-	// One derivation of "this thread's current session name", used for both the
-	// candidate's own binding and the claim count, so the name a candidate is
-	// judged by and the name its claim is counted under are the same value by
-	// construction rather than by two lookups agreeing.
-	current := effectiveBindings(reads)
-	for _, scope := range scopes {
-		if !readable[scope] {
-			continue // fail closed: see the reach rule above
-		}
-		for _, address := range byScope[scope] {
-			if name := current[address]; name != "" {
-				candidate := proof[address]
-				bindings = append(bindings, SessionNameBinding{
-					Address: address, SessionName: name,
-					Agent: candidate.Agent,
-				})
-			}
-		}
+	bindings, current, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
+		return proof[address].Agent
+	})
+	if err != nil {
+		return nil, err
 	}
 	if len(bindings) == 0 {
 		return nil, nil
