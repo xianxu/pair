@@ -224,6 +224,39 @@ compares addresses and would be safe earlier, but moving the gate would change
 the shared function for every caller — recorded as the knob to turn if this ever
 matters, not turned speculatively.
 
+**M2's operator verification — RUN 2026-09-17, two of three items satisfied.**
+
+1. **The two wedged `brain` rows archive from the switcher. ✓** Both moved to
+   `threadstore/archive/2e51fcf9799b1d8f/`: `couch-e1a31510b7033d08` (the #271
+   open park, owner pid 64734 ESRCH) and `couch-3b82bfd593cac896` (the #273
+   fresh-spawn shape, no session-name binding). These are the records that had
+   been unarchivable since 2026-09-16 and the reason this issue was cut.
+   *Outstanding half:* whether a fresh start still mints an orphan per attempt
+   (#273 saw three, one per attempt) — needs a few starts to observe.
+
+2. **#272's fixture, built rather than waited for. ✓** The running couch had been
+   up since 2026-09-16 16:26 — before M1 — so its threads carried exactly the
+   stale-launcher records this issue is about. It was killed with SIGTERM (couch
+   traps it and simply returns 0; it writes no detach bookkeeping, so from the
+   threads' point of view this IS the crash case). Every live thread came back:
+   `couch --list` on the new binary shows `tools`, `parley.nvim`, `ariadne`,
+   `pair` and one `brain` as `live` with fresh launcher pids, i.e. couch
+   reattached them at startup rather than declaring them debris. On the old
+   binary this is precisely the state that read `stale — helper ownership
+   unresolved`.
+
+   Worth recording: `brain·b7033d08` classified **`parked (no agent running;
+   resumable)`** before it was archived — M2 made that row *recoverable*, not
+   merely archivable, because its ledger still resolved a conversation. The
+   operator archived it anyway, which is a legitimate choice; the record is in
+   `archive/` and `RestoreThread` exists if that conversation is ever wanted.
+
+3. **M2's new producer via `zellij kill-session`. OUTSTANDING**, owner: the
+   operator. Kill a live thread's session out from under couch and confirm the
+   row reads `parked` rather than `session-gone`, that Enter cold-resumes into
+   the same conversation, and that `switch-agent` on it succeeds — the last is
+   BR-33's own shape and the least exercised outside tests.
+
 **M2's operator verification is DEFERRED, owner: the operator.** Three items in
 the plan need a live couch and cannot be discharged by the suite:
 
