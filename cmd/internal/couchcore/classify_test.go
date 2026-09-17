@@ -486,7 +486,13 @@ func couchWithOneRecordOfEveryShape(t *testing.T) (*Couch, []ThreadAddress) {
 
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetNativeBinding(parkedRecord.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	// A prober that answers. Without one, #256 M3 reads every recorded process
+	// as UNPROVEN and the `stale` shape above classifies `unknown` -- an honest
+	// answer to "couch cannot probe", and a fixture that quietly stops covering
+	// the shape it was built for. The fake's table is empty, so pid 4242 is
+	// proved Dead, which is what "a record claiming an incarnation that no
+	// console hosts" was always meant to model.
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
 	return couch, addresses
 }
 

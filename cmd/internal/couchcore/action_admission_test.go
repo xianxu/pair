@@ -282,3 +282,43 @@ func TestRetirementTransitionsTakeExactlyTheStateTheyName(t *testing.T) {
 		}
 	}
 }
+
+// ARCH-CONSTRAINTS. Consuming the classification put a whole evidence round
+// behind an operator keypress, so the bill is counted rather than assumed --
+// the same counted-invariant shape M1 used for the refresh, because a timing
+// number cannot fail a build and a call count can.
+//
+// The one that matters is `list-clients`: ~250 ms per detached session (#228),
+// and it must stay at zero here. Archive re-observes attach state through its
+// own DecideRecovery path when it needs to, on the single thread the operator
+// pressed Enter on; the classification must not add a second fan-out.
+//
+// The ledger read is bounded by classifyForAction's `ask` predicate to the one
+// address, which is what stops it scaling with the store -- the known gap M2
+// recorded for the REFRESH's cold side does not apply to this path.
+func TestArchivePaysOneEvidenceRoundAndNoClientQuery(t *testing.T) {
+	couch, addresses := couchWithOneRecordOfEveryShape(t)
+	artifacts, ok := couch.Artifacts.(*FakeThreadArtifactCollisionChecker)
+	if !ok {
+		t.Fatalf("fixture artifacts are %T", couch.Artifacts)
+	}
+	presence, candidates, ledger :=
+		artifacts.SessionPresenceQueries(), artifacts.DetachedCandidatesAsked(), artifacts.BindingResolutions()
+
+	// couch-0000000000000006: a saved profile, no incarnation, no park, no
+	// session -- the archivable shape, so the whole path runs to completion
+	// rather than stopping at a refusal and under-counting.
+	if _, err := couch.ArchiveThread(context.Background(), addresses[5]); err != nil {
+		t.Fatalf("archive: %v", err)
+	}
+
+	if got := artifacts.SessionPresenceQueries() - presence; got != 1 {
+		t.Errorf("host-wide list-sessions = %d, want 1: one round for the classification", got)
+	}
+	if got := artifacts.DetachedCandidatesAsked() - candidates; got != 0 {
+		t.Errorf("list-clients candidates = %d, want 0: ~250 ms each, and the classification needs none", got)
+	}
+	if got := artifacts.BindingResolutions() - ledger; got != 1 {
+		t.Errorf("ledger reads = %d, want 1: the ask predicate narrows this to the one address", got)
+	}
+}

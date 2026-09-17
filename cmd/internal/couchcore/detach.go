@@ -398,10 +398,16 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	return ArchiveResult{Record: record, SessionNotStopped: readErr != nil}, nil
 }
 
-// archiveRefusal says what to DO about a row archive will not take, and it is
-// called only for a classification ArchivableState refuses -- so its arms are
-// exactly `live`, `busy`, `archived` and `unusable/unknown`, pinned by
-// TestArchiveRefusalCoversEveryRefusedClassification.
+// archiveRefusal says what to DO about a row archive will not take. It is called
+// only for a classification ArchivableState refuses, and only for one
+// ClassifyThread can produce -- so its arms are `live`, `busy` and
+// `unusable/unknown`, pinned by TestArchiveRefusalCoversEveryRefusedClassification.
+//
+// `archived` gets no arm of its own on purpose. The classifying projection never
+// emits it (TestProjectionNeverProducesArchived), and a specially worded message
+// for a state production cannot reach is the drift that once gave `invalid` a
+// label, an Enter notice and an archive exit no real store could produce. The
+// default says the true thing for it.
 //
 // Guidance lives here, at the consumer, rather than as a field every producer
 // carries (#256 M1, round 3): the classification says what the thread IS, and
@@ -412,8 +418,6 @@ func archiveRefusal(state ActionableThreadState, reason ThreadReason) string {
 		return "it is live -- couch is hosting its agent; detach or park it first"
 	case ThreadBusy:
 		return "it is busy -- a start is in flight; let it finish or be released"
-	case ThreadArchived:
-		return "it is archived already"
 	case ThreadUnusable:
 		return "its state is unresolved (" + reason.Label() + "); nothing is known well enough to stop it, so retry"
 	}

@@ -130,6 +130,109 @@ no thread record — carries #272's corresponding Done-when).
 
 ## Log
 
+### 2026-09-17 — M3: the guards read one authority, and two rows could never leave
+
+M3's six tasks were checked against the tree before starting, the way M2's were,
+and **three premises had moved** — all in the same direction, because M2 changed
+the layer each task was written against. The re-derivation is in the plan's
+`## Revisions`; the short form:
+
+| Task | Premise | Tree |
+|---|---|---|
+| 8 | the menu should consume `ArchivableState` | It must not. M2's round-4 finding, written *after* the plan: filtering the offer through the guard makes offered-implies-permitted true by construction. The offer stays hand-written; only the guard consumes; the table compares. |
+| 8a | `DecideResume` should consume the classification | It would pay a second whole evidence round for a question it has already answered from its own strict evidence (ARCH-CONSTRAINTS). `ResumableState` answers at the classification layer, consumed by `SelectResumableRoot`. |
+| 9 | `ObserveRecordedProcesses`' consumers are `DecideRecovery` and archive | False — its only consumer is `gatherThreadEvidence`. Every destructive write already fails closed on `Unknown`. |
+
+**Task 9's defect is real, and it is Task 8's class reached through the evidence
+instead of the vocabulary.** A probe that could not answer and one that proved
+the process dead produced the same silence, and since M1 that silence falls
+through to the session — so an unreadable process could land its row on
+`session-gone`, an archive-eligible row, with its helper possibly still running.
+Press archive and `observeRecovery` probes the same process, gets `Unknown`, and
+`DecideRecovery` refuses. Offered and always refused, which is the invariant the
+action table exists to forbid.
+
+**Two defects the work found rather than confirmed.** Both are the shape #271 and
+#272 were, and neither was in the plan:
+
+1. **Archive could kill a thread couch was hosting.** Since M1 couch's own
+   hosting is the live proof, so a hosted thread can carry no incarnation at all
+   — and `archivableRecord` asked only the record, so that row passed the
+   occupancy rule and went straight to `Quiesce`. The test that fails without the
+   fix builds exactly that shape. This is the mirror of BR-33's switch-agent
+   fail-open, one action over.
+2. **A record whose incarnation is `unknown` could never be archived.**
+   `markLiveRecordUnknown` produces it whenever a start reaches a live helper and
+   the console attach then fails; that helper is couch's own child, so it always
+   dies, and the row then classifies `detached`/`parked`, offers archive, and
+   `clearLifecycleDebris` refuses every press. `RetireIncarnation` is *right* to
+   refuse an unproven incarnation — detach holds no death proof — so the fix is a
+   second named transition for the caller that does hold one, not a wider first.
+
+**A correction of my own, recorded because I nearly built on it.** I read
+`RetireIncarnation` as accepting `unknown` and wrote that into the opening
+revision as a stale-claim finding. That was `FinalizePark` at the adjacent line.
+`RetireIncarnation`'s refusal is deliberate and documented. The revision carries
+the correction rather than the original.
+
+**Task 10 Step 0, measured rather than reasoned about.** The plan said to
+establish what `Quiesce` actually reaps before wording the confirmation. Two runs,
+zellij 0.45.1, throwaway sessions, one variable — the SIGHUP disposition of the
+launching shell:
+
+| Launching shell | Pane child after `zellij delete-session --force` |
+|---|---|
+| default | **gone** |
+| `trap '' HUP` | **alive**, reparented to PID 1 |
+
+Within the first run a `trap '' HUP` child survived while its default-disposition
+sibling died, so the reaping mechanism is **SIGHUP to the pane's foreground
+process group** — not SIGKILL, not a zellij-side sweep. That is also **#274's
+leading hypothesis, proved**, and its `## Log` now carries the measurement and
+its first Plan item narrows to finding the origin. Archive's confirmation names
+the running agent and says it MAY survive; #274 owns making that a promise.
+
+**The mutator door, and why the guard is receiver-scoped.**
+`UpdateExistingThread` took an arbitrary callback: CAS, immutable-field checks and
+final validation all passed three production callers writing unauthorized
+lifecycle fields, because those protect a *coherent* record and none requires an
+*authorized* change. All three leaks were in package `couchcore` and two in the
+store's own directory, so a package- or sibling-package-scoped guard could not
+see them. The authority boundary is the **receiver**, so that is what the AST
+guard checks, plus a derived rule that no exported `*ThreadStore` method takes a
+record mutator — the class, not the name.
+
+**One review rule stayed a review rule, and that was measured too.** The M2
+reviewer asked for *a test named for a production entry point must invoke it* as
+a checked step. I tried to mechanize it: matching test names against declared
+identifiers produced **50 reports in `couchcore` alone**, nearly all partial-word
+noise (`Registered` inside `Registration`, `Operations` inside
+`ContinuationOperations`). A guard that cries wolf is worse than none, so it is a
+lesson rather than a check. Its sibling — *a guard's test discriminates that
+guard's own exit, by code or message, never a bare `err != nil`* — was applied to
+every refusal assertion M3 added, each marked `DISCRIMINATING:` at the site.
+
+**A fixture that had quietly stopped covering its shape.**
+`couchWithOneRecordOfEveryShape` builds a Couch with no `Proc`. Under Task 9 that
+is honest ignorance, so its `stale` record — *"a record claiming a live
+incarnation that no console hosts"* — began classifying `unknown` instead of
+`session-gone`, and every test over that corpus stayed green while covering one
+shape less. It now gets a prober whose table is empty, which is what the comment
+always described.
+
+**Costs, counted rather than asserted.** Consuming the classification puts an
+evidence round behind an operator keypress, so `TestArchivePaysOneEvidenceRoundAndNoClientQuery`
+bounds it: **1 host-wide `list-sessions`, 0 `list-clients`, 1 ledger read** per
+`Couch.ArchiveThread` on the 6-record fixture. The `list-clients` zero is the one
+that matters (~250 ms each, #228); the ledger read is held at one by
+`classifyForAction`'s `ask` predicate, so the cold-side growth M2 recorded as a
+known gap for the REFRESH does not apply to this path.
+
+**A pre-existing flake, measured so it is not mistaken for this work.**
+`couchtty.TestConsoleRunRootEscapeClearsFilterThenReplaysActor` fails about 1 run
+in 7: **3/20 on the unchanged tree, 2/20 on this one**. It is not in M3's scope
+and is not caused by it.
+
 ### 2026-09-17 — M2: what the tasks turned out to be
 - 2026-09-17: closed M2 — Both wedged brain rows archive; a driverless start claim no longer wedges a row at "starting..."; the ledger, not the park receipt, decides cold resumability; and every switch-agent layer -- menu offer, guard admission, and execution -- now branches on the classification rather than re-deriving it, pinned by 4 producers x 3 actions driven to completion plus an offered-implies-permitted table over AllThreadStates x AllThreadReasons. The plan Core-concepts tables are machine-checked by TestIssue256PlanTablesMatchTheTree rather than asserted. go test ./... green (88 packages, 71 ok, 17 no-test-files, 0 failures); every guard mutation-checked, including the two the reviewer proved unpinned. Action-path cost measured on that path. Operator verification deferred with an owner in ## Log. test-changelog fails pre-existing, reproduced on origin/main under env -i.; review verdict: FIX-THEN-SHIP
 

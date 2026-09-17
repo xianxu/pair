@@ -31,6 +31,7 @@ func TestActionOfferedImpliesPermitted(t *testing.T) {
 		{"archive", couchcore.ArchivableState},
 		{"resume", couchcore.ResumableState},
 	}
+	everOffered := make([]bool, len(actions))
 	for _, state := range couchcore.AllThreadStates() {
 		// `archived` is a state of the ARCHIVED inventory, which the switcher
 		// does not render: ProjectActionableThreads cannot produce it, pinned
@@ -54,13 +55,25 @@ func TestActionOfferedImpliesPermitted(t *testing.T) {
 			for _, item := range menuActionItems(row) {
 				offered[item] = true
 			}
-			for _, action := range actions {
-				if offered[action.item] && !action.permitted(state, reason) {
+			for i, action := range actions {
+				if !offered[action.item] {
+					continue
+				}
+				everOffered[i] = true
+				if !action.permitted(state, reason) {
 					t.Errorf("%s/%s: the switcher offers %s and the guard refuses it — "+
 						"an action that always fails is how a switcher teaches an operator to distrust it",
 						state, reason, action.item)
 				}
 			}
+		}
+	}
+	// NON-VACUOUS. Offered-implies-permitted is satisfied by offering nothing,
+	// so a menu change that dropped an item everywhere would leave this table
+	// green while deleting the behaviour it exists to constrain.
+	for i, action := range actions {
+		if !everOffered[i] {
+			t.Errorf("no row offers %s at all; this table is passing by vacuity", action.item)
 		}
 	}
 }

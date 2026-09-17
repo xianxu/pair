@@ -848,7 +848,7 @@ row would have restated four existing incident tests instead.
 - Modify: `cmd/internal/couchcore/archive_test.go:108`, `continuation_guard_test.go:26` (existing call sites)
 - Test: `cmd/internal/couchtty/archive_agreement_test.go` (new — **in `couchtty`**, which imports `couchcore`, not the reverse)
 
-- [ ] **Step 1: Write the failing test** — iterate **states × reasons**, not
+- [x] **Step 1: Write the failing test** — iterate **states × reasons**, not
   reasons alone. The menu offers archive from `ThreadParked` and the default
   branch (`menu.go:1260-1263`), and after M1 `detached` is where a record can
   still carry an occupied incarnation.
@@ -865,16 +865,16 @@ for _, state := range couchcore.AllThreadStates() {
 }
 ```
 
-- [ ] **Step 2:** Red.
+- [x] **Step 2:** Red.
 - [x] **Step 3 — PULLED FORWARD INTO M2** (BR-33 needed it to derive the
   offered-implies-permitted domain): Add `AllThreadStates()` beside `AllThreadReasons()`
   (`threadreason.go:67`) — it does not exist today, and the codebase's own
   rationale applies verbatim: *"Go cannot check a switch for exhaustiveness; this
   enumeration is what does."*
-- [ ] **Step 4:** Add `ArchivableState` and have the **menu** and
+- [x] **Step 4:** Add `ArchivableState` and have the **menu** and
   `Couch.ArchiveThread` consume it. Delete `occupiedIncarnation`.
-- [ ] **Step 5:** `go test ./cmd/internal/couchcore/ ./cmd/internal/couchtty/` → PASS.
-- [ ] **Step 6:** Commit.
+- [x] **Step 5:** `go test ./cmd/internal/couchcore/ ./cmd/internal/couchtty/` → PASS.
+- [x] **Step 6:** Commit.
 
 ### Task 8a: The same rule for resume — the other half of the class
 
@@ -897,15 +897,15 @@ resume, and the resume refuses on an incarnation nothing reads any more.
 That is the identical defect Task 8 fixes for archive. Fixing only archive would
 be the instance, not the class (ARCH-PURPOSE).
 
-- [ ] **Step 1: Write the failing test** — a #272-shaped record classified
+- [x] **Step 1: Write the failing test** — a #272-shaped record classified
   `detached` is resumable, and a guard test asserting **offered ⇒ permitted** for
   resume exactly as Task 8 does for archive, over states × reasons.
-- [ ] **Step 2:** Red — `resume-creating` / `resume-live` refusal.
-- [ ] **Step 3:** `DecideResume` consumes the classification. Drop the park and
+- [x] **Step 2:** Red — `resume-creating` / `resume-live` refusal.
+- [x] **Step 3:** `DecideResume` consumes the classification. Drop the park and
   occupancy reads; keep the refusals that rest on genuinely durable facts (path,
   profile, agent support, resume authority).
-- [ ] **Step 4:** `go test ./cmd/internal/couchcore/ ./cmd/internal/couchtty/` → PASS.
-- [ ] **Step 5: Commit** — `#256 M3: resume and archive read one authority`
+- [x] **Step 4:** `go test ./cmd/internal/couchcore/ ./cmd/internal/couchtty/` → PASS.
+- [x] **Step 5: Commit** — `#256 M3: resume and archive read one authority`
 
 ### Task 8b: The store keeps a record-only integrity guard
 
@@ -924,14 +924,14 @@ This mirrors the existing precedent at `startup.go:68-77` — *"three predicates
 deliberately distinct, because they ask different things… collapsing them would
 force one answer onto three questions."*
 
-- [ ] **Step 1:** Failing test — the store refuses a structurally impossible
+- [x] **Step 1:** Failing test — the store refuses a structurally impossible
   archive and permits one whose actionability only the Couch layer can judge.
-- [ ] **Step 2:** Red.
-- [ ] **Step 3:** Narrow the store guard; update the `:1093-1095` comment to say
+- [x] **Step 2:** Red.
+- [x] **Step 3:** Narrow the store guard; update the `:1093-1095` comment to say
   what the two layers now each own, rather than claiming a defence it no longer
   provides.
-- [ ] **Step 4:** Green.
-- [ ] **Step 5:** Commit.
+- [x] **Step 4:** Green.
+- [x] **Step 5:** Commit.
 
 ### Task 9: Preserve Unknown on the destructive paths
 
@@ -945,11 +945,11 @@ classification input — its consumers are `DecideRecovery` and archive, where a
 irreversible act is gated. #256's Done-when ("Unknown observations cannot become
 confirmed absence or authorize destructive recovery") lands here.
 
-- [ ] **Step 1:** Failing test — an `Unknown` probe does not authorize archive.
-- [ ] **Step 2:** Red.
-- [ ] **Step 3:** Three-way switch; carry `Unknown` to the recovery consumers.
-- [ ] **Step 4:** Green.
-- [ ] **Step 5:** Commit.
+- [x] **Step 1:** Failing test — an `Unknown` probe does not authorize archive.
+- [x] **Step 2:** Red.
+- [x] **Step 3:** Three-way switch; carry `Unknown` to the recovery consumers.
+- [x] **Step 4:** Green.
+- [x] **Step 5:** Commit.
 
 ### Task 10: Archive confirms before stopping a live agent
 
@@ -963,7 +963,7 @@ per-thread park already uses. It does not refuse: `recovery.go:56-58`
 deliberately allows both Recover and Archive for a live detached session, and
 refusing would break the ordinary gesture and violate Task 8's invariant.
 
-- [ ] **Step 0: Establish what `Quiesce` actually reaps.** `ArchiveThread` runs
+- [x] **Step 0: Establish what `Quiesce` actually reaps.** `ArchiveThread` runs
   `Quiesce` first (`detach.go:298`) — `zellij delete-session --force`, polled
   until the **session** is gone. But #274 measures that a dead session does not
   reap its panes: `pair term` ignores SIGHUP (inherited `SIG_IGN`, which Go
@@ -975,9 +975,9 @@ refusing would break the ordinary gesture and violate Task 8's invariant.
   "archive cannot silently abandon a running agent" is **not** satisfiable by
   ordering, #274 becomes a dependency, and this confirmation must say "stops the
   session; the agent may survive". Record the result in `## Log` either way.
-- [ ] **Step 1–4:** Failing test that the confirmation names the agent; red;
+- [x] **Step 1–4:** Failing test that the confirmation names the agent; red;
   extend `confirmationMenuItems` following the existing `leave` precedent; green.
-- [ ] **Step 5:** Commit.
+- [x] **Step 5:** Commit.
 
 ### Task 11: Close the arbitrary-mutation door
 
@@ -1006,21 +1006,21 @@ rather than listing it (ARCH-PURPOSE: the class, not the three instances).
 `ThreadStore` is a concrete `*ThreadStore` (`couch.go:36`), so unexporting is a
 pure compile-time change with no interface to update.
 
-- [ ] **Step 1:** Write the AST guard; run it — must fail on all three sites.
-- [ ] **Step 2:** Add the three named transitions; unexport `UpdateExistingThread`.
-- [ ] **Step 3:** Fix the four external test call sites — three mutate lifecycle
+- [x] **Step 1:** Write the AST guard; run it — must fail on all three sites.
+- [x] **Step 2:** Add the three named transitions; unexport `UpdateExistingThread`.
+- [x] **Step 3:** Fix the four external test call sites — three mutate lifecycle
   fields (`park_latency_test.go:48` wants `ApplyThreadMetadata`); budget them
   rather than meeting them at compile time.
-- [ ] **Step 4:** `go test ./cmd/...` → PASS.
-- [ ] **Step 5:** Commit.
+- [x] **Step 4:** `go test ./cmd/...` → PASS.
+- [x] **Step 5:** Commit.
 
 ### Task 12: Atlas and lessons
 
 **Files:** `atlas/couch.md`, `workshop/lessons.md`
 
-- [ ] **Step 1:** Record the resource/ownership map and the durable-state rule in
+- [x] **Step 1:** Record the resource/ownership map and the durable-state rule in
   `atlas/couch.md`.
-- [ ] **Step 2:** Two lessons: *a liveness proof keyed to a process that dies
+- [x] **Step 2:** Two lessons: *a liveness proof keyed to a process that dies
   before the thing it proves will report every crash as a lost thread*; and
   *when a clean shutdown and a crash leave identical external state, the record
   of the shutdown must not decide recoverability*.
@@ -1067,6 +1067,39 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — M3 delivered: what the tasks turned into
+
+Every M3 step is ticked, and four of the seven tasks delivered something other
+than what they said. Recorded per task so the close's re-derivation is a check
+rather than a rewrite.
+
+| Planned | Delivered |
+|---|---|
+| Task 8: menu + `Couch.ArchiveThread` consume `ArchivableState`; delete `occupiedIncarnation` | Only the GUARD consumes (see the opening revision). `occupiedIncarnation` folded into `hasOccupiedIncarnation`, which relaunch and switch-agent still need — it is couch's record of its OWN operations, which is a different question from archive's. |
+| Task 8a: a resume row in the agreement table | Delivered, plus `ResumableState` and its consumer. The table now covers three actions in one loop. |
+| Task 8b: narrow the store guard | `archivableRecord` keeps the two refusals a decoded record PROVES — an open park and an outstanding start claim, couch's own unfinished transactions — and loses the occupancy rule, which is a claim about a process the store cannot probe. |
+| Task 9: three-way switch in `ObserveRecordedProcesses` | It returns `RecordedProcessObservation{Address, Process, Liveness}`, `gatherThreadEvidence` partitions, and the classifier fails closed on `ThreadEvidence.Unproven` ahead of every durable refusal. Consumers were re-derived first — the plan named the wrong ones. |
+| Task 10 Step 0 | Measured; see `## Log`. `Quiesce` reaps by SIGHUP, so the confirmation says the agent MAY survive. #274's hypothesis proved as a side effect. |
+| Task 11 | Three named transitions as planned, plus `RetireProvedDeadIncarnations`' start-claim precondition, which the callback had no way to state. Guard is receiver-scoped, not file-scoped. |
+| Task 12 | Atlas gained four sections; five lessons, two of them the ones the plan named. |
+
+**Two additions the plan did not have**, both the same class as #271/#272 and both
+found by running the code rather than by review:
+
+- `RetireUnprovenIncarnation`. A record marked `unknown` by `markLiveRecordUnknown`
+  could never be archived once its helper died, which it always does.
+  `RetireIncarnation` refuses an unproven incarnation deliberately — detach holds
+  no death proof — so the caller that DOES hold one gets its own transition.
+- `ActionableThreadSummary.Agent`, so a destructive confirmation can name what it
+  is about to stop.
+
+**One added item shipped as a lesson rather than a check.** The M2 re-scope asked
+for *a test named for a production entry point must invoke it* as a checked step.
+Mechanizing it produced 50 reports in one package, nearly all partial-word noise,
+so it is in `workshop/lessons.md` with that measurement beside it. Its sibling
+rule — a guard's test discriminates that guard's own exit — was applied to every
+refusal assertion M3 added.
 
 ### 2026-09-17 — M3 opening: three premises re-derived from the tree
 

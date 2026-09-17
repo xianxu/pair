@@ -53,7 +53,7 @@ type planConceptRow struct {
 // is not a divergence yet. Closing M3 extends this list — and if that is
 // forgotten, the check simply stops covering M3's rows rather than failing
 // falsely, which is the safe direction for a guard nobody is watching.
-var issue256LandedMilestones = map[string]bool{"M1": true, "M2": true}
+var issue256LandedMilestones = map[string]bool{"M1": true, "M2": true, "M3": true}
 
 // repoRootFrom walks up from the test's directory to the module root.
 func repoRootFrom(t *testing.T) string {
