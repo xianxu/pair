@@ -257,40 +257,6 @@ type DetachedCandidate struct {
 	Agent   string
 }
 
-// DetachedSessions reads each requested scope's session-name index once and
-// takes ONE zellij snapshot for all of them -- the snapshot ignores scope, so a
-// snapshot per scope would be the same query repeated.
-//
-// Cost: two `list-sessions` runs plus one `action list-clients` per candidate
-// session that is live -- the candidates' OWN sessions, not every session on the
-// host (pair#228). It used to ask every live pair session, about 250 ms each
-// against a real detached one, so proving one thread detached scaled with the
-// operator's whole session set. Candidates also bound WHETHER the snapshot runs:
-// a couch with nothing detachable pays nothing. Each query carries the zellij
-// query timeout, so a hung zellij cannot wedge the refresh worker.
-//
-// Index reads fail closed per scope: a scope whose index cannot be read binds
-// none of its threads -- not even from legacy rows that another scope's read
-// replayed, because the unreadable file may hold a NEWER row that supersedes
-// them, and judging a thread by a name it has left is the wrong-answer failure
-// this rule exists to prevent. Its rows still count as claims where another read
-// saw them. Pinned by TestDetachedSessionsBindsNothingForAnUnreadableScope. A
-// snapshot failure is returned, because that one IS the whole answer.
-// resolveScopedBindings reads each requested scope's session-name index ONCE and
-// returns the {address -> session name} bindings it established, plus the
-// effective binding map the claim count derives from.
-//
-// Extracted so the two session questions -- detached (needs clients) and
-// presence (existence only) -- read the index the same way. Splitting the
-// QUESTION without splitting the READ is what would let them disagree about
-// which name a thread is bound to (ARCH-DRY).
-//
-// Index reads fail closed per scope: a scope whose index cannot be read binds
-// none of its threads -- not even from legacy rows another scope's read
-// replayed, because the unreadable file may hold a NEWER row that supersedes
-// them, and judging a thread by a name it has left is the wrong-answer failure
-// this rule exists to prevent. Its rows still count as claims where another read
-// saw them.
 func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.Context, addresses []ThreadAddress, agentOf func(ThreadAddress) string) ([]SessionNameBinding, map[ThreadAddress]string, map[string]bool, error) {
 	byScope := make(map[string][]ThreadAddress, len(addresses))
 	var scopes []string
@@ -405,6 +371,19 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 	return out, nil
 }
 
+// DetachedSessions answers which of the supplied threads have a live zellij
+// session with NO CLIENT attached. It is the ACTION path's authority; the
+// refresh asks SessionPresence instead.
+//
+// Cost: the shared index read (resolveScopedBindings) plus one
+// `action list-clients` per candidate session that is live -- the candidates'
+// OWN sessions, not every session on the host (pair#228). It used to ask every
+// live pair session, about 250 ms each against a real detached one, so proving
+// one thread detached scaled with the operator's whole session set.
+//
+// A snapshot failure is returned, because that one IS the whole answer. The
+// per-scope fail-closed rule lives in resolveScopedBindings and is pinned by
+// TestDetachedSessionsBindsNothingForAnUnreadableScope.
 func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
 	addresses := make([]ThreadAddress, 0, len(candidates))
 	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))

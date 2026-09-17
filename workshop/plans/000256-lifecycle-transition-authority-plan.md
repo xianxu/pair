@@ -148,17 +148,26 @@ machine** — each has its own lifetime (ARCH-ORDER).
 
 ### Pure entities
 
-| Name | Lives in | Status |
-|------|----------|--------|
-| `SessionObservation` | `cmd/internal/couchcore/sessionevidence.go` | new |
-| `ThreadEvidence` | `cmd/internal/couchcore/actionableinventory.go` | modified |
-| `ClassifyThread` | `cmd/internal/couchcore/actionableinventory.go` | modified |
-| `ArchivableState` | `cmd/internal/couchcore/thread.go` | new |
-| `AllThreadStates` | `cmd/internal/couchcore/actionableinventory.go` | new |
-| `archivableRecord` | `cmd/internal/couchcore/thread.go` | deleted |
-| `occupiedIncarnation` | `cmd/internal/couchcore/thread.go` | deleted |
-| `liveProofMatches` | `cmd/internal/couchcore/actionableinventory.go` | deleted |
-| `startInFlight` | `cmd/internal/couchcore/actionableinventory.go` | deleted |
+Re-derived against the code at the M1 boundary (see `## Revisions`, 2026-09-17
+round 2) — every row's name and path grepped, rather than left asserting what the
+plan intended.
+
+| Name | Lives in | Status | Landed |
+|------|----------|--------|--------|
+| `SessionState` / `SessionObservation` | `cmd/internal/couchcore/sessionevidence.go` | new | M1 |
+| `ProjectSessionPresence` | `cmd/internal/couchcore/sessionevidence.go` | new | M1 |
+| `indexSessionsByName` / `uniquelyClaimed` | `cmd/internal/couchcore/sessionevidence.go` | new | M1 |
+| `ThreadEvidence` | `cmd/internal/couchcore/actionableinventory.go` | modified | M1 |
+| `ClassifyThread` | `cmd/internal/couchcore/actionableinventory.go` | modified | M1 |
+| `startClaimed` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 |
+| `ThreadReason` | `cmd/internal/couchcore/threadreason.go` | modified | M1 |
+| `liveProofMatches` | `cmd/internal/couchcore/actionableinventory.go` | deleted | M1 |
+| `startInFlight` | `cmd/internal/couchcore/actionableinventory.go` | deleted | M1 |
+| `occupiedResumeCode` | `cmd/internal/couchcore/resume.go` | deleted | M1 |
+| `ArchivableState` | `cmd/internal/couchcore/thread.go` | new | M3 |
+| `AllThreadStates` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `archivableRecord` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
+| `occupiedIncarnation` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
 
 - **SessionObservation** — one thread's zellij session as a **three-state**
   answer:
@@ -207,11 +216,18 @@ machine** — each has its own lifetime (ARCH-ORDER).
 
 ### Integration points
 
-| Name | Lives in | Status | Wraps |
-|------|----------|--------|-------|
-| `ProcOps` | `cmd/internal/couchcore/procops.go` | unchanged | process table |
-| `ObserveRecordedProcesses` | `cmd/internal/couchcore/actionableinventory.go` | modified | `ProcOps` |
-| `observeSessions` | `cmd/internal/couchcore/sessionevidence.go` | new | `zellij list-sessions` |
+| Name | Lives in | Status | Wraps | Landed |
+|------|----------|--------|-------|--------|
+| `ProcOps` | `cmd/internal/couchcore/procops.go` | unchanged | process table | — |
+| `ObserveRecordedProcesses` | `cmd/internal/couchcore/actionableinventory.go` | modified | `ProcOps` | M3 |
+| `SessionPresenceResolver` | `cmd/internal/couchcore/sessionevidence.go` | new | the seam | M1 |
+| `…CollisionChecker.SessionPresence` | `cmd/internal/couchcore/artifactcollision.go` | new | `zellij list-sessions` | M1 |
+| `resolveScopedBindings` | `cmd/internal/couchcore/artifactcollision.go` | new | session-name index | M1 |
+| `retireDeadIncarnationBeforeStart` | `cmd/internal/couchcore/resume.go` | new | `ThreadStore` | M1 |
+
+An earlier draft named `observeSessions`, which the code never shipped — the
+resolver is an interface plus a method on the existing checker, because that is
+where the index read already lived.
 
 - **ObserveRecordedProcesses** — modified to preserve `Unknown` rather than
   collapsing it into the `Dead` branch's silent `continue`
@@ -235,7 +251,7 @@ machine** — each has its own lifetime (ARCH-ORDER).
     classification input" (it is one); it is that **absence** of a positive
     observation no longer produces `stale-incarnation`.
 
-- **observeSessions** — **optimistic inventory, strict action** (operator
+- **`SessionPresence`** — **optimistic inventory, strict action** (operator
   decision, 2026-09-16). The refresh asks one host-wide `list-sessions` and never
   `list-clients`.
   - **Why it is safe:** the reattach path already re-observes with attach state
@@ -757,6 +773,41 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — M1 boundary review, round 2 (REWORK): rules, not sites
+
+The gate's own summary was the finding: *"Not converging: fix rules, not
+instances."* Round 1's ten findings were disposed, but two of the fixes were
+site-shaped and round 2 reproduced the same wedge through exits they did not
+cover. Three rules replace them:
+
+- **Every error leaving `ResumeContextWith` carries a `ResumeDiagnosticCode.`**
+  `startupResumeRefusal` decorates only coded errors, so an uncoded one refuses
+  `couch` in the whole tree with an internal message. Round 1 coded the store's
+  retire error; round 2 reproduced the identical wedge through
+  `CommitStartClaim`, with `resolveRepoIdentity`, `Proc.Current`,
+  `allocateStartNonce` and two observe errors still bare. Hand-enumerating exits
+  is what kept missing one, so the rule now lives at the function boundary as a
+  single deferred wrap above every early return. Mutation-proven.
+- **An irreversible step never precedes a revocable check.** `AbandonPark`
+  appends a permanent tombstone, and it was running before `RetireIncarnation`'s
+  own preconditions were screened — so an `IncarnationUnknown` record (which
+  `soleParkableIncarnation` explicitly permits parking) lost its park forever and
+  then failed the retire on every retry, leaving a thread that could be neither
+  resumed nor archived. All of the retirement's preconditions are now screened
+  first. Mutation-proven.
+- **A fail-closed guard is pinned by a table over its exits, not by a test per
+  incident.** One table over {park shape} × {liveness} × {incarnation state}
+  asserts a coded refusal and unchanged durable state for every combination, and
+  fails whenever a new exit appears. Writing it found that the park-identity
+  mismatch branch was **unreachable** — `validateLifecycle` requires an active
+  park's identity to match an incarnation, and that path requires exactly one —
+  so the guard was deleted rather than tested: validation already owns it.
+
+Also: the Core-concepts tables above are re-derived against the code (they named
+an `observeSessions` that never shipped), and the rule is to re-derive them at
+each milestone close rather than let the plan assert what the code does not
+deliver.
 
 ### 2026-09-17 — M1 boundary review, round 1 (REWORK)
 

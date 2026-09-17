@@ -1236,7 +1236,7 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	// gone is `session-gone`, not `stale-incarnation` -- that reason is retired,
 	// because the incarnation it described names a process that dies with couch.
 	if got[0].State != couchcore.ThreadUnusable || got[0].Reason != couchcore.ReasonSessionGone {
-		t.Fatalf("row = %+v, want unusable/stale-incarnation after the child exited", got[0])
+		t.Fatalf("row = %+v, want unusable/session-gone after the child exited", got[0])
 	}
 }
 

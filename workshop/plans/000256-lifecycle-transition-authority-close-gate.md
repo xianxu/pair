@@ -69,6 +69,89 @@ rounds:
           round: 1
       boundary: M1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-17T09:33:58-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: 'Mutation-verified: disabling the park-abandon block reds TestOrphanedParkDoesNotWedgeTheResumeChain; un-wrapping the AbandonPark error reds TestResumeFailuresCarryADiagnosticCode. See new finding for the fifth site of the same class.'
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: 'Mutation-verified: moving the SessionUnresolved arm back above the VerifiedPark branch reds TestParkedRowSurvivesAnUnresolvedSessionQuestion/session_question_failed. Checked the third outcome (ReasonBindingLost) is not archive-eligible.'
+          round: 2
+        - id: BR-3
+          disposition: addressed
+          note: 'Mutation-verified: `!= Dead` -> `== Live` reds TestUnknownLivenessNeverRetiresAnIncarnation/unknown_must_not_retire.'
+          round: 2
+        - id: BR-4
+          disposition: addressed
+          note: 'Mutation-verified: dropping the readable[scope] check reds TestSessionPresenceAnswersThroughTheProductionChecker on the unreadable-scope case.'
+          round: 2
+        - id: BR-5
+          disposition: addressed
+          note: atlas/couch.md:251, :579-592 and :961-968 corrected; the vocabulary list now matches AllThreadReasons() element for element. Remaining mentions are the retirement narrative itself.
+          round: 2
+        - id: BR-6
+          disposition: addressed
+          note: README.md:517-531 corrected; every label it now names exists in ThreadReason.Label(), and the park claim matches ClassifyThread no longer reading record.Park.
+          round: 2
+        - id: BR-7
+          disposition: addressed
+          note: Four of five made (actionableinventory.go:21-30, layout.go:79-82, menu_render.go:432-434, couchcmd/run.go:771). menu.go:1234-1239 remains, which the finding itself scoped to M2/Task 4; the plan's Revisions re-scopes Task 4 off its false premise.
+          round: 2
+        - id: BR-8
+          disposition: addressed
+          note: 'Plan ## Revisions now adopts the durable read explicitly, states the bound (reconcileInterruptedStarts at couch.New) and the Unknown-evidence residual risk, and re-scopes Task 4.'
+          round: 2
+        - id: BR-9
+          disposition: addressed
+          note: TestStaleLabelDoesNotClaimSupervisorDied deleted; the projector test renamed to TestProjectionAnswersOnlyForBindingsItWasGiven. A third instance of the same rule is raised below.
+          round: 2
+        - id: BR-10
+          disposition: addressed
+          note: indexSessionsByName + uniquelyClaimed extracted and used by both projectors; I diffed both call sites by hand and the predicate is exactly equivalent to the two copies.
+          round: 2
+      findings:
+        - id: BR-11
+          severity: Critical
+          title: An Unknown-liveness incarnation with a surviving session wedges couch startup in the whole tree
+          detail: '2nd in family — fix the RULE, not this site. Reproduced end to end through StartInteractive: a record whose launcher is unobservable plus a live session classifies detached, is ranked highest by SelectResumableRoot, passes DecideResume, is correctly declined by the Dead-only retire gate, and then CommitStartClaim (threadstore.go:506) refuses with a bare fmt.Errorf. startupResumeRefusal only decorates coded errors, so couch refuses to start with "thread {...} already has 1 incarnation(s)". The identical fixture at base b6a0766 spawns normally, so this is a regression from this milestone. Two one-place rules — every error leaving ResumeContextWith must carry a ResumeDiagnosticCode (CommitStartClaim, resolveRepoIdentity, Proc.Current, allocateStartNonce, the DetachedSessions observe error and the missing-resolver error all escape uncoded today), and the class enumeration must be written down as "every guard refusing on record.Incarnations or record.Park", which includes CommitStartClaim''s own precondition on the non-Dead branch.'
+          family: classification-not-authority
+          round: 2
+        - id: BR-12
+          severity: Critical
+          title: The park abandon runs before RetireIncarnation's preconditions, so a failure destroys the park permanently
+          detail: 'retireDeadIncarnationBeforeStart (resume.go:580) screens Start/PID/Identity but not incarnation.State, while RetireIncarnation (threadstore.go:557) refuses anything other than IncarnationLive. Reproduced against the real store with an IncarnationUnknown record carrying a matching open park and a dead process: the abandon lands (park nil, one tombstone appended), the retire then fails with "retire needs a live incarnation, found unknown", and every retry repeats it. The thread can no longer resume and cannot archive either (thread.go:360 refuses an unknown helper) — a new instance of the wedge this issue exists to remove, plus loss of the #275 audit trail. Reachable: soleParkableIncarnation (park.go:797) explicitly permits parking an unknown incarnation, and markLiveRecordUnknown (couch.go:648) produces that state. Fix: hoist the retirement''s preconditions ahead of the irreversible write. Related ARCH-ORDER note: this AbandonPark bypasses PairLifecycleController''s per-thread park worker, unlike every other abandon.'
+          family: irreversible-step-before-precondition
+          round: 2
+        - id: BR-13
+          severity: Important
+          title: Two of the three guards in retireDeadIncarnationBeforeStart are unpinned
+          detail: '2nd in family — fix the RULE, not these sites. Mutation-checked: reverting resume.go:601 from refuseResume(ResumeNotRunning, ...) to `return nil, err` produces no failure anywhere in couchcore, because TestResumeFailuresCarryADiagnosticCode only reaches the AbandonPark arm. The park-identity-mismatch refusal (resume.go:581-586) has no fixture at all — both park tests give the park the same identity as the incarnation. Measured prevalence: three fail-closed exits in one function, one pinned. The rule is one table test over {no park, matching park, foreign park} x {Dead, Unknown, Live} x {Live, Unknown incarnation} asserting durable state plus a non-empty ResumeDiagnosticOf for every refusal — which also gives the two Critical findings their regressions and fails whenever a new exit is added.'
+          family: fail-closed-guard-untested
+          round: 2
+        - id: BR-14
+          severity: Minor
+          title: run_test.go failure message still says stale-incarnation while the assertion checks session-gone
+          detail: '2nd in family — state the rule. cmd/internal/couchcmd/run_test.go:1238 reads "want unusable/stale-incarnation after the child exited" under an assertion on ReasonSessionGone. Rule: a test''s prose — name, comment and failure message — must name what it asserts. Sweep by grepping the window''s touched test files for "stale"/"unrecorded" inside string literals; that finds this one and nothing else.'
+          family: test-name-contradicts-assertion
+          round: 2
+        - id: BR-15
+          severity: Minor
+          title: DetachedSessions' doc comment was orphaned by the resolveScopedBindings extraction
+          detail: '2nd in family — state the rule. artifactcollision.go:262-278 is DetachedSessions'' doc (cost model, "Pinned by TestDetachedSessionsBindsNothingForAnUnreadableScope") but now runs straight into resolveScopedBindings'' own doc with no blank line, so godoc attaches the whole block to the private helper, the fail-closed paragraph appears twice verbatim, and DetachedSessions at :408 has no doc at all. Confirmed against the base version, where the comment sat on DetachedSessions. Rule: when a function moves or is split, its doc comment moves with it.'
+          family: stale-wording-after-referent-change
+          round: 2
+        - id: BR-16
+          severity: Minor
+          title: The plan's Integration and Pure tables still name entities the code does not ship
+          detail: '2nd in family — state the rule. The Integration table names `observeSessions` in sessionevidence.go; the code ships SessionPresenceResolver.SessionPresence (production impl in artifactcollision.go:370) plus ProjectSessionPresence. startClaimed, indexSessionsByName, uniquelyClaimed and retireDeadIncarnationBeforeStart appear in no table. Round 1 raised this as a recommendation and it survived. Rule: at each milestone close, re-derive the Core-concepts tables by grepping every row''s name and path, and record any divergence in ## Revisions rather than leaving the plan claiming what the code does not deliver.'
+          family: plan-code-divergence
+          round: 2
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -101,15 +184,41 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-10** [Minor] `duplicated-fail-closed-rule` The session name-index and uniqueness predicate are copy-pasted across two projectors
   sessionevidence.go:95-118 and detachedsessions.go:62-82 duplicate the ambiguity loop and `name == "" || claims[name] != 1 || ambiguous[name]`. The diff extracted the shared READ (resolveScopedBindings) but not the shared RULE; divergence in it would be silent.
 
+## Round 2 — 2026-09-17T09:33:58-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — Mutation-verified: disabling the park-abandon block reds TestOrphanedParkDoesNotWedgeTheResumeChain; un-wrapping the AbandonPark error reds TestResumeFailuresCarryADiagnosticCode. See new finding for the fifth site of the same class.
+- BR-2 — addressed — Mutation-verified: moving the SessionUnresolved arm back above the VerifiedPark branch reds TestParkedRowSurvivesAnUnresolvedSessionQuestion/session_question_failed. Checked the third outcome (ReasonBindingLost) is not archive-eligible.
+- BR-3 — addressed — Mutation-verified: `!= Dead` -> `== Live` reds TestUnknownLivenessNeverRetiresAnIncarnation/unknown_must_not_retire.
+- BR-4 — addressed — Mutation-verified: dropping the readable[scope] check reds TestSessionPresenceAnswersThroughTheProductionChecker on the unreadable-scope case.
+- BR-5 — addressed — atlas/couch.md:251, :579-592 and :961-968 corrected; the vocabulary list now matches AllThreadReasons() element for element. Remaining mentions are the retirement narrative itself.
+- BR-6 — addressed — README.md:517-531 corrected; every label it now names exists in ThreadReason.Label(), and the park claim matches ClassifyThread no longer reading record.Park.
+- BR-7 — addressed — Four of five made (actionableinventory.go:21-30, layout.go:79-82, menu_render.go:432-434, couchcmd/run.go:771). menu.go:1234-1239 remains, which the finding itself scoped to M2/Task 4; the plan's Revisions re-scopes Task 4 off its false premise.
+- BR-8 — addressed — Plan ## Revisions now adopts the durable read explicitly, states the bound (reconcileInterruptedStarts at couch.New) and the Unknown-evidence residual risk, and re-scopes Task 4.
+- BR-9 — addressed — TestStaleLabelDoesNotClaimSupervisorDied deleted; the projector test renamed to TestProjectionAnswersOnlyForBindingsItWasGiven. A third instance of the same rule is raised below.
+- BR-10 — addressed — indexSessionsByName + uniquelyClaimed extracted and used by both projectors; I diffed both call sites by hand and the predicate is exactly equivalent to the two copies.
+
+### Raised
+
+- **BR-11** [Critical] `classification-not-authority` An Unknown-liveness incarnation with a surviving session wedges couch startup in the whole tree
+  2nd in family — fix the RULE, not this site. Reproduced end to end through StartInteractive: a record whose launcher is unobservable plus a live session classifies detached, is ranked highest by SelectResumableRoot, passes DecideResume, is correctly declined by the Dead-only retire gate, and then CommitStartClaim (threadstore.go:506) refuses with a bare fmt.Errorf. startupResumeRefusal only decorates coded errors, so couch refuses to start with "thread {...} already has 1 incarnation(s)". The identical fixture at base b6a0766 spawns normally, so this is a regression from this milestone. Two one-place rules — every error leaving ResumeContextWith must carry a ResumeDiagnosticCode (CommitStartClaim, resolveRepoIdentity, Proc.Current, allocateStartNonce, the DetachedSessions observe error and the missing-resolver error all escape uncoded today), and the class enumeration must be written down as "every guard refusing on record.Incarnations or record.Park", which includes CommitStartClaim's own precondition on the non-Dead branch.
+- **BR-12** [Critical] `irreversible-step-before-precondition` The park abandon runs before RetireIncarnation's preconditions, so a failure destroys the park permanently
+  retireDeadIncarnationBeforeStart (resume.go:580) screens Start/PID/Identity but not incarnation.State, while RetireIncarnation (threadstore.go:557) refuses anything other than IncarnationLive. Reproduced against the real store with an IncarnationUnknown record carrying a matching open park and a dead process: the abandon lands (park nil, one tombstone appended), the retire then fails with "retire needs a live incarnation, found unknown", and every retry repeats it. The thread can no longer resume and cannot archive either (thread.go:360 refuses an unknown helper) — a new instance of the wedge this issue exists to remove, plus loss of the #275 audit trail. Reachable: soleParkableIncarnation (park.go:797) explicitly permits parking an unknown incarnation, and markLiveRecordUnknown (couch.go:648) produces that state. Fix: hoist the retirement's preconditions ahead of the irreversible write. Related ARCH-ORDER note: this AbandonPark bypasses PairLifecycleController's per-thread park worker, unlike every other abandon.
+- **BR-13** [Important] `fail-closed-guard-untested` Two of the three guards in retireDeadIncarnationBeforeStart are unpinned
+  2nd in family — fix the RULE, not these sites. Mutation-checked: reverting resume.go:601 from refuseResume(ResumeNotRunning, ...) to `return nil, err` produces no failure anywhere in couchcore, because TestResumeFailuresCarryADiagnosticCode only reaches the AbandonPark arm. The park-identity-mismatch refusal (resume.go:581-586) has no fixture at all — both park tests give the park the same identity as the incarnation. Measured prevalence: three fail-closed exits in one function, one pinned. The rule is one table test over {no park, matching park, foreign park} x {Dead, Unknown, Live} x {Live, Unknown incarnation} asserting durable state plus a non-empty ResumeDiagnosticOf for every refusal — which also gives the two Critical findings their regressions and fails whenever a new exit is added.
+- **BR-14** [Minor] `test-name-contradicts-assertion` run_test.go failure message still says stale-incarnation while the assertion checks session-gone
+  2nd in family — state the rule. cmd/internal/couchcmd/run_test.go:1238 reads "want unusable/stale-incarnation after the child exited" under an assertion on ReasonSessionGone. Rule: a test's prose — name, comment and failure message — must name what it asserts. Sweep by grepping the window's touched test files for "stale"/"unrecorded" inside string literals; that finds this one and nothing else.
+- **BR-15** [Minor] `stale-wording-after-referent-change` DetachedSessions' doc comment was orphaned by the resolveScopedBindings extraction
+  2nd in family — state the rule. artifactcollision.go:262-278 is DetachedSessions' doc (cost model, "Pinned by TestDetachedSessionsBindsNothingForAnUnreadableScope") but now runs straight into resolveScopedBindings' own doc with no blank line, so godoc attaches the whole block to the private helper, the fail-closed paragraph appears twice verbatim, and DetachedSessions at :408 has no doc at all. Confirmed against the base version, where the comment sat on DetachedSessions. Rule: when a function moves or is split, its doc comment moves with it.
+- **BR-16** [Minor] `plan-code-divergence` The plan's Integration and Pure tables still name entities the code does not ship
+  2nd in family — state the rule. The Integration table names `observeSessions` in sessionevidence.go; the code ships SessionPresenceResolver.SessionPresence (production impl in artifactcollision.go:370) plus ProjectSessionPresence. startClaimed, indexSessionsByName, uniquelyClaimed and retireDeadIncarnationBeforeStart appear in no table. Round 1 raised this as a recommendation and it survived. Rule: at each milestone close, re-derive the Core-concepts tables by grepping every row's name and path, and record any divergence in ## Revisions rather than leaving the plan claiming what the code does not deliver.
+
 ## Open findings
 
-- **BR-1** [Critical] `classification-not-authority` An open park makes the new re-adoption hard-error and wedges couch startup
-- **BR-2** [Important] `unknown-must-not-mask-durable-authority` SessionUnresolved is checked above VerifiedPark, so one failed list-sessions hides every parked row
-- **BR-3** [Important] `fail-closed-guard-untested` Nothing pins that an Unknown liveness probe must not retire an incarnation
-- **BR-4** [Important] `production-seam-only-tested-through-fake` ScopedThreadArtifactCollisionChecker.SessionPresence has no test
-- **BR-5** [Important] `atlas-contradicts-code` Three atlas passages still document the retired reason vocabulary as current
-- **BR-6** [Important] `readme-documents-removed-surface` README still lists a deleted reason label and claims parks leave a diagnostic
-- **BR-7** [Important] `stale-wording-after-referent-change` ThreadBusy changed meaning but five wording sites still describe a park
-- **BR-8** [Important] `plan-code-divergence` startClaimed reads durable state where the plan specified an in-memory observation
-- **BR-9** [Minor] `test-name-contradicts-assertion` Two tests assert something other than what their names say
-- **BR-10** [Minor] `duplicated-fail-closed-rule` The session name-index and uniqueness predicate are copy-pasted across two projectors
+- **BR-11** [Critical] `classification-not-authority` An Unknown-liveness incarnation with a surviving session wedges couch startup in the whole tree
+- **BR-12** [Critical] `irreversible-step-before-precondition` The park abandon runs before RetireIncarnation's preconditions, so a failure destroys the park permanently
+- **BR-13** [Important] `fail-closed-guard-untested` Two of the three guards in retireDeadIncarnationBeforeStart are unpinned
+- **BR-14** [Minor] `test-name-contradicts-assertion` run_test.go failure message still says stale-incarnation while the assertion checks session-gone
+- **BR-15** [Minor] `stale-wording-after-referent-change` DetachedSessions' doc comment was orphaned by the resolveScopedBindings extraction
+- **BR-16** [Minor] `plan-code-divergence` The plan's Integration and Pure tables still name entities the code does not ship

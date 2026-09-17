@@ -344,6 +344,24 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 
 // ResumeContextWith is ResumeContext narrowed by opts.
 func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (retRecord ActorRecord, retHandle Handle, retErr error) {
+	// ONE PLACE where every failure leaving this function acquires a diagnostic
+	// code, because startup only decorates coded refusals
+	// (startupResumeRefusal): an uncoded error reaches the operator as an
+	// internal message with no next step and refuses `couch` in the whole tree.
+	//
+	// This is a RULE, not a patch. Wrapping the individual call sites was tried
+	// and failed twice: the first round coded the store's retire error, the
+	// second reproduced the identical wedge through CommitStartClaim, and
+	// resolveRepoIdentity, Proc.Current, allocateStartNonce and the observe
+	// errors were all still bare. Enumerating exits by hand is the thing that
+	// keeps missing one, so the exit is centralised instead. Callers that
+	// already refuse with a code keep it -- this only supplies one where none
+	// was set. Pinned by TestEveryResumeFailureCarriesADiagnosticCode.
+	defer func() {
+		if retErr != nil && ResumeDiagnosticOf(retErr) == "" && !errors.Is(retErr, context.Canceled) {
+			retErr = refuseResume(ResumeUnknown, retErr.Error())
+		}
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -563,7 +581,28 @@ func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRe
 	}
 	identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
 	if observeExactProcess(c.Proc, identity) != Dead {
-		return nil, nil
+		// Not provably dead. Declining is correct -- retiring a live agent's
+		// incarnation would abandon it -- but the record still carries an
+		// incarnation, so CommitStartClaim will refuse. Refuse HERE, with a
+		// code, rather than letting the store's bare error wedge the tree.
+		return nil, refuseResume(ResumeNotRunning,
+			"recorded process could not be proved dead, so its incarnation cannot be retired; inspect it or archive the thread")
+	}
+	// EVERY precondition RetireIncarnation enforces is screened BEFORE the
+	// irreversible write below.
+	//
+	// AbandonPark appends a permanent tombstone. Running it first and
+	// discovering the retirement's precondition afterwards destroys the park --
+	// and with it the cold-resume authority and #275's audit trail -- while
+	// leaving the incarnation in place, so every retry repeats the failure and
+	// the thread can be neither resumed nor archived. `soleParkableIncarnation`
+	// explicitly permits parking an `unknown` incarnation and
+	// `markLiveRecordUnknown` produces one, so this is reachable, not theoretical.
+	//
+	// The rule: an irreversible step never precedes a revocable check.
+	if incarnation.State != IncarnationLive {
+		return nil, refuseResume(ResumeUnknown,
+			"recorded incarnation is "+string(incarnation.State)+"; only a live one can be retired")
 	}
 	// An ORPHANED PARK blocks the retirement, so it has to go first.
 	//
@@ -578,13 +617,13 @@ func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRe
 	// open-park precondition became live. The enumeration is now: ClassifyThread,
 	// DecideResume, CommitStartClaim's caller, and this.
 	if thread.Park != nil {
-		if thread.Park.Identity.PID != identity.PID || thread.Park.Identity.ProcessIdentity != identity.Identity {
-			// A park owned by some OTHER process is not proved dead by this
-			// probe. Refuse with a diagnostic rather than a raw store error --
-			// startup only decorates refusals that carry a code, so a bare error
-			// here wedges `couch` in the tree with no next step.
-			return nil, refuseResume(ResumeParking, "park transaction is owned by a process this resume did not prove dead")
-		}
+		// No identity check here, deliberately. `validateLifecycle` requires an
+		// active park's identity to match one of the record's incarnations, and
+		// this function already requires exactly one -- so a park owned by some
+		// other process is UNREPRESENTABLE in the store, and a guard for it
+		// would be unreachable code asserting what validation already enforces.
+		// Confirmed by trying to build the fixture: CreateThread refuses with
+		// "active park identity matches 0 incarnations".
 		abandoned, err := c.Threads.AbandonPark(thread.Address, thread.Revision, thread.Park.Identity)
 		if err != nil {
 			return nil, refuseResume(ResumeParking, "orphaned park could not be abandoned: "+err.Error())
