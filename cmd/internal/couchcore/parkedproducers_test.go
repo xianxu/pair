@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -38,9 +39,6 @@ import (
 // `TestSwitchAgentOfferedImpliesPermitted`; this test asks the complementary
 // question, whether every way of REACHING the state survives those guards.
 func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
-	// The producers of ThreadParked, as ClassifyThread can reach it. Both run
-	// through the production gather path, so a classification that stops
-	// agreeing fails here rather than in a hand-built evidence literal.
 	producers := map[string]func(*testing.T, *testEnv) ThreadRecord{
 		"park receipt": func(t *testing.T, env *testEnv) ThreadRecord {
 			return createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
@@ -99,51 +97,84 @@ func TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive(t *testing.T) {
 		},
 	}
 
+	// Each cell gets a FRESH environment, because every action here mutates:
+	// running them in sequence against one fixture would test archive on a
+	// switched thread rather than on the producer.
+	//
+	// And each action is driven TO COMPLETION, not to its preflight. Round 2's
+	// version called `PrepareAgentSwitch` and the pure `DecideResume`, so it
+	// went green over a switch whose commit refused what its preview accepted --
+	// a table that stops at the admission guard cannot catch an
+	// admission/execution disagreement, which is the only kind this class has
+	// produced for three rounds running.
+	actions := map[string]func(*testing.T, *testEnv, ThreadRecord) error{
+		"switch-agent": func(t *testing.T, env *testEnv, record ThreadRecord) error {
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			prepared, err := env.Couch.PrepareAgentSwitch(context.Background(), record.Address, "codex", nil)
+			if err != nil {
+				return err
+			}
+			env.Runner.AfterAcknowledge = func(string) error {
+				env.Artifacts.SetPairSession(record.Address, "pair-switched", true)
+				return nil
+			}
+			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
+				Address: record.Address, Agent: "codex", Argv: prepared.Profile.Argv,
+				AcceptedFingerprint: prepared.Fingerprint,
+			})
+			if err != nil {
+				return fmt.Errorf("commit (outcome %q): %w", result.Outcome, err)
+			}
+			if _, started := result.Started(); !started {
+				return fmt.Errorf("commit did not start: outcome %q", result.Outcome)
+			}
+			return nil
+		},
+		"resume": func(t *testing.T, env *testEnv, record ThreadRecord) error {
+			env.Runner.AfterAcknowledge = func(string) error {
+				env.Artifacts.SetPairSession(record.Address, "pair-resumed", true)
+				return nil
+			}
+			_, _, err := env.Couch.ResumeContext(context.Background(), record.Address)
+			return err
+		},
+		"archive": func(t *testing.T, env *testEnv, record ThreadRecord) error {
+			_, err := env.Couch.ArchiveThread(context.Background(), record.Address)
+			return err
+		},
+	}
+
 	classified := map[string]bool{}
 	for name, build := range producers {
-		t.Run(name, func(t *testing.T) {
-			env := newTestEnv(t, "/repo")
-			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
-			record := build(t, env)
-			env.Artifacts.SetNativeBinding(record.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-			env.Artifacts.SetSessionPresence(record.Address, SessionObservation{State: SessionAbsent})
+		for action, run := range actions {
+			t.Run(name+"/"+action, func(t *testing.T) {
+				env := newTestEnv(t, "/repo")
+				env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+				record := build(t, env)
+				env.Artifacts.SetNativeBinding(record.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+				env.Artifacts.SetSessionPresence(record.Address, SessionObservation{State: SessionAbsent})
 
-			rows, err := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var row ActionableThreadSummary
-			for _, candidate := range rows {
-				if candidate.Address == record.Address {
-					row = candidate
+				rows, err := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
+				if err != nil {
+					t.Fatal(err)
 				}
-			}
-			if row.State != ThreadParked {
-				t.Fatalf("producer %q classified %q/%q, not parked -- the fixture no longer exercises what it names",
-					name, row.State, row.Reason)
-			}
-			classified[name] = true
+				var row ActionableThreadSummary
+				for _, candidate := range rows {
+					if candidate.Address == record.Address {
+						row = candidate
+					}
+				}
+				if row.State != ThreadParked {
+					t.Fatalf("producer %q classified %q/%q, not parked -- the fixture no longer exercises what it names",
+						name, row.State, row.Reason)
+				}
+				classified[name] = true
 
-			// switch-agent, the reader the sweep missed. It must not refuse for
-			// a reason about the RECORD's bookkeeping; a refusal naming the
-			// agent, the path or the launch services is a different question.
-			if _, err := env.Couch.PrepareAgentSwitch(context.Background(), record.Address, "codex", nil); err != nil {
-				t.Fatalf("switch-agent is offered on a %s parked row and refuses it: %v", name, err)
-			}
-
-			// resume, through the same eligibility rule the action path uses.
-			binding := NativeBindingResolution{Status: sessioninventory.BindingEstablished, NativeID: "native-root-1"}
-			if _, err := DecideResume(ResumeEligibilityInput{
-				Thread: record, WorkingPathExists: true, Binding: binding,
-			}); err != nil {
-				t.Fatalf("resume is offered on a %s parked row and refuses it: %v", name, err)
-			}
-
-			// archive, last: it moves the record.
-			if _, err := env.Couch.ArchiveThread(context.Background(), record.Address); err != nil {
-				t.Fatalf("archive is offered on a %s parked row and refuses it: %v", name, err)
-			}
-		})
+				if err := run(t, env, record); err != nil {
+					t.Fatalf("%s is offered on a %s parked row and fails: %v", action, name, err)
+				}
+			})
+		}
 	}
 
 	// Totality, DERIVED rather than restated. Counting `classified` against
@@ -265,8 +296,16 @@ func TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation(t *testing.T) {
 	if state != ThreadLive {
 		t.Fatalf("fixture classified %q/%q, not live -- it no longer exercises the hosted shape", state, reason)
 	}
-	if _, err := env.Couch.PrepareAgentSwitch(context.Background(), created.Address, "codex", nil); err == nil {
+	_, err = env.Couch.PrepareAgentSwitch(context.Background(), created.Address, "codex", nil)
+	if err == nil {
 		t.Fatal("switch-agent accepted a thread couch is hosting with nothing to park; that starts a second agent on one tree")
+	}
+	// Discriminate THIS guard's exit, not merely that something refused.
+	// `soleParkableIncarnation` refuses the same record two lines later, so an
+	// `err != nil` assertion stays green with the guard deleted — the outcome
+	// would be covered and the guard and its operator-facing message would not.
+	if !strings.Contains(err.Error(), "names no incarnation to park") {
+		t.Fatalf("refused, but not by the guard under test: %v", err)
 	}
 }
 
@@ -322,5 +361,83 @@ func TestSwitchAgentCommitAcceptsWhatItsPreviewAccepted(t *testing.T) {
 	}
 	if _, started := result.Started(); !started {
 		t.Fatalf("switch did not start: outcome=%q", result.Outcome)
+	}
+}
+
+// TestSwitchAgentOnTheUnusableStatesItPermits covers the two states
+// `SwitchableState` admits that the switcher does NOT offer — a deliberate
+// superset, so that a caller reaching the API directly gets the same rule.
+// Nothing exercised them, which is how the round-2 guard let an
+// `unusable/session-gone` row carrying a stale `live` incarnation through to
+// fail at the park.
+//
+// Both mean the same thing: nothing runs, and there is no conversation to resume
+// into. Neither is an obstacle to starting a DIFFERENT agent, so both must reach
+// `started` — with the stale incarnation cleared on the way, not tripped over.
+func TestSwitchAgentOnTheUnusableStatesItPermits(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		withRecipt bool
+		wantReason ThreadReason
+	}{
+		{name: "session-gone with a stale live incarnation", wantReason: ReasonSessionGone},
+		{name: "binding-lost: a receipt whose ledger resolves nothing", withRecipt: true, wantReason: ReasonBindingLost},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			env := newTestEnv(t, "/repo")
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			var created ThreadRecord
+			if tc.withRecipt {
+				created = createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+			} else {
+				record := validThreadRecord(t)
+				record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+				env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+				record.Reservation = false
+				profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+				record.LatestLaunchProfile = &profile
+				// A launcher that died: the #272 shape, still recorded live.
+				record.Incarnations = []ThreadIncarnation{{
+					PID: 87309, Identity: "dead-launcher", State: IncarnationLive,
+				}}
+				var err error
+				created, err = env.Couch.Threads.CreateThread(record)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			// No SetNativeBinding: the ledger resolves nothing either way.
+			env.Artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionAbsent})
+
+			state, reason, err := env.Couch.classifyForAction(context.Background(), created.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state != ThreadUnusable || reason != tc.wantReason {
+				t.Fatalf("fixture classified %q/%q, want unusable/%s", state, reason, tc.wantReason)
+			}
+			if !SwitchableState(state, reason) {
+				t.Fatalf("SwitchableState refuses %q/%q; this test covers the states it permits", state, reason)
+			}
+
+			prepared, err := env.Couch.PrepareAgentSwitch(context.Background(), created.Address, "codex", nil)
+			if err != nil {
+				t.Fatalf("the guard refuses a state its own predicate permits: %v", err)
+			}
+			env.Runner.AfterAcknowledge = func(string) error {
+				env.Artifacts.SetPairSession(created.Address, "pair-switched", true)
+				return nil
+			}
+			result, err := env.Couch.SwitchAgent(context.Background(), SwitchAgentRequest{
+				Address: created.Address, Agent: "codex", Argv: prepared.Profile.Argv,
+				AcceptedFingerprint: prepared.Fingerprint,
+			})
+			if err != nil {
+				t.Fatalf("the commit refused what its preview accepted (outcome %q): %v", result.Outcome, err)
+			}
+			if _, started := result.Started(); !started {
+				t.Fatalf("switch did not start: outcome %q", result.Outcome)
+			}
+		})
 	}
 }

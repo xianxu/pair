@@ -477,6 +477,12 @@ rounds:
           round: 8
       boundary: M2
       blocked: true
+    - "n": 9
+      timestamp: "2026-09-17T15:05:41-07:00"
+      agent: claude
+      boundary: M2
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -697,6 +703,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   the declaration so it cannot be satisfied by forgetting a row -- do the same here, or
   name the test for the one code. It also t.Skipf's if the store rejects its fixture
   (:396); it passes today, but a silent skip is how a reachability guard stops guarding.
+
+## Round 9 — 2026-09-17T15:05:41-07:00 (claude) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

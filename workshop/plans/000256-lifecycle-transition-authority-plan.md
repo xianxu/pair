@@ -157,7 +157,12 @@ mechanical check is `git grep -n '<symbol>' -- '*.go'` for every row's name, plu
 `git diff --stat <prev boundary>..HEAD -- '*.go'` for files whose new symbols
 have no row.
 
-Last re-derived: the M2 boundary, 2026-09-17.
+**This is not a promise — it is a test.** `couchcore/plan_contract_256_test.go`
+(`TestIssue256PlanTablesMatchTheTree`) parses both tables and asserts, for every
+row whose milestone has landed, that a `new`/`modified` symbol IS declared at the
+stated path and a `deleted` one is NOT. Three boundary rounds asked for these
+tables to be re-derived and three times they were re-narrated instead; a derived
+view is either machine-checked or it is prose.
 
 | Name | Lives in | Status | Landed |
 |------|----------|--------|--------|
@@ -171,6 +176,7 @@ Last re-derived: the M2 boundary, 2026-09-17.
 | `liveProofMatches` | `cmd/internal/couchcore/actionableinventory.go` | deleted | M1 |
 | `occupiedResumeCode` | `cmd/internal/couchcore/resume.go` | deleted | M1 |
 | `startInFlight` | `cmd/internal/couchcore/actionableinventory.go` | new | M2 |
+| `SwitchableState` | `cmd/internal/couchcore/actionableinventory.go` | new | M2 |
 | `ThreadEvidence.StartOwner` | `cmd/internal/couchcore/actionableinventory.go` | new | M2 |
 | `RecoverySessionRefusal` | `cmd/internal/couchcore/recovery.go` | new | M2 |
 | `coldResumeAuthorized` | `cmd/internal/couchcore/resume.go` | new | M2 |
@@ -179,7 +185,7 @@ Last re-derived: the M2 boundary, 2026-09-17.
 | `ResumeLegacyUnverified` | `cmd/internal/couchcore/resume.go` | deleted | M2 |
 | `ThreadParked` | `cmd/internal/couchcore/actionableinventory.go` | modified | M2 |
 | `ArchivableState` | `cmd/internal/couchcore/thread.go` | new | M3 |
-| `AllThreadStates` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
+| `AllThreadStates` | `cmd/internal/couchcore/actionableinventory.go` | new | M2 |
 | `archivableRecord` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
 | `occupiedIncarnation` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
 
@@ -249,7 +255,7 @@ Last re-derived: the M2 boundary, 2026-09-17.
 | `resolveScopedBindings` | `cmd/internal/couchcore/artifactcollision.go` | new | session-name index | M1 |
 | `retireDeadIncarnationBeforeStart` | `cmd/internal/couchcore/resume.go` | deleted | `ThreadStore` | M2 |
 | `clearLifecycleDebris` | `cmd/internal/couchcore/lifecycledebris.go` | new | `ThreadStore` | M2 |
-| `switchableWhenNothingRuns` | `cmd/internal/couchcore/switchagent.go` | new | session index | M2 |
+| `classifyForAction` | `cmd/internal/couchcore/switchagent.go` | new | the evidence pass | M2 |
 
 An earlier draft named `observeSessions`, which the code never shipped — the
 resolver is an interface plus a method on the existing checker, because that is
@@ -844,7 +850,8 @@ for _, state := range couchcore.AllThreadStates() {
 ```
 
 - [ ] **Step 2:** Red.
-- [ ] **Step 3:** Add `AllThreadStates()` beside `AllThreadReasons()`
+- [x] **Step 3 — PULLED FORWARD INTO M2** (BR-33 needed it to derive the
+  offered-implies-permitted domain): Add `AllThreadStates()` beside `AllThreadReasons()`
   (`threadreason.go:67`) — it does not exist today, and the codebase's own
   rationale applies verbatim: *"Go cannot check a switch for exhaustiveness; this
   enumeration is what does."*
@@ -1045,6 +1052,54 @@ corrective. #272's corresponding Done-when transfers there.
 
 ## Revisions
 
+### 2026-09-17 — M2 boundary review, round 3 (REWORK)
+
+Round 3 found round 2's fix had moved the class one layer down rather than
+closing it — the third round running. Recording the shape, because the shape is
+the finding: **each round fixed the layer the previous finding pointed at, and
+the next layer was always the one nobody had enumerated.**
+
+| Round | Layer that still read bookkeeping |
+|---|---|
+| 1 | the menu's offer vs the guard's receipt check |
+| 2 | the guard's own admission (a second re-derivation, which failed OPEN) |
+| 3 | the **execution** path: `SwitchAgent` parked on `hasOccupiedIncarnation` |
+
+**C1 — the rule, finally stated at the right level.** *The classification an
+action was admitted on is the value its execution branches on.* `PreparedAgentSwitch`
+now carries the state it was admitted on, and the commit decides park-vs-clear
+from it. I found and fixed this independently while round 3 was running; the
+reviewer measured the same symptom from the other side, which is the useful kind
+of agreement.
+
+**And the enumeration must cross producers × ACTIONS EXECUTED**, not producers ×
+admission guards. The round-2 table called `PrepareAgentSwitch` and the pure
+`DecideResume`, so only archive ran a real action — which is exactly why it went
+green over a broken commit. It is now 4 producers × 3 actions, each driven to
+completion in its own environment, and it reds under the round-2 park predicate.
+
+**C2 — a derived view is either machine-checked or it is prose.** Three rounds
+asked for the Core-concepts tables to be re-derived and three times they were
+re-narrated. `TestIssue256PlanTablesMatchTheTree` now parses both tables and
+asserts, for every row whose milestone has landed, that a `new`/`modified` symbol
+IS declared at the stated path and a `deleted` one is NOT. It found the three
+live divergences on its first run. The "Last re-derived" date is replaced by a
+pointer to the check, because a date is a claim and a test is a check.
+
+**I1 — the atlas contradicted itself in adjacent paragraphs**: "two producers"
+where the code has four, and the deleted guard named as current five lines above
+the paragraph explaining why that guard was wrong. Corrected and enumerated.
+
+**Minor, all mutation-verified by the reviewer before I fixed them.** Two guards
+were unpinned — deleting them left their tests green because a later check
+refused the same record — so both tests now discriminate their own guard's exit
+by message. `TestStartInteractiveAdopts…` never called `StartInteractive`; it
+does now, and reds when `parked` is dropped from the startup selector. The
+referent sweep's fifth and sixth sites (`launch_existing.go`, `resume.go:497`)
+are swept. The action path's cost is measured ON that path and recorded in the
+issue `## Log` rather than inherited from the refresh's table.
+
+
 ### 2026-09-17 — M2 boundary review, round 2 (REWORK)
 
 Five findings, three blocking. The headline is that **round 1's C1 fix was itself
@@ -1113,8 +1168,11 @@ consumers of the evidence field that widened it.** Task 6b's log recorded "one
 consumer, re-derived" for `ThreadEvidence.Parked`; `ThreadParked` itself changed
 meaning in the same commit and its seven readers were never listed. Fixed by
 replacing the receipt check with `switchableWhenNothingRuns` — a switch launches
-a FRESH agent, so the hazard is a surviving session, not a missing receipt — and
-by making the class mechanically checkable:
+a FRESH agent, so the hazard is a surviving session, not a missing receipt.
+**Round 2 then deleted that function**: asking the session was a SECOND
+re-derivation, and it failed open on a row couch was hosting. See the round-2
+entry; the symbol named here no longer exists, and is kept only because this
+entry records what round 1 did. Also, by making the class mechanically checkable:
 `TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` crosses every
 producer of `parked` with the three guarded actions a parked row offers, and
 `TestSwitchAgentOfferedImpliesPermitted` checks the complementary claim — that

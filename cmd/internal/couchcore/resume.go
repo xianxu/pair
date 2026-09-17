@@ -490,11 +490,12 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		return ActorRecord{}, nil, err
 	}
 	startedAt := c.Clock.Now()
-	// The same single write the spawn path uses. Its precondition -- verified
-	// park OR proved detachment -- was already checked by DecideResume above;
-	// carrying both authorities forward here is what keeps M4 from silently
-	// re-breaking detached reattachment, which M2 fixed and admission's second
-	// verified-park gate used to enforce.
+	// The same single write the spawn path uses. Its precondition -- a resolvable
+	// conversation OR proved detachment -- was already checked by DecideResume
+	// above; carrying both authorities forward here is what keeps M4 from
+	// silently re-breaking detached reattachment, which pair#181 M2 fixed and
+	// admission's second gate used to enforce. (The cold authority was the park
+	// RECEIPT until #256 M2 moved it to the ledger.)
 	repoIdentity, err := c.resolveRepoIdentity(ctx, thread.WorkingPath)
 	if err != nil {
 		return ActorRecord{}, nil, err

@@ -336,3 +336,122 @@ findings:
       name the test for the one code. It also t.Skipf's if the store rejects its fixture
       (:396); it passes today, but a silent skip is how a reachability guard stops guarding.
 ```
+
+---
+
+## Re-review — 2026-09-17T15:05:41-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 256 — Enforce lifecycle transition authority and outcome uncertainty |
+| repo | pair |
+| issue file | workshop/issues/000256-lifecycle-transition-authority.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 2d137941e1ccc9a28b1f83683e41e9ba2295a963..8db22bef23530045f2f3435ba93a03f7dcc3c3e5 |
+| command | sdlc milestone-close --issue 256 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-17T15:05:41-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+Round 2's fix is the right *shape* — `SwitchableState` as a pure predicate both the switcher and the guard call, `classifyForAction` running the production evidence pass, and a derived `AllThreadStates() × AllThreadReasons()` table — and I mutation-verified it goes red under the original defect. But BR-33 is **not closed**: the class moved one layer down rather than closing. `PrepareAgentSwitch` now *admits* the driverless-claim-with-ledger producer, and `SwitchAgent` then **fails on it**, because the commit's own execution path still branches on `hasOccupiedIncarnation(thread)` — the bookkeeping the classifier deliberately stopped reading — instead of the state it just consumed. I reproduced it end-to-end through a fully-wired `PairLifecycle` in a pinned scratch tree at HEAD: `outcome="park-incomplete"`, `err=switch-agent: park did not complete; use park retry/recover/abandon: park requires exactly one identified live or unknown incarnation` — the same sentence BR-33 quoted, relocated from the preflight to the commit, and now with guidance ("park retry/recover/abandon") for a park that never existed. The class guard cannot see it because it stops at `PrepareAgentSwitch`. Secondarily, the two derived views the milestone committed to re-deriving mechanically were not: the plan's Integration table still lists `switchableWhenNothingRuns`, a symbol this very commit deleted, and the atlas still says `parked` has "two producers" and names the deleted guard as current.
+
+> Note: my measurements are against the pinned commit `8db22bef`. The working tree had uncommitted edits during the review (including, late in the session, a `state ActionableThreadState` field on `PreparedAgentSwitch` citing "#256 M2, round 3"); none of that is in the reviewed range.
+
+## 1. Strengths
+
+- `cmd/internal/couchcore/actionableinventory.go:319-352` — `SwitchableState` as a pure `(state, reason)` predicate is the correct read of "consume, don't re-derive", and its doc comment records *both* failed attempts rather than presenting the third as obvious. Mutating `case ThreadLive, ThreadParked` → `case ThreadLive` reds `TestSwitchAgentOfferedImpliesPermitted` at `parked/` — verified.
+- `cmd/internal/couchtty/switch_agreement_test.go:23` — the domain is genuinely derived from `AllThreadStates() × AllThreadReasons()`, and the `(state == Unusable) != (reason != "")` filter keeps it to rows the projector can actually produce. This is the shape round 2 asked for, and it lives in `couchtty` so the import direction is right.
+- `cmd/internal/couchcore/parkedproducers_test.go:156-166` — the totality check now takes its domain from `everyThreadShape` instead of the literal it is checking, and the fix *found* two producers while doing so (receipt+unresolved, driverless+ledger). Adding the driverless row to `everyThreadShape` (`classify_test.go:287`) is the honest completion of that.
+- `cmd/internal/couchcore/startup_test.go:344` — the new adoption test is a real regression test for the M2 behaviour: reverting the ledger gate to `record.VerifiedPark != nil` reds it, along with 2 of 4 producer rows. Verified by mutation.
+- `cmd/internal/couchcore/actionableinventory.go:462-467` — deleting the subsumed late unresolved-session branch, and replacing it with a comment that says *where* the distinction is decided rather than defending a dead one, is exactly the right disposal of BR-36.
+
+## 2. Critical findings
+
+**C1 — `SwitchAgent` re-derives the park decision from bookkeeping, so switch-agent still always fails on BR-33's own producer.** `cmd/internal/couchcore/switchagent.go:285`
+
+> **This is the 6th finding in family `classification-not-authority`.** Do NOT fix this site. The rule below is the deliverable.
+
+`PrepareAgentSwitch` consumes the classification and admits the driverless-claim-with-ledger row (`parked`). `SwitchAgent` then discards it: `if hasOccupiedIncarnation(thread)` is true for an `IncarnationCreating`, so it calls `ParkExpected`, and `soleParkableIncarnation` accepts only `Live`/`Unknown` with a PID. Measured at HEAD in a `git archive` scratch tree with a production-shaped `PairLifecycleController`:
+
+```
+SwitchAgent outcome="park-incomplete"
+err=switch-agent: park did not complete; use park retry/recover/abandon:
+    park requires exactly one identified live or unknown incarnation
+after: park=<nil> verifiedPark=false incarnations=[{State:creating Start:…}]   # no durable damage
+retry PrepareAgentSwitch err=<nil>                                             # admitted again
+```
+
+That is BR-33's verbatim symptom — an offered action that always fails — with the refusal moved later and the guidance now actively wrong (there is no park to retry, recover or abandon). The `clearLifecycleDebris` call the commit message credits for this producer sits *after* the park block (`:303`), so it never runs. The same defect admits a second shape: an `unusable/session-gone` row carrying a stale `live` incarnation is now let through `PrepareAgentSwitch` entirely (the `state == ThreadLive` gate skips the "source is not a verified live actor" check that refused it before round 2) and fails at `ParkExpected` with `exact Pair session binding is absent` — measured; API-reachable only, since `menuActionItems` gives that row `{archive,name,describe}`.
+
+**The rule.** *The classification an action was admitted on is the value its execution branches on.* Carry it (e.g. on `PreparedAgentSwitch`) and decide park-vs-clear from the state — `live` ⇒ park the source, anything `SwitchableState` admits ⇒ clear debris and proceed — never from `hasOccupiedIncarnation`/`record.Incarnations`, which is precisely the bookkeeping M1 removed from the classifier. I validated the direction: gating the park block on `soleParkableIncarnation(thread) == nil` makes the driverless producer reach `outcome="started"`, with no other couchcore test disturbed.
+
+**And the enumeration must cross producers × ACTIONS EXECUTED, not producers × admission guards.** `parkedproducers_test.go:130` calls `PrepareAgentSwitch`; `:136` calls the pure `DecideResume`. Only archive (`:143`) drives the real action. A table that stops at the preflight cannot catch a preflight/commit disagreement — which is the whole of this finding, and the reason round 2's guard went green over a broken action. The fake stack *can* drive `SwitchAgent` end to end (my scratch test did, with `pairlifecycletest` + `fakeControllerLifecycle`), so there is no seam excuse.
+
+**C2 — the Core-concepts tables contradict the tree, in the same commit that promised they are re-derived.** `workshop/plans/000256-lifecycle-transition-authority-plan.md:252`, `:182`, `:160`
+
+> **This is the 5th finding in family `plan-code-divergence`.** Do NOT fix these rows. The rule is that the re-derivation must be *executed*, not asserted.
+
+| Row / claim | Tree at HEAD |
+|---|---|
+| `:252` `switchableWhenNothingRuns` \| `switchagent.go` \| new \| M2 | **does not exist** — deleted by this same commit |
+| `:182` `AllThreadStates` \| new \| **M3** | landed in **M2** (`actionableinventory.go:299`); Task 8 Step 3 (`:847`) is still `- [ ]` |
+| `SwitchableState`, `classifyForAction` | new M2 production symbols with **no row in either table** |
+| `:160` "Last re-derived: the M2 boundary, 2026-09-17." | false as of this commit |
+
+Round 2's own review recommendation #2 asked for this to become *a checked step, not a stated rule*, and it did not. The plan already states the exact mechanical check at `:156`; the gap is that nothing runs it. **The rule:** a derived view is either machine-checked or it is prose. This repo already owns the machinery — `couchcore/plan_contract_test.go` pins #151's plan tables against pinned source — so the fix is to extend that pattern to #256's two tables (symbol exists at the stated path; every new production symbol in `git diff <prev boundary>..HEAD -- '*.go'` has a row), not to hand-edit these four cells and re-assert the date.
+
+## 3. Important findings
+
+**I1 — the atlas states the retired guard and the retired producer count as current.** `atlas/couch.md:1488`, `:1498`
+
+> **This is the 4th finding in family `atlas-contradicts-code`.** Same rule as C2, different artifact.
+
+`:1488` "**`parked` has two producers now, and its consumers are the enumeration.**" — the code and `everyThreadShape` now enumerate **four**, and round 2's plan-revision #1 named this exact line ("correct … `atlas/couch.md:1478` … which currently asserts two"). `:1498` "The guard now asks the session instead (`switchableWhenNothingRuns`)" — that function was deleted in this commit; the paragraph five lines below then explains why asking the session was wrong, so the atlas contradicts itself in adjacent paragraphs. The narrative rewrite landed; the corrections the finding actually asked for did not. Same deliverable as C2: the atlas paragraph describing a mechanism cites a symbol, and a boundary check greps that the symbol exists.
+
+## 4. Minor findings
+
+- `cmd/internal/couchcore/switchagent.go:150` — the new `!hasOccupiedIncarnation` refusal is **not pinned**. Deleting it leaves `TestSwitchAgentRefusesAThreadCouchHostsWithNoIncarnation` green (verified), because `soleParkableIncarnation` refuses the same record two lines later. The outcome is covered; the guard and its operator-facing message are not. (5th in `fail-closed-guard-untested` — the rule: *a guard's test must discriminate that guard's own exit*, by code or message, not merely assert `err != nil`.)
+- `cmd/internal/couchcore/startup_test.go:344` — `TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves` never calls `StartInteractive`; it stops at `ActionableThreadInventoryContext` + `SelectResumableRoot`. Filtering `ThreadParked` out of `StartInteractive`'s own `SelectResumableRoot` call reds four sibling tests and leaves this one **green** (verified) — the exact shortcut `startup_test.go:276-283` records a previous review catching. (5th in `test-name-contradicts-assertion`.)
+- `cmd/internal/couchcore/switchagent.go:80` — `classifyForAction` runs a *whole* evidence round per `PrepareAgentSwitch`, including the form **prefill**: one host-wide `SessionPresence`, plus `Physical()` and a `CurrentStartTransaction` process probe for **every** record in the store (`ask` narrows only the ledger read). The issue Log's ARCH-CONSTRAINTS table measures the *refresh*, and records the action cost as "one exact session observation". (2nd in `declared-measurement-not-recorded` — the rule: when a change moves work onto an action path, the measurement is taken on that path, not inherited from the refresh's.)
+- `cmd/internal/couchcore/launch_existing.go:33` still reads "an exact verified-park resume" — BR-34 named it as its fifth, lower-confidence site and it was not swept while a different fifth was. Unexported comment; noted only so the referent list is complete.
+
+## 5. Test coverage notes
+
+Mutations run at HEAD in `$TMPDIR/br3` (pinned `git archive`, working tree untouched), all as claimed unless noted:
+
+| Mutation | Result |
+|---|---|
+| `SwitchableState`: drop `ThreadParked` | reds `TestSwitchAgentOfferedImpliesPermitted` at `parked/` ✓ |
+| gather gate → `record.VerifiedPark != nil` | reds `…AdoptsAThreadWhoseConversationStillResolves` + 2 producer rows ✓ |
+| delete `!hasOccupiedIncarnation` in `PrepareAgentSwitch` | **stays green** ✗ (Minor above) |
+| drop `ThreadParked` from `StartInteractive`'s selector input | 4 siblings red, the new adoption test **stays green** ✗ (Minor above) |
+| gate the park block on `soleParkableIncarnation` | driverless producer reaches `started`; suite otherwise undisturbed (C1 fix direction) |
+
+Suite state at HEAD: `couchcore`, `couchtty`, `couchcmd` fail only on `ptychild: … operation not permitted` / `open pty` (sandbox PTY restriction) and on `plan_contract_test`'s `exit status 128` (git unavailable in a scratch archive); `artifactpath` ok. No logic failures. Gaps: (a) no end-to-end `SwitchAgent` coverage for any producer except the receipt shape — that is C1's hole; (b) `PrepareAgentSwitch` has no row for the `unusable/{binding-lost,session-gone}` states `SwitchableState` newly permits; (c) ARCH-MOCK fake/production refusal-shape conformance is still per-site — unchanged since round 1, 3rd in `production-seam-only-tested-through-fake`, and belongs in M3's plan rather than another per-site fix.
+
+## 6. Architectural notes
+
+- **ARCH-DRY — flag (C1).** `SwitchableState` is the right consolidation; `clearLifecycleDebris` is shared by three callers. The residual duplication is that `SwitchAgent` re-derives "is something running" from `hasOccupiedIncarnation` when the value is already computed metres away.
+- **ARCH-PURE — pass with a flag (C1).** `SwitchableState` is pure and `classifyForAction` is a thin seam. The impurity is structural: `PreparedAgentSwitch` drops the state, forcing the commit path to reconstruct it from a record field.
+- **ARCH-PURPOSE — flag (C1, C2, I1).** Three rounds, three shadow-sweeps that stopped one level short: consumers-of-the-field → consumers-of-the-state → *admission* consumers, never execution. And the derived views the milestone promised to re-derive were re-narrated, not re-derived.
+- **ARCH-MOCK — pass.** The sentinel wrap (`artifactcollision_fake.go:252`) is correct and mutation-pinned, and the fakes are rich enough to drive the whole switch action — which is why C1 is a test-scope gap, not a seam gap.
+- **ARCH-CONSTRAINTS — flag (Minor).** A full evidence round now sits behind an operator keypress (the switch-agent form prefill), unmeasured on that path.
+- **ARCH-SECURE — pass.** Every probe is an exact `{PID, Identity}`; `clearLifecycleDebris` takes the validator-accepted domain as its untrusted boundary and says so.
+- **ARCH-ORDER — flag (C1).** `SwitchAgent` parks (irreversible, for a live source) *before* screening the debris that can make the park impossible — the same "irreversible step before a revocable check" this milestone already learned twice, now in the switch path. In both shapes I measured the store was left untouched, so the fault is unscreened ordering rather than observed damage; the driverless case is a stable accept→fail→accept loop with no state machine recording that the last attempt failed.
+- **ARCH-FUNERAL — pass.** No new artifact family; no writer's per-event growth increased.
+
+## 7. Plan revision recommendations
+
+1. **`## Revisions` — C1: BR-33 is closed at admission and open at execution.** Record that `PrepareAgentSwitch` admits four `parked` producers but `SwitchAgent` parks on `hasOccupiedIncarnation`, so the driverless-claim producer fails `park-incomplete` with park-recovery guidance for a park that does not exist (reproduced, no durable damage, repeatable). State the rule — *the state an action was admitted on is the state its execution branches on* — and that the producer×action table must drive each action to completion, not to its preflight.
+2. **`## Revisions` — C2: the derived views were not re-derived.** Correct `:252` (delete `switchableWhenNothingRuns`, add `SwitchableState` and `classifyForAction`), `:182` (`AllThreadStates` landed M2, pulled forward from Task 8 Step 3 — tick `:847` or note the pull-forward), and replace the bare "Last re-derived" line with a *check*, modelled on `couchcore/plan_contract_test.go`'s existing #151 machinery.
+3. **`## Revisions` — I1: the atlas.** `:1488` "two producers" → four, enumerated; `:1498` delete the `switchableWhenNothingRuns` sentence so the paragraph pair stops contradicting itself.
+4. **Record `SwitchableState`'s widening as a decision, not a side effect.** It permits `unusable/binding-lost` and `unusable/session-gone`, which the menu does not offer — the doc calls that a deliberate superset. Note that the superset removed the `verified live actor` refusal for records carrying an occupied incarnation in those states, and say which guard owns it now.
+5. **Move the Minor test-coverage rules into M3's task list as checked steps**, since both are the same shape as Task 8's plan: a guard's test discriminates the guard's own exit, and a test named for a production entry point invokes it.

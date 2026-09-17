@@ -384,9 +384,23 @@ func TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves(t *testing.
 	if !row.Resumable() {
 		t.Fatal("a row the ledger resolves must be offered as resumable, or startup cannot adopt it")
 	}
-	// The startup selector must pick it rather than mint a second thread here.
-	selected, found := SelectResumableRoot(rows, stale.Address.RepoScope, "/repo/sub")
-	if !found || selected != stale.Address {
-		t.Fatalf("startup selected %+v (found=%v), want the thread whose conversation resolves", selected, found)
+	// And StartInteractive itself must adopt it. Stopping at SelectResumableRoot
+	// was the shortcut this file already records a previous review catching:
+	// filtering ThreadParked out of StartInteractive's own selector call reds
+	// four sibling tests and leaves a selector-only assertion green, so it
+	// proves nothing about the entry point it is named for.
+	// The relaunched agent publishes its session, as a real one does; the hook
+	// fires during the launch, so it cannot disturb the classification above.
+	env.Runner.AfterAcknowledge = func(string) error {
+		env.Artifacts.SetPairSession(stale.Address, "pair-"+string(stale.Address.Tag), true)
+		return nil
+	}
+	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatalf("StartInteractive: %v", err)
+	}
+	if start.Record.Thread != stale.Address {
+		t.Fatalf("startup started %+v, want it to ADOPT %+v rather than mint a second thread in the tree",
+			start.Record.Thread, stale.Address)
 	}
 }

@@ -202,6 +202,27 @@ as the store grows: `TestWarmRowsAskNoLedgerQuestion` bounds the warm side (a
 hosted row and a detached row pay nothing), and nothing yet bounds the cold side.
 Recorded as a known gap rather than left implicit.
 
+**The ACTION path's own cost, measured on that path.** M2 moved a whole evidence
+round behind an operator keypress: `PrepareAgentSwitch` classifies through
+`classifyForAction`, and the switcher calls it for the form PREFILL as well as
+the commit. Inheriting the refresh's figure would have been the wrong
+measurement, so it is taken here:
+
+| Per `PrepareAgentSwitch`, 6-record store, fakes | Count |
+|---|---|
+| whole call | **0.65 ms** |
+| `SessionPresence` (one host-wide `list-sessions`) | 1 |
+| `Physical()` | 4 — every resume-shaped record, not just the one asked about |
+| `ResolveEstablished` (ledger) | 1 — the `ask` predicate narrows this one |
+| `DetachedSessions` (`list-clients`, ~250 ms real) | 0 |
+
+The unnarrowed figure is `Physical()`: `gatherThreadEvidence` applies `ask` AFTER
+physicalization on purpose, because startup's predicate compares working paths
+and an alias would otherwise miss its own thread. `classifyForAction`'s predicate
+compares addresses and would be safe earlier, but moving the gate would change
+the shared function for every caller — recorded as the knob to turn if this ever
+matters, not turned speculatively.
+
 **M2's operator verification is DEFERRED, owner: the operator.** Three items in
 the plan need a live couch and cannot be discharged by the suite:
 

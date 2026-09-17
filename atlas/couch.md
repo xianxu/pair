@@ -1485,7 +1485,16 @@ the better explanation where there is nothing to resume into: archive abandons
 orphaned parks as a matter of course now, so a veto would have made "couch
 crashed mid-park once" a permanent cold-resume ban.
 
-**`parked` has two producers now, and its consumers are the enumeration.** That
+**`parked` has FOUR producers now, and its consumers are the enumeration.** A
+park receipt whose session is absent; a ledger that resolves with no receipt at
+all (M2's new one); a receipt whose session could not be asked about, which the
+classifier keeps deliberately; and a driverless start claim whose ledger still
+resolves. `everyThreadShape` carries all four, and
+`TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` derives its rows from
+it rather than listing them — an earlier version hand-wrote two and its totality
+check compared a map filled from that same literal, so it could not fail.
+
+The consumers are the enumeration. That
 is the rule the M2 boundary review extracted, after the sweep re-derived the
 consumers of the evidence FIELD that widened (`ThreadEvidence.Parked`) and missed
 the consumers of the STATE. `ThreadParked` has seven readers — `startup.go`'s
@@ -1494,10 +1503,7 @@ renderers, `menuThreadActionable`, and the switcher's action list. The last one
 offers `switch-agent`, and `PrepareAgentSwitch` still demanded a park receipt, so
 a ledger-parked row was offered an action that always failed — the thing
 `menu.go` names in its own words as how a switcher teaches an operator to
-distrust it. The guard now asks the session instead
-(`switchableWhenNothingRuns`): a switch launches a FRESH agent and resumes no
-conversation, so a surviving session is the whole hazard, and `Unknown` fails
-closed. Two derived tables make the class checkable rather than re-derived per
+distrust it. Two derived tables make the class checkable rather than re-derived per
 milestone: `TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` takes its
 producers from `everyThreadShape`, and `TestSwitchAgentOfferedImpliesPermitted`
 takes its domain from `AllThreadStates() × AllThreadReasons()`.
