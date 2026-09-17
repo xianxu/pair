@@ -253,3 +253,24 @@ func TestAnUnarmedConsoleTracesNoSeeding(t *testing.T) {
 		t.Fatalf("an unarmed console traced a seeding: %q", lines)
 	}
 }
+
+// Every trace event constant is documented in the atlas (pair#265 BR-8).
+//
+// The enumeration went stale three times in one issue -- each time it changed,
+// some durable restatement of it did not. A list a reader trusts is a claim the
+// tree can check, so this checks it.
+func TestAtlasNamesEveryTraceEvent(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "atlas", "couch.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	atlas := string(raw)
+	for _, event := range []string{
+		traceStartup, traceFirstFrame, traceInventory,
+		tracePassSeeded, traceReattachStart, traceReattachDone, traceNoDestination,
+	} {
+		if !strings.Contains(atlas, "`"+event+"`") {
+			t.Errorf("atlas/couch.md does not document the %q trace event", event)
+		}
+	}
+}

@@ -210,3 +210,44 @@ Next diagnostic, in order:
       extracted at 16:21 alongside the failed start; `Keep: 2` yet three
       generations are present, so pruning may also be misbehaving.
 - [ ] Explain the EPERM on quiesce.
+
+### 2026-09-16 — a candidate root cause from `pair#265`'s close review
+
+Recorded here because `pair#265` claims it is, and a claim about another
+artifact has to be true in that artifact (`pair#265` BR-8).
+
+`pair#265`'s boundary review found a **durable** disagreement between couch's
+focus and the presenter's view:
+
+> `installObservedThreadActor` (`console.go:419`) sets `c.focus =
+> FocusActor(handleID)` when `c.active == ""` on a **foreground** attach — and
+> never selects. `finishOperation` only `forceSwitch`es for resume/recover, so
+> nothing later selects either.
+
+So `(focus = actor, presenter selected = nil)` persists until the operator
+switches away by hand. In that state the operator has **a blank viewport, no
+chrome, and dead keys** — which is this issue's reported symptom, arriving with
+no failure of `pair` at all.
+
+This is a competing explanation for the blank screen, and it is cheaper to test
+than the launch hypothesis: it predicts that the pane becomes usable the moment
+the operator performs any real `selectActor` — switching thread, or switching
+harness. The operator's `pair#265` smoke test did exactly that (`muse` →
+`claude` from a blank `brain` pane) and reported it worked, which is consistent
+but not yet decisive: *did the pane become usable after the switch, or only the
+switcher?*
+
+Note it does **not** explain the `xianxu.dev` registration timeout, where couch
+never got as far as attaching. So there may be two causes wearing one symptom.
+
+Distinguishing test, cheaper than the trace capture:
+
+- [ ] Start couch on a blank pane, then `ctrl+space` and re-select **the same
+      thread**. If the pane comes alive, it is this — not the launch.
+- [ ] If it stays blank, the launch hypothesis stands and the `COUCH_TRACE` /
+      `COUCH_INPUT_TRACE` capture is the next step.
+
+Either way `pair#265` made this state *loud*: every drop in it now records a
+`no-destination` trace event with the operation that was abandoned (`panel`,
+`input`, `chrome`, `resize`). Running with `COUCH_TRACE` set and seeing a stream
+of those is itself the diagnosis.

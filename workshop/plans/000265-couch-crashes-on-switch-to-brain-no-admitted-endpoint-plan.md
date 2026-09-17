@@ -54,9 +54,10 @@ The record-versus-world half of the brain diagnosis (a park wedged in `ThreadBus
 | `Console.deliverChildInput` | `cmd/internal/couchtty/terminal_input.go` | new | `deliverPresenterInput` |
 | `Console.routeInputEvent` | `cmd/internal/couchtty/terminal_input.go` | modified | operator keystrokes |
 | `Console.routeMouseEvent` | `cmd/internal/couchtty/terminal_input.go` | modified | operator mouse reports |
-| `Presenter.Input` / `Presenter.mouseInput` / `Presenter.UpdateChrome` | `cmd/internal/terminal/presenter.go` | modified | parent terminal writes |
-| `Console.paintNow` | `cmd/internal/couchtty/console.go` | modified | chrome repaint |
-| `terminalMux.writeEvents` | `cmd/internal/termcmd/presentation.go` | modified | `pair term` input |
+| `Presenter.Input` / `mouseInput` / `UpdateChrome` / `resizeLayout` | `cmd/internal/terminal/presenter.go` | modified | parent terminal writes |
+| `Console.paintNow` / `Console.onResize` | `cmd/internal/couchtty/console.go` | modified | chrome repaint, window resize |
+| `Console.traceDropped` / `traceNoDestination` | `cmd/internal/couchtty/trace.go` | new | the non-repainting signal channel |
+| `terminalMux.writeEvents` / `paintStripLocked` / `inheritSize` | `cmd/internal/termcmd/presentation.go` | modified | `pair term` input, repaint, resize |
 
 - **deliverPresenterInput** — the ONE door to `Presenter.Input` in couchtty. Classifies the answer: `ErrNoDestination` is returned to the caller, anything else goes to `terminalError`.
   - **Injected into:** nothing; it *is* the seam. The pure decisions it defends (`Focus.IsPanel`, `Transition`) are already pure and already unit-tested.
@@ -203,7 +204,7 @@ git commit -m "#265: terminal: a typed answer for input with no destination"
 
 ---
 
-### Task 2: The presenter returns it from both refusal sites
+### Task 2: The presenter returns it from every refusal site
 
 **Files:**
 - Modify: `cmd/internal/terminal/presenter.go:470` (`Input`), `cmd/internal/terminal/presenter.go:478` (`mouseInput`)
@@ -825,3 +826,33 @@ Per `memory: feedback_pair_dogfood_and_agnostic` — ASK the operator to smoke t
 - The wedged park and the record-versus-world reconciliation: `pair#271`.
 - Orphaned live agents (liveness proved from the launcher pid): `pair#272`.
 - **`ErrBackpressure` is an adjacent sibling this issue does NOT fix.** `p.call` returns it (`presenter.go:91`) when the presenter's request queue is full; it is not `ErrNoDestination`, so it still reaches `terminalError` and exits couch. It belongs to a neighbouring class — a *capacity* answer rather than a *routing* answer — and dropping input under backpressure is almost certainly better than exiting, but that is a policy decision with its own ARCH-CONSTRAINTS argument and should not ride along here. Raised by the plan review's second pass; record it in the `## Log` at close so it is deferred rather than lost.
+
+## Revisions
+
+### 2026-09-16 — scope grew twice, at two different gates
+
+Recorded per AGENTS.md §1: a plan revised mid-stream appends its delta rather
+than being silently overwritten. Both growths are the same root error — the
+class was enumerated by **caller** (`grep '\.Input('`) instead of by **answer**.
+
+- **Plan-quality gate (round 1, PQ-1).** `Presenter.UpdateChrome` returns the
+  same refusal and `Console.paintNow` escalated it, reachable with no input at
+  all. Added to Task 2 as a third refusal site and to Task 3 as Step 3b. The
+  planned "notice on a refused keystroke" was **removed** in the same round: it
+  repaints through that very path.
+- **Plan-quality gate (round 1, PQ-2).** Panel safety was tested for three
+  hand-picked event kinds; added Step 3c over `makeInputEvent`'s closed set.
+- **Close gate (round 1, BR-1/BR-2).** `Presenter.resizeLayout` is a **fourth**
+  producer — a window resize still exited couch — and `pair term`'s repaint and
+  resize paths were unswept. Task 2's own acceptance criterion said to re-run
+  the enumeration and confirm exactly three; that step was written and not
+  executed.
+- **Close gate (round 1, BR-3).** Two halves of the fix had no red oracle. Three
+  tests added, each mutation-proven red.
+- **Close gate (round 2, BR-9).** The AST guard pinned `Presenter.Input` alone —
+  one of four producers. Replaced by a contract test that derives the producer
+  set from source and checks every consumer call in **both** packages.
+
+What the plan should have said from the start, and now does: the enumeration is
+*every refusal that reports the ABSENCE of an endpoint*, and it is derived
+mechanically rather than restated.

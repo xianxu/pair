@@ -205,9 +205,16 @@ func (m *terminalMux) writeEvents(events []terminal.InputEvent) {
 		}
 		if err := m.presenter.Input(context.Background(), event.Event); err != nil {
 			// A routing answer is not a failure of the terminal: the presenter
-			// simply holds no endpoint for this event right now. A tab can exist
-			// while nothing is admitted, so activeTabLocked above does not settle
-			// it. Stopping the mux over that is the pair#265 escalation.
+			// simply holds no endpoint for this event right now. Stopping the mux
+			// over that is the pair#265 escalation.
+			//
+			// DEFENSIVE, and unreachable today -- say so rather than implying a
+			// live hazard. Unlike couch, pair term never calls presenter.Panel,
+			// admitTab selects atomically, removeTab reselects before retiring
+			// and Retire refuses while selected, so an admitted tab always has an
+			// endpoint. The guard is here because that is an invariant of the
+			// mux's own code, not of the presenter's contract, and couch held the
+			// same belief about its panel until #265. (BR-8)
 			if errors.Is(err, terminal.ErrNoDestination) {
 				continue
 			}
@@ -358,8 +365,10 @@ func (m *terminalMux) paintStripLocked() {
 	if err == nil {
 		err = m.presenter.UpdateChrome(context.Background(), chrome)
 	}
-	// activeTabLocked above asks pair term's own tab model, which can disagree
-	// with the presenter's view -- the same disagreement writeEvents handles.
+	// Same defensive classification as writeEvents, and unreachable for the same
+	// reason: activeTabLocked asks the mux's tab model, which today cannot
+	// disagree with the presenter's view. Kept because that agreement is the
+	// mux's invariant to maintain, not the presenter's to guarantee. (BR-8)
 	if err != nil && !errors.Is(err, terminal.ErrNoDestination) {
 		m.stopLocked(err)
 	}

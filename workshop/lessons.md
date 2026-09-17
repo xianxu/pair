@@ -5116,13 +5116,6 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   (`\x1b[?1004h` and `\x1b[>3u` go out on the first paint, panel or not). Test
   the decoder's *closed set*, not the kinds the bug report happened to name.
 
-- **Enumerate the answer, not the call site.** The first enumeration of "who
-  escalates a routing answer" was `grep '\.Input('`, which found three families
-  and missed `UpdateChrome` entirely — a fourth site returning the same answer,
-  escalated by `paintNow`, reachable with no input at all. The class was
-  "everywhere this answer is produced", and grepping the *caller* could never
-  find it. Found by the plan-quality gate, not by the author.
-
 - **A "non-fatal" recovery path can re-enter the escalation it was added to
   avoid.** Publishing a notice on a refused keystroke looked harmless;
   `setNotice` → `publishNotice` → `repaint` → `paintNow` → `UpdateChrome` →
@@ -5164,3 +5157,21 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   nothing later selects. Degrading quietly there means a blank viewport with
   dead keys and no signal. Where a notice would repaint (and re-enter the very
   escalation being removed), a trace event is the channel that does not. (#265 BR-4)
+
+- **When a mechanical guard exists, put the RULE in it, not the instance.** #265
+  shipped an AST guard pinning `Presenter.Input` to one door — and the close
+  gate then found the guard covered one of four methods that answer the same
+  error, including the two the previous round had just fixed. A guard scoped to
+  the instance you were burned by is a guard that watches the door you already
+  closed. The replacement derives the producer set from source and checks every
+  consumer call in every consuming package, so a fifth producer or a seventh
+  call site fails a test instead of reaching an operator. (#265 BR-9)
+
+- **An enumeration restated in prose goes stale silently, and "recorded in X" is
+  a checkable claim.** One #265 enumeration change left five durable
+  restatements wrong across the atlas, the plan and the issue — plus an issue
+  sentence asserting a finding "is recorded" in a sibling issue where it was
+  not. Regenerate every restatement in the same commit as the change, and grep
+  the other artifact before claiming anything about it. Where the list lives in
+  code, pin it: `TestAtlasNamesEveryTraceEvent` now fails if a trace event ships
+  undocumented. (#265 BR-8)

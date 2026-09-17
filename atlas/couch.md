@@ -1109,7 +1109,17 @@ The events:
 - `inventory`, with `rows=N` or `error`;
 - `pass-seeded`, with `pending=N`;
 - `reattach-start`, with `attempt=N`;
-- `reattach-done`, with `ok`, a resume diagnostic code, or `error`.
+- `reattach-done`, with `ok`, a resume diagnostic code, or `error`;
+- `no-destination` (`pair#265`), with the abandoned operation and the
+  presenter's refusal: `panel`, `input`, `chrome` or `resize`. It records a drop
+  that has no other channel — a notice would repaint, and repainting is what
+  re-enters the escalation `#265` removed. Its detail carries the refusal text
+  rather than a bare code, unlike `reattach-done`; the text is a static reason
+  plus `%q`-quoted endpoint ids, which the TSV framing permits because `%q`
+  escapes tab and newline.
+
+`TestAtlasNamesEveryTraceEvent` pins this list against `trace.go`, so a new
+event cannot ship undocumented (`pair#265` BR-8).
 
 Unlike the keystroke trace, it records addresses, counts and timings, never
 content. The traces write through one `traceFile` (`trace.go`): opened 0600,

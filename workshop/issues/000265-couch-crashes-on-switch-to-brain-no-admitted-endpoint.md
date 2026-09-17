@@ -102,7 +102,7 @@ the plan at `workshop/plans/000265-couch-crashes-on-switch-to-brain-no-admitted-
 
 - [x] Reproduce / narrow: log the `View` state (`State`, `Admitted`, `Selected`) with the panel focused; confirm which guard fails at `presenter.go:470`. *(Done 2026-09-16: `state=0 selected="" admitted=""`; `Admitted == ""` is the failing term, and it is the panel's correct state.)*
 - [x] Identify why the endpoint is unadmitted. *(Done: it is not a `brain` harness fault. `Presenter.Panel` clears `selected` by design; three event kinds skip the panel check and ask anyway. Root cause is routing, not admission.)*
-- [x] Add the typed no-destination answer in `cmd/internal/terminal` and return it from every refusal site (three, not two — `UpdateChrome` was found by the plan gate).
+- [x] Add the typed no-destination answer in `cmd/internal/terminal` and return it from every refusal site — **four**: `Input`, `mouseInput`, `UpdateChrome` (plan gate), `resizeLayout` (close gate, BR-1). The set is now derived by AST in `TestNoDestinationProducersAreEnumerated`, so a fifth cannot appear unenumerated.
 - [x] Route every couch input through one panel-aware door so unadmitted input is non-fatal, and the panel check governs key release, focus and blur. `paintNow` classifies the same answer.
 - [x] Pin the door with an AST guard, proven red against a deliberate violation.
 - [x] Sweep the class: `termcmd/presentation.go` has the same escalation via `stopLocked`.
@@ -393,3 +393,41 @@ now a *measured* absence rather than an omission (see the comment on
 Verification after rework: `make test`, same env scrubs — **210 packages, exit
 0, zero failures**. The pre-existing
 `TestConsoleRunRootEscapeClearsFilterThenReplaysActor` flake did not recur.
+
+### 2026-09-16 — close boundary review round 2: FIX-THEN-SHIP, ledger addressed
+
+Verdict FIX-THEN-SHIP with two open Important findings, both tagged **"third in
+family"**. The gate's message was the useful part: *"Not converging: fix rules,
+not instances."* Both were fixed as rules.
+
+- **BR-9 — the AST guard pinned 1 of 4 answer-producing methods, and `termcmd`
+  had no guard at all.** Round 1 fixed `UpdateChrome` and `resizeLayout`; the
+  guard I shipped watched only `Presenter.Input`, so a new
+  `c.presenter.UpdateChrome` forwarding to `terminalError` would compile, pass
+  the guard, and reproduce the crash. Replaced with
+  `terminal/no_destination_contract_test.go`, which **derives** the producer set
+  from source (`TestNoDestinationProducersAreEnumerated`) and checks every
+  consumer call in both `couchtty` and `termcmd`
+  (`TestConsumersOfNoDestinationMethodsClassifyIt`). Mutation-proven red three
+  ways: dropping a producer from the mapping, unclassifying couch's `paintNow`,
+  and unclassifying termcmd's `paintStripLocked` — the last two each named the
+  exact file:line and function.
+- **BR-8 — the enumeration sweep stopped at the atlas; 5 of 7 restatements
+  stale, one cross-artifact claim false.** All corrected: the `no-destination`
+  trace event is now in the atlas's canonical `COUCH_TRACE` list and pinned by
+  `TestAtlasNamesEveryTraceEvent` (proven red by renaming the constant); the
+  plan's Core-concepts table lists all four producers and all six consumers; the
+  plan gained the `## Revisions` section AGENTS.md §1 requires, recording both
+  scope growths; this issue's Plan row says four, not three. The false claim —
+  that BR-4's lead "is recorded" in `pair#273` — was false, and is now true:
+  `pair#273` carries it, with a cheaper distinguishing test than the trace
+  capture.
+- Also per BR-8, two `termcmd` comments asserted a hazard I could not
+  substantiate. Verified: `pair term` never calls `presenter.Panel`, `admitTab`
+  selects atomically, `removeTab` reselects before retiring, and `Retire`
+  refuses while selected — so an admitted tab always has an endpoint. The guards
+  stay; the comments now say **defensive and unreachable today**, with why they
+  are kept.
+
+Verification: `make test`, same env scrubs — **210 packages, exit 0, zero
+failures.**
