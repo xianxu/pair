@@ -66,8 +66,8 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 //
 // Three predicates read a thread's state and they are deliberately distinct,
 // because they ask different things: `occupiedIncarnation` asks whether
-// something is still ACTING on a thread (shared by archive and resume, and the
-// one that was genuinely duplicated); `PathHoldsUsableThread` asks whether a
+// something is still ACTING on a thread (archive's rule since #256 -- resume no
+// longer reads it, because the launcher it names dies with couch); `PathHoldsUsableThread` asks whether a
 // path already holds work; `PathHoldsUnreadableThread` asks whether a scope
 // holds something couch could not read. Collapsing them would force one answer
 // onto three questions.
@@ -134,9 +134,12 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 //   - ResolveLayoutConflicts: reads only rows whose layout differs from the one
 //     couch was asked to start in, at any path.
 //
-// A candidate outside both sets keeps ProofUnresolved and classifies
-// `unknown`. No reader of startup's rows can act on such a row: it is not at
-// the cwd, and its layout agrees, so it is neither selectable nor a conflict.
+// A candidate outside both sets is not asked for its COLD-resume proof, so a
+// verified-park row there classifies `unknown`. Session presence is gathered for
+// every record regardless of this predicate (#256) -- one host-wide call whose
+// cost does not scale with how many records it covers -- so such a row can still
+// classify `detached`. No reader of startup's rows can act on either: it is not
+// at the cwd, and its layout agrees, so it is neither selectable nor a conflict.
 // The rows never leave StartInteractive -- StartResult carries none -- so the
 // unasked state cannot reach the switcher, which is what pair#228's close
 // review closed off.

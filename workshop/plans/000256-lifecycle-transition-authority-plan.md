@@ -355,8 +355,8 @@ rules. The new branch order:
 | 3 | couch is starting this thread **right now** (in-memory observation) | `busy` |
 | 4 | couch hosts this pty | `live` |
 | 5 | `SessionPresent` | `detached` |
-| 6 | `SessionUnresolved` | `unusable` / `unknown` |
-| 7 | `VerifiedPark` payload + resolvable native id | `parked` |
+| 6 | `VerifiedPark` payload + resolvable native id | `parked` |
+| 7 | `SessionUnresolved` | `unusable` / `unknown` |
 | 8 | ledger holds a resolvable native id | `unusable` / `binding-lost` |
 | 9 | otherwise | `unusable` / `session-gone` |
 
@@ -421,9 +421,11 @@ together: `threadreason_test.go`'s `defining` map, `menu_test.go:1259`
 `classify_test.go:271`.
 
 - [ ] **Step 1:** Run the three guards; let them name the orphaned reasons.
-- [ ] **Step 2:** Remove what is genuinely unreachable. **Keep**
-  `ReasonUnrecordedChild` — #276 will produce it — with a comment saying which
-  issue does, so the guard stays honest rather than being silenced.
+- [ ] **Step 2:** Remove what is genuinely unreachable. **Both** are removed,
+  including `ReasonUnrecordedChild` — an earlier draft said keep it for #276, but
+  a vocabulary entry with no producer is exactly what
+  `TestEveryReasonIsProducedBySomeShape` forbids, and an exemption would silence
+  that guard for every future orphan. #276 re-adds it with its producer.
 - [ ] **Step 3:** Re-run → PASS.
 - [ ] **Step 4:** Commit, then `sdlc milestone-close --issue 256 --milestone M1`.
 
@@ -588,6 +590,11 @@ for _, state := range couchcore.AllThreadStates() {
 - [ ] **Step 6:** Commit.
 
 ### Task 8a: The same rule for resume — the other half of the class
+
+> **LANDED IN M1.** Pulled forward: M1 cannot be green while a guard contradicts
+> the classification it feeds, and the acceptance suite proved it. The red state
+> below names `resume-creating`, a code deleted in the same milestone when its
+> only producer went. Kept for the record; do not execute it again.
 
 **Files:**
 - Modify: `cmd/internal/couchcore/resume.go:96-106` (`DecideResume`), `cmd/internal/couchcore/startup.go` (`SelectResumableRoot` callers)
@@ -773,6 +780,47 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — M1 boundary review, round 4 (REWORK)
+
+**The "unrepresentable" claim in round 2 was false, and it mattered.** I deleted
+the park-identity guard on the grounds that `validateLifecycle` makes a
+foreign-owned park impossible — read from its main clause, missing the exception
+one line above: zero matches ARE permitted when the phase is `unknown` and the
+transaction carries a `replacement_incarnation` failure, which `park.go`
+produces. So the code probed the incarnation and wrote a permanent tombstone
+about a different process, one that could be alive and mid-park; its own
+`FinalizePark` would then fail forever and #275's audit trail for it would be
+gone.
+
+Two rules from it:
+
+- **An irreversible step's precondition is proved about the exact entity the
+  step acts on.** Two entities, two probes.
+- **A guard omitted as "unrepresentable" must cite the validator clause that
+  makes it so, read including its exceptions, and be pinned by a test that tries
+  to build the fixture through the real store.** `TestForeignOwnedParkIsRepresentableAndRefused`
+  does exactly that — and the store accepted the record, which is the proof the
+  claim was wrong.
+
+Also this round:
+
+- **A diagnostic code is a claim.** `ResumeNotRunning` ("not running at all --
+  the OPPOSITE of ResumeLive") was being emitted on an exit reached when couch
+  could not tell, so the background reattach pass would render "resume-not-running"
+  over a live conversation. Now `ResumeUnknown`, and a test pins which code each
+  exit emits — there was none.
+- Six comments asserting behaviour the code no longer has, swept as one
+  enumeration. The mechanism, since three rounds of hand-enumeration each missed
+  sites: **a comment asserting what a path classifies names the test that pins
+  it**, and a comment enumerating callers points at the one home rather than
+  restating the list.
+- **The re-derivation rule widened from the Core-concepts tables to every
+  normative statement in the plan** (round 2 scoped it too narrowly). Three task
+  bodies were directing work the boundary had already reversed: the branch table
+  ordered `SessionUnresolved` above `VerifiedPark`, which is the bug round 1
+  fixed by inverting them; Task 3 said keep `ReasonUnrecordedChild`; Task 8a
+  described work pulled into M1 and named a since-deleted code as its red state.
 
 ### 2026-09-17 — M1 boundary review, round 3 (FIX-THEN-SHIP)
 

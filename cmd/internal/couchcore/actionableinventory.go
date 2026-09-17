@@ -373,8 +373,9 @@ func startClaimed(record ThreadRecord) bool {
 	return false
 }
 
-// detachedResumeProofMatches is the warm-session contract shared by inventory,
-// execution and the final recheck. ProjectDetachedSessions proves live,
+// detachedResumeProofMatches is the warm-session contract shared by execution
+// and the final recheck. The INVENTORY no longer calls it -- since #256 the
+// refresh reads session presence instead, and never counts clients. ProjectDetachedSessions proves live,
 // client-free, unique ownership; this matcher correlates that proof with the
 // thread. Occupancy belongs to the caller's lifecycle stage, since the final
 // recheck runs after the attempt has claimed a creating incarnation.
@@ -416,12 +417,14 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 // nothing. Both inventories consume it, so the switcher and the diagnostic view
 // cannot derive different states from the same store (ARCH-DRY).
 //
-// ask narrows the RESOLUTION, not the record set: a candidate it rejects keeps
-// ProofUnresolved and classifies `unknown`, so it appears as a row nobody can
-// act on rather than vanishing. nil asks about every candidate, which is what
-// the switcher's refresh wants. Startup passes a predicate, because its readers
-// filter before they read and proving anything else is work whose answer is
-// never consulted (pair#206 M1).
+// ask narrows the COLD-resume resolution, not the record set: a candidate it
+// rejects keeps ProofUnresolved, so a verified-park row there classifies
+// `unknown` and appears as a row nobody can act on rather than vanishing. It
+// does NOT narrow session presence, which is one host-wide call for every
+// record (#256). nil asks about every candidate, which is what the switcher's
+// refresh wants; startup passes a predicate because its readers filter before
+// they read (pair#206 M1). The one home for which readers those are is
+// startup.go -- see its comment there rather than restating the list here.
 //
 // It returns the snapshot too, because physicalizing a working path mutates the
 // record the caller projects.
@@ -438,6 +441,9 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	// them separate is what let one store tell two stories -- the switcher
 	// calling a thread stale because it does not host it, while `couch --list`
 	// called the same thread live from the same records.
+	//
+	// Since #256 it is POSITIVE-ONLY: its absence proves nothing and falls
+	// through to the session. Pinned by TestAbsentLiveEvidenceProvesNothing.
 	observed := make(map[ThreadAddress][]ProcessIdentity, len(observations))
 	seen := make(map[ThreadAddress]map[ProcessIdentity]bool, len(observations))
 	add := func(address ThreadAddress, process ProcessIdentity) {

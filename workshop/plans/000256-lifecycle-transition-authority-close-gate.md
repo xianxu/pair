@@ -219,6 +219,61 @@ rounds:
           round: 3
       boundary: M1
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-17T10:47:04-07:00"
+      agent: claude
+      dispose:
+        - id: BR-17
+          disposition: addressed
+          note: Blanket deferred coder gone from resume.go (only the pre-existing retention join at :359 remains, present at base); menu_reattach.go:244-252 reads an empty code correctly again; TestResumeCodeStillMeansAStructuredRefusal and TestEveryStartupResumeFailureIsActionable pin both halves including errors.Is through the decoration. The second instance (actionableinventory.go "must not start to") is rewritten.
+          round: 4
+        - id: BR-18
+          disposition: addressed
+          note: 'artifactcollision.go:320-331 binds SessionPresenceResolver, DetachedSessionResolver, NativeBindingResolver and PairSessionIO on the production type plus two on the fake, with the silent-failure rationale in the comment. Residual not re-raised: contextPairSessionObserver (recovery_execute.go:16) and couchcmd/run.go:125''s anonymous interface stay unpinned, but both have an explicit non-context fallback rather than degrading to universal unknown.'
+          round: 4
+        - id: BR-19
+          disposition: not-addressed
+          note: atlas/couch.md:1330 now says "One class, four sites" — correct. The issue Log, named in the finding as the fourth home and again in round 3's own notes (m1-review.md:476), still says three at issue lines 123, 133 and 141, with an enumeration that omits the site carrying the irreversible-ordering rule. See I1.
+          round: 4
+        - id: BR-20
+          disposition: not-addressed
+          note: 'classify_test.go untouched in 54d36c37; name, doc (still citing a #248 case that no longer exists) and failure message all still disagree with a body admitting three newlyActionable #256 shapes. The guard added this round, TestEveryResumeDiagnosticCodeIsProducedBySomeSite, is a fresh instance of the same rule — it counts substring mentions, so a code with comment mentions and no producer passes.'
+          round: 4
+        - id: BR-21
+          disposition: not-addressed
+          note: resume.go:608 still calls c.Threads.AbandonPark directly, bypassing PairLifecycleController.Abandon's per-thread worker; no change in park.go or run.go. Minor, CAS-protected.
+          round: 4
+        - id: BR-22
+          disposition: addressed
+          note: ResumeCreating deleted and TestEveryResumeDiagnosticCodeIsProducedBySomeSite derives its identifiers from the declaration, so re-adding an unproduced code reddens it. Soundness gap in the guard itself recorded under BR-20 rather than re-raised here.
+          round: 4
+      findings:
+        - id: BR-23
+          severity: Critical
+          title: The orphaned-park abandon probes one process and writes a permanent tombstone about another
+          detail: '2nd in family — fix the RULE, not this site. resume.go:600-612 abandons thread.Park after probing thread.Incarnations[0], omitting the identity check on the claim that a park owned by another process is unrepresentable. threadrecord/lifecycle.go:91 permits matches==0 when Phase is "unknown" and the transaction carries a replacement_incarnation failure; park.go:653-662 produces exactly that, and threadrecord/record_test.go:303 pins it as valid. Confirmed by execution in a scratch copy: a record created through the production ThreadStore with a live incarnation {99,"replacement"} and a park owned by {42,"original-owner"}, with pid 42 ALIVE, retires cleanly and abandons pid 42''s park — one permanent tombstone, retireErr nil. The live owner''s later FinalizePark then fails with "park abandon identity does not match active transaction", so the park silently never completes and #275''s audit trail for it is gone. The rule: an irreversible step''s precondition must be proved about the exact entity the step acts on, and a guard omitted as "unrepresentable" must cite the validator clause that makes it so, read including its exceptions, and be pinned by a test that tries to build the fixture through the real store. Enumerable sibling: lifecycle.go:97-105''s resumeOccupied escape. Also correct sessionevidence_test.go:372''s exclusion note and plan:842.'
+          family: irreversible-step-before-precondition
+          round: 4
+        - id: BR-24
+          severity: Important
+          title: A changed referent left six unre-derived sites, one of which renders a false diagnostic to the operator
+          detail: '4th in family — fix the RULE, not these sites. Behavioural member first: ResumeNotRunning is declared (resume.go:31-34) as "not running at all … the OPPOSITE of ResumeLive" and is emitted at :569 for "could not be proved dead" and at :624 for a store error; menu_reattach.go:239 skips only ResumeNotDetached/ResumeSessionGone, so a background reattach of a #272 row with an unobservable launcher renders "resume-not-running" on a row whose agent is running, and no test pins which code that exit emits. Doc-only members: startup.go:137-139 ("a candidate outside both sets keeps ProofUnresolved and classifies unknown" — presence is now gathered after the ask gate, so it classifies detached); actionableinventory.go:419-421 restating it despite startup.go:124-126 declaring itself the one home; actionableinventory.go:376 ("shared by inventory" — the inventory no longer calls it); artifactcollision_fake.go:59-60 (says unset reads unresolved, code returns SessionAbsent since b5fce898); startup.go:69 (occupiedIncarnation "shared by archive and resume" — resume no longer reads it). Three rounds of hand-enumeration have each missed sites, so the rule needs a mechanism: a comment asserting what a path classifies names the test that pins it, and a comment enumerating callers derives that list — both idiomatic here.'
+          family: stale-wording-after-referent-change
+          round: 4
+        - id: BR-25
+          severity: Important
+          title: The plan's task bodies still direct three things the code deliberately did not do
+          detail: 3rd in family — fix the RULE, not these sites. Round 2's stated rule covered the Core-concepts tables only, and those are clean (I grepped every row). The class is every normative statement in the plan. plan:358-359 prescribes SessionUnresolved above VerifiedPark, which is the bug BR-2 fixed by inverting them. plan:424-426 says "Keep ReasonUnrecordedChild" where the code deleted it, with no Revision recording the reversal. plan:605-612's Task 8a describes work pulled forward into M1 and names the deleted ResumeCreating as its red state. Widen the re-derivation rule to task bodies and sweep them this round, so the next milestone does not open against instructions that undo boundary fixes.
+          family: plan-code-divergence
+          round: 4
+        - id: BR-26
+          severity: Minor
+          title: The ARCH-CONSTRAINTS budget figures the plan requires were never recorded in the Log
+          detail: plan:294-300 requires both figures in the issue Log — the startup evidence round and one steady-state refresh, on the 7-record 4-scope store. Neither is there. The envelope itself is enforced well and structurally (SessionPresenceQueries()==1, DetachedQueries()==0 at three sites, TestSessionPresenceCountsNoClients), which is stronger evidence than a timing number, so this is bookkeeping rather than risk.
+          family: declared-measurement-not-recorded
+          round: 4
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -307,11 +362,34 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-22** [Minor] `vocabulary-entry-without-producer` ResumeCreating lost its only producer and the resume diagnostic vocabulary has no produced-by guard
   Deleting occupiedResumeCode removed the only site emitting ResumeCreating (resume.go:16); ResumeLive survives via relaunch.go:107. ThreadReason has TestEveryReasonIsProducedBySomeShape for exactly this class — threadreason.go's own comment cites it as the reason unrecorded-child was deleted rather than kept as a placeholder — but ResumeDiagnosticCode has no equivalent guard, which is why the orphan went unnoticed in the same commit that deleted its producer.
 
+## Round 4 — 2026-09-17T10:47:04-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-17 — addressed — Blanket deferred coder gone from resume.go (only the pre-existing retention join at :359 remains, present at base); menu_reattach.go:244-252 reads an empty code correctly again; TestResumeCodeStillMeansAStructuredRefusal and TestEveryStartupResumeFailureIsActionable pin both halves including errors.Is through the decoration. The second instance (actionableinventory.go "must not start to") is rewritten.
+- BR-18 — addressed — artifactcollision.go:320-331 binds SessionPresenceResolver, DetachedSessionResolver, NativeBindingResolver and PairSessionIO on the production type plus two on the fake, with the silent-failure rationale in the comment. Residual not re-raised: contextPairSessionObserver (recovery_execute.go:16) and couchcmd/run.go:125's anonymous interface stay unpinned, but both have an explicit non-context fallback rather than degrading to universal unknown.
+- BR-19 — not-addressed — atlas/couch.md:1330 now says "One class, four sites" — correct. The issue Log, named in the finding as the fourth home and again in round 3's own notes (m1-review.md:476), still says three at issue lines 123, 133 and 141, with an enumeration that omits the site carrying the irreversible-ordering rule. See I1.
+- BR-20 — not-addressed — classify_test.go untouched in 54d36c37; name, doc (still citing a #248 case that no longer exists) and failure message all still disagree with a body admitting three newlyActionable #256 shapes. The guard added this round, TestEveryResumeDiagnosticCodeIsProducedBySomeSite, is a fresh instance of the same rule — it counts substring mentions, so a code with comment mentions and no producer passes.
+- BR-21 — not-addressed — resume.go:608 still calls c.Threads.AbandonPark directly, bypassing PairLifecycleController.Abandon's per-thread worker; no change in park.go or run.go. Minor, CAS-protected.
+- BR-22 — addressed — ResumeCreating deleted and TestEveryResumeDiagnosticCodeIsProducedBySomeSite derives its identifiers from the declaration, so re-adding an unproduced code reddens it. Soundness gap in the guard itself recorded under BR-20 rather than re-raised here.
+
+### Raised
+
+- **BR-23** [Critical] `irreversible-step-before-precondition` The orphaned-park abandon probes one process and writes a permanent tombstone about another
+  2nd in family — fix the RULE, not this site. resume.go:600-612 abandons thread.Park after probing thread.Incarnations[0], omitting the identity check on the claim that a park owned by another process is unrepresentable. threadrecord/lifecycle.go:91 permits matches==0 when Phase is "unknown" and the transaction carries a replacement_incarnation failure; park.go:653-662 produces exactly that, and threadrecord/record_test.go:303 pins it as valid. Confirmed by execution in a scratch copy: a record created through the production ThreadStore with a live incarnation {99,"replacement"} and a park owned by {42,"original-owner"}, with pid 42 ALIVE, retires cleanly and abandons pid 42's park — one permanent tombstone, retireErr nil. The live owner's later FinalizePark then fails with "park abandon identity does not match active transaction", so the park silently never completes and #275's audit trail for it is gone. The rule: an irreversible step's precondition must be proved about the exact entity the step acts on, and a guard omitted as "unrepresentable" must cite the validator clause that makes it so, read including its exceptions, and be pinned by a test that tries to build the fixture through the real store. Enumerable sibling: lifecycle.go:97-105's resumeOccupied escape. Also correct sessionevidence_test.go:372's exclusion note and plan:842.
+- **BR-24** [Important] `stale-wording-after-referent-change` A changed referent left six unre-derived sites, one of which renders a false diagnostic to the operator
+  4th in family — fix the RULE, not these sites. Behavioural member first: ResumeNotRunning is declared (resume.go:31-34) as "not running at all … the OPPOSITE of ResumeLive" and is emitted at :569 for "could not be proved dead" and at :624 for a store error; menu_reattach.go:239 skips only ResumeNotDetached/ResumeSessionGone, so a background reattach of a #272 row with an unobservable launcher renders "resume-not-running" on a row whose agent is running, and no test pins which code that exit emits. Doc-only members: startup.go:137-139 ("a candidate outside both sets keeps ProofUnresolved and classifies unknown" — presence is now gathered after the ask gate, so it classifies detached); actionableinventory.go:419-421 restating it despite startup.go:124-126 declaring itself the one home; actionableinventory.go:376 ("shared by inventory" — the inventory no longer calls it); artifactcollision_fake.go:59-60 (says unset reads unresolved, code returns SessionAbsent since b5fce898); startup.go:69 (occupiedIncarnation "shared by archive and resume" — resume no longer reads it). Three rounds of hand-enumeration have each missed sites, so the rule needs a mechanism: a comment asserting what a path classifies names the test that pins it, and a comment enumerating callers derives that list — both idiomatic here.
+- **BR-25** [Important] `plan-code-divergence` The plan's task bodies still direct three things the code deliberately did not do
+  3rd in family — fix the RULE, not these sites. Round 2's stated rule covered the Core-concepts tables only, and those are clean (I grepped every row). The class is every normative statement in the plan. plan:358-359 prescribes SessionUnresolved above VerifiedPark, which is the bug BR-2 fixed by inverting them. plan:424-426 says "Keep ReasonUnrecordedChild" where the code deleted it, with no Revision recording the reversal. plan:605-612's Task 8a describes work pulled forward into M1 and names the deleted ResumeCreating as its red state. Widen the re-derivation rule to task bodies and sweep them this round, so the next milestone does not open against instructions that undo boundary fixes.
+- **BR-26** [Minor] `declared-measurement-not-recorded` The ARCH-CONSTRAINTS budget figures the plan requires were never recorded in the Log
+  plan:294-300 requires both figures in the issue Log — the startup evidence round and one steady-state refresh, on the 7-record 4-scope store. Neither is there. The envelope itself is enforced well and structurally (SessionPresenceQueries()==1, DetachedQueries()==0 at three sites, TestSessionPresenceCountsNoClients), which is stronger evidence than a timing number, so this is bookkeeping rather than risk.
+
 ## Open findings
 
-- **BR-17** [Important] `stale-wording-after-referent-change` The blanket resume coder changed what "carries a code" means and the reattach pass still branches on the old meaning
-- **BR-18** [Important] `production-seam-only-tested-through-fake` SessionPresenceResolver is reached only through a silently-failing type assertion with no compile-time binding
 - **BR-19** [Important] `atlas-contradicts-code` The atlas records "One class, three sites" while the code and the plan record four
 - **BR-20** [Minor] `test-name-contradicts-assertion` TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted now admits four deliberately new shapes
 - **BR-21** [Minor] `transition-bypasses-its-owner` The re-adoption's AbandonPark bypasses the per-thread park worker every other abandon goes through
-- **BR-22** [Minor] `vocabulary-entry-without-producer` ResumeCreating lost its only producer and the resume diagnostic vocabulary has no produced-by guard
+- **BR-23** [Critical] `irreversible-step-before-precondition` The orphaned-park abandon probes one process and writes a permanent tombstone about another
+- **BR-24** [Important] `stale-wording-after-referent-change` A changed referent left six unre-derived sites, one of which renders a false diagnostic to the operator
+- **BR-25** [Important] `plan-code-divergence` The plan's task bodies still direct three things the code deliberately did not do
+- **BR-26** [Minor] `declared-measurement-not-recorded` The ARCH-CONSTRAINTS budget figures the plan requires were never recorded in the Log

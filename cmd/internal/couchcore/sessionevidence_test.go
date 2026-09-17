@@ -369,10 +369,10 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 		unknown
 		alive
 	)
-	// "foreign" is absent on purpose: validateLifecycle requires an active park's
-	// identity to match an incarnation, and this path requires exactly one, so a
-	// park owned by another process cannot be written to the store at all.
-	// CreateThread refuses it with "active park identity matches 0 incarnations".
+	// "foreign" is covered separately by TestForeignOwnedParkIsRepresentableAndRefused,
+	// which builds that record through the real store -- it IS representable via
+	// validateLifecycle's replacement_incarnation exception, contrary to an
+	// earlier note here that read only the main clause.
 	for _, park := range []string{"none", "matching"} {
 		for _, live := range []liveness{dead, unknown, alive} {
 			for _, state := range []IncarnationState{IncarnationLive, IncarnationUnknown} {
@@ -543,5 +543,71 @@ func TestResumeCodeStillMeansAStructuredRefusal(t *testing.T) {
 	}
 	if got := ResumeDiagnosticOf(refuseResume(ResumeNotDetached, "not warm")); got != ResumeNotDetached {
 		t.Fatalf("a structured refusal lost its code: %q", got)
+	}
+}
+
+// TestForeignOwnedParkIsRepresentableAndRefused is the test the "unrepresentable"
+// claim should have had before the guard was deleted.
+//
+// The claim read `validateLifecycle`'s main clause -- "active park identity
+// matches %d incarnations" -- and missed its exception one line above:
+// `threadrecord/lifecycle.go` permits ZERO matches when the phase is `unknown`
+// and the transaction carries a `replacement_incarnation` failure, which
+// `park.go` produces. So the record is representable, and this test builds it
+// THROUGH THE REAL STORE to prove it rather than asserting it.
+//
+// What that made possible: probing the incarnation and then tombstoning the
+// park is a permanent, irreversible claim about a process nothing looked at --
+// one that may be alive and mid-park. Its own FinalizePark then fails with
+// "park abandon identity does not match active transaction", so the park never
+// completes and #275's audit trail for it is gone.
+func TestForeignOwnedParkIsRepresentableAndRefused(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-00000000000000f9", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+	// The live incarnation is the REPLACEMENT; the park belongs to the original.
+	record.Incarnations = []ThreadIncarnation{{PID: 99, Identity: "replacement", State: IncarnationLive}}
+	record.Park = &ParkTransaction{
+		Identity: ParkIdentity{
+			Nonce: "park-0123456789abcdef", Address: record.Address,
+			PID: 42, ProcessIdentity: "original-owner",
+		},
+		BaseRevision: 1, RecordRevision: 2, Phase: ParkUnknown,
+		Attempts: []ParkAttempt{{
+			Number: 1,
+			Failure: &ParkFailure{
+				Code:       pairlifecycle.FailureReplacementIncarnation,
+				Diagnostic: "a replacement incarnation appeared",
+			},
+		}},
+	}
+
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatalf("the store REFUSED the fixture, so the unrepresentability claim would have held: %v", err)
+	}
+	label := "brain"
+	if created, err = store.ApplyThreadMetadata(created.Address, created.Revision, ThreadMetadataPatch{Name: &label}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The incarnation's process is dead; the PARK's owner is alive.
+	proc := NewFakeProcOps()
+	proc.Set(42, "original-owner")
+
+	couch := &Couch{Threads: store, Proc: proc}
+	_, err = couch.retireDeadIncarnationBeforeStart(created)
+	if err == nil {
+		t.Fatal("abandoned a park whose owner is alive and was never probed")
+	}
+	if ResumeDiagnosticOf(err) == "" {
+		t.Fatalf("refusal carries no diagnostic code: %v", err)
+	}
+	after, readErr := store.GetThread(created.Address)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if after.Park == nil {
+		t.Fatal("the live owner's park was tombstoned; its FinalizePark can now never match, and the audit trail is gone")
 	}
 }

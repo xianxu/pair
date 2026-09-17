@@ -566,7 +566,13 @@ func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRe
 		// incarnation would abandon it -- but the record still carries an
 		// incarnation, so CommitStartClaim will refuse. Refuse HERE, with a
 		// code, rather than letting the store's bare error wedge the tree.
-		return nil, refuseResume(ResumeNotRunning,
+		// ResumeUnknown, not ResumeNotRunning. The declared meaning of
+		// ResumeNotRunning is "not running at all -- the OPPOSITE of
+		// ResumeLive", and this exit is reached precisely when couch could NOT
+		// tell. On a #272 row the agent is very often still running, so the
+		// background reattach pass would render "resume-not-running" over a live
+		// conversation. A code is a claim; this one must claim only ignorance.
+		return nil, refuseResume(ResumeUnknown,
 			"recorded process could not be proved dead, so its incarnation cannot be retired; inspect it or archive the thread")
 	}
 	// EVERY precondition RetireIncarnation enforces is screened BEFORE the
@@ -598,13 +604,29 @@ func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRe
 	// open-park precondition became live. The enumeration is now: ClassifyThread,
 	// DecideResume, CommitStartClaim's caller, and this.
 	if thread.Park != nil {
-		// No identity check here, deliberately. `validateLifecycle` requires an
-		// active park's identity to match one of the record's incarnations, and
-		// this function already requires exactly one -- so a park owned by some
-		// other process is UNREPRESENTABLE in the store, and a guard for it
-		// would be unreachable code asserting what validation already enforces.
-		// Confirmed by trying to build the fixture: CreateThread refuses with
-		// "active park identity matches 0 incarnations".
+		// The park's OWN owner is probed, not the incarnation's.
+		//
+		// An earlier version omitted this on the claim that a park owned by
+		// another process is unrepresentable -- read from `validateLifecycle`'s
+		// main clause ("active park identity matches %d incarnations") without
+		// its exception. `threadrecord/lifecycle.go:91` permits zero matches
+		// when the phase is `unknown` and the transaction carries a
+		// `replacement_incarnation` failure, and `park.go` produces exactly
+		// that. So the record IS representable, and probing the incarnation
+		// while tombstoning the park meant writing a permanent, irreversible
+		// claim about a process nothing had looked at -- one that could still be
+		// alive and mid-park.
+		//
+		// The rule: an irreversible step's precondition is proved about the
+		// EXACT entity the step acts on. Two entities, two probes. And a guard
+		// omitted as "unrepresentable" has to cite the validator clause that
+		// makes it so, read including its exceptions, and be pinned by a test
+		// that tries to build the fixture through the real store.
+		owner := ProcessIdentity{PID: thread.Park.Identity.PID, Identity: thread.Park.Identity.ProcessIdentity}
+		if observeExactProcess(c.Proc, owner) != Dead {
+			return nil, refuseResume(ResumeParking,
+				"the park transaction's own owner could not be proved dead, so its record must not be abandoned")
+		}
 		abandoned, err := c.Threads.AbandonPark(thread.Address, thread.Revision, thread.Park.Identity)
 		if err != nil {
 			return nil, refuseResume(ResumeParking, "orphaned park could not be abandoned: "+err.Error())
@@ -621,7 +643,7 @@ func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRe
 	if err != nil {
 		// Same reasoning as above: a store error with no diagnostic code reaches
 		// startup as an undecorated failure and refuses the whole tree.
-		return nil, refuseResume(ResumeNotRunning, "stale incarnation could not be retired: "+err.Error())
+		return nil, refuseResume(ResumeUnknown, "stale incarnation could not be retired: "+err.Error())
 	}
 	return &retired, nil
 }

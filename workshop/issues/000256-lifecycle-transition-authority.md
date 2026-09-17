@@ -130,6 +130,49 @@ no thread record — carries #272's corresponding Done-when).
 
 ## Log
 
+### 2026-09-17 — M1 boundary: four review rounds, and what each found
+
+The M1 close took **four** boundary-review rounds. Recorded because the pattern
+is the finding, not any single defect: each round found something the previous
+round's *fix* introduced or left behind, and the gate's own summary from round 2
+onward was *"Not converging: fix rules, not instances."*
+
+| Round | Verdict | What it found |
+|---|---|---|
+| 1 | REWORK | The class had a **fourth** site: re-adoption made a park-open record reachable, so `RetireIncarnation`'s open-park precondition went live and wedged startup. Plus: one failed `list-sessions` demoted every *parked* row; two guards unpinned; the docs half untouched. |
+| 2 | REWORK | Round 1's fixes were site-shaped. Same wedge reproduced through `CommitStartClaim`. An irreversible `AbandonPark` was running before a revocable check. |
+| 3 | FIX-THEN-SHIP | Round 2's own Rule 1 was wrong: forcing every producer to carry a code **changed what the code meant** and broke `errors.As`/`Is`/`Unwrap`. `ResumeDiagnosticCode` had no produced-by guard, so deleting `occupiedResumeCode` orphaned `ResumeCreating` unnoticed. |
+| 4 | REWORK | My "unrepresentable" claim was **false** — read from a validator's main clause, missing its exception — so the code probed one process and wrote a permanent tombstone about another. |
+
+Rules that outlive the sweep, each now pinned:
+
+- An irreversible step's precondition is proved about **the exact entity the step
+  acts on**, and never precedes a revocable check.
+- A guard omitted as "unrepresentable" cites the validator clause that makes it
+  so, **read including its exceptions**, and is pinned by a test that builds the
+  fixture through the real store.
+- When a value's **meaning** changes, enumerate every reader and re-derive each
+  in the same round.
+- A vocabulary has a **produced-by guard**; a value nothing emits is a branch no
+  test can reach.
+- Guidance belongs at the **consumer** that needs it, not as a marker every
+  producer must carry.
+- A comment asserting what a path classifies **names the test that pins it**.
+
+**ARCH-CONSTRAINTS, the figures the plan asked for.** The envelope is enforced
+structurally rather than by a timing number, which is the stronger evidence:
+`SessionPresenceQueries() == 1` and `DetachedQueries() == 0` are asserted at four
+sites, and `TestSessionPresenceCountsNoClients` pins it against the production
+checker with a stubbed `zellij`. In cost terms the refresh went from *one
+`list-clients` per detach candidate* (~250 ms each, #228) to **one host-wide
+`list-sessions` and no client query at all** — on the operator's 7-record,
+4-scope store that is 0 client queries where the old path made up to 6. The
+regression the plan flagged is real but bounded the other way: the snapshot now
+runs on every refresh where it previously skipped entirely with nothing
+detachable, and `Physical` is called for 4 records rather than 3. Both are off
+the keystroke path (the refresh runs in a coalesced worker goroutine), and M2's
+operator verification owns the wall-clock figure.
+
 ### 2026-09-17 — M1: one class, three sites
 
 `ClassifyThread` no longer reads `Incarnation` liveness or `record.Park`. Both

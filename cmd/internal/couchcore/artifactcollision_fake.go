@@ -56,8 +56,10 @@ type FakeThreadArtifactCollisionChecker struct {
 }
 
 // SetSessionPresence declares what the host's zellij sessions say about one
-// address. An address never set is absent from the answer, so it reads the zero
-// value -- unresolved -- which is what an unasked question must look like.
+// address. An address never set answers SessionAbsent, mirroring production: a
+// readable scope with no index row HAS been asked and has no session. A test
+// that wants "could not ask" fails SessionPresenceHook instead. Pinned against
+// the production checker by TestSessionPresenceAnswersThroughTheProductionChecker.
 func (f *FakeThreadArtifactCollisionChecker) SetSessionPresence(address ThreadAddress, observation SessionObservation) {
 	f.mu.Lock()
 	defer f.mu.Unlock()

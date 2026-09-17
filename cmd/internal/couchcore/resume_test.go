@@ -308,3 +308,28 @@ func TestEveryResumeDiagnosticCodeIsProducedBySomeSite(t *testing.T) {
 		}
 	}
 }
+
+// TestReAdoptionRefusalsClaimOnlyWhatWasProved pins WHICH code each exit emits,
+// which no test did -- the gap that let an exit reached on "could not tell"
+// emit ResumeNotRunning, whose declared meaning is "not running at all".
+//
+// A diagnostic code is a claim the operator reads: menu_reattach renders it on
+// the row. Emitting "not running" over a live conversation is a false statement
+// about the thing the operator most needs to be true.
+func TestReAdoptionRefusalsClaimOnlyWhatWasProved(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-00000000000000fb", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{PID: 4242, Identity: "tok", State: IncarnationLive}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc := NewFakeProcOps()
+	proc.SetUnknown(4242)
+
+	_, err = (&Couch{Threads: store, Proc: proc}).retireDeadIncarnationBeforeStart(created)
+	if got := ResumeDiagnosticOf(err); got != ResumeUnknown {
+		t.Fatalf("an unprovable process reports %q; it must claim ignorance, not %q — the agent may well be running", got, ResumeNotRunning)
+	}
+}
