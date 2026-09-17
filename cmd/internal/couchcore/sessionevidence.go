@@ -152,7 +152,7 @@ func indexSessionsByName(sessions []launcher.Session) sessionNameIndex {
 // uniquelyClaimed reports whether one session name identifies exactly one thread
 // AND appears once in the snapshot. Anything else is unattributable, and an
 // unattributable name must never decide a thread's fate: a name two addresses
-// claim would otherwise let couch resume a thread whose session belongs to
+// claim would otherwise let couch reattach a thread whose session belongs to
 // something else (#206).
 func uniquelyClaimed(name string, claims map[string]int, index sessionNameIndex) bool {
 	return name != "" && claims[name] == 1 && !index.ambiguous[name]

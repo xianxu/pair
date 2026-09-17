@@ -398,7 +398,7 @@ func TestRootStateTextNamesEveryState(t *testing.T) {
 		{couchcore.ThreadLive, "", "live"},
 		{couchcore.ThreadDetached, "", "detached · 4h ago"},
 		{couchcore.ThreadParked, "", "parked · 4h ago"},
-		{couchcore.ThreadBusy, "", "parking…"},
+		{couchcore.ThreadBusy, "", "starting…"},
 		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "binding lost — repairable"},
 		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "no saved launch"},
 	} {
