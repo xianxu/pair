@@ -1325,7 +1325,7 @@ pressed Enter on, so cost is proportional to what you *do*, not what you *have*.
 `DetachedSessions` remains the action path's authority, guarded by
 `RequireAttachState`.
 
-### One class, four sites
+### One class, four sites — and one function (M2)
 
 A guard reading bookkeeping the classification no longer trusts is one defect
 with several homes. Each was found by fixing the one before it — which is the
@@ -1378,12 +1378,112 @@ Four rules outlive the sweep:
 different question: not "is this recoverable" but "is couch itself already
 operating on this thread", where couch's own record *is* authority.
 
-### `ThreadBusy` has exactly one producer
+**M2 gave the sweep one home.** `clearLifecycleDebris`
+(`couchcore/lifecycledebris.go`) is that rule as a function, and **archive calls
+it too**. The alternative — re-deriving it inside `DecideRecovery` — would have
+been the same rule in a second place, which is the shape that produced four
+rounds of findings in the first place.
+
+Nothing was deleted to get there. `DecideRecovery`'s park and incarnation-shape
+gates and `archivableRecord`'s occupancy rule each protect a real precondition
+downstream, so they stay; they stop being the **operator's** wall because the
+debris is gone before they run. The operator's second wedged row needed no new
+rule at all: the cleared record reaches the reconciler carrying no incarnation,
+which the existing binding-absent hatch already admits.
+
+Three processes can be named by one record — the park's owner, the start's owner,
+and the helper the start forked — and any can outlive the others, so each gets
+its own probe. A start claim **rolls back** rather than retiring, because
+`RetireIncarnation` takes only a live incarnation; when that rollback removes a
+husk carrying nothing else, `ErrThreadRolledBack` reports the fact and each
+caller decides what it means (resume: a refusal; archive: success, the row is
+gone).
+
+**Order, in archive, is the guard.** Clearing debris is a durable write, so the
+session — the one refusal that is nobody's fault and may change on its own — is
+asked first, through `RecoverySessionRefusal`, with nothing written. Getting this
+backwards was a regression caught by an existing test: archive refused for an
+unanswerable session *after* retiring an incarnation. `observeRecovery` also
+stopped skipping the session probe for records carrying a park or a claim — the
+same structural defect M1 removed from `gatherThreadEvidence`, where bookkeeping
+decided whether the world got asked.
+
+### `ThreadBusy` has exactly one producer, and it is bounded by the world
 
 A `ThreadStartClaim` — couch's record of its **own** in-flight operation, not a
 claim about an external process. Without it, the window between claiming a start
 and the launcher acquiring a pid would classify `session-gone`, an
 archive-eligible reason, for a thread starting normally.
+
+**M2 finished the sentence.** A claim carries `{OwnerPID, OwnerIdentity}` — the
+couch that began the transaction — precisely so "recoverable on its own terms"
+can be checked, and nothing checked it. A couch dying mid-start left a row
+reading `starting…` forever: no timeout, no owner check, and `busy` offers
+neither archive nor resume. So:
+
+> A start is in flight while its claiming couch is **alive or unprovable**. A
+> claim whose owner is provably `Dead` has no driver, and the row reports what
+> the world shows.
+
+`Unknown` keeps the row busy, the same direction `ReconcileStart` already fails
+("Unknown evidence always keeps capacity occupied"). `ThreadEvidence.StartOwner`
+carries the answer and its zero value is `Unknown`, so a record no gather branch
+reached cannot be declared driverless — the same fail-closed-by-construction
+shape as `SessionUnresolved`.
+
+Releasing decides nothing on its own: the row falls through and reads live,
+detached, parked or session-gone like any other record with the same evidence.
+
+### Cold-resume authority is the ledger, not the park receipt (M2)
+
+`VerifiedPark` carries a `ParkIdentity` and **no native conversation id**. It can
+attest that a park happened; it can never say there is something to resume into.
+That lives in `ledger-<tag>.jsonl`, and `ResolveEstablished` is the only thing
+that reads it.
+
+The read used to be gated on `record.VerifiedPark != nil`, which made the receipt
+the authority. Two consequences, one rule:
+
+- A thread whose session died **without** a park was never asked about its
+  ledger, so it read `session-gone` — archive-eligible — with a live
+  conversation still recorded. Archive could discard it without a word.
+- A receipt with no resolvable conversation behind it still read `parked`.
+
+So the ledger is asked for **every resume-shaped record whose session is not
+present**, and `VerifiedPark` leaves the classification path the way
+`record.Park` and the incarnation liveness fields did in M1. It survives as a
+*diagnostic*: a receipt with no ledger entry reads `binding-lost` rather than
+`session-gone`, because "couch parked this deliberately and the conversation is
+gone" is a different story for the operator.
+
+The cost stays bounded by the same optimistic-inventory rule: a row couch is
+hosting, and a row whose session outlived its launcher, pay nothing
+(`TestWarmRowsAskNoLedgerQuestion`). An unreadable ledger is `ProofUnresolved`
+→ `unusable/unknown`, never `session-gone`.
+
+**The guard moved with the classifier**, because a guard that contradicts the
+classification it feeds is the defect, not a detail. Four sites read the receipt
+as cold authority: `DecideResume`'s admission gate, its `RequiredSessionID`
+branch, the `CheckResumePreconditions` binding exception, and `Resume` itself —
+which resolved the binding only for receipt-holders, so a row the classifier now
+calls `parked` arrived with an empty binding and was refused `unbound`. `Resume`
+now asks the **session** first (warm is cheaper, safer, and already preferred by
+the classifier) and the **ledger** only when warm did not answer.
+
+Two deletions fell out. `ResumeLegacyUnverified` — "thread has no verified park
+completion" — lost its producer and is retired; the produced-by guard forced it.
+And the `ParkHistory` tombstone scan stopped being a **veto**, surviving only as
+the better explanation where there is nothing to resume into: archive abandons
+orphaned parks as a matter of course now, so a veto would have made "couch
+crashed mid-park once" a permanent cold-resume ban.
+
+One asymmetry is kept deliberately. An unresolved session refuses a cold verdict
+**unless** `record.VerifiedPark` says couch tore the session down itself. For a
+deliberately parked thread the session answer is uninformative, so demoting every
+parked row because one `list-sessions` failed is strictly worse. For every other
+thread the session may be **alive**, and `parked` invites a relaunch that would
+put a second agent on a live conversation. The receipt is a fact about what couch
+did — that is all it is still read for.
 
 ### Retired reasons
 

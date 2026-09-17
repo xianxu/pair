@@ -189,6 +189,24 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
+			// #256 M2, the SAFETY half. Identical record to the row above --
+			// no park receipt, no session -- but its ledger still names a
+			// conversation. It read `session-gone`, which is archive-eligible,
+			// because the ledger was only ever read for records carrying a
+			// receipt. Nobody asked, so archive could discard a live thread of
+			// work without saying so.
+			name: "no park receipt, but the ledger still resolves", record: detachedRecord,
+			evidence:  resolved(ThreadEvidence{Parked: parkedProof(detachedRecord)}),
+			wantState: ThreadParked, newlyActionable: true,
+		},
+		{
+			// The other side: an unreadable ledger is not an empty one.
+			// `unknown` is not archive-eligible; `session-gone` is.
+			name: "the ledger could not be read", record: detached(),
+			evidence:  ThreadEvidence{Session: SessionObservation{State: SessionAbsent}},
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
+		},
+		{
 			name: "the session question could not be asked", record: detached(),
 			evidence:  ThreadEvidence{ParkedStatus: ProofResolved},
 			wantState: ThreadUnusable, wantReason: ReasonUnknown,
@@ -572,8 +590,15 @@ func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
 	if paths.calls != resumeShaped {
 		t.Fatalf("Physical called %d times, want %d -- a live or unstartable record must not pay", paths.calls, resumeShaped)
 	}
-	if artifacts.resolveCalls != 2 {
-		t.Fatalf("binding resolver called %d times, want 2 parked records only", artifacts.resolveCalls)
+	// RESTATED for #256 M2. The ledger read used to be gated on
+	// `record.VerifiedPark != nil` -- two records here. It is now gated on the
+	// SESSION: every resume-shaped record whose session is not up pays, because
+	// the receipt was never the authority over whether a conversation survives.
+	// All four resume-shaped records in this fixture have no session, so all
+	// four pay. The bound that matters is the one below: a row couch is hosting,
+	// or whose session is up, still pays nothing.
+	if artifacts.resolveCalls != resumeShaped {
+		t.Fatalf("binding resolver called %d times, want %d -- one per resume-shaped record with no session", artifacts.resolveCalls, resumeShaped)
 	}
 	// RESTATED for #256. The refresh asks PRESENCE, one host-wide call covering
 	// every record, and never asks for clients -- a `list-clients` costs ~250 ms
@@ -719,4 +744,89 @@ func (bindingOnlyArtifacts) Registration(ThreadAddress) (RegistrationEvidence, e
 func (bindingOnlyArtifacts) Quiesce(ThreadAddress) error { return nil }
 func (b bindingOnlyArtifacts) ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error) {
 	return b.binding, nil
+}
+
+// TestWarmRowsAskNoLedgerQuestion is the bound that keeps #256 M2's widening
+// affordable, stated as the rule rather than as a count.
+//
+// The ledger read answers "is there a conversation to resume into?", which only
+// a thread with no session needs asking. A row couch is hosting, and a row whose
+// session outlived its launcher, both reattach onto something that is already
+// there -- so neither may pay for a per-record file read on every refresh.
+func TestWarmRowsAskNoLedgerQuestion(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	active := time.Unix(100, 0).UTC()
+
+	hosted := actionableTestThread("couch-00000000000000f1", active)
+	hosted.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	hosted.Incarnations = []ThreadIncarnation{{PID: 4242, Identity: "hosted", State: IncarnationLive}}
+	if _, err := store.CreateThread(hosted); err != nil {
+		t.Fatal(err)
+	}
+	detached := actionableTestThread("couch-00000000000000f2", active)
+	detached.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	if _, err := store.CreateThread(detached); err != nil {
+		t.Fatal(err)
+	}
+
+	artifacts := &countingArtifacts{FakeThreadArtifactCollisionChecker: NewFakeThreadArtifactCollisionChecker()}
+	artifacts.SetSessionPresence(hosted.Address, SessionObservation{State: SessionPresent})
+	artifacts.SetSessionPresence(detached.Address, SessionObservation{State: SessionPresent})
+	proc := NewFakeProcOps()
+	proc.Set(4242, "hosted")
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	states := map[ThreadAddress]ActionableThreadState{}
+	for _, row := range rows {
+		states[row.Address] = row.State
+	}
+	if states[hosted.Address] != ThreadLive || states[detached.Address] != ThreadDetached {
+		t.Fatalf("fixture did not produce a live and a detached row: %+v", states)
+	}
+	if artifacts.resolveCalls != 0 {
+		t.Fatalf("the ledger was read %d times for warm rows; neither needs a cold-resume proof", artifacts.resolveCalls)
+	}
+}
+
+// TestSessionAbsentWithResolvableLedgerIsResumable is the safety half of #256
+// M2, end to end through the production gather path.
+//
+// The thread was never parked -- no receipt, no ParkHistory -- and its session
+// is gone. Its conversation is still recorded in `ledger-<tag>.jsonl`, which is
+// the only place a native conversation id ever lives. Before this, the ledger
+// was read only for records carrying a VerifiedPark, so this row read
+// `session-gone` and the switcher offered to archive a resumable conversation
+// without a word about what would be lost.
+func TestSessionAbsentWithResolvableLedgerIsResumable(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-00000000000000f5", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.VerifiedPark != nil {
+		t.Fatal("fixture carries a park receipt; it must not, or it proves the old rule")
+	}
+
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionAbsent})
+	artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %+v, want one", rows)
+	}
+	if rows[0].State != ThreadParked {
+		t.Fatalf("= %q/%q, want parked: the ledger names a conversation to resume into",
+			rows[0].State, rows[0].Reason)
+	}
 }

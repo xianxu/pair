@@ -130,6 +130,38 @@ no thread record — carries #272's corresponding Done-when).
 
 ## Log
 
+### 2026-09-17 — M2: what the tasks turned out to be
+
+Recorded because four of the six tasks changed shape once the code was read, and
+in every case the change was the same kind: **the rule already existed and was
+unreachable, or the planned edit was unnecessary once an earlier one landed.**
+
+| Planned | Delivered |
+|---|---|
+| Task 4: delete the dead `ThreadBusy` menu branch | Its premise was false — `ThreadBusy` survived M1 with a new producer. The row needed an **escape**: a start claim whose owner couch is provably dead is not in flight. |
+| Task 4a + Task 5: teach archive to clear claims; delete `DecideRecovery`'s gates | One change, not two. The rule was already written as `retireDeadIncarnationBeforeStart`; it moved to `clearLifecycleDebris` and archive calls it. **Nothing was deleted** — each gate protects a real downstream precondition and simply stops being the operator's wall. |
+| Task 6: teach `observeRecoverySession` to read an absent binding as absence | Unnecessary. With the debris cleared first, the record reaches the reconciler with no incarnation, which the existing hatch already admits. Two real defects surfaced instead: `observeRecovery` skipped the session probe for bookkeeping-carrying records, and the fake's absent-binding error did not wrap its sentinel, so `errors.Is` could never see it. |
+| Task 6b: ask the ledger in the classifier | The **guard had to follow**. Four sites read the park receipt as cold-resume authority, including `Resume` itself, which resolved the binding only for receipt-holders — so a row the new classifier calls `parked` arrived at `DecideResume` with an empty binding and was refused `unbound`. |
+
+Two vocabulary deletions fell out of the last one, both forced by the produced-by
+guard: `ResumeLegacyUnverified` lost its producer, and the `ParkHistory`
+tombstone scan stopped being a veto — archive abandons orphaned parks routinely
+now, so vetoing on one would make "couch crashed mid-park once" a permanent
+cold-resume ban.
+
+**One regression I introduced and the rule that caught it.** Clearing debris is a
+durable write and I put it ahead of the session observation, so archive refused
+for an unanswerable session *after* retiring an incarnation — round 2's rule, an
+irreversible step preceding a revocable check. The session half of
+`DecideRecovery` is now `RecoverySessionRefusal`, asked first with nothing
+written. A quieter break came with it: the extra observation shifted which pair of
+looks the mid-flight-session check compared, so the final recheck is now compared
+against the first look as well as the reconciler's.
+
+**Behaviour the operator will notice.** A thread whose session is gone but whose
+conversation still resolves is now offered a cold resume, and startup adopts it
+rather than starting a second thread in the same tree.
+
 ### 2026-09-17 — M1 boundary: four review rounds, and what each found
 - 2026-09-17: closed M1 — make test with the retention-owner env scrub and a non-symlinked TMPDIR: 210 packages ok, exit 0. Round 5 REWORK addressed. BR-27 Critical: the same replacementUnknown validator escape at a different incarnation count -- an open park with ZERO incarnations was never cleared, so CommitStartClaim refused uncoded and couch would not start in the tree. Root cause is that round 2 rule was written into the code as four sites rather than as the predicate "every guard refusing on record.Incarnations or record.Park"; the clearing pass is now total over the shapes validateLifecycle accepts, with screening complete before any write and each write authorized by a probe of the entity it acts on. TestReAdoptionExitsAreTotalAndCoded gained an incarnation-count dimension, mutation-proven against the old bail. BR-28 and BR-19: the disproved premise and the site count re-derived in every home -- atlas, the function comment, the plan -- and the plan now points at ClassifyThread and everyThreadShape instead of restating the branch table, which had moved twice and each time became instructions to undo a boundary fix.; review verdict: FIX-THEN-SHIP
 

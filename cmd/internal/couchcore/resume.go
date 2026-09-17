@@ -16,7 +16,6 @@ const (
 	ResumeUnknown            ResumeDiagnosticCode = "resume-unknown"
 	ResumeParking            ResumeDiagnosticCode = "resume-parking"
 	ResumeTombstoned         ResumeDiagnosticCode = "resume-tombstoned"
-	ResumeLegacyUnverified   ResumeDiagnosticCode = "resume-legacy-unverified"
 	ResumePathMissing        ResumeDiagnosticCode = "resume-path-missing"
 	ResumeProfileMissing     ResumeDiagnosticCode = "resume-profile-missing"
 	ResumeProfileInvalid     ResumeDiagnosticCode = "resume-profile-invalid"
@@ -98,6 +97,19 @@ type ResumeEligibility struct {
 	RequiredSessionID string
 }
 
+// coldResumeAuthorized reports whether there is a conversation to resume INTO.
+//
+// This is the cold path's whole authority, and it is a fact about the ledger.
+// `record.VerifiedPark` used to stand in for it and cannot: the receipt carries
+// a ParkIdentity and no native conversation id, so it attests that a park
+// happened and never that anything survived it. Two threads read it wrong in
+// opposite directions -- a parked thread whose conversation was gone was offered
+// a resume that could not work, and a thread whose session died without a park
+// was refused one that would have.
+func coldResumeAuthorized(binding NativeBindingResolution) bool {
+	return bindingResumeDiagnostic(binding) == ""
+}
+
 func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	record := input.Thread
 	// #256: the park transaction and the incarnation are NOT read here.
@@ -119,20 +131,33 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	// `hasOccupiedIncarnation` survives for relaunch and switch-agent, which ask
 	// a DIFFERENT question: not "is this recoverable" but "is couch itself
 	// already operating on this thread", where couch's own record is authority.
-	if record.VerifiedPark == nil && !input.Detached {
-		// The tombstone scan is reached ONLY when neither authority holds, and
-		// that ordering is load-bearing. It refuses on ANY tombstoned entry in
-		// the whole history, with no break, and AbandonPark appends tombstones
-		// permanently -- so a thread once abandoned mid-park, later started
-		// again and detached, would be permanently unreattachable if the
-		// detached branch sat after it. The rule means "there is no valid park
-		// to resume from"; a detached thread is not resuming from a park.
+	//
+	// #256 M2: COLD authority is the LEDGER, not `record.VerifiedPark`. The
+	// classifier moved first -- a thread whose session is gone but whose ledger
+	// still names a conversation reads `parked` -- and a guard that kept
+	// demanding the receipt would refuse the very resume that row advertises.
+	// That disagreement between the classification and the guard IS the
+	// anti-pattern this issue exists to remove; it is the same one #272 hit from
+	// the other side.
+	if !input.Detached && !coldResumeAuthorized(input.Binding) {
+		// There is nothing to resume INTO. The tombstone scan runs only here,
+		// to say WHY in the most useful terms available: a park couch
+		// deliberately abandoned is a better answer than "unbound".
+		//
+		// It is no longer a VETO, and that matters more after M2 than before.
+		// It refuses on ANY tombstoned entry in the whole history with no
+		// break, AbandonPark appends tombstones permanently, and archive now
+		// abandons orphaned parks as a matter of course -- so a veto here would
+		// make "couch crashed mid-park once" a permanent cold-resume ban. A
+		// resolvable conversation beats a historical bookkeeping failure, which
+		// is the same rule that freed the detached path (#272) applied to the
+		// cold one.
 		for i := len(record.ParkHistory) - 1; i >= 0; i-- {
 			if record.ParkHistory[i].Tombstoned {
 				return ResumeEligibility{}, refuseResume(ResumeTombstoned, "latest park transaction was abandoned")
 			}
 		}
-		return ResumeEligibility{}, refuseResume(ResumeLegacyUnverified, "thread has no verified park completion")
+		return ResumeEligibility{}, refuseBinding(bindingResumeDiagnostic(input.Binding))
 	}
 	// The rules that do not depend on the thread being unoccupied. Shared with
 	// relaunch, which asks them about a thread that is still LIVE.
@@ -140,7 +165,7 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 		// The binding is the COLD path's proof only. A warm reattach consumes it
 		// nowhere, so its refusal must not reach a detached thread -- which is
 		// what CheckResumePreconditions cannot know and this caller does.
-		if code := ResumeDiagnosticOf(err); !isBindingDiagnostic(code) || record.VerifiedPark != nil {
+		if code := ResumeDiagnosticOf(err); !isBindingDiagnostic(code) || !input.Detached {
 			return ResumeEligibility{}, err
 		}
 	}
@@ -156,7 +181,7 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	// The proof the warm path DOES require is the session itself, and
 	// input.Detached is it: an unambiguous name binding to this exact address,
 	// live, with zero clients.
-	if record.VerifiedPark != nil {
+	if !input.Detached {
 		return ResumeEligibility{
 			Address: record.Address, WorkingPath: record.WorkingPath,
 			Profile: profile, RequiredSessionID: input.Binding.NativeID,
@@ -379,13 +404,47 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// on the warm path refused the thread here, before DecideResume could decide
 	// anything -- which is how a detached thread became unreachable.)
 	pathExists := c.workingPathExists(thread)
-	if opts.WarmOnly && thread.VerifiedPark != nil {
+
+	// WARM first, for every thread, then COLD only if warm did not answer.
+	//
+	// Both halves used to be gated on `thread.VerifiedPark`, which is the same
+	// receipt-as-authority defect #256 M2 removed from the classifier -- and
+	// keeping it here would have left the guard refusing the resume the
+	// classification advertises, one level below where that was fixed. A
+	// receipt says a park HAPPENED; it does not say a session is gone, and it
+	// carries no conversation id.
+	//
+	// So: ask the session, because a surviving one is the cheapest and safest
+	// authority and the classifier already prefers it; then ask the ledger,
+	// because a cold resume is about to pass `--resume <native-id>` and that id
+	// is the only thing that makes the relaunch land in the right conversation.
+	// The warm path asks for no id -- ResolveEstablished ERRORS on a
+	// provisional binding, so asking there refused threads before DecideResume
+	// could decide anything, which is how a detached thread became unreachable.
+	//
+	// This is the strict-action half of optimistic inventory: one `list-clients`
+	// for the single thread the operator pressed Enter on.
+	detached := false
+	warmSession := ""
+	if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
+		observed, observeErr := resolver.DetachedSessions(ctx, []DetachedCandidate{{
+			Address: address, Agent: agent,
+		}})
+		if observeErr != nil {
+			return ActorRecord{}, nil, fmt.Errorf("observe detached session for %+v: %w", address, observeErr)
+		}
+		detached = detachedResumeProofMatches(thread, observed)
+		if detached {
+			warmSession = observed[0].SessionName
+		}
+	}
+	if opts.WarmOnly && !detached {
 		return ActorRecord{}, nil, refuseResume(ResumeNotDetached,
-			"thread is parked; a warm-only resume reattaches running agents and never starts one")
+			"thread has no detached session to reattach to; a warm-only resume never starts an agent")
 	}
 	var binding NativeBindingResolution
 	var bindings NativeBindingResolver
-	if thread.VerifiedPark != nil {
+	if !detached {
 		if err := continuationGuard(thread); err != nil {
 			return ActorRecord{}, nil, err
 		}
@@ -399,30 +458,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 			return ActorRecord{}, nil, err
 		}
 		binding = resolved
-	}
-	// A thread with no verified park may still be resumable: it may have been
-	// DETACHED, in which case its zellij session is alive with no client and
-	// that survival is the authority. Ask only when it could matter, so an
-	// ordinary parked resume costs no extra observation.
-	detached := false
-	warmSession := ""
-	if thread.VerifiedPark == nil {
-		if resolver, ok := c.Artifacts.(DetachedSessionResolver); ok {
-			observed, observeErr := resolver.DetachedSessions(ctx, []DetachedCandidate{{
-				Address: address, Agent: agent,
-			}})
-			if observeErr != nil {
-				return ActorRecord{}, nil, fmt.Errorf("observe detached session for %+v: %w", address, observeErr)
-			}
-			detached = detachedResumeProofMatches(thread, observed)
-			if detached {
-				warmSession = observed[0].SessionName
-			}
-		}
-	}
-	if opts.WarmOnly && !detached {
-		return ActorRecord{}, nil, refuseResume(ResumeNotDetached,
-			"thread has no detached session to reattach to; a warm-only resume never starts an agent")
 	}
 	if thread.Continuation != nil && detached {
 		if err := c.validateContinuationWarm(ctx, thread); err != nil {

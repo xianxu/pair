@@ -257,6 +257,11 @@ func TestWedgedParkDoesNotWedgeClassification(t *testing.T) {
 
 	state, reason := ClassifyThread(record, ThreadEvidence{
 		Session: SessionObservation{State: SessionAbsent},
+		// Asked and answered: no conversation in the ledger either. Since #256
+		// M2 that question is put to every session-less record, so leaving it
+		// unresolved here would make this assert `unknown` for a reason that
+		// has nothing to do with #271.
+		ParkedStatus: ProofResolved,
 	})
 
 	if state == ThreadBusy {

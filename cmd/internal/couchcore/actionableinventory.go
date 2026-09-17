@@ -110,10 +110,20 @@ type ThreadEvidence struct {
 	// session, so the evidence that its agent survived was never collected.
 	Session SessionObservation
 	// Parked is COLD-resume proof: the native conversation this thread would
-	// resume into. Warm reattachment needs no proof here -- the session's own
-	// presence is the proof, and the ACTION path re-observes attach state
-	// before committing (resume.go), which is where a `list-clients` is worth
-	// its ~250 ms.
+	// resume into, read from its ledger. Warm reattachment needs no proof here
+	// -- the session's own presence is the proof, and the ACTION path
+	// re-observes attach state before committing (resume.go), which is where a
+	// `list-clients` is worth its ~250 ms.
+	//
+	// Since #256 M2 it is gathered for EVERY record whose session is not
+	// present, not only ones carrying a VerifiedPark receipt, and it is the
+	// AUTHORITY for `parked` rather than corroboration of the receipt. The
+	// receipt names a ParkIdentity and no conversation, so it could never have
+	// answered this question; gating the read on it meant a thread whose session
+	// died without a park was never asked, and read `session-gone`.
+	//
+	// ParkedStatus is the third value: unresolved means the ledger was not read
+	// or could not be, never that there is nothing to resume.
 	Parked       []ParkedResumeObservation
 	ParkedStatus ProofStatus
 	// StartOwner is the liveness of the couch process that CLAIMED this
@@ -338,26 +348,52 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 		// stays above the park branch.
 		return ThreadDetached, ""
 	}
-	// COLD-RESUME authority is DURABLE and does not depend on the session
-	// existing -- a parked thread's session was torn down on purpose. So it is
-	// consulted before the unresolved-session refusal below.
+	// COLD-RESUME authority is the LEDGER, and it is DURABLE: it does not depend
+	// on the session existing, because a parked thread's session was torn down
+	// on purpose. So it is consulted before the unresolved-session refusal.
 	//
 	// Ordering the refusal first would mean one failed `list-sessions` demoted
-	// EVERY parked row in the store to `unusable/unknown`, despite their resume
-	// authority being intact. Fail-closed is right where the unknown answer
-	// could flip an actionable verdict into a destructive one; here the only two
-	// verdicts a session answer can produce for a verified-park record are
-	// `detached` and `parked`, both actionable, so refusing both is strictly
-	// worse than taking the durable one.
+	// EVERY resumable row in the store to `unusable/unknown`, despite their
+	// resume authority being intact. Fail-closed is right where the unknown
+	// answer could flip an actionable verdict into a destructive one; here the
+	// only two verdicts a session answer can produce for a record with a
+	// resolvable conversation are `detached` and `parked`, both actionable, so
+	// refusing both is strictly worse than taking the durable one.
+	//
+	// `record.VerifiedPark` is NOT the authority and no longer gates this. It is
+	// a receipt: it carries a ParkIdentity and no native conversation id, so it
+	// can attest that a park happened and never that there is something to
+	// resume into. Letting it decide meant a thread whose session died without a
+	// park was never asked about its ledger at all, and read `session-gone` --
+	// archive-eligible -- with a live conversation still recorded. The receipt
+	// survives below only to say WHICH kind of loss this is.
+	// An unanswerable session question stops a COLD verdict here -- unless couch
+	// itself tore the session down, which is the one thing `record.VerifiedPark`
+	// does attest.
+	//
+	// The asymmetry is the point. For a deliberately parked thread the session
+	// answer is uninformative (it was quiesced on purpose), so refusing every
+	// parked row because one `list-sessions` failed is strictly worse than
+	// taking the durable authority. For every other thread the session may be
+	// ALIVE, and `parked` invites a cold resume, which relaunches an agent --
+	// so a second agent would join a conversation that already has one. The
+	// action path re-observes before committing, but a row must not advertise
+	// what couch has no evidence for.
+	if evidence.Session.State == SessionUnresolved && record.VerifiedPark == nil {
+		return ThreadUnusable, ReasonUnknown
+	}
+	if evidence.ParkedStatus == ProofUnresolved {
+		return ThreadUnusable, ReasonUnknown
+	}
+	if parkedResumeProofMatches(record, evidence.Parked) {
+		return ThreadParked, ""
+	}
 	if record.VerifiedPark != nil {
-		switch {
-		case evidence.ParkedStatus == ProofUnresolved:
-			return ThreadUnusable, ReasonUnknown
-		case parkedResumeProofMatches(record, evidence.Parked):
-			return ThreadParked, ""
-		default:
-			return ThreadUnusable, ReasonBindingLost
-		}
+		// The receipt as a diagnostic, not an authority: couch parked this
+		// thread deliberately and the conversation it preserved can no longer
+		// be resolved. That is a different story from a thread whose session
+		// simply ended, and the operator reads the difference.
+		return ThreadUnusable, ReasonBindingLost
 	}
 	if evidence.Session.State == SessionUnresolved {
 		// Not "no session" -- "we could not ask". The distinction is
@@ -500,6 +536,29 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		add(observation.Address, observation.Process)
 	}
 
+	// Session presence for EVERY record, not only the resume-shaped ones. One
+	// host-wide `list-sessions`, no `list-clients` -- see SessionPresence for
+	// why that is both affordable and sufficient here.
+	//
+	// A resolver that is absent or fails leaves every observation at its zero
+	// value, which is unresolved. That is the honest degraded answer: couch
+	// could not look, so no thread is told its session is gone.
+	//
+	// Asked BEFORE the per-record loop, because the loop's ledger read is
+	// gated on the answer: a thread whose session is up needs no cold-resume
+	// proof, and reading a ledger per record is the one cost this pass has to
+	// keep bounded (#256 M2).
+	presence := map[ThreadAddress]SessionObservation{}
+	if presenceResolver, ok := c.Artifacts.(SessionPresenceResolver); ok && len(snapshot.Records) > 0 {
+		addresses := make([]ThreadAddress, 0, len(snapshot.Records))
+		for i := range snapshot.Records {
+			addresses = append(addresses, snapshot.Records[i].Address)
+		}
+		if observed, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil {
+			presence = observed
+		}
+	}
+
 	evidence := make(map[ThreadAddress]ThreadEvidence, len(snapshot.Records))
 	var resumable []ParkedResumeObservation
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
@@ -508,7 +567,7 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		if err := ctx.Err(); err != nil {
 			return ThreadSnapshot{}, nil, err
 		}
-		item := ThreadEvidence{Live: observed[record.Address]}
+		item := ThreadEvidence{Live: observed[record.Address], Session: presence[record.Address]}
 		// Who is driving this thread's start, if anything is. Gathered BEFORE
 		// the resume-shaped gate below, because a record mid-start has no
 		// LatestLaunchProfile yet -- it is written when the start registers --
@@ -566,12 +625,23 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			evidence[record.Address] = item
 			continue
 		}
-		if record.VerifiedPark != nil {
+		// COLD-RESUME proof is asked of the LEDGER, for every record whose
+		// session is not up -- not only the ones carrying a park receipt.
+		//
+		// That gate used to be `record.VerifiedPark != nil`, which made a
+		// receipt the authority over recoverability. It is not one: a
+		// VerifiedPark carries a ParkIdentity and no native conversation id, so
+		// it can say a park HAPPENED and never that there is something to
+		// resume into. The conversation id lives in `ledger-<tag>.jsonl`, and
+		// ResolveEstablished is the only thing that reads it. A thread whose
+		// session died without a park therefore had a resumable conversation
+		// nobody asked about, and read `session-gone` -- archive-eligible.
+		//
+		// A warm thread still needs no cold proof: its session's own presence
+		// is all reattachment consumes, and skipping it is what keeps this read
+		// off the common path.
+		if item.Session.State != SessionPresent && len(item.Live) == 0 && resolver != nil {
 			agent := record.LatestLaunchProfile.Agent
-			if resolver == nil {
-				evidence[record.Address] = item
-				continue
-			}
 			binding, resolveErr := resolver.ResolveEstablished(ctx, record.Address.RepoScope, string(record.Address.Tag), agent)
 			// The parked question is answered either way: a refusal is a
 			// resolved "no binding", not an unresolved question.
@@ -581,12 +651,7 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 					Address: record.Address, Agent: agent, NativeID: binding.NativeID,
 				})
 			}
-			evidence[record.Address] = item
-			continue
 		}
-		// A warm thread needs no cold-resume proof: SessionPresence already
-		// answered whether its session survived, which is all reattachment
-		// consumes.
 		evidence[record.Address] = item
 	}
 	if err := ctx.Err(); err != nil {
@@ -599,26 +664,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		evidence[observation.Address] = item
 	}
 
-	// Session presence for EVERY record, not only the resume-shaped ones. One
-	// host-wide `list-sessions`, no `list-clients` -- see SessionPresence for
-	// why that is both affordable and sufficient here.
-	//
-	// A resolver that is absent or fails leaves every observation at its zero
-	// value, which is unresolved. That is the honest degraded answer: couch
-	// could not look, so no thread is told its session is gone.
-	if presenceResolver, ok := c.Artifacts.(SessionPresenceResolver); ok && len(snapshot.Records) > 0 {
-		addresses := make([]ThreadAddress, 0, len(snapshot.Records))
-		for i := range snapshot.Records {
-			addresses = append(addresses, snapshot.Records[i].Address)
-		}
-		if presence, presenceErr := presenceResolver.SessionPresence(ctx, addresses); presenceErr == nil {
-			for address, observation := range presence {
-				item := evidence[address]
-				item.Session = observation
-				evidence[address] = item
-			}
-		}
-	}
 	if err := ctx.Err(); err != nil {
 		return ThreadSnapshot{}, nil, err
 	}

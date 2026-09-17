@@ -741,7 +741,16 @@ func TestParkCoordinatorConstructorDoesNotQueryPairSession(t *testing.T) {
 		close(releaseQuery)
 		result := <-constructed
 		t.Fatalf("New queried Pair/Zellij before returning: %v", result.err)
-	case <-time.After(100 * time.Millisecond):
+	case <-time.After(5 * time.Second):
+		// A LIVENESS backstop, not the assertion. What this test actually
+		// proves is that New never queries Pair/Zellij, and the queryEntered
+		// channel above proves that exactly -- a query blocks forever, so the
+		// budget only has to exceed scheduling latency. At 100ms it fired twice
+		// under a loaded parallel run of a 160-second package, both times
+		// reporting a phantom regression with err=<nil>; New reaches no session
+		// query at all (it calls reconcileInterruptedStarts, which reads
+		// Registration). Raised so the false signal cannot recur while the real
+		// one -- a constructor that blocks -- still fails here.
 		close(releaseQuery)
 		result := <-constructed
 		t.Fatalf("New blocked before returning: %v", result.err)

@@ -397,13 +397,16 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	}
 }
 
-// Without the surviving session there is no resume authority, so startup must
-// create a NEW thread rather than reattach one it cannot prove.
+// RESTATED for #256 M2. A gone session is not by itself a missing resume
+// authority: the ledger may still name a conversation, and then couch
+// cold-resumes instead of starting a second thread in the same tree. Startup
+// creates a NEW thread when the session is gone AND the ledger resolves nothing.
 func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 	rt := newRT(t, "/repo")
 	stale := seedDetachedThread(t, rt, "/repo")
-	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	// Deliberately NO SetDetachedSession: the session did not survive.
+	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
+	// Deliberately NO SetDetachedSession: the session did not survive, and with
+	// an unbound ledger there is nothing to cold-resume into either.
 	rt.runner = couchcore.NewFakeRunner()
 	master, slave, err := pty.Open()
 	if err != nil {

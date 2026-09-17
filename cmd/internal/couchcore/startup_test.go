@@ -311,8 +311,11 @@ func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
 	}
 }
 
-// Its negative: with no surviving session there is no resume authority, so
-// startup must create a NEW thread rather than reattach one it cannot prove.
+// Its negative, RESTATED for #256 M2: no surviving session is not by itself a
+// missing resume authority -- the ledger may still name a conversation, and then
+// couch cold-resumes rather than starting a second thread in the same tree. What
+// leaves nothing to adopt is a session that is gone AND a ledger that resolves
+// nothing, which is what this fixture now builds.
 func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
@@ -325,8 +328,9 @@ func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	// No SetDetachedSession: the session did not survive.
+	env.Artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
+	// No SetDetachedSession: the session did not survive, and with an unbound
+	// ledger there is no conversation to cold-resume into either.
 
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
 	if err != nil {

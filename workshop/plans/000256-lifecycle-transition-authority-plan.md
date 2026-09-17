@@ -656,7 +656,7 @@ incarnation liveness fields did in M1.
 The three-valued discipline carries over unchanged: a ledger that could not be
 read is `ProofUnresolved` → `unusable/unknown`, never `session-gone`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
 
 ```go
 // The safety half: a resolvable conversation is not "gone", whatever the
@@ -673,32 +673,89 @@ func TestUnreadableLedgerIsUnknownNotGone(t *testing.T) { … }
 func TestLiveAndDetachedRowsAskNoLedgerQuestion(t *testing.T) { … }
 ```
 
-- [ ] **Step 2:** Red.
-- [ ] **Step 3: Widen the gather.** Resolve the binding for every resume-shaped
+- [x] **Step 2:** Red.
+- [x] **Step 3: Widen the gather.** Resolve the binding for every resume-shaped
   record whose `Session.State != SessionPresent`, not only the parked ones.
   Reuse the existing `resumable`/`ParkedStatus` plumbing rather than adding a
   second channel — the question is the same one, asked of more rows.
-- [ ] **Step 4: Delete the `record.VerifiedPark != nil` gate** from
+- [x] **Step 4: Delete the `record.VerifiedPark != nil` gate** from
   `ClassifyThread`; the proof status and the observation decide.
-- [ ] **Step 5:** Green, and re-run the refresh call-count guard
+- [x] **Step 5:** Green, and re-run the refresh call-count guard
   (`countingArtifacts`, `classify_test.go:516`) — the ARCH-CONSTRAINTS budget is
   what bounds this widening.
-- [ ] **Step 6: Mutation-check** the fail-closed arm, then update the
+- [x] **Step 6: Mutation-check** the fail-closed arm, then update the
   `everyThreadShape` table so the new rows are part of the totality claim rather
-  than beside it.
-- [ ] **Step 7: Commit** — `#256 M2: the ledger decides resumability, not the receipt`
+  than beside it. Re-gating the read on the receipt fails both the new rows and
+  the cost guard; dropping the `ProofUnresolved` arm fails the two unreadable-
+  ledger rows.
+- [x] **Step 7: Commit** — `#256 M2: the ledger decides resumability, not the receipt`
+
+**What the widening actually costs, measured by the guard.** The ledger read used
+to run for 2 of 6 records in `couchWithOneRecordOfEveryShape`; it now runs for 4
+— every resume-shaped record with no session. The bound that matters is the one
+`TestWarmRowsAskNoLedgerQuestion` states: a row couch is hosting, and a row whose
+session outlived its launcher, still pay nothing. Those are the common case on a
+healthy couch.
+
+**`ReasonBindingLost` survives, demoted.** The receipt stops being authority but
+stays a diagnostic: "couch parked this deliberately and the conversation it
+preserved can no longer be resolved" is a different story for the operator than
+"the session ended", and the produced-by guard still finds a producer.
+
+**The guard had to follow, and that was not in the plan.** Moving the classifier
+alone left it advertising a resume `DecideResume` would refuse — the precise
+anti-pattern this issue exists to remove, one level below where M1 fixed it. Four
+sites read the receipt as cold-resume authority and all four moved to the ledger:
+
+- `DecideResume`'s admission gate. `record.VerifiedPark == nil && !Detached`
+  became `!Detached && !coldResumeAuthorized(input.Binding)`, and it now reports
+  the **specific** binding diagnostic rather than a generic refusal — round 3's
+  rule that a diagnostic code is a claim the operator reads.
+- `DecideResume`'s `RequiredSessionID` branch, which pinned the conversation id
+  for "has a receipt" instead of for "is cold".
+- The `CheckResumePreconditions` exception, which skipped binding refusals for
+  receipt-holders instead of for warm reattachments.
+- **`Resume` itself**, which resolved the binding only for receipt-holders — so
+  a record the classifier now calls `parked` reached `DecideResume` with an empty
+  binding and was refused `unbound`. It now asks the session first (warm is
+  cheaper and safer, and the classifier already prefers it) and the ledger only
+  when warm did not answer.
+
+**Two vocabulary consequences, both deletions.** `ResumeLegacyUnverified`
+("thread has no verified park completion") lost its producer and is retired; the
+produced-by guard is what forced the issue. And the `ParkHistory` tombstone scan
+stopped being a **veto**: it runs only where there is no conversation to resume
+into, to say *why* in better terms than "unbound". That matters more after M2
+than before — archive now abandons orphaned parks as a matter of course, so a
+veto there would make "couch crashed mid-park once" a permanent cold-resume ban.
+
+**One asymmetry kept, deliberately.** An unresolved session refuses a cold
+verdict — *unless* `record.VerifiedPark` says couch tore the session down itself.
+For a deliberately parked thread the session answer is uninformative, so demoting
+every parked row because one `list-sessions` failed is strictly worse (M1's
+argument, unchanged). For every other thread the session may be ALIVE, and
+`parked` invites a relaunch that would put a second agent on a live conversation.
+The receipt is a fact about what couch did; that is all it is still read for.
+
+**One consumer, re-derived.** `ThreadEvidence.Parked`/`ParkedStatus` changed
+meaning — from "cold proof for parked records" to "cold proof for any record with
+no session" — and `ClassifyThread` is the only production reader, so the round-3
+rule (enumerate every reader when a value's meaning changes) closed in one step.
+The field comment now carries the new meaning where the reader looks.
 
 ### Task 7: Sequence tests against the real failure modes
 
 **Files:**
-- Test: `cmd/internal/couchcore/recovery_test.go`
+- Test: `cmd/internal/couchcore/lifecyclesequence_test.go`
 
-ARCH-ORDER asks which events the caller **cannot** block. Four apply:
+ARCH-ORDER asks which events the caller **cannot** block. Four apply, and none is
+a transaction that can be rolled back — each is something that already happened
+to a process couch does not own:
 
 | Event | Governed by | Rolls back? |
 |---|---|---|
 | couch killed, session survives | classify from the session | n/a — nothing to roll back |
-| couch killed, session also dies | `session-gone` or `binding-lost` via ledger | n/a |
+| couch killed, session also dies | the ledger decides gone vs resumable (Task 6b) | n/a |
 | park times out, process dies | nothing reads `record.Park` | n/a |
 | liveness probe returns Unknown | fail closed — `unusable/unknown` | n/a |
 
@@ -707,8 +764,21 @@ the classification path to interrupt, which is the point of the re-cut. Rollback
 is absent because the classifier holds no state between events — it is a pure
 function of (record, evidence).
 
-- [ ] **Steps 1–4:** One test per row.
-- [ ] **Step 5:** Commit, then `sdlc milestone-close --issue 256 --milestone M2`.
+**Written as the property, not one test per row.** Each of those events leaves
+DIFFERENT bookkeeping behind and the SAME external world, so the claim worth
+pinning is that the bookkeeping does not reach the verdict:
+`TestTheWorldDecidesWhateverTheRecordSaysAboutItself` crosses four record shapes
+(clean detach, couch crash, timed-out park, orphaned start claim) with four
+worlds, and every shape must classify identically within a world. One test per
+row would have restated four existing incident tests instead.
+
+- [x] **Steps 1–4:** The cross-product test, plus `TestUnknownNeverBecomesGone`
+  for the one asymmetry in it — `session-gone` is archive-eligible and `unknown`
+  is not, so a collapse in that direction offers to retire live work.
+- [x] **Step 4b: Mutation-check.** Reverting `startInFlight` to `startClaimed`
+  fails every world for the orphaned-claim shape; removing the unresolved-session
+  arm fails the fail-closed test.
+- [x] **Step 5:** Commit, then `sdlc milestone-close --issue 256 --milestone M2`.
 
 **Operator verification for M2:**
 

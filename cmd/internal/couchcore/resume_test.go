@@ -72,19 +72,35 @@ func TestDecideResumeEligibilityMatrix(t *testing.T) {
 		{name: "unknown incarnation does not veto a verified park", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown}}
 		}},
-		{name: "an open park no longer vetoes; the missing authority still does", code: ResumeLegacyUnverified, mutate: func(in *ResumeEligibilityInput) {
+		// RESTATED for #256 M2. These three asserted that a missing park RECEIPT
+		// vetoes a cold resume. It does not and cannot: the receipt carries a
+		// ParkIdentity and no conversation id, so it can say a park happened and
+		// never that anything survived it. The ledger is the authority, and with
+		// an established binding all three of these records resume.
+		{name: "an open park no longer vetoes, and neither does a missing receipt", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.VerifiedPark = nil
 			in.Thread.Park = &ParkTransaction{Phase: ParkAwaitingCompletion}
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationLive}}
+		}},
+		{name: "no receipt and no conversation refuses, naming the binding", code: ResumeBindingUnbound, mutate: func(in *ResumeEligibilityInput) {
+			in.Thread.VerifiedPark = nil
+			in.Thread.ParkHistory = nil
+			in.Binding = NativeBindingResolution{Status: sessioninventory.BindingUnbound}
+		}},
+		// A tombstone is no longer a VETO -- archive abandons orphaned parks as
+		// a matter of course since M2, so vetoing on one would make "couch
+		// crashed mid-park once" a permanent cold-resume ban. It survives as the
+		// better EXPLANATION when there is nothing to resume into.
+		{name: "a tombstone does not veto a resolvable conversation", code: "", mutate: func(in *ResumeEligibilityInput) {
+			in.Thread.VerifiedPark = nil
+			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].Tombstoned = true
+			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].SuccessfulAttempt = 0
 		}},
 		{name: "tombstoned", code: ResumeTombstoned, mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.VerifiedPark = nil
 			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].Tombstoned = true
 			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].SuccessfulAttempt = 0
-		}},
-		{name: "legacy unverified", code: ResumeLegacyUnverified, mutate: func(in *ResumeEligibilityInput) {
-			in.Thread.VerifiedPark = nil
-			in.Thread.ParkHistory = nil
+			in.Binding = NativeBindingResolution{Status: sessioninventory.BindingUnbound}
 		}},
 		{name: "missing path", code: ResumePathMissing, mutate: func(in *ResumeEligibilityInput) {
 			in.WorkingPathExists = false
@@ -158,8 +174,10 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 	}{
 		{name: "detached proof admits a record with no verified park", detached: true},
 		{
-			name:     "without the proof the same record refuses",
-			wantCode: ResumeLegacyUnverified,
+			// RESTATED for #256 M2: `binding` here is established, so there IS
+			// a conversation to resume into and the cold path takes it. The
+			// receipt never carried that answer.
+			name: "without the detached proof the ledger answers instead",
 		},
 		{
 			name: "a tombstoned history does not block a detached resume",
@@ -169,11 +187,15 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 			detached: true,
 		},
 		{
-			name: "a tombstoned history still blocks a NON-detached resume",
+			// RESTATED for #256 M2. The scan is now an EXPLANATION, not a veto:
+			// it runs only where there is no conversation to resume into, and
+			// says "abandoned" rather than "unbound" because that is the more
+			// useful answer. With the ledger resolving, the tombstone is history
+			// about bookkeeping and nothing more.
+			name: "a tombstoned history does not block a resolvable conversation",
 			mutate: func(r *ThreadRecord) {
 				r.ParkHistory = []ParkTransaction{{Tombstoned: true, Closed: true}}
 			},
-			wantCode: ResumeTombstoned,
 		},
 		{
 			// RESTATED for #272 -- this case WAS the bug, written as a
