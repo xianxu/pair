@@ -171,7 +171,64 @@ predicate, different input.
 
 ## Plan
 
-- [ ]
+TENTATIVE — written 2026-09-17 without a brainstorm. Three decisions below are
+open and may reshape it; settle them first. One boundary, no `Mx`: shipping the
+agent pane without the draft pane leaves the two panes disagreeing, and that
+agreement is the stated justification for the inversion existing at all.
+
+**Open decisions (settle before the plan is trusted):**
+
+- **Leading whitespace.** The predicate says the sigil is the FIRST character.
+  Confirm that is wanted — an indented ` /usage` is more likely a paste than a
+  command, which argues for first-character, but it should be a decision rather
+  than a side effect.
+- **Which sigils per harness.** `/` is the motivating one. Claude also has
+  line-committed `!` (bash) and `#` (memory); Codex, agy and muse have their own
+  sets. Enumerate per harness rather than generalising from Claude, and decide
+  whether a sigil with a *different* grammar (`!ls -la` has spaces and slashes in
+  its tail) needs a per-sigil pattern rather than one shared token grammar.
+- **Whether the draft pane ships in the same pass.** The Spec says yes. If the
+  recognizer refactor turns out larger than it looks, that is the natural place
+  to cut — but cutting it is a scope decision, not a discovery.
+
+**Steps:**
+
+- [ ] Settle the three decisions above; record them in `## Log`.
+- [ ] Declare sigils per harness where the harness declares everything else
+      (`atlas/how-to-bring-up-a-new-harness-cli.md` names the place). An absent
+      declaration must behave exactly as today — that is already a Done-when.
+- [ ] Return the composer's located region from the recognizers instead of
+      discarding it. Four of them, not three: `claudeComposerActive`,
+      `codexComposerActive`, `agyComposerActive`, `museComposerActive`
+      (`composer_recognizers.go:241, 38, 270, 199`), with `ruledBoxComposerActive`
+      (`:143`) as the shared walker. Geometry is already computed; no new terminal
+      parsing (ARCH-DRY). Assert the returned region against the committed
+      fixtures in `cmd/internal/wrapcmd/testdata`.
+- [ ] Implement `harnessAddressed(line, harness)` as a pure predicate — the three
+      rules from the Spec. Unit-test it directly, including the
+      `/Users/xianxu/workspace/brain is the repo` negative and the `/ ` negative.
+- [ ] Add the branch to `decidePlainReturn`'s `composerGatePositive` arm
+      (`harness_tty.go:90`). **Emit `profile.keymap.altCR`, not a literal `\r`**
+      — all four profiles already define `altCR: []byte{'\r'}`
+      (`harness_tty.go:24-77`), so the branch stays harness-agnostic and muse is
+      covered for free. Muse matters here: its `plainCR` is the Kitty-protocol
+      `\x1b[13;2u` with a documented push precondition, and this branch bypasses
+      `plainCR` entirely, so the precondition does not apply on this path. Confirm
+      that rather than assume it.
+- [ ] Instrument the branch like every other arm — own `adapt` outcome + `reason`,
+      visible to `pair-doctor`. Add `PAIR_WRAP_COMMAND_ENTER=0` as the rule-only
+      hatch, leaving `PAIR_WRAP_REMAP_RETURN` untouched.
+- [ ] Draft pane: same predicate as a prior branch in `cr_keys`
+      (`nvim/init.lua:3565`), with the completion popup keeping first claim.
+- [ ] Verify against the real binaries via `probes/`, not unit tests alone — this
+      is a screen-reading change on a live tty. Cover all four harnesses, or state
+      which were not exercised and why.
+
+**Explicitly out of scope** (named in the Spec as "later, same predicate"): the
+picker/`y`/`n`/numbered-answer case. It keys on agent state via `overlayDetector`
+rather than composer text, so it is the same rule over a different input and a
+separate issue.
+
 
 ## Log
 
@@ -198,3 +255,19 @@ predicate, different input.
   mis-submit it, and in this operator's workflow that line is common.
 - The recognizers computing and discarding the composer region is the reason
   this is a small change rather than a new subsystem.
+
+### 2026-09-17
+
+Tentative plan added from a brain session, pre-brainstorm. Two things checked
+while writing it, so the plan does not rest on the Spec's prose alone:
+
+- **Four recognizers, not three.** The Spec names Claude, Codex and agy;
+  `museComposerActive` (`composer_recognizers.go:199`) exists too and muse has a
+  full profile (`harness_tty.go:69-77`). The refactor covers four.
+- **The branch should emit `altCR`, not a literal `\r`.** All four profiles
+  define `altCR: []byte{'\r'}` while their `plainCR` values differ wildly —
+  Claude `\\r`, Codex/agy `\n`, muse the Kitty-protocol `\x1b[13;2u`. Writing the
+  branch against the keymap rather than a hardcoded byte makes it harness-agnostic
+  and picks up muse with no extra case. Muse is also the one whose `plainCR`
+  carries a runtime precondition (progressive-enhancement push); this branch does
+  not touch that path.
