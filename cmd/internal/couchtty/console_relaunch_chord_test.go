@@ -413,8 +413,8 @@ func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
 				if _, err := stdin.Write(input); err != nil {
 					t.Fatal(err)
 				}
-				wire:=map[workbenchshortcut.Chord]string{workbenchshortcut.ChordAltD:"\x1bd",workbenchshortcut.ChordAltX:"\x1bx",workbenchshortcut.ChordAltN:"\x1bn",workbenchshortcut.ChordCtrlAltN:"\x1b\x0e"}[chord]
- waitFor(t,"forwarded lifecycle event",func()bool{return string(bytes.Join(child.Writes(),nil))=="before"+wire+"after"})
+				wire := map[workbenchshortcut.Chord]string{workbenchshortcut.ChordAltD: "\x1bd", workbenchshortcut.ChordAltX: "\x1bx", workbenchshortcut.ChordAltN: "\x1bn", workbenchshortcut.ChordCtrlAltN: "\x1b\x0e"}[chord]
+				waitFor(t, "forwarded lifecycle event", func() bool { return string(bytes.Join(child.Writes(), nil)) == "before"+wire+"after" })
 				con.mu.Lock()
 				focus := con.focus
 				con.mu.Unlock()

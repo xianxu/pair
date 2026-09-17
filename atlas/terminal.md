@@ -78,6 +78,27 @@ normalization and Return adaptation remain product behavior. Its terminal
 observer consumes the normalized queued visual stream, while raw capture remains
 separate; observation does not claim physical-write acknowledgment.
 
+## No destination is an answer, not a failure (#265)
+
+`ErrNoDestination` (`destination.go`) is the presenter's typed answer when it
+holds no endpoint to deliver an input event to. `Presenter.Input`,
+`Presenter.mouseInput`, `Presenter.UpdateChrome` and `Presenter.resizeLayout`
+all wrap it through the one
+constructor `noDestination`, which carries the `View` so a caller that surfaces
+it can say which endpoint in which state.
+
+It is deliberately separate from physical failure: `Presenter.fail` latches the
+view into `Failed` and closes `Failed()`, and nothing about this sentinel touches
+that channel.
+
+Consumers ask `IsRoutingAnswer(err)` rather than testing one sentinel. That
+function carries the declared membership of `Presenter.Input`'s error set —
+which members are routing, which are ownership, and why — so a new sentinel
+joins the set in one place instead of at every call site. The distinction exists because a consumer that cannot tell the two
+apart tears down terminal ownership over a question it merely asked at the wrong
+moment -- which is what exited couch on a keystroke before #265. Consumers
+classify with `errors.Is`.
+
 ## Notification output ownership
 
 Automatic wrapper attention and explicit `pair notify` hooks share one output

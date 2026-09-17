@@ -204,6 +204,20 @@ func (m *terminalMux) writeEvents(events []terminal.InputEvent) {
 			continue
 		}
 		if err := m.presenter.Input(context.Background(), event.Event); err != nil {
+			// A routing answer is not a failure of the terminal: the presenter
+			// simply holds no endpoint for this event right now. Stopping the mux
+			// over that is the pair#265 escalation.
+			//
+			// DEFENSIVE, and unreachable today -- say so rather than implying a
+			// live hazard. Unlike couch, pair term never calls presenter.Panel,
+			// admitTab selects atomically, removeTab reselects before retiring
+			// and Retire refuses while selected, so an admitted tab always has an
+			// endpoint. The guard is here because that is an invariant of the
+			// mux's own code, not of the presenter's contract, and couch held the
+			// same belief about its panel until #265. (BR-8)
+			if terminal.IsRoutingAnswer(err) {
+				continue
+			}
 			m.stopLocked(err)
 			return
 		}
@@ -351,7 +365,11 @@ func (m *terminalMux) paintStripLocked() {
 	if err == nil {
 		err = m.presenter.UpdateChrome(context.Background(), chrome)
 	}
-	if err != nil {
+	// Same defensive classification as writeEvents, and unreachable for the same
+	// reason: activeTabLocked asks the mux's tab model, which today cannot
+	// disagree with the presenter's view. Kept because that agreement is the
+	// mux's invariant to maintain, not the presenter's to guarantee. (BR-8)
+	if err != nil && !terminal.IsRoutingAnswer(err) {
 		m.stopLocked(err)
 	}
 }
@@ -384,20 +402,30 @@ func (m *terminalMux) inheritSize(host hostty.Host) {
 		m.stopLocked(err)
 		return
 	}
+	// presenterResized records whether ResizeLayout's apply callback ran. This is
+	// BR-13's lesson applied to the second consumer of the same answer: the
+	// active tab is resized ONLY by that callback, so returning here on a routing
+	// answer would leave the visible tab -- and the mux's own geometry -- at the
+	// old size. couch's onResize continues; so does this. (pair#265 BR-17)
+	presenterResized := false
 	err = m.presenter.ResizeLayout(context.Background(), terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, chrome, func(g terminal.Geometry) error {
 		return active.child.ResizePTY(ptychild.Size{Rows: uint16(g.Rows), Cols: uint16(g.Cols)})
 	})
-	if err != nil {
+	switch {
+	case err == nil:
+		presenterResized = true
+	case !terminal.IsRoutingAnswer(err):
 		m.stopLocked(err)
 		return
 	}
 	m.rows, m.cols = size.Rows, size.Cols
 	for _, t := range m.tabs {
-		if t != active && t.child != nil {
-			if err := t.child.Resize(m.childSizeLocked()); err != nil {
-				m.stopLocked(err)
-				return
-			}
+		if t.child == nil || (t == active && presenterResized) {
+			continue
+		}
+		if err := t.child.Resize(m.childSizeLocked()); err != nil {
+			m.stopLocked(err)
+			return
 		}
 	}
 	m.paintStripLocked()

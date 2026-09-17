@@ -562,6 +562,7 @@ var SourceClassifications = []SourceClassification{
 var NonArtifactSources = []string{
 	"cmd/internal/terminalqualify/resource_cases.go",
 	"cmd/internal/terminal/presenter.go",
+	"cmd/internal/terminal/destination.go",
 	"cmd/internal/terminalqualify/presenter_cases.go",
 	"cmd/internal/terminal/endpoint.go",
 	"cmd/internal/terminal/frame.go",

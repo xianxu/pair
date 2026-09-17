@@ -1113,6 +1113,15 @@ func (c *Console) paintNow() {
 	if err == nil {
 		err = c.presenter.UpdateChrome(c.lifetime, cells)
 	}
+	if terminal.IsRoutingAnswer(err) {
+		c.traceDropped("chrome", err)
+		// Mid-transition: showMenu's presenter.Panel has cleared the endpoint and
+		// c.focus has not caught up yet, so this arm ran with nothing to paint
+		// chrome onto. The paint that follows the flip is the authoritative one,
+		// so skipping this one loses nothing -- and escalating it would be the
+		// pair#265 exit reached with no input involved at all.
+		return
+	}
 	if err != nil {
 		c.terminalError(err)
 		return
@@ -1210,18 +1219,32 @@ func (c *Console) onResize() {
 		children = append(children, p.child)
 	}
 	c.mu.Unlock()
+	// presenterResized records whether the presenter's apply callback actually
+	// ran. The loop below skips the focused child ONLY because that callback
+	// normally resizes it; when the presenter refuses, the callback never ran
+	// and skipping would leave the one pane the operator is looking at at its
+	// old size (pair#265 BR-13).
+	presenterResized := false
 	if !panel && selected != nil {
 		err = c.presenter.Resize(c.lifetime, terminal.Geometry{Cols: int(size.Cols), Rows: int(size.Rows)}, func(g terminal.Geometry) error {
 			return selected.child.ResizePTY(ptychild.Size{Cols: uint16(g.Cols), Rows: uint16(g.Rows)})
 		})
-		if err != nil {
+		switch {
+		case err == nil:
+			presenterResized = true
+		case !terminal.IsRoutingAnswer(err):
 			c.terminalError(err)
 			return
+		default:
+			// A pane exists but the presenter holds no endpoint for it. Resizing
+			// the window must not exit couch over that; the child still gets its
+			// new size from the loop below, which no longer skips it.
+			c.traceDropped("resize", err)
 		}
 	}
 	childSize := c.ChildSize()
 	for _, child := range children {
-		if (!panel && selected != nil && child == selected.child) || child.Endpoint().InputEnded() {
+		if (presenterResized && child == selected.child) || child.Endpoint().InputEnded() {
 			continue
 		}
 		if err := child.Resize(childSize); err != nil {

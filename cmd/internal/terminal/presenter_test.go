@@ -824,3 +824,41 @@ func TestPresenterCanceledSelectionJoinsExistingReleaseWithoutRetry(t *testing.T
 		t.Fatalf("selection retry duplicated release:%q", got)
 	}
 }
+
+// pair#265: every site that refuses for want of an endpoint answers with the
+// same classifiable error, so a caller can tell "nothing to deliver to" from
+// "the terminal is lost".
+//
+// Three of the four sites get a row. mouseInput's absence is a measurement, not
+// an omission: ViewState's zero value is Ready, so an idle presenter passes its
+// `v.State != Ready` guard and the click resolves to ParentPressMouse, returning
+// nil. Reaching that refusal needs State == Presenting, which p.call's FIFO
+// serializes away, or Failed, which p.call rejects earlier with "presenter
+// unavailable". It is converted for consistency and covered indirectly by
+// couchtty's mouse subtests; if a fixture that reaches it ever exists, it
+// belongs here. (pair#265 BR-7)
+func TestPresenterRefusalsWithoutADestinationAreClassifiable(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		call func(*Presenter) error
+	}{
+		{"input", func(p *Presenter) error {
+			return p.Input(context.Background(), uv.KeyPressEvent{Code: 'x', Text: "x"})
+		}},
+		{"update-chrome", func(p *Presenter) error {
+			return p.UpdateChrome(context.Background(), make([]Cell, 8))
+		}},
+		{"resize-layout", func(p *Presenter) error {
+			return p.ResizeLayout(context.Background(), Geometry{Cols: 8, Rows: 5}, make([]Cell, 8), func(Geometry) error { return nil })
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p := NewPresenter(ttyio.NewFake(), CouchAnyMotion)
+			t.Cleanup(func() { p.Release(context.Background()) })
+			err := tc.call(p)
+			if !errors.Is(err, ErrNoDestination) {
+				t.Fatalf("%s with no endpoint = %v, want ErrNoDestination", tc.name, err)
+			}
+		})
+	}
+}

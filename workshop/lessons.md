@@ -5097,3 +5097,105 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
 - A test-case **name that asserts the shape of its input is a claim**: a row called "split across the boundary" that feeds a complete sequence tests the case it is named against. (BR-23)
 
 - Editing a file from a script: build the new content, write a temp file, then `os.replace`. `open(path, 'w')` truncates *before* the write, so a failure between the two leaves an empty file — this session lost a 757-line test file that way and recovered it only because it was committed. Commit before scripted edits, or never truncate in place. (#266, 2026-09-16)
+
+### 2026-09-16 — #265 panel-safe input routing
+
+- **A cross-layer answer channel needs a third value.** `Presenter.Input` could
+  only answer "fine" or "error", and the console's `terminalError` could only
+  hear "fine" or "fatal" — so "I hold no endpoint for this", which is the
+  panel's *normal* state, exited couch on a keystroke. When one component asks
+  another about state the second owns, "not applicable" is an answer, not a
+  failure; give it a type. `couchcore` already models exactly this as
+  `ProofStatus` (`ProofUnresolved` = "never asked, or asking failed") and
+  `reattachCandidate` consumes it deliberately; `couchtty` had no equivalent.
+
+- **When a routing decision has an allowlist of event kinds, the kinds NOT in
+  the list are the bug surface.** `routeInputEvent` checked the panel for
+  printable keys, ESC and paste, and forwarded key release, focus and blur
+  straight through — for events couch itself had asked the terminal to send
+  (`\x1b[?1004h` and `\x1b[>3u` go out on the first paint, panel or not). Test
+  the decoder's *closed set*, not the kinds the bug report happened to name.
+
+- **A "non-fatal" recovery path can re-enter the escalation it was added to
+  avoid.** Publishing a notice on a refused keystroke looked harmless;
+  `setNotice` → `publishNotice` → `repaint` → `paintNow` → `UpdateChrome` →
+  `terminalError` → `Stop`. Trace a recovery path all the way down before
+  calling it recovery.
+
+- **Pin a mechanical guard by planting a violation before trusting it.** The AST
+  guard for the input door was proven to fail — naming the right function —
+  against a deliberately planted `c.presenter.Input(...)`, then the plant was
+  removed. A guard test that has never been red reports nothing.
+
+- **`TestConsoleRunRootEscapeClearsFilterThenReplaysActor` is flaky** (couchtty,
+  `console_run_menu_test.go:193`, "returned actor was not admitted"). Roughly
+  1-in-40 at `-count=40`, and more likely under `make test`'s parallel load.
+  Confirmed **pre-existing** during #265 by reverting that issue's two couchtty
+  production files to the base commit and reproducing the failure identically —
+  isolate a suspect flake that way rather than re-running until it passes. Not
+  yet filed; it wants its own issue with the admission race written down.
+
+- **Enumerate the ANSWER, not the callers.** #265 was fixed by typing a
+  presenter refusal and classifying it at the consumers. The enumeration used
+  was `grep '\.Input('` — the callers — and it missed `UpdateChrome` (caught by
+  the plan gate) and then `resizeLayout` (caught by the close gate), both of
+  which return the same answer from paths with no input in them at all. The
+  right enumeration was "every refusal that reports the ABSENCE of an endpoint".
+  Two gates caught the same mistake twice because the fix was re-applied to the
+  same wrong index. (#265 BR-1)
+
+- **A guard test can pass a mutation it was written to catch.** Restoring the
+  #255 bypass kept all 16 new assertions green AND passed the AST door guard,
+  because the bypass called the allowlisted door directly — the guard pins
+  *where* the presenter is reached, not *whether the panel rule ran*. Mutation-
+  test each half of a fix separately; "the suite is green with the fix" says
+  nothing until "the suite is red without it" is measured. (#265 BR-3)
+
+- **Making a path non-fatal makes it silent — check what state it goes quiet
+  in.** `(focus=actor, presenter selected=nil)` is DURABLE in couch, not
+  transient: `installObservedThreadActor` sets focus without selecting and
+  nothing later selects. Degrading quietly there means a blank viewport with
+  dead keys and no signal. Where a notice would repaint (and re-enter the very
+  escalation being removed), a trace event is the channel that does not. (#265 BR-4)
+
+- **When a mechanical guard exists, put the RULE in it, not the instance.** #265
+  shipped an AST guard pinning `Presenter.Input` to one door — and the close
+  gate then found the guard covered one of four methods that answer the same
+  error, including the two the previous round had just fixed. A guard scoped to
+  the instance you were burned by is a guard that watches the door you already
+  closed. The replacement derives the producer set from source and checks every
+  consumer call in every consuming package, so a fifth producer or a seventh
+  call site fails a test instead of reaching an operator. (#265 BR-9)
+
+- **An enumeration restated in prose goes stale silently, and "recorded in X" is
+  a checkable claim.** One #265 enumeration change left five durable
+  restatements wrong across the atlas, the plan and the issue — plus an issue
+  sentence asserting a finding "is recorded" in a sibling issue where it was
+  not. Regenerate every restatement in the same commit as the change, and grep
+  the other artifact before claiming anything about it. Where the list lives in
+  code, pin it: `TestAtlasNamesEveryTraceEvent` now fails if a trace event ships
+  undocumented. (#265 BR-8)
+
+- **A non-fatal arm inherits the assumptions of the arm it replaced.** #265 made
+  `onResize` skip the parent paint when the presenter had no endpoint — but the
+  loop underneath skipped the focused child *because the presenter's apply
+  callback normally resizes it*. With the presenter refusing, that callback
+  never ran, so the one pane the operator is looking at kept its old size, and
+  the comment I wrote claimed the opposite. When you make a failure survivable,
+  re-read what the code after it assumed the failed step had done. (#265 BR-13)
+
+- **Classify the error SET, not one sentinel.** #265's door tested
+  `errors.Is(err, ErrNoDestination)` — one member of what `Presenter.Input` can
+  return. `ErrInputEnded` stayed fatal, and because a child's PTY read loop ends
+  the instant its agent exits while the console learns of that asynchronously, a
+  keystroke in that gap took every pane down. Five review findings in one family
+  each widened one `errors.Is` at one site. The fix that ends it is a single
+  predicate carrying the declared membership — every member, each marked routing
+  or ownership, in one place a consumer can ask. (#265 BR-16)
+
+- **The same defect can ship in the same diff as its own fix.** BR-13 (couch's
+  `onResize` skipping work the refused step was assumed to have done) and BR-17
+  (termcmd's `inheritSize` doing exactly that) were both present in the commit
+  whose message explained BR-13. Writing the lesson is not the sweep: when a
+  finding names a shape, grep the shape — this diff had seven survivable arms
+  and one of them was still wrong. (#265 BR-17)

@@ -467,7 +467,7 @@ func (p *Presenter) Input(ctx context.Context, event uv.Event) error {
 		}
 		v := p.View()
 		if v.State != Ready || v.Admitted == "" || p.selected == nil {
-			return errors.New("terminal: no admitted endpoint")
+			return noDestination("no admitted endpoint", v)
 		}
 		return p.selected.Send(event)
 	})
@@ -475,7 +475,7 @@ func (p *Presenter) Input(ctx context.Context, event uv.Event) error {
 func (p *Presenter) mouseInput(event uv.Event, m uv.Mouse) error {
 	v := p.View()
 	if v.State != Ready {
-		return errors.New("terminal: no presented mouse destination")
+		return noDestination("no presented mouse destination", v)
 	}
 	_, release := event.(uv.MouseReleaseEvent)
 	if v.Gesture == GestureParent {
@@ -631,7 +631,7 @@ func validateChrome(cells []Cell) error {
 
 func (p *Presenter) resizeLayout(ctx context.Context, host Geometry, bottom []Cell, apply func(Geometry) error) error {
 	if p.selected == nil {
-		return errors.New("terminal: resize requires endpoint")
+		return noDestination("resize requires endpoint", p.View())
 	}
 	if err := validateLayout(host, bottom); err != nil {
 		return err
@@ -780,7 +780,7 @@ func (p *Presenter) UpdateChrome(ctx context.Context, cells []Cell) error {
 	owned := cloneCells(cells)
 	return p.call(ctx, func(ctx context.Context) error {
 		if p.selected == nil {
-			return errors.New("terminal: chrome requires selected endpoint")
+			return noDestination("chrome requires selected endpoint", p.View())
 		}
 		child, err := p.selected.Snapshot(time.Now())
 		if err != nil {

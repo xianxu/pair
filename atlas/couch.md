@@ -364,6 +364,54 @@ while a thread is loading.
 
 ## Navigation
 
+### Where input is allowed to go (#265)
+
+Couch and the presenter are two state machines over the same question, and they
+can legitimately disagree. `Focus` (couchtty) says whether the operator is
+pointed at an actor or at couch's own panel. `View` (terminal) says whether the
+presenter currently holds an admitted endpoint. The panel's healthy shape is
+`State=Ready, Admitted="", selected=nil` -- `Presenter.Panel` clears the
+endpoint on purpose -- so "no admitted endpoint" is a *description of the panel*,
+not an error.
+
+`terminal.ErrNoDestination` is how the presenter says that, and it is distinct
+from a write failure (which latches `View` into `Failed` and closes `Failed()`).
+Four sites answer with it: `Presenter.Input`, `Presenter.mouseInput`,
+`Presenter.UpdateChrome` and `Presenter.resizeLayout`. The enumeration is "every
+refusal that reports the ABSENCE of an endpoint", not "every caller of `Input`";
+the by-caller reading is what missed `UpdateChrome` in planning and
+`resizeLayout` at the close boundary.
+
+The classification is `terminal.IsRoutingAnswer`, not an `errors.Is` per site:
+the set has more than one member (`ErrNoDestination` and `ErrInputEnded`, the
+latter because a child's input closes the moment its agent exits while the
+console learns of that asynchronously), and widening one `errors.Is` at a time
+is how this class survived five review findings. `ErrBackpressure` is
+deliberately NOT a member — a full queue is a capacity answer, and dropping
+input under load is its own decision.
+
+Every console path to `Presenter.Input` goes through `deliverPresenterInput`,
+which asks that question instead of handing the error to `terminalError` -- pinned
+by `TestConsoleReachesPresenterInputOnlyThroughItsDoor`. Child-bound events
+additionally go through `deliverChildInput`, which drops them when the panel is
+focused. `paintNow` and `onResize` classify it too, because `showMenu` clears
+the endpoint before it flips focus, and because `installObservedThreadActor`
+sets focus to an actor WITHOUT selecting it when no pane is active. That second
+state is DURABLE, not transient -- the operator sits on a pane the presenter
+does not hold until they switch away -- so every drop is recorded on the
+`no-destination` trace event. That is the only channel that can report it
+without repainting, and repainting is what re-enters the escalation
+(`publishNotice` is "push and paint are one operation").
+
+This matters because couch *asks* the terminal for the events that exposed it:
+the first mode delta writes `\x1b[?1004h` (focus reporting) and `\x1b[>3u`
+(kitty flags 1|2, where flag 2 is "report event types", i.e. key release) on the
+very first paint, panel or not. Before #265 those three kinds bypassed the panel
+check, so a focus change or a key release with the switcher open exited couch.
+
+`ErrBackpressure` is deliberately NOT in this scheme: it is a capacity answer,
+still fatal, and changing that is its own decision.
+
 `ctrl-space` is intercepted before the child sees it. It arrives in TWO
 encodings and both are recognised: the legacy `0x00`, and CSI-u
 `\x1b[32;5u` under the Kitty keyboard protocol, whose disambiguation Couch maintains -- so the
@@ -1069,7 +1117,17 @@ The events:
 - `inventory`, with `rows=N` or `error`;
 - `pass-seeded`, with `pending=N`;
 - `reattach-start`, with `attempt=N`;
-- `reattach-done`, with `ok`, a resume diagnostic code, or `error`.
+- `reattach-done`, with `ok`, a resume diagnostic code, or `error`;
+- `no-destination` (`pair#265`), with the abandoned operation and the
+  presenter's refusal: `panel`, `input`, `chrome` or `resize`. It records a drop
+  that has no other channel — a notice would repaint, and repainting is what
+  re-enters the escalation `#265` removed. Its detail carries the refusal text
+  rather than a bare code, unlike `reattach-done`; the text is a static reason
+  plus `%q`-quoted endpoint ids, which the TSV framing permits because `%q`
+  escapes tab and newline.
+
+`TestAtlasNamesEveryTraceEvent` pins this list against `trace.go`, so a new
+event cannot ship undocumented (`pair#265` BR-8).
 
 Unlike the keystroke trace, it records addresses, counts and timings, never
 content. The traces write through one `traceFile` (`trace.go`): opened 0600,
