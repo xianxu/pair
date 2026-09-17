@@ -502,21 +502,29 @@ func TestReAdoptionExitsAreTotalAndCoded(t *testing.T) {
 						// function refuses rather than guessing which is current.
 						// A start claim is cleared on its OWN owner's death plus
 						// the forked process's -- two probes, two processes --
-						// and rolls back rather than retiring, because
-						// RetireIncarnation takes only a live incarnation.
+						// and rolls back rather than retiring, because neither
+						// retirement transition takes an incarnation with a
+						// start still open.
+						//
+						// A `live` and an `unknown` incarnation both clear, by
+						// two DIFFERENT transitions: the unproven one is retired
+						// only because the screen above proved this exact
+						// {PID, identity} dead, which is the evidence detach
+						// does not have (#256 M3). `creating` still refuses --
+						// it names a start nothing here is driving.
 						wantClear := live == dead && count <= 1
 						if count == 1 {
 							if sh.claimOwner != nil {
 								wantClear = wantClear && *sh.claimOwner == dead
 							} else {
-								wantClear = wantClear && state == IncarnationLive
+								wantClear = wantClear && (state == IncarnationLive || state == IncarnationUnknown)
 							}
 						}
 						if wantClear && err != nil {
 							t.Fatalf("a clearable shape refused: %v", err)
 						}
 						if !wantClear && err == nil {
-							t.Fatalf("cleared %s: an unprovable process or a non-live incarnation must refuse, or a later store guard refuses uncoded", name)
+							t.Fatalf("cleared %s: an unprovable process or an unretirable incarnation must refuse, or a later store guard refuses uncoded", name)
 						}
 
 						after, readErr := store.GetThread(created.Address)

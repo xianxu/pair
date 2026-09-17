@@ -547,6 +547,29 @@ func (s *ThreadStore) CommitStartClaim(address ThreadAddress, expectedRevision u
 // Without this a detached thread had no recorded activity at all, so the
 // switcher rendered its age from the zero time and stated 106751 days (pair#187).
 func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity, detachedAt time.Time) (ThreadRecord, error) {
+	return s.retireIncarnation(address, expectedRevision, identity, detachedAt, IncarnationLive)
+}
+
+// RetireUnprovenIncarnation retires an incarnation the caller has PROVED dead,
+// which is the one thing that makes an `unknown` one safe to remove.
+//
+// It is a separate transition rather than a widened RetireIncarnation because
+// the two callers hold different evidence, and the transition's NAME is where
+// that difference is recorded. Detach retires what it just stopped and holds no
+// death proof for an unproven incarnation; archive and re-adoption arrive with
+// an exact {PID, identity} probe that answered Dead (clearLifecycleDebris
+// screens it immediately before calling this), so "retiring one would let an
+// unproven thread present as cleanly detached" does not apply to them.
+//
+// Without it, a record marked unknown by markLiveRecordUnknown -- a start that
+// reached a live helper whose console attach then failed -- could never be
+// archived once that helper died, which it always does, because it is couch's
+// own child. That is the same neither-usable-nor-removable wedge as #271.
+func (s *ThreadStore) RetireUnprovenIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity, retiredAt time.Time) (ThreadRecord, error) {
+	return s.retireIncarnation(address, expectedRevision, identity, retiredAt, IncarnationUnknown)
+}
+
+func (s *ThreadStore) retireIncarnation(address ThreadAddress, expectedRevision uint64, identity ProcessIdentity, detachedAt time.Time, accepted IncarnationState) (ThreadRecord, error) {
 	return s.UpdateExistingThread(address, expectedRevision, func(next *ThreadRecord) error {
 		if next.Park != nil {
 			return errors.New("cannot retire an incarnation while a park transaction is open")
@@ -555,8 +578,8 @@ func (s *ThreadStore) RetireIncarnation(address ThreadAddress, expectedRevision 
 			return fmt.Errorf("retire needs exactly one incarnation, found %d", len(next.Incarnations))
 		}
 		incarnation := next.Incarnations[0]
-		if incarnation.State != IncarnationLive {
-			return fmt.Errorf("retire needs a live incarnation, found %q", incarnation.State)
+		if incarnation.State != accepted {
+			return fmt.Errorf("retire needs a %s incarnation, found %q", accepted, incarnation.State)
 		}
 		if incarnation.Start != nil {
 			return errors.New("cannot retire an incarnation with an open start transaction")

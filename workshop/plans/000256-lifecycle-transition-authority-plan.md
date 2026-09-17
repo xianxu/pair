@@ -192,6 +192,8 @@ view is either machine-checked or it is prose.
 | `hasOccupiedIncarnation` | `cmd/internal/couchcore/thread.go` | modified | M3 |
 | `occupiedIncarnation` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
 | `menuArchiveOffered` | `cmd/internal/couchtty/menu.go` | new | M3 |
+| `RetireUnprovenIncarnation` | `cmd/internal/couchcore/threadstore.go` | new | M3 |
+| `retireIncarnation` | `cmd/internal/couchcore/threadstore.go` | new | M3 |
 
 - **SessionObservation** — one thread's zellij session as a **three-state**
   answer:

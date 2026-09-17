@@ -101,11 +101,12 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 				return nil, refuseResume(ResumeUnknown,
 					"recorded process could not be proved dead, so its incarnation cannot be retired; inspect it before acting on the thread")
 			}
-			if candidate.State != IncarnationLive {
-				// RetireIncarnation refuses anything else, and finding that out
-				// after abandoning the park is what destroys the park.
+			if candidate.State != IncarnationLive && candidate.State != IncarnationUnknown {
+				// The two retirement transitions accept exactly these, and
+				// finding that out after abandoning the park is what destroys
+				// the park.
 				return nil, refuseResume(ResumeUnknown,
-					"recorded incarnation is "+string(candidate.State)+"; only a live one can be retired")
+					"recorded incarnation is "+string(candidate.State)+"; only a live or unproven one can be retired")
 			}
 			incarnation = &candidate
 		}
@@ -157,7 +158,14 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 	if incarnation == nil {
 		return &thread, nil
 	}
-	retired, err := c.Threads.RetireIncarnation(thread.Address, thread.Revision,
+	// The transition NAMES the evidence this caller holds: the screen above
+	// proved this exact {PID, identity} Dead, which is what makes an unproven
+	// incarnation safe to remove here and not on the detach path.
+	retire := c.Threads.RetireIncarnation
+	if incarnation.State == IncarnationUnknown {
+		retire = c.Threads.RetireUnprovenIncarnation
+	}
+	retired, err := retire(thread.Address, thread.Revision,
 		ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}, thread.LastActiveAt)
 	if err != nil {
 		return nil, refuseResume(ResumeUnknown, "stale incarnation could not be retired: "+err.Error())

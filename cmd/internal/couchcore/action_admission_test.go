@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestArchiveRefusesAThreadCouchHostsWithNoIncarnation is the archive half of
@@ -144,5 +145,129 @@ func TestStoreArchiveGuardAsksOnlyWhatARecordProves(t *testing.T) {
 		t.Error("the store archived through an outstanding start claim")
 	} else if !strings.Contains(err.Error(), "start") {
 		t.Errorf("start-claim refusal does not name the claim: %v", err)
+	}
+}
+
+// A record whose incarnation is `unknown` and whose process is PROVED DEAD is
+// archivable, and could not be archived at all before #256 M3.
+//
+// `markLiveRecordUnknown` produces the shape in production: a start reaches a
+// live helper, the console attach then fails, and the incarnation is marked
+// unproven. That helper is couch's own child and dies with couch, so the row
+// arrives at the next couch classified `detached` or `parked` -- archive offered
+// -- and clearLifecycleDebris refuses it EVERY time, because the only retirement
+// transition available demands a `live` incarnation.
+//
+// RetireIncarnation's refusal of `unknown` is right for the caller it was
+// written for: detach has no death proof, and retiring an unproven incarnation
+// there would let it present as cleanly detached. Archive is the other caller
+// and it does have the proof -- exact PID and identity token, observed Dead
+// immediately above. So the proof gets a transition of its own rather than a
+// widened one.
+func TestArchiveRetiresAnUnprovenIncarnationItProvedDead(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	thread := archivableThread(t, store, "couch-0000000000000001")
+	unproven, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: IncarnationUnknown}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(unproven.Address, "pair-"+string(unproven.Address.Tag), true)
+	artifacts.SetDetachedSession(unproven.Address, "pair-"+string(unproven.Address.Tag))
+	// pid 42 is absent from the table, so the probe answers Dead -- not unknown.
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+
+	if _, err := couch.ArchiveThread(context.Background(), unproven.Address); err != nil {
+		t.Fatalf("a row whose helper is provably gone could not be archived: %v", err)
+	}
+	archived, err := store.ArchivedThreads()
+	if err != nil || len(archived) != 1 {
+		t.Fatalf("archive = %+v, %v", archived, err)
+	}
+}
+
+// The other direction, which is why the transition is separate rather than a
+// widened RetireIncarnation: an `unknown` incarnation whose process CANNOT be
+// proved dead stays exactly where it is.
+func TestArchiveKeepsAnUnprovenIncarnationItCouldNotProveDead(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	thread := archivableThread(t, store, "couch-0000000000000001")
+	unproven, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+		record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: IncarnationUnknown}}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetPairSession(unproven.Address, "pair-"+string(unproven.Address.Tag), true)
+	artifacts.SetDetachedSession(unproven.Address, "pair-"+string(unproven.Address.Tag))
+	proc := NewFakeProcOps()
+	proc.SetUnknown(42)
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+
+	_, err = couch.ArchiveThread(context.Background(), unproven.Address)
+	if err == nil {
+		t.Fatal("archived a thread whose recorded helper could not be proved dead")
+	}
+	if code := ResumeDiagnosticOf(err); code != ResumeUnknown {
+		t.Fatalf("refusal code = %q, want %q -- the death-proof screen is what must refuse here", code, ResumeUnknown)
+	}
+	if got := artifacts.Quiesces(); len(got) != 0 {
+		t.Fatalf("a REFUSED archive stopped %+v", got)
+	}
+}
+
+// Each retirement transition takes exactly the incarnation state it names.
+//
+// Written as a table over BOTH, because the risk of splitting a transition in
+// two is that one of them quietly becomes a superset of the other and the split
+// stops meaning anything -- and clearLifecycleDebris routes by state, so a
+// widened precondition would be unobservable from there.
+func TestRetirementTransitionsTakeExactlyTheStateTheyName(t *testing.T) {
+	transitions := []struct {
+		name     string
+		accepts  IncarnationState
+		transfer func(*ThreadStore, ThreadAddress, uint64, ProcessIdentity, time.Time) (ThreadRecord, error)
+	}{
+		{"RetireIncarnation", IncarnationLive, (*ThreadStore).RetireIncarnation},
+		{"RetireUnprovenIncarnation", IncarnationUnknown, (*ThreadStore).RetireUnprovenIncarnation},
+	}
+	for _, transition := range transitions {
+		for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
+			t.Run(transition.name+"/"+string(state), func(t *testing.T) {
+				store, _ := newTestThreadStore(t)
+				thread := archivableThread(t, store, "couch-0000000000000001")
+				with, err := store.UpdateExistingThread(thread.Address, thread.Revision, func(record *ThreadRecord) error {
+					record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "pair-x", State: state}}
+					return nil
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				retired, err := transition.transfer(store, with.Address, with.Revision,
+					ProcessIdentity{PID: 42, Identity: "pair-x"}, time.Unix(300, 0).UTC())
+				if state == transition.accepts {
+					if err != nil {
+						t.Fatalf("%s refused the %s incarnation it is named for: %v", transition.name, state, err)
+					}
+					if len(retired.Incarnations) != 0 {
+						t.Fatalf("%s left %d incarnation(s)", transition.name, len(retired.Incarnations))
+					}
+					return
+				}
+				if err == nil {
+					t.Fatalf("%s retired a %s incarnation", transition.name, state)
+				}
+				// DISCRIMINATING: the identity and park screens would also
+				// produce an error, and the state precondition is the subject.
+				if !strings.Contains(err.Error(), string(transition.accepts)) {
+					t.Fatalf("%s refused for some other reason: %v", transition.name, err)
+				}
+			})
+		}
 	}
 }
