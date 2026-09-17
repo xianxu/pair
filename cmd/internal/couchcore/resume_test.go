@@ -49,16 +49,27 @@ func TestDecideResumeEligibilityMatrix(t *testing.T) {
 		code   ResumeDiagnosticCode
 		mutate func(*ResumeEligibilityInput)
 	}{
-		{name: "live", code: ResumeLive, mutate: func(in *ResumeEligibilityInput) {
+		// RESTATED for #256. These four asserted that the RECORD's own
+		// bookkeeping could veto a resume: an incarnation in any occupied state,
+		// or an open park. Both name things that die with couch -- the launcher
+		// process and a transaction whose owner is that same process -- so the
+		// veto fired hardest on exactly the threads a crash left recoverable.
+		//
+		// Resume now rests on the same evidence the classification does, which is
+		// what keeps "the switcher offers it" and "the guard permits it" from
+		// disagreeing. A record carrying a stale incarnation and a verified park
+		// is resumable, because the park is the authority and the incarnation is
+		// not evidence of anything.
+		{name: "stale live incarnation does not veto a verified park", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationLive}}
 		}},
-		{name: "creating", code: ResumeCreating, mutate: func(in *ResumeEligibilityInput) {
+		{name: "creating incarnation does not veto a verified park", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationCreating}}
 		}},
-		{name: "unknown", code: ResumeUnknown, mutate: func(in *ResumeEligibilityInput) {
+		{name: "unknown incarnation does not veto a verified park", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown}}
 		}},
-		{name: "parking", code: ResumeParking, mutate: func(in *ResumeEligibilityInput) {
+		{name: "an open park no longer vetoes; the missing authority still does", code: ResumeLegacyUnverified, mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.VerifiedPark = nil
 			in.Thread.Park = &ParkTransaction{Phase: ParkAwaitingCompletion}
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationLive}}
@@ -162,12 +173,18 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 			wantCode: ResumeTombstoned,
 		},
 		{
-			name: "an occupied incarnation refuses even with the detached proof",
+			// RESTATED for #272 -- this case WAS the bug, written as a
+			// requirement. "An occupied incarnation refuses even with the
+			// detached proof" is precisely what made three live muse
+			// conversations unreachable: the incarnation named a dead launcher
+			// while the detached proof named a session whose agent was still
+			// running, and the dead one won.
+			name: "a stale incarnation does not refuse a surviving session",
 			mutate: func(r *ThreadRecord) {
 				r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 1, Identity: "x", StartedAt: time.Unix(2, 0).UTC()}}
 			},
 			detached: true,
-			wantCode: ResumeLive,
+			wantCode: "",
 		},
 		{
 			name:     "a detached record still needs a saved launch profile",

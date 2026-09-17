@@ -283,10 +283,16 @@ func TestWarmOnlyReachesTheResumeThroughTheOperationTable(t *testing.T) {
 
 // Native transcript resolution is not even an available capability here.
 // The same portable session state still authorizes inventory and execution.
+// warmSessionArtifacts is a couch whose artifacts expose only the session
+// surfaces -- no native resolver. SessionPresenceResolver belongs here because
+// after #256 the inventory's session question IS presence; a couch that cannot
+// answer it reads every thread `unknown`, which is correct fail-closed behaviour
+// but not what this test is about.
 type warmSessionArtifacts struct {
 	ThreadArtifactController
 	DetachedSessionResolver
 	PairSessionIO
+	SessionPresenceResolver
 }
 
 func TestWarmInventoryAndResumeNeedNoNativeResolver(t *testing.T) {
@@ -297,7 +303,7 @@ func TestWarmInventoryAndResumeNeedNoNativeResolver(t *testing.T) {
 			probe := &warmPathResolverProbe{FakeThreadArtifactCollisionChecker: env.Artifacts}
 			env.Couch.Artifacts = probe
 			if missing {
-				env.Couch.Artifacts = warmSessionArtifacts{env.Artifacts, env.Artifacts, env.Artifacts}
+				env.Couch.Artifacts = warmSessionArtifacts{env.Artifacts, env.Artifacts, env.Artifacts, env.Artifacts}
 			}
 			rows, err := env.Couch.ActionableThreadInventory(nil)
 			if err != nil || len(rows) != 1 || rows[0].State != ThreadDetached {

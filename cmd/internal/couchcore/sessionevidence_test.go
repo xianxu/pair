@@ -218,3 +218,97 @@ func TestSessionPresenceFailureLeavesEveryThreadUnresolved(t *testing.T) {
 		t.Fatalf("session state after a failed probe = %v, want unresolved", got)
 	}
 }
+
+// wedgedParkFixture is the operator's live record shape: a park whose attempt
+// timed out and whose process is long gone.
+func wedgedParkFixture(address ThreadAddress) *ParkTransaction {
+	return &ParkTransaction{
+		Identity: ParkIdentity{
+			Nonce: "park-0123456789abcdef", Address: address,
+			PID: 64734, ProcessIdentity: "1789535173.46673",
+		},
+		BaseRevision: 1, RecordRevision: 2, Phase: ParkAwaitingCompletion,
+		Attempts: []ParkAttempt{{
+			Number: 1, TimedOut: true,
+			Failure: &ParkFailure{
+				Code:       pairlifecycle.FailureTimeout,
+				Diagnostic: "matching completion was not observed",
+			},
+		}},
+	}
+}
+
+// TestWedgedParkDoesNotWedgeClassification is pair#271, measured.
+//
+// Record couch-e1a31510b7033d08 rev 293: park phase awaiting_completion since
+// 2026-09-15 22:53, pid 64734 confirmed gone (ESRCH). `if record.Park != nil {
+// return ThreadBusy }` was total and unconditional and sat above every branch
+// that consults evidence, so the row read `parking…` for ~18 hours while the
+// switcher offered it exactly two actions: name and describe.
+func TestWedgedParkDoesNotWedgeClassification(t *testing.T) {
+	record := actionableTestThread("couch-e1a31510b7033d08", time.Unix(100, 0).UTC())
+	// The live record's own profile: muse, which is what made its rows
+	// unarchivable rather than merely unlabelled.
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{
+		PID: 64734, Identity: "1789535173.46673", State: IncarnationLive,
+	}}
+	record.Park = wedgedParkFixture(record.Address)
+
+	state, reason := ClassifyThread(record, ThreadEvidence{
+		Session: SessionObservation{State: SessionAbsent},
+	})
+
+	if state == ThreadBusy {
+		t.Fatal("an open park transaction still decides recoverability")
+	}
+	if state != ThreadUnusable || reason != ReasonSessionGone {
+		t.Fatalf("got %v/%q, want unusable/session-gone: the park is gone and so is the session", state, reason)
+	}
+}
+
+// TestDeadLauncherWithLiveSessionIsDetached is pair#272, measured.
+//
+// The launcher dies with couch; the zellij server is PPID 1 and does not. So a
+// clean detach and a couch crash leave IDENTICAL external state, and the only
+// thing that used to distinguish them was whether couch survived long enough to
+// clear the incarnation. Both must classify the same.
+func TestDeadLauncherWithLiveSessionIsDetached(t *testing.T) {
+	crashed := actionableTestThread("couch-95293a9b6c0d459a", time.Unix(100, 0).UTC())
+	crashed.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+	crashed.Incarnations = []ThreadIncarnation{{
+		PID: 81935, Identity: "dead-launcher", State: IncarnationLive,
+	}}
+
+	// The same thread after a clean detach: the bookkeeping ran.
+	detached := crashed
+	detached.Incarnations = nil
+
+	evidence := ThreadEvidence{Session: SessionObservation{
+		State: SessionPresent, Name: "📁pair-couch-32",
+	}}
+
+	crashedState, crashedReason := ClassifyThread(crashed, evidence)
+	detachedState, _ := ClassifyThread(detached, evidence)
+
+	if crashedState != ThreadDetached {
+		t.Fatalf("crashed = %v/%q, want detached — the agent is still running behind its session", crashedState, crashedReason)
+	}
+	if crashedState != detachedState {
+		t.Fatalf("crash classifies %v but clean detach classifies %v; identical external state must classify identically", crashedState, detachedState)
+	}
+}
+
+// TestAbsentLiveEvidenceProvesNothing is the rule stated directly. The Live
+// union stays POSITIVE-ONLY: a thread couch does not host is not thereby dead.
+func TestAbsentLiveEvidenceProvesNothing(t *testing.T) {
+	record := actionableTestThread("couch-00000000000000c1", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{PID: 9999, Identity: "gone", State: IncarnationLive}}
+
+	if state, reason := ClassifyThread(record, ThreadEvidence{
+		Session: SessionObservation{State: SessionUnresolved},
+	}); state != ThreadUnusable || reason != ReasonUnknown {
+		t.Fatalf("got %v/%q, want unusable/unknown — we could not ask, so nothing is settled", state, reason)
+	}
+}

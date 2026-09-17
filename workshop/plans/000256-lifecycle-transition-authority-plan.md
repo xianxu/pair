@@ -730,6 +730,25 @@ teardown. That needs ordering and idempotence, not phases, attempts, nonces and
 tombstones. Replacing the machinery is #275; this issue only stops the
 *classifier* reading it.
 
+**A surviving session should repair its own bookkeeping — deferred, not denied**
+(operator, 2026-09-17). This plan keeps `profile-missing` and `path-missing`
+ahead of the session branch, so a thread whose session is alive but whose profile
+was never recorded still reads unusable. The operator's objection is correct and
+is the same one this whole issue rests on:
+
+> if external state is clean and can be resumed, and we refuse to resume, merely
+> because we didn't make some immaterial house keeping steps, then we should
+> really rely on external state and repair our internal state.
+
+It is accepted **for now** because `DecideResume` genuinely needs the profile, so
+showing `detached` without one would offer a resume that always fails — the
+anti-pattern this issue exists to remove. The repair is concrete and cheap:
+`ledger-<tag>.jsonl` keeps every launch generation with its agent and argv, so a
+missing `LatestLaunchProfile` is recoverable from the ledger rather than fatal.
+Landing that here would widen M1 into a repair path with its own write
+transaction, so it goes in the same family as #275 and #276. Task 12 records it
+as a lesson so the next person meets the argument, not just the refusal.
+
 **Unrecorded agents are #276.** Reporting a couch-tagged session with no record
 needs a `repos/*` enumeration `DetachedSessionResolver` deliberately lacks, a new
 seam and fake, and a new projection field — for a report-only row. Additive, not

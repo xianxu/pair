@@ -101,12 +101,13 @@ type ThreadEvidence struct {
 	// below meant a record with an incarnation was never asked about its
 	// session, so the evidence that its agent survived was never collected.
 	Session SessionObservation
-	// Parked and Detached are the two resume proofs, each with the status of
-	// the question that produced it.
-	Parked         []ParkedResumeObservation
-	ParkedStatus   ProofStatus
-	Detached       []DetachedSessionObservation
-	DetachedStatus ProofStatus
+	// Parked is COLD-resume proof: the native conversation this thread would
+	// resume into. Warm reattachment needs no proof here -- the session's own
+	// presence is the proof, and the ACTION path re-observes attach state
+	// before committing (resume.go), which is where a `list-clients` is worth
+	// its ~250 ms.
+	Parked       []ParkedResumeObservation
+	ParkedStatus ProofStatus
 	// PathError is a working path that could not be physicalized.
 	PathError error
 }
@@ -257,14 +258,22 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 // ClassifyThread is the single, TOTAL lifecycle rule: every record and its
 // evidence produce a state, and an unusable one always says why.
 //
-// Branch order is load-bearing and follows the projector it replaced. The LIVE
-// branch comes before the resume-shaped refusals because those refusals never
-// touched a live row: the shell skipped records carrying an incarnation, so
-// such a record was never physicalized and its profile was never read. Ordering
-// path/profile/agent first would make a running agent whose directory moved
-// classify unusable -- a behaviour change this does not make. Detached is
-// checked only for records with zero incarnations, which is what keeps a stale
-// incarnation from ever masquerading as a clean detach.
+// Branch order is load-bearing, and the rule it encodes is a DELETION: the
+// classifier reads the WORLD, not couch's bookkeeping about the world.
+//
+// `record.Incarnations` liveness fields and `record.Park` appear nowhere below.
+// They named the launcher process, which is couch's own child and dies with it,
+// so a proof keyed to them reported every crash as a lost thread (#272) and an
+// unfinished park as a thread that would never be usable again (#271). The
+// measurement behind that: the zellij server is PPID 1 AT BIRTH, so a couch
+// death kills only the launcher -- which means a clean `alt+d` detach and a
+// couch crash leave IDENTICAL external state. The only thing that used to tell
+// them apart was whether couch survived long enough to write a record, and that
+// difference decided `detached` (recoverable) versus `stale` (debris).
+//
+// The one thing still read from an incarnation is a ThreadStartClaim, and that
+// is not a liveness claim: it is couch's durable record of its OWN in-flight
+// operation, with recovery semantics of its own (see startClaimed).
 func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThreadState, ThreadReason) {
 	if ValidateThreadRecord(record) != nil {
 		return ThreadUnusable, ReasonInvalid
@@ -272,30 +281,28 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if record.Reservation {
 		return ThreadUnusable, ReasonNeverStarted
 	}
-	if record.Park != nil {
+	// A start couch claimed but has not finished. This must precede every
+	// session verdict: between claiming a start and the launcher acquiring a
+	// pid there is no session yet, and without this branch a thread starting
+	// NORMALLY would classify `session-gone` -- an archive-eligible reason.
+	if startClaimed(record) {
 		return ThreadBusy, ""
 	}
-	if len(record.Incarnations) != 0 {
-		if liveProofMatches(record, evidence.Live) {
-			return ThreadLive, ""
-		}
-		// A start in flight is not a crash. Between `start` and Pair
-		// registration an incarnation is `creating` and nothing hosts it yet --
-		// calling that "stale, couch exited unexpectedly" describes the normal
-		// path of every thread ever started. What separates it from a start
-		// that DIED is process evidence, not the recorded state: a creating
-		// incarnation whose process is gone is stale in exactly the way the
-		// word means.
-		if startInFlight(record, evidence.Live) {
-			return ThreadBusy, ""
-		}
-		return ThreadUnusable, ReasonStaleIncarnation
-	}
+	// Couch hosts this thread's process right now. The union behind
+	// evidence.Live is POSITIVE-ONLY: its absence proves nothing and falls
+	// through to the session, which is the whole of #272's fix. It stays a
+	// union (console pty children plus OS-vouched recorded processes) because
+	// the CLI passes no observations of its own and would otherwise read every
+	// running thread as detached -- #181's "one store, two stories".
 	if len(evidence.Live) != 0 {
-		return ThreadUnusable, ReasonUnrecordedChild
+		return ThreadLive, ""
 	}
-	// Everything below is resume-shaped, and only here does the shell's
-	// resolution of paths, profiles and proofs matter.
+	// Resume authority gates BOTH the warm and the cold path, and must be
+	// checked before either. Reattaching still goes through DecideResume, which
+	// needs the path and the profile -- so a row shown `detached` without them
+	// would be offered a resume that always fails, the precise anti-pattern this
+	// issue exists to remove. These are checked AFTER the live branch, because a
+	// thread couch is hosting is not made unusable by a directory that moved.
 	if evidence.PathError != nil {
 		return ThreadUnusable, ReasonPathMissing
 	}
@@ -305,6 +312,19 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 	if !launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) || record.LatestLaunchProfile.Argv == nil {
 		return ThreadUnusable, ReasonAgentUnsupported
 	}
+	switch evidence.Session.State {
+	case SessionPresent:
+		// The session outlived whatever hosted it. Reattaching is a fresh
+		// `pair resume` onto the surviving session; no cold-resume proof is
+		// needed, because nothing is being relaunched.
+		return ThreadDetached, ""
+	case SessionUnresolved:
+		// Not "no session" -- "we could not ask". The distinction is
+		// load-bearing: session-gone is archive-eligible.
+		return ThreadUnusable, ReasonUnknown
+	}
+	// Session absent. Below is COLD-RESUME authority: once the session is gone,
+	// nothing external says which conversation belonged to this thread.
 	if record.VerifiedPark != nil {
 		switch {
 		case evidence.ParkedStatus == ProofUnresolved:
@@ -315,48 +335,24 @@ func ClassifyThread(record ThreadRecord, evidence ThreadEvidence) (ActionableThr
 			return ThreadUnusable, ReasonBindingLost
 		}
 	}
-	switch {
-	case evidence.DetachedStatus == ProofUnresolved:
-		// Not "no session" -- "we could not ask".
-		return ThreadUnusable, ReasonUnknown
-	case detachedResumeProofMatches(record, evidence.Detached):
-		return ThreadDetached, ""
-	case len(evidence.Detached) != 0:
-		// Contradictory session evidence proves neither attachment nor death.
-		return ThreadUnusable, ReasonUnknown
-	default:
-		return ThreadUnusable, ReasonSessionGone
-	}
+	return ThreadUnusable, ReasonSessionGone
 }
 
-// startInFlight reports a thread mid-start: an incarnation that does not yet
-// claim to be live, whose process the caller can still see.
-func startInFlight(record ThreadRecord, observations []ProcessIdentity) bool {
+// startClaimed reports a start couch has claimed and not yet completed.
+//
+// It reads `Incarnation.Start`, NOT the pid, identity or lifecycle state. That
+// distinction is the whole point: a ThreadStartClaim is couch's record of an
+// operation it is performing, carrying the supervisor identity that initiated
+// it, and recoverable on its own terms. The pid/identity/state fields describe
+// an EXTERNAL process whose lifetime is shorter than the thread's, and nothing
+// in classification may read those again.
+func startClaimed(record ThreadRecord) bool {
 	for _, incarnation := range record.Incarnations {
-		if incarnation.State == IncarnationLive {
-			continue
-		}
-		for _, observation := range observations {
-			if observation == (ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) {
-				return true
-			}
+		if incarnation.Start != nil {
+			return true
 		}
 	}
 	return false
-}
-
-// liveProofMatches is the live rule, sitting beside the two proof matchers it
-// is a sibling of: one recorded incarnation, one hosted process, exact
-// identity match so a recycled PID cannot pass.
-func liveProofMatches(record ThreadRecord, observations []ProcessIdentity) bool {
-	if len(record.Incarnations) != 1 || len(observations) != 1 {
-		return false
-	}
-	incarnation := record.Incarnations[0]
-	if incarnation.State != IncarnationLive || incarnation.PID <= 0 || incarnation.Identity == "" {
-		return false
-	}
-	return observations[0] == ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
 }
 
 // detachedResumeProofMatches is the warm-session contract shared by inventory,
@@ -448,13 +444,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 
 	evidence := make(map[ThreadAddress]ThreadEvidence, len(snapshot.Records))
 	var resumable []ParkedResumeObservation
-	// detachedCandidates are the ONLY records that could be detached: no
-	// incarnation, no verified park, and a saved profile to reattach with.
-	// Passing candidates bounds WHETHER the zellij snapshot runs at all -- a
-	// couch with nothing detachable pays nothing -- and, since pair#228, its
-	// fan-out too: only the candidates' own sessions are asked for their
-	// clients, not every session on the host.
-	var detachedCandidates []DetachedCandidate
 	resolver, _ := c.Artifacts.(NativeBindingResolver)
 	for i := range snapshot.Records {
 		record := snapshot.Records[i]
@@ -466,8 +455,12 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		// record carrying an incarnation never reached either before, and must
 		// not start to: a running agent whose directory moved is still running.
 		// This is one contract, and the call-count guard is what binds it.
-		resumeShaped := !record.Reservation && record.Park == nil && len(record.Incarnations) == 0 &&
-			len(item.Live) == 0 && record.LatestLaunchProfile != nil &&
+		// Resume-shaped is now about RESUME AUTHORITY, not about the
+		// bookkeeping. It used to exclude any record carrying an incarnation or
+		// a park, which is precisely why a #272 record was never physicalized
+		// and never had its conversation resolved: the evidence that would have
+		// recovered it was gated behind the state that had gone stale.
+		resumeShaped := !record.Reservation && record.LatestLaunchProfile != nil &&
 			launcher.IsSupportedAgent(record.LatestLaunchProfile.Agent) &&
 			record.LatestLaunchProfile.Argv != nil
 		if !resumeShaped {
@@ -501,8 +494,8 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			evidence[record.Address] = item
 			continue
 		}
-		agent := record.LatestLaunchProfile.Agent
 		if record.VerifiedPark != nil {
+			agent := record.LatestLaunchProfile.Agent
 			if resolver == nil {
 				evidence[record.Address] = item
 				continue
@@ -519,11 +512,9 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			evidence[record.Address] = item
 			continue
 		}
-		// A warm candidate asks only about its session. Native resolution can
-		// neither authorize this action nor prevent it.
-		detachedCandidates = append(detachedCandidates, DetachedCandidate{
-			Address: record.Address, Agent: agent,
-		})
+		// A warm thread needs no cold-resume proof: SessionPresence already
+		// answered whether its session survived, which is all reattachment
+		// consumes.
 		evidence[record.Address] = item
 	}
 	if err := ctx.Err(); err != nil {
@@ -536,29 +527,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 		evidence[observation.Address] = item
 	}
 
-	// A couch with no session resolver cannot ask the question at all, so its
-	// candidates stay unresolved rather than being told their sessions are
-	// gone. Production always has one; this is the degraded path, and the
-	// honest answer there is "unknown".
-	if detachedResolver, ok := c.Artifacts.(DetachedSessionResolver); ok && len(detachedCandidates) > 0 {
-		observed, detachErr := detachedResolver.DetachedSessions(ctx, detachedCandidates)
-		if detachErr == nil {
-			// Only now is the detached question answered. On failure every
-			// candidate keeps ProofUnresolved, which classifies `unknown`
-			// rather than asserting a session is gone -- the difference
-			// between a row that waits and a row retirement acts on.
-			for _, candidate := range detachedCandidates {
-				item := evidence[candidate.Address]
-				item.DetachedStatus = ProofResolved
-				evidence[candidate.Address] = item
-			}
-			for _, observation := range observed {
-				item := evidence[observation.Address]
-				item.Detached = append(item.Detached, observation)
-				evidence[observation.Address] = item
-			}
-		}
-	}
 	// Session presence for EVERY record, not only the resume-shaped ones. One
 	// host-wide `list-sessions`, no `list-clients` -- see SessionPresence for
 	// why that is both affordable and sufficient here.

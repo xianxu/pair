@@ -109,12 +109,16 @@ func TestStartupProvesOnlyTheThreadsItsReadersConsume(t *testing.T) {
 				t.Fatalf("startup: %v", err)
 			}
 
-			// Counted in CANDIDATES, not calls: each candidate is one
-			// list-clients. Startup proves the cwd thread once, then
-			// ResumeContext and confirmStillDetached prove it again -- three,
-			// whatever else the store holds.
-			if got := env.Artifacts.DetachedCandidatesAsked(); got != 3 {
-				t.Fatalf("detached candidates = %d, want 3 regardless of the other %d threads", got, others)
+			// RESTATED for #256. The inventory no longer counts clients at all:
+			// it asks PRESENCE once, host-wide. What remains on the
+			// client-counting path is the ACTION -- ResumeContext and
+			// confirmStillDetached re-proving the one thread being resumed --
+			// still bounded by the reader, not by the store.
+			if got := env.Artifacts.DetachedCandidatesAsked(); got != 2 {
+				t.Fatalf("detached candidates = %d, want 2 regardless of the other %d threads", got, others)
+			}
+			if got := env.Artifacts.SessionPresenceQueries(); got != 1 {
+				t.Fatalf("session presence asked %d times, want one host-wide query", got)
 			}
 			// Warm startup performs no native ledger resolution.
 			if got := env.Artifacts.BindingResolutions(); got != 0 {
@@ -141,8 +145,13 @@ type parkAfterSnapshotArtifacts struct {
 	after func()
 }
 
-func (a *parkAfterSnapshotArtifacts) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
-	observed, err := a.FakeThreadArtifactCollisionChecker.DetachedSessions(ctx, candidates)
+// The interleave point is the INVENTORY's session question, which after #256 is
+// SessionPresence -- the refresh no longer counts clients at all. Hooking
+// DetachedSessions instead would fire during the resume's own re-proof, one
+// stage too late, and the test would see a revision conflict rather than the
+// warm-only refusal it exists to pin.
+func (a *parkAfterSnapshotArtifacts) SessionPresence(ctx context.Context, addresses []ThreadAddress) (map[ThreadAddress]SessionObservation, error) {
+	observed, err := a.FakeThreadArtifactCollisionChecker.SessionPresence(ctx, addresses)
 	if a.after != nil {
 		after := a.after
 		a.after = nil
@@ -365,11 +374,21 @@ func TestStartupDoesNotProveAForeignScopeRecordAtTheCwdPath(t *testing.T) {
 		t.Fatal(err)
 	}
 	before := env.Artifacts.DetachedCandidatesAsked()
+	beforePresence := env.Artifacts.SessionPresenceQueries()
 	if _, err := env.Couch.startupInventory(context.Background(), cwdScope.Key, "/repo"); err != nil {
 		t.Fatal(err)
 	}
-	// The two in-scope threads at /repo are proved; the foreign-scope one is not.
-	if got := env.Artifacts.DetachedCandidatesAsked() - before; got != 2 {
-		t.Fatalf("detached candidates = %d, want 2: the foreign-scope record at the same path is consulted by nobody", got)
+	// RESTATED for #256. The rule this pins is that startup's EXPENSIVE proof is
+	// bounded by its readers -- and the inventory now spends none of it: presence
+	// is one host-wide call whose cost does not scale with how many records it
+	// covers, and client counting has left the refresh entirely.
+	//
+	// The foreign-scope record is still not resumable here: SelectResumableRoot
+	// filters by scope, so covering it in a presence answer cannot select it.
+	if got := env.Artifacts.DetachedCandidatesAsked() - before; got != 0 {
+		t.Fatalf("startup counted clients %d times; the inventory must count none", got)
+	}
+	if got := env.Artifacts.SessionPresenceQueries() - beforePresence; got != 1 {
+		t.Fatalf("session presence asked %d times, want one host-wide query", got)
 	}
 }

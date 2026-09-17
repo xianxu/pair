@@ -81,7 +81,10 @@ func ProjectRecoveryChoices(record ThreadRecord, evidence ThreadEvidence, state 
 	if len(record.Incarnations) == 1 && (record.Incarnations[0].Start != nil || record.Incarnations[0].State != IncarnationLive) {
 		return nil
 	}
-	if reason != ReasonStaleIncarnation && reason != ReasonSessionGone && record.Continuation == nil {
+	// `stale-incarnation` was retired in #256 -- a record whose launcher died
+	// while its session survived is now `detached` and needs no recovery offer at
+	// all, and one whose session is also gone reads `session-gone`.
+	if reason != ReasonSessionGone && record.Continuation == nil {
 		return nil
 	}
 	d := &RecoveryDecision{Recover: true, FromCheckpoint: record.LatestLaunchProfile != nil, Archive: true, Diagnosis: "inspect the helper and session before recovering"}

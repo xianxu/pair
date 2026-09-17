@@ -110,8 +110,15 @@ func TestGuardAddsNoSessionEnumeration(t *testing.T) {
 	if _, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo"}); err == nil {
 		t.Fatal("the conflicting startup was admitted; this test needs the refusing path")
 	}
-	if got := env.Artifacts.DetachedQueries(); got != 1 {
-		t.Fatalf("a refused startup asked for detached sessions %d times; want exactly 1 -- "+
+	// The rule is unchanged -- the guard adds no session enumeration of its own
+	// -- but the inventory's session question is now PRESENCE, one host-wide
+	// call, so that is what a guard reusing its rows costs. A refused startup
+	// never reaches a resume, so it counts clients zero times.
+	if got := env.Artifacts.SessionPresenceQueries(); got != 1 {
+		t.Fatalf("a refused startup asked session presence %d times; want exactly 1 -- "+
 			"the guard must reuse the inventory's rows, not enumerate for itself", got)
+	}
+	if got := env.Artifacts.DetachedQueries(); got != 0 {
+		t.Fatalf("a refused startup counted clients %d times; the refresh must ask none", got)
 	}
 }

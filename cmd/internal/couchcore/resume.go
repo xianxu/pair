@@ -95,15 +95,25 @@ type ResumeEligibility struct {
 
 func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	record := input.Thread
-	if record.Park != nil {
-		return ResumeEligibility{}, refuseResume(ResumeParking, "thread has an active park transaction")
-	}
-	// One occupancy rule, shared with archive. It used to be inlined here and
-	// re-derived in the store with a narrower set, which is how archiving a
-	// thread mid-start passed a guard that resume would have refused.
-	if occupied, state := occupiedIncarnation(record); occupied {
-		return ResumeEligibility{}, refuseResume(occupiedResumeCode(state), "thread still has an occupied incarnation")
-	}
+	// #256: the park transaction and the incarnation are NOT read here.
+	//
+	// They used to be, as "one occupancy rule, shared with archive" -- and that
+	// is exactly how this guard came to contradict the classifier. A thread whose
+	// launcher died while its session survived classifies `detached`, is ranked
+	// highest by SelectResumableRoot, is offered `resume` by the menu, and was
+	// then refused here for an incarnation naming a process that dies with couch.
+	// The operator saw a row that advertised recovery and could not deliver it,
+	// which is the precise anti-pattern this issue exists to remove.
+	//
+	// Resume now rests on the same facts the classification does: a surviving
+	// session (warm) or a verified park with resolvable authority (cold). The
+	// residual race -- reattaching while a park is genuinely mid-teardown -- is
+	// seconds wide, needs a deliberate operator action on both sides, and is
+	// dissolved by #275, which removes the durable transaction entirely.
+	//
+	// `hasOccupiedIncarnation` survives for relaunch and switch-agent, which ask
+	// a DIFFERENT question: not "is this recoverable" but "is couch itself
+	// already operating on this thread", where couch's own record is authority.
 	if record.VerifiedPark == nil && !input.Detached {
 		// The tombstone scan is reached ONLY when neither authority holds, and
 		// that ordering is load-bearing. It refuses on ANY tombstoned entry in
@@ -235,18 +245,6 @@ func isBindingDiagnostic(code ResumeDiagnosticCode) bool {
 		return true
 	}
 	return false
-}
-
-// occupiedResumeCode names WHICH occupancy refused, so the diagnostic stays as
-// specific as it was when the three states were enumerated by hand.
-func occupiedResumeCode(state IncarnationState) ResumeDiagnosticCode {
-	switch state {
-	case IncarnationLive:
-		return ResumeLive
-	case IncarnationCreating:
-		return ResumeCreating
-	}
-	return ResumeUnknown
 }
 
 func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCode {
@@ -450,6 +448,26 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
+	// RE-ADOPTION (#272, #256). A thread whose launcher died while its session
+	// survived still carries that launcher's incarnation, and CommitStartClaim
+	// refuses a record that already has one -- correctly, since one incarnation
+	// at a time is a structural invariant of the store, not a lifecycle opinion.
+	//
+	// So the stale claim must be retired HERE, by the caller that has both the
+	// evidence and the authority. Only on proof: the recorded process must be
+	// confirmed Dead, never merely unobservable, because retiring an incarnation
+	// whose process is actually alive would abandon a running agent.
+	//
+	// Without this the whole chain still fails at its last link: the classifier
+	// says detached, the menu offers resume, DecideResume permits it, and the
+	// store refuses. That is the third site of one class -- a guard reading
+	// bookkeeping the classification no longer trusts -- and it is why fixing
+	// the classifier alone was never going to be enough.
+	if retired, retireErr := c.retireDeadIncarnationBeforeStart(thread); retireErr != nil {
+		return ActorRecord{}, nil, retireErr
+	} else if retired != nil {
+		thread = *retired
+	}
 	thread, err = c.Threads.CommitStartClaim(address, thread.Revision, repoIdentity, startedAt, StartEvent{
 		Shape: func() StartShape {
 			if detached {
@@ -525,4 +543,31 @@ func (c *Couch) confirmStillDetached(ctx context.Context, thread ThreadRecord, s
 		return nil
 	}
 	return refuseResume(ResumeSessionGone, "the same session can no longer be proved live, uniquely owned and detached")
+}
+
+// retireDeadIncarnationBeforeStart clears a single incarnation whose process is
+// PROVABLY dead, so a resume can claim its own.
+//
+// Returns (nil, nil) when there is nothing to retire or nothing can be proved --
+// both leave the record untouched and let CommitStartClaim's own guard speak.
+// Unknown liveness is not proof: `procops.go` states the rule this obeys --
+// "prune only on Dead. Unknown must fail CLOSED."
+func (c *Couch) retireDeadIncarnationBeforeStart(thread ThreadRecord) (*ThreadRecord, error) {
+	if c == nil || c.Proc == nil || c.Threads == nil || len(thread.Incarnations) != 1 {
+		return nil, nil
+	}
+	incarnation := thread.Incarnations[0]
+	if incarnation.Start != nil || incarnation.PID <= 0 || incarnation.Identity == "" {
+		// A start still in flight is couch's own operation, not debris.
+		return nil, nil
+	}
+	if observeExactProcess(c.Proc, ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}) != Dead {
+		return nil, nil
+	}
+	retired, err := c.Threads.RetireIncarnation(thread.Address, thread.Revision,
+		ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}, thread.LastActiveAt)
+	if err != nil {
+		return nil, err
+	}
+	return &retired, nil
 }

@@ -291,12 +291,12 @@ type DetachedCandidate struct {
 // them, and judging a thread by a name it has left is the wrong-answer failure
 // this rule exists to prevent. Its rows still count as claims where another read
 // saw them.
-func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.Context, addresses []ThreadAddress, agentOf func(ThreadAddress) string) ([]SessionNameBinding, map[ThreadAddress]string, error) {
+func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.Context, addresses []ThreadAddress, agentOf func(ThreadAddress) string) ([]SessionNameBinding, map[ThreadAddress]string, map[string]bool, error) {
 	byScope := make(map[string][]ThreadAddress, len(addresses))
 	var scopes []string
 	for _, address := range addresses {
 		if err := validateThreadAddress(address); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		if _, seen := byScope[address.RepoScope]; !seen {
 			scopes = append(scopes, address.RepoScope)
@@ -308,14 +308,14 @@ func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.
 	readable := make(map[string]bool, len(scopes))
 	for _, scope := range scopes {
 		if err := ctx.Err(); err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		scoped := byScope[scope]
 		paths, err := artifactpath.Resolve(artifactpath.Address{
 			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
 		})
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
 		if err != nil {
@@ -347,7 +347,7 @@ func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.
 			bindings = append(bindings, binding)
 		}
 	}
-	return bindings, current, nil
+	return bindings, current, readable, nil
 }
 
 // SessionPresence answers EXISTENCE for every supplied address from one
@@ -374,20 +374,35 @@ func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Contex
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	bindings, current, err := c.resolveScopedBindings(ctx, addresses, nil)
+	bindings, current, readable, err := c.resolveScopedBindings(ctx, addresses, nil)
 	if err != nil {
 		return nil, err
 	}
-	if len(bindings) == 0 {
-		// Asked, and nothing is bound. An empty map is a RESOLVED answer for
-		// nobody: every address reads the zero value, which is unresolved.
-		return map[ThreadAddress]SessionObservation{}, nil
+	out := map[ThreadAddress]SessionObservation{}
+	if len(bindings) > 0 {
+		sessions, sessionErr := c.Zellij.LivenessContext(ctx)
+		if sessionErr != nil {
+			return nil, fmt.Errorf("observe zellij sessions: %w", sessionErr)
+		}
+		out = ProjectSessionPresence(bindings, sessions, claimsFromBindings(current))
 	}
-	sessions, err := c.Zellij.LivenessContext(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("observe zellij sessions: %w", err)
+	// An address in a READABLE scope with no index row was asked about, and
+	// there is no session: absent, not unresolved. Only an address whose scope
+	// could not be read stays out of the map, where it reads the zero value.
+	//
+	// The distinction is the whole point. A thread that was spawned and never
+	// bound -- #273's shape, `last_active_at` at the zero time -- would
+	// otherwise read `checking…` forever instead of being recognised as debris
+	// the operator can clear.
+	for _, address := range addresses {
+		if _, answered := out[address]; answered {
+			continue
+		}
+		if readable[address.RepoScope] {
+			out[address] = SessionObservation{State: SessionAbsent}
+		}
 	}
-	return ProjectSessionPresence(bindings, sessions, claimsFromBindings(current)), nil
+	return out, nil
 }
 
 func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
@@ -403,7 +418,7 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	bindings, current, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
+	bindings, current, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
 		return proof[address].Agent
 	})
 	if err != nil {

@@ -15,16 +15,27 @@ const (
 	// no binding after it shadows the last established binding. RECOVERABLE:
 	// never retire one.
 	ReasonBindingLost ThreadReason = "binding-lost"
-	// ReasonStaleIncarnation is a record claiming a live incarnation that
-	// nothing hosts: the shape a couch that died without leaving cleanly
-	// leaves behind (pair#171). Reconcilable, so never retired either.
-	ReasonStaleIncarnation ThreadReason = "stale-incarnation"
-	// ReasonUnrecordedChild is the opposite disagreement: a hosted child for a
-	// record carrying no incarnation. It should be unreachable; failing closed
-	// beats guessing which side is right.
-	ReasonUnrecordedChild ThreadReason = "unrecorded-child"
-	// ReasonSessionGone is a thread with no incarnation and no surviving
-	// session -- the honest "finished" shape.
+	// RETIRED in #256: `stale-incarnation` and `unrecorded-child`.
+	//
+	// Both named a DISAGREEMENT between the record's incarnation and what couch
+	// could observe -- one for each direction. The classifier no longer consults
+	// the incarnation, so there are no longer two sides to disagree: couch's own
+	// observation is the live proof and the session is the recoverability proof.
+	//
+	// `stale-incarnation` was the more expensive of the two. It described every
+	// couch crash as a lost thread, because the incarnation names the launcher,
+	// which is couch's own child and dies with it -- measured on the operator's
+	// store, all 11 records carrying it had a dead pid and three had an agent
+	// still running.
+	//
+	// `unrecorded-child` will come back in #276, which gives it a producer: a
+	// couch-tagged session with NO record at all. It is removed rather than kept
+	// as a placeholder because a vocabulary entry nothing produces is exactly
+	// what TestEveryReasonIsProducedBySomeShape exists to forbid, and an
+	// exemption would silence the guard for every future orphan too.
+
+	// ReasonSessionGone is a thread with no surviving session -- the honest
+	// "finished" shape.
 	ReasonSessionGone ThreadReason = "session-gone"
 	// ReasonNeverStarted is a reservation that never became a running thread.
 	ReasonNeverStarted ThreadReason = "never-started"
@@ -67,8 +78,6 @@ const (
 func AllThreadReasons() []ThreadReason {
 	return []ThreadReason{
 		ReasonBindingLost,
-		ReasonStaleIncarnation,
-		ReasonUnrecordedChild,
 		ReasonSessionGone,
 		ReasonNeverStarted,
 		ReasonInvalid,
@@ -90,10 +99,6 @@ func (r ThreadReason) Label() string {
 	switch r {
 	case ReasonBindingLost:
 		return "binding lost — repairable"
-	case ReasonStaleIncarnation:
-		return "stale — helper ownership unresolved"
-	case ReasonUnrecordedChild:
-		return "running but unrecorded"
 	case ReasonSessionGone:
 		return "session gone"
 	case ReasonNeverStarted:

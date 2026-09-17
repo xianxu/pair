@@ -1180,10 +1180,6 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:
 		return "its native conversation binding is unavailable; cold resume requires a verified binding"
-	case couchcore.ReasonStaleIncarnation:
-		return "the recorded helper is not hosted here; inspect its process and session before recovery"
-	case couchcore.ReasonUnrecordedChild:
-		return "a child is running that this thread's record does not know about"
 	case couchcore.ReasonSessionGone:
 		return "the session is gone; recover from a saved checkpoint or archive"
 	case couchcore.ReasonNeverStarted:

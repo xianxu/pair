@@ -92,7 +92,12 @@ func (f *FakeThreadArtifactCollisionChecker) SessionPresence(ctx context.Context
 	for _, address := range addresses {
 		if observation, ok := f.sessionPresence[address]; ok {
 			out[address] = observation
+			continue
 		}
+		// Mirrors production: an address in a readable scope with no binding was
+		// ASKED about and has no session. A test that wants "could not ask"
+		// says so with SetSessionPresence or fails the hook.
+		out[address] = SessionObservation{State: SessionAbsent}
 	}
 	return out, nil
 }
@@ -122,16 +127,26 @@ func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker
 	}
 }
 
-// SetDetachedSession marks one thread as having a live zellij session with no
-// client attached. An empty name clears it.
+// SetDetachedSession declares a live, client-free session for one address. An
+// empty name clears it.
+//
+// It sets PRESENCE too, and must: in the world being modelled these are one
+// fact, not two. A fake that let a thread have a detached session while
+// answering "no session" to the presence query would model a host that cannot
+// exist, and every test built on it would be asserting against fiction.
 func (f *FakeThreadArtifactCollisionChecker) SetDetachedSession(address ThreadAddress, sessionName string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if sessionName == "" {
 		delete(f.detachedSessions, address)
+		delete(f.sessionPresence, address)
 		return
 	}
 	f.detachedSessions[address] = sessionName
+	if f.sessionPresence == nil {
+		f.sessionPresence = map[ThreadAddress]SessionObservation{}
+	}
+	f.sessionPresence[address] = SessionObservation{State: SessionPresent, Name: sessionName}
 }
 
 // DetachedSessions answers only for addresses the caller asked about, exactly

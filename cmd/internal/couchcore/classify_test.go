@@ -13,12 +13,19 @@ import (
 // it. wasActionableBefore records what the pre-#181 projector answered, so the
 // characterization test below can prove M1 changed only the refusals.
 type classifyCase struct {
-	name                string
-	record              ThreadRecord
-	evidence            ThreadEvidence
-	wantState           ActionableThreadState
-	wantReason          ThreadReason
+	name       string
+	record     ThreadRecord
+	evidence   ThreadEvidence
+	wantState  ActionableThreadState
+	wantReason ThreadReason
+	// wasActionableBefore is the pre-#181 projector's verdict, kept as a
+	// characterization ratchet.
 	wasActionableBefore bool
+	// newlyActionable marks a shape this issue DELIBERATELY admits that the old
+	// projector refused. It replaces a name-matched exception, which broke the
+	// moment a case was renamed -- an exception keyed to prose is a guard that
+	// silently stops guarding.
+	newlyActionable bool
 }
 
 func classifyProfile() *LaunchProfile {
@@ -53,22 +60,27 @@ func everyThreadShape(t *testing.T) []classifyCase {
 		record.LatestLaunchProfile = classifyProfile()
 		return record
 	}
-	detachedProof := func(record ThreadRecord) []DetachedSessionObservation {
-		return []DetachedSessionObservation{{
-			Address: record.Address, SessionName: "pair-three", Agent: "claude",
-		}}
-	}
-	// The operator's pair-couch-24: a live session whose binding never landed.
-	detachedNoBinding := func(record ThreadRecord) []DetachedSessionObservation {
-		return []DetachedSessionObservation{{
-			Address: record.Address, SessionName: "pair-three", Agent: "claude",
-		}}
-	}
-
 	resolved := func(e ThreadEvidence) ThreadEvidence {
-		e.ParkedStatus, e.DetachedStatus = ProofResolved, ProofResolved
+		e.ParkedStatus = ProofResolved
+		e.Session = SessionObservation{State: SessionAbsent}
 		return e
 	}
+	withSession := func(e ThreadEvidence) ThreadEvidence {
+		e.ParkedStatus = ProofResolved
+		e.Session = SessionObservation{State: SessionPresent, Name: "pair-three"}
+		return e
+	}
+	// A start couch has claimed and not finished: the ONE thing still read from
+	// an incarnation, and it is a record of couch's own operation rather than a
+	// claim about an external process.
+	starting := detached()
+	starting.Address.Tag = "couch-000000000000000c"
+	starting.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Start: &ThreadStartClaim{
+			Nonce: "start-0123456789abcdef", OwnerPID: 4242, OwnerIdentity: "supervisor",
+		},
+	}}
 
 	invalid := actionableTestThread("couch-0000000000000004", active)
 	invalid.SchemaVersion = 0
@@ -120,14 +132,24 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadLive, wasActionableBefore: true,
 		},
 		{
-			name: "live record nothing hosts it", record: staleLive,
+			// RESTATED for #272. This was `stale-incarnation`: a record claiming
+			// a live incarnation that nothing hosts. But the incarnation names
+			// the LAUNCHER, which dies with couch, so that reason described
+			// every couch crash as a lost thread. With no session either, the
+			// honest answer is the same one a record with no incarnation gets.
+			name: "recorded incarnation is gone and so is the session", record: staleLive,
 			evidence:  resolved(ThreadEvidence{}),
-			wantState: ThreadUnusable, wantReason: ReasonStaleIncarnation,
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
-			name: "hosted child with no incarnation", record: unrecorded,
+			// RESTATED for #272. This was `unrecorded-child`: a hosted process
+			// for a record carrying no incarnation, treated as a contradiction
+			// to fail closed on. It is not a contradiction any more -- couch
+			// hosting the process IS the live proof, and the incarnation is not
+			// consulted, so there are no two sides to disagree.
+			name: "couch hosts it and the record says nothing", record: unrecorded,
 			evidence:  resolved(ThreadEvidence{Live: liveObservation}),
-			wantState: ThreadUnusable, wantReason: ReasonUnrecordedChild,
+			wantState: ThreadLive, newlyActionable: true,
 		},
 		{
 			name: "verified park with its resume proof", record: parkedRecord,
@@ -141,18 +163,25 @@ func everyThreadShape(t *testing.T) []classifyCase {
 		},
 		{
 			name: "verified park whose proof could not be resolved", record: parked(),
-			evidence:  ThreadEvidence{DetachedStatus: ProofResolved},
+			evidence:  ThreadEvidence{Session: SessionObservation{State: SessionAbsent}},
 			wantState: ThreadUnusable, wantReason: ReasonUnknown,
 		},
 		{
-			name: "detached with its resume proof", record: detachedRecord,
-			evidence:  resolved(ThreadEvidence{Detached: detachedProof(detachedRecord)}),
+			// The session's own presence is the warm proof. It no longer needs a
+			// separate detached observation, which cost a `list-clients` per
+			// candidate to produce and answered a question the ACTION path
+			// re-asks anyway.
+			name: "session survived its host", record: detachedRecord,
+			evidence:  withSession(ThreadEvidence{}),
 			wantState: ThreadDetached, wasActionableBefore: true,
 		},
 		{
-			name: "detached whose session is alive but binding lost", record: detachedRecord,
-			evidence:  resolved(ThreadEvidence{Detached: detachedNoBinding(detachedRecord)}),
-			wantState: ThreadDetached,
+			// #272's shape: the launcher died, the session did not. This and the
+			// row above are the SAME external world, and they must classify
+			// identically -- that is the whole issue.
+			name: "session survived a dead launcher", record: staleLive,
+			evidence:  withSession(ThreadEvidence{}),
+			wantState: ThreadDetached, newlyActionable: true,
 		},
 		{
 			name: "no incarnation and no session", record: detached(),
@@ -160,7 +189,7 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
-			name: "no incarnation and the session question could not be asked", record: detached(),
+			name: "the session question could not be asked", record: detached(),
 			evidence:  ThreadEvidence{ParkedStatus: ProofResolved},
 			wantState: ThreadUnusable, wantReason: ReasonUnknown,
 		},
@@ -170,7 +199,26 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadUnusable, wantReason: ReasonNeverStarted,
 		},
 		{
-			name: "park transaction in flight", record: parking,
+			// RESTATED for #271. This was ThreadBusy, unconditionally, from a
+			// branch above every evidence-consulting one -- so a park whose
+			// process died 18 hours earlier still read `parking…` forever, with
+			// no timeout, no expiry and no owner check. The park is no longer
+			// consulted at all: the session answers.
+			name: "park in flight whose session is still up", record: parking,
+			evidence:  withSession(ThreadEvidence{}),
+			wantState: ThreadDetached, newlyActionable: true,
+		},
+		{
+			name: "park that timed out and whose session is gone", record: parking,
+			evidence:  resolved(ThreadEvidence{}),
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
+		},
+		{
+			// ThreadBusy's only remaining producer. Without it the window
+			// between claiming a start and the launcher acquiring a pid would
+			// classify `session-gone` -- an archive-eligible reason -- for a
+			// thread starting normally.
+			name: "start claimed and not yet finished", record: starting,
 			evidence:  resolved(ThreadEvidence{}),
 			wantState: ThreadBusy,
 		},
@@ -223,7 +271,7 @@ func TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted(t *testing.T) {
 	for _, tc := range everyThreadShape(t) {
 		state, _ := ClassifyThread(tc.record, tc.evidence)
 		actionable := state == ThreadLive || state == ThreadParked || state == ThreadDetached
-		if actionable != (tc.wasActionableBefore || tc.name == "detached whose session is alive but binding lost") {
+		if actionable != (tc.wasActionableBefore || tc.newlyActionable) {
 			t.Fatalf("%s: actionable=%v, previously %v", tc.name, actionable, tc.wasActionableBefore)
 		}
 	}
@@ -395,28 +443,45 @@ func findInventoryRow(rows []ActionableThreadSummary, address ThreadAddress) (Ac
 // ACTIONABLE -- the fail-closed property, unchanged -- filter for that
 // explicitly instead of counting rows. That every record produces a row is a
 // different property with its own tests above.
+// `detached` is now expressed as SESSION PRESENCE rather than a per-candidate
+// observation: the session's own survival is the warm proof.
 func actionableRows(records []ThreadRecord, live []LiveTTYObservation, parked []ParkedResumeObservation, detached []DetachedSessionObservation) []ActionableThreadSummary {
 	evidence := make(map[ThreadAddress]ThreadEvidence, len(records))
+	asked := func(item ThreadEvidence) ThreadEvidence {
+		item.ParkedStatus = ProofResolved
+		if item.Session.State == SessionUnresolved {
+			item.Session.State = SessionAbsent
+		}
+		return item
+	}
 	for _, record := range records {
-		evidence[record.Address] = ThreadEvidence{ParkedStatus: ProofResolved, DetachedStatus: ProofResolved}
+		evidence[record.Address] = asked(ThreadEvidence{})
 	}
 	for _, observation := range live {
 		item := evidence[observation.Address]
 		item.Live = append(item.Live, observation.Process)
-		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
-		evidence[observation.Address] = item
+		evidence[observation.Address] = asked(item)
 	}
 	for _, observation := range parked {
 		item := evidence[observation.Address]
 		item.Parked = append(item.Parked, observation)
-		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
-		evidence[observation.Address] = item
+		evidence[observation.Address] = asked(item)
 	}
+	seenDetached := map[ThreadAddress]bool{}
 	for _, observation := range detached {
 		item := evidence[observation.Address]
-		item.Detached = append(item.Detached, observation)
-		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
+		switch {
+		case seenDetached[observation.Address], observation.SessionName == "":
+			// Two observations for one address, or a nameless one, prove
+			// nothing -- ProjectSessionPresence fails closed on exactly these,
+			// so the helper must model the same refusal.
+			item.Session = SessionObservation{State: SessionUnresolved}
+		default:
+			item.Session = SessionObservation{State: SessionPresent, Name: observation.SessionName}
+		}
+		seenDetached[observation.Address] = true
 		evidence[observation.Address] = item
+		continue
 	}
 	var rows []ActionableThreadSummary
 	for _, row := range ProjectActionableThreads(ThreadProjectionInput{Records: records, Evidence: evidence}) {
@@ -474,21 +539,27 @@ func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Of the six shapes, three are resume-shaped: the parked row with a
-	// binding, the parked row that lost one, and the one with nothing left.
-	// The stale incarnation, the profile-less record and the unsupported agent
-	// must cost nothing at all.
-	const resumeShaped = 3
+	// RESTATED for #256. "Resume-shaped" is now about RESUME AUTHORITY, not
+	// about the bookkeeping, so a record carrying an incarnation pays too -- it
+	// has to, because its session may have outlived its launcher and the path
+	// is what a reattach needs. Four of the six shapes have a usable profile;
+	// the profile-less record and the unsupported agent still cost nothing.
+	const resumeShaped = 4
 	if paths.calls != resumeShaped {
 		t.Fatalf("Physical called %d times, want %d -- a live or unstartable record must not pay", paths.calls, resumeShaped)
 	}
 	if artifacts.resolveCalls != 2 {
 		t.Fatalf("binding resolver called %d times, want 2 parked records only", artifacts.resolveCalls)
 	}
-	// One detach candidate (the record with no park and no incarnation), so
-	// exactly one zellij query -- and it is a query per REFRESH, not per row.
-	if artifacts.detachQueries != 1 {
-		t.Fatalf("detached query ran %d times, want 1", artifacts.detachQueries)
+	// RESTATED for #256. The refresh asks PRESENCE, one host-wide call covering
+	// every record, and never asks for clients -- a `list-clients` costs ~250 ms
+	// per live session (#228) and the reattach path re-observes attach state
+	// before committing anyway.
+	if artifacts.detachQueries != 0 {
+		t.Fatalf("the refresh ran %d client-counting queries; it must ask none", artifacts.detachQueries)
+	}
+	if queries := artifacts.SessionPresenceQueries(); queries != 1 {
+		t.Fatalf("SessionPresence ran %d times, want exactly one host-wide query", queries)
 	}
 }
 
@@ -569,7 +640,7 @@ func TestAFailedSessionQueryLeavesTheRowUnknownRatherThanGone(t *testing.T) {
 	store, address := detachedThreadStore(t)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+	artifacts.SessionPresenceHook = func([]ThreadAddress) error {
 		return errors.New("zellij is not answering")
 	}
 	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
