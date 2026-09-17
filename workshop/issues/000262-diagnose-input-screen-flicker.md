@@ -104,10 +104,11 @@ sequenced after the delta work, not instead of it.
 
 ## Done when
 
-- **The cause is confirmed before it is fixed.** Ghostty with `cursor-style-blink =
-  false` changes or removes the flicker, OR a capture of one frame's parent-bound
-  bytes shows the full preamble/postamble going out on a one-cell diff. If neither
-  holds, this Spec is wrong and the issue returns to diagnosis.
+- **The premise is confirmed before anything is fixed:** `Render` emits invariant
+  global state on a frame that did not change it. If it does not, this Spec is wrong
+  and the issue returns to diagnosis. How to check it is settled at implementation
+  time — see the 2026-09-16 test-inference Log entry for what the candidate tests
+  are worth.
 - M1: DECSCUSR is emitted only when cursor shape or blink actually changed, asserted
   at the render seam — a one-cell diff with an unchanged cursor emits no cursor-style
   sequence. Operator smoke confirms both reported regimes.
@@ -199,8 +200,8 @@ fails.
 
 ## Plan
 
-- [ ] M1 — Confirm (`cursor-style-blink = false`, and/or capture one frame's bytes).
-      STOP and re-diagnose if it does not hold.
+- [ ] M1 — Confirm the premise (see the test-inference Log entry). STOP and
+      re-diagnose if it does not hold.
 - [ ] M1 — Emit DECSCUSR only on shape/blink change. Needs no exclusivity; nothing
       else writes cursor style. Operator smoke in both quiet regimes.
 - [ ] M2 — Reconcile the two parent writers: route `hostty.Reservation`'s paints
@@ -640,3 +641,47 @@ the caret is not seen crossing the screen during the paint, which is a real job.
 becomes redundant only under BSU/ESU, where no intermediate state is presented at
 all — one of the reasons 2026 remains worth doing after the churn is gone, as M3's
 option rather than as the fix.
+
+### 2026-09-16 — what the candidate confirming tests are actually worth
+
+Recorded so implementation does not re-litigate it. Choosing among these is
+deferred to when the work starts; this entry is only what each one can and cannot
+establish.
+
+**`cursor-style-blink = false` in Ghostty — asymmetric, weaker than first claimed.**
+
+- Flicker stops or changes character → the cursor path is implicated, narrowing
+  from seven preamble sequences to DECSCUSR. Informative.
+- Nothing changes → proves NOTHING. At least three ways to get a null: Ghostty's
+  `cursor-style-blink` sets a DEFAULT that an application's explicit DECSCUSR
+  overrides, and pair sends the blink variant whenever the child asks for it
+  (`if next.Cursor.Blink { code-- }`, `render.go:87`), so the config may never
+  reach the code path at all; or the mechanism is the `?25l`/`?25h` pair rather
+  than blink phase; or it is the DECSTBM reset and the cursor is innocent.
+
+It was originally written into `## Done when` as the primary gate. It is not one —
+it is a cheap shot at one suspect.
+
+**The byte check on `Render` — this is the real gate.** `Render(prev, next)`
+(`render.go:15`) is PURE and already takes `prev`. Feed it two frames differing by
+one cell with an identical `Cursor` and read the output bytes: either the preamble
+and DECSCUSR are there or they are not. Deterministic, no terminal, no operator.
+It establishes the premise the entire Spec rests on — *invariant global state is
+emitted on frames that did not change it* — and kills the Spec outright if it comes
+back clean.
+
+What it does NOT establish is causation: that this emission is what the operator
+perceives. Only the A/B (make M1, smoke it) shows that.
+
+**Judgment: do not over-instrument ahead of M1.** M1 is one comparison against
+state `Render` already holds and already compares for dirtiness (`render.go:19`).
+Confirmation machinery built ahead of a change that small can cost more than making
+the change and smoking it.
+
+**One assumption flagged, load-bearing and UNVERIFIED:** *"re-issuing DECSCUSR
+resets the blink phase"* is a general belief about terminals and has NOT been
+checked against Ghostty. The cursor suspicion rests on it; the byte check does not,
+which is a further reason to lead with the byte check. If the premise confirms but
+M1 does not fix the flicker, this assumption is the first place to look, and the
+DECSTBM reset (`\x1b[r`, emitted every frame) becomes the next suspect among the
+preamble items.
