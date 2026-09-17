@@ -247,3 +247,69 @@ frame — specifically whether it reaches `ReserveAndPaint` (DECSTBM + cursor ho
 every frame, which would explain GLOBAL) or only `Paint`. That is the same question
 listed as check 2 above; it is now the FIRST check, since the free spinner test is
 void.
+
+### 2026-09-16 — H3: #255 moved pair from passthrough to compositor, and synchronization is honored on INGEST but dropped on EMIT
+
+Operator's framing — *"one difference compared to pre-#255 is we have proper
+layers, so more processing"* — is right, and the mechanism is more specific than
+cost. #255 changed the SHAPE of what pair writes to the parent terminal.
+
+**Before #255:** the child's own bytes reached the parent. A modern TUI (nvim,
+zellij) authors its own coherent update and, where the terminal supports it, wraps
+that update in synchronized-output markers itself. The frame boundary was the
+CHILD'S, and it survived to the terminal.
+
+**After #255:** per `workshop/history/plans/000255-terminal-abstraction-plan.md` —
+*"A shared compositor renders the selected terminal's cells and Couch/Pair chrome
+into the parent terminal; raw child drawing commands never cross that composition
+boundary."* Child bytes are parsed into a cell grid and pair RE-DERIVES the update:
+
+`paintPublication` (`cmd/internal/terminal/presenter.go:304`) →
+`Render(p.previous, f)` (`:338`) → `p.write(ctx, data, true)`.
+
+`p.previous = f.Clone()` at `:360` confirms this is a frame DIFF, not a full
+repaint — so the cost objection is answered, but the tearing one is not. A diff is a
+multi-step mutation of the live screen: cursor positioning plus cell writes,
+scattered across the pane.
+
+**The gap, stated precisely: synchronization is honored on ingest and dropped on
+emit.**
+
+- On ingest, the design honors it — the plan commits that *"frames published during
+  synchronized output remain unchanged until end-of-frame or a specified bounded
+  timeout."* So a child's BSU/ESU is consumed by the parser and correctly prevents
+  publishing a half-drawn frame.
+- On emit, nothing replaces it. `Render`'s output is written straight to the parent
+  with no wrapper, and `grep -rn '2026h\|2026l\|?2026' cmd/` returns NOTHING
+  repo-wide. The parent mode delta (`desiredParentModes` / `parentModeDelta`,
+  `:325-327`) carries persistent modes only; BSU/ESU is an inline bracket, not a
+  persistent mode, so it is not propagated there either.
+
+The child's frame boundary is therefore destroyed at the composition boundary and
+not reconstructed. The parent terminal is free to present a partially-applied diff.
+
+**This is the first hypothesis that explains every data point, including the one the
+others could not — why it is NEW:**
+
+| observation | explained by |
+|---|---|
+| global | the compositor owns the whole parent screen: pane cells + chrome |
+| very subtle | intra-frame tearing of a diff, not a clear-and-repaint |
+| worse when quiet | each frame is discrete and individually perceptible; under load the next diff lands before the eye resolves the last |
+| held Delete (original report) | many small frames in quick succession |
+| appeared around #255 | before it, the child's own synchronized update reached the terminal intact |
+
+**Candidate repair:** wrap the rendered diff in `\x1b[?2026h` … `\x1b[?2026l` in
+`paintPublication`, around the `Render` → `write` pair at `:336-341`, gated on the
+parent terminal advertising the capability. Ghostty supports it. The plan already
+lists *"synchronized drawing"* in the required initial profile, so this is closing a
+contract #255 wrote rather than adding a feature.
+
+**Verification before building:** confirm the parent write is genuinely unwrapped by
+capturing what `p.write` emits for one frame, and confirm the terminal advertises
+2026. Then the A/B is cheap and decisive — wrap it, and ask whether the flicker
+goes.
+
+Supersedes H1' (spinner-driven repaint, retracted above) and H2 (batching, killed by
+the global scope). The unsynchronized-paint half of H1' survives here, with the
+correct driver and the correct origin story.
