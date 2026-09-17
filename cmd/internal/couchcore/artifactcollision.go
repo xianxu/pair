@@ -316,6 +316,21 @@ func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.
 	return bindings, current, readable, nil
 }
 
+// The production checker must satisfy every seam the evidence pass reaches it
+// through. Those are TYPE ASSERTIONS on c.Artifacts, which fail SILENTLY: drop a
+// method and the assertion simply stops matching, the evidence is never
+// gathered, and every thread reads `unknown` -- fail-closed, but indistinguishable
+// from a host that could not be asked. A compile-time binding turns that into a
+// build error.
+var (
+	_ SessionPresenceResolver = ScopedThreadArtifactCollisionChecker{}
+	_ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}
+	_ NativeBindingResolver   = ScopedThreadArtifactCollisionChecker{}
+	_ PairSessionIO           = ScopedThreadArtifactCollisionChecker{}
+	_ SessionPresenceResolver = (*FakeThreadArtifactCollisionChecker)(nil)
+	_ DetachedSessionResolver = (*FakeThreadArtifactCollisionChecker)(nil)
+)
+
 // SessionPresence answers EXISTENCE for every supplied address from one
 // host-wide liveness snapshot.
 //

@@ -1,6 +1,9 @@
 package couchcore
 
 import (
+	"os"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -251,6 +254,57 @@ func TestDetachedResumeDoesNotRequireAnEstablishedBinding(t *testing.T) {
 		if eligible.RequiredSessionID != "" {
 			t.Fatalf("warm reattach carried RequiredSessionID %q from a %q binding",
 				eligible.RequiredSessionID, status)
+		}
+	}
+}
+
+// TestEveryResumeDiagnosticCodeIsProducedBySomeSite is the guard
+// ResumeDiagnosticCode lacked, and the class fix for an orphan the M1 review
+// found: deleting occupiedResumeCode removed the only site emitting
+// ResumeCreating, in the same commit, unnoticed.
+//
+// ThreadReason has had TestEveryReasonIsProducedBySomeShape for exactly this --
+// threadreason.go cites it as the reason `unrecorded-child` was deleted rather
+// than kept as a placeholder. A vocabulary with no produced-by guard grows
+// values nothing can emit, and each one is a branch every reader must handle
+// and no test can reach.
+//
+// The identifiers are DERIVED from the declaration rather than listed, so the
+// guard cannot be satisfied by forgetting to add a row to it.
+func TestEveryResumeDiagnosticCodeIsProducedBySomeSite(t *testing.T) {
+	declaration, err := os.ReadFile("resume.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	identifiers := regexp.MustCompile(`(?m)^\s*(Resume\w+)\s+ResumeDiagnosticCode\s*=`).FindAllStringSubmatch(string(declaration), -1)
+	if len(identifiers) < 5 {
+		t.Fatalf("derived only %d codes from resume.go; the regex has drifted from the declaration", len(identifiers))
+	}
+
+	var body strings.Builder
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		b, readErr := os.ReadFile(name)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		body.Write(b)
+	}
+	source := body.String()
+
+	for _, match := range identifiers {
+		identifier := match[1]
+		// One mention is the declaration; a producer or reader is a second.
+		if strings.Count(source, identifier) < 2 {
+			t.Errorf("nothing produces %s outside its declaration -- "+
+				"delete it, or every reader carries a branch no test can reach", identifier)
 		}
 	}
 }

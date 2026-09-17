@@ -774,6 +774,45 @@ corrective. #272's corresponding Done-when transfers there.
 
 ## Revisions
 
+### 2026-09-17 — M1 boundary review, round 3 (FIX-THEN-SHIP)
+
+Round 2's Rule 1 was itself wrong, and the review caught it. Forcing every
+producer to carry a `ResumeDiagnosticCode` **changed what the value means** —
+from "is a structured refusal" to "came out of resume" — so every reader that
+used the distinction broke (the background reattach pass rendered
+`resume-unknown` instead of the error's first line), and rebuilding the error
+from `retErr.Error()` meant `errors.As`, `errors.Is` and `Unwrap` could no
+longer see through it.
+
+**The rule belonged at the consumer, not on every producer.** `startupResumeRefusal`
+now decorates *any* failure — which is what the operator needed all along — with
+a message that is TRUE of the failure in hand: a structured refusal names the
+thread couch found, while an internal failure says couch could not tell, because
+claiming to have found a resumable thread in a store it could not read would be
+a lie. The code goes back to meaning exactly one thing.
+
+The general rule, which the review stated and is worth keeping: **when a value's
+meaning changes, enumerate every reader and re-derive each in the same round.**
+
+Also this round:
+
+- `SessionPresenceResolver` and its siblings now have **compile-time bindings**.
+  They are reached by type assertion on `c.Artifacts`, which fails *silently*:
+  drop a method and presence is simply never gathered, every thread reads
+  `unknown`, and the result is indistinguishable from a host that could not be
+  asked.
+- `ResumeDiagnosticCode` gained the **produced-by guard** `ThreadReason` has had
+  all along — its absence is why deleting `occupiedResumeCode` orphaned
+  `ResumeCreating` in the same commit, unnoticed. The orphan is deleted and the
+  guard derives its identifiers from the declaration, so it cannot be satisfied
+  by forgetting to update it. Mutation-proven.
+- The atlas said "one class, three sites" while the code and plan said four.
+
+**A flake to watch, not a regression:** `TestParkCoordinatorConstructorDoesNotQueryPairSession`
+failed once inside a full `make test` ("New blocked before returning: <nil>") and
+passes at the base commit, three times in isolation, and on the full re-run. It
+is timing-sensitive around `couch.New`; worth a look if it recurs.
+
 ### 2026-09-17 — M1 boundary review, round 2 (REWORK): rules, not sites
 
 The gate's own summary was the finding: *"Not converging: fix rules, not

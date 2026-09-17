@@ -1325,11 +1325,11 @@ pressed Enter on, so cost is proportional to what you *do*, not what you *have*.
 `DetachedSessions` remains the action path's authority, guarded by
 `RequireAttachState`.
 
-### One class, three sites
+### One class, four sites
 
 A guard reading bookkeeping the classification no longer trusts is one defect
-with several homes. All three had to move together, and the last two surfaced
-only by running it:
+with several homes. Each was found by fixing the one before it — which is the
+point: the enumeration is the deliverable, not any single site.
 
 1. `ClassifyThread` — session-first.
 2. `DecideResume` — stopped vetoing on the incarnation and the open park, or a
@@ -1339,6 +1339,19 @@ only by running it:
    invariant, not a lifecycle opinion, so the *caller* clears it — gated on
    confirmed `Dead`, never on an unobservable process, since retiring a live one
    would abandon a running agent.
+4. `RetireIncarnation`'s open-park precondition, which became reachable **because
+   of** site 3. An orphaned park is abandoned alongside the dead incarnation —
+   one probe answers both, since the park identity is copied from the
+   incarnation — and every precondition is screened before that write, because
+   `AbandonPark`'s tombstone is permanent and a failure after it leaves a thread
+   that can be neither resumed nor archived.
+
+Two rules fell out of the sweep and outlive it. **An irreversible step never
+precedes a revocable check.** And **startup supplies its own guidance**: it
+decorates any resume failure with what to do next, rather than requiring every
+producer to carry a marker — an earlier attempt at the latter changed what
+`ResumeDiagnosticCode` *meant*, from "is a structured refusal" to "came out of
+resume", and broke every reader that used the distinction.
 
 `hasOccupiedIncarnation` survives for `relaunch` and `switch-agent`, which ask a
 different question: not "is this recoverable" but "is couch itself already

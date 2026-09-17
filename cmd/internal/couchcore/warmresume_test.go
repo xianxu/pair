@@ -157,12 +157,24 @@ func TestStartupResumeRefusalNamesTheThreadAndTheWayForward(t *testing.T) {
 	}
 }
 
-// A non-refusal error is passed through untouched: only a resume DIAGNOSTIC
-// gets the operator guidance, because only it means "couch decided not to".
-func TestStartupResumeRefusalPassesThroughOtherErrors(t *testing.T) {
+// RESTATED for #256. A non-refusal used to pass through UNTOUCHED, which is how
+// an internal store message reached the operator with no next step and refused
+// `couch` in the whole tree. It is now decorated too -- but with a message that
+// is TRUE of it: couch could not tell, rather than claiming to have found a
+// resumable thread it never read.
+func TestStartupResumeRefusalExplainsAnInternalFailureWithoutClaimingAThread(t *testing.T) {
 	plain := errors.New("store is unreadable")
-	if got := startupResumeRefusal(ThreadAddress{}, plain); got != plain {
-		t.Fatalf("startupResumeRefusal rewrote a non-refusal: %v", got)
+	got := startupResumeRefusal(ThreadAddress{}, plain)
+	if got == nil || !errors.Is(got, plain) {
+		t.Fatalf("the original error must stay reachable: %v", got)
+	}
+	if strings.Contains(got.Error(), "found one resumable thread") {
+		t.Fatalf("an unreadable store was reported as a thread couch found:\n%s", got)
+	}
+	for _, want := range []string{"could not resume", "couch --show", "work anyway"} {
+		if !strings.Contains(got.Error(), want) {
+			t.Fatalf("internal failure is not actionable — missing %q:\n%s", want, got)
+		}
 	}
 	if startupResumeRefusal(ThreadAddress{}, nil) != nil {
 		t.Fatal("startupResumeRefusal invented an error")

@@ -469,10 +469,11 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 			return ThreadSnapshot{}, nil, err
 		}
 		item := ThreadEvidence{Live: observed[record.Address]}
-		// Physicalization and binding resolution are RESUME-SHAPED work. A
-		// record carrying an incarnation never reached either before, and must
-		// not start to: a running agent whose directory moved is still running.
-		// This is one contract, and the call-count guard is what binds it.
+		// Physicalization and binding resolution are RESUME-SHAPED work, and
+		// since #256 that is decided by RESUME AUTHORITY rather than by the
+		// bookkeeping. A record carrying an incarnation DOES reach both now --
+		// it has to, because its session may have outlived its launcher and a
+		// reattach needs the path. The call-count guard still bounds the work.
 		// Resume-shaped is now about RESUME AUTHORITY, not about the
 		// bookkeeping. It used to exclude any record carrying an incarnation or
 		// a park, which is precisely why a #272 record was never physicalized

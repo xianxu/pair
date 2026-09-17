@@ -215,25 +215,39 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	return StartResult{Record: record, Handle: handle}, err
 }
 
-// startupResumeRefusal makes a startup refusal actionable.
+// startupResumeRefusal makes a startup failure actionable, and says something
+// TRUE about the failure it is decorating.
 //
 // Startup deliberately has NO fallback: `couch` in a tree that already holds a
 // resumable thread must not quietly start a second one, because two threads in
-// one tree is the confusion couch exists to prevent. What was wrong was
-// refusing MUTELY -- the operator saw a diagnostic code and had no next step.
-// So the refusal stands, and it says which thread, what happened, and the two
-// ways forward.
+// one tree is the confusion couch exists to prevent. What was wrong was failing
+// MUTELY -- the operator saw a code, or worse an internal store message, and had
+// no next step.
+//
+// Two shapes, two messages. A structured refusal means couch DECIDED not to
+// start, and names the thread it found. An internal failure means couch could
+// not tell, and must not claim to have found a resumable thread -- that framing
+// would be false for a store it could not read. Both end with the way forward,
+// because that is what the operator needs and it does not depend on the shape.
+//
+// An earlier attempt made every producer carry a ResumeDiagnosticCode so this
+// function could treat them alike. That changed what the code MEANS -- from "is
+// a structured refusal" to "came out of resume" -- and broke every reader that
+// used the distinction, so the branching lives here instead.
 func startupResumeRefusal(address ThreadAddress, err error) error {
 	if err == nil {
 		return nil
 	}
-	code := ResumeDiagnosticOf(err)
-	if code == "" {
-		return err
+	const wayForward = "  inspect it:  couch --show %s\n" +
+		"  work anyway: pair          (in this tree, without couch)"
+	if ResumeDiagnosticOf(err) == "" {
+		return fmt.Errorf(
+			"%w\n\ncouch could not resume the thread in this tree (%s/%s) and will not start a second one.\n"+
+				wayForward,
+			err, address.RepoScope, address.Tag, address.Tag)
 	}
 	return fmt.Errorf(
 		"%w\n\ncouch found one resumable thread here (%s/%s) and will not start a second in the same tree.\n"+
-			"  inspect it:  couch --show %s\n"+
-			"  work anyway: pair          (in this tree, without couch)",
+			wayForward,
 		err, address.RepoScope, address.Tag, address.Tag)
 }

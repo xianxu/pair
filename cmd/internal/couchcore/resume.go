@@ -13,7 +13,6 @@ type ResumeDiagnosticCode string
 
 const (
 	ResumeLive               ResumeDiagnosticCode = "resume-live"
-	ResumeCreating           ResumeDiagnosticCode = "resume-creating"
 	ResumeUnknown            ResumeDiagnosticCode = "resume-unknown"
 	ResumeParking            ResumeDiagnosticCode = "resume-parking"
 	ResumeTombstoned         ResumeDiagnosticCode = "resume-tombstoned"
@@ -344,24 +343,6 @@ func (c *Couch) ResumeContext(ctx context.Context, address ThreadAddress) (Actor
 
 // ResumeContextWith is ResumeContext narrowed by opts.
 func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, opts ResumeOptions) (retRecord ActorRecord, retHandle Handle, retErr error) {
-	// ONE PLACE where every failure leaving this function acquires a diagnostic
-	// code, because startup only decorates coded refusals
-	// (startupResumeRefusal): an uncoded error reaches the operator as an
-	// internal message with no next step and refuses `couch` in the whole tree.
-	//
-	// This is a RULE, not a patch. Wrapping the individual call sites was tried
-	// and failed twice: the first round coded the store's retire error, the
-	// second reproduced the identical wedge through CommitStartClaim, and
-	// resolveRepoIdentity, Proc.Current, allocateStartNonce and the observe
-	// errors were all still bare. Enumerating exits by hand is the thing that
-	// keeps missing one, so the exit is centralised instead. Callers that
-	// already refuse with a code keep it -- this only supplies one where none
-	// was set. Pinned by TestEveryResumeFailureCarriesADiagnosticCode.
-	defer func() {
-		if retErr != nil && ResumeDiagnosticOf(retErr) == "" && !errors.Is(retErr, context.Canceled) {
-			retErr = refuseResume(ResumeUnknown, retErr.Error())
-		}
-	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}

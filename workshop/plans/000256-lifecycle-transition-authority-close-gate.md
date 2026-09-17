@@ -152,6 +152,73 @@ rounds:
           round: 2
       boundary: M1
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-17T10:07:45-07:00"
+      agent: claude
+      dispose:
+        - id: BR-11
+          disposition: addressed
+          note: 'Mutation-proven: deleting the deferred coder at resume.go:360 reddens both exits of TestEveryResumeFailureCarriesADiagnosticCode. See I1 for the consumer the widened meaning broke.'
+          round: 3
+        - id: BR-12
+          disposition: addressed
+          note: 'Mutation-proven: moving the State guard below AbandonPark reddens matching-park/dead/unknown with the permanent-tombstone assertion. Bypass note carried forward as a Minor.'
+          round: 3
+        - id: BR-13
+          disposition: addressed
+          note: Twelve cells asserting wantRetire, a non-empty diagnostic on every refusal, and park survival on refusal; the start-in-flight exit remains outside the table (see test notes).
+          round: 3
+        - id: BR-14
+          disposition: addressed
+          note: run_test.go:1239 now reads session-gone; swept the window's touched test files for stale/unrecorded string literals and the remaining hits are ordinary prose.
+          round: 3
+        - id: BR-15
+          disposition: addressed
+          note: DetachedSessions has its own doc at artifactcollision.go:374 and the duplicated fail-closed paragraph is gone; residual noted as a Minor (resolveScopedBindings now has no doc at all).
+          round: 3
+        - id: BR-16
+          disposition: addressed
+          note: Tables re-derived; observeSessions removed, startClaimed / resolveScopedBindings / retireDeadIncarnationBeforeStart added, and every row's name and path greps to the stated file.
+          round: 3
+      findings:
+        - id: BR-17
+          severity: Important
+          title: The blanket resume coder changed what "carries a code" means and the reattach pass still branches on the old meaning
+          detail: '3rd in family — fix the RULE, not this site. resume.go:360-365 now gives every non-cancellation error a ResumeDiagnosticCode, so "carries a code" changed from "is a refusal" to "came out of resume". menu_reattach.go:244-252 still reads it the old way: its cell-7 branch falls back to firstErrorLine only when the code is empty, so a background reattach that fails on a spawn error or registration timeout now renders "reattach failed: resume-unknown" (menu_render.go:710) instead of the error''s first line, which decision 11 specified. The wrap also rebuilds the error from retErr.Error(), so errors.As, errors.Is(..., context.DeadlineExceeded) and Unwrap() []error no longer see through it (console_completion.go:133 walks joined errors). The rule: when a value''s MEANING changes, enumerate every reader and re-derive each in the same round. The enumeration is five sites — resume.go:138, relaunch.go:122, startup.go:230, console.go:1767, menu_reattach.go:239. A second live instance of the same rule: actionableinventory.go:472-474 still asserts that a record carrying an incarnation "must not start to" be physicalized, directly above the code that now does.'
+          family: stale-wording-after-referent-change
+          round: 3
+        - id: BR-18
+          severity: Important
+          title: SessionPresenceResolver is reached only through a silently-failing type assertion with no compile-time binding
+          detail: '2nd in family — state the rule. actionableinventory.go:555 does c.Artifacts.(SessionPresenceResolver) and drops the ok, there is no var _ SessionPresenceResolver = ScopedThreadArtifactCollisionChecker{}, and no test builds a Couch over the production checker (TestSessionPresenceAnswersThroughTheProductionChecker calls the method directly; the couchcmd acceptance uses the fake). Both types satisfy the interface today — verified by compiling the assertion in a scratch copy — so nothing is broken now. The exposure is that a receiver or signature drift compiles, passes every test, and turns every row in every tree into unusable/checking…, because the fake still satisfies it. The rule: every interface consumed via a runtime assertion on c.Artifacts carries a compile-time var _ against the production type, beside the existing fake assertion. Measured prevalence: five such interfaces, one pinned (PairSessionIO at park.go:812).'
+          family: production-seam-only-tested-through-fake
+          round: 3
+        - id: BR-19
+          severity: Important
+          title: The atlas records "One class, three sites" while the code and the plan record four
+          detail: '2nd in family — state the rule. atlas/couch.md:1328 heads the section "One class, three sites" and lists ClassifyThread, DecideResume and CommitStartClaim''s caller. resume.go:615 says "This is the FOURTH site of the class" and names the enumeration including the orphaned-park abandon, and the plan''s Revisions (2026-09-17 round 1) says "The class has FOUR sites, not three". The issue''s Log still says three as well. The omitted member is the one carrying the irreversible-ordering rule, so a reader taking the atlas as the map gets the enumeration minus its most dangerous entry. The rule: when a boundary round extends an enumeration, every home of it — code comment, plan Revisions, atlas, issue Log — is updated in that same round, not at a milestone-end sweep. Round 1 updated three of the four homes.'
+          family: atlas-contradicts-code
+          round: 3
+        - id: BR-20
+          severity: Minor
+          title: TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted now admits four deliberately new shapes
+          detail: '3rd in family. classify_test.go:268-276: the name says "exactly what the old projector accepted", the doc says "except #248 intentionally admits unbound warm sessions", and the failure message prints tc.wasActionableBefore alone — while the body asserts (wasActionableBefore || newlyActionable) over four #256 shapes. The rule is BR-14''s, widened: a test''s name, doc and failure message must all describe the assertion the body makes, and when the assertion''s scope changes all three are restated in the same edit.'
+          family: test-name-contradicts-assertion
+          round: 3
+        - id: BR-21
+          severity: Minor
+          title: The re-adoption's AbandonPark bypasses the per-thread park worker every other abandon goes through
+          detail: resume.go:627 calls c.Threads.AbandonPark directly; PairLifecycleController.Abandon (park.go:435-450) routes the same store call through submit, which serializes per thread. The revision CAS keeps this safe — a loser gets a coded refusal, not corruption — but park abandonment now has two authorities, and RecoverActiveParks (run.go:348) runs concurrently with startup resume over the same records (ARCH-ORDER).
+          family: transition-bypasses-its-owner
+          round: 3
+        - id: BR-22
+          severity: Minor
+          title: ResumeCreating lost its only producer and the resume diagnostic vocabulary has no produced-by guard
+          detail: Deleting occupiedResumeCode removed the only site emitting ResumeCreating (resume.go:16); ResumeLive survives via relaunch.go:107. ThreadReason has TestEveryReasonIsProducedBySomeShape for exactly this class — threadreason.go's own comment cites it as the reason unrecorded-child was deleted rather than kept as a placeholder — but ResumeDiagnosticCode has no equivalent guard, which is why the orphan went unnoticed in the same commit that deleted its producer.
+          family: vocabulary-entry-without-producer
+          round: 3
+      boundary: M1
+      blocked: true
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -214,11 +281,37 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Minor] `plan-code-divergence` The plan's Integration and Pure tables still name entities the code does not ship
   2nd in family — state the rule. The Integration table names `observeSessions` in sessionevidence.go; the code ships SessionPresenceResolver.SessionPresence (production impl in artifactcollision.go:370) plus ProjectSessionPresence. startClaimed, indexSessionsByName, uniquelyClaimed and retireDeadIncarnationBeforeStart appear in no table. Round 1 raised this as a recommendation and it survived. Rule: at each milestone close, re-derive the Core-concepts tables by grepping every row's name and path, and record any divergence in ## Revisions rather than leaving the plan claiming what the code does not deliver.
 
+## Round 3 — 2026-09-17T10:07:45-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-11 — addressed — Mutation-proven: deleting the deferred coder at resume.go:360 reddens both exits of TestEveryResumeFailureCarriesADiagnosticCode. See I1 for the consumer the widened meaning broke.
+- BR-12 — addressed — Mutation-proven: moving the State guard below AbandonPark reddens matching-park/dead/unknown with the permanent-tombstone assertion. Bypass note carried forward as a Minor.
+- BR-13 — addressed — Twelve cells asserting wantRetire, a non-empty diagnostic on every refusal, and park survival on refusal; the start-in-flight exit remains outside the table (see test notes).
+- BR-14 — addressed — run_test.go:1239 now reads session-gone; swept the window's touched test files for stale/unrecorded string literals and the remaining hits are ordinary prose.
+- BR-15 — addressed — DetachedSessions has its own doc at artifactcollision.go:374 and the duplicated fail-closed paragraph is gone; residual noted as a Minor (resolveScopedBindings now has no doc at all).
+- BR-16 — addressed — Tables re-derived; observeSessions removed, startClaimed / resolveScopedBindings / retireDeadIncarnationBeforeStart added, and every row's name and path greps to the stated file.
+
+### Raised
+
+- **BR-17** [Important] `stale-wording-after-referent-change` The blanket resume coder changed what "carries a code" means and the reattach pass still branches on the old meaning
+  3rd in family — fix the RULE, not this site. resume.go:360-365 now gives every non-cancellation error a ResumeDiagnosticCode, so "carries a code" changed from "is a refusal" to "came out of resume". menu_reattach.go:244-252 still reads it the old way: its cell-7 branch falls back to firstErrorLine only when the code is empty, so a background reattach that fails on a spawn error or registration timeout now renders "reattach failed: resume-unknown" (menu_render.go:710) instead of the error's first line, which decision 11 specified. The wrap also rebuilds the error from retErr.Error(), so errors.As, errors.Is(..., context.DeadlineExceeded) and Unwrap() []error no longer see through it (console_completion.go:133 walks joined errors). The rule: when a value's MEANING changes, enumerate every reader and re-derive each in the same round. The enumeration is five sites — resume.go:138, relaunch.go:122, startup.go:230, console.go:1767, menu_reattach.go:239. A second live instance of the same rule: actionableinventory.go:472-474 still asserts that a record carrying an incarnation "must not start to" be physicalized, directly above the code that now does.
+- **BR-18** [Important] `production-seam-only-tested-through-fake` SessionPresenceResolver is reached only through a silently-failing type assertion with no compile-time binding
+  2nd in family — state the rule. actionableinventory.go:555 does c.Artifacts.(SessionPresenceResolver) and drops the ok, there is no var _ SessionPresenceResolver = ScopedThreadArtifactCollisionChecker{}, and no test builds a Couch over the production checker (TestSessionPresenceAnswersThroughTheProductionChecker calls the method directly; the couchcmd acceptance uses the fake). Both types satisfy the interface today — verified by compiling the assertion in a scratch copy — so nothing is broken now. The exposure is that a receiver or signature drift compiles, passes every test, and turns every row in every tree into unusable/checking…, because the fake still satisfies it. The rule: every interface consumed via a runtime assertion on c.Artifacts carries a compile-time var _ against the production type, beside the existing fake assertion. Measured prevalence: five such interfaces, one pinned (PairSessionIO at park.go:812).
+- **BR-19** [Important] `atlas-contradicts-code` The atlas records "One class, three sites" while the code and the plan record four
+  2nd in family — state the rule. atlas/couch.md:1328 heads the section "One class, three sites" and lists ClassifyThread, DecideResume and CommitStartClaim's caller. resume.go:615 says "This is the FOURTH site of the class" and names the enumeration including the orphaned-park abandon, and the plan's Revisions (2026-09-17 round 1) says "The class has FOUR sites, not three". The issue's Log still says three as well. The omitted member is the one carrying the irreversible-ordering rule, so a reader taking the atlas as the map gets the enumeration minus its most dangerous entry. The rule: when a boundary round extends an enumeration, every home of it — code comment, plan Revisions, atlas, issue Log — is updated in that same round, not at a milestone-end sweep. Round 1 updated three of the four homes.
+- **BR-20** [Minor] `test-name-contradicts-assertion` TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted now admits four deliberately new shapes
+  3rd in family. classify_test.go:268-276: the name says "exactly what the old projector accepted", the doc says "except #248 intentionally admits unbound warm sessions", and the failure message prints tc.wasActionableBefore alone — while the body asserts (wasActionableBefore || newlyActionable) over four #256 shapes. The rule is BR-14's, widened: a test's name, doc and failure message must all describe the assertion the body makes, and when the assertion's scope changes all three are restated in the same edit.
+- **BR-21** [Minor] `transition-bypasses-its-owner` The re-adoption's AbandonPark bypasses the per-thread park worker every other abandon goes through
+  resume.go:627 calls c.Threads.AbandonPark directly; PairLifecycleController.Abandon (park.go:435-450) routes the same store call through submit, which serializes per thread. The revision CAS keeps this safe — a loser gets a coded refusal, not corruption — but park abandonment now has two authorities, and RecoverActiveParks (run.go:348) runs concurrently with startup resume over the same records (ARCH-ORDER).
+- **BR-22** [Minor] `vocabulary-entry-without-producer` ResumeCreating lost its only producer and the resume diagnostic vocabulary has no produced-by guard
+  Deleting occupiedResumeCode removed the only site emitting ResumeCreating (resume.go:16); ResumeLive survives via relaunch.go:107. ThreadReason has TestEveryReasonIsProducedBySomeShape for exactly this class — threadreason.go's own comment cites it as the reason unrecorded-child was deleted rather than kept as a placeholder — but ResumeDiagnosticCode has no equivalent guard, which is why the orphan went unnoticed in the same commit that deleted its producer.
+
 ## Open findings
 
-- **BR-11** [Critical] `classification-not-authority` An Unknown-liveness incarnation with a surviving session wedges couch startup in the whole tree
-- **BR-12** [Critical] `irreversible-step-before-precondition` The park abandon runs before RetireIncarnation's preconditions, so a failure destroys the park permanently
-- **BR-13** [Important] `fail-closed-guard-untested` Two of the three guards in retireDeadIncarnationBeforeStart are unpinned
-- **BR-14** [Minor] `test-name-contradicts-assertion` run_test.go failure message still says stale-incarnation while the assertion checks session-gone
-- **BR-15** [Minor] `stale-wording-after-referent-change` DetachedSessions' doc comment was orphaned by the resolveScopedBindings extraction
-- **BR-16** [Minor] `plan-code-divergence` The plan's Integration and Pure tables still name entities the code does not ship
+- **BR-17** [Important] `stale-wording-after-referent-change` The blanket resume coder changed what "carries a code" means and the reattach pass still branches on the old meaning
+- **BR-18** [Important] `production-seam-only-tested-through-fake` SessionPresenceResolver is reached only through a silently-failing type assertion with no compile-time binding
+- **BR-19** [Important] `atlas-contradicts-code` The atlas records "One class, three sites" while the code and the plan record four
+- **BR-20** [Minor] `test-name-contradicts-assertion` TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted now admits four deliberately new shapes
+- **BR-21** [Minor] `transition-bypasses-its-owner` The re-adoption's AbandonPark bypasses the per-thread park worker every other abandon goes through
+- **BR-22** [Minor] `vocabulary-entry-without-producer` ResumeCreating lost its only producer and the resume diagnostic vocabulary has no produced-by guard
