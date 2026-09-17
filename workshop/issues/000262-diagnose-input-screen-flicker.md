@@ -313,3 +313,64 @@ goes.
 Supersedes H1' (spinner-driven repaint, retracted above) and H2 (batching, killed by
 the global scope). The unsynchronized-paint half of H1' survives here, with the
 correct driver and the correct origin story.
+
+### 2026-09-16 — correction: ingest is NOT honored either; the two brackets are independent obligations
+
+**Correcting the entry above.** It said synchronized output is *"honored on ingest
+and dropped on emit"*, sourced from the #255 plan's commitment that *"frames
+published during synchronized output remain unchanged until end-of-frame."* That
+commitment is **unbuilt**. In the vendored parser, `2026` appears exactly once —
+`third_party/vt/mode.go:15`, `ansi.DECMode(2026): ansi.ModeReset`, an entry in
+`resetModes`'s defaults table. The mode is RECOGNIZED and TRACKED; nothing reads it.
+`Endpoint.capturePublication` (`cmd/internal/terminal/endpoint.go:242`) publishes
+unconditionally. `grep -rn 2026 cmd/` is still empty.
+
+So both ends are missing, and the failure compounds: pair may publish a frame
+captured while the child is mid-update, then render an unsynchronized diff of it to
+the parent. Two independent tears per flicker.
+
+(Filed as an instance of the aspiration pattern: the plan documents this as
+contracted behavior, which is why the first read of it was wrong. A plan sentence is
+not evidence of an implementation.)
+
+**Answering the design question: is this "preserve the child's bracket" or
+"unwrap then re-wrap"? Neither.** A synchronized-output bracket is not payload
+flowing down a pipeline — it is a framing assertion by WHOEVER IS WRITING to a
+terminal. #255 created a second writer, so there are now two assertions to make, and
+they do not correspond:
+
+1. **Child → endpoint (ingest).** The child asserts *"my grid is incoherent until I
+   say so."* The obligation is to gate `capturePublication` on the tracked 2026 bit,
+   with a bounded timeout so a child that opens BSU and stalls cannot freeze the
+   view. **Not implemented.**
+2. **Presenter → parent (emit).** Pair asserts *"my diff is partially applied until
+   I say so."* The obligation is to bracket the `Render` → `write` pair in
+   `paintPublication` (`presenter.go:336-341`). **Not implemented.**
+
+**Why a pass-through model is not merely unimplemented but ill-defined** — three
+cases where no child bracket exists to forward:
+
+- **Coalescing.** `Present` (`presenter.go:406`) does a NON-BLOCKING send on
+  `p.wake`, so N child frames can collapse into one presenter write. One outgoing
+  bracket for N incoming ones; there is no 1:1 to preserve.
+- **Chrome.** A composed frame carries chrome cells (`Compose(pub.Frame, p.host,
+  p.bottom)`, `presenter.go:372`) that no child authored. No child bracket covers
+  them.
+- **Un-bracketed children.** A plain shell, `cat`, a program that never emits 2026
+  at all still produces presenter diffs that tear. Forwarding-what-was-wrapped
+  leaves those broken permanently.
+
+**That third case is a free test that discriminates the two models.** The flicker
+should be reproducible with a child that never emits synchronized output — a bare
+shell echoing keystrokes. If it flickers there, pass-through could never have fixed
+it and the emit-side bracket is mandatory.
+
+**Two constraints on the repair, both on the emit side:**
+
+- Bracket only the synchronous render-and-write. Never hold BSU open across an
+  await, a blocking write, or a partial-write retry — `paintPublication` already has
+  a partial-write path (`accepted`, `WriteFailure`), and an ESU that never arrives is
+  a frozen screen, which is worse than a tear.
+- Check nesting under zellij. Couch hosts a zellij client that may itself bracket to
+  the real terminal; 2026 nesting is handled inconsistently across implementations.
+  Verify before shipping rather than assuming counters.
