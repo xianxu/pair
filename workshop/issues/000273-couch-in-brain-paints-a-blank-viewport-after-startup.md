@@ -251,3 +251,34 @@ Either way `pair#265` made this state *loud*: every drop in it now records a
 `no-destination` trace event with the operation that was abandoned (`panel`,
 `input`, `chrome`, `resize`). Running with `COUCH_TRACE` set and seeing a stream
 of those is itself the diagnosis.
+
+### 2026-09-16 — the blank pane is not currently reproducible; capture it passively
+
+Operator has no blank pane right now: `brain` has stayed usable since the
+`muse` → `claude` switch during `pair#265`'s smoke test. So the cheap
+distinguishing test above (re-select the same thread on a blank pane) cannot be
+run on demand, and neither can a `COUCH_TRACE` capture timed to the failure.
+
+Both hypotheses are still live, and the switch is consistent with either: it
+changed the harness **and** performed a real `selectActor`.
+
+`pair#265` made this passively capturable, which is better than waiting to
+notice it. Every abandoned operation now records a `no-destination` trace event
+with the operation name, so the discriminator no longer needs the operator to be
+paying attention when it happens:
+
+```
+export COUCH_TRACE=$HOME/.local/share/pair/couch-trace.jsonl
+```
+
+- A blank pane accompanied by a **stream of `no-destination` lines**
+  (`panel` / `input` / `chrome` / `resize`) is the focus-vs-selected
+  disagreement: couch believes an actor is focused that the presenter does not
+  hold. Fixable in couch, and the fix is a `selectActor` on the durable path.
+- A blank pane with **no such lines** means the presenter does hold the
+  endpoint and the child simply never wrote — the launch hypothesis, same family
+  as the `xianxu.dev` registration timeout.
+
+Next action is therefore passive: leave `COUCH_TRACE` set and read it the next
+time a pane comes up blank. Do not spend an operator session trying to force a
+reproduction.
