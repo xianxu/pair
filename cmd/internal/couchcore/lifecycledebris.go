@@ -7,10 +7,16 @@ import "errors"
 //
 // It is a FACT, not a verdict: rolling a never-started claim back deletes a
 // husk with no launch profile, no park and no metadata (see
-// ThreadStore.DeleteStart's final branch). Resume reads that as a refusal --
-// there is nothing left to resume -- and archive reads it as success, because
-// the row is gone, which is the whole of what archive promises. Guidance
-// belongs at the consumer; the producer states what happened (#256 M1, round 3).
+// ThreadStore.DeleteStart's final branch). Archive reads it as SUCCESS, because
+// the row is gone, which is the whole of what archive promises. Guidance belongs
+// at the consumer; the producer states what happened (#256 M1, round 3).
+//
+// Resume never sees it today, and that is a property of ORDER rather than of
+// this function: DecideResume runs first and refuses a profile-less record with
+// ResumeProfileMissing, so the husk never reaches the clearing step. The
+// sentinel still carries a message that reads correctly if that order ever
+// changes, but no comment here should claim a path no test can take
+// (TestArchivingAHuskReportsTheRollback covers the one that exists).
 var ErrThreadRolledBack = errors.New("the thread was rolled back: it carried nothing but an unfinished start")
 
 // clearLifecycleDebris clears the bookkeeping that would otherwise make a

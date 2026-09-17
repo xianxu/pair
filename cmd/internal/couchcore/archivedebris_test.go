@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -278,5 +279,60 @@ func TestAbsentBindingProvesNothingAboutALiveHelper(t *testing.T) {
 				t.Fatalf("the refusal still retired the incarnation: %+v %v", after, err)
 			}
 		})
+	}
+}
+
+// TestArchivingAHuskReportsTheRollback covers the one exit that had no test:
+// ErrThreadRolledBack.
+//
+// A start claim rolls back through DeleteStart, and DeleteStart's last branch
+// DELETES the record rather than emptying it -- when the thread carries nothing
+// else worth keeping: no launch profile, no park, no metadata. That is the husk
+// a launch leaves when it fails before it ever registers. The row is gone, which
+// is the whole of what archive promises, so archive reports success. Resume
+// never reaches this exit -- DecideResume refuses a profile-less record first --
+// so archive is the only consumer there is.
+//
+// Without this the sentinel was a branch nothing reached -- the shape the M1
+// review kept finding (a vocabulary value with no producer is a claim no test
+// can check).
+func TestArchivingAHuskReportsTheRollback(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-00000000000000d1", time.Unix(100, 0).UTC())
+	// No LatestLaunchProfile, no name, no park: nothing durable to preserve.
+	record.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Start: &ThreadStartClaim{
+			Nonce: "start-0123456789abcdef", OwnerPID: 4242, OwnerIdentity: "supervisor",
+		},
+	}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	couch := archiveDebrisCouch(t, store, NewFakeProcOps(), created.Address)
+	result, err := couch.ArchiveThread(context.Background(), created.Address)
+	if err != nil {
+		t.Fatalf("archiving a husk refused: %v", err)
+	}
+	if result.Record.Address != created.Address {
+		t.Fatalf("archive reported %+v, want the record it removed", result.Record.Address)
+	}
+	if _, err := store.GetThread(created.Address); !errors.Is(err, ErrThreadNotFound) {
+		t.Fatalf("the husk survived its rollback: %v", err)
+	}
+
+	// The producer itself, so the sentinel is pinned rather than inferred from
+	// archive's success.
+	second := actionableTestThread("couch-00000000000000d2", time.Unix(100, 0).UTC())
+	second.Incarnations = record.Incarnations
+	createdSecond, err := store.CreateThread(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bare := &Couch{Threads: store, Artifacts: NewFakeThreadArtifactCollisionChecker(), Proc: NewFakeProcOps()}
+	if _, err := bare.clearLifecycleDebris(createdSecond); !errors.Is(err, ErrThreadRolledBack) {
+		t.Fatalf("clearLifecycleDebris on a husk = %v, want ErrThreadRolledBack", err)
 	}
 }
