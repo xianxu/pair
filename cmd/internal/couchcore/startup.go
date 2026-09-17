@@ -135,7 +135,7 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 //     couch was asked to start in, at any path.
 //
 // A candidate outside both sets is not asked for its COLD-resume proof, so a
-// verified-park row there classifies `unknown`. Session presence is gathered for
+// resume-shaped row there classifies `unknown`. Session presence is gathered for
 // every record regardless of this predicate (#256) -- one host-wide call whose
 // cost does not scale with how many records it covers -- so such a row can still
 // classify `detached`. No reader of startup's rows can act on either: it is not

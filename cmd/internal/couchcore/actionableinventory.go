@@ -17,7 +17,18 @@ import (
 type ActionableThreadState string
 
 const (
-	ThreadLive   ActionableThreadState = "live"
+	ThreadLive ActionableThreadState = "live"
+	// ThreadParked is a thread with no agent running that couch can start one
+	// for, on the exact conversation it left off in.
+	//
+	// The authority is the LEDGER, not `record.VerifiedPark` (#256 M2): a
+	// receipt names a ParkIdentity and no conversation, so it attests that a
+	// park happened and never that anything survived it. Two records therefore
+	// produce this state -- one parked deliberately, one whose session simply
+	// died while its ledger kept the conversation -- and every consumer must
+	// accept BOTH. That enumeration is the rule
+	// `TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` pins, after
+	// a widened producer set reached one reader that had not been swept.
 	ThreadParked ActionableThreadState = "parked"
 	// ThreadBusy is a START couch has claimed and not yet finished -- see
 	// startClaimed. It is NOT a park in flight: #256 removed `record.Park` from
@@ -488,7 +499,7 @@ func (c *Couch) ActionableThreadInventoryContext(ctx context.Context, observatio
 // cannot derive different states from the same store (ARCH-DRY).
 //
 // ask narrows the COLD-resume resolution, not the record set: a candidate it
-// rejects keeps ProofUnresolved, so a verified-park row there classifies
+// rejects keeps ProofUnresolved, so a resume-shaped row there classifies
 // `unknown` and appears as a row nobody can act on rather than vanishing. It
 // does NOT narrow session presence, which is one host-wide call for every
 // record (#256). nil asks about every candidate, which is what the switcher's

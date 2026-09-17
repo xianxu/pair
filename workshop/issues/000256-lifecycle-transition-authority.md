@@ -181,6 +181,41 @@ directory`, from `validateProcessTarget` in `storagegc/lease.go`), reproduced on
 `origin/main` in a throwaway worktree **and** under `env -i` — pre-existing and
 unrelated. `make` halts the suite at it, so `-k` is required to see past it.
 
+**M2's declared measurements, recorded rather than asserted.** The plan's
+operator-verification item asks for the evidence-round timing against the
+ARCH-CONSTRAINTS budget, and M2 widened two costs, so both are measured here:
+
+| Figure | Before M2 | After M2 |
+|---|---|---|
+| ledger reads per refresh (`couchWithOneRecordOfEveryShape`, 6 records) | 2 (the park receipts) | 4 (every resume-shaped record with no session) |
+| `Physical` calls per refresh, same fixture | 4 | 4 (unchanged) |
+| host-wide `SessionPresence` calls per refresh | 1 | 1 (unchanged) |
+| client-counting (`list-clients`) calls per refresh | 0 | 0 (unchanged) |
+| whole evidence round, 6 records, fakes, mean of 20 | — | **0.62 ms** |
+
+The cold side of the resume ACTION also grew: `ResumeContextWith` now observes
+`DetachedSessions` on every resume including cold ones, which previously skipped
+it — one `list-clients` (~250 ms, #228) for the single thread the operator
+pressed Enter on. That is the strict-action half of optimistic inventory and it
+does not scale with store size. What is NOT bounded by a test is the ledger read
+as the store grows: `TestWarmRowsAskNoLedgerQuestion` bounds the warm side (a
+hosted row and a detached row pay nothing), and nothing yet bounds the cold side.
+Recorded as a known gap rather than left implicit.
+
+**M2's operator verification is DEFERRED, owner: the operator.** Three items in
+the plan need a live couch and cannot be discharged by the suite:
+
+1. The two `brain` rows archive from the switcher, and a fresh start stops
+   minting orphans (#273 observed one per attempt; the count must stop growing).
+2. #272's fixture built rather than waited for: kill a couch while a thread runs,
+   confirm the row reads `detached` **and that Enter actually reattaches** — a row
+   that merely reads `detached` proves nothing.
+3. The same for M2's new producer: a thread whose session is gone but whose
+   ledger resolves must offer a cold resume that works, and `switch-agent` on it
+   must now succeed rather than refuse.
+
+Stated as a deferral with an owner because silence reads as done.
+
 **One regression the package-scoped runs could not see.**
 `TestProductionArtifactReferencesAreExactlyClassified` lives in
 `cmd/internal/artifactpath` and refused the new `lifecycledebris.go` for being

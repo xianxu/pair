@@ -123,7 +123,7 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 	// which is the precise anti-pattern this issue exists to remove.
 	//
 	// Resume now rests on the same facts the classification does: a surviving
-	// session (warm) or a verified park with resolvable authority (cold). The
+	// session (warm) or a ledger that resolves a conversation (cold). The
 	// residual race -- reattaching while a park is genuinely mid-teardown -- is
 	// seconds wide, needs a deliberate operator action on both sides, and is
 	// dissolved by #275, which removes the durable transaction entirely.
@@ -362,7 +362,7 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 
 var _ NativeBindingResolver = SessionInventoryNativeBindingResolver{}
 
-// Resume reoccupies one verified parked address using only its exact saved
+// Resume reoccupies one resumable address using only its exact saved
 // path, launch profile, and established native root binding.
 func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 	return c.ResumeContext(context.Background(), address)
@@ -454,7 +454,18 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 			return ActorRecord{}, nil, errors.New("resume: native binding resolver is unavailable")
 		}
 		resolved, err := c.resumeEvidence(ctx, thread)
-		if err != nil {
+		// A binding DIAGNOSTIC is evidence, not a verdict, and it travels with
+		// the resolution it describes (every resolver returns both). Bailing on
+		// it here made DecideResume's cold-refusal branch unreachable from the
+		// only production caller -- so the tombstone answer the plan and the
+		// atlas both promise ("abandoned" beats "unbound") never reached the
+		// operator, and nothing could observe the gap.
+		//
+		// Guidance belongs at the CONSUMER (#256 M1, round 3): the resolver
+		// reports what it found, DecideResume decides what it means. Anything
+		// else -- an unreadable ledger, a missing resolver -- is a real failure
+		// and still stops here.
+		if err != nil && !isBindingDiagnostic(ResumeDiagnosticOf(err)) {
 			return ActorRecord{}, nil, err
 		}
 		binding = resolved

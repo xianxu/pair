@@ -57,6 +57,44 @@ func (r SwitchAgentResult) Started() (StartResult, bool) {
 	return StartResult{Record: r.Record, Handle: r.Handle}, true
 }
 
+// switchableWhenNothingRuns is the inactive-thread half of switch-agent's
+// admission, for a record couch's own bookkeeping says nothing is running on.
+//
+// It used to be `record.VerifiedPark == nil` -> refuse, which read the park
+// RECEIPT as proof of inactivity. #256 M2 widened who produces `parked`: a
+// thread whose session is gone and whose ledger still resolves a conversation is
+// parked with no receipt at all, and the switcher offers `switch-agent` on every
+// parked row -- so the receipt check turned that offer into an action that
+// always fails, which menu.go:1254 names as the way a switcher teaches an
+// operator to distrust it.
+//
+// The fact the guard actually needs is that nothing is RUNNING, and since #256
+// that is a fact about the session, not about bookkeeping. A switch launches a
+// FRESH agent (launchTrackedThread with Fresh: true) and resumes no
+// conversation, so a surviving session is the whole hazard: starting a second
+// agent behind one is exactly the #272 shape from the other side.
+//
+// Strict at the action, per the optimistic-inventory rule: one exact observation
+// for the single thread the operator chose. Unknown fails closed -- an
+// unanswerable session is not an absent one, and the cost of being wrong here is
+// two agents on one tree.
+func (c *Couch) switchableWhenNothingRuns(ctx context.Context, record ThreadRecord) error {
+	binding, err := c.recoverySession(ctx, record.Address)
+	if errors.Is(err, ErrPairSessionBindingAbsent) {
+		// No binding at all corroborates absence: nothing this record names can
+		// be publishing one, because the occupied branch above already excluded
+		// every incarnation that could.
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("switch-agent: its session state could not be checked; inspect and retry: %w", err)
+	}
+	if binding.Present {
+		return errors.New("switch-agent: its session is still up; park or detach the thread first")
+	}
+	return nil
+}
+
 // PrepareAgentSwitch reads the authoritative thread and shared path preference.
 // Accepted argv is optional here so the form can first request a prefill.
 func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, agent string, argv *[]string) (PreparedAgentSwitch, error) {
@@ -107,8 +145,8 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		if !owned {
 			return PreparedAgentSwitch{}, errors.New("switch-agent: source belongs to another owner; attach it to this Couch first")
 		}
-	} else if record.VerifiedPark == nil {
-		return PreparedAgentSwitch{}, errors.New("switch-agent: thread is not verified parked; attach or recover it first")
+	} else if err := c.switchableWhenNothingRuns(ctx, record); err != nil {
+		return PreparedAgentSwitch{}, err
 	}
 	if !c.workingPathExists(record) {
 		return PreparedAgentSwitch{}, refuseResume(ResumePathMissing, "switch-agent: saved working path is unavailable")

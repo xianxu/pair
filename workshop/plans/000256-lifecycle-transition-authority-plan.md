@@ -148,9 +148,16 @@ machine** — each has its own lifetime (ARCH-ORDER).
 
 ### Pure entities
 
-Re-derived against the code at the M1 boundary (see `## Revisions`, 2026-09-17
-round 2) — every row's name and path grepped, rather than left asserting what the
-plan intended.
+**These two tables are a DERIVED VIEW of the code, and they are re-derived by
+grep at every boundary close — never hand-edited per task.** That is a step in
+each milestone's final task, not a habit: hand-editing is how 2 of 20 rows came
+to contradict the tree at the M2 boundary while six entities had no row at all,
+and how the prose below came to describe a change in the wrong direction. The
+mechanical check is `git grep -n '<symbol>' -- '*.go'` for every row's name, plus
+`git diff --stat <prev boundary>..HEAD -- '*.go'` for files whose new symbols
+have no row.
+
+Last re-derived: the M2 boundary, 2026-09-17.
 
 | Name | Lives in | Status | Landed |
 |------|----------|--------|--------|
@@ -162,8 +169,15 @@ plan intended.
 | `startClaimed` | `cmd/internal/couchcore/actionableinventory.go` | new | M1 |
 | `ThreadReason` | `cmd/internal/couchcore/threadreason.go` | modified | M1 |
 | `liveProofMatches` | `cmd/internal/couchcore/actionableinventory.go` | deleted | M1 |
-| `startInFlight` | `cmd/internal/couchcore/actionableinventory.go` | deleted | M1 |
 | `occupiedResumeCode` | `cmd/internal/couchcore/resume.go` | deleted | M1 |
+| `startInFlight` | `cmd/internal/couchcore/actionableinventory.go` | new | M2 |
+| `ThreadEvidence.StartOwner` | `cmd/internal/couchcore/actionableinventory.go` | new | M2 |
+| `RecoverySessionRefusal` | `cmd/internal/couchcore/recovery.go` | new | M2 |
+| `coldResumeAuthorized` | `cmd/internal/couchcore/resume.go` | new | M2 |
+| `ErrThreadRolledBack` | `cmd/internal/couchcore/lifecycledebris.go` | new | M2 |
+| `ResumeStarting` | `cmd/internal/couchcore/resume.go` | new | M2 |
+| `ResumeLegacyUnverified` | `cmd/internal/couchcore/resume.go` | deleted | M2 |
+| `ThreadParked` | `cmd/internal/couchcore/actionableinventory.go` | modified | M2 |
 | `ArchivableState` | `cmd/internal/couchcore/thread.go` | new | M3 |
 | `AllThreadStates` | `cmd/internal/couchcore/actionableinventory.go` | new | M3 |
 | `archivableRecord` | `cmd/internal/couchcore/thread.go` | deleted | M3 |
@@ -208,13 +222,21 @@ plan intended.
   ThreadReason)`, consumed by both the menu and the store so the offer and the
   permission cannot disagree.
 
-- **`startInFlight` is deleted and replaced by `startClaimed`.** An earlier
-  draft said a start in flight is in-memory knowledge and "ephemeral state stays
-  ephemeral". The code reads the durable `ThreadStartClaim` instead — adopted,
-  not reverted, because a start claim genuinely IS couch's record of its own
-  operation, and plumbing a second observation channel for a value couch already
-  writes down buys nothing. See the 2026-09-17 round-1 Revisions entry for the
-  bound and the residual risk.
+- **`startClaimed` (M1), then `startInFlight` again (M2).** An earlier draft said
+  a start in flight is in-memory knowledge and "ephemeral state stays ephemeral".
+  M1 read the durable `ThreadStartClaim` instead — adopted, not reverted, because
+  a start claim genuinely IS couch's record of its own operation. M2 then put
+  `startInFlight` **back**, wrapping `startClaimed` with the claim owner's
+  liveness: a claim is in flight while its couch is alive or unprovable, and a
+  driverless one stops counting. (This entry previously described that change in
+  the reverse direction, which is what made the boundary reviewer grep the
+  tables.)
+
+- **`ThreadParked`'s producer set widened in M2**, which is a *modification of
+  the state*, not of the evidence field that carries the proof. Its consumers are
+  therefore the enumeration —
+  `TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` holds that, after
+  one reader (`switch-agent`) was left behind.
 
 ### Integration points
 
@@ -225,7 +247,9 @@ plan intended.
 | `SessionPresenceResolver` | `cmd/internal/couchcore/sessionevidence.go` | new | the seam | M1 |
 | `…CollisionChecker.SessionPresence` | `cmd/internal/couchcore/artifactcollision.go` | new | `zellij list-sessions` | M1 |
 | `resolveScopedBindings` | `cmd/internal/couchcore/artifactcollision.go` | new | session-name index | M1 |
-| `retireDeadIncarnationBeforeStart` | `cmd/internal/couchcore/resume.go` | new | `ThreadStore` | M1 |
+| `retireDeadIncarnationBeforeStart` | `cmd/internal/couchcore/resume.go` | deleted | `ThreadStore` | M2 |
+| `clearLifecycleDebris` | `cmd/internal/couchcore/lifecycledebris.go` | new | `ThreadStore` | M2 |
+| `switchableWhenNothingRuns` | `cmd/internal/couchcore/switchagent.go` | new | session index | M2 |
 
 An earlier draft named `observeSessions`, which the code never shipped — the
 resolver is an interface plus a method on the existing checker, because that is
@@ -1020,6 +1044,70 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — M2 boundary review, round 1 (REWORK)
+
+Six findings. Each is recorded as the RULE, because four of them are repeat
+families the gate is tracking across milestones.
+
+**C1 — `classification-not-authority`, 4th.** `switch-agent` was offered on every
+`parked` row and `PrepareAgentSwitch` still demanded `record.VerifiedPark != nil`,
+so M2's new ledger-parked producer got an action that always failed. The rule:
+**when a state's producer set widens, its CONSUMERS are the enumeration — not the
+consumers of the evidence field that widened it.** Task 6b's log recorded "one
+consumer, re-derived" for `ThreadEvidence.Parked`; `ThreadParked` itself changed
+meaning in the same commit and its seven readers were never listed. Fixed by
+replacing the receipt check with `switchableWhenNothingRuns` — a switch launches
+a FRESH agent, so the hazard is a surviving session, not a missing receipt — and
+by making the class mechanically checkable:
+`TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` crosses every
+producer of `parked` with every action the menu offers it. Restoring the old
+guard reds the ledger-only row; dropping the new session refusal reds the
+fail-closed row.
+
+**C2 — `plan-code-divergence`, 5th.** 2 of 20 Core-concepts rows contradicted the
+tree and six M2 entities had no row. The rule is now written at the tables
+themselves: **they are a derived view, re-derived by grep at each boundary close,
+never hand-edited per task**, with the grep spelled out. The prose that described
+`startInFlight` as deleted-and-replaced (M2 did the reverse) is corrected.
+
+**I1 — `vocabulary-entry-without-producer`, 3rd, one level up.** `DecideResume`'s
+cold-refusal branch could not fire from the only production caller:
+`ResumeContextWith` bailed on a binding diagnostic before `DecideResume` saw the
+resolution, so the tombstone answer this plan and the atlas both promise never
+reached an operator. The rule: **a diagnostic code needs a producer reachable
+from a production ENTRY POINT, not merely emitted somewhere in the package.**
+Fixed at the consumer, per M1 round 3: a binding diagnostic is evidence and
+travels with its resolution, so `Resume` now carries it to `DecideResume` and
+only real failures stop earlier. `TestEveryResumeDiagnosticCodeIsReachableFrom
+Production` pins it and reds under the old bail. (The reviewer also said
+`ResumeDiagnosticCode` has no produced-by guard at all; it does —
+`TestEveryResumeDiagnosticCodeIsProducedBySomeSite`, added in M1 round 3, and it
+is what forced `ResumeLegacyUnverified`'s retirement this milestone. What was
+missing is the reachability form, which is now there too.)
+
+**I2 — `stale-wording-after-referent-change`, 5th.** `parked` changed referent and
+six homes still stated the old one. The rule, and the gap that produced it: M1's
+round-5 entry enumerated the homes as "atlas, the function comment, the plan".
+**`README.md` and every exported doc comment naming the referent were not in that
+enumeration, and that is exactly why they were stale.** The enumeration is now:
+atlas + plan + the function comment + every exported doc comment naming it +
+`README.md`, with `git grep` of the old referent string as the mechanical check.
+Swept: `README.md` ×2, `resume.go` ×2, `startup.go`, `actionableinventory.go`,
+plus `menu.go`'s busy-row comment, whose two clauses M1 and M2 had each disproved.
+
+**I3 — `declared-measurement-not-recorded`, 2nd.** See the issue `## Log`: the two
+cost figures are now recorded, and the operator verification is recorded as an
+explicit deferral with an owner rather than left silent.
+
+**Minor.** A loosened assertion re-derived from its premise
+(`warm_failure_test.go`); a nonce string no longer doubles as a write flag
+(`clearStart`); a table's input no longer derived from its expectation
+(`lifecyclesequence_test.go`); the partial-write recovery claim now has a test
+that reproduces the crash between `AbandonPark` and the retirement
+(`TestClearingDebrisResumesSafelyAfterACrashBetweenItsWrites`); `ThreadParked`
+has the doc comment its changed referent needs.
+
 
 ### 2026-09-17 — M2 opening: Task 4 re-scoped, two tasks added
 

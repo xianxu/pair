@@ -103,6 +103,12 @@ func TestTheWorldDecidesWhateverTheRecordSaysAboutItself(t *testing.T) {
 			evidence: ThreadEvidence{
 				Session:    SessionObservation{State: SessionAbsent},
 				StartOwner: Dead, ParkedStatus: ProofResolved,
+				// Carried in the world literal, not injected from wantState
+				// below: an input derived from the expectation makes the table
+				// self-consistent instead of a specification. The address is
+				// filled per record inside the loop because each shape has its
+				// own, which is data the world cannot know.
+				Parked: []ParkedResumeObservation{{Agent: "claude", NativeID: "native-1"}},
 			},
 			wantState: ThreadParked,
 		},
@@ -117,10 +123,12 @@ func TestTheWorldDecidesWhateverTheRecordSaysAboutItself(t *testing.T) {
 		t.Run(world.name, func(t *testing.T) {
 			for shape, record := range records {
 				evidence := world.evidence
-				if world.wantState == ThreadParked {
-					evidence.Parked = []ParkedResumeObservation{{
-						Address: record.Address, Agent: "claude", NativeID: "native-1",
-					}}
+				if len(evidence.Parked) == 1 {
+					// Only the address is per-record; the world already decided
+					// whether a conversation resolves at all.
+					observation := evidence.Parked[0]
+					observation.Address = record.Address
+					evidence.Parked = []ParkedResumeObservation{observation}
 				}
 				state, reason := ClassifyThread(record, evidence)
 				if state != world.wantState || reason != world.wantReason {

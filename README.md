@@ -454,8 +454,8 @@ and acts as the switcher's own `Enter`.
 
 Printable input filters the current list from memory (typeahead). Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
-while `Left` or `Escape` restores its parent. Rows expose only proven `live`, exact
-verified `parked`, and proved `detached` states — and a row is offered only when
+while `Left` or `Escape` restores its parent. Rows expose only proven `live`, resumable
+`parked`, and proved `detached` states — and a row is offered only when
 it can actually be acted on, so an offered detached row is one `Enter`
 reattaches. Reattachment preserves the running agent and needs no native
 conversation binding. Couch rechecks that the same session is uniquely owned,
@@ -467,7 +467,7 @@ all live threads and returns to the shell; `Alt+x` parks them after confirmation
 Those lifecycle chords are not intercepted while a Pair pane is displayed.
 They reach the agent or invoke the draft/right pane's existing Pair actions.
 Use the switcher for Couch's durable retirement and current-binary relaunch.
-In a live or verified parked thread's actions, **switch coding agent** opens the coding
+In a live or resumable `parked` thread's actions, **switch coding agent** opens the coding
 agent switch form. Choose an agent, then edit its prefilled startup parameters (an
 empty value is allowed). This second screen names the source and target and
 contains **Switch** and **Cancel**. Tab or Up/Down move between the

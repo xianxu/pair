@@ -1477,6 +1477,29 @@ the better explanation where there is nothing to resume into: archive abandons
 orphaned parks as a matter of course now, so a veto would have made "couch
 crashed mid-park once" a permanent cold-resume ban.
 
+**`parked` has two producers now, and its consumers are the enumeration.** That
+is the rule the M2 boundary review extracted, after the sweep re-derived the
+consumers of the evidence FIELD that widened (`ThreadEvidence.Parked`) and missed
+the consumers of the STATE. `ThreadParked` has seven readers — `startup.go`'s
+rank and `PathHoldsUsableThread`, `ActionableThreadSummary.Resumable`, two
+renderers, `menuThreadActionable`, and the switcher's action list. The last one
+offers `switch-agent`, and `PrepareAgentSwitch` still demanded a park receipt, so
+a ledger-parked row was offered an action that always failed — the thing
+`menu.go` names in its own words as how a switcher teaches an operator to
+distrust it. The guard now asks the session instead
+(`switchableWhenNothingRuns`): a switch launches a FRESH agent and resumes no
+conversation, so a surviving session is the whole hazard, and `Unknown` fails
+closed. `TestEveryParkedProducerIsAcceptedByEveryActionTheMenuOffers` makes the
+class checkable rather than re-derived per milestone.
+
+**A diagnostic code needs a producer reachable from a production entry point.**
+The tombstone-as-better-explanation above was true of `DecideResume` and false of
+couch: `ResumeContextWith` bailed on a binding diagnostic before `DecideResume`
+ever saw the resolution. A binding diagnostic is EVIDENCE and travels with the
+resolution it describes, so the resolver reports and `DecideResume` decides —
+guidance at the consumer, the same rule M1 round 3 wrote. The emitted-somewhere
+guard passed the whole time; reachability needed its own.
+
 One asymmetry is kept deliberately. An unresolved session refuses a cold verdict
 **unless** `record.VerifiedPark` says couch tore the session down itself. For a
 deliberately parked thread the session answer is uninformative, so demoting every

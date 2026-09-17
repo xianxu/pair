@@ -1232,10 +1232,20 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		return []string{"name", "describe"}
 	}
 	if thread.State == couchcore.ThreadBusy {
-		// Something else is still acting on this thread. Offering archive here
-		// would file a record mid-park -- the store refuses it, so the offer is
-		// an action that always fails, which teaches the operator to distrust
-		// the menu. It resolves on its own; metadata still applies.
+		// ANOTHER COUCH is starting this thread right now, and both halves of
+		// that sentence are load-bearing since #256.
+		//
+		// The old wording said "would file a record mid-park". M1 disproved it:
+		// `busy` is never a park -- a ThreadStartClaim is its only producer. The
+		// old wording also said "it resolves on its own", and M2 made that TRUE
+		// rather than hopeful: a claim whose owner couch is provably dead stops
+		// counting, so the row leaves this branch and reports the world. It
+		// stays here only while that owner is alive or unprovable, which is the
+		// one case where something really is still acting on the thread.
+		//
+		// So archive is still withheld, for the reason the comment always gave:
+		// offering an action that always fails is how a switcher teaches an
+		// operator to distrust it. Metadata still applies.
 		return []string{"name", "describe"}
 	}
 	if !menuThreadActionable(thread) {

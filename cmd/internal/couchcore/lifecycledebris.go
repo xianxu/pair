@@ -60,6 +60,13 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 
 	// ---- screen ----
 	var incarnation *ThreadIncarnation
+	// Two values, not one: whether to roll the claim back, and which nonce to
+	// roll back. A nonce doing both jobs means an empty one silently skips the
+	// write the screen decided on, and the reason it cannot be empty lives in a
+	// validator this file does not cite (`componentPattern`, threadrecord).
+	// M1's own rule is that an omitted guard cites its clause; this removes the
+	// need for one.
+	clearStart := false
 	var rollback string
 	switch len(thread.Incarnations) {
 	case 0:
@@ -84,7 +91,7 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 				return nil, refuseResume(ResumeStarting,
 					"the process this start forked could not be proved dead, so the claim must not be rolled back")
 			}
-			rollback = candidate.Start.Nonce
+			clearStart, rollback = true, candidate.Start.Nonce
 		} else {
 			if candidate.PID <= 0 || candidate.Identity == "" {
 				return nil, refuseResume(ResumeUnknown,
@@ -134,7 +141,7 @@ func (c *Couch) clearLifecycleDebris(thread ThreadRecord) (*ThreadRecord, error)
 		}
 		thread = abandoned
 	}
-	if rollback != "" {
+	if clearStart {
 		if err := c.Threads.DeleteStart(thread.Address, thread.Revision, rollback); err != nil {
 			return nil, refuseResume(ResumeStarting, "driverless start claim could not be rolled back: "+err.Error())
 		}

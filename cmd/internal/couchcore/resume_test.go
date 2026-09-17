@@ -1,6 +1,7 @@
 package couchcore
 
 import (
+	"context"
 	"os"
 	"regexp"
 	"strings"
@@ -353,5 +354,57 @@ func TestReAdoptionRefusalsClaimOnlyWhatWasProved(t *testing.T) {
 	_, err = (&Couch{Threads: store, Proc: proc}).clearLifecycleDebris(created)
 	if got := ResumeDiagnosticOf(err); got != ResumeUnknown {
 		t.Fatalf("an unprovable process reports %q; it must claim ignorance, not %q — the agent may well be running", got, ResumeNotRunning)
+	}
+}
+
+// TestEveryResumeDiagnosticCodeIsReachableFromProduction is the stronger form of
+// the produced-by guard, added for #256 M2's I1.
+//
+// The existing guard asks whether a code is EMITTED anywhere in the package. It
+// is, and it passed while the branch emitting ResumeTombstoned could not be
+// reached from the only production caller: ResumeContextWith bailed on a binding
+// diagnostic before DecideResume ever saw the resolution, so the tombstone
+// answer both the plan and the atlas promise never reached an operator, and
+// resume_launch_test even asserted that it did not.
+//
+// A code nothing emits is a branch no test can reach; a code no PRODUCTION PATH
+// emits is a claim the operator is promised and never gets. This pins the
+// second, for the one code whose reachability was the finding.
+func TestEveryResumeDiagnosticCodeIsReachableFromProduction(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+	record.Reservation = false
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.LatestLaunchProfile = &profile
+	created, err := env.Couch.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A park this couch abandoned, and no conversation left to resume into --
+	// the shape whose honest answer is "abandoned", not "unbound".
+	abandoned, err := env.Couch.Threads.UpdateExistingThread(created.Address, created.Revision, func(r *ThreadRecord) error {
+		r.ParkHistory = []ParkTransaction{{
+			Identity:     ParkIdentity{Nonce: "park-0123456789abcdef", Address: created.Address, PID: 42, ProcessIdentity: "gone"},
+			BaseRevision: 1, RecordRevision: 2, Phase: ParkUnknown,
+			Attempts: []ParkAttempt{{Number: 1, Closed: true}},
+			Closed:   true, Tombstoned: true,
+		}}
+		return nil
+	})
+	if err != nil {
+		t.Skipf("the store no longer accepts a tombstoned-history record directly: %v", err)
+	}
+	_ = abandoned
+	// No SetNativeBinding: the ledger resolves nothing. No detached session
+	// either, so this is the cold path.
+	_, _, err = env.Couch.ResumeContext(context.Background(), created.Address)
+	if err == nil {
+		t.Fatal("a cold resume with no conversation and an abandoned park succeeded")
+	}
+	if got := ResumeDiagnosticOf(err); got != ResumeTombstoned {
+		t.Fatalf("production cold resume = %q (%v), want %q -- the branch the plan and the atlas both promise is unreachable",
+			got, err, ResumeTombstoned)
 	}
 }

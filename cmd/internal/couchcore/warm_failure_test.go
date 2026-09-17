@@ -165,14 +165,15 @@ func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
 				if row.State != ThreadDetached {
 					t.Fatalf("row = %+v, want ThreadDetached: its session survived, so it is reattachable again", row)
 				}
-			} else if !row.Resumable() && row.Reason != ReasonSessionGone {
-				// RESTATED for #256 M2. The session dying mid-reattach does not
-				// decide this on its own any more: if the ledger still names the
-				// conversation, the row is cold-resumable (`parked`), and only a
-				// ledger with nothing in it makes it `session-gone`. Either is
-				// correct; what the thread must NOT be is stuck, which is the
-				// property this assertion exists to hold.
-				t.Fatalf("row = %+v, want resumable or unusable/session-gone: this route's session died mid-reattach", row)
+			} else if row.State != ThreadParked && !(row.State == ThreadUnusable && row.Reason == ReasonSessionGone) {
+				// RESTATED for #256 M2, and re-derived from the premise rather
+				// than loosened until it passed. `sessionSurvives == false`
+				// EXCLUDES detached, so the earlier `!row.Resumable()` form
+				// admitted a state this branch cannot reach. Exactly two
+				// outcomes are correct here: the ledger still names the
+				// conversation, so the row is cold-resumable (`parked`), or it
+				// resolves nothing and the row is `session-gone`.
+				t.Fatalf("row = %+v, want parked or unusable/session-gone: this route's session died mid-reattach", row)
 			}
 		})
 	}

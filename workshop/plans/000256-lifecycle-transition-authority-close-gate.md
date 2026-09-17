@@ -380,6 +380,12 @@ rounds:
           round: 6
       boundary: M1
       blocked: false
+    - "n": 7
+      timestamp: "2026-09-17T13:57:04-07:00"
+      agent: claude
+      boundary: M2
+      blocked: false
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -531,6 +537,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   This is the 3rd finding in family `fail-closed-guard-untested`, so the rule, not the site. resume.go:545 and atlas/couch.md:1354-1356 claim retireDeadIncarnationBeforeStart is total over what validateLifecycle accepts and that TestReAdoptionExitsAreTotalAndCoded enumerates it, but sessionevidence_test.go:376-377 loops park in {none,matching} and count in {0,1} — constants, not the domain. Verified against the production store: CreateThread ACCEPTS a two-incarnation record, ClassifyThread returns detached so startup ranks it highest, and the function refuses resume-unknown "thread carries more than one recorded incarnation" with no cell covering it. Measured: 4 of ~10 exits uncovered — Start != nil (silent decline), default count >= 2, PID <= 0 or empty Identity, and a foreign park (only a separately-named test). The rule is round 5's own, applied one layer down: a table asserting totality takes its dimensions from the domain's oracle, not from the author's enumeration. The oracle is already there — t.Skipf on CreateThread refusal. Widen count to {0,1,2}, add park "foreign" and a startClaimed variant, and let the skip exclude what is out of domain, so a new exit without a cell fails instead of passing.
 - **BR-32** [Minor] `vocabulary-entry-without-producer` SessionObservation.Name is written in four places and read nowhere
   2nd in family — the rule is BR-22's dual. sessionevidence.go:48-52 documents Name as carried "so a consumer that acts on the observation does not re-derive the name from a second index read", but no production path and no test reads it; only evidence.Session.State is consumed (actionableinventory.go:323,351). BR-22's guard proves every ResumeDiagnosticCode has a producer; the same surface needs the other end — a declared element of a closed surface is guarded at BOTH ends, or the unguarded end rots. Either give it the consumer its doc describes or drop the field.
+
+## Round 7 — 2026-09-17T13:57:04-07:00 (claude) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

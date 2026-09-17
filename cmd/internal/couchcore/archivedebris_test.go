@@ -336,3 +336,80 @@ func TestArchivingAHuskReportsTheRollback(t *testing.T) {
 		t.Fatalf("clearLifecycleDebris on a husk = %v, want ErrThreadRolledBack", err)
 	}
 }
+
+// TestClearingDebrisResumesSafelyAfterACrashBetweenItsWrites pins the claim
+// lifecycledebris.go makes in a comment and nothing checked: "Independent
+// writes, not one transaction. Each is independently correct ... so a crash
+// between them leaves a record the next attempt repeats safely."
+//
+// That is a partial-progress path, which ARCH-ORDER says is exactly the kind of
+// claim that ships with a sample size of zero. The store's AfterJournal seam can
+// fail the run between AbandonPark and RetireIncarnation, so the interleaving is
+// reproducible rather than argued.
+func TestClearingDebrisResumesSafelyAfterACrashBetweenItsWrites(t *testing.T) {
+	_, ns := newTestThreadStore(t)
+	writes := 0
+	crashing := newThreadStoreWithHooks(ns, threadStoreHooks{
+		AfterTarget: func(int) error {
+			writes++
+			// Let CreateThread and the metadata write through, let AbandonPark
+			// commit, then die before the incarnation is retired.
+			if writes == 4 {
+				return errInjectedStoreCrash
+			}
+			return nil
+		},
+	})
+
+	record := actionableTestThread("couch-00000000000000d8", time.Unix(100, 0).UTC())
+	record.StartingPath, record.WorkingPath = ns.Dir(), ns.Dir()
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{
+		PID: 64734, Identity: "1789535173.46673", State: IncarnationLive,
+	}}
+	record.Park = wedgedParkFixture(record.Address)
+	created, err := crashing.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	label := "brain"
+	if created, err = crashing.ApplyThreadMetadata(created.Address, created.Revision, ThreadMetadataPatch{Name: &label}); err != nil {
+		t.Fatal(err)
+	}
+
+	crashed := &Couch{Threads: crashing, Proc: NewFakeProcOps()}
+	if _, err := crashed.clearLifecycleDebris(created); err == nil {
+		t.Fatal("the injected crash did not stop the second write")
+	}
+
+	// The park is gone and the incarnation is not: a genuinely partial record.
+	partial, err := crashing.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if partial.Park != nil {
+		t.Fatalf("the crash landed before AbandonPark (%d writes); this seam no longer splits the two, so the partial-progress path is unexercised", writes)
+	}
+	if len(partial.Incarnations) != 1 {
+		t.Fatalf("expected a half-cleared record, got %+v", partial.Incarnations)
+	}
+
+	// The next attempt, on a store that is not crashing, must finish the job
+	// rather than refuse what the first attempt already did.
+	restarted := NewThreadStore(ns)
+	if err := restarted.RecoverStoreJournal(); err != nil {
+		t.Fatal(err)
+	}
+	current, err := restarted.GetThread(created.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	retried := &Couch{Threads: restarted, Proc: NewFakeProcOps()}
+	cleared, err := retried.clearLifecycleDebris(current)
+	if err != nil {
+		t.Fatalf("the retry refused a record its own earlier attempt half-cleared: %v", err)
+	}
+	if cleared == nil || len(cleared.Incarnations) != 0 || cleared.Park != nil {
+		t.Fatalf("retry left debris: %+v", cleared)
+	}
+}
