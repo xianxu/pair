@@ -860,6 +860,31 @@ of two sessions: the detached proof and its re-proof. `pair resume`'s launcher
 and couch's registration poll read liveness only (`SessionLive`). See
 `cmd/probes/reattachcost` for before and after.
 
+**A cold resume's registration waits for the pane's birth first (`pair#287`).**
+A cold resume starts a new zellij server, and zellij 0.45.1 panics when a
+connection it accepted before the first client initialized the session closes.
+The liveness poll is a `list-sessions` every 10 ms, which connects to every
+socket, and under it every cold launch died
+(`probes/zellijbirthrace -hammer 10ms`: 10/10).
+
+- **The baseline.** While the helper is still blocked, and so before Pair can
+  have touched anything, `launchTrackedThread` snapshots the thread's agent
+  pane sidecars (`PaneBirthIO.PaneSidecars`, a `PaneMarks` of path → mtime).
+- **The wait.** `awaitResumeRegistration` makes no session probe until
+  `PaneMarks.BornIn` sees a sidecar appear or change. It compares equality
+  only, so no clock is involved. Neither the launcher clearing the sidecar
+  nor a stale twin left by another agent counts as a birth.
+- **What skips it.** A warm reattach takes no baseline: its pane was born
+  long ago. A spawn and a fresh start already wait on in-session evidence
+  (the claim, the ready record).
+- **The fake.** It models the pane: a session going live has its pane
+  written, and the test env's Pair model (`FakeRunner.OnRelease`) births the
+  pane of a released launch whose session is up.
+
+Couch's menu refresh after a start completes stays a machine-wide
+`list-sessions`. So do other threads' pollers. That residual risk has no
+cure short of upstream zellij.
+
 Where that lands differs by caller, and both matter:
 
 - **Switcher refresh: not blocking.** Refreshes are event-driven and run on the

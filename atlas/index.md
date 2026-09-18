@@ -47,7 +47,10 @@
   first probe landed in the wrong home and was then hand-added to two lists to
   compensate — the exact remembering `test-smoke` exists to abolish.
 
-  **A third kind: the operator-driven instrument** (`probes/zellijcalls`, `#215`).
+  **A third kind: the operator-driven instrument** (`probes/zellijcalls`, `#215`;
+  also `probes/zellijbirthrace`, `#287`, which counts new sessions that die at
+  birth and so must not run unattended: its modes kill zellij servers and start
+  real Pair sessions).
   It measures a workload only a human can start — a real couch thread — so it
   takes a verb (`arm` / `report` / `disarm` / `overhead`) and needs an
   interactive shell whose `PATH` it modifies. It cannot be auto-run, so neither

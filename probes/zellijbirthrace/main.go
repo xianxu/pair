@@ -74,8 +74,14 @@ func main() { os.Exit(run(os.Args[1:])) }
 
 func run(args []string) int {
 	if len(args) == 0 {
-		fmt.Fprintln(os.Stderr, "usage: zellijbirthrace poke|launch [flags]")
-		return 2
+		// `make test-smoke` runs every probe with no arguments. This one is an
+		// operator's instrument: poke deliberately kills zellij servers and
+		// launch starts real Pair sessions, neither fit for an unattended loop.
+		// So a bare run says what it is and succeeds -- safe by construction,
+		// like probes/zellijcalls. SKILL.md is the runbook.
+		fmt.Println("zellijbirthrace: an operator-driven instrument (pair#287); see probes/zellijbirthrace/SKILL.md")
+		fmt.Println("usage: zellijbirthrace poke|launch [flags]   (sandbox off)")
+		return 0
 	}
 	switch args[0] {
 	case "poke":

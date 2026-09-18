@@ -19,6 +19,10 @@ go build -o "$SCRATCH/birthrace" ./probes/zellijbirthrace
 "$SCRATCH/birthrace" launch -n 10 -hammer 10ms          # ...under a list-sessions loop
 ```
 
+With no arguments it only describes itself and exits 0. That keeps `make
+test-smoke`, which runs every probe bare, from killing zellij servers or
+starting sessions. It is an instrument, and this file is its runbook.
+
 Run it with the **harness sandbox off**. zellij's sockets and log live under
 the real `$TMPDIR` (the sandboxed shell's `$TMPDIR` differs), and ptys are
 refused inside the sandbox.
@@ -77,7 +81,15 @@ the same machine during a trial would be counted against it.
 | — | `poke -n 5` | 3/5 |
 | main before #287 | `launch -n 10` | 4/10 |
 | main before #287 | `launch -n 10 -hammer 10ms` | 10/10 |
+| #287 | `launch -n 20` | 0/20 |
+| #287 | `launch -n 10 -hammer 10ms` | 9/10 |
 
-The last row is Couch's cold-resume registration poll: every cold resume
-under it dies. #287 gates both the title poller and that poll on the pane's
-birth.
+The third row is what Couch's cold-resume registration poll did: every cold
+resume under it died. #287 gates both the title poller and that poll on the
+pane's birth, so Pair's own launch path no longer probes during a birth
+(0/20).
+
+An *external* prober still kills new sessions (last row). That is the
+residual risk: any machine-wide `list-sessions`, such as another thread's
+60 s poller or Couch's menu refresh, can land in a new server's window. At
+their cadence the odds are low, and only upstream zellij can cure it.

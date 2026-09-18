@@ -1,5 +1,29 @@
 # Lessons
 
+## A readiness poll must not be able to kill what it waits for (#287)
+
+Pair's title poller and Couch's cold-resume registration waited for a new
+zellij session by running `list-sessions`. That command connects to every
+session socket, and zellij 0.45.1 panics when a connection it accepted before
+the first client initialized the session closes. So the observer killed the
+birth it was watching: 4 in 10 cold launches died, and every one under Couch's
+10 ms poll. Nobody saw it for three days, because every unit test used a fake
+that cannot die of being asked.
+
+The rule: before a waiter makes its first call to a component that is still
+starting, it must hold evidence the component produced itself, from inside.
+Here that evidence is the agent pane's sidecar, written only after the
+session is up. Make the evidence fresh by construction:
+- The starter clears it before launching (the same pattern as
+  `RemoveReadyRecord`).
+- A waiter that runs before that clear takes a baseline while the launch is
+  still blocked, and compares by equality, never by clock.
+
+Pin it with a probe that counts deaths against the real component, before and
+after the fix. When a new wait makes older tests hang because they described
+an impossible world (a session live before its launch ran), fix the fake's
+model of the world, not the tests. ARCH-ORDER / ARCH-MOCK.
+
 ## Trace every gate before a doc states what a key does (#282)
 
 Help text for Pair's Alt+n claimed an adopted Couch thread would "reload pair",
