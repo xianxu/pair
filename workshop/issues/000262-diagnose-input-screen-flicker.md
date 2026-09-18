@@ -983,3 +983,12 @@ prose.
 
 **Atlas:** `atlas/terminal.md` records the emit bracket and its end-to-end pairing
 with ingest-side sync.
+
+**Full suite, 2026-09-17.** `make -k test`, with the five-variable retention
+scrub and the sandbox off, had one failure: `test-changelog`, the known
+pre-existing failure (`viewer: process target is outside selected owner
+directory`; see memory, reproduced on `origin/main` during #256). Everything else
+passed. Because a prerequisite failed, make skipped the `test` target's own
+`go test ./...` recipe, so the Go suite was run directly:
+`go test ./... -count=1` with the same scrub. It exited 0, with 71 packages ok.
+`make build` rebuilt `bin/pair` and `bin/couch` from this branch for the smoke.
