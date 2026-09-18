@@ -128,3 +128,47 @@ additional information about that thread, not a replacement for it.
   thread `live` while the switcher reports `continuation failed`. Two operator
   surfaces, same store, different answers — #278 is already making `--list` the
   diagnostic view, and this is a second reason the two renderings need one rule.
+
+### 2026-09-17 — claimed; a second, stronger symptom: the same request blocks relaunch
+
+The operator could not relaunch this very `pair` thread (Alt+n). The refusal
+comes from `continuationGuard` (`couchcore/continuation.go:366-371`), which
+refuses whenever the retained request is not `Complete`: *"continuation … is
+failed; use Retry continuation in Couch, or `couch --internal
+retry-continuation …`"*. That guard gates relaunch (`relaunch.go:90`), cold
+resume (`resume.go:453`), switch-agent (`switchagent.go:128`) and every non-warm
+start claim (`threadstore.go:500-503`).
+
+The record, read directly (`threadstore/records/e108517d46ab4575/couch-c945633f5c806f21.json`):
+the request's phase is `failed`, created 16:00:58, with failure *"continuation
+delivery cancelled: operator input interrupted automatic orientation; inspect
+the existing target before retrying"*. The replacement agent DID start (target
+pid 87027, launch ordinal 7). The operator typed into it before orientation
+finished and has worked in the thread since. So retrying would push a
+five-hour-stale handoff into a live conversation. Retry is the ONLY exit the state
+machine has from `Failed` (`checkpoint/request.go`: `RetryAbsent` and
+`RetryObserve`; no dismiss, abandon or superseded event).
+
+**The class is wider than the row text.** A retained `Failed` request REPLACES
+the thread in three places instead of composing with it:
+
+1. **State text:** `rootStateText` returns before consulting `thread.State`
+   (`menu_render.go:414-423`), as filed.
+2. **Action set:** `menuActionItems` returns ONLY `retry-continuation`, `name`
+   and `describe` for a non-unusable row (`menu.go:1228-1232`). A live thread
+   loses detach, relaunch, park and switch-agent in the switcher.
+3. **Lifecycle admission:** `continuationGuard`, above.
+
+(3) is #249's deliberate fail-closed rule (*"Failed requests retain that
+snapshot and require explicit retry"*). It is right to require an explicit
+decision; it is wrong that retry is the only decision on offer. The missing
+dismissal this issue's Spec already asks for is therefore not just cosmetic:
+it is what makes the thread relaunchable again without a stale re-delivery.
+
+**A DRY finding under all three:** about a dozen production sites spell "this
+request still constrains the thread" as an inline `Phase != checkpoint.Complete`
+(`continuation_recovery.go:14`, `recovery_execute.go:177,263,304`,
+`continuation.go:187,367`, `continuation_store.go:22`, `threadstore.go:500`,
+`detach.go:432`, `console_continuation.go:115,215`, `menu.go:1212,1228`). A new
+terminal phase added site by site would leave the next one to find the same
+trap. The terminal set belongs in `checkpoint`, as one predicate.
