@@ -7,6 +7,7 @@ created: 2026-09-18
 updated: 2026-09-18
 estimate_hours:
 started: 2026-09-18T13:38:02-07:00
+flow: {kind: quick, provenance: inferred, spec: "ec74e4b5", done: "78beb9e3"}
 ---
 
 # New sessions die at birth: title poller probes zellij during server startup
