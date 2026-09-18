@@ -365,9 +365,69 @@ func (c *Couch) ownsContinuationHelper(address ThreadAddress, inc ThreadIncarnat
 }
 func continuationGuard(record ThreadRecord) error {
 	if r := record.Continuation; r != nil && r.Phase != checkpoint.Complete {
-		return fmt.Errorf("continuation %s is %s; use Retry continuation in Couch, or `couch --internal retry-continuation %s` after Couch exits", r.ID, r.Phase, record.Address.Tag)
+		return fmt.Errorf("continuation %s is %s; %s", r.ID, r.Phase, continuationExitsFor(r.Phase, record.Address.Tag))
 	}
 	return nil
+}
+
+// continuationExits names what an operator can do about an unfinished request.
+// A FAILED one has two exits, and every refusal must offer both: when retry was
+// the only one named, a thread whose failed handoff the operator had already
+// taken over could never be relaunched without re-delivering it (#280).
+func continuationExits(phase checkpoint.Phase) string {
+	if phase == checkpoint.Failed {
+		return "retry it (re-deliver) or dismiss it (drop it)"
+	}
+	return "wait for it or retry it"
+}
+
+func continuationExitsFor(phase checkpoint.Phase, tag ThreadTag) string {
+	if phase == checkpoint.Failed {
+		return fmt.Sprintf("in Couch, Retry continuation re-delivers it and Dismiss continuation drops it; after Couch exits, `couch --internal retry-continuation %s` or `couch --internal dismiss-continuation %s`", tag, tag)
+	}
+	return fmt.Sprintf("use Retry continuation in Couch, or `couch --internal retry-continuation %s` after Couch exits", tag)
+}
+
+// ContinuationRefuses is the single statement of continuationGuard's reach:
+// the operations it refuses while a thread retains an unfinished request --
+// relaunch (relaunch.go), switch-agent (switchagent.go), a cold resume
+// (resume.go) and every non-warm start claim (threadstore.go). Park and detach
+// never read the request. The switcher filters a failed row's actions through
+// this rather than restating the list, and a table test drives the operations
+// to prove the two agree (#280).
+func ContinuationRefuses(operation string) bool {
+	switch operation {
+	case "relaunch", "switch-agent", "prepare-switch-agent", "resume", "start":
+		return true
+	}
+	return false
+}
+
+// DismissContinuation deletes the thread's retained FAILED continuation (#280).
+// The operator has decided the thread moved on -- typically by taking over the
+// target before automatic orientation finished -- so re-delivering the handoff
+// would be wrong. Couch's private checkpoint copy is left for the next publish
+// or archive to replace; the repository's checkpoint file is never touched.
+func (c *Couch) DismissContinuation(ctx context.Context, address ThreadAddress, id string) (ThreadRecord, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for tries := 0; tries < 8; tries++ {
+		if err := ctx.Err(); err != nil {
+			return ThreadRecord{}, err
+		}
+		r, err := c.requestRecord(address, id)
+		if err != nil {
+			return r, err
+		}
+		next, err := c.Threads.DismissFailedContinuation(address, r.Revision, r.Continuation.ID)
+		var stale *ThreadRevisionError
+		if errors.As(err, &stale) {
+			continue
+		}
+		return next, err
+	}
+	return ThreadRecord{}, errors.New("continuation dismissal raced with thread updates")
 }
 
 func continuationSourceParked(record ThreadRecord) bool {

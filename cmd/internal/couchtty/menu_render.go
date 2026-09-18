@@ -411,6 +411,14 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 // unusable ones no way to appear at all. Every state and every reason has a
 // label, and the guard that keeps it that way iterates the vocabulary rather
 // than listing cases here (Go has no exhaustive-switch check).
+//
+// A retained continuation is information ABOUT the thread, not a replacement
+// for it (#280). A failed request composes with the state -- the operator's
+// live thread read "continuation failed" for hours while they typed into it.
+// Pending and running still displace the state, on purpose: they are in
+// flight and bounded (running fails at the 30s submission deadline, pending is
+// taken by the owner's next scan), so for those seconds the operation IS the
+// thread's state.
 func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
 	if request := thread.Continuation; request != nil {
 		switch request.Phase {
@@ -419,9 +427,13 @@ func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) stri
 		case checkpoint.Running:
 			return "continuing…"
 		case checkpoint.Failed:
-			return "continuation failed — retry available"
+			return threadStateText(thread, now) + " · continuation failed"
 		}
 	}
+	return threadStateText(thread, now)
+}
+
+func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
 	switch thread.State {
 	case couchcore.ThreadLive:
 		return "live"

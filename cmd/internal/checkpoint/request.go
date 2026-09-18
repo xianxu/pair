@@ -198,6 +198,10 @@ type Event struct {
 	TargetGeneration *TargetGeneration
 }
 
+// Advance is the request's lifecycle. Failed leaves it only through retry
+// (RetryAbsent/RetryObserve) here; the other exit is couchcore's
+// ThreadStore.DismissFailedContinuation, which DELETES the request rather than
+// adding a phase, so strict decoders of an older binary still read the record.
 func Advance(r Request, e Event) (Request, error) {
 	if err := r.Validate(); err != nil {
 		return Request{}, err

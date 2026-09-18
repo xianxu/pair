@@ -55,6 +55,11 @@ func TestContinuationRetryBootstrapsTheOwner(t *testing.T) {
 	if operationOwnsLive("request-continuation") {
 		t.Fatal("writer request must not acquire a second owner")
 	}
+	// Dismissal is a record write: it takes the caller's repository scope and
+	// never the supervisor lease or a Console, so it works while Couch runs (#280).
+	if operationOwnsLive("dismiss-continuation") || WantsConsole("dismiss-continuation", true) || !operationUsesCurrentRepoScope("dismiss-continuation") {
+		t.Fatal("dismissal must be a scoped record write, not an owner operation")
+	}
 }
 
 func TestContinuationNonConsoleResultWaitsForOwnedChild(t *testing.T) {

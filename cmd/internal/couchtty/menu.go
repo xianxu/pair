@@ -1208,6 +1208,11 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 // turned the mistake it was meant to catch into an item silently vanishing from
 // the switcher. A guard must be able to fail, and production must not coerce its
 // input into agreement. The test reads this function and compares.
+// menuLiveActions is a live row's action set. Detach first: it is the safe,
+// everyday gesture -- the agent keeps running and only the client goes. Park is
+// destructive and sits behind it, in the position the operator has to travel to.
+var menuLiveActions = []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
+
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 	if recovery := thread.Recovery; recovery != nil && (thread.State == couchcore.ThreadUnusable || (thread.Continuation != nil && thread.Continuation.Phase != checkpoint.Complete)) {
 		items := []string{}
@@ -1216,6 +1221,9 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		}
 		if request := thread.Continuation; request != nil && (request.Phase == checkpoint.Failed || request.Phase == checkpoint.Running) {
 			items = append(items, "retry-continuation")
+			if request.Phase == checkpoint.Failed {
+				items = append(items, "dismiss-continuation")
+			}
 		}
 		if recovery.FromCheckpoint {
 			items = append(items, "recover-checkpoint")
@@ -1226,7 +1234,30 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		return append(items, "name", "describe")
 	}
 	if request := thread.Continuation; request != nil && request.Phase != checkpoint.Complete {
-		if request.Phase == checkpoint.Failed || request.Phase == checkpoint.Running {
+		switch {
+		case request.Phase == checkpoint.Failed && thread.Live():
+			// A failed request COMPOSES with a live thread's actions (#280): it
+			// used to replace them, so the one thread the operator was typing into
+			// lost detach and park. Only what continuationGuard refuses goes, and
+			// that list is couchcore's, not restated here. Live rows only: other
+			// states have their own admissions reading the request (archive's
+			// archiveContinuationVacant, a warm reattach's validateContinuationWarm).
+			items := []string{}
+			for _, op := range menuLiveActions {
+				if couchcore.ContinuationRefuses(op) {
+					continue
+				}
+				items = append(items, op)
+				if op == "detach" {
+					items = append(items, "retry-continuation", "dismiss-continuation")
+				}
+			}
+			return items
+		case request.Phase == checkpoint.Failed:
+			return []string{"retry-continuation", "dismiss-continuation", "name", "describe"}
+		case request.Phase == checkpoint.Running:
+			// In flight, and bounded by the 30s submission deadline: displacing
+			// the actions for those seconds is honest (#280, see rootStateText).
 			return []string{"retry-continuation", "name", "describe"}
 		}
 		return []string{"name", "describe"}
@@ -1258,10 +1289,7 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		return []string{"archive", "name", "describe"}
 	}
 	if thread.Live() {
-		// Detach first: it is the safe, everyday gesture -- the agent keeps
-		// running and only the client goes. Park is destructive and sits
-		// behind it, in the position the operator has to travel to.
-		return []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
+		return append([]string(nil), menuLiveActions...)
 	}
 	// Archive is offered wherever couch is not hosting the thread, which is
 	// ArchivableState's rule stated a second time on purpose: the guard that
@@ -1660,7 +1688,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
-	case "park", "detach", "resume", "leave", "archive", "relaunch", "switch-agent", "retry-continuation", "recover-thread", "recover-checkpoint":
+	case "park", "detach", "resume", "leave", "archive", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "recover-thread", "recover-checkpoint":
 		state = restoreMenuPrefixPreservingStart(state, 1, origin)
 		state.Frames[0].SelectedAddress = event.Address
 		reconcileRootSelection(&state, event.Address)
@@ -1694,7 +1722,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent", "retry-continuation", "continue-thread":
+	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false
@@ -1769,8 +1797,10 @@ func dispatchMenuOperation(state MenuState, effect MenuEffect, address couchcore
 	}
 	state.OperationSequence++
 	effect.Attempt = state.OperationSequence
-	if effect.Operation == "retry-continuation" {
-		effect.Args["ref"] = string(address.Tag)
+	if effect.Operation == "retry-continuation" || effect.Operation == "dismiss-continuation" {
+		// threadEffect already addresses the row by its exact tag. Adding `ref`
+		// as well is refused by resolveOperationThread, which is how the switcher's
+		// retry never reached its thread (#280).
 		if thread, ok := menuThread(state, address); ok && thread.Continuation != nil {
 			effect.Args["request-id"] = thread.Continuation.RequestID
 		}
@@ -1826,6 +1856,8 @@ func menuOperationProgressText(state MenuState, operation string, address couchc
 		return "restarting " + label + "'s pair…"
 	case "retry-continuation":
 		return "retrying continuation for " + label
+	case "dismiss-continuation":
+		return "dismissing continuation for " + label
 	case "recover-thread":
 		return "recovering " + label
 	case "recover-checkpoint":

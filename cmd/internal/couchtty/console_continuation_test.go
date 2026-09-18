@@ -14,6 +14,39 @@ import (
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
+// failedContinuationCouch is a Couch on a real temp-dir store whose one live
+// thread retains a FAILED continuation -- the shape the operator's pair thread
+// was left in when typing interrupted automatic orientation (#280).
+func failedContinuationCouch(t *testing.T) (*couchcore.Couch, couchcore.ThreadAddress, string) {
+	t.Helper()
+	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := couchcore.NewThreadStore(ns)
+	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	cp, err := checkpoint.New("/repo/workshop/continuation/handoff.md", "---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nContinue exact work.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := checkpoint.Request{
+		Version: checkpoint.Version, ID: checkpoint.RequestID(address.RepoScope, string(address.Tag), 2, cp.Digest), Checkpoint: cp,
+		Source:    checkpoint.Source{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 2, Helper: checkpoint.Process{PID: 41, Identity: "source-helper"}},
+		CreatedAt: time.Unix(1, 0).UTC(), Phase: checkpoint.Failed, Attempt: "start-0102",
+		Failure: "continuation delivery cancelled: operator input interrupted automatic orientation",
+	}
+	profile := couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
+	if _, err := store.CreateThread(couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), LastActiveAt: time.Unix(1, 0).UTC(),
+		Incarnations:        []couchcore.ThreadIncarnation{{PID: 42, Identity: "helper", State: couchcore.IncarnationLive, RepoIdentity: "/repo/.git", LaunchProfile: &profile}},
+		LatestLaunchProfile: &profile, Revision: 1, Continuation: &request,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return &couchcore.Couch{Threads: store}, address, request.ID
+}
+
 func TestContinuationFailedRowKeepsAnExplicitRetry(t *testing.T) {
 	address := menuAddress("failed")
 	row := couchcore.ActionableThreadSummary{Address: address, State: couchcore.ThreadUnusable,
@@ -21,18 +54,25 @@ func TestContinuationFailedRowKeepsAnExplicitRetry(t *testing.T) {
 	if !slices.Contains(menuActionItems(row), "retry-continuation") || slices.Contains(menuActionItems(row), "archive") {
 		t.Fatalf("failed continuation actions: %v", menuActionItems(row))
 	}
-	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, address)
-	_, effects := dispatchThreadOperation(state, "retry-continuation", address)
-	if len(effects) != 1 || effects[0].Args["request-id"] != "request" {
+
+	// The offered retry must reach RetryContinuation through the PRODUCTION
+	// dispatcher and live-owner executor, not a fake: the switcher once sent
+	// both `ref` and `tag`, which resolveOperationThread refuses outright, and a
+	// fake executor could never see it (#280).
+	c, live, requestID := failedContinuationCouch(t)
+	liveRow := couchcore.ActionableThreadSummary{Address: live, State: couchcore.ThreadLive,
+		Continuation: &couchcore.ContinuationStatus{Address: live, RequestID: requestID, Phase: checkpoint.Failed}}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{liveRow}, live)
+	_, effects := dispatchThreadOperation(state, "retry-continuation", live)
+	if len(effects) != 1 || effects[0].Args["request-id"] != requestID {
 		t.Fatalf("retry lost selected request: %v", effects)
 	}
-	called := false
-	_, err := couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: func(call couchcore.OperationCall) (any, error) {
-		called = true
-		return nil, nil
-	}}, couchcore.OperationCall{Name: effects[0].Operation, Args: effects[0].Args, Implicit: true})
-	if err != nil || !called {
-		t.Fatalf("offered retry cannot cross declared operation boundary: %v", err)
+	_, err := couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: couchcore.CouchLiveOwnerExecutor(c)},
+		couchcore.OperationCall{Name: effects[0].Operation, Args: effects[0].Args, Implicit: true})
+	// RetryContinuation's own first refusal on this Couch (no registration
+	// observer is wired) proves the call got past thread resolution.
+	if err == nil || err.Error() != "continuation target observer unavailable" {
+		t.Fatalf("offered retry did not reach RetryContinuation: %v", err)
 	}
 }
 

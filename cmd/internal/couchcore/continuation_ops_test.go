@@ -3,7 +3,7 @@ package couchcore
 import "testing"
 
 func TestContinuationOperationsDeclared(t *testing.T) {
-	for _, name := range []string{"request-continuation", "continue-thread", "retry-continuation", "continuation-status"} {
+	for _, name := range []string{"request-continuation", "continue-thread", "retry-continuation", "dismiss-continuation", "continuation-status"} {
 		op, ok := operationByName(name)
 		if !ok {
 			t.Fatalf("missing %s", name)
@@ -12,7 +12,7 @@ func TestContinuationOperationsDeclared(t *testing.T) {
 			t.Fatalf("%s must be internal", name)
 		}
 		want := ExecuteLiveOwner
-		if name == "request-continuation" {
+		if name == "request-continuation" || name == "dismiss-continuation" {
 			want = ExecuteDirectStore
 		}
 		if op.Execution != want {

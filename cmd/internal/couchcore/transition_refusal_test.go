@@ -102,6 +102,14 @@ func TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal(t *testing.T) {
 			},
 			want: "before publishing another",
 		},
+		"DismissFailedContinuation": {
+			shape: withPendingContinuation,
+			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {
+				_, err := s.DismissFailedContinuation(r.Address, r.Revision, r.Continuation.ID)
+				return err
+			},
+			want: "only a failed continuation can be dismissed",
+		},
 		"BeginContinuationFromRetiredIncarnations": {
 			shape: withStartClaim,
 			call: func(t *testing.T, s *ThreadStore, r ThreadRecord) error {

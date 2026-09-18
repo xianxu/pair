@@ -364,7 +364,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe", "park", "resume", "retry-continuation", "recover-thread", "recover-checkpoint", "archive":
+	case "show", "name", "describe", "park", "resume", "retry-continuation", "dismiss-continuation", "recover-thread", "recover-checkpoint", "archive":
 		return true
 	default:
 		return false
