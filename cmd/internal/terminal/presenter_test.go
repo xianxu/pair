@@ -862,3 +862,157 @@ func TestPresenterRefusalsWithoutADestinationAreClassifiable(t *testing.T) {
 		})
 	}
 }
+
+// recordingParent keeps each write's boundary, so a probe can learn how a frame
+// is split across writes and a sweep can cut any one of them.
+type recordingParent struct {
+	*ttyio.Fake
+	lengths []int
+}
+
+func (r *recordingParent) WriteContext(ctx context.Context, p []byte) (int, error) {
+	r.lengths = append(r.lengths, len(p))
+	return r.Fake.WriteContext(ctx, p)
+}
+
+// assertStreamBracketed checks the presenter's whole parent stream: frame bytes
+// (every frame preamble opens with the cursor hide) only ever inside a bracket,
+// never a nested open, and the stream never ENDS with synchronized output open.
+// A redundant close, such as release's, is harmless and allowed.
+func assertStreamBracketed(t *testing.T, label string, stream string) {
+	t.Helper()
+	open := false
+	for i := 0; i < len(stream); {
+		switch {
+		case strings.HasPrefix(stream[i:], syncBegin):
+			if open {
+				t.Fatalf("%s: nested bracket at %d: %q", label, i, stream)
+			}
+			open = true
+			i += len(syncBegin)
+		case strings.HasPrefix(stream[i:], syncEnd):
+			open = false
+			i += len(syncEnd)
+		case strings.HasPrefix(stream[i:], "\x1b[?25l"):
+			if !open {
+				t.Fatalf("%s: frame outside a bracket at %d: %q", label, i, stream)
+			}
+			i += len("\x1b[?25l")
+		default:
+			i++
+		}
+	}
+	if open {
+		t.Fatalf("%s: stream ends with synchronized output open (%d bytes)", label, len(stream))
+	}
+}
+
+func TestPresenterStreamIsBracketedAcrossPaintsAndRelease(t *testing.T) {
+	p, parent, e, _ := presenterFixture(t, ChildRequested)
+	selectPresenter(t, p, e)
+	e.Feed([]byte("hello"), time.Now())
+	if err := p.Present(context.Background(), e); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Release(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	stream := string(parent.Bytes())
+	if n := strings.Count(stream, syncBegin); n != 2 {
+		t.Fatalf("want the selection and the refresh as two frames, got %d: %q", n, stream)
+	}
+	assertStreamBracketed(t, "clean", stream)
+}
+
+// ARCH-ORDER: a paint can fail at any accepted prefix of any of its writes, and
+// release must never leave the parent inside a bracket. Three frame shapes cover
+// the write layouts: one frame write; an alt switch (syncBegin | ?1049h | body);
+// and a body spanning several 64 KiB chunks.
+func TestPresenterReleaseClosesSyncAfterAnyCutWrite(t *testing.T) {
+	small := func(alt bool) func(*testing.T) (*Endpoint, Geometry) {
+		return func(t *testing.T) (*Endpoint, Geometry) {
+			e, _ := newEndpointTest(t, "cut")
+			if alt {
+				e.Feed([]byte("\x1b[?1049hALT"), time.Time{})
+			} else {
+				e.Feed([]byte("PRIMARY"), time.Time{})
+			}
+			return e, Geometry{8, 4}
+		}
+	}
+	shapes := []struct {
+		name     string
+		endpoint func(*testing.T) (*Endpoint, Geometry)
+		every    bool // sweep every offset, or boundaries plus a stride
+	}{
+		{"single-write", small(false), true},
+		{"alt-switch", small(true), true},
+		{"multi-chunk", func(t *testing.T) (*Endpoint, Geometry) { return bigAltEndpoint(t, "cut"), Geometry{200, 100} }, false},
+	}
+	for _, shape := range shapes {
+		t.Run(shape.name, func(t *testing.T) {
+			e, host := shape.endpoint(t)
+			probe := &recordingParent{Fake: ttyio.NewFake()}
+			pp := NewPresenter(probe, ChildRequested)
+			if err := pp.Select(context.Background(), e, host, nil); err != nil {
+				t.Fatal(err)
+			}
+			frame := append([]int(nil), probe.lengths...)
+			_ = pp.Release(context.Background())
+			// An empty write never reaches the writer (writeComplete), so the
+			// first write of a first paint is the mode delta, not the frame.
+			if len(frame) < 2 || strings.HasPrefix(string(probe.Bytes()), syncBegin) {
+				t.Fatalf("probe must write the mode delta before the frame: %v", frame)
+			}
+			delta, frame := frame[0], frame[1:]
+			if shape.name != "single-write" && len(frame) < 3 {
+				t.Fatalf("shape must split its frame across writes, got %v", frame)
+			}
+			total := 0
+			boundaries := map[int]bool{}
+			for _, n := range frame {
+				boundaries[total] = true
+				total += n
+			}
+			var cuts []int
+			for c := 0; c < total; c++ {
+				near := false
+				for b := range boundaries {
+					if c >= b-2 && c <= b+2 {
+						near = true
+					}
+				}
+				if shape.every || near || c < 32 || c >= total-32 || c%4093 == 0 {
+					cuts = append(cuts, c)
+				}
+			}
+			for _, c := range cuts {
+				parent := ttyio.NewFake()
+				parent.Enqueue(ttyio.WriteStep{}) // mode delta lands whole
+				offset := 0
+				for _, n := range frame {
+					if c < offset+n {
+						k := c - offset
+						parent.Enqueue(ttyio.WriteStep{Limit: k, ZeroProgress: k == 0, Err: errors.New("cut")})
+						break
+					}
+					parent.Enqueue(ttyio.WriteStep{})
+					offset += n
+				}
+				p := NewPresenter(parent, ChildRequested)
+				if err := p.Select(context.Background(), e, host, nil); err == nil {
+					t.Fatalf("cut %d: the paint must fail", c)
+				}
+				_ = p.Release(context.Background())
+				stream := string(parent.Bytes())
+				if len(stream) < delta+c {
+					t.Fatalf("cut %d: parent accepted only %d bytes", c, len(stream))
+				}
+				assertStreamBracketed(t, fmt.Sprintf("cut %d of %d", c, total), stream)
+			}
+		})
+	}
+}

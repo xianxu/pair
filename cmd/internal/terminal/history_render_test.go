@@ -163,11 +163,11 @@ func TestHistoryEmitBracketsEveryFrame(t *testing.T) {
 	}
 }
 
-// bigAltPublication is an alt-screen frame whose serialization spans several
+// bigAltEndpoint holds an alt-screen frame whose serialization spans several
 // 64 KiB chunks: every cell carries its own SGR colour.
-func bigAltPublication(t *testing.T) Publication {
+func bigAltEndpoint(t *testing.T, id string) *Endpoint {
 	t.Helper()
-	e, err := NewEndpoint("big", Geometry{200, 100}, ttyio.NewFake())
+	e, err := NewEndpoint(id, Geometry{200, 100}, ttyio.NewFake())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,17 +180,16 @@ func bigAltPublication(t *testing.T) Publication {
 		}
 	}
 	e.Feed([]byte(b.String()), time.Time{})
-	pub, err := e.Publication(time.Time{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return pub
+	return e
 }
 
 // A frame larger than one chunk is still ONE bracket: opened by the first write,
 // closed by the last, never re-opened or closed in between.
 func TestHistoryEmitBracketSpansChunks(t *testing.T) {
-	pub := bigAltPublication(t)
+	pub, err := bigAltEndpoint(t, "big").Publication(time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	plan, err := RenderWithHistory(Frame{}, pub.Frame, pub.History, HistoryState{})
 	if err != nil {
 		t.Fatal(err)
