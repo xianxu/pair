@@ -1053,3 +1053,24 @@ only changed rows. The native zellij oracle shows the bracket leaves zellij's en
 state unchanged. Whether zellij *honours* 2026 from a pane stays unrecorded,
 which is harmless either way. The caret-blink question (M2's input) is
 unanswered.
+
+### 2026-09-17 — M2 input: caret blink, and a DECSCUSR fidelity finding
+
+**Operator:** *"in the reloaded brain thread, cursor is blinking."* An earlier
+"seems not blinking" came from a thread that had not been reloaded, or from nvim,
+whose default `guicursor` asks for a steady cursor. That is correct behaviour.
+So on a quiet screen, DECSCUSR re-issued inside every bracketed frame does not
+visibly break the blink. For M2 this points toward classifying the per-frame
+re-issue as harmless; it is not yet measured under sustained output.
+
+**Finding for M2: "terminal default" cursor style is not representable.** The
+vendored DECSCUSR handler maps both an absent parameter and `ESC[0 q` to `n = 1`,
+an explicit blinking block (`third_party/vt/handlers.go:848-855`). The endpoint
+then maps `Shape: int(cur.Style)+1` (`endpoint.go:228`), so `Frame.Cursor.Shape`
+is never 0, although `frame.go:15` documents *"0/default"*. Result: a child that
+never sets a style, or resets it with `ESC[0 q`, makes pair send `ESC[1 q` every
+frame. That OVERRIDES the parent terminal's configured default (Ghostty's
+`cursor-style`, `cursor-style-blink`). Before #255 the child's `ESC[0 q`, or its
+silence, reached the terminal as "default". Candidate M2 fix: carry "default"
+through (Shape 0), and emit `ESC[0 q` for it. Needs a vt-level distinction
+between "never set / reset" and an explicit block.
