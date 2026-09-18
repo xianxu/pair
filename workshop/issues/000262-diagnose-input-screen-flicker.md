@@ -5,7 +5,7 @@ deps: [pair#255]
 github_issue:
 created: 2026-09-15
 updated: 2026-09-17
-estimate_hours: 4.41
+estimate_hours: 2.45
 started: 2026-09-17T18:51:31-07:00
 ---
 
@@ -133,37 +133,39 @@ earlier `control.go:27` citation was wrong: that comment is true as written.)
 Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
 `baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
 source as stale, so the number is provisional. Covers the whole issue as re-cut
-(M1 + M2). Line by line:
+(M1 + M2), counting only work inside the measured window, which starts at the
+claim. Line by line:
 
-- issue-spec: this session's re-diagnosis and discussion.
-- scope-pivot: row diff → 2026.
-- smaller-go-module (M1): renderers and release.
-- smaller-go-module (M1): the cut-sweep harness over three frame shapes.
-- real-api-discovery: terminal and zellij behaviour through the native oracle.
-- atlas-docs (M1): the stale reserved-row prose sweep and `terminal.md`.
-- smaller-go-module (M2): classification and a possible conditional DECSCUSR.
-- atlas-docs (M2): the classification record.
+- issue-spec: the in-window re-diagnosis, discussion and plan. The pre-claim
+  diagnosis is sunk.
+- smaller-go-module ×2 (M1): renderers and release; the cut-sweep harness. ×0.2
+  design, since the plan pre-resolves them.
+- real-api-discovery: the native zellij oracle.
+- atlas-docs (M1): the stale-prose sweep. ×0.2, since the plan lists the sites.
+- smaller-go-module (M2): mostly classification, with one open decision
+  (DECSCUSR), so ×0.5 design.
+- atlas-docs (M2).
 - milestone-review ×2.
-- ux-rename-iteration: one operator smoke round.
+- real-api-discovery: the operator's Ghostty smoke, a conformance check.
 
-Design ×0.2 where the plan pre-resolves (M1 modules).
+Buffer +15%. The undiscounted design is in-window and small, and the M1 plan is
+thorough.
 
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
-item: issue-spec design=1.00 impl=0.08
-item: scope-pivot design=0.35 impl=0.14
+item: issue-spec design=0.50 impl=0.08
 item: smaller-go-module design=0.06 impl=0.14
 item: smaller-go-module design=0.06 impl=0.14
 item: real-api-discovery design=0.00 impl=0.18
-item: atlas-docs design=0.15 impl=0.06
-item: smaller-go-module design=0.30 impl=0.14
+item: atlas-docs design=0.03 impl=0.06
+item: smaller-go-module design=0.15 impl=0.14
 item: atlas-docs design=0.10 impl=0.04
 item: milestone-review design=0.10 impl=0.14
 item: milestone-review design=0.10 impl=0.14
-item: ux-rename-iteration design=0.50 impl=0.08
+item: real-api-discovery design=0.00 impl=0.12
 design-buffer: 0.15
-total: 4.41
+total: 2.45
 ```
 
 ## Revisions
@@ -280,6 +282,16 @@ child's 2026 hold (`syncState`), withholds publication, and recovers after a 150
 assumed brackets flow through pair; they do not, because the endpoint consumes
 them. Delta: the planned M3 is dropped, and the issue is M1 (emit bracket) + M2
 (classification).
+
+### 2026-09-17 — estimate revised 4.41 → 2.45 before any code
+
+The estimate-quality check (INFO) found about 1.35h of design booked for diagnosis
+that mostly happened before the claim anchor `sdlc actual` measures from. Of the
+two items that booked it, `issue-spec` and `scope-pivot`, the second
+double-counted the first. It also found the smoke booked as a UX iteration, M2
+priced as full design although it is mostly classification, and the M1 atlas item
+undiscounted. All four were corrected before implementation started, so the
+estimate prices only the measured window.
 
 ## Plan
 
