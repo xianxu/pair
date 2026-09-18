@@ -7,6 +7,7 @@ created: 2026-09-17
 updated: 2026-09-18
 estimate_hours:
 started: 2026-09-18T16:25:00-07:00
+flow: {kind: quick, provenance: inferred, spec: "df59b374", done: "1c64ca99"}
 ---
 
 # alt+d no longer detaches from the switcher
