@@ -115,7 +115,7 @@ one-line description can't carry.
 
 | Key | Scope | Action |
 |---|---|---|
-| **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. |
+| **Alt+h** | non-agent panes | Pop up the keybinding list in a floating pane (`q` or `Esc` to dismiss). Same content as `pair keys`. When Couch presents the thread, Couch's keys come first. |
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Return** | agent pane | Insert a newline in Claude, Codex, and Agy composers; Pair translates it to Muse's native Shift+Return. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
@@ -148,9 +148,9 @@ one-line description can't carry.
 | **Alt+Backspace** | nvim (normal/insert), at `+N` | Delete the current queued prompt. |
 | **Alt+Backspace** | agent pane | Delete to start of line — forwarded to the agent as Ctrl+U, matching its Cmd+Delete. |
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
-| **Alt+d** | non-agent panes | Detach from the current session (re-attach later via `pair`). |
+| **Alt+d** | non-agent panes | Detach from the current session (re-attach later via `pair`). Under Couch this detaches only the Zellij client; Couch's own detach is in the switcher. |
 | **Alt+x** | non-agent panes | Full quit — kill the session and everything in it. The agent's session id is saved, so it's resumable via `pair resume <tag>`; before discarding the scrollback pair offers to **park** it for a later `pair continue`. |
-| **Alt+n** (or **Ctrl+Alt+n**) | non-agent panes | Reload pair — re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. **For Couch relaunch, open the switcher and use Alt+n on the selected thread.** |
+| **Alt+n** (or **Ctrl+Alt+n**) | non-agent panes | Reload pair — re-launch with the same tag, agent, args, AND agent session. Ctrl+Alt+n is the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. **Under Couch, Pair's own Alt+n does not reload, and in a thread Couch presents but did not create it ends the thread; relaunch from the switcher's Alt+n instead.** |
 | **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
@@ -375,10 +375,8 @@ Quitting part-way leaves the rest detached for next time. Only a bare start
 does this, and it never resumes a parked thread.
 
 Resume does not allocate a temporary actor first or add a full native inventory
-scan. Alt+d is intercepted by Couch as its own detach operation: un-intercepted
-it would leave Couch with a dead child and a stale incarnation, and the thread
-would vanish from the switcher. Detaching an actor moves focus to the switcher,
-which is also what keeps Couch alive when the last actor detaches.
+scan. While a Pair pane is displayed, Alt+d reaches Pair, which detaches only
+its Zellij client; Couch's own detach is the switcher's Alt+d (#245).
 Messages on the reserved status row retire themselves: a momentary refusal
 ("previous: nowhere to return to") goes after about twelve seconds, while an
 actor's exit stands until something replaces it -- one answers the keystroke you
@@ -436,7 +434,9 @@ does not jump. On unsupported terminals it remains indistinguishable from plain
 `Return`, which Couch forwards unchanged. Use `Ctrl-Space` then `Return` to reach
 the notification there. While displaying an actor, Couch forwards every other
 keyboard chord to the focused Pair pane. The agent reserves only the three
-terminal-tab chords described above; paste content stays literal.
+terminal-tab chords described above; paste content stays literal. That includes
+`Alt+h`: in the draft it opens Pair's help, which lists Couch's keys first when
+Couch presents the thread, and the agent pane still receives it.
 
 `Ctrl-Space` means one thing: **open the switcher**, from any actor, focused on
 the actor with the most recent notification (or on the thread you are leaving
@@ -493,8 +493,9 @@ inside an attached Pair session are unaffected.
 
 In the switcher, `Alt+n` (or `Ctrl+Alt+n`) **relaunches the highlighted thread**:
 a new Pair process runs the current binary and resumes the agent conversation.
-This is how to pick up a rebuilt Pair. The existing Pair reload in draft/right
-panes re-enters its process loop; it does not replace Couch's helper. Leaving
+This is how to pick up a rebuilt Pair. Pair's own Alt+n in a draft or right pane
+does not reload a Couch thread: `pair restart` refuses in a thread Couch
+launched, and Couch's client refuses the restart marker. Leaving
 never depends on there being something live to act on, so an empty switcher is
 never a dead end. `Tab → archive` removes a thread from couch and keeps its record: it is the
 operator's delete, offered when ownership can be reconciled, and undone by
