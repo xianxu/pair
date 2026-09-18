@@ -158,3 +158,65 @@ down?" is the whole question, and a panicked server has already answered yes.
 **Dependency note:** claim 3 is only reachable once the liveness witness stops
 asserting `live` from the launcher pid (`pair#272`); until then the archive
 guard sees a live thread and refuses regardless of what park recorded.
+
+### 2026-09-17 (later) — after a couch restart: two guards, opposite answers, no exit
+
+The operator restarted couch onto the post-M3 binary. The classification
+improved; the thread is still unreachable, and now demonstrably so.
+
+**The switcher row is right.** `astro` renders `session gone` while its
+neighbours render `live` — so `ThreadUnusable` + `ReasonSessionGone`
+(`couchcore/threadreason.go:103`). The phantom `live` is gone, which is what the
+restart plus M3 bought.
+
+**Enter on that row** notices:
+
+```
+error: astro: the session is gone; recover from a saved checkpoint or archive
+```
+
+`couchtty/menu.go:1183`, the `ReasonSessionGone` arm of `unusableThreadNotice`.
+Consistent with the row, and it names archive as the way out.
+
+**Archive, taken from that same row, refuses:**
+
+```
+threads > astro > archive
+error: archive couch-48340fd828040287: it is live -- couch is hosting its
+agent; detach or park it first
+```
+
+That string is `couchcore/detach.go:418` — the **`ThreadLive` arm** of
+`archiveRefusal`. Not the unusable arm, which would have said "its state is
+unresolved (session gone)". So archive classified the thread **live** at the
+same moment the switcher classified it **session gone**.
+
+Two findings, and the second outlives the first:
+
+1. **The two paths disagree.** `pair#256` M3's close claims "three action guards
+   read ONE authority… `ArchivableState` and `ResumableState` join
+   `SwitchableState` as pure predicates over the classification", with
+   `TestActionOfferedImpliesPermitted` comparing them against the switcher offer
+   across `AllThreadStates × AllThreadReasons`. The offer here was made *and*
+   refused, so either that equivalence has a hole or the two evaluations read
+   different observations — `classifyForAction` re-observes, the row came from
+   the menu snapshot. Which one is the first thing to measure.
+2. **Even agreement would not fix it.** `archiveRefusal`'s arms are `live`,
+   `busy` and `unusable/unknown` — so `ThreadUnusable/ReasonSessionGone` is
+   *also* a refusal, with "nothing is known well enough to stop it, so retry".
+   Agreeing on `session gone` would only change the wording of the no. **A
+   thread whose session is proved gone is the most archivable state there is**;
+   "session gone" should be archive's permission, not its refusal. M3 fixed the
+   neighbouring case — "an `unknown` incarnation could never be archived at
+   all" — and this one sits next to it.
+
+**The operator is in a closed loop with no exit:** archive says detach or park
+first; Enter says recover or archive; and alt+d is dead in the switcher
+(`pair#279`), so the remedy archive names cannot be reached from where the
+operator is standing. This is the concrete failing case for the requirement
+recorded above — a failed/absent session must not produce a thread that refuses
+every gesture couch offers.
+
+The `pair` row in the same screenshot reads `continuation failed — retry
+available`, which is `pair#249`'s retained-failure surface working exactly as
+intended. That is the shape this wants: a failure that stays actionable.
