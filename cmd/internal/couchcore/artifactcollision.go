@@ -244,8 +244,11 @@ func (c ScopedThreadArtifactCollisionChecker) PairSessionContext(ctx context.Con
 // PaneSidecars observes the thread's agent pane sidecars in its own scope
 // directory, the directory PairSessionContext reads the session index from.
 // It uses a glob and a stat and asks zellij nothing, which is the point: it is
-// what a cold resume watches before its first zellij call (#287). A tag that
-// merely shares a prefix is filtered out by AgentFromPane. A sidecar that
+// what a cold resume watches before its first zellij call (#287).
+// AgentFromPane keeps only this scope's pane files. It does NOT separate tags
+// that share a prefix: with tags `work` and `work-2` in one scope,
+// `pane-work-2-claude.json` reads as tag `work`, agent `2-claude`. Couch's
+// fixed-shape `couch-<hex>` tags never collide that way. A sidecar that
 // vanishes between the glob and the stat has been cleared, so it is left out,
 // not reported as an error.
 func (c ScopedThreadArtifactCollisionChecker) PaneSidecars(address ThreadAddress) (PaneMarks, error) {

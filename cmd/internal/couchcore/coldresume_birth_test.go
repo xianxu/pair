@@ -103,9 +103,16 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
 	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	released := false
+	env.Runner.AfterAcknowledge = func(string) error {
+		released = true
+		return nil
+	}
 	var paneQueriesAtProbe []int
 	env.Artifacts.BeforePairSession = func(ThreadAddress) error {
-		paneQueriesAtProbe = append(paneQueriesAtProbe, env.Artifacts.PaneQueries())
+		if released { // the pre-release liveness check is not part of the wait
+			paneQueriesAtProbe = append(paneQueriesAtProbe, env.Artifacts.PaneQueries())
+		}
 		return nil
 	}
 
@@ -124,6 +131,91 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 		if at != waited {
 			t.Fatalf("a session probe ran at pane observation %d of %d, inside the birth wait", at, waited)
 		}
+	}
+}
+
+// A session that is live but ATTACHED fails the detached proof, so it reaches
+// the cold path. Pair refuses that resume (it isn't a create boundary) and no
+// pane is ever written. Waiting for one would run out the registration
+// deadline, and the cold-resume cleanup owns the session: it would delete a
+// live agent. So a session that is live before the helper is released means
+// no birth is coming, and there is nothing to wait for (#287 close review).
+func TestColdResumeAgainstALiveSessionNeitherWaitsNorDeletesIt(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Couch.resumeRegistrationTimeout = 150 * time.Millisecond
+	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+	address := parked.Address
+	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true) // live, not detached
+
+	if _, _, err := env.Couch.Resume(address); err != nil {
+		t.Fatalf("Resume: %v", err)
+	}
+	if containsAddress(env.Artifacts.Quiesces(), address) {
+		t.Fatalf("a cold resume deleted the live session of %+v", address)
+	}
+	if n := env.Artifacts.PaneQueries(); n != 0 {
+		t.Fatalf("pane observations = %d; a live session has no birth to wait for", n)
+	}
+}
+
+// Whether the session is live decides whether a birth is coming, so a check
+// that cannot be answered fails the start before Pair is released. Guessing
+// "not live" means a wait that may time out into a deletion; guessing "live"
+// means probing during a birth.
+func TestColdResumeRefusesToReleasePairWhenLivenessIsUnknown(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+	env.Artifacts.SetNativeBinding(parked.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	env.Artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("zellij unreachable") }
+	released := false
+	env.Runner.AfterAcknowledge = func(string) error {
+		released = true
+		return nil
+	}
+
+	_, _, err := env.Couch.Resume(parked.Address)
+	if err == nil || !strings.Contains(err.Error(), "observe session before cold resume") {
+		t.Fatalf("Resume error = %v, want the liveness failure", err)
+	}
+	if released {
+		t.Fatalf("the helper was released without knowing whether a birth is coming")
+	}
+}
+
+// A failed observation mid-wait is "not yet": the wait goes on. Ending it would
+// fail registration, and the cleanup would then delete the session this launch
+// had just created.
+func TestColdResumeWaitsThroughAFailedPaneObservation(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "claude", Argv: []string{}})
+	address := parked.Address
+	env.Artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	released := false
+	env.Runner.AfterAcknowledge = func(string) error {
+		released = true
+		return nil
+	}
+	waits := 0
+	env.Artifacts.PaneSidecarsHook = func(ThreadAddress) error {
+		if !released {
+			return nil
+		}
+		waits++
+		switch waits {
+		case 1:
+			return errors.New("transient stat failure")
+		case 2:
+			env.Artifacts.SetPairSession(address, "pair-"+string(address.Tag), true) // up: pane born
+		}
+		return nil
+	}
+
+	if _, _, err := env.Couch.Resume(address); err != nil {
+		t.Fatalf("Resume after a transient observation failure: %v", err)
+	}
+	if containsAddress(env.Artifacts.Quiesces(), address) {
+		t.Fatalf("the session this launch created was quiesced")
 	}
 }
 

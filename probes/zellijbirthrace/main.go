@@ -250,6 +250,7 @@ type launchFlags struct {
 	timeout time.Duration
 	logPath string
 	report  string
+	parent  int // the launch parent's pid; the child stops when it is gone
 }
 
 func parseLaunchFlags(mode string, args []string) (launchFlags, error) {
@@ -261,6 +262,7 @@ func parseLaunchFlags(mode string, args []string) (launchFlags, error) {
 	fs.DurationVar(&lf.timeout, "timeout", 15*time.Second, "per-trial wait for birth or death")
 	fs.StringVar(&lf.logPath, "zellij-log", filepath.Join(zellijTmp(), "zellij-log", "zellij.log"), "zellij log")
 	fs.StringVar(&lf.report, "report", "", "(child) where to write the report")
+	fs.IntVar(&lf.parent, "parent", 0, "(child) the parent's pid")
 	err := fs.Parse(args)
 	return lf, err
 }
@@ -269,6 +271,7 @@ func (lf launchFlags) argv() []string {
 	return []string{
 		"-n", fmt.Sprint(lf.n), "-pair", lf.pair, "-hammer", lf.hammer.String(),
 		"-timeout", lf.timeout.String(), "-zellij-log", lf.logPath, "-report", lf.report,
+		"-parent", fmt.Sprint(lf.parent),
 	}
 }
 
@@ -297,6 +300,7 @@ func runLaunchParent(args []string) int {
 	}
 	defer os.RemoveAll(dir)
 	lf.report = filepath.Join(dir, "report")
+	lf.parent = os.Getpid()
 	done := lf.report + ".done"
 
 	// `&` inside sh, and sh exits: the child's parent becomes launchd.
@@ -346,8 +350,20 @@ func runLaunchChild(args []string) int {
 	}
 	code := launchTrials(lf, report)
 	report.Close()
+	if !parentAlive(lf.parent) {
+		// Nobody is left to read the report, and the parent's deferred
+		// RemoveAll died with it, so the report dir is ours to remove.
+		_ = os.RemoveAll(filepath.Dir(lf.report))
+		return code
+	}
 	_ = os.WriteFile(lf.report+".done", []byte(fmt.Sprintln(code)), 0o600)
 	return code
+}
+
+// parentAlive reports whether the launch parent still runs. The child is
+// detached and reparented to launchd, so it cannot learn this from its ppid.
+func parentAlive(pid int) bool {
+	return pid > 0 && syscall.Kill(pid, 0) == nil
 }
 
 func launchTrials(lf launchFlags, out io.Writer) int {
@@ -381,6 +397,12 @@ func launchTrials(lf launchFlags, out io.Writer) int {
 
 	counts := map[string]int{}
 	for i := 0; i < lf.n; i++ {
+		if !parentAlive(lf.parent) {
+			// The parent was killed or gave up. Its budget is n trials, so
+			// running the rest would only start sessions nobody is counting.
+			fmt.Fprintf(out, "ABORTED after %d trials: the parent is gone\n", i)
+			break
+		}
 		tag := fmt.Sprintf("br%dt%dx", os.Getpid(), i)
 		t := launchTrial(lf, env, repo, xdg, tag)
 		counts[t.verdict]++

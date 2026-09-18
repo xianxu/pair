@@ -868,18 +868,29 @@ socket, and under it every cold launch died
 (`probes/zellijbirthrace -hammer 10ms`: 10/10).
 
 - **The baseline.** While the helper is still blocked, and so before Pair can
-  have touched anything, `launchTrackedThread` snapshots the thread's agent
+  have touched anything, `coldResumeBirthBaseline` asks once whether the
+  thread's session is already live. If not, it snapshots the thread's agent
   pane sidecars (`PaneBirthIO.PaneSidecars`, a `PaneMarks` of path → mtime).
+  - *Already live* means no birth is coming, so there is nothing to wait for.
+    A live but *attached* session fails the detached proof and reaches the
+    cold path, and Pair refuses that resume. Waiting there would run out the
+    deadline, and the cold-resume cleanup, which owns the session, would
+    delete a live agent (#287 close review).
+  - *Unobservable* fails the start before release.
 - **The wait.** `awaitResumeRegistration` makes no session probe until
   `PaneMarks.BornIn` sees a sidecar appear or change. It compares equality
   only, so no clock is involved. Neither the launcher clearing the sidecar
-  nor a stale twin left by another agent counts as a birth.
+  nor a stale twin left by another agent counts as a birth. A failed
+  observation mid-wait is "not yet": ending the wait would make the cleanup
+  delete the session this launch just created.
 - **What skips it.** A warm reattach takes no baseline: its pane was born
   long ago. A spawn and a fresh start already wait on in-session evidence
   (the claim, the ready record).
-- **The fake.** It models the pane: a session going live has its pane
-  written, and the test env's Pair model (`FakeRunner.OnRelease`) births the
-  pane of a released launch whose session is up.
+- **The fake.** It births a pane only on the edge a create launch produces:
+  the session coming up (`SetPairSession`'s live edge), or an explicit
+  `SetPaneSidecar`. A launch released against an already-live session writes
+  none. An earlier version invented a birth there, and that hid the
+  deletion path above.
 
 Couch's menu refresh after a start completes stays a machine-wide
 `list-sessions`. So do other threads' pollers. That residual risk has no

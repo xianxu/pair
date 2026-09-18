@@ -20,9 +20,18 @@ session is up. Make the evidence fresh by construction:
   still blocked, and compares by equality, never by clock.
 
 Pin it with a probe that counts deaths against the real component, before and
-after the fix. When a new wait makes older tests hang because they described
-an impossible world (a session live before its launch ran), fix the fake's
-model of the world, not the tests. ARCH-ORDER / ARCH-MOCK.
+after the fix. ARCH-ORDER / ARCH-MOCK.
+
+**When a new wait makes older tests hang, the hang is a finding before it is a
+fixture problem.** Seven Couch tests timed out because their cold-resumed
+session was live before the launch. I called that world impossible and taught
+the fake to invent a birth there. The close review found the world real: a
+live-but-attached session reaches the cold path, Pair refuses the resume, and
+the wait would time out into a cleanup that deletes the live session. Before
+changing a double to make tests pass, ask whether the state they describe is
+reachable in production, and what the new code does there. A fake may produce
+the signal the code waits for only on the path where the real dependency
+produces it.
 
 ## Trace every gate before a doc states what a key does (#282)
 

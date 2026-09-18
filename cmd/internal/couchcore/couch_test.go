@@ -195,29 +195,7 @@ func newTestEnv(t *testing.T, trees ...string) *testEnv {
 		t.Fatalf("New: %v", err)
 	}
 	c.postAckQuiesceTimeout = 5 * time.Millisecond
-	// Pair, as far as these tests need it: a released launch for a Couch thread
-	// whose session is up has had its pane born (#287).
-	r.OnRelease = func(_, env []string) {
-		if address, ok := couchThreadFromEnv(env); ok {
-			artifacts.PairLaunchReleased(address)
-		}
-	}
 	return &testEnv{Couch: c, Runner: r, Git: g, Proc: proc, Artifacts: artifacts, Dir: dir, Now: now}
-}
-
-// couchThreadFromEnv is the thread a Couch launch's environment names.
-func couchThreadFromEnv(env []string) (ThreadAddress, bool) {
-	var address ThreadAddress
-	for _, kv := range env {
-		name, value, _ := strings.Cut(kv, "=")
-		switch name {
-		case "COUCH_THREAD_SCOPE":
-			address.RepoScope = value
-		case "COUCH_THREAD_TAG":
-			address.Tag = ThreadTag(value)
-		}
-	}
-	return address, address.RepoScope != "" && address.Tag != ""
 }
 
 // spawn spawns and then marks the child live in FakeProcOps, which is what a

@@ -238,11 +238,17 @@ func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(_ context.Contex
 // SetPairSession declares the session the exact index binds address to, and
 // whether it is live.
 //
-// A session BECOMING live also has its pane write the sidecar. In the world
-// being modelled those are one event: zellij runs the layout's pane command
-// only after the first client initialized the session, and the pane writes the
-// sidecar first thing (#287). A fake that let a session come up with no pane
-// born would model a host that cannot exist.
+// A session COMING UP also has its pane write the sidecar. That is the edge a
+// create launch produces: zellij runs the layout's pane command once the first
+// client has initialized the session, and the pane writes the sidecar first
+// thing (#287). The two are collapsed into one event here. A test that needs
+// the gap between them sequences SetPaneSidecar itself.
+//
+// Nothing else births a pane. In particular, a launch released against a
+// session that is ALREADY live writes none: Pair refuses a cold resume that
+// isn't a create boundary. A fake that invented a birth there hid the path on
+// which a cold resume would have timed out and deleted a live session (#287
+// close review).
 func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddress, name string, present bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -250,18 +256,6 @@ func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddres
 		f.writePaneLocked(address, "agent")
 	}
 	f.pairSessions[address] = PairSessionBinding{Name: name, Present: present}
-}
-
-// PairLaunchReleased models a released Pair launch for address. If its session
-// is up, its pane has been born. A pane is born once the launch has run AND
-// the session is live, whichever came later. SetPairSession's live edge covers
-// the other order. Test environments call this from FakeRunner.OnRelease.
-func (f *FakeThreadArtifactCollisionChecker) PairLaunchReleased(address ThreadAddress) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.pairSessions[address].Present {
-		f.writePaneLocked(address, "agent")
-	}
 }
 
 // SetPaneSidecar makes address's pane for agent write its sidecar now, at a

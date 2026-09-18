@@ -114,7 +114,12 @@ func Run(opts Options, rt Runtime) int {
 	// spawning us, so "it exists" means THIS launch's pane ran; attach never
 	// clears, so a live session's pane passes on the first stat. After the gate,
 	// "session missing" reliably means the user ended the session.
-	panePath, err := paths.PaneChecked(opts.Agent)
+	//
+	// An unresolvable path exits silently, like every other give-up here: the
+	// poller's stdio is /dev/null. It is not reachable in practice, because
+	// the launcher resolves the same path from the same inputs before it
+	// spawns us, and refuses the launch if that fails.
+	panePath, err := BirthEvidence(opts.DataDir, opts.Tag, opts.Agent)
 	if err != nil || !awaitPaneBirth(rt, panePath, opts.StartupGrace) {
 		return 0
 	}
@@ -162,6 +167,19 @@ func Run(opts Options, rt Runtime) int {
 
 		rt.Sleep(opts.PollInterval)
 	}
+}
+
+// BirthEvidence is the file the birth gate waits for: this agent's pane
+// sidecar. It is the ONE declaration of that path. The launcher's create path
+// clears exactly this file before it spawns the poller (#287). If the two ever
+// named different files, the clear would miss and a stale sidecar would pass
+// the gate at once. That would silently restore the birth-window probe.
+func BirthEvidence(dataDir, tag, agent string) (string, error) {
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return "", err
+	}
+	return paths.PaneChecked(agent)
 }
 
 // paneBirthPoll is the birth gate's cadence: one stat per tick, so cheap, and

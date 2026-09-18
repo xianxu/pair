@@ -318,3 +318,33 @@ interface plus the scoped implementation), `artifactcollision_fake.go` and
       tolerate `session_data == None`). Show it to the operator. File it with
       `gh issue create -R zellij-org/zellij` only on their go-ahead, and
       record the link in `## Log`.
+
+## Revisions
+
+- **2026-09-18, close review (FIX-THEN-SHIP).** Deltas against the plan
+  above:
+  - **The already-live cold resume.** This row belongs in the Sweep table. A
+    session that is live but *attached* fails the detached proof, reaches the
+    cold path, and Pair refuses the resume, so no pane is born. The birth wait
+    would run out the deadline, and the cold-resume cleanup, which owns the
+    session, would delete it. `coldResumeBirthBaseline` now asks once, before
+    release, whether the session is live. If it is, there's no wait
+    (pre-#287 behavior); if liveness can't be observed, the start fails
+    before release.
+  - **Failed-observation policy.** The code now matches the ARCH-ORDER line
+    above. A failed stat or glob during Couch's wait is "not yet", and the
+    last error rides the deadline's error. (It used to end the wait, and the
+    cleanup would then quiesce a session this launch had just made.)
+  - **Fake surface.** `SetPaneSidecar(addr, agent)` has no mtime argument
+    (the fake's clock is a counter). `ClearPaneSidecar`, `PaneQueries` and
+    `PaneSidecarsHook` were added. A `FakeRunner.OnRelease` →
+    `PairLaunchReleased` model of Pair was added and then **removed**: it
+    birthed the pane of any released launch whose session was up, which the
+    host never does for a refused resume, and so it hid the deletion path. A
+    pane is born only on the session's live edge or explicitly.
+  - **Interface location.** `PaneBirthIO` is declared in `panebirth.go`;
+    only the scoped implementation lives in `artifactcollision.go`.
+  - **One path declaration.** `titlepoller.BirthEvidence(dataDir, tag,
+    agent)` is the file the gate waits for, and the launcher clears exactly
+    that path. The two can't name different files and quietly bring back the
+    stale-sidecar race.

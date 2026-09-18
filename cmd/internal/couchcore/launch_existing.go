@@ -138,18 +138,16 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 		return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
 	}
 	// A cold resume starts a new zellij server, so its registration must not
-	// ask zellij anything until the thread's pane has been born (#287). The
-	// baseline is taken HERE, while the helper is still blocked: Pair has not
-	// yet run, so it cannot have cleared or rewritten a sidecar, and whatever
-	// changes from here on is this launch's doing.
+	// ask zellij anything until the thread's pane has been born (#287).
+	// Everything here runs while the helper is still blocked: Pair has not yet
+	// run, so no birth of THIS thread can be in flight, and whatever changes
+	// from here on is this launch's doing.
 	var birth *PaneMarks
 	if shape == StartColdResume {
-		baseline, err := c.observePaneSidecars(thread.Address)
-		if err != nil {
-			return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h,
-				fmt.Errorf("observe pane sidecars %+v: %w", thread.Address, err))
+		var err error
+		if birth, err = c.coldResumeBirthBaseline(thread.Address); err != nil {
+			return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
 		}
-		birth = &baseline
 	}
 	if err := h.Acknowledge(); err != nil {
 		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
@@ -334,6 +332,39 @@ func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddre
 	}
 }
 
+// coldResumeBirthBaseline is what a cold resume's registration must wait for:
+// the thread's pane sidecars as they stand before the helper is released, or
+// nil when no birth is coming.
+//
+// No birth is coming when the thread's session is already live. A thread whose
+// session is live but ATTACHED fails the detached proof and so reaches the cold
+// path. Pair then refuses the resume (it is no create boundary), and no pane is
+// written. Waiting for one would run out the registration deadline, and the
+// cold-resume cleanup that follows owns the session, so it would DELETE the
+// live one: somebody's agent (#287 close review). Asking zellij now is safe,
+// because nothing of this thread is being born while the helper is blocked. A
+// session that cannot be observed fails the start here, before release: an
+// unanswered question must not become either a skipped wait or a destructive
+// timeout.
+func (c *Couch) coldResumeBirthBaseline(address ThreadAddress) (*PaneMarks, error) {
+	sessions, ok := c.Artifacts.(PairSessionIO)
+	if !ok {
+		return nil, errors.New("exact Pair session observer is unavailable")
+	}
+	binding, err := sessions.PairSession(address)
+	switch {
+	case err == nil && binding.Present:
+		return nil, nil
+	case err != nil && !errors.Is(err, ErrPairSessionBindingAbsent):
+		return nil, fmt.Errorf("observe session before cold resume %+v: %w", address, err)
+	}
+	baseline, err := c.observePaneSidecars(address)
+	if err != nil {
+		return nil, fmt.Errorf("observe pane sidecars %+v: %w", address, err)
+	}
+	return &baseline, nil
+}
+
 func (c *Couch) observePaneSidecars(address ThreadAddress) (PaneMarks, error) {
 	panes, ok := c.Artifacts.(PaneBirthIO)
 	if !ok {
@@ -343,22 +374,27 @@ func (c *Couch) observePaneSidecars(address ThreadAddress) (PaneMarks, error) {
 }
 
 // awaitPaneBirth polls the thread's pane sidecars, which costs a glob and a
-// stat and asks zellij nothing, until one has been born since baseline. A
-// failed observation ends the wait with its error; it is never read as birth.
+// stat and asks zellij nothing, until one has been born since baseline.
+//
+// A failed observation is "not yet", never birth. It also doesn't end the wait:
+// a transient stat error after a good create would otherwise fail registration,
+// and the cold-resume cleanup would then delete the session this launch just
+// made. The last error rides the deadline's error, for the diagnosis.
 func (c *Couch) awaitPaneBirth(ctx context.Context, address ThreadAddress, baseline PaneMarks) error {
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
+	var lastErr error
 	for {
 		now, err := c.observePaneSidecars(address)
-		if err != nil {
-			return err
-		}
-		if baseline.BornIn(now) {
+		if err == nil && baseline.BornIn(now) {
 			return nil
+		}
+		if err != nil {
+			lastErr = fmt.Errorf("observe pane sidecars: %w", err)
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return errors.Join(ctx.Err(), lastErr)
 		case <-ticker.C:
 		}
 	}
