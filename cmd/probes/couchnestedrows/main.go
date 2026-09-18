@@ -1,12 +1,16 @@
 // probes/couchnestedrows answers the one question pair#199 M3 could not close
 // by unit test or by a standalone smoke run: do TWO reserved rows compose?
 //
-// Under couch there are two, and they belong to different terminals:
+// Before #255 M3, under couch there were two, belonging to different terminals:
 //
-//	couch          reserves the HOST terminal's bottom row  (actor strip)
-//	  zellij       gets a pty one row shorter
-//	    pair term  reserves its PANE's bottom row            (tab strip)
-//	      shell    gets a pane one row shorter
+//	couch          reserved the HOST terminal's bottom row  (actor strip)
+//	  zellij       got a pty one row shorter
+//	    pair term  reserved its PANE's bottom row            (tab strip)
+//	      shell    got a pane one row shorter
+//
+// Since #255 M3 neither is a DECSTBM reservation: both strips are chrome rows
+// that terminal.Presenter composes into its frames. This probe therefore measures
+// the pre-#255 mechanism; whether it still answers a live question is pair#281.
 //
 // Each Reservation is computed from its own Host.Size(), so they SHOULD
 // compose. "Should" is the word that has already cost this milestone four
@@ -15,7 +19,7 @@
 //
 // Method. The probe is its own outer host: `couchnestedrows outer` reserves the
 // bottom row of the pty it was handed and runs zellij in the rest, exactly the
-// way couch does (the same hostty.Reservation, since #199 M1 made it shared).
+// way couch did before #255 M3 (hostty.Reservation, shared since #199 M1).
 // The parent feeds that pty into a REAL terminal emulator (charmbracelet/x/vt)
 // and then reads the screen. That is the instrument that matters: raw bytes
 // cannot answer a positional question, and this whole milestone's defects were
@@ -90,10 +94,10 @@ func run() int {
 // runOuter is couch's half: reserve the bottom row of the terminal we were
 // handed, run zellij in what is left, and keep the row painted.
 //
-// It repaints on a TICKER rather than on row-dirty, which couch uses. That is
-// deliberately harsher than production: a timer paints while the pane's child
-// is mid-anything, so if the outer row's paint can disturb the inner strip,
-// this maximises the chance of catching it.
+// It repaints on a TICKER rather than on row-dirty, which couch used before
+// #255 M3. That is deliberately harsher than that production path: a timer
+// paints while the pane's child is mid-anything, so if the outer row's paint
+// can disturb the inner strip, this maximises the chance of catching it.
 func runOuter(args []string) {
 	if len(args) < 4 {
 		fatalOuter("usage: couchnestedrows outer <config-file> <layout> <session> <data-dir>")

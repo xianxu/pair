@@ -1,12 +1,13 @@
 ---
 id: 000262
-status: working
+status: codecomplete
 deps: [pair#255]
 github_issue:
 created: 2026-09-15
 updated: 2026-09-17
-estimate_hours:
+estimate_hours: 2.45
 started: 2026-09-17T18:51:31-07:00
+actual_hours: 2.51
 ---
 
 # Screen flicker: the compositor re-emits global terminal state every frame (#255)
@@ -20,145 +21,153 @@ same symptom.
 
 ## Spec
 
-**Leading cause** (evidence in `## Log`, 2026-09-16). #255 made pair a compositor:
-child bytes are parsed into a cell grid and pair re-derives the parent update —
-`paintPublication` (`cmd/internal/terminal/presenter.go:304`) → `Render(p.previous,
-f)` (`:338`) → `p.write`. The flicker is NOT the diff tearing. The diff is
-dirty-gated (`render.go:29-31`) and usually a few cells. It is the **fixed
-preamble/postamble `Render` emits on every dirty frame**, constant-size and touching
-WHOLE-SCREEN state no matter how small the diff:
+**Cause** (evidence in `## Log`, 2026-09-17 premise check). #255 made pair a
+compositor. Child bytes are parsed into a cell grid, and the presenter re-derives
+every parent write from grid state. The child-pane path, `paintEndpoint` →
+`RenderWithHistory` → `HistoryRender.Emit` (`history_render.go:297`), **erases and
+repaints the whole parent screen on every dirty frame**. On an 80×24 screen that
+is 2137 bytes for one keystroke, against 2156 for a first paint: `ESC[23L` blanks
+every row below the first, each row is erased, then every row is repainted with
+content that did not change. Under couch the parent is the real terminal, and the
+grid is the whole window (zellij client, both panes, tab strip, status row). Ghostty
+draws on its own thread from whatever state it holds when a display frame is due.
+A frame that lands mid-repaint shows a blank or half-blank window for one display
+frame. That is the global, fast, uniform, quiet-screen flicker.
 
-```
-preamble  render.go:35     ESC[?25l  ESC[?6l  ESC[r  ESC[?7l  ESC[0m  OSC8-close
-postamble render.go:85-92  ESC[<N> q   ESC[?25h
-```
+**Fix: synchronized output (DECSET 2026) on the emit side.** Every frame the
+presenter paints is bracketed `ESC[?2026h` … `ESC[?2026l`. While the mode is set,
+the terminal keeps parsing into its grid and defers drawing. At the end marker it
+draws the resulting state, so the identical-content erase-and-redraw never reaches
+the screen. This is the contract any program that repaints a terminal is expected
+to keep (nvim, tmux and zellij bracket their own frames). #255 dropped the child's
+markers at the composition boundary and did not add pair's own.
 
-That is why the effect is global while the change is one keystroke, and why it is
-new: before #255 pair authored no frames, so it emitted no per-frame preamble.
+Design decisions:
 
-**The prime suspect inside that preamble is DECSCUSR** (`ESC[<N> q`), re-issued
-every frame carrying the blink bit (`if next.Cursor.Blink { code-- }`). Most
-terminals RESET THE BLINK PHASE on receipt. On a sparse stream every frame restarts
-the caret's blink timer — small, global, non-corrupting, and worse when quiet,
-because under heavy output the cursor sits hidden between `?25l` and the next
-`?25h` with no blink to disturb.
+- **The bracket lives in the two pure renderers, not the presenter.** `Render`
+  wraps its single buffer. `Emit` adds the begin marker as its first byte and the
+  end marker as its last. An alt-screen switch stays inside the bracket, so opening
+  or leaving nvim is atomic too. Write boundaries do not change, except that on an
+  alt-screen switch the begin marker is flushed as its own write ahead of the
+  `ESC[?1049h`/`l` packet. That packet must stay whole: `Presenter.write` tracks
+  alt-screen ownership by exact match (`presenter.go:196`). A frame with nothing to
+  draw (`Render` returns `nil`, `Emit` with `!dirty`) emits no bracket. (ARCH-PURE)
+- **Unconditional, not gated on a capability query.** A terminal that does not
+  implement mode 2026 ignores the DECSET, as it does any unrecognised private
+  mode. Gating would need a DECRQM round-trip, whose reply arrives asynchronously:
+  a permanently one-round-trip-stale belief, the class the 2026-09-17 ariadne#232
+  entry says not to model. The bracket keeps no state between frames, so there is
+  nothing to believe.
+- **An unmatched begin marker is closed on release.** A frame write that fails
+  after the begin marker was accepted leaves sync open at the parent, and the
+  presenter goes `Failed` (`p.fail`). `parentReleaseControls` gains `ESC[?2026l`
+  right after its CAN/ST abort, so release always closes it. That is the same
+  discipline the release path already applies to margins, modes and cursor.
+  Between a failure and release, the terminal's own sync timeout bounds the freeze.
+- **Sync is never open across an idle period.** The bracket opens and closes inside
+  one synchronous `Render`+write or `Emit` call. Each write is bounded by
+  `WriteTimeout` (2s), and the presenter fails rather than retrying.
+- **Shared cursor epilogue.** Both renderers end with the same CUP + DECSCUSR +
+  `?25h` sequence (`render.go:80-92`, `history_render.go:403-415`), duplicated
+  today. M1 extracts it into one helper, alongside the bracket constants, so M2's
+  DECSCUSR decision has a single site. Behaviour unchanged. (ARCH-DRY)
 
-**Candidate repair: emit invariant parent state ON CHANGE, not per frame.** The
-pattern is already in this file — `parentModeDelta` (`presenter.go:287`) returns
-`""` when mouse tracking is unchanged, backed by `confirmedModes` + `modesKnown`.
-The preamble does not participate.
+**Out of M1, deliberately:**
 
-**But "invariant across frames" is the wrong test on its own** (see the 2026-09-17
-Log entry, from ariadne#232). Deltaing requires a SOUND BELIEF about the parent,
-which needs two things the sequences do not share: a single writer, and a confirm
-path. Both columns matter:
+- **The row diff.** Bracketing makes the full repaint invisible, but it does not
+  make it cheaper: a keystroke still ships a full screen of bytes, which a local
+  terminal parses far faster than a person types. The row diff becomes worth
+  building if pair's output starts crossing a network (#120, remote terminal
+  stream) or a measurement shows the bytes matter. The chain-granular design is
+  recorded in the 2026-09-17 Log entry.
+- **DECSCUSR on change.** Inside the bracket, a re-issued DECSCUSR cannot be seen
+  mid-frame. Whether re-issuing it resets the caret's blink phase is still
+  unverified against Ghostty. It is M2's question, decided on smoke evidence.
+- **Ingest is already honoured, so it is not a milestone.** `Endpoint` withholds
+  publication while the child holds 2026 (`endpoint.go:126-134`), recovers after
+  `SyncTimeout` = 150ms (`:258-262`, `profile.go:25`), and gives the presenter that
+  deadline through `NextPublication` (`:404`). The endpoint answers the child's
+  DECRQM for 2026 (`terminalqualify/input_cases.go:43`). Landed in #255 M2
+  (`d44ff360`), pinned by `TestEndpointSyncWithholdsThenRecoversAndCopies`. With
+  M1, the pipeline is atomic end to end: pair publishes only frames the child has
+  finished, and presents each as one bracketed frame. Nesting under zellij is
+  moot: the endpoint CONSUMES the child's bracket, so the parent only ever sees
+  pair's single bracket per frame.
 
-| sequence | invariant across frames | belief sound? |
-|---|---|---|
-| `ESC[?6l` | yes | needs exclusivity (M2) + confirm path |
-| `ESC[r` | yes | **two writers today**; confirm is async-only |
-| `ESC[?7l` | yes | needs exclusivity (M2) + confirm path |
-| `ESC[0m` | yes | `Render` tracks `style` internally — belief is local |
-| OSC8 close | yes | `Render` tracks `link` internally — belief is local |
-| `ESC[<N> q` | yes | **single writer, idempotent — sound. Do this one first** |
-| `ESC[?25l` / `?25h` | no | keep; legitimate per-frame |
-
-The cursor hide/show pair stays: it exists so the caret is not seen crossing the
-screen mid-paint. DECSCUSR is cleanly separable from it.
-
-The right-hand column is the whole difference between M1 and M3. The two rows whose
-belief is LOCAL to `Render` (`ESC[0m`, OSC8) are tractable; the mode rows are not,
-for the reason in the prerequisite below.
-
-**Invalidate and re-assert the full preamble on:** first paint (the existing
-`!known` branch), partial or failed write, and resize. #255's plan already mandates
-the second — *"on partial parent writes, retain the known accepted prefix and
-invalidate the rendered-screen cache"* — and `paintPublication` already commits
-`confirmedModes` only after a successful write. Same discipline, wider struct.
-
-**PREREQUISITE — the exclusivity this rests on is false today.** The delta is only
-safe if the presenter is the sole writer to the parent. #255's plan calls
-`ParentPresenter` the *"exclusive typed parent-output door"* with *"no exported
-generic raw-write door"*, but `hostty.Reservation` writes to the same terminal:
-`SetRegion` and the DECSTBM reset. And `hostty/control.go:27` claims that sequence
-*"lives here and only here"* while `terminal/render.go:35` and
-`history_render.go:313` both emit it. So there are two writers, the stated invariant
-is false, and `render.go`'s defensive re-assert is compensating for exactly that
-rather than being paranoia.
-
-Deltaing the preamble while a second writer can silently reset margins behind the
-presenter would trade a subtle flicker for occasional real corruption — strictly
-worse.
-
-**And exclusivity is only half the blocker. The other half is confirmability.**
-Even with M2 done, the presenter would be maintaining belief about state it cannot
-synchronously read back: confirming a DEC mode or the scroll region means DECRQM /
-DECRQSS, whose reply returns ASYNCHRONOUSLY through the input stream. So the belief
-is permanently one round-trip stale — the async-confirm case, which sits nearer
-write-only than controlled-proxy.
-
-Under that classification **`render.go`'s convergent re-assert may be CORRECT for
-the class, not waste to be eliminated.** A convergent write is the standard
-treatment for state you cannot cheaply confirm. That reframes M3: its job is to
-decide whether there is a job, not to finish one that was assumed.
-
-Hence the milestone order below: the DECSCUSR fix needs neither exclusivity nor a
-confirm path, so it ships first; the mode sequences wait on M2 and then on that
-decision.
-
-**Synchronized output (DECSET 2026) is a COMPLEMENT, not the fix.** It is
-implemented at neither boundary (`grep -rn 2026 cmd/` is empty; the child's bit is
-tracked and never read at `third_party/vt/mode.go:15`). Under BSU/ESU no
-intermediate state is presented, which would also make the cursor hide/show pair
-unnecessary. But it MASKS the per-frame churn rather than removing it, so it is
-sequenced after the delta work, not instead of it.
-
-**Constraints.**
-
-- Never hold BSU open across an await, a blocking write, or the partial-write retry
-  path `paintPublication` already has (`accepted`, `WriteFailure`). An ESU that
-  never arrives is a frozen screen, worse than a tear. The ingest gate needs the
-  same bounded timeout so a child that opens BSU and stalls cannot freeze the view.
-- Verify 2026 nesting under zellij before shipping. Couch hosts a zellij client that
-  may bracket to the real terminal itself; nesting is handled inconsistently across
-  implementations. Do not assume counters.
-- Advertise only what is implemented. #255's profile lists *"synchronized drawing"*
-  as required, so that work closes a contract rather than adding a capability.
+**The Spec's former M2 premise is retracted.** `hostty.Reservation`'s painters have
+one caller, `cmd/probes/couchnestedrows`. The presenter is the sole parent writer
+in both production hosts. What remains is stale prose. `hostty/reserve.go:13-18`
+says the painters are *"shared by two consumers"* (couch and `pair term`) and that
+*"`\x1b[r` lives here and only here"*, and `atlas/architecture.md` describes the
+deleted pre-#255 console-write door as live. Both are corrected in M1. (The
+earlier `control.go:27` citation was wrong: that comment is true as written.)
 
 ## Done when
 
-- **The premise is confirmed before anything is fixed:** `Render` emits invariant
-  global state on a frame that did not change it. If it does not, this Spec is wrong
-  and the issue returns to diagnosis. How to check it is settled at implementation
-  time — see the 2026-09-16 test-inference Log entry for what the candidate tests
-  are worth.
-- M1: DECSCUSR is emitted only when cursor shape or blink actually changed, asserted
-  at the render seam — a one-cell diff with an unchanged cursor emits no cursor-style
-  sequence. Operator smoke confirms both reported regimes.
-- M1: **the comparison participates in the existing invalidation discipline.**
-  `prev.Cursor` is what pair last RENDERED, which equals what the terminal holds
-  only if that write landed. So the belief resets on partial write, write failure
-  and resize — the way `modesKnown` already does — rather than trusting `prev`
-  unconditionally. Tested for each. (Narrow and sound because cursor style has a
-  single writer and the write is idempotent; it is still a belief.)
-- M2: the parent has exactly ONE writer, or every other writer reports what it
-  changed so the presenter's belief stays accurate. `hostty/control.go:27`'s
-  *"lives here and only here"* claim is either made true or corrected.
-- M3: each remaining preamble sequence is CLASSIFIED against the primitives that
-  back it — single writer or not, confirm path synchronous, asynchronous, or absent
-  — and the classification recorded. Deltaing a sequence whose belief cannot be
-  kept sound is a finding, not a win; keeping a convergent re-assert because it is
-  correct for the class is a valid outcome of M3 and closes it.
-- M3: for any sequence that IS deltaed, re-assert is covered for first paint,
-  partial write, write failure and resize, and no frame can leave the parent in a
-  state the presenter does not believe it is in — pinned by a test diffing
-  believed-vs-emitted across a frame sequence.
-- M4: a frame captured while the child holds 2026 is not published until it is
-  released or the bounded timeout fires; both branches tested. Nesting under zellij
-  verified and the finding recorded whichever way it goes.
-- Coverage distinguishes a QUIET screen from a busy one, in either pane — replacing
-  the original rapid-input-vs-heavy-output axis, which the 2026-09-16 revision
-  showed was measuring the masking rather than the bug.
+- M1: every frame either renderer emits is bracketed: the first byte of the frame
+  is `ESC[?2026h`, the last is `ESC[?2026l`, and no frame byte falls outside the
+  bracket. This is pinned for `Render`, `Emit` (normal, alt enter, alt leave,
+  history push) and the presenter's written stream. A no-op frame emits nothing.
+- M1: for every accepted-prefix length of a failed frame write, the presenter's
+  release output closes sync: after the last accepted `ESC[?2026h` there is an
+  `ESC[?2026l`. Tested across failure positions, not one.
+- M1: the xterm oracle suites still pass, since the bracket must not change the
+  terminal end state. Existing byte-exact expectations are updated with the
+  bracket.
+- M1: prose presenting the pre-#255 reserved-row painters as live is retired:
+  `hostty/reserve.go:13-18` and the matching `atlas/architecture.md` paragraphs,
+  with a sweep recorded in `## Log`.
+- M1: operator smoke under couch in both quiet regimes (static agent pane with
+  typing in the draft; quiet draft while the agent works): the global flicker is
+  gone. `pair term` under plain zellij is smoked too, and whether zellij honours
+  2026 from a pane is recorded whichever way it goes.
+- M2: each remaining per-frame sequence, DECSCUSR first, is classified against its
+  primitives (writer count; confirm path synchronous, asynchronous or absent).
+  Deltaing only what the primitives sustain, and keeping a convergent re-assert,
+  are both valid outcomes. The row-diff trigger is recorded with it.
+- ~~M3: ingest gate on the child's 2026~~: already satisfied by #255 M2 (see
+  `## Spec`); no milestone.
+- Coverage distinguishes a QUIET screen from a busy one, in either pane.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional. Covers the whole issue as re-cut
+(M1 + M2), counting only work inside the measured window, which starts at the
+claim. Line by line:
+
+- issue-spec: the in-window re-diagnosis, discussion and plan. The pre-claim
+  diagnosis is sunk.
+- smaller-go-module ×2 (M1): renderers and release; the cut-sweep harness. ×0.2
+  design, since the plan pre-resolves them.
+- real-api-discovery: the native zellij oracle.
+- atlas-docs (M1): the stale-prose sweep. ×0.2, since the plan lists the sites.
+- smaller-go-module (M2): mostly classification, with one open decision
+  (DECSCUSR), so ×0.5 design.
+- atlas-docs (M2).
+- milestone-review ×2.
+- real-api-discovery: the operator's Ghostty smoke, a conformance check.
+
+Buffer +15%. The undiscounted design is in-window and small, and the M1 plan is
+thorough.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.08
+item: smaller-go-module design=0.06 impl=0.14
+item: smaller-go-module design=0.06 impl=0.14
+item: real-api-discovery design=0.00 impl=0.18
+item: atlas-docs design=0.03 impl=0.06
+item: smaller-go-module design=0.15 impl=0.14
+item: atlas-docs design=0.10 impl=0.04
+item: milestone-review design=0.10 impl=0.14
+item: milestone-review design=0.10 impl=0.14
+item: real-api-discovery design=0.00 impl=0.12
+design-buffer: 0.15
+total: 2.45
+```
 
 ## Revisions
 
@@ -231,25 +240,106 @@ Deltas:
 settled, and the first `## Done when` bullet still exits to diagnosis if the test
 fails.
 
+### 2026-09-17 — premise check re-diagnosed the cause; M1 becomes the 2026 emit bracket
+
+The first `## Done when` bullet (confirm the premise) ran. It found the child-pane
+path repaints the WHOLE SCREEN per dirty frame (`## Log`, 2026-09-17), which
+dwarfs the per-frame preamble the Spec had been built around. Operator discussion
+the same day settled the fix. The erase-and-identical-redraw is invisible under
+DECSET 2026, because the terminal draws only the end state. That is what the mode
+is for. Synchronized output moves from "complement, after the delta work" to the
+fix.
+
+Deltas:
+
+- **Cause:** "per-frame re-emission of invariant global state, DECSCUSR prime
+  suspect" becomes "whole-screen erase and repaint per frame, unbracketed".
+  DECSCUSR is demoted to a secondary suspect.
+- **Fix:** "emit on change" becomes "bracket every frame in 2026", unconditional,
+  in the pure renderers, with the end marker guaranteed on release.
+- **Considered and deferred, with the operator:** a chain-granular row diff in
+  `Emit`. It removes the bytes rather than hiding them, at the cost of new
+  soft-wrap-sensitive render code. It is recorded as a performance item with a
+  named trigger (#120 or a measurement), not built.
+- **Milestones re-cut.** The old M2 (reconcile two writers) is retracted: its
+  premise is false in production. Only a stale comment survives, folded into M1.
+  The old M3 (classify the preamble) becomes M2, now including DECSCUSR. The old
+  M4 (ingest gate) becomes M3.
+- **The earlier "gate on the parent advertising 2026" constraint is dropped**, with
+  the reason in `## Spec`: unknown modes are ignored, and a DECRQM confirm would be
+  an async-stale belief.
+
+`## Problem` still stands as filed.
+
+### 2026-09-17 — ingest is already honoured; the planned M3 is retracted
+
+Correcting the 2026-09-16 Log entry *"correction: ingest is NOT honored either"*,
+and the M3 this morning's re-cut carried over from it. Ingest-side sync landed in
+#255 M2 (`d44ff360`, 2026-09-15), the day BEFORE that entry: `Endpoint` tracks the
+child's 2026 hold (`syncState`), withholds publication, and recovers after a 150ms
+`SyncTimeout`. The entry's greps for `2026h|2026l|?2026` cannot match
+`ansi.DECMode(2026)`, and the one bare `grep -rn 2026` it cites would have shown
+`endpoint.go`. The claim was wrong when written. The same entry's nesting worry
+assumed brackets flow through pair; they do not, because the endpoint consumes
+them. Delta: the planned M3 is dropped, and the issue is M1 (emit bracket) + M2
+(classification).
+
+### 2026-09-17 — estimate revised 4.41 → 2.45 before any code
+
+The estimate-quality check (INFO) found about 1.35h of design booked for diagnosis
+that mostly happened before the claim anchor `sdlc actual` measures from. Of the
+two items that booked it, `issue-spec` and `scope-pivot`, the second
+double-counted the first. It also found the smoke booked as a UX iteration, M2
+priced as full design although it is mostly classification, and the M1 atlas item
+undiscounted. All four were corrected before implementation started, so the
+estimate prices only the measured window.
+
+### 2026-09-17 — M1 Done-when, bullet by bullet: what met each one, and what substituted
+
+The M1 boundary review (BR-1) found bullet 5 waived with no revision. Every M1
+bullet was then checked against its evidence, not just bullet 5. Two were met by
+something other than what they say. They are re-scoped here, with the reason.
+
+- **Bullet 2 ("for every accepted-prefix length"):** met literally for the
+  single-write and alt-switch layouts, where every offset is cut. The 321 KB
+  multi-chunk layout is cut by class instead: every write boundary ±2, the first
+  and last 32 bytes, and a 4093-byte stride. Cutting all 321,449 offsets means a
+  presenter paint per offset. The failure the sweep guards against (a later write
+  failing after `syncBegin` landed) is a property of WHICH write fails, and every
+  write's boundaries are cut. **Re-scoped:** every offset for layouts ≤ one chunk;
+  boundaries, ends and stride for larger layouts.
+- **Bullet 5, "both quiet regimes":** the operator's smoke was one report under
+  couch (*"I think your fix is successful"*), plus a follow-up that the pre-M1
+  `pair term` panes stopped flickering. The two regimes were not named separately.
+  The fix does not depend on the regime (every frame is bracketed, whatever
+  drives it), so one clean smoke under couch covers both. **Re-scoped:** "operator
+  smoke under couch".
+- **Bullet 5, "`pair term` under plain zellij smoked":** not smoked by the
+  operator. **Substituted by measurement, which answers the bullet's actual
+  question better than a smoke:** `tests/terminal-oracle/discovery/sync_hold.py`
+  shows Zellij 0.45.1 HONOURS 2026 from a pane. An unbracketed marker reaches
+  zellij's client in 0.012s. A bracketed one arrives at 1.016s, just after the
+  close at 1.004s, and a repeat run agrees. So under plain pair, `pair term`'s
+  bracketed full-pane repaint also reaches the terminal atomically. The native
+  oracle already showed the end state is unchanged. **"Zellij's 2026 handling is
+  recorded": met: honoured.**
+
+Bullets 1, 3 and 4 are met as written. Bullet 4's sweep was widened in round 2
+(BR-2); see `## Log`.
 
 ## Plan
 
-- [ ] M1 — Confirm the premise (see the test-inference Log entry). STOP and
-      re-diagnose if it does not hold.
-- [ ] M1 — Emit DECSCUSR only on shape/blink change, with the comparison hooked
-      into the existing partial-write/failure/resize invalidation. Needs no
-      exclusivity and no confirm path. Operator smoke in both quiet regimes.
-- [ ] M2 — Reconcile the two parent writers: route `hostty.Reservation`'s paints
-      through the presenter, or have them report their mutations. Make
-      `hostty/control.go:27`'s claim true or correct it.
-- [ ] M3 — Classify each remaining preamble sequence against its primitives
-      (writer count, confirm path). Delta only what the primitives sustain;
-      keeping a convergent re-assert is a valid outcome. Cover re-assert on first
-      paint, partial write, failure and resize for anything deltaed.
-- [ ] M3 — Optional, once the churn is gone: BSU/ESU around the write, gated on the
-      parent advertising 2026, with no path able to emit BSU without ESU.
-- [ ] M4 — Gate `capturePublication` on the child's tracked 2026 bit with a bounded
-      timeout; verify nesting under zellij.
+Durable plan: `workshop/plans/000262-sync-output-emit-bracket-plan.md` (M1).
+
+- [x] M1 — Bracket every emitted frame in DECSET 2026 inside `Render` and
+      `HistoryRender.Emit`, sharing one cursor epilogue. Close sync in
+      `parentReleaseControls`. Test across alt transitions, history push, no-op
+      frames and a cut in any write of the frame. Oracle suites green. Retire
+      the stale reserved-row prose (`reserve.go:13-18`, atlas). Operator smoke
+      under couch and `pair term`.
+- [x] M2 — Classify the remaining per-frame sequences (DECSCUSR first) against their
+      primitives, using M1's smoke evidence. Delta only what they sustain; keeping a
+      convergent re-assert is a valid outcome. Record the row-diff trigger.
 
 ## Log
 
@@ -724,6 +814,8 @@ DECSTBM reset (`\x1b[r`, emitted every frame) becomes the next suspect among the
 preamble items.
 
 ### 2026-09-17 — M3's premise is in question (from ariadne#232)
+- 2026-09-17: closed — M1: every presented frame is one DECSET 2026 bracket (renderer + presenter tests, cut-any-write sweep), release closes orphaned brackets; operator smoke under couch: global flicker gone; zellij 0.45.1 measured to honour pane 2026 (sync_hold.py). M2: per-frame preamble classified (one writer, async-only confirm) and kept as convergent re-asserts, rule in atlas/terminal.md; default-cursor fidelity filed as #283. go test ./... 71 ok; make -k test only pre-existing test-changelog; review verdict: FIX-THEN-SHIP
+- 2026-09-17: closed M1 — Both renderers bracket every frame in DECSET 2026 (render/history tests incl. alt enter/leave with assertOneBracket, multi-chunk); release closes an orphaned bracket for a cut in any write of 3 layouts (red at cut 8 before the fix); xterm + native zellij 0.45.1 oracles green; sync_hold.py measures zellij 0.45.1 honours pane 2026 (control 0.012s, bracketed 1.016s vs close 1.004s); go test ./... 71 ok; make -k test only pre-existing test-changelog; operator smoke under couch: global flicker gone, pre-M1 pair term panes too; review verdict: SHIP
 
 A design discussion on ariadne's ARCH-ORDER produced a classification that applies
 directly here, and it is recorded in **ariadne#232** (a revision to ARCH-ORDER:
@@ -758,3 +850,337 @@ down before and is exactly the kind of thing a one-line-looking change drops.
 Two rows are unaffected by all of this: `ESC[0m` and the OSC8 close have beliefs
 LOCAL to `Render` (it already tracks `style` and `link` through the paint), so they
 need no external confirm path at all.
+
+### 2026-09-17 — premise check: the hot path repaints the WHOLE SCREEN per frame; DECSCUSR is the minor term
+
+Ran the byte check from the test-inference entry, which is the first `## Done when`
+bullet. I ran it on BOTH renderers, because the Spec only ever read `Render` and that
+is not the path child frames take.
+
+**Which renderer runs.** `paintEndpoint` (`presenter.go:367`) always passes
+`&pub.History`, so every child-pane frame goes through `RenderWithHistory` →
+`HistoryRender.Emit` (`history_render.go:297`). `Render` is reached only through
+`paint` with `history == nil`, i.e. `Presenter.Panel` (couch's switcher). Both
+production presenters, couch (`couchtty/console.go:163`, writing straight to the
+real terminal) and `pair term` (`termcmd/presentation.go:69`, writing into a zellij
+pane), paint every child frame through `Emit`.
+
+**Measurement.** 80×24 screen of styled text, then one `\b \b` keystroke, with
+identical history (a scratch test, deleted afterwards):
+
+| path | first paint | one-cell change |
+|---|---|---|
+| `RenderWithHistory` / `Emit` (normal and alt screen alike) | 2156 B | **2137 B**: 1× `ESC[23L`, 24× `ESC[2K`, every row repainted |
+| `Render` (panels only) | n/a | 74 B: preamble, one cell, postamble |
+
+So the premise holds, and it is much bigger than the Spec's premise. `Emit`'s
+lower-row rebuild (`:359-400`) runs on every dirty frame. It resets the region,
+inserts `height-1` blank lines at row 2 (the whole screen below row 1 goes blank),
+erases every row, then repaints every row from `next.Cells`. It never consults
+`previous` for cells. `previous` only decides `reset` and `sameHistoryFrame`. One
+keystroke is a blank-then-restore of the entire parent screen.
+
+**This fits every observation better than DECSCUSR does:**
+
+- **Global:** couch's presenter owns the whole terminal (zellij client, both panes,
+  tab strip, status row). A keystroke in any pane repaints all of it.
+- **Subtle, sometimes:** the content is identical before and after. The terminal
+  shows a flash only when its renderer snapshots between the erase and the repaint.
+  A full screen is tens of KB, which the terminal's IO side consumes in several
+  chunks, so that window is real but short. Nothing brackets it (no DECSET 2026).
+- **Quiet screens:** each keystroke is one isolated blank-and-restore. Under heavy
+  output the child pushes history every frame, so the screen genuinely scrolls and
+  a repaint is indistinguishable from the content change.
+- **New since #255:** `history_render.go` was created in #255 M3 (`f32bb4cf`).
+
+DECSCUSR is still re-issued per frame on both paths (`render.go:89`,
+`history_render.go:412`). The blink-phase assumption is still unverified against
+Ghostty. It is now a secondary suspect, not the leading cause: M1 as planned would
+change 6 bytes out of 2137 and leave the whole-screen erase in place.
+
+**Why the full rebuild exists.** It is not convergence paranoia. The comment at
+`:360` says it constructs *"canonical empty rows, then … their desired soft links"*.
+A row's incoming soft-wrap flag can only be established by autowrapping through
+the previous row, and zellij keeps a row's wrapped/canonical flag across `EL2`.
+Only `IL` gives a pristine row, which is why the rebuild inserts lines rather than
+erasing them. That constraint shapes the fix: the unit of repaint is a **soft-wrap
+chain**, not a cell.
+
+**The Spec's M2 premise is stale.** The Spec says `hostty.Reservation` is a live
+second writer to the parent. In production it is not. `ReserveAndPaint` / `Paint`
+/ `SetRegion` have exactly one caller, `cmd/probes/couchnestedrows`. Couch uses
+`bottomReservation` only for `ChildRows` arithmetic (`console.go:1019`), and both
+presenters paint their chrome through `UpdateChrome` (`console.go:1114`,
+`termcmd/presentation.go:366`). #255 M3 (*"migrate Couch and Pair to owned terminal
+state"*) moved the writes. The presenter IS the sole parent writer in both
+production hosts. What survives of M2 is the stale *"lives here and only here"*
+comment at `hostty/control.go:27`. That matters for the fix: trusting `previous`
+at row granularity is the same belief `Render` already takes at cell granularity,
+and the sole-writer precondition for it holds.
+
+**Oracles available for the fix.** The xterm-headless oracle
+(`tests/terminal-oracle`, node_modules present) runs locally, and
+`TestHistoryWireIndependentOracle` and its siblings pass. The native zellij oracle
+needs `PAIR_TERMINAL_NATIVE=1`. So a row-diff renderer can be checked end-state
+against the full rebuild: same viewport, same wrap flags, same history, across
+frame sequences.
+
+### 2026-09-17 — operator discussion: why the terminal should do the "diff"
+
+Operator question: does pair keep the child's delta format? No. Since #255,
+child bytes (delta or full repaint) end at the endpoint's parser, and the
+presenter writes from grid state. Today a 3-byte child delta becomes a
+full-screen parent write. Passing the child's bytes through would undo #255's
+composition boundary, so that is not an option.
+
+Two ways to stop the visible churn were weighed:
+
+1. **Row diff in `Emit`: fewer bytes.** The cell diff is cheap, and `Render`
+   already does it for panels. The hard part is soft-wrap provenance. A row's
+   incoming wrap flag is set only by autowrapping through the row above, zellij
+   keeps it across `EL2`, and only `IL` yields a pristine row. So the repaint unit
+   is a wrap CHAIN (a logical line), taken as the union of the chains in the
+   previous and next frames, so both ends of a run are chain heads in both frames.
+   A multi-row run gets pristine rows from a confined `IL` (DECSTBM around the
+   run). A single-row run is a chain head in both frames and needs only `EL2`. Row
+   0 keeps the full path's `ECH` treatment when it continues from history. Anything
+   with a reset, alt transition or history push takes the full rebuild. The end
+   state is checkable against the full rebuild with the xterm oracle. A cheaper
+   fast path handles only rows that are unwrapped in both frames: `CUP` + `EL2` +
+   repaint, falling back to the full rebuild for everything else.
+2. **Synchronized output: the same bytes, never shown half-applied.** The terminal
+   parses into its grid under 2026 and draws the end state at the end marker. That
+   IS the diff, done where it is cheapest, and it is the mode's purpose.
+
+Operator: *"it's easier for ghostty to do this 'diff', and the whole point of the
+sync instruction."* Agreed, and chosen: 2026 is M1, and the row diff is recorded
+here with its trigger (network transport, #120, or a measured byte cost) instead
+of being built.
+
+Open for the M1 smoke: whether the operator's sightings were under couch. The
+whole-window mechanism is couch's, because couch's presenter owns the real
+terminal. Under plain pair, zellij is outermost and redraws only changed rows,
+and `pair term`'s full repaint is confined to its own pane.
+
+### 2026-09-17 — M1 implementation: oracles, failure sweep, stale-prose sweep
+
+**Tasks 1–3 landed** (`05c0c26e`, `9c453a83`, `9ba2b30d`). Both renderers bracket
+each frame. `parentReleaseControls` closes sync right after its CAN/ST abort. The
+cursor epilogue is one helper (`cursorEpilogue`, `render.go`).
+
+**Oracles.** The xterm-headless suites pass with `PAIR_TERMINAL_ORACLE=1`. xterm
+5.5.0 does not implement 2026, so this proves the *ignoring-terminal* path: the
+bracket leaves the end state unchanged. The native zellij oracle
+(`PAIR_TERMINAL_NATIVE=1`, zellij 0.45.1, sandbox off) also passes:
+`TestHistoryWireNativeOracle`, `TestHistoryED2NativeBlankAndSpaceRows`,
+`TestErasedBackgroundSoftGapNativeCopyOracle` and
+`TestPresenterHistoryEvictionNativeAppendAndRebuild`. The whole
+`cmd/internal/terminal` package is green with both oracles on; only the unrelated
+`TestTerminalResourceProbe` skips. So bracketed wire leaves `pair term`'s real
+parent in the same end state. Whether zellij *honours* 2026 from a pane is for
+the smoke.
+
+**Failure sweep.** `TestPresenterReleaseClosesSyncAfterAnyCutWrite` cuts writes
+in three frame layouts, measured by a probe:
+
+- single-write `[delta 58 | 181]`;
+- alt-switch `[58 | 8 syncBegin | 8 ?1049h | 165]`;
+- multi-chunk `[58 | 8 | 8 | 65527 65534 65531 65529 59312]`.
+
+Every offset is cut for the small layouts. For the 321 KB one, the cuts are
+boundaries ±2, the first and last 32 bytes, and a 4093 stride. Before the release
+fix, all three failed at cut 8, the first offset after a complete `syncBegin`.
+After it, all pass, in 1.3s.
+
+**Stale-prose sweep (Task 4).** The class is *prose presenting the pre-#255
+reserved-row machinery as live*. The sweep matched the claim's vocabulary, not
+only symbols: `SafeToPaint`, `TakeRowDirty`, `ReserveAndPaint`, `paneWriter`,
+`writeOwn`, `flushOwed`, `owe-and-flush`, `only here`, `one package only`,
+`shared by two consumers`, `clear the reserved row`. Fixed:
+
+- `hostty/reserve.go:13-18`;
+- `couchtty/reserve.go:12-18`;
+- `cmd/probes/couchnestedrows/main.go:18`;
+- a status note on `ptychild.Screen`, which covers its console-facing method docs;
+- `atlas/architecture.md`: six paragraphs describing the deleted console-write
+  door (including a `stripmutation_test.go` that no longer exists) condensed into
+  one pre-#255 note;
+- `atlas/couch.md` teardown: *"clear the reserved row"* was false (release keeps
+  the pixels); the sentence now names `parentReleaseControls`, which since this
+  milestone really does close synchronized output.
+
+The final sweep returns only correctly framed text: the historical note, and
+`reserve.go`'s description of its own API.
+
+**Filed pair#281** to dispose of the machinery itself: `ptychild.Screen` has no
+production consumer, and `hostty.Reservation`'s painters serve only a probe.
+Deleting code is separable from the flicker fix, so #262 corrected only the
+prose.
+
+**Atlas:** `atlas/terminal.md` records the emit bracket and its end-to-end pairing
+with ingest-side sync.
+
+**Full suite, 2026-09-17.** `make -k test`, with the five-variable retention
+scrub and the sandbox off, had one failure: `test-changelog`, the known
+pre-existing failure (`viewer: process target is outside selected owner
+directory`; see memory, reproduced on `origin/main` during #256). Everything else
+passed. Because a prerequisite failed, make skipped the `test` target's own
+`go test ./...` recipe, so the Go suite was run directly:
+`go test ./... -count=1` with the same scrub. It exited 0, with 71 packages ok.
+`make build` rebuilt `bin/pair` and `bin/couch` from this branch for the smoke.
+
+### 2026-09-17 — operator smoke: couch flicker gone
+
+The operator killed the pre-M1 couch (pid 80116, started 17:41, before the 19:37
+build) and relaunched `couch`, which rebuilt from this branch. After reloading the
+brain thread: *"I think your fix is successful."* That covers the couch regime,
+where the whole-window flicker lived. Still open for the M1 close: `pair term`
+under plain zellij (a fresh Alt+Shift+d split, since running `pair term`
+processes still run the old binary), and whether the caret blinks regularly,
+which is M2's DECSCUSR input.
+
+**Follow-up smoke, same evening.** The operator did NOT restart pair, so its
+`pair term` panes still run the pre-M1 binary and still emit unbracketed
+full-pane repaints into zellij. Yet: *"flicker went away here as well."* That
+localizes the visible flicker to couch's layer, the whole-window repaint written
+straight into Ghostty. The inner full-pane repaints land in zellij's own grid,
+and zellij's client output reaches Ghostty only through couch's endpoint (which
+honours zellij's own 2026) and its now-bracketed presenter. `pair term` under
+plain zellij with NO couch was not smoked. There, zellij is outermost and redraws
+only changed rows. The native zellij oracle shows the bracket leaves zellij's end
+state unchanged. Whether zellij *honours* 2026 from a pane stays unrecorded,
+which is harmless either way. The caret-blink question (M2's input) is
+unanswered.
+
+### 2026-09-17 — M2 input: caret blink, and a DECSCUSR fidelity finding
+
+**Operator:** *"in the reloaded brain thread, cursor is blinking."* An earlier
+"seems not blinking" came from a thread that had not been reloaded, or from nvim,
+whose default `guicursor` asks for a steady cursor. That is correct behaviour.
+So on a quiet screen, DECSCUSR re-issued inside every bracketed frame does not
+visibly break the blink. For M2 this points toward classifying the per-frame
+re-issue as harmless; it is not yet measured under sustained output.
+
+**Finding for M2: "terminal default" cursor style is not representable.** The
+vendored DECSCUSR handler maps both an absent parameter and `ESC[0 q` to `n = 1`,
+an explicit blinking block (`third_party/vt/handlers.go:848-855`). The endpoint
+then maps `Shape: int(cur.Style)+1` (`endpoint.go:228`), so `Frame.Cursor.Shape`
+is never 0, although `frame.go:15` documents *"0/default"*. Result: a child that
+never sets a style, or resets it with `ESC[0 q`, makes pair send `ESC[1 q` every
+frame. That OVERRIDES the parent terminal's configured default (Ghostty's
+`cursor-style`, `cursor-style-blink`). Before #255 the child's `ESC[0 q`, or its
+silence, reached the terminal as "default". Candidate M2 fix: carry "default"
+through (Shape 0), and emit `ESC[0 q` for it. Needs a vt-level distinction
+between "never set / reset" and an explicit block.
+
+### 2026-09-17 — M1 boundary review round 1 (FIX-THEN-SHIP): fixes by class
+
+- **BR-1, a Done-when waived without a revision.** Every M1 bullet was
+  re-checked (see `## Revisions`). The plain-zellij question was answered by
+  measurement: `sync_hold.py` shows zellij 0.45.1 honours pane 2026. It is kept
+  as a discovery/conformance script, with `test_sync_hold.py` pinning its
+  honoured / not / inconclusive verdict. The first probe draft saw nothing even
+  in the control because zellij's startup-tips popup covered the pane, which is
+  why the script sets `show_startup_tips false`.
+- **BR-2, stale "two consumers" prose that survived the sweep.** The re-sweep
+  added the phrasing vocabulary (`both consumers`, `two consumers`, `there are
+  two`, `reserves the HOST`, `reserves its PANE`, `reserved-row consumers`) and
+  found these:
+  - `hostty/reserve.go:51-57` (a painting caller is now only the probe);
+  - `hostty/reserve.go:13-19` ("not this file" was wrong: `Release` still writes
+    `\x1b[r`, for the probe);
+  - `couchnestedrows/main.go:1-13` (the two-reservation picture was present
+    tense);
+  - `couchnestedrows/main.go:94-100` ("row-dirty, which couch uses").
+
+  Also checked: `rowtext.go:3` and `atlas/architecture.md:485` ("both
+  reserved-row renderers") are still TRUE, because both strips render their text
+  through `rowtext`. `ptychild/screen.go:228` is covered by the type-level status
+  note.
+- **BR-3, a stale plan record:** corrected in the plan's `## Revisions`.
+- **Test note:** both alt transitions are now also checked with
+  `assertOneBracket` on the joined packets.
+- **Round 2 advisory (instrument failure encoded as a verdict), fixed in the M1
+  close commit.** `sync_hold.py` exited 1, "NOT honoured", on ANY crash. The
+  reviewer reproduced this with an unwritable `/tmp` and with pty exhaustion, and
+  a slow zellij start would fail the same way. A failure to measure now exits 2,
+  inconclusive, pinned by `InstrumentFailureTest`. The live run is still
+  "honoured", exit 0.
+
+### 2026-09-17 — M2: per-frame sequences classified; nothing is deltaed
+
+Classified against the primitives (writer count; confirm path), as the M2
+Done-when asks. **Writer count** was checked from the code: the presenter writes
+the parent from exactly five sites (`presenter.go`):
+
+- frames (`:346`, `:352`);
+- the mode delta (`:331`: mouse, focus, paste and keyboard modes only);
+- effects (`:709`: bell, title, clipboard, notify);
+- `Copy` (`:825`, OSC 52);
+- release (`:131`).
+
+None of the non-frame writes touch margins, origin, autowrap, SGR, hyperlink or
+cursor style. So every row below has ONE writer, the frame renderers.
+
+| sequence | role | confirm path | outcome |
+|---|---|---|---|
+| `?2026h`/`l` | frame framing (M1) | none needed | per-frame by design |
+| `?25l` … `?25h` | caret hidden while painting | DECRQM, async | keep: still does its job on terminals without 2026 |
+| `?6l` | origin mode known before absolute CUPs | DECRQM, async | keep as a convergent re-assert |
+| `ESC[r` | margins known before painting | DECRQSS, async | keep; also FUNCTIONAL in `Emit`, whose history push sets `1;2r` |
+| `?7l` (`Render`) / `?7h` (`Emit`) | lower-right cell / soft-wrap setup | n/a | functional within the frame |
+| `ESC[0m` + OSC8 close | known start for the style/link tracking | local belief | functional within the frame |
+| DECSCUSR (`cursorEpilogue`) | caret shape and blink | DECRQSS, async | keep; invisible inside the bracket, and the operator saw a normal blink on a quiet screen (`72c2bbfc`) |
+
+**Rule recorded in `atlas/terminal.md`**, with a pointer at both preambles
+(`render.go`, `history_render.go`): the belief would be sound (one writer), but
+it is not confirmable except asynchronously, so a convergent re-assert is the
+right treatment. Inside the bracket it costs nothing visible. The preamble is
+about 40 bytes, against a full-screen repaint per frame. **Revisit it only when
+the row diff is built**, whose trigger is output that crosses a network (#120)
+or a measured byte cost. That trigger, and the row diff's chain-granular design
+(earlier in this Log), are the record the M2 Done-when asks for.
+
+**DECSCUSR fidelity is filed as pair#283**, not fixed here. "Terminal default"
+cannot survive vt → endpoint → frame, so pair overrides the operator's Ghostty
+cursor config. It is a #255 behaviour difference, independent of the flicker.
+
+**Quiet versus busy coverage (the last `## Done when` bullet).**
+`TestHistoryEmitBracketsEveryFrame` names both cases:
+- *"quiet: steady one-cell change"*;
+- *"busy: history append (the screen scrolls)"*.
+
+The multi-chunk tests cover a large busy frame. The renderer is pane-agnostic:
+couch's whole-window presenter and `pair term`'s pane presenter run the same
+code, so the coverage holds "in either pane".
+
+### 2026-09-17 — correction to the M2 table (close review, advisory)
+
+Two claims in the M2 entry above were false. The outcome stands: keep all
+re-asserts. The corrected record, with each row now citing its evidence:
+
+- **Writer count.** "None of the non-frame writes touch margins, origin,
+  autowrap, SGR, hyperlink or cursor style" is FALSE for release:
+  `parentReleaseControls` (`presenter.go:278`) writes `?6l`, `ESC[r`, `?7h`,
+  `ESC[0m`, the OSC8 close, `ESC[0 q` and `?25h`. The belief stays sound because
+  release is the presenter's final write: the `run` loop returns after it
+  (`:127-134`). The mode delta (`:290-299`), effects (`:682-701`) and `Copy`
+  (`:825`) do touch none of it.
+- **`ESC[r` in `Emit`.** "Functional, because history pushes set `1;2r`" is
+  FALSE: the push sets it at `history_render.go:331` and resets it itself at
+  `:364`. The preamble's reset at `:318` is convergent, like `Render`'s
+  (`render.go:66`).
+- **The other rows, re-checked:**
+  - `?25l`/`?25h`: `render.go:66`, and `cursorEpilogue` `:34-36`.
+  - `?6l` before absolute CUPs: `render.go:89`; `Emit`'s `cup` `:201`.
+  - Autowrap is functional: `Render` turns it off at `:66` and back on at
+    `:110` around the lower-right cell; `Emit` keeps it on (`:318`, `:407`)
+    because `wrap` builds soft links through it.
+  - SGR/OSC8 reset is functional: `Render` tracks from a zero style/link
+    (`:70-71`, `:91-99`), and `Emit`'s `cells` "requires plain rendition on
+    entry" (`:210`).
+  - DECSCUSR: `cursorEpilogue`.
+
+`atlas/terminal.md` and the `history_render.go` pointer are corrected to match.
+The rule this family keeps teaching, now in `workshop/lessons.md`: a statement
+that quantifies over code cites each member.

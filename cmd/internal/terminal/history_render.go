@@ -302,6 +302,9 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 		return fmt.Errorf("terminal: missing history writer")
 	}
 	e := historyEmitter{write: write}
+	// The bracket spans every chunk. An ALT packet below flushes it as its own
+	// write, so the transition stays inside the bracket and its packet whole.
+	e.add(syncBegin)
 	// Dedicated packets let Presenter account for a completed mode transition
 	// even if a later frame chunk fails; neither sequence is split by Emit.
 	if p.enterAlt {
@@ -310,6 +313,9 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 	if p.leaveAlt {
 		e.packet("\x1b[?1049l")
 	}
+	// Re-asserted every frame on purpose, like Render's (#262 M2). The region
+	// reset is convergent, not functional: the history push below sets 1;2r
+	// and resets it itself before the lower rows.
 	e.add("\x1b[?25l\x1b[?6l\x1b[r\x1b[?7h")
 	e.resetStyle()
 	cols, height := p.next.Geometry.Cols, p.next.Geometry.Rows
@@ -400,19 +406,8 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 	}
 	e.resetStyle()
 	e.add("\x1b[?7h")
-	e.cup(p.next.Cursor.X, p.next.Cursor.Y)
-	shape := p.next.Cursor.Shape
-	if shape == 0 {
-		shape = 1
-	}
-	code := shape * 2
-	if p.next.Cursor.Blink {
-		code--
-	}
-	e.add(fmt.Sprintf("\x1b[%d q", code))
-	if p.next.Cursor.Visible {
-		e.add("\x1b[?25h")
-	}
+	e.add(cursorEpilogue(p.next.Cursor))
+	e.add(syncEnd)
 	e.flush()
 	return e.err
 }

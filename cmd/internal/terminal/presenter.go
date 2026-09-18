@@ -261,13 +261,16 @@ func (p *Presenter) settleCancellation() {
 }
 
 // parentReleaseControls restores the post-presentation baseline even after an
-// arbitrary accepted prefix. CAN/ST first abort incomplete CSI/OSC controls.
+// arbitrary accepted prefix. CAN/ST first abort incomplete CSI/OSC controls,
+// then synchronized output closes: a frame write that failed after its bracket
+// opened would otherwise hold the parent's display until its own timeout.
 // Setup owns mouse, focus, paste and one keyboard-stack push. Render owns
-// origin, margins, autowrap, SGR, hyperlinks and cursor style/visibility. Its
-// pixels and cursor position remain; one-shot effects (including permitted
-// title/clipboard changes) are not rolled back or replayed during cleanup.
+// synchronized output, origin, margins, autowrap, SGR, hyperlinks and cursor
+// style/visibility. Its pixels and cursor position remain; one-shot effects
+// (including permitted title/clipboard changes) are not rolled back or replayed
+// during cleanup.
 func parentReleaseControls(keyboardOwned bool) []byte {
-	controls := "\x18\x1b\\"
+	controls := "\x18\x1b\\" + syncEnd
 	if keyboardOwned {
 		controls += "\x1b[<u"
 	}

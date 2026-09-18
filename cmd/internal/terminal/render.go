@@ -9,6 +9,34 @@ import (
 	"github.com/charmbracelet/x/ansi"
 )
 
+// Each presented frame is one synchronized-output update (DECSET 2026): the
+// parent parses the whole frame into its grid and draws only the finished
+// result, never the erase-and-redraw inside it (#262). A terminal without the
+// mode ignores it. parentReleaseControls also closes it, for a write that failed
+// mid-frame.
+const (
+	syncBegin = "\x1b[?2026h"
+	syncEnd   = "\x1b[?2026l"
+)
+
+// cursorEpilogue places the cursor and restores its shape and visibility after a
+// frame painted with the cursor hidden.
+func cursorEpilogue(c Cursor) string {
+	shape := c.Shape
+	if shape == 0 {
+		shape = 1
+	}
+	code := shape * 2
+	if c.Blink {
+		code--
+	}
+	s := fmt.Sprintf("\x1b[%d;%dH\x1b[%d q", c.Y+1, c.X+1, code)
+	if c.Visible {
+		s += "\x1b[?25h"
+	}
+	return s
+}
+
 // Render produces only compositor-owned terminal drawing. A zero previous
 // frame invalidates the cache. The caller may retain next only after every byte
 // succeeds; a partial/error outcome invalidates that cache permanently.
@@ -30,8 +58,11 @@ func Render(prev, next Frame) ([]byte, error) {
 		return nil, nil
 	}
 	var out strings.Builder
+	out.WriteString(syncBegin)
 	// Disable autowrap while painting the lower-right cell, and reset origin and
 	// margins independently of whatever was on the parent's screen before us.
+	// Re-asserted every frame on purpose, not deltaed: the state has no
+	// synchronous confirm path (atlas/terminal.md, #262 M2).
 	out.WriteString("\x1b[?25l\x1b[?6l\x1b[r\x1b[?7l\x1b[0m\x1b]8;;\x1b\\")
 	if full {
 		out.WriteString("\x1b[2J")
@@ -77,19 +108,8 @@ func Render(prev, next Frame) ([]byte, error) {
 		}
 	}
 	out.WriteString("\x1b]8;;\x1b\\\x1b[0m\x1b[?7h")
-	fmt.Fprintf(&out, "\x1b[%d;%dH", next.Cursor.Y+1, next.Cursor.X+1)
-	shape := next.Cursor.Shape
-	if shape == 0 {
-		shape = 1
-	}
-	code := shape * 2
-	if next.Cursor.Blink {
-		code--
-	}
-	fmt.Fprintf(&out, "\x1b[%d q", code)
-	if next.Cursor.Visible {
-		out.WriteString("\x1b[?25h")
-	}
+	out.WriteString(cursorEpilogue(next.Cursor))
+	out.WriteString(syncEnd)
 	return []byte(out.String()), nil
 }
 

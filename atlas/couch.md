@@ -1035,11 +1035,13 @@ Pair tag: the console hosts a zellij client, so losing the client loses the view
 and a new couch deterministically reattaches.
 
 Console teardown has one owner. Normal stop, last-child exit, SIGTERM, and
-SIGHUP all revoke child-enabled mouse/focus/paste/synchronized-output/extended-
-keyboard modes, reset the scrolling region, clear the reserved row, leave
-alternate screen, restore/show the cursor, restore raw mode, stop host event
-sources, close the blocking input seam, and join console workers before
-returning. This explicit reset is required because restoring termios does not
+SIGHUP all release the presenter, whose `parentReleaseControls` revoke
+mouse/focus/paste/extended-keyboard modes, close synchronized output (a frame
+write that failed mid-bracket would otherwise hold the display, #262), and reset
+the scrolling region. Release leaves an alternate screen only if the presenter
+entered one, and restores/shows the cursor, leaving the last frame's pixels in
+place. Teardown then restores raw mode, stops host event sources, closes the
+blocking input seam, and joins console workers before returning. This explicit reset is required because restoring termios does not
 disable terminal-emulator private modes; otherwise mouse movement after Leave
 types SGR reports into the returned shell.
 `hostty.TerminationHost` is optional because couch consumes process termination

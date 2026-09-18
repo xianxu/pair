@@ -10,12 +10,13 @@ import "fmt"
 // scrolls inside the region and cannot walk onto the row below. The child is
 // never told; from its side this is simply a shorter terminal.
 //
-// It lives in hostty because it is host-half MECHANISM shared by two consumers
-// -- couch reserves the host's bottom row for its actor strip, `pair term`
-// reserves its pane's bottom row for a tab strip (pair#199) -- while what the
-// row SAYS stays with each consumer as policy. Same split the atlas already
-// records for ptychild/hostty: "what is shared is structure; what stays is
-// policy. `\x1b[r` lives here and only here."
+// Since #255 M3 production no longer paints through it. Couch and `pair term`
+// compose their strips into frames via terminal.Presenter.UpdateChrome, and
+// the presenter is the parent's sole production writer. In production the
+// region reset (`\x1b[r`) is written by its renderers and release controls
+// (#262). Release here still writes it, but only for the probe. Production uses
+// a Reservation only for ChildRows arithmetic; ReserveAndPaint, Paint and
+// Release serve cmd/probes/couchnestedrows. Whether they survive is pair#281.
 //
 // That `pair term` can do this at all is measured, not assumed: zellij honors
 // DECSTBM from a pane process (pair#199 finding 5 -- 200 lines scrolled in the
@@ -49,10 +50,11 @@ const (
 // Reservation is a terminal of Rows rows with one row held at Edge.
 //
 // It answers ChildRows, ReserveAndPaint, Paint and Release. There is no bare
-// `Reserve()`: both consumers assert the region and draw the row together, in
-// that order, because DECSTBM homes the cursor -- so a caller that could reserve
-// WITHOUT painting is a caller that can compose the two in the order that was
-// the bug.
+// `Reserve()`: a painting caller (today only cmd/probes/couchnestedrows; before
+// #255 M3, couch and `pair term`) asserts the region and draws the row together,
+// in that order, because DECSTBM homes the cursor -- so a caller that could
+// reserve WITHOUT painting is a caller that can compose the two in the order
+// that was the bug.
 type Reservation struct {
 	Rows uint16
 	Edge Edge

@@ -16,7 +16,36 @@ unsupported and receive an empty response.
 `Frame`, `View`, `Compose` and `Render` express screen composition and admission
 without IO. `Presenter` owns the physical parent writer and commits input admission
 only after presentation completes. A failed partial write invalidates that
-connection's presentation state. Product code retains shortcut and notification
+connection's presentation state. Every presented frame is one synchronized-output
+(DECSET 2026) update, opened and closed by `Render`/`HistoryRender.Emit`, so the
+parent draws only the finished frame and never the whole-screen erase-and-redraw
+inside it. Release closes a bracket that a failed write left open (#262). A
+terminal without the mode ignores it. Ingest is the mirror image: a child's own
+2026 hold withholds publication (above), so frames are atomic end to end.
+
+**Per-frame parent state is re-asserted, not deltaed, and that is deliberate
+(#262 M2).** Inside the bracket, each frame hides the cursor, resets origin mode,
+margins, SGR and hyperlink, sets autowrap, and ends by placing the cursor with
+its shape (DECSCUSR) and showing it. Two reasons, and both must hold before
+anything is deltaed:
+
+- **The belief is sound, but it is not confirmable.** Between frames nothing
+  else writes this state. The mode delta, effects and `Copy` never touch it.
+  Release does write it, but release is the presenter's final write. Confirming
+  the state would take a DECRQM or DECRQSS reply, which arrives
+  asynchronously, so the belief is always one round-trip stale. A convergent
+  re-assert is the right treatment for state you cannot cheaply confirm.
+- **The preamble has no visible cost.** Some of it is functional: `Render`
+  turns autowrap off for the lower-right cell, `Emit` keeps it on because soft
+  wraps depend on it, and both renderers' style tracking starts from reset. The
+  origin, margin, cursor-visibility and cursor-style writes are convergent
+  (`Emit`'s history push sets and resets its own `ESC[1;2r`). Inside the
+  bracket none of it is ever shown, and a quiet-screen smoke shows the caret
+  blinking normally.
+
+The preamble is about 40 bytes, against a full-screen repaint per frame (the
+row diff #262 deferred). Revisit the preamble only when that row diff is built.
+Its trigger is output that crosses a network (#120) or a measured byte cost. Product code retains shortcut and notification
 policy, while terminal negotiation and encoding belong to the shared connection.
 Parent mouse capture differs by boundary: Couch needs motion for its chrome;
 Pair's terminal pane must leave native Zellij selection available when its child

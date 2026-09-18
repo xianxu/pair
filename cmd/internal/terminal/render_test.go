@@ -101,3 +101,39 @@ func BenchmarkRender(b *testing.B) {
 		})
 	}
 }
+
+// assertOneBracket pins #262's frame contract: the first byte opens synchronized
+// output, the last closes it, and nothing else in the frame does either.
+func assertOneBracket(t *testing.T, label string, wire []byte) {
+	t.Helper()
+	s := string(wire)
+	if !strings.HasPrefix(s, syncBegin) || !strings.HasSuffix(s, syncEnd) {
+		t.Fatalf("%s: frame not bracketed: %q", label, s)
+	}
+	if strings.Count(s, syncBegin) != 1 || strings.Count(s, syncEnd) != 1 {
+		t.Fatalf("%s: frame must hold exactly one bracket: %q", label, s)
+	}
+}
+
+func TestRenderBracketsEveryFrameAndNeverANoop(t *testing.T) {
+	first := testFrame(4, 2)
+	wire, err := Render(Frame{}, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertOneBracket(t, "first paint", wire)
+
+	oneCell := first.Clone()
+	oneCell.Cells[5] = Cell{Content: "x", Width: 1}
+	wire, _ = Render(first, oneCell)
+	assertOneBracket(t, "one-cell diff", wire)
+
+	cursorOnly := oneCell.Clone()
+	cursorOnly.Cursor.X = 3
+	wire, _ = Render(oneCell, cursorOnly)
+	assertOneBracket(t, "cursor-only change", wire)
+
+	if wire, _ = Render(cursorOnly, cursorOnly.Clone()); wire != nil {
+		t.Fatalf("a no-op frame must write nothing, got %q", wire)
+	}
+}

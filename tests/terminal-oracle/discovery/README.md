@@ -15,6 +15,7 @@ python3 tests/terminal-oracle/discovery/viewport_wrap.py
 python3 tests/terminal-oracle/discovery/width_reflow.py
 python3 tests/terminal-oracle/discovery/one_row.py
 python3 tests/terminal-oracle/discovery/wide_cells.py
+python3 tests/terminal-oracle/discovery/sync_hold.py
 python3 -m unittest discover -s tests/terminal-oracle/discovery -p 'test_*.py' -v
 ```
 
@@ -37,6 +38,7 @@ save that stdout using its existing evidence-retention policy. Do not run the na
 | `width_reflow.py` | Direct output resized 4→6 versus regenerated typed logical lines at width 6; compares xterm physical cells and native dumped text. |
 | `one_row.py` | One-row LF/autowrap export, with no extra two-row bottom LF; asserts `ABCDEFGH` is one logical history line. |
 | `wide_cells.py` | Exploratory early-wide, explicit-space and ECH behavior. Cases intentionally differ in final viewport/history boundary; inspect their outputs rather than comparing all cases to one another. |
+| `sync_hold.py` | (#262) Whether Zellij honours DECSET 2026 from a pane: times when a marker written inside an open bracket reaches Zellij's CLIENT, against an unbracketed control. `dump-screen` cannot answer this, because the pane grid updates either way. Exit 0 honoured, 1 not, 2 inconclusive. Zellij 0.45.1: honoured (control 0.012s; bracketed arrives just after the close). |
 | `xterm_oracle.cjs`, `zellij_oracle.py` | JSON wire/geometry drivers shared by the prototypes. |
 | `blank_provenance.go.txt` | UV storage experiment: empty Content with Width 1 survives cell operations, but UV String/Render collapses its position and partial-wide cleanup introduces printed spaces. |
 

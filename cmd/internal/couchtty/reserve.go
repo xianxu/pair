@@ -11,11 +11,11 @@ import (
 
 // This file is the POLICY half of the reserved row: what the row SAYS.
 //
-// The mechanism -- reserving the row, painting it without moving the child's
-// cursor, releasing it -- moved to hostty.Reservation in pair#199, because
-// `pair term` needs the same primitive for its tab strip and the atlas is
-// explicit that `\x1b[r` lives in one package only. What each consumer draws
-// there stays with the consumer: couch renders actors, termcmd renders tabs.
+// The mechanism is terminal.Presenter: since #255 M3 the row is a chrome row
+// composed into each presented frame (UpdateChrome), not a region reserved and
+// painted beside the child. hostty.Reservation now supplies only the row count.
+// What each consumer draws there stays with the consumer: couch renders actors,
+// termcmd renders tabs.
 
 // StatusActor is one chip on the row.
 type StatusActor struct {
