@@ -22,6 +22,48 @@ const (
 )
 const MaxFailureBytes = 4096
 
+// AllPhases is the request vocabulary in lifecycle order, so callers and tests
+// enumerate it rather than restating it.
+func AllPhases() []Phase { return []Phase{Pending, Running, Failed, Complete} }
+
+// Exits names what an operator can do about an unfinished request: the ONE
+// wording for every refusal a retained request causes, in couchcore and in
+// pair's CLI. A FAILED request has two exits and every refusal offers both --
+// when retry was the only one named, a thread whose failed handoff the operator
+// had already taken over could not be relaunched without re-delivering it
+// (pair#280). A non-empty tag adds the forms that work after Couch exits.
+func Exits(phase Phase, tag string) string {
+	if phase == Failed {
+		s := "Retry continuation re-delivers it and Dismiss continuation drops it"
+		if tag != "" {
+			s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s` or `couch --internal dismiss-continuation %s`", tag, tag)
+		}
+		return s
+	}
+	s := "Retry continuation reconciles it"
+	if tag != "" {
+		s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s`", tag)
+	}
+	return s
+}
+
+// CheckDismissible is the rule for retiring a request by deleting it: only the
+// exact FAILED request, where an empty id means the retained one. Pure, so it
+// is tested on literal requests; couchcore's ThreadStore.DismissFailedContinuation
+// applies it inside the store's revision CAS (pair#280).
+func CheckDismissible(r *Request, id string) error {
+	if r == nil {
+		return errors.New("thread has no continuation request")
+	}
+	if id != "" && r.ID != id {
+		return errors.New("obsolete continuation request")
+	}
+	if r.Phase != Failed {
+		return fmt.Errorf("continuation %s is %s; only a failed continuation can be dismissed", r.ID, r.Phase)
+	}
+	return nil
+}
+
 type Process struct {
 	PID      int    `json:"pid"`
 	Identity string `json:"identity"`

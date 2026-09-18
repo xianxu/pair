@@ -31,7 +31,7 @@ func (c *Couch) validateContinuationWarm(ctx context.Context, record ThreadRecor
 		return err
 	}
 	if !sameContinuationSource(current, ContinuationSource{Agent: r.Source.Agent, Session: r.Source.Session, LaunchOrdinal: r.Source.LaunchOrdinal}) {
-		return errors.New("warm session is neither the requested source nor its exact continuation target")
+		return withContinuationExits(record, errors.New("warm session is neither the requested source nor its exact continuation target"))
 	}
 	return nil
 }

@@ -412,25 +412,33 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 // label, and the guard that keeps it that way iterates the vocabulary rather
 // than listing cases here (Go has no exhaustive-switch check).
 //
-// A retained continuation is information ABOUT the thread, not a replacement
-// for it (#280). A failed request composes with the state -- the operator's
-// live thread read "continuation failed" for hours while they typed into it.
-// Pending and running still displace the state, on purpose: they are in
-// flight and bounded (running fails at the 30s submission deadline, pending is
-// taken by the owner's next scan), so for those seconds the operation IS the
-// thread's state.
+// A retained continuation is information ABOUT the thread, never a
+// replacement for it (#280), in every phase. The failed case read
+// "continuation failed" for hours on a thread the operator was typing into, and
+// an in-flight phase is not bounded either: a request whose owner died reads
+// "continuing…" until someone retries it. So the state always shows, and the
+// request is appended.
 func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
 	if request := thread.Continuation; request != nil {
-		switch request.Phase {
-		case checkpoint.Pending:
-			return "continuation queued"
-		case checkpoint.Running:
-			return "continuing…"
-		case checkpoint.Failed:
-			return threadStateText(thread, now) + " · continuation failed"
+		if label := continuationLabel(request.Phase); label != "" {
+			return threadStateText(thread, now) + " · " + label
 		}
 	}
 	return threadStateText(thread, now)
+}
+
+// continuationLabel is what a retained request adds to its row. A complete one
+// adds nothing: it no longer constrains the thread.
+func continuationLabel(phase checkpoint.Phase) string {
+	switch phase {
+	case checkpoint.Pending:
+		return "continuation queued"
+	case checkpoint.Running:
+		return "continuing…"
+	case checkpoint.Failed:
+		return "continuation failed"
+	}
+	return ""
 }
 
 func threadStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {

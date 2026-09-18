@@ -20,7 +20,7 @@ func (s *ThreadStore) PublishContinuation(address ThreadAddress, revision uint64
 				return nil
 			}
 			if old.Phase != checkpoint.Complete {
-				return fmt.Errorf("continuation %s is %s; %s before publishing another", old.ID, old.Phase, continuationExits(old.Phase))
+				return fmt.Errorf("continuation %s is %s; resolve it before publishing another: %s", old.ID, old.Phase, checkpoint.Exits(old.Phase, string(address.Tag)))
 			}
 			if request.Source.LaunchOrdinal <= old.Source.LaunchOrdinal {
 				return errors.New("continuation source generation did not advance")
@@ -63,15 +63,8 @@ func (s *ThreadStore) BeginContinuationFromRetiredIncarnations(address ThreadAdd
 // exact failed request; an empty requestID means the retained one.
 func (s *ThreadStore) DismissFailedContinuation(address ThreadAddress, revision uint64, requestID string) (ThreadRecord, error) {
 	return s.updateExistingThread(address, revision, func(record *ThreadRecord) error {
-		r := record.Continuation
-		if r == nil {
-			return errors.New("thread has no continuation request")
-		}
-		if requestID != "" && r.ID != requestID {
-			return errors.New("obsolete continuation request")
-		}
-		if r.Phase != checkpoint.Failed {
-			return fmt.Errorf("continuation %s is %s; only a failed continuation can be dismissed", r.ID, r.Phase)
+		if err := checkpoint.CheckDismissible(record.Continuation, requestID); err != nil {
+			return err
 		}
 		record.Continuation = nil
 		return nil

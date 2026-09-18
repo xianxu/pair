@@ -433,7 +433,7 @@ func (c *Couch) archiveContinuationVacant(record ThreadRecord, evidence Recovery
 		return nil
 	}
 	if evidence.Presence != PresenceAbsent {
-		return fmt.Errorf("archive %s: continuation source or target session is still occupied", record.Address.Tag)
+		return withContinuationExits(record, fmt.Errorf("archive %s: continuation source or target session is still occupied", record.Address.Tag))
 	}
 	identities := []ProcessIdentity{{PID: request.Source.Helper.PID, Identity: request.Source.Helper.Identity}}
 	if request.Target != nil {
@@ -444,7 +444,7 @@ func (c *Couch) archiveContinuationVacant(record ThreadRecord, evidence Recovery
 			continue
 		}
 		if c.Proc == nil || observeExactProcess(c.Proc, identity) != Dead {
-			return fmt.Errorf("archive %s: continuation source or target helper is not proved dead", record.Address.Tag)
+			return withContinuationExits(record, fmt.Errorf("archive %s: continuation source or target helper is not proved dead", record.Address.Tag))
 		}
 	}
 	return nil

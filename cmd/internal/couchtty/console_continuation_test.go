@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
@@ -361,5 +362,30 @@ func TestRecoveryCompletionDoesNotReplaceNewerWatchedRequest(t *testing.T) {
 	c.finishContinuationOperation(operationCompletion{name: "recover-checkpoint", origin: MenuOperationOrigin{Address: status.Address}, value: couchcore.ContinuationResult{Status: status}}, nil)
 	if got := c.continuations[status.Address]; got.status.RequestID != newer.RequestID || !got.queued {
 		t.Fatalf("obsolete recovery replaced accepted request: %+v", got)
+	}
+}
+
+// A dismissed (or otherwise vanished) request takes the console's per-address
+// continuation state with it: the watch AND the orientation prompt. Otherwise
+// Copy orientation prompt stays on offer for a handoff the operator dropped.
+func TestVanishedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
+	c, status := continuationConsole(t)
+	c.mu.Lock()
+	c.continuations[status.Address] = continuationWatch{status: status}
+	if c.menu.Orientation == nil {
+		c.menu.Orientation = map[couchcore.ThreadAddress]orientation.Request{}
+	}
+	c.menu.Orientation[status.Address] = orientation.Request{Tag: string(status.Address.Tag), Agent: "codex", Attempt: "start-1"}
+	c.mu.Unlock()
+
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}})
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.continuations[status.Address]; ok {
+		t.Fatal("watch outlived its request")
+	}
+	if _, ok := c.menu.Orientation[status.Address]; ok {
+		t.Fatal("orientation prompt outlived its dismissed request")
 	}
 }

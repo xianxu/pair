@@ -99,13 +99,13 @@ additional information about that thread, not a replacement for it.
 
 ## Done when
 
-- [ ] A live thread with a retained failed continuation renders as live in the
+- [x] A live thread with a retained failed continuation renders as live in the
       switcher, with the retry still discoverable.
-- [ ] A test pins the precedence across state × continuation-phase, so a future
+- [x] A test pins the precedence across state × continuation-phase, so a future
       status cannot re-take the column by being added to the switch.
-- [ ] The retained request is never auto-retired by the thread's later liveness;
+- [x] The retained request is never auto-retired by the thread's later liveness;
       an explicit operator dismissal exists, or the issue records why not.
-- [ ] `Pending`/`Running` precedence is settled on purpose and the reasoning is
+- [x] `Pending`/`Running` precedence is settled on purpose and the reasoning is
       in the code.
 
 ## Estimate
@@ -166,6 +166,19 @@ total: 2.22
   inline `!= Complete` sites. With no new phase, those sites still mean what
   they say.
 
+### 2026-09-17 — close review round 1: two claims corrected
+
+- **Settled differently from the first revision:** `Pending`/`Running` do NOT
+  get to displace the state. "Bounded in time" holds only while an owner
+  watches the address; a request whose owner died reads `continuing…` forever.
+  Every phase now composes with the state. Done-when bullet 4 is answered by
+  this rule and by the in-flight action set's stated reason (the continuation
+  owns the thread mid-replacement).
+- **"Every refusal names both exits"** is now true, not just asserted. The
+  first implementation covered the guard, publish and `pair continue`, but not
+  recovery, archive or warm reattach. All go through one wording
+  (`checkpoint.Exits`), and each site is driven by a test.
+
 ## Plan
 
 Durable plan: `workshop/plans/000280-dismiss-continuation-plan.md`. Single pass,
@@ -173,15 +186,15 @@ one boundary.
 
 - [x] Confirm the `pair` request's phase and provenance: `failed`, 16:00:58,
       *"operator input interrupted automatic orientation"* (Log, 2026-09-17).
-- [ ] Reproduce the switcher retry bug through the production executor, then
+- [x] Reproduce the switcher retry bug through the production executor, then
       fix it (bootstrap `ref` optional; the switcher stops sending `ref`).
-- [ ] `ThreadStore.DismissFailedContinuation` + `dismiss-continuation`
+- [x] `ThreadStore.DismissFailedContinuation` + `dismiss-continuation`
       operation + `Couch.DismissContinuation`; refusals write nothing.
-- [ ] `continuationGuard` names retry and dismiss; a failed live thread
+- [x] `continuationGuard` names retry and dismiss; a failed live thread
       relaunches past the guard once dismissed.
-- [ ] Switcher: `Failed` composes the state text; `Pending`/`Running` displace,
+- [x] Switcher: `Failed` composes the state text; `Pending`/`Running` displace,
       on purpose; dismiss is offered beside retry; state × phase tables.
-- [ ] Atlas + README; full suite; operator smoke on the `pair` thread.
+- [x] Atlas + README; full suite; operator smoke on the `pair` thread.
 
 ## Log
 
@@ -363,3 +376,34 @@ reattach). A separate Alt+n relaunch after dismissal is not visible in the
 record: the only incarnation dates from couch's start. That path is pinned by
 `TestFailedContinuationRelaunchesOnceDismissed` (outcome `Relaunched`), and
 the refusal it used to hit is gone with the request.
+
+### 2026-09-17 — close review round 1 (REWORK): fixed by class
+
+- **BR-2 (Critical):** the pure dismissal rule is extracted as
+  `checkpoint.CheckDismissible`, tested on literal requests; the two IO entries
+  moved to the plan's Integration points.
+- **BR-3:** every continuation phase composes with the state. The in-flight
+  action set keeps its restriction, for the reason stated in `## Revisions`.
+- **BR-4:** every refusal a retained request causes names its exits through
+  `checkpoint.Exits`:
+  - guard, publish and `pair continue` (already);
+  - plus recovery ×4, archive ×2 and warm reattach, via
+    `withContinuationExits`.
+
+  All are driven by `TestEveryRefusalARetainedRequestCausesNamesBothExits`,
+  and cold resume and cold start by the guard-agreement test.
+- **Minors:**
+  - `menuLiveActions` placement;
+  - one exits helper, and a shared `writeRequestRecord` loop;
+  - `checkpoint.AllPhases` drives the phase table;
+  - `operatorFacing` rename;
+  - the console prunes `menu.Orientation` when a request vanishes;
+  - `ContinuationRefuses`' doc names what is driven.
+- **Mutation-checked (6 more, all red):**
+  - the wrapper dropping the exits;
+  - an unwrapped archive site;
+  - orientation not pruned;
+  - running displacing the state;
+  - the pure rule admitting running;
+  - resume unlisted.
+- `go test ./... -count=1` passes (71 packages).

@@ -76,19 +76,23 @@ func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
 // arrive unclassified (#280).
 func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 	const guardPhrase = "Dismiss continuation drops it"
-	driven := map[string]map[string]string{
-		"relaunch":             {},
-		"prepare-switch-agent": {"agent": "codex"}, // the switcher's switch-agent begins with this preview
-		"park":                 {},
-		"detach":               {},
-		"name":                 {"name": "renamed"},
-		"describe":             {},
+	type drive struct {
+		args map[string]string
+		cold bool // retire the helper first: the guard reaches only a COLD resume
+	}
+	driven := map[string]drive{
+		"relaunch":             {args: map[string]string{}},
+		"prepare-switch-agent": {args: map[string]string{"agent": "codex"}}, // SwitchAgent re-runs this preview (switchagent.go)
+		"park":                 {args: map[string]string{}},
+		"detach":               {args: map[string]string{}},
+		"name":                 {args: map[string]string{"name": "renamed"}},
+		"describe":             {args: map[string]string{}},
+		"resume":               {args: map[string]string{}, cold: true},
 	}
 	rowActionDrivenAs := map[string]string{"switch-agent": "prepare-switch-agent"}
 	exempt := map[string]string{
 		"retry-continuation":   "an exit from the failed request, not an operation it gates",
 		"dismiss-continuation": "an exit from the failed request, not an operation it gates",
-		"resume":               "never offered on a live row; a COLD resume is gated (see TestContinuationBlocksCompetingTransitions)",
 		"archive":              "never offered on a live row; its own admission is archiveContinuationVacant",
 		"recover-thread":       "offered only on recovery rows, never composed",
 		"recover-checkpoint":   "offered only on recovery rows, never composed",
@@ -105,9 +109,16 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 			t.Errorf("row action %q is neither driven against the guard nor exempt with a reason", op.Name)
 		}
 	}
-	for name, extra := range driven {
+	for name, d := range driven {
 		t.Run(name, func(t *testing.T) {
 			env, live := switchEnvWithLiveThread(t)
+			if d.cold {
+				var err error
+				live, err = env.Couch.Threads.updateExistingThread(live.Address, live.Revision, func(r *ThreadRecord) error { r.Incarnations = nil; return nil })
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
 			if name == "detach" {
 				// Detach SIGTERMs the helper and waits for it, as newDetachFixture
 				// models; without this the fake never exits and detach fails for a
@@ -116,7 +127,7 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 			}
 			failed, _ := failedContinuation(t, env.Couch.Threads, live)
 			args := map[string]string{"repo-scope": failed.Address.RepoScope, "tag": string(failed.Address.Tag)}
-			for k, v := range extra {
+			for k, v := range d.args {
 				args[k] = v
 			}
 			_, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch), DirectStore: DirectStoreExecutor(env.Couch)},
@@ -131,6 +142,48 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 				t.Fatalf("%s is not listed in ContinuationRefuses but did not succeed: %v", name, err)
 			}
 		})
+	}
+	// start is not a row action: the guard's reach there is the store's cold
+	// start claim, driven directly.
+	t.Run("start", func(t *testing.T) {
+		env, live := switchEnvWithLiveThread(t)
+		failed, _ := failedContinuation(t, env.Couch.Threads, live)
+		cold, err := env.Couch.Threads.updateExistingThread(failed.Address, failed.Revision, func(r *ThreadRecord) error { r.Incarnations = nil; return nil })
+		if err != nil {
+			t.Fatal(err)
+		}
+		profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+		_, err = env.Couch.Threads.CommitStartClaim(cold.Address, cold.Revision, "repo", env.Now, StartEvent{Kind: StartClaimed, Nonce: "start-2222222222222222", Owner: SupervisorOwner{PID: 100, Identity: "owner"}, Profile: &profile})
+		if !ContinuationRefuses("start") || err == nil || !strings.Contains(err.Error(), guardPhrase) {
+			t.Fatalf("cold start claim must be refused by the guard, and listed: %v", err)
+		}
+	})
+}
+
+// Every refusal a retained failed request CAUSES names both exits, not only
+// the guard's: recovery, archive and warm reattach go through
+// withContinuationExits. Each site is driven, not just the wrapper.
+func TestEveryRefusalARetainedRequestCausesNamesBothExits(t *testing.T) {
+	const both = "Dismiss continuation drops it"
+	env, live := switchEnvWithLiveThread(t)
+	failed, _ := failedContinuation(t, env.Couch.Threads, live)
+
+	other := filepath.Join(t.TempDir(), "other.md")
+	if err := os.WriteFile(other, []byte("---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nanother handoff\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.RecoverThread(context.Background(), failed.Address, other); err == nil || !strings.Contains(err.Error(), "another continuation is unresolved") || !strings.Contains(err.Error(), both) {
+		t.Errorf("recover-checkpoint refusal: %v", err)
+	}
+	if err := env.Couch.archiveContinuationVacant(failed, RecoveryEvidence{Presence: PresencePresent}); err == nil || !strings.Contains(err.Error(), both) {
+		t.Errorf("archive refusal: %v", err)
+	}
+	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return false, nil }
+	env.Couch.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) {
+		return ContinuationSource{Agent: "claude", Session: "some-other-session", LaunchOrdinal: 9}, nil
+	}
+	if err := env.Couch.validateContinuationWarm(context.Background(), failed); err == nil || !strings.Contains(err.Error(), "warm session is neither") || !strings.Contains(err.Error(), both) {
+		t.Errorf("warm reattach refusal: %v", err)
 	}
 }
 
@@ -147,7 +200,7 @@ func TestPublishAfterDismissalAcceptsOnlyTheCurrentSource(t *testing.T) {
 	if err := os.WriteFile(path, []byte("---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nfresh handoff\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.RequestContinuation(context.Background(), failed.Address, current, path); err == nil || !strings.Contains(err.Error(), "retry it (re-deliver) or dismiss it (drop it)") {
+	if _, err := env.Couch.RequestContinuation(context.Background(), failed.Address, current, path); err == nil || !strings.Contains(err.Error(), "Dismiss continuation drops it") {
 		t.Fatalf("a failed request must block publishing and name both exits: %v", err)
 	}
 	if _, err := env.Couch.DismissContinuation(context.Background(), failed.Address, request.ID); err != nil {

@@ -428,9 +428,11 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 	return args
 }
 
-func continuationArguments(bootstrap bool) []ArgSpec {
-	args := []ArgSpec{{Name: "repo-scope", Summary: "exact repository scope for the continuation", Required: true, Implicit: true}, {Name: "tag", Summary: "exact thread tag supplied by the owner", Implicit: true}, {Name: "request-id", Summary: "stable retained continuation request ID", Required: !bootstrap, Implicit: true}}
-	if bootstrap {
+func continuationArguments(operatorFacing bool) []ArgSpec {
+	args := []ArgSpec{{Name: "repo-scope", Summary: "exact repository scope for the continuation", Required: true, Implicit: true}, {Name: "tag", Summary: "exact thread tag supplied by the owner", Implicit: true}, {Name: "request-id", Summary: "stable retained continuation request ID", Required: !operatorFacing, Implicit: true}}
+	// Operator-facing entries (retry, dismiss) are addressed by the switcher's
+	// exact implicit tag or a CLI ref, and default to the retained request.
+	if operatorFacing {
 		// Optional, like name's and describe's: the switcher addresses the row by
 		// its exact implicit tag, and resolveOperationThread refuses a call that
 		// carries both. A required ref forced the switcher to send both, so its

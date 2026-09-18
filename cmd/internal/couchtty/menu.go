@@ -1202,17 +1202,17 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	return string(thread.Reason)
 }
 
+// menuLiveActions is a live row's action set. Detach first: it is the safe,
+// everyday gesture -- the agent keeps running and only the client goes. Park is
+// destructive and sits behind it, in the position the operator has to travel to.
+var menuLiveActions = []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
+
 // menuActionItems is what a row offers. It is NOT filtered through the
 // declaration: a filter made the sweep's offered-implies-declared direction
 // unfalsifiable -- offered became a subset of declared by construction -- and
 // turned the mistake it was meant to catch into an item silently vanishing from
 // the switcher. A guard must be able to fail, and production must not coerce its
 // input into agreement. The test reads this function and compares.
-// menuLiveActions is a live row's action set. Detach first: it is the safe,
-// everyday gesture -- the agent keeps running and only the client goes. Park is
-// destructive and sits behind it, in the position the operator has to travel to.
-var menuLiveActions = []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
-
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 	if recovery := thread.Recovery; recovery != nil && (thread.State == couchcore.ThreadUnusable || (thread.Continuation != nil && thread.Continuation.Phase != checkpoint.Complete)) {
 		items := []string{}
@@ -1256,8 +1256,10 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		case request.Phase == checkpoint.Failed:
 			return []string{"retry-continuation", "dismiss-continuation", "name", "describe"}
 		case request.Phase == checkpoint.Running:
-			// In flight, and bounded by the 30s submission deadline: displacing
-			// the actions for those seconds is honest (#280, see rootStateText).
+			// While a request is in flight the continuation owns the thread:
+			// parking or detaching mid-replacement races its own reconciliation.
+			// Retry is the exit, including for a request whose owner died and
+			// that will never finish on its own (#280).
 			return []string{"retry-continuation", "name", "describe"}
 		}
 		return []string{"name", "describe"}

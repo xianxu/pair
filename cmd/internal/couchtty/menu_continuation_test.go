@@ -9,35 +9,33 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 )
 
-// A retained continuation is information about its thread, not a replacement
-// for it (#280). State × phase, exhaustively: a FAILED request composes with
-// whatever the state says; pending and running displace it on purpose (in
-// flight, bounded); none and complete leave the plain state.
-func TestContinuationPhaseComposesOrDisplacesTheStateText(t *testing.T) {
+// A retained continuation is information about its thread, never a
+// replacement for it, in EVERY phase (#280): the state always shows, and a
+// non-complete request is appended. The phases come from the vocabulary, so a
+// new one cannot slip past the table.
+func TestContinuationPhaseComposesWithTheStateText(t *testing.T) {
 	now := time.Date(2026, 9, 17, 22, 0, 0, 0, time.UTC)
 	active := now.Add(-3 * time.Hour)
+	labels := map[checkpoint.Phase]string{checkpoint.Pending: "continuation queued", checkpoint.Running: "continuing…", checkpoint.Failed: "continuation failed", checkpoint.Complete: ""}
 	for _, state := range couchcore.AllThreadStates() {
 		reason := couchcore.ThreadReason("")
 		if state == couchcore.ThreadUnusable {
 			reason = couchcore.ReasonBindingLost
 		}
 		plain := rootStateText(stateTextRow(state, reason, active), now)
-		for _, tc := range []struct {
-			phase checkpoint.Phase
-			want  string
-		}{
-			{"", plain},
-			{checkpoint.Complete, plain},
-			{checkpoint.Pending, "continuation queued"},
-			{checkpoint.Running, "continuing…"},
-			{checkpoint.Failed, plain + " · continuation failed"},
-		} {
-			row := stateTextRow(state, reason, active)
-			if tc.phase != "" {
-				row.Continuation = &couchcore.ContinuationStatus{Address: row.Address, RequestID: "request", Phase: tc.phase}
+		for _, phase := range checkpoint.AllPhases() {
+			label, known := labels[phase]
+			if !known {
+				t.Fatalf("phase %q has no expected label; decide how it renders", phase)
 			}
-			if got := rootStateText(row, now); got != tc.want {
-				t.Errorf("%s + %q = %q, want %q", state, tc.phase, got, tc.want)
+			want := plain
+			if label != "" {
+				want = plain + " · " + label
+			}
+			row := stateTextRow(state, reason, active)
+			row.Continuation = &couchcore.ContinuationStatus{Address: row.Address, RequestID: "request", Phase: phase}
+			if got := rootStateText(row, now); got != want {
+				t.Errorf("%s + %s = %q, want %q", state, phase, got, want)
 			}
 		}
 	}

@@ -161,7 +161,12 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 	}
 	for _, address := range result.addresses {
 		if result.err == nil && !seen[address] && !c.continuations[address].queued {
+			// The record no longer holds a request -- completed elsewhere, or
+			// DISMISSED (#280). Everything the console keyed to it follows the
+			// record, or Copy orientation prompt stays on offer for a handoff the
+			// operator dropped.
 			delete(c.continuations, address)
+			delete(c.menu.Orientation, address)
 		}
 	}
 	c.mu.Unlock()

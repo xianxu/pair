@@ -176,7 +176,7 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 	}
 	if request := record.Continuation; request != nil && request.Phase != checkpoint.Complete {
 		if selected != nil && selected.Digest != request.Checkpoint.Digest {
-			return ContinuationResult{}, errors.New("another continuation is unresolved; recover its retained checkpoint or archive")
+			return ContinuationResult{}, withContinuationExits(record, errors.New("another continuation is unresolved; recover its retained checkpoint or archive"))
 		}
 		// Target/start recovery has stronger exact-attempt rules than stale-source
 		// retirement. Let its existing reconciler own those interrupted boundaries.
@@ -263,19 +263,19 @@ func (c *Couch) prepareAbsentContinuation(ctx context.Context, address ThreadAdd
 		if old != nil && old.Phase != checkpoint.Complete {
 			request = old.Clone()
 			if selected != nil && selected.Digest != request.Checkpoint.Digest {
-				return record, errors.New("another continuation is unresolved; recover it or archive")
+				return record, withContinuationExits(record, errors.New("another continuation is unresolved; recover it or archive"))
 			}
 			if err := AdmitRecoveryGeneration(request, source); err != nil {
 				return record, err
 			}
 			if request.Target != nil {
-				return record, errors.New("continuation target must be reconciled before source recovery")
+				return record, withContinuationExits(record, errors.New("continuation target must be reconciled before source recovery"))
 			}
 			if request.SourcePark != "" || request.SourceAbsence != nil {
 				return record, nil
 			}
 			if observeExactProcess(c.Proc, ProcessIdentity{PID: request.Source.Helper.PID, Identity: request.Source.Helper.Identity}) != Dead {
-				return record, errors.New("recorded continuation source helper is not proved dead")
+				return record, withContinuationExits(record, errors.New("recorded continuation source helper is not proved dead"))
 			}
 		} else {
 			cp := selected

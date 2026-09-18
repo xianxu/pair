@@ -153,15 +153,26 @@ Continuation has five internal operations (`pair#249`, `pair#280`):
 - `continuation-status`, represented by `couch --internal continuation-status`, reconciles the exact launch attempt's orientation receipt under the live owner. The Console supplies the address, request ID, and attempt through the typed operation arguments.
 
 **A retained request composes with its thread; it does not replace it**
-(`pair#280`). A `Failed` request renders as `<state> · continuation failed`, for
-example `live · continuation failed`. A live row keeps its own actions minus
-exactly those `continuationGuard` refuses (`couchcore.ContinuationRefuses`:
-relaunch, switch-agent, cold resume, start), plus retry and dismiss. Park and
-detach stay: neither reads the request. Every refusal of a failed request names
-both exits. `Pending` and `Running` still displace the state ("continuation
-queued", "continuing…"), because they are in flight and bounded: a running
-request fails at the 30s submission deadline. Before #280 a failed request
-replaced the state text, the action set and relaunch's admission indefinitely.
+(`pair#280`).
+- **State text, in every phase:** `<state> · continuation queued|continuing…|continuation failed`,
+  for example `live · continuation failed`. In-flight phases are NOT bounded
+  in time: a request whose owner died reads `continuing…` until someone retries
+  it. So the state always shows.
+- **Actions of a live row with a failed request:** the row's own actions minus
+  exactly those `continuationGuard` refuses (`couchcore.ContinuationRefuses`:
+  relaunch, switch-agent, cold resume, start), plus retry and dismiss. Park and
+  detach stay, because neither reads the request.
+- **Actions of an in-flight request:** it keeps the restricted `retry` set on
+  purpose. The continuation owns the thread mid-replacement, and retry
+  reconciles a stalled one.
+- **Refusals:** every refusal a retained request causes names its exits through
+  one wording, `checkpoint.Exits`. That covers the guard, publish, archive
+  (`archiveContinuationVacant`), warm reattach (`validateContinuationWarm`),
+  recovery, and `pair continue --retry`; the non-guard sites go through
+  `withContinuationExits`.
+
+Before #280, a failed request replaced the state text, the action set and
+relaunch's admission indefinitely.
 The switcher's Retry also never reached its thread: it sent `ref` and `tag`,
 which `resolveOperationThread` refuses. Both continuation exits now address the
 row by its exact implicit tag alone.

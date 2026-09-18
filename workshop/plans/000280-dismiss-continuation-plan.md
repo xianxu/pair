@@ -33,8 +33,10 @@ Deletion is also the only skew-safe shape.
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `ThreadStore.DismissFailedContinuation` | `cmd/internal/couchcore/continuation_store.go` | new |
-| `Couch.DismissContinuation` | `cmd/internal/couchcore/continuation.go` | new |
+| `checkpoint.CheckDismissible` | `cmd/internal/checkpoint/request.go` | new |
+| `checkpoint.Exits` | `cmd/internal/checkpoint/request.go` | new |
+| `checkpoint.AllPhases` | `cmd/internal/checkpoint/request.go` | new |
+| `withContinuationExits` | `cmd/internal/couchcore/continuation.go` | new |
 | `continuationGuard` | `cmd/internal/couchcore/continuation.go` | modified |
 | `dismiss-continuation` declaration | `cmd/internal/couchcore/ops.go` | new |
 | `continuationArguments` | `cmd/internal/couchcore/ops.go` | modified |
@@ -75,10 +77,10 @@ Deletion is also the only skew-safe shape.
   of `threadEffect`'s `tag`, and `resolveOperationThread` refuses both
   (`operationdispatch.go:421-423`). The CLI still binds it positionally;
   omitting it resolves to *"thread reference is required"*.
-- **`rootStateText`**: `Failed` COMPOSES as `<state text> · continuation
-  failed`, whatever the state (live, parked, an unusable reason). `Pending`
-  ("continuation queued") and `Running` ("continuing…") still DISPLACE the
-  state, decided on purpose and commented. Both are bounded in time: a `Running`
+- **`rootStateText`**: EVERY non-complete phase composes as
+  `<state text> · <label>`, whatever the state (see the close-review revision).
+  The text originally planned here said `Pending`/`Running` displace the state
+  because they are bounded; that was wrong. Both are bounded in time: a `Running`
   request becomes `Failed` at the 30s submission deadline
   (`continuation_recovery.go:197`), and `Pending` is picked up by the owner's
   scan. Displacing a state for the seconds an operation is in flight is honest;
@@ -96,8 +98,9 @@ Deletion is also the only skew-safe shape.
     retry and dismiss, so detach is not a trap.
   - Rows with `Recovery` (non-live) already compose; dismiss joins them after
     retry.
-  - `Pending`/`Running` keep today's in-flight sets, on purpose (see
-    `rootStateText`).
+  - `Pending`/`Running` keep today's in-flight sets, on purpose: the
+    continuation owns the thread mid-replacement, and retry reconciles a
+    stalled one (see the close-review revision; this is not a time bound).
 - **`ContinuationRefuses(operation string) bool`**
   (`couchcore/continuation.go`, beside `continuationGuard`): the ONE list of
   operations the guard refuses: relaunch, switch-agent, (cold) resume, start.
@@ -110,6 +113,8 @@ Deletion is also the only skew-safe shape.
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
+| `ThreadStore.DismissFailedContinuation` | `cmd/internal/couchcore/continuation_store.go` | new | the file-backed thread store (applies `CheckDismissible` in its CAS) |
+| `Couch.DismissContinuation` | `cmd/internal/couchcore/continuation.go` | new | the store, via `writeRequestRecord`'s stale-revision loop |
 | `DirectStoreExecutor` (dismiss case) | `cmd/internal/couchcore/operationdispatch.go` | modified | the file-backed thread store |
 | switcher dispatch (`dispatchMenuOperation`, refresh) | `cmd/internal/couchtty/menu.go` | modified | the declared-operation dispatcher |
 | CLI owner/scope policy | `cmd/internal/couchcmd/run.go:365-378` | modified | `couch --internal` |
@@ -158,14 +163,14 @@ Deletion is also the only skew-safe shape.
 
 ## Tasks
 
-- [ ] **Reproduce the retry bug (red), across the real seam.** Switch
+- [x] **Reproduce the retry bug (red), across the real seam.** Switch
   `TestContinuationFailedRowKeepsAnExplicitRetry`
   (`couchtty/console_continuation_test.go:17`) from its fake LiveOwner to the
   PRODUCTION dispatcher (`DispatchOperation` + `CouchLiveOwnerExecutor`) on a
   temp-dir store, as `operation_queue_test.go` already does. Expect the *"thread
   ref and exact tag cannot both be supplied"* refusal. If it does not
   reproduce, log why and drop the retry fix.
-- [ ] **Fix retry (green).**
+- [x] **Fix retry (green).**
   - Make `continuationArguments(true)`'s `ref` optional, and stop
     `dispatchMenuOperation` from adding `ref`. The same test then reaches
     `RetryContinuation`, asserted by its result or its own refusal, never by a
@@ -176,16 +181,16 @@ Deletion is also the only skew-safe shape.
     reference is required"*) after the supervisor lease, not at binding.
     It is an internal operation, the lease is released on exit, and the message
     names what is missing.
-- [ ] **Store transition (TDD).** `DismissFailedContinuation`: success clears
+- [x] **Store transition (TDD).** `DismissFailedContinuation`: success clears
   and bumps the revision. Each of the five refusals is asserted by message AND by
   an unchanged revision (writes nothing). Both retry/dismiss orders are covered.
-- [ ] **Operation + couchcore entry.** Declare `dismiss-continuation`, add
+- [x] **Operation + couchcore entry.** Declare `dismiss-continuation`, add
   `Couch.DismissContinuation`, and add the `DirectStoreExecutor` case. Add rows
   to `TestOperationDeclarationsAreClosureFreeCompleteAndOwned`,
   `TestOperationArityMatchesExpectation`, `TestContinuationOperationsDeclared`,
   and the couchcmd owner/scope policy tests (`run.go:365-378`: current repo
   scope yes, live owner no, console no).
-- [ ] **Guard, its list, and the reported symptom.**
+- [x] **Guard, its list, and the reported symptom.**
   - Add `ContinuationRefuses` and its table test (listed operations refused by
     message; park and detach not).
   - With a live thread and a `Failed` request, `Relaunch` refuses naming BOTH
@@ -197,7 +202,7 @@ Deletion is also the only skew-safe shape.
     now the only guard once the old request is gone.
   - Add a comment in `checkpoint/request.go`'s `Advance` that couchcore's
     dismissal (deleting the request) is the other exit from `Failed`.
-- [ ] **Switcher.**
+- [x] **Switcher.**
   - `rootStateText` table over `AllThreadStates` × {nil, Pending, Running,
     Failed, Complete}: `Failed` composes; `Pending`/`Running` displace, with the
     reason in a comment; `nil`/`Complete` show the plain state.
@@ -209,16 +214,16 @@ Deletion is also the only skew-safe shape.
   - Extend `TestRowActionDeclarationsAndTheMenuAgreeInBothDirections` and add a
     `TestContinuationFailedRowKeepsAnExplicitRetry`-style dismiss test that
     crosses the PRODUCTION dispatcher.
-- [ ] **Docs.**
+- [x] **Docs.**
   - `atlas/couch.md`: the operation list, "four internal operations" → five,
     with the literal `couch --internal dismiss-continuation`, as
     `TestOperationPresentationDocs` requires; and the offered-vs-permitted
     table.
   - `README.md`'s Retry continuation section gains Dismiss.
-- [ ] **Verify.** `go test ./... -count=1` with the retention scrub and the
+- [x] **Verify.** `go test ./... -count=1` with the retention scrub and the
   sandbox off. `make -k test` (the known `test-changelog` failure; remember that
   its Go recipe is skipped). Build `bin/couch` and `bin/pair`.
-- [ ] **Operator smoke.** On the `pair` thread:
+- [x] **Operator smoke.** On the `pair` thread:
   1. The row reads `live · continuation failed` and offers Dismiss.
   2. Dismiss it. The row reads `live`, and the normal actions are back.
   3. Alt+n relaunch succeeds and keeps the conversation.
@@ -241,3 +246,38 @@ Deletion is also the only skew-safe shape.
 - **PQ-5:** a comment in `Advance`, plus a test that a stale publish after
   dismissal is refused.
 - **PQ-6:** the CLI error ordering is accepted, with the reason stated.
+
+### 2026-09-17 — reconciled with the Log at close
+
+- Every task is evidenced in the issue's `## Log` and ticked.
+- The operator smoke's step 3 (Alt+n relaunch after dismissal) is ticked
+  without a live observation. The record shows the dismissal (revision 38, no
+  `continuation`), but its only incarnation dates from couch's startup
+  reattach. The relaunch-after-dismissal path is pinned by
+  `TestFailedContinuationRelaunchesOnceDismissed`, which asserts the
+  `Relaunched` outcome on the production relaunch.
+
+### 2026-09-17 — close review round 1 (REWORK)
+
+- **BR-2 (Critical):** the Pure table listed the store transition and
+  `Couch.DismissContinuation`, both of which do store IO. The pure rule is now
+  `checkpoint.CheckDismissible`, tested on literal requests. Both IO entries
+  moved to Integration points, and the tables above are corrected in place.
+- **BR-3:** "Pending/Running are bounded, so they may displace the state" is
+  false without a watching owner. Every phase now composes. The in-flight action
+  set stays restricted, with an honest reason: the continuation owns the thread
+  mid-replacement, and retry reconciles a stalled one.
+- **BR-4:** "every refusal names both exits" held only for the guard. The class
+  is every refusal a retained request causes: recovery (4 sites), archive (2)
+  and warm reattach (1) now go through `withContinuationExits`. The wording is
+  one function, `checkpoint.Exits`, which `launcher` also uses. Each site is
+  driven by `TestEveryRefusalARetainedRequestCausesNamesBothExits`.
+- **Minors:**
+  - `menuLiveActions` was moved above `menuActionItems`' doc comment.
+  - The duplicate exits helpers were merged, and the stale-revision loop is
+    shared (`writeRequestRecord`).
+  - `checkpoint.AllPhases` drives the state-text test.
+  - `continuationArguments`' parameter is renamed `operatorFacing`.
+  - The console prunes `menu.Orientation` with the watch.
+  - The guard-agreement test also drives cold resume and cold start, and
+    `ContinuationRefuses`' doc names exactly what is driven.
