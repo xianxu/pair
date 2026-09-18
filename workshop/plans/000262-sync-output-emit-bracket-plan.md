@@ -312,3 +312,14 @@ all chrome to `terminal.Presenter.UpdateChrome`.
   (single-write, alt-screen, multi-chunk) via `recordingParent`.
 - **PQ-4:** verbatim test bodies and the reproduced implementation are replaced
   by per-test specifications.
+
+### 2026-09-17 — Task 4 enumeration widened during implementation
+
+- The plan-quality round-2 disposition named two more sites:
+  `couchtty/reserve.go:12-18` and `cmd/probes/couchnestedrows/main.go:18`.
+- The sweep then found two more:
+  - `ptychild.Screen`'s console-facing docs (the type has no production
+    consumer) got a status note;
+  - `atlas/couch.md`'s teardown sentence claimed the reserved row is cleared,
+    which is false.
+- Deleting the machinery itself went to pair#281 rather than into this plan.

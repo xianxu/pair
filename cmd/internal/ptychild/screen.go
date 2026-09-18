@@ -32,6 +32,12 @@ const maxPending = 64 * 1024
 // decision independently is how #127's dead keyboard happened.
 //
 // Not safe for concurrent use: it is fed only by its child's read pump.
+//
+// NO PRODUCTION CONSUMER since #255 M3. terminal.Endpoint parses child output,
+// and terminal.Presenter composes the reserved row into its frames. Child no
+// longer holds a Screen (TestChildHasOneTerminalAuthority). The console-facing
+// answers below (SafeToPaint, TakeRowDirty, HoldsCursorSave) describe the
+// pre-#255 painters that wrote beside the child. Disposition: pair#281.
 type Screen struct {
 	pending []byte
 

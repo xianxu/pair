@@ -16,7 +16,12 @@ unsupported and receive an empty response.
 `Frame`, `View`, `Compose` and `Render` express screen composition and admission
 without IO. `Presenter` owns the physical parent writer and commits input admission
 only after presentation completes. A failed partial write invalidates that
-connection's presentation state. Product code retains shortcut and notification
+connection's presentation state. Every presented frame is one synchronized-output
+(DECSET 2026) update, opened and closed by `Render`/`HistoryRender.Emit`, so the
+parent draws only the finished frame and never the whole-screen erase-and-redraw
+inside it. Release closes a bracket that a failed write left open (#262). A
+terminal without the mode ignores it. Ingest is the mirror image: a child's own
+2026 hold withholds publication (above), so frames are atomic end to end. Product code retains shortcut and notification
 policy, while terminal negotiation and encoding belong to the shared connection.
 Parent mouse capture differs by boundary: Couch needs motion for its chrome;
 Pair's terminal pane must leave native Zellij selection available when its child

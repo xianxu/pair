@@ -15,7 +15,9 @@
 //
 // Method. The probe is its own outer host: `couchnestedrows outer` reserves the
 // bottom row of the pty it was handed and runs zellij in the rest, exactly the
-// way couch does (the same hostty.Reservation, since #199 M1 made it shared).
+// way couch did before #255 M3 (hostty.Reservation, shared since #199 M1).
+// Couch now composes its row through terminal.Presenter, so this probe measures
+// the pre-#255 mechanism; whether it still answers a live question is pair#281.
 // The parent feeds that pty into a REAL terminal emulator (charmbracelet/x/vt)
 // and then reads the screen. That is the instrument that matters: raw bytes
 // cannot answer a positional question, and this whole milestone's defects were

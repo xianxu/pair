@@ -925,3 +925,61 @@ Open for the M1 smoke: whether the operator's sightings were under couch. The
 whole-window mechanism is couch's, because couch's presenter owns the real
 terminal. Under plain pair, zellij is outermost and redraws only changed rows,
 and `pair term`'s full repaint is confined to its own pane.
+
+### 2026-09-17 — M1 implementation: oracles, failure sweep, stale-prose sweep
+
+**Tasks 1–3 landed** (`05c0c26e`, `9c453a83`, `9ba2b30d`). Both renderers bracket
+each frame. `parentReleaseControls` closes sync right after its CAN/ST abort. The
+cursor epilogue is one helper (`cursorEpilogue`, `render.go`).
+
+**Oracles.** The xterm-headless suites pass with `PAIR_TERMINAL_ORACLE=1`. xterm
+5.5.0 does not implement 2026, so this proves the *ignoring-terminal* path: the
+bracket leaves the end state unchanged. The native zellij oracle
+(`PAIR_TERMINAL_NATIVE=1`, zellij 0.45.1, sandbox off) also passes:
+`TestHistoryWireNativeOracle`, `TestHistoryED2NativeBlankAndSpaceRows`,
+`TestErasedBackgroundSoftGapNativeCopyOracle` and
+`TestPresenterHistoryEvictionNativeAppendAndRebuild`. The whole
+`cmd/internal/terminal` package is green with both oracles on; only the unrelated
+`TestTerminalResourceProbe` skips. So bracketed wire leaves `pair term`'s real
+parent in the same end state. Whether zellij *honours* 2026 from a pane is for
+the smoke.
+
+**Failure sweep.** `TestPresenterReleaseClosesSyncAfterAnyCutWrite` cuts writes
+in three frame layouts, measured by a probe:
+
+- single-write `[delta 58 | 181]`;
+- alt-switch `[58 | 8 syncBegin | 8 ?1049h | 165]`;
+- multi-chunk `[58 | 8 | 8 | 65527 65534 65531 65529 59312]`.
+
+Every offset is cut for the small layouts. For the 321 KB one, the cuts are
+boundaries ±2, the first and last 32 bytes, and a 4093 stride. Before the release
+fix, all three failed at cut 8, the first offset after a complete `syncBegin`.
+After it, all pass, in 1.3s.
+
+**Stale-prose sweep (Task 4).** The class is *prose presenting the pre-#255
+reserved-row machinery as live*. The sweep matched the claim's vocabulary, not
+only symbols: `SafeToPaint`, `TakeRowDirty`, `ReserveAndPaint`, `paneWriter`,
+`writeOwn`, `flushOwed`, `owe-and-flush`, `only here`, `one package only`,
+`shared by two consumers`, `clear the reserved row`. Fixed:
+
+- `hostty/reserve.go:13-18`;
+- `couchtty/reserve.go:12-18`;
+- `cmd/probes/couchnestedrows/main.go:18`;
+- a status note on `ptychild.Screen`, which covers its console-facing method docs;
+- `atlas/architecture.md`: six paragraphs describing the deleted console-write
+  door (including a `stripmutation_test.go` that no longer exists) condensed into
+  one pre-#255 note;
+- `atlas/couch.md` teardown: *"clear the reserved row"* was false (release keeps
+  the pixels); the sentence now names `parentReleaseControls`, which since this
+  milestone really does close synchronized output.
+
+The final sweep returns only correctly framed text: the historical note, and
+`reserve.go`'s description of its own API.
+
+**Filed pair#281** to dispose of the machinery itself: `ptychild.Screen` has no
+production consumer, and `hostty.Reservation`'s painters serve only a probe.
+Deleting code is separable from the flicker fix, so #262 corrected only the
+prose.
+
+**Atlas:** `atlas/terminal.md` records the emit bracket and its end-to-end pairing
+with ingest-side sync.

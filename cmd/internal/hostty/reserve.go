@@ -10,12 +10,12 @@ import "fmt"
 // scrolls inside the region and cannot walk onto the row below. The child is
 // never told; from its side this is simply a shorter terminal.
 //
-// It lives in hostty because it is host-half MECHANISM shared by two consumers
-// -- couch reserves the host's bottom row for its actor strip, `pair term`
-// reserves its pane's bottom row for a tab strip (pair#199) -- while what the
-// row SAYS stays with each consumer as policy. Same split the atlas already
-// records for ptychild/hostty: "what is shared is structure; what stays is
-// policy. `\x1b[r` lives here and only here."
+// Since #255 M3 production no longer paints through it. Couch and `pair term`
+// compose their strips into frames via terminal.Presenter.UpdateChrome, and
+// the presenter is the parent's sole writer. Its renderers and release controls
+// own the region reset (`\x1b[r`), not this file (#262). Production uses a
+// Reservation only for ChildRows arithmetic; ReserveAndPaint, Paint and Release
+// serve cmd/probes/couchnestedrows. Whether they survive is pair#281.
 //
 // That `pair term` can do this at all is measured, not assumed: zellij honors
 // DECSTBM from a pane process (pair#199 finding 5 -- 200 lines scrolled in the

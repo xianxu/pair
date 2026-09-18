@@ -535,84 +535,22 @@ The general lesson, and it generalises past this feature: **a feature drawing on
 another component's chrome has a dependency it never declared.** If you own the
 row, draw on the row.
 
-**A console write waits on TWO conditions, not one** (`#199` M3). Mid-sequence
-is the familiar one. The second is that **the child holds a cursor save**: the
-save slot is SHARED, one per terminal, so a paint that saves and restores inside
-the child's `DECSC`…`DECRC` pair leaves the slot holding the CONSOLE's position
-and the child's restore lands there. Measured — zsh draws its right-hand prompt
-with terminfo `sc`/`rc`, which are exactly those bytes, so the operator's cursor
-ended up inside the tab strip. There is no second slot to move to:
-`probes/cursorsaveslots` measured `CSI s`/`CSI u` failing to restore where it
-was told while `DECSC` succeeded under the identical harness. So the only fix is
-not to write while a save is held OUTSIDE the alt screen, and
-`ptychild.Screen.SafeToPaint` is the one predicate that says so — the shared
-door both consoles ask, folding this together with mid-sequence.
-`HoldsCursorSave` reports the raw bit and is not the decision: gating on it
-alone freezes the row for a full-screen child's whole session, because `?1049h`
-holds the slot for all of nvim (pair#199 BR-79).
-
-**Every mutation of the strip's model owes a repaint, and the set is read out
-of the source** (`cmd/internal/termcmd/stripmutation_test.go`). A go/ast pass
-over `run.go` fails when a method assigns `m.tabs`/`m.active`/`m.rename` without
-a driving case, and the cases assert a repaint carrying POST-mutation state.
-Both halves earn their place: the defect that prompted them (`removeTab` skipping
-its only repaint on the rename branch) would have passed a static "does this
-method call `paintStrip`" check, because it did call it — on the other branch.
-
-**And a row-dirty batch records a DEBT rather than painting.** couch has always
-done this (`couchtty/console.go:1147`, whose comment records that a paint there
-was "unreachable-by-difference"), and it matters far more for a line-oriented
-child than it did there: a shell emits erases on every prompt redraw, so
-painting per row-dirty batch means painting constantly — and constantly at the
-moment the child is mid-prompt with a save outstanding. The debt is paid by the
-same owe-and-flush machinery, on the first chunk that leaves the stream safe.
-
-This is the general shape of the difference, and it is worth stating because it
-was learned the expensive way: **couch's reserved row is not easier by design,
-it is easier by CHILD.** couch's child is zellij — a full-screen emulator that
-repaints from its own model and addresses every cell absolutely, so it never
-relies on the terminal remembering a cursor, and any damage a paint does is
-overwritten within a frame. A shell relies on all of it and repairs none of it.
-Two bugs latent in this primitive since `#146` (the cursor-homing `SetRegion`
-and the colour-inheriting erase) were invisible for exactly that reason.
-
-**A new door to the pane is a COMPILE ERROR.** `paneWriter` holds the pane's fd
-and is deliberately not an `io.Writer`: with no `Write` method,
-`fmt.Fprintf(m.pane, …)`, `io.WriteString(m.pane, …)` and `m.pane.Write(…)` do
-not compile. Every write states a reason at the call site — the gated writers
-(`writeOwn`/`writeDiag`/`flushOwed`) pass their own, and there are exactly three
-exemptions, each a different kind: the **child's own output** (not a user of the
-gate but the thing it *models* — gating a child against its own stream state
-deadlocks it against itself), the **takeover** (`HomeAndClear` discards the
-screen the old scan described, and the reset runs first, which is what earns
-it), and **teardown** (the loop may already be gone, and a half-restored
-terminal beats an ungated write).
-
-This replaced a test that SCANNED the source for `m.stdout`, and the reason is
-worth keeping: the scan missed `fmt.Fprintf` — the most idiomatic spelling, and
-the one this file used before the milestone — read only one file while the
-package was about to gain another, and could be satisfied by an unrelated
-comment. **Scanning for violations is weaker than making them unrepresentable.**
-Both instruments exist because fixing each ungated write a reviewer happened to
-name left the next one for the next reviewer, three rounds running.
+**Before #255 M3 both strips were painted BESIDE the child** (`#199` M3).
+That took a DECSTBM reservation (`hostty.Reservation`), a console write gated on
+`ptychild.Screen.SafeToPaint` (mid-sequence and a child-held cursor save),
+row-dirty debts, and a `paneWriter` door that made an ungated write a compile
+error. #255 M3 retired that path. The strip is now a chrome row composed into
+each presented frame (`terminal.Presenter.UpdateChrome`), and the presenter is
+the pane's sole writer; see [Terminal ownership](terminal.md). The old machinery
+still in the tree has no production caller, and its disposition is `pair#281`.
+The lessons it paid for (the shared cursor-save slot, erase-versus-region, a
+full-screen child masking damage) live in #199's archived issue and plans.
 
 **What is shared is structure; what stays is policy.** `termcmd` keeps numbered
 tabs, rename, the zellij pane title, and exit-when-empty; `couch` switches named
 actors and falls back to a panel. That is the same split `cmd/internal/ansi`
 makes for escape sequences, and for the same reason — `wrapcmd`'s capability
 table is *opposed* to the replay deny-list, so merging those would be the bug.
-
-`Screen` is one scanner, not several: it reports alt-screen state, mouse mode,
-whether a reserved row may have been destroyed (`TakeRowDirty` — a margin reset,
-RIS, an alt-screen transition, or an ERASE; DECSTBM restricts scrolling, not
-erasing, so a full-screen app's startup clear takes the row while the region
-survives), whether the stream currently ends mid-sequence (`MidSequence`, which
-is what lets a console interleave its own output without corrupting the child's),
-and BEL. It frames sequences via `ansi` rather than
-scanning for them, which is what lets it see a sequence **split across two pty
-reads** — its predecessor, `updateMouseMode`, scanned each read independently
-and could not. BEL is likewise counted only outside a sequence: every title
-change ends in BEL, so grepping for it would fire constantly.
 
 Replies are deliberately **not** filtered on input: one arriving while its own
 tab is active is solicited, and dropping it would break capability negotiation.
