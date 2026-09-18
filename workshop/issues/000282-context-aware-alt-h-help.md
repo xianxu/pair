@@ -5,8 +5,9 @@ deps: []
 github_issue:
 created: 2026-09-17
 updated: 2026-09-18
-estimate_hours:
+estimate_hours: 5.7
 started: 2026-09-18T09:31:36-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Alt+h help knows whether it runs under couch, and shows couch's keys there
@@ -100,6 +101,38 @@ binding table moves to a small shared package both depend on, the way
 - [ ] Hosted-but-couch-not-running is detected and stated, not rendered as live
       couch keys. Decision on the detection signal recorded (env vs lease).
 - [ ] `pair keys` from a shell reflects the same context as Alt+h.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+Design includes what the claim window already holds: the spec revision after the
+#245 premise correction, and the operator's two redirects. Impl is 40% of the v2
+ranges. The design buffer is +15%, because a thorough plan doc exists.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec              design=1.0  impl=0.05
+item: ux-rename-iteration     design=0.5  impl=0.1
+item: ux-rename-iteration     design=0.5  impl=0.1
+item: scope-pivot             design=0.3  impl=0.15
+item: smaller-go-module       design=0.1  impl=0.2
+item: smaller-go-module       design=0.1  impl=0.2
+item: greenfield-go-module    design=0.5  impl=0.3
+item: cross-cutting-refactor  design=0.3  impl=0.2
+item: smaller-go-module       design=0.05 impl=0.15
+item: atlas-docs              design=0.1  impl=0.08
+item: milestone-review        design=0.0  impl=0.2
+design-buffer: 0.15
+total: 5.70
+```
+
+Rows, in order: spec, plan and three plan reviews; redirect 1 (interception);
+redirect 2 (draft-only, Pair's pager); the #245 premise correction; launcher
+(`CouchHosted`, outer record); keyhelp + `HostedHelp`; `couchkeys`; the
+couchtty derivation + `couch --help`; keyscmd + pane title; README/atlas; the
+close boundary review.
 
 ## Plan
 
