@@ -1,11 +1,12 @@
 ---
 id: 000262
-status: open
+status: working
 deps: [pair#255]
 github_issue:
 created: 2026-09-15
-updated: 2026-09-16
+updated: 2026-09-17
 estimate_hours:
+started: 2026-09-17T18:51:31-07:00
 ---
 
 # Screen flicker: the compositor re-emits global terminal state every frame (#255)
