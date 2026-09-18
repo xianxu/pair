@@ -162,14 +162,25 @@ Continuation has five internal operations (`pair#249`, `pair#280`):
   exactly those `continuationGuard` refuses (`couchcore.ContinuationRefuses`:
   relaunch, switch-agent, cold resume, start), plus retry and dismiss. Park and
   detach stay, because neither reads the request.
-- **Actions of an in-flight request:** it keeps the restricted `retry` set on
-  purpose. The continuation owns the thread mid-replacement, and retry
-  reconciles a stalled one.
-- **Refusals:** every refusal a retained request causes names its exits through
-  one wording, `checkpoint.Exits`. That covers the guard, publish, archive
-  (`archiveContinuationVacant`), warm reattach (`validateContinuationWarm`),
-  recovery, and `pair continue --retry`; the non-guard sites go through
-  `withContinuationExits`.
+- **Actions of an in-flight request:** kept restricted on purpose, because the
+  continuation owns the thread mid-replacement. `Running` offers `retry`
+  (which reconciles a stalled request), `name` and `describe`. `Pending` offers
+  only `name` and `describe`.
+- **Refusals:** every refusal a retained request causes names its exits
+  through one wording, `checkpoint.Exits`. The guard and publish call it
+  directly. Each other check wraps its refusals ONCE, at its boundary, in
+  `withContinuationExits`: `RecoverThread`, `prepareAbsentContinuation`
+  (through `admitRetainedRecovery`), `archiveContinuationVacant` and
+  `validateContinuationWarm`. `TestEveryRefusalARetainedRequestCausesNamesBothExits`
+  drives one row per call site and scans that every call site has a row.
+  `pair continue --retry` does not know the phase and uses the phase-neutral
+  wording (`Exits("", tag)`).
+- **Orientation prompts carry their producer.** `menu.Orientation` is written
+  by continuation delivery and by switch-agent's orientation watch. Each entry
+  records which (`setOrientationLocked`), and a prune removes only its own
+  producer's entry (`dropOrientationLocked`). A new switch-agent launch
+  supersedes any prompt. Without that, the continuation scan deleted
+  switch-agent's Copy orientation prompt on every tick.
 
 Before #280, a failed request replaced the state text, the action set and
 relaunch's admission indefinitely.

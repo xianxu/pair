@@ -120,14 +120,17 @@ type Console struct {
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
-	started              bool
-	exited               chan childExit
-	operationQueue       *operationQueue
-	refreshRequests      chan struct{}
-	refreshResults       chan menuRefreshResult
-	refreshSchedule      RefreshSchedule
-	orientationResults   chan orientationWatchResult
-	orientationWatches   map[couchcore.ThreadAddress]orientationWatch
+	started            bool
+	exited             chan childExit
+	operationQueue     *operationQueue
+	refreshRequests    chan struct{}
+	refreshResults     chan menuRefreshResult
+	refreshSchedule    RefreshSchedule
+	orientationResults chan orientationWatchResult
+	orientationWatches map[couchcore.ThreadAddress]orientationWatch
+	// orientationFrom records which producer wrote each menu.Orientation entry;
+	// see setOrientationLocked.
+	orientationFrom      map[couchcore.ThreadAddress]string
 	continuationProvider ContinuationProvider
 	continuationResults  chan continuationScanResult
 	continuations        map[couchcore.ThreadAddress]continuationWatch
@@ -1601,7 +1604,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			previous.cancel()
 			delete(c.orientationWatches, origin.Address)
 		}
-		delete(c.menu.Orientation, origin.Address)
+		c.supersedeOrientationLocked(origin.Address)
 		origin.PanelOrigin = c.focus.IsPanel()
 		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
 	}

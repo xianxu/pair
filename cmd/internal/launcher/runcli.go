@@ -144,7 +144,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	if args.Command == "continue" {
 		if args.ContinueRetry != "" {
 			if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
-				fmt.Fprintln(stderr, "pair: a hosted thread's continuation belongs to Couch: "+checkpoint.Exits(checkpoint.Failed, env.CouchThreadTag))
+				fmt.Fprintln(stderr, "pair: a hosted thread's continuation belongs to Couch: "+checkpoint.Exits("", env.CouchThreadTag))
 				return 1, nil
 			}
 			if err := prepareContinuationRetry(&opts, rt, args.ContinueRetry); err != nil {

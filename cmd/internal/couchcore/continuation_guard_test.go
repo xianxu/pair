@@ -75,7 +75,6 @@ func TestFailedContinuationRelaunchesOnceDismissed(t *testing.T) {
 // action is either driven here or exempt with a reason, so a new one cannot
 // arrive unclassified (#280).
 func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
-	const guardPhrase = "Dismiss continuation drops it"
 	type drive struct {
 		args map[string]string
 		cold bool // retire the helper first: the guard reaches only a COLD resume
@@ -125,7 +124,8 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 				// reason that has nothing to do with the guard.
 				env.Proc.DiesOn = map[int]os.Signal{42: syscall.SIGTERM}
 			}
-			failed, _ := failedContinuation(t, env.Couch.Threads, live)
+			failed, request := failedContinuation(t, env.Couch.Threads, live)
+			guardPrefix := "continuation " + request.ID + " is failed; " // the guard's own words, not the wrapper's
 			args := map[string]string{"repo-scope": failed.Address.RepoScope, "tag": string(failed.Address.Tag)}
 			for k, v := range d.args {
 				args[k] = v
@@ -133,8 +133,16 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 			_, err := DispatchOperation(OperationExecutors{LiveOwner: CouchLiveOwnerExecutor(env.Couch), DirectStore: DirectStoreExecutor(env.Couch)},
 				OperationCall{Name: name, Args: args, Implicit: true, Context: context.Background()})
 			if ContinuationRefuses(name) {
-				if err == nil || !strings.Contains(err.Error(), guardPhrase) {
+				if err == nil || !strings.Contains(err.Error(), guardPrefix) {
 					t.Fatalf("%s is listed in ContinuationRefuses but the guard did not refuse it: %v", name, err)
+				}
+				// Refused BY THE GUARD means refused before any effect. The same
+				// words from a later stage -- relaunch parking first, then failing
+				// its cold resume -- would pass the message check and be exactly
+				// the destructive order the front guard exists to prevent.
+				after, err := env.Couch.Threads.GetThread(failed.Address)
+				if err != nil || after.Revision != failed.Revision {
+					t.Fatalf("%s wrote before its refusal: revision %d -> %d (%v)", name, failed.Revision, after.Revision, err)
 				}
 				return
 			}
@@ -147,44 +155,142 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 	// start claim, driven directly.
 	t.Run("start", func(t *testing.T) {
 		env, live := switchEnvWithLiveThread(t)
-		failed, _ := failedContinuation(t, env.Couch.Threads, live)
+		failed, request := failedContinuation(t, env.Couch.Threads, live)
 		cold, err := env.Couch.Threads.updateExistingThread(failed.Address, failed.Revision, func(r *ThreadRecord) error { r.Incarnations = nil; return nil })
 		if err != nil {
 			t.Fatal(err)
 		}
 		profile := LaunchProfile{Agent: "claude", Argv: []string{}}
 		_, err = env.Couch.Threads.CommitStartClaim(cold.Address, cold.Revision, "repo", env.Now, StartEvent{Kind: StartClaimed, Nonce: "start-2222222222222222", Owner: SupervisorOwner{PID: 100, Identity: "owner"}, Profile: &profile})
-		if !ContinuationRefuses("start") || err == nil || !strings.Contains(err.Error(), guardPhrase) {
+		if !ContinuationRefuses("start") || err == nil || !strings.Contains(err.Error(), "continuation "+request.ID+" is failed; ") {
 			t.Fatalf("cold start claim must be refused by the guard, and listed: %v", err)
 		}
 	})
 }
 
 // Every refusal a retained failed request CAUSES names both exits, not only
-// the guard's: recovery, archive and warm reattach go through
-// withContinuationExits. Each site is driven, not just the wrapper.
+// the guard's. The non-guard checks each wrap their refusals ONCE, at their
+// boundary, in withContinuationExits. This table has one row per call site,
+// each driven for real, and the scan below fails when a site is added without a
+// row -- a claim of reach over a set of sites is checked against that set.
 func TestEveryRefusalARetainedRequestCausesNamesBothExits(t *testing.T) {
-	const both = "Dismiss continuation drops it"
-	env, live := switchEnvWithLiveThread(t)
-	failed, _ := failedContinuation(t, env.Couch.Threads, live)
+	const both = "; the retained continuation is failed: Retry continuation re-delivers it and Dismiss continuation drops it"
+	rows := []struct {
+		site  string // the function holding the withContinuationExits call
+		drive func(t *testing.T) error
+		cause string
+	}{
+		{"RecoverThread", func(t *testing.T) error {
+			env, live := switchEnvWithLiveThread(t)
+			failed, _ := failedContinuation(t, env.Couch.Threads, live)
+			other := filepath.Join(t.TempDir(), "other.md")
+			if err := os.WriteFile(other, []byte("---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nanother handoff\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			_, err := env.Couch.RecoverThread(context.Background(), failed.Address, other)
+			return err
+		}, "another continuation is unresolved"},
+		{"prepareAbsentContinuation", func(t *testing.T) error {
+			f := newContinuationFixture(t)
+			c := f.env.Couch
+			request := f.status.RequestID
+			r, err := c.Threads.AdvanceContinuation(f.source.Address, mustRevision(t, c, f.source.Address), checkpoint.Event{Kind: checkpoint.Begin, RequestID: request, Attempt: "start-3333333333333333"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := c.Threads.AdvanceContinuation(r.Address, r.Revision, checkpoint.Event{Kind: checkpoint.Fail, RequestID: request, Attempt: "start-3333333333333333", Failure: "interrupted"}); err != nil {
+				t.Fatal(err)
+			}
+			f.env.Proc.Kill(f.source.Incarnations[0].PID)
+			f.env.Artifacts.SetPairSession(f.source.Address, "pair-exact", false)
+			// The source generation advanced with no ownership proof: the retained
+			// request's admission refuses inside the retained branch.
+			c.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) {
+				return ContinuationSource{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 5}, nil
+			}
+			_, err = c.RecoverThread(context.Background(), f.source.Address, "")
+			return err
+		}, "generation"},
+		{"archiveContinuationVacant", func(t *testing.T) error {
+			env, live := switchEnvWithLiveThread(t)
+			failed, _ := failedContinuation(t, env.Couch.Threads, live)
+			return env.Couch.archiveContinuationVacant(failed, RecoveryEvidence{Presence: PresencePresent})
+		}, "continuation source or target session is still occupied"},
+		{"validateContinuationWarm", func(t *testing.T) error {
+			env, live := switchEnvWithLiveThread(t)
+			failed, _ := failedContinuation(t, env.Couch.Threads, live)
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return false, nil }
+			env.Couch.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) {
+				return ContinuationSource{Agent: "claude", Session: "some-other-session", LaunchOrdinal: 9}, nil
+			}
+			return env.Couch.validateContinuationWarm(context.Background(), failed)
+		}, "warm session is neither"},
+	}
+	for _, row := range rows {
+		t.Run(row.site, func(t *testing.T) {
+			err := row.drive(t)
+			if err == nil || !strings.Contains(err.Error(), row.cause) || !strings.Contains(err.Error(), both) {
+				t.Fatalf("%s refusal must carry its cause %q and both exits: %v", row.site, row.cause, err)
+			}
+		})
+	}
 
-	other := filepath.Join(t.TempDir(), "other.md")
-	if err := os.WriteFile(other, []byte("---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nanother handoff\n"), 0600); err != nil {
+	sites := map[string]bool{}
+	for _, row := range rows {
+		sites[row.site] = true
+	}
+	calls := productionCallsTo(t, "withContinuationExits(")
+	if len(calls) != len(rows) {
+		t.Fatalf("withContinuationExits has %d production call sites %v but %d driven rows; add a row per site", len(calls), calls, len(rows))
+	}
+	for _, fn := range calls {
+		if !sites[fn] {
+			t.Errorf("withContinuationExits is called in %s, which no row drives", fn)
+		}
+	}
+}
+
+// productionCallsTo names the enclosing function of every non-test call of
+// needle in this package (the definition itself excluded).
+func productionCallsTo(t *testing.T, needle string) []string {
+	t.Helper()
+	files, err := filepath.Glob("*.go")
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.Couch.RecoverThread(context.Background(), failed.Address, other); err == nil || !strings.Contains(err.Error(), "another continuation is unresolved") || !strings.Contains(err.Error(), both) {
-		t.Errorf("recover-checkpoint refusal: %v", err)
+	var out []string
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		body, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fn := ""
+		for _, line := range strings.Split(string(body), "\n") {
+			if strings.HasPrefix(line, "func ") {
+				name := strings.TrimPrefix(line, "func ")
+				if strings.HasPrefix(name, "(") {
+					name = name[strings.Index(name, ")")+2:]
+				}
+				fn = name[:strings.IndexAny(name, "([")]
+			}
+			if strings.Contains(line, needle) && !strings.HasPrefix(line, "func ") {
+				out = append(out, fn)
+			}
+		}
 	}
-	if err := env.Couch.archiveContinuationVacant(failed, RecoveryEvidence{Presence: PresencePresent}); err == nil || !strings.Contains(err.Error(), both) {
-		t.Errorf("archive refusal: %v", err)
+	return out
+}
+
+func mustRevision(t *testing.T, c *Couch, address ThreadAddress) uint64 {
+	t.Helper()
+	r, err := c.Threads.GetThread(address)
+	if err != nil {
+		t.Fatal(err)
 	}
-	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return false, nil }
-	env.Couch.ContinuationSource = func(context.Context, ThreadAddress) (ContinuationSource, error) {
-		return ContinuationSource{Agent: "claude", Session: "some-other-session", LaunchOrdinal: 9}, nil
-	}
-	if err := env.Couch.validateContinuationWarm(context.Background(), failed); err == nil || !strings.Contains(err.Error(), "warm session is neither") || !strings.Contains(err.Error(), both) {
-		t.Errorf("warm reattach refusal: %v", err)
-	}
+	return r.Revision
 }
 
 // Once a dismissal deletes the request, PublishContinuation's generation check

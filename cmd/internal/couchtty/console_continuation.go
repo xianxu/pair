@@ -82,6 +82,43 @@ func (c *Console) watchContinuations() {
 	}
 }
 
+// An orientation prompt has two producers -- a continuation's delivery and
+// switch-agent's orientation watch -- sharing menu.Orientation by thread
+// address. Each entry records its producer, and a prune removes an entry only
+// when THAT producer's fact vanishes (#280, ARCH-ORDER). Without provenance the
+// continuation scan, which visits every hosted thread, deleted switch-agent's
+// still-useful Copy orientation prompt on every tick.
+func continuationProducer(requestID string) string { return "continuation:" + requestID }
+func switchAgentProducer(attempt string) string    { return "switch-agent:" + attempt }
+
+// setOrientationLocked is the only writer of menu.Orientation. Callers hold c.mu.
+func (c *Console) setOrientationLocked(address couchcore.ThreadAddress, request orientation.Request, producer string) {
+	if c.menu.Orientation == nil {
+		c.menu.Orientation = make(map[couchcore.ThreadAddress]orientation.Request)
+	}
+	if c.orientationFrom == nil {
+		c.orientationFrom = make(map[couchcore.ThreadAddress]string)
+	}
+	c.menu.Orientation[address] = request
+	c.orientationFrom[address] = producer
+}
+
+// dropOrientationLocked removes the address's prompt only if producer wrote it.
+func (c *Console) dropOrientationLocked(address couchcore.ThreadAddress, producer string) {
+	if producer == "" || c.orientationFrom[address] != producer {
+		return
+	}
+	delete(c.menu.Orientation, address)
+	delete(c.orientationFrom, address)
+}
+
+// supersedeOrientationLocked removes the address's prompt whoever wrote it: a
+// new agent launch makes every earlier prompt for the thread obsolete.
+func (c *Console) supersedeOrientationLocked(address couchcore.ThreadAddress) {
+	delete(c.menu.Orientation, address)
+	delete(c.orientationFrom, address)
+}
+
 func continuationOperation(status couchcore.ContinuationStatus, handled bool) string {
 	switch status.Phase {
 	case checkpoint.Pending:
@@ -114,7 +151,7 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 		c.continuations[status.Address] = watch
 		if status.Phase == checkpoint.Complete {
 			delete(c.continuations, status.Address)
-			delete(c.menu.Orientation, status.Address)
+			c.dropOrientationLocked(status.Address, continuationProducer(status.RequestID))
 			continue
 		}
 		operation := continuationOperation(status, watch.handled)
@@ -162,11 +199,12 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 	for _, address := range result.addresses {
 		if result.err == nil && !seen[address] && !c.continuations[address].queued {
 			// The record no longer holds a request -- completed elsewhere, or
-			// DISMISSED (#280). Everything the console keyed to it follows the
-			// record, or Copy orientation prompt stays on offer for a handoff the
-			// operator dropped.
+			// DISMISSED (#280). The prompt THAT request produced goes with it;
+			// a switch-agent prompt on the same thread stays.
+			if watch, ok := c.continuations[address]; ok {
+				c.dropOrientationLocked(address, continuationProducer(watch.status.RequestID))
+			}
 			delete(c.continuations, address)
-			delete(c.menu.Orientation, address)
 		}
 	}
 	c.mu.Unlock()
@@ -210,16 +248,13 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 			watch.handled = false
 		}
 		if result.Orientation != nil {
-			if c.menu.Orientation == nil {
-				c.menu.Orientation = make(map[couchcore.ThreadAddress]orientation.Request)
-			}
-			c.menu.Orientation[address] = *result.Orientation
+			c.setOrientationLocked(address, *result.Orientation, continuationProducer(watch.status.RequestID))
 		}
 	}
 	c.continuations[address] = watch
 	if watch.status.Phase == checkpoint.Complete {
 		delete(c.continuations, address)
-		delete(c.menu.Orientation, address)
+		c.dropOrientationLocked(address, continuationProducer(watch.status.RequestID))
 	}
 	c.mu.Unlock()
 	if err != nil {

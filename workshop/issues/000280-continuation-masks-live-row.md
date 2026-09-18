@@ -407,3 +407,40 @@ the refusal it used to hit is gone with the request.
   - the pure rule admitting running;
   - resume unlisted.
 - `go test ./... -count=1` passes (71 packages).
+
+### 2026-09-17 — close review round 2 (REWORK): fixed by rule
+
+- **Correction to the round-1 entry above:** "All are driven by
+  `TestEveryRefusalARetainedRequestCausesNamesBothExits`" was false at the time.
+  It reached 3 of the 7 wrapped sites.
+- **BR-11 (Critical), a regression from round 1:** my orientation prune deleted
+  switch-agent's Copy orientation prompt on every scan tick, because
+  `menu.Orientation` has two producers and no provenance. Every writer now
+  records its producer, and every prune names one (or explicitly supersedes it,
+  for a new switch-agent launch). That covers all five sites. Pinned by
+  `TestSwitchAgentOrientationPromptSurvivesContinuationScans`.
+- **BR-4 / BR-12:** each retained-request check wraps ONCE at its boundary.
+  - The retained recovery branch became `admitRetainedRecovery`, which also
+    covers the missed `AdmitRecoveryGeneration` refusal.
+  - The routing test has one row per `withContinuationExits` call site (4), all
+    driven, plus a scan that the call sites ARE the rows.
+  - The guard-agreement oracle matches the guard's own prefix.
+- **A gap the review did not name, found by mutation:** deleting relaunch's
+  front guard left the agreement test green, because relaunch then parked the
+  thread and was refused later in the same words. The test now also requires a
+  guard refusal to write nothing, and relaunch without its guard goes red
+  (revision 4 → 7).
+- **BR-3:** the "bounded in time" wording is gone from the plan, and the plan
+  and atlas state the actual per-phase action sets.
+- **Minors:**
+  - `AllPhases` is the only phase list, enforced by a repo scan;
+  - `pair continue --retry` uses the phase-neutral `Exits("", tag)`.
+- **Mutation-checked (6 more, all red):**
+  - a producer-blind prune;
+  - an unwrapped retained branch;
+  - an extra undriven wrap site;
+  - a restated phase list;
+  - an unconditional unknown-phase dismiss;
+  - relaunch without its guard.
+- Lessons recorded in `workshop/lessons.md`. `go test ./... -count=1` passes
+  (71 packages).

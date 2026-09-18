@@ -146,3 +146,149 @@ findings:
     title: |
       ContinuationRefuses' doc says a table test proves the list, but switch-agent, resume and start are not driven
 ```
+
+---
+
+## Re-review — 2026-09-17T23:01:19-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 280 — A retained continuation failure masks a live thread's state in the switcher |
+| repo | pair |
+| issue file | workshop/issues/000280-continuation-masks-live-row.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8a4f445b2511939530b54cfe7d09557ba050ed66..d4f60372a21c303d34339625e426370342b2be44 |
+| command | sdlc close --issue 280 |
+| reviewer | claude |
+| timestamp | 2026-09-17T23:01:19-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The dismiss feature is sound, and seven of the ten prior findings are disposed below: BR-1, BR-2, BR-5, BR-6, BR-8, BR-9 and BR-10 as addressed, BR-3 and BR-4 as not-addressed. BR-7's named test was fixed, but its siblings remain, so they are raised again as a new finding. The core pieces work: the store transition, the declared operation, the retry repair through the production dispatcher, and the composed state text and actions. Two problems block SHIP:
+
+- **The fix for BR-9 broke switch-agent.** The new line `delete(c.menu.Orientation, address)` at `console_continuation.go:169` fires for every address the continuation scan visits that has no request. That includes every hosted thread with a pane, so switch-agent's **Copy orientation prompt** is wiped within one 500 ms tick. I reproduced this in a scratch copy of HEAD. A scan tick removed a switch-agent prompt on a thread with no continuation. The test passes again when line 169 is removed, and then the new `TestVanishedRequestTakesItsOrientationPromptWithIt` fails. So this diff introduced the regression.
+- **BR-3 and BR-4 each have a leftover instance.**
+  - BR-3: the plan still says "Both are bounded in time", and the atlas says a Pending row keeps retry, which it doesn't.
+  - BR-4: one refusal inside the retained-request block still doesn't name the exits.
+  - The test that claims every wrapped site is driven actually drives 3 of 7.
+
+1. **Strengths**
+   - The pure dismissal rule `checkpoint.CheckDismissible` (`request.go:54-65`) is tested on literal requests with no IO. This properly settles BR-2.
+   - The retry bug was reproduced through the production path (`DispatchOperation` + `CouchLiveOwnerExecutor` over a temp-dir store; `console_continuation_test.go:58-77`) before it was fixed. The assertion is RetryContinuation's own first refusal, not a bare `err == nil`.
+   - Every store refusal is checked two ways: by its message, and by an unchanged revision (`continuation_store_test.go:174-217`). Both retry/dismiss orders are driven through the revision check.
+   - `TestContinuationRefusesMatchesTheGuardForEveryRowAction` walks every declared row action. Each one is either driven through the production dispatcher or exempt with a stated reason, so a new action can't arrive unclassified. This properly settles BR-1.
+   - Deleting the request rather than adding a phase is well argued: records decode strictly, so a new phase would break older binaries. The reasoning is recorded in the store, the operation and the atlas.
+
+2. **Critical**
+   - `cmd/internal/couchtty/console_continuation.go:169`: the scan now deletes orientation prompts it didn't create, including switch-agent's (full detail in the findings block below).
+
+3. **Important**
+   - BR-3 not-addressed: the plan and atlas claims (see dispose notes).
+   - BR-4 not-addressed: `recovery_execute.go:268` still doesn't name the exits.
+   - `continuation_guard_test.go:165`: "Each site is driven" is false. Four wrapped sites are never reached.
+
+4. **Minor**
+   - Phase lists are still written out by hand in two tests, now that `checkpoint.AllPhases` exists.
+   - `runcli.go:147` names both exits whatever the request's phase.
+   - Retry and dismiss are appended to the action list in three separate branches of `menuActionItems` (`menu.go:1223-1226,1250,1257`). It's small now; a helper would keep the order in one place.
+
+5. **Test coverage notes**
+   - No test combines a switch-agent orientation prompt with a continuation scan tick. That gap is why the Critical passed `go test ./...`.
+   - The guard-agreement test detects a guard refusal by the phrase "Dismiss continuation drops it". `withContinuationExits` produces the same phrase, so the test can't tell the guard from a wrapped non-guard refusal. That makes its "refused BY THE GUARD" claim wider than what it checks.
+   - The launcher's hosted-thread refusal has no test.
+
+6. **Architecture notes**
+   - **ARCH-DRY:** pass. There is one `checkpoint.Exits` and one `writeRequestRecord` loop. The only duplication left is the minor menu one above.
+   - **ARCH-PURE:** pass. `CheckDismissible`, `rootStateText`, `continuationLabel` and `menuActionItems` are pure.
+   - **ARCH-PURPOSE:** flag. The BR-4 sweep missed a site in the same block, and the test-reach claim overstates coverage.
+   - **ARCH-MOCK:** pass. Tests use the real temp-dir store and the production executors.
+   - **ARCH-CONSTRAINTS:** pass. Dismissal is one guarded write, and the scan cadence is unchanged.
+   - **ARCH-SECURE:** pass. `request-id` must match exactly, records are still read strictly, and there is no new persisted shape.
+   - **ARCH-ORDER:** flag. `menu.Orientation` is keyed by address, has two writers, and records no provenance. The pruning rule can't be stated correctly until each entry records which writer made it. Store-level ordering is fine.
+   - **ARCH-FUNERAL:** pass. Dismissal gives a failed request an end. Couch's checkpoint copy stays bounded at one per thread and is replaced on the next publish or removed at archive.
+
+7. **Plan revision recommendations**
+   - Rewrite the `rootStateText` bullet (plan lines 82-87). It currently says both "that was wrong" and "Both are bounded in time". It should say that in-flight phases are not bounded without a watching owner.
+   - `continuationGuard` bullet (plan line 65): Pending/Running messages DID change; they now read "Retry continuation reconciles it" via `checkpoint.Exits`.
+   - Revisions entry for BR-4: either list the sites that are actually driven, or record the per-site table plus the call-site check.
+   - Add a Revisions entry recording that orientation prompts now carry provenance, so the continuation scan prunes only its own.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Composition is live-only (menu.go:1238) and menuLiveActions holds no archive; the guard-agreement test loops every declared RowAction (driven or exempt with a reason).
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Pure table now lists CheckDismissible (literal-request tests in request_dismiss_test.go); both IO entries sit in Integration points (plan lines 112-118).
+  - id: BR-3
+    disposition: not-addressed
+    note: |
+      Code, issue and atlas:158 fixed, but plan:83 still asserts "Both are bounded in time... Pending is picked up by the owner's scan", and atlas:165 says an in-flight request "keeps the restricted retry set" while a Pending row offers only name/describe (menu.go:1265, pinned by TestFailedContinuationComposesWithALiveRowsActions).
+  - id: BR-4
+    disposition: not-addressed
+    note: |
+      Seven sites wrapped, but recovery_execute.go:268 (AdmitRecoveryGeneration "...inspect or archive"), inside the same retained-request block, is not. Wrap at the block's return rather than per site.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      menuLiveActions now sits above menuActionItems' doc comment (menu.go:1205-1208).
+  - id: BR-6
+    disposition: addressed
+    note: |
+      One checkpoint.Exits; writeRequestRecord serves advanceContinuation and DismissContinuation; the duplicate helpers are gone.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      The state-text test iterates checkpoint.AllPhases; sibling hand lists raised separately.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Renamed operatorFacing; no bootstrap references remain.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      Dismissal now prunes the prompt, but the fix over-prunes: see the new Critical in the same family.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      The doc names what is driven; SwitchAgent re-runs PrepareAgentSwitch (switchagent.go:256), which holds the guard.
+findings:
+  - id: new
+    severity: Critical
+    family: in-memory-state-follows-record
+    title: |
+      The continuation scan now deletes switch-agent's Copy orientation prompt within 500 ms (console_continuation.go:169)
+    detail: |
+      This is the 2nd finding in family in-memory-state-follows-record. continuationAddresses() covers every pane, and ContinuationRequests returns no status for a record without a request, so line 169 deletes menu.Orientation for every hosted thread on each tick. That includes the entry watchOrientation writes (console_switchagent.go:37) and that finishOrientation deliberately keeps after an unconfirmed delivery, whose notice says "Copy orientation prompt is available in actions". Reproduced on HEAD in a scratch copy: the test fails, and passes once line 169 is removed. Rule (ARCH-ORDER): console state that mirrors a record fact carries the identity of the fact that produced it, and is pruned only when THAT fact vanishes. menu.Orientation has two producers and no provenance. Record the producer (for example, the continuation request ID) and let the scan prune only continuation-produced entries. Sweep every prune site under that rule: line 169 (new); line 117 (pre-existing, same defect for a record that retains a Complete request); line 222. Add a regression test with a switch-agent prompt that survives a scan tick.
+  - id: new
+    severity: Important
+    family: doc-claims-match-test-reach
+    title: |
+      The claim that each exits-wrapped refusal site is driven is false: 3 of 7 sites are reached
+    detail: |
+      This is the 2nd finding in family doc-claims-match-test-reach. The test comment (continuation_guard_test.go:165), the plan's BR-4 revision and the issue Log all claim every withContinuationExits site is driven. The test reaches only recovery_execute.go:179, detach.go:436 and continuation_recovery.go:34. Four sites are never reached: recovery_execute.go:266, :272 and :278, and detach.go:447. Rule: a claim of test reach over a set of sites is checked by the test against that set, or it names exactly the subset driven. Here, a table with one row per wrapped site, plus a source scan asserting that the count of withContinuationExits( call sites equals the table's rows. The guard-agreement test's "refused BY THE GUARD" has the same problem: its oracle phrase is shared with withContinuationExits. Match the guard's own "continuation <id> is failed; " prefix.
+  - id: new
+    severity: Minor
+    family: vocabulary-enumerated-by-test
+    title: |
+      Continuation phases are still written out by hand in menu_action_sweep_test.go:88 and checkpoint/recovery_request_test.go:61
+    detail: |
+      This is the 2nd finding in family vocabulary-enumerated-by-test. Rule: once a vocabulary has an All*() enumerator, no test restates it. Replace both lists with checkpoint.AllPhases(), and add a check that a []Phase{ literal appears only in AllPhases.
+  - id: new
+    severity: Minor
+    family: refusal-names-every-exit
+    title: |
+      pair continue --retry on a hosted thread names both of Failed's exits regardless of the request's phase (runcli.go:147)
+    detail: |
+      This is the 2nd finding in family refusal-names-every-exit. Rule: a refusal names exactly the exits valid for the request's actual phase, through checkpoint.Exits(phase, tag). A site that does not know the phase uses phase-neutral wording rather than assuming Failed. Here, dismiss is offered even when the hosted request may be pending or running, which CheckDismissible refuses.
+```

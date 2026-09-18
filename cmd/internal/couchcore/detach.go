@@ -428,12 +428,16 @@ func archiveRefusal(state ActionableThreadState, reason ThreadReason) string {
 // was retired. Archive preserves the request only when those actors are proved
 // absent; a checkpoint is never permission to stop an unfinished conversation.
 func (c *Couch) archiveContinuationVacant(record ThreadRecord, evidence RecoveryEvidence) error {
+	return withContinuationExits(record, c.checkArchiveContinuationVacant(record, evidence))
+}
+
+func (c *Couch) checkArchiveContinuationVacant(record ThreadRecord, evidence RecoveryEvidence) error {
 	request := record.Continuation
 	if request == nil || request.Phase == checkpoint.Complete {
 		return nil
 	}
 	if evidence.Presence != PresenceAbsent {
-		return withContinuationExits(record, fmt.Errorf("archive %s: continuation source or target session is still occupied", record.Address.Tag))
+		return fmt.Errorf("archive %s: continuation source or target session is still occupied", record.Address.Tag)
 	}
 	identities := []ProcessIdentity{{PID: request.Source.Helper.PID, Identity: request.Source.Helper.Identity}}
 	if request.Target != nil {
@@ -444,7 +448,7 @@ func (c *Couch) archiveContinuationVacant(record ThreadRecord, evidence Recovery
 			continue
 		}
 		if c.Proc == nil || observeExactProcess(c.Proc, identity) != Dead {
-			return withContinuationExits(record, fmt.Errorf("archive %s: continuation source or target helper is not proved dead", record.Address.Tag))
+			return fmt.Errorf("archive %s: continuation source or target helper is not proved dead", record.Address.Tag)
 		}
 	}
 	return nil

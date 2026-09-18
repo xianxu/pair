@@ -372,10 +372,7 @@ func TestVanishedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
 	c, status := continuationConsole(t)
 	c.mu.Lock()
 	c.continuations[status.Address] = continuationWatch{status: status}
-	if c.menu.Orientation == nil {
-		c.menu.Orientation = map[couchcore.ThreadAddress]orientation.Request{}
-	}
-	c.menu.Orientation[status.Address] = orientation.Request{Tag: string(status.Address.Tag), Agent: "codex", Attempt: "start-1"}
+	c.setOrientationLocked(status.Address, orientation.Request{Tag: string(status.Address.Tag), Agent: "codex", Attempt: "start-1"}, continuationProducer(status.RequestID))
 	c.mu.Unlock()
 
 	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}})
@@ -388,4 +385,36 @@ func TestVanishedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
 	if _, ok := c.menu.Orientation[status.Address]; ok {
 		t.Fatal("orientation prompt outlived its dismissed request")
 	}
+}
+
+// ARCH-ORDER provenance: menu.Orientation has two producers, and a continuation
+// prune removes only what a continuation produced. A switch-agent prompt the
+// operator was told to use ("Copy orientation prompt is available in
+// actions") survives every continuation scan path: a hosted thread with no
+// request, and a thread whose unrelated request completes.
+func TestSwitchAgentOrientationPromptSurvivesContinuationScans(t *testing.T) {
+	c, status := continuationConsole(t)
+	prompt := orientation.Request{Tag: string(status.Address.Tag), Agent: "codex", Attempt: "start-switch"}
+	survives := func(t *testing.T, label string) {
+		t.Helper()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if got, ok := c.menu.Orientation[status.Address]; !ok || got != prompt {
+			t.Fatalf("%s deleted switch-agent's orientation prompt", label)
+		}
+	}
+	c.mu.Lock()
+	c.setOrientationLocked(status.Address, prompt, switchAgentProducer(prompt.Attempt))
+	c.mu.Unlock()
+
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}})
+	survives(t, "a scan of a hosted thread with no request")
+
+	c.mu.Lock()
+	c.continuations[status.Address] = continuationWatch{status: status}
+	c.mu.Unlock()
+	complete := status
+	complete.Phase = checkpoint.Complete
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}, statuses: []couchcore.ContinuationStatus{complete}})
+	survives(t, "an unrelated request completing")
 }

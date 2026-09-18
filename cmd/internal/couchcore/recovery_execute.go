@@ -223,6 +223,30 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 
 // prepareAbsentContinuation snapshots a legacy checkpoint and retires a proved
 // dead source in one CAS. Source absence is not a verified park receipt.
+// admitRetainedRecovery decides whether source recovery may proceed from the
+// RETAINED unfinished request. Every refusal it returns is caused by that
+// request, so its one caller wraps them once with the request's exits (#280).
+// settled reports that the request already carries its source authority.
+func (c *Couch) admitRetainedRecovery(old checkpoint.Request, selected *checkpoint.Checkpoint, source ContinuationSource) (request checkpoint.Request, settled bool, err error) {
+	request = old.Clone()
+	if selected != nil && selected.Digest != request.Checkpoint.Digest {
+		return request, false, errors.New("another continuation is unresolved; recover it or archive")
+	}
+	if err := AdmitRecoveryGeneration(request, source); err != nil {
+		return request, false, err
+	}
+	if request.Target != nil {
+		return request, false, errors.New("continuation target must be reconciled before source recovery")
+	}
+	if request.SourcePark != "" || request.SourceAbsence != nil {
+		return request, true, nil
+	}
+	if observeExactProcess(c.Proc, ProcessIdentity{PID: request.Source.Helper.PID, Identity: request.Source.Helper.Identity}) != Dead {
+		return request, false, errors.New("recorded continuation source helper is not proved dead")
+	}
+	return request, false, nil
+}
+
 func (c *Couch) prepareAbsentContinuation(ctx context.Context, address ThreadAddress, selected *checkpoint.Checkpoint) (ThreadRecord, error) {
 	if c.ContinuationSource == nil {
 		return ThreadRecord{}, errors.New("recovery source generation reader unavailable")
@@ -261,21 +285,13 @@ func (c *Couch) prepareAbsentContinuation(ctx context.Context, address ThreadAdd
 		old := record.Continuation
 		var request checkpoint.Request
 		if old != nil && old.Phase != checkpoint.Complete {
-			request = old.Clone()
-			if selected != nil && selected.Digest != request.Checkpoint.Digest {
-				return record, withContinuationExits(record, errors.New("another continuation is unresolved; recover it or archive"))
+			var settled bool
+			request, settled, err = c.admitRetainedRecovery(*old, selected, source)
+			if err != nil {
+				return record, withContinuationExits(record, err)
 			}
-			if err := AdmitRecoveryGeneration(request, source); err != nil {
-				return record, err
-			}
-			if request.Target != nil {
-				return record, withContinuationExits(record, errors.New("continuation target must be reconciled before source recovery"))
-			}
-			if request.SourcePark != "" || request.SourceAbsence != nil {
+			if settled {
 				return record, nil
-			}
-			if observeExactProcess(c.Proc, ProcessIdentity{PID: request.Source.Helper.PID, Identity: request.Source.Helper.Identity}) != Dead {
-				return record, withContinuationExits(record, errors.New("recorded continuation source helper is not proved dead"))
 			}
 		} else {
 			cp := selected

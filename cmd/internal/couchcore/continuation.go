@@ -398,8 +398,9 @@ func withContinuationExits(record ThreadRecord, err error) error {
 // never read the request. The switcher filters a failed row's actions through
 // this rather than restating the list. TestContinuationRefusesMatchesTheGuard-
 // ForEveryRowAction drives relaunch, switch-agent's preview (which SwitchAgent
-// re-runs), a cold resume and a cold start claim into the guard, and park,
-// detach, name and describe to success, through the production dispatcher (#280).
+// re-runs), a cold resume and a cold start claim into the guard -- refused by
+// its own words, having written nothing -- and park, detach, name and describe
+// to success, through the production dispatcher (#280).
 func ContinuationRefuses(operation string) bool {
 	switch operation {
 	case "relaunch", "switch-agent", "prepare-switch-agent", "resume", "start":

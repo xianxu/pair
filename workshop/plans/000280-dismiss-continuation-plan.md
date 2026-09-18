@@ -79,12 +79,10 @@ Deletion is also the only skew-safe shape.
   omitting it resolves to *"thread reference is required"*.
 - **`rootStateText`**: EVERY non-complete phase composes as
   `<state text> · <label>`, whatever the state (see the close-review revision).
-  The text originally planned here said `Pending`/`Running` displace the state
-  because they are bounded; that was wrong. Both are bounded in time: a `Running`
-  request becomes `Failed` at the 30s submission deadline
-  (`continuation_recovery.go:197`), and `Pending` is picked up by the owner's
-  scan. Displacing a state for the seconds an operation is in flight is honest;
-  displacing it indefinitely was the bug.
+  The text originally planned here said `Pending`/`Running` may displace the
+  state because they are bounded in time. That is false: the 30s deadline and
+  the owner's scan only run while a live owner watches the address, so a request
+  whose owner died reads `continuing…` indefinitely.
 - **`menuActionItems`**: a `Failed` request COMPOSES with the row's actions,
   like the state text. The row keeps what its state offers, minus exactly the
   operations `continuationGuard` refuses, plus `retry-continuation` and
@@ -98,9 +96,12 @@ Deletion is also the only skew-safe shape.
     retry and dismiss, so detach is not a trap.
   - Rows with `Recovery` (non-live) already compose; dismiss joins them after
     retry.
-  - `Pending`/`Running` keep today's in-flight sets, on purpose: the
-    continuation owns the thread mid-replacement, and retry reconciles a
-    stalled one (see the close-review revision; this is not a time bound).
+  - In-flight phases keep today's sets, on purpose, because the continuation
+    owns the thread mid-replacement. `Running` offers `retry-continuation`,
+    `name` and `describe`: retry reconciles a stalled request. `Pending` offers
+    only `name` and `describe`, as before #280 (pinned by
+    `TestFailedContinuationComposesWithALiveRowsActions`). This is a statement
+    of which actions are offered, not a time bound.
 - **`ContinuationRefuses(operation string) bool`**
   (`couchcore/continuation.go`, beside `continuationGuard`): the ONE list of
   operations the guard refuses: relaunch, switch-agent, (cold) resume, start.
@@ -204,11 +205,11 @@ Deletion is also the only skew-safe shape.
     dismissal (deleting the request) is the other exit from `Failed`.
 - [x] **Switcher.**
   - `rootStateText` table over `AllThreadStates` × {nil, Pending, Running,
-    Failed, Complete}: `Failed` composes; `Pending`/`Running` displace, with the
-    reason in a comment; `nil`/`Complete` show the plain state.
+    Failed, Complete}: every non-complete phase composes (revised at close
+    round 1); `nil`/`Complete` show the plain state.
   - `menuActionItems` over state × phase: `Failed` composes (state actions
-    minus `ContinuationRefuses`, plus retry and dismiss); `Pending`/`Running`
-    keep their in-flight sets.
+    minus `ContinuationRefuses`, plus retry and dismiss); `Running` offers
+    retry, name and describe, and `Pending` offers name and describe.
   - `dispatchMenuOperation` passes `request-id` for dismiss, and never `ref`.
   - Dismiss joins the refresh list.
   - Extend `TestRowActionDeclarationsAndTheMenuAgreeInBothDirections` and add a
@@ -281,3 +282,27 @@ Deletion is also the only skew-safe shape.
   - The console prunes `menu.Orientation` with the watch.
   - The guard-agreement test also drives cold resume and cold start, and
     `ContinuationRefuses`' doc names exactly what is driven.
+
+### 2026-09-17 — close review round 2 (REWORK)
+
+- **BR-11 (Critical), in-memory state follows the record:** my round-1 prune
+  deleted switch-agent's orientation prompt, because `menu.Orientation` has two
+  producers and no provenance. Every writer now records its producer
+  (`setOrientationLocked`), and every prune names one (`dropOrientationLocked`)
+  or explicitly supersedes (`supersedeOrientationLocked`, a new switch-agent
+  launch). That covers all five pre-existing and new sites.
+  `TestSwitchAgentOrientationPromptSurvivesContinuationScans` pins both scan
+  paths.
+- **BR-4 / BR-12, refusals and test reach:** each retained-request check wraps
+  ONCE at its boundary. `prepareAbsentContinuation`'s retained branch became
+  `admitRetainedRecovery`, which also covers the missed `AdmitRecoveryGeneration`
+  refusal. The routing test is one row per `withContinuationExits` call site
+  (4), each driven, plus a source scan that the call sites ARE the rows. The
+  guard-agreement oracle now matches the guard's own
+  `continuation <id> is failed; ` prefix, not wording the wrapper shares.
+- **BR-3:** the plan's `rootStateText` bullet no longer carries the "bounded in
+  time" reason, and the plan and atlas state the actual per-phase action sets.
+- **Minors:**
+  - no `[]Phase{` literal outside `AllPhases` (two test lists replaced, and a
+    repo scan added);
+  - `pair continue --retry` uses the phase-neutral `Exits("", tag)`.

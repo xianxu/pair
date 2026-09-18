@@ -31,8 +31,17 @@ func AllPhases() []Phase { return []Phase{Pending, Running, Failed, Complete} }
 // pair's CLI. A FAILED request has two exits and every refusal offers both --
 // when retry was the only one named, a thread whose failed handoff the operator
 // had already taken over could not be relaunched without re-delivering it
-// (pair#280). A non-empty tag adds the forms that work after Couch exits.
+// (pair#280). A non-empty tag adds the forms that work after Couch exits. A
+// caller that does not know the phase passes "" and gets phase-neutral wording:
+// dismissal is offered only for a request that failed.
 func Exits(phase Phase, tag string) string {
+	if phase == "" {
+		s := "Retry continuation reconciles it, and Dismiss continuation drops it if it failed"
+		if tag != "" {
+			s += fmt.Sprintf("; after Couch exits, `couch --internal retry-continuation %s`, or `couch --internal dismiss-continuation %s` for a failed one", tag, tag)
+		}
+		return s
+	}
 	if phase == Failed {
 		s := "Retry continuation re-delivers it and Dismiss continuation drops it"
 		if tag != "" {

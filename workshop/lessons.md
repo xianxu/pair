@@ -5376,3 +5376,36 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   prerequisite failed. `-k` keeps only the siblings going. With the known
   `test-changelog` failure, a "green except changelog" `make -k test` ran zero Go
   tests. Follow it with `go test ./... -count=1`. (#262)
+
+- **"Refused by the guard" is proved by the guard's own words AND no effect.**
+  #280's agreement test checked only the refusal text. Deleting relaunch's front
+  guard left it green: relaunch then PARKED the thread (revision 4 → 7) and was
+  refused later, at the cold resume, in the same words. That is exactly the
+  destructive order the front guard exists to prevent. Assert the refusal
+  wrote nothing, and match a prefix only that guard emits, not wording a wrapper
+  shares. (#280 close)
+
+- **Shared keyed state needs provenance, or a prune deletes someone else's
+  entry.** `menu.Orientation` is written by continuation delivery and by
+  switch-agent, keyed only by thread address. A continuation prune added in
+  round 1 deleted switch-agent's Copy orientation prompt on every scan tick. The
+  fix is structural: each entry records its producer, and a prune names one.
+  Before pruning a map you did not create, list every writer to it. (#280 BR-11)
+
+- **Wrap refusals at the boundary of the check, not at each error site.**
+  Per-site wrapping of "the retained request caused this" missed one refusal
+  (`AdmitRecoveryGeneration`) inside the very block being wrapped. A helper that
+  returns the block's decision, wrapped once by its caller, cannot miss one.
+  (#280 BR-4)
+
+- **A claim of test reach over a set of sites is checked against that set.** "Each
+  wrapped site is driven" was true of 3 of 7. The test now has one row per call
+  site and a source scan asserting that the call sites ARE the rows, so adding a
+  site without a row fails. (#280 BR-12)
+
+- **"Bounded in time" must name what enforces the bound, and whether it runs
+  without an owner.** Pending/running continuations were allowed to displace
+  their thread's state because "running fails at 30s". That deadline runs only
+  while a live owner scans the address, so a request whose owner died reads
+  `continuing…` forever. If the bound needs a watcher, the claim needs one too.
+  (#280 BR-3)

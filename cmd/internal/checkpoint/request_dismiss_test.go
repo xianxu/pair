@@ -1,6 +1,11 @@
 package checkpoint
 
 import (
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -46,5 +51,44 @@ func TestExitsNameBothWaysOutOfAFailedRequest(t *testing.T) {
 		if phase == Failed && !strings.Contains(tagged, "couch --internal dismiss-continuation couch-01") {
 			t.Errorf("failed request's CLI forms omit dismiss: %q", tagged)
 		}
+	}
+}
+
+// The phase vocabulary is written out exactly once, in AllPhases: any other
+// []Phase literal -- production or test -- is a restatement that a new phase
+// would silently skip.
+func TestPhaseListIsWrittenOnlyInAllPhases(t *testing.T) {
+	_, file, _, _ := runtime.Caller(0)
+	root := filepath.Join(filepath.Dir(file), "..", "..")
+	var found []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() || !strings.HasSuffix(path, ".go") {
+			return err
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for i, line := range strings.Split(string(body), "\n") {
+			if (strings.Contains(line, "[]Phase{") || strings.Contains(line, "[]checkpoint.Phase{")) && !strings.Contains(line, "func AllPhases()") {
+				found = append(found, fmt.Sprintf("%s:%d", path, i+1))
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 0 {
+		t.Fatalf("phase list restated outside AllPhases: %v", found)
+	}
+}
+
+// A caller that does not know the phase gets wording that names dismissal
+// only for a failed request, never as an unconditional exit.
+func TestExitsWithAnUnknownPhaseAreConditional(t *testing.T) {
+	plain, tagged := Exits("", ""), Exits("", "couch-01")
+	if !strings.Contains(plain, "Dismiss continuation drops it if it failed") || !strings.Contains(tagged, "`couch --internal dismiss-continuation couch-01` for a failed one") {
+		t.Fatalf("unknown-phase exits must make dismissal conditional: %q / %q", plain, tagged)
 	}
 }
