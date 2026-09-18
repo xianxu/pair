@@ -1040,3 +1040,16 @@ where the whole-window flicker lived. Still open for the M1 close: `pair term`
 under plain zellij (a fresh Alt+Shift+d split, since running `pair term`
 processes still run the old binary), and whether the caret blinks regularly,
 which is M2's DECSCUSR input.
+
+**Follow-up smoke, same evening.** The operator did NOT restart pair, so its
+`pair term` panes still run the pre-M1 binary and still emit unbracketed
+full-pane repaints into zellij. Yet: *"flicker went away here as well."* That
+localizes the visible flicker to couch's layer, the whole-window repaint written
+straight into Ghostty. The inner full-pane repaints land in zellij's own grid,
+and zellij's client output reaches Ghostty only through couch's endpoint (which
+honours zellij's own 2026) and its now-bracketed presenter. `pair term` under
+plain zellij with NO couch was not smoked. There, zellij is outermost and redraws
+only changed rows. The native zellij oracle shows the bracket leaves zellij's end
+state unchanged. Whether zellij *honours* 2026 from a pane stays unrecorded,
+which is harmless either way. The caret-blink question (M2's input) is
+unanswered.

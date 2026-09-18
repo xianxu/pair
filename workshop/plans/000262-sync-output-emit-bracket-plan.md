@@ -1,6 +1,6 @@
 # Synchronized-output emit bracket (#262 M1) Implementation Plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Every frame the presenter paints reaches the parent terminal as one
 synchronized-output (DECSET 2026) bracket. The terminal then draws only the
@@ -134,27 +134,27 @@ against 2156 B for a first paint.
 
 **Files:** `cmd/internal/terminal/render.go`; test `render_test.go`.
 
-- [ ] **Red.** Add `assertOneBracket(t, label, wire)`: `wire` starts with
+- [x] **Red.** Add `assertOneBracket(t, label, wire)`: `wire` starts with
   `syncBegin`, ends with `syncEnd`, and contains exactly one of each. Add
   `TestRenderBracketsEveryFrameAndNeverANoop`. It asserts `assertOneBracket` for a
   first paint, a one-cell diff and a cursor-only change, and asserts that
   `Render(f, f)` returns `nil`. Run
   `go test ./cmd/internal/terminal/ -run TestRenderBrackets`; it fails to compile
   (`syncBegin` undefined).
-- [ ] **Green.** Add the constants and `cursorEpilogue` (lifted verbatim from
+- [x] **Green.** Add the constants and `cursorEpilogue` (lifted verbatim from
   `render.go:80-92`, plus CUP). `Render` writes `syncBegin` before the preamble,
   and `cursorEpilogue(next.Cursor) + syncEnd` in place of `:80-92`.
-- [ ] **Package green.** Run `go test ./cmd/internal/terminal/`. Update any
+- [x] **Package green.** Run `go test ./cmd/internal/terminal/`. Update any
   byte-exact `Render` expectation to include the bracket. Never weaken one to
   `Contains`.
-- [ ] **Commit:** `#262 M1: bracket panel frames in synchronized output`.
+- [x] **Commit:** `#262 M1: bracket panel frames in synchronized output`.
 
 ## Task 2: Bracketed `HistoryRender.Emit`
 
 **Files:** `cmd/internal/terminal/history_render.go`; test
 `history_render_test.go`.
 
-- [ ] **Red.**
+- [x] **Red.**
   - Update `TestHistoryRendererAltTransitionsAreWholePackets`, for both enter and
     leave: `packets[0] == syncBegin`, `packets[1]` is the WHOLE `?1049h`/`l`
     packet, and the last packet ends with `syncEnd`. The leave half keeps its
@@ -167,11 +167,11 @@ against 2156 B for a first paint.
     each cell a distinct SGR colour, enough that the body spans ≥3 chunks, with
     the test asserting that fixture property itself. The joined output holds one
     bracket, and the final chunk ends with `syncEnd`.
-- [ ] **Green.** `e.add(syncBegin)` immediately after
+- [x] **Green.** `e.add(syncBegin)` immediately after
   `e := historyEmitter{write: write}`, before the alt packets. Replace
   `:403-415` with `e.add(cursorEpilogue(p.next.Cursor))`, then `e.add(syncEnd)`
   before the final `e.flush()`.
-- [ ] **Oracles.**
+- [x] **Oracles.**
   - Run `PAIR_TERMINAL_ORACLE=1 go test ./cmd/internal/terminal/`: every xterm
     oracle suite is green. This proves the end state is unchanged on a terminal
     that ignores 2026, per the Integration points note.
@@ -180,14 +180,14 @@ against 2156 B for a first paint.
     the native zellij oracle for `pair term`'s parent.
   - Record both results in `## Log`. If zellij cannot run here, record that
     rather than skipping silently.
-- [ ] **Commit:** `#262 M1: bracket child-pane frames in synchronized output`.
+- [x] **Commit:** `#262 M1: bracket child-pane frames in synchronized output`.
 
 ## Task 3: Release closes an orphaned bracket, for a cut in any write
 
 **Files:** `cmd/internal/terminal/presenter.go:263-277`; test
 `presenter_test.go`.
 
-- [ ] **Red.**
+- [x] **Red.**
   - `recordingParent`: implements `ttyio.Writer` and delegates to a `ttyio.Fake`.
     It appends each call's input length to a slice, which lets a probe learn a
     frame's write boundaries.
@@ -221,12 +221,12 @@ against 2156 B for a first paint.
 
     Assert `assertStreamBracketed` on the parent bytes. Run it: the cases past a
     complete `syncBegin` fail with "stream ends with synchronized output open".
-- [ ] **Green.** In `parentReleaseControls`, add `controls += syncEnd` right after
+- [x] **Green.** In `parentReleaseControls`, add `controls += syncEnd` right after
   `"\x18\x1b\\"`. In its doc comment, add *synchronized output* to what Render
   owns.
-- [ ] **Package green.** Run `go test ./cmd/internal/terminal/`, updating any
+- [x] **Package green.** Run `go test ./cmd/internal/terminal/`, updating any
   byte-exact release expectation.
-- [ ] **Commit:** `#262 M1: release closes a bracket a failed frame left open`.
+- [x] **Commit:** `#262 M1: release closes a bracket a failed frame left open`.
 
 ## Task 4: Retire prose that presents the pre-#255 reserved-row machinery as live
 
@@ -235,7 +235,7 @@ painters, `ptychild.Screen`'s paint gating, or the deleted
 `paneWriter`/`writeOwn`/`flushOwed` door as the production path. #255 M3 moved
 all chrome to `terminal.Presenter.UpdateChrome`.
 
-- [ ] **Enumerate, then fix every site.** Sites known at plan time:
+- [x] **Enumerate, then fix every site.** Sites known at plan time:
   1. `cmd/internal/hostty/reserve.go:13-18`. Two false sentences: *"shared by two
      consumers — couch … `pair term` …"*, whose only caller is
      `cmd/probes/couchnestedrows`, and *"`\x1b[r` lives here and only here"*,
@@ -270,23 +270,23 @@ all chrome to `terminal.Presenter.UpdateChrome`.
 
   Fix each hit that presents the old path as live, and record the sweep's final
   empty-of-stale result in `## Log`.
-- [ ] `go build ./... && go test ./cmd/internal/hostty/` passes.
-- [ ] **Commit:** `#262 M1: retire prose presenting pre-#255 reserved-row painters as live`.
+- [x] `go build ./... && go test ./cmd/internal/hostty/` passes.
+- [x] **Commit:** `#262 M1: retire prose presenting pre-#255 reserved-row painters as live`.
 
 ## Task 5: Verify, atlas, operator smoke
 
-- [ ] **Full suite.**
+- [x] **Full suite.**
   - Scrub the retention-owner env group (memory: `make test` env leak). Run
     `make test > $TMPDIR/mt262.log 2>&1` and read the tail.
   - The pty-child packages (`couchtty`, `termcmd`) need the sandbox off.
   - `parley_harness_golden` 7/7 is a known pre-existing failure.
   - Record the result.
-- [ ] **Atlas.** In `atlas/terminal.md`'s `Presenter` paragraph, add one sentence:
+- [x] **Atlas.** In `atlas/terminal.md`'s `Presenter` paragraph, add one sentence:
   every presented frame is one synchronized-output (2026) bracket, opened and
   closed by the renderers, and release closes a bracket a failed write left open
   (#262). `atlas/couch.md:358` ("synchronized output … are virtual terminal
   state") is about ingest and remains true.
-- [ ] **Install and hand to the operator.** Install the binary couch runs. Ask
+- [x] **Install and hand to the operator.** Install the binary couch runs. Ask
   the operator to smoke:
   1. Under couch, typing in the draft beside a static agent pane: is the global
      flicker gone?
@@ -323,3 +323,12 @@ all chrome to `terminal.Presenter.UpdateChrome`.
   - `atlas/couch.md`'s teardown sentence claimed the reserved row is cleared,
     which is false.
 - Deleting the machinery itself went to pair#281 rather than into this plan.
+
+### 2026-09-17 — execution notes
+
+- **Task 5's `pair term` smoke happened inside couch, not under plain zellij.** The
+  operator did not restart pair, so those panes still ran the pre-M1 binary, and
+  they no longer flicker. That locates the flicker in couch's layer.
+- **`pair term` with no couch was not smoked.** The native zellij oracle shows the
+  bracket leaves zellij's end state unchanged.
+- **The caret-blink question is still open**, as input to M2.
