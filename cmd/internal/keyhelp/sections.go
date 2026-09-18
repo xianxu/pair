@@ -15,7 +15,16 @@ import (
 // somewhere else — that fallback is precisely what would render Alt+t as
 // "right-terminal tab helper disabled in draft" (its DRAFT no-op desc) instead of
 // "new terminal tab" (#132).
-func Sections(src SourceReader) ([]Section, error) {
+//
+// Sections is Pair's help as Pair behaves standalone. HostedSections is the same
+// document with each chord's HostedHelp where Couch changes Pair's behavior --
+// when Couch launched the session or presents the client (#282).
+func Sections(src SourceReader) ([]Section, error) { return sections(src, false) }
+
+// HostedSections: see Sections.
+func HostedSections(src SourceReader) ([]Section, error) { return sections(src, true) }
+
+func sections(src SourceReader, hosted bool) ([]Section, error) {
 	lua, err := src.Read(nvimInitPath)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", nvimInitPath, err)
@@ -39,16 +48,22 @@ func Sections(src SourceReader) ([]Section, error) {
 	globalHelp := map[string]string{}
 	globalBindings := map[string]workbenchshortcut.GlobalBinding{}
 	for _, b := range workbenchshortcut.GlobalBindings() {
-		globalHelp[b.NvimKey] = b.Help
+		help := b.Help
+		if hosted && b.HostedHelp != "" {
+			help = b.HostedHelp
+		}
+		globalHelp[b.NvimKey] = help
 		globalBindings[b.NvimKey] = b
 		if !b.AgentReserved {
 			globalHelp[b.NvimKey] += " (outside the agent pane)"
 		}
 	}
 	roleHelp := map[string]string{}
+	roleChord := map[string]workbenchshortcut.Chord{}
 	for _, rb := range workbenchshortcut.RoleBindings() {
 		if k := roleChordKey(rb.Chord); k != "" {
 			roleHelp[k] = rb.Help
+			roleChord[k] = rb.Chord
 		}
 	}
 
@@ -65,12 +80,20 @@ func Sections(src SourceReader) ([]Section, error) {
 				e.Context = ContextWorkbench
 			}
 		}
+		var chord workbenchshortcut.Chord
+		switch e.Source {
+		case SourceGlobal:
+			chord = globalBindings[e.Key].Chord
+		case SourceRole:
+			chord = roleChord[e.Key]
+		}
 		byGroup[e.Group] = append(byGroup[e.Group], Binding{
 			Key:     displayFor(e),
 			Desc:    desc,
 			Context: e.Context,
 			Group:   e.Group,
 			Order:   e.Order,
+			Chord:   chord,
 		})
 	}
 
