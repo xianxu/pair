@@ -17,9 +17,11 @@ type Options struct {
 	CmuxWorkspaceID string // CMUX_WORKSPACE_ID; empty ⇒ skip the cmux surface
 
 	// Tunables (defaults applied in Run). PollInterval is the loop cadence;
-	// StartupGrace covers the create-path race (poller spawned right before
-	// `zellij --new-session-with-layout`); MissThreshold debounces transient
-	// `zellij list-sessions` failures before deciding the session is gone.
+	// StartupGrace bounds the birth gate -- the wait for this launch's agent
+	// pane to write its sidecar, since the poller is spawned right before
+	// `zellij --new-session-with-layout` (#287); MissThreshold debounces
+	// transient `zellij list-sessions` failures before deciding the session is
+	// gone.
 	PollInterval  time.Duration
 	StartupGrace  time.Duration
 	MissThreshold int
@@ -59,8 +61,8 @@ type Runtime interface {
 	SessionActivity(tag, agent string) (time.Time, bool)
 }
 
-// Run drives the poller until the Pair session disappears (or a startup
-// race is lost). Returns a process exit code (always 0 — like the shell poller,
+// Run drives the poller until the Pair session disappears (or its agent pane is
+// never born). Returns a process exit code (always 0 — like the shell poller,
 // it exits cleanly on session-gone and never surfaces an error).
 func Run(opts Options, rt Runtime) int {
 	if opts.Tag == "" || opts.Agent == "" {
@@ -101,18 +103,19 @@ func Run(opts Options, rt Runtime) int {
 	_ = rt.WriteFile(pidfile, rt.Getpid()+"\n")
 	defer rt.Remove(pidfile)
 
-	// Wait for the zellij session to appear (create-path race). After this,
+	// Birth gate (#287): no zellij call of any kind until this launch's agent
+	// pane has written its sidecar. zellij 0.45.1 panics when a connection it
+	// accepted before the first real client initialized the session closes,
+	// and `list-sessions` connects to every socket -- so this poller, spawned
+	// just before `zellij --new-session-with-layout`, used to kill the session
+	// it was waiting for (probes/zellijbirthrace: 4 launches in 10). A pane
+	// exists only once the session has initialized, and the layout's pane
+	// command writes the sidecar first thing. The create path clears it before
+	// spawning us, so "it exists" means THIS launch's pane ran; attach never
+	// clears, so a live session's pane passes on the first stat. After the gate,
 	// "session missing" reliably means the user ended the session.
-	graceDeadline := rt.Now().Add(opts.StartupGrace)
-	seen := false
-	for rt.Now().Before(graceDeadline) {
-		if rt.SessionAlive(session) {
-			seen = true
-			break
-		}
-		rt.Sleep(1 * time.Second)
-	}
-	if !seen {
+	panePath, err := paths.PaneChecked(opts.Agent)
+	if err != nil || !awaitPaneBirth(rt, panePath, opts.StartupGrace) {
 		return 0
 	}
 
@@ -158,6 +161,25 @@ func Run(opts Options, rt Runtime) int {
 		}
 
 		rt.Sleep(opts.PollInterval)
+	}
+}
+
+// paneBirthPoll is the birth gate's cadence: one stat per tick, so cheap, and
+// titles start at most this long after the pane does.
+const paneBirthPoll = 250 * time.Millisecond
+
+// awaitPaneBirth reports whether panePath exists within grace. A failed stat is
+// "not yet", never birth: only the file itself is evidence.
+func awaitPaneBirth(rt Runtime, panePath string, grace time.Duration) bool {
+	deadline := rt.Now().Add(grace)
+	for {
+		if _, ok := rt.ModTime(panePath); ok {
+			return true
+		}
+		if !rt.Now().Before(deadline) {
+			return false
+		}
+		rt.Sleep(paneBirthPoll)
 	}
 }
 
