@@ -13,22 +13,6 @@ started: 2026-09-17T15:54:17-07:00
 
 ## Problem
 
-## Spec
-
-## Done when
-
--
-
-## Plan
-
-- [ ]
-
-## Log
-
-### 2026-09-17
-
-## Problem
-
 Operator friction, hit live on 2026-09-17: wanting to `zellij kill-session` the
 ariadne thread, there was no way to get from what `couch --list` prints to the
 session name zellij knows. It took reading two on-disk files by hand:
@@ -68,3 +52,51 @@ name.
   a test that changes the binding and sees the output change.
 - A thread with no session binding renders without a session line and without
   claiming one is absent, since an unreadable scope is not an absent binding.
+
+## Plan
+
+- [ ] Carry the session name from `ProjectSessionPresence` to `ThreadSummary`.
+- [ ] Render tag + session in `--list`; print couch's own identity in the header.
+- [ ] Tests per Done when.
+
+## Log
+
+### 2026-09-17
+
+- Filed from live operator friction (see Problem).
+- Structure repaired 2026-09-17: the file carried a duplicate empty skeleton
+  above the real body, leaving `## Plan` holding a bare unchecked `- [ ]` that
+  would have tripped the close gate's plan-check. Content preserved verbatim;
+  only the section order was fixed and the Plan filled in.
+
+## Revisions
+
+### 2026-09-17 — also print couch's own pid
+
+**Reason:** operator request, prompted by a live incident the same day. The
+`astro` thread investigation (`pair#273`) turned on a fact `--list` cannot show:
+the **running couch was older than the binary on disk**. The supervisor had
+started at 15:49; `#256` M3 landed 16:28–16:54 and the binary was rebuilt at
+16:51. Every conclusion drawn about M3's behavior from that process would have
+been wrong, and finding it out took `ps` plus commit timestamps.
+
+**Delta to `## Spec`:** `couch --list` also identifies **the couch supervisor
+itself** — its pid, alongside the per-thread rows it already prints.
+
+- The pid is the operator's handle for the supervisor: it is what `ps` needs to
+  answer "how long has this been running, and does it predate the binary I just
+  built?", and what a deliberate restart targets.
+- Print it as couch's own line — a header, not a thread row. It is the process
+  that owns all of them, and formatting it like a thread invites confusion with
+  the launcher pids already shown as `recorded: live pid N`, which are a
+  different thing entirely.
+- `--list` runs as a separate short-lived process, so this is the **supervisor's**
+  pid read from the singleton lease, not `os.Getpid()`. Worth stating explicitly
+  because the wrong one is easy to reach for and silently useless.
+- No live supervisor is a normal state, not an error: say so plainly rather than
+  printing an empty field.
+
+**Delta to `## Done when`:** add —
+
+- `couch --list` names the running supervisor's pid, read from the lease, and
+  says plainly when no supervisor is running.
