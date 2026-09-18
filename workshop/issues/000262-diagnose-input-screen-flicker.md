@@ -993,44 +993,6 @@ passed. Because a prerequisite failed, make skipped the `test` target's own
 `go test ./... -count=1` with the same scrub. It exited 0, with 71 packages ok.
 `make build` rebuilt `bin/pair` and `bin/couch` from this branch for the smoke.
 
-### 2026-09-17 — M1 operator smoke under couch: no flicker
-
-Operator smoke, ~20:05, recorded from a brain advisor session.
-
-**Build under test, verified before the smoke rather than assumed** (a couch
-older than its own binary had already produced one wrong conclusion that day):
-`bin/pair` built 19:37 and `bin/couch` 20:02, both after the last M1 code commit
-`9ba2b30d` (19:29). couch pid 76239 started 20:02:28; the thread's `pair wrap`
-pid 77655 started 20:02:47. Both renderers M1 touches were the new ones.
-
-**Result: no flicker observed.** Operator's words: *"I don't see any flicker
-anymore, including pressing key for a long time, while you are changing agent
-pane display"*, with the right-hand pane running `top`.
-
-That puts three writers on screen at once:
-
-- sustained key-repeat in the draft;
-- the agent pane repainting continuously (an agent streaming output);
-- `top` in the right pane — a full-screen child under `pair term` on the
-  **alternate screen**, refreshing at a steady low rate. That exercises the alt
-  enter path M1 explicitly bracketed, and its periodic whole-screen refresh is
-  close to the original complaint's regime: the flicker was worst when *little*
-  was happening.
-
-**What this does NOT settle — the zellij half of the smoke item.** The Done-when
-asks for `pair term` under **plain zellij**, and whether zellij honours 2026
-from a pane, recorded whichever way it goes. Under couch that question is
-masked: `pair term` emits into its zellij pane, zellij composites, and couch's
-own renderer then wraps the result in its *own* 2026 bracket before it reaches
-the terminal. A zellij that silently dropped the pane's bracket would still look
-flicker-free here, because the outer bracket absorbs it. So this smoke proves
-the couch path end-to-end and says nothing about zellij on its own.
-
-**Remaining for M1:** smoke `pair term` directly in a plain zellij session
-(outside couch) under the same quiet regimes, and record the zellij answer.
-Threads whose `pair wrap` predates the 19:37 build still carry the old renderer
-until relaunched (Alt+n), so judge those only after a relaunch.
-
 ### 2026-09-17 — operator smoke: couch flicker gone
 
 The operator killed the pre-M1 couch (pid 80116, started 17:41, before the 19:37
