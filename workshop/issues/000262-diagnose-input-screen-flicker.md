@@ -1,12 +1,13 @@
 ---
 id: 000262
-status: working
+status: codecomplete
 deps: [pair#255]
 github_issue:
 created: 2026-09-15
 updated: 2026-09-17
 estimate_hours: 2.45
 started: 2026-09-17T18:51:31-07:00
+actual_hours: 2.51
 ---
 
 # Screen flicker: the compositor re-emits global terminal state every frame (#255)
@@ -813,6 +814,7 @@ DECSTBM reset (`\x1b[r`, emitted every frame) becomes the next suspect among the
 preamble items.
 
 ### 2026-09-17 — M3's premise is in question (from ariadne#232)
+- 2026-09-17: closed — M1: every presented frame is one DECSET 2026 bracket (renderer + presenter tests, cut-any-write sweep), release closes orphaned brackets; operator smoke under couch: global flicker gone; zellij 0.45.1 measured to honour pane 2026 (sync_hold.py). M2: per-frame preamble classified (one writer, async-only confirm) and kept as convergent re-asserts, rule in atlas/terminal.md; default-cursor fidelity filed as #283. go test ./... 71 ok; make -k test only pre-existing test-changelog; review verdict: FIX-THEN-SHIP
 - 2026-09-17: closed M1 — Both renderers bracket every frame in DECSET 2026 (render/history tests incl. alt enter/leave with assertOneBracket, multi-chunk); release closes an orphaned bracket for a cut in any write of 3 layouts (red at cut 8 before the fix); xterm + native zellij 0.45.1 oracles green; sync_hold.py measures zellij 0.45.1 honours pane 2026 (control 0.012s, bracketed 1.016s vs close 1.004s); go test ./... 71 ok; make -k test only pre-existing test-changelog; operator smoke under couch: global flicker gone, pre-M1 pair term panes too; review verdict: SHIP
 
 A design discussion on ariadne's ARCH-ORDER produced a classification that applies
@@ -1151,3 +1153,34 @@ cursor config. It is a #255 behaviour difference, independent of the flicker.
 The multi-chunk tests cover a large busy frame. The renderer is pane-agnostic:
 couch's whole-window presenter and `pair term`'s pane presenter run the same
 code, so the coverage holds "in either pane".
+
+### 2026-09-17 — correction to the M2 table (close review, advisory)
+
+Two claims in the M2 entry above were false. The outcome stands: keep all
+re-asserts. The corrected record, with each row now citing its evidence:
+
+- **Writer count.** "None of the non-frame writes touch margins, origin,
+  autowrap, SGR, hyperlink or cursor style" is FALSE for release:
+  `parentReleaseControls` (`presenter.go:278`) writes `?6l`, `ESC[r`, `?7h`,
+  `ESC[0m`, the OSC8 close, `ESC[0 q` and `?25h`. The belief stays sound because
+  release is the presenter's final write: the `run` loop returns after it
+  (`:127-134`). The mode delta (`:290-299`), effects (`:682-701`) and `Copy`
+  (`:825`) do touch none of it.
+- **`ESC[r` in `Emit`.** "Functional, because history pushes set `1;2r`" is
+  FALSE: the push sets it at `history_render.go:331` and resets it itself at
+  `:364`. The preamble's reset at `:318` is convergent, like `Render`'s
+  (`render.go:66`).
+- **The other rows, re-checked:**
+  - `?25l`/`?25h`: `render.go:66`, and `cursorEpilogue` `:34-36`.
+  - `?6l` before absolute CUPs: `render.go:89`; `Emit`'s `cup` `:201`.
+  - Autowrap is functional: `Render` turns it off at `:66` and back on at
+    `:110` around the lower-right cell; `Emit` keeps it on (`:318`, `:407`)
+    because `wrap` builds soft links through it.
+  - SGR/OSC8 reset is functional: `Render` tracks from a zero style/link
+    (`:70-71`, `:91-99`), and `Emit`'s `cells` "requires plain rendition on
+    entry" (`:210`).
+  - DECSCUSR: `cursorEpilogue`.
+
+`atlas/terminal.md` and the `history_render.go` pointer are corrected to match.
+The rule this family keeps teaching, now in `workshop/lessons.md`: a statement
+that quantifies over code cites each member.

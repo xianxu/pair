@@ -29,17 +29,19 @@ margins, SGR and hyperlink, sets autowrap, and ends by placing the cursor with
 its shape (DECSCUSR) and showing it. Two reasons, and both must hold before
 anything is deltaed:
 
-- **The belief is sound, but it is not confirmable.** The presenter is the
-  parent's only production writer of this state; its other writes (mode delta,
-  effects, `Copy`, release) touch none of it. Confirming it would take a DECRQM
-  or DECRQSS reply, which arrives asynchronously, so the belief is always one
-  round-trip stale. A convergent re-assert is the right treatment for state you
-  cannot cheaply confirm.
-- **The preamble has no visible cost.** Several of the writes are functional
-  anyway: `Emit` sets `ESC[1;2r` itself for history pushes, `Render` needs
-  autowrap off for the lower-right cell, and the style tracking starts from
-  reset. Inside the bracket none of it is ever shown, and a quiet-screen smoke
-  shows the caret blinking normally.
+- **The belief is sound, but it is not confirmable.** Between frames nothing
+  else writes this state. The mode delta, effects and `Copy` never touch it.
+  Release does write it, but release is the presenter's final write. Confirming
+  the state would take a DECRQM or DECRQSS reply, which arrives
+  asynchronously, so the belief is always one round-trip stale. A convergent
+  re-assert is the right treatment for state you cannot cheaply confirm.
+- **The preamble has no visible cost.** Some of it is functional: `Render`
+  turns autowrap off for the lower-right cell, `Emit` keeps it on because soft
+  wraps depend on it, and both renderers' style tracking starts from reset. The
+  origin, margin, cursor-visibility and cursor-style writes are convergent
+  (`Emit`'s history push sets and resets its own `ESC[1;2r`). Inside the
+  bracket none of it is ever shown, and a quiet-screen smoke shows the caret
+  blinking normally.
 
 The preamble is about 40 bytes, against a full-screen repaint per frame (the
 row diff #262 deferred). Revisit the preamble only when that row diff is built.

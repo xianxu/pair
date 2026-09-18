@@ -30,7 +30,9 @@ import threading
 import time
 
 HOLD = 1.0
-SETTLE = 1.5  # zellij startup before the pane writes
+SETTLE = 1.5    # zellij startup before the pane writes
+GRACE = 0.5     # watch this long past the close before reading the verdict
+DEADLINE = 20.0  # a pane that never closes its bracket is an instrument failure
 
 
 def run(bracket):
@@ -101,11 +103,20 @@ def _run(root, bracket):
         slave = None
         reader = threading.Thread(target=drain, daemon=True)
         reader.start()
-        time.sleep(SETTLE + HOLD + 1.0)
-        wrote = float((root / 't_write').read_text())
+        # Watch relative to the CLOSE, not to launch: a slow zellij start must
+        # shorten nothing we read a verdict from.
+        deadline = time.time() + DEADLINE
+        while not (root / 't_end').exists():
+            if time.time() > deadline:
+                raise TimeoutError('the pane never closed its bracket')
+            time.sleep(.02)
         closed = float((root / 't_end').read_text())
+        time.sleep(max(0.0, closed + GRACE - time.time()))
+        watched = time.time() - closed
+        wrote = float((root / 't_write').read_text())
         marker = seen.get('marker')
         return dict(bracket=bracket, closed_after=round(closed - wrote, 3),
+                    watched_after_close=round(watched, 3),
                     marker_after=None if marker is None else round(marker - wrote, 3))
     finally:
         try:
@@ -127,11 +138,13 @@ def _run(root, bracket):
 
 
 def verdict(control, held):
+    # 0 and 1 are verdicts about zellij, so each needs a window that could have
+    # seen the other outcome; anything the window cannot account for is 2.
     if control['marker_after'] is None or control['marker_after'] > HOLD / 2:
         return 2
-    if held['marker_after'] is not None and held['marker_after'] >= held['closed_after']:
-        return 0
-    return 1
+    if held['marker_after'] is None:
+        return 1 if held['watched_after_close'] >= GRACE else 2
+    return 0 if held['marker_after'] >= held['closed_after'] else 1
 
 
 def main():

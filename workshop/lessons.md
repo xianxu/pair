@@ -5334,3 +5334,45 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   against the code, check absence claims too, and prefer deleting "nothing tests
   X" to maintaining it. (#256 close, BR-44)
 
+
+- **Measure the path production takes before diagnosing from the one you read.**
+  #262's Spec reasoned about `Render` for two days and built a fix around its
+  6-byte DECSCUSR. Child frames never reach `Render`: `paintEndpoint` always
+  calls `RenderWithHistory`, which erased and repainted the WHOLE screen on every
+  dirty frame (2137 B for one keystroke). The first byte check on the real call
+  site overturned the leading cause in minutes. Before reasoning about a
+  function's output, find who calls it on the hot path. (#262)
+
+- **A grep for absence must be able to match the thing.** The Log declared
+  ingest-side 2026 "unbuilt" after grepping `2026h|2026l|?2026`, patterns that
+  cannot match `ansi.DECMode(2026)`. It had landed the day before and was
+  pinned by a test. That false absence became a whole milestone in the plan.
+  Before writing "nothing does X", check the pattern against one spelling you
+  know exists, or grep the bare token. (#262)
+
+- **A statement that quantifies over code cites each member, in the same
+  commit.** "None of the other writes touch this state" was false for release.
+  "Functional, because the history push sets `1;2r`" was false because the push
+  resets it itself. The same family was raised three times in one issue (PQ-1,
+  BR-2, close review), each time a code claim written from memory, not read. For
+  "none of the N sites do X" or "Y is needed because Z", put the file:line of
+  each member next to the claim. (#262 close)
+
+- **The commit that crosses a boundary reconciles the plan with the Log.** Run
+  `grep '\- \[ \]'` over the durable plan before `milestone-close` and `close`;
+  every row the Log evidences gets ticked, or a Revisions line says why not.
+  Don't write an sdlc verb as a plan checkbox: the verb records itself (trailer
+  plus Log line), and a checkbox for it only goes stale. (#262 BR-3, close review)
+
+- **An instrument's verdict needs a window that could have seen the other
+  outcome.** `sync_hold.py` exited "NOT honoured" on a crash (BR-4), then again
+  after a slow zellij start shortened its fixed read deadline (close review).
+  Neither was a fact about zellij. A failure to measure is INCONCLUSIVE; time
+  the window from the event you are judging, not from launch, and mutation-test
+  that a too-short window reads inconclusive. (#262)
+
+- **`make -k test` runs no Go tests while any prerequisite fails.** `go test
+  ./...` is the `test` target's own recipe, and make skips it when a
+  prerequisite failed. `-k` keeps only the siblings going. With the known
+  `test-changelog` failure, a "green except changelog" `make -k test` ran zero Go
+  tests. Follow it with `go test ./... -count=1`. (#262)

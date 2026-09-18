@@ -296,7 +296,7 @@ all chrome to `terminal.Presenter.UpdateChrome`.
   4. Does the caret blink regularly while typing? This is M2's DECSCUSR input.
 
   Record the answers in `## Log`. M1 is not done until the operator confirms.
-- [ ] **Close the milestone:** `sdlc milestone-close --issue 262 --milestone M1`.
+- [x] **Close the milestone:** `sdlc milestone-close --issue 262 --milestone M1` (done: `5961cb1a`, Review-Verdict SHIP).
 
 ## Revisions
 
@@ -344,3 +344,15 @@ all chrome to `terminal.Presenter.UpdateChrome`.
   `tests/terminal-oracle/discovery/sync_hold.py` (zellij 0.45.1 honours pane
   2026), recorded in the issue's `## Revisions`. The tick records that the
   question is answered, not that the smoke was run.
+
+### 2026-09-17 — reconciled with the Log at issue close
+
+- Task 5's last row, "Close the milestone", was still unticked after M1 closed
+  in `5961cb1a`. The close review flagged this (the plan-record-stale-after-log
+  family, second time). It is now ticked with its commit.
+- `grep '\- \[ \]'` over this plan returns nothing.
+- The rule, now in `workshop/lessons.md`: the commit that crosses a boundary
+  reconciles the plan with the Log. An sdlc verb should not be a plan checkbox,
+  because the verb records itself.
+- M2 was executed from the issue's `## Plan`, not this plan, which covers M1
+  only.
