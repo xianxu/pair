@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
@@ -1401,7 +1402,7 @@ func (c *Console) onNewestPageHotkey() {
 		// meaning is derived rather than restated. Decoded directly instead of
 		// through onMenuInput, which would consume the panel's held partial
 		// without stopping Run's escape timer.
-		keys, _ := DecodePanelKeys([]byte(newestPageSequence))
+		keys, _ := DecodePanelKeys([]byte(couchkeys.NewestPageSequence))
 		for _, key := range keys {
 			c.onMenuKey(key)
 		}

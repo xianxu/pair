@@ -22,10 +22,12 @@ import (
 	"golang.org/x/term"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 	"github.com/xianxu/pair/cmd/internal/diagnosticlog"
 	"github.com/xianxu/pair/cmd/internal/gcruntime"
 	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
@@ -792,7 +794,11 @@ func renderError(w io.Writer, err error) {
 	fmt.Fprintf(w, "couch: %v\n", err)
 }
 
-func usage(w io.Writer) {
+func usage(w io.Writer) { usageWith(w, couchkeys.Bindings()) }
+
+// usageWith renders the public help over a given chord table, so a test can
+// prove `couch --help` renders whatever the table declares (#282).
+func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w, "couch - supervise agent actors, one per working tree")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "usage: couch [path] [--layout2|--layout3]")
@@ -808,16 +814,14 @@ func usage(w io.Writer) {
 	fmt.Fprintln(w, "  --layout2  use the two-pane workbench without the right-hand terminal.")
 	fmt.Fprintln(w, "             One layout per couch: it refuses to run alongside a thread")
 	fmt.Fprintln(w, "             already holding a session in the other layout.")
-	fmt.Fprintln(w, "\nWhile a Pair pane is displayed:")
-	for _, binding := range couchtty.CouchNavigationBindings() {
-		fmt.Fprintf(w, "  %s  %s\n", binding.Key, binding.Help)
-	}
-	fmt.Fprintln(w, "The agent also reserves these terminal-tab keys:")
+	fmt.Fprintln(w)
+	// Couch's chords, laid out by the function Pair's Alt+h page uses (#282).
+	fmt.Fprint(w, keyhelp.Render(couchkeys.HelpSections(bindings)))
+	fmt.Fprintln(w, "\nThe agent also reserves these terminal-tab keys:")
 	for _, binding := range workbenchshortcut.GlobalBindings() {
 		if binding.AgentReserved {
 			fmt.Fprintf(w, "  %s  %s\n", workbenchshortcut.ChordName(binding.Chord), binding.Help)
 		}
 	}
 	fmt.Fprintln(w, "Other workbench keys reach the focused agent. Click another pane to leave it.")
-	fmt.Fprintln(w, "Use the switcher for Couch lifecycle operations.")
 }
