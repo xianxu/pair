@@ -19,5 +19,17 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(sync_hold.verdict(dict(marker_after=0.9), held), 2)
 
 
+class InstrumentFailureTest(unittest.TestCase):
+    def test_a_crash_is_inconclusive_not_a_verdict(self):
+        def broken(bracket):
+            raise OSError('out of pty devices')
+        original = sync_hold.run
+        sync_hold.run = broken
+        try:
+            self.assertEqual(sync_hold.main(), 2)
+        finally:
+            sync_hold.run = original
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -134,9 +134,19 @@ def verdict(control, held):
     return 1
 
 
-if __name__ == '__main__':
-    control, held = run(False), run(True)
+def main():
+    # A failure to MEASURE (no writable /tmp, no pty, zellij too slow to start
+    # the pane) says nothing about zellij, so it must never read as exit 1.
+    try:
+        control, held = run(False), run(True)
+    except Exception as error:  # noqa: BLE001 -- every instrument failure is inconclusive
+        print(json.dumps(dict(result='inconclusive', error=repr(error))))
+        return 2
     code = verdict(control, held)
     print(json.dumps(dict(control=control, bracketed=held,
                           result=['honoured', 'NOT honoured', 'inconclusive'][code])))
-    sys.exit(code)
+    return code
+
+
+if __name__ == '__main__':
+    sys.exit(main())

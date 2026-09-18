@@ -330,7 +330,7 @@ Bullets 1, 3 and 4 are met as written. Bullet 4's sweep was widened in round 2
 
 Durable plan: `workshop/plans/000262-sync-output-emit-bracket-plan.md` (M1).
 
-- [ ] M1 — Bracket every emitted frame in DECSET 2026 inside `Render` and
+- [x] M1 — Bracket every emitted frame in DECSET 2026 inside `Render` and
       `HistoryRender.Emit`, sharing one cursor epilogue. Close sync in
       `parentReleaseControls`. Test across alt transitions, history push, no-op
       frames and a cut in any write of the frame. Oracle suites green. Retire
@@ -813,6 +813,7 @@ DECSTBM reset (`\x1b[r`, emitted every frame) becomes the next suspect among the
 preamble items.
 
 ### 2026-09-17 — M3's premise is in question (from ariadne#232)
+- 2026-09-17: closed M1 — Both renderers bracket every frame in DECSET 2026 (render/history tests incl. alt enter/leave with assertOneBracket, multi-chunk); release closes an orphaned bracket for a cut in any write of 3 layouts (red at cut 8 before the fix); xterm + native zellij 0.45.1 oracles green; sync_hold.py measures zellij 0.45.1 honours pane 2026 (control 0.012s, bracketed 1.016s vs close 1.004s); go test ./... 71 ok; make -k test only pre-existing test-changelog; operator smoke under couch: global flicker gone, pre-M1 pair term panes too; review verdict: SHIP
 
 A design discussion on ariadne's ARCH-ORDER produced a classification that applies
 directly here, and it is recorded in **ariadne#232** (a revision to ARCH-ORDER:
@@ -1097,3 +1098,9 @@ between "never set / reset" and an explicit block.
 - **BR-3, a stale plan record:** corrected in the plan's `## Revisions`.
 - **Test note:** both alt transitions are now also checked with
   `assertOneBracket` on the joined packets.
+- **Round 2 advisory (instrument failure encoded as a verdict), fixed in the M1
+  close commit.** `sync_hold.py` exited 1, "NOT honoured", on ANY crash. The
+  reviewer reproduced this with an unwritable `/tmp` and with pty exhaustion, and
+  a slow zellij start would fail the same way. A failure to measure now exits 2,
+  inconclusive, pinned by `InstrumentFailureTest`. The live run is still
+  "honoured", exit 0.
