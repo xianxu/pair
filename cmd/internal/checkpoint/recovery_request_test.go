@@ -58,7 +58,7 @@ func TestRecoveryRequestAuthorityValidation(t *testing.T) {
 }
 
 func TestRecoverySourceAbsentPhaseTransitions(t *testing.T) {
-	for _, phase := range []Phase{Pending, Running, Failed, Complete} {
+	for _, phase := range AllPhases() {
 		t.Run(string(phase), func(t *testing.T) {
 			r := recoveryRequest(t)
 			absence := *r.SourceAbsence

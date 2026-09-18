@@ -146,3 +146,101 @@ func TestContinuationRequestsBoundedOwnedSet(t *testing.T) {
 		t.Fatalf("ten projected requests unexpectedly large: %d bytes", len(encoded))
 	}
 }
+
+// failedContinuation publishes a request and drives it to Failed through the
+// production transitions, returning the record and the request.
+func failedContinuation(t *testing.T, store *ThreadStore, record ThreadRecord) (ThreadRecord, checkpoint.Request) {
+	t.Helper()
+	request := testContinuationRequest(t, record)
+	record, err := store.PublishContinuation(record.Address, record.Revision, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err = store.AdvanceContinuation(record.Address, record.Revision, checkpoint.Event{Kind: checkpoint.Begin, RequestID: request.ID, Attempt: "start-0102030405060708"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err = store.AdvanceContinuation(record.Address, record.Revision, checkpoint.Event{Kind: checkpoint.Fail, RequestID: request.ID, Attempt: "start-0102030405060708", Failure: "operator input interrupted automatic orientation"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return record, request
+}
+
+// Dismissal retires ONLY the exact failed request, and every refusal writes
+// nothing -- asserted by the unchanged revision, not a bare error (#280).
+func TestDismissFailedContinuationRetiresOnlyTheExactFailedRequest(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	created, err := store.CreateThread(validThreadRecord(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	refuses := func(t *testing.T, r ThreadRecord, id, want string) {
+		t.Helper()
+		_, err := store.DismissFailedContinuation(r.Address, r.Revision, id)
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Fatalf("dismiss(%q) = %v, want refusal %q", id, err, want)
+		}
+		after, err := store.GetThread(r.Address)
+		if err != nil || after.Revision != r.Revision {
+			t.Fatalf("refusal wrote: revision %d -> %d (%v)", r.Revision, after.Revision, err)
+		}
+	}
+
+	refuses(t, created, "", "no continuation request")
+	request := testContinuationRequest(t, created)
+	pending, err := store.PublishContinuation(created.Address, created.Revision, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	refuses(t, pending, request.ID, "is pending; only a failed continuation can be dismissed")
+	running, err := store.AdvanceContinuation(pending.Address, pending.Revision, checkpoint.Event{Kind: checkpoint.Begin, RequestID: request.ID, Attempt: "start-0102030405060708"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	refuses(t, running, request.ID, "is running; only a failed continuation can be dismissed")
+	failed, err := store.AdvanceContinuation(running.Address, running.Revision, checkpoint.Event{Kind: checkpoint.Fail, RequestID: request.ID, Attempt: "start-0102030405060708", Failure: "interrupted"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	refuses(t, failed, strings.Repeat("0", 64), "obsolete continuation request")
+
+	dismissed, err := store.DismissFailedContinuation(failed.Address, failed.Revision, request.ID)
+	if err != nil || dismissed.Continuation != nil || dismissed.Revision <= failed.Revision {
+		t.Fatalf("dismiss = %+v, %v; want the request deleted in a new revision", dismissed.Continuation, err)
+	}
+	refuses(t, dismissed, request.ID, "no continuation request")
+}
+
+// Retry and dismissal race through the revision CAS: whichever commits first
+// wins, and the other refuses on what it finds -- both orders, driven.
+func TestRetryAndDismissalSerializeInEitherOrder(t *testing.T) {
+	for _, dismissFirst := range []bool{false, true} {
+		t.Run(map[bool]string{false: "retry-first", true: "dismiss-first"}[dismissFirst], func(t *testing.T) {
+			store, _ := newTestThreadStore(t)
+			created, err := store.CreateThread(validThreadRecord(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			failed, request := failedContinuation(t, store, created)
+			retry := checkpoint.Event{Kind: checkpoint.RetryAbsent, RequestID: request.ID, Attempt: "start-1111111111111111"}
+			if dismissFirst {
+				gone, err := store.DismissFailedContinuation(failed.Address, failed.Revision, request.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := store.AdvanceContinuation(gone.Address, gone.Revision, retry); err == nil || !strings.Contains(err.Error(), "no continuation request") {
+					t.Fatalf("retry after dismissal = %v", err)
+				}
+				return
+			}
+			retried, err := store.AdvanceContinuation(failed.Address, failed.Revision, retry)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.DismissFailedContinuation(retried.Address, retried.Revision, request.ID); err == nil || !strings.Contains(err.Error(), "is running") {
+				t.Fatalf("dismissal after retry = %v", err)
+			}
+		})
+	}
+}

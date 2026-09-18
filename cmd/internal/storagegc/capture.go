@@ -2,10 +2,10 @@ package storagegc
 
 import "time"
 
-// CaptureEvidence concerns one immutable raw/events capture. Tag activity and
-// Couch visibility are intentionally absent: neither renews a capture's age.
 const CaptureRetentionPeriod = 7 * 24 * time.Hour
 
+// CaptureEvidence concerns one immutable raw/events capture. Tag activity and
+// Couch visibility are intentionally absent: neither renews a capture's age.
 type CaptureEvidence struct {
 	CapturedAt  time.Time
 	Complete    bool

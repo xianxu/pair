@@ -300,16 +300,6 @@ func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCo
 	}
 }
 
-// bindingRefusalDiagnostic is the operator-facing half of
-// bindingResumeDiagnostic, derived from the same code rather than written once
-// for all four.
-//
-// One sentence covered every binding status, and it was a developer's sentence:
-// "native session binding is not one exact established root" tells an operator
-// neither what happened nor what to do. It also flattened the one status that is
-// not a fault at all -- provisional is the ORDINARY state of a thread whose
-// agent has not answered yet, and it is the refusal a relaunch is most likely to
-// meet, because relaunching is something you do to a session you just started.
 // refuseBinding is the ONLY way to build a binding refusal.
 //
 // bindingRefusalDiagnostic gave each status its own actionable sentence and then
@@ -321,6 +311,16 @@ func refuseBinding(code ResumeDiagnosticCode) error {
 	return refuseResume(code, bindingRefusalDiagnostic(code))
 }
 
+// bindingRefusalDiagnostic is the operator-facing half of
+// bindingResumeDiagnostic, derived from the same code rather than written once
+// for all four.
+//
+// One sentence covered every binding status, and it was a developer's sentence:
+// "native session binding is not one exact established root" tells an operator
+// neither what happened nor what to do. It also flattened the one status that is
+// not a fault at all -- provisional is the ORDINARY state of a thread whose
+// agent has not answered yet, and it is the refusal a relaunch is most likely to
+// meet, because relaunching is something you do to a session you just started.
 func bindingRefusalDiagnostic(code ResumeDiagnosticCode) string {
 	switch code {
 	case ResumeBindingProvisional:

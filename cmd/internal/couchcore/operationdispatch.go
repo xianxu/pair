@@ -199,6 +199,12 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return record.Description, nil
+		case "dismiss-continuation":
+			address, err := resolveOperationThread(c, a)
+			if err != nil {
+				return nil, err
+			}
+			return c.DismissContinuation(call.Context, address, a["request-id"])
 		case "request-continuation":
 			ordinal, err := strconv.ParseUint(a["launch-ordinal"], 10, 64)
 			if err != nil || ordinal == 0 {

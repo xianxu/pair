@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -82,6 +83,62 @@ func (c *Console) watchContinuations() {
 	}
 }
 
+// An orientation prompt has two producers -- a continuation's delivery and
+// switch-agent's orientation watch -- sharing menu.Orientation by thread
+// address. Each entry records its producer, and a prune removes an entry only
+// when THAT producer's fact vanishes (#280, ARCH-ORDER). Without provenance the
+// continuation scan, which visits every hosted thread, deleted switch-agent's
+// still-useful Copy orientation prompt on every tick.
+func continuationProducer(requestID string) string { return "continuation:" + requestID }
+func switchAgentProducer(attempt string) string    { return "switch-agent:" + attempt }
+
+// setOrientationLocked is the only writer of menu.Orientation. Callers hold c.mu.
+func (c *Console) setOrientationLocked(address couchcore.ThreadAddress, request orientation.Request, producer string) {
+	if c.menu.Orientation == nil {
+		c.menu.Orientation = make(map[couchcore.ThreadAddress]orientation.Request)
+	}
+	if c.orientationFrom == nil {
+		c.orientationFrom = make(map[couchcore.ThreadAddress]string)
+	}
+	c.menu.Orientation[address] = request
+	c.orientationFrom[address] = producer
+}
+
+// dropOrientationLocked removes the address's prompt only if producer wrote it.
+func (c *Console) dropOrientationLocked(address couchcore.ThreadAddress, producer string) {
+	if producer == "" || c.orientationFrom[address] != producer {
+		return
+	}
+	delete(c.menu.Orientation, address)
+	delete(c.orientationFrom, address)
+}
+
+// reconcileContinuationOrientationLocked is the ONE place a continuation's
+// prompt is pruned: it survives only while the address's current watch tracks
+// THAT request and the request is not complete. It runs after every change to
+// c.continuations, so dismissal, a vanished request, completion and replacement
+// are one rule instead of four events -- this family's three findings were
+// three events the enumerated prunes missed (#280). Callers hold c.mu.
+func (c *Console) reconcileContinuationOrientationLocked() {
+	for address, producer := range c.orientationFrom {
+		if !strings.HasPrefix(producer, continuationProducer("")) {
+			continue
+		}
+		watch, ok := c.continuations[address]
+		if !ok || continuationProducer(watch.status.RequestID) != producer || watch.status.Phase == checkpoint.Complete {
+			delete(c.menu.Orientation, address)
+			delete(c.orientationFrom, address)
+		}
+	}
+}
+
+// supersedeOrientationLocked removes the address's prompt whoever wrote it: a
+// new agent launch makes every earlier prompt for the thread obsolete.
+func (c *Console) supersedeOrientationLocked(address couchcore.ThreadAddress) {
+	delete(c.menu.Orientation, address)
+	delete(c.orientationFrom, address)
+}
+
 func continuationOperation(status couchcore.ContinuationStatus, handled bool) string {
 	switch status.Phase {
 	case checkpoint.Pending:
@@ -114,7 +171,6 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 		c.continuations[status.Address] = watch
 		if status.Phase == checkpoint.Complete {
 			delete(c.continuations, status.Address)
-			delete(c.menu.Orientation, status.Address)
 			continue
 		}
 		operation := continuationOperation(status, watch.handled)
@@ -161,9 +217,12 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 	}
 	for _, address := range result.addresses {
 		if result.err == nil && !seen[address] && !c.continuations[address].queued {
+			// The record no longer holds a request -- completed elsewhere, or
+			// DISMISSED (#280); reconcile below drops the prompt it produced.
 			delete(c.continuations, address)
 		}
 	}
+	c.reconcileContinuationOrientationLocked()
 	c.mu.Unlock()
 }
 
@@ -177,6 +236,7 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 				return
 			}
 			c.continuations[result.Status.Address] = continuationWatch{status: result.Status, handled: !result.SourceReattached}
+			c.reconcileContinuationOrientationLocked()
 			c.mu.Unlock()
 		}
 	}
@@ -205,17 +265,14 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 			watch.handled = false
 		}
 		if result.Orientation != nil {
-			if c.menu.Orientation == nil {
-				c.menu.Orientation = make(map[couchcore.ThreadAddress]orientation.Request)
-			}
-			c.menu.Orientation[address] = *result.Orientation
+			c.setOrientationLocked(address, *result.Orientation, continuationProducer(watch.status.RequestID))
 		}
 	}
 	c.continuations[address] = watch
 	if watch.status.Phase == checkpoint.Complete {
 		delete(c.continuations, address)
-		delete(c.menu.Orientation, address)
 	}
+	c.reconcileContinuationOrientationLocked()
 	c.mu.Unlock()
 	if err != nil {
 		c.setNotice(fmt.Sprintf("Continuation %s: %v", address.Tag, err))

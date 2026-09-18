@@ -29,6 +29,7 @@ func TestOperationDeclarationsAreClosureFreeCompleteAndOwned(t *testing.T) {
 		"request-continuation": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"continue-thread":      {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationInternal},
 		"retry-continuation":   {ExecuteLiveOwner, EffectProcess, ConfirmNone, ResultStart, PresentationInternal},
+		"dismiss-continuation": {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"continuation-status":  {ExecuteLiveOwner, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"publish-description":  {ExecuteDirectStore, EffectMetadata, ConfirmNone, ResultThread, PresentationInternal},
 		"switch":               {ExecuteLiveOwner, EffectConsole, ConfirmNone, ResultConsole, PresentationTUI},

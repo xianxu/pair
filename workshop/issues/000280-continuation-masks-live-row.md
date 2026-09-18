@@ -1,12 +1,13 @@
 ---
 id: 000280
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-17
 updated: 2026-09-17
 estimate_hours: 2.22
 started: 2026-09-17T21:46:16-07:00
+actual_hours: 0.96
 ---
 
 # A retained continuation failure masks a live thread's state in the switcher
@@ -99,13 +100,13 @@ additional information about that thread, not a replacement for it.
 
 ## Done when
 
-- [ ] A live thread with a retained failed continuation renders as live in the
+- [x] A live thread with a retained failed continuation renders as live in the
       switcher, with the retry still discoverable.
-- [ ] A test pins the precedence across state × continuation-phase, so a future
+- [x] A test pins the precedence across state × continuation-phase, so a future
       status cannot re-take the column by being added to the switch.
-- [ ] The retained request is never auto-retired by the thread's later liveness;
+- [x] The retained request is never auto-retired by the thread's later liveness;
       an explicit operator dismissal exists, or the issue records why not.
-- [ ] `Pending`/`Running` precedence is settled on purpose and the reasoning is
+- [x] `Pending`/`Running` precedence is settled on purpose and the reasoning is
       in the code.
 
 ## Estimate
@@ -166,6 +167,19 @@ total: 2.22
   inline `!= Complete` sites. With no new phase, those sites still mean what
   they say.
 
+### 2026-09-17 — close review round 1: two claims corrected
+
+- **Settled differently from the first revision:** `Pending`/`Running` do NOT
+  get to displace the state. "Bounded in time" holds only while an owner
+  watches the address; a request whose owner died reads `continuing…` forever.
+  Every phase now composes with the state. Done-when bullet 4 is answered by
+  this rule and by the in-flight action set's stated reason (the continuation
+  owns the thread mid-replacement).
+- **"Every refusal names both exits"** is now true, not just asserted. The
+  first implementation covered the guard, publish and `pair continue`, but not
+  recovery, archive or warm reattach. All go through one wording
+  (`checkpoint.Exits`), and each site is driven by a test.
+
 ## Plan
 
 Durable plan: `workshop/plans/000280-dismiss-continuation-plan.md`. Single pass,
@@ -173,19 +187,20 @@ one boundary.
 
 - [x] Confirm the `pair` request's phase and provenance: `failed`, 16:00:58,
       *"operator input interrupted automatic orientation"* (Log, 2026-09-17).
-- [ ] Reproduce the switcher retry bug through the production executor, then
+- [x] Reproduce the switcher retry bug through the production executor, then
       fix it (bootstrap `ref` optional; the switcher stops sending `ref`).
-- [ ] `ThreadStore.DismissFailedContinuation` + `dismiss-continuation`
+- [x] `ThreadStore.DismissFailedContinuation` + `dismiss-continuation`
       operation + `Couch.DismissContinuation`; refusals write nothing.
-- [ ] `continuationGuard` names retry and dismiss; a failed live thread
+- [x] `continuationGuard` names retry and dismiss; a failed live thread
       relaunches past the guard once dismissed.
-- [ ] Switcher: `Failed` composes the state text; `Pending`/`Running` displace,
+- [x] Switcher: `Failed` composes the state text; `Pending`/`Running` displace,
       on purpose; dismiss is offered beside retry; state × phase tables.
-- [ ] Atlas + README; full suite; operator smoke on the `pair` thread.
+- [x] Atlas + README; full suite; operator smoke on the `pair` thread.
 
 ## Log
 
 ### 2026-09-17
+- 2026-09-17: closed — Dismiss continuation deletes an exact failed request (pure checkpoint.CheckDismissible in the store CAS; both retry/dismiss orders); every phase composes with the row state; live failed rows keep actions minus ContinuationRefuses, tied to the guard by a production-dispatcher test that also requires refusals to write nothing; every retained-request refusal names its exits (checkpoint.Exits; 4 boundary wraps, one driven row each, scanned against call sites); orientation prompts carry their producer; switcher Retry fixed on the real executor; 18 mutations all red; go test ./... 71 ok; operator smoke: live pair thread dismissed; review verdict: FIX-THEN-SHIP
 
 - Filed from the operator's screenshot plus `couch --show pair` taken at the same
   moment; cause read directly from `menu_render.go:414`. No existing issue —
@@ -297,3 +312,157 @@ field and no diagnostics trail. The checkpoint's markdown file is left where it
 is, untouched. This is also the only skew-safe shape (see the entry above).
 Supersedes this issue's Spec wording *"records that decision"*, and the
 Done-when's "or the issue records why not" is answered: it exists.
+
+### 2026-09-17 — implemented; verification
+
+**Retry bug, reproduced first.** `TestContinuationFailedRowKeepsAnExplicitRetry`
+was moved onto the PRODUCTION dispatcher (`DispatchOperation` +
+`CouchLiveOwnerExecutor`) over a real temp-dir store holding a `Failed` request.
+It went red with *"thread ref and exact tag cannot both be supplied"*: the
+switcher's Retry continuation could never reach its thread. Fixed by making the
+bootstrap `ref` optional (name's shape) and dropping the switcher's `ref`. Both
+continuation exits now address the row by its exact tag alone.
+
+**Dismissal.** `ThreadStore.DismissFailedContinuation` (CAS, exact failed
+request, deletes it) → `Couch.DismissContinuation` (the `requestRecord` +
+stale-revision loop) → declared `dismiss-continuation` (direct store, metadata
+effect, row action, internal). Every refusal of a failed request now names both
+exits:
+- `continuationGuard`;
+- `PublishContinuation`, which had also been blocking the session-continuity
+  writer on this thread;
+- `pair continue --retry` on a hosted thread.
+
+**Composition.** `rootStateText`: a `Failed` request renders
+`<state> · continuation failed`; `Pending`/`Running` displace the state on
+purpose (in flight, bounded). `menuActionItems`: a live `Failed` row keeps its
+actions minus `couchcore.ContinuationRefuses` (relaunch, switch-agent, cold
+resume, start), plus retry and dismiss, giving `detach, retry, dismiss, park,
+name, describe`. Composition applies to live rows only, per the plan-quality
+advisory: archive and warm reattach have their own admissions.
+
+**Tests:**
+- store transition refusals, each asserted by an unchanged revision;
+- both retry/dismiss orders;
+- the harness row in `TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal`;
+- `TestFailedContinuationRelaunchesOnceDismissed`: the refusal names both
+  exits, and after dismissal the outcome is `Relaunched`;
+- `TestContinuationRefusesMatchesTheGuardForEveryRowAction`: every declared row
+  action is driven through the production dispatcher (listed ⇒ refused BY THE
+  GUARD; unlisted ⇒ SUCCEEDS) or exempt with a reason;
+- `TestPublishAfterDismissalAcceptsOnlyTheCurrentSource`;
+- the switcher's state × phase text and action tables;
+- a dismiss from the switcher that deletes the request on the real store.
+
+**Mutation-checked**, each turning its test red:
+- dropping the store's `Failed` precondition;
+- removing relaunch from `ContinuationRefuses`;
+- adding park to it;
+- the switcher no longer filtering;
+- the switcher sending `ref` again;
+- the failed text replacing the state.
+
+**Suites:** `go test ./... -count=1` passed (71 packages, exit 0, retention
+scrub, sandbox off). `make -k test` failed only on the pre-existing
+`test-changelog`; its Go recipe is skipped, which is why the suite above ran
+separately. `make build` rebuilt `bin/couch` and `bin/pair` for the smoke.
+
+### 2026-09-17 — operator smoke on the live `pair` thread
+
+The operator killed the pre-change couch (pid 76239, from 20:02), relaunched
+`couch` from this branch, and walked the smoke: *"ok, worked."* The live record
+confirms the part that matters: `couch-c945633f5c806f21` is at revision 38 with
+NO `continuation`. The failed 16:00 request is dismissed, and the thread is
+`live` (incarnation pid 3683, `pair resume`, 22:27:33, couch's startup
+reattach). A separate Alt+n relaunch after dismissal is not visible in the
+record: the only incarnation dates from couch's start. That path is pinned by
+`TestFailedContinuationRelaunchesOnceDismissed` (outcome `Relaunched`), and
+the refusal it used to hit is gone with the request.
+
+### 2026-09-17 — close review round 1 (REWORK): fixed by class
+
+- **BR-2 (Critical):** the pure dismissal rule is extracted as
+  `checkpoint.CheckDismissible`, tested on literal requests; the two IO entries
+  moved to the plan's Integration points.
+- **BR-3:** every continuation phase composes with the state. The in-flight
+  action set keeps its restriction, for the reason stated in `## Revisions`.
+- **BR-4:** every refusal a retained request causes names its exits through
+  `checkpoint.Exits`:
+  - guard, publish and `pair continue` (already);
+  - plus recovery ×4, archive ×2 and warm reattach, via
+    `withContinuationExits`.
+
+  All are driven by `TestEveryRefusalARetainedRequestCausesNamesBothExits`,
+  and cold resume and cold start by the guard-agreement test.
+- **Minors:**
+  - `menuLiveActions` placement;
+  - one exits helper, and a shared `writeRequestRecord` loop;
+  - `checkpoint.AllPhases` drives the phase table;
+  - `operatorFacing` rename;
+  - the console prunes `menu.Orientation` when a request vanishes;
+  - `ContinuationRefuses`' doc names what is driven.
+- **Mutation-checked (6 more, all red):**
+  - the wrapper dropping the exits;
+  - an unwrapped archive site;
+  - orientation not pruned;
+  - running displacing the state;
+  - the pure rule admitting running;
+  - resume unlisted.
+- `go test ./... -count=1` passes (71 packages).
+
+### 2026-09-17 — close review round 2 (REWORK): fixed by rule
+
+- **Correction to the round-1 entry above:** "All are driven by
+  `TestEveryRefusalARetainedRequestCausesNamesBothExits`" was false at the time.
+  It reached 3 of the 7 wrapped sites.
+- **BR-11 (Critical), a regression from round 1:** my orientation prune deleted
+  switch-agent's Copy orientation prompt on every scan tick, because
+  `menu.Orientation` has two producers and no provenance. Every writer now
+  records its producer, and every prune names one (or explicitly supersedes it,
+  for a new switch-agent launch). That covers all five sites. Pinned by
+  `TestSwitchAgentOrientationPromptSurvivesContinuationScans`.
+- **BR-4 / BR-12:** each retained-request check wraps ONCE at its boundary.
+  - The retained recovery branch became `admitRetainedRecovery`, which also
+    covers the missed `AdmitRecoveryGeneration` refusal.
+  - The routing test has one row per `withContinuationExits` call site (4), all
+    driven, plus a scan that the call sites ARE the rows.
+  - The guard-agreement oracle matches the guard's own prefix.
+- **A gap the review did not name, found by mutation:** deleting relaunch's
+  front guard left the agreement test green, because relaunch then parked the
+  thread and was refused later in the same words. The test now also requires a
+  guard refusal to write nothing, and relaunch without its guard goes red
+  (revision 4 → 7).
+- **BR-3:** the "bounded in time" wording is gone from the plan, and the plan
+  and atlas state the actual per-phase action sets.
+- **Minors:**
+  - `AllPhases` is the only phase list, enforced by a repo scan;
+  - `pair continue --retry` uses the phase-neutral `Exits("", tag)`.
+- **Mutation-checked (6 more, all red):**
+  - a producer-blind prune;
+  - an unwrapped retained branch;
+  - an extra undriven wrap site;
+  - a restated phase list;
+  - an unconditional unknown-phase dismiss;
+  - relaunch without its guard.
+- Lessons recorded in `workshop/lessons.md`. `go test ./... -count=1` passes
+  (71 packages).
+
+### 2026-09-17 — close round 3: FIX-THEN-SHIP, advisories fixed before shipping
+
+- **Replacement stranded a prompt** (the in-memory-state family's third
+  instance). The continuation prunes were a list of events: completion,
+  vanishing, dismissal. The third review found the next one, replacement. That
+  list is replaced by ONE rule, `reconcileContinuationOrientationLocked`, run
+  after every change to `c.continuations`: a continuation-produced prompt
+  survives only while the address's current watch tracks that request and the
+  request is not complete. Pinned by
+  `TestReplacedRequestTakesItsOrientationPromptWithIt`, using the reviewer's
+  sequence; removing the identity check turns it red.
+- **A doc comment attached to the wrong declaration** (second instance). This was
+  already guarded by termcmd's `TestNoDeclarationCarriesTwoStackedGodocs`, which
+  was blind to it: it knew only documented declarations' names, and a stolen doc
+  leaves the victim undocumented. The guard now knows every declared name. That
+  surfaced 17 pre-existing thefts across 10 packages, plus mine
+  (`admitRetainedRecovery`); all 18 docs were moved back to their declarations.
+  A re-inserted theft turns the guard red.
+- Lessons recorded.

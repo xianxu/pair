@@ -354,7 +354,12 @@ agent's prompt submission receipt.
 If replacement or delivery fails, the checkpoint stays saved and the thread
 provides **Retry continuation**. Retry first checks for an existing target;
 it does not blindly start or submit again. Inspect that target before manually
-sending anything when delivery is uncertain. If Couch itself exited, follow the
+sending anything when delivery is uncertain. If you have already taken the
+thread over (for example, you typed into the new agent before its handoff
+finished) choose **Dismiss continuation** instead. It drops the failed request
+without re-delivering it, the checkpoint file stays where it is, and the thread's
+relaunch and switch-agent come back. Until you retry or dismiss, the row reads
+`<state> · continuation failed`. If Couch itself exited, follow the
 explicit retry command in its diagnostic to reopen recovery. Inner
 `pair restart` and address-changing rename are refused for hosted threads; use
 Couch's relaunch and name actions.

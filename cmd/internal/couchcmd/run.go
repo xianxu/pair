@@ -364,7 +364,7 @@ func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couch
 
 func operationUsesCurrentRepoScope(name string) bool {
 	switch name {
-	case "show", "name", "describe", "park", "resume", "retry-continuation", "recover-thread", "recover-checkpoint", "archive":
+	case "show", "name", "describe", "park", "resume", "retry-continuation", "dismiss-continuation", "recover-thread", "recover-checkpoint", "archive":
 		return true
 	default:
 		return false
@@ -377,11 +377,6 @@ func operationOwnsLive(name string) bool {
 	return name == "start" || name == "resume" || name == "retry-continuation" || name == "recover-thread" || name == "recover-checkpoint" || name == "archive"
 }
 
-// consoleRunner decides which Runner this invocation gets, and builds the
-// Console when it is the pty one.
-//
-// Returning (nil, ExecRunner{}) is the injected fallback for non-console typed
-// operations.
 // WantsConsole is the console DECISION, separated from building one.
 //
 // Pure, and that is the point: the previous pins for this needed a real pty and
@@ -397,6 +392,11 @@ func WantsConsole(name string, hasTerminal bool) bool {
 	return operationOwnsLive(name) && name != "archive" && hasTerminal
 }
 
+// consoleRunner decides which Runner this invocation gets, and builds the
+// Console when it is the pty one.
+//
+// Returning (nil, ExecRunner{}) is the injected fallback for non-console typed
+// operations.
 func consoleRunner(name string, stdin io.Reader, stdout io.Writer, settings ...consoleTraceConfig) (*couchtty.Console, couchcore.Runner) {
 	inFile, _ := stdin.(*os.File)
 	outFile, _ := stdout.(*os.File)

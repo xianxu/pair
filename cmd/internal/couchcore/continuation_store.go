@@ -20,7 +20,7 @@ func (s *ThreadStore) PublishContinuation(address ThreadAddress, revision uint64
 				return nil
 			}
 			if old.Phase != checkpoint.Complete {
-				return fmt.Errorf("continuation %s is %s; inspect or retry it before publishing another", old.ID, old.Phase)
+				return fmt.Errorf("continuation %s is %s; resolve it before publishing another: %s", old.ID, old.Phase, checkpoint.Exits(old.Phase, string(address.Tag)))
 			}
 			if request.Source.LaunchOrdinal <= old.Source.LaunchOrdinal {
 				return errors.New("continuation source generation did not advance")
@@ -51,6 +51,22 @@ func (s *ThreadStore) BeginContinuationFromRetiredIncarnations(address ThreadAdd
 		copy := request.Clone()
 		record.Continuation = &copy
 		record.Incarnations = nil
+		return nil
+	})
+}
+
+// DismissFailedContinuation retires a FAILED continuation by deleting it: the
+// operator's decision that the thread has moved on (#280). It is Failed's only
+// exit besides retry, and deletion rather than a terminal phase on purpose --
+// records decode strictly, so a new phase would make every pre-change binary
+// reject the whole record. It refuses, writing nothing, for anything but the
+// exact failed request; an empty requestID means the retained one.
+func (s *ThreadStore) DismissFailedContinuation(address ThreadAddress, revision uint64, requestID string) (ThreadRecord, error) {
+	return s.updateExistingThread(address, revision, func(record *ThreadRecord) error {
+		if err := checkpoint.CheckDismissible(record.Continuation, requestID); err != nil {
+			return err
+		}
+		record.Continuation = nil
 		return nil
 	})
 }

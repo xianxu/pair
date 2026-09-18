@@ -31,10 +31,7 @@ func (c *Console) watchOrientation(address couchcore.ThreadAddress, childID stri
 	}
 	ctx, cancel := context.WithTimeout(c.lifetime, 30*time.Second)
 	c.orientationWatches[address] = orientationWatch{request: request, cancel: cancel, childID: childID}
-	if c.menu.Orientation == nil {
-		c.menu.Orientation = make(map[couchcore.ThreadAddress]orientation.Request)
-	}
-	c.menu.Orientation[address] = request
+	c.setOrientationLocked(address, request, switchAgentProducer(request.Attempt))
 	fn := c.ops
 	c.mu.Unlock()
 	c.workers.Add(1)
@@ -106,7 +103,7 @@ func (c *Console) finishOrientation(result orientationWatchResult) {
 			text += " " + result.state.Reason
 		}
 	} else {
-		delete(c.menu.Orientation, result.address)
+		c.dropOrientationLocked(result.address, switchAgentProducer(result.request.Attempt))
 	}
 	text = string(result.address.Tag) + ": " + text
 	setBookkeepingNotice(&c.menu, text)

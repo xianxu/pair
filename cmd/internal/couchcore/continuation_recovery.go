@@ -10,6 +10,10 @@ import (
 )
 
 func (c *Couch) validateContinuationWarm(ctx context.Context, record ThreadRecord) error {
+	return withContinuationExits(record, c.checkContinuationWarm(ctx, record))
+}
+
+func (c *Couch) checkContinuationWarm(ctx context.Context, record ThreadRecord) error {
 	r := record.Continuation
 	if r == nil || r.Phase == checkpoint.Complete {
 		return nil

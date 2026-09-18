@@ -250,6 +250,14 @@ func Operations() []Operation {
 			Args: continuationArguments(true),
 		},
 		{
+			// A record write that stops nothing: direct-store, and no confirmation,
+			// like retry. Arguments take name's shape -- an optional ref for the CLI
+			// and the exact implicit tag from the switcher, never both (#280).
+			Name: "dismiss-continuation", Summary: "Drop a failed continuation the thread has moved on from",
+			Execution: ExecuteDirectStore, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal, RowAction: true,
+			Args: continuationArguments(true),
+		},
+		{
 			Name: "continuation-status", Summary: "Reconcile the exact continuation delivery receipt",
 			Execution: ExecuteLiveOwner, Effect: EffectMetadata, Confirmation: ConfirmNone, Result: ResultThread, Presentation: PresentationInternal,
 			Args: append(continuationArguments(false), ArgSpec{Name: "attempt", Summary: "exact continuation launch attempt", Implicit: true}),
@@ -420,10 +428,16 @@ func switchAgentArguments(accepted bool) []ArgSpec {
 	return args
 }
 
-func continuationArguments(bootstrap bool) []ArgSpec {
-	args := []ArgSpec{{Name: "repo-scope", Summary: "exact repository scope for the continuation", Required: true, Implicit: true}, {Name: "tag", Summary: "exact thread tag supplied by the owner", Implicit: true}, {Name: "request-id", Summary: "stable retained continuation request ID", Required: !bootstrap, Implicit: true}}
-	if bootstrap {
-		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name", Required: true}}, args...)
+func continuationArguments(operatorFacing bool) []ArgSpec {
+	args := []ArgSpec{{Name: "repo-scope", Summary: "exact repository scope for the continuation", Required: true, Implicit: true}, {Name: "tag", Summary: "exact thread tag supplied by the owner", Implicit: true}, {Name: "request-id", Summary: "stable retained continuation request ID", Required: !operatorFacing, Implicit: true}}
+	// Operator-facing entries (retry, dismiss) are addressed by the switcher's
+	// exact implicit tag or a CLI ref, and default to the retained request.
+	if operatorFacing {
+		// Optional, like name's and describe's: the switcher addresses the row by
+		// its exact implicit tag, and resolveOperationThread refuses a call that
+		// carries both. A required ref forced the switcher to send both, so its
+		// Retry continuation never reached the thread (#280).
+		args = append([]ArgSpec{{Name: "ref", Summary: "thread tag, path, or operator-assigned name"}}, args...)
 	}
 	return args
 }

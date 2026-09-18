@@ -11,8 +11,42 @@ import (
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
+
+// failedContinuationCouch is a Couch on a real temp-dir store whose one live
+// thread retains a FAILED continuation -- the shape the operator's pair thread
+// was left in when typing interrupted automatic orientation (#280).
+func failedContinuationCouch(t *testing.T) (*couchcore.Couch, couchcore.ThreadAddress, string) {
+	t.Helper()
+	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "/repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := couchcore.NewThreadStore(ns)
+	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0102030405060708"}
+	cp, err := checkpoint.New("/repo/workshop/continuation/handoff.md", "---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nContinue exact work.\n")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := checkpoint.Request{
+		Version: checkpoint.Version, ID: checkpoint.RequestID(address.RepoScope, string(address.Tag), 2, cp.Digest), Checkpoint: cp,
+		Source:    checkpoint.Source{Agent: "claude", Session: "pair-exact", LaunchOrdinal: 2, Helper: checkpoint.Process{PID: 41, Identity: "source-helper"}},
+		CreatedAt: time.Unix(1, 0).UTC(), Phase: checkpoint.Failed, Attempt: "start-0102",
+		Failure: "continuation delivery cancelled: operator input interrupted automatic orientation",
+	}
+	profile := couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}
+	if _, err := store.CreateThread(couchcore.ThreadRecord{
+		SchemaVersion: couchcore.ThreadSchemaVersion, Address: address,
+		StartingPath: "/repo", WorkingPath: "/repo", CreatedAt: time.Unix(1, 0).UTC(), LastActiveAt: time.Unix(1, 0).UTC(),
+		Incarnations:        []couchcore.ThreadIncarnation{{PID: 42, Identity: "helper", State: couchcore.IncarnationLive, RepoIdentity: "/repo/.git", LaunchProfile: &profile}},
+		LatestLaunchProfile: &profile, Revision: 1, Continuation: &request,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	return &couchcore.Couch{Threads: store}, address, request.ID
+}
 
 func TestContinuationFailedRowKeepsAnExplicitRetry(t *testing.T) {
 	address := menuAddress("failed")
@@ -21,18 +55,25 @@ func TestContinuationFailedRowKeepsAnExplicitRetry(t *testing.T) {
 	if !slices.Contains(menuActionItems(row), "retry-continuation") || slices.Contains(menuActionItems(row), "archive") {
 		t.Fatalf("failed continuation actions: %v", menuActionItems(row))
 	}
-	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, address)
-	_, effects := dispatchThreadOperation(state, "retry-continuation", address)
-	if len(effects) != 1 || effects[0].Args["request-id"] != "request" {
+
+	// The offered retry must reach RetryContinuation through the PRODUCTION
+	// dispatcher and live-owner executor, not a fake: the switcher once sent
+	// both `ref` and `tag`, which resolveOperationThread refuses outright, and a
+	// fake executor could never see it (#280).
+	c, live, requestID := failedContinuationCouch(t)
+	liveRow := couchcore.ActionableThreadSummary{Address: live, State: couchcore.ThreadLive,
+		Continuation: &couchcore.ContinuationStatus{Address: live, RequestID: requestID, Phase: checkpoint.Failed}}
+	state := NewMenuState([]couchcore.ActionableThreadSummary{liveRow}, live)
+	_, effects := dispatchThreadOperation(state, "retry-continuation", live)
+	if len(effects) != 1 || effects[0].Args["request-id"] != requestID {
 		t.Fatalf("retry lost selected request: %v", effects)
 	}
-	called := false
-	_, err := couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: func(call couchcore.OperationCall) (any, error) {
-		called = true
-		return nil, nil
-	}}, couchcore.OperationCall{Name: effects[0].Operation, Args: effects[0].Args, Implicit: true})
-	if err != nil || !called {
-		t.Fatalf("offered retry cannot cross declared operation boundary: %v", err)
+	_, err := couchcore.DispatchOperation(couchcore.OperationExecutors{LiveOwner: couchcore.CouchLiveOwnerExecutor(c)},
+		couchcore.OperationCall{Name: effects[0].Operation, Args: effects[0].Args, Implicit: true})
+	// RetryContinuation's own first refusal on this Couch (no registration
+	// observer is wired) proves the call got past thread resolution.
+	if err == nil || err.Error() != "continuation target observer unavailable" {
+		t.Fatalf("offered retry did not reach RetryContinuation: %v", err)
 	}
 }
 
@@ -322,4 +363,89 @@ func TestRecoveryCompletionDoesNotReplaceNewerWatchedRequest(t *testing.T) {
 	if got := c.continuations[status.Address]; got.status.RequestID != newer.RequestID || !got.queued {
 		t.Fatalf("obsolete recovery replaced accepted request: %+v", got)
 	}
+}
+
+// A dismissed (or otherwise vanished) request takes the console's per-address
+// continuation state with it: the watch AND the orientation prompt. Otherwise
+// Copy orientation prompt stays on offer for a handoff the operator dropped.
+func TestVanishedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
+	c, status := continuationConsole(t)
+	c.mu.Lock()
+	c.continuations[status.Address] = continuationWatch{status: status}
+	c.setOrientationLocked(status.Address, orientation.Request{Tag: string(status.Address.Tag), Agent: "codex", Attempt: "start-1"}, continuationProducer(status.RequestID))
+	c.mu.Unlock()
+
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}})
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if _, ok := c.continuations[status.Address]; ok {
+		t.Fatal("watch outlived its request")
+	}
+	if _, ok := c.menu.Orientation[status.Address]; ok {
+		t.Fatal("orientation prompt outlived its dismissed request")
+	}
+}
+
+// ARCH-ORDER provenance: menu.Orientation has two producers, and a continuation
+// prune removes only what a continuation produced. A switch-agent prompt the
+// operator was told to use ("Copy orientation prompt is available in
+// actions") survives every continuation scan path: a hosted thread with no
+// request, and a thread whose unrelated request completes.
+func TestSwitchAgentOrientationPromptSurvivesContinuationScans(t *testing.T) {
+	c, status := continuationConsole(t)
+	prompt := orientation.Request{Tag: string(status.Address.Tag), Agent: "codex", Attempt: "start-switch"}
+	survives := func(t *testing.T, label string) {
+		t.Helper()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if got, ok := c.menu.Orientation[status.Address]; !ok || got != prompt {
+			t.Fatalf("%s deleted switch-agent's orientation prompt", label)
+		}
+	}
+	c.mu.Lock()
+	c.setOrientationLocked(status.Address, prompt, switchAgentProducer(prompt.Attempt))
+	c.mu.Unlock()
+
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}})
+	survives(t, "a scan of a hosted thread with no request")
+
+	c.mu.Lock()
+	c.continuations[status.Address] = continuationWatch{status: status}
+	c.mu.Unlock()
+	complete := status
+	complete.Phase = checkpoint.Complete
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}, statuses: []couchcore.ContinuationStatus{complete}})
+	survives(t, "an unrelated request completing")
+}
+
+// A request REPLACED before any scan sees it vanish takes its prompt with it:
+// the prompt is derived from the watch's current request identity, not pruned
+// at an enumerated list of events (#280, close round 3). Sequence from the
+// review: A's prompt, B seen, B complete, B vanished -- A's prompt must not
+// outlive A at any step.
+func TestReplacedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
+	c, a := continuationConsole(t)
+	c.mu.Lock()
+	c.continuations[a.Address] = continuationWatch{status: a}
+	c.setOrientationLocked(a.Address, orientation.Request{Tag: string(a.Address.Tag), Agent: "codex", Attempt: "start-a"}, continuationProducer(a.RequestID))
+	c.mu.Unlock()
+
+	b := a
+	b.RequestID, b.Phase = "request-b", checkpoint.Failed
+	gone := func(t *testing.T, step string) {
+		t.Helper()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if _, ok := c.menu.Orientation[a.Address]; ok {
+			t.Fatalf("A's orientation prompt outlived A: still offered after %s", step)
+		}
+	}
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}, statuses: []couchcore.ContinuationStatus{b}})
+	gone(t, "B replaced A")
+	b.Phase = checkpoint.Complete
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}, statuses: []couchcore.ContinuationStatus{b}})
+	gone(t, "B completed")
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}})
+	gone(t, "B vanished")
 }

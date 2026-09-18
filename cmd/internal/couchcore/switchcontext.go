@@ -247,10 +247,10 @@ func (c *Couch) ReadOrientationStatus(ctx context.Context, address ThreadAddress
 	return c.OrientationStatus(ctx, address, agent, attempt)
 }
 
-// OSOrientationStatusReader reads the wrapper's existing exact ready artifact.
-// Session supplies the authoritative Pair session binding for the thread.
 var errObsoleteOrientationReady = errors.New("orientation ready record belongs to an obsolete target")
 
+// OSOrientationStatusReader reads the wrapper's existing exact ready artifact.
+// Session supplies the authoritative Pair session binding for the thread.
 type OSOrientationStatusReader struct {
 	DataDir        string
 	Session        func(ThreadAddress) (PairSessionBinding, error)

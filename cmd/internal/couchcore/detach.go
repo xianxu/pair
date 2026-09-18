@@ -428,6 +428,10 @@ func archiveRefusal(state ActionableThreadState, reason ThreadReason) string {
 // was retired. Archive preserves the request only when those actors are proved
 // absent; a checkpoint is never permission to stop an unfinished conversation.
 func (c *Couch) archiveContinuationVacant(record ThreadRecord, evidence RecoveryEvidence) error {
+	return withContinuationExits(record, c.checkArchiveContinuationVacant(record, evidence))
+}
+
+func (c *Couch) checkArchiveContinuationVacant(record ThreadRecord, evidence RecoveryEvidence) error {
 	request := record.Continuation
 	if request == nil || request.Phase == checkpoint.Complete {
 		return nil

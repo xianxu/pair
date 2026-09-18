@@ -144,12 +144,49 @@ hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
 `describe`, `archive`, `recover-thread` and `recover-checkpoint` are TUI/in-process operations. `orientation-status` is
 an internal owner operation for one launch attempt.
 
-Continuation has four internal operations (`pair#249`):
+Continuation has five internal operations (`pair#249`, `pair#280`):
 
 - `request-continuation`, invoked as `couch --internal request-continuation <absolute-path>`, durably accepts the hosted source's exact checkpoint. The inherited scope, tag, agent, session, launch ordinal, and expected digest bind publication to the writer's validated bytes and current source generation. This metadata operation can run in another worktree without becoming a second supervisor.
 - `continue-thread`, invoked in process through `couch --internal continue-thread`'s declared operation, executes or reconciles an accepted request under the live owner.
 - `retry-continuation`, exposed in the switcher's thread actions, reconciles a retained failure. After Couch has exited, `couch --internal retry-continuation <tag>` in the thread's repository acquires the normal singleton lease and opens a Console for recovery. It refuses a competing owner.
+- `dismiss-continuation`, offered beside Retry on a row whose request FAILED, deletes the retained request. It records the operator's decision that the thread has moved on, typically because they took over the target before automatic orientation finished and a retry would re-deliver a stale handoff into a live conversation. It is a direct-store record write with no process effect and no supervisor lease. After or during Couch, the CLI form is `couch --internal dismiss-continuation <tag>`. It deletes rather than adding a terminal phase because records decode strictly (`DisallowUnknownFields`), so a new phase would make every pre-change binary, including long-running `pair` helpers, reject the whole record. Couch's private checkpoint copy is left for the next publish or archive to replace, and the repository's checkpoint file is never touched.
 - `continuation-status`, represented by `couch --internal continuation-status`, reconciles the exact launch attempt's orientation receipt under the live owner. The Console supplies the address, request ID, and attempt through the typed operation arguments.
+
+**A retained request composes with its thread; it does not replace it**
+(`pair#280`).
+- **State text, in every phase:** `<state> · continuation queued|continuing…|continuation failed`,
+  for example `live · continuation failed`. In-flight phases are NOT bounded
+  in time: a request whose owner died reads `continuing…` until someone retries
+  it. So the state always shows.
+- **Actions of a live row with a failed request:** the row's own actions minus
+  exactly those `continuationGuard` refuses (`couchcore.ContinuationRefuses`:
+  relaunch, switch-agent, cold resume, start), plus retry and dismiss. Park and
+  detach stay, because neither reads the request.
+- **Actions of an in-flight request:** kept restricted on purpose, because the
+  continuation owns the thread mid-replacement. `Running` offers `retry`
+  (which reconciles a stalled request), `name` and `describe`. `Pending` offers
+  only `name` and `describe`.
+- **Refusals:** every refusal a retained request causes names its exits
+  through one wording, `checkpoint.Exits`. The guard and publish call it
+  directly. Each other check wraps its refusals ONCE, at its boundary, in
+  `withContinuationExits`: `RecoverThread`, `prepareAbsentContinuation`
+  (through `admitRetainedRecovery`), `archiveContinuationVacant` and
+  `validateContinuationWarm`. `TestEveryRefusalARetainedRequestCausesNamesBothExits`
+  drives one row per call site and scans that every call site has a row.
+  `pair continue --retry` does not know the phase and uses the phase-neutral
+  wording (`Exits("", tag)`).
+- **Orientation prompts carry their producer.** `menu.Orientation` is written
+  by continuation delivery and by switch-agent's orientation watch. Each entry
+  records which (`setOrientationLocked`), and a prune removes only its own
+  producer's entry (`dropOrientationLocked`). A new switch-agent launch
+  supersedes any prompt. Without that, the continuation scan deleted
+  switch-agent's Copy orientation prompt on every tick.
+
+Before #280, a failed request replaced the state text, the action set and
+relaunch's admission indefinitely.
+The switcher's Retry also never reached its thread: it sent `ref` and `tag`,
+which `resolveOperationThread` refuses. Both continuation exits now address the
+row by its exact implicit tag alone.
 
 ### Stale-thread recovery
 
@@ -1579,6 +1616,14 @@ The switcher's **offer** is written separately, at `menuActionItems` /
 compares the two over `AllThreadStates × AllThreadReasons`. It is deliberately
 not filtered through the predicate: a filter makes offered-implies-permitted true
 by construction, and a guard that cannot fail is not a guard.
+
+A live row with a failed continuation IS filtered, through
+`ContinuationRefuses` (`pair#280`), and it stays falsifiable because the
+list's oracle is the guard's BEHAVIOUR, not another predicate:
+`TestContinuationRefusesMatchesTheGuardForEveryRowAction` drives every
+declared row action through the production dispatcher on a live thread holding a
+failed request. A listed operation must be refused by the guard itself, and an
+unlisted one must succeed. A list that drifts from the guard sites fails there.
 
 **What the resume row does NOT cover.** `ResumableState`'s consumer is startup's
 `SelectResumableRoot`, not the Enter path — `ResumeContextWith` gathers its own

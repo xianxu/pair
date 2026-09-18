@@ -151,12 +151,21 @@ func (c *Couch) requestRecord(address ThreadAddress, id string) (ThreadRecord, e
 	return r, nil
 }
 func (c *Couch) advanceContinuation(address ThreadAddress, event checkpoint.Event) (ThreadRecord, error) {
+	return c.writeRequestRecord(address, event.RequestID, func(r ThreadRecord) (ThreadRecord, error) {
+		return c.Threads.AdvanceContinuation(address, r.Revision, event)
+	})
+}
+
+// writeRequestRecord reads the exact request's record and applies one store
+// transition to it, re-reading on a stale revision: the one loop every
+// request-scoped transition shares.
+func (c *Couch) writeRequestRecord(address ThreadAddress, id string, write func(ThreadRecord) (ThreadRecord, error)) (ThreadRecord, error) {
 	for tries := 0; tries < 8; tries++ {
-		r, err := c.requestRecord(address, event.RequestID)
+		r, err := c.requestRecord(address, id)
 		if err != nil {
 			return r, err
 		}
-		next, err := c.Threads.AdvanceContinuation(address, r.Revision, event)
+		next, err := write(r)
 		var stale *ThreadRevisionError
 		if errors.As(err, &stale) {
 			continue
@@ -365,9 +374,53 @@ func (c *Couch) ownsContinuationHelper(address ThreadAddress, inc ThreadIncarnat
 }
 func continuationGuard(record ThreadRecord) error {
 	if r := record.Continuation; r != nil && r.Phase != checkpoint.Complete {
-		return fmt.Errorf("continuation %s is %s; use Retry continuation in Couch, or `couch --internal retry-continuation %s` after Couch exits", r.ID, r.Phase, record.Address.Tag)
+		return fmt.Errorf("continuation %s is %s; %s", r.ID, r.Phase, checkpoint.Exits(r.Phase, string(record.Address.Tag)))
 	}
 	return nil
+}
+
+// withContinuationExits appends the retained request's exits to a refusal that
+// request caused. Every refusal of an operation a retained unfinished request
+// blocks goes through here or through continuationGuard -- archive, warm
+// reattach, recovery -- so none names only one way out (pair#280).
+func withContinuationExits(record ThreadRecord, err error) error {
+	r := record.Continuation
+	if err == nil || r == nil || r.Phase == checkpoint.Complete {
+		return err
+	}
+	return fmt.Errorf("%w; the retained continuation is %s: %s", err, r.Phase, checkpoint.Exits(r.Phase, string(record.Address.Tag)))
+}
+
+// ContinuationRefuses is the single statement of continuationGuard's reach:
+// the operations it refuses while a thread retains an unfinished request --
+// relaunch (relaunch.go), switch-agent (switchagent.go), a cold resume
+// (resume.go) and every non-warm start claim (threadstore.go). Park and detach
+// never read the request. The switcher filters a failed row's actions through
+// this rather than restating the list. TestContinuationRefusesMatchesTheGuard-
+// ForEveryRowAction drives relaunch, switch-agent's preview (which SwitchAgent
+// re-runs), a cold resume and a cold start claim into the guard -- refused by
+// its own words, having written nothing -- and park, detach, name and describe
+// to success, through the production dispatcher (#280).
+func ContinuationRefuses(operation string) bool {
+	switch operation {
+	case "relaunch", "switch-agent", "prepare-switch-agent", "resume", "start":
+		return true
+	}
+	return false
+}
+
+// DismissContinuation deletes the thread's retained FAILED continuation (#280).
+// The operator has decided the thread moved on -- typically by taking over the
+// target before automatic orientation finished -- so re-delivering the handoff
+// would be wrong. Couch's private checkpoint copy is left for the next publish
+// or archive to replace; the repository's checkpoint file is never touched.
+func (c *Couch) DismissContinuation(ctx context.Context, address ThreadAddress, id string) (ThreadRecord, error) {
+	if ctx != nil && ctx.Err() != nil {
+		return ThreadRecord{}, ctx.Err()
+	}
+	return c.writeRequestRecord(address, id, func(r ThreadRecord) (ThreadRecord, error) {
+		return c.Threads.DismissFailedContinuation(address, r.Revision, r.Continuation.ID)
+	})
 }
 
 func continuationSourceParked(record ThreadRecord) bool {

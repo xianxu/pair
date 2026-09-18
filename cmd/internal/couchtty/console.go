@@ -120,14 +120,17 @@ type Console struct {
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
-	started              bool
-	exited               chan childExit
-	operationQueue       *operationQueue
-	refreshRequests      chan struct{}
-	refreshResults       chan menuRefreshResult
-	refreshSchedule      RefreshSchedule
-	orientationResults   chan orientationWatchResult
-	orientationWatches   map[couchcore.ThreadAddress]orientationWatch
+	started            bool
+	exited             chan childExit
+	operationQueue     *operationQueue
+	refreshRequests    chan struct{}
+	refreshResults     chan menuRefreshResult
+	refreshSchedule    RefreshSchedule
+	orientationResults chan orientationWatchResult
+	orientationWatches map[couchcore.ThreadAddress]orientationWatch
+	// orientationFrom records which producer wrote each menu.Orientation entry;
+	// see setOrientationLocked.
+	orientationFrom      map[couchcore.ThreadAddress]string
 	continuationProvider ContinuationProvider
 	continuationResults  chan continuationScanResult
 	continuations        map[couchcore.ThreadAddress]continuationWatch
@@ -845,12 +848,12 @@ func (c *Console) drainChunks() {
 	}
 }
 
-// teardown cancels and joins event sources before releasing the presenter and
-// restoring raw state. Diagnostics are emitted only after ownership ends.
 type contextualInput interface {
 	ReadContext(context.Context, []byte) (int, error)
 }
 
+// teardown cancels and joins event sources before releasing the presenter and
+// restoring raw state. Diagnostics are emitted only after ownership ends.
 func (c *Console) teardown(restore func() error) error {
 	c.Stop()
 	// Contextual readers retain their fd lease until after the input pump joins
@@ -1051,16 +1054,6 @@ func (c *Console) applyLayout() {
 	}
 }
 
-// repaint draws the status row when it is SAFE to do so, and defers when it is
-// not.
-//
-// Safety here is about the child's stream, not about locking: a pty read
-// boundary falls wherever the kernel puts it, so a paint written between two
-// chunks can land inside one of the child's escape sequences. A real nvim under
-// the console produced exactly that -- `\x1b7\x1b[12;1H\x1b[2K[brain]\x1b8`
-// spliced into the middle of `\x1b[38;2;76;82;88m`, corrupting the child's
-// colours and losing the row. The debt is remembered and paid by the next chunk
-// that leaves the stream at a sequence boundary.
 // statusModelLocked builds the status row's model: the attached chips, then a
 // placeholder for each thread the reattach pass has not attached yet
 // (pair#206). Callers hold c.mu. Separate from paintNow so the model -- which is
@@ -1095,6 +1088,16 @@ func (c *Console) statusModelLocked() StatusModel {
 	return model
 }
 
+// repaint draws the status row when it is SAFE to do so, and defers when it is
+// not.
+//
+// Safety here is about the child's stream, not about locking: a pty read
+// boundary falls wherever the kernel puts it, so a paint written between two
+// chunks can land inside one of the child's escape sequences. A real nvim under
+// the console produced exactly that -- `\x1b7\x1b[12;1H\x1b[2K[brain]\x1b8`
+// spliced into the middle of `\x1b[38;2;76;82;88m`, corrupting the child's
+// colours and losing the row. The debt is remembered and paid by the next chunk
+// that leaves the stream at a sequence boundary.
 func (c *Console) repaint() { c.paintNow() }
 
 // paintNow publishes chrome independently of child parsing and cursor state.
@@ -1588,6 +1591,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			watch.status.Address, watch.status.RequestID = origin.Address, origin.ContinuationID
 			watch.queued, watch.handled = true, true
 			c.continuations[origin.Address] = watch
+			c.reconcileContinuationOrientationLocked()
 			for id, p := range c.panes {
 				if p.thread == origin.Address {
 					c.expectedExits[id] = true
@@ -1601,7 +1605,7 @@ func (c *Console) runMenuOperation(effect MenuEffect) {
 			previous.cancel()
 			delete(c.orientationWatches, origin.Address)
 		}
-		delete(c.menu.Orientation, origin.Address)
+		c.supersedeOrientationLocked(origin.Address)
 		origin.PanelOrigin = c.focus.IsPanel()
 		c.menu.InFlight.PanelOrigin = origin.PanelOrigin
 	}

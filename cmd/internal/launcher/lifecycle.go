@@ -111,14 +111,14 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	return code, resultErr, use
 }
 
+const cleanupTimeout = 10 * time.Second
+
 // runCleanup ports cleanup_quit_marker (shell 1520-1647): after a blocking
 // handoff returns, if the Alt+x quit marker is present, tear the session down —
 // delete the zellij record, reap nvim, offer to park the scrollback, remove the
 // per-tag sidecars, print the resume hint, kill the title poller, and reset the
 // cmux workspace. A detach (Alt+d) leaves no marker, so this is a no-op then.
 // Runs after BOTH create and attach handoffs (either can leave a quit marker).
-const cleanupTimeout = 10 * time.Second
-
 func runCleanup(env Env, rt Runtime, step launchStep, scopeKey string, parkTimeout int, out io.Writer) {
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
 	defer cancel()

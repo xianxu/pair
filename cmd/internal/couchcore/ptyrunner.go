@@ -38,15 +38,15 @@ type PtyRunner struct {
 
 var _ Runner = (*PtyRunner)(nil)
 
-// Terminal is the pty capability a Handle may expose.
-//
-// It is deliberately the CONCRETE *ptychild.Child rather than an interface:
-// FakeRunner's terminal double is a ptychild.NewFakeChild, which is the same
-// type, so production flow and test flow share this boundary exactly. An
-// interface here would let the fake drift into a different shape, which is the
-// ARCH-MOCK failure the seam exists to prevent.
 type TerminalHandle interface {
 	Handle
+	// Terminal is the pty capability a Handle may expose.
+	//
+	// It is deliberately the CONCRETE *ptychild.Child rather than an interface:
+	// FakeRunner's terminal double is a ptychild.NewFakeChild, which is the same
+	// type, so production flow and test flow share this boundary exactly. An
+	// interface here would let the fake drift into a different shape, which is the
+	// ARCH-MOCK failure the seam exists to prevent.
 	Terminal() *ptychild.Child
 }
 
