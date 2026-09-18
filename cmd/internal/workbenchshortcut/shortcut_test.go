@@ -741,3 +741,19 @@ func TestAgentReservationMetadataIsExact(t *testing.T) {
 		t.Fatalf("reserved=%v want=%v", got, want)
 	}
 }
+
+// Under Couch, Pair's Alt+n / Ctrl+Alt+n do not reload (launcher
+// TestCheckpointHostedRestartAndRenameRefuseBeforeMutation,
+// TestCouchClientRefusesRestartMarker) and Pair's Alt+d detaches only its
+// Zellij client. Alt+Shift+C also changes when hosted (compaction.go hands the
+// restart to Couch), but it is not a GlobalBinding: its wording comes from
+// nvim's "compact session" desc, which stays true. HostedHelp can only carry
+// GlobalBinding rows (#282).
+func TestHostedHelpCoversExactlyTheChordsHostingChanges(t *testing.T) {
+	want := map[Chord]bool{ChordAltD: true, ChordAltN: true, ChordCtrlAltN: true}
+	for _, b := range GlobalBindings() {
+		if (b.HostedHelp != "") != want[b.Chord] {
+			t.Errorf("%s HostedHelp=%q", ChordName(b.Chord), b.HostedHelp)
+		}
+	}
+}

@@ -152,19 +152,29 @@ type GlobalBinding struct {
 	// workbench_actions.lua rather than literal vim.keymap.set calls, so no
 	// `desc = 'pair: …'` exists for them to derive from. Not rendered into Lua.
 	Help string
+	// HostedHelp replaces Help when Couch launched the session or presents
+	// this client, for a chord whose Pair behavior changes there (#282); empty
+	// means Help holds either way. Alt+n does not reload under Couch: the
+	// session-env refusal is pinned by launcher
+	// TestCheckpointHostedRestartAndRenameRefuseBeforeMutation, the client-side
+	// marker refusal by launcher TestCouchClientRefusesRestartMarker.
+	HostedHelp string
 }
 
 // Keyed literals (not positional): #132 added Help, and a positional list makes
 // every future field a silent shift of the one before it.
 var globalBindings = []GlobalBinding{
 	{Chord: ChordAltD, Action: ActionConfirmDetach, LuaFunction: "PairConfirmDetach", NvimKey: "<M-d>", FocusDraft: true,
-		Help: "detach from the session (re-attach with `pair`)"},
+		Help:       "detach from the session (re-attach with `pair`)",
+		HostedHelp: "detach only this Zellij client; Couch's own detach is in its switcher"},
 	{Chord: ChordAltX, Action: ActionConfirmQuit, LuaFunction: "PairConfirmQuit", NvimKey: "<M-x>", FocusDraft: true,
 		Help: "full quit — kill the session and drop it from the resurrect list"},
 	{Chord: ChordAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
-		Help: "reload pair — kill and re-launch the workbench in place"},
+		Help:       "reload pair — kill and re-launch the workbench in place",
+		HostedHelp: "does not reload under Couch and may end the thread; relaunch from the Couch switcher"},
 	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
-		Help: "reload pair (same as Alt+n)"},
+		Help:       "reload pair (same as Alt+n)",
+		HostedHelp: "same as Alt+n under Couch"},
 	{Chord: ChordAltShiftN, Action: ActionRestartAgent, LuaFunction: "PairConfirmAgentRestart", NvimKey: "<M-N>", FocusDraft: true,
 		Help: "restart only the agent conversation, keeping the workbench"},
 	{Chord: ChordAltUp, Action: ActionGrowDraft, LuaFunction: "PairLayoutBigger", NvimKey: "<M-Up>", FocusDraft: false,

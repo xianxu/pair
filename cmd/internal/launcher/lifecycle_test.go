@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -112,6 +113,43 @@ func TestRunLaunchAttachRecordsCouchPresenter(t *testing.T) {
 	}
 	if !reflect.DeepEqual(rt.ttyRecorded, []string{"live|true"}) {
 		t.Fatalf("tty records = %v, want the Couch-presented attach", rt.ttyRecorded)
+	}
+}
+
+// A client Couch launched never relaunches from a Pair restart marker: it runs
+// the full quit cleanup, then refuses (createflow.go, "legacy hosted restart
+// intent refused"). This is why Pair's Alt+n does not reload under Couch, and
+// why in a session Couch presents but did not create -- where `pair restart`
+// itself does not refuse -- Alt+n ends the thread (pair#284). Alt+n's
+// HostedHelp states this (#282).
+func TestCouchClientRefusesRestartMarker(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.sessions = []Session{{Name: "📁work-live", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "📁work-live",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "live",
+	}}}
+	rt.blocksReuse["📁work-live"] = true
+	rt.inferAgent["live"] = "codex"
+	rt.restartMarkers["📁work-live"] = RestartMarker{Tag: "live", Agent: "codex"}
+	opts := baseOpts(LaunchArgs{ForcedTag: "live"})
+	opts.SkipConfigPicker = true
+	opts.Env.CouchThreadScope = scope.Key
+	opts.Env.CouchThreadTag = "live"
+	var stderr bytes.Buffer
+	code, err := RunLaunch(opts, rt, &stderr)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v stderr=%s, want the hosted refusal", code, err, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "legacy hosted restart intent refused") {
+		t.Fatalf("stderr = %q", stderr.String())
+	}
+	if len(rt.attached) != 1 || rt.launchCount != 0 {
+		t.Fatalf("relaunched after refusal: attached=%v launchCount=%d", rt.attached, rt.launchCount)
 	}
 }
 
