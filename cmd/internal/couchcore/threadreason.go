@@ -49,8 +49,11 @@ const (
 	// couch reading a store written by a newer one cannot decode any record:
 	// calling that "invalid" would classify every thread as debris and offer to
 	// archive the operator's live work. Unreadable means unknown, so it is
-	// never archive-eligible and it still BLOCKS its path -- a record couch
-	// cannot read is not evidence that the path is free.
+	// never read as debris and it still BLOCKS its path -- a record couch
+	// cannot read is not evidence that the path is free. The OPERATOR can
+	// still archive one (ArchivableState permits it), because that escape is
+	// what keeps a corrupt record from locking its repository; doing so moves
+	// the record's bytes and never stops its session.
 	ReasonUnreadable ThreadReason = "unreadable"
 	// ReasonPathMissing is a working path that could not be physicalized. It
 	// must stay a refusal: SelectResumableRoot compares paths by exact

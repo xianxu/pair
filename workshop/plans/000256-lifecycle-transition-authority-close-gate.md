@@ -605,6 +605,12 @@ rounds:
           round: 10
       boundary: M2
       blocked: false
+    - "n": 11
+      timestamp: "2026-09-17T17:39:46-07:00"
+      agent: claude
+      boundary: M3
+      blocked: false
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -917,6 +923,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   observeRecovery (recovery_execute.go:54-64) now probes the session for record
   shapes that previously short-circuited, and reconcileRecoveryHelper calls it in an
   8-attempt loop where a present session costs a ~250 ms list-clients per pass.
+
+## Round 11 — 2026-09-17T17:39:46-07:00 (claude) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

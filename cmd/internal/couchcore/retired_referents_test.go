@@ -35,8 +35,25 @@ var issue256RetiredClaims = map[string]string{
 	// The store's archive guard. M1 took the occupancy rule out of DecideResume
 	// and M3 took it out of archive: whether a process is running is a fact
 	// about the world, and a decoded record cannot supply one.
-	"archivableRecord's occupancy": "#256 M3: archive's occupancy question moved to ArchivableState over the classification",
-	"occupiedIncarnation":          "#256 M3 folded it into hasOccupiedIncarnation; archive no longer asks it",
+	//
+	// The first two keys were written from MEMORY -- the identifiers the author
+	// had just changed -- and matched none of the four sites the boundary review
+	// then found still stating the claim (#256 M3 BR, I3). The rest are DATA: a
+	// paragraph-window sweep of the homes for the claim's VOCABULARY (live,
+	// occupied, hosting, "same guard" near archive), run at the commit that
+	// retired it. Paragraph, not line: three of the four sites spanned comment
+	// lines, which a line-oriented grep never sees.
+	"archivableRecord's occupancy":      "#256 M3: archive's occupancy question moved to ArchivableState over the classification",
+	"occupiedIncarnation":               "#256 M3 folded it into hasOccupiedIncarnation; archive no longer asks it",
+	"still LIVE or mid-park":            "#256 M3: the store refuses only an open park or start claim; hosting is ArchivableState's",
+	"refuses an occupied thread":        "#256 M3: the admission rule refuses a hosted thread, not the store's guard",
+	"to prove the thread is not live":   "#256 M3: archivableRecord proves nothing about liveness; the classification does",
+	"proves a thread is not live":       "#256 M3: archivableRecord proves nothing about liveness; the classification does",
+	"refuses a live/unknown helper":     "#256 M3: the store refuses an open park or start claim; the classification refuses a hosted thread",
+	"runs the same guard":               "#256 M3: Couch.ArchiveThread runs ArchivableState AND the record guard; they are two, not one",
+	"live one in the store":             "#256 M3: the store no longer refuses a live thread; Couch.ArchiveThread's admission does",
+	"never archive-eligible":            "#256 M3: ArchivableState permits an unreadable row; archiving one moves its bytes and never stops its session",
+	"checks occupancy before quiescing": "#256 M3: archive checks the continuation's actors and the classification; 'occupancy' named the retired rule",
 }
 
 // A line that explicitly narrates the retirement is not a restatement of it.

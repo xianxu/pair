@@ -1068,6 +1068,35 @@ corrective. #272's corresponding Done-when transfers there.
 
 ## Revisions
 
+### 2026-09-17 — M3 boundary review, round 1 (FIX-THEN-SHIP)
+
+No Critical. Four Important findings, each the next occurrence of a family the
+ledger already knew, and each answered with the RULE the reviewer named rather
+than the sites it pointed at. Everything the reviewer mutation-verified as pinned
+stayed pinned; its base-vs-head full-suite comparison found no new failures.
+
+| Finding | Family (occurrence) | Rule landed | Mechanised as |
+|---|---|---|---|
+| I1 — three new transitions' preconditions untested; deleting all three left the package green | `fail-closed-guard-untested` (5th) | A transition introduced so a precondition has somewhere to live is not delivered until a test drives it into that refusal, and the domain is DERIVED from the transition set | `TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal`: every exported `*ThreadStore` method reaching the mutator door (AST fixed point, 18 today) must have a refusal case or a stated CAS-only exemption; each refusal is discriminated by message and must write nothing. Mutation: the three deleted guards and an unregistered new transition all fail it. |
+| I1 (concrete) — `prepareAbsentContinuation` might now refuse where it wrote | — | — | It cannot reach the write with a claim open: `DecideRecovery` refuses `Start != nil` first, twice, and the write's CAS covers the race. Pinned end-to-end through `RecoverThread` by `TestAbsentSourceRecoveryRefusesAnOpenStartClaimBeforeTheStoreDoes`; removing `DecideRecovery`'s clause makes it fail on the store's refusal instead, which also demonstrates the defence in depth. |
+| I2 — `Unproven` branch outside the declared-exhaustive corpus | `vocabulary-entry-without-producer` (3rd, read the other way) | The corpus is the classifier's producer enumeration; every evidence field it reads is exercised | Three shapes added (unproven+session, unproven+no session, live+unproven — the last pins the ordering the ARCH-ORDER note flagged), and `TestEveryEvidenceFieldIsExercisedByTheCorpus` checks every `ThreadEvidence` field by reflection. The one actionability reduction (vs M2: `detached` → `unknown`) is now stated in the shape's comment. |
+| I3 — four sites still stated the retired occupancy claim | `stale-wording-after-referent-change` (7th) | A retired-claim entry is derived from a vocabulary sweep of the homes at the retiring commit, by PARAGRAPH, not from memory | The sweep found **seven** sites, not four (`menu.go`, and two more atlas paragraphs). All rewritten; nine phrases added to `issue256RetiredClaims` as data. Task 8b Step 3's comment — ticked last round without its deliverable — lands here. |
+| I4 — cost bound measured on the shape that cannot pay | `envelope-declared-not-enforced` (2nd) | A cost bound is asserted on the input class that maximises it, and the test names why that class is the max | Two-row table: a present session pays 1/**3**/0 (list-sessions/list-clients/ledger), none pays 1/0/1. The 3 predate M3. `## Log` and atlas corrected. |
+
+Minors, all taken: `rank` no longer names both resumable states (a future third
+now sorts with `parked`, not at zero); `observeExactProcessOrUnknown` takes the
+seam, not the `Couch`; the store's "same guard" comment is I3's.
+
+Noted for `#275`, not acted on: `ThreadEvidence` is now seven independent fields
+whose legal combinations live only in `ClassifyThread`'s branch order. The corpus
+now pins the one combination the reviewer named, but that is the constellation
+ARCH-ORDER warns about.
+
+Also recorded: the gate reported "no valid ```findings block — this round carries
+NO findings, so the gate cannot converge on it", and then "0 new findings …
+Converging". The reviewer's prose findings were real; the ledger did not see
+them. Fixed here regardless of what the ledger counted.
+
 ### 2026-09-17 — M3 delivered: what the tasks turned into
 
 Every M3 step is ticked, and four of the seven tasks delivered something other

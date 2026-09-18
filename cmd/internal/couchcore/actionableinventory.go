@@ -881,6 +881,10 @@ type RecordedProcessObservation struct {
 }
 
 func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []RecordedProcessObservation {
+	var proc ProcOps
+	if c != nil {
+		proc = c.Proc
+	}
 	var observations []RecordedProcessObservation
 	for _, record := range records {
 		for _, incarnation := range record.Incarnations {
@@ -894,10 +898,7 @@ func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []RecordedProce
 			process := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
 			observations = append(observations, RecordedProcessObservation{
 				Address: record.Address, Process: process,
-				// No prober at all is ignorance, not absence -- the same
-				// reading gatherThreadEvidence gives a session resolver that
-				// is missing or fails. Production always supplies one.
-				Liveness: observeExactProcessOrUnknown(c, process),
+				Liveness: observeExactProcessOrUnknown(proc, process),
 			})
 		}
 	}
@@ -905,13 +906,15 @@ func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []RecordedProce
 }
 
 // observeExactProcessOrUnknown is observeExactProcess with the nil-prober case
-// spelled out, so the one caller that runs over EVERY record does not have to
-// decide what a missing prober means on its own.
-func observeExactProcessOrUnknown(c *Couch, process ProcessIdentity) Liveness {
-	if c == nil || c.Proc == nil {
+// spelled out: no prober at all is ignorance, not absence -- the same reading
+// gatherThreadEvidence gives a session resolver that is missing or fails.
+// Production always supplies one. It takes the seam, not the Couch, so it sits
+// at the altitude of the thing it wraps.
+func observeExactProcessOrUnknown(proc ProcOps, process ProcessIdentity) Liveness {
+	if proc == nil {
 		return Unknown
 	}
-	return observeExactProcess(c.Proc, process)
+	return observeExactProcess(proc, process)
 }
 
 // LabelRow is one row's identity for display: what it would like to be called,

@@ -5300,3 +5300,29 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   proved the standing hypothesis in #274 that nobody had tested in a day of
   reasoning about it. A UI string that asserts a system property is a claim; go
   and check it. (#256 M3)
+
+- **Sweep a retired claim by its vocabulary and by paragraph, never by the name
+  you just changed.** M3 retired "archive's store guard refuses a live thread" and
+  added two retired-claim entries keyed to the identifiers I had edited. The
+  review found four surviving statements of the claim; a sweep for the claim's
+  WORDS (live, occupied, hosting, "same guard") within a few lines of `archive`
+  found seven. Three of the four the reviewer named spanned comment lines, which
+  a line-oriented grep cannot see at all. The phrases the sweep finds are the
+  retired-claim data; the entry is done when the sweep returns nothing. (#256 M3
+  BR, I3)
+
+- **Bound a cost on the input that maximises it, and say in the test why it is
+  the maximum.** I measured archive's new evidence round on a sessionless row,
+  wrote "0 list-clients per archive" into the Log, and named the test for archive
+  in general. A row whose session is present pays three — every look reaches a
+  live session. A cost claim measured on the cheapest shape is not a bound; it is
+  the floor presented as the ceiling. (#256 M3 BR, I4)
+
+- **A precondition's home is not delivered until a test walks into it — and the
+  list of homes must be derived.** Three transitions M3 created for the purpose of
+  giving preconditions somewhere to live shipped with none of those preconditions
+  entered by any test; deleting all three left the package green. The fifth
+  occurrence of the family is what made the rule stick: derive the transition set
+  from the code, require each to name a refusal a test drives it into (or say why
+  it has none), and check that the refusal writes nothing. (#256 M3 BR, I1)
+

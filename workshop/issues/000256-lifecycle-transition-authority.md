@@ -122,7 +122,7 @@ Rows are the milestones of the durable plan at
 - [x] Revalidate the preserved audit findings against current code and coordinate #250/#253/#255. *(Done 2026-09-16: findings 2 and 4 confirmed against HEAD; finding 4's collapse is `actionableinventory.go:582`. Measured the process tree — see Log.)*
 - [x] M1 — The classifier reads the session, not the bookkeeping: `Incarnation` and `record.Park` leave the classification path entirely. Fixes #271 and #272 by deletion. *(Done 2026-09-17; the class turned out to have FOUR sites, found one at a time — see Log.)*
 - [x] M2 — Make the operator's rows reachable (a start claim with no living owner, `DecideRecovery`'s park gate, the binding-absent hatch, the ledger as cold-resume authority) and verify against real sessions.
-- [ ] M3 — Guards consume the classification; preserve Unknown on the destructive paths; archive confirms before stopping a live agent; close the arbitrary lifecycle-mutation door; atlas + lessons.
+- [x] M3 — Guards consume the classification; preserve Unknown on the destructive paths; archive confirms before stopping a live agent; close the arbitrary lifecycle-mutation door; atlas + lessons. *(Done 2026-09-17. Three premises re-derived before starting, two unplanned defects closed — archive could Quiesce a thread couch was hosting, and an `unknown` incarnation could never be archived at all — and Task 10's Step 0 measurement proved #274's standing hypothesis. See Log.)*
 
 Split out, both depending on this issue: **#275** (replace the park transaction
 with an ordered idempotent write) and **#276** (surface couch-tagged agents with
@@ -131,6 +131,18 @@ no thread record — carries #272's corresponding Done-when).
 ## Log
 
 ### 2026-09-17 — M3: the guards read one authority, and two rows could never leave
+- 2026-09-17: closed M3 — M3: three action guards read ONE authority. ArchivableState and ResumableState join SwitchableState as pure predicates over the classification, consumed by Couch.ArchiveThread (via classifyForAction) and SelectResumableRoot; couchtty TestActionOfferedImpliesPermitted compares them against the switcher offer over AllThreadStates x AllThreadReasons, and is non-vacuous (mutation-checked by deleting resume from both menu branches). The menu deliberately does NOT consume the predicates -- M2 round 4 established that filtering the offer through the guard makes offered-implies-permitted true by construction. Two unplanned defects closed, both mutation-checked: archive could Quiesce a thread couch was HOSTING, because since M1 a hosted row can carry no incarnation and archivableRecord asked only the record; and a record whose incarnation is unknown could never be archived at all, fixed by a new RetireUnprovenIncarnation rather than by widening RetireIncarnation, whose refusal is correct for detach. Unknown now survives the projection: ObserveRecordedProcesses returns three-valued RecordedProcessObservation, ThreadEvidence.Unproven fails the classifier closed ahead of every durable refusal, and a Dead probe or a recycled pid stay CONFIRMED so #272 does not regress. The arbitrary-mutation door is unexported and guarded by RECEIVER rather than by file, because all three leaking callers were inside package couchcore; three named transitions replace them, and two acceptance fixtures now drive the real claim/helper-recorded/registered sequence instead of assigning Incarnations. Task 10 Step 0 was MEASURED rather than reasoned about: zellij delete-session --force reaps a pane by SIGHUP, so a pane that inherited SIG_IGN survives and is reparented to init (two runs, same fixture, one variable) -- which also proves #274 standing hypothesis, now recorded in its Log -- so archive confirmation names the running agent and says it MAY survive. Cost bounded by a counted invariant: 1 host-wide list-sessions, 0 list-clients, 1 ledger read per Couch.ArchiveThread. VERIFICATION: make -k test outside the sandbox with the retention-owner env scrub and a non-symlinked TMPDIR -- 210 packages ok, exit 0, zero failures; couchcore, couchtty and couchcmd re-run against the settled tree afterwards because edits overlapped that run. Atlas gained four sections; lessons five entries. Two pre-existing flakes measured so neither is read as mine: couchtty TestConsoleRunRootEscapeClearsFilterThenReplaysActor fails 3/20 on the unchanged tree and 2/20 on this one; couchcmd TestRecoveryMenuReachesTerminalAfterActualHelperDeath/checkpoint is 0/20 idle and 1/25 under load on this tree AND 1/25 under the same load at 6e3f4e34 (the M2 close) in a throwaway worktree, same subtest and same message -- it uses a fixture M3 rewrote, so the comparison is what rules the rewrite out.; review verdict: FIX-THEN-SHIP
+  - *Correction, same boundary:* "0 list-clients per Couch.ArchiveThread" above is
+    the FLOOR, measured on a sessionless row. A row whose session is present pays
+    **3**, all predating M3 — see "Costs" below (review finding I4).
+  - *`--actual 1.1` was hand-derived* — wall-clock from session start to launching
+    the close, on the belief that `sdlc actual` cannot window. `sdlc active-time
+    --since c4cbd1fe` can: **2.71h**, of which 18.3m is M2's post-close
+    verification tail, 37.4m a concurrent brain session attributed here only
+    because #256's commits are the window's only issue boundaries, and 107.1m this
+    session including the review. Not adopted in place of 1.1: whether the brain
+    segment was #256 work is the operator's call. The issue close adopts the
+    measured cumulative either way.
 
 M3's six tasks were checked against the tree before starting, the way M2's were,
 and **three premises had moved** — all in the same direction, because M2 changed
@@ -220,18 +232,37 @@ incarnation that no console hosts"* — began classifying `unknown` instead of
 shape less. It now gets a prober whose table is empty, which is what the comment
 always described.
 
-**Costs, counted rather than asserted.** Consuming the classification puts an
-evidence round behind an operator keypress, so `TestArchivePaysOneEvidenceRoundAndNoClientQuery`
-bounds it: **1 host-wide `list-sessions`, 0 `list-clients`, 1 ledger read** per
-`Couch.ArchiveThread` on the 6-record fixture. The `list-clients` zero is the one
-that matters (~250 ms each, #228); the ledger read is held at one by
-`classifyForAction`'s `ask` predicate, so the cold-side growth M2 recorded as a
-known gap for the REFRESH does not apply to this path.
+**Costs, counted rather than asserted — and corrected at the boundary.**
+Consuming the classification puts an evidence round behind an operator keypress,
+so `TestArchiveEvidenceCostIsBoundedByItsMaximisingShape` bounds it on TWO shapes:
 
-**A pre-existing flake, measured so it is not mistaken for this work.**
-`couchtty.TestConsoleRunRootEscapeClearsFilterThenReplaysActor` fails about 1 run
-in 7: **3/20 on the unchanged tree, 2/20 on this one**. It is not in M3's scope
-and is not caused by it.
+| Archive of… | `list-sessions` | `list-clients` | ledger reads |
+|---|---|---|---|
+| a row whose session is present (`detached`) — **the maximum** | 1 | **3** | 0 |
+| a row with no session — the floor | 1 | 0 | 1 |
+
+M3 added the first column only: one host-wide `list-sessions`, for the
+classification. The three `list-clients` (~750 ms at #228's ~250 ms each) are
+observeRecovery's three looks — first, the reconciler's, the final recheck — and
+predate M3, measured identically at `c4cbd1fe`. My first version of this test
+measured only the floor and called the `list-clients` count zero, which the
+boundary review caught (I4). The ledger read is held at one by
+`classifyForAction`'s `ask` predicate, so the cold-side growth M2 recorded for
+the REFRESH does not apply to this path.
+
+**Two pre-existing flakes, measured so neither is mistaken for this work.**
+
+- `couchtty.TestConsoleRunRootEscapeClearsFilterThenReplaysActor` — **3/20 on
+  the unchanged tree, 2/20 on this one**.
+- `couchcmd.TestRecoveryMenuReachesTerminalAfterActualHelperDeath/checkpoint` —
+  it spawns a real helper and kills it, and under load the drive loses a race to
+  `checkpoint.Advance`'s attempt guard (*"obsolete continuation attempt or
+  phase"*). **0/20 idle, 1/25 with a `couchcore` run competing for the machine**
+  — and **1/25 under the same load at `6e3f4e34`, the M2 close**, in a throwaway
+  worktree, same subtest and same message. It surfaced in the post-suite re-run
+  of the three packages I had edited mid-suite, so attributing it mattered: the
+  fixture it uses is one M3 rewrote (`seedLiveIncarnation`), and the comparison
+  is what rules that out rather than my recollection of the change.
 
 ### 2026-09-17 — M2: what the tasks turned out to be
 - 2026-09-17: closed M2 — Both wedged brain rows archive; a driverless start claim no longer wedges a row at "starting..."; the ledger, not the park receipt, decides cold resumability; and every switch-agent layer -- menu offer, guard admission, and execution -- now branches on the classification rather than re-deriving it, pinned by 4 producers x 3 actions driven to completion plus an offered-implies-permitted table over AllThreadStates x AllThreadReasons. The plan Core-concepts tables are machine-checked by TestIssue256PlanTablesMatchTheTree rather than asserted. go test ./... green (88 packages, 71 ok, 17 no-test-files, 0 failures); every guard mutation-checked, including the two the reviewer proved unpinned. Action-path cost measured on that path. Operator verification deferred with an owner in ## Log. test-changelog fails pre-existing, reproduced on origin/main under env -i.; review verdict: FIX-THEN-SHIP

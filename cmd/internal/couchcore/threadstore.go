@@ -1122,11 +1122,14 @@ func (s *ThreadStore) archivePath(address ThreadAddress) string {
 // `threadstore/archive/<scope>/<tag>.json`, and a mistake is undone by moving
 // the file back and re-adding the address to the manifest.
 //
-// It refuses a thread that is still LIVE or mid-park. Archiving a record while
-// couch hosts its child would leave the console owning a thread the store no
-// longer lists -- the same shape as the stale incarnations #181 exists to stop
-// producing. Everything else goes: parked, detached and every unusable reason,
-// because the operator is the one who decides a thread is finished.
+// The store asks only what a decoded record proves ON ITS OWN (archivableRecord):
+// an open park transaction or an outstanding start claim, couch's unfinished
+// bookkeeping, either of which archiving would strand. Whether couch is HOSTING
+// the thread is a question about the world, and Couch.ArchiveThread answers it
+// from the classification (ArchivableState) before any effect -- a hosted thread
+// can carry no incarnation at all, so the record cannot. Everything else goes:
+// parked, detached and every unusable reason but `unknown`, because the operator
+// is the one who decides a thread is finished.
 func (s *ThreadStore) ArchiveThread(address ThreadAddress) error {
 	return s.archiveThread(address, nil)
 }
@@ -1160,9 +1163,11 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		// would leave a row that can neither be used nor removed. Its bytes are
 		// moved as they are.
 		//
-		// Second line of defence: Couch.ArchiveThread runs the same guard
-		// before any effect, because by the time the store refuses, a quiesce
-		// would already have happened.
+		// Two layers, and they are not the same guard. Couch.ArchiveThread asks
+		// the classification (ArchivableState) and then this record guard,
+		// both before Quiesce, because by the time the store refuses a stop
+		// would already have happened. Here only the record guard runs, and for
+		// a direct caller of the store it is the whole of the protection.
 		record, decodeErr := s.decodeThreadRaw(address, raw)
 		if expectedRevision != nil {
 			if decodeErr != nil && *expectedRevision != 0 {

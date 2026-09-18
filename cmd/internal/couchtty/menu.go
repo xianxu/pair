@@ -1263,9 +1263,12 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		// behind it, in the position the operator has to travel to.
 		return []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
 	}
-	// Archive is offered wherever couch is not hosting the thread. It refuses a
-	// live one in the store anyway, and offering an action that always fails is
-	// how a switcher teaches an operator to distrust it.
+	// Archive is offered wherever couch is not hosting the thread, which is
+	// ArchivableState's rule stated a second time on purpose: the guard that
+	// refuses a hosted thread is Couch.ArchiveThread's admission, and
+	// TestActionOfferedImpliesPermitted is what keeps the two statements from
+	// drifting. Offering an action that always fails is how a switcher teaches
+	// an operator to distrust it.
 	if thread.State == couchcore.ThreadParked {
 		return []string{"resume", "switch-agent", "archive", "name", "describe"}
 	}

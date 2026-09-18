@@ -172,7 +172,8 @@ fresh conversation, distinct from native parked resume. A prior target's
 attempt-bound readiness generation can authorize retry after that target is
 proved absent; unrelated newer generations refuse admission.
 
-Archive uses the same reconciliation, then checks occupancy before quiescing.
+Archive uses the same reconciliation, then checks that the continuation's source
+and target are proved absent before quiescing.
 A final record revision check prevents archiving a concurrently replaced
 request. An empty record may be archived with its pending/failed continuation
 intact; a live source or target cannot. The existing store journal preserves
@@ -249,8 +250,11 @@ working set and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json
 manifest in one journal entry, so a crash cannot leave a record in both sets or
 neither. Restoring is that move reversed plus a manifest re-add -- `Snapshot`
 walks the manifest, so a restored file the manifest does not list stays
-invisible. It refuses a live/unknown helper or an open start/park transaction: archiving a record couch is
-hosting would leave the console owning a thread the store no longer lists. Exact helper-death proof permits
+invisible. Two layers refuse, and they ask different things (#256 M3). `Couch.ArchiveThread`
+asks the classification (`ArchivableState`) whether couch is hosting the thread or cannot tell --
+archiving a hosted thread would leave the console owning a record the store no longer lists, and a
+hosted thread can carry no incarnation at all. The store asks only what a decoded record proves on its
+own (`archivableRecord`): an open park or an outstanding start claim. Exact helper-death proof permits
 reconciliation; unknown ownership still refuses destructive effects.
 
 Park cannot do the stopping and that is why Quiesce does: park drives a
@@ -934,9 +938,9 @@ treating it as absent would create a second thread in a tree that may hold live
 work -- silently, where the old code failed loudly. An unreadable record CAN be archived by the operator -- that escape is what stops
 a corrupt record locking its repository -- and `resolveThreadForArchive`
 addresses a thread without decoding it so the gesture reaches the one record
-class that most needs it. But archiving one never stops its session: the guard
-that proves a thread is not live needs a decoded record, so quiescing would kill
-an agent on the strength of a record couch just failed to read. The archive
+class that most needs it. But archiving one never stops its session: the
+classification that says couch is not hosting it needs a decoded record, so
+quiescing would kill an agent on the strength of a record couch just failed to read. The archive
 returns `ArchiveResult.Warning()` saying so.
 
 Both projections take one `ThreadProjectionInput` (records + evidence +
@@ -1567,6 +1571,21 @@ The switcher's **offer** is written separately, at `menuActionItems` /
 compares the two over `AllThreadStates × AllThreadReasons`. It is deliberately
 not filtered through the predicate: a filter makes offered-implies-permitted true
 by construction, and a guard that cannot fail is not a guard.
+
+**What the resume row does NOT cover.** `ResumableState`'s consumer is startup's
+`SelectResumableRoot`, not the Enter path — `ResumeContextWith` gathers its own
+strict evidence and would pay a second evidence round to classify. So the table's
+resume row proves the menu and startup agree; that pressing Enter on an offered
+`resume` then succeeds rests on M1 having removed every bookkeeping read from
+`DecideResume`, which now reads only the two facts the classifier used (a
+surviving session, a resolvable ledger). Change `DecideResume` and this table will
+not notice.
+
+**Cost of the archive admission.** One host-wide `list-sessions` per archive,
+added by M3. A row whose session is present also pays **three** `list-clients`
+(~750 ms, `#228`) — `observeRecovery`'s three looks, which predate M3 — and a
+sessionless row pays none. `TestArchiveEvidenceCostIsBoundedByItsMaximisingShape`
+pins both, so a fourth look fails rather than costing another 250 ms unseen.
 
 Two layers, not one. The predicate answers *what is this thread*; the record-shaped
 guards below it (`archivableRecord`, `DecideRecovery`, `clearLifecycleDebris`)

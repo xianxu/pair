@@ -32,19 +32,19 @@ import (
 func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath string) (ThreadAddress, bool) {
 	best := ActionableThreadSummary{}
 	found := false
+	// Eligibility is ResumableState and nothing else; rank only ORDERS rows
+	// already eligible, and it names one state rather than two. Naming both
+	// kept a second list of the resumable states alive beside the predicate --
+	// reverting eligibility to `rank(row) == 0` left the suite green, so the two
+	// lists were one and a half, not one (#256 M3 BR). A resumable state added
+	// later now sorts with `parked` instead of silently at zero.
 	rank := func(row ActionableThreadSummary) int {
-		switch row.State {
-		case ThreadDetached:
-			return 2
-		case ThreadParked:
-			return 1
+		if row.State == ThreadDetached {
+			return 2 // warm: the agent is already running
 		}
-		return 0
+		return 1
 	}
 	for _, row := range rows {
-		// Eligibility is ResumableState, shared with the switcher's own
-		// resume offer; rank only breaks ties among rows already eligible.
-		// They were two hand-written lists of the same two states.
 		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath ||
 			!ResumableState(row.State, row.Reason) {
 			continue

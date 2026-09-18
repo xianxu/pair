@@ -3,6 +3,7 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -140,6 +141,41 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			name: "recorded incarnation is gone and so is the session", record: staleLive,
 			evidence:  resolved(ThreadEvidence{}),
 			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
+		},
+		{
+			// #256 M3. The recorded helper could not be ASKED about -- the probe
+			// answered Unknown, or its identity token could not be read -- and
+			// the session survived. Through M1 and M2 this row read `detached`:
+			// actionable, resumable, archive-eligible. M3 demotes it on purpose,
+			// and this is the row that says so: couch cannot tell "hosted by
+			// something" from "detached", and `detached` offers an archive whose
+			// own death-proof screen refuses the same unprovable process.
+			// The pre-#181 projector refused it too (no exact live proof), so the
+			// characterization flags stay false -- the reduction is against M2,
+			// and it is stated here rather than inferred.
+			name: "recorded helper could not be asked about, session survived", record: staleLive,
+			evidence:  withSession(ThreadEvidence{Unproven: liveObservation}),
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
+		},
+		{
+			// Both at once, which is reachable and decided ONLY by branch order
+			// (#256 M3 BR, ARCH-ORDER note): a confirmed live proof, plus a
+			// second recorded process nobody could ask about. A positive answer
+			// is not undone by an unanswered one, so this is `live` -- and if the
+			// two branches are ever swapped, this row is what fails.
+			name: "hosted, with a second recorded process nobody could ask about", record: live(),
+			evidence: resolved(ThreadEvidence{
+				Live: liveObservation, Unproven: []ProcessIdentity{{PID: 43, Identity: "pair-other"}},
+			}),
+			wantState: ThreadLive, wasActionableBefore: true,
+		},
+		{
+			// The archive-relevant half: with the session ALSO gone, falling
+			// through would say `session-gone`, which archive acts on, while the
+			// helper it names may still be running.
+			name: "recorded helper could not be asked about, session gone", record: staleLive,
+			evidence:  resolved(ThreadEvidence{Unproven: liveObservation}),
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
 		},
 		{
 			// RESTATED for #272. This was `unrecorded-child`: a hosted process
@@ -390,6 +426,34 @@ func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
 	for _, reason := range AllThreadReasons() {
 		if !produced[reason] {
 			t.Errorf("nothing produces reason %q", reason)
+		}
+	}
+}
+
+// The corpus is the classifier's producer enumeration, so every EVIDENCE field
+// the classifier can read must be non-zero in at least one shape.
+//
+// Family `vocabulary-entry-without-producer`, read the other way round (#256 M3
+// BR, I2): M3 added `Unproven` and a branch that reads it, and no shape set it,
+// so the corpus declared to be "the cross product, not a sample" silently
+// stopped being one -- and the characterization test that should have made M3
+// state its one actionability change never saw the row. Derived by reflection,
+// so a field added later fails here until a shape exercises it.
+func TestEveryEvidenceFieldIsExercisedByTheCorpus(t *testing.T) {
+	shapes := everyThreadShape(t)
+	evidenceType := reflect.TypeOf(ThreadEvidence{})
+	for i := 0; i < evidenceType.NumField(); i++ {
+		field := evidenceType.Field(i)
+		exercised := false
+		for _, tc := range shapes {
+			if !reflect.ValueOf(tc.evidence).Field(i).IsZero() {
+				exercised = true
+				break
+			}
+		}
+		if !exercised {
+			t.Errorf("no shape in everyThreadShape sets ThreadEvidence.%s; a classifier branch that reads it "+
+				"is outside the corpus that claims to enumerate every branch", field.Name)
 		}
 	}
 }

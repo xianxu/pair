@@ -239,9 +239,9 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	// Read for the RESULT, not as a precondition. An undecodable record is
 	// exactly what the operator most wants gone, so failing here would leave a
 	// row that can be neither used nor removed -- the shape this action exists
-	// to clear. The store's own guard is what refuses an occupied thread, and
-	// it applies the same rule to a record it cannot read: unreadable means
-	// unprovable, so it is moved rather than acted on.
+	// to clear. What refuses a thread couch is hosting is the admission rule
+	// below, and it needs the decoded record to classify: an unreadable record
+	// is unprovable, so it is moved rather than acted on.
 	record, readErr := c.Threads.GetThread(address)
 
 	// The guard runs BEFORE any effect. It used to run after Quiesce, inside
@@ -385,10 +385,10 @@ func (c *Couch) ArchiveThread(ctx context.Context, address ThreadAddress) (Archi
 	} else {
 		// Unreadable: the operator can still remove the row -- that escape is
 		// what keeps a corrupt record from locking its repository -- but couch
-		// does NOT stop a session it cannot identify. `archivableRecord` needs a
-		// decoded record to prove the thread is not live, so quiescing here
-		// would kill an agent on the strength of a record we just failed to
-		// read. Unknown stays conservative: the record is filed, the session is
+		// does NOT stop a session it cannot identify. Classifying the thread --
+		// which is what says couch is not hosting it -- needs a decoded record,
+		// so quiescing here would kill an agent on the strength of a record we
+		// just failed to read. Unknown stays conservative: the record is filed, the session is
 		// left alone, and the caller is told.
 		record = ThreadRecord{Address: address}
 	}

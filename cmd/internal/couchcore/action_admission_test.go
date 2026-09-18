@@ -283,42 +283,82 @@ func TestRetirementTransitionsTakeExactlyTheStateTheyName(t *testing.T) {
 	}
 }
 
-// ARCH-CONSTRAINTS. Consuming the classification put a whole evidence round
-// behind an operator keypress, so the bill is counted rather than assumed --
-// the same counted-invariant shape M1 used for the refresh, because a timing
-// number cannot fail a build and a call count can.
+// ARCH-CONSTRAINTS: what one archive keypress costs, asserted on the input
+// class that MAXIMISES it (#256 M3 BR, I4).
 //
-// The one that matters is `list-clients`: ~250 ms per detached session (#228),
-// and it must stay at zero here. Archive re-observes attach state through its
-// own DecideRecovery path when it needs to, on the single thread the operator
-// pressed Enter on; the classification must not add a second fan-out.
+// The first version of this test measured a sessionless row, pronounced the
+// `list-clients` count zero, and was named for Couch.ArchiveThread in general.
+// A sessionless row is the one shape that cannot pay: all three of
+// observeRecovery's looks (the first one, the reconciler's, and the final
+// recheck) short-circuit at `binding.Present == false`. A row whose session is
+// PRESENT is the maximising class -- `detached` is its representative, and any
+// archivable reason classified before the session check (profile-missing,
+// path-missing...) can carry a live session too -- because each look then asks
+// `list-clients` for its one candidate. So the bound is two rows, and the
+// maximum is the one that matters.
 //
-// The ledger read is bounded by classifyForAction's `ask` predicate to the one
-// address, which is what stops it scaling with the store -- the known gap M2
-// recorded for the REFRESH's cold side does not apply to this path.
-func TestArchivePaysOneEvidenceRoundAndNoClientQuery(t *testing.T) {
-	couch, addresses := couchWithOneRecordOfEveryShape(t)
-	artifacts, ok := couch.Artifacts.(*FakeThreadArtifactCollisionChecker)
-	if !ok {
-		t.Fatalf("fixture artifacts are %T", couch.Artifacts)
+// What M3 added is the FIRST column: one host-wide `list-sessions`, for the
+// classification. The three `list-clients` predate it (measured identically at
+// c4cbd1fe, the M2 close); this pins them so a fourth look fails here rather
+// than costing another ~250 ms (#228) invisibly.
+func TestArchiveEvidenceCostIsBoundedByItsMaximisingShape(t *testing.T) {
+	cases := []struct {
+		name                            string
+		build                           func(t *testing.T) (*Couch, *FakeThreadArtifactCollisionChecker, ThreadAddress)
+		presence, clientQueries, ledger int
+	}{
+		{
+			// The ceiling: every look reaches a live session.
+			name: "session present (detached) -- the maximum",
+			build: func(t *testing.T) (*Couch, *FakeThreadArtifactCollisionChecker, ThreadAddress) {
+				store, _ := newTestThreadStore(t)
+				thread := archivableThread(t, store, "couch-0000000000000001")
+				artifacts := NewFakeThreadArtifactCollisionChecker()
+				artifacts.SetPairSession(thread.Address, "pair-"+string(thread.Address.Tag), true)
+				artifacts.SetDetachedSession(thread.Address, "pair-"+string(thread.Address.Tag))
+				couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
+				return couch, artifacts, thread.Address
+			},
+			// No ledger read: a present session is the warm proof, so the
+			// classification never asks for a cold one.
+			presence: 1, clientQueries: 3, ledger: 0,
+		},
+		{
+			// The floor, and the shape the first version wrongly generalised.
+			name: "no session -- the floor",
+			build: func(t *testing.T) (*Couch, *FakeThreadArtifactCollisionChecker, ThreadAddress) {
+				couch, addresses := couchWithOneRecordOfEveryShape(t)
+				artifacts, ok := couch.Artifacts.(*FakeThreadArtifactCollisionChecker)
+				if !ok {
+					t.Fatalf("fixture artifacts are %T", couch.Artifacts)
+				}
+				// couch-0000000000000006: a saved profile, no incarnation, no
+				// park, no session -- archivable, so the path runs to completion.
+				return couch, artifacts, addresses[5]
+			},
+			// One ledger read: no session, so the classification asks whether
+			// there is a conversation to resume into -- for this address only,
+			// because classifyForAction's `ask` predicate narrows it.
+			presence: 1, clientQueries: 0, ledger: 1,
+		},
 	}
-	presence, candidates, ledger :=
-		artifacts.SessionPresenceQueries(), artifacts.DetachedCandidatesAsked(), artifacts.BindingResolutions()
-
-	// couch-0000000000000006: a saved profile, no incarnation, no park, no
-	// session -- the archivable shape, so the whole path runs to completion
-	// rather than stopping at a refusal and under-counting.
-	if _, err := couch.ArchiveThread(context.Background(), addresses[5]); err != nil {
-		t.Fatalf("archive: %v", err)
-	}
-
-	if got := artifacts.SessionPresenceQueries() - presence; got != 1 {
-		t.Errorf("host-wide list-sessions = %d, want 1: one round for the classification", got)
-	}
-	if got := artifacts.DetachedCandidatesAsked() - candidates; got != 0 {
-		t.Errorf("list-clients candidates = %d, want 0: ~250 ms each, and the classification needs none", got)
-	}
-	if got := artifacts.BindingResolutions() - ledger; got != 1 {
-		t.Errorf("ledger reads = %d, want 1: the ask predicate narrows this to the one address", got)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			couch, artifacts, address := tc.build(t)
+			presence, clients, ledger :=
+				artifacts.SessionPresenceQueries(), artifacts.DetachedCandidatesAsked(), artifacts.BindingResolutions()
+			if _, err := couch.ArchiveThread(context.Background(), address); err != nil {
+				t.Fatalf("archive: %v -- a refusal would under-count, so the path must complete", err)
+			}
+			if got := artifacts.SessionPresenceQueries() - presence; got != tc.presence {
+				t.Errorf("host-wide list-sessions = %d, want %d", got, tc.presence)
+			}
+			if got := artifacts.DetachedCandidatesAsked() - clients; got != tc.clientQueries {
+				t.Errorf("list-clients candidates = %d, want %d (~250 ms each, #228)", got, tc.clientQueries)
+			}
+			if got := artifacts.BindingResolutions() - ledger; got != tc.ledger {
+				t.Errorf("ledger reads = %d, want %d", got, tc.ledger)
+			}
+		})
 	}
 }
