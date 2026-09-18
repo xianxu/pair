@@ -5,9 +5,9 @@ deps: [pair#255]
 github_issue:
 created: 2026-09-17
 updated: 2026-09-18
-estimate_hours:
+estimate_hours: 0.98
 started: 2026-09-18T07:14:08-07:00
-flow: {kind: quick, provenance: inferred, spec: "b938202a", done: "d2087f93"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # A child's default cursor style overrides the terminal's configured cursor
@@ -54,9 +54,28 @@ is invisible to it.
 - Operator smoke: with Ghostty `cursor-style = bar`, a plain shell under couch
   shows a bar.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module   design=0.3 impl=0.16
+item: smaller-go-module   design=0.1 impl=0.12
+item: atlas-docs          design=0.05 impl=0.04
+item: milestone-review    design=0.0 impl=0.14
+design-buffer: 0.15
+total: 0.98
+```
+
+- The first `smaller-go-module` covers the vt default, the endpoint mapping, `Frame.Validate` and `cursorEpilogue`. Its design is at the top of the range with no ×0.2 spec discount, because the vt-vs-endpoint decision was made inside this claim window.
+- The second covers the endpoint → parent acceptance test and the qualifier literal renumbering.
+- `impl=` values are the v2 table midpoints ×0.4 (v3.1). Familiarity is 1.0: #262 M2 worked in this same renderer and endpoint.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
 ## Plan
 
-Durable plan: `workshop/plans/000283-default-cursor-style-plan.md`. Decision: fix it
+Durable plan: `workshop/plans/000283-default-cursor-style-overrides-terminal-plan.md`. Decision: fix it
 in the pair-owned vt fork — `CursorDefault` becomes the zero `CursorStyle`, with the
 explicit styles renumbered onto DECSCUSR shape families 1/2/3. The callback route
 can't see RIS or a `0` sent over a blinking block.
