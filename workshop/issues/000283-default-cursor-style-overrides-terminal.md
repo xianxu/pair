@@ -1,11 +1,12 @@
 ---
 id: 000283
-status: open
+status: working
 deps: [pair#255]
 github_issue:
 created: 2026-09-17
-updated: 2026-09-17
+updated: 2026-09-18
 estimate_hours:
+started: 2026-09-18T07:14:08-07:00
 ---
 
 # A child's default cursor style overrides the terminal's configured cursor
