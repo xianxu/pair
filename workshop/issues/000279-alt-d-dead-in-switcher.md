@@ -107,3 +107,30 @@ new state without being dismissed and reopened.
 - Hypothesis and regression window above are from reading `keys.go`, `park.go`
   and the recent input-routing commits; nothing was executed against a live
   switcher.
+
+### 2026-09-18
+
+- Traced the path; the issue's hypothesis doesn't hold. With the panel focused,
+  `dispatchInputCandidate` (`couchtty/console.go`) does **not** forward: the
+  forward arm is `actorFocused && !actorReserved()`. On the panel every hit goes
+  to `hitHandlers` → `onDetachHotkey` → `reduceParkHotkey("leave", detach)` →
+  the `leave` operation → `Stop()`.
+- **The spec contradicts the declared contract.** Since #170 (`516a61fe`,
+  09-03), alt+d in the switcher means "detach every live thread and leave Couch".
+  `park.go:111`'s "in an actor or in the switcher alike" is about the
+  *disposition* (d = detach, x = park) and not the target; `couch --help` and the
+  Alt+h page (#282) say the same. No version ever had switcher alt+d detach the
+  highlighted row. Before #170 it printed "detach: no attached thread".
+- Console-level tests drive raw `\x1b[100;3u` through stdin → decoder →
+  interceptor → dispatch and see `leave{mode:detach}` plus a Run exit
+  (`TestConsoleRunAltDOnThePanelDetachesEveryThreadAndLeaves`). They pass at HEAD
+  and at `64d0cf4e` (09-17, the report date; `git archive` into a scratch dir).
+  So in-process the path is not dead. Whatever the operator hit lives outside
+  what those tests cover: the terminal's bytes, an operation already in flight
+  (`dispatchMenuOperation` silently refuses one while `InFlight` is set), or the
+  production `leave` op.
+- Operator terminal: Ghostty/cmux with `macos-option-as-alt = true`. Couch pushes
+  kitty flags 3, so alt+d should arrive as `\x1b[100;3u`. The legacy `\x1bd` is
+  deliberately not a chord (`productKey`), so a terminal in legacy mode would
+  make alt+d exactly as inert as reported, while alt+x (`\x1bx` is registered)
+  would keep working.
