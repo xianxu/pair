@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -286,8 +287,10 @@ func (f *fakeRuntime) DevRebuild(pairHome string) { f.devRebuilt = true }
 func (f *fakeRuntime) SetEnv(key, value string)       { f.env[key] = value }
 func (f *fakeRuntime) InZellijPane() bool             { return f.inPane }
 func (f *fakeRuntime) CommandExists(name string) bool { return !f.commandMissing[name] }
-func (f *fakeRuntime) RecordOuterTTY(tag string)      { f.ttyRecorded = append(f.ttyRecorded, tag) }
-func (f *fakeRuntime) CmuxRename(tag, title string)   { f.cmux = append(f.cmux, tag+"|"+title) }
+func (f *fakeRuntime) RecordOuterTTY(tag string, couch bool) {
+	f.ttyRecorded = append(f.ttyRecorded, tag+"|"+strconv.FormatBool(couch))
+}
+func (f *fakeRuntime) CmuxRename(tag, title string) { f.cmux = append(f.cmux, tag+"|"+title) }
 
 // IDOps
 func (f *fakeRuntime) MintUUID() string {
@@ -771,7 +774,7 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if len(rt.pollers) != 1 || rt.pollers[0] != "bugfix|claude" {
 		t.Fatalf("pollers = %v", rt.pollers)
 	}
-	if len(rt.titles) != 1 || len(rt.ttyRecorded) != 1 || len(rt.cmux) != 1 {
+	if len(rt.titles) != 1 || len(rt.cmux) != 1 || !reflect.DeepEqual(rt.ttyRecorded, []string{"bugfix|false"}) {
 		t.Fatalf("title/tty/cmux effects missing: %v %v %v", rt.titles, rt.ttyRecorded, rt.cmux)
 	}
 }

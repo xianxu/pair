@@ -164,7 +164,7 @@ LUA
 PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
   PAIR_ACTION_LOG="$tmp/actions" \
   run_headless -- nvim --headless -u "$ROOT/nvim/init.lua" "$tmp/draft.md" -l "$tmp/view-driver.lua"
-want_views='run --floating --close-on-exit --name pair help --width 100% --height 70% --x 0 --y 15% -- pair-help
+want_views='run --floating --close-on-exit --name help --width 100% --height 70% --x 0 --y 15% -- pair-help
 run --floating --close-on-exit --name changelog --width 100% --height 100% --x 0 --y 0 -- pair changelog open'
 [ "$(cat "$tmp/actions")" = "$want_views" ] || {
   printf 'FAIL role-local help/changelog argv:\n%s\n' "$(cat "$tmp/actions")"

@@ -1,6 +1,6 @@
 ---
 id: 000282
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-17
@@ -8,6 +8,7 @@ updated: 2026-09-18
 estimate_hours: 5.7
 started: 2026-09-18T09:31:36-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 2.27
 ---
 
 # Alt+h help knows whether it runs under couch, and shows couch's keys there
@@ -92,15 +93,45 @@ binding table moves to a small shared package both depend on, the way
 
 ## Done when
 
-- [ ] Alt+h under couch shows couch's keys, rendered from
-      `CouchNavigationBindings()` — the same source `couch --help` uses — proven
-      by a test that adds a binding and sees both surfaces change.
-- [ ] Chords couch intercepts show couch's meaning under couch; no chord appears
-      with two meanings. Derived from couch's chord table.
-- [ ] Standalone pair's help is unchanged.
-- [ ] Hosted-but-couch-not-running is detected and stated, not rendered as live
-      couch keys. Decision on the detection signal recorded (env vs lease).
-- [ ] `pair keys` from a shell reflects the same context as Alt+h.
+The list below carries the rows of the last two Revisions entries (third
+revision plus its correction). The Revisions section keeps the original rows and
+each delta.
+
+- [x] When Couch presents the thread, Alt+h in the draft shows Couch's keys
+      above Pair's. They come from `couchkeys.Bindings()`, the table
+      `couch --help` renders, and a binding added there reaches both surfaces.
+      Evidence: `TestCouchPresentedPageLeadsWithCouchsKeys`,
+      `TestHelpSectionsRenderEveryChordByScope`,
+      `TestCouchHelpRendersEveryDeclaredChord`, and the operator smoke
+      2026-09-18 ("verified. worked."). The right terminal reaches the same
+      `PairOpenHelp` through Pair's unchanged routing.
+- [x] A chord Couch claims replaces Pair's row, and no key has two meanings in
+      one context. Pair's Alt+d/Alt+n/Ctrl+Alt+n rows show hosted wording when
+      Couch launched the session or presents the client. Evidence:
+      `TestClaimingAPairChordReplacesItsRowOnThePage`,
+      `TestLayerPutsHostFirstAndDropsClaimedChordsEverywhere`,
+      `TestNoPairRowSharesAnEveryPaneCouchKey`,
+      `TestEveryPaneChordsDeclareThePairChordTheyTake`,
+      `TestPresenterAndHostingAreIndependent`,
+      `TestCouchClientRefusesRestartMarker` (mutation-checked).
+- [x] Standalone Pair's Alt+h is unchanged apart from the pane title, which is
+      now "help". Evidence: `pair keys` output is byte-identical to
+      `origin/main`, `TestStandalonePageIsPairsSections`, and the operator saw
+      "help" in a standalone session. In a Couch thread whose draft nvim
+      predates the change (pid 87074, started 2026-09-17), the old title
+      remains until the thread is relaunched. The title comes only from
+      `init.lua`, and `tests/workbench-route-nvim-test.sh` pins it.
+- [x] Couch's keys appear if and only if the attached client was launched by
+      Couch for this thread. That includes adopted sessions, and excludes a
+      terminal reattach after Couch exits. Evidence:
+      `TestRunLaunchAttachRecordsCouchPresenter`,
+      `TestPresentedByCouchRequiresTheThreadsTag`,
+      `TestReadOuterPresenter`, `TestNonTTYAttachRemovesThePresenterRecord`,
+      `FuzzDecodeOuterRecord`, `TestRunReadsTheAttachRecord`, and the operator
+      smoke after a Couch restart.
+- [x] Couch does not take Alt+h; the agent pane receives it. Evidence:
+      `TestAltHPassesThroughToPair` and `TestCouchDoesNotClaimAltH`. The
+      operator smoke did not report on the agent pane separately.
 
 ## Estimate
 
@@ -143,16 +174,16 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
 - [x] Settle the package direction for sharing couch's binding table: the
       pure `couchkeys` package; Pair imports it, never couchtty (third
       revision).
-- [ ] `launcher.CouchHosted`: one hosted rule (plan Task 1).
-- [ ] The attaching client records whether Couch presents it (outer-tty
+- [x] `launcher.CouchHosted`: one hosted rule (plan Task 1).
+- [x] The attaching client records whether Couch presents it (outer-tty
       record, `PresentedByCouch`, `ReadOuterPresenter`) (Task 2).
-- [ ] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 3).
-- [ ] keyhelp: `Binding.Chord`, `HostedSections`, `Layer` (Task 4).
-- [ ] `couchkeys`: Couch's chord table as data, with scope (Task 5).
-- [ ] couchtty frames and routes from `couchkeys`; `couch --help` renders it
+- [x] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 3).
+- [x] keyhelp: `Binding.Chord`, `HostedSections`, `Layer` (Task 4).
+- [x] `couchkeys`: Couch's chord table as data, with scope (Task 5).
+- [x] couchtty frames and routes from `couchkeys`; `couch --help` renders it
       (Task 6).
-- [ ] `pair keys` composes the page; pane title "help" (Task 7).
-- [ ] README + atlas sweep; full `make test` + `go test ./...`; behavior
+- [x] `pair keys` composes the page; pane title "help" (Task 7).
+- [x] README + atlas sweep; full `make test` + `go test ./...`; behavior
       evidence; operator smoke (Task 8).
 
 ## Log
@@ -167,6 +198,7 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
   were found while scoping; neither was in the request, both follow from it.
 
 ### 2026-09-18
+- 2026-09-18: closed — All 8 plan tasks landed (dbc489ba..9d0e257c). go test ./... -count=1 (five-var session scrub, unsandboxed): 72 packages ok. make -k test: only test-changelog fails, the known pre-existing "viewer: process target is outside selected owner directory". bash tests/workbench-route-nvim-test.sh ok. Standalone `pair keys` byte-identical to origin/main (throwaway worktree, bundle generated). TestCouchClientRefusesRestartMarker mutation-checked. FuzzDecodeOuterRecord 10s/539k execs clean. pair keys about 6 ms. Operator smoke 2026-09-18 on a restarted Couch: "verified. worked." Couch keys lead Alt+h. Pane title shows "help" in fresh sessions; a pre-change draft nvim keeps the old title until relaunch (measured: pid 87074 started 2026-09-17).; review verdict: SHIP
 
 - Claimed. Measured in a live Couch thread (this session):
   - The draft nvim carries all five `COUCH_*` vars (`ps eww` on
@@ -206,6 +238,44 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
   and GC. Plan rewritten a third time. The review of the second draft was
   stopped as obsolete, and its scratch worktrees were removed.
 - Floating pane title: 'pair help' → 'help' (operator request).
+- `sdlc change-code`:
+  - Plan-quality: no blocking findings; three advisories, folded into the plan
+    (a fuzz test for the record parser, the corrected ARCH-SECURE claim, the
+    Alt+Shift+C note, and content anchors).
+  - Estimate-quality: info. It says the design rows front-load time already
+    spent.
+  - Branch `000282-context-aware-alt-h-help`, in place.
+- Implemented Tasks 1–8 (`dbc489ba`..`9d0e257c`). Evidence:
+  - `TestCouchClientRefusesRestartMarker` pins the client-side Alt+n gate.
+    Mutation check: with the `createflow.go` guard disabled it fails with code
+    0 instead of 1; the file was restored.
+  - The couch-presented attach records `live|true` and a terminal attach
+    records `…|false` (fake runtime).
+  - A non-tty attach removes the record, tested on the real filesystem.
+  - `FuzzDecodeOuterRecord` ran for 10s: 539k execs, no failures.
+  - `make -k test`, with the five-var env scrub and unsandboxed: the only
+    failure is `test-changelog`, the known pre-existing
+    `viewer: process target is outside selected owner directory`.
+  - `go test ./... -count=1`, same scrub, unsandboxed: 72 packages ok, exit 0.
+    The first run caught `TestNoDeclarationCarriesTwoStackedGodocs` on the
+    `Sections` doc; fixed in `9d0e257c`.
+  - `bash tests/workbench-route-nvim-test.sh` ok, with the pane-name pin
+    updated.
+  - Standalone `pair keys` is byte-identical to `origin/main` (48 lines, empty
+    stderr), from a throwaway worktree with the bundle generated.
+  - `pair keys` takes about 6 ms per run.
+  - Simulated `presenter=couch` record: Couch's two sections lead, then Pair's
+    rows with the hosted Alt+d/Alt+n wording.
+  - In this session the record is still the pre-change one-line form, so the
+    page has hosted wording and no Couch section. It needs the operator smoke
+    after a relaunch.
+- Operator smoke on a restarted Couch: "verified. worked." One observation:
+  in a Couch thread the help pane was titled "pair help", while standalone Pair
+  showed "help". Cause, measured: that thread's draft nvim (pid 87074) started
+  2026-09-17 16:01, before the `init.lua` change at 11:48. Restarting Couch
+  warm-reattaches the same Zellij session, so the old `PairOpenHelp` is still
+  loaded. The title has no other source (grep). Relaunching the thread picks it
+  up. No code change needed.
 - Third plan review: Issues Found. The reviewer built all 8 tasks in a scratch
   worktree, and standalone output was byte-identical. Blocking findings, all
   folded into the plan:
@@ -214,6 +284,27 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
   - Alt+n in an adopted, Couch-presented thread ends the thread (see the
     correction in Revisions).
   The reviewer removed its scratch worktrees.
+
+- Close review (round 1): **SHIP**, no blocking findings. The five advisories
+  and their dispositions:
+  - *The hosted Alt+n row was 124 cols*, which un-centred the whole page
+    (standalone widest is 104). **Fixed** by rule rather than by site:
+    `TestNoLayerWidensThePage` requires every hosted and Couch-presented
+    variant to be no wider than standalone. The Alt+d/Alt+n hosted wording is
+    shortened to fit. The "may end the thread" warning stays in README and
+    #284.
+  - *`menuControls` still restates Couch's chords, and Ctrl+Space's in-switcher
+    meaning is undocumented.* Deferred to **#286**; both need design
+    (help-only rows vs framing rows).
+  - *A nil `keyscmd.Deps` seam panics.* Declined. `Run` is the only production
+    constructor and tests build Deps explicitly. Silent defaults would hide a
+    wiring mistake, and defaulting `Getenv` to `os.Getenv` would make tests
+    non-hermetic.
+  - *`PresentedByCouch` matches the tag alone.* Kept. Requiring the scope as
+    well would not change the case raised (`pair resume <same-tag>` from the
+    thread's own right terminal), because that pane's env carries both
+    `COUCH_THREAD_*` vars. The launcher's nested-session rejection is what
+    stops that launch.
 
 ## Revisions
 
@@ -371,3 +462,14 @@ Couch-presented thread, Alt+n ends the thread without relaunching it.
 - The destructive adopted case moves to #284.
 - Done-when row 2 now reads "…show hosted wording when Couch launched the
   session or presents the client".
+
+### 2026-09-18: `## Done when` updated to the revised rows at close
+
+**Reason:** the section still listed the original rows, which three Revisions
+entries had superseded. Ticking those would claim things this work
+deliberately did not do, such as rendering from `CouchNavigationBindings()` or
+detecting a dead Couch via the lease.
+**Delta:** the section now holds the rows of the third revision and its
+correction, each ticked against the evidence that was actually observed. The
+right terminal and agent pane rows name their test coverage, because the smoke
+report did not break them out.

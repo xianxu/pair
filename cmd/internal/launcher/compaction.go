@@ -87,7 +87,7 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 		fmt.Fprintf(stderr, "pair: %v\n", err)
 		return 1, nil
 	}
-	if opts.Env.CouchThreadScope != "" || opts.Env.CouchThreadTag != "" {
+	if opts.Env.CouchHosted() {
 		if opts.Env.CouchThreadScope == "" || opts.Env.CouchThreadTag != tag {
 			fmt.Fprintln(stderr, "pair: Couch continuation address does not match this pane")
 			return 1, nil

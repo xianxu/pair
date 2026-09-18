@@ -296,18 +296,38 @@ Detection of attached-vs-detached uses `zellij --session NAME action list-client
 
 **Tag reuse & stale-EXITED residue (#67).** A repo-local Pair tag maps to a public zellij session name assigned by `session-names.jsonl` (`pair-<repo>-<tag>` with suffixes when needed). `Alt+x` can leave a resurrect record like `pair-pair-work (EXITED - attach to resurrect)`; that row still shows in `list-sessions`, so collision checks run against the assigned public name, not a reconstructed `pair-<tag>`. The single helper `session_blocks_reuse <session>` centralizes the decision (`ARCH-DRY`): an `EXITED` row is stale full-quit residue — it deletes the zellij record (`delete-session --force`) and reports the session name reusable; a running/detached row still blocks; an absent session never blocks. `pair rename` keeps its own offline-only resurrectable-session contract and gates by current-scope tag ownership.
 
-**Keybind help — `Alt+h` → `pair keys` → `cmd/internal/keyhelp` (#132, #245).**
+**Keybind help — `Alt+h` → `pair keys` → `cmd/internal/keyhelp` (#132, #245, #282).**
 Alt+h reaches the focused pane. Non-agent Pair panes invoke `PairOpenHelp`
 through the shared generated mappings; it opens the existing floating
-`pair-help` pager. Alt+l uses the same route for `PairOpenChangelog`. Both
-chords reach an agent as input.
+`pair-help` pager, titled "help". Alt+l uses the same route for
+`PairOpenChangelog`. Both chords reach an agent as input. Couch does not take
+Alt+h: it cannot tell Pair's panes apart and keeps no inner-focus state.
 
 `keyhelp` derives wording from draft `pair:` descriptions,
 `workbenchshortcut.GlobalBinding.Help`, and `RoleBinding.Help`. Global binding
 metadata also declares `AgentReserved`, so help scope and the three retained
-agent tab actions derive from the same rows. `couch --help` combines those
-rows with `couchtty.CouchNavigationBindings` to document all six reservations
-when hosted. No terminal-role or focus query enters agent key delivery.
+agent tab actions derive from the same rows. No terminal-role or focus query
+enters agent key delivery.
+
+Under Couch the page has two layers, decided by two independent facts (#282):
+
+- **Presenter.** The attaching client records whether Couch launched it for
+  this thread (the `outer-tty-<tag>` record's presenter line, written from the
+  client's own env on every attach). When it did, `keyscmd` puts Couch's layer
+  first: `couchkeys.HelpSections`, the same sections `couch --help` renders.
+  The session env names only whoever created the Zellij session, so it cannot
+  answer this for a session Couch attaches to later.
+- **Hosting.** Pair's own Alt+n does not reload when the session env names
+  Couch (`launcher.CouchHostedEnv`: `pair restart` refuses) or when Couch
+  presents the client (the client refuses the restart marker). Either one
+  selects `keyhelp.HostedSections`, which substitutes
+  `GlobalBinding.HostedHelp` for Alt+d, Alt+n and Ctrl+Alt+n.
+
+Rows that document a workbench chord carry it (`keyhelp.Binding.Chord`).
+`keyhelp.Layer(host, claimed, pair)` drops Pair's row for every chord the host
+takes from every pane (`couchkeys.Claimed`, empty today), so a key Couch later
+overrides changes the page with no edit outside Couch's table. keyhelp never
+names Couch.
 
 Two rules hold it together. **Identity is (key, context), not key** — `Alt+k` focuses the terminal from the draft and jumps back to the left pane from the terminal, so it renders twice. And **every row names its wording source**, with no "whichever source has prose wins" fallback; that fallback is precisely what would print `Alt+t` as "right-terminal tab helper disabled in draft".
 
@@ -1137,7 +1157,7 @@ Internal: `~/.cache/pair/quit-<session>` — marker file used to communicate "us
 
 Internal: `~/.cache/pair/restart-<session>` — marker written alongside `quit-` by `pair restart` (Alt+n, plus the independent compaction flow). Holds `tag`, `agent`, optional `session_id`, and restart metadata as `key=value` lines so the launcher can reconstruct the relaunch params after cleanup has wiped `agent-<tag>`. Plain Codex restarts can fill `session_id` from the live rollout transcript before the pane is killed; the restart planner prefers that marker id over saved config because it is the freshest source. Removed when the in-process restart loop consumes it.
 
-Selected-scope artifact `outer-tty-<tag>` (`$PAIR_OUTER_TTY_PATH`) records the launcher controlling TTY for compatibility. It is refreshed on attach and removed on full quit. Notifications no longer consume this artifact; their exact wrapper PID binding and private broker preserve single-writer terminal ownership.
+Selected-scope artifact `outer-tty-<tag>` (`$PAIR_OUTER_TTY_PATH`) records the launcher controlling TTY and, on a second line, who presents the attached client: `presenter=couch` when Couch launched this client for this thread (`launcher.PresentedByCouch`, from the client's own env), else `presenter=terminal` (#282). It is rewritten on every create and attach (the last attach wins), removed when the attaching stdin is not a tty, and removed on full quit. `pair keys` reads it (`launcher.ReadOuterPresenter`) to decide whether Couch's keys lead the Alt+h page; a legacy one-line record reads as not presented, and a malformed one degrades to Pair's page with a stderr line. Notifications no longer consume this artifact; their exact wrapper PID binding and private broker preserve single-writer terminal ownership.
 
 Selected-scope artifact `agent-<tag>` (`$PAIR_AGENT_PATH`) — single-line file recording which agent binary was launched in the session (`claude`, `codex`, ...). Written once at session create; read by `pair list` to display the agent column, and by the launcher's tag-restart agent-inference. Removed on full quit.
 

@@ -3467,7 +3467,9 @@ do
   end
 
   function _G.PairOpenHelp()
-    pair_open_workbench_view('pair help', '70%', '15%', { 'pair-help' })
+    -- Titled plainly: the pane opens before the page is built, so the title
+    -- cannot know whether Couch's keys lead the page; the first section says so.
+    pair_open_workbench_view('help', '70%', '15%', { 'pair-help' })
   end
 
   function _G.PairOpenChangelog()
