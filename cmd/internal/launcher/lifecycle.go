@@ -79,7 +79,7 @@ func attachWithRetention(opts LaunchOptions, env Env, rt Runtime, tag, session, 
 	}
 	_ = rt.Touch(paths.Draft())
 	rt.SetTerminalTitle(session)
-	rt.RecordOuterTTY(tag)
+	rt.RecordOuterTTY(tag, PresentedByCouch(env, tag))
 	rt.CmuxRename(tag, session)
 	// agent is already the on-disk record: attach is reached via `pair resume
 	// <tag>` (ParseArgs leaves Agent=="") or a live-session pick (runOnce clears

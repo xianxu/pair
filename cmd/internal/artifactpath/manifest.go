@@ -750,6 +750,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/agent_command.go",
 	"cmd/internal/launcher/fresh_args.go",
 	"cmd/internal/launcher/launch_parameters.go",
+	"cmd/internal/launcher/outerrecord.go",
 	"cmd/internal/launcher/args.go",
 	"cmd/internal/launcher/continuation.go",
 	"cmd/internal/launcher/datadir.go",

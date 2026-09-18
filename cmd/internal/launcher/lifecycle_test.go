@@ -81,8 +81,37 @@ func TestRunLaunchAttach(t *testing.T) {
 	if len(rt.pollers) != 1 || rt.pollers[0] != "live|codex" {
 		t.Fatalf("title poller = %v (want the inferred codex agent)", rt.pollers)
 	}
-	if len(rt.titles) != 1 || len(rt.ttyRecorded) != 1 || len(rt.cmux) != 1 {
+	if len(rt.titles) != 1 || len(rt.cmux) != 1 || !reflect.DeepEqual(rt.ttyRecorded, []string{"live|false"}) {
 		t.Fatalf("attach refresh effects missing: %v %v %v", rt.titles, rt.ttyRecorded, rt.cmux)
+	}
+}
+
+// A client Couch launched for this thread records itself as Couch-presented,
+// so Alt+h can show Couch's keys; the same attach launched from a terminal
+// (TestRunLaunchAttach) records "false". The env is the CLIENT's, set per
+// attach -- which is what makes an adopted session read correctly (#282).
+func TestRunLaunchAttachRecordsCouchPresenter(t *testing.T) {
+	rt := newFakeRuntime()
+	scope := mustScope(t, "/home/u/work")
+	rt.sessions = []Session{{Name: "📁work-live", State: SessionDetached}}
+	rt.sessionIndex = SessionNameIndex{Entries: []SessionNameEntry{{
+		SessionName: "📁work-live",
+		ScopeKey:    scope.Key,
+		RepoRoot:    scope.Root,
+		RepoName:    scope.DisplayName,
+		Tag:         "live",
+	}}}
+	rt.blocksReuse["📁work-live"] = true
+	rt.inferAgent["live"] = "codex"
+	opts := baseOpts(LaunchArgs{ForcedTag: "live"})
+	opts.SkipConfigPicker = true
+	opts.Env.CouchThreadScope = scope.Key
+	opts.Env.CouchThreadTag = "live"
+	if _, err := run(t, opts, rt); err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	if !reflect.DeepEqual(rt.ttyRecorded, []string{"live|true"}) {
+		t.Fatalf("tty records = %v, want the Couch-presented attach", rt.ttyRecorded)
 	}
 }
 
