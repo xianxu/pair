@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-17
 updated: 2026-09-17
-estimate_hours:
+estimate_hours: 2.22
 started: 2026-09-17T21:46:16-07:00
 ---
 
@@ -107,6 +107,40 @@ additional information about that thread, not a replacement for it.
       an explicit operator dismissal exists, or the issue records why not.
 - [ ] `Pending`/`Running` precedence is settled on purpose and the reasoning is
       in the code.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. `sdlc estimate-source` reports the calibration
+source as stale, so the number is provisional. Only in-window work is counted:
+the window started at the 21:46 claim. Line by line:
+
+- issue-spec: the relaunch diagnosis, the operator decision and the plan.
+- smaller-go-module ×4, each with ×0.2 design because the plan pre-resolves it:
+  - the store transition, the operation and the couchcore entry;
+  - the retry fix plus its production-seam test;
+  - the switcher composition and its state × phase tables;
+  - `ContinuationRefuses` and the guard tests.
+- cross-cutting-refactor: the operation-table harness rows and the CLI policy.
+- atlas-docs (×0.2).
+- milestone-review: the close review.
+- real-api-discovery: the operator's smoke on the live `pair` thread.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.50 impl=0.08
+item: smaller-go-module design=0.06 impl=0.14
+item: smaller-go-module design=0.06 impl=0.14
+item: smaller-go-module design=0.06 impl=0.14
+item: smaller-go-module design=0.06 impl=0.14
+item: cross-cutting-refactor design=0.10 impl=0.14
+item: atlas-docs design=0.03 impl=0.06
+item: milestone-review design=0.10 impl=0.14
+item: real-api-discovery design=0.00 impl=0.12
+design-buffer: 0.15
+total: 2.22
+```
 
 ## Revisions
 
