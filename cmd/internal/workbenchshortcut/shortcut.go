@@ -157,7 +157,8 @@ type GlobalBinding struct {
 	// means Help holds either way. Alt+n does not reload under Couch: the
 	// session-env refusal is pinned by launcher
 	// TestCheckpointHostedRestartAndRenameRefuseBeforeMutation, the client-side
-	// marker refusal by launcher TestCouchClientRefusesRestartMarker.
+	// marker refusal by launcher TestCouchClientRefusesRestartMarker. Keep it
+	// short: no hosted row may widen the page (keyscmd TestNoLayerWidensThePage).
 	HostedHelp string
 }
 
@@ -166,12 +167,12 @@ type GlobalBinding struct {
 var globalBindings = []GlobalBinding{
 	{Chord: ChordAltD, Action: ActionConfirmDetach, LuaFunction: "PairConfirmDetach", NvimKey: "<M-d>", FocusDraft: true,
 		Help:       "detach from the session (re-attach with `pair`)",
-		HostedHelp: "detach only this Zellij client; Couch's own detach is in its switcher"},
+		HostedHelp: "detach only this Zellij client, not the Couch thread"},
 	{Chord: ChordAltX, Action: ActionConfirmQuit, LuaFunction: "PairConfirmQuit", NvimKey: "<M-x>", FocusDraft: true,
 		Help: "full quit — kill the session and drop it from the resurrect list"},
 	{Chord: ChordAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
 		Help:       "reload pair — kill and re-launch the workbench in place",
-		HostedHelp: "does not reload under Couch and may end the thread; relaunch from the Couch switcher"},
+		HostedHelp: "does not reload under Couch; relaunch from the Couch switcher"},
 	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
 		Help:       "reload pair (same as Alt+n)",
 		HostedHelp: "same as Alt+n under Couch"},

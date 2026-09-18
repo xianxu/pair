@@ -11,6 +11,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
 func TestRunPrintsRealBindings(t *testing.T) {
@@ -244,5 +245,34 @@ func TestRunOutsideASessionIsQuiet(t *testing.T) {
 	}
 	if stdout.String() != keyhelp.Render(secs) {
 		t.Fatal("outside a session, pair keys is not Pair's standalone page")
+	}
+}
+
+// Center pads every line by the widest one, so a single long row un-centres
+// the whole page and wraps under less. No layer or hosted wording may be wider
+// than standalone Pair's widest line (#282 close review).
+func TestNoLayerWidensThePage(t *testing.T) {
+	widest := func(page string) (int, string) {
+		w, line := 0, ""
+		for _, l := range strings.Split(page, "\n") {
+			if n := textwidth.Width(l); n > w {
+				w, line = n, l
+			}
+		}
+		return w, line
+	}
+	budget, _ := widest(run(t, deps(nil, false)))
+	for _, tc := range []struct {
+		name  string
+		vars  map[string]string
+		couch bool
+	}{
+		{"couch-launched, presented", couchLaunched, true},
+		{"couch-launched, not presented", couchLaunched, false},
+		{"adopted, presented", nil, true},
+	} {
+		if w, line := widest(run(t, deps(tc.vars, tc.couch))); w > budget {
+			t.Errorf("%s: %d cols > standalone %d: %q", tc.name, w, budget, line)
+		}
 	}
 }

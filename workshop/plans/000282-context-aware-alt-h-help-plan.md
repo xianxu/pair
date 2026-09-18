@@ -1733,3 +1733,14 @@ a shell is not a supported surface. The pane title becomes "help".
   malformed input. A well-formed hand edit is a deliberate act.
 - Task 3's comment names Alt+Shift+C's hosted change and why no row needs it.
 - The doc sweep is anchored by content, not by line number.
+
+### 2026-09-18: implemented, closed
+
+All 8 tasks landed as `dbc489ba`..`9d0e257c`. The step checkboxes above are
+the plan as written; the issue's `## Plan` carries the ticks. The close review
+said SHIP, with five advisories; the dispositions are in the issue Log. One
+changed the plan's wording. The Alt+d/Alt+n `HostedHelp` strings in Task 3 were
+shortened ("detach only this Zellij client, not the Couch thread"; "does not
+reload under Couch; relaunch from the Couch switcher"), because the 124-col
+hosted row un-centred the page. `TestNoLayerWidensThePage` now pins the width
+rule.

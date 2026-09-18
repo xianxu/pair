@@ -1,5 +1,34 @@
 # Lessons
 
+## Trace every gate before a doc states what a key does (#282)
+
+Help text for Pair's Alt+n claimed an adopted Couch thread would "reload pair",
+because `pair restart` (the first gate, reading the session env) does not
+refuse there. The attached client is a second gate: it runs the full quit
+cleanup and then refuses the restart marker. So the key actually ends the
+thread. Before help, README or atlas text asserts a behavior, enumerate every
+process that acts on the key's effect: the handler, the subprocess it runs, and
+the long-lived parent that consumes the markers it leaves. Pin each gate with a
+test, and check the pin by disabling the gate.
+
+## Verify a spec's premise at the boundary that decides disposition (#282)
+
+The issue said Couch intercepts alt+d/x/n, citing the framing table and an
+Interceptor-level test. But Console routing had been changed to forward those
+chords to the displayed pane (#245). A framing or parser test proves
+recognition, not routing. Before designing on a claim about what receives a
+key, read the dispatch site that decides where it goes, and cite the test
+pinned there.
+
+## Who created a session is not who presents it (#282)
+
+The Zellij server's env is fixed by whoever created the session, so a session
+Couch attaches to later reads as not-Couch from any pane. The attaching client's
+own env is set per attach by its launcher. When a fact is about the current
+presentation, record it at attach time from the client, not from session-wide
+state. Test the adopted case (created by one presenter, attached by another)
+explicitly.
+
 ## "Defer to the host" is a value, not an absence (#283)
 
 pair's vt mapped DECSCUSR 0 and a missing parameter to an explicit blinking
