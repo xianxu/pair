@@ -98,18 +98,18 @@ The fix and its invariants:
 
 ## Done when
 
-- [ ] alt+d in the switcher dispatches `leave{mode:detach}` after an actor on the
+- [x] alt+d in the switcher dispatches `leave{mode:detach}` after an actor on the
       alternate screen has been shown. A Couch test encodes the key with the
       host emulator's own `SendKey`, under whatever flags Couch left on that
       screen, so a future change to screen or keyboard handling cannot silently
       re-break it.
-- [ ] The presenter's keyboard push is balanced per screen. Replaying its parent
+- [x] The presenter's keyboard push is balanced per screen. Replaying its parent
       stream into the vt emulator shows the alternate screen disambiguated while
       presented. After release, or after a write cut at any byte, both screens'
       flags and stacks are back to what they were before.
-- [ ] alt+x in the switcher is verified live (it works) and recorded.
-- [ ] The introducing commit is identified (`f32bb4cf`) and recorded.
-- [ ] `park.go:111`'s wording says the key picks the disposition and the scope
+- [x] alt+x in the switcher is verified live (it works) and recorded.
+- [x] The introducing commit is identified (`f32bb4cf`) and recorded.
+- [x] `park.go:111`'s wording says the key picks the disposition and the scope
       picks the target (the switcher means every live thread), and it cites the
       console tests that pin both chords.
 - [ ] Operator smoke: in a rebuilt Couch, after visiting a thread, Ctrl+Space
@@ -121,12 +121,12 @@ The fix and its invariants:
       the console does with `seqDetach` while the panel holds focus: the handler
       is correct.
 - [x] Find the introducing change: `f32bb4cf`, not `cea10ac4` or `df2a8897`.
-- [ ] Red: a Couch end-to-end test (alternate-screen actor → panel → alt+d
+- [x] Red: a Couch end-to-end test (alternate-screen actor → panel → alt+d
       encoded by the host emulator → `leave`), plus a presenter per-screen
       keyboard test that includes the write-cut sweep.
-- [ ] Fix in `terminal.Presenter`: push after `?1049h`, pop before `?1049l`
+- [x] Fix in `terminal.Presenter`: push after `?1049h`, pop before `?1049l`
       (both on the paint path and on release), and track ownership per screen.
-- [ ] Reword `park.go:111`; atlas note on the presenter's per-screen keyboard
+- [x] Reword `park.go:111`; atlas note on the presenter's per-screen keyboard
       ownership.
 
 ## Revisions
@@ -187,3 +187,35 @@ The fix and its invariants:
   (notification jump, enhanced-only) and alt+n in the switcher, for the same
   reason. The test suite missed it because every Couch input test writes kitty
   bytes to stdin directly and never asks the host terminal what it would send.
+- Red, then green:
+  - `TestKeyboardPhysicalAltDLeavesFromTheSwitcher` (couchtty) encodes alt+d
+    with the independent per-screen `keyboardHost` model. Before the fix its
+    alternate-screen cases sent `\x1bd` at flags 0 and dispatched nothing,
+    which is the operator's report reproduced.
+  - `TestPresenterKeyboardPushFollowsTheScreen` (terminal) replays the parent
+    stream into the vendored vt emulator, with ambient flags 5 on the main
+    screen and 9 on the alternate one. Before the fix the alternate screen read
+    9 while presented; now it reads 3, and both screens read 5 and 9 after
+    release.
+  - The cut-write sweep (`TestPresenterReleaseClosesSyncAfterAnyCutWrite`)
+    also asserts both screens are restored at every cut.
+- Found and fixed a race in `TestKeyboardPhysicalNotificationJump`: its
+  `?1049h` case encoded Ctrl+Return before the alternate frame was painted, so
+  it always read the main screen and hid this regression for three days. It now
+  awaits the screen, and went red on the unfixed code. Recorded as a lesson.
+- Fix (`presenter.go`, `writeFramePacket`): the push follows the parent onto
+  the alternate screen and is popped before leaving it or at release, and
+  ownership is recorded only for whole writes. The screen accounting
+  (`altOwned`) moved there from `write()`, so one place owns it.
+- Mutation-checked, each caught: no push on enter; no pop before leave; no pop
+  at release; a partial push counted as owned; alt not recorded on enter.
+- ARCH-FUNERAL: creates nothing durable. The one new resource is a terminal
+  stack entry, and its end is named: the pop before the alternate screen is
+  left, or at release. ARCH-ORDER: the balance holds at every write cut, per the
+  sweep.
+- Verification: `go test ./...` green (72 packages, sandbox off, retention env
+  scrubbed). `make -k test` fails only the known pre-existing `test-changelog`
+  ("process target is outside selected owner directory"), and every other
+  target passes.
+- Pair's right-hand terminal (`termcmd`) shares the presenter and gets the same
+  balance. Its own tests are green.
