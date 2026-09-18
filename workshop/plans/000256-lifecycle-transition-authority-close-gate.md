@@ -703,6 +703,85 @@ rounds:
           family: unbounded-append-without-removal
           round: 12
       blocked: true
+    - "n": 13
+      timestamp: "2026-09-17T18:31:41-07:00"
+      agent: claude
+      dispose:
+        - id: BR-34
+          disposition: addressed
+          note: All four named sites verified rewritten at HEAD (ops.go:381 resume summary, atlas:32-40, atlas:498, atlas:888-894) and the prescribed grep is now a checked-in list plus TestRetiredClaimsAreNotRestatedAsCurrent, which passes.
+          round: 13
+        - id: BR-38
+          disposition: addressed
+          note: ThreadParked's declaration says FOUR producers (actionableinventory.go:26-32), resume.go:250 and relaunch.go:104-107 no longer state the retired occupancy rationale, atlas:1739 cites everyThreadShape; the "legacy-unverified records" sentence at atlas:606 survives but is not a false claim, only an obsolete label.
+          round: 13
+        - id: BR-42
+          disposition: addressed
+          note: 'Verified at HEAD: the ArchivableState bullet now says "Only the GUARD consumes it" (true — detach.go:271 is the sole production caller), the branch-position and coordinate citations are gone, and TestIssue256CoreConceptsProseCitesTestsNotCoordinates enforces all three rules and passes.'
+          round: 13
+        - id: BR-41
+          disposition: addressed
+          note: TestColdLedgerReadsAreOnePerColdCandidate counts real ResolveEstablished calls against a fixture-derived candidate count and would fail on a second read or a read for a non-candidate; one plan sentence still says otherwise, raised separately.
+          round: 13
+        - id: BR-43
+          disposition: addressed
+          note: The finding asked for the removal path to be named rather than inherited; it is named in the issue Log and owned by pair#275, whose Spec removes ParkTransaction and ParkHistory outright.
+          round: 13
+        - id: BR-20
+          disposition: not-addressed
+          note: Doc and failure message were corrected; the test's NAME still claims "ExactlyWhatTheOldProjectorAccepted" and is now contradicted by its own doc — the rule asked for all three in the same edit.
+          round: 13
+        - id: BR-21
+          disposition: not-addressed
+          note: lifecycledebris.go:139 still calls Threads.AbandonPark directly, now from three callers; recorded in the issue Log as known, unchanged in code.
+          round: 13
+        - id: BR-29
+          disposition: not-addressed
+          note: actionableinventory.go:735 still drops presenceErr entirely; recorded in the issue Log as known, unchanged in code.
+          round: 13
+      findings:
+        - id: BR-44
+          severity: Minor
+          title: The plan's Core-concepts prose still says the cold-side ledger read is unbounded, in the commit that bounded it
+          detail: |-
+            This is the 7th finding in family plan-code-divergence. Do NOT fix the sentence
+            alone. Measured: workshop/plans/000256-lifecycle-transition-authority-plan.md:323
+            reads "the warm side ... is bounded by TestWarmRowsAskNoLedgerQuestion; the cold
+            side is not (BR-41, recorded)", while :1087 of the same commit records
+            TestColdLedgerReadsAreOnePerColdCandidate, which exists and passes. The new
+            guard, TestIssue256CoreConceptsProseCitesTestsNotCoordinates, cannot catch this
+            by construction: it checks that a CITED test exists, and a claim that something
+            is NOT tested cites nothing. The rule at the level that covers the class: a
+            Core-concepts bullet asserting the ABSENCE of coverage is a hand-maintained
+            restatement with a shorter half-life than one asserting its presence, so it
+            either names the test that would cover it or is deleted — and the section check
+            should refuse negative-coverage phrasing ("nothing bounds", "is not bounded",
+            "recorded as a known gap") the same way it refuses coordinates. The two
+            historical homes (the issue Log at :364 and the plan's M2 review entry at :1295)
+            are narration of what was true then and should stay.
+          family: plan-code-divergence
+          round: 13
+        - id: BR-45
+          severity: Minor
+          title: The retired-claims guard data grows per issue and names no end, unlike its sibling check
+          detail: |-
+            This is the 2nd finding in family unbounded-append-without-removal, so the rule is
+            the deliverable. ARCH-FUNERAL: this window created two checked-in guard datasets.
+            TestIssue256PlanTablesMatchTheTree names its end — t.Skipf when the plan is
+            archived, "this check retires with it". issue256RetiredClaims
+            (retired_referents_test.go:23) does not: 25 phrase keys today, walked against
+            every .go and .md under cmd/ and atlas/ on every run, with no statement of who
+            removes an entry or when. It is not a cliff — the cost is trivial and the claims
+            are retired "forever" in the ordinary case — but pair#275 already plans to delete
+            ParkTransaction and ParkHistory, at which point keys like "no occupied
+            incarnation" and "exact verified resume handle" describe concepts the tree no
+            longer has, and a later author writing legitimate prose meets a refusal whose
+            rationale has expired. The rule: a per-issue guard dataset states the same thing
+            its sibling does — what retires it (the issue's archival, the field's deletion),
+            in one line next to the data.
+          family: unbounded-append-without-removal
+          round: 13
+      blocked: false
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -1068,13 +1147,57 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   transaction entirely, which is where the bound belongs. Recorded so the removal
   path is named rather than inherited.
 
+## Round 13 — 2026-09-17T18:31:41-07:00 (claude) — passed
+
+### Disposed
+
+- BR-34 — addressed — All four named sites verified rewritten at HEAD (ops.go:381 resume summary, atlas:32-40, atlas:498, atlas:888-894) and the prescribed grep is now a checked-in list plus TestRetiredClaimsAreNotRestatedAsCurrent, which passes.
+- BR-38 — addressed — ThreadParked's declaration says FOUR producers (actionableinventory.go:26-32), resume.go:250 and relaunch.go:104-107 no longer state the retired occupancy rationale, atlas:1739 cites everyThreadShape; the "legacy-unverified records" sentence at atlas:606 survives but is not a false claim, only an obsolete label.
+- BR-42 — addressed — Verified at HEAD: the ArchivableState bullet now says "Only the GUARD consumes it" (true — detach.go:271 is the sole production caller), the branch-position and coordinate citations are gone, and TestIssue256CoreConceptsProseCitesTestsNotCoordinates enforces all three rules and passes.
+- BR-41 — addressed — TestColdLedgerReadsAreOnePerColdCandidate counts real ResolveEstablished calls against a fixture-derived candidate count and would fail on a second read or a read for a non-candidate; one plan sentence still says otherwise, raised separately.
+- BR-43 — addressed — The finding asked for the removal path to be named rather than inherited; it is named in the issue Log and owned by pair#275, whose Spec removes ParkTransaction and ParkHistory outright.
+- BR-20 — not-addressed — Doc and failure message were corrected; the test's NAME still claims "ExactlyWhatTheOldProjectorAccepted" and is now contradicted by its own doc — the rule asked for all three in the same edit.
+- BR-21 — not-addressed — lifecycledebris.go:139 still calls Threads.AbandonPark directly, now from three callers; recorded in the issue Log as known, unchanged in code.
+- BR-29 — not-addressed — actionableinventory.go:735 still drops presenceErr entirely; recorded in the issue Log as known, unchanged in code.
+
+### Raised
+
+- **BR-44** [Minor] `plan-code-divergence` The plan's Core-concepts prose still says the cold-side ledger read is unbounded, in the commit that bounded it
+  This is the 7th finding in family plan-code-divergence. Do NOT fix the sentence
+  alone. Measured: workshop/plans/000256-lifecycle-transition-authority-plan.md:323
+  reads "the warm side ... is bounded by TestWarmRowsAskNoLedgerQuestion; the cold
+  side is not (BR-41, recorded)", while :1087 of the same commit records
+  TestColdLedgerReadsAreOnePerColdCandidate, which exists and passes. The new
+  guard, TestIssue256CoreConceptsProseCitesTestsNotCoordinates, cannot catch this
+  by construction: it checks that a CITED test exists, and a claim that something
+  is NOT tested cites nothing. The rule at the level that covers the class: a
+  Core-concepts bullet asserting the ABSENCE of coverage is a hand-maintained
+  restatement with a shorter half-life than one asserting its presence, so it
+  either names the test that would cover it or is deleted — and the section check
+  should refuse negative-coverage phrasing ("nothing bounds", "is not bounded",
+  "recorded as a known gap") the same way it refuses coordinates. The two
+  historical homes (the issue Log at :364 and the plan's M2 review entry at :1295)
+  are narration of what was true then and should stay.
+- **BR-45** [Minor] `unbounded-append-without-removal` The retired-claims guard data grows per issue and names no end, unlike its sibling check
+  This is the 2nd finding in family unbounded-append-without-removal, so the rule is
+  the deliverable. ARCH-FUNERAL: this window created two checked-in guard datasets.
+  TestIssue256PlanTablesMatchTheTree names its end — t.Skipf when the plan is
+  archived, "this check retires with it". issue256RetiredClaims
+  (retired_referents_test.go:23) does not: 25 phrase keys today, walked against
+  every .go and .md under cmd/ and atlas/ on every run, with no statement of who
+  removes an entry or when. It is not a cliff — the cost is trivial and the claims
+  are retired "forever" in the ordinary case — but pair#275 already plans to delete
+  ParkTransaction and ParkHistory, at which point keys like "no occupied
+  incarnation" and "exact verified resume handle" describe concepts the tree no
+  longer has, and a later author writing legitimate prose meets a refusal whose
+  rationale has expired. The rule: a per-issue guard dataset states the same thing
+  its sibling does — what retires it (the issue's archival, the field's deletion),
+  in one line next to the data.
+
 ## Open findings
 
 - **BR-20** [Minor] `test-name-contradicts-assertion` TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted now admits four deliberately new shapes
 - **BR-21** [Minor] `transition-bypasses-its-owner` The re-adoption's AbandonPark bypasses the per-thread park worker every other abandon goes through
 - **BR-29** [Minor] `degradation-without-diagnostic` SessionPresence's error is discarded, so a host-wide failure renders every row checking… with no cause
-- **BR-34** [Important] `stale-wording-after-referent-change` I2's rule was written down but the git grep it prescribes was never run -- four sites still state the retired `parked` referent
-- **BR-38** [Important] `stale-wording-after-referent-change` BR-34 not addressed: only one of the two retired referents was grepped, and the ThreadParked declaration itself now states the wrong producer count
-- **BR-41** [Minor] `envelope-declared-not-enforced` The cold-side ledger read now scales with store size on every refresh and no test bounds it
-- **BR-42** [Important] `plan-code-divergence` The plan's Core-concepts PROSE still restates the model, and one bullet names two consumers ArchivableState does not have
-- **BR-43** [Minor] `unbounded-append-without-removal` Archive now abandons orphaned parks as a matter of course, so ParkHistory gains a permanent tombstone per archive with no removal path
+- **BR-44** [Minor] `plan-code-divergence` The plan's Core-concepts prose still says the cold-side ledger read is unbounded, in the commit that bounded it
+- **BR-45** [Minor] `unbounded-append-without-removal` The retired-claims guard data grows per issue and names no end, unlike its sibling check

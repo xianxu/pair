@@ -20,6 +20,16 @@ import (
 // that is wrong in a new way still needs a reader. What it guarantees is that a
 // claim this issue deliberately retired cannot quietly come back — which is
 // exactly what kept happening.
+// WHAT RETIRES AN ENTRY (#256 close, BR-45 -- ARCH-FUNERAL). Its sibling guard,
+// TestIssue256PlanTablesMatchTheTree, retires with the plan; this data must not,
+// because a retired claim coming back after the issue is archived is exactly the
+// failure it exists for. An entry retires instead when its REFERENT leaves the
+// tree: once nothing the phrase describes exists, the claim cannot be restated
+// as current, and a refusal whose rationale has expired only blocks honest prose.
+// The known case: pair#275 deletes ParkTransaction and ParkHistory, which retires
+// every entry whose rationale names the park receipt or occupancy-by-incarnation
+// ("exact verified resume handle", "no occupied incarnation", ...). Whoever lands
+// #275 removes those entries in that change; its issue file says so.
 var issue256RetiredClaims = map[string]string{
 	"refuses any occupied incarnation": "#256 M1 deleted that refusal: the incarnation names a launcher that dies with couch",
 	// NOT the bare phrase "verified parked thread": threadrecord's validator uses

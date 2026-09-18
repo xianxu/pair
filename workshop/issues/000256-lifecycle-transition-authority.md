@@ -1,12 +1,13 @@
 ---
 id: 000256
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-15
-updated: 2026-09-16
+updated: 2026-09-17
 estimate_hours: 5.44
 started: 2026-09-16T20:08:18-07:00
+actual_hours: 11.84
 ---
 
 # Enforce lifecycle transition authority and outcome uncertainty
@@ -131,6 +132,7 @@ no thread record — carries #272's corresponding Done-when).
 ## Log
 
 ### 2026-09-17 — issue close, round 12: three blocking findings, all true
+- 2026-09-17: closed — #256 closes across three milestones, each with its own boundary review. M1: the classifier reads the session, not couch's bookkeeping -- Incarnation liveness and record.Park left ClassifyThread, fixing #271 and #272 by deletion (a clean detach and a couch crash leave identical external state, measured: the zellij server is PPID 1 at birth). M2: the operator's wedged rows became reachable -- a start claim with no living owner is not in flight, archive clears orphaned debris, the ledger (not the park receipt) is cold-resume authority -- and operator verification RAN on the live store: both wedged brain rows archived, a killed couch's threads reattached live, and a thread whose zellij session was killed read parked and resumed into the same conversation. M3: every action guard reads one authority (SwitchableState / ArchivableState / ResumableState over the classification, compared against the switcher offer by a non-vacuous table); archive can no longer Quiesce a thread couch is hosting; an unknown incarnation proved dead can finally be archived (RetireUnprovenIncarnation); Unknown survives the projection (ThreadEvidence.Unproven fails closed; Dead and recycled pids stay confirmed so #272 holds); the arbitrary-mutation door is unexported, guarded by receiver, and every one of the 18 door-reaching transitions is driven into its own refusal by a derived table. Task 10 measured that zellij delete-session --force reaps by SIGHUP, proving #274s hypothesis, so archive confirmation says the agent MAY survive. M3 boundary review FIX-THEN-SHIP: four Important findings answered with their rules and mutation-checked. VERIFICATION: make -k test outside the sandbox with the retention-owner env scrub and a non-symlinked TMPDIR after the last code change: 210 packages ok, exit 0, zero failures. Two pre-existing flakes measured and attributed (3/20 vs 2/20; 1/25 under load at the M2 close and on this tree). Split out and depending on this issue: #275 (ordered idempotent park write) and #276 (couch-tagged agents with no record).; review verdict: FIX-THEN-SHIP
 
 The whole-issue review returned FIX-THEN-SHIP and the gate refused to finalize on
 three Important findings. Two were carried from M2's rounds, and none was a

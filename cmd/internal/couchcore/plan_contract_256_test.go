@@ -261,6 +261,11 @@ func TestIssue256CoreConceptsProseCitesTestsNotCoordinates(t *testing.T) {
 
 	coordinate := regexp.MustCompile("[A-Za-z0-9_/]+\\.go:\\d+|`:\\d+`")
 	branchPosition := regexp.MustCompile(`(?i)\brows? \d`)
+	// A claim that something is NOT covered cites nothing, so the citation
+	// check below cannot see it rot -- and it rots faster than a positive one,
+	// because the fix that adds the coverage never mentions the sentence. The
+	// close's BR-44 was this exact shape, in the commit that added the bound.
+	negativeCoverage := regexp.MustCompile(`(?i)nothing (yet )?(bounds|pins|covers|tests)|is not (yet )?(bounded|pinned|covered|tested)|side is not\b|known gap|no test (bounds|pins|covers)`)
 	for i, line := range strings.Split(section, "\n") {
 		// Table rows carry paths, not coordinates, and are checked elsewhere.
 		if strings.HasPrefix(strings.TrimSpace(line), "|") {
@@ -272,6 +277,11 @@ func TestIssue256CoreConceptsProseCitesTestsNotCoordinates(t *testing.T) {
 		}
 		if m := branchPosition.FindString(line); m != "" {
 			t.Errorf("%s:%d: Core concepts indexes a branch position (%q) in a table the plan deleted",
+				issue256PlanPath, firstLine+i, m)
+		}
+		if m := negativeCoverage.FindString(line); m != "" {
+			t.Errorf("%s:%d: Core concepts asserts an ABSENCE of coverage (%q); name the test that would "+
+				"cover it, or delete the claim -- nothing keeps a negative claim true",
 				issue256PlanPath, firstLine+i, m)
 		}
 	}

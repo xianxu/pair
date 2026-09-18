@@ -320,7 +320,8 @@ where the index read already lived.
     `list-sessions`. That is off the keystroke path — the refresh runs in a
     worker goroutine and is coalesced by generation — so it costs latency
     nowhere the operator waits. The warm side of the ledger read is bounded by
-    `TestWarmRowsAskNoLedgerQuestion`; the cold side is not (BR-41, recorded). Budget both figures and record them in `## Log`: the startup
+    `TestWarmRowsAskNoLedgerQuestion`, and the cold side at exactly one read per cold
+    candidate by `TestColdLedgerReadsAreOnePerColdCandidate`. Budget both figures and record them in `## Log`: the startup
     evidence round, and one steady-state refresh, on the operator's store
     (7 records, 4 scopes post-cleanup).
   - **Accepted tradeoff:** a session the operator manually attached to reads
@@ -1069,6 +1070,31 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — issue close, round 13 (FIX-THEN-SHIP, finalized)
+
+The gate passed: BR-34, BR-38, BR-42, BR-41 and BR-43 disposed as addressed, the
+issue flipped to `codecomplete`, measured actual **11.84h** against the 5.44h
+estimate (ratio 0.5×, trusted window) — past the "~7h" line the Estimate section
+said to check at close, so the signal is the model's implementation scale, as that
+section predicted, not the decomposition. Five advisory findings, fixed in the
+close commit where they are test- or doc-level:
+
+- **BR-20** — the characterization test's NAME still claimed "exactly what the old
+  projector accepted"; renamed to what it asserts.
+- **BR-44** (`plan-code-divergence`, 7th) — the plan said the cold-side ledger read
+  was unbounded in the commit that bounded it. My new prose check could not catch
+  it by construction: it verifies that a cited test exists, and a claim that
+  something is NOT tested cites nothing. The section check now refuses
+  negative-coverage phrasing too; mutation-checked by restoring the sentence.
+- **BR-45** (`unbounded-append-without-removal`, 2nd) — `issue256RetiredClaims`
+  now states what retires an entry (its referent leaving the tree), and #275's Log
+  names the park-shaped entries it must remove.
+
+**Not changed in code, deliberately:** BR-21 (re-adoption's `AbandonPark` bypasses
+the park worker) and BR-29 (a failed host-wide `SessionPresence` discards its
+cause). Both are production changes; landing them after the final review would
+ship them unreviewed. Both are recorded in the issue Log as follow-up work.
 
 ### 2026-09-17 — issue close, round 12 (FIX-THEN-SHIP, not finalized)
 

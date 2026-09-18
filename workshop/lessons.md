@@ -5326,3 +5326,11 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   from the code, require each to name a refusal a test drives it into (or say why
   it has none), and check that the refusal writes nothing. (#256 M3 BR, I1)
 
+- **A claim that something is NOT covered rots faster than one that it is.** The
+  plan said the cold-side ledger read was unbounded, in the very commit that added
+  the test bounding it — because the fix that adds coverage never mentions the
+  sentence that denied it. My new check verified that every CITED test exists,
+  which cannot see a negative claim: it cites nothing. When you check a document
+  against the code, check absence claims too, and prefer deleting "nothing tests
+  X" to maintaining it. (#256 close, BR-44)
+

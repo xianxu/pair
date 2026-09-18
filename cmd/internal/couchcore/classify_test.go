@@ -373,15 +373,17 @@ func TestClassifyThreadIsTotalOverEveryRecordShape(t *testing.T) {
 	}
 }
 
-// The characterization half: the accepting branches must be exactly what the
-// pre-#181 projector accepted, PLUS the shapes a later issue admitted on purpose.
+// The characterization half: the accepting branches must be what the pre-#181
+// projector accepted, PLUS the shapes a later issue admitted on purpose. The name
+// says so -- it used to claim "exactly what the old projector accepted", which its
+// own doc had stopped saying (#256 close, BR-20).
 //
 // Those exceptions are not listed here, because the list is what drifted: this
 // comment used to name only #248, while six shapes had come to carry
 // `newlyActionable` (#248's unbound warm sessions, then #256's detached and
 // ledger-parked producers). The data is the declaration -- each shape states its
 // own flag, and the reason next to it -- and this test holds the classifier to it.
-func TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted(t *testing.T) {
+func TestClassifyThreadAcceptsTheOldProjectorsSetPlusDeclaredAdmissions(t *testing.T) {
 	for _, tc := range everyThreadShape(t) {
 		state, _ := ClassifyThread(tc.record, tc.evidence)
 		actionable := state == ThreadLive || state == ThreadParked || state == ThreadDetached

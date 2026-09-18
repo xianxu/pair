@@ -89,6 +89,22 @@ attempts, nonces, tombstones or a history array.
 
 ## Log
 
+### 2026-09-17 — two things #256's close hands to this issue
+
+Recorded from #256's close review so the owner of this change inherits them by
+name rather than by accident:
+
+- **ParkHistory has no removal path** (#256 BR-43). Since #256 M2, archive,
+  resume and switch-agent all clear orphaned parks through `clearLifecycleDebris`,
+  and each clearing appends a permanent tombstone. Removing the durable park
+  transaction, which this issue's Spec does, is where the bound belongs.
+- **Retire the park-shaped entries in `issue256RetiredClaims`**
+  (`cmd/internal/couchcore/retired_referents_test.go`, #256 BR-45). The ones whose
+  rationale names the park receipt or occupancy-by-incarnation — "exact verified
+  resume handle", "no occupied incarnation", "live or verified parked" and their
+  siblings — describe concepts this change deletes. Remove them in the same
+  change; the data's own comment says so.
+
 ### 2026-09-16
 
 - Split out of `pair#256` at the operator's direction while re-cutting that
