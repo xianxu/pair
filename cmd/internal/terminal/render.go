@@ -20,15 +20,15 @@ const (
 )
 
 // cursorEpilogue places the cursor and restores its shape and visibility after a
-// frame painted with the cursor hidden.
+// frame painted with the cursor hidden. Shape 0 hands shape and blink back to the
+// parent's configured default (DECSCUSR 0, #283).
 func cursorEpilogue(c Cursor) string {
-	shape := c.Shape
-	if shape == 0 {
-		shape = 1
-	}
-	code := shape * 2
-	if c.Blink {
-		code--
+	code := 0
+	if c.Shape != 0 {
+		code = c.Shape * 2
+		if c.Blink {
+			code--
+		}
 	}
 	s := fmt.Sprintf("\x1b[%d;%dH\x1b[%d q", c.Y+1, c.X+1, code)
 	if c.Visible {

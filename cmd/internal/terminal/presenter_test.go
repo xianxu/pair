@@ -7,6 +7,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 	vt "github.com/charmbracelet/x/vt"
 	"github.com/xianxu/pair/cmd/internal/ttyio"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -1012,6 +1013,33 @@ func TestPresenterReleaseClosesSyncAfterAnyCutWrite(t *testing.T) {
 					t.Fatalf("cut %d: parent accepted only %d bytes", c, len(stream))
 				}
 				assertStreamBracketed(t, fmt.Sprintf("cut %d of %d", c, total), stream)
+			}
+		})
+	}
+}
+
+var parentDECSCUSR = regexp.MustCompile(`\x1b\[(\d*) q`)
+
+// A child's DECSCUSR reaches the parent verbatim through the production
+// endpoint and presenter; a default (never set, 0, absent, RIS) arrives as
+// ESC[0 q, never an explicit block (#283). The parent bytes are read before the
+// fixture's Release, which writes its own ESC[0 q.
+func TestChildCursorStyleReachesParentVerbatim(t *testing.T) {
+	for _, tc := range []struct{ name, child, want string }{
+		{"never-set", "", "0"}, {"zero", "\x1b[0 q", "0"}, {"absent", "\x1b[5 q\x1b[ q", "0"},
+		{"reset", "\x1b[6 q\x1bc", "0"}, {"zero-after-block", "\x1b[1 q\x1b[0 q", "0"},
+		{"1", "\x1b[1 q", "1"}, {"2", "\x1b[2 q", "2"}, {"3", "\x1b[3 q", "3"},
+		{"4", "\x1b[4 q", "4"}, {"5", "\x1b[5 q", "5"}, {"6", "\x1b[6 q", "6"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+			if _, err := e.Feed([]byte(tc.child), time.Now()); err != nil {
+				t.Fatal(err)
+			}
+			selectPresenter(t, p, e)
+			all := parentDECSCUSR.FindAllStringSubmatch(string(parent.Bytes()), -1)
+			if len(all) == 0 || all[len(all)-1][1] != tc.want {
+				t.Fatalf("parent DECSCUSR %q, want final %q", all, tc.want)
 			}
 		})
 	}

@@ -43,6 +43,13 @@ anything is deltaed:
   bracket none of it is ever shown, and a quiet-screen smoke shows the caret
   blinking normally.
 
+The cursor-shape re-assert carries the child's DECSCUSR verbatim, including
+"no preference" (#283). A child that never set a shape, or reset it (`ESC[0 q`,
+`ESC[ q`, RIS), is published as `Cursor.Shape` 0 and re-asserted as `ESC[0 q`.
+The parent's configured cursor, such as Ghostty's `cursor-style`, therefore
+survives, and an explicit `ESC[1..6 q` passes through unchanged. Couch's panel
+caret publishes Shape 0 as well.
+
 The preamble is about 40 bytes, against a full-screen repaint per frame (the
 row diff #262 deferred). Revisit the preamble only when that row diff is built.
 Its trigger is output that crosses a network (#120) or a measured byte cost. Product code retains shortcut and notification

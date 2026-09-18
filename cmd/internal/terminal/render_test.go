@@ -137,3 +137,18 @@ func TestRenderBracketsEveryFrameAndNeverANoop(t *testing.T) {
 		t.Fatalf("a no-op frame must write nothing, got %q", wire)
 	}
 }
+
+func TestCursorEpilogueCarriesDECSCUSR(t *testing.T) {
+	for _, tc := range []struct {
+		c    Cursor
+		code int
+	}{
+		{Cursor{}, 0}, {Cursor{Shape: 1, Blink: true}, 1}, {Cursor{Shape: 1}, 2},
+		{Cursor{Shape: 2, Blink: true}, 3}, {Cursor{Shape: 2}, 4},
+		{Cursor{Shape: 3, Blink: true}, 5}, {Cursor{Shape: 3}, 6},
+	} {
+		if got := cursorEpilogue(tc.c); !strings.Contains(got, fmt.Sprintf("\x1b[%d q", tc.code)) {
+			t.Errorf("%+v: %q lacks DECSCUSR %d", tc.c, got, tc.code)
+		}
+	}
+}

@@ -12,8 +12,10 @@ import (
 
 type Cell = uv.Cell
 
-// Cursor coordinates are zero based. Shape is DECSCUSR's shape family:
-// 0/default or 1/block, 2/underline, 3/bar; Blink is independent.
+// Cursor coordinates are zero based. Shape is DECSCUSR's shape family: 1 block,
+// 2 underline, 3 bar, or 0 for the parent terminal's configured default shape
+// and blink. Blink applies only to an explicit shape: a default cursor carries
+// Blink false, so each visible state has one representation (#283).
 type Cursor struct {
 	X, Y           int
 	Visible, Blink bool
@@ -88,7 +90,7 @@ func (f Frame) Validate() error {
 	if len(f.Cells) != f.Geometry.Cols*f.Geometry.Rows {
 		return fmt.Errorf("terminal: frame cell count does not match geometry")
 	}
-	if f.Cursor.X < 0 || f.Cursor.X >= f.Geometry.Cols || f.Cursor.Y < 0 || f.Cursor.Y >= f.Geometry.Rows || f.Cursor.Shape < 0 || f.Cursor.Shape > 3 {
+	if f.Cursor.X < 0 || f.Cursor.X >= f.Geometry.Cols || f.Cursor.Y < 0 || f.Cursor.Y >= f.Geometry.Rows || f.Cursor.Shape < 0 || f.Cursor.Shape > 3 || f.Cursor.Shape == 0 && f.Cursor.Blink {
 		return fmt.Errorf("terminal: invalid frame cursor")
 	}
 	if len(f.Rows) != 0 && len(f.Rows) != f.Geometry.Rows {

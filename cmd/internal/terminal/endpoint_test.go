@@ -296,12 +296,18 @@ func TestEndpointAuthoritativeCursorAcrossResetRestoreAndBuffers(t *testing.T) {
 		name, stream string
 		want         Cursor
 	}{
-		{"reset", "\x1b[6 q\x1b[?25l\x1bc", Cursor{Visible: true, Blink: true, Shape: 1}},
+		{"reset", "\x1b[6 q\x1b[?25l\x1bc", Cursor{Visible: true}},
 		{"saved", "\x1b[3 q\x1b[2;3H\x1b7\x1b[6 q\x1b[?25l\x1b[H\x1b8", Cursor{X: 2, Y: 1, Visible: true, Blink: true, Shape: 2}},
-		{"alternate-entry", "\x1b[6 q\x1b[?47h", Cursor{Visible: true, Blink: true, Shape: 1}},
+		{"alternate-entry", "\x1b[6 q\x1b[?47h", Cursor{Visible: true}},
 		{"alternate-return", "\x1b[6 q\x1b[?47h\x1b[3 q\x1b[?47l", Cursor{Visible: true, Blink: false, Shape: 3}},
 		{"alternate-retained", "\x1b[?47h\x1b[3 q\x1b[?47l\x1b[6 q\x1b[?47h", Cursor{Visible: true, Blink: true, Shape: 2}},
-		{"reset-held", "A\x1b[?2026h\x1b[6 q\x1bc", Cursor{Visible: true, Blink: true, Shape: 1}},
+		{"reset-held", "A\x1b[?2026h\x1b[6 q\x1bc", Cursor{Visible: true}},
+		// A style the child never set, or reset, is the parent's default (#283).
+		{"never-set", "", Cursor{Visible: true}},
+		{"zero-after-blinking-block", "\x1b[1 q\x1b[0 q", Cursor{Visible: true}},
+		{"absent-after-steady-underline", "\x1b[4 q\x1b[ q", Cursor{Visible: true}},
+		{"explicit-blinking-block", "\x1b[0 q\x1b[1 q", Cursor{Visible: true, Blink: true, Shape: 1}},
+		{"unknown-ignored", "\x1b[3 q\x1b[7 q", Cursor{Visible: true, Blink: true, Shape: 2}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

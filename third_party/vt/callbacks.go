@@ -38,7 +38,8 @@ type Callbacks struct {
 	CursorVisibility func(visible bool)
 
 	// CursorStyle callback. When set, this function is called when the cursor
-	// style changes.
+	// style changes. For CursorDefault, blink is unspecified: the host terminal's
+	// configured default decides both shape and blink (pair #283).
 	CursorStyle func(style CursorStyle, blink bool)
 
 	// CursorColor callback. When set, this function is called when the cursor

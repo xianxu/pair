@@ -1,5 +1,26 @@
 # Lessons
 
+## "Defer to the host" is a value, not an absence (#283)
+
+pair's vt mapped DECSCUSR 0 and a missing parameter to an explicit blinking
+block, and the endpoint added 1 to the style. The protocol's "use your
+configured cursor" was lost two layers before the renderer. Every frame then
+overrode the operator's terminal config.
+
+When a protocol state passes through layers (emulator → frame → wire), give
+"unset / host default" its own value at each seam, ideally the zero value, so a
+reset lands on it for free. Test that absence survives end to end, next to the
+explicit values. Carry its secondary attributes (here blink) as explicitly
+unspecified at every exposed surface. ARCH-ORDER / ARCH-PURPOSE.
+
+## Tick a Done-when row only for what was observed (#283 close CR)
+
+The smoke row claimed "a plain shell under couch shows a bar", but the operator
+checked couch's panel caret. When the evidence differs from the row's wording,
+reword the row to match the observation. Name what covers the gap, such as a
+test, and record the difference in `## Revisions`. Don't let the checkbox imply
+a check nobody ran.
+
 ## Opt-in conformance is not CI coverage until invoked (#255 close BR-23)
 
 A test file and local green log do not fulfill a CI promise. Follow the workflow

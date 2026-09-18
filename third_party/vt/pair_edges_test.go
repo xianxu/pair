@@ -258,8 +258,8 @@ func TestPairOversizedMarginsAreIgnored(t *testing.T) {
 func TestPairCursorStyleRejectsInvalid(t *testing.T) {
 	e := NewEmulator(4, 2)
 	defer e.Close()
-	e.WriteString("\x1b[100000000 q")
-	if e.scr.cur.Style != CursorBlock {
+	e.WriteString("\x1b[3 q\x1b[100000000 q")
+	if e.scr.cur.Style != CursorUnderline || e.scr.cur.Steady {
 		t.Fatal("unknown cursor shape accepted")
 	}
 }

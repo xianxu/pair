@@ -47,3 +47,17 @@ func TestFrameRejectsDrawingInjectionAndBrokenWideCells(t *testing.T) {
 		}
 	}
 }
+
+// Shape 0 hands shape and blink to the parent, so a blinking default is a
+// second spelling of the same visible state and is refused (#283).
+func TestFrameRejectsBlinkingDefaultCursor(t *testing.T) {
+	f := testFrame(2, 1)
+	f.Cursor = Cursor{Visible: true, Blink: true}
+	if f.Validate() == nil {
+		t.Fatal("accepted a blinking default cursor")
+	}
+	f.Cursor.Shape = 1
+	if err := f.Validate(); err != nil {
+		t.Fatalf("rejected a blinking block: %v", err)
+	}
+}
