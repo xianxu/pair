@@ -23,6 +23,13 @@ owned here instead of importing the incomplete upstream algorithm.
   blink callback polarity, standard operating-status reply, retained mode47,
   mode1047 exit clearing and mode1049 save/clear/restore, correct OSC8 field
   order and URI semicolons.
+- `cursor.go`, `handlers.go`: `CursorDefault` is the zero `CursorStyle`.
+  DECSCUSR 0 and an absent parameter record it; upstream mapped both to a
+  blinking block. RIS, a fresh screen and a fresh alternate screen therefore
+  start at the host terminal's configured cursor. The explicit styles are
+  renumbered onto DECSCUSR's shape families (block 1, underline 2, bar 3), so
+  `Steady` applies only to them. The `CursorStyle` callback reports the default,
+  and it fires on a change from an explicit style back to it (pair #283).
 - `pair_keyboard.go`, `key.go`: separate main/alternate Kitty flag stacks,
   push/pop/set/query/reset, bounded stack eviction, modifiers and
   press/repeat/release, alternate key identities, associated text, functional

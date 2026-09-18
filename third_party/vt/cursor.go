@@ -2,12 +2,14 @@ package vt
 
 import uv "github.com/charmbracelet/ultraviolet"
 
-// CursorStyle represents a cursor style.
+// CursorStyle is a DECSCUSR shape family. The zero value leaves shape and
+// blink to the host terminal's configured default (DECSCUSR 0, RIS; pair #283).
 type CursorStyle int
 
 // Cursor styles.
 const (
-	CursorBlock CursorStyle = iota
+	CursorDefault CursorStyle = iota
+	CursorBlock
 	CursorUnderline
 	CursorBar
 )
@@ -20,6 +22,6 @@ type Cursor struct {
 	uv.Position
 
 	Style  CursorStyle
-	Steady bool // Not blinking
+	Steady bool // Not blinking; meaningful only for an explicit Style
 	Hidden bool
 }

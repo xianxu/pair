@@ -225,7 +225,8 @@ func (e *Endpoint) Feed(p []byte, now time.Time) (Output, error) {
 func (e *Endpoint) capture() Frame {
 	f := Frame{EndpointID: e.id, Generation: e.generation, GeometryEpoch: e.epoch, Geometry: e.geometry, AltScreen: e.backend.IsAltScreen()}
 	cur := e.backend.Cursor()
-	f.Cursor = Cursor{X: cur.X, Y: cur.Y, Visible: !cur.Hidden, Blink: !cur.Steady, Shape: int(cur.Style) + 1}
+	// vt's CursorStyle is the frame's shape family; the default carries no blink.
+	f.Cursor = Cursor{X: cur.X, Y: cur.Y, Visible: !cur.Hidden, Blink: cur.Style != vt.CursorDefault && !cur.Steady, Shape: int(cur.Style)}
 	f.Cells = make([]Cell, e.geometry.Cols*e.geometry.Rows)
 	f.Rows = make([]RowMetadata, e.geometry.Rows)
 	for y := 0; y < e.geometry.Rows; y++ {

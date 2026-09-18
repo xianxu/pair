@@ -39,7 +39,7 @@ func InputCases() []Case {
 		{ID: "cwd", Capability: "OSC working directory callback", Input: "\x1b]7;file://localhost/tmp/probe\x1b\\", Expected: Observation{"cwd": "file://localhost/tmp/probe"}, Split: true},
 		{ID: "bell", Capability: "bell callback", Input: "\a\a", Expected: Observation{"bells": "2"}, Split: true},
 		{ID: "cursor-visible", Capability: "cursor visibility callback", Input: "\x1b[?25l", Expected: Observation{"cursor-visible": "false"}, Split: true},
-		{ID: "cursor-style", Capability: "cursor shape callback", Input: "\x1b[5 q", Expected: Observation{"cursor-style": "2,true"}, Split: true},
+		{ID: "cursor-style", Capability: "cursor shape callback", Input: "\x1b[5 q", Expected: Observation{"cursor-style": "3,true"}, Split: true},
 		{ID: "sync-query", Capability: "synchronized output negotiation", Source: "https://gist.github.com/christianparpart/d8a62cc1ab659194337d73e399004036", Input: "\x1b[?2026h\x1b[?2026$p", Expected: Observation{"replies": "\x1b[?2026;1$y"}, Split: true},
 	}
 	for i := range cases {
