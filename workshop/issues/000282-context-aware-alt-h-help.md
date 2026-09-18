@@ -1,11 +1,12 @@
 ---
 id: 000282
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-17
-updated: 2026-09-17
+updated: 2026-09-18
 estimate_hours:
+started: 2026-09-18T09:31:36-07:00
 ---
 
 # Alt+h help knows whether it runs under couch, and shows couch's keys there
