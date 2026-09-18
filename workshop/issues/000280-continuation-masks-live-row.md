@@ -297,3 +297,57 @@ field and no diagnostics trail. The checkpoint's markdown file is left where it
 is, untouched. This is also the only skew-safe shape (see the entry above).
 Supersedes this issue's Spec wording *"records that decision"*, and the
 Done-when's "or the issue records why not" is answered: it exists.
+
+### 2026-09-17 — implemented; verification
+
+**Retry bug, reproduced first.** `TestContinuationFailedRowKeepsAnExplicitRetry`
+was moved onto the PRODUCTION dispatcher (`DispatchOperation` +
+`CouchLiveOwnerExecutor`) over a real temp-dir store holding a `Failed` request.
+It went red with *"thread ref and exact tag cannot both be supplied"*: the
+switcher's Retry continuation could never reach its thread. Fixed by making the
+bootstrap `ref` optional (name's shape) and dropping the switcher's `ref`. Both
+continuation exits now address the row by its exact tag alone.
+
+**Dismissal.** `ThreadStore.DismissFailedContinuation` (CAS, exact failed
+request, deletes it) → `Couch.DismissContinuation` (the `requestRecord` +
+stale-revision loop) → declared `dismiss-continuation` (direct store, metadata
+effect, row action, internal). Every refusal of a failed request now names both
+exits:
+- `continuationGuard`;
+- `PublishContinuation`, which had also been blocking the session-continuity
+  writer on this thread;
+- `pair continue --retry` on a hosted thread.
+
+**Composition.** `rootStateText`: a `Failed` request renders
+`<state> · continuation failed`; `Pending`/`Running` displace the state on
+purpose (in flight, bounded). `menuActionItems`: a live `Failed` row keeps its
+actions minus `couchcore.ContinuationRefuses` (relaunch, switch-agent, cold
+resume, start), plus retry and dismiss, giving `detach, retry, dismiss, park,
+name, describe`. Composition applies to live rows only, per the plan-quality
+advisory: archive and warm reattach have their own admissions.
+
+**Tests:**
+- store transition refusals, each asserted by an unchanged revision;
+- both retry/dismiss orders;
+- the harness row in `TestEveryLifecycleTransitionIsDrivenIntoItsOwnRefusal`;
+- `TestFailedContinuationRelaunchesOnceDismissed`: the refusal names both
+  exits, and after dismissal the outcome is `Relaunched`;
+- `TestContinuationRefusesMatchesTheGuardForEveryRowAction`: every declared row
+  action is driven through the production dispatcher (listed ⇒ refused BY THE
+  GUARD; unlisted ⇒ SUCCEEDS) or exempt with a reason;
+- `TestPublishAfterDismissalAcceptsOnlyTheCurrentSource`;
+- the switcher's state × phase text and action tables;
+- a dismiss from the switcher that deletes the request on the real store.
+
+**Mutation-checked**, each turning its test red:
+- dropping the store's `Failed` precondition;
+- removing relaunch from `ContinuationRefuses`;
+- adding park to it;
+- the switcher no longer filtering;
+- the switcher sending `ref` again;
+- the failed text replacing the state.
+
+**Suites:** `go test ./... -count=1` passed (71 packages, exit 0, retention
+scrub, sandbox off). `make -k test` failed only on the pre-existing
+`test-changelog`; its Go recipe is skipped, which is why the suite above ran
+separately. `make build` rebuilt `bin/couch` and `bin/pair` for the smoke.
