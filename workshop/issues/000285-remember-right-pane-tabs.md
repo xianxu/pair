@@ -88,10 +88,14 @@ zellij's session.
   cwd is tracked.
 - Tab reordering — there's no reorder action to persist.
 
+**Couch continuation keeps the thread's tag** (operator intent, and already
+true: continuation parks the source and starts fresh with "the Pair scope and
+tag … unchanged", `atlas/couch.md` §Continuation ownership). Continuation is
+therefore just another cold start: the record carries across with no extra
+wiring, and the tabs come back.
+
 ### Open questions
 
-- Does Couch continuation (#249) keep the tag? If it mints a new one, the record
-  has to follow via `RenameArtifacts`, or continuation resets the tabs.
 - Do the shim and Ghostty's own shell integration (or an operator rc that
   already emits OSC 7) coexist cleanly? Double OSC 7 is harmless; double
   `ZDOTDIR` rewriting may not be.
@@ -102,6 +106,7 @@ zellij's session.
   last commands such as `make test` and `nvim README.md` — comes back with the
   same tabs in order, the same names, cwds and active tab, and each shell's edit
   buffer holding its last command, unexecuted.
+- A Couch continuation of that thread restores the same tabs.
 - Pressing Return runs the prefilled command; not pressing runs nothing.
 - Session kill (Alt+x) and a SIGHUP cascade leave the record intact — a test
   with fake children exiting one by one after stop begins.
@@ -130,6 +135,8 @@ zellij's session.
 
 Filed from a brain advisor session (operator request: remember tab order, name,
 cwd, last command; cold start pre-types the last command but waits for Return).
+Operator: continuation should keep the same tag — confirmed it already does
+(`atlas/couch.md`), so that open question is closed.
 Survey pointers for the implementing session:
 
 - Tabs: `terminalTab{id,name,child}` + `terminalMux` in
