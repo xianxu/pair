@@ -45,8 +45,8 @@ To be designed. The candidate directions, none chosen:
   child process may knock on (`RequestCouchContinuation` is the existing
   precedent for a hosted Pair asking Couch to act).
 
-`pair#282` documents the current truth in Alt+h ("refused in a thread Couch
-launched") through `GlobalBinding.HostedHelp`, selected when Couch launched the
+`pair#282` documents the current truth in Alt+h ("does not reload under Couch
+and may end the thread; relaunch from the Couch switcher") through `GlobalBinding.HostedHelp`, selected when Couch launched the
 session or presents the client. Whatever this issue changes must update that
 `HostedHelp` and the two launcher tests that pin today's gates:
 `TestCheckpointHostedRestartAndRenameRefuseBeforeMutation` and
