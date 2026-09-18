@@ -101,6 +101,11 @@ type fakeRuntime struct {
 	readyErr       error
 
 	// recorded
+	// The file set when the title poller was spawned and when zellij was
+	// launched: what each could see, so ordering against the create path's
+	// writes and removes is assertable (#287).
+	filesAtPollerSpawn   []map[string]string
+	filesAtLaunch        []map[string]string
 	env                  map[string]string
 	launched             string // last session name handed to LaunchSession
 	launchLayout         string
@@ -206,6 +211,9 @@ func (f *fakeRuntime) ProbeSessionName(session string) error {
 	return nil
 }
 func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
+	f.mu.Lock()
+	f.filesAtLaunch = append(f.filesAtLaunch, maps.Clone(f.files))
+	f.mu.Unlock()
 	f.launched = session
 	f.launchLayout = layout
 	f.launchCount++
@@ -271,6 +279,9 @@ func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, r
 	f.watchers = append(f.watchers, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%s", agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, strings.Join(agentArgs, " ")))
 }
 func (f *fakeRuntime) SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv) {
+	f.mu.Lock()
+	f.filesAtPollerSpawn = append(f.filesAtPollerSpawn, maps.Clone(f.files))
+	f.mu.Unlock()
 	f.pollers = append(f.pollers, tag+"|"+agent)
 	// What the child starts with: everything exported so far, overlaid by what
 	// the spawn hands it -- the precedence exec gives a later duplicate key.

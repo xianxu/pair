@@ -764,6 +764,21 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			return launchStep{code: 1}, nil
 		}
 	}
+	// Clear the previous launch's agent pane sidecar before anything starts
+	// (#287). The layout's pane command rewrites it as its first act, and the
+	// title poller makes no zellij call until it exists -- so it has to mean
+	// THIS launch's pane ran. A zellij 0.45.1 server that accepts a connection
+	// before its first client initializes the session panics when that
+	// connection closes, and the poller's list-sessions was one. The path is
+	// the poller's own declaration, so the file cleared is the file awaited.
+	// Attach never clears: a live pane has already written its sidecar and
+	// won't again.
+	birthEvidence, err := titlepoller.BirthEvidence(dataDir, chosenTag, agent)
+	if err != nil {
+		fmt.Fprintf(stderr, "pair: cannot resolve the pane sidecar for '%s': %v\n", chosenTag, err)
+		return launchStep{code: 1}, nil
+	}
+	rt.Remove(birthEvidence)
 	rt.SpawnSessionWatcher(agent, chosenTag, scope.Key, env.Cwd, repoRoot, repoName, launchOrdinal, agentArgs)
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag, PresentedByCouch(env, chosenTag))

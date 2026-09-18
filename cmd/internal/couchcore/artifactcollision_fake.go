@@ -3,7 +3,9 @@ package couchcore
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -44,6 +46,19 @@ type FakeThreadArtifactCollisionChecker struct {
 	// DetachedSessionsHook lets a test fail the observation, or interleave a
 	// durable change at the moment the projector asks who is detached.
 	DetachedSessionsHook func([]ThreadAddress) error
+
+	// panes models each thread's agent pane sidecars (#287), keyed by agent:
+	// production keys are paths, but PaneMarks only compares keys for identity.
+	// The clock is a counter, since only equality is ever compared.
+	panes     map[ThreadAddress]PaneMarks
+	paneClock int64
+	// paneQueries counts PaneSidecars calls, so a test can pin WHEN the cold
+	// resume took its baseline (before the helper is released) rather than
+	// only that it waited.
+	paneQueries int
+	// PaneSidecarsHook runs before each PaneSidecars observation, outside mu,
+	// so a test can make the pane be born mid-wait or fail the observation.
+	PaneSidecarsHook func(ThreadAddress) error
 
 	sessionPresence map[ThreadAddress]SessionObservation
 	// presenceQueries counts SessionPresence calls, mirroring detachedQueries:
@@ -126,6 +141,7 @@ func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker
 		pairSessions:     map[ThreadAddress]PairSessionBinding{},
 		nativeBindings:   map[nativeBindingKey]NativeBindingResolution{},
 		detachedSessions: map[ThreadAddress]string{},
+		panes:            map[ThreadAddress]PaneMarks{},
 	}
 }
 
@@ -219,10 +235,74 @@ func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(_ context.Contex
 	return resolution, nil
 }
 
+// SetPairSession declares the session the exact index binds address to, and
+// whether it is live.
+//
+// A session COMING UP also has its pane write the sidecar. That is the edge a
+// create launch produces: zellij runs the layout's pane command once the first
+// client has initialized the session, and the pane writes the sidecar first
+// thing (#287). The two are collapsed into one event here. A test that needs
+// the gap between them sequences SetPaneSidecar itself.
+//
+// Nothing else births a pane. In particular, a launch released against a
+// session that is ALREADY live writes none: Pair refuses a cold resume that
+// isn't a create boundary. A fake that invented a birth there hid the path on
+// which a cold resume would have timed out and deleted a live session (#287
+// close review).
 func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddress, name string, present bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if present && !f.pairSessions[address].Present {
+		f.writePaneLocked(address, "agent")
+	}
 	f.pairSessions[address] = PairSessionBinding{Name: name, Present: present}
+}
+
+// SetPaneSidecar makes address's pane for agent write its sidecar now, at a
+// fresh mtime, without changing whether the session is live. That lets a test
+// separate birth from registration, or seed a stale sidecar before a start.
+func (f *FakeThreadArtifactCollisionChecker) SetPaneSidecar(address ThreadAddress, agent string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.writePaneLocked(address, agent)
+}
+
+// ClearPaneSidecar removes address's sidecar for agent, the way the launcher's
+// create path does before it starts zellij.
+func (f *FakeThreadArtifactCollisionChecker) ClearPaneSidecar(address ThreadAddress, agent string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.panes[address], agent)
+}
+
+func (f *FakeThreadArtifactCollisionChecker) writePaneLocked(address ThreadAddress, agent string) {
+	if f.panes[address] == nil {
+		f.panes[address] = PaneMarks{}
+	}
+	f.paneClock++
+	f.panes[address][agent] = time.Unix(0, f.paneClock)
+}
+
+func (f *FakeThreadArtifactCollisionChecker) PaneSidecars(address ThreadAddress) (PaneMarks, error) {
+	f.mu.Lock()
+	hook := f.PaneSidecarsHook
+	f.mu.Unlock()
+	if hook != nil {
+		if err := hook(address); err != nil {
+			return nil, err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.paneQueries++
+	return maps.Clone(f.panes[address]), nil
+}
+
+// PaneQueries is how many times PaneSidecars has observed.
+func (f *FakeThreadArtifactCollisionChecker) PaneQueries() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.paneQueries
 }
 
 func (f *FakeThreadArtifactCollisionChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {

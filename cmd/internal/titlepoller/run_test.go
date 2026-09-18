@@ -2,6 +2,8 @@ package titlepoller
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -30,6 +32,22 @@ type fakeRuntime struct {
 	panes             []PaneInfo
 	counts            map[string]string    // agent → context count
 	activities        map[string]time.Time // agent → established activity
+	// events is the ordered log of zellij calls and pane-sidecar stats, so a
+	// test can assert what happened BEFORE the pane was born (#287).
+	events []string
+	// sleepHook runs after each Sleep with the running count: the seam a test
+	// uses to make the pane appear mid-wait.
+	sleepHook func(sleeps int)
+}
+
+// fixturePane is the agent pane sidecar fixtureOpts' poller gates on.
+const fixturePane = "/dd/pane-T-claude.json"
+
+// withLivePane seeds the sidecar a live session's pane has already written --
+// the attach shape, and the precondition every steady-loop test assumes.
+func withLivePane(f *fakeRuntime) *fakeRuntime {
+	f.mtimes[fixturePane] = f.now
+	return f
 }
 
 func newFake() *fakeRuntime {
@@ -46,12 +64,18 @@ func (f *fakeRuntime) Now() time.Time {
 	f.now = f.now.Add(f.nowAdvance)
 	return t
 }
-func (f *fakeRuntime) Sleep(time.Duration)            { f.sleeps++ }
+func (f *fakeRuntime) Sleep(time.Duration) {
+	f.sleeps++
+	if f.sleepHook != nil {
+		f.sleepHook(f.sleeps)
+	}
+}
 func (f *fakeRuntime) Getpid() string                 { return f.pid }
 func (f *fakeRuntime) ProcessAlive(p string) bool     { return f.alive[p] }
 func (f *fakeRuntime) ProcessCommand(p string) string { return f.commands[p] }
 func (f *fakeRuntime) SessionAlive(name string) bool {
 	f.sessionAliveCalls++
+	f.events = append(f.events, "session-alive")
 	if v, ok := f.namedSessions[name]; ok {
 		return v // foreign-owner probes resolve by name, not by call order
 	}
@@ -63,6 +87,7 @@ func (f *fakeRuntime) SessionAlive(name string) bool {
 	return f.sessionAliveDflt
 }
 func (f *fakeRuntime) RenamePane(s, id, t string) error {
+	f.events = append(f.events, "rename")
 	f.renamed = append(f.renamed, s+"|"+id+"|"+t)
 	return nil
 }
@@ -81,6 +106,9 @@ func (f *fakeRuntime) WriteFile(p, d string) error { f.wrote[p] = d; return nil 
 func (f *fakeRuntime) Remove(p string)             { f.removed = append(f.removed, p) }
 func (f *fakeRuntime) ModTime(p string) (time.Time, bool) {
 	m, ok := f.mtimes[p]
+	if p == fixturePane {
+		f.events = append(f.events, fmt.Sprintf("stat-pane:%t", ok))
+	}
 	return m, ok
 }
 func (f *fakeRuntime) PaneFiles(string, string) []PaneInfo { return f.panes }
@@ -178,7 +206,7 @@ func TestRunDefersToLiveInstance(t *testing.T) {
 }
 
 // A stale pidfile (recycled PID whose argv isn't our poller) must NOT wedge the
-// respawn — the poller claims the pidfile and proceeds. Here the session never
+// respawn — the poller claims the pidfile and proceeds. Here the pane never
 // appears within the grace window, so Run exits 0 after writing the pidfile.
 func TestRunReclaimsStalePidfileThenGraceTimeout(t *testing.T) {
 	rt := newFake()
@@ -186,7 +214,7 @@ func TestRunReclaimsStalePidfileThenGraceTimeout(t *testing.T) {
 	rt.alive["4242"] = true
 	rt.commands["4242"] = "/usr/sbin/cupsd" // recycled PID, not our poller
 	rt.pid = "9001"
-	rt.sessionAliveDflt = false // session never shows up
+	rt.sessionAliveDflt = false // and no pane is ever born
 	opts := fixtureOpts()
 	opts.StartupGrace = 0 // → default 30s, but Now() never advances, so...
 	// Make the grace loop terminate: advance Now past the deadline on the 2nd check.
@@ -198,6 +226,9 @@ func TestRunReclaimsStalePidfileThenGraceTimeout(t *testing.T) {
 	if rt.wrote["/dd/title-pid-T"] != "9001\n" {
 		t.Fatalf("expected pidfile reclaimed with our pid, wrote = %v", rt.wrote)
 	}
+	if rt.sessionAliveCalls != 0 {
+		t.Fatalf("an unborn session must never be probed, SessionAlive called %d times", rt.sessionAliveCalls)
+	}
 }
 
 // Loop integration (claim path): one active tick through Run renders BOTH the
@@ -205,14 +236,14 @@ func TestRunReclaimsStalePidfileThenGraceTimeout(t *testing.T) {
 // updateFrameTitles + updateWorkspaceTitle. Then the session goes missing and
 // the loop exits.
 func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
-	rt := newFake()
+	rt := withLivePane(newFake())
 	rt.pid = "9001"
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "970k"
 	rt.mtimes["/dd/draft-T.md"] = rt.now // fresh activity ⇒ age ≈ 0 < 2*poll
 	rt.cmuxAvail = true
-	// grace probe true, first tick true, then gone.
-	rt.sessionAliveSeq = []bool{true, true}
+	// first tick live, then gone.
+	rt.sessionAliveSeq = []bool{true}
 	rt.sessionAliveDflt = false
 	opts := fixtureOpts()
 	opts.CmuxWorkspaceID = "WS1"
@@ -232,12 +263,12 @@ func TestRunRendersFrameAndCmuxTitles(t *testing.T) {
 }
 
 func TestRunUsesScopedPublicSessionName(t *testing.T) {
-	rt := newFake()
+	rt := withLivePane(newFake())
 	rt.pid = "9001"
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "970k"
 	rt.mtimes["/dd/draft-T.md"] = rt.now
-	rt.sessionAliveSeq = []bool{true, true}
+	rt.sessionAliveSeq = []bool{true}
 	rt.sessionAliveDflt = false
 	opts := fixtureOpts()
 	opts.SessionName = "📁work-T"
@@ -254,7 +285,7 @@ func TestRunUsesScopedPublicSessionName(t *testing.T) {
 // Loop integration (defer path): a live FOREIGN owner of the cmux workspace →
 // the frame title still renders, but the workspace title is left alone.
 func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {
-	rt := newFake()
+	rt := withLivePane(newFake())
 	rt.pid = "9001"
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "12k"
@@ -262,7 +293,7 @@ func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {
 	rt.cmuxAvail = true
 	rt.files["/dd/cmux-owner-WS1"] = "99\n"             // owned by tag 99…
 	rt.namedSessions = map[string]bool{"pair-99": true} // …which is still alive
-	rt.sessionAliveSeq = []bool{true, true}             // pair-T: grace + tick
+	rt.sessionAliveSeq = []bool{true}                   // pair-T: one live tick
 	rt.sessionAliveDflt = false
 	opts := fixtureOpts()
 	opts.CmuxWorkspaceID = "WS1"
@@ -282,7 +313,7 @@ func TestRunDefersCmuxToLiveForeignOwner(t *testing.T) {
 }
 
 func TestRunDefersCmuxToLiveScopedForeignOwner(t *testing.T) {
-	rt := newFake()
+	rt := withLivePane(newFake())
 	rt.pid = "9001"
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
 	rt.counts["claude"] = "12k"
@@ -293,7 +324,7 @@ func TestRunDefersCmuxToLiveScopedForeignOwner(t *testing.T) {
 		"pair-99":      false,
 		"pair-pair-99": true,
 	}
-	rt.sessionAliveSeq = []bool{true, true} // pair-T: grace + tick
+	rt.sessionAliveSeq = []bool{true} // pair-T: one live tick
 	rt.sessionAliveDflt = false
 	opts := fixtureOpts()
 	opts.CmuxWorkspaceID = "WS1"
@@ -357,9 +388,9 @@ func TestActivityMTimePicksLatest(t *testing.T) {
 
 // The loop self-terminates after MissThreshold consecutive session misses.
 func TestRunExitsOnSessionMissThreshold(t *testing.T) {
-	rt := newFake()
+	rt := withLivePane(newFake())
 	rt.pid = "9001"
-	// grace: session appears immediately; then it's gone for every poll.
+	// one live tick, then the session is gone for every poll.
 	rt.sessionAliveSeq = []bool{true}
 	rt.sessionAliveDflt = false
 	opts := fixtureOpts()
@@ -368,8 +399,87 @@ func TestRunExitsOnSessionMissThreshold(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d, want 0", code)
 	}
-	// 1 grace probe + 3 miss probes = 4; exits on the 3rd miss.
+	// 1 live tick + 3 miss probes = 4; exits on the 3rd miss.
 	if rt.sessionAliveCalls != 4 {
-		t.Fatalf("SessionAlive called %d times, want 4 (1 grace + 3 misses)", rt.sessionAliveCalls)
+		t.Fatalf("SessionAlive called %d times, want 4 (1 live tick + 3 misses)", rt.sessionAliveCalls)
+	}
+}
+
+// #287: zellij 0.45.1 panics when a connection accepted before the first real
+// client closes, and `list-sessions` connects to every socket. The poller is
+// spawned BEFORE `zellij --new-session-with-layout`, so its first probe used to
+// land in the new server's birth window and kill it (4 launches in 10, measured
+// by probes/zellijbirthrace). The gate: no zellij call of any kind until this
+// launch's agent pane has written its sidecar -- a pane exists only once the
+// session has initialized.
+func TestRunMakesNoZellijCallBeforeThePaneAppears(t *testing.T) {
+	rt := newFake()
+	rt.pid = "9001"
+	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
+	rt.mtimes["/dd/draft-T.md"] = rt.now
+	rt.sessionAliveSeq = []bool{true}
+	rt.sessionAliveDflt = false
+	rt.sleepHook = func(sleeps int) {
+		if sleeps == 3 { // the pane is born during the third wait
+			rt.mtimes[fixturePane] = rt.now
+		}
+	}
+	opts := fixtureOpts()
+	opts.MissThreshold = 1
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+
+	born := slices.Index(rt.events, "stat-pane:true")
+	if born < 0 {
+		t.Fatalf("the gate never saw the pane: events = %v", rt.events)
+	}
+	for _, e := range rt.events[:born] {
+		if e == "session-alive" || e == "rename" {
+			t.Fatalf("zellij call %q before the pane was born: events = %v", e, rt.events)
+		}
+	}
+	if misses := strings.Count(strings.Join(rt.events[:born], " "), "stat-pane:false"); misses != 3 {
+		t.Fatalf("the gate should have waited through 3 unborn stats, saw %d: %v", misses, rt.events)
+	}
+	// And once born, the steady loop resumes as before: probe, render, probe.
+	if want := []string{"session-alive", "rename", "session-alive"}; !slices.Equal(rt.events[born+1:], want) {
+		t.Fatalf("after birth events = %v, want %v", rt.events[born+1:], want)
+	}
+}
+
+// A pane that never appears (the session died at birth, or never started) ends
+// the poller at the grace deadline WITHOUT one zellij call: a probe of a server
+// that is still coming up is exactly what kills it.
+func TestRunExitsWithoutTouchingZellijWhenThePaneNeverAppears(t *testing.T) {
+	rt := newFake()
+	rt.pid = "9001"
+	rt.nowAdvance = 5 * time.Second // 30s grace ⇒ a handful of stats, then give up
+	rt.sessionAliveDflt = true      // would render forever if the gate leaked
+	if code := Run(fixtureOpts(), rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if rt.sessionAliveCalls != 0 || len(rt.renamed) != 0 {
+		t.Fatalf("no zellij call may precede birth: probes=%d renames=%v events=%v", rt.sessionAliveCalls, rt.renamed, rt.events)
+	}
+	if rt.sleeps == 0 {
+		t.Fatalf("the gate gave up without waiting")
+	}
+}
+
+// The attach shape: the live session's pane wrote its sidecar long ago, so the
+// gate costs one stat and the first probe follows at once. The same rule serves
+// both spawn sites because only the create path clears the sidecar.
+func TestRunPassesTheGateAtOnceForALivePane(t *testing.T) {
+	rt := withLivePane(newFake())
+	rt.pid = "9001"
+	rt.sessionAliveSeq = []bool{false}
+	opts := fixtureOpts()
+	opts.MissThreshold = 1
+	if code := Run(opts, rt); code != 0 {
+		t.Fatalf("code = %d, want 0", code)
+	}
+	if want := []string{"stat-pane:true", "session-alive"}; !slices.Equal(rt.events, want) {
+		t.Fatalf("events = %v, want %v", rt.events, want)
 	}
 }

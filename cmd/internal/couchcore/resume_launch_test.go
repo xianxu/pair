@@ -170,8 +170,21 @@ func TestResumeUnobservableSessionKeepsUnknownOccupied(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	parked := createParkedThreadInCouch(t, env, LaunchProfile{Agent: "codex", Argv: []string{"--saved"}})
 	env.Artifacts.SetNativeBinding(parked.Address, "codex", sessioninventory.BindingEstablished, "native-root-1")
-	env.Runner.AfterAcknowledge = func(string) error { return errors.New("ack transport closed") }
-	env.Artifacts.BeforePairSession = func(ThreadAddress) error { return errors.New("zellij unreachable") }
+	acked := false
+	env.Runner.AfterAcknowledge = func(string) error {
+		acked = true
+		return errors.New("ack transport closed")
+	}
+	// Unreachable for the CLEANUP's observation, the one this test is about.
+	// The cold resume's pre-release liveness check (#287) still sees "no
+	// session", as for any parked thread. Its own unobservable arm is
+	// TestColdResumeRefusesToReleasePairWhenLivenessIsUnknown.
+	env.Artifacts.BeforePairSession = func(ThreadAddress) error {
+		if !acked {
+			return nil
+		}
+		return errors.New("zellij unreachable")
+	}
 
 	_, _, err := env.Couch.Resume(parked.Address)
 	if err == nil || !strings.Contains(err.Error(), "ack transport closed") {
