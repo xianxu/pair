@@ -172,3 +172,52 @@ request still constrains the thread" as an inline `Phase != checkpoint.Complete`
 `detach.go:432`, `console_continuation.go:115,215`, `menu.go:1212,1228`). A new
 terminal phase added site by site would leave the next one to find the same
 trap. The terminal set belongs in `checkpoint`, as one predicate.
+
+### 2026-09-17 — plumbing map for a dismiss operation, and a probable retry bug
+
+**Probable existing bug: switcher Retry continuation cannot reach its thread.**
+Read, not yet reproduced:
+- `threadEffect` puts `tag` in the effect (`couchtty/menu.go:1887-1891`);
+- `dispatchMenuOperation` then adds `ref` for `retry-continuation` (`:1773`);
+- the production path (`wireResolver` → `CouchLiveOwnerExecutor` →
+  `resolveOperationThread`) refuses both together: *"thread ref and exact tag
+  cannot both be supplied"* (`couchcore/operationdispatch.go:421-423`).
+
+The only switcher retry test (`console_continuation_test.go:17`) uses a fake
+live-owner executor, so it never reaches that refusal. If this reproduces, a
+failed row's one offered exit is dead too. Reproduce it before building on retry,
+and do not copy the ref+tag pattern for dismiss.
+
+**What a new operation must touch** (mapped by an exploration pass):
+- **Declaration:** `ops.go:247-251`, argument helper `ops.go:423-429`.
+- **Dispatch:** `operationdispatch.go:275-285`.
+- **Switcher:** offer `menu.go:1211-1232`, confirm `:722-741`, label
+  `:1375-1392`, result `:1663`, own-child `:1683-1689`, refresh `:1695-1704`,
+  arguments `:1772-1777`, notice `:1827`; console effect `console.go:1583-1597`.
+- **CLI:** generic through `cli.go:121-139`; owner policy `run.go:365-398`.
+- **Harnesses that fail without a row:**
+  - `TestOperationDeclarationsAreClosureFreeCompleteAndOwned`
+    (`ops_declarations_test.go:8`);
+  - `TestOperationArityMatchesExpectation` (`run_test.go:589`);
+  - `TestRowActionDeclarationsAndTheMenuAgreeInBothDirections`
+    (`menu_action_sweep_test.go:76`);
+  - `TestAtlasDocumentsEveryTypedOperation` and `TestOperationPresentationDocs`
+    (`readme_test.go:184,197`), which need `couch --internal <op>` in
+    `atlas/couch.md`;
+  - the hand lists `TestContinuationOperationsDeclared`
+    (`continuation_ops_test.go:5`) and the owner-policy tests in
+    `couchcmd/continuation_test.go`.
+- **Confirmation pitfall:** a confirming operation on a NON-live row is dropped
+  by the confirm guard (`menu.go:787-791`) and the refresh check
+  (`:1566-1573`), which admit only live rows other than archive.
+- **Untested today:** `rootStateText`'s continuation labels. No test sets
+  `Continuation` (`menu_render_test.go:390,413`).
+
+**Design constraint found while planning:** thread records decode with
+`DisallowUnknownFields` (`strictjson/decode.go:23`, via
+`threadrecord.DecodePersisted`), and the embedded request is validated on read
+(`threadrecord/record.go:114-116`). A new phase VALUE or a new FIELD therefore
+makes any pre-change binary reject the whole record. That includes the
+long-running `pair` helpers, and the dismiss-then-relaunch flow parks through
+one. Clearing the request is the only skew-safe dismissal. Operator decision
+pending: clear the request, or add a `dismissed` phase.
