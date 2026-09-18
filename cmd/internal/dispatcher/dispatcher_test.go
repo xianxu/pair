@@ -354,6 +354,11 @@ func mustWrite(t *testing.T, p, s string) {
 // the peel-off would miss and `pair keys` would fall through to the launcher —
 // starting a whole session inside the floating help pane (#132).
 func TestDispatchKeysReturnsKeybindings(t *testing.T) {
+	// Hermetic: this repo is tested inside Couch threads, whose env and
+	// outer-tty record would otherwise shape the page (#282).
+	for _, k := range []string{"COUCH_THREAD_SCOPE", "COUCH_THREAD_TAG", "PAIR_DATA_DIR", "PAIR_TAG"} {
+		t.Setenv(k, "")
+	}
 	res := Dispatch([]string{"keys"})
 	if res.ExitCode != 0 {
 		t.Fatalf("ExitCode = %d, want 0; stderr:\n%s", res.ExitCode, res.Stderr)
