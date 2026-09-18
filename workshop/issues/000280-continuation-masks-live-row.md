@@ -351,3 +351,15 @@ advisory: archive and warm reattach have their own admissions.
 scrub, sandbox off). `make -k test` failed only on the pre-existing
 `test-changelog`; its Go recipe is skipped, which is why the suite above ran
 separately. `make build` rebuilt `bin/couch` and `bin/pair` for the smoke.
+
+### 2026-09-17 — operator smoke on the live `pair` thread
+
+The operator killed the pre-change couch (pid 76239, from 20:02), relaunched
+`couch` from this branch, and walked the smoke: *"ok, worked."* The live record
+confirms the part that matters: `couch-c945633f5c806f21` is at revision 38 with
+NO `continuation`. The failed 16:00 request is dismissed, and the thread is
+`live` (incarnation pid 3683, `pair resume`, 22:27:33, couch's startup
+reattach). A separate Alt+n relaunch after dismissal is not visible in the
+record: the only incarnation dates from couch's start. That path is pinned by
+`TestFailedContinuationRelaunchesOnceDismissed` (outcome `Relaunched`), and
+the refusal it used to hit is gone with the request.
