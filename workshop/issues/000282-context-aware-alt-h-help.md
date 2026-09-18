@@ -103,12 +103,20 @@ binding table moves to a small shared package both depend on, the way
 
 ## Plan
 
-- [ ] Confirm the draft nvim's environment carries `COUCH_THREAD_*`, and what
+Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
+
+- [x] Confirm the draft nvim's environment carries `COUCH_THREAD_*`, and what
       `PairOpenHelp` passes to `pair keys`.
-- [ ] Settle the package direction for sharing couch's binding table.
-- [ ] Context detection (env + lease, reusing #278's lease read); render couch's
-      section; correct the overridden entries.
-- [ ] Tests per Done when; atlas note on help sources.
+- [x] Settle the package direction for sharing couch's binding table.
+- [ ] `couchkeys`: Couch's chord table as data, with scope (plan Task 1).
+- [ ] couchtty frames and routes from `couchkeys` (Task 2).
+- [ ] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 3).
+- [ ] `keyhelp.Page` / `CouchSections` / `Presence` (Task 4).
+- [ ] `couch --help` renders via `keyhelp.CouchSections` (Task 5).
+- [ ] `launcher.CouchHosted`: one hosted rule (Task 6).
+- [ ] `keyscmd.ProbePresence` + `RunWith`; hermetic tests (Task 7).
+- [ ] README + atlas sweep; full `make test` + `go test ./...`; behavior
+      evidence; operator smoke (Task 8).
 
 ## Log
 
@@ -120,3 +128,71 @@ binding table moves to a small shared package both depend on, the way
   bindings), unrelated.
 - The overridden-entry problem (alt+d, alt+n) and the hosted-vs-live distinction
   were found while scoping; neither was in the request, both follow from it.
+
+### 2026-09-18
+
+- Claimed. Measured in a live Couch thread (this session):
+  - The draft nvim carries all five `COUCH_*` vars (`ps eww` on
+    `$PAIR_NVIM_DRAFT_PID_PATH`'s pid).
+  - `$COUCH_STORE_DIR/supervisor-owner.json` names a running `bin/couch`.
+  - `PairOpenHelp` passes nothing: `bin/pair-help` runs
+    `pair keys --center <cols>` in a `zellij run` pane, so context arrives only
+    through the Zellij server's env.
+- **The premise about interception is stale since #245.** `knownSequences`
+  still frames alt+d/x/n and ctrl+alt+n, but
+  `Console.dispatchInputCandidate` forwards every non-`actorReserved` hit to the
+  displayed Pair pane. `TestActorLifecycleCandidatesPassThrough` and
+  `TestConsoleRunAltDActorInputDoesNotDispatchDetach` pin that. Those chords
+  are Couch's only in the switcher. See Revisions.
+- Found `pair#284`, filed from code reading. Since #249, `pair restart` refuses
+  when hosted, so Pair's Alt+n in a Couch pane confirms and then does nothing.
+  The help documents that truth, and #284 owns the fix.
+- `#278` has not landed code, but the lease read it will use already exists as
+  `couchcore.VerifiedOwner`. It is reused here (ARCH-DRY).
+- Package direction: a new `couchkeys` package (pure data, depends only on
+  `workbenchshortcut`). Pair must not import Couch's console.
+- Full design and ARCH lenses: in the plan file.
+
+## Revisions
+
+### 2026-09-18: the mechanism behind "overridden entries" changes; the purpose holds
+
+**Reason:** the Spec assumed Couch intercepts alt+d, alt+x, alt+n and ctrl+alt+n
+before Pair sees them. #245 (2026-09-14) made those chords pass through to the
+displayed Pair pane. Couch acts on them only in its switcher. Couch takes only
+Ctrl+Space, Ctrl+Backspace and Ctrl+Return from a Pair pane. So the "wrong under
+couch" entries are wrong because *Pair's own* behavior changes when hosted:
+- `pair restart` is refused when hosted (#249), so Alt+n and Ctrl+Alt+n do
+  nothing (`pair#284`).
+- Pair's Alt+d detaches only its Zellij client, while Couch's detach lives in
+  the switcher.
+
+Couch is not taking those keys over.
+
+**Delta to `## Spec`:**
+- Couch's section has two scopes:
+  - every-pane chords (taken before Pair);
+  - switcher chords (acted on only in the switcher).
+
+  Each scope renders as its own context. The same key in a Pair pane and in the
+  switcher is two rows in two sections, per keyhelp's existing `(key, context)`
+  rule.
+- The table the help derives from is a new `couchkeys` package: labels, help,
+  encodings and scope for all seven chords. It replaces
+  `couchtty.CouchNavigationBindings()`, which covered only the three navigation
+  chords and had no help text for the switcher chords. couchtty's framing and
+  routing read the same table, so help context and routing cannot disagree.
+- Overridden entries are corrected through `GlobalBinding.HostedHelp` (Alt+d,
+  Alt+n, Ctrl+Alt+n). This is Pair-authored, because it describes Pair's
+  behavior. It is keyed on *hosted* (launch env), not on Couch being live,
+  because the launcher's refusal is keyed on the env.
+
+**Delta to `## Done when`:**
+- Row 1: "rendered from `CouchNavigationBindings()`" → "rendered from
+  `couchkeys.Bindings()` through `keyhelp.CouchSections`, which `couch --help`
+  also renders".
+- Row 2: "No chord has two meanings **in one context**. Couch's every-pane
+  chords are disjoint from Pair's (tested by encoding and by display key). Pair
+  entries whose behavior changes when hosted show their hosted meaning." The
+  intercepted set still derives from Couch's table, via `Scope`.
+- Rows 3–5: unchanged.
