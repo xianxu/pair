@@ -1030,3 +1030,13 @@ the couch path end-to-end and says nothing about zellij on its own.
 (outside couch) under the same quiet regimes, and record the zellij answer.
 Threads whose `pair wrap` predates the 19:37 build still carry the old renderer
 until relaunched (Alt+n), so judge those only after a relaunch.
+
+### 2026-09-17 — operator smoke: couch flicker gone
+
+The operator killed the pre-M1 couch (pid 80116, started 17:41, before the 19:37
+build) and relaunched `couch`, which rebuilt from this branch. After reloading the
+brain thread: *"I think your fix is successful."* That covers the couch regime,
+where the whole-window flicker lived. Still open for the M1 close: `pair term`
+under plain zellij (a fresh Alt+Shift+d split, since running `pair term`
+processes still run the old binary), and whether the caret blinks regularly,
+which is M2's DECSCUSR input.
