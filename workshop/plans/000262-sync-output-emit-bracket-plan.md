@@ -332,3 +332,15 @@ all chrome to `terminal.Presenter.UpdateChrome`.
 - **`pair term` with no couch was not smoked.** The native zellij oracle shows the
   bracket leaves zellij's end state unchanged.
 - **The caret-blink question is still open**, as input to M2.
+
+### 2026-09-17 — corrections after M1 boundary review round 1 (BR-3)
+
+- The execution note above said the caret-blink question was still open. It was
+  answered in `72c2bbfc`: on a quiet screen the caret blinks with the per-frame
+  DECSCUSR inside the bracket. That same commit also raised the "terminal default
+  cursor style is not representable" finding for M2.
+- Task 5's step 3 (`pair term` under plain zellij) is ticked, but the operator
+  did NOT perform it. What stands in its place is the measurement
+  `tests/terminal-oracle/discovery/sync_hold.py` (zellij 0.45.1 honours pane
+  2026), recorded in the issue's `## Revisions`. The tick records that the
+  question is answered, not that the smoke was run.

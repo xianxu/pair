@@ -293,6 +293,39 @@ priced as full design although it is mostly classification, and the M1 atlas ite
 undiscounted. All four were corrected before implementation started, so the
 estimate prices only the measured window.
 
+### 2026-09-17 — M1 Done-when, bullet by bullet: what met each one, and what substituted
+
+The M1 boundary review (BR-1) found bullet 5 waived with no revision. Every M1
+bullet was then checked against its evidence, not just bullet 5. Two were met by
+something other than what they say. They are re-scoped here, with the reason.
+
+- **Bullet 2 ("for every accepted-prefix length"):** met literally for the
+  single-write and alt-switch layouts, where every offset is cut. The 321 KB
+  multi-chunk layout is cut by class instead: every write boundary ±2, the first
+  and last 32 bytes, and a 4093-byte stride. Cutting all 321,449 offsets means a
+  presenter paint per offset. The failure the sweep guards against (a later write
+  failing after `syncBegin` landed) is a property of WHICH write fails, and every
+  write's boundaries are cut. **Re-scoped:** every offset for layouts ≤ one chunk;
+  boundaries, ends and stride for larger layouts.
+- **Bullet 5, "both quiet regimes":** the operator's smoke was one report under
+  couch (*"I think your fix is successful"*), plus a follow-up that the pre-M1
+  `pair term` panes stopped flickering. The two regimes were not named separately.
+  The fix does not depend on the regime (every frame is bracketed, whatever
+  drives it), so one clean smoke under couch covers both. **Re-scoped:** "operator
+  smoke under couch".
+- **Bullet 5, "`pair term` under plain zellij smoked":** not smoked by the
+  operator. **Substituted by measurement, which answers the bullet's actual
+  question better than a smoke:** `tests/terminal-oracle/discovery/sync_hold.py`
+  shows Zellij 0.45.1 HONOURS 2026 from a pane. An unbracketed marker reaches
+  zellij's client in 0.012s. A bracketed one arrives at 1.016s, just after the
+  close at 1.004s, and a repeat run agrees. So under plain pair, `pair term`'s
+  bracketed full-pane repaint also reaches the terminal atomically. The native
+  oracle already showed the end state is unchanged. **"Zellij's 2026 handling is
+  recorded": met: honoured.**
+
+Bullets 1, 3 and 4 are met as written. Bullet 4's sweep was widened in round 2
+(BR-2); see `## Log`.
+
 ## Plan
 
 Durable plan: `workshop/plans/000262-sync-output-emit-bracket-plan.md` (M1).
@@ -1036,3 +1069,31 @@ frame. That OVERRIDES the parent terminal's configured default (Ghostty's
 silence, reached the terminal as "default". Candidate M2 fix: carry "default"
 through (Shape 0), and emit `ESC[0 q` for it. Needs a vt-level distinction
 between "never set / reset" and an explicit block.
+
+### 2026-09-17 — M1 boundary review round 1 (FIX-THEN-SHIP): fixes by class
+
+- **BR-1, a Done-when waived without a revision.** Every M1 bullet was
+  re-checked (see `## Revisions`). The plain-zellij question was answered by
+  measurement: `sync_hold.py` shows zellij 0.45.1 honours pane 2026. It is kept
+  as a discovery/conformance script, with `test_sync_hold.py` pinning its
+  honoured / not / inconclusive verdict. The first probe draft saw nothing even
+  in the control because zellij's startup-tips popup covered the pane, which is
+  why the script sets `show_startup_tips false`.
+- **BR-2, stale "two consumers" prose that survived the sweep.** The re-sweep
+  added the phrasing vocabulary (`both consumers`, `two consumers`, `there are
+  two`, `reserves the HOST`, `reserves its PANE`, `reserved-row consumers`) and
+  found these:
+  - `hostty/reserve.go:51-57` (a painting caller is now only the probe);
+  - `hostty/reserve.go:13-19` ("not this file" was wrong: `Release` still writes
+    `\x1b[r`, for the probe);
+  - `couchnestedrows/main.go:1-13` (the two-reservation picture was present
+    tense);
+  - `couchnestedrows/main.go:94-100` ("row-dirty, which couch uses").
+
+  Also checked: `rowtext.go:3` and `atlas/architecture.md:485` ("both
+  reserved-row renderers") are still TRUE, because both strips render their text
+  through `rowtext`. `ptychild/screen.go:228` is covered by the type-level status
+  note.
+- **BR-3, a stale plan record:** corrected in the plan's `## Revisions`.
+- **Test note:** both alt transitions are now also checked with
+  `assertOneBracket` on the joined packets.

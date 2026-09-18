@@ -92,6 +92,7 @@ func TestHistoryRendererAltTransitionsAreWholePackets(t *testing.T) {
 	if len(packets) < 3 || packets[0] != syncBegin || packets[1] != "\x1b[?1049h" || !strings.HasSuffix(packets[len(packets)-1], syncEnd) {
 		t.Fatalf("ALT enter not a whole packet inside the bracket: %q", packets)
 	}
+	assertOneBracket(t, "ALT enter", []byte(strings.Join(packets, "")))
 	normal := f
 	normal.AltScreen = false
 	plan, err = RenderWithHistory(f, normal, p.History, plan.NextState())
@@ -103,6 +104,7 @@ func TestHistoryRendererAltTransitionsAreWholePackets(t *testing.T) {
 	if len(packets) < 3 || packets[0] != syncBegin || packets[1] != "\x1b[?1049l" || !strings.HasSuffix(packets[len(packets)-1], syncEnd) {
 		t.Fatalf("ALT leave not a whole packet inside the bracket: %q", packets)
 	}
+	assertOneBracket(t, "ALT leave", []byte(strings.Join(packets, "")))
 	if !strings.Contains(strings.Join(packets, ""), "\x1b[3J") {
 		t.Fatalf("exit did not restore primary: %q", packets)
 	}
