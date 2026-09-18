@@ -1,11 +1,12 @@
 ---
 id: 000287
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-18
 updated: 2026-09-18
 estimate_hours:
+started: 2026-09-18T13:38:02-07:00
 ---
 
 # New sessions die at birth: title poller probes zellij during server startup
