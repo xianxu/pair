@@ -94,3 +94,67 @@ attempts, nonces, tombstones or a history array.
 - Split out of `pair#256` at the operator's direction while re-cutting that
   plan: *"yes, agree for Park, and yes, simplify it as you mentioned. sure, make
   a new issue for it."*
+
+### 2026-09-17 — a second live wedge, and the operator's requirement for it
+
+A fresh instance of the wedge this issue exists to remove, on `astro`. Its
+zellij server panicked at startup (`pair#273`), leaving the launcher alive and
+the session gone, so couch classifies the thread `live` from the launcher pid
+(`pair#272`). Captured before it is reaped:
+
+```
+$ cd ~/workspace/astro && couch --list
+astro                  /Users/xianxu/workspace/astro
+  address: fcff31946c0ac9d2/couch-48340fd828040287
+  recorded: live     pid 63065     # pair resume …, alive
+  live                             # classifier, same rule as the switcher
+```
+
+This survives `pair#256` M1–M3 — measured with a binary built after M3 landed at
+16:54, not the 15:49 process that was running.
+
+Operator requirement, stated on the incident:
+
+> I expect I can park it, and when park timeout, treat that as an error case,
+> but user can continue to archive that parked — but failed — thread.
+
+Three claims, and the middle one is already this issue's core (`pair#271`: a
+timed-out park sits in `awaiting_completion` forever, no timeout, no expiry, no
+owner-liveness check — the brain thread wedged ~18 hours on it):
+
+1. Park is **attemptable** on a thread whose session is already gone. Park's job
+   is to reach the parked state, and a torn-down session is that state reached
+   early, not a precondition failure.
+2. A park attempt that times out is a **confirmed failure** — a recorded
+   terminal transition — not an open phase awaiting a completion that will never
+   arrive.
+3. A parked-but-failed thread remains **archivable**. This is the property that
+   keeps a failure recoverable instead of terminal, and it is the one not stated
+   anywhere today.
+
+**Note on reproducing this:** the fixture is fragile. The launcher is couch's own
+child, so restarting couch reaps pid 63065 and the thread reclassifies for a
+reason unrelated to any fix — an easy way to credit a change that did nothing.
+Capture the state first, or build the fixture deliberately in a test.
+
+## Revisions
+
+### 2026-09-17 — added the operator's failure-outcome requirement
+
+**Reason:** a second live wedge (above) and an explicit operator requirement for
+what a failed park must leave behind.
+
+**Delta to `## Done when`:** add, as its own bullet —
+
+- A park attempt that times out records a **confirmed failure** transition, and a
+  thread left by one can still be archived. A failed park never produces a thread
+  that refuses every gesture couch offers.
+
+**Delta to `## Spec`:** park must accept a thread whose session is already
+absent, and reaching the parked state by an unexpected route is a success, not
+an error. The ordered idempotent write makes this natural — "is the session torn
+down?" is the whole question, and a panicked server has already answered yes.
+
+**Dependency note:** claim 3 is only reachable once the liveness witness stops
+asserting `live` from the launcher pid (`pair#272`); until then the archive
+guard sees a live thread and refuses regardless of what park recorded.
