@@ -7,18 +7,17 @@ import (
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
-// Sections builds the help document: wording from each row's named source,
-// grouping and order from the catalog.
+// Sections builds the help document for Pair as it behaves standalone: wording
+// from each row's named source, grouping and order from the catalog.
+// HostedSections is the same document with each chord's HostedHelp where Couch
+// changes Pair's behavior -- when Couch launched the session or presents the
+// client (#282).
 //
 // There is deliberately NO "whichever source has prose wins" fallback. A row whose
 // named source has no wording is an error, not an occasion to borrow a sentence from
 // somewhere else — that fallback is precisely what would render Alt+t as
 // "right-terminal tab helper disabled in draft" (its DRAFT no-op desc) instead of
 // "new terminal tab" (#132).
-//
-// Sections is Pair's help as Pair behaves standalone. HostedSections is the same
-// document with each chord's HostedHelp where Couch changes Pair's behavior --
-// when Couch launched the session or presents the client (#282).
 func Sections(src SourceReader) ([]Section, error) { return sections(src, false) }
 
 // HostedSections: see Sections.
