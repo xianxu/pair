@@ -653,6 +653,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/continuationcmd/git.go",
 	"cmd/internal/couchcmd/cli.go",
 	"cmd/internal/couchcmd/run.go",
+	"cmd/internal/couchkeys/couchkeys.go",
 	"cmd/internal/couchcore/actionableinventory.go",
 	"cmd/internal/couchcore/threadreason.go",
 	"cmd/internal/couchcore/actorid.go",
