@@ -46,15 +46,16 @@ To be designed. The candidate directions, none chosen:
   precedent for a hosted Pair asking Couch to act).
 
 `pair#282` documents the current truth in Alt+h ("refused in a thread Couch
-launched") through `GlobalBinding.HostedHelp`. Pair's own page picks that wording
-by `launcher.CouchHostedEnv`; Couch's Alt+h page always uses it. Whatever this
-issue changes must update that `HostedHelp` and the launcher test that pins the
-refusal (`TestCheckpointHostedRestartAndRenameRefuseBeforeMutation`).
+launched") through `GlobalBinding.HostedHelp`. Pair picks that wording by
+`launcher.CouchHostedEnv`, the same rule the refusal uses, so the help is right
+for adopted sessions too (`pair#246`: session env not Couch's, Alt+n not
+refused, "reload pair" shown). Whatever this issue changes must update that
+`HostedHelp` and the launcher test that pins the refusal
+(`TestCheckpointHostedRestartAndRenameRefuseBeforeMutation`).
 
-Also settle the adopted-thread case (`pair#246`). If Couch presents a session it
-did not create, the Zellij server env lacks `COUCH_THREAD_*`, so Pair's Alt+n is
-*not* refused, yet Couch's page shows the hosted row. The cleanest fix makes
-Pair's Alt+n under Couch behave the same whoever created the session.
+One more thing to decide here: Pair's Alt+n currently depends on who *created*
+the session. Under Couch it probably should not, because an adopted thread and a
+Couch-created thread behave differently today.
 
 ## Done when
 
