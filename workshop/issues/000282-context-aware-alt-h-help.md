@@ -107,16 +107,19 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
 
 - [x] Confirm the draft nvim's environment carries `COUCH_THREAD_*`, and what
       `PairOpenHelp` passes to `pair keys`.
-- [x] Settle the package direction for sharing couch's binding table.
-- [ ] `couchkeys`: Couch's chord table as data, with scope (plan Task 1).
-- [ ] couchtty frames and routes from `couchkeys` (Task 2).
-- [ ] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 3).
-- [ ] `keyhelp.Page` / `CouchSections` / `Presence` (Task 4).
-- [ ] `couch --help` renders via `keyhelp.CouchSections` (Task 5).
-- [ ] `launcher.CouchHosted`: one hosted rule (Task 6).
-- [ ] `keyscmd.ProbePresence` + `RunWith`; hermetic tests (Task 7).
+- [x] Settle the package direction for sharing couch's binding table. Couch
+      imports keyhelp; Pair never reads Couch's table (second revision).
+- [ ] `launcher.CouchHosted`: one hosted rule (plan Task 1).
+- [ ] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 2).
+- [ ] keyhelp: `Binding.Chord`, `HostedSections`, `Layer` (Task 3).
+- [ ] `pair keys`: hosted-aware Pair page, hermetic `RunWith` (Task 4).
+- [ ] couchtty: one declared chord table with `KeyScope` (Task 5).
+- [ ] couchtty `HelpSections`/`HelpPage`; `couch --help` renders them (Task 6).
+- [ ] Panel decoder: PgUp/PgDn (Task 7).
+- [ ] `MenuFrameHelp`: an overlay that returns to its thread (Task 8).
+- [ ] Couch takes Alt+h; console acceptance test (Task 9).
 - [ ] README + atlas sweep; full `make test` + `go test ./...`; behavior
-      evidence; operator smoke (Task 8).
+      evidence; operator smoke (Task 10).
 
 ## Log
 
@@ -152,6 +155,15 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
 - Package direction: a new `couchkeys` package (pure data, depends only on
   `workbenchshortcut`). Pair must not import Couch's console.
 - Full design and ARCH lenses: in the plan file.
+- Fresh-context plan review of that first draft: Issues Found, all fixable. The
+  reviewer built every snippet in a scratchpad copy and measured standalone
+  output byte-identical and the live/absent pages correct.
+- **Operator redirect before approval** (see the second Revisions entry): the
+  env records the session's *creator*, so a session Couch adopts later (#246)
+  would read as standalone. The new direction: Couch takes Alt+h itself and
+  shows its keys over Pair's structured rows in a panel frame (the operator
+  chose that over Pair's floating pager). Plan rewritten; the first review's
+  findings that still apply are folded in.
 
 ## Revisions
 
@@ -196,3 +208,50 @@ Couch is not taking those keys over.
   entries whose behavior changes when hosted show their hosted meaning." The
   intercepted set still derives from Couch's table, via `Scope`.
 - Rows 3–5: unchanged.
+
+### 2026-09-18: Couch intercepts Alt+h; detection is dropped
+
+**Reason:** operator direction, before plan approval. The first Revision kept the
+Spec's detection model: env decides *hosted*, the supervisor lease decides *live*.
+The env records who *created* the Zellij session, so a session Couch attaches to
+after creation (#246) would read as standalone. The operator's alternative:
+- Each layer binds its own Alt+h.
+- Pair exposes structured key→text rows, not finished text.
+- Couch adds its keys and overrides the ones it takes, and displays the result
+  itself.
+
+A keystroke Couch intercepted proves Couch is presenting this client, so no
+detection is needed. The operator picked a Couch panel frame over Pair's floating
+pager.
+
+**Delta to `## Spec`:**
+- *Detection* is replaced by interception. Couch claims Alt+h from every pane,
+  including the agent pane, and in the switcher. The lease is not read.
+- *Content*:
+  - Pair's `keyhelp` rows carry the typed workbench `Chord`.
+  - `keyhelp.Layer(host, claimed, pair)`, which is host-agnostic, puts a
+    host's sections first and drops Pair's rows for claimed chords.
+  - Couch's table (`couchtty`, with `KeyScope`) feeds framing, routing,
+    `couch --help` and the page.
+  - Pair's hosted wording (`HostedHelp`) is chosen by Pair's own rule
+    (`launcher.CouchHostedEnv`) on Pair's page, and always on Couch's page.
+- *Layering*: Pair never reads Couch's table, so no shared package is needed.
+  Couch imports keyhelp.
+
+**Delta to `## Done when`** (replaces the first revision's rows):
+1. Under Couch, Alt+h (in any pane, and in the switcher) opens Couch's help
+   frame, which shows Couch's keys over Pair's. Couch's part comes from the
+   table `couch --help` renders, and a binding added there reaches both
+   surfaces.
+2. A chord Couch takes replaces Pair's row for it, and no key has two meanings
+   in one context. Pair entries whose behavior changes in a Couch-launched
+   thread show hosted wording.
+3. Standalone Pair's help is unchanged.
+4. Couch's keys appear only when Couch presents the thread, which interception
+   guarantees. Pair's page in a Couch-launched thread says where they are.
+5. `pair keys` prints exactly Pair's own Alt+h page. The combined page lives in
+   Couch.
+
+**Known gap, recorded in #284:** for a thread Couch adopted without launching,
+Pair's Alt+n is not refused, but Couch's page shows the hosted row. #284 owns
+Pair's Alt+n under Couch.
