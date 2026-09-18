@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"sync"
 	"time"
 
@@ -50,6 +51,10 @@ type FakeRunner struct {
 	BeforeAcknowledge func(id string) error
 	AfterAcknowledge  func(id string) error
 	AfterBlockedStart func(id string)
+	// OnRelease models what a released program does once it runs: the test
+	// environment's model of Pair, not a test's hook. It runs before
+	// AfterAcknowledge, so a test that sets that hook keeps the model (#287).
+	OnRelease func(argv, env []string)
 }
 
 var _ Runner = (*FakeRunner)(nil)
@@ -223,7 +228,12 @@ func (h *fakeBlockedHandle) Acknowledge() error {
 		c.terminal.Exit(*h.runner.autoExit)
 	}
 	hook = h.runner.AfterAcknowledge
+	release := h.runner.OnRelease
+	argv, env := slices.Clone(c.Argv), slices.Clone(c.Env)
 	h.runner.mu.Unlock()
+	if release != nil {
+		release(argv, env)
+	}
 	if hook != nil {
 		return hook(h.id)
 	}

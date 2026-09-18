@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -237,6 +239,44 @@ func (c ScopedThreadArtifactCollisionChecker) PairSessionContext(ctx context.Con
 		}
 	}
 	return PairSessionBinding{Name: name, Present: present}, nil
+}
+
+// PaneSidecars observes the thread's agent pane sidecars in its own scope
+// directory, the directory PairSessionContext reads the session index from.
+// It uses a glob and a stat and asks zellij nothing, which is the point: it is
+// what a cold resume watches before its first zellij call (#287). A tag that
+// merely shares a prefix is filtered out by AgentFromPane. A sidecar that
+// vanishes between the glob and the stat has been cleared, so it is left out,
+// not reported as an error.
+func (c ScopedThreadArtifactCollisionChecker) PaneSidecars(address ThreadAddress) (PaneMarks, error) {
+	if err := validateThreadAddress(address); err != nil {
+		return nil, err
+	}
+	paths, err := artifactpath.Resolve(artifactpath.Address{
+		DataDir: c.GlobalDataDir, RepoScope: address.RepoScope, Tag: string(address.Tag),
+	})
+	if err != nil {
+		return nil, err
+	}
+	matches, err := filepath.Glob(paths.PaneGlob())
+	if err != nil {
+		return nil, err
+	}
+	marks := PaneMarks{}
+	for _, path := range matches {
+		if _, ok := paths.AgentFromPane(path); !ok {
+			continue
+		}
+		info, err := os.Stat(path)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, fmt.Errorf("observe pane sidecar: %w", err)
+		}
+		marks[path] = info.ModTime()
+	}
+	return marks, nil
 }
 
 // DetachedSessionResolver observes which of the supplied threads currently have

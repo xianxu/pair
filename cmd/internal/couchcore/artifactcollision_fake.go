@@ -3,7 +3,9 @@ package couchcore
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sync"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
@@ -44,6 +46,18 @@ type FakeThreadArtifactCollisionChecker struct {
 	// DetachedSessionsHook lets a test fail the observation, or interleave a
 	// durable change at the moment the projector asks who is detached.
 	DetachedSessionsHook func([]ThreadAddress) error
+
+	// panes models each thread's agent pane sidecars (#287): path → mtime. The
+	// clock is a counter, since only equality is ever compared.
+	panes     map[ThreadAddress]PaneMarks
+	paneClock int64
+	// paneQueries counts PaneSidecars calls, so a test can pin WHEN the cold
+	// resume took its baseline (before the helper is released) rather than
+	// only that it waited.
+	paneQueries int
+	// PaneSidecarsHook runs before each PaneSidecars observation, outside mu,
+	// so a test can make the pane be born mid-wait or fail the observation.
+	PaneSidecarsHook func(ThreadAddress) error
 
 	sessionPresence map[ThreadAddress]SessionObservation
 	// presenceQueries counts SessionPresence calls, mirroring detachedQueries:
@@ -126,6 +140,7 @@ func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker
 		pairSessions:     map[ThreadAddress]PairSessionBinding{},
 		nativeBindings:   map[nativeBindingKey]NativeBindingResolution{},
 		detachedSessions: map[ThreadAddress]string{},
+		panes:            map[ThreadAddress]PaneMarks{},
 	}
 }
 
@@ -219,10 +234,84 @@ func (f *FakeThreadArtifactCollisionChecker) ResolveEstablished(_ context.Contex
 	return resolution, nil
 }
 
+// SetPairSession declares the session the exact index binds address to, and
+// whether it is live.
+//
+// A session BECOMING live also has its pane write the sidecar. In the world
+// being modelled those are one event: zellij runs the layout's pane command
+// only after the first client initialized the session, and the pane writes the
+// sidecar first thing (#287). A fake that let a session come up with no pane
+// born would model a host that cannot exist.
 func (f *FakeThreadArtifactCollisionChecker) SetPairSession(address ThreadAddress, name string, present bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if present && !f.pairSessions[address].Present {
+		f.writePaneLocked(address, "agent")
+	}
 	f.pairSessions[address] = PairSessionBinding{Name: name, Present: present}
+}
+
+// PairLaunchReleased models a released Pair launch for address. If its session
+// is up, its pane has been born. A pane is born once the launch has run AND
+// the session is live, whichever came later. SetPairSession's live edge covers
+// the other order. Test environments call this from FakeRunner.OnRelease.
+func (f *FakeThreadArtifactCollisionChecker) PairLaunchReleased(address ThreadAddress) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.pairSessions[address].Present {
+		f.writePaneLocked(address, "agent")
+	}
+}
+
+// SetPaneSidecar makes address's pane for agent write its sidecar now, at a
+// fresh mtime, without changing whether the session is live. That lets a test
+// separate birth from registration, or seed a stale sidecar before a start.
+func (f *FakeThreadArtifactCollisionChecker) SetPaneSidecar(address ThreadAddress, agent string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.writePaneLocked(address, agent)
+}
+
+// ClearPaneSidecar removes address's sidecar for agent, the way the launcher's
+// create path does before it starts zellij.
+func (f *FakeThreadArtifactCollisionChecker) ClearPaneSidecar(address ThreadAddress, agent string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.panes[address], fakePanePath(address, agent))
+}
+
+func (f *FakeThreadArtifactCollisionChecker) writePaneLocked(address ThreadAddress, agent string) {
+	if f.panes[address] == nil {
+		f.panes[address] = PaneMarks{}
+	}
+	f.paneClock++
+	f.panes[address][fakePanePath(address, agent)] = time.Unix(0, f.paneClock)
+}
+
+func fakePanePath(address ThreadAddress, agent string) string {
+	return "pane-" + string(address.Tag) + "-" + agent + ".json"
+}
+
+func (f *FakeThreadArtifactCollisionChecker) PaneSidecars(address ThreadAddress) (PaneMarks, error) {
+	f.mu.Lock()
+	hook := f.PaneSidecarsHook
+	f.mu.Unlock()
+	if hook != nil {
+		if err := hook(address); err != nil {
+			return nil, err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.paneQueries++
+	return maps.Clone(f.panes[address]), nil
+}
+
+// PaneQueries is how many times PaneSidecars has observed.
+func (f *FakeThreadArtifactCollisionChecker) PaneQueries() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.paneQueries
 }
 
 func (f *FakeThreadArtifactCollisionChecker) PairSessionContext(ctx context.Context, address ThreadAddress) (PairSessionBinding, error) {

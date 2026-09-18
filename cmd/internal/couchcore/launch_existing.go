@@ -137,6 +137,20 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if err := ctx.Err(); err != nil {
 		return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h, err)
 	}
+	// A cold resume starts a new zellij server, so its registration must not
+	// ask zellij anything until the thread's pane has been born (#287). The
+	// baseline is taken HERE, while the helper is still blocked: Pair has not
+	// yet run, so it cannot have cleared or rewritten a sidecar, and whatever
+	// changes from here on is this launch's doing.
+	var birth *PaneMarks
+	if shape == StartColdResume {
+		baseline, err := c.observePaneSidecars(thread.Address)
+		if err != nil {
+			return ActorRecord{}, h, c.failTrackedPreAckStart(thread, in.Nonce, h,
+				fmt.Errorf("observe pane sidecars %+v: %w", thread.Address, err))
+		}
+		birth = &baseline
+	}
 	if err := h.Acknowledge(); err != nil {
 		cause := fmt.Errorf("acknowledge blocked helper %+v: %w", thread.Address, err)
 		return ActorRecord{}, h, c.failTrackedPostAckStart(shape, thread, in.Nonce, h, cause)
@@ -152,7 +166,7 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if in.Fresh {
 		err = c.awaitFreshRegistration(registrationContext, thread.Address, in.Args.Stack, in.Nonce)
 	} else if in.Resume {
-		err = c.awaitResumeRegistration(registrationContext, thread.Address)
+		err = c.awaitResumeRegistration(registrationContext, thread.Address, birth)
 	} else {
 		err = c.awaitThreadRegistration(registrationContext, thread.Address)
 	}
@@ -289,16 +303,57 @@ func (c *Couch) diagnoseRegistrationFailure(err error, address ThreadAddress, bu
 		"before registering -- look at the launch, not registration)", budget)
 }
 
-func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddress) error {
+// awaitResumeRegistration polls until the thread's Pair session is live. A
+// non-nil birth is a cold resume's pre-launch sidecar baseline: no session
+// probe runs until the pane has been born against it. The probe is
+// `list-sessions`, which connects to every socket, and at this cadence it
+// killed every cold launch it overlapped (probes/zellijbirthrace: 10/10).
+// A warm reattach passes nil, because its session is already live.
+func (c *Couch) awaitResumeRegistration(ctx context.Context, address ThreadAddress, birth *PaneMarks) error {
 	sessions, ok := c.Artifacts.(PairSessionIO)
 	if !ok {
 		return errors.New("exact Pair session observer is unavailable")
+	}
+	if birth != nil {
+		if err := c.awaitPaneBirth(ctx, address, *birth); err != nil {
+			return err
+		}
 	}
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		binding, err := sessions.PairSession(address)
 		if err == nil && binding.Present {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func (c *Couch) observePaneSidecars(address ThreadAddress) (PaneMarks, error) {
+	panes, ok := c.Artifacts.(PaneBirthIO)
+	if !ok {
+		return nil, errors.New("pane birth observer is unavailable")
+	}
+	return panes.PaneSidecars(address)
+}
+
+// awaitPaneBirth polls the thread's pane sidecars, which costs a glob and a
+// stat and asks zellij nothing, until one has been born since baseline. A
+// failed observation ends the wait with its error; it is never read as birth.
+func (c *Couch) awaitPaneBirth(ctx context.Context, address ThreadAddress, baseline PaneMarks) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		now, err := c.observePaneSidecars(address)
+		if err != nil {
+			return err
+		}
+		if baseline.BornIn(now) {
 			return nil
 		}
 		select {
