@@ -47,8 +47,9 @@ type FakeThreadArtifactCollisionChecker struct {
 	// durable change at the moment the projector asks who is detached.
 	DetachedSessionsHook func([]ThreadAddress) error
 
-	// panes models each thread's agent pane sidecars (#287): path → mtime. The
-	// clock is a counter, since only equality is ever compared.
+	// panes models each thread's agent pane sidecars (#287), keyed by agent:
+	// production keys are paths, but PaneMarks only compares keys for identity.
+	// The clock is a counter, since only equality is ever compared.
 	panes     map[ThreadAddress]PaneMarks
 	paneClock int64
 	// paneQueries counts PaneSidecars calls, so a test can pin WHEN the cold
@@ -277,7 +278,7 @@ func (f *FakeThreadArtifactCollisionChecker) SetPaneSidecar(address ThreadAddres
 func (f *FakeThreadArtifactCollisionChecker) ClearPaneSidecar(address ThreadAddress, agent string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	delete(f.panes[address], fakePanePath(address, agent))
+	delete(f.panes[address], agent)
 }
 
 func (f *FakeThreadArtifactCollisionChecker) writePaneLocked(address ThreadAddress, agent string) {
@@ -285,11 +286,7 @@ func (f *FakeThreadArtifactCollisionChecker) writePaneLocked(address ThreadAddre
 		f.panes[address] = PaneMarks{}
 	}
 	f.paneClock++
-	f.panes[address][fakePanePath(address, agent)] = time.Unix(0, f.paneClock)
-}
-
-func fakePanePath(address ThreadAddress, agent string) string {
-	return "pane-" + string(address.Tag) + "-" + agent + ".json"
+	f.panes[address][agent] = time.Unix(0, f.paneClock)
 }
 
 func (f *FakeThreadArtifactCollisionChecker) PaneSidecars(address ThreadAddress) (PaneMarks, error) {
