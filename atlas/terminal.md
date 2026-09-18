@@ -104,6 +104,15 @@ spaces in native copied text. Child alternate-screen transitions become presente
 retain the current physical buffer. Release leaves only an alternate buffer the
 presenter actually entered, then restores parent controls.
 
+Kitty keyboard flags are a stack **per screen**, so setup's `\x1b[>3u` holds only
+on the screen it was written on. `Presenter.writeFramePacket` makes the push
+follow the parent: it pushes right after entering the alternate screen and pops
+right before leaving it, or at release. Each screen's stack is left as it was
+found, at any write cut. Without that, the alternate screen reports legacy keys,
+and chords that exist only enhanced are dead there, including Couch's switcher
+Alt+d and Ctrl+Return (#279). `TestPresenterKeyboardPushFollowsTheScreen` and the
+keyboard check in the cut-write sweep pin it.
+
 The runtime bundle includes `tic` output compiled during generation through
 `runtimebundlegen.TerminfoCompiler`. A filesystem-producing fake tests staging,
 normalization and failure preservation; native compiler conformance is separate. Both launch

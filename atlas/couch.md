@@ -514,7 +514,8 @@ Three edge cases:
 
 The chord uses Kitty keyboard disambiguation (`couchkeys.NewestPageSequence`,
 `\x1b[13;5u`); explicit press and repeat forms also jump, while release does
-not. The presenter owns its keyboard-protocol stack entry and restores it at release.
+not. The presenter owns one keyboard-protocol stack entry per screen it presents on
+and restores both at release (`atlas/terminal.md`, #279).
 Child protocol negotiation stays in the endpoint and determines child input
 encoding. Plain Return still reaches the agent; terminals without enhanced keys
 retain Ctrl+Space then Return as the fallback. In the switcher, Return keeps its

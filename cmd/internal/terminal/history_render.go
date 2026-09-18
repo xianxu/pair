@@ -308,10 +308,10 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 	// Dedicated packets let Presenter account for a completed mode transition
 	// even if a later frame chunk fails; neither sequence is split by Emit.
 	if p.enterAlt {
-		e.packet("\x1b[?1049h")
+		e.packet(altEnter)
 	}
 	if p.leaveAlt {
-		e.packet("\x1b[?1049l")
+		e.packet(altLeave)
 	}
 	// Re-asserted every frame on purpose, like Render's (#262 M2). The region
 	// reset is convergent, not functional: the history push below sets 1;2r
