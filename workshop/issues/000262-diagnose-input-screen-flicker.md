@@ -336,7 +336,7 @@ Durable plan: `workshop/plans/000262-sync-output-emit-bracket-plan.md` (M1).
       frames and a cut in any write of the frame. Oracle suites green. Retire
       the stale reserved-row prose (`reserve.go:13-18`, atlas). Operator smoke
       under couch and `pair term`.
-- [ ] M2 — Classify the remaining per-frame sequences (DECSCUSR first) against their
+- [x] M2 — Classify the remaining per-frame sequences (DECSCUSR first) against their
       primitives, using M1's smoke evidence. Delta only what they sustain; keeping a
       convergent re-assert is a valid outcome. Record the row-diff trigger.
 
@@ -1104,3 +1104,50 @@ between "never set / reset" and an explicit block.
   a slow zellij start would fail the same way. A failure to measure now exits 2,
   inconclusive, pinned by `InstrumentFailureTest`. The live run is still
   "honoured", exit 0.
+
+### 2026-09-17 — M2: per-frame sequences classified; nothing is deltaed
+
+Classified against the primitives (writer count; confirm path), as the M2
+Done-when asks. **Writer count** was checked from the code: the presenter writes
+the parent from exactly five sites (`presenter.go`):
+
+- frames (`:346`, `:352`);
+- the mode delta (`:331`: mouse, focus, paste and keyboard modes only);
+- effects (`:709`: bell, title, clipboard, notify);
+- `Copy` (`:825`, OSC 52);
+- release (`:131`).
+
+None of the non-frame writes touch margins, origin, autowrap, SGR, hyperlink or
+cursor style. So every row below has ONE writer, the frame renderers.
+
+| sequence | role | confirm path | outcome |
+|---|---|---|---|
+| `?2026h`/`l` | frame framing (M1) | none needed | per-frame by design |
+| `?25l` … `?25h` | caret hidden while painting | DECRQM, async | keep: still does its job on terminals without 2026 |
+| `?6l` | origin mode known before absolute CUPs | DECRQM, async | keep as a convergent re-assert |
+| `ESC[r` | margins known before painting | DECRQSS, async | keep; also FUNCTIONAL in `Emit`, whose history push sets `1;2r` |
+| `?7l` (`Render`) / `?7h` (`Emit`) | lower-right cell / soft-wrap setup | n/a | functional within the frame |
+| `ESC[0m` + OSC8 close | known start for the style/link tracking | local belief | functional within the frame |
+| DECSCUSR (`cursorEpilogue`) | caret shape and blink | DECRQSS, async | keep; invisible inside the bracket, and the operator saw a normal blink on a quiet screen (`72c2bbfc`) |
+
+**Rule recorded in `atlas/terminal.md`**, with a pointer at both preambles
+(`render.go`, `history_render.go`): the belief would be sound (one writer), but
+it is not confirmable except asynchronously, so a convergent re-assert is the
+right treatment. Inside the bracket it costs nothing visible. The preamble is
+about 40 bytes, against a full-screen repaint per frame. **Revisit it only when
+the row diff is built**, whose trigger is output that crosses a network (#120)
+or a measured byte cost. That trigger, and the row diff's chain-granular design
+(earlier in this Log), are the record the M2 Done-when asks for.
+
+**DECSCUSR fidelity is filed as pair#283**, not fixed here. "Terminal default"
+cannot survive vt → endpoint → frame, so pair overrides the operator's Ghostty
+cursor config. It is a #255 behaviour difference, independent of the flicker.
+
+**Quiet versus busy coverage (the last `## Done when` bullet).**
+`TestHistoryEmitBracketsEveryFrame` names both cases:
+- *"quiet: steady one-cell change"*;
+- *"busy: history append (the screen scrolls)"*.
+
+The multi-chunk tests cover a large busy frame. The renderer is pane-agnostic:
+couch's whole-window presenter and `pair term`'s pane presenter run the same
+code, so the coverage holds "in either pane".

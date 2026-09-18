@@ -313,6 +313,8 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 	if p.leaveAlt {
 		e.packet("\x1b[?1049l")
 	}
+	// Re-asserted every frame on purpose, like Render's (#262 M2); the region
+	// reset is also functional here, since history pushes set 1;2r below.
 	e.add("\x1b[?25l\x1b[?6l\x1b[r\x1b[?7h")
 	e.resetStyle()
 	cols, height := p.next.Geometry.Cols, p.next.Geometry.Rows

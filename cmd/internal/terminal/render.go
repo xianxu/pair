@@ -61,6 +61,8 @@ func Render(prev, next Frame) ([]byte, error) {
 	out.WriteString(syncBegin)
 	// Disable autowrap while painting the lower-right cell, and reset origin and
 	// margins independently of whatever was on the parent's screen before us.
+	// Re-asserted every frame on purpose, not deltaed: the state has no
+	// synchronous confirm path (atlas/terminal.md, #262 M2).
 	out.WriteString("\x1b[?25l\x1b[?6l\x1b[r\x1b[?7l\x1b[0m\x1b]8;;\x1b\\")
 	if full {
 		out.WriteString("\x1b[2J")

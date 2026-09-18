@@ -152,13 +152,13 @@ func TestHistoryEmitBracketsEveryFrame(t *testing.T) {
 
 	p2, f2 := historyFixture(t, source+"\r\nNEXT")
 	wire, state2 := renderHistoryBytes(t, f, f2, p2.History, state)
-	assertOneBracket(t, "history append", wire)
+	assertOneBracket(t, "busy: history append (the screen scrolls)", wire)
 
 	edited := f2.Clone()
 	edited.Cells[0] = Cell{Content: "Q", Width: 1}
 	edited.Rows = nil // derive row metadata from the edited cells
 	wire, _ = renderHistoryBytes(t, f2, edited, p2.History, state2)
-	assertOneBracket(t, "steady one-cell change", wire)
+	assertOneBracket(t, "quiet: steady one-cell change", wire)
 
 	if idle, _ := renderHistoryBytes(t, f2, f2, p2.History, state2); len(idle) != 0 {
 		t.Fatalf("an idle frame must write nothing, got %q", idle)
