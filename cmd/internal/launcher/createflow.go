@@ -159,7 +159,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 			if !ok {
 				return false, step.code
 			}
-			if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+			if env.CouchHosted() {
 				fmt.Fprintln(stderr, "pair: legacy hosted restart intent refused; use Couch continuation/relaunch recovery")
 				return false, 1
 			}
@@ -766,7 +766,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 	rt.SpawnSessionWatcher(agent, chosenTag, scope.Key, env.Cwd, repoRoot, repoName, launchOrdinal, agentArgs)
 	rt.SetTerminalTitle(session)
-	rt.RecordOuterTTY(chosenTag)
+	rt.RecordOuterTTY(chosenTag, PresentedByCouch(env, chosenTag))
 	rt.CmuxRename(chosenTag, session)
 	rt.SpawnTitlePoller(chosenTag, agent, session, titlepoller.NewSessionEnv(dataDir, scope.Key))
 	rt.DevRebuild(opts.PairHome)

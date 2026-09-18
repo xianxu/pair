@@ -139,3 +139,67 @@ func TestReservedShortcutHelpMatchesPolicy(t *testing.T) {
 		}
 	}
 }
+
+// Rows documenting a workbench chord carry it, so a host overrides them by
+// identity rather than by label (#282). Draft-local keys carry none.
+func TestRowsCarryTheirWorkbenchChord(t *testing.T) {
+	secs, err := Sections(DefaultSources())
+	if err != nil {
+		t.Fatal(err)
+	}
+	byChord := map[workbenchshortcut.Chord]bool{}
+	for _, s := range secs {
+		for _, b := range s.Bindings {
+			if b.Chord != 0 {
+				byChord[b.Chord] = true
+			}
+			if b.Key == "Alt+⏎" && b.Chord != 0 {
+				t.Errorf("draft-local Alt+⏎ carries chord %v", b.Chord)
+			}
+		}
+	}
+	for _, g := range workbenchshortcut.GlobalBindings() {
+		if Catalog.Includes(g.NvimKey) && !byChord[g.Chord] {
+			t.Errorf("global %s row lacks its chord", g.NvimKey)
+		}
+	}
+	for _, r := range workbenchshortcut.RoleBindings() {
+		if roleChordKey(r.Chord) != "" && !byChord[r.Chord] {
+			t.Errorf("role %s row lacks its chord", workbenchshortcut.ChordName(r.Chord))
+		}
+	}
+}
+
+// Hosted wording replaces exactly the rows that declare it; everything else is
+// byte-identical to standalone.
+func TestHostedSectionsUseHostedWordingOnlyWhereDeclared(t *testing.T) {
+	plain, err := Sections(DefaultSources())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hosted, err := HostedSections(DefaultSources())
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostedHelp := map[workbenchshortcut.Chord]string{}
+	for _, g := range workbenchshortcut.GlobalBindings() {
+		hostedHelp[g.Chord] = g.HostedHelp
+	}
+	replaced := 0
+	for i := range plain {
+		for j, p := range plain[i].Bindings {
+			h := hosted[i].Bindings[j]
+			if want := hostedHelp[p.Chord]; p.Chord != 0 && want != "" {
+				replaced++
+				if !strings.HasPrefix(h.Desc, want) {
+					t.Errorf("%s hosted desc %q, want %q", p.Key, h.Desc, want)
+				}
+			} else if h.Desc != p.Desc {
+				t.Errorf("%s changed when hosted: %q → %q", p.Key, p.Desc, h.Desc)
+			}
+		}
+	}
+	if replaced == 0 {
+		t.Fatal("no row carried hosted wording")
+	}
+}

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
@@ -265,6 +266,18 @@ func TestNoCurrentSourcesAdvertiseObsoleteCouchArgv(t *testing.T) {
 			if match := obsolete.FindString(line); match != "" && !strings.Contains(line, "obsolete-argv-rejection") {
 				t.Errorf("%s:%d advertises obsolete argv %q", rel, lineNumber+1, match)
 			}
+		}
+	}
+}
+
+// Every chord Couch declares has an operator-facing home in README's couch
+// section, as every panel control already must. README spells the navigation
+// chords Ctrl-Space style; accept that spelling of a Ctrl+ label (#282).
+func TestREADMEDocumentsEveryCouchChord(t *testing.T) {
+	section := couchREADMESection(t)
+	for _, b := range couchkeys.Bindings() {
+		if !strings.Contains(section, b.Key) && !strings.Contains(section, strings.Replace(b.Key, "Ctrl+", "Ctrl-", 1)) {
+			t.Errorf("README's couch section does not document %s (%s)", b.Key, b.Help)
 		}
 	}
 }

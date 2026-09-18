@@ -479,7 +479,7 @@ own binding, not a rung of the deleted ladder, and it remains the only route to
 starting a thread.
 
 `ctrl+backspace` is **previous**, in both encodings: the legacy bare byte `0x08`
-(a branch beside `hotkeyByte`, since it is not an escape sequence) and the Kitty
+(a branch beside `couchkeys.SwitchLegacy`, since it is not an escape sequence) and the Kitty
 `\x1b[127;5u` (an ordinary `knownSequences` row). In legacy encoding `0x08` is
 `^H`, so ctrl-h is taken from the child too -- deliberate, and harmless under
 the Kitty protocol zellij pushes. `panelkeys.go` computed a `modified` flag and
@@ -512,7 +512,7 @@ Three edge cases:
   stays, with no takeover. It also shows a notice, because the row never draws
   the active actor's bell, so the acknowledgement alone would be invisible.
 
-The chord uses Kitty keyboard disambiguation (`newestPageSequence`,
+The chord uses Kitty keyboard disambiguation (`couchkeys.NewestPageSequence`,
 `\x1b[13;5u`); explicit press and repeat forms also jump, while release does
 not. The presenter owns its keyboard-protocol stack entry and restores it at release.
 Child protocol negotiation stays in the endpoint and determines child input
@@ -651,7 +651,13 @@ Alt+d performs the detach sweep without confirmation. Individual thread actions
 remain in the switcher. While an actor is displayed, those raw chords reach
 Zellij and the receiving pane. No inner-pane focus cache or key-time query exists.
 The agent consumes only Shift+Alt+T/Left/Right; Couch consumes its three navigation
-chords. `Interceptor` frames candidates, then Console routes the preceding bytes
+chords. Couch's chords are declared once, in `couchkeys` (#282), each with a
+scope: every pane (the navigation chords) or switcher only (the lifecycle
+chords). The interceptor frames from that table, and `actorReserved` reads the
+scope, so routing and the help's context agree. `couch --help` and Pair's
+Alt+h page render the same `couchkeys.HelpSections`. Couch does not take Alt+h;
+Pair's page shows Couch's keys when the attached client was launched by Couch.
+`Interceptor` frames candidates, then Console routes the preceding bytes
 before resolving focus and authorizing or forwarding the raw candidate. This
 preserves ordering when a read contains navigation followed by a lifecycle key.
 That confirmation is a **global frame** -- `menuFrameBindsThread` is false for
@@ -731,7 +737,10 @@ without lifecycle effects.
 **Alt+n / Ctrl+Alt+n relaunch the highlighted switcher row** (`pair#182`,
 `pair#245`). Couch replaces the helper with the current binary and keeps the
 conversation. While a Pair pane is displayed these chords pass inward: the agent
-receives input; other panes retain Pair's existing in-process reload. There is
+receives input. In other panes Pair's own reload does not work under Couch.
+`pair restart` refuses when the session env names Couch, and a Couch-launched
+client refuses the restart marker after its quit cleanup, so in a session Couch
+presents but did not create, Pair's Alt+n ends the thread (`pair#284`). There is
 no whole-Couch relaunch; leave the switcher, rebuild and run Couch again.
 
 **Detach is available in the switcher** (`pair#170`, `pair#245`). Alt+d there

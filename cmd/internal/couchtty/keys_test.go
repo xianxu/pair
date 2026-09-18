@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
@@ -167,8 +168,8 @@ func FuzzInterceptorFeed(f *testing.F) {
 		"", "\x00", "x\x00y", "\x1b[200~\x00\x1b[201~", "\x1b[2~", "\x1b[20",
 		"\x1b", "\x1b[201~", "\x00\x00", "\x1b[200~",
 		// ctrl+return and the Return neighbours it must not claim.
-		newestPageSequence, "\x1b[13;5", "\x1b[13;5:3u", "\x1b[13u", "\x1b[13;1u", "\x1b[13;3u",
-		"\x1b[200~" + newestPageSequence + "\x1b[201~",
+		couchkeys.NewestPageSequence, "\x1b[13;5", "\x1b[13;5:3u", "\x1b[13u", "\x1b[13;1u", "\x1b[13;3u",
+		"\x1b[200~" + couchkeys.NewestPageSequence + "\x1b[201~",
 	} {
 		f.Add([]byte(s))
 	}
@@ -470,7 +471,7 @@ func TestInterceptorIgnoresCtrlBackspaceInsideAPaste(t *testing.T) {
 // over knownSequences; this is the part a table walk cannot see.
 func TestInterceptorClaimsCtrlReturnAndNoOtherReturn(t *testing.T) {
 	var it Interceptor
-	before, hit, rest := it.FeedHit([]byte("x" + newestPageSequence + "y"))
+	before, hit, rest := it.FeedHit([]byte("x" + couchkeys.NewestPageSequence + "y"))
 	if hit != HitNewestPage || string(before) != "x" || string(rest) != "y" {
 		t.Fatalf("FeedHit(ctrl+return) = (%q, %v, %q), want (\"x\", HitNewestPage, \"y\")", before, hit, rest)
 	}
@@ -493,7 +494,7 @@ func TestInterceptorClaimsCtrlReturnAndNoOtherReturn(t *testing.T) {
 	}
 
 	// Inside a bracketed paste it is content, like every other chord.
-	paste := "\x1b[200~a" + newestPageSequence + "b\x1b[201~"
+	paste := "\x1b[200~a" + couchkeys.NewestPageSequence + "b\x1b[201~"
 	var pasted Interceptor
 	before, hit, rest = pasted.FeedHit([]byte(paste))
 	if hit != HitNone || len(rest) != 0 || string(before) != paste {
@@ -647,7 +648,7 @@ func TestAnUnterminatedMousePrefixDoesNotParkTheKeyboard(t *testing.T) {
 }
 
 func TestInterceptorCandidateByteConservation(t *testing.T) {
-	candidates := [][]byte{{hotkeyByte}, {previousByte}, []byte("\x1b[999;9u"), []byte("\x1b[<0;4;5M"), []byte("\x1b[<" + strings.Repeat("9", 2*mouseinput.MaxReport))}
+	candidates := [][]byte{{couchkeys.SwitchLegacy}, {couchkeys.PreviousLegacy}, []byte("\x1b[999;9u"), []byte("\x1b[<0;4;5M"), []byte("\x1b[<" + strings.Repeat("9", 2*mouseinput.MaxReport))}
 	maxHeld := mouseinput.MaxReport
 	for _, s := range knownSequences {
 		if len(s.bytes)-1 > maxHeld {
@@ -701,33 +702,69 @@ func TestInterceptorCandidateByteConservation(t *testing.T) {
 	}
 }
 
-func TestCouchNavigationReservationContract(t *testing.T) {
-	bindings := CouchNavigationBindings()
-	if len(bindings) != 3 {
-		t.Fatalf("navigation reservations=%d", len(bindings))
-	}
-	seen := map[string]bool{}
-	for _, binding := range bindings {
-		if binding.Key == "" || binding.Help == "" || len(binding.Encodings) == 0 {
-			t.Fatalf("incomplete binding: %+v", binding)
-		}
-		for _, encoding := range binding.Encodings {
-			if seen[string(encoding)] {
-				t.Fatalf("duplicate encoding %q", encoding)
-			}
-			seen[string(encoding)] = true
+// Every declared chord frames as its declared action, and Couch takes it from
+// a Pair pane exactly when its scope says every pane (#282): the help's
+// context and the console's routing read the same field.
+func TestCouchChordContract(t *testing.T) {
+	for _, b := range couchkeys.Bindings() {
+		want, _ := dispatchFor(b.Action)
+		for _, encoding := range b.Encodings {
 			var it Interceptor
 			_, hit, _ := it.FeedHit(encoding)
-			if hit != binding.Hit || !hit.actorReserved() {
-				t.Fatalf("binding disagrees with parser: %+v %v", binding, hit)
+			if hit != want {
+				t.Errorf("%s %q framed as %v, want %v", b.Key, encoding, hit, want)
+			}
+			if hit.actorReserved() != (b.Scope == couchkeys.ScopeEveryPane) {
+				t.Errorf("%s: actorReserved=%v, scope=%v", b.Key, hit.actorReserved(), b.Scope)
 			}
 		}
 	}
 	for _, encoding := range []string{"\x1b[3;5~", "\x1b[57349;5u", "\r"} {
 		var it Interceptor
-		_, hit, _ := it.FeedHit([]byte(encoding))
-		if hit != HitNone {
-			t.Fatalf("invented navigation alias %q", encoding)
+		if _, hit, _ := it.FeedHit([]byte(encoding)); hit != HitNone {
+			t.Fatalf("invented alias %q", encoding)
 		}
+	}
+}
+
+// Alt+h reaches Pair from every pane: Couch neither frames nor routes it (#282).
+func TestAltHPassesThroughToPair(t *testing.T) {
+	for _, encoding := range workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltH) {
+		var it Interceptor
+		before, hit, _ := it.FeedHit(encoding)
+		if hit != HitNone || !bytes.Equal(before, encoding) {
+			t.Errorf("Alt+h %q: hit=%v forwarded=%q", encoding, hit, before)
+		}
+	}
+}
+
+// A declared action with no dispatch arm would frame as HitNone and be
+// forwarded -- the silent failure AllInterceptorHits guards. Conversely every
+// console hit except the mouse must come from a declared chord.
+func TestEveryCouchActionDispatches(t *testing.T) {
+	reached := map[InterceptorHit]bool{}
+	for _, b := range couchkeys.Bindings() {
+		hit, kind := dispatchFor(b.Action)
+		if hit == HitNone || kind == seqNone {
+			t.Errorf("%s (action %d) has no dispatch", b.Key, b.Action)
+		}
+		reached[hit] = true
+	}
+	for _, hit := range AllInterceptorHits() {
+		if hit != HitMouse && !reached[hit] {
+			t.Errorf("hit %v has a handler but no declared chord", hit)
+		}
+	}
+}
+
+// Routing asks the hit, so two chords sharing a hit must share a scope.
+func TestEachHitHasOneScope(t *testing.T) {
+	scope := map[InterceptorHit]couchkeys.Scope{}
+	for _, b := range couchkeys.Bindings() {
+		hit, _ := dispatchFor(b.Action)
+		if prior, ok := scope[hit]; ok && prior != b.Scope {
+			t.Errorf("hit %v declared with scopes %v and %v", hit, prior, b.Scope)
+		}
+		scope[hit] = b.Scope
 	}
 }

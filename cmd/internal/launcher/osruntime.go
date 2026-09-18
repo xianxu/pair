@@ -475,7 +475,7 @@ func (OSRuntime) CommandExists(name string) bool {
 	return err == nil
 }
 
-func (r OSRuntime) RecordOuterTTY(tag string) {
+func (r OSRuntime) RecordOuterTTY(tag string, couch bool) {
 	paths, err := artifactpath.ResolveScoped(r.DataDir, tag)
 	if err != nil {
 		return
@@ -486,10 +486,29 @@ func (r OSRuntime) RecordOuterTTY(tag string) {
 	out, _ := cmd.Output()
 	outer := strings.TrimSpace(string(out))
 	if strings.HasPrefix(outer, "/dev/") {
-		_ = r.WriteAtomic(path, outer+"\n")
+		_ = r.WriteAtomic(path, EncodeOuterRecord(OuterRecord{TTY: outer, Couch: couch}))
 	} else {
 		r.Remove(path)
 	}
+}
+
+// ReadOuterPresenter reports whether the client that last attached to tag was
+// presented by Couch -- what Alt+h reads to decide whether Couch's keys belong
+// on the page (#282). No record (never attached from a tty, or quit) is "no".
+func ReadOuterPresenter(dataDir, tag string) (bool, error) {
+	paths, err := artifactpath.ResolveScoped(dataDir, tag)
+	if err != nil {
+		return false, err
+	}
+	raw, err := os.ReadFile(paths.OuterTTY())
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	record, err := DecodeOuterRecord(string(raw))
+	return record.Couch, err
 }
 
 // CmuxRename claims this workspace for tag (presence beats a stale owner file)

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
@@ -57,7 +58,7 @@ func TestAnIdleConsoleRepaintsWhenItsNoticeExpires(t *testing.T) {
 	// as BYTES so the notice is pushed from the Run goroutine, which is where
 	// the expiry timer is armed -- a test that called setNotice directly would
 	// arm nothing and prove nothing.
-	if _, err := writer.Write([]byte{previousByte}); err != nil {
+	if _, err := writer.Write([]byte{couchkeys.PreviousLegacy}); err != nil {
 		t.Fatalf("write ctrl+backspace: %v", err)
 	}
 	// It must reach the SCREEN on its own. The first version of this test forced

@@ -44,6 +44,7 @@ var deletedVocabulary = []struct {
 	{term: "ManifestGeneration", why: "superseded by Snapshot in pair#170 M4"},
 	{term: "DeleteUnstartedThread", why: "the legacy unstarted rollback was deleted by pair#170 M4"},
 	{term: "rollbackUnforkedStart", why: "replaced by rollbackPristineStart in pair#170 M4"},
+	{term: "CouchNavigationBinding", why: "superseded by the couchkeys chord table in pair#282"},
 }
 
 // Prose may still NAME a deleted thing in order to say it was deleted. What

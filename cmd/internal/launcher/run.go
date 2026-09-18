@@ -17,6 +17,18 @@ type Env struct {
 	CouchThreadTag   string
 }
 
+// CouchHosted reports whether Couch launched this Pair process's session:
+// Couch sets COUCH_THREAD_SCOPE and COUCH_THREAD_TAG on every thread it
+// launches (couchcore/launch_existing.go), and either marks it hosted. The
+// launcher's hosted refusals and Pair's hosted help wording share this rule
+// (#282).
+func (e Env) CouchHosted() bool { return e.CouchThreadScope != "" || e.CouchThreadTag != "" }
+
+// CouchHostedEnv is CouchHosted read from a process environment.
+func CouchHostedEnv(getenv func(string) string) bool {
+	return Env{CouchThreadScope: getenv("COUCH_THREAD_SCOPE"), CouchThreadTag: getenv("COUCH_THREAD_TAG")}.CouchHosted()
+}
+
 // SessionSource supplies zellij session state.
 type SessionSource interface {
 	Snapshot() ([]Session, error)

@@ -10,33 +10,12 @@ package couchtty
 import (
 	"bytes"
 
+	"github.com/xianxu/pair/cmd/internal/couchkeys"
 	"github.com/xianxu/pair/cmd/internal/mouseinput"
-	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
-// hotkeyByte is ctrl-space in the LEGACY encoding: ctrl-@ is NUL.
-const hotkeyByte = 0x00
-
-// previousByte is ctrl+backspace in the LEGACY encoding. Like hotkeyByte it
-// is a bare-byte navigation encoding rather than a multi-byte known sequence.
-//
-// Accepted cost, deliberate and not a discovery: in legacy encoding 0x08 IS
-// ^H, so intercepting ctrl+backspace also takes ctrl-h from the child (readline
-// and nvim insert-mode treat it as backspace). Under the Kitty protocol the two
-// separate cleanly -- \x1b[104;5u vs \x1b[127;5u -- and zellij pushes the
-// protocol, so this only bites with the protocol off.
-const previousByte = 0x08
-
-// newestPageSequence is ctrl+return under the Kitty protocol: codepoint 13 with
-// modifier bitmask 4 encoded as 4+1, the same construction as ctrl-space's row.
-//
-// It has no legacy form: CR is also ordinary Return. Couch maintains the
-// disambiguation flag while it owns a supporting terminal; an unsupported host
-// retains Ctrl+Space then Return as the notification-jump fallback.
-//
-// Named because two sites need the same bytes: the knownSequences row, and the
-// panel arm of onNewestPageHotkey, which hands them to the panel's decoder.
-const newestPageSequence = "\x1b[13;5u"
+// Couch's chords -- their encodings, scope and wording -- are declared in
+// couchkeys (#282). This file joins them to the console's dispatch.
 
 type seqKind uint8
 
@@ -65,19 +44,14 @@ const (
 // to join both or be silently forwarded -- the failure the Kitty encoding
 // already caused once, and the shape that let alt+n ship consumed-and-dropped.
 // Two switches over one enum agree until someone edits one.
+//
+// It reads couchChords, so a chord declared in couchkeys is recognised here with
+// no second edit.
 func (k seqKind) hit() InterceptorHit {
-	for _, binding := range couchNavigation {
-		if binding.kind == k {
-			return binding.Hit
+	for _, chord := range couchChords {
+		if chord.kind == k {
+			return chord.hit
 		}
-	}
-	switch k {
-	case seqPark:
-		return HitPark
-	case seqDetach:
-		return HitDetach
-	case seqRelaunch:
-		return HitRelaunch
 	}
 	return HitNone
 }
@@ -120,40 +94,53 @@ const (
 	HitMouse
 )
 
-// CouchNavigationBinding declares one actor-wide navigation reservation. Help
-// consumers use the same declarations as input matching and focus admission.
-type CouchNavigationBinding struct {
-	Hit       InterceptorHit
-	Key, Help string
-	Encodings [][]byte
-}
-
-var couchNavigation = []struct {
-	CouchNavigationBinding
+// couchChord joins one declared chord (couchkeys) to the console's dispatch
+// vocabulary: couchkeys says what a chord means and where; this adds how the
+// console acts on it.
+type couchChord struct {
+	couchkeys.Binding
+	hit  InterceptorHit
 	kind seqKind
-}{
-	{CouchNavigationBinding{HitSwitch, "Ctrl+Space", "open the Couch switcher", [][]byte{{hotkeyByte}, []byte("\x1b[32;5u")}}, seqSwitch},
-	{CouchNavigationBinding{HitPrevious, "Ctrl+Backspace", "return to the previous Couch thread", [][]byte{{previousByte}, []byte("\x1b[127;5u")}}, seqPrevious},
-	{CouchNavigationBinding{HitNewestPage, "Ctrl+Return", "jump to the newest notification thread", [][]byte{[]byte(newestPageSequence), []byte("\x1b[13;5:1u"), []byte("\x1b[13;5:2u")}}, seqNewestPage},
 }
 
-func CouchNavigationBindings() []CouchNavigationBinding {
-	out := make([]CouchNavigationBinding, 0, len(couchNavigation))
-	for _, entry := range couchNavigation {
-		binding := entry.CouchNavigationBinding
-		binding.Encodings = make([][]byte, len(entry.Encodings))
-		for n, encoding := range entry.Encodings {
-			binding.Encodings[n] = append([]byte(nil), encoding...)
-		}
-		out = append(out, binding)
+var couchChords = func() []couchChord {
+	declared := couchkeys.Bindings()
+	out := make([]couchChord, 0, len(declared))
+	for _, binding := range declared {
+		hit, kind := dispatchFor(binding.Action)
+		out = append(out, couchChord{Binding: binding, hit: hit, kind: kind})
 	}
 	return out
+}()
+
+// dispatchFor is the one mapping from a declared action to the console's hit
+// and sequence kind. An action with no arm returns HitNone and would be
+// forwarded to the child; TestEveryCouchActionDispatches makes that a failure.
+func dispatchFor(action couchkeys.Action) (InterceptorHit, seqKind) {
+	switch action {
+	case couchkeys.ActionSwitch:
+		return HitSwitch, seqSwitch
+	case couchkeys.ActionPrevious:
+		return HitPrevious, seqPrevious
+	case couchkeys.ActionNewestPage:
+		return HitNewestPage, seqNewestPage
+	case couchkeys.ActionDetach:
+		return HitDetach, seqDetach
+	case couchkeys.ActionPark:
+		return HitPark, seqPark
+	case couchkeys.ActionRelaunch:
+		return HitRelaunch, seqRelaunch
+	}
+	return HitNone, seqNone
 }
 
+// actorReserved reports whether Couch takes this hit from a displayed Pair
+// pane. It reads the declared scope, so routing and the help's context cannot
+// disagree (#282).
 func (hit InterceptorHit) actorReserved() bool {
-	for _, entry := range couchNavigation {
-		if entry.Hit == hit {
-			return true
+	for _, chord := range couchChords {
+		if chord.hit == hit {
+			return chord.Scope == couchkeys.ScopeEveryPane
 		}
 	}
 	return false
@@ -209,33 +196,16 @@ var knownSequences = func() []struct {
 		{[]byte("\x1b[200~"), seqPasteStart},
 		{[]byte("\x1b[201~"), seqPasteEnd},
 	}
-	for _, binding := range couchNavigation {
-		for _, encoding := range binding.Encodings {
+	// Switcher-scope chords are framed here too; Console forwards them while a
+	// Pair pane has focus (couchkeys ScopeSwitcher, #245).
+	for _, chord := range couchChords {
+		for _, encoding := range chord.Encodings {
 			if len(encoding) > 1 {
 				sequences = append(sequences, struct {
 					bytes []byte
 					kind  seqKind
-				}{encoding, binding.kind})
+				}{encoding, chord.kind})
 			}
-		}
-	}
-
-	for _, chord := range []struct {
-		chord workbenchshortcut.Chord
-		kind  seqKind
-	}{
-		{workbenchshortcut.ChordAltX, seqPark},
-		// Lifecycle candidates remain recognized for the switcher. Console
-		// forwards their exact bytes when prefix routing leaves actor focus.
-		{workbenchshortcut.ChordAltD, seqDetach},
-		{workbenchshortcut.ChordAltN, seqRelaunch},
-		{workbenchshortcut.ChordCtrlAltN, seqRelaunch},
-	} {
-		for _, encoding := range workbenchshortcut.ChordEncodings(chord.chord) {
-			sequences = append(sequences, struct {
-				bytes []byte
-				kind  seqKind
-			}{encoding, chord.kind})
 		}
 	}
 	return sequences
@@ -247,9 +217,11 @@ var knownSequences = func() []struct {
 // side of the hotkey belong to different children: in `x<ctrl-space>y`, x goes
 // to the child being left and y to the one landed on. The shape is
 // workbenchshortcut.FindChord's, deliberately -- that is the repo's existing
-// answer to "find a key in a stream and split around it". The chord TABLE is
-// not shared: couch claims a handful of keys, the workbench has a dozen, and
-// merging opposed tables is the bug rather than the cleanup.
+// answer to "find a key in a stream and split around it". The two chord
+// tables stay separate: Couch's is declared in couchkeys, its every-pane chords
+// are Couch's alone, and its switcher chords borrow Pair's encodings for the
+// same keys rather than merging the tables -- merging opposed tables is the bug
+// rather than the cleanup (#282).
 //
 // One piece of state, and it earns its place: a bracketed paste can carry
 // arbitrary bytes, and a pasted NUL that silently switches actors while eating a
@@ -305,11 +277,11 @@ func (i *Interceptor) FeedHit(in []byte) (before []byte, hit InterceptorHit, res
 	out := make([]byte, 0, len(buf))
 	for idx := 0; idx < len(buf); {
 		if !i.inPaste {
-			for _, binding := range couchNavigation {
-				for _, encoding := range binding.Encodings {
+			for _, chord := range couchChords {
+				for _, encoding := range chord.Encodings {
 					if len(encoding) == 1 && encoding[0] == buf[idx] {
 						i.rawHit = append([]byte(nil), encoding...)
-						return out, binding.Hit, buf[idx+1:]
+						return out, chord.hit, buf[idx+1:]
 					}
 				}
 			}

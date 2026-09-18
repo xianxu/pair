@@ -119,9 +119,10 @@ type EnvOps interface {
 	InZellijPane() bool
 	// CommandExists reports whether name resolves on PATH (`command -v`).
 	CommandExists(name string) bool
-	// RecordOuterTTY writes the launching tty to outer-tty-<tag> (or removes it
-	// when stdin isn't a tty).
-	RecordOuterTTY(tag string)
+	// RecordOuterTTY writes the launching tty, and whether Couch presents this
+	// client, to outer-tty-<tag> (or removes it when stdin isn't a tty, so an
+	// earlier attach's presenter line cannot outlive it) (#282).
+	RecordOuterTTY(tag string, couch bool)
 	// CmuxRename claims the cmux workspace for this tag and renames it to title
 	// (with the personal emoji substitution); a no-op outside cmux.
 	CmuxRename(tag, title string)

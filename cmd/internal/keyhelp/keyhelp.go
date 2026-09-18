@@ -19,6 +19,8 @@
 //     "right-terminal tab helper disabled in draft" as Alt+t's description.
 package keyhelp
 
+import "github.com/xianxu/pair/cmd/internal/workbenchshortcut"
+
 // Context is the pane a binding applies in. It is half of a binding's identity.
 type Context int
 
@@ -27,6 +29,8 @@ const (
 	ContextDraft                    // the nvim draft pane
 	ContextTerminal                 // the right workbench terminal
 	ContextWorkbench                // Pair-owned panes except the agent
+	ContextHost                     // a host (Couch) takes it from every Pair pane (#282)
+	ContextHostMenu                 // a host's own menu (Couch's switcher)
 )
 
 func (c Context) String() string {
@@ -37,6 +41,10 @@ func (c Context) String() string {
 		return "terminal"
 	case ContextWorkbench:
 		return "outside-agent"
+	case ContextHost:
+		return "host"
+	case ContextHostMenu:
+		return "host menu"
 	default:
 		return "global"
 	}
@@ -59,9 +67,13 @@ type Binding struct {
 	Context Context
 	Group   string
 	Order   int
+	// Chord is the workbench chord this row documents; zero for a draft-local
+	// key. A host overrides a row by this identity, never by label (Layer, #282).
+	Chord workbenchshortcut.Chord
 }
 
-// Section is a titled, ordered group of bindings.
+// Section is a titled, ordered group of bindings. A section with no bindings
+// is a notice: its title is the whole message.
 type Section struct {
 	Title    string
 	Bindings []Binding
