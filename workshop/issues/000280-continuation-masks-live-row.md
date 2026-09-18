@@ -108,14 +108,46 @@ additional information about that thread, not a replacement for it.
 - [ ] `Pending`/`Running` precedence is settled on purpose and the reasoning is
       in the code.
 
+## Revisions
+
+### 2026-09-17 — scope widened to the lifecycle refusal; dismissal decided
+
+`## Spec` and `## Done when` stand. Deltas:
+
+- **Dismissal = deletion** (operator decision, see `## Log`). The Spec's *"and
+  records that decision"* is withdrawn: dismissing clears the request, and the
+  checkpoint file is the only trace. The Done-when's dismissal bullet is met by
+  the gesture existing.
+- **Added to Done when:**
+  - a live thread with a `Failed` request whose relaunch refuses names BOTH
+    exits, and, once dismissed, relaunch passes the continuation guard;
+  - Retry continuation from the switcher reaches its thread through the
+    production dispatcher (a probable bug, logged 2026-09-17: the switcher
+    sends `ref` and `tag`, which the resolver refuses).
+- **Settled here, as Done-when bullet 4 asks:** `Pending`/`Running` keep
+  displacing the state. They are in flight and bounded: `Running` fails at the
+  30s submission deadline, and `Pending` is picked up by the owner's scan. Only
+  `Failed` composes.
+- **Kept out:** a `dismissed` phase, and a `Settled()` predicate over the ~12
+  inline `!= Complete` sites. With no new phase, those sites still mean what
+  they say.
+
 ## Plan
 
-- [ ] Confirm the `pair` request's phase and provenance in the thread record
-      (expected: the `#256` M2 close continuation, accepted, never `complete`).
-- [ ] Decide the composed row shape — state column plus marker — and how it
-      renders at narrow widths.
-- [ ] Implement the precedence change; table test over state × phase.
-- [ ] Dismissal gesture, or a recorded decision not to have one.
+Durable plan: `workshop/plans/000280-dismiss-continuation-plan.md`. Single pass,
+one boundary.
+
+- [x] Confirm the `pair` request's phase and provenance: `failed`, 16:00:58,
+      *"operator input interrupted automatic orientation"* (Log, 2026-09-17).
+- [ ] Reproduce the switcher retry bug through the production executor, then
+      fix it (bootstrap `ref` optional; the switcher stops sending `ref`).
+- [ ] `ThreadStore.DismissFailedContinuation` + `dismiss-continuation`
+      operation + `Couch.DismissContinuation`; refusals write nothing.
+- [ ] `continuationGuard` names retry and dismiss; a failed live thread
+      relaunches past the guard once dismissed.
+- [ ] Switcher: `Failed` composes the state text; `Pending`/`Running` displace,
+      on purpose; dismiss is offered beside retry; state × phase tables.
+- [ ] Atlas + README; full suite; operator smoke on the `pair` thread.
 
 ## Log
 
@@ -221,3 +253,13 @@ makes any pre-change binary reject the whole record. That includes the
 long-running `pair` helpers, and the dismiss-then-relaunch flow parks through
 one. Clearing the request is the only skew-safe dismissal. Operator decision
 pending: clear the request, or add a `dismissed` phase.
+
+### 2026-09-17 — operator decision: Dismiss continuation deletes the request
+
+Operator: *"yes, add a 'Dismiss continuation' … keep it simple. if user choose
+to dismiss, we don't need to keep track of previous behavior or failures."*
+Dismissal CLEARS `record.Continuation`. There is no terminal phase, no audit
+field and no diagnostics trail. The checkpoint's markdown file is left where it
+is, untouched. This is also the only skew-safe shape (see the entry above).
+Supersedes this issue's Spec wording *"records that decision"*, and the
+Done-when's "or the issue records why not" is answered: it exists.
