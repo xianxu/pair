@@ -302,6 +302,9 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 		return fmt.Errorf("terminal: missing history writer")
 	}
 	e := historyEmitter{write: write}
+	// The bracket spans every chunk. An ALT packet below flushes it as its own
+	// write, so the transition stays inside the bracket and its packet whole.
+	e.add(syncBegin)
 	// Dedicated packets let Presenter account for a completed mode transition
 	// even if a later frame chunk fails; neither sequence is split by Emit.
 	if p.enterAlt {
@@ -400,19 +403,8 @@ func (p HistoryRender) Emit(write func([]byte) error) error {
 	}
 	e.resetStyle()
 	e.add("\x1b[?7h")
-	e.cup(p.next.Cursor.X, p.next.Cursor.Y)
-	shape := p.next.Cursor.Shape
-	if shape == 0 {
-		shape = 1
-	}
-	code := shape * 2
-	if p.next.Cursor.Blink {
-		code--
-	}
-	e.add(fmt.Sprintf("\x1b[%d q", code))
-	if p.next.Cursor.Visible {
-		e.add("\x1b[?25h")
-	}
+	e.add(cursorEpilogue(p.next.Cursor))
+	e.add(syncEnd)
 	e.flush()
 	return e.err
 }

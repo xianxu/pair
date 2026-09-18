@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -86,8 +87,10 @@ func TestHistoryRendererAltTransitionsAreWholePackets(t *testing.T) {
 	}
 	var packets []string
 	plan.Emit(func(p []byte) error { packets = append(packets, string(p)); return nil })
-	if len(packets) == 0 || packets[0] != "\x1b[?1049h" {
-		t.Fatalf("ALT transition not isolated: %q", packets)
+	// The ALT packet stays whole (Presenter tracks ownership by exact match) and
+	// sits inside the frame's synchronized-output bracket (#262).
+	if len(packets) < 3 || packets[0] != syncBegin || packets[1] != "\x1b[?1049h" || !strings.HasSuffix(packets[len(packets)-1], syncEnd) {
+		t.Fatalf("ALT enter not a whole packet inside the bracket: %q", packets)
 	}
 	normal := f
 	normal.AltScreen = false
@@ -97,7 +100,10 @@ func TestHistoryRendererAltTransitionsAreWholePackets(t *testing.T) {
 	}
 	packets = nil
 	plan.Emit(func(p []byte) error { packets = append(packets, string(p)); return nil })
-	if packets[0] != "\x1b[?1049l" || !strings.Contains(strings.Join(packets, ""), "\x1b[3J") {
+	if len(packets) < 3 || packets[0] != syncBegin || packets[1] != "\x1b[?1049l" || !strings.HasSuffix(packets[len(packets)-1], syncEnd) {
+		t.Fatalf("ALT leave not a whole packet inside the bracket: %q", packets)
+	}
+	if !strings.Contains(strings.Join(packets, ""), "\x1b[3J") {
 		t.Fatalf("exit did not restore primary: %q", packets)
 	}
 }
@@ -133,5 +139,71 @@ func TestHistoryRendererClipsUnrepresentableGlyphWithoutLosingSource(t *testing.
 	wire, _ = renderHistoryBytes(t, p.Frame, wide.Frame, wide.History, state)
 	if !bytes.Contains(wire, []byte("界")) {
 		t.Fatal("widening did not restore source history")
+	}
+}
+
+func TestHistoryEmitBracketsEveryFrame(t *testing.T) {
+	source := "AAA界Z\r\nAA  BZ\r\nHARD\r\nONE\r\nTWO\r\nTHR\r\nFOUR"
+	p, f := historyFixture(t, source)
+	wire, state := renderHistoryBytes(t, Frame{}, f, p.History, HistoryState{})
+	assertOneBracket(t, "reset", wire)
+
+	p2, f2 := historyFixture(t, source+"\r\nNEXT")
+	wire, state2 := renderHistoryBytes(t, f, f2, p2.History, state)
+	assertOneBracket(t, "history append", wire)
+
+	edited := f2.Clone()
+	edited.Cells[0] = Cell{Content: "Q", Width: 1}
+	edited.Rows = nil // derive row metadata from the edited cells
+	wire, _ = renderHistoryBytes(t, f2, edited, p2.History, state2)
+	assertOneBracket(t, "steady one-cell change", wire)
+
+	if idle, _ := renderHistoryBytes(t, f2, f2, p2.History, state2); len(idle) != 0 {
+		t.Fatalf("an idle frame must write nothing, got %q", idle)
+	}
+}
+
+// bigAltPublication is an alt-screen frame whose serialization spans several
+// 64 KiB chunks: every cell carries its own SGR colour.
+func bigAltPublication(t *testing.T) Publication {
+	t.Helper()
+	e, err := NewEndpoint("big", Geometry{200, 100}, ttyio.NewFake())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { e.Close() })
+	var b strings.Builder
+	b.WriteString("\x1b[?1049h")
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 200; x++ {
+			fmt.Fprintf(&b, "\x1b[38;5;%dm#", (x+y)%256)
+		}
+	}
+	e.Feed([]byte(b.String()), time.Time{})
+	pub, err := e.Publication(time.Time{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pub
+}
+
+// A frame larger than one chunk is still ONE bracket: opened by the first write,
+// closed by the last, never re-opened or closed in between.
+func TestHistoryEmitBracketSpansChunks(t *testing.T) {
+	pub := bigAltPublication(t)
+	plan, err := RenderWithHistory(Frame{}, pub.Frame, pub.History, HistoryState{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var chunks []string
+	if err := plan.Emit(func(p []byte) error { chunks = append(chunks, string(p)); return nil }); err != nil {
+		t.Fatal(err)
+	}
+	if len(chunks) < 5 { // syncBegin, ?1049h, and at least three body chunks
+		t.Fatalf("fixture must span several body chunks, got %d writes", len(chunks))
+	}
+	assertOneBracket(t, "multi-chunk", []byte(strings.Join(chunks, "")))
+	if chunks[0] != syncBegin || !strings.HasSuffix(chunks[len(chunks)-1], syncEnd) {
+		t.Fatal("the bracket must open in the first write and close in the last")
 	}
 }
