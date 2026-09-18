@@ -95,8 +95,11 @@ Design decisions:
 
 **The Spec's former M2 premise is retracted.** `hostty.Reservation`'s painters have
 one caller, `cmd/probes/couchnestedrows`. The presenter is the sole parent writer
-in both production hosts. What remains is the stale *"lives here and only here"*
-comment at `hostty/control.go:27`, corrected in M1.
+in both production hosts. What remains is stale prose. `hostty/reserve.go:13-18`
+says the painters are *"shared by two consumers"* (couch and `pair term`) and that
+*"`\x1b[r` lives here and only here"*, and `atlas/architecture.md` describes the
+deleted pre-#255 console-write door as live. Both are corrected in M1. (The
+earlier `control.go:27` citation was wrong: that comment is true as written.)
 
 ## Done when
 
@@ -110,7 +113,9 @@ comment at `hostty/control.go:27`, corrected in M1.
 - M1: the xterm oracle suites still pass, since the bracket must not change the
   terminal end state. Existing byte-exact expectations are updated with the
   bracket.
-- M1: `hostty/control.go:27`'s claim is corrected.
+- M1: prose presenting the pre-#255 reserved-row painters as live is retired:
+  `hostty/reserve.go:13-18` and the matching `atlas/architecture.md` paragraphs,
+  with a sweep recorded in `## Log`.
 - M1: operator smoke under couch in both quiet regimes (static agent pane with
   typing in the draft; quiet draft while the agent works): the global flicker is
   gone. `pair term` under plain zellij is smoked too, and whether zellij honours
@@ -245,8 +250,9 @@ Durable plan: `workshop/plans/000262-sync-output-emit-bracket-plan.md` (M1).
 - [ ] M1 — Bracket every emitted frame in DECSET 2026 inside `Render` and
       `HistoryRender.Emit`, sharing one cursor epilogue. Close sync in
       `parentReleaseControls`. Test across alt transitions, history push, no-op
-      frames and every failed-write prefix. Oracle suites green. Correct
-      `hostty/control.go:27`. Operator smoke under couch and `pair term`.
+      frames and a cut in any write of the frame. Oracle suites green. Retire
+      the stale reserved-row prose (`reserve.go:13-18`, atlas). Operator smoke
+      under couch and `pair term`.
 - [ ] M2 — Classify the remaining per-frame sequences (DECSCUSR first) against their
       primitives, using M1's smoke evidence. Delta only what they sustain; keeping a
       convergent re-assert is a valid outcome. Record the row-diff trigger.
