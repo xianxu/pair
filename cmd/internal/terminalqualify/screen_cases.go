@@ -14,7 +14,8 @@ const hyperlinkSource = "https://gist.github.com/egmontkob/eb114294efbcd5adb1944
 func ScreenCases() []Case {
 	cases := []Case{
 		// cursor-style is vt's raw "style,blink": 0 is the host terminal's
-		// default (#283), 1 block, 2 underline, 3 bar.
+		// default (#283), 1 block, 2 underline, 3 bar. With 0 the raw blink is
+		// the zero value's and means nothing; the host decides blink too.
 		{ID: "cursor-reset-state", Capability: "authoritative cursor metadata after RIS", Input: "\x1b[6 q\x1b[?25l\x1bc", Expected: Observation{"cursor-style": "0,true", "cursor-visible": "true", "cursor": "0,0"}, Split: true},
 		{ID: "cursor-restore-state", Capability: "authoritative cursor metadata after saved cursor restoration", Input: "\x1b[3 q\x1b7\x1b[6 q\x1b[?25l\x1b8", Expected: Observation{"cursor-style": "2,true", "cursor-visible": "true"}, Split: true},
 		{ID: "cursor-buffer-state", Capability: "authoritative cursor metadata on buffer return", Input: "\x1b[6 q\x1b[?47h\x1b[3 q\x1b[?47l", Expected: Observation{"cursor-style": "3,false", "cursor-visible": "true", "alt": "false"}, Split: true},
