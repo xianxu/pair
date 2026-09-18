@@ -107,8 +107,9 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
 
 - [x] Confirm the draft nvim's environment carries `COUCH_THREAD_*`, and what
       `PairOpenHelp` passes to `pair keys`.
-- [x] Settle the package direction for sharing couch's binding table. Couch
-      imports keyhelp; Pair never reads Couch's table (second revision).
+- [x] Settle the package direction for sharing couch's binding table: the
+      pure `couchkeys` package; Pair imports it, never couchtty (third
+      revision).
 - [ ] `launcher.CouchHosted`: one hosted rule (plan Task 1).
 - [ ] The attaching client records whether Couch presents it (outer-tty
       record, `PresentedByCouch`, `ReadOuterPresenter`) (Task 2).
@@ -172,6 +173,14 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
   and GC. Plan rewritten a third time. The review of the second draft was
   stopped as obsolete, and its scratch worktrees were removed.
 - Floating pane title: 'pair help' → 'help' (operator request).
+- Third plan review: Issues Found. The reviewer built all 8 tasks in a scratch
+  worktree, and standalone output was byte-identical. Blocking findings, all
+  folded into the plan:
+  - `tests/workbench-route-nvim-test.sh:167` pins the pane name.
+  - `pair keys` would print a stderr error outside a session.
+  - Alt+n in an adopted, Couch-presented thread ends the thread (see the
+    correction in Revisions).
+  The reviewer removed its scratch worktrees.
 
 ## Revisions
 
@@ -310,3 +319,22 @@ becomes "help".
 **The previous revision's known gap is closed:** hosted wording now follows
 Pair's refusal rule rather than "Couch is presenting", so an adopted session
 shows "reload pair", which is true.
+
+### 2026-09-18: correction — hosted wording is "Couch launched the session or presents this client"
+
+**Reason:** the third plan review measured that Pair's Alt+n is gated twice:
+`pair restart` checks the *session* env (`runcli.go:133`), and the attached
+*client* refuses the restart marker when its own env names Couch
+(`createflow.go:162`), after it has already run the full quit cleanup
+(`createflow.go:129`). The previous entry's claim that "an adopted session shows
+'reload pair', which is true" is therefore false. In an adopted,
+Couch-presented thread, Alt+n ends the thread without relaunching it.
+
+**Delta:**
+- Hosted wording is selected by `CouchHostedEnv(session env) || couchPresents`.
+- Alt+n's hosted text warns instead of saying "refused": "does not reload under
+  Couch and may end the thread; relaunch from the Couch switcher".
+- The client-side refusal gets a test (`TestCouchClientRefusesRestartMarker`).
+- The destructive adopted case moves to #284.
+- Done-when row 2 now reads "…show hosted wording when Couch launched the
+  session or presents the client".
