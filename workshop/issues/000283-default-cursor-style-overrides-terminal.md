@@ -7,6 +7,7 @@ created: 2026-09-17
 updated: 2026-09-18
 estimate_hours:
 started: 2026-09-18T07:14:08-07:00
+flow: {kind: quick, provenance: inferred, spec: "b938202a", done: "d2087f93"}
 ---
 
 # A child's default cursor style overrides the terminal's configured cursor
@@ -55,8 +56,16 @@ is invisible to it.
 
 ## Plan
 
-- [ ] Represent the default through vt → endpoint → frame → epilogue; tests at
-      each seam; smoke.
+Durable plan: `workshop/plans/000283-default-cursor-style-plan.md`. Decision: fix it
+in the pair-owned vt fork — `CursorDefault` becomes the zero `CursorStyle`, with the
+explicit styles renumbered onto DECSCUSR shape families 1/2/3. The callback route
+can't see RIS or a `0` sent over a blinking block.
+
+- [ ] vt records the default: `CursorDefault` zero member; DECSCUSR 0/absent → default; vt tests incl. callback on block→default
+- [ ] Endpoint publishes Shape 0 (Blink false); `Frame.Validate` rejects a blinking default; endpoint cursor table at every byte split
+- [ ] `cursorEpilogue` emits `ESC[0 q` for Shape 0; endpoint → presenter → parent acceptance over codes 0..6, absent, RIS
+- [ ] Qualifier literals renumbered; consumer sweep; PAIR_PATCHES + atlas; `make test` + `go test ./...`
+- [ ] Operator smoke: Ghostty `cursor-style = bar`, plain shell under couch shows a bar
 
 ## Log
 
