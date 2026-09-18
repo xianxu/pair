@@ -45,9 +45,16 @@ To be designed. The candidate directions, none chosen:
   child process may knock on (`RequestCouchContinuation` is the existing
   precedent for a hosted Pair asking Couch to act).
 
-`pair#282` documents the current truth in Alt+h ("unavailable while Couch hosts
-this thread"). Whatever this issue changes must update that `HostedHelp` and the
-launcher test that pins the refusal.
+`pair#282` documents the current truth in Alt+h ("refused in a thread Couch
+launched") through `GlobalBinding.HostedHelp`. Pair's own page picks that wording
+by `launcher.CouchHostedEnv`; Couch's Alt+h page always uses it. Whatever this
+issue changes must update that `HostedHelp` and the launcher test that pins the
+refusal (`TestCheckpointHostedRestartAndRenameRefuseBeforeMutation`).
+
+Also settle the adopted-thread case (`pair#246`). If Couch presents a session it
+did not create, the Zellij server env lacks `COUCH_THREAD_*`, so Pair's Alt+n is
+*not* refused, yet Couch's page shows the hosted row. The cleanest fix makes
+Pair's Alt+n under Couch behave the same whoever created the session.
 
 ## Done when
 
