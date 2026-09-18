@@ -758,3 +758,77 @@ down before and is exactly the kind of thing a one-line-looking change drops.
 Two rows are unaffected by all of this: `ESC[0m` and the OSC8 close have beliefs
 LOCAL to `Render` (it already tracks `style` and `link` through the paint), so they
 need no external confirm path at all.
+
+### 2026-09-17 — premise check: the hot path repaints the WHOLE SCREEN per frame; DECSCUSR is the minor term
+
+Ran the byte check from the test-inference entry, which is the first `## Done when`
+bullet. I ran it on BOTH renderers, because the Spec only ever read `Render` and that
+is not the path child frames take.
+
+**Which renderer runs.** `paintEndpoint` (`presenter.go:367`) always passes
+`&pub.History`, so every child-pane frame goes through `RenderWithHistory` →
+`HistoryRender.Emit` (`history_render.go:297`). `Render` is reached only through
+`paint` with `history == nil`, i.e. `Presenter.Panel` (couch's switcher). Both
+production presenters, couch (`couchtty/console.go:163`, writing straight to the
+real terminal) and `pair term` (`termcmd/presentation.go:69`, writing into a zellij
+pane), paint every child frame through `Emit`.
+
+**Measurement.** 80×24 screen of styled text, then one `\b \b` keystroke, with
+identical history (a scratch test, deleted afterwards):
+
+| path | first paint | one-cell change |
+|---|---|---|
+| `RenderWithHistory` / `Emit` (normal and alt screen alike) | 2156 B | **2137 B**: 1× `ESC[23L`, 24× `ESC[2K`, every row repainted |
+| `Render` (panels only) | n/a | 74 B: preamble, one cell, postamble |
+
+So the premise holds, and it is much bigger than the Spec's premise. `Emit`'s
+lower-row rebuild (`:359-400`) runs on every dirty frame. It resets the region,
+inserts `height-1` blank lines at row 2 (the whole screen below row 1 goes blank),
+erases every row, then repaints every row from `next.Cells`. It never consults
+`previous` for cells. `previous` only decides `reset` and `sameHistoryFrame`. One
+keystroke is a blank-then-restore of the entire parent screen.
+
+**This fits every observation better than DECSCUSR does:**
+
+- **Global:** couch's presenter owns the whole terminal (zellij client, both panes,
+  tab strip, status row). A keystroke in any pane repaints all of it.
+- **Subtle, sometimes:** the content is identical before and after. The terminal
+  shows a flash only when its renderer snapshots between the erase and the repaint.
+  A full screen is tens of KB, which the terminal's IO side consumes in several
+  chunks, so that window is real but short. Nothing brackets it (no DECSET 2026).
+- **Quiet screens:** each keystroke is one isolated blank-and-restore. Under heavy
+  output the child pushes history every frame, so the screen genuinely scrolls and
+  a repaint is indistinguishable from the content change.
+- **New since #255:** `history_render.go` was created in #255 M3 (`f32bb4cf`).
+
+DECSCUSR is still re-issued per frame on both paths (`render.go:89`,
+`history_render.go:412`). The blink-phase assumption is still unverified against
+Ghostty. It is now a secondary suspect, not the leading cause: M1 as planned would
+change 6 bytes out of 2137 and leave the whole-screen erase in place.
+
+**Why the full rebuild exists.** It is not convergence paranoia. The comment at
+`:360` says it constructs *"canonical empty rows, then … their desired soft links"*.
+A row's incoming soft-wrap flag can only be established by autowrapping through
+the previous row, and zellij keeps a row's wrapped/canonical flag across `EL2`.
+Only `IL` gives a pristine row, which is why the rebuild inserts lines rather than
+erasing them. That constraint shapes the fix: the unit of repaint is a **soft-wrap
+chain**, not a cell.
+
+**The Spec's M2 premise is stale.** The Spec says `hostty.Reservation` is a live
+second writer to the parent. In production it is not. `ReserveAndPaint` / `Paint`
+/ `SetRegion` have exactly one caller, `cmd/probes/couchnestedrows`. Couch uses
+`bottomReservation` only for `ChildRows` arithmetic (`console.go:1019`), and both
+presenters paint their chrome through `UpdateChrome` (`console.go:1114`,
+`termcmd/presentation.go:366`). #255 M3 (*"migrate Couch and Pair to owned terminal
+state"*) moved the writes. The presenter IS the sole parent writer in both
+production hosts. What survives of M2 is the stale *"lives here and only here"*
+comment at `hostty/control.go:27`. That matters for the fix: trusting `previous`
+at row granularity is the same belief `Render` already takes at cell granularity,
+and the sole-writer precondition for it holds.
+
+**Oracles available for the fix.** The xterm-headless oracle
+(`tests/terminal-oracle`, node_modules present) runs locally, and
+`TestHistoryWireIndependentOracle` and its siblings pass. The native zellij oracle
+needs `PAIR_TERMINAL_NATIVE=1`. So a row-diff renderer can be checked end-state
+against the full rebuild: same viewport, same wrap flags, same history, across
+frame sequences.
