@@ -159,7 +159,7 @@ func RunLaunch(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error) {
 			if !ok {
 				return false, step.code
 			}
-			if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+			if env.CouchHosted() {
 				fmt.Fprintln(stderr, "pair: legacy hosted restart intent refused; use Couch continuation/relaunch recovery")
 				return false, 1
 			}

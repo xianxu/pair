@@ -114,7 +114,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 
 	// `rename <old> <new>` is an offline sidecar move — no launch (#99 M5b).
 	if args.Command == "rename" {
-		if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+		if env.CouchHosted() {
 			fmt.Fprintln(stderr, "pair: hosted tag rename is unsupported; use Couch name to change the thread label")
 			return 1, nil
 		}
@@ -130,7 +130,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	// bin/pair-{restart,quit}.sh): write markers, exec kill-session. They need the
 	// live ZELLIJ_SESSION_NAME the keybind fires under.
 	if args.Command == "restart" {
-		if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+		if env.CouchHosted() {
 			fmt.Fprintln(stderr, "pair: hosted inner restart is unsupported; use Couch relaunch (Alt+n)")
 			return 1, nil
 		}
@@ -143,7 +143,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 
 	if args.Command == "continue" {
 		if args.ContinueRetry != "" {
-			if env.CouchThreadScope != "" || env.CouchThreadTag != "" {
+			if env.CouchHosted() {
 				fmt.Fprintln(stderr, "pair: a hosted thread's continuation belongs to Couch: "+checkpoint.Exits("", env.CouchThreadTag))
 				return 1, nil
 			}
