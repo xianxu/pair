@@ -82,9 +82,16 @@ Design decisions:
 - **DECSCUSR on change.** Inside the bracket, a re-issued DECSCUSR cannot be seen
   mid-frame. Whether re-issuing it resets the caret's blink phase is still
   unverified against Ghostty. It is M2's question, decided on smoke evidence.
-- **Ingest.** Pair advertises `Sync` to its children (`profile_query.go:43`) but
-  `capturePublication` does not honour a child's 2026 (`third_party/vt/mode.go:15`
-  tracks the bit; nothing reads it). That is M3, an independent obligation.
+- **Ingest is already honoured, so it is not a milestone.** `Endpoint` withholds
+  publication while the child holds 2026 (`endpoint.go:126-134`), recovers after
+  `SyncTimeout` = 150ms (`:258-262`, `profile.go:25`), and gives the presenter that
+  deadline through `NextPublication` (`:404`). The endpoint answers the child's
+  DECRQM for 2026 (`terminalqualify/input_cases.go:43`). Landed in #255 M2
+  (`d44ff360`), pinned by `TestEndpointSyncWithholdsThenRecoversAndCopies`. With
+  M1, the pipeline is atomic end to end: pair publishes only frames the child has
+  finished, and presents each as one bracketed frame. Nesting under zellij is
+  moot: the endpoint CONSUMES the child's bracket, so the parent only ever sees
+  pair's single bracket per frame.
 
 **The Spec's former M2 premise is retracted.** `hostty.Reservation`'s painters have
 one caller, `cmd/probes/couchnestedrows`. The presenter is the sole parent writer
@@ -112,9 +119,8 @@ comment at `hostty/control.go:27`, corrected in M1.
   primitives (writer count; confirm path synchronous, asynchronous or absent).
   Deltaing only what the primitives sustain, and keeping a convergent re-assert,
   are both valid outcomes. The row-diff trigger is recorded with it.
-- M3: a frame captured while the child holds 2026 is not published until it is
-  released or a bounded timeout fires, both branches tested. Nesting under zellij
-  is verified and recorded.
+- ~~M3: ingest gate on the child's 2026~~: already satisfied by #255 M2 (see
+  `## Spec`); no milestone.
 - Coverage distinguishes a QUIET screen from a busy one, in either pane.
 
 ## Revisions
@@ -219,6 +225,19 @@ Deltas:
 
 `## Problem` still stands as filed.
 
+### 2026-09-17 — ingest is already honoured; the planned M3 is retracted
+
+Correcting the 2026-09-16 Log entry *"correction: ingest is NOT honored either"*,
+and the M3 this morning's re-cut carried over from it. Ingest-side sync landed in
+#255 M2 (`d44ff360`, 2026-09-15), the day BEFORE that entry: `Endpoint` tracks the
+child's 2026 hold (`syncState`), withholds publication, and recovers after a 150ms
+`SyncTimeout`. The entry's greps for `2026h|2026l|?2026` cannot match
+`ansi.DECMode(2026)`, and the one bare `grep -rn 2026` it cites would have shown
+`endpoint.go`. The claim was wrong when written. The same entry's nesting worry
+assumed brackets flow through pair; they do not, because the endpoint consumes
+them. Delta: the planned M3 is dropped, and the issue is M1 (emit bracket) + M2
+(classification).
+
 ## Plan
 
 Durable plan: `workshop/plans/000262-sync-output-emit-bracket-plan.md` (M1).
@@ -231,8 +250,6 @@ Durable plan: `workshop/plans/000262-sync-output-emit-bracket-plan.md` (M1).
 - [ ] M2 — Classify the remaining per-frame sequences (DECSCUSR first) against their
       primitives, using M1's smoke evidence. Delta only what they sustain; keeping a
       convergent re-assert is a valid outcome. Record the row-diff trigger.
-- [ ] M3 — Gate `capturePublication` on the child's tracked 2026 bit with a bounded
-      timeout; verify nesting under zellij.
 
 ## Log
 
