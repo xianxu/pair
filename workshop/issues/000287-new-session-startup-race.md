@@ -76,6 +76,49 @@ Failures on 09-15 21:07, 22:10, 22:54 ×3; 09-16 ×6; 09-17 17:17; 09-18 12:24,
   `list-sessions` on the machine (other threads' pollers at 60 s) can still hit
   a new server's ~20 ms window, at low probability.
 
+### Design (pair session, 2026-09-18)
+
+Durable plan: `workshop/plans/000287-new-session-startup-race-plan.md`.
+
+- **Evidence.** The agent pane's sidecar. The layout's pane command writes it
+  as its first act, and a pane exists only once the first client has
+  initialized the session, so any connection after it can't reach the
+  `RemoveClient` unwrap.
+- **Freshness: clear, then await.** The create path removes this agent's
+  sidecar before it spawns the session watcher, the title poller or zellij.
+  That is the same pattern as `RemoveReadyRecord` before readiness. For the
+  poller, "the file exists" therefore means "this launch's pane ran". Attach
+  doesn't clear, so the live pane's file satisfies the gate on the first stat.
+  One rule covers both spawn sites. Rejected alternatives:
+  - *mtime newer than the poller's own start.* Under load the poller's first
+    clock read can come after the pane write, and then a fresh file reads as
+    stale.
+  - *A launcher-supplied timestamp.* This adds a contract field and a
+    wall-clock comparison against file mtimes, which on some filesystems come
+    from a coarser clock. The ordering already guarantees what the timestamp
+    would.
+  - *A launch ordinal or nonce written into the file.* This needs a layout
+    change. Worse, it breaks the single-instance handoff. A poller left over
+    from a launch that died at birth still holds the pidfile and waits for
+    *its* ordinal. The next launch's poller defers to it, so no poller serves
+    the new session.
+- **Couch cold resume uses the same evidence.** The sweep found Couch's
+  cold-resume registration polling `list-sessions` every 10 ms from the
+  helper ack onward, which covers the birth window. That makes it the densest
+  prober in any launch path. Couch starts the launcher, so it can't see the
+  clear. Instead it snapshots the tag's sidecars (`map[path]mtime`) before
+  releasing the blocked helper, and makes no `PairSession` call until the
+  snapshot changes. The comparison is by equality, so it needs no clock. A
+  removal doesn't count as birth, and neither does an unchanged stale twin.
+- **Sweep result.** The full table is in the plan. Fixed: the title poller
+  and Couch's cold-resume poll. Safe: session-watch, cmux/tty/title, Couch's
+  cold create (claim file) and fresh start (ready file). Residual, curable
+  only upstream: any machine-wide `list-sessions`. That covers other threads'
+  pollers, `pair list`, the picker, the launcher's pre-launch checks against
+  *other* births, and Couch's menu refresh after a start completes. The live
+  trace times that last one. Also residual, dev-only:
+  `zellijprobe.WaitUntilListed` lists immediately after `Start`.
+
 ### Out of scope (follow-up)
 
 - **A dead launch is invisible.** When the server dies at birth, the zellij
@@ -96,12 +139,21 @@ Failures on 09-15 21:07, 22:10, 22:54 ×3; 09-16 ×6; 09-17 17:17; 09-18 12:24,
 
 ## Plan
 
-- [ ] Commit the repro driver (bare socket poke + standalone-launch counter) to
-      `probes/`.
-- [ ] Title poller: pane-evidence startup gate + unit test.
-- [ ] Sweep other launch-time zellij callers against the rule.
-- [ ] Live verification (repro driver 0/N; astro via Couch).
-- [ ] File the upstream zellij issue.
+- [ ] Repro probe `probes/zellijbirthrace` (`poke`, `launch`, `-hammer`),
+      committed; baseline counts measured against the pre-fix `pair`.
+- [ ] Title poller: pane-evidence startup gate + fake-runtime tests.
+- [ ] Launcher create path clears the agent pane sidecar before spawning
+      anything + test (attach doesn't clear).
+- [ ] Couch cold resume: `PaneMarks` baseline before ack, no `PairSession`
+      before birth + tests (stateful fake models the pane).
+- [ ] Sweep other launch-time zellij callers against the rule (done in
+      design; residuals recorded in the plan and atlas).
+- [ ] Docs: atlas (poller, pane sidecar, Couch registration), probe
+      SKILL.md, lessons.
+- [ ] Live verification: full suite; probe after fix 0/N; operator smoke of
+      Couch cold create in astro + a cold resume under the zellij tracer;
+      casualty cleanup.
+- [ ] Upstream zellij issue drafted, filed on operator go-ahead, link logged.
 
 ## Log
 
@@ -156,3 +208,32 @@ long-tab-name…]` (pid 72206, ~45 h old) targeting test session
   early enough and reliably enough to gate on, and pick the freshness rule
   (mtime vs. launch ordinal/nonce). The layout's pane command writes
   `{"pane_id","cwd"}` to `$PAIR_AGENT_PANE_…` at start.
+
+#### Pair session: design
+
+- Claimed. The open question above is answered in `### Design`: the evidence
+  is the pane sidecar, with freshness by clear-then-await. It is written first
+  thing by `sh -c "printf … > $PAIR_AGENT_PANE_PATH; …"` in both layouts, and
+  that path is bound on every create (`EnvironmentBindings`). The durable plan
+  is `workshop/plans/000287-new-session-startup-race-plan.md`.
+- Sweep (Explore subagent over `launcher`, `couchcore`, `couchtty`,
+  `sessionwatch` and the layouts). The one new launch-path prober is Couch
+  cold resume: `awaitResumeRegistration` → `PairSession` → `LivenessContext`,
+  i.e. `list-sessions` every 10 ms from the helper ack onward. It is added to
+  scope. The bundled layout copies under `runtimebundle/assets` are generated
+  from `zellij/layouts` on every `make build`, and the design changes no
+  layout. Nothing in Pair attaches to an EXITED session by design. There is
+  one narrow snapshot race (live→EXITED between the decision and
+  `AttachSession`), which is not addressed here.
+- Tree state: the other session's uncommitted edits (merge-check workflow,
+  Makefile, bootstrap.sh, `scripts/issue-sync.sh`,
+  `scripts/merge-checks.d/40-duplicate-issue-id.sh`) are still in the working
+  tree. They look like a base-layer propagation from ariadne and are left
+  untouched.
+
+## Revisions
+
+- 2026-09-18 (pair session): The `## Plan` rows were rewritten to match the
+  durable plan. The "sweep" row became concrete tasks: a launcher clear, and a
+  Couch cold-resume birth wait, added after the sweep. The probe gained a
+  `-hammer` mode to measure the Couch-style poll. The Done-when is unchanged.
