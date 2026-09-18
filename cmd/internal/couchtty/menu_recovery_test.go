@@ -11,7 +11,7 @@ import (
 )
 
 func recoveryMenuRow() couchcore.ActionableThreadSummary {
-	return couchcore.ActionableThreadSummary{Address: menuAddress("recovery"), State: couchcore.ThreadUnusable, Reason: couchcore.ReasonStaleIncarnation, Recovery: &couchcore.RecoveryDecision{Recover: true, FromCheckpoint: true, Archive: true, Diagnosis: "helper absent; exact session must be checked", CheckpointPath: "/saved/checkpoint.md", CheckpointDigest: "abcdef"}}
+	return couchcore.ActionableThreadSummary{Address: menuAddress("recovery"), State: couchcore.ThreadUnusable, Reason: couchcore.ReasonSessionGone, Recovery: &couchcore.RecoveryDecision{Recover: true, FromCheckpoint: true, Archive: true, Diagnosis: "helper absent; exact session must be checked", CheckpointPath: "/saved/checkpoint.md", CheckpointDigest: "abcdef"}}
 }
 func TestRecoveryMenuEnterUsesOrdinaryRecoveryAndUnknownDoesNotLaunch(t *testing.T) {
 	row := recoveryMenuRow()

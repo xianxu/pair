@@ -59,22 +59,25 @@ func ProjectDetachedSessions(bindings []SessionNameBinding, sessions []launcher.
 	if len(bindings) == 0 || len(sessions) == 0 {
 		return nil, nil
 	}
+	// The attributability rule is shared with ProjectSessionPresence
+	// (sessionevidence.go), so the two cannot diverge about which names prove
+	// anything. Only the QUESTION differs: this one needs attach state, which is
+	// why it also keeps its own state map and refuses a snapshot that never
+	// asked for clients.
+	index := indexSessionsByName(sessions)
 	state := make(map[string]launcher.SessionState, len(sessions))
-	ambiguousSession := make(map[string]bool, len(sessions))
 	for _, session := range sessions {
 		if session.Name == "" {
 			continue
 		}
-		if _, seen := state[session.Name]; seen {
-			ambiguousSession[session.Name] = true
-			continue
+		if _, seen := state[session.Name]; !seen {
+			state[session.Name] = session.State
 		}
-		state[session.Name] = session.State
 	}
 
 	var out []DetachedSessionObservation
 	for _, binding := range bindings {
-		if binding.SessionName == "" || claims[binding.SessionName] != 1 || ambiguousSession[binding.SessionName] {
+		if !uniquelyClaimed(binding.SessionName, claims, index) {
 			continue
 		}
 		if state[binding.SessionName] != launcher.SessionDetached {

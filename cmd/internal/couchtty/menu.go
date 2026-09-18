@@ -1180,10 +1180,6 @@ func unusableThreadNotice(thread couchcore.ActionableThreadSummary) string {
 	switch thread.Reason {
 	case couchcore.ReasonBindingLost:
 		return "its native conversation binding is unavailable; cold resume requires a verified binding"
-	case couchcore.ReasonStaleIncarnation:
-		return "the recorded helper is not hosted here; inspect its process and session before recovery"
-	case couchcore.ReasonUnrecordedChild:
-		return "a child is running that this thread's record does not know about"
 	case couchcore.ReasonSessionGone:
 		return "the session is gone; recover from a saved checkpoint or archive"
 	case couchcore.ReasonNeverStarted:
@@ -1224,7 +1220,7 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		if recovery.FromCheckpoint {
 			items = append(items, "recover-checkpoint")
 		}
-		if recovery.Archive {
+		if recovery.Archive && menuArchiveOffered(thread) {
 			items = append(items, "archive")
 		}
 		return append(items, "name", "describe")
@@ -1236,16 +1232,29 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		return []string{"name", "describe"}
 	}
 	if thread.State == couchcore.ThreadBusy {
-		// Something else is still acting on this thread. Offering archive here
-		// would file a record mid-park -- the store refuses it, so the offer is
-		// an action that always fails, which teaches the operator to distrust
-		// the menu. It resolves on its own; metadata still applies.
+		// ANOTHER COUCH is starting this thread right now, and both halves of
+		// that sentence are load-bearing since #256.
+		//
+		// The old wording said "would file a record mid-park". M1 disproved it:
+		// `busy` is never a park -- a ThreadStartClaim is its only producer. The
+		// old wording also said "it resolves on its own", and M2 made that TRUE
+		// rather than hopeful: a claim whose owner couch is provably dead stops
+		// counting, so the row leaves this branch and reports the world. It
+		// stays here only while that owner is alive or unprovable, which is the
+		// one case where something really is still acting on the thread.
+		//
+		// So archive is still withheld, for the reason the comment always gave:
+		// offering an action that always fails is how a switcher teaches an
+		// operator to distrust it. Metadata still applies.
 		return []string{"name", "describe"}
 	}
 	if !menuThreadActionable(thread) {
 		// Naming a thread you cannot enter is still useful -- it is how the
 		// operator marks what a lost row was for -- and archiving is how it
 		// leaves, which is the point of a row that cannot be entered.
+		if !menuArchiveOffered(thread) {
+			return []string{"name", "describe"}
+		}
 		return []string{"archive", "name", "describe"}
 	}
 	if thread.Live() {
@@ -1254,13 +1263,34 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 		// behind it, in the position the operator has to travel to.
 		return []string{"detach", "relaunch", "park", "switch-agent", "name", "describe"}
 	}
-	// Archive is offered wherever couch is not hosting the thread. It refuses a
-	// live one in the store anyway, and offering an action that always fails is
-	// how a switcher teaches an operator to distrust it.
+	// Archive is offered wherever couch is not hosting the thread, which is
+	// ArchivableState's rule stated a second time on purpose: the guard that
+	// refuses a hosted thread is Couch.ArchiveThread's admission, and
+	// TestActionOfferedImpliesPermitted is what keeps the two statements from
+	// drifting. Offering an action that always fails is how a switcher teaches
+	// an operator to distrust it.
 	if thread.State == couchcore.ThreadParked {
 		return []string{"resume", "switch-agent", "archive", "name", "describe"}
 	}
 	return []string{"resume", "archive", "name", "describe"}
+}
+
+// menuArchiveOffered is the ONE place the switcher decides to put archive on a
+// row. Two branches reach that decision -- a row carrying a recovery offer, and
+// a row nothing can be entered on -- and a rule written at one of them is a
+// rule the other keeps not having.
+//
+// It is stated here rather than delegated to couchcore.ArchivableState on
+// purpose, for the reason menuActionItems already carries above: filtering the
+// offer through the guard makes offered-implies-permitted true by construction,
+// and a guard that cannot fail is not a guard. The offer is written, the
+// permission is written, and TestActionOfferedImpliesPermitted compares them.
+func menuArchiveOffered(thread couchcore.ActionableThreadSummary) bool {
+	// "checking..." is not a verdict about the thread -- it says the evidence
+	// did not resolve this round. Archive stops a session and cannot be undone,
+	// so offering it here is how an operator retires a thread whose agent is
+	// still up.
+	return !(thread.State == couchcore.ThreadUnusable && thread.Reason == couchcore.ReasonUnknown)
 }
 
 // confirmationMenuItems names what the operator is about to accept.
@@ -1302,6 +1332,24 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		// the session first: a record filed while its agent keeps running is
 		// the forgotten thread couch exists to prevent.
 		item += " — stops its session"
+		if thread.Detached() {
+			// A detached row's agent is RUNNING behind a session couch does not
+			// host, so this confirmation is the last thing between the operator
+			// and stopping it. Naming it is the operator's decision (2026-09-16).
+			//
+			// "may survive" is a MEASUREMENT, not hedging: `zellij
+			// delete-session --force` reaps a pane by SIGHUP, and a pane process
+			// that inherited SIG_IGN outlives it. Measured both ways on
+			// 2026-09-17 -- same fixture, the only variable being the launching
+			// shell's disposition -- and #274's 106 orphaned `pair term` trees
+			// are that regime in production. Promising the agent stops would be
+			// a claim couch cannot keep; #274 owns making it keepable.
+			agent := thread.Agent
+			if agent == "" {
+				agent = "agent"
+			}
+			item += ", though its running " + agent + " may survive"
+		}
 	case "relaunch":
 		// Same reason, different confusion: the one thing an operator needs to
 		// know here is what park would have destroyed and this does not, and

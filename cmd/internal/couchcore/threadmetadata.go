@@ -12,7 +12,7 @@ var ErrThreadReferenceNotFound = errors.New("thread reference not found")
 // ApplyThreadMetadata performs the composite-address revision CAS and changes
 // only the fields named by patch.
 func (s *ThreadStore) ApplyThreadMetadata(address ThreadAddress, expectedRevision uint64, patch ThreadMetadataPatch) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
+	return s.updateExistingThread(address, expectedRevision, func(record *ThreadRecord) error {
 		*record = ApplyThreadMetadata(*record, patch)
 		return nil
 	})

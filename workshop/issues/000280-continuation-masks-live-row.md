@@ -12,16 +12,118 @@ estimate_hours:
 
 ## Problem
 
+Operator report, 2026-09-17. The `pair` thread is **healthy and in active use**,
+and the switcher renders it:
+
+```
+  brain        /Users/xianxu/workspace/brain        live
+  tools        /Users/xianxu/workspace/tools        live
+  parley.nvim  /Users/xianxu/workspace/parley.nvim  live
+  ariadne      /Users/xianxu/workspace/ariadne      live
+▸ pair         /Users/xianxu/workspace/pair         continuation failed — retry available
+  astro        /Users/xianxu/workspace/astro        session gone
+```
+
+Couch itself classifies it live, at the same moment:
+
+```
+$ couch --show pair
+pair                   /Users/xianxu/workspace/pair
+  address: e108517d46ab4575/couch-c945633f5c806f21
+  recorded: live     pid 80199
+  live
+```
+
+So the state is right everywhere except the surface the operator actually reads.
+
+### Cause — an unconditional precedence, one line up from the state
+
+`couchtty/menu_render.go:414`, `rootStateText`:
+
+```go
+func rootStateText(thread couchcore.ActionableThreadSummary, now time.Time) string {
+	if request := thread.Continuation; request != nil {
+		switch request.Phase {
+		case checkpoint.Pending:  return "continuation queued"
+		case checkpoint.Running:  return "continuing…"
+		case checkpoint.Failed:   return "continuation failed — retry available"
+		}
+	}
+	switch thread.State { … }
+}
+```
+
+The continuation request is consulted **before** `thread.State` and returns
+outright, so any retained request shadows the row's real state for as long as it
+is retained. The thread does not have to be unusable, parked or even idle — this
+one is live and being typed into.
+
+The retention itself is correct and deliberate. `pair#249` made a failed or
+unconfirmed continuation survivable on purpose: *"Acceptance is not completion.
+Registration proves a fresh target exists; `complete` requires the matching
+orientation `submitted` receipt. A failed, canceled, or unconfirmed delivery
+remains recoverable, and text may already be present in the target."* What was
+never bounded is how long that fact outranks everything else the row could say.
+This thread's request most likely dates from the `#256` M2 close continuation
+(`731f99b7`), whose restart worked — the conversation continued — while the
+`submitted` receipt never landed, so the request sits in `Failed` indefinitely.
+
+**This is the same external/internal mismatch family as `pair#272` and
+`pair#275`, from the other end:** not a stale liveness witness, but a stale
+*request* outliving the situation it described.
+
 ## Spec
+
+The row's state column shows the thread's state. A retained continuation is
+additional information about that thread, not a replacement for it.
+
+- **Compose, don't replace.** A live thread with a retained failed continuation
+  reads as live *and* carries a marker that a retry is available. The fix is the
+  precedence, not the message — "continuation failed — retry available" is the
+  right words in the wrong slot.
+- **Do NOT auto-resolve the request.** The tempting fix — a thread that has since
+  gone live supersedes its request, so close it — is wrong and lossy. Per
+  `pair#249`, a failed delivery may hold a checkpoint body that never reached
+  any target; retry exists to observe or reattach rather than resubmit. Silently
+  retiring the request would discard an undelivered handoff with no trace.
+- **Give the operator an explicit dismissal instead.** If the row is going to
+  carry the marker until the request reaches a terminal phase, there must be a
+  gesture that says "I don't need this continuation" and records that decision.
+  Otherwise the only exits are a successful retry or living with the marker
+  forever.
+- `Pending` and `Running` are arguably a different case: those describe an
+  operation actually in flight, where displacing the state is defensible for the
+  seconds it lasts. Decide that deliberately rather than by inheriting this
+  switch's shape; the bug is `Failed`, which is not transient.
 
 ## Done when
 
--
+- [ ] A live thread with a retained failed continuation renders as live in the
+      switcher, with the retry still discoverable.
+- [ ] A test pins the precedence across state × continuation-phase, so a future
+      status cannot re-take the column by being added to the switch.
+- [ ] The retained request is never auto-retired by the thread's later liveness;
+      an explicit operator dismissal exists, or the issue records why not.
+- [ ] `Pending`/`Running` precedence is settled on purpose and the reasoning is
+      in the code.
 
 ## Plan
 
-- [ ]
+- [ ] Confirm the `pair` request's phase and provenance in the thread record
+      (expected: the `#256` M2 close continuation, accepted, never `complete`).
+- [ ] Decide the composed row shape — state column plus marker — and how it
+      renders at narrow widths.
+- [ ] Implement the precedence change; table test over state × phase.
+- [ ] Dismissal gesture, or a recorded decision not to have one.
 
 ## Log
 
 ### 2026-09-17
+
+- Filed from the operator's screenshot plus `couch --show pair` taken at the same
+  moment; cause read directly from `menu_render.go:414`. No existing issue —
+  `#150` is the only other open continuation issue and is unrelated.
+- Surface divergence worth noting for **`pair#278`**: `couch --list` reports this
+  thread `live` while the switcher reports `continuation failed`. Two operator
+  surfaces, same store, different answers — #278 is already making `--list` the
+  diagnostic view, and this is a second reason the two renderings need one rule.

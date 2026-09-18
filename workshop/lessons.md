@@ -5199,3 +5199,138 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   whose message explained BR-13. Writing the lesson is not the sweep: when a
   finding names a shape, grep the shape — this diff had seven survivable arms
   and one of them was still wrong. (#265 BR-17)
+
+- **A liveness proof keyed to a process that dies with couch reports every crash
+  as a lost thread.** Couch classified threads from `Incarnation{PID, Identity}`
+  and `record.Park`, both of which name the LAUNCHER — couch's own child. The
+  zellij server is PPID 1 at birth and outlives both, so a clean `alt+d` detach
+  and a couch crash leave *identical* external state, and the only thing telling
+  them apart was whether couch survived long enough to write a record. Eleven of
+  the operator's records claimed a live incarnation with a dead pid; three had an
+  agent still running behind a session nobody asked about. Before keying a proof
+  to a process, ask which process actually owns the resource, and measure the
+  parentage rather than assuming it. (#256 M1)
+
+- **A receipt is not authority.** `VerifiedPark` carries a `ParkIdentity` and no
+  conversation id, so it can attest that a park happened and never that anything
+  survived it — yet it gated the ledger read that answers "is there something to
+  resume into?". Two consequences in opposite directions: a thread whose session
+  died without a park read `session-gone` (archive-eligible) with a live
+  conversation still recorded, and a receipt with nothing behind it read
+  `parked`. When a value stands in for a fact, check that it can actually carry
+  that fact. (#256 M2)
+
+- **An action guard must CONSUME the classification, not re-derive one — and the
+  class hides one layer deeper each time you fix it.** Four review rounds found
+  the same defect at four layers: the menu's offer, the guard's admission (where
+  my replacement re-derivation failed OPEN on a thread couch was hosting), the
+  commit's own execution path, and the preview/commit agreement. Each round I
+  fixed the layer the finding named and the next layer was the one nobody had
+  enumerated. The rule that finally covered them: *the classification an action
+  was admitted on is the value its execution branches on*, and the enumeration
+  that proves it must cross producers × actions **driven to completion** — a
+  table that stops at the preflight cannot catch a preflight/commit
+  disagreement, which is the only kind this class produced. (#256 M2, BR-33/38)
+
+- **A derived view is either machine-checked or it is prose.** A plan's
+  Core-concepts tables were declared "re-derived at every boundary" three times
+  and were wrong at every boundary anyway — a row for a function the same commit
+  deleted, a live symbol marked `deleted`, four symbols with no row. The same
+  happened to a referent sweep whose own rule named `git grep` as the mechanical
+  check: written down three times, failed to land seven. Both are now tests
+  (`TestIssue256PlanTablesMatchTheTree`, `TestRetiredClaimsAreNotRestatedAsCurrent`)
+  and both found live divergences on their first run. If a rule about documents
+  has failed twice, stop writing it better and make it fail the build. (#256 M2,
+  BR-34/C2)
+
+- **A totality assertion built from its own input cannot fail.** A guard table
+  compared `len(classified)` against `len(producers)` where both came from the
+  same literal — it claimed to catch a new producer and could not. Deriving the
+  domain from the classifier's own shape table instead immediately surfaced two
+  producers the hand-written list had missed. Same family: an assertion widened
+  until it passes (`parked || session-gone` where only `parked` is reachable)
+  pins neither answer, and a guard whose test asserts a bare `err != nil` stays
+  green when the guard is deleted and a later check refuses the same input.
+  Mutate every guard you claim is pinned. (#256 M2)
+
+- **When a clean shutdown and a crash leave identical external state, the record
+  of the shutdown must not decide recoverability.** The zellij server is PPID 1
+  at birth, so `alt+d` and a couch crash leave the same session, the same agent
+  and the same pty — the ONLY difference is whether couch lived long enough to
+  write a park receipt. Reading that receipt as authority made the difference
+  between "recoverable" and "debris" a fact about couch's luck rather than about
+  the thread. Ask what the two paths leave behind IN THE WORLD before letting a
+  local record distinguish them. (#256 M3)
+
+- **A positive-only proof still has to carry its negative side.** `evidence.Live`
+  was deliberately positive-only — its absence proves nothing — which is exactly
+  right and hid a second collapse one level down: the probe that produced it
+  dropped "could not ask" and "proved dead" with the same `continue`. So absence
+  meant two different things and the classifier took the confident reading, put
+  an archive item on a row whose helper might be running, and the guard behind
+  that item then refused every press. A three-valued source needs a three-valued
+  sink; check the PRODUCER of an honest field, not only its consumers. (#256 M3)
+
+- **A mutation callback is not a transition, however well guarded.** The store's
+  `UpdateExistingThread` had CAS, immutable-field checks and full record
+  validation on the way out — and three production callers still wrote lifecycle
+  fields nothing had authorized, because those guards protect a COHERENT record
+  and none of them requires an AUTHORIZED change. The fix is the transition's
+  NAME: `RetireProvedDeadIncarnations` says what the caller proved, so the
+  precondition has somewhere to live. The guard that keeps it shut is
+  receiver-scoped, not file-scoped — all three leaks were in the store's own
+  package, two in its own directory, so a package or sibling-package check could
+  not see them. (#256 M3)
+
+- **A guard's test must discriminate that guard's own exit, by code or message —
+  never a bare `err != nil`.** Four refusals stood between the fixture and the
+  assertion in one of M2's tests, so deleting the guard under test left it green.
+  Its sibling rule: a test named for a production entry point must invoke it. I
+  tried to mechanize the second one and did not ship it — matching test names
+  against declared identifiers produced 50 reports in one package, nearly all
+  partial-word noise (`Registered` inside `Registration`), and a guard that cries
+  wolf is worse than none. Some rules stay review rules; say so rather than
+  shipping a check nobody will trust. (#256 M3)
+
+- **Ask the measurement before writing the sentence.** Archive's confirmation was
+  going to say it stops the thread's agent. `zellij delete-session --force`
+  reaps a pane by SIGHUP, so a process that inherited `SIG_IGN` survives it —
+  measured both ways in ten minutes with a throwaway session, one variable. The
+  confirmation now says the agent MAY survive, which is true, and the same probe
+  proved the standing hypothesis in #274 that nobody had tested in a day of
+  reasoning about it. A UI string that asserts a system property is a claim; go
+  and check it. (#256 M3)
+
+- **Sweep a retired claim by its vocabulary and by paragraph, never by the name
+  you just changed.** M3 retired "archive's store guard refuses a live thread" and
+  added two retired-claim entries keyed to the identifiers I had edited. The
+  review found four surviving statements of the claim; a sweep for the claim's
+  WORDS (live, occupied, hosting, "same guard") within a few lines of `archive`
+  found seven. Three of the four the reviewer named spanned comment lines, which
+  a line-oriented grep cannot see at all. The phrases the sweep finds are the
+  retired-claim data; the entry is done when the sweep returns nothing. (#256 M3
+  BR, I3)
+
+- **Bound a cost on the input that maximises it, and say in the test why it is
+  the maximum.** I measured archive's new evidence round on a sessionless row,
+  wrote "0 list-clients per archive" into the Log, and named the test for archive
+  in general. A row whose session is present pays three — every look reaches a
+  live session. A cost claim measured on the cheapest shape is not a bound; it is
+  the floor presented as the ceiling. (#256 M3 BR, I4)
+
+- **A precondition's home is not delivered until a test walks into it — and the
+  list of homes must be derived.** Three transitions M3 created for the purpose of
+  giving preconditions somewhere to live shipped with none of those preconditions
+  entered by any test; deleting all three left the package green. The fifth
+  occurrence of the family is what made the rule stick: derive the transition set
+  from the code, require each to name a refusal a test drives it into (or say why
+  it has none), and check that the refusal writes nothing. (#256 M3 BR, I1)
+
+- **A claim that something is NOT covered rots faster than one that it is.** The
+  plan said the cold-side ledger read was unbounded, in the very commit that added
+  the test bounding it — because the fix that adds coverage never mentions the
+  sentence that denied it. My new check verified that every CITED test exists,
+  which cannot see a negative claim: it cites nothing. When you check a document
+  against the code, check absence claims too, and prefer deleting "nothing tests
+  X" to maintaining it. (#256 close, BR-44)
+

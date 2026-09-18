@@ -282,3 +282,68 @@ export COUCH_TRACE=$HOME/.local/share/pair/couch-trace.jsonl
 Next action is therefore passive: leave `COUCH_TRACE` set and read it the next
 time a pane comes up blank. Do not spend an operator session trying to force a
 reproduction.
+
+### 2026-09-17 — Root cause found: the zellij SERVER panics at startup
+
+Neither open hypothesis. The blank viewport is not couch's paint path and not a
+silent child — **the zellij server dies 37 ms into startup** and leaves its
+client running with nothing behind it.
+
+Caught live on a different repo (`astro`, not `brain`), from
+`$TMPDIR/zellij-501/zellij-log/zellij.log`:
+
+```
+17:17:36.560  Starting Zellij client!
+17:17:36.574  Starting Zellij server!
+17:17:36.611  Panic occurred: thread: main
+              location: zellij-server/src/lib.rs:1462:26
+              message: called `Option::unwrap()` on a `None` value
+```
+
+**The two brain incidents this issue was filed on are the same panic.** The log
+carries `2026-09-16 09:02:12.311` and `2026-09-16 10:00:18.515` — two of the
+three stale-record timestamps in `## Problem` — both at
+`zellij-server/src/lib.rs:1462:26`, same message. The panic has fired **34 times
+since 2026-09-10** (1 on 09-10, 14 on 09-14, 3 on 09-15, 5 on 09-16, 1 on 09-17).
+
+Upstream mechanism, read from zellij v0.45.1 source: line 1462 is in the
+client-removal path. `remove_client!(...)` runs, and when that was the last
+client the session drops `session_data`; the very next statement is
+`session_data.write().unwrap().as_ref().unwrap()` on the `None`. A client that
+connects and leaves during startup wins the race and takes the server with it.
+**`main` still carries the identical unwrap**, so a zellij upgrade does not fix
+it.
+
+Aftermath on the astro thread, all still true 100 s later: `📁astro-couch-4`
+absent from `zellij list-sessions`; the zellij client and `pair title` still
+running under `pair resume couch-48340fd828040287 --layout3`; couch's own
+classifier reporting the thread `live`. Pair noticed only at its 60-second
+startup deadline — `adapt-couch-48340fd828040287.jsonl` logs *"no completed
+native round within startup deadline"* — and left the blank client up.
+
+## Revisions
+
+### 2026-09-17 — retargeted by the root cause above
+
+**Reason:** the crash is upstream (zellij 0.45.1, unfixed on `main`), so the
+issue's remaining scope is pair's *response* to it, not a defect in couch's
+rendering.
+
+**Delta to `## Spec`:** the discriminator work (COUCH_TRACE, focus-vs-selected
+vs. launch hypothesis) is superseded for this failure — neither branch was
+right. What this issue should own instead:
+
+- **Detect a dead session, don't wait 60 s for a deadline.** A zellij client
+  alive while its session name is absent from `zellij list-sessions` is a
+  determinable fact available immediately.
+- **Surface it.** A blank pane with no message is the whole complaint; the
+  operator should be told the session died at startup.
+- **Do not leave the orphan.** The client and title poller outlive the server
+  and have to be reaped, or the thread keeps proving liveness from them (see the
+  cross-reference below).
+- The `brain`-specific framing in the title and `## Problem` is wrong: `astro`
+  reproduces it, and the panic is repo-independent.
+
+**Cross-reference:** the phantom-liveness half is `pair#272` — the launcher
+outlives the session, so couch classifies a dead thread `live`. Not this issue,
+but the same incident produces both.

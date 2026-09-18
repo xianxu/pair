@@ -102,13 +102,8 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 	}
 	c.Proc = recoveryAcceptanceProc{FakeProcOps: rt.proc, sourcePID: helper.Process.Pid}
 	if mode != "retired-checkpoint" {
-		source, err = c.Threads.UpdateExistingThread(source.Address, source.Revision, func(next *couchcore.ThreadRecord) error {
-			next.Incarnations = []couchcore.ThreadIncarnation{{PID: helper.Process.Pid, Identity: identity, State: couchcore.IncarnationLive, LaunchProfile: next.LatestLaunchProfile}}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
+		source = seedLiveIncarnation(t, c.Threads, source,
+			couchcore.ProcessIdentity{PID: helper.Process.Pid, Identity: identity})
 	}
 	if err := helper.Process.Kill(); err != nil {
 		t.Fatal(err)
@@ -237,7 +232,14 @@ func runRecoveryMenuAcceptance(t *testing.T, mode string) {
 		t.Fatalf("recovery inventory: %+v %v", rows, err)
 	}
 	keys := []byte{}
-	operation := "recover-thread"
+	// RESTATED for #256. Warm mode used to reach `recover-thread`, because a
+	// thread whose helper had actually died classified `stale-incarnation` --
+	// debris needing a recovery gesture. It now classifies `detached`: the
+	// helper died, the SESSION did not, and reattaching to a running agent is
+	// not recovery, it is resume. The rest of this acceptance is unchanged and
+	// still asserts the valuable part -- same thread, no session stopped, no
+	// checkpoint written, no native binding consulted.
+	operation := "resume"
 	if mode != "warm" {
 		operation = "recover-checkpoint"
 		if mode == "archive" {
@@ -412,7 +414,7 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 	})
 	instruction := "\r\nDISPOSABLE RECOVERY FIXTURE (no paid agent)\r\nReal source helper was killed and reaped. Ctrl+Space opens Couch.\r\n"
 	if mode == "warm" {
-		instruction += "Select the stale row and press Enter to Recover.\r\n"
+		instruction += "Select the detached row and press Enter to reattach.\r\n"
 	} else {
 		instruction += "Select the stale row, Tab, Recover from checkpoint, then enter:\r\n" + path + "\r\n"
 	}
@@ -421,7 +423,7 @@ func runInteractiveRecoveryConsole(t *testing.T, console *couchtty.Console, c *c
 	actual := console.Ops()
 	console.SetOperationDispatcher(func(call couchcore.OperationCall) (any, error) {
 		value, err := actual(call)
-		if err == nil && (call.Name == "recover-thread" || call.Name == "recover-checkpoint") {
+		if err == nil && (call.Name == "resume" || call.Name == "recover-thread" || call.Name == "recover-checkpoint") {
 			if child, ok := value.(couchcore.StartedChild); ok {
 				if start, ok := child.Started(); ok {
 					targetMu.Lock()

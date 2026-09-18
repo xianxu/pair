@@ -257,25 +257,148 @@ type DetachedCandidate struct {
 	Agent   string
 }
 
-// DetachedSessions reads each requested scope's session-name index once and
-// takes ONE zellij snapshot for all of them -- the snapshot ignores scope, so a
-// snapshot per scope would be the same query repeated.
+func (c ScopedThreadArtifactCollisionChecker) resolveScopedBindings(ctx context.Context, addresses []ThreadAddress, agentOf func(ThreadAddress) string) ([]SessionNameBinding, map[ThreadAddress]string, map[string]bool, error) {
+	byScope := make(map[string][]ThreadAddress, len(addresses))
+	var scopes []string
+	for _, address := range addresses {
+		if err := validateThreadAddress(address); err != nil {
+			return nil, nil, nil, err
+		}
+		if _, seen := byScope[address.RepoScope]; !seen {
+			scopes = append(scopes, address.RepoScope)
+		}
+		byScope[address.RepoScope] = append(byScope[address.RepoScope], address)
+	}
+
+	var reads []scopedIndexRead
+	readable := make(map[string]bool, len(scopes))
+	for _, scope := range scopes {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, nil, err
+		}
+		scoped := byScope[scope]
+		paths, err := artifactpath.Resolve(artifactpath.Address{
+			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
+		})
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
+		if err != nil {
+			continue
+		}
+		reads = append(reads, scopedIndexRead{scope: scope, index: index})
+		readable[scope] = true
+	}
+	// One derivation of "this thread's current session name", used for both the
+	// binding and the claim count, so the name a thread is judged by and the
+	// name its claim is counted under are the same value by construction rather
+	// than by two lookups agreeing.
+	current := effectiveBindings(reads)
+
+	var bindings []SessionNameBinding
+	for _, scope := range scopes {
+		if !readable[scope] {
+			continue // fail closed: see the reach rule above
+		}
+		for _, address := range byScope[scope] {
+			name := current[address]
+			if name == "" {
+				continue
+			}
+			binding := SessionNameBinding{Address: address, SessionName: name}
+			if agentOf != nil {
+				binding.Agent = agentOf(address)
+			}
+			bindings = append(bindings, binding)
+		}
+	}
+	return bindings, current, readable, nil
+}
+
+// The production checker must satisfy every seam the evidence pass reaches it
+// through. Those are TYPE ASSERTIONS on c.Artifacts, which fail SILENTLY: drop a
+// method and the assertion simply stops matching, the evidence is never
+// gathered, and every thread reads `unknown` -- fail-closed, but indistinguishable
+// from a host that could not be asked. A compile-time binding turns that into a
+// build error.
+var (
+	_ SessionPresenceResolver = ScopedThreadArtifactCollisionChecker{}
+	_ DetachedSessionResolver = ScopedThreadArtifactCollisionChecker{}
+	_ NativeBindingResolver   = ScopedThreadArtifactCollisionChecker{}
+	_ PairSessionIO           = ScopedThreadArtifactCollisionChecker{}
+	_ SessionPresenceResolver = (*FakeThreadArtifactCollisionChecker)(nil)
+	_ DetachedSessionResolver = (*FakeThreadArtifactCollisionChecker)(nil)
+)
+
+// SessionPresence answers EXISTENCE for every supplied address from one
+// host-wide liveness snapshot.
 //
-// Cost: two `list-sessions` runs plus one `action list-clients` per candidate
-// session that is live -- the candidates' OWN sessions, not every session on the
-// host (pair#228). It used to ask every live pair session, about 250 ms each
-// against a real detached one, so proving one thread detached scaled with the
-// operator's whole session set. Candidates also bound WHETHER the snapshot runs:
-// a couch with nothing detachable pays nothing. Each query carries the zellij
-// query timeout, so a hung zellij cannot wedge the refresh worker.
+// Liveness, not a full snapshot: present is "listed and not exited", so no
+// session is asked for its clients. That is what makes this affordable for every
+// record rather than only the resume-shaped ones -- a `list-clients` costs about
+// 250 ms against a real detached session (#228), and #256 needs a session answer
+// for records carrying an incarnation, which is exactly the set the detached
+// question was never asked about.
 //
-// Index reads fail closed per scope: a scope whose index cannot be read binds
-// none of its threads -- not even from legacy rows that another scope's read
-// replayed, because the unreadable file may hold a NEWER row that supersedes
-// them, and judging a thread by a name it has left is the wrong-answer failure
-// this rule exists to prevent. Its rows still count as claims where another read
-// saw them. Pinned by TestDetachedSessionsBindsNothingForAnUnreadableScope. A
-// snapshot failure is returned, because that one IS the whole answer.
+// The attached-versus-detached distinction stays with DetachedSessions, which the
+// ACTION path uses and which `RequireAttachState` guards. A thread whose session
+// someone else attached to reads present here and is refused at the action, which
+// is the deliberate optimistic-inventory trade.
+//
+// A scope whose index could not be read contributes no binding, so its threads
+// are absent from the result and read UNRESOLVED -- never "no session".
+func (c ScopedThreadArtifactCollisionChecker) SessionPresence(ctx context.Context, addresses []ThreadAddress) (map[ThreadAddress]SessionObservation, error) {
+	if len(addresses) == 0 {
+		return nil, nil
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	bindings, current, readable, err := c.resolveScopedBindings(ctx, addresses, nil)
+	if err != nil {
+		return nil, err
+	}
+	out := map[ThreadAddress]SessionObservation{}
+	if len(bindings) > 0 {
+		sessions, sessionErr := c.Zellij.LivenessContext(ctx)
+		if sessionErr != nil {
+			return nil, fmt.Errorf("observe zellij sessions: %w", sessionErr)
+		}
+		out = ProjectSessionPresence(bindings, sessions, claimsFromBindings(current))
+	}
+	// An address in a READABLE scope with no index row was asked about, and
+	// there is no session: absent, not unresolved. Only an address whose scope
+	// could not be read stays out of the map, where it reads the zero value.
+	//
+	// The distinction is the whole point. A thread that was spawned and never
+	// bound -- #273's shape, `last_active_at` at the zero time -- would
+	// otherwise read `checking…` forever instead of being recognised as debris
+	// the operator can clear.
+	for _, address := range addresses {
+		if _, answered := out[address]; answered {
+			continue
+		}
+		if readable[address.RepoScope] {
+			out[address] = SessionObservation{State: SessionAbsent}
+		}
+	}
+	return out, nil
+}
+
+// DetachedSessions answers which of the supplied threads have a live zellij
+// session with NO CLIENT attached. It is the ACTION path's authority; the
+// refresh asks SessionPresence instead.
+//
+// Cost: the shared index read (resolveScopedBindings) plus one
+// `action list-clients` per candidate session that is live -- the candidates'
+// OWN sessions, not every session on the host (pair#228). It used to ask every
+// live pair session, about 250 ms each against a real detached one, so proving
+// one thread detached scaled with the operator's whole session set.
+//
+// A snapshot failure is returned, because that one IS the whole answer. The
+// per-scope fail-closed rule lives in resolveScopedBindings and is pinned by
+// TestDetachedSessionsBindsNothingForAnUnreadableScope.
 func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Context, candidates []DetachedCandidate) ([]DetachedSessionObservation, error) {
 	addresses := make([]ThreadAddress, 0, len(candidates))
 	proof := make(map[ThreadAddress]DetachedCandidate, len(candidates))
@@ -289,59 +412,11 @@ func (c ScopedThreadArtifactCollisionChecker) DetachedSessions(ctx context.Conte
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	byScope := make(map[string][]ThreadAddress, len(addresses))
-	var scopes []string
-	for _, address := range addresses {
-		if err := validateThreadAddress(address); err != nil {
-			return nil, err
-		}
-		if _, seen := byScope[address.RepoScope]; !seen {
-			scopes = append(scopes, address.RepoScope)
-		}
-		byScope[address.RepoScope] = append(byScope[address.RepoScope], address)
-	}
-
-	var bindings []SessionNameBinding
-	// Every read is kept, so claims can be counted ONCE over their union rather
-	// than summed per read -- see effectiveBindings for why summing was wrong.
-	var reads []scopedIndexRead
-	readable := make(map[string]bool, len(scopes))
-	for _, scope := range scopes {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		scoped := byScope[scope]
-		paths, err := artifactpath.Resolve(artifactpath.Address{
-			DataDir: c.GlobalDataDir, RepoScope: scope, Tag: string(scoped[0].Tag),
-		})
-		if err != nil {
-			return nil, err
-		}
-		index, err := launcher.NewScopedOSRuntime(c.GlobalDataDir, paths.ScopeDir(), "").ReadSessionNameIndex()
-		if err != nil {
-			continue
-		}
-		reads = append(reads, scopedIndexRead{scope: scope, index: index})
-		readable[scope] = true
-	}
-	// One derivation of "this thread's current session name", used for both the
-	// candidate's own binding and the claim count, so the name a candidate is
-	// judged by and the name its claim is counted under are the same value by
-	// construction rather than by two lookups agreeing.
-	current := effectiveBindings(reads)
-	for _, scope := range scopes {
-		if !readable[scope] {
-			continue // fail closed: see the reach rule above
-		}
-		for _, address := range byScope[scope] {
-			if name := current[address]; name != "" {
-				candidate := proof[address]
-				bindings = append(bindings, SessionNameBinding{
-					Address: address, SessionName: name,
-					Agent: candidate.Agent,
-				})
-			}
-		}
+	bindings, current, _, err := c.resolveScopedBindings(ctx, addresses, func(address ThreadAddress) string {
+		return proof[address].Agent
+	})
+	if err != nil {
+		return nil, err
 	}
 	if len(bindings) == 0 {
 		return nil, nil

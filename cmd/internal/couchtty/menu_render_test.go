@@ -398,9 +398,9 @@ func TestRootStateTextNamesEveryState(t *testing.T) {
 		{couchcore.ThreadLive, "", "live"},
 		{couchcore.ThreadDetached, "", "detached · 4h ago"},
 		{couchcore.ThreadParked, "", "parked · 4h ago"},
-		{couchcore.ThreadBusy, "", "parking…"},
+		{couchcore.ThreadBusy, "", "starting…"},
 		{couchcore.ThreadUnusable, couchcore.ReasonBindingLost, "binding lost — repairable"},
-		{couchcore.ThreadUnusable, couchcore.ReasonStaleIncarnation, "stale — helper ownership unresolved"},
+		{couchcore.ThreadUnusable, couchcore.ReasonProfileMissing, "no saved launch"},
 	} {
 		if got := rootStateText(stateTextRow(tc.state, tc.reason, active), now); got != tc.want {
 			t.Fatalf("%s/%s = %q, want %q", tc.state, tc.reason, got, tc.want)

@@ -341,46 +341,50 @@ func deprecatedPolicyRepoIdentity(raw json.RawMessage) string {
 	return legacy.RepoIdentity
 }
 
-// archivableRecord is the ONE occupancy rule archiving asks about.
+// archivableRecord is what a DECODED RECORD proves, on its own, about whether
+// it can leave the working set.
 //
-// It used to be inlined in the store with a narrower set than DecideResume's --
-// it refused a live incarnation and an open park, but admitted `creating` and
-// `unknown`. That gap is reachable: archiving a thread mid-start passed the
-// guard, so Quiesce killed the session being created while the spawn was still
-// in flight, leaving the console owning a thread the store no longer lists --
-// precisely the state the guard exists to prevent.
+// It used to be archive's whole admission rule and asked one question too many:
+// whether an incarnation was occupied. That is a claim about a PROCESS, and the
+// store cannot probe one -- worse, since #256 M1 the incarnation does not answer
+// it either, because it names couch's launcher, which dies with couch. A thread
+// couch is hosting can carry no incarnation at all, so this guard passed the row
+// whose agent archive was about to Quiesce.
 //
-// Occupancy is now one predicate over incarnation states, shared, and it
-// matches what resume refuses for the same reason: an occupied thread is one
-// something else is still doing something to.
+// So the process question moved UP, to Couch.ArchiveThread, which classifies
+// (ArchivableState). What stays here is couch's own unfinished bookkeeping,
+// which the record proves by carrying it: an open park transaction and an
+// outstanding start claim. Archiving through either strands a transaction
+// pointing at a record the working set no longer lists.
+//
+// Two layers, two questions -- the same split startup.go describes for its
+// three occupancy predicates. Collapsing them would force one answer onto two.
 func archivableRecord(record ThreadRecord) error {
-	// Explicit archive retains an incomplete request and its checkpoint.
-	// Occupancy, not delivery completion, determines whether the row can leave.
+	// A retained continuation request is deliberately NOT refused here: archive
+	// keeps an incomplete request and its checkpoint, and whether its actors are
+	// still up is another world question, asked by archiveContinuationVacant.
 	if record.Park != nil {
 		return fmt.Errorf("thread %s has a park in flight; let it finish before archiving", record.Address.Tag)
 	}
-	if occupied, state := occupiedIncarnation(record); occupied {
-		return fmt.Errorf("thread %s is %s; park or detach it before archiving", record.Address.Tag, state)
+	if startClaimed(record) {
+		return fmt.Errorf("thread %s has a start claim outstanding; let it finish or be rolled back before archiving", record.Address.Tag)
 	}
 	return nil
 }
 
-// hasOccupiedIncarnation is occupiedIncarnation's boolean form, for callers that
-// need the fact rather than which state produced it.
+// hasOccupiedIncarnation reports whether any incarnation is still doing
+// something: running, starting, or in a state couch cannot vouch for.
+//
+// It is couch's record of its OWN operations, and that is all it is good for --
+// relaunch and switch-agent read it to decide whether there is a source to park,
+// where couch's bookkeeping IS the authority. It is not a liveness claim and
+// archive no longer asks it.
 func hasOccupiedIncarnation(record ThreadRecord) bool {
-	occupied, _ := occupiedIncarnation(record)
-	return occupied
-}
-
-// occupiedIncarnation reports whether any incarnation is still doing something:
-// running, starting, or in a state couch cannot vouch for.
-func occupiedIncarnation(record ThreadRecord) (bool, IncarnationState) {
-	for _, state := range []IncarnationState{IncarnationLive, IncarnationCreating, IncarnationUnknown} {
-		for _, incarnation := range record.Incarnations {
-			if incarnation.State == state {
-				return true, state
-			}
+	for _, incarnation := range record.Incarnations {
+		switch incarnation.State {
+		case IncarnationLive, IncarnationCreating, IncarnationUnknown:
+			return true
 		}
 	}
-	return false, ""
+	return false
 }

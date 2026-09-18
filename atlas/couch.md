@@ -30,10 +30,16 @@ actionable projection described below.
 That raw `ThreadInventory` remains the diagnostic/recovery view: persisted
 incarnation states are shown even when Couch cannot prove a usable terminal.
 M1 exposes `ActionableThreadInventory`, a pure fail-closed projection over the
-same snapshot plus exact owner observations. It emits only `live` when one
-durable live PID/start identity exactly matches one observed TTY owner, or
-`parked` when verified park exists with no active park transaction, reservation,
-or incarnation. Contradictory and undecodable records stay available to
+same snapshot plus owner observations. It emits `live` when couch has POSITIVE
+evidence it is hosting the thread's process -- a console pty child, or a recorded
+process the OS still vouches for by exact PID and start token; since #256 M1 that
+is a union with no match required between the two, and its absence proves nothing
+(a record's incarnation names the launcher, which dies with couch) -- or
+`parked` when its LEDGER resolves a conversation to resume into and nothing is
+running on it — the park receipt is not the authority and has not been since #256
+M2, and neither is the incarnation: two of the four `parked` shapes carry one
+(a dead launcher, a driverless start claim), which is why the rule is "no LIVE
+evidence" rather than "no incarnation". Contradictory and undecodable records stay available to
 diagnostics. Since #151 M3, Console refreshes this projection asynchronously
 from exact hosted PID/start observations and never promotes raw persisted
 lifecycle state into a user-visible `live` or `parked` row.
@@ -169,7 +175,8 @@ fresh conversation, distinct from native parked resume. A prior target's
 attempt-bound readiness generation can authorize retry after that target is
 proved absent; unrelated newer generations refuse admission.
 
-Archive uses the same reconciliation, then checks occupancy before quiescing.
+Archive uses the same reconciliation, then checks that the continuation's source
+and target are proved absent before quiescing.
 A final record revision check prevents archiving a concurrently replaced
 request. An empty record may be archived with its pending/failed continuation
 intact; a live source or target cannot. The existing store journal preserves
@@ -246,9 +253,11 @@ working set and KEEPS its record, moving `threadstore/records/<scope>/<tag>.json
 manifest in one journal entry, so a crash cannot leave a record in both sets or
 neither. Restoring is that move reversed plus a manifest re-add -- `Snapshot`
 walks the manifest, so a restored file the manifest does not list stays
-invisible. It refuses a live/unknown helper or an open start/park transaction: archiving a record couch is
-hosting would leave the console owning a thread the store no longer lists, which
-is the stale-incarnation shape by construction. Exact helper-death proof permits
+invisible. Two layers refuse, and they ask different things (#256 M3). `Couch.ArchiveThread`
+asks the classification (`ArchivableState`) whether couch is hosting the thread or cannot tell --
+archiving a hosted thread would leave the console owning a record the store no longer lists, and a
+hosted thread can carry no incarnation at all. The store asks only what a decoded record proves on its
+own (`archivableRecord`): an open park or an outstanding start claim. Exact helper-death proof permits
 reconciliation; unknown ownership still refuses destructive effects.
 
 Park cannot do the stopping and that is why Quiesce does: park drives a
@@ -496,7 +505,7 @@ when no continuation arrives.
 The hierarchical switcher is Couch's own single terminal surface. It owns input
 while visible and suppresses background-child painting. The root lists only
 actionable durable threads; Tab/Right opens the selected thread's actions,
-Enter switches a proven live row or resumes an exact verified-park row, and
+Enter switches a proven live row or resumes a row whose conversation resolves, and
 Escape/Left restores the preserved parent frame. Printable keys filter the
 current list from memory. Breadcrumb plus one local banner identify nesting,
 progress, validation failures, and operation errors without a second status
@@ -580,20 +589,23 @@ re-derive it.
 
 **The projection is TOTAL** (`pair#181`): every record in the manifest becomes a
 row, and `ClassifyThread` returns a state plus, when the row cannot be acted on,
-a `ThreadReason` from one closed vocabulary -- `binding-lost`,
-`stale-incarnation`, `unrecorded-child`, `session-gone`, `never-started`,
-`invalid`, `path-missing`, `profile-missing`, `unsupported-agent`, `unknown`.
+a `ThreadReason` from one closed vocabulary -- `binding-lost`, `session-gone`,
+`never-started`, `invalid`, `unreadable`, `path-missing`, `profile-missing`,
+`unsupported-agent`, `unknown`. (`stale-incarnation` and `unrecorded-child` were
+retired by #256; see "Recoverability is a fact about the session" below.)
 Failing closed is unchanged -- an unproved row is not actionable and startup
 never selects it -- but it is expressed as a state rather than as absence. The
 IO shell (`gatherThreadEvidence`) resolves evidence and decides nothing;
-`ThreadEvidence` carries a `ProofStatus` per question, so "we asked and the
-answer was no" and "we could not ask" are different answers. Without that
+`ThreadEvidence` keeps "we asked and the answer was no" distinct from "we could
+not ask" -- as a `ProofStatus` for the parked proof, and as
+`SessionObservation`'s three-valued state for the session. Without that
 distinction one failed zellij query would assert `session-gone` on every
 detached row, and `session-gone` is a reason retirement acts on. `couch --list`
 and `--show` classify through the same function over the same evidence, with
 OS-derived liveness in place of the console's pty proof, so one store cannot
 produce two stories. Ambiguous and legacy-unverified records now appear in both
-views, named rather than hidden. Ephemeral console targets bind only to durable proven-live rows,
+views, named rather than hidden. Ephemeral console targets bind only to rows classified `live` --
+couch's own hosting or an OS-vouched recorded process, never the record's say-so alone --
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
 available for the refreshed resumable row. Lifecycle shortcuts are panel-only
@@ -785,13 +797,16 @@ clean detach. `DetachedSessions` takes **candidates** rather than returning the
 whole set, because the session-name index is per repo scope. Each candidate
 carries its address and saved agent profile; the observation adds its uniquely
 owned live client-free session name. `detachedResumeProofMatches` is shared by
-inventory, resume execution and its post-claim recheck (`pair#248`). None of
-these warm paths resolves or requires a native conversation binding. The
-inventory passes only candidates (no incarnation, no verified park, a usable
-saved profile and working path), which bounds
-*whether* the zellij snapshot runs -- a couch with nothing detachable pays
-nothing -- and, since `pair#228`, its fan-out too: two `list-sessions` runs plus
-one `action list-clients` per *candidate* session, not per session on the host.
+resume execution and its post-claim recheck (`pair#248`). None of these warm
+paths resolves or requires a native conversation binding.
+
+**The INVENTORY no longer calls it**: since #256 M1 the refresh asks session
+PRESENCE — one host-wide `list-sessions`, no client counting — and the
+candidate gate it used to pass (no incarnation, no verified park, a usable
+profile and path) went with it, because deciding what to observe from the
+bookkeeping is what hid a surviving agent behind a dead launcher. The
+`list-clients` fan-out `pair#228` bounded now belongs entirely to the ACTION
+path, where it is one call for the one thread the operator chose.
 Before that it asked every live pair session, **measured at 1.49 s** on a
 13-live-session host (2026-09-02). `list-clients` is the expensive call, about
 250 ms against a real detached session, so the whole reattach path now asks it
@@ -859,18 +874,24 @@ Where that lands differs by caller, and both matter:
     `TestMenuCodeReadsTheInventoryOnlyThroughTheViewedLookups` fails any other
     read.
 
-Resume accepts verified park **or proved detachment**. A detached thread has no
-verified park because nothing was torn down; its authority is the surviving
-session. Both `DecideResume` (Enter's gate) and
+Resume accepts a **resolvable conversation** (cold) or **proved detachment**
+(warm). It used to read the park receipt for the cold half; #256 M2 replaced that
+with the ledger, because a receipt names a ParkIdentity and no conversation. A
+detached thread has neither receipt nor need of one — nothing was torn down and
+its authority is the surviving session. Both `DecideResume` (Enter's gate) and
 `ProjectActionableThreads` (the switcher's list) carry that second authority --
 widening only one would list a row whose Enter fails, or hide a row that would
 have worked. A third gate used to sit between them, `ReconcileResumeAdmission`,
 which re-checked fleet capacity before relaunching; it went with admission in
-`pair#170` M4. The detached branch is checked BEFORE the `ParkHistory`
-tombstone scan, which refuses on any tombstoned entry with no break: a thread
-once abandoned mid-park and later detached would otherwise be permanently
-unreattachable. The occupied-incarnation refusal is unchanged, because detach
-retires the incarnation and the record passes on its own merits.
+`pair#170` M4. Since #256 M2 the tombstone scan is no longer a VETO at all: it runs only where
+nothing resolves, to say *why* in better terms than "unbound". Before that it
+refused on any tombstoned entry with no break, and the detached branch had to be
+checked first, because a thread once abandoned mid-park and later detached would
+otherwise be permanently
+unreattachable. `DecideResume` has not refused on an occupied incarnation since #256 M1:
+the incarnation names a launcher that dies with couch, so that refusal contradicted
+the `detached` classification it was fed. Resume rests on the two facts the classifier
+uses -- a surviving session (warm) or a ledger that resolves a conversation (cold).
 `DeleteStart` no longer deletes a record carrying a `LatestLaunchProfile`: the
 verified park used to be the only rollback authority, and an unnamed detached
 thread has none, so a post-claim failure would have deleted the agent and argv
@@ -923,9 +944,9 @@ treating it as absent would create a second thread in a tree that may hold live
 work -- silently, where the old code failed loudly. An unreadable record CAN be archived by the operator -- that escape is what stops
 a corrupt record locking its repository -- and `resolveThreadForArchive`
 addresses a thread without decoding it so the gesture reaches the one record
-class that most needs it. But archiving one never stops its session: the guard
-that proves a thread is not live needs a decoded record, so quiescing would kill
-an agent on the strength of a record couch just failed to read. The archive
+class that most needs it. But archiving one never stops its session: the
+classification that says couch is not hosting it needs a decoded record, so
+quiescing would kill an agent on the strength of a record couch just failed to read. The archive
 returns `ArchiveResult.Warning()` saying so.
 
 Both projections take one `ThreadProjectionInput` (records + evidence +
@@ -960,10 +981,11 @@ view so a name does not change as the operator types.
 
 Automatic startup never adopts two neighbouring states, though both are
 listed. A session **attached elsewhere** yields no detached observation, so
-couch cannot steal it. A **stale `IncarnationLive` whose helper is no longer hosted** shows
-as `unusable/stale-incarnation`. The label makes no claim that the supervisor
-died. Explicit recovery rechecks helper/session ownership before effects
-(`pair#250`); startup does not infer a dead agent from that row.
+couch cannot steal it. A record whose recorded helper is no longer hosted is **no longer a state of its
+own**: since #256 the classifier does not consult the incarnation, so such a
+record shows as `detached` when its session survived -- which is the case #272
+was filed for -- and `session-gone` when it did not. Explicit recovery rechecks
+helper/session ownership before effects (`pair#250`).
 
 **Warm attachment and cold conversation resume use different evidence**
 (`pair#248`). Warm access requires the surviving session; cold resume requires
@@ -1274,12 +1296,386 @@ A separate macOS workflow runs it on relevant changes and weekly/manual cadence.
 `launcher.ProcOps` is named for pair's own sidecars, and `wrapcmd` spawns its
 child inline and unseamed.
 
+## Recoverability is a fact about the session (#256)
+
+**The classifier reads the world, not couch's bookkeeping about the world.**
+`ClassifyThread` does not consult `Incarnation` liveness fields or
+`record.Park`.
+
+The measurement it rests on: the zellij **server is PPID 1 at birth** — it
+daemonizes, it is not reparented — so `pair wrap`, `pair term`, nvim and the
+agent are its children, not couch's. `Detach` SIGTERMs the **launcher**, which is
+couch's own child and dies with couch anyway. Therefore:
+
+> A clean `alt+d` detach and a couch crash leave **identical external state**.
+> The only difference is whether the bookkeeping ran.
+
+Before #256 that difference decided everything: with the record, `detached`
+(recoverable, ranked highest at startup); without it, `stale — helper ownership
+unresolved` (debris). Measured on the operator's store, all 11 records carrying a
+`live` incarnation had a dead pid and three had an agent still running.
+
+### What durable state earns its place
+
+Durable state is justified only when it records something **not derivable from
+the world**:
+
+| Kept — not observable | Not read for classification — a shadow of what you can look at |
+|---|---|
+| native session id (the conversation) | `Incarnation{PID, Identity, State}` |
+| address → session-name binding | `ParkTransaction{Phase, Attempts, …}` |
+| launch profile, paths, name | — |
+
+Neither field is deleted from the record; they stop being **read** by the
+classifier. Replacing the park transaction itself is `#275`.
+
+### `SessionObservation` — three values, not a boolean
+
+`couchcore/sessionevidence.go`. `SessionUnresolved` is the **zero value**, so an
+observation nobody populated fails closed: if absence were the zero value, a
+gather branch that silently stopped running would assert "no session" for every
+thread it skipped — the anonymous refusals `#181` removed. `session-gone` is
+archive-eligible, which is what makes the distinction load-bearing.
+
+There is deliberately no fourth "held elsewhere" value. The refresh never counts
+clients — `list-clients` costs ~250 ms per live session (`#228`) — and the
+reattach path re-observes attach state before committing. **Optimistic inventory,
+strict action:** the expensive question is asked for the one thread the operator
+pressed Enter on, so cost is proportional to what you *do*, not what you *have*.
+`DetachedSessions` remains the action path's authority, guarded by
+`RequireAttachState`.
+
+### One class, four sites — and one function (M2)
+
+A guard reading bookkeeping the classification no longer trusts is one defect
+with several homes. Each was found by fixing the one before it — which is the
+point: the enumeration is the deliverable, not any single site.
+
+1. `ClassifyThread` — session-first.
+2. `DecideResume` — stopped vetoing on the incarnation and the open park, or a
+   row the switcher advertised as `detached` could not resume.
+3. `CommitStartClaim`'s caller — **re-adoption**: retire the dead launcher's
+   incarnation before claiming a new one. One-incarnation-at-a-time is a store
+   invariant, not a lifecycle opinion, so the *caller* clears it — gated on
+   confirmed `Dead`, never on an unobservable process, since retiring a live one
+   would abandon a running agent.
+4. `RetireIncarnation`'s open-park precondition, which became reachable **because
+   of** site 3. An orphaned park is abandoned alongside the dead incarnation, and
+   every precondition is screened before that write — `AbandonPark`'s tombstone
+   is permanent, and a failure after it leaves a thread that can be neither
+   resumed nor archived.
+
+The sweep is written as a **predicate**, not a list: *every guard refusing on
+`record.Incarnations` or `record.Park`*. Writing it as four sites is what let two
+further shapes through — a park owned by a process that is not the incarnation,
+and an open park with **zero** incarnations. Both are the same
+`replacementUnknown` escape in `threadrecord/lifecycle.go`, read at different
+incarnation counts, and both wedged `couch` in the whole tree. The clearing pass
+is therefore **total over the shapes `validateLifecycle` accepts** — which is the
+domain, because ARCH-SECURE treats a record written by another version as
+untrusted input — and `TestReAdoptionExitsAreTotalAndCoded` enumerates it.
+
+Four rules outlive the sweep:
+
+- **An irreversible step never precedes a revocable check**, and its precondition
+  is proved about **the exact entity the step acts on**. The park's owner and the
+  incarnation's process are not always the same process
+  (`TestForeignOwnedParkIsRepresentableAndRefused`).
+- **A guard omitted as "unrepresentable" cites the validator clause that makes it
+  so, read including its exceptions**, and is pinned by a test that builds the
+  fixture through the real store. That test exists here because the claim was
+  made twice and was wrong twice.
+- **Guidance belongs at the consumer that needs it**, not as a marker every
+  producer must carry: `startupResumeRefusal` decorates any failure. An earlier
+  attempt at the latter changed what `ResumeDiagnosticCode` *meant* — from "is a
+  structured refusal" to "came out of resume" — and broke every reader that used
+  the distinction.
+- **A diagnostic code is a claim.** `ResumeNotRunning` must not be emitted where
+  couch could only establish ignorance, or the switcher renders "not running"
+  over a live conversation.
+
+`hasOccupiedIncarnation` survives for `relaunch` and `switch-agent`, which ask a
+different question: not "is this recoverable" but "is couch itself already
+operating on this thread", where couch's own record *is* authority.
+
+**M2 gave the sweep one home.** `clearLifecycleDebris`
+(`couchcore/lifecycledebris.go`) is that rule as a function, and **archive calls
+it too**. The alternative — re-deriving it inside `DecideRecovery` — would have
+been the same rule in a second place, which is the shape that produced four
+rounds of findings in the first place.
+
+Nothing was deleted to get there. `DecideRecovery`'s park and incarnation-shape
+gates and `archivableRecord`'s unfinished-transaction rule each protect a real
+precondition downstream, so they stay; they stop being the **operator's** wall
+because the debris is gone before they run. (M3 narrowed `archivableRecord`
+itself: the occupancy half moved up to `Couch.ArchiveThread`, which classifies.) The operator's second wedged row needed no new
+rule at all: the cleared record reaches the reconciler carrying no incarnation,
+which the existing binding-absent hatch already admits.
+
+Three processes can be named by one record — the park's owner, the start's owner,
+and the helper the start forked — and any can outlive the others, so each gets
+its own probe. A start claim **rolls back** rather than retiring, because
+`RetireIncarnation` takes only a live incarnation; when that rollback removes a
+husk carrying nothing else, `ErrThreadRolledBack` reports the fact and each
+caller decides what it means (resume: a refusal; archive: success, the row is
+gone).
+
+**Order, in archive, is the guard.** Clearing debris is a durable write, so the
+session — the one refusal that is nobody's fault and may change on its own — is
+asked first, through `RecoverySessionRefusal`, with nothing written. Getting this
+backwards was a regression caught by an existing test: archive refused for an
+unanswerable session *after* retiring an incarnation. `observeRecovery` also
+stopped skipping the session probe for records carrying a park or a claim — the
+same structural defect M1 removed from `gatherThreadEvidence`, where bookkeeping
+decided whether the world got asked.
+
+### `ThreadBusy` has exactly one producer, and it is bounded by the world
+
+A `ThreadStartClaim` — couch's record of its **own** in-flight operation, not a
+claim about an external process. Without it, the window between claiming a start
+and the launcher acquiring a pid would classify `session-gone`, an
+archive-eligible reason, for a thread starting normally.
+
+**M2 finished the sentence.** A claim carries `{OwnerPID, OwnerIdentity}` — the
+couch that began the transaction — precisely so "recoverable on its own terms"
+can be checked, and nothing checked it. A couch dying mid-start left a row
+reading `starting…` forever: no timeout, no owner check, and `busy` offers
+neither archive nor resume. So:
+
+> A start is in flight while its claiming couch is **alive or unprovable**. A
+> claim whose owner is provably `Dead` has no driver, and the row reports what
+> the world shows.
+
+`Unknown` keeps the row busy, the same direction `ReconcileStart` already fails
+("Unknown evidence always keeps capacity occupied"). `ThreadEvidence.StartOwner`
+carries the answer and its zero value is `Unknown`, so a record no gather branch
+reached cannot be declared driverless — the same fail-closed-by-construction
+shape as `SessionUnresolved`.
+
+Releasing decides nothing on its own: the row falls through and reads live,
+detached, parked or session-gone like any other record with the same evidence.
+
+### Cold-resume authority is the ledger, not the park receipt (M2)
+
+`VerifiedPark` carries a `ParkIdentity` and **no native conversation id**. It can
+attest that a park happened; it can never say there is something to resume into.
+That lives in `ledger-<tag>.jsonl`, and `ResolveEstablished` is the only thing
+that reads it.
+
+The read used to be gated on `record.VerifiedPark != nil`, which made the receipt
+the authority. Two consequences, one rule:
+
+- A thread whose session died **without** a park was never asked about its
+  ledger, so it read `session-gone` — archive-eligible — with a live
+  conversation still recorded. Archive could discard it without a word.
+- A receipt with no resolvable conversation behind it still read `parked`.
+
+So the ledger is asked for **every resume-shaped record whose session is not
+present**, and `VerifiedPark` leaves the classification path the way
+`record.Park` and the incarnation liveness fields did in M1. It survives as a
+*diagnostic*: a receipt with no ledger entry reads `binding-lost` rather than
+`session-gone`, because "couch parked this deliberately and the conversation is
+gone" is a different story for the operator.
+
+The cost stays bounded by the same optimistic-inventory rule: a row couch is
+hosting, and a row whose session outlived its launcher, pay nothing
+(`TestWarmRowsAskNoLedgerQuestion`). An unreadable ledger is `ProofUnresolved`
+→ `unusable/unknown`, never `session-gone`.
+
+**The guard moved with the classifier**, because a guard that contradicts the
+classification it feeds is the defect, not a detail. Four sites read the receipt
+as cold authority: `DecideResume`'s admission gate, its `RequiredSessionID`
+branch, the `CheckResumePreconditions` binding exception, and `Resume` itself —
+which resolved the binding only for receipt-holders, so a row the classifier now
+calls `parked` arrived with an empty binding and was refused `unbound`. `Resume`
+now asks the **session** first (warm is cheaper, safer, and already preferred by
+the classifier) and the **ledger** only when warm did not answer.
+
+Two deletions fell out. `ResumeLegacyUnverified` — "thread has no verified park
+completion" — lost its producer and is retired; the produced-by guard forced it.
+And the `ParkHistory` tombstone scan stopped being a **veto**, surviving only as
+the better explanation where there is nothing to resume into: archive abandons
+orphaned parks as a matter of course now, so a veto would have made "couch
+crashed mid-park once" a permanent cold-resume ban.
+
+**`parked` has FOUR producers now, and its consumers are the enumeration.** A
+park receipt whose session is absent; a ledger that resolves with no receipt at
+all (M2's new one); a receipt whose session could not be asked about, which the
+classifier keeps deliberately; and a driverless start claim whose ledger still
+resolves. `everyThreadShape` carries all four, and
+`TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` derives its rows from
+it rather than listing them — an earlier version hand-wrote two and its totality
+check compared a map filled from that same literal, so it could not fail.
+
+The consumers are the enumeration. That
+is the rule the M2 boundary review extracted, after the sweep re-derived the
+consumers of the evidence FIELD that widened (`ThreadEvidence.Parked`) and missed
+the consumers of the STATE. `ThreadParked` has seven readers — `startup.go`'s
+rank and `PathHoldsUsableThread`, `ActionableThreadSummary.Resumable`, two
+renderers, `menuThreadActionable`, and the switcher's action list. The last one
+offers `switch-agent`, and `PrepareAgentSwitch` still demanded a park receipt, so
+a ledger-parked row was offered an action that always failed — the thing
+`menu.go` names in its own words as how a switcher teaches an operator to
+distrust it. Two derived tables make the class checkable rather than re-derived per
+milestone: `TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive` takes its
+producers from `everyThreadShape`, and `TestSwitchAgentOfferedImpliesPermitted`
+takes its domain from `AllThreadStates() × AllThreadReasons()`.
+
+**An action guard CONSUMES the classification; it does not re-derive one.** This
+took two attempts to get right and both failures are worth keeping. The first
+guard read `record.VerifiedPark != nil`, which refused M2's new ledger-parked
+producer. The second asked the session directly — a second derivation, drifting
+toward the cases its author thought of — and admitted a row couch is HOSTING
+whenever the session index held no binding, while `SwitchAgent` parks a source
+only when the record names an incarnation: two agents on one tree.
+
+`SwitchableState(state, reason)` is now a pure predicate both the switcher and
+`PrepareAgentSwitch` call, and the guard classifies through `classifyForAction`,
+which runs the same evidence pass and the same rule the rows come from with
+couch's own registry as live proof. The rule it encodes is *nothing is running
+that a switch would orphan* — a switch launches fresh and resumes no
+conversation. `TestSwitchAgentOfferedImpliesPermitted` derives its domain from
+`AllThreadStates() × AllThreadReasons()`, so offered-implies-permitted is
+checkable rather than remembered.
+
+The enumeration that catches this class must itself be **derived**. The first
+version compared a map filled from its own literal and so could not fail;
+deriving it from `everyThreadShape` immediately surfaced two further producers of
+`parked` — a receipt whose session could not be asked about, and a driverless
+start claim whose ledger still resolves. The second of those is why `SwitchAgent`
+now clears lifecycle debris before its target claim, as resume and archive do.
+
+**A diagnostic code needs a producer reachable from a production entry point.**
+The tombstone-as-better-explanation above was true of `DecideResume` and false of
+couch: `ResumeContextWith` bailed on a binding diagnostic before `DecideResume`
+ever saw the resolution. A binding diagnostic is EVIDENCE and travels with the
+resolution it describes, so the resolver reports and `DecideResume` decides —
+guidance at the consumer, the same rule M1 round 3 wrote. The emitted-somewhere
+guard passed the whole time; reachability needed its own.
+
+One asymmetry is kept deliberately. An unresolved session refuses a cold verdict
+**unless** `record.VerifiedPark` says couch tore the session down itself. For a
+deliberately parked thread the session answer is uninformative, so demoting every
+parked row because one `list-sessions` failed is strictly worse. For every other
+thread the session may be **alive**, and `parked` invites a relaunch that would
+put a second agent on a live conversation. The receipt is a fact about what couch
+did — that is all it is still read for.
+
+### Admission is a predicate over the classification (M3)
+
+Every action the switcher offers has a **pure predicate over `(state, reason)`**,
+consumed by the guard that would otherwise re-derive one:
+
+| Action | Predicate | Guard that consumes it | Permits |
+|---|---|---|---|
+| switch-agent | `SwitchableState` | `PrepareAgentSwitch` | `live`, `parked`, `binding-lost`, `session-gone` |
+| archive | `ArchivableState` | `Couch.ArchiveThread` (via `classifyForAction`) | `detached`, `parked`, every unusable reason **except** `unknown` |
+| resume | `ResumableState` | `SelectResumableRoot` | `detached`, `parked` |
+
+The switcher's **offer** is written separately, at `menuActionItems` /
+`menuArchiveOffered`, and `couchtty`'s `TestActionOfferedImpliesPermitted`
+compares the two over `AllThreadStates × AllThreadReasons`. It is deliberately
+not filtered through the predicate: a filter makes offered-implies-permitted true
+by construction, and a guard that cannot fail is not a guard.
+
+**What the resume row does NOT cover.** `ResumableState`'s consumer is startup's
+`SelectResumableRoot`, not the Enter path — `ResumeContextWith` gathers its own
+strict evidence and would pay a second evidence round to classify. So the table's
+resume row proves the menu and startup agree; that pressing Enter on an offered
+`resume` then succeeds rests on M1 having removed every bookkeeping read from
+`DecideResume`, which now reads only the two facts the classifier used (a
+surviving session, a resolvable ledger). Change `DecideResume` and this table will
+not notice.
+
+**Cost of the archive admission.** One host-wide `list-sessions` per archive,
+added by M3. A row whose session is present also pays **three** `list-clients`
+(~750 ms, `#228`) — `observeRecovery`'s three looks, which predate M3 — and a
+sessionless row pays none. `TestArchiveEvidenceCostIsBoundedByItsMaximisingShape`
+pins both, so a fourth look fails rather than costing another 250 ms unseen.
+
+Two layers, not one. The predicate answers *what is this thread*; the record-shaped
+guards below it (`archivableRecord`, `DecideRecovery`, `clearLifecycleDebris`)
+answer *is there bookkeeping to act on*, which a classification cannot see.
+`archivableRecord` narrowed to exactly that in M3: an open park and an
+outstanding start claim — couch's own unfinished transactions, which a decoded
+record proves by carrying them — and no longer an occupied incarnation, which is
+a claim about a process the store cannot probe.
+
+### Unknown survives the projection (M3)
+
+`ObserveRecordedProcesses` returns `RecordedProcessObservation{Address, Process,
+Liveness}`. It used to return only the positive answers, so a probe that could
+not answer and one that proved the process dead reached the classifier as the
+same silence — and since M1 that silence falls through to the session, which can
+say `session-gone`. `ThreadEvidence.Unproven` is the negative side of `Live`, and
+the classifier fails closed on it ahead of every durable refusal, because
+`session-gone` is archive-eligible and `unknown` is the one reason archive
+declines.
+
+Narrow on purpose: `Exists` answering **Dead**, and an identity token that reads
+and **differs** (a recycled pid), are confirmed answers and keep falling through.
+That is `#272`'s fix and it must not regress.
+
+### Lifecycle changes go through named transitions (M3)
+
+`ThreadStore.updateExistingThread` is **unexported**, and inside `couchcore` it
+is reachable only from a `*ThreadStore` method —
+`TestArbitraryLifecycleMutationHasNoDoor` derives that from the receiver rather
+than a file list, because all three leaking callers lived in the store's own
+package and two in its own directory.
+
+CAS, immutable-field checks and final validation protect a *coherent* record;
+none of them requires an *authorized* change. The transition's **name** is where
+the caller's authority is recorded:
+
+| Transition | What the caller is asserting |
+|---|---|
+| `RetireIncarnation` | this live incarnation's process was just stopped |
+| `RetireUnprovenIncarnation` | this exact `{PID, identity}` was observed **Dead** |
+| `RetireProvedDeadIncarnations` | every recorded process was observed Dead, and none carries a start claim |
+| `ClearVerifiedPark` | the thread is attached again, so the receipt describes an undone teardown |
+| `BeginContinuationFromRetiredIncarnations` | the request and the retirement are ONE write, because a record must never carry both |
+
+`RetireUnprovenIncarnation` exists because `RetireIncarnation` refuses an
+`unknown` incarnation on purpose — detach holds no death proof, and retiring one
+there would let an unproven thread present as cleanly detached. Archive does hold
+the proof. Without the split, a record marked unknown by `markLiveRecordUnknown`
+could never be archived once its helper died, which it always does.
+
+### Archive stops a session, not necessarily an agent (M3)
+
+`Quiesce` runs `zellij delete-session --force`, and **that reaps a pane by
+SIGHUP**. Measured 2026-09-17 on zellij 0.45.1 with a throwaway session: a pane
+child with the default disposition dies; one whose launching shell had `SIG_IGN`
+survives and is reparented to init. Same fixture, one variable. `#274`'s 106
+orphaned `pair term` trees are that regime in production, and this measurement
+proves its standing hypothesis.
+
+So archive's confirmation on a **detached** row names the agent and says it *may*
+survive, rather than promising a stop couch cannot deliver. `#274` owns making it
+a promise. The agent name reaches the confirmation through
+`ActionableThreadSummary.Agent`, projected from the saved launch profile.
+
+### Retired reasons
+
+`stale-incarnation` and `unrecorded-child` both named a *disagreement* between
+the record and observation, one per direction. There are no longer two sides to
+disagree. `unrecorded-child` returns with `#276`, which gives it a producer — a
+couch-tagged session with no record at all.
+
 ## Liveness is recomputed, never stored
 
 Because Couch owns the console, diagnostic flags run in a **second process**
 with no `Handle`. So `ActorRecord` persists `{PID, Identity}` where `Identity`
 is `procutil`'s kernel start token, and a reader recompares it: a recycled PID
 reports not-live because the token differs.
+
+That correlation is still exact, and still positive-only: after #256 the
+**absence** of a live observation proves nothing and falls through to the
+session. The `Live` union — console pty children plus OS-vouched recorded
+processes — stays a union, because the CLI passes no observations of its own and
+narrowing it would make every running thread read `detached` there (`#181`'s
+"one store, two stories").
 
 Within one process, `ExecRunner` reaps its children in a background goroutine
 and liveness is a closed channel — **not** `kill -0`, which succeeds for a
@@ -1340,8 +1736,11 @@ That is exactly why `Enqueue` is pure and survived on its own.
   launch preference.
 - **actor / ActorID** — a hosted child/cache identity; routing and notices use
   it, while every switcher action uses the durable thread address.
-- **parked thread** — a durable thread with an exact verified resume handle and
-  no occupied incarnation.
+- **parked thread** — a durable thread whose LEDGER resolves a conversation to
+  resume into, with nothing running on it (no live evidence, no surviving
+  session). It may still carry a dead launcher's incarnation or a driverless
+  start claim. The park receipt (`VerifiedPark`) records that a park happened; it
+  is not the authority, and `parked` has four producers (see `everyThreadShape`).
 
 ## Planned, not built
 

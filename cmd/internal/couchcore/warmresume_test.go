@@ -157,12 +157,24 @@ func TestStartupResumeRefusalNamesTheThreadAndTheWayForward(t *testing.T) {
 	}
 }
 
-// A non-refusal error is passed through untouched: only a resume DIAGNOSTIC
-// gets the operator guidance, because only it means "couch decided not to".
-func TestStartupResumeRefusalPassesThroughOtherErrors(t *testing.T) {
+// RESTATED for #256. A non-refusal used to pass through UNTOUCHED, which is how
+// an internal store message reached the operator with no next step and refused
+// `couch` in the whole tree. It is now decorated too -- but with a message that
+// is TRUE of it: couch could not tell, rather than claiming to have found a
+// resumable thread it never read.
+func TestStartupResumeRefusalExplainsAnInternalFailureWithoutClaimingAThread(t *testing.T) {
 	plain := errors.New("store is unreadable")
-	if got := startupResumeRefusal(ThreadAddress{}, plain); got != plain {
-		t.Fatalf("startupResumeRefusal rewrote a non-refusal: %v", got)
+	got := startupResumeRefusal(ThreadAddress{}, plain)
+	if got == nil || !errors.Is(got, plain) {
+		t.Fatalf("the original error must stay reachable: %v", got)
+	}
+	if strings.Contains(got.Error(), "found one resumable thread") {
+		t.Fatalf("an unreadable store was reported as a thread couch found:\n%s", got)
+	}
+	for _, want := range []string{"could not resume", "couch --show", "work anyway"} {
+		if !strings.Contains(got.Error(), want) {
+			t.Fatalf("internal failure is not actionable — missing %q:\n%s", want, got)
+		}
 	}
 	if startupResumeRefusal(ThreadAddress{}, nil) != nil {
 		t.Fatal("startupResumeRefusal invented an error")
@@ -283,10 +295,16 @@ func TestWarmOnlyReachesTheResumeThroughTheOperationTable(t *testing.T) {
 
 // Native transcript resolution is not even an available capability here.
 // The same portable session state still authorizes inventory and execution.
+// warmSessionArtifacts is a couch whose artifacts expose only the session
+// surfaces -- no native resolver. SessionPresenceResolver belongs here because
+// after #256 the inventory's session question IS presence; a couch that cannot
+// answer it reads every thread `unknown`, which is correct fail-closed behaviour
+// but not what this test is about.
 type warmSessionArtifacts struct {
 	ThreadArtifactController
 	DetachedSessionResolver
 	PairSessionIO
+	SessionPresenceResolver
 }
 
 func TestWarmInventoryAndResumeNeedNoNativeResolver(t *testing.T) {
@@ -297,7 +315,7 @@ func TestWarmInventoryAndResumeNeedNoNativeResolver(t *testing.T) {
 			probe := &warmPathResolverProbe{FakeThreadArtifactCollisionChecker: env.Artifacts}
 			env.Couch.Artifacts = probe
 			if missing {
-				env.Couch.Artifacts = warmSessionArtifacts{env.Artifacts, env.Artifacts, env.Artifacts}
+				env.Couch.Artifacts = warmSessionArtifacts{env.Artifacts, env.Artifacts, env.Artifacts, env.Artifacts}
 			}
 			rows, err := env.Couch.ActionableThreadInventory(nil)
 			if err != nil || len(rows) != 1 || rows[0].State != ThreadDetached {

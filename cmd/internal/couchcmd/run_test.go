@@ -328,14 +328,7 @@ func seedDetachedThread(t *testing.T, rt testRT, path string) couchcore.ThreadRe
 	if err != nil {
 		t.Fatal(err)
 	}
-	updated, err := c.Threads.UpdateExistingThread(created.Address, created.Revision, func(next *couchcore.ThreadRecord) error {
-		next.Reservation = false
-		return nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return updated
+	return created
 }
 
 // The M3 acceptance case, across a RESTART: a couch that detached a thread and
@@ -397,13 +390,16 @@ func TestInteractiveLaunchReattachesUniqueDetachedRoot(t *testing.T) {
 	}
 }
 
-// Without the surviving session there is no resume authority, so startup must
-// create a NEW thread rather than reattach one it cannot prove.
+// RESTATED for #256 M2. A gone session is not by itself a missing resume
+// authority: the ledger may still name a conversation, and then couch
+// cold-resumes instead of starting a second thread in the same tree. Startup
+// creates a NEW thread when the session is gone AND the ledger resolves nothing.
 func TestInteractiveLaunchStartsNewWhenNoSessionSurvives(t *testing.T) {
 	rt := newRT(t, "/repo")
 	stale := seedDetachedThread(t, rt, "/repo")
-	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	// Deliberately NO SetDetachedSession: the session did not survive.
+	rt.artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
+	// Deliberately NO SetDetachedSession: the session did not survive, and with
+	// an unbound ledger there is nothing to cold-resume into either.
 	rt.runner = couchcore.NewFakeRunner()
 	master, slave, err := pty.Open()
 	if err != nil {
@@ -1232,8 +1228,11 @@ func TestConsoleGetsCouchsActionableProvider(t *testing.T) {
 	if err != nil || len(got) != 1 {
 		t.Fatalf("provider returned %v, %v", got, err)
 	}
-	if got[0].State != couchcore.ThreadUnusable || got[0].Reason != couchcore.ReasonStaleIncarnation {
-		t.Fatalf("row = %+v, want unusable/stale-incarnation after the child exited", got[0])
+	// RESTATED for #256: a record whose launcher died and whose session is also
+	// gone is `session-gone`, not `stale-incarnation` -- that reason is retired,
+	// because the incarnation it described names a process that dies with couch.
+	if got[0].State != couchcore.ThreadUnusable || got[0].Reason != couchcore.ReasonSessionGone {
+		t.Fatalf("row = %+v, want unusable/session-gone after the child exited", got[0])
 	}
 }
 

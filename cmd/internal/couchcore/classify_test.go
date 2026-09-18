@@ -3,9 +3,11 @@ package couchcore
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -13,12 +15,19 @@ import (
 // it. wasActionableBefore records what the pre-#181 projector answered, so the
 // characterization test below can prove M1 changed only the refusals.
 type classifyCase struct {
-	name                string
-	record              ThreadRecord
-	evidence            ThreadEvidence
-	wantState           ActionableThreadState
-	wantReason          ThreadReason
+	name       string
+	record     ThreadRecord
+	evidence   ThreadEvidence
+	wantState  ActionableThreadState
+	wantReason ThreadReason
+	// wasActionableBefore is the pre-#181 projector's verdict, kept as a
+	// characterization ratchet.
 	wasActionableBefore bool
+	// newlyActionable marks a shape this issue DELIBERATELY admits that the old
+	// projector refused. It replaces a name-matched exception, which broke the
+	// moment a case was renamed -- an exception keyed to prose is a guard that
+	// silently stops guarding.
+	newlyActionable bool
 }
 
 func classifyProfile() *LaunchProfile {
@@ -53,22 +62,27 @@ func everyThreadShape(t *testing.T) []classifyCase {
 		record.LatestLaunchProfile = classifyProfile()
 		return record
 	}
-	detachedProof := func(record ThreadRecord) []DetachedSessionObservation {
-		return []DetachedSessionObservation{{
-			Address: record.Address, SessionName: "pair-three", Agent: "claude",
-		}}
-	}
-	// The operator's pair-couch-24: a live session whose binding never landed.
-	detachedNoBinding := func(record ThreadRecord) []DetachedSessionObservation {
-		return []DetachedSessionObservation{{
-			Address: record.Address, SessionName: "pair-three", Agent: "claude",
-		}}
-	}
-
 	resolved := func(e ThreadEvidence) ThreadEvidence {
-		e.ParkedStatus, e.DetachedStatus = ProofResolved, ProofResolved
+		e.ParkedStatus = ProofResolved
+		e.Session = SessionObservation{State: SessionAbsent}
 		return e
 	}
+	withSession := func(e ThreadEvidence) ThreadEvidence {
+		e.ParkedStatus = ProofResolved
+		e.Session = SessionObservation{State: SessionPresent}
+		return e
+	}
+	// A start couch has claimed and not finished: the ONE thing still read from
+	// an incarnation, and it is a record of couch's own operation rather than a
+	// claim about an external process.
+	starting := detached()
+	starting.Address.Tag = "couch-000000000000000c"
+	starting.Incarnations = []ThreadIncarnation{{
+		State: IncarnationCreating,
+		Start: &ThreadStartClaim{
+			Nonce: "start-0123456789abcdef", OwnerPID: 4242, OwnerIdentity: "supervisor",
+		},
+	}}
 
 	invalid := actionableTestThread("couch-0000000000000004", active)
 	invalid.SchemaVersion = 0
@@ -120,14 +134,59 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadLive, wasActionableBefore: true,
 		},
 		{
-			name: "live record nothing hosts it", record: staleLive,
+			// RESTATED for #272. This was `stale-incarnation`: a record claiming
+			// a live incarnation that nothing hosts. But the incarnation names
+			// the LAUNCHER, which dies with couch, so that reason described
+			// every couch crash as a lost thread. With no session either, the
+			// honest answer is the same one a record with no incarnation gets.
+			name: "recorded incarnation is gone and so is the session", record: staleLive,
 			evidence:  resolved(ThreadEvidence{}),
-			wantState: ThreadUnusable, wantReason: ReasonStaleIncarnation,
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
-			name: "hosted child with no incarnation", record: unrecorded,
+			// #256 M3. The recorded helper could not be ASKED about -- the probe
+			// answered Unknown, or its identity token could not be read -- and
+			// the session survived. Through M1 and M2 this row read `detached`:
+			// actionable, resumable, archive-eligible. M3 demotes it on purpose,
+			// and this is the row that says so: couch cannot tell "hosted by
+			// something" from "detached", and `detached` offers an archive whose
+			// own death-proof screen refuses the same unprovable process.
+			// The pre-#181 projector refused it too (no exact live proof), so the
+			// characterization flags stay false -- the reduction is against M2,
+			// and it is stated here rather than inferred.
+			name: "recorded helper could not be asked about, session survived", record: staleLive,
+			evidence:  withSession(ThreadEvidence{Unproven: liveObservation}),
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
+		},
+		{
+			// Both at once, which is reachable and decided ONLY by branch order
+			// (#256 M3 BR, ARCH-ORDER note): a confirmed live proof, plus a
+			// second recorded process nobody could ask about. A positive answer
+			// is not undone by an unanswered one, so this is `live` -- and if the
+			// two branches are ever swapped, this row is what fails.
+			name: "hosted, with a second recorded process nobody could ask about", record: live(),
+			evidence: resolved(ThreadEvidence{
+				Live: liveObservation, Unproven: []ProcessIdentity{{PID: 43, Identity: "pair-other"}},
+			}),
+			wantState: ThreadLive, wasActionableBefore: true,
+		},
+		{
+			// The archive-relevant half: with the session ALSO gone, falling
+			// through would say `session-gone`, which archive acts on, while the
+			// helper it names may still be running.
+			name: "recorded helper could not be asked about, session gone", record: staleLive,
+			evidence:  resolved(ThreadEvidence{Unproven: liveObservation}),
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
+		},
+		{
+			// RESTATED for #272. This was `unrecorded-child`: a hosted process
+			// for a record carrying no incarnation, treated as a contradiction
+			// to fail closed on. It is not a contradiction any more -- couch
+			// hosting the process IS the live proof, and the incarnation is not
+			// consulted, so there are no two sides to disagree.
+			name: "couch hosts it and the record says nothing", record: unrecorded,
 			evidence:  resolved(ThreadEvidence{Live: liveObservation}),
-			wantState: ThreadUnusable, wantReason: ReasonUnrecordedChild,
+			wantState: ThreadLive, newlyActionable: true,
 		},
 		{
 			name: "verified park with its resume proof", record: parkedRecord,
@@ -141,18 +200,45 @@ func everyThreadShape(t *testing.T) []classifyCase {
 		},
 		{
 			name: "verified park whose proof could not be resolved", record: parked(),
-			evidence:  ThreadEvidence{DetachedStatus: ProofResolved},
+			evidence:  ThreadEvidence{Session: SessionObservation{State: SessionAbsent}},
 			wantState: ThreadUnusable, wantReason: ReasonUnknown,
 		},
 		{
-			name: "detached with its resume proof", record: detachedRecord,
-			evidence:  resolved(ThreadEvidence{Detached: detachedProof(detachedRecord)}),
+			// The asymmetry #256 M2 keeps deliberately. A failed
+			// `list-sessions` must not demote every parked row -- couch tore
+			// this session down itself, so the session answer adds nothing that
+			// the receipt has not already settled. Contrast with "no park
+			// receipt and an unaskable session" below, where the session may be
+			// ALIVE and `parked` would invite a second agent onto it.
+			name: "verified park whose session could not be asked about", record: parkedRecord,
+			evidence: ThreadEvidence{
+				ParkedStatus: ProofResolved, Parked: parkedProof(parkedRecord),
+			},
+			wantState: ThreadParked, wasActionableBefore: true,
+		},
+		{
+			name: "no park receipt and an unaskable session", record: detachedRecord,
+			evidence: ThreadEvidence{
+				ParkedStatus: ProofResolved, Parked: parkedProof(detachedRecord),
+			},
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
+		},
+		{
+			// The session's own presence is the warm proof. It no longer needs a
+			// separate detached observation, which cost a `list-clients` per
+			// candidate to produce and answered a question the ACTION path
+			// re-asks anyway.
+			name: "session survived its host", record: detachedRecord,
+			evidence:  withSession(ThreadEvidence{}),
 			wantState: ThreadDetached, wasActionableBefore: true,
 		},
 		{
-			name: "detached whose session is alive but binding lost", record: detachedRecord,
-			evidence:  resolved(ThreadEvidence{Detached: detachedNoBinding(detachedRecord)}),
-			wantState: ThreadDetached,
+			// #272's shape: the launcher died, the session did not. This and the
+			// row above are the SAME external world, and they must classify
+			// identically -- that is the whole issue.
+			name: "session survived a dead launcher", record: staleLive,
+			evidence:  withSession(ThreadEvidence{}),
+			wantState: ThreadDetached, newlyActionable: true,
 		},
 		{
 			name: "no incarnation and no session", record: detached(),
@@ -160,7 +246,25 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
 		},
 		{
-			name: "no incarnation and the session question could not be asked", record: detached(),
+			// #256 M2, the SAFETY half. Identical record to the row above --
+			// no park receipt, no session -- but its ledger still names a
+			// conversation. It read `session-gone`, which is archive-eligible,
+			// because the ledger was only ever read for records carrying a
+			// receipt. Nobody asked, so archive could discard a live thread of
+			// work without saying so.
+			name: "no park receipt, but the ledger still resolves", record: detachedRecord,
+			evidence:  resolved(ThreadEvidence{Parked: parkedProof(detachedRecord)}),
+			wantState: ThreadParked, newlyActionable: true,
+		},
+		{
+			// The other side: an unreadable ledger is not an empty one.
+			// `unknown` is not archive-eligible; `session-gone` is.
+			name: "the ledger could not be read", record: detached(),
+			evidence:  ThreadEvidence{Session: SessionObservation{State: SessionAbsent}},
+			wantState: ThreadUnusable, wantReason: ReasonUnknown,
+		},
+		{
+			name: "the session question could not be asked", record: detached(),
 			evidence:  ThreadEvidence{ParkedStatus: ProofResolved},
 			wantState: ThreadUnusable, wantReason: ReasonUnknown,
 		},
@@ -170,9 +274,61 @@ func everyThreadShape(t *testing.T) []classifyCase {
 			wantState: ThreadUnusable, wantReason: ReasonNeverStarted,
 		},
 		{
-			name: "park transaction in flight", record: parking,
+			// RESTATED for #271. This was ThreadBusy, unconditionally, from a
+			// branch above every evidence-consulting one -- so a park whose
+			// process died 18 hours earlier still read `parking…` forever, with
+			// no timeout, no expiry and no owner check. The park is no longer
+			// consulted at all: the session answers.
+			name: "park in flight whose session is still up", record: parking,
+			evidence:  withSession(ThreadEvidence{}),
+			wantState: ThreadDetached, newlyActionable: true,
+		},
+		{
+			name: "park that timed out and whose session is gone", record: parking,
+			evidence:  resolved(ThreadEvidence{}),
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
+		},
+		{
+			// ThreadBusy's only remaining producer. Without it the window
+			// between claiming a start and the launcher acquiring a pid would
+			// classify `session-gone` -- an archive-eligible reason -- for a
+			// thread starting normally.
+			name: "start this couch is driving", record: starting,
+			evidence:  resolved(ThreadEvidence{StartOwner: Live}),
+			wantState: ThreadBusy,
+		},
+		{
+			// Fail closed. An owner nothing could probe is not a dead owner,
+			// and releasing the row on ignorance would offer archive on a
+			// thread that is starting normally.
+			name: "start whose owner could not be probed", record: starting,
 			evidence:  resolved(ThreadEvidence{}),
 			wantState: ThreadBusy,
+		},
+		{
+			// #256 M2: the claim outlived the couch that made it. The agent it
+			// started is still there, so the row reports the world -- it used
+			// to read `starting...` forever, offering neither resume nor
+			// archive.
+			name: "start claimed by a couch that is gone, session survived", record: starting,
+			evidence:  withSession(ThreadEvidence{StartOwner: Dead}),
+			wantState: ThreadDetached, newlyActionable: true,
+		},
+		{
+			// The same driverless claim with nothing left behind it. Archive is
+			// the only honest offer, and `session-gone` is what makes it.
+			name: "start claimed by a couch that is gone, session too", record: starting,
+			evidence:  resolved(ThreadEvidence{StartOwner: Dead}),
+			wantState: ThreadUnusable, wantReason: ReasonSessionGone,
+		},
+		{
+			// #256 M2, BR-33: the driverless claim whose LEDGER still resolves.
+			// A fourth producer of `parked`, and the one that reaches the action
+			// guards still carrying a `creating` incarnation -- so every guard
+			// must clear that debris rather than trip over it.
+			name: "start claimed by a couch that is gone, but the ledger resolves", record: starting,
+			evidence:  resolved(ThreadEvidence{StartOwner: Dead, Parked: parkedProof(starting)}),
+			wantState: ThreadParked, newlyActionable: true,
 		},
 		{
 			name: "record that fails validation", record: invalid,
@@ -217,14 +373,26 @@ func TestClassifyThreadIsTotalOverEveryRecordShape(t *testing.T) {
 	}
 }
 
-// The characterization half: the accepting branches must be exactly what the
-// pre-#181 projector accepted, except #248 intentionally admits unbound warm sessions.
-func TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted(t *testing.T) {
+// The characterization half: the accepting branches must be what the pre-#181
+// projector accepted, PLUS the shapes a later issue admitted on purpose. The name
+// says so -- it used to claim "exactly what the old projector accepted", which its
+// own doc had stopped saying (#256 close, BR-20).
+//
+// Those exceptions are not listed here, because the list is what drifted: this
+// comment used to name only #248, while six shapes had come to carry
+// `newlyActionable` (#248's unbound warm sessions, then #256's detached and
+// ledger-parked producers). The data is the declaration -- each shape states its
+// own flag, and the reason next to it -- and this test holds the classifier to it.
+func TestClassifyThreadAcceptsTheOldProjectorsSetPlusDeclaredAdmissions(t *testing.T) {
 	for _, tc := range everyThreadShape(t) {
 		state, _ := ClassifyThread(tc.record, tc.evidence)
 		actionable := state == ThreadLive || state == ThreadParked || state == ThreadDetached
-		if actionable != (tc.wasActionableBefore || tc.name == "detached whose session is alive but binding lost") {
-			t.Fatalf("%s: actionable=%v, previously %v", tc.name, actionable, tc.wasActionableBefore)
+		if want := tc.wasActionableBefore || tc.newlyActionable; actionable != want {
+			// Both flags, not one: a failure that printed only the pre-#181
+			// verdict read as a regression whenever the row was one a later
+			// issue had admitted deliberately.
+			t.Fatalf("%s: actionable=%v, want %v (pre-#181 projector: %v; admitted since: %v)",
+				tc.name, actionable, want, tc.wasActionableBefore, tc.newlyActionable)
 		}
 	}
 }
@@ -271,6 +439,105 @@ func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
 	for _, reason := range AllThreadReasons() {
 		if !produced[reason] {
 			t.Errorf("nothing produces reason %q", reason)
+		}
+	}
+}
+
+// BR-41 (#256 close): the refresh's COLD-side ledger read scales with the store,
+// and until now nothing bounded it -- M2 recorded it as a known gap in prose.
+// It cannot be constant: a record with no surviving session needs its ledger
+// asked, or a parked thread reads `session-gone`. What CAN be pinned is that the
+// growth is exactly linear -- one read per resume-shaped record without a present
+// session, none for anything else -- so a second read per record, or a read for a
+// row that cannot use the answer, fails here rather than slowing every refresh.
+func TestColdLedgerReadsAreOnePerColdCandidate(t *testing.T) {
+	couch, addresses := couchWithOneRecordOfEveryShape(t)
+	artifacts, ok := couch.Artifacts.(*FakeThreadArtifactCollisionChecker)
+	if !ok {
+		t.Fatalf("fixture artifacts are %T", couch.Artifacts)
+	}
+	snapshot, err := couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The candidates, derived from the records rather than counted by hand: a
+	// saved, launchable profile is what makes a ledger answer usable. No record in
+	// this fixture has a surviving session, so each such record is cold.
+	cold := 0
+	for _, record := range snapshot.Records {
+		if p := record.LatestLaunchProfile; p != nil && launcher.IsSupportedAgent(p.Agent) && p.Argv != nil {
+			cold++
+		}
+	}
+	if cold == 0 || cold == len(addresses) {
+		t.Fatalf("fixture has %d cold candidates of %d records; it no longer separates the two populations", cold, len(addresses))
+	}
+	before := artifacts.BindingResolutions()
+	if _, err := couch.ActionableThreadInventoryContext(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := artifacts.BindingResolutions() - before; got != cold {
+		t.Fatalf("one refresh read the ledger %d times for %d cold candidates; the cold side must stay one read per candidate", got, cold)
+	}
+}
+
+// The corpus is the classifier's producer enumeration, so every EVIDENCE field
+// the classifier can read must be non-zero in at least one shape.
+//
+// Family `vocabulary-entry-without-producer`, read the other way round (#256 M3
+// BR, I2): M3 added `Unproven` and a branch that reads it, and no shape set it,
+// so the corpus declared to be "the cross product, not a sample" silently
+// stopped being one -- and the characterization test that should have made M3
+// state its one actionability change never saw the row. Derived by reflection,
+// so a field added later fails here until a shape exercises it.
+func TestEveryEvidenceFieldIsExercisedByTheCorpus(t *testing.T) {
+	shapes := everyThreadShape(t)
+	evidenceType := reflect.TypeOf(ThreadEvidence{})
+	for i := 0; i < evidenceType.NumField(); i++ {
+		field := evidenceType.Field(i)
+		exercised := false
+		for _, tc := range shapes {
+			if !reflect.ValueOf(tc.evidence).Field(i).IsZero() {
+				exercised = true
+				break
+			}
+		}
+		if !exercised {
+			t.Errorf("no shape in everyThreadShape sets ThreadEvidence.%s; a classifier branch that reads it "+
+				"is outside the corpus that claims to enumerate every branch", field.Name)
+		}
+	}
+}
+
+// The STATE vocabulary's produced-by guard, and the justification the action
+// tables lean on when they skip `archived`.
+//
+// Both directions, because each catches a different drift: a state with no
+// producer is a branch no test can reach (the reason half of this has caught
+// two), and `archived` having one would mean the switcher can render a row the
+// action predicates were written to consider impossible. `archived` belongs to
+// BuildArchivedInventory, which projects retired records WITHOUT classifying
+// them, so the classifying projection must never emit it.
+func TestProjectionNeverProducesArchived(t *testing.T) {
+	produced := map[ActionableThreadState]bool{}
+	for _, tc := range everyThreadShape(t) {
+		state, _ := ClassifyThread(tc.record, tc.evidence)
+		produced[state] = true
+	}
+	for _, row := range ProjectActionableThreads(ThreadProjectionInput{
+		Unreadable: []ThreadAddress{{RepoScope: "scope", Tag: "couch-0000000000000001"}},
+	}) {
+		produced[row.State] = true
+	}
+	if produced[ThreadArchived] {
+		t.Errorf("the classifying projection produced %q; the action tables skip it as impossible", ThreadArchived)
+	}
+	for _, state := range AllThreadStates() {
+		if state == ThreadArchived {
+			continue
+		}
+		if !produced[state] {
+			t.Errorf("nothing produces state %q", state)
 		}
 	}
 }
@@ -334,7 +601,13 @@ func couchWithOneRecordOfEveryShape(t *testing.T) (*Couch, []ThreadAddress) {
 
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetNativeBinding(parkedRecord.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+	// A prober that answers. Without one, #256 M3 reads every recorded process
+	// as UNPROVEN and the `stale` shape above classifies `unknown` -- an honest
+	// answer to "couch cannot probe", and a fixture that quietly stops covering
+	// the shape it was built for. The fake's table is empty, so pid 4242 is
+	// proved Dead, which is what "a record claiming an incarnation that no
+	// console hosts" was always meant to model.
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: NewFakeProcOps(), Path: NewFakePathOps(nil)}
 	return couch, addresses
 }
 
@@ -395,28 +668,45 @@ func findInventoryRow(rows []ActionableThreadSummary, address ThreadAddress) (Ac
 // ACTIONABLE -- the fail-closed property, unchanged -- filter for that
 // explicitly instead of counting rows. That every record produces a row is a
 // different property with its own tests above.
+// `detached` is now expressed as SESSION PRESENCE rather than a per-candidate
+// observation: the session's own survival is the warm proof.
 func actionableRows(records []ThreadRecord, live []LiveTTYObservation, parked []ParkedResumeObservation, detached []DetachedSessionObservation) []ActionableThreadSummary {
 	evidence := make(map[ThreadAddress]ThreadEvidence, len(records))
+	asked := func(item ThreadEvidence) ThreadEvidence {
+		item.ParkedStatus = ProofResolved
+		if item.Session.State == SessionUnresolved {
+			item.Session.State = SessionAbsent
+		}
+		return item
+	}
 	for _, record := range records {
-		evidence[record.Address] = ThreadEvidence{ParkedStatus: ProofResolved, DetachedStatus: ProofResolved}
+		evidence[record.Address] = asked(ThreadEvidence{})
 	}
 	for _, observation := range live {
 		item := evidence[observation.Address]
 		item.Live = append(item.Live, observation.Process)
-		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
-		evidence[observation.Address] = item
+		evidence[observation.Address] = asked(item)
 	}
 	for _, observation := range parked {
 		item := evidence[observation.Address]
 		item.Parked = append(item.Parked, observation)
-		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
-		evidence[observation.Address] = item
+		evidence[observation.Address] = asked(item)
 	}
+	seenDetached := map[ThreadAddress]bool{}
 	for _, observation := range detached {
 		item := evidence[observation.Address]
-		item.Detached = append(item.Detached, observation)
-		item.ParkedStatus, item.DetachedStatus = ProofResolved, ProofResolved
+		switch {
+		case seenDetached[observation.Address], observation.SessionName == "":
+			// Two observations for one address, or a nameless one, prove
+			// nothing -- ProjectSessionPresence fails closed on exactly these,
+			// so the helper must model the same refusal.
+			item.Session = SessionObservation{State: SessionUnresolved}
+		default:
+			item.Session = SessionObservation{State: SessionPresent}
+		}
+		seenDetached[observation.Address] = true
 		evidence[observation.Address] = item
+		continue
 	}
 	var rows []ActionableThreadSummary
 	for _, row := range ProjectActionableThreads(ThreadProjectionInput{Records: records, Evidence: evidence}) {
@@ -474,21 +764,34 @@ func TestEvidencePassAsksOnlyAboutResumeShapedRecords(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Of the six shapes, three are resume-shaped: the parked row with a
-	// binding, the parked row that lost one, and the one with nothing left.
-	// The stale incarnation, the profile-less record and the unsupported agent
-	// must cost nothing at all.
-	const resumeShaped = 3
+	// RESTATED for #256. "Resume-shaped" is now about RESUME AUTHORITY, not
+	// about the bookkeeping, so a record carrying an incarnation pays too -- it
+	// has to, because its session may have outlived its launcher and the path
+	// is what a reattach needs. Four of the six shapes have a usable profile;
+	// the profile-less record and the unsupported agent still cost nothing.
+	const resumeShaped = 4
 	if paths.calls != resumeShaped {
 		t.Fatalf("Physical called %d times, want %d -- a live or unstartable record must not pay", paths.calls, resumeShaped)
 	}
-	if artifacts.resolveCalls != 2 {
-		t.Fatalf("binding resolver called %d times, want 2 parked records only", artifacts.resolveCalls)
+	// RESTATED for #256 M2. The ledger read used to be gated on
+	// `record.VerifiedPark != nil` -- two records here. It is now gated on the
+	// SESSION: every resume-shaped record whose session is not up pays, because
+	// the receipt was never the authority over whether a conversation survives.
+	// All four resume-shaped records in this fixture have no session, so all
+	// four pay. The bound that matters is the one below: a row couch is hosting,
+	// or whose session is up, still pays nothing.
+	if artifacts.resolveCalls != resumeShaped {
+		t.Fatalf("binding resolver called %d times, want %d -- one per resume-shaped record with no session", artifacts.resolveCalls, resumeShaped)
 	}
-	// One detach candidate (the record with no park and no incarnation), so
-	// exactly one zellij query -- and it is a query per REFRESH, not per row.
-	if artifacts.detachQueries != 1 {
-		t.Fatalf("detached query ran %d times, want 1", artifacts.detachQueries)
+	// RESTATED for #256. The refresh asks PRESENCE, one host-wide call covering
+	// every record, and never asks for clients -- a `list-clients` costs ~250 ms
+	// per live session (#228) and the reattach path re-observes attach state
+	// before committing anyway.
+	if artifacts.detachQueries != 0 {
+		t.Fatalf("the refresh ran %d client-counting queries; it must ask none", artifacts.detachQueries)
+	}
+	if queries := artifacts.SessionPresenceQueries(); queries != 1 {
+		t.Fatalf("SessionPresence ran %d times, want exactly one host-wide query", queries)
 	}
 }
 
@@ -569,7 +872,7 @@ func TestAFailedSessionQueryLeavesTheRowUnknownRatherThanGone(t *testing.T) {
 	store, address := detachedThreadStore(t)
 	artifacts := NewFakeThreadArtifactCollisionChecker()
 	artifacts.SetNativeBinding(address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+	artifacts.SessionPresenceHook = func([]ThreadAddress) error {
 		return errors.New("zellij is not answering")
 	}
 	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
@@ -624,4 +927,89 @@ func (bindingOnlyArtifacts) Registration(ThreadAddress) (RegistrationEvidence, e
 func (bindingOnlyArtifacts) Quiesce(ThreadAddress) error { return nil }
 func (b bindingOnlyArtifacts) ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error) {
 	return b.binding, nil
+}
+
+// TestWarmRowsAskNoLedgerQuestion is the bound that keeps #256 M2's widening
+// affordable, stated as the rule rather than as a count.
+//
+// The ledger read answers "is there a conversation to resume into?", which only
+// a thread with no session needs asking. A row couch is hosting, and a row whose
+// session outlived its launcher, both reattach onto something that is already
+// there -- so neither may pay for a per-record file read on every refresh.
+func TestWarmRowsAskNoLedgerQuestion(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	active := time.Unix(100, 0).UTC()
+
+	hosted := actionableTestThread("couch-00000000000000f1", active)
+	hosted.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	hosted.Incarnations = []ThreadIncarnation{{PID: 4242, Identity: "hosted", State: IncarnationLive}}
+	if _, err := store.CreateThread(hosted); err != nil {
+		t.Fatal(err)
+	}
+	detached := actionableTestThread("couch-00000000000000f2", active)
+	detached.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	if _, err := store.CreateThread(detached); err != nil {
+		t.Fatal(err)
+	}
+
+	artifacts := &countingArtifacts{FakeThreadArtifactCollisionChecker: NewFakeThreadArtifactCollisionChecker()}
+	artifacts.SetSessionPresence(hosted.Address, SessionObservation{State: SessionPresent})
+	artifacts.SetSessionPresence(detached.Address, SessionObservation{State: SessionPresent})
+	proc := NewFakeProcOps()
+	proc.Set(4242, "hosted")
+	couch := &Couch{Threads: store, Artifacts: artifacts, Proc: proc, Path: NewFakePathOps(nil)}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	states := map[ThreadAddress]ActionableThreadState{}
+	for _, row := range rows {
+		states[row.Address] = row.State
+	}
+	if states[hosted.Address] != ThreadLive || states[detached.Address] != ThreadDetached {
+		t.Fatalf("fixture did not produce a live and a detached row: %+v", states)
+	}
+	if artifacts.resolveCalls != 0 {
+		t.Fatalf("the ledger was read %d times for warm rows; neither needs a cold-resume proof", artifacts.resolveCalls)
+	}
+}
+
+// TestSessionAbsentWithResolvableLedgerIsResumable is the safety half of #256
+// M2, end to end through the production gather path.
+//
+// The thread was never parked -- no receipt, no ParkHistory -- and its session
+// is gone. Its conversation is still recorded in `ledger-<tag>.jsonl`, which is
+// the only place a native conversation id ever lives. Before this, the ledger
+// was read only for records carrying a VerifiedPark, so this row read
+// `session-gone` and the switcher offered to archive a resumable conversation
+// without a word about what would be lost.
+func TestSessionAbsentWithResolvableLedgerIsResumable(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-00000000000000f5", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if created.VerifiedPark != nil {
+		t.Fatal("fixture carries a park receipt; it must not, or it proves the old rule")
+	}
+
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	artifacts.SetSessionPresence(created.Address, SessionObservation{State: SessionAbsent})
+	artifacts.SetNativeBinding(created.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
+
+	rows, err := couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows = %+v, want one", rows)
+	}
+	if rows[0].State != ThreadParked {
+		t.Fatalf("= %q/%q, want parked: the ledger names a conversation to resume into",
+			rows[0].State, rows[0].Reason)
+	}
 }

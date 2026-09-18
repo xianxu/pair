@@ -19,8 +19,6 @@ func TestNoLabelBorrowsAnotherReasonsDefiningWord(t *testing.T) {
 	// someone else's word is a collision even when the strings differ.
 	defining := map[ThreadReason]string{
 		ReasonBindingLost:      "binding",
-		ReasonStaleIncarnation: "stale",
-		ReasonUnrecordedChild:  "unrecorded",
 		ReasonSessionGone:      "session gone",
 		ReasonNeverStarted:     "never started",
 		ReasonInvalid:          "validation",
@@ -63,11 +61,5 @@ func TestEveryReasonHasADistinctOperatorLabel(t *testing.T) {
 			t.Errorf("reasons %q and %q both render %q", reason, other, label)
 		}
 		seen[label] = reason
-	}
-}
-
-func TestStaleLabelDoesNotClaimSupervisorDied(t *testing.T) {
-	if got := ReasonStaleIncarnation.Label(); got != "stale — helper ownership unresolved" {
-		t.Fatalf("stale diagnosis overclaims supervisor death: %q", got)
 	}
 }

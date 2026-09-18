@@ -31,8 +31,12 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 	// Layout2 rather than empty: since #198 the projection normalizes the layout
 	// witness, and neither record carries one -- which is every record written
 	// before that change, and they are layout2.
+	//
+	// Agent is projected from the saved launch profile, so the parked row
+	// carries one and the live row -- which has no profile in this fixture --
+	// does not. A destructive confirmation names it (#256 M3).
 	want := []ActionableThreadSummary{
-		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadParked, LastActiveAt: parked.LastActiveAt, Layout: Layout2},
+		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", Agent: "claude", State: ThreadParked, LastActiveAt: parked.LastActiveAt, Layout: Layout2},
 		{Address: live.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadLive, LastActiveAt: live.LastActiveAt, Layout: Layout2},
 	}
 	if !reflect.DeepEqual(rows, want) {
@@ -115,13 +119,6 @@ func TestProjectActionableThreadsFailsClosedOnContradictoryEvidence(t *testing.T
 			mutate: func(record *ThreadRecord) {
 				record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "live-process", State: IncarnationLive}}
 			},
-		},
-		{
-			name: "owner observation mismatches process identity",
-			mutate: func(record *ThreadRecord) {
-				record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "live-process", State: IncarnationLive}}
-			},
-			observation: &LiveTTYObservation{Process: ProcessIdentity{PID: 42, Identity: "replacement"}},
 		},
 		{
 			name: "verified park with occupied incarnation",
@@ -410,19 +407,27 @@ func TestProjectActionableThreadsDetached(t *testing.T) {
 			observed: nil,
 		},
 		{
-			// The regression that matters: a crashed couch leaves this shape.
-			name: "a stale live incarnation stays hidden",
+			// RESTATED for #272. This asserted that a record carrying a stale
+			// `live` incarnation "stays hidden" even with a surviving session --
+			// which IS the bug. A crashed couch leaves exactly this shape: the
+			// launcher (couch's own child) died, the zellij server (PPID 1) did
+			// not. Measured on the operator's store, all 11 such records had a
+			// dead pid and three had an agent still running.
+			name: "a dead launcher does not hide a surviving session",
 			mutate: func(r *ThreadRecord) {
 				r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 4242, Identity: "gone", StartedAt: time.Unix(1, 0).UTC()}}
 			},
-			observed: detached,
+			observed: detached, want: ThreadDetached, wantRow: true,
 		},
 		{
-			name: "an unknown incarnation stays hidden",
+			// Same rule, and `unknown` makes it starker: couch could not vouch
+			// for this incarnation, which is a fact about COUCH's knowledge, not
+			// about whether the agent is running.
+			name: "an unknown incarnation does not hide a surviving session",
 			mutate: func(r *ThreadRecord) {
 				r.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown, PID: 4242, Identity: "gone", StartedAt: time.Unix(1, 0).UTC()}}
 			},
-			observed: detached,
+			observed: detached, want: ThreadDetached, wantRow: true,
 		},
 		{
 			name:     "no launch profile means nothing to reattach with",
@@ -533,7 +538,7 @@ func TestActionableInventoryPhysicalizesDetachedRowsLikeParkedOnes(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	if _, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.Reservation = false
 		next.LatestLaunchProfile = profile
 		return nil
@@ -593,8 +598,16 @@ func TestProjectActionableThreadsDetachedRequiresTheResumeProof(t *testing.T) {
 			wantRow: true,
 		},
 		{
+			// RESTATED for #256. The old warm proof required the session's agent
+			// to match the saved profile. Warm reattachment relaunches NOTHING --
+			// it attaches to whatever is already running behind the session -- so
+			// the saved profile's agent has no say in whether that session
+			// survived. The profile still gates the row (a reattach goes through
+			// DecideResume, which needs it); its AGENT no longer has to agree
+			// with a session that is already up.
 			name:    "agent disagrees with the saved launch profile",
 			observe: DetachedSessionObservation{Address: address, SessionName: "pair-one", Agent: "codex"},
+			wantRow: true,
 		},
 		{
 			name:    "no session name is a session that is not there",
@@ -607,5 +620,28 @@ func TestProjectActionableThreadsDetachedRequiresTheResumeProof(t *testing.T) {
 				t.Fatalf("rows = %+v, wantRow = %v", rows, test.wantRow)
 			}
 		})
+	}
+}
+
+// TestCouchsOwnObservationIsTheProof replaces a case that used to sit in the
+// contradictory-evidence table.
+//
+// It asserted that a hosted process whose identity disagreed with the recorded
+// incarnation was a contradiction to fail closed on. After #256 there is no
+// second opinion to contradict: couch observing its own pty child IS the live
+// proof, and the incarnation -- which names a launcher that dies with couch --
+// is not consulted. The record does not get a vote on what couch can see.
+func TestCouchsOwnObservationIsTheProof(t *testing.T) {
+	record := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{PID: 42, Identity: "live-process", State: IncarnationLive}}
+
+	rows := actionableRows([]ThreadRecord{record}, []LiveTTYObservation{{
+		Address: record.Address,
+		Process: ProcessIdentity{PID: 42, Identity: "replacement"},
+	}}, nil, nil)
+
+	if len(rows) != 1 || rows[0].State != ThreadLive {
+		t.Fatalf("rows = %+v, want one live row — couch hosts this process", rows)
 	}
 }

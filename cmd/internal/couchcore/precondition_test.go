@@ -18,7 +18,7 @@ type resumeShape struct {
 // actually asks: "would this be resumable ONCE PARKED?"
 //
 // Clearing only the incarnations would leave a record with no verified park, so
-// DecideResume would refuse ResumeLegacyUnverified and the comparison below
+// DecideResume would refuse with a binding diagnostic and the comparison below
 // would "disagree" for a reason that has nothing to do with the split.
 //
 // It deliberately does NOT use cloneThreadRecord: cloneArgv normalizes a nil

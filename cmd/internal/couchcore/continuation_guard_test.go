@@ -19,7 +19,7 @@ func TestContinuationBlocksCompetingTransitions(t *testing.T) {
 	if _, err := env.Couch.PrepareAgentSwitch(context.Background(), source.Address, "codex", nil); err == nil {
 		t.Fatal("agent switch bypassed continuation")
 	}
-	empty, err := env.Couch.Threads.UpdateExistingThread(source.Address, source.Revision, func(next *ThreadRecord) error { next.Incarnations = nil; return nil })
+	empty, err := env.Couch.Threads.updateExistingThread(source.Address, source.Revision, func(next *ThreadRecord) error { next.Incarnations = nil; return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

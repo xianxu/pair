@@ -454,8 +454,8 @@ and acts as the switcher's own `Enter`.
 
 Printable input filters the current list from memory (typeahead). Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,
-while `Left` or `Escape` restores its parent. Rows expose only proven `live`, exact
-verified `parked`, and proved `detached` states — and a row is offered only when
+while `Left` or `Escape` restores its parent. Rows expose only proven `live`, resumable
+`parked`, and proved `detached` states — and a row is offered only when
 it can actually be acted on, so an offered detached row is one `Enter`
 reattaches. Reattachment preserves the running agent and needs no native
 conversation binding. Couch rechecks that the same session is uniquely owned,
@@ -467,7 +467,7 @@ all live threads and returns to the shell; `Alt+x` parks them after confirmation
 Those lifecycle chords are not intercepted while a Pair pane is displayed.
 They reach the agent or invoke the draft/right pane's existing Pair actions.
 Use the switcher for Couch's durable retirement and current-binary relaunch.
-In a live or verified parked thread's actions, **switch coding agent** opens the coding
+In a live or resumable `parked` thread's actions, **switch coding agent** opens the coding
 agent switch form. Choose an agent, then edit its prefilled startup parameters (an
 empty value is allowed). This second screen names the source and target and
 contains **Switch** and **Cancel**. Tab or Up/Down move between the
@@ -514,8 +514,10 @@ file or silently start an empty conversation. The actions show the retained
 checkpoint path and digest. Native resume of a parked conversation still needs
 its verified binding.
 
-Unknown ownership, active clients, and open start or park transactions leave a
-diagnostic instead of guessing that a process died. Once a stale helper is
+Unknown ownership and active clients leave a diagnostic instead of guessing that
+a process died. An open **park** transaction no longer decides anything: a park
+whose owner died used to read `parking…` forever, so the classification consults
+the session instead (`#256`). Once a stale helper is
 proved dead, explicit **archive** remains an escape even with an incomplete
 continuation: the archived record keeps the checkpoint and history. A live
 continuation source or target must be resolved first. Inspection and recovery
@@ -523,8 +525,9 @@ do not stop a surviving session; archive remains a separate confirmed action.
 
 Slow start/park/resume actions show local progress, and validation or operation
 failures remain in the switcher banner. Every thread in the store gets a row
-and says what it is: `live`, `detached`, `parked`, `parking…`, or a reason it
-cannot be entered — `binding lost — repairable`, `stale — helper ownership unresolved`, `session gone`, and so on. Nothing is hidden for want of proof;
+and says what it is: `live`, `detached`, `parked`, `starting…`, or a reason it
+cannot be entered — `binding lost — repairable`, `session gone`, `no saved
+launch`, and so on. Nothing is hidden for want of proof;
 `Enter` on a row it cannot act on explains instead of doing nothing, and
 `couch --list` / `couch --show` report the same population and the same states
 with more room to describe them.

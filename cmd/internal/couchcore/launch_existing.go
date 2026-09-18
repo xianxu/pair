@@ -30,7 +30,7 @@ type trackedThreadLaunch struct {
 }
 
 // launchTrackedThread is the single post-claim launch path for both a newly
-// allocated thread and an exact verified-park resume.
+// allocated thread and an exact cold resume.
 func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle, error) {
 	ctx := in.Context
 	if ctx == nil {

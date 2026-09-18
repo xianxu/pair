@@ -44,6 +44,64 @@ type FakeThreadArtifactCollisionChecker struct {
 	// DetachedSessionsHook lets a test fail the observation, or interleave a
 	// durable change at the moment the projector asks who is detached.
 	DetachedSessionsHook func([]ThreadAddress) error
+
+	sessionPresence map[ThreadAddress]SessionObservation
+	// presenceQueries counts SessionPresence calls, mirroring detachedQueries:
+	// #256 gathers presence for EVERY record, so "one host-wide call, not one
+	// per record" is a budget a test must be able to pin rather than trust.
+	presenceQueries int
+	// SessionPresenceHook lets a test fail the observation. A failure must leave
+	// every thread UNRESOLVED, never "no session".
+	SessionPresenceHook func([]ThreadAddress) error
+}
+
+// SetSessionPresence declares what the host's zellij sessions say about one
+// address. An address never set answers SessionAbsent, mirroring production: a
+// readable scope with no index row HAS been asked and has no session. A test
+// that wants "could not ask" fails SessionPresenceHook instead. Pinned against
+// the production checker by TestSessionPresenceAnswersThroughTheProductionChecker.
+func (f *FakeThreadArtifactCollisionChecker) SetSessionPresence(address ThreadAddress, observation SessionObservation) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.sessionPresence == nil {
+		f.sessionPresence = map[ThreadAddress]SessionObservation{}
+	}
+	f.sessionPresence[address] = observation
+}
+
+// SessionPresenceQueries is the IO budget: how many times the host was asked.
+func (f *FakeThreadArtifactCollisionChecker) SessionPresenceQueries() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.presenceQueries
+}
+
+func (f *FakeThreadArtifactCollisionChecker) SessionPresence(ctx context.Context, addresses []ThreadAddress) (map[ThreadAddress]SessionObservation, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	f.mu.Lock()
+	f.presenceQueries++
+	f.mu.Unlock()
+	if hook := f.SessionPresenceHook; hook != nil {
+		if err := hook(addresses); err != nil {
+			return nil, err
+		}
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make(map[ThreadAddress]SessionObservation, len(addresses))
+	for _, address := range addresses {
+		if observation, ok := f.sessionPresence[address]; ok {
+			out[address] = observation
+			continue
+		}
+		// Mirrors production: an address in a readable scope with no binding was
+		// ASKED about and has no session. A test that wants "could not ask"
+		// says so with SetSessionPresence or fails the hook.
+		out[address] = SessionObservation{State: SessionAbsent}
+	}
+	return out, nil
 }
 
 type nativeBindingKey struct {
@@ -71,16 +129,26 @@ func NewFakeThreadArtifactCollisionChecker() *FakeThreadArtifactCollisionChecker
 	}
 }
 
-// SetDetachedSession marks one thread as having a live zellij session with no
-// client attached. An empty name clears it.
+// SetDetachedSession declares a live, client-free session for one address. An
+// empty name clears it.
+//
+// It sets PRESENCE too, and must: in the world being modelled these are one
+// fact, not two. A fake that let a thread have a detached session while
+// answering "no session" to the presence query would model a host that cannot
+// exist, and every test built on it would be asserting against fiction.
 func (f *FakeThreadArtifactCollisionChecker) SetDetachedSession(address ThreadAddress, sessionName string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if sessionName == "" {
 		delete(f.detachedSessions, address)
+		delete(f.sessionPresence, address)
 		return
 	}
 	f.detachedSessions[address] = sessionName
+	if f.sessionPresence == nil {
+		f.sessionPresence = map[ThreadAddress]SessionObservation{}
+	}
+	f.sessionPresence[address] = SessionObservation{State: SessionPresent}
 }
 
 // DetachedSessions answers only for addresses the caller asked about, exactly
@@ -181,7 +249,11 @@ func (f *FakeThreadArtifactCollisionChecker) PairSession(address ThreadAddress) 
 	defer f.mu.Unlock()
 	binding, ok := f.pairSessions[address]
 	if !ok || binding.Name == "" {
-		return PairSessionBinding{}, fmt.Errorf("exact Pair session binding is absent for %+v", address)
+		// Wraps the sentinel, as production does (artifactcollision.go:223).
+		// A fake whose error only READS the same cannot be recognised by
+		// errors.Is, so every hatch keyed to this condition was untestable
+		// through it (ARCH-MOCK, #256 M2).
+		return PairSessionBinding{}, fmt.Errorf("%w for %+v", ErrPairSessionBindingAbsent, address)
 	}
 	return binding, nil
 }

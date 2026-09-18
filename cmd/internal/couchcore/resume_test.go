@@ -1,6 +1,10 @@
 package couchcore
 
 import (
+	"context"
+	"os"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,28 +53,55 @@ func TestDecideResumeEligibilityMatrix(t *testing.T) {
 		code   ResumeDiagnosticCode
 		mutate func(*ResumeEligibilityInput)
 	}{
-		{name: "live", code: ResumeLive, mutate: func(in *ResumeEligibilityInput) {
+		// RESTATED for #256. These four asserted that the RECORD's own
+		// bookkeeping could veto a resume: an incarnation in any occupied state,
+		// or an open park. Both name things that die with couch -- the launcher
+		// process and a transaction whose owner is that same process -- so the
+		// veto fired hardest on exactly the threads a crash left recoverable.
+		//
+		// Resume now rests on the same evidence the classification does, which is
+		// what keeps "the switcher offers it" and "the guard permits it" from
+		// disagreeing. A record carrying a stale incarnation and a verified park
+		// is resumable, because the park is the authority and the incarnation is
+		// not evidence of anything.
+		{name: "stale live incarnation does not veto a verified park", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationLive}}
 		}},
-		{name: "creating", code: ResumeCreating, mutate: func(in *ResumeEligibilityInput) {
+		{name: "creating incarnation does not veto a verified park", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationCreating}}
 		}},
-		{name: "unknown", code: ResumeUnknown, mutate: func(in *ResumeEligibilityInput) {
+		{name: "unknown incarnation does not veto a verified park", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationUnknown}}
 		}},
-		{name: "parking", code: ResumeParking, mutate: func(in *ResumeEligibilityInput) {
+		// RESTATED for #256 M2. These three asserted that a missing park RECEIPT
+		// vetoes a cold resume. It does not and cannot: the receipt carries a
+		// ParkIdentity and no conversation id, so it can say a park happened and
+		// never that anything survived it. The ledger is the authority, and with
+		// an established binding all three of these records resume.
+		{name: "an open park no longer vetoes, and neither does a missing receipt", code: "", mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.VerifiedPark = nil
 			in.Thread.Park = &ParkTransaction{Phase: ParkAwaitingCompletion}
 			in.Thread.Incarnations = []ThreadIncarnation{{State: IncarnationLive}}
+		}},
+		{name: "no receipt and no conversation refuses, naming the binding", code: ResumeBindingUnbound, mutate: func(in *ResumeEligibilityInput) {
+			in.Thread.VerifiedPark = nil
+			in.Thread.ParkHistory = nil
+			in.Binding = NativeBindingResolution{Status: sessioninventory.BindingUnbound}
+		}},
+		// A tombstone is no longer a VETO -- archive abandons orphaned parks as
+		// a matter of course since M2, so vetoing on one would make "couch
+		// crashed mid-park once" a permanent cold-resume ban. It survives as the
+		// better EXPLANATION when there is nothing to resume into.
+		{name: "a tombstone does not veto a resolvable conversation", code: "", mutate: func(in *ResumeEligibilityInput) {
+			in.Thread.VerifiedPark = nil
+			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].Tombstoned = true
+			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].SuccessfulAttempt = 0
 		}},
 		{name: "tombstoned", code: ResumeTombstoned, mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.VerifiedPark = nil
 			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].Tombstoned = true
 			in.Thread.ParkHistory[len(in.Thread.ParkHistory)-1].SuccessfulAttempt = 0
-		}},
-		{name: "legacy unverified", code: ResumeLegacyUnverified, mutate: func(in *ResumeEligibilityInput) {
-			in.Thread.VerifiedPark = nil
-			in.Thread.ParkHistory = nil
+			in.Binding = NativeBindingResolution{Status: sessioninventory.BindingUnbound}
 		}},
 		{name: "missing path", code: ResumePathMissing, mutate: func(in *ResumeEligibilityInput) {
 			in.WorkingPathExists = false
@@ -144,8 +175,10 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 	}{
 		{name: "detached proof admits a record with no verified park", detached: true},
 		{
-			name:     "without the proof the same record refuses",
-			wantCode: ResumeLegacyUnverified,
+			// RESTATED for #256 M2: `binding` here is established, so there IS
+			// a conversation to resume into and the cold path takes it. The
+			// receipt never carried that answer.
+			name: "without the detached proof the ledger answers instead",
 		},
 		{
 			name: "a tombstoned history does not block a detached resume",
@@ -155,19 +188,29 @@ func TestDecideResumeAcceptsDetachedWithoutVerifiedPark(t *testing.T) {
 			detached: true,
 		},
 		{
-			name: "a tombstoned history still blocks a NON-detached resume",
+			// RESTATED for #256 M2. The scan is now an EXPLANATION, not a veto:
+			// it runs only where there is no conversation to resume into, and
+			// says "abandoned" rather than "unbound" because that is the more
+			// useful answer. With the ledger resolving, the tombstone is history
+			// about bookkeeping and nothing more.
+			name: "a tombstoned history does not block a resolvable conversation",
 			mutate: func(r *ThreadRecord) {
 				r.ParkHistory = []ParkTransaction{{Tombstoned: true, Closed: true}}
 			},
-			wantCode: ResumeTombstoned,
 		},
 		{
-			name: "an occupied incarnation refuses even with the detached proof",
+			// RESTATED for #272 -- this case WAS the bug, written as a
+			// requirement. "An occupied incarnation refuses even with the
+			// detached proof" is precisely what made three live muse
+			// conversations unreachable: the incarnation named a dead launcher
+			// while the detached proof named a session whose agent was still
+			// running, and the dead one won.
+			name: "a stale incarnation does not refuse a surviving session",
 			mutate: func(r *ThreadRecord) {
 				r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 1, Identity: "x", StartedAt: time.Unix(2, 0).UTC()}}
 			},
 			detached: true,
-			wantCode: ResumeLive,
+			wantCode: "",
 		},
 		{
 			name:     "a detached record still needs a saved launch profile",
@@ -235,5 +278,140 @@ func TestDetachedResumeDoesNotRequireAnEstablishedBinding(t *testing.T) {
 			t.Fatalf("warm reattach carried RequiredSessionID %q from a %q binding",
 				eligible.RequiredSessionID, status)
 		}
+	}
+}
+
+// TestEveryResumeDiagnosticCodeIsProducedBySomeSite is the guard
+// ResumeDiagnosticCode lacked, and the class fix for an orphan the M1 review
+// found: deleting occupiedResumeCode removed the only site emitting
+// ResumeCreating, in the same commit, unnoticed.
+//
+// ThreadReason has had TestEveryReasonIsProducedBySomeShape for exactly this --
+// threadreason.go cites it as the reason `unrecorded-child` was deleted rather
+// than kept as a placeholder. A vocabulary with no produced-by guard grows
+// values nothing can emit, and each one is a branch every reader must handle
+// and no test can reach.
+//
+// The identifiers are DERIVED from the declaration rather than listed, so the
+// guard cannot be satisfied by forgetting to add a row to it.
+func TestEveryResumeDiagnosticCodeIsProducedBySomeSite(t *testing.T) {
+	declaration, err := os.ReadFile("resume.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	identifiers := regexp.MustCompile(`(?m)^\s*(Resume\w+)\s+ResumeDiagnosticCode\s*=`).FindAllStringSubmatch(string(declaration), -1)
+	if len(identifiers) < 5 {
+		t.Fatalf("derived only %d codes from resume.go; the regex has drifted from the declaration", len(identifiers))
+	}
+
+	var body strings.Builder
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		b, readErr := os.ReadFile(name)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		body.Write(b)
+	}
+	source := body.String()
+
+	for _, match := range identifiers {
+		identifier := match[1]
+		// One mention is the declaration; a producer or reader is a second.
+		if strings.Count(source, identifier) < 2 {
+			t.Errorf("nothing produces %s outside its declaration -- "+
+				"delete it, or every reader carries a branch no test can reach", identifier)
+		}
+	}
+}
+
+// TestReAdoptionRefusalsClaimOnlyWhatWasProved pins WHICH code each exit emits,
+// which no test did -- the gap that let an exit reached on "could not tell"
+// emit ResumeNotRunning, whose declared meaning is "not running at all".
+//
+// A diagnostic code is a claim the operator reads: menu_reattach renders it on
+// the row. Emitting "not running" over a live conversation is a false statement
+// about the thing the operator most needs to be true.
+func TestReAdoptionRefusalsClaimOnlyWhatWasProved(t *testing.T) {
+	store, _ := newTestThreadStore(t)
+	record := actionableTestThread("couch-00000000000000fb", time.Unix(100, 0).UTC())
+	record.LatestLaunchProfile = &LaunchProfile{Agent: "muse", Argv: []string{}}
+	record.Incarnations = []ThreadIncarnation{{PID: 4242, Identity: "tok", State: IncarnationLive}}
+	created, err := store.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proc := NewFakeProcOps()
+	proc.SetUnknown(4242)
+
+	_, err = (&Couch{Threads: store, Proc: proc}).clearLifecycleDebris(created)
+	if got := ResumeDiagnosticOf(err); got != ResumeUnknown {
+		t.Fatalf("an unprovable process reports %q; it must claim ignorance, not %q — the agent may well be running", got, ResumeNotRunning)
+	}
+}
+
+// TestResumeTombstonedIsReachableFromProduction pins ONE code, and is named for
+// it. An earlier name promised every code and delivered this one, which is the
+// same defect as a test whose assertion is wider than its premise.
+//
+// Its sibling, TestEveryResumeDiagnosticCodeIsProducedBySomeSite, derives the
+// identifier set from the declaration and so cannot be satisfied by forgetting a
+// row -- but it asks only whether a code is EMITTED anywhere in the package. It
+// passed the whole time the branch emitting ResumeTombstoned could not be
+// reached from the only production caller: ResumeContextWith bailed on a binding
+// diagnostic before DecideResume ever saw the resolution, so the tombstone
+// answer both the plan and the atlas promise never reached an operator, and
+// resume_launch_test even asserted that it did not (#256 M2, I1).
+//
+// A code nothing emits is a branch no test can reach; a code no PRODUCTION PATH
+// emits is a claim the operator is promised and never gets. Generalising this to
+// every code needs a production entry point per code and is its own piece of
+// work; this pins the one whose unreachability was the finding.
+func TestResumeTombstonedIsReachableFromProduction(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	record := validThreadRecord(t)
+	record.StartingPath, record.WorkingPath = "/repo", "/repo/sub"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+	record.Reservation = false
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	record.LatestLaunchProfile = &profile
+	created, err := env.Couch.Threads.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A park this couch abandoned, and no conversation left to resume into --
+	// the shape whose honest answer is "abandoned", not "unbound".
+	abandoned, err := env.Couch.Threads.updateExistingThread(created.Address, created.Revision, func(r *ThreadRecord) error {
+		r.ParkHistory = []ParkTransaction{{
+			Identity:     ParkIdentity{Nonce: "park-0123456789abcdef", Address: created.Address, PID: 42, ProcessIdentity: "gone"},
+			BaseRevision: 1, RecordRevision: 2, Phase: ParkUnknown,
+			Attempts: []ParkAttempt{{Number: 1, Closed: true}},
+			Closed:   true, Tombstoned: true,
+		}}
+		return nil
+	})
+	if err != nil {
+		// NOT a skip: a reachability guard that silently stops running is a
+		// guard that has stopped guarding, which is the failure mode this test
+		// exists to catch one level down.
+		t.Fatalf("the store no longer accepts a tombstoned-history record, so this guard has no fixture: %v", err)
+	}
+	_ = abandoned
+	// No SetNativeBinding: the ledger resolves nothing. No detached session
+	// either, so this is the cold path.
+	_, _, err = env.Couch.ResumeContext(context.Background(), created.Address)
+	if err == nil {
+		t.Fatal("a cold resume with no conversation and an abandoned park succeeded")
+	}
+	if got := ResumeDiagnosticOf(err); got != ResumeTombstoned {
+		t.Fatalf("production cold resume = %q (%v), want %q -- the branch the plan and the atlas both promise is unreachable",
+			got, err, ResumeTombstoned)
 	}
 }

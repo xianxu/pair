@@ -8,7 +8,7 @@ import (
 )
 
 func (s *ThreadStore) PublishContinuation(address ThreadAddress, revision uint64, request checkpoint.Request) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, revision, func(record *ThreadRecord) error {
+	return s.updateExistingThread(address, revision, func(record *ThreadRecord) error {
 		if err := request.Validate(); err != nil {
 			return err
 		}
@@ -31,8 +31,32 @@ func (s *ThreadStore) PublishContinuation(address ThreadAddress, revision uint64
 		return nil
 	})
 }
+
+// BeginContinuationFromRetiredIncarnations records a continuation request and
+// drops the incarnations it supersedes, in ONE transition.
+//
+// One, not two, because the pair is the invariant: a record carrying this
+// request must not also carry the helper it is recovering from, and a crash
+// between two writes would leave exactly that. The caller's authority is that
+// every incarnation was observed Dead by exact identity and the source session
+// was verified absent.
+func (s *ThreadStore) BeginContinuationFromRetiredIncarnations(address ThreadAddress, revision uint64, request checkpoint.Request) (ThreadRecord, error) {
+	return s.updateExistingThread(address, revision, func(record *ThreadRecord) error {
+		if err := request.Validate(); err != nil {
+			return err
+		}
+		if err := noOpenStartClaim(*record); err != nil {
+			return err
+		}
+		copy := request.Clone()
+		record.Continuation = &copy
+		record.Incarnations = nil
+		return nil
+	})
+}
+
 func (s *ThreadStore) AdvanceContinuation(address ThreadAddress, revision uint64, event checkpoint.Event) (ThreadRecord, error) {
-	return s.UpdateExistingThread(address, revision, func(record *ThreadRecord) error {
+	return s.updateExistingThread(address, revision, func(record *ThreadRecord) error {
 		if record.Continuation == nil {
 			return errors.New("thread has no continuation request")
 		}

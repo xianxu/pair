@@ -141,3 +141,47 @@ Delta to `## Spec`: add that the fix must be able to **re-adopt** an existing
 orphan, not merely classify future ones correctly — there are already several on
 this machine, and a fix that only prevents new ones leaves the operator's
 current work stranded.
+
+### 2026-09-17 — the same witness fails in the OTHER direction
+
+**Reason:** a live incident showed the launcher pid producing a *phantom* live
+thread, which is this issue's defect mirrored. One fix should cover both.
+
+Observed on `astro` after its zellij server panicked at startup (`pair#273`):
+
+```
+$ cd ~/workspace/astro && couch --list
+astro                  /Users/xianxu/workspace/astro
+  address: fcff31946c0ac9d2/couch-48340fd828040287
+  recorded: live     pid 63065
+  live
+```
+
+pid 63065 is `pair resume couch-48340fd828040287 --layout3` — the launcher,
+alive. `📁astro-couch-4` does not exist in `zellij list-sessions` at all. The
+second line is the **classified** state, which `couchcmd/run.go:753` documents as
+"from the same rule the switcher uses" — so this is not a `--list`-only display
+bug, and it survives `pair#256`'s M1–M3 (measured with a binary built after M3
+landed at 16:54).
+
+The symmetry:
+
+| | witness | reality | couch's answer |
+|---|---|---|---|
+| this issue | launcher pid dead | agent alive | thread lost (`stale`) |
+| astro | launcher pid alive | session dead | thread phantom (`live`) |
+
+Both are the same category error: **the launcher pid is evidence about the
+launcher.** It is neither necessary nor sufficient for the session, and it can
+fail in either direction because launcher and session have independent lifetimes
+(the zellij server is PPID 1 at birth — `pair#275`'s measured basis).
+
+**Delta to `## Spec`:** the liveness proof must be keyed to the session, so it
+(a) survives a dead launcher — already this issue's case — and (b) does not
+*assert* liveness from a living launcher whose session is gone. A fix that only
+re-adopts orphans, without removing the launcher pid as a positive witness,
+leaves the phantom half standing.
+
+**Consequence worth stating in `## Done when`:** a phantom-live thread refuses
+every lifecycle gesture that guards on liveness, which is how it becomes
+unarchivable. That downstream requirement is carried in `pair#275`.

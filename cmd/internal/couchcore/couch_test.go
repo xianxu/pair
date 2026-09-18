@@ -819,7 +819,7 @@ func TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter(t *testing.T)
 							hookErr = err
 							return
 						}
-						_, hookErr = env.Couch.Threads.UpdateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
+						_, hookErr = env.Couch.Threads.updateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
 							next.Description = "concurrent description"
 							return nil
 						})
@@ -1086,7 +1086,7 @@ func TestSpawnPostAckFailuresQuiesceRealPersistentDescendant(t *testing.T) {
 									hookErr = err
 									return
 								}
-								_, hookErr = env.Couch.Threads.UpdateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
+								_, hookErr = env.Couch.Threads.updateExistingThread(got, current.Revision, func(next *ThreadRecord) error {
 									next.Description = "concurrent description"
 									return nil
 								})

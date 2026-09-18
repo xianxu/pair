@@ -32,17 +32,21 @@ import (
 func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath string) (ThreadAddress, bool) {
 	best := ActionableThreadSummary{}
 	found := false
+	// Eligibility is ResumableState and nothing else; rank only ORDERS rows
+	// already eligible, and it names one state rather than two. Naming both
+	// kept a second list of the resumable states alive beside the predicate --
+	// reverting eligibility to `rank(row) == 0` left the suite green, so the two
+	// lists were one and a half, not one (#256 M3 BR). A resumable state added
+	// later now sorts with `parked` instead of silently at zero.
 	rank := func(row ActionableThreadSummary) int {
-		switch row.State {
-		case ThreadDetached:
-			return 2
-		case ThreadParked:
-			return 1
+		if row.State == ThreadDetached {
+			return 2 // warm: the agent is already running
 		}
-		return 0
+		return 1
 	}
 	for _, row := range rows {
-		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath || rank(row) == 0 {
+		if row.Address.RepoScope != repoScope || row.WorkingPath != workingPath ||
+			!ResumableState(row.State, row.Reason) {
 			continue
 		}
 		// A row with no recorded activity carries the ZERO time, which is Before
@@ -65,12 +69,13 @@ func SelectResumableRoot(rows []ActionableThreadSummary, repoScope, workingPath 
 // The occupancy questions, and why they are not one function.
 //
 // Three predicates read a thread's state and they are deliberately distinct,
-// because they ask different things: `occupiedIncarnation` asks whether
-// something is still ACTING on a thread (shared by archive and resume, and the
-// one that was genuinely duplicated); `PathHoldsUsableThread` asks whether a
-// path already holds work; `PathHoldsUnreadableThread` asks whether a scope
-// holds something couch could not read. Collapsing them would force one answer
-// onto three questions.
+// because they ask different things: `hasOccupiedIncarnation` asks whether couch
+// itself is mid-operation on a thread, which is what relaunch and switch-agent
+// need in order to know there is a source to park (archive stopped asking it in
+// #256 M3 -- it is bookkeeping, and archive's question is about the world);
+// `PathHoldsUsableThread` asks whether a path already holds work;
+// `PathHoldsUnreadableThread` asks whether a scope holds something couch could
+// not read. Collapsing them would force one answer onto three questions.
 //
 // What must not drift is their OVERLAP: anything `PathHoldsUsableThread`
 // counts as holding a path must also be something the operator can reach, and
@@ -134,9 +139,12 @@ func PathHoldsUnreadableThread(rows []ActionableThreadSummary, repoScope string)
 //   - ResolveLayoutConflicts: reads only rows whose layout differs from the one
 //     couch was asked to start in, at any path.
 //
-// A candidate outside both sets keeps ProofUnresolved and classifies
-// `unknown`. No reader of startup's rows can act on such a row: it is not at
-// the cwd, and its layout agrees, so it is neither selectable nor a conflict.
+// A candidate outside both sets is not asked for its COLD-resume proof, so a
+// resume-shaped row there classifies `unknown`. Session presence is gathered for
+// every record regardless of this predicate (#256) -- one host-wide call whose
+// cost does not scale with how many records it covers -- so such a row can still
+// classify `detached`. No reader of startup's rows can act on either: it is not
+// at the cwd, and its layout agrees, so it is neither selectable nor a conflict.
 // The rows never leave StartInteractive -- StartResult carries none -- so the
 // unasked state cannot reach the switcher, which is what pair#228's close
 // review closed off.
@@ -215,25 +223,39 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	return StartResult{Record: record, Handle: handle}, err
 }
 
-// startupResumeRefusal makes a startup refusal actionable.
+// startupResumeRefusal makes a startup failure actionable, and says something
+// TRUE about the failure it is decorating.
 //
 // Startup deliberately has NO fallback: `couch` in a tree that already holds a
 // resumable thread must not quietly start a second one, because two threads in
-// one tree is the confusion couch exists to prevent. What was wrong was
-// refusing MUTELY -- the operator saw a diagnostic code and had no next step.
-// So the refusal stands, and it says which thread, what happened, and the two
-// ways forward.
+// one tree is the confusion couch exists to prevent. What was wrong was failing
+// MUTELY -- the operator saw a code, or worse an internal store message, and had
+// no next step.
+//
+// Two shapes, two messages. A structured refusal means couch DECIDED not to
+// start, and names the thread it found. An internal failure means couch could
+// not tell, and must not claim to have found a resumable thread -- that framing
+// would be false for a store it could not read. Both end with the way forward,
+// because that is what the operator needs and it does not depend on the shape.
+//
+// An earlier attempt made every producer carry a ResumeDiagnosticCode so this
+// function could treat them alike. That changed what the code MEANS -- from "is
+// a structured refusal" to "came out of resume" -- and broke every reader that
+// used the distinction, so the branching lives here instead.
 func startupResumeRefusal(address ThreadAddress, err error) error {
 	if err == nil {
 		return nil
 	}
-	code := ResumeDiagnosticOf(err)
-	if code == "" {
-		return err
+	const wayForward = "  inspect it:  couch --show %s\n" +
+		"  work anyway: pair          (in this tree, without couch)"
+	if ResumeDiagnosticOf(err) == "" {
+		return fmt.Errorf(
+			"%w\n\ncouch could not resume the thread in this tree (%s/%s) and will not start a second one.\n"+
+				wayForward,
+			err, address.RepoScope, address.Tag, address.Tag)
 	}
 	return fmt.Errorf(
 		"%w\n\ncouch found one resumable thread here (%s/%s) and will not start a second in the same tree.\n"+
-			"  inspect it:  couch --show %s\n"+
-			"  work anyway: pair          (in this tree, without couch)",
+			wayForward,
 		err, address.RepoScope, address.Tag, address.Tag)
 }

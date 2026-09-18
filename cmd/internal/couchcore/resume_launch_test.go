@@ -258,13 +258,17 @@ func TestResumeContextDerivesTheDetachedProofItself(t *testing.T) {
 
 			got := ResumeDiagnosticOf(err)
 			if test.detached {
-				if got == ResumeLegacyUnverified {
-					t.Fatalf("a proved-detached thread was refused for want of a verified park: %v", err)
+				if isBindingDiagnostic(got) {
+					t.Fatalf("a proved-detached thread was refused for want of a cold-resume binding: %v", err)
 				}
 				return
 			}
-			if got != ResumeLegacyUnverified {
-				t.Fatalf("diagnostic = %q (err %v), want %q", got, err, ResumeLegacyUnverified)
+			// RESTATED for #256 M2. With no detached proof this falls to the
+			// COLD path, and the binding is established here -- so it no longer
+			// refuses for want of a park receipt. What it must not do is refuse
+			// for want of one: the receipt is not the authority.
+			if got == ResumeTombstoned || isBindingDiagnostic(got) {
+				t.Fatalf("diagnostic = %q (err %v): the ledger resolves, so the cold path must not refuse", got, err)
 			}
 		})
 	}

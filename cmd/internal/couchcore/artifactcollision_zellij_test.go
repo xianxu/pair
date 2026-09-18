@@ -401,3 +401,83 @@ func TestDetachedSessionsBindsNothingForAnUnreadableScope(t *testing.T) {
 		t.Fatalf("observed %+v, want only the healthy scope's thread", observed)
 	}
 }
+
+// TestSessionPresenceAnswersThroughTheProductionChecker closes I3 from the M1
+// boundary review: every other presence test ran against the fake, which
+// unconditionally answers SessionAbsent for anything unset -- so it could not
+// catch the one branch that decides archive-eligibility inverting.
+//
+// That branch (artifactcollision.go) draws the line the whole three-valued type
+// exists for: an address in a READABLE scope with no index row was asked about
+// and has no session (absent, and therefore archivable), while an address whose
+// scope could not be read was never asked (unresolved, and must never be
+// retired). A fake with no conformance check against production is one modelled
+// world, not two that agree.
+func TestSessionPresenceAnswersThroughTheProductionChecker(t *testing.T) {
+	dataDir := t.TempDir()
+	live := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000c1"}
+	exited := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000c2"}
+	unbound := ThreadAddress{RepoScope: "0123456789abcdef", Tag: "couch-00000000000000c3"}
+	unreadable := ThreadAddress{RepoScope: "fedcba9876543210", Tag: "couch-00000000000000c4"}
+
+	indexSession(t, dataDir, live, "📁repo-live")
+	indexSession(t, dataDir, exited, "📁repo-exited")
+	// `unbound` gets no index row, but its scope IS readable -- the other two
+	// threads' rows live in the same file.
+
+	// `unreadable`'s own scope file exists and will not decode.
+	paths := launcher.NewScopedPaths(dataDir, launcher.RepoScope{Key: unreadable.RepoScope}, string(unreadable.Tag))
+	if err := os.MkdirAll(paths.ScopeDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(paths.SessionBindings(), []byte("{not json\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	checker, _ := sandboxedChecker(t, dataDir, map[string]string{
+		"📁repo-live": "detached", "📁repo-exited": "exited",
+	})
+
+	got, err := checker.SessionPresence(context.Background(),
+		[]ThreadAddress{live, exited, unbound, unreadable})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name    string
+		address ThreadAddress
+		want    SessionState
+	}{
+		{"bound to a live session", live, SessionPresent},
+		{"bound to an EXITED resurrect record", exited, SessionAbsent},
+		{"readable scope, no index row — asked, and there is none", unbound, SessionAbsent},
+		{"scope could not be read — never asked", unreadable, SessionUnresolved},
+	} {
+		if state := got[tc.address].State; state != tc.want {
+			t.Errorf("%s: state = %v, want %v", tc.name, state, tc.want)
+		}
+	}
+}
+
+// TestSessionPresenceCountsNoClients pins the optimistic-inventory trade at the
+// production seam: presence must reach `list-sessions` only. A `list-clients`
+// costs ~250 ms per live session (#228), and the refresh now runs this for EVERY
+// record rather than only the resume-shaped ones -- so a client query slipping
+// back in would scale that cost with the size of the store.
+func TestSessionPresenceCountsNoClients(t *testing.T) {
+	dataDir := t.TempDir()
+	indexSession(t, dataDir, addressA, "📁repo-a")
+	indexSession(t, dataDir, addressB, "📁repo-b")
+	checker, log := sandboxedChecker(t, dataDir, withOthers(map[string]string{
+		"📁repo-a": "detached", "📁repo-b": "detached",
+	}, 8))
+
+	if _, err := checker.SessionPresence(context.Background(), []ThreadAddress{addressA, addressB}); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range pairlifecycletest.LoggedCalls(t, log) {
+		if strings.HasSuffix(call, "action list-clients") {
+			t.Fatalf("presence asked for clients (%q); it must reach list-sessions only", call)
+		}
+	}
+}

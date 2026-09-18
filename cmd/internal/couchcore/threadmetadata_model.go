@@ -9,7 +9,7 @@ type ThreadMetadataPatch struct {
 }
 
 // ApplyThreadMetadata is the pure metadata transition. Revision ownership
-// remains in ThreadStore.UpdateExistingThread, which applies this transition
+// remains in ThreadStore.updateExistingThread, which applies this transition
 // only after its expected-revision comparison succeeds.
 func ApplyThreadMetadata(record ThreadRecord, patch ThreadMetadataPatch) ThreadRecord {
 	next := cloneThreadRecord(record)

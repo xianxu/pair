@@ -79,7 +79,7 @@ func warmFailureRoutes() []warmFailureRoute {
 					if err != nil {
 						return err
 					}
-					_, err = env.Couch.Threads.UpdateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
+					_, err = env.Couch.Threads.updateExistingThread(address, current.Revision, func(next *ThreadRecord) error {
 						next.Description = "changed under the start"
 						return nil
 					})
@@ -165,8 +165,16 @@ func TestAFailedWarmReattachKeepsItsSession(t *testing.T) {
 				if row.State != ThreadDetached {
 					t.Fatalf("row = %+v, want ThreadDetached: its session survived, so it is reattachable again", row)
 				}
-			} else if row.State != ThreadUnusable || row.Reason != ReasonSessionGone {
-				t.Fatalf("row = %+v, want unusable/session-gone: this route's session died mid-reattach", row)
+			} else if row.State != ThreadParked {
+				// RESTATED for #256 M2, and narrowed to what this route
+				// DETERMINISTICALLY yields. An earlier version also admitted
+				// `unusable/session-gone` -- the pre-M2 verdict, kept alive as
+				// slack: only `3-registration-timed-out` reaches this branch and
+				// its ledger always resolves, so the alternative arm could never
+				// fire and reverting the classifier to receipt-authority left
+				// the test green. An assertion wide enough to hold both the old
+				// and the new answer pins neither.
+				t.Fatalf("row = %+v, want parked: this route's session died mid-reattach and its ledger still resolves", row)
 			}
 		})
 	}

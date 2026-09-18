@@ -311,8 +311,11 @@ func TestStartInteractiveResumesUniqueDetachedRoot(t *testing.T) {
 	}
 }
 
-// Its negative: with no surviving session there is no resume authority, so
-// startup must create a NEW thread rather than reattach one it cannot prove.
+// Its negative, RESTATED for #256 M2: no surviving session is not by itself a
+// missing resume authority -- the ledger may still name a conversation, and then
+// couch cold-resumes rather than starting a second thread in the same tree. What
+// leaves nothing to adopt is a session that is gone AND a ledger that resolves
+// nothing, which is what this fixture now builds.
 func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 	env := newTestEnv(t, "/repo")
 	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
@@ -325,8 +328,9 @@ func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	env.Artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
-	// No SetDetachedSession: the session did not survive.
+	env.Artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingUnbound, "")
+	// No SetDetachedSession: the session did not survive, and with an unbound
+	// ledger there is no conversation to cold-resume into either.
 
 	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
 	if err != nil {
@@ -334,5 +338,69 @@ func TestStartInteractiveStartsNewWhenNoSessionSurvives(t *testing.T) {
 	}
 	if start.Record.Thread == stale.Address {
 		t.Fatalf("startup reattached %+v with no surviving session", stale.Address)
+	}
+}
+
+// TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves is the
+// behaviour #256 M2 introduced at startup, and BR-35 caught missing: the two
+// "starts new when no session survives" fixtures were RETUNED to an unbound
+// ledger so they would keep their old verdict, which preserved their premise and
+// left the new one untested.
+//
+// Before M2 a thread whose session had died read `session-gone` — nobody asked
+// its ledger — so startup created a second thread in the same tree. Now the
+// ledger answers, the row is cold-resumable, and couch's core promise applies:
+// it found a resumable thread here and will not start a second one.
+func TestStartInteractiveAdoptsAThreadWhoseConversationStillResolves(t *testing.T) {
+	env := newTestEnv(t, "/repo")
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --show-toplevel"}] = "/repo"
+	env.Git.replies[GitCall{Dir: "/repo/sub", Args: "rev-parse --git-common-dir"}] = ".git"
+	stale := actionableTestThread("couch-0000000000000001", time.Unix(100, 0).UTC())
+	stale.StartingPath, stale.WorkingPath = "/repo", "/repo/sub"
+	stale.LatestLaunchProfile = &LaunchProfile{Agent: "claude", Argv: []string{"--verbose"}}
+	var err error
+	stale, err = env.Couch.Threads.CreateThread(stale)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The session is gone — no SetDetachedSession, no presence — but the ledger
+	// still names the conversation.
+	env.Artifacts.SetNativeBinding(stale.Address, "claude", sessioninventory.BindingEstablished, "native-root-1")
+
+	rows, err := env.Couch.ActionableThreadInventoryContext(context.Background(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var row ActionableThreadSummary
+	for _, candidate := range rows {
+		if candidate.Address == stale.Address {
+			row = candidate
+		}
+	}
+	if row.State != ThreadParked {
+		t.Fatalf("row = %q/%q, want parked: the ledger resolves, so there IS something to resume into",
+			row.State, row.Reason)
+	}
+	if !row.Resumable() {
+		t.Fatal("a row the ledger resolves must be offered as resumable, or startup cannot adopt it")
+	}
+	// And StartInteractive itself must adopt it. Stopping at SelectResumableRoot
+	// was the shortcut this file already records a previous review catching:
+	// filtering ThreadParked out of StartInteractive's own selector call reds
+	// four sibling tests and leaves a selector-only assertion green, so it
+	// proves nothing about the entry point it is named for.
+	// The relaunched agent publishes its session, as a real one does; the hook
+	// fires during the launch, so it cannot disturb the classification above.
+	env.Runner.AfterAcknowledge = func(string) error {
+		env.Artifacts.SetPairSession(stale.Address, "pair-"+string(stale.Address.Tag), true)
+		return nil
+	}
+	start, err := env.Couch.StartInteractive(context.Background(), StartArgs{Cwd: "/repo/sub"})
+	if err != nil {
+		t.Fatalf("StartInteractive: %v", err)
+	}
+	if start.Record.Thread != stale.Address {
+		t.Fatalf("startup started %+v, want it to ADOPT %+v rather than mint a second thread in the tree",
+			start.Record.Thread, stale.Address)
 	}
 }

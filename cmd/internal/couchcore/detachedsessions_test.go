@@ -120,7 +120,7 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+		if _, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 			next.Reservation = false
 			next.LatestLaunchProfile = profile
 			mutate(next)
@@ -132,18 +132,29 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 	}
 
 	candidate := newRecord("couch-0000000000000001", func(*ThreadRecord) {})
-	// Occupied: it has an incarnation, so it cannot be detached.
-	newRecord("couch-0000000000000002", func(r *ThreadRecord) {
+	// Carries an incarnation. It USED to be excluded from the session question
+	// on the grounds that it "cannot be detached" -- which is exactly the
+	// assumption #272 disproves: the launcher dies with couch while the session
+	// does not, so this is the record that most needs asking about.
+	occupied := newRecord("couch-0000000000000002", func(r *ThreadRecord) {
 		r.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 5, Identity: "id-5", StartedAt: time.Unix(2, 0).UTC()}}
 	})
-	// No profile: nothing to reattach with, so asking about it is wasted IO.
-	newRecord("couch-0000000000000003", func(r *ThreadRecord) { r.LatestLaunchProfile = nil })
+	// No profile: still asked about, because presence is one host-wide call and
+	// bounding it per-record buys nothing.
+	noProfile := newRecord("couch-0000000000000003", func(r *ThreadRecord) { r.LatestLaunchProfile = nil })
 
 	artifacts := NewFakeThreadArtifactCollisionChecker()
-	// No native binding: candidates ask only about session ownership.
 	var asked [][]ThreadAddress
-	artifacts.DetachedSessionsHook = func(addresses []ThreadAddress) error {
+	artifacts.SessionPresenceHook = func(addresses []ThreadAddress) error {
 		asked = append(asked, addresses)
+		return nil
+	}
+	// The refresh must no longer reach the CLIENT-counting query at all: that
+	// is the optimistic-inventory trade, and a `list-clients` costs ~250 ms per
+	// live session (#228).
+	var detachedQueries int
+	artifacts.DetachedSessionsHook = func([]ThreadAddress) error {
+		detachedQueries++
 		return nil
 	}
 	couch := &Couch{Threads: store, Artifacts: artifacts, Path: NewFakePathOps(nil)}
@@ -152,10 +163,19 @@ func TestActionableInventoryAsksOnlyAboutDetachCandidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(asked) != 1 {
-		t.Fatalf("DetachedSessions called %d times, want exactly one batched query", len(asked))
+		t.Fatalf("SessionPresence called %d times, want exactly one host-wide query", len(asked))
 	}
-	if len(asked[0]) != 1 || asked[0][0] != candidate {
-		t.Fatalf("asked about %+v, want only the candidate %+v", asked[0], candidate)
+	if detachedQueries != 0 {
+		t.Fatalf("the refresh ran %d client-counting queries; it must ask none", detachedQueries)
+	}
+	got := map[ThreadAddress]bool{}
+	for _, address := range asked[0] {
+		got[address] = true
+	}
+	for _, want := range []ThreadAddress{candidate, occupied, noProfile} {
+		if !got[want] {
+			t.Errorf("presence was not asked about %+v; it must cover EVERY record", want)
+		}
 	}
 }
 
@@ -169,7 +189,7 @@ func TestActionableInventorySkipsTheQueryWithNoCandidates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UpdateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
+	if _, err := store.updateExistingThread(created.Address, created.Revision, func(next *ThreadRecord) error {
 		next.Reservation = false
 		next.Incarnations = []ThreadIncarnation{{State: IncarnationLive, PID: 5, Identity: "id-5", StartedAt: time.Unix(2, 0).UTC()}}
 		return nil
