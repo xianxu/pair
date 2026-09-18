@@ -143,15 +143,15 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
 - [x] Settle the package direction for sharing couch's binding table: the
       pure `couchkeys` package; Pair imports it, never couchtty (third
       revision).
-- [ ] `launcher.CouchHosted`: one hosted rule (plan Task 1).
-- [ ] The attaching client records whether Couch presents it (outer-tty
+- [x] `launcher.CouchHosted`: one hosted rule (plan Task 1).
+- [x] The attaching client records whether Couch presents it (outer-tty
       record, `PresentedByCouch`, `ReadOuterPresenter`) (Task 2).
-- [ ] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 3).
-- [ ] keyhelp: `Binding.Chord`, `HostedSections`, `Layer` (Task 4).
-- [ ] `couchkeys`: Couch's chord table as data, with scope (Task 5).
-- [ ] couchtty frames and routes from `couchkeys`; `couch --help` renders it
+- [x] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 3).
+- [x] keyhelp: `Binding.Chord`, `HostedSections`, `Layer` (Task 4).
+- [x] `couchkeys`: Couch's chord table as data, with scope (Task 5).
+- [x] couchtty frames and routes from `couchkeys`; `couch --help` renders it
       (Task 6).
-- [ ] `pair keys` composes the page; pane title "help" (Task 7).
+- [x] `pair keys` composes the page; pane title "help" (Task 7).
 - [ ] README + atlas sweep; full `make test` + `go test ./...`; behavior
       evidence; operator smoke (Task 8).
 
@@ -206,6 +206,38 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
   and GC. Plan rewritten a third time. The review of the second draft was
   stopped as obsolete, and its scratch worktrees were removed.
 - Floating pane title: 'pair help' → 'help' (operator request).
+- `sdlc change-code`:
+  - Plan-quality: no blocking findings; three advisories, folded into the plan
+    (a fuzz test for the record parser, the corrected ARCH-SECURE claim, the
+    Alt+Shift+C note, and content anchors).
+  - Estimate-quality: info. It says the design rows front-load time already
+    spent.
+  - Branch `000282-context-aware-alt-h-help`, in place.
+- Implemented Tasks 1–8 (`dbc489ba`..`9d0e257c`). Evidence:
+  - `TestCouchClientRefusesRestartMarker` pins the client-side Alt+n gate.
+    Mutation check: with the `createflow.go` guard disabled it fails with code
+    0 instead of 1; the file was restored.
+  - The couch-presented attach records `live|true` and a terminal attach
+    records `…|false` (fake runtime).
+  - A non-tty attach removes the record, tested on the real filesystem.
+  - `FuzzDecodeOuterRecord` ran for 10s: 539k execs, no failures.
+  - `make -k test`, with the five-var env scrub and unsandboxed: the only
+    failure is `test-changelog`, the known pre-existing
+    `viewer: process target is outside selected owner directory`.
+  - `go test ./... -count=1`, same scrub, unsandboxed: 72 packages ok, exit 0.
+    The first run caught `TestNoDeclarationCarriesTwoStackedGodocs` on the
+    `Sections` doc; fixed in `9d0e257c`.
+  - `bash tests/workbench-route-nvim-test.sh` ok, with the pane-name pin
+    updated.
+  - Standalone `pair keys` is byte-identical to `origin/main` (48 lines, empty
+    stderr), from a throwaway worktree with the bundle generated.
+  - `pair keys` takes about 6 ms per run.
+  - Simulated `presenter=couch` record: Couch's two sections lead, then Pair's
+    rows with the hosted Alt+d/Alt+n wording.
+  - In this session the record is still the pre-change one-line form, so the
+    page has hosted wording and no Couch section. It needs the operator smoke
+    after a relaunch.
+- Pending: the operator smoke on a restarted Couch (Task 8 Step 5).
 - Third plan review: Issues Found. The reviewer built all 8 tasks in a scratch
   worktree, and standalone output was byte-identical. Blocking findings, all
   folded into the plan:
