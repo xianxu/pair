@@ -62,39 +62,82 @@ path ever worked since the Go port is itself worth confirming — the operator's
 
 ## Spec
 
-alt+d in the switcher detaches the **selected** thread — stopping its pair
-client without tearing down its zellij session — and the switcher reflects the
-new state without being dismissed and reopened.
+Revised 2026-09-18; see Revisions. The contract stays #170's, and the operator
+confirmed it: **alt+d in the switcher detaches every live thread and leaves
+Couch**. That is the only way out of Couch that stops no agent. Per-row detach
+stays at Tab → detach. The defect is that alt+d never reaches that handler.
 
-- Lifecycle chords on the panel must be **acted on**, not forwarded. A panel has
-  no child to forward to, so "recognized" has to mean "handled here".
-- The detach must be the same transition an in-actor alt+d performs, reaching it
-  through the same named API — not a second path that happens to produce a
-  similar record.
-- alt+x (park) shares the panel's no-child problem and is fixed with it if the
-  measurement above shows it dead too.
-- The switcher's selection, not the console's focus, names the target. Those can
-  differ, and detaching the wrong thread is worse than detaching none.
+Root cause, measured live on 09-18:
+- Symptom: alt+d types a literal `d` into the switcher filter, while alt+x
+  opens its leave confirmation.
+- Cause: the terminal sends legacy `ESC d` there. alt+d, alt+n and ctrl+return
+  are recognized only in their kitty (CSI u) form, while alt+x also has a legacy
+  `ESC x` row.
+- Kitty keyboard flags live on a stack kept separately for the main and the
+  alternate screen (the kitty spec, Ghostty, and our vendored vt
+  `third_party/vt/pair_keyboard.go`).
+- The presenter pushes `\x1b[>3u` once, at its first paint, on the main screen.
+  It then moves the parent onto the alternate screen whenever a zellij actor is
+  presented (`HistoryRender` emits `?1049h`), and the panel paints wherever the
+  last frame left it. So after the first actor is shown, the parent runs legacy
+  keys.
+- Regression: `f32bb4cf` (#255 M3, 09-15), which replaced #251's re-assertion of
+  `\x1b[=1;2u` after every complete child output batch with the single push.
+
+The fix and its invariants:
+- **The keyboard entry follows the screen.** Every screen the presenter puts the
+  parent on carries the presenter's keyboard push. Entering the alternate screen
+  pushes on it, and leaving pops first, so each stack is balanced.
+- Nothing is left behind on either screen after release, or after a write cut at
+  any byte. The next program to use the alternate screen must not inherit
+  Couch's flags.
+- The fix lives in `terminal.Presenter`, the one owner of parent modes, so Pair's
+  presenter gets it too. No per-chord legacy rows: `ESC d` cannot be told apart
+  from Esc followed by `d`, and that is why the table omits it.
 
 ## Done when
 
-- [ ] alt+d in the switcher detaches the selected thread; a test drives the
-      panel-focused path and asserts the transition, so a future input-routing
-      change cannot silently re-break it.
-- [ ] alt+x in the switcher is verified — fixed with it, or shown to already
-      work, and the answer recorded.
-- [ ] The regression's introducing commit is identified, or its absence is
-      recorded (i.e. the switcher path never worked post-port).
-- [ ] `park.go:111`'s "in an actor or in the switcher alike" is backed by a test
-      rather than by a comment.
+- [ ] alt+d in the switcher dispatches `leave{mode:detach}` after an actor on the
+      alternate screen has been shown. A Couch test encodes the key with the
+      host emulator's own `SendKey`, under whatever flags Couch left on that
+      screen, so a future change to screen or keyboard handling cannot silently
+      re-break it.
+- [ ] The presenter's keyboard push is balanced per screen. Replaying its parent
+      stream into the vt emulator shows the alternate screen disambiguated while
+      presented. After release, or after a write cut at any byte, both screens'
+      flags and stacks are back to what they were before.
+- [ ] alt+x in the switcher is verified live (it works) and recorded.
+- [ ] The introducing commit is identified (`f32bb4cf`) and recorded.
+- [ ] `park.go:111`'s wording says the key picks the disposition and the scope
+      picks the target (the switcher means every live thread), and it cites the
+      console tests that pin both chords.
+- [ ] Operator smoke: in a rebuilt Couch, after visiting a thread, Ctrl+Space
+      then Alt+d detaches every thread and leaves Couch.
 
 ## Plan
 
-- [ ] Measure: is alt+x also dead in the switcher? Then trace what the console
-      does with `seqDetach` while a panel holds focus.
-- [ ] Bisect across `cea10ac4` / `df2a8897` for the introducing change.
-- [ ] Fix at the panel input door; act on lifecycle chords instead of forwarding.
-- [ ] Regression test at the panel-focused seam; atlas if the key contract moves.
+- [x] Measure: is alt+x also dead in the switcher? No; only alt+d. Traced what
+      the console does with `seqDetach` while the panel holds focus: the handler
+      is correct.
+- [x] Find the introducing change: `f32bb4cf`, not `cea10ac4` or `df2a8897`.
+- [ ] Red: a Couch end-to-end test (alternate-screen actor → panel → alt+d
+      encoded by the host emulator → `leave`), plus a presenter per-screen
+      keyboard test that includes the write-cut sweep.
+- [ ] Fix in `terminal.Presenter`: push after `?1049h`, pop before `?1049l`
+      (both on the paint path and on release), and track ownership per screen.
+- [ ] Reword `park.go:111`; atlas note on the presenter's per-screen keyboard
+      ownership.
+
+## Revisions
+
+- 2026-09-18: Spec and Done-when restated after the trace and the operator's
+  live check. The original spec said alt+d detaches the **selected** row and the
+  switcher stays open. The operator chose to keep #170's contract (detach every
+  live thread and leave). The original rows were: detach the selected thread,
+  with a panel-path test; verify alt+x; identify the introducing commit; back
+  `park.go:111` with a test. The first row became "alt+d reaches its declared
+  handler"; the other three stand, re-worded. Added the per-screen keyboard
+  invariant and an operator smoke.
 
 ## Log
 
@@ -134,3 +177,12 @@ new state without being dismissed and reopened.
   deliberately not a chord (`productKey`), so a terminal in legacy mode would
   make alt+d exactly as inert as reported, while alt+x (`\x1bx` is registered)
   would keep working.
+- Operator live check (09-18, Couch built 14:36 from main): Ctrl+Space then
+  alt+d → "the alt modifier is ignored and letter d appears as part of filter
+  expression". Ctrl+Space then alt+x → the leave confirmation appears. That
+  settles the legacy-encoding branch above.
+- Root cause: per-screen kitty keyboard stacks, and the presenter pushed once.
+  Details in the revised Spec. It also silently killed ctrl+return
+  (notification jump, enhanced-only) and alt+n in the switcher, for the same
+  reason. The test suite missed it because every Couch input test writes kitty
+  bytes to stdin directly and never asks the host terminal what it would send.
