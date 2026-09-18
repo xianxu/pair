@@ -379,7 +379,6 @@ func (f *FakeThreadArtifactCollisionChecker) Releases() []ThreadAddress {
 	return append([]ThreadAddress{}, f.released...)
 }
 
-// DetachedQueries is how many times the detached-session question was asked.
 // BindingResolutions counts ResolveEstablished calls. Startup's cost is not
 // only its zellij queries: each resolution reads that thread's own ledger, so a
 // count that grows with the store is the same defect shape in a different
@@ -400,6 +399,7 @@ func (f *FakeThreadArtifactCollisionChecker) DetachedCandidatesAsked() int {
 	return f.detachedCandidates
 }
 
+// DetachedQueries is how many times the detached-session question was asked.
 func (f *FakeThreadArtifactCollisionChecker) DetachedQueries() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

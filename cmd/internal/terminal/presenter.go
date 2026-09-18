@@ -722,8 +722,6 @@ func (p *Presenter) Release(ctx context.Context) error {
 	return p.releaseErr
 }
 
-// Register reserves an active origin for hidden effects. IDs must identify a
-// unique endpoint lifetime; consumers must never reuse an ID after Retire.
 func (p *Presenter) register(e *Endpoint) error {
 	if e == nil {
 		return errors.New("terminal: missing origin")
@@ -740,6 +738,9 @@ func (p *Presenter) register(e *Endpoint) error {
 	p.origins[e.id] = e
 	return nil
 }
+
+// Register reserves an active origin for hidden effects. IDs must identify a
+// unique endpoint lifetime; consumers must never reuse an ID after Retire.
 func (p *Presenter) Register(ctx context.Context, e *Endpoint) error {
 	return p.call(ctx, func(context.Context) error { return p.register(e) })
 }

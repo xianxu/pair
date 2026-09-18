@@ -221,8 +221,6 @@ func (c *Couch) RecoverThread(ctx context.Context, address ThreadAddress, path s
 	return c.RetryContinuation(ctx, address, record.Continuation.ID)
 }
 
-// prepareAbsentContinuation snapshots a legacy checkpoint and retires a proved
-// dead source in one CAS. Source absence is not a verified park receipt.
 // admitRetainedRecovery decides whether source recovery may proceed from the
 // RETAINED unfinished request. Every refusal it returns is caused by that
 // request, so its one caller wraps them once with the request's exits (#280).
@@ -247,6 +245,8 @@ func (c *Couch) admitRetainedRecovery(old checkpoint.Request, selected *checkpoi
 	return request, false, nil
 }
 
+// prepareAbsentContinuation snapshots a legacy checkpoint and retires a proved
+// dead source in one CAS. Source absence is not a verified park receipt.
 func (c *Couch) prepareAbsentContinuation(ctx context.Context, address ThreadAddress, selected *checkpoint.Checkpoint) (ThreadRecord, error) {
 	if c.ContinuationSource == nil {
 		return ThreadRecord{}, errors.New("recovery source generation reader unavailable")

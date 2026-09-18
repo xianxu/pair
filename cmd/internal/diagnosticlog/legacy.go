@@ -5,9 +5,6 @@ import (
 	"os"
 )
 
-// PreviewLegacy accepts only an exact diagnostic-family path already classified
-// by its owning inventory. It is not discovery authority for external paths.
-// Old diagnostic mtime is generation-age evidence, not session-use evidence.
 func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 	if err := options.checkContext(); err != nil {
 		return nil, err
@@ -42,8 +39,6 @@ func previewLegacyCurrent(path string, options Options) ([]Segment, error) {
 	return []Segment{{Path: p, Bytes: st.Size(), LastWrite: st.ModTime(), Eligible: eligible, Reason: reason}}, nil
 }
 
-// CollectLegacy upgrades only eligible, proven stopped diagnostics into the
-// managed journal protocol. Young/unknown files get no metadata side effects.
 func adoptLegacy(path string, options Options) (bool, error) {
 	if err := options.checkContext(); err != nil {
 		return false, err
@@ -116,6 +111,9 @@ func adoptLegacy(path string, options Options) (bool, error) {
 	return true, nil
 }
 
+// PreviewLegacy accepts only an exact diagnostic-family path already classified
+// by its owning inventory. It is not discovery authority for external paths.
+// Old diagnostic mtime is generation-age evidence, not session-use evidence.
 func PreviewLegacy(path string, o Options) ([]Segment, error) {
 	rows, _, done, e := PreviewLegacyPage(path, o, "", 100)
 	if e == nil && !done {
@@ -123,6 +121,9 @@ func PreviewLegacy(path string, o Options) ([]Segment, error) {
 	}
 	return rows, e
 }
+
+// CollectLegacy upgrades only eligible, proven stopped diagnostics into the
+// managed journal protocol. Young/unknown files get no metadata side effects.
 func CollectLegacy(path string, o Options) ([]Segment, error) {
 	rows, _, done, e := CollectLegacyPage(path, o, "", 100)
 	if e == nil && !done {

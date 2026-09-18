@@ -306,3 +306,11 @@ Deletion is also the only skew-safe shape.
   - no `[]Phase{` literal outside `AllPhases` (two test lists replaced, and a
     repo scan added);
   - `pair continue --retry` uses the phase-neutral `Exits("", tag)`.
+
+### 2026-09-17 — close review round 3 (FIX-THEN-SHIP)
+
+- The continuation orientation prunes became one reconcile, derived from the
+  watch's request identity.
+- termcmd's doc-theft guard now knows every declared name, and the 18 docs it
+  then found misattached were moved back.
+- Both changes are bundled into the close commit, per the protocol.

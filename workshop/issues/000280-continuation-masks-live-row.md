@@ -1,12 +1,13 @@
 ---
 id: 000280
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-17
 updated: 2026-09-17
 estimate_hours: 2.22
 started: 2026-09-17T21:46:16-07:00
+actual_hours: 0.96
 ---
 
 # A retained continuation failure masks a live thread's state in the switcher
@@ -199,6 +200,7 @@ one boundary.
 ## Log
 
 ### 2026-09-17
+- 2026-09-17: closed — Dismiss continuation deletes an exact failed request (pure checkpoint.CheckDismissible in the store CAS; both retry/dismiss orders); every phase composes with the row state; live failed rows keep actions minus ContinuationRefuses, tied to the guard by a production-dispatcher test that also requires refusals to write nothing; every retained-request refusal names its exits (checkpoint.Exits; 4 boundary wraps, one driven row each, scanned against call sites); orientation prompts carry their producer; switcher Retry fixed on the real executor; 18 mutations all red; go test ./... 71 ok; operator smoke: live pair thread dismissed; review verdict: FIX-THEN-SHIP
 
 - Filed from the operator's screenshot plus `couch --show pair` taken at the same
   moment; cause read directly from `menu_render.go:414`. No existing issue —
@@ -444,3 +446,23 @@ the refusal it used to hit is gone with the request.
   - relaunch without its guard.
 - Lessons recorded in `workshop/lessons.md`. `go test ./... -count=1` passes
   (71 packages).
+
+### 2026-09-17 — close round 3: FIX-THEN-SHIP, advisories fixed before shipping
+
+- **Replacement stranded a prompt** (the in-memory-state family's third
+  instance). The continuation prunes were a list of events: completion,
+  vanishing, dismissal. The third review found the next one, replacement. That
+  list is replaced by ONE rule, `reconcileContinuationOrientationLocked`, run
+  after every change to `c.continuations`: a continuation-produced prompt
+  survives only while the address's current watch tracks that request and the
+  request is not complete. Pinned by
+  `TestReplacedRequestTakesItsOrientationPromptWithIt`, using the reviewer's
+  sequence; removing the identity check turns it red.
+- **A doc comment attached to the wrong declaration** (second instance). This was
+  already guarded by termcmd's `TestNoDeclarationCarriesTwoStackedGodocs`, which
+  was blind to it: it knew only documented declarations' names, and a stolen doc
+  leaves the victim undocumented. The guard now knows every declared name. That
+  surfaced 17 pre-existing thefts across 10 packages, plus mine
+  (`admitRetainedRecovery`); all 18 docs were moved back to their declarations.
+  A re-inserted theft turns the guard red.
+- Lessons recorded.

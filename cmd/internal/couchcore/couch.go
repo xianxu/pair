@@ -303,9 +303,6 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 	})
 }
 
-// repoIdentityTimeout matches the 5s bound the deleted ExecPolicyResolver
-// applied to the subprocess this call replaced, so the envelope did not widen
-// when the provider went (pair#170 M4).
 // pairRegistrationTimeout bounds the wait for a launched pair to write its
 // thread-claim as `established`.
 //
@@ -324,6 +321,9 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 // is the wrong fix.
 const pairRegistrationTimeout = 15 * time.Second
 
+// repoIdentityTimeout matches the 5s bound the deleted ExecPolicyResolver
+// applied to the subprocess this call replaced, so the envelope did not widen
+// when the provider went (pair#170 M4).
 const repoIdentityTimeout = 5 * time.Second
 
 // resolveRepoIdentity returns the Git common directory for a working path.

@@ -861,15 +861,6 @@ func (c *Couch) gatherThreadEvidence(ctx context.Context, observations []LiveTTY
 	return snapshot, evidence, nil
 }
 
-// ObserveRecordedProcesses derives live proof from the OS rather than from a
-// console's own children.
-//
-// The switcher's live proof is "I am hosting this pty", which only the couch
-// holding the terminal can supply. A CLI has no console, so without this it
-// would classify every running thread as a stale incarnation and disagree with
-// the switcher about the same store -- the exact split (#181) exists to close.
-// The defence against a recycled PID is the same either way: the kernel start
-// token must match the one recorded at launch.
 // RecordedProcessObservation is one recorded process and what the OS said about
 // it. The Liveness is the POINT of the type: this pass used to return only the
 // positive answers, so "could not ask" and "proved gone" arrived at the
@@ -880,6 +871,15 @@ type RecordedProcessObservation struct {
 	Liveness Liveness
 }
 
+// ObserveRecordedProcesses derives live proof from the OS rather than from a
+// console's own children.
+//
+// The switcher's live proof is "I am hosting this pty", which only the couch
+// holding the terminal can supply. A CLI has no console, so without this it
+// would classify every running thread as a stale incarnation and disagree with
+// the switcher about the same store -- the exact split (#181) exists to close.
+// The defence against a recycled PID is the same either way: the kernel start
+// token must match the one recorded at launch.
 func (c *Couch) ObserveRecordedProcesses(records []ThreadRecord) []RecordedProcessObservation {
 	var proc ProcOps
 	if c != nil {

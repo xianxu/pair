@@ -52,11 +52,15 @@ func TestNoDeclarationCarriesTwoStackedGodocs(t *testing.T) {
 			}
 			// The names declared in THIS file, so the second check below can
 			// tell "opens with another declaration's name" from "opens with an
-			// ordinary word".
+			// ordinary word". EVERY declaration, documented or not: a stolen doc
+			// leaves its victim undocumented, so a set built from documented
+			// declarations never contains the name the thief opens with. That
+			// blind spot let menuActionItems' and prepareAbsentContinuation's docs
+			// move onto newly inserted declarations unnoticed (pair#280).
 			declared := map[string]bool{}
 			for _, decl := range file.Decls {
-				for _, d := range documented(decl) {
-					declared[d.name] = true
+				for _, name := range declaredNames(decl) {
+					declared[name] = true
 				}
 			}
 			for _, decl := range file.Decls {
@@ -181,4 +185,27 @@ func documented(decl ast.Decl) []struct {
 		}
 	}
 	return out
+}
+
+// declaredNames is every name a declaration introduces, whether or not it
+// carries a doc comment.
+func declaredNames(decl ast.Decl) []string {
+	switch d := decl.(type) {
+	case *ast.FuncDecl:
+		return []string{d.Name.Name}
+	case *ast.GenDecl:
+		var out []string
+		for _, spec := range d.Specs {
+			switch sp := spec.(type) {
+			case *ast.TypeSpec:
+				out = append(out, sp.Name.Name)
+			case *ast.ValueSpec:
+				for _, n := range sp.Names {
+					out = append(out, n.Name)
+				}
+			}
+		}
+		return out
+	}
+	return nil
 }

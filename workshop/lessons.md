@@ -5409,3 +5409,17 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   while a live owner scans the address, so a request whose owner died reads
   `continuing…` forever. If the bound needs a watcher, the claim needs one too.
   (#280 BR-3)
+
+- **A guard that learns its vocabulary from the thing it guards is blind to that
+  thing's failure.** termcmd's doc-theft scan knew only DOCUMENTED declarations'
+  names. A stolen doc leaves its victim undocumented, so the victim's name was
+  never known and every theft passed. Fixing that one set turned up 17 thefts
+  already in the tree, plus mine. When a check keys on "names we know", derive
+  the set from something the defect cannot remove. (#280 close, round 3)
+
+- **Derive a view from the object that tracks its fact's identity; don't prune
+  it at a list of events.** The orientation prompt was pruned on completion,
+  then on dismissal, then on a scan with no request; each round's reviewer found
+  the next missed event (replacement). One reconcile, run after every change to
+  the watches and comparing each continuation prompt to its watch's CURRENT
+  request, closes the class. (#280 close, rounds 1–3)

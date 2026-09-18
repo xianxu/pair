@@ -48,14 +48,14 @@ func registerWithHook(ctx context.Context, root string, entry RegistryEntry, hoo
 	})
 }
 
-// EnumerateRoot reads up to limit exact entries without initializing storage.
-// The caller supplies a cursor to avoid repeatedly visiting the first page.
 type RegistryPage struct {
 	Entries    []RegistryEntry
 	NextOffset int
 	Complete   bool
 }
 
+// EnumerateRoot reads up to limit exact entries without initializing storage.
+// The caller supplies a cursor to avoid repeatedly visiting the first page.
 func EnumerateRoot(ctx context.Context, root string, offset, limit int) (RegistryPage, error) {
 	if err := ctx.Err(); err != nil {
 		return RegistryPage{}, err

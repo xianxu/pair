@@ -106,10 +106,10 @@ func validateQuitIntent(intent QuitIntent) error {
 // ~/.cache/pair/{quit,restart}-<session>; parsing + the re-launch decision are
 // pure here, the read/clear IO sits on the Runtime seam.
 
-// RestartMarker is the parsed ~/.cache/pair/restart-<session> handshake dropped
-// by `pair restart` (Alt+n / Shift+Alt+N, #94 M1) or the #55 compaction branch.
 const maxContinuationArgsBytes = 32 * 1024
 
+// RestartMarker is the parsed ~/.cache/pair/restart-<session> handshake dropped
+// by `pair restart` (Alt+n / Shift+Alt+N, #94 M1) or the #55 compaction branch.
 type RestartMarker struct {
 	AgentArgs  []string              `json:"agent_args,omitempty"`
 	Version    int                   `json:"version,omitempty"`

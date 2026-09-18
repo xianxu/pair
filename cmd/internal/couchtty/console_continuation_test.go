@@ -418,3 +418,34 @@ func TestSwitchAgentOrientationPromptSurvivesContinuationScans(t *testing.T) {
 	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{status.Address}, statuses: []couchcore.ContinuationStatus{complete}})
 	survives(t, "an unrelated request completing")
 }
+
+// A request REPLACED before any scan sees it vanish takes its prompt with it:
+// the prompt is derived from the watch's current request identity, not pruned
+// at an enumerated list of events (#280, close round 3). Sequence from the
+// review: A's prompt, B seen, B complete, B vanished -- A's prompt must not
+// outlive A at any step.
+func TestReplacedRequestTakesItsOrientationPromptWithIt(t *testing.T) {
+	c, a := continuationConsole(t)
+	c.mu.Lock()
+	c.continuations[a.Address] = continuationWatch{status: a}
+	c.setOrientationLocked(a.Address, orientation.Request{Tag: string(a.Address.Tag), Agent: "codex", Attempt: "start-a"}, continuationProducer(a.RequestID))
+	c.mu.Unlock()
+
+	b := a
+	b.RequestID, b.Phase = "request-b", checkpoint.Failed
+	gone := func(t *testing.T, step string) {
+		t.Helper()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if _, ok := c.menu.Orientation[a.Address]; ok {
+			t.Fatalf("A's orientation prompt outlived A: still offered after %s", step)
+		}
+	}
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}, statuses: []couchcore.ContinuationStatus{b}})
+	gone(t, "B replaced A")
+	b.Phase = checkpoint.Complete
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}, statuses: []couchcore.ContinuationStatus{b}})
+	gone(t, "B completed")
+	c.acceptContinuationRequests(continuationScanResult{addresses: []couchcore.ThreadAddress{a.Address}})
+	gone(t, "B vanished")
+}

@@ -807,6 +807,14 @@ func runZellij(args []string, stdout, stderr io.Writer) error {
 	return cmd.Run()
 }
 
+// diagnosticWidth bounds what any single diagnostic may put on the pane. Wide
+// enough for a useful message, far short of wrapping onto the child's area.
+const diagnosticWidth = 200
+
+// zellijErrorDetailWidth bounds the subprocess half specifically, so a usage
+// dump cannot crowd out the part of the message we wrote.
+const zellijErrorDetailWidth = 120
+
 // runZellijCaptured runs the action with BOTH descriptors captured, and folds
 // what the subprocess said into the returned error.
 //
@@ -816,14 +824,6 @@ func runZellij(args []string, stdout, stderr io.Writer) error {
 // a failing action became completely silent -- strictly worse than the noise it
 // replaced. The bytes go into the error, where a caller can report or log them,
 // and never onto the pane's fd.
-// diagnosticWidth bounds what any single diagnostic may put on the pane. Wide
-// enough for a useful message, far short of wrapping onto the child's area.
-const diagnosticWidth = 200
-
-// zellijErrorDetailWidth bounds the subprocess half specifically, so a usage
-// dump cannot crowd out the part of the message we wrote.
-const zellijErrorDetailWidth = 120
-
 func runZellijCaptured(args []string) error {
 	var out, errb bytes.Buffer
 	err := runZellij(args, &out, &errb)

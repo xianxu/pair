@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -112,6 +113,25 @@ func (c *Console) dropOrientationLocked(address couchcore.ThreadAddress, produce
 	delete(c.orientationFrom, address)
 }
 
+// reconcileContinuationOrientationLocked is the ONE place a continuation's
+// prompt is pruned: it survives only while the address's current watch tracks
+// THAT request and the request is not complete. It runs after every change to
+// c.continuations, so dismissal, a vanished request, completion and replacement
+// are one rule instead of four events -- this family's three findings were
+// three events the enumerated prunes missed (#280). Callers hold c.mu.
+func (c *Console) reconcileContinuationOrientationLocked() {
+	for address, producer := range c.orientationFrom {
+		if !strings.HasPrefix(producer, continuationProducer("")) {
+			continue
+		}
+		watch, ok := c.continuations[address]
+		if !ok || continuationProducer(watch.status.RequestID) != producer || watch.status.Phase == checkpoint.Complete {
+			delete(c.menu.Orientation, address)
+			delete(c.orientationFrom, address)
+		}
+	}
+}
+
 // supersedeOrientationLocked removes the address's prompt whoever wrote it: a
 // new agent launch makes every earlier prompt for the thread obsolete.
 func (c *Console) supersedeOrientationLocked(address couchcore.ThreadAddress) {
@@ -151,7 +171,6 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 		c.continuations[status.Address] = watch
 		if status.Phase == checkpoint.Complete {
 			delete(c.continuations, status.Address)
-			c.dropOrientationLocked(status.Address, continuationProducer(status.RequestID))
 			continue
 		}
 		operation := continuationOperation(status, watch.handled)
@@ -199,14 +218,11 @@ func (c *Console) acceptContinuationRequests(result continuationScanResult) {
 	for _, address := range result.addresses {
 		if result.err == nil && !seen[address] && !c.continuations[address].queued {
 			// The record no longer holds a request -- completed elsewhere, or
-			// DISMISSED (#280). The prompt THAT request produced goes with it;
-			// a switch-agent prompt on the same thread stays.
-			if watch, ok := c.continuations[address]; ok {
-				c.dropOrientationLocked(address, continuationProducer(watch.status.RequestID))
-			}
+			// DISMISSED (#280); reconcile below drops the prompt it produced.
 			delete(c.continuations, address)
 		}
 	}
+	c.reconcileContinuationOrientationLocked()
 	c.mu.Unlock()
 }
 
@@ -220,6 +236,7 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 				return
 			}
 			c.continuations[result.Status.Address] = continuationWatch{status: result.Status, handled: !result.SourceReattached}
+			c.reconcileContinuationOrientationLocked()
 			c.mu.Unlock()
 		}
 	}
@@ -254,8 +271,8 @@ func (c *Console) finishContinuationOperation(completed operationCompletion, err
 	c.continuations[address] = watch
 	if watch.status.Phase == checkpoint.Complete {
 		delete(c.continuations, address)
-		c.dropOrientationLocked(address, continuationProducer(watch.status.RequestID))
 	}
+	c.reconcileContinuationOrientationLocked()
 	c.mu.Unlock()
 	if err != nil {
 		c.setNotice(fmt.Sprintf("Continuation %s: %v", address.Tag, err))

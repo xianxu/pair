@@ -292,3 +292,119 @@ findings:
     detail: |
       This is the 2nd finding in family refusal-names-every-exit. Rule: a refusal names exactly the exits valid for the request's actual phase, through checkpoint.Exits(phase, tag). A site that does not know the phase uses phase-neutral wording rather than assuming Failed. Here, dismiss is offered even when the hosted request may be pending or running, which CheckDismissible refuses.
 ```
+
+---
+
+## Re-review — 2026-09-17T23:18:52-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 280 — A retained continuation failure masks a live thread's state in the switcher |
+| repo | pair |
+| issue file | workshop/issues/000280-continuation-masks-live-row.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 8a4f445b2511939530b54cfe7d09557ba050ed66..e46e6b625269b1ef50035baaa6b72a2467d70d5f |
+| command | sdlc close --issue 280 |
+| reviewer | claude |
+| timestamp | 2026-09-17T23:18:52-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+All six open findings from round 3 are fixed. I checked each against the code and, where behaviour changed, with a mutation in a scratch copy of HEAD. Each fix's test goes red without it.
+- **Orientation prompts (BR-11):** prompts now record which producer wrote them. The round-3 regression (the scan pruning every hosted thread's prompt) turns `TestSwitchAgentOrientationPromptSurvivesContinuationScans` red. So does a prune that ignores the producer.
+- **Refusal wording (BR-4, BR-12):** each check wraps its refusals once, where the check returns. The routing test has one row per call site plus a scan that the call sites are the rows. Removing the wrap on the retained recovery branch fails both the row and the scan.
+
+Two new Minor findings, neither blocking:
+- **Stranded prompt:** the producer fix leaves a gap. When one request replaces another before the scan sees the first one disappear, the first request's prompt is never removed. I reproduced this. It is the third finding in `in-memory-state-follows-record`, so the recommendation is the rule, not a patch at one site.
+- **Orphaned doc comment:** a new function was inserted under another function's doc comment.
+
+**Strengths**
+- **Provenance helpers:** `setOrientationLocked` is the only writer, `dropOrientationLocked` only prunes its own producer's entry, and `supersedeOrientationLocked` is an explicit wipe (`console_continuation.go:94-120`). That is the right shape for a map with two writers.
+- **One wrap per check:** extracting `admitRetainedRecovery` (`recovery_execute.go:230`) lets its one caller wrap every refusal once. That catches the missed `AdmitRecoveryGeneration` case by construction, not site by site.
+- **Guard-agreement test:** it checks both the guard's own prefix (`continuation <id> is failed; `, which the wrapper never produces) and that a refusal writes nothing (`continuation_guard_test.go:139-150`). This catches an operation that parks first and refuses later in the same words.
+- **Phase-list scan:** `TestPhaseListIsWrittenOnlyInAllPhases` scans all of `cmd/`. Putting a hand list back in `menu_action_sweep_test.go:88` turns it red.
+- **Dismissal store write:** `CheckDismissible` is a pure rule tested on literal requests. The store applies it inside its revision check, and a command-line dismiss without an id binds to the request read at that revision (`continuation.go:421-423`).
+
+**Critical findings:** none.
+
+**Important findings:** none.
+
+**Minor findings**
+1. **Stranded prompt when a request is replaced** (`console_continuation.go:145-147`). This is the 3rd finding in family `in-memory-state-follows-record`.
+   - **What happens:** when the scan sees a new request ID for an address, it replaces the watch but never drops the prompt the old request produced. After that, the only prunes compare against the new request's producer, so the old prompt and its `orientationFrom` entry stay until a switch-agent launch or a Couch restart. "Copy orientation prompt" stays offered for a handoff that no longer exists.
+   - **Reproduced:** prompt from request A → scan shows request B → B completes → B disappears. The prompt survives, and the actions are `[detach relaunch park switch-agent name describe copy-orientation]`.
+   - **Regression:** the base (`8a4f445b`) deleted the address's prompt when any request on it completed.
+   - **When it bites:** A disappears and B appears within one scan interval. The window is unbounded while a partial scan error keeps the disappearance loop disabled.
+   - **The rule:** a view of a record fact lives inside, or is derived from, the object that tracks that fact's identity. Pruning at a list of events is not enough, and this family's three findings are three events that list missed (dismissal, a scan with no request, replacement). Concretely: keep the continuation's prompt on `continuationWatch`, so replacing or deleting the watch removes it. Or reconcile in one place after every change to `c.continuations`: drop any continuation-produced entry whose request ID differs from the address's current watch. Add a replacement-sequence test.
+2. **Orphaned doc comment** (`recovery_execute.go:224-230`). This is the 2nd finding in family `doc-comment-attachment`.
+   - `admitRetainedRecovery` was inserted under `prepareAbsentContinuation`'s doc comment. The combined comment now starts "prepareAbsentContinuation snapshots…" and attaches to the wrong function, and `prepareAbsentContinuation` has no doc.
+   - **The rule:** a Go doc comment begins with the name of the declaration it documents. A package-level scan can enforce it: fail when a function's doc starts with the name of another declaration in the same file.
+   - **Prevalence:** a rough scan of the changed files found this one new instance. The other hits were pre-existing prose.
+
+**Test coverage notes**
+- **Passing at HEAD:** targeted runs of checkpoint, couchcore (continuation, dismiss, refusal, operation tests) and couchtty (continuation, orientation, sweep, state-text) all pass.
+- **Not run here:** tests that start pty children or write under `/tmp` fail in this environment with "operation not permitted", unrelated to this diff. The implementor's full `go test ./...` run is the evidence for those.
+- **Pinned by tests:** the new refusal-routing table and scan, the guard's write-nothing check and the phase-list scan each fail when their fix is reverted.
+- **Not pinned:** no test covers the `pair continue --retry` call site in `runcli.go:147` itself. Changing it to `Exits(checkpoint.Failed, …)` would keep everything green. The phase-neutral wording is pinned in `Exits` itself, which is acceptable for a message-only Minor.
+
+**Architecture principles**
+- **ARCH-DRY: pass.** There is one exits wording, one retry-on-stale loop and one writer of `menu.Orientation`.
+- **ARCH-PURE: pass.** `CheckDismissible`, `Exits`, `ContinuationRefuses`, `withContinuationExits`, `rootStateText` and `menuActionItems` are pure.
+- **ARCH-PURPOSE: pass.** Every Done-when item is delivered. The `Settled()` predicate is declined with a stated reason.
+- **ARCH-MOCK: pass.** Tests use a temp-dir store and the production dispatcher and executors.
+- **ARCH-CONSTRAINTS: pass.** Nothing new runs on hot paths. The scans are test-time only.
+- **ARCH-SECURE: pass.** Dismissal goes through `resolveOperationThread` and the store's revision check. Messages carry only the tag.
+- **ARCH-ORDER: flag.** Minor 1: pruning at a list of events rather than following the fact's identity.
+- **ARCH-FUNERAL: pass, with one gap.** Dismissal names its end, and Couch's private checkpoint copy is named as left for replacement. The gap: `orientationFrom` entries strand with the prompt (Minor 1).
+
+**Plan revision recommendation:** if Minor 1 is fixed by moving the prompt onto `continuationWatch`, add a Revisions entry. The entry should say that continuation-produced prompts are owned by the watch, not pruned by producer at each event.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Plan:83 now states the "bounded in time" claim is false; atlas:155-165 and menu.go:1258-1263 describe the per-phase sets as statements of which actions are offered, not time bounds, matching menuActionItems.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      All four non-guard checks wrap once where they return (RecoverThread:179, prepareAbsentContinuation:291 via admitRetainedRecovery, archiveContinuationVacant, validateContinuationWarm); unwrapping :291 in a scratch copy turns the row and the site scan red.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      Each prompt records its producer; the round-3 unconditional prune and a producer-blind prune each turn TestSwitchAgentOrientationPromptSurvivesContinuationScans red. A replacement-sequence gap in the same family is raised separately.
+  - id: BR-12
+    disposition: addressed
+    note: |
+      One row per withContinuationExits call site (4), each driven, plus a productionCallsTo scan that the call sites equal the rows; the guard oracle matches the guard's own "continuation <id> is failed; " prefix and requires an unchanged revision.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      Both lists use AllPhases; restating the list in menu_action_sweep_test.go:88 turns TestPhaseListIsWrittenOnlyInAllPhases red.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      runcli.go:147 uses Exits("", tag), whose conditional dismiss wording TestExitsWithAnUnknownPhaseAreConditional pins; the call site itself is not pinned (acceptable for a message-only Minor).
+findings:
+  - id: new
+    severity: Minor
+    family: in-memory-state-follows-record
+    title: |
+      A request replaced before the scan sees it vanish strands its orientation prompt (console_continuation.go:145-147)
+    detail: |
+      This is the 3rd finding in family in-memory-state-follows-record. When the scan sees a new request ID it replaces the watch without dropping the old request's continuation-produced prompt; every later prune compares against the new producer, so Copy orientation prompt stays offered until a switch-agent launch or restart. Reproduced (A's prompt, B seen, B complete, B vanished: prompt survives); base cleared it on any completion for the address. Window: A vanishes and B appears within one scan interval, or while a partial scan error disables the vanish loop. Rule: a view of a record fact lives inside, or is derived from, the object that tracks that fact's identity, not pruned at an enumerated list of events (this family's three findings are three missed events: dismissal, a scan with no request, replacement). Fix: keep the continuation's prompt on continuationWatch, or reconcile continuation-produced entries against the current watch's request ID in one place after every change to c.continuations. Add a replacement-sequence test.
+  - id: new
+    severity: Minor
+    family: doc-comment-attachment
+    title: |
+      admitRetainedRecovery was inserted under prepareAbsentContinuation's doc comment (recovery_execute.go:224-230)
+    detail: |
+      This is the 2nd finding in family doc-comment-attachment. The combined comment starts "prepareAbsentContinuation snapshots..." but attaches to admitRetainedRecovery, and prepareAbsentContinuation has no doc. Rule: a Go doc comment begins with the name of the declaration it documents; enforce it with a package-level scan that fails when a function's doc starts with the name of another declaration in the same file. Prevalence: 1 new instance in this diff (BR-5 was the first in the family).
+```

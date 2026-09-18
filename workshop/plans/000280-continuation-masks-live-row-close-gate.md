@@ -143,6 +143,48 @@ rounds:
           family: refusal-names-every-exit
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-17T23:18:52-07:00"
+      agent: claude
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: Plan:83 now states the "bounded in time" claim is false; atlas:155-165 and menu.go:1258-1263 describe the per-phase sets as statements of which actions are offered, not time bounds, matching menuActionItems.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: All four non-guard checks wrap once where they return (RecoverThread:179, prepareAbsentContinuation:291 via admitRetainedRecovery, archiveContinuationVacant, validateContinuationWarm); unwrapping :291 in a scratch copy turns the row and the site scan red.
+          round: 4
+        - id: BR-11
+          disposition: addressed
+          note: Each prompt records its producer; the round-3 unconditional prune and a producer-blind prune each turn TestSwitchAgentOrientationPromptSurvivesContinuationScans red. A replacement-sequence gap in the same family is raised separately.
+          round: 4
+        - id: BR-12
+          disposition: addressed
+          note: One row per withContinuationExits call site (4), each driven, plus a productionCallsTo scan that the call sites equal the rows; the guard oracle matches the guard's own "continuation <id> is failed; " prefix and requires an unchanged revision.
+          round: 4
+        - id: BR-13
+          disposition: addressed
+          note: Both lists use AllPhases; restating the list in menu_action_sweep_test.go:88 turns TestPhaseListIsWrittenOnlyInAllPhases red.
+          round: 4
+        - id: BR-14
+          disposition: addressed
+          note: runcli.go:147 uses Exits("", tag), whose conditional dismiss wording TestExitsWithAnUnknownPhaseAreConditional pins; the call site itself is not pinned (acceptable for a message-only Minor).
+          round: 4
+      findings:
+        - id: BR-15
+          severity: Minor
+          title: A request replaced before the scan sees it vanish strands its orientation prompt (console_continuation.go:145-147)
+          detail: 'This is the 3rd finding in family in-memory-state-follows-record. When the scan sees a new request ID it replaces the watch without dropping the old request''s continuation-produced prompt; every later prune compares against the new producer, so Copy orientation prompt stays offered until a switch-agent launch or restart. Reproduced (A''s prompt, B seen, B complete, B vanished: prompt survives); base cleared it on any completion for the address. Window: A vanishes and B appears within one scan interval, or while a partial scan error disables the vanish loop. Rule: a view of a record fact lives inside, or is derived from, the object that tracks that fact''s identity, not pruned at an enumerated list of events (this family''s three findings are three missed events: dismissal, a scan with no request, replacement). Fix: keep the continuation''s prompt on continuationWatch, or reconcile continuation-produced entries against the current watch''s request ID in one place after every change to c.continuations. Add a replacement-sequence test.'
+          family: in-memory-state-follows-record
+          round: 4
+        - id: BR-16
+          severity: Minor
+          title: admitRetainedRecovery was inserted under prepareAbsentContinuation's doc comment (recovery_execute.go:224-230)
+          detail: 'This is the 2nd finding in family doc-comment-attachment. The combined comment starts "prepareAbsentContinuation snapshots..." but attaches to admitRetainedRecovery, and prepareAbsentContinuation has no doc. Rule: a Go doc comment begins with the name of the declaration it documents; enforce it with a package-level scan that fails when a function''s doc starts with the name of another declaration in the same file. Prevalence: 1 new instance in this diff (BR-5 was the first in the family).'
+          family: doc-comment-attachment
+          round: 4
+      blocked: false
 ---
 
 # Gate ledger — pair#280 (boundary-review)
@@ -203,11 +245,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Minor] `refusal-names-every-exit` pair continue --retry on a hosted thread names both of Failed's exits regardless of the request's phase (runcli.go:147)
   This is the 2nd finding in family refusal-names-every-exit. Rule: a refusal names exactly the exits valid for the request's actual phase, through checkpoint.Exits(phase, tag). A site that does not know the phase uses phase-neutral wording rather than assuming Failed. Here, dismiss is offered even when the hosted request may be pending or running, which CheckDismissible refuses.
 
+## Round 4 — 2026-09-17T23:18:52-07:00 (claude) — passed
+
+### Disposed
+
+- BR-3 — addressed — Plan:83 now states the "bounded in time" claim is false; atlas:155-165 and menu.go:1258-1263 describe the per-phase sets as statements of which actions are offered, not time bounds, matching menuActionItems.
+- BR-4 — addressed — All four non-guard checks wrap once where they return (RecoverThread:179, prepareAbsentContinuation:291 via admitRetainedRecovery, archiveContinuationVacant, validateContinuationWarm); unwrapping :291 in a scratch copy turns the row and the site scan red.
+- BR-11 — addressed — Each prompt records its producer; the round-3 unconditional prune and a producer-blind prune each turn TestSwitchAgentOrientationPromptSurvivesContinuationScans red. A replacement-sequence gap in the same family is raised separately.
+- BR-12 — addressed — One row per withContinuationExits call site (4), each driven, plus a productionCallsTo scan that the call sites equal the rows; the guard oracle matches the guard's own "continuation <id> is failed; " prefix and requires an unchanged revision.
+- BR-13 — addressed — Both lists use AllPhases; restating the list in menu_action_sweep_test.go:88 turns TestPhaseListIsWrittenOnlyInAllPhases red.
+- BR-14 — addressed — runcli.go:147 uses Exits("", tag), whose conditional dismiss wording TestExitsWithAnUnknownPhaseAreConditional pins; the call site itself is not pinned (acceptable for a message-only Minor).
+
+### Raised
+
+- **BR-15** [Minor] `in-memory-state-follows-record` A request replaced before the scan sees it vanish strands its orientation prompt (console_continuation.go:145-147)
+  This is the 3rd finding in family in-memory-state-follows-record. When the scan sees a new request ID it replaces the watch without dropping the old request's continuation-produced prompt; every later prune compares against the new producer, so Copy orientation prompt stays offered until a switch-agent launch or restart. Reproduced (A's prompt, B seen, B complete, B vanished: prompt survives); base cleared it on any completion for the address. Window: A vanishes and B appears within one scan interval, or while a partial scan error disables the vanish loop. Rule: a view of a record fact lives inside, or is derived from, the object that tracks that fact's identity, not pruned at an enumerated list of events (this family's three findings are three missed events: dismissal, a scan with no request, replacement). Fix: keep the continuation's prompt on continuationWatch, or reconcile continuation-produced entries against the current watch's request ID in one place after every change to c.continuations. Add a replacement-sequence test.
+- **BR-16** [Minor] `doc-comment-attachment` admitRetainedRecovery was inserted under prepareAbsentContinuation's doc comment (recovery_execute.go:224-230)
+  This is the 2nd finding in family doc-comment-attachment. The combined comment starts "prepareAbsentContinuation snapshots..." but attaches to admitRetainedRecovery, and prepareAbsentContinuation has no doc. Rule: a Go doc comment begins with the name of the declaration it documents; enforce it with a package-level scan that fails when a function's doc starts with the name of another declaration in the same file. Prevalence: 1 new instance in this diff (BR-5 was the first in the family).
+
 ## Open findings
 
-- **BR-3** [Important] `unbacked-existing-behavior-claim` The stated reason Pending/Running may keep displacing the state (bounded in time) does not hold without a watching owner
-- **BR-4** [Important] `refusal-names-every-exit` "Every refusal of a failed request names both exits" is false for recovery, archive and warm-reattach refusals
-- **BR-11** [Critical] `in-memory-state-follows-record` The continuation scan now deletes switch-agent's Copy orientation prompt within 500 ms (console_continuation.go:169)
-- **BR-12** [Important] `doc-claims-match-test-reach` The claim that each exits-wrapped refusal site is driven is false: 3 of 7 sites are reached
-- **BR-13** [Minor] `vocabulary-enumerated-by-test` Continuation phases are still written out by hand in menu_action_sweep_test.go:88 and checkpoint/recovery_request_test.go:61
-- **BR-14** [Minor] `refusal-names-every-exit` pair continue --retry on a hosted thread names both of Failed's exits regardless of the request's phase (runcli.go:147)
+- **BR-15** [Minor] `in-memory-state-follows-record` A request replaced before the scan sees it vanish strands its orientation prompt (console_continuation.go:145-147)
+- **BR-16** [Minor] `doc-comment-attachment` admitRetainedRecovery was inserted under prepareAbsentContinuation's doc comment (recovery_execute.go:224-230)
