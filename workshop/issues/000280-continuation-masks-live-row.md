@@ -1,11 +1,12 @@
 ---
 id: 000280
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-17
 updated: 2026-09-17
 estimate_hours:
+started: 2026-09-17T21:46:16-07:00
 ---
 
 # A retained continuation failure masks a live thread's state in the switcher
