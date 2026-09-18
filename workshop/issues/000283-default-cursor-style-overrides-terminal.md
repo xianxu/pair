@@ -5,7 +5,7 @@ deps: [pair#255]
 github_issue:
 created: 2026-09-17
 updated: 2026-09-18
-estimate_hours: 0.98
+estimate_hours: 1.06
 started: 2026-09-18T07:14:08-07:00
 flow: {kind: full, provenance: inferred}
 ---
@@ -59,17 +59,18 @@ is invisible to it.
 ```estimate
 model: estimate-logic-v3.1
 familiarity: 1.0
-item: smaller-go-module   design=0.3 impl=0.16
-item: smaller-go-module   design=0.1 impl=0.12
-item: atlas-docs          design=0.05 impl=0.04
+item: smaller-go-module   design=0.3 impl=0.14
+item: smaller-go-module   design=0.1 impl=0.14
+item: atlas-docs          design=0.05 impl=0.05
 item: milestone-review    design=0.0 impl=0.14
-design-buffer: 0.15
-total: 0.98
+design-buffer: 0.30
+total: 1.06
 ```
 
-- The first `smaller-go-module` covers the vt default, the endpoint mapping, `Frame.Validate` and `cursorEpilogue`. Its design is at the top of the range with no ×0.2 spec discount, because the vt-vs-endpoint decision was made inside this claim window.
+- The first `smaller-go-module` covers the vt default, the endpoint mapping, `Frame.Validate` and `cursorEpilogue`. Its design is at the top of the range with no ×0.2 spec discount, because the vt-vs-endpoint decision was made inside this claim window. So v2.1's full +30% buffer applies, not the halved one.
 - The second covers the endpoint → parent acceptance test and the qualifier literal renumbering.
-- `impl=` values are the v2 table midpoints ×0.4 (v3.1). Familiarity is 1.0: #262 M2 worked in this same renderer and endpoint.
+- `impl=` values are v2 table midpoints ×0.4 (v3.1): 0.35→0.14 and 0.125→0.05. Familiarity is 1.0: #262 M2 worked in this same renderer and endpoint.
+- The base case is one close-review round. The Ghostty smoke has no primitive in the vocabulary, so it is not itemized.
 
 *Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
 
@@ -92,3 +93,10 @@ can't see RIS or a `0` sent over a blinking block.
 
 Filed from #262 M2 (see its `## Log`, "M2 input: caret blink, and a DECSCUSR
 fidelity finding").
+
+## Revisions
+
+- 2026-09-18: The estimate went from 0.98 to 1.06 after change-code's estimate-quality notes.
+  - The impl values now follow the stated midpoint ×0.4 rule; the earlier split-by-size numbers didn't match that note.
+  - The design buffer went from 0.15 to 0.30, per v2.1 Step 6, because the ×0.2 spec discount wasn't applied.
+  - The plan itself is unchanged.
