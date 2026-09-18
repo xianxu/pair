@@ -117,20 +117,23 @@ predicate:
 
 | Question | Authority | Who asks | Needs evidence? |
 |---|---|---|---|
-| Is this thread actionable right now? | the **classification** | `DecideResume`, `Couch.ArchiveThread`, the menu | yes |
+| Is this thread actionable right now? | the **classification** | the action guards, through `SwitchableState` / `ArchivableState` / `ResumableState` — enumerated with their consumers in the atlas, and held against the menu's separately-stated offer by `TestActionOfferedImpliesPermitted` | yes |
 | Is this record structurally safe to mutate? | the **record alone** | `ThreadStore` inside `withLock` | no — it has none |
 
-`occupiedIncarnation` (`thread.go:377`) is today one rule serving both, shared by
-resume and archive and re-read by the store. Its referent is the launcher, which
-dies with couch — so post-M1 it answers the first question wrongly and is the
-only thing answering the second. **It is deleted**, and the two questions get
-separate guards (Tasks 8 and 8a).
+`occupiedIncarnation` was one rule serving both, shared by resume and archive and
+re-read by the store. Its referent is the launcher, which dies with couch — so
+post-M1 it answered the first question wrongly and was the only thing answering
+the second. **It is gone** (M3): the first question went to the predicates above,
+the second to `archivableRecord`'s record-only rule, pinned by
+`TestStoreArchiveGuardAsksOnlyWhatARecordProves`. What survives under the name
+`hasOccupiedIncarnation` answers a third question — whether couch itself is
+mid-operation — for relaunch and switch-agent.
 
 This is also why `ArchivableState(state, reason)` cannot simply be dropped into
-`threadstore.go:1106`: that call site is inside `s.withLock` on a record decoded
+the store's archive: that call site is inside `s.withLock` on a record decoded
 from disk, with no evidence, no session observation and no `Couch`. Handing it a
-caller-computed classification would destroy the independence the comment at
-`:1093-1095` claims ("second line of defence"). The store keeps a **record-only
+caller-computed classification would make the store's refusal a copy of the
+caller's rather than a second question. The store keeps a **record-only
 integrity** guard instead — a narrower question it can actually answer.
 
 ### The resource/ownership map
@@ -218,21 +221,27 @@ view is either machine-checked or it is prose.
     `SessionHeldElsewhere`. Under optimistic inventory (below) the refresh can
     never produce it, and the only consumer that needs attached-versus-detached
     is the **action** path, which re-observes independently and is already
-    governed by `RequireAttachState` (`launcher/session.go:24`). A value no
-    producer can emit is a state that exists only to be handled.
-  - **`SessionUnresolved` must never collapse into `SessionAbsent`.**
-    `DetachedSessions` (`artifactcollision.go:280-363`) fails closed per scope
-    with `continue`, so today "no binding", "scope unreadable" and "session
-    exited" all read as absence → `session-gone`, which is archive-eligible. With
-    recoverability keyed to sessions, that collapse becomes destructive.
+    governed by `RequireAttachState`. A value no producer can emit is a state
+    that exists only to be handled.
+  - **`SessionUnresolved` must never collapse into `SessionAbsent`.** Before
+    #256, `DetachedSessions` failed closed per scope with `continue`, so "no
+    binding", "scope unreadable" and "session exited" all read as absence →
+    `session-gone`, which is archive-eligible. With recoverability keyed to
+    sessions that collapse is destructive. Pinned by
+    `TestAFailedSessionQueryLeavesTheRowUnknownRatherThanGone`.
 
-- **ThreadEvidence** — modified: gains `Session`. **`Live` keeps its current
-  union** — the console's pty children *plus* `ObserveRecordedProcesses`
-  (`actionableinventory.go:413-437`) — and becomes **positive-only**.
-  - An earlier draft narrowed it to couch's own children. That strands the CLI:
-    `ThreadInventoryContext` passes `nil` observations
-    (`threadinventory.go:97-100`) precisely so "the CLI and the console read the
-    same proof", so the union is `couch --list`'s *only* liveness evidence.
+- **ThreadEvidence** — modified: gains `Session` (M1), `StartOwner` (M2) and
+  `Unproven` (M3). **`Live` keeps its union** — the console's pty children *plus*
+  `ObserveRecordedProcesses` — and becomes **positive-only** (pinned by
+  `TestAbsentLiveEvidenceProvesNothing`). `Unproven` is its negative side: a
+  recorded process the OS would not answer about, which fails the classifier
+  closed (pinned by `TestAnUnprovableRecordedProcessIsNotConfirmedAbsence`). That
+  every field is exercised by the shape corpus is
+  `TestEveryEvidenceFieldIsExercisedByTheCorpus`.
+  - An earlier draft narrowed `Live` to couch's own children. That strands the
+    CLI: `ThreadInventoryContext` passes `nil` observations precisely so "the CLI
+    and the console read the same proof", so the union is `couch --list`'s *only*
+    liveness evidence.
     Narrowing it would make every running thread read `detached` there — #181's
     "one store, two stories", reintroduced.
   - The union was never the bug. For a thread couch hosts, the launcher **is**
@@ -241,8 +250,10 @@ view is either machine-checked or it is prose.
     absence simply falls through to the session branch.
 
 - **ArchivableState** — pure predicate over `(ActionableThreadState,
-  ThreadReason)`, consumed by both the menu and the store so the offer and the
-  permission cannot disagree.
+  ThreadReason)`. Only the GUARD consumes it; the menu states the offer
+  separately on purpose, because filtering the offer through the guard makes
+  offered-implies-permitted true by construction. `TestActionOfferedImpliesPermitted`
+  compares the two, and is non-vacuous.
 
 - **`startClaimed` (M1), then `startInFlight` again (M2).** An earlier draft said
   a start in flight is in-memory knowledge and "ephemeral state stays ephemeral".
@@ -277,47 +288,39 @@ An earlier draft named `observeSessions`, which the code never shipped — the
 resolver is an interface plus a method on the existing checker, because that is
 where the index read already lived.
 
-- **ObserveRecordedProcesses** — modified to preserve `Unknown` rather than
-  collapsing it into the `Dead` branch's silent `continue`
-  (`actionableinventory.go:582`; `procops.go:22` says *"prune only on Dead.
-  Unknown must fail CLOSED"*).
-  - **Its consumers, enumerated — and what each receives after the change**
-    (the rule the gate named: never change an evidence producer without this
-    list). Its output is unioned into `Live` at `:436`, and `Live` is
-    classification row 4 — so it **remains** a classification input, contrary to
-    an earlier draft of this bullet.
-
-    | Consumer | After the change |
-    |---|---|
-    | `Live` (→ `ClassifyThread` row 4) | **only confirmed-`Live`** observations enter; `Unknown` never does |
-    | `DecideRecovery` (`in.Helper`) | receives `Unknown` distinctly from `Dead` |
-    | `Couch.ArchiveThread` | receives `Unknown` distinctly from `Dead`; must fail closed |
-
+- **ObserveRecordedProcesses** — modified (M3) to return the three-valued
+  `RecordedProcessObservation` rather than dropping `Unknown` and identity-read
+  errors with a silent `continue` (`procops.go`'s own rule: *"prune only on Dead.
+  Unknown must fail CLOSED"*). An earlier draft of this bullet enumerated its
+  consumers as `DecideRecovery` and archive; that was false — M3's opening
+  revision re-derived them, and its only consumer is the evidence gather, which
+  routes `Live` into `ThreadEvidence.Live` and `Unknown` into
+  `ThreadEvidence.Unproven`. The enumeration is not restated here: the tests are
+  `TestAnUnprovableRecordedProcessIsNotConfirmedAbsence` and
+  `TestEveryEvidenceFieldIsExercisedByTheCorpus`.
   - **Why `Unknown` must not enter `Live`:** it would classify the thread `live`,
-    which hides it from resume *and* from recovery — strictly worse than the
-    `stale` it replaces. The demotion that matters is not "no longer a
-    classification input" (it is one); it is that **absence** of a positive
-    observation no longer produces `stale-incarnation`.
+    which hides it from resume *and* from recovery. It enters `Unproven` instead,
+    and the row reads `unknown` — the one reason archive declines.
 
 - **`SessionPresence`** — **optimistic inventory, strict action** (operator
   decision, 2026-09-16). The refresh asks one host-wide `list-sessions` and never
   `list-clients`.
   - **Why it is safe:** the reattach path already re-observes with attach state
-    before committing (`resume.go:406-418`), so the expensive question is asked
-    for the one thread the operator pressed Enter on. Cost is proportional to
-    what you **do**, not what you **have**.
+    before committing, so the expensive question is asked for the one thread the
+    operator pressed Enter on. Cost is proportional to what you **do**, not what
+    you **have**. The refresh's one-`list-sessions`, zero-`list-clients` budget is
+    `TestSessionPresenceCountsNoClients`.
   - **ARCH-CONSTRAINTS:** `list-clients` costs ~250 ms per live session
     (measured, #228); ~6 live couch-tagged sessions on the operator's host, so
     always-asking would have added ~1.5 s to a startup #218 already exists to
     investigate. **#191 is a backstop, not a dependency.**
-  - **The cost is per-refresh, not only per-startup.** `gatherThreadEvidence`
-    today bounds whether the zellij snapshot runs at all
-    (`actionableinventory.go:441-447` — *"a couch with nothing detachable pays
-    nothing"*); Task 1 gathers session evidence for every record, so **every
-    refresh** pays one `list-sessions`. That is off the keystroke path — the
-    refresh runs in a worker goroutine and is coalesced by generation
-    (`couchtty/console_menu.go:83-113`) — so it costs latency nowhere the
-    operator waits. Budget both figures and record them in `## Log`: the startup
+  - **The cost is per-refresh, not only per-startup.** Before #256 the gather
+    skipped the zellij snapshot entirely when nothing was detachable; Task 1
+    gathers session evidence for every record, so **every refresh** pays one
+    `list-sessions`. That is off the keystroke path — the refresh runs in a
+    worker goroutine and is coalesced by generation — so it costs latency
+    nowhere the operator waits. The warm side of the ledger read is bounded by
+    `TestWarmRowsAskNoLedgerQuestion`; the cold side is not (BR-41, recorded). Budget both figures and record them in `## Log`: the startup
     evidence round, and one steady-state refresh, on the operator's store
     (7 records, 4 scopes post-cleanup).
   - **Accepted tradeoff:** a session the operator manually attached to reads
@@ -408,8 +411,7 @@ What this task commits to, which is stable:
 `record.Incarnations` liveness fields and `record.Park` appear **nowhere** in
 `ClassifyThread`. The one exception is `startClaimed`, which reads
 `Incarnation.Start` — couch's record of its own in-flight operation, not a claim
-about an external process. Rows 7–9 read only
-resume authority, which is genuinely durable.
+about an external process.
 
 - [x] **Step 1: Write the two failing tests — the operator's actual rows**
 
@@ -1024,7 +1026,7 @@ pure compile-time change with no interface to update.
   before the thing it proves will report every crash as a lost thread*; and
   *when a clean shutdown and a crash leave identical external state, the record
   of the shutdown must not decide recoverability*.
-- [ ] **Step 3:** Commit, then `sdlc close --issue 256 --verified '<evidence>'`.
+- [x] **Step 3:** Commit, then `sdlc close --issue 256 --verified '<evidence>'`.
 
 ---
 
@@ -1067,6 +1069,30 @@ corrective. #272's corresponding Done-when transfers there.
 ---
 
 ## Revisions
+
+### 2026-09-17 — issue close, round 12 (FIX-THEN-SHIP, not finalized)
+
+The whole-issue review blocked on three Important findings, two of them carried
+since M2's rounds (BR-34, BR-38) and one new (BR-42). All three were TRUE at HEAD,
+not stale ledger entries, and each is the next occurrence of a family this issue
+has now met six to eight times.
+
+| Finding | Rule landed | Mechanised as |
+|---|---|---|
+| BR-34 / BR-38 — four atlas paragraphs still restated two retired referents (DecideResume's occupancy refusal; the park receipt as authority) and M1's retired live rule | The M3 paragraph-window vocabulary sweep, run over EVERY home at close for all three referents rather than per milestone for the one just touched | The sweep returned exactly the four sites the ledger named and nothing more (the other hits were current uses, each read). All four rewritten; five phrases added to `issue256RetiredClaims`. |
+| BR-42 — Core-concepts prose restated the model: a false consumer claim (ArchivableState "consumed by both the menu and the store"), a consumer TABLE M3's opening revision had already disproved, branch-row indices into a deleted table, stale coordinates | A prose bullet naming consumers, branch positions or coordinates either cites the test that enumerates the fact, or goes | `TestIssue256CoreConceptsProseCitesTestsNotCoordinates`: no `file.go:NNN`, no `` `:NNN` ``, no "row N" in the section, and every cited `Test…` must exist (so a citation cannot rot into the same restatement). It found **12**, the reviewer 7; mutation-checked by renaming a cited test. |
+
+Minors: **BR-20** fixed (the characterization test's doc named only #248 while
+six shapes carry `newlyActionable`; its failure message now prints both flags).
+**BR-41** fixed as far as it can be: the cold-side ledger read cannot be constant,
+but `TestColdLedgerReadsAreOnePerColdCandidate` pins it at exactly one read per
+cold candidate, derived from the records. Recorded with owners, not fixed:
+**BR-43** (ParkHistory tombstones have no removal path) belongs to **#275**, which
+removes the durable park transaction; **BR-21** (re-adoption's AbandonPark
+bypasses the per-thread park worker) and **BR-29** (a host-wide
+`SessionPresence` failure renders every row `checking…` with no cause carried)
+are real and neither blocks; both are named in the issue Log so they are not
+inherited silently.
 
 ### 2026-09-17 — M3 boundary review, round 1 (FIX-THEN-SHIP)
 

@@ -611,6 +611,98 @@ rounds:
       boundary: M3
       blocked: false
       protocol_error: no valid findings block
+    - "n": 12
+      timestamp: "2026-09-17T18:13:27-07:00"
+      agent: claude
+      dispose:
+        - id: BR-19
+          disposition: addressed
+          note: atlas/couch.md:1342 now heads "One class, four sites"; the issue Log at :477 says four.
+          round: 12
+        - id: BR-20
+          disposition: not-addressed
+          note: 'classify_test.go:374-383 unchanged: doc still says "except #248", six shapes now set newlyActionable, failure message still prints wasActionableBefore alone.'
+          round: 12
+        - id: BR-21
+          disposition: not-addressed
+          note: lifecycledebris.go:139 still calls Threads.AbandonPark directly, now from three callers (resume.go:517, switchagent.go:322, detach.go:304) rather than one.
+          round: 12
+        - id: BR-29
+          disposition: not-addressed
+          note: actionableinventory.go:745 still drops presenceErr with no trace and no carried field.
+          round: 12
+        - id: BR-30
+          disposition: addressed
+          note: The branch table is gone (plan:395-402 now points at ClassifyThread + everyThreadShape); the orphaned clause "Rows 7-9 read only resume authority" at plan:411 survives and is folded into the new plan-code-divergence finding.
+          round: 12
+        - id: BR-31
+          disposition: addressed
+          note: sessionevidence_test.go:369-478 widens to park{none,matching,foreign} x count{0,1,2} x liveness{dead,unknown,alive} x 6 shapes with CreateThread's refusal as the skip oracle; verified passing.
+          round: 12
+        - id: BR-32
+          disposition: addressed
+          note: SessionObservation carries no Name at HEAD (sessionevidence.go:45-54), deleted with the delete-or-justify reason written in place.
+          round: 12
+        - id: BR-34
+          disposition: not-addressed
+          note: Three of four sites fixed (ops.go, atlas:498, atlas:33-38 parked half); its fourth named site, the "occupied-incarnation refusal is unchanged" passage, survives at atlas/couch.md:887 and is carried in BR-38's list.
+          round: 12
+        - id: BR-38
+          disposition: not-addressed
+          note: 'The checked-in retired-referent list landed and passes, but four named sites survive at HEAD: atlas/couch.md:32-33 (the live half), :603, :887, :1733-1734.'
+          round: 12
+        - id: BR-39
+          disposition: addressed
+          note: warm_failure_test.go:168-177 now asserts `else if row.State != ThreadParked` with the premise-determined verdict; the pre-M2 disjunction arm is gone.
+          round: 12
+        - id: BR-40
+          disposition: addressed
+          note: plan_contract_256_test.go:190-218 adds the tree->rows direction; its narrowing to issue256OwnedFiles is written down with the reason, so PreparedAgentSwitch.state remains unlisted by design rather than by oversight.
+          round: 12
+        - id: BR-41
+          disposition: not-addressed
+          note: Round 11's I4 bounded archive's cost; the cold-side refresh ledger read still has no counted invariant, and the issue Log still declares it an open gap in prose.
+          round: 12
+      findings:
+        - id: BR-42
+          severity: Important
+          title: The plan's Core-concepts PROSE still restates the model, and one bullet names two consumers ArchivableState does not have
+          detail: |-
+            This is the 6th finding in family plan-code-divergence, so the rule is the
+            deliverable, not the site. TestIssue256PlanTablesMatchTheTree machine-checks the
+            table ROWS; the divergence moved into the bullets beneath them, which nothing
+            checks. Measured, seven instances in one section. plan:243-245 says ArchivableState
+            is "consumed by both the menu and the store" -- the only production consumer is
+            detach.go:271, the store never calls it, and menu.go:1267-1275 states the rule a
+            second time ON PURPOSE, which the plan's own M3-delivered row records as "Only the
+            GUARD consumes". plan:411 ("Rows 7-9") and plan:286-287 ("Live is classification row
+            4") index a branch table the plan deleted at :395-402. Four coordinates are stale:
+            :231 and :286 cite actionableinventory.go:413-437 and :436 for ObserveRecordedProcesses
+            (actually :883), :282 cites :582 for the Unknown collapse (actually :715), :224 cites
+            artifactcollision.go:280-363 for DetachedSessions (actually :402). The rule: a prose
+            bullet naming consumers, branch positions or file:line coordinates is a
+            hand-maintained restatement of the model -- a deferred consumer (ARCH-PURPOSE) -- so
+            it either cites the test that enumerates the fact, the way the ThreadParked bullet at
+            :257-262 correctly cites TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive,
+            or it is deleted.
+          family: plan-code-divergence
+          round: 12
+        - id: BR-43
+          severity: Minor
+          title: Archive now abandons orphaned parks as a matter of course, so ParkHistory gains a permanent tombstone per archive with no removal path
+          detail: |-
+            ARCH-FUNERAL. clearLifecycleDebris (lifecycledebris.go:138-144) is reached from
+            resume, switch-agent and archive, and each orphaned park it clears appends a
+            tombstoned ParkTransaction at threadstore.go:658. Nothing caps or sweeps
+            ParkHistory; validateLifecycle walks every entry on every write
+            (threadrecord/lifecycle.go:57) and DecideResume scans it on every cold refusal
+            (resume.go:155). Growth is per-thread and operator-paced, so this is a note rather
+            than a cliff -- and resume.go's own comment says #275 dissolves the durable park
+            transaction entirely, which is where the bound belongs. Recorded so the removal
+            path is named rather than inherited.
+          family: unbounded-append-without-removal
+          round: 12
+      blocked: true
 ---
 
 # Gate ledger — pair#256 (boundary-review)
@@ -928,17 +1020,61 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 12 — 2026-09-17T18:13:27-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-19 — addressed — atlas/couch.md:1342 now heads "One class, four sites"; the issue Log at :477 says four.
+- BR-20 — not-addressed — classify_test.go:374-383 unchanged: doc still says "except #248", six shapes now set newlyActionable, failure message still prints wasActionableBefore alone.
+- BR-21 — not-addressed — lifecycledebris.go:139 still calls Threads.AbandonPark directly, now from three callers (resume.go:517, switchagent.go:322, detach.go:304) rather than one.
+- BR-29 — not-addressed — actionableinventory.go:745 still drops presenceErr with no trace and no carried field.
+- BR-30 — addressed — The branch table is gone (plan:395-402 now points at ClassifyThread + everyThreadShape); the orphaned clause "Rows 7-9 read only resume authority" at plan:411 survives and is folded into the new plan-code-divergence finding.
+- BR-31 — addressed — sessionevidence_test.go:369-478 widens to park{none,matching,foreign} x count{0,1,2} x liveness{dead,unknown,alive} x 6 shapes with CreateThread's refusal as the skip oracle; verified passing.
+- BR-32 — addressed — SessionObservation carries no Name at HEAD (sessionevidence.go:45-54), deleted with the delete-or-justify reason written in place.
+- BR-34 — not-addressed — Three of four sites fixed (ops.go, atlas:498, atlas:33-38 parked half); its fourth named site, the "occupied-incarnation refusal is unchanged" passage, survives at atlas/couch.md:887 and is carried in BR-38's list.
+- BR-38 — not-addressed — The checked-in retired-referent list landed and passes, but four named sites survive at HEAD: atlas/couch.md:32-33 (the live half), :603, :887, :1733-1734.
+- BR-39 — addressed — warm_failure_test.go:168-177 now asserts `else if row.State != ThreadParked` with the premise-determined verdict; the pre-M2 disjunction arm is gone.
+- BR-40 — addressed — plan_contract_256_test.go:190-218 adds the tree->rows direction; its narrowing to issue256OwnedFiles is written down with the reason, so PreparedAgentSwitch.state remains unlisted by design rather than by oversight.
+- BR-41 — not-addressed — Round 11's I4 bounded archive's cost; the cold-side refresh ledger read still has no counted invariant, and the issue Log still declares it an open gap in prose.
+
+### Raised
+
+- **BR-42** [Important] `plan-code-divergence` The plan's Core-concepts PROSE still restates the model, and one bullet names two consumers ArchivableState does not have
+  This is the 6th finding in family plan-code-divergence, so the rule is the
+  deliverable, not the site. TestIssue256PlanTablesMatchTheTree machine-checks the
+  table ROWS; the divergence moved into the bullets beneath them, which nothing
+  checks. Measured, seven instances in one section. plan:243-245 says ArchivableState
+  is "consumed by both the menu and the store" -- the only production consumer is
+  detach.go:271, the store never calls it, and menu.go:1267-1275 states the rule a
+  second time ON PURPOSE, which the plan's own M3-delivered row records as "Only the
+  GUARD consumes". plan:411 ("Rows 7-9") and plan:286-287 ("Live is classification row
+  4") index a branch table the plan deleted at :395-402. Four coordinates are stale:
+  :231 and :286 cite actionableinventory.go:413-437 and :436 for ObserveRecordedProcesses
+  (actually :883), :282 cites :582 for the Unknown collapse (actually :715), :224 cites
+  artifactcollision.go:280-363 for DetachedSessions (actually :402). The rule: a prose
+  bullet naming consumers, branch positions or file:line coordinates is a
+  hand-maintained restatement of the model -- a deferred consumer (ARCH-PURPOSE) -- so
+  it either cites the test that enumerates the fact, the way the ThreadParked bullet at
+  :257-262 correctly cites TestEveryParkedProducerIsAcceptedByResumeSwitchAndArchive,
+  or it is deleted.
+- **BR-43** [Minor] `unbounded-append-without-removal` Archive now abandons orphaned parks as a matter of course, so ParkHistory gains a permanent tombstone per archive with no removal path
+  ARCH-FUNERAL. clearLifecycleDebris (lifecycledebris.go:138-144) is reached from
+  resume, switch-agent and archive, and each orphaned park it clears appends a
+  tombstoned ParkTransaction at threadstore.go:658. Nothing caps or sweeps
+  ParkHistory; validateLifecycle walks every entry on every write
+  (threadrecord/lifecycle.go:57) and DecideResume scans it on every cold refusal
+  (resume.go:155). Growth is per-thread and operator-paced, so this is a note rather
+  than a cliff -- and resume.go's own comment says #275 dissolves the durable park
+  transaction entirely, which is where the bound belongs. Recorded so the removal
+  path is named rather than inherited.
+
 ## Open findings
 
-- **BR-19** [Important] `atlas-contradicts-code` The atlas records "One class, three sites" while the code and the plan record four
 - **BR-20** [Minor] `test-name-contradicts-assertion` TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted now admits four deliberately new shapes
 - **BR-21** [Minor] `transition-bypasses-its-owner` The re-adoption's AbandonPark bypasses the per-thread park worker every other abandon goes through
 - **BR-29** [Minor] `degradation-without-diagnostic` SessionPresence's error is discarded, so a host-wide failure renders every row checking… with no cause
-- **BR-30** [Minor] `plan-code-divergence` Round 4's own table edit left the sentence below it false, and two Core-concepts statements still direct the reversed design
-- **BR-31** [Important] `fail-closed-guard-untested` The totality table's dimensions are hand-written, so the totality claim is unproven for shapes the store accepts
-- **BR-32** [Minor] `vocabulary-entry-without-producer` SessionObservation.Name is written in four places and read nowhere
 - **BR-34** [Important] `stale-wording-after-referent-change` I2's rule was written down but the git grep it prescribes was never run -- four sites still state the retired `parked` referent
 - **BR-38** [Important] `stale-wording-after-referent-change` BR-34 not addressed: only one of the two retired referents was grepped, and the ThreadParked declaration itself now states the wrong producer count
-- **BR-39** [Minor] `fixture-retuned-to-preserve-old-verdict` warm_failure_test's row assertion was widened to keep admitting the pre-M2 verdict, so its only reachable route cannot detect a revert
-- **BR-40** [Minor] `plan-code-divergence` The derived-view check runs rows-to-tree only, so the "production symbols with no row" half of round 3's C2 is still unchecked -- and this window added one
 - **BR-41** [Minor] `envelope-declared-not-enforced` The cold-side ledger read now scales with store size on every refresh and no test bounds it
+- **BR-42** [Important] `plan-code-divergence` The plan's Core-concepts PROSE still restates the model, and one bullet names two consumers ArchivableState does not have
+- **BR-43** [Minor] `unbounded-append-without-removal` Archive now abandons orphaned parks as a matter of course, so ParkHistory gains a permanent tombstone per archive with no removal path

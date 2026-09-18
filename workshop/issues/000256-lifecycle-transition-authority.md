@@ -130,6 +130,33 @@ no thread record — carries #272's corresponding Done-when).
 
 ## Log
 
+### 2026-09-17 — issue close, round 12: three blocking findings, all true
+
+The whole-issue review returned FIX-THEN-SHIP and the gate refused to finalize on
+three Important findings. Two were carried from M2's rounds, and none was a
+stale ledger entry: each was still true at HEAD. The plan's `## Revisions` has
+the table; the short form is that the atlas still restated two referents this
+issue retired, and the plan's Core-concepts prose still restated the model its
+own tables had stopped restating. Both are now checks, not prose: the retired
+phrases are data in `issue256RetiredClaims`, and
+`TestIssue256CoreConceptsProseCitesTestsNotCoordinates` refuses coordinates and
+branch indices in that section and requires every cited test to exist. It found
+12 instances where the reviewer listed 7.
+
+**Known and not fixed here, stated so they are not inherited silently:**
+
+- **BR-21** — re-adoption's `AbandonPark` (in `clearLifecycleDebris`) bypasses
+  the per-thread park worker that every other abandon goes through; it now has
+  three callers (resume, switch-agent, archive). Nothing races it today because
+  each caller holds the thread's action slot, but the worker is the documented
+  owner.
+- **BR-29** — a host-wide `SessionPresence` failure renders every row `checking…`
+  with the cause discarded. Fail-closed is right; the missing part is a
+  diagnostic an operator could act on.
+- **BR-43** — each orphaned park archive clears appends a permanent tombstone to
+  `ParkHistory`, with no removal path. Belongs to **#275**, which removes the
+  durable park transaction.
+
 ### 2026-09-17 — M3: the guards read one authority, and two rows could never leave
 - 2026-09-17: closed M3 — M3: three action guards read ONE authority. ArchivableState and ResumableState join SwitchableState as pure predicates over the classification, consumed by Couch.ArchiveThread (via classifyForAction) and SelectResumableRoot; couchtty TestActionOfferedImpliesPermitted compares them against the switcher offer over AllThreadStates x AllThreadReasons, and is non-vacuous (mutation-checked by deleting resume from both menu branches). The menu deliberately does NOT consume the predicates -- M2 round 4 established that filtering the offer through the guard makes offered-implies-permitted true by construction. Two unplanned defects closed, both mutation-checked: archive could Quiesce a thread couch was HOSTING, because since M1 a hosted row can carry no incarnation and archivableRecord asked only the record; and a record whose incarnation is unknown could never be archived at all, fixed by a new RetireUnprovenIncarnation rather than by widening RetireIncarnation, whose refusal is correct for detach. Unknown now survives the projection: ObserveRecordedProcesses returns three-valued RecordedProcessObservation, ThreadEvidence.Unproven fails the classifier closed ahead of every durable refusal, and a Dead probe or a recycled pid stay CONFIRMED so #272 does not regress. The arbitrary-mutation door is unexported and guarded by RECEIVER rather than by file, because all three leaking callers were inside package couchcore; three named transitions replace them, and two acceptance fixtures now drive the real claim/helper-recorded/registered sequence instead of assigning Incarnations. Task 10 Step 0 was MEASURED rather than reasoned about: zellij delete-session --force reaps a pane by SIGHUP, so a pane that inherited SIG_IGN survives and is reparented to init (two runs, same fixture, one variable) -- which also proves #274 standing hypothesis, now recorded in its Log -- so archive confirmation names the running agent and says it MAY survive. Cost bounded by a counted invariant: 1 host-wide list-sessions, 0 list-clients, 1 ledger read per Couch.ArchiveThread. VERIFICATION: make -k test outside the sandbox with the retention-owner env scrub and a non-symlinked TMPDIR -- 210 packages ok, exit 0, zero failures; couchcore, couchtty and couchcmd re-run against the settled tree afterwards because edits overlapped that run. Atlas gained four sections; lessons five entries. Two pre-existing flakes measured so neither is read as mine: couchtty TestConsoleRunRootEscapeClearsFilterThenReplaysActor fails 3/20 on the unchanged tree and 2/20 on this one; couchcmd TestRecoveryMenuReachesTerminalAfterActualHelperDeath/checkpoint is 0/20 idle and 1/25 under load on this tree AND 1/25 under the same load at 6e3f4e34 (the M2 close) in a throwaway worktree, same subtest and same message -- it uses a fixture M3 rewrote, so the comparison is what rules the rewrite out.; review verdict: FIX-THEN-SHIP
   - *Correction, same boundary:* "0 list-clients per Couch.ArchiveThread" above is

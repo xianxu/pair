@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 )
 
@@ -373,13 +374,23 @@ func TestClassifyThreadIsTotalOverEveryRecordShape(t *testing.T) {
 }
 
 // The characterization half: the accepting branches must be exactly what the
-// pre-#181 projector accepted, except #248 intentionally admits unbound warm sessions.
+// pre-#181 projector accepted, PLUS the shapes a later issue admitted on purpose.
+//
+// Those exceptions are not listed here, because the list is what drifted: this
+// comment used to name only #248, while six shapes had come to carry
+// `newlyActionable` (#248's unbound warm sessions, then #256's detached and
+// ledger-parked producers). The data is the declaration -- each shape states its
+// own flag, and the reason next to it -- and this test holds the classifier to it.
 func TestClassifyThreadAcceptsExactlyWhatTheOldProjectorAccepted(t *testing.T) {
 	for _, tc := range everyThreadShape(t) {
 		state, _ := ClassifyThread(tc.record, tc.evidence)
 		actionable := state == ThreadLive || state == ThreadParked || state == ThreadDetached
-		if actionable != (tc.wasActionableBefore || tc.newlyActionable) {
-			t.Fatalf("%s: actionable=%v, previously %v", tc.name, actionable, tc.wasActionableBefore)
+		if want := tc.wasActionableBefore || tc.newlyActionable; actionable != want {
+			// Both flags, not one: a failure that printed only the pre-#181
+			// verdict read as a regression whenever the row was one a later
+			// issue had admitted deliberately.
+			t.Fatalf("%s: actionable=%v, want %v (pre-#181 projector: %v; admitted since: %v)",
+				tc.name, actionable, want, tc.wasActionableBefore, tc.newlyActionable)
 		}
 	}
 }
@@ -427,6 +438,44 @@ func TestEveryReasonIsProducedBySomeShape(t *testing.T) {
 		if !produced[reason] {
 			t.Errorf("nothing produces reason %q", reason)
 		}
+	}
+}
+
+// BR-41 (#256 close): the refresh's COLD-side ledger read scales with the store,
+// and until now nothing bounded it -- M2 recorded it as a known gap in prose.
+// It cannot be constant: a record with no surviving session needs its ledger
+// asked, or a parked thread reads `session-gone`. What CAN be pinned is that the
+// growth is exactly linear -- one read per resume-shaped record without a present
+// session, none for anything else -- so a second read per record, or a read for a
+// row that cannot use the answer, fails here rather than slowing every refresh.
+func TestColdLedgerReadsAreOnePerColdCandidate(t *testing.T) {
+	couch, addresses := couchWithOneRecordOfEveryShape(t)
+	artifacts, ok := couch.Artifacts.(*FakeThreadArtifactCollisionChecker)
+	if !ok {
+		t.Fatalf("fixture artifacts are %T", couch.Artifacts)
+	}
+	snapshot, err := couch.Threads.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The candidates, derived from the records rather than counted by hand: a
+	// saved, launchable profile is what makes a ledger answer usable. No record in
+	// this fixture has a surviving session, so each such record is cold.
+	cold := 0
+	for _, record := range snapshot.Records {
+		if p := record.LatestLaunchProfile; p != nil && launcher.IsSupportedAgent(p.Agent) && p.Argv != nil {
+			cold++
+		}
+	}
+	if cold == 0 || cold == len(addresses) {
+		t.Fatalf("fixture has %d cold candidates of %d records; it no longer separates the two populations", cold, len(addresses))
+	}
+	before := artifacts.BindingResolutions()
+	if _, err := couch.ActionableThreadInventoryContext(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := artifacts.BindingResolutions() - before; got != cold {
+		t.Fatalf("one refresh read the ledger %d times for %d cold candidates; the cold side must stay one read per candidate", got, cold)
 	}
 }
 

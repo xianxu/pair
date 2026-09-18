@@ -30,8 +30,11 @@ actionable projection described below.
 That raw `ThreadInventory` remains the diagnostic/recovery view: persisted
 incarnation states are shown even when Couch cannot prove a usable terminal.
 M1 exposes `ActionableThreadInventory`, a pure fail-closed projection over the
-same snapshot plus exact owner observations. It emits only `live` when one
-durable live PID/start identity exactly matches one observed TTY owner, or
+same snapshot plus owner observations. It emits `live` when couch has POSITIVE
+evidence it is hosting the thread's process -- a console pty child, or a recorded
+process the OS still vouches for by exact PID and start token; since #256 M1 that
+is a union with no match required between the two, and its absence proves nothing
+(a record's incarnation names the launcher, which dies with couch) -- or
 `parked` when its LEDGER resolves a conversation to resume into and nothing is
 running on it — the park receipt is not the authority and has not been since #256
 M2, and neither is the incarnation: two of the four `parked` shapes carry one
@@ -601,7 +604,8 @@ detached row, and `session-gone` is a reason retirement acts on. `couch --list`
 and `--show` classify through the same function over the same evidence, with
 OS-derived liveness in place of the console's pty proof, so one store cannot
 produce two stories. Ambiguous and legacy-unverified records now appear in both
-views, named rather than hidden. Ephemeral console targets bind only to durable proven-live rows,
+views, named rather than hidden. Ephemeral console targets bind only to rows classified `live` --
+couch's own hosting or an OS-vouched recorded process, never the record's say-so alone --
 so a stale child handle cannot turn an inactive row's Enter into switch. If
 Park removes the final actor while the switcher owns focus, the console remains
 available for the refreshed resumable row. Lifecycle shortcuts are panel-only
@@ -884,8 +888,10 @@ nothing resolves, to say *why* in better terms than "unbound". Before that it
 refused on any tombstoned entry with no break, and the detached branch had to be
 checked first, because a thread once abandoned mid-park and later detached would
 otherwise be permanently
-unreattachable. The occupied-incarnation refusal is unchanged, because detach
-retires the incarnation and the record passes on its own merits.
+unreattachable. `DecideResume` has not refused on an occupied incarnation since #256 M1:
+the incarnation names a launcher that dies with couch, so that refusal contradicted
+the `detached` classification it was fed. Resume rests on the two facts the classifier
+uses -- a surviving session (warm) or a ledger that resolves a conversation (cold).
 `DeleteStart` no longer deletes a record carrying a `LatestLaunchProfile`: the
 verified park used to be the only rollback authority, and an unnamed detached
 thread has none, so a post-claim failure would have deleted the agent and argv
@@ -1730,8 +1736,11 @@ That is exactly why `Enqueue` is pure and survived on its own.
   launch preference.
 - **actor / ActorID** — a hosted child/cache identity; routing and notices use
   it, while every switcher action uses the durable thread address.
-- **parked thread** — a durable thread with an exact verified resume handle and
-  no occupied incarnation.
+- **parked thread** — a durable thread whose LEDGER resolves a conversation to
+  resume into, with nothing running on it (no live evidence, no surviving
+  session). It may still carry a dead launcher's incarnation or a driverless
+  start claim. The park receipt (`VerifiedPark`) records that a park happened; it
+  is not the authority, and `parked` has four producers (see `everyThreadShape`).
 
 ## Planned, not built
 

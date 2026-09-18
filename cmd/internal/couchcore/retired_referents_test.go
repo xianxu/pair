@@ -54,6 +54,15 @@ var issue256RetiredClaims = map[string]string{
 	"live one in the store":             "#256 M3: the store no longer refuses a live thread; Couch.ArchiveThread's admission does",
 	"never archive-eligible":            "#256 M3: ArchivableState permits an unreadable row; archiving one moves its bytes and never stops its session",
 	"checks occupancy before quiescing": "#256 M3: archive checks the continuation's actors and the classification; 'occupancy' named the retired rule",
+	// The close's BR-34/BR-38: two referents M1 and M2 retired, still restated in
+	// four atlas paragraphs after every per-milestone sweep. Found by the same
+	// paragraph-window vocabulary sweep (occupied/occupancy near resume/park;
+	// verified-park-as-handle; durable live proof) run over EVERY home at close.
+	"exactly matches one observed TTY owner":    "#256 M1: live is positive evidence couch hosts the process, a union with no match required",
+	"durable proven-live":                       "#256 M1: live is couch's own hosting or an OS-vouched process, never the record alone",
+	"occupied-incarnation refusal is unchanged": "#256 M1 deleted DecideResume's occupancy refusal; it contradicted the detached classification",
+	"exact verified resume handle":              "#256 M2: the ledger, not the park receipt, is the resume authority for parked",
+	"no occupied incarnation":                   "#256 M2: a parked thread may carry a dead launcher's incarnation or a driverless claim",
 }
 
 // A line that explicitly narrates the retirement is not a restatement of it.

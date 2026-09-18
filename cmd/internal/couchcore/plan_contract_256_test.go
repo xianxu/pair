@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -219,5 +220,84 @@ func TestIssue256PlanTablesMatchTheTree(t *testing.T) {
 
 	if checked < 10 {
 		t.Fatalf("only %d symbols were decidable; the check has stopped checking", checked)
+	}
+}
+
+// The plan's Core-concepts PROSE is held to the same rule as its tables
+// (#256 close, BR-42): family `plan-code-divergence`, sixth occurrence, and the
+// first five were fixed one sentence at a time.
+//
+// TestIssue256PlanTablesMatchTheTree machine-checks the table ROWS, so the
+// divergence moved into the bullets beneath them, which nothing checked --
+// seven stale claims in one section at the close. A bullet naming a consumer, a
+// branch position or a file:line coordinate is a hand-maintained restatement of
+// the model, a deferred consumer (ARCH-PURPOSE). So in this section:
+//
+//   - no `file.go:NNN` coordinates and no `:NNN` back-references -- they rot the
+//     moment the file above them grows, and every one found here had;
+//   - no branch positions ("row 4", "Rows 7-9") -- the plan deleted the branch
+//     table they indexed, because it kept becoming instructions to undo a fix;
+//   - every test the prose CITES must exist, because citing the test that
+//     enumerates a fact is the sanctioned alternative, and a citation that has
+//     rotted is the same restatement one level up.
+//
+// Consumer claims themselves cannot be checked mechanically; the rule for them is
+// to cite the enumerating test instead of listing consumers, which the third
+// check then keeps honest.
+func TestIssue256CoreConceptsProseCitesTestsNotCoordinates(t *testing.T) {
+	root := repoRootFrom(t)
+	planBytes, err := os.ReadFile(filepath.Join(root, issue256PlanPath))
+	if err != nil {
+		t.Skipf("the #256 plan has been archived; this check retires with it: %v", err)
+	}
+	plan := string(planBytes)
+	start := strings.Index(plan, "\n## Core concepts")
+	end := strings.Index(plan, "\n## Milestones")
+	if start < 0 || end < start {
+		t.Fatal("could not find the Core concepts section; the plan's shape changed and this check stopped checking")
+	}
+	section := plan[start:end]
+	firstLine := strings.Count(plan[:start], "\n") + 2
+
+	coordinate := regexp.MustCompile("[A-Za-z0-9_/]+\\.go:\\d+|`:\\d+`")
+	branchPosition := regexp.MustCompile(`(?i)\brows? \d`)
+	for i, line := range strings.Split(section, "\n") {
+		// Table rows carry paths, not coordinates, and are checked elsewhere.
+		if strings.HasPrefix(strings.TrimSpace(line), "|") {
+			continue
+		}
+		if m := coordinate.FindString(line); m != "" {
+			t.Errorf("%s:%d: Core concepts cites the coordinate %q; cite the test that enumerates the fact instead",
+				issue256PlanPath, firstLine+i, m)
+		}
+		if m := branchPosition.FindString(line); m != "" {
+			t.Errorf("%s:%d: Core concepts indexes a branch position (%q) in a table the plan deleted",
+				issue256PlanPath, firstLine+i, m)
+		}
+	}
+
+	declared := map[string]bool{}
+	for _, pkg := range []string{"couchcore", "couchtty", "couchcmd"} {
+		dir := filepath.Join(root, "cmd", "internal", pkg)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			if !strings.HasSuffix(entry.Name(), "_test.go") {
+				continue
+			}
+			for name := range declaredIdentifiers(t, filepath.Join(dir, entry.Name())) {
+				if strings.HasPrefix(name, "Test") {
+					declared[name] = true
+				}
+			}
+		}
+	}
+	cited := regexp.MustCompile("`(Test[A-Za-z0-9_]+)`")
+	for _, match := range cited.FindAllStringSubmatch(section, -1) {
+		if !declared[match[1]] {
+			t.Errorf("Core concepts cites %s, which no couch test declares; a rotted citation is the restatement one level up", match[1])
+		}
 	}
 }
