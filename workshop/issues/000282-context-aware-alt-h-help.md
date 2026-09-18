@@ -110,16 +110,16 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
 - [x] Settle the package direction for sharing couch's binding table. Couch
       imports keyhelp; Pair never reads Couch's table (second revision).
 - [ ] `launcher.CouchHosted`: one hosted rule (plan Task 1).
-- [ ] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 2).
-- [ ] keyhelp: `Binding.Chord`, `HostedSections`, `Layer` (Task 3).
-- [ ] `pair keys`: hosted-aware Pair page, hermetic `RunWith` (Task 4).
-- [ ] couchtty: one declared chord table with `KeyScope` (Task 5).
-- [ ] couchtty `HelpSections`/`HelpPage`; `couch --help` renders them (Task 6).
-- [ ] Panel decoder: PgUp/PgDn (Task 7).
-- [ ] `MenuFrameHelp`: an overlay that returns to its thread (Task 8).
-- [ ] Couch takes Alt+h; console acceptance test (Task 9).
+- [ ] The attaching client records whether Couch presents it (outer-tty
+      record, `PresentedByCouch`, `ReadOuterPresenter`) (Task 2).
+- [ ] `GlobalBinding.HostedHelp` for Alt+d, Alt+n, Ctrl+Alt+n (Task 3).
+- [ ] keyhelp: `Binding.Chord`, `HostedSections`, `Layer` (Task 4).
+- [ ] `couchkeys`: Couch's chord table as data, with scope (Task 5).
+- [ ] couchtty frames and routes from `couchkeys`; `couch --help` renders it
+      (Task 6).
+- [ ] `pair keys` composes the page; pane title "help" (Task 7).
 - [ ] README + atlas sweep; full `make test` + `go test ./...`; behavior
-      evidence; operator smoke (Task 10).
+      evidence; operator smoke (Task 8).
 
 ## Log
 
@@ -164,6 +164,14 @@ Durable plan: `workshop/plans/000282-context-aware-alt-h-help-plan.md`.
   shows its keys over Pair's structured rows in a panel frame (the operator
   chose that over Pair's floating pager). Plan rewritten; the first review's
   findings that still apply are folded in.
+- **Second operator redirect** (see the third Revisions entry): Couch must not
+  take keys from panes it cannot tell apart. Alt+h stays Pair's, and Pair's
+  pager shows the combined page. Measured the per-attach outer-tty record in
+  this session: `$PAIR_DATA_DIR/outer-tty-$PAIR_TAG` = `/dev/ttys006`, written
+  08:52, the moment this Couch started. Nothing reads the record except cleanup
+  and GC. Plan rewritten a third time. The review of the second draft was
+  stopped as obsolete, and its scratch worktrees were removed.
+- Floating pane title: 'pair help' → 'help' (operator request).
 
 ## Revisions
 
@@ -255,3 +263,50 @@ pager.
 **Known gap, recorded in #284:** for a thread Couch adopted without launching,
 Pair's Alt+n is not refused, but Couch's page shows the hosted row. #284 owns
 Pair's Alt+n under Couch.
+
+### 2026-09-18: Alt+h stays Pair's; Pair's pager shows Couch's layer
+
+**Reason:** operator direction, before plan approval. Couch must not take keys
+from panes it cannot tell apart (the agent pane, the right pane), and it keeps
+no inner-focus state (#245). So Alt+h fires in the draft, and in the right
+terminal through Pair's existing routing, which the operator chose to keep. The
+agent pane keeps receiving it. Pair's pager displays the combined page; the
+operator chose this over a Couch panel frame reached through a new Pair→Couch
+channel. `pair keys` from a shell is not a supported surface. The pane title
+becomes "help".
+
+**Delta to `## Spec`:**
+- *Detection*: two facts, each from its own authority.
+  - **Presenter**: the attaching Pair client knows who launched it, because
+    Couch sets `COUCH_THREAD_TAG` on every client it presents, including warm
+    reattaches of sessions it did not create. The client writes that into the
+    per-attach outer-tty record (`PresentedByCouch`), and `pair keys` reads it.
+    Last attach wins.
+  - **Hosting**: Pair's own refusal rule (`CouchHostedEnv`) selects the
+    hosted wording, so a row is true of the key.
+
+  The supervisor lease is not read. Couch does not intercept Alt+h.
+- *Content*: Couch's table moves to the pure `couchkeys` package. couchtty's
+  framing and routing, `couch --help`, and Pair's page derive from it.
+  `keyhelp.Layer` drops Pair rows for chords Couch claims from every pane (none
+  today; the mechanism is there for future overrides).
+- *Layering*: `couchkeys` is the small shared package the Spec anticipated.
+  Pair imports it, never Couch's console.
+
+**Delta to `## Done when`** (replaces the second revision's rows):
+1. When Couch presents the thread, Alt+h (in the draft, and in the right
+   terminal through Pair's routing) shows Couch's keys above Pair's. They come
+   from the table `couch --help` renders, and a binding added there reaches
+   both.
+2. A chord Couch claims replaces Pair's row, and no key has two meanings in one
+   context. Pair's rows that hosting changes show hosted wording by Pair's own
+   rule.
+3. Standalone Pair's Alt+h is unchanged apart from the pane title.
+4. Couch's keys appear if and only if the attached client was launched by Couch
+   for this thread. That includes adopted sessions and excludes a terminal
+   reattach after Couch exits.
+5. Couch does not take Alt+h; the agent pane receives it.
+
+**The previous revision's known gap is closed:** hosted wording now follows
+Pair's refusal rule rather than "Couch is presenting", so an adopted session
+shows "reload pair", which is true.
