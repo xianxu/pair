@@ -43,29 +43,55 @@ Mechanism (code reading):
 
 ## Spec
 
-To be designed. Direction to test first: `Detach` types its pre-effect
-refusals. Examples are no session, an open park, and no live incarnation.
-`Leave` files a typed refusal under `Skipped` and continues. An error after
-the signal still aborts, because that state is uncertain and must not collapse
-into "skipped" (ARCH-ORDER). Separately, it is still open whether the stale
-live incarnation itself (dead pid, session gone) should be reconciled to a
-non-live state, and where. `pair#288` (dead launch is invisible) is adjacent.
+**Direction (operator, 2026-09-19).** Global detach means: disconnect Couch,
+leave every running instance running. Threads that are not live are fine —
+parked ones already are. A thread recorded live that turns out to be dead is
+also fine: Couch marks that state (session lost) and carries on with the
+disconnect. **No error, and no report.** Couch and Pair wrap a coding agent, so
+an operator who wants to know why a thread died can ask the agent to
+investigate after the fact; the leave path does not owe them a diagnosis.
+
+So the fix is not "skip and report". It is:
+
+- Leave stops choosing what to detach from the record alone. When the thread's
+  Pair session is absent, or its recorded `{PID, identity}` is proved Dead,
+  Leave retires that incarnation and moves on to the next thread. The record
+  then carries no incarnation, which is the state the classifier already
+  renders as `session gone` (`ReasonSessionGone`) — no new vocabulary.
+- `clearLifecycleDebris` (`couchcore/lifecycledebris.go`) is that proof and that
+  write, already used by detach, resume and switch-agent: it screens the exact
+  identity with `observeExactProcess` and retires through
+  `RetireIncarnation` / `RetireUnprovenIncarnation` (ARCH-DRY). Leave should
+  reuse it, not re-derive the rule.
+- A live process whose session is gone is left alone — running instances are
+  preserved, which is the point of detach.
+- An error AFTER a detach signal still stops leave and names the thread: that
+  state is uncertain and must not collapse into "handled" (ARCH-ORDER).
+- `LeaveResult.Skipped` keeps its meaning for threads Couch really could not
+  act on (two incarnations, an open park). A retired-dead thread is not
+  skipped; it is disconnected, so it needs no line in `reportLeave`.
 
 ## Done when
 
 - Leave with a thread whose recorded Pair process and session are gone detaches
-  every other live thread, reports the stale one as skipped, and exits Couch.
+  every other live thread, retires the dead one's incarnation, exits Couch, and
+  says nothing about it.
+- That thread afterwards reads as `session gone`, not as live.
+- A live thread whose session is absent is neither signalled nor retired.
 - An error after a detach signal still stops leave and names the thread.
 - A test drives leave across a stale record placed before live ones.
 
 ## Plan
 
-- [ ] Design with the operator: skip-and-report alone, or also reconcile the
-      stale incarnation.
+- [ ] Reuse `clearLifecycleDebris` in `Leave`; drive the stale-record ordering
+      in a test; confirm `reportLeave` stays silent for a retired thread.
 
 ## Log
 
 ### 2026-09-19
 
-- Filed from the operator's screenshot. Workaround used meanwhile: Tab → archive
-  on the `kaggle` row (reversible), then Alt+d again.
+- Filed from the operator's screenshot. Workaround offered meanwhile: Tab →
+  archive on the `kaggle` row (reversible), then Alt+d again.
+- Operator settled the direction the same day (see Spec): mark it lost, carry
+  on, stay silent. Superseded the "skip and report" reading this issue was
+  filed with.

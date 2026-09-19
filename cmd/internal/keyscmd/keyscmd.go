@@ -88,7 +88,9 @@ func RunWith(args []string, deps Deps, stdout, stderr io.Writer) int {
 	build := keyhelp.Sections
 	if launcher.CouchOwnsRestart(launcher.CouchHostedEnv(deps.Getenv), couch) {
 		// The same rule `pair restart` refuses by (#284), so the hosted wording
-		// appears exactly when Pair's Alt+n cannot reload (#282).
+		// appears whenever Pair's Alt+n cannot reload (#282) -- except on an
+		// unreadable presenter record, where this page fails open and the gate
+		// fails closed (launcher.CouchOwnsRestart names that divergence).
 		build = keyhelp.HostedSections
 	}
 	sections, err := build(deps.Sources)

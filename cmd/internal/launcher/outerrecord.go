@@ -58,18 +58,34 @@ func PresentedByCouch(env Env, tag string) bool {
 // CouchOwnsRestart is the rule for whether Pair may restart a session in place
 // (#284): not when the session env names Couch (Couch created it), and not when
 // Couch presents the attached client, whose launcher refuses the restart marker
-// -- but only after quit cleanup has already torn the thread down. `pair keys`
-// reads the same rule for its hosted wording, so the help cannot promise a
-// reload that the gate refuses.
+// -- but only after quit cleanup has already torn the thread down.
+//
+// `pair keys` reads the same rule for its hosted wording. The two consumers
+// agree on every answer the predicate gives, and DIVERGE where it cannot be
+// computed: reading the presenter record can fail, and a help page that cannot
+// render is worse than a slightly wrong row, while a restart that cannot be
+// judged is worse than no restart. So the help fails open to Pair's own page
+// (keyscmd TestUnreadablePresenterRendersPairsPage) and the gate fails closed
+// (TestRunRestartRefusesACouchOwnedSessionBeforeMutation's unreadable case).
+// On that one input the help can promise a reload the gate then refuses, which
+// the refusal says out loud.
 func CouchOwnsRestart(sessionEnvHosted, presentedByCouch bool) bool {
 	return sessionEnvHosted || presentedByCouch
 }
 
 // couchRestartGate runs before an in-session restart-marker writer writes
 // anything (#284). The presenter record is input this process did not write, and
-// it gates killing a live session, so a record that cannot be read refuses. A
-// session whose tag is unresolved has no record to read (it is keyed by tag),
-// and the env half of the rule still applies to it.
+// it gates killing a live session, so a record that cannot be read refuses.
+//
+// An unresolved tag is the one "cannot tell" that proceeds, and not because it
+// is less uncertain: it is a state Couch cannot be in. The record is keyed by
+// tag, so there is nothing to read -- but reaching it needs PAIR_TAG unset AND
+// the session name absent from the index, while every session the launcher
+// creates exports PAIR_TAG into its panes, and every session Couch creates also
+// carries COUCH_THREAD_* in the session env, which the env half above catches
+// without the record. What is left is a pre-index legacy session, which no
+// Couch ever created or presented. Refusing there would cost that session its
+// restart to guard a state it cannot reach.
 func couchRestartGate(rt Runtime, sessionEnvHosted bool, tag string) error {
 	presented := false
 	if !sessionEnvHosted && tag != "" {

@@ -2341,6 +2341,18 @@ advice will follow the unsafe one. Where the surface has a declared verb set,
 assert in a test that each suggested command is in it, so the advice cannot
 drift from the implementation.
 
+**Sharpened by #284: existing is not enough — the remedy must be runnable FROM
+THE STATE THE REFUSAL LEAVES BEHIND.** Compaction's Couch refusal offered
+`pair continue --retry <tag>`, a declared verb that would pass the verb-set
+test above, and which cannot run there: `--retry` consumes a retained restart
+marker, and that arm returns before writing one. A refusal is a state
+transition, so ask what survives it and name the route that consumes *that*
+(here the checkpoint doc, so `--checkpoint <path>`). The test asserts the
+precondition the remedy needs, not the spelling of the verb:
+`launcher.TestCompactionRefusalNamesARouteThatRuns` checks that no marker was
+written, that the named route parses, and that the path it names resolves and
+validates.
+
 ## A stream split is not an event boundary
 
 `#146` M3's interceptor correctly returned `before / hotkey / rest`, but the
