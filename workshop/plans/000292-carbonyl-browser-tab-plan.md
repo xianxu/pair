@@ -1321,8 +1321,12 @@ Expected: FAIL (`KillGroup` undefined).
 
 - [ ] **Step 3: Implement**
 
-Replace the three `_ = c.cmd.Process.Kill()` calls (in `pump()`, twice, and in
-`Close()`) with `c.kill()`:
+Replace **every** leader-only kill before a reap with `c.kill()`: the two in
+`pump()` (delivery failure, context cancel), the one in `Close()`, **and** the
+one in `Start()`'s `initTerminal`-failure path (`cmd.Process.Kill()` then
+`cmd.Wait()`). The fourth came from the round-3 plan-gate note. A `grep -n
+'Process.Kill' cmd/internal/ptychild/child.go` after the change should show
+only the body of `kill()` itself:
 
 ```go
 // kill ends the child for every ptychild path that is about to reap it
