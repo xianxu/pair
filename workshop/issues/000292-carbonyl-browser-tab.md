@@ -311,3 +311,37 @@ Reasons: the spike (Log) and the operator's two answers this session.
 - **Alt+click:** moved to pair#293.
 - **Done-when:** follows every change above, adds the version notice, and
   names the chain CPU measurement.
+
+### 2026-09-19 — plan approved; handoff
+
+- **Plan approved.** `sdlc change-code` passed. Plan-quality needed 3 rounds:
+  - PQ-1…6 were addressed in round 1.
+  - PQ-7 was advisory and fixed structurally with `ptychild`
+    `Options.KillGroup`.
+  - The gate's round-3 note, `Start()`'s `initTerminal`-failure kill as a
+    fourth site, is folded into Task 1.3.
+- **Branch** `000292-carbonyl-browser-tab` is in place in `~/workspace/pair`.
+  The unrelated dirty files (Makefile typechange, `bootstrap.sh`,
+  `merge-check.yml`, `scripts/issue-sync.sh` deleted,
+  `scripts/merge-checks.d/40-duplicate-issue-id.sh`) are NOT ours; leave them
+  unstaged.
+- **Estimate-quality was info (non-blocking).** It judged 9.31 h likely low,
+  by about 2–3 h:
+  - one `ux-rename-iteration` item for three operator rounds;
+  - no item for Task 3.3, or for the fake's DevTools half (Task 2.2);
+  - `familiarity` 1.2 where the table's novel-but-bounded row is ×1.5;
+  - the `coder/websocket` veto branch not costed.
+
+  Not revised: the estimate stands as derived at the gate, and the close ledger
+  will measure the gap.
+- **Open operator decisions:**
+  - Accept or veto `github.com/coder/websocket` (plan header table).
+  - Install Carbonyl ≥0.0.3. The npm `latest` tag is 0.0.2, which spins a core
+    when idle. Use `npm i -g carbonyl@next`, or the v0.0.3 release zip with
+    `PAIR_CARBONYL=<path>`.
+- **Spike harness** (scratch, not committed):
+  `/tmp/claude-501/spike/{spike.py,termcost.py,site/}`, plus the v0.0.3 zip
+  unpacked at `/tmp/claude-501/spike/c003/carbonyl-0.0.3/carbonyl`. Pty tests
+  and the probe need the sandbox off.
+- **Next:** M1 Task 1.1 (`cmd/internal/browsertab` pure helpers + fuzz), per
+  `workshop/plans/000292-carbonyl-browser-tab-plan.md`. Run `sdlc state` first.
