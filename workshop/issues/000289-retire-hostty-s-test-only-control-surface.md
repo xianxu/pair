@@ -1,11 +1,12 @@
 ---
 id: 000289
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-18
 updated: 2026-09-18
 estimate_hours:
+started: 2026-09-18T17:37:41-07:00
 ---
 
 # Retire hostty's test-only control surface
