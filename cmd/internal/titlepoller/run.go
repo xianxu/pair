@@ -1,11 +1,13 @@
 package titlepoller
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 )
 
 // Options are the poller inputs after CLI/env resolution.
@@ -110,17 +112,21 @@ func Run(opts Options, rt Runtime) int {
 	// just before `zellij --new-session-with-layout`, used to kill the session
 	// it was waiting for (probes/zellijbirthrace: 4 launches in 10). A pane
 	// exists only once the session has initialized, and the layout's pane
-	// command writes the sidecar first thing. The create path clears it before
-	// spawning us, so "it exists" means THIS launch's pane ran; attach never
-	// clears, so a live session's pane passes on the first stat. After the gate,
-	// "session missing" reliably means the user ended the session.
+	// command writes the sidecar first thing. The create path clears it
+	// (panebirth.Evidence, the one declaration of the file) before spawning us,
+	// so "it exists" means THIS launch's pane ran; attach never clears, so a
+	// live session's pane passes on the first stat. After the gate, "session
+	// missing" reliably means the user ended the session.
 	//
 	// An unresolvable path exits silently, like every other give-up here: the
 	// poller's stdio is /dev/null. It is not reachable in practice, because
 	// the launcher resolves the same path from the same inputs before it
 	// spawns us, and refuses the launch if that fails.
-	panePath, err := BirthEvidence(opts.DataDir, opts.Tag, opts.Agent)
-	if err != nil || !awaitPaneBirth(rt, panePath, opts.StartupGrace) {
+	panePath, err := panebirth.Evidence(opts.DataDir, opts.Tag, opts.Agent)
+	if err != nil || panebirth.Await(context.Background(), pollerClock{rt}, paneBirthPoll, opts.StartupGrace, func() (bool, error) {
+		_, ok := rt.ModTime(panePath)
+		return ok, nil
+	}) != nil {
 		return 0
 	}
 
@@ -169,37 +175,16 @@ func Run(opts Options, rt Runtime) int {
 	}
 }
 
-// BirthEvidence is the file the birth gate waits for: this agent's pane
-// sidecar. It is the ONE declaration of that path. The launcher's create path
-// clears exactly this file before it spawns the poller (#287). If the two ever
-// named different files, the clear would miss and a stale sidecar would pass
-// the gate at once. That would silently restore the birth-window probe.
-func BirthEvidence(dataDir, tag, agent string) (string, error) {
-	paths, err := artifactpath.ResolveScoped(dataDir, tag)
-	if err != nil {
-		return "", err
-	}
-	return paths.PaneChecked(agent)
-}
-
 // paneBirthPoll is the birth gate's cadence: one stat per tick, so cheap, and
 // titles start at most this long after the pane does.
 const paneBirthPoll = 250 * time.Millisecond
 
-// awaitPaneBirth reports whether panePath exists within grace. A failed stat is
-// "not yet", never birth: only the file itself is evidence.
-func awaitPaneBirth(rt Runtime, panePath string, grace time.Duration) bool {
-	deadline := rt.Now().Add(grace)
-	for {
-		if _, ok := rt.ModTime(panePath); ok {
-			return true
-		}
-		if !rt.Now().Before(deadline) {
-			return false
-		}
-		rt.Sleep(paneBirthPoll)
-	}
-}
+// pollerClock is the poller's Runtime as a panebirth.Clock. Its Sleep is the
+// fake-able one; nothing cancels the poller's wait, so ctx is not needed.
+type pollerClock struct{ rt Runtime }
+
+func (c pollerClock) Now() time.Time                           { return c.rt.Now() }
+func (c pollerClock) Sleep(_ context.Context, d time.Duration) { c.rt.Sleep(d) }
 
 // activityMTime returns the most recent mtime across the poller's activity
 // sources — the nvim draft and the established inventory root. Zero time ⇒

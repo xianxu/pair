@@ -1,6 +1,6 @@
 ---
 id: 000288
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-18
@@ -8,6 +8,7 @@ updated: 2026-09-18
 estimate_hours: 2.66
 started: 2026-09-18T18:33:40-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.92
 ---
 
 # A launch whose zellij server dies at birth hangs the launcher and leaves Couch's thread live
@@ -145,13 +146,13 @@ The items, in order:
 Tasks and steps are in the durable plan.
 
 - [x] Measure the birth-time distribution under load to pick the bound.
-- [ ] `panebirth`: shared `Evidence` + `Await`; the title poller and Couch
+- [x] `panebirth`: shared `Evidence` + `Await`; the title poller and Couch
       move onto it (plan Tasks 1–2).
-- [ ] Launcher: a cancellable `LaunchSession` and the birth watch, with
+- [x] Launcher: a cancellable `LaunchSession` and the birth watch, with
       fake-runtime tests and mutation checks (plan Tasks 3–4).
-- [ ] Probe `-exit-wait`/`hung=`; live before/after under `-hammer 10ms`
+- [x] Probe `-exit-wait`/`hung=`; live before/after under `-hammer 10ms`
       (plan Task 5).
-- [ ] Atlas + suite + operator Couch smoke: a dead-at-birth thread archives
+- [x] Atlas + suite + operator Couch smoke: a dead-at-birth thread archives
       without restarting Couch (plan Task 6).
 - [x] File the upstream zellij `RemoveClient` panic report (from #287), on
       the operator's go-ahead: zellij-org/zellij#5632.
@@ -159,6 +160,7 @@ Tasks and steps are in the durable plan.
 ## Log
 
 ### 2026-09-18
+- 2026-09-18: closed — Live (probes/zellijbirthrace launch -hammer 10ms): main hung 20/20 after dead births; this branch hung 0/20 (and 0/5 on the round-1 fix HEAD), every launcher exiting 10.5-11.2 s after start with no zellij client left, message shown with the zellij log path; healthy n=10 born 0.8-0.9 s. Unit: panebirth Await/Evidence; launcher judgeUnborn/failedAtBirth/nextProbeWait tables, sequence tests on a stateful fake (dead, born, listed-live, unknown-then-dead, client-exits-first, clean-quit-under-cancel), direct watchBirth recheck test, OS kill/reap + clean-exit-under-cancel tests; every guard individually mutation-checked; new tests 20x green under -race. Round 1 BR-2/BR-3 fixed in 83dcb21f. TMPDIR=scratch make test exit 0 (212 ok); make test-smoke exit 0. Operator smoke after Couch restart: cold create ok; park + cold resume ok; under a 10 ms list-sessions loop a new thread died at birth, went session-lost after ~10 s, archived without restarting Couch.; review verdict: FIX-THEN-SHIP
 
 Filed from #287. Casualty evidence and the birth-time measurements are in
 #287's Log.
@@ -197,3 +199,93 @@ Filed from #287. Casualty evidence and the birth-time measurements are in
   fresh `HOME`; zellij's cache, data and plugin dirs follow `HOME`), n=4:
   0.44–0.52 s. Plugin compilation doesn't delay the pane sidecar, so the
   10 s bound stands (plan-quality finding 4).
+
+#### Implementation
+
+- **Tasks 1–2** (`b15696a0`): `panebirth.Evidence` + `Await`, with the title
+  poller and Couch moved onto them. Couch's timeout test now asserts the
+  `(waited …)` diagnosis.
+  - The artifactpath inventory needed `panebirth.go` classified as a
+    `scoped-pane` resolved consumer.
+- **Task 3** (`7fa00c31`): `LaunchSession(ctx, …)` and the stateful fake.
+  The OS kill tests pass: SIGTERM → `(-1, nil)` and the pid is gone; a
+  TERM-deaf child is killed after `WaitDelay`.
+- **Task 4** (`5f2a1258`): the birth watch, and six end-to-end tests.
+  - All five mutation checks fail their named test:
+    - `abort` removed;
+    - alive read as dead;
+    - unknown read as dead;
+    - `stopWatch` removed (the test fails at 10.3 s, having waited out the
+      bound);
+    - both cause guards removed.
+  - The new tests pass 20× under `-race`.
+  - **Gate friction.** The `--config-dir` vocabulary gate wants the literal
+    at a permitted exec boundary, so it now goes straight to
+    `exec.CommandContext` wrapped by `killOnCancel`, instead of through a
+    helper. `os/exec.CommandContext` joins `os/exec.Command` in the permitted
+    callees.
+- **Task 5, live** (`probes/zellijbirthrace launch -hammer 10ms`, sandbox
+  off):
+  - base (`pair` from main at `6c80d40b`), n=20: died 20, **hung 20**. Every
+    death was before birth, and every launcher was still running 20 s later.
+    In Pair launches the hang is the rule, not the 1-in-5 of the bare
+    repro.
+  - fix (branch HEAD `5f2a1258` code), n=20: died 20, **hung 0**.
+    - Every launcher exited 10.5–11.2 s after start, which is the bound plus
+      teardown.
+    - `ps` found no zellij client left behind.
+    - `hung-after-birth` was 0 in both runs.
+  - fix, one trial with the pty output printed: `pair: zellij session
+    '📁birthrace-…' never came up: no agent pane after 10s, and zellij lists
+    no live session.` It is followed by the zellij log path, and the path is
+    right.
+  - fix, healthy, n=10 with no hammer: born 10, births 0.8–0.9 s.
+- **Verification.**
+  - `TMPDIR=<scratch> make test` (five-var scrub, sandbox off): exit 0, 212
+    ok, no FAIL.
+  - `make test-smoke` (default TMPDIR): exit 0. With the scratchpad TMPDIR
+    it fails on `cursorsaveslots`, because the long path uses up zellij's
+    socket-path budget. That is an environment effect, now in memory.
+  - `make install`: `bin/pair` carries the fix.
+- **Operator smoke, 2026-09-18** (Couch restarted onto the new
+  `bin/couch`):
+  1. A cold create of a scratch thread worked.
+  2. Park, then cold resume, worked. That path goes through the shared
+     `panebirth.Await`.
+  3. Under a 10 ms `list-sessions` loop, a new thread's launch died at birth.
+     After about 10 s its pane went to the session-lost state.
+  4. The thread archived without restarting Couch, and a new thread started
+     after the loop stopped.
+- **Close review, round 1: FIX-THEN-SHIP.**
+  - **BR-2, Important.** `os/exec` returns `ctx.Err()` for a cancelled child
+    that exits 0, so the `code != 0` guard was dead in production. Fixed:
+    `runBlockingHandoff` reports `ProcessState.ExitCode()` whenever the child
+    ran, and the fake models a client that is quitting cleanly as the cancel
+    lands.
+  - **BR-3, Important.** The cause guards are now pinned one by one:
+    - the pure `failedAtBirth`, with a table test;
+    - a deterministic clean-quit-under-cancel end-to-end test;
+    - a direct `watchBirth` test for the post-probe recheck.
+  - **Minors.**
+    - BR-4: unanswered probes back off (`nextProbeWait`, doubling to 5 min).
+    - BR-5: the observation rule is documented.
+    - BR-6: the SKILL.md wording is fixed.
+  - **Mutation checks, each guard removed alone:** the code guard, the
+    recheck, the ProcessState derivation and the backoff each fail their
+    own test. The new tests pass 20× under `-race`.
+  - **Live on the fixed HEAD** (`-hammer 10ms`, n=6): died 5, hung 0, the
+    launcher exited at about 10.6 s, born 1.
+- **Close review, round 2: FIX-THEN-SHIP, close finalized.** BR-2, BR-3,
+  BR-5 and BR-6 were disposed addressed; BR-2 and BR-3 were verified by the
+  reviewer's own mutation checks. Fixed in the close commit:
+  - BR-4: the backoff wiring is pinned. `watchBirth` takes a
+    `panebirth.Clock`, and a stood-still-clock test asserts probes at 1 s,
+    3 s and 7 s. With the wiring removed they fall at 1, 2 and 3 s, and the
+    test fails.
+  - The zellij log layout: `zellijLogPath` and the probe's `zellijTmp` now
+    name each other.
+  - The plan's Revisions record every divergence from its code blocks,
+    which is the rule for BR-1.
+  - After the fixes: `go test ./...` passes with 73 ok, and the launcher
+    passes under `-race`.
+

@@ -880,8 +880,9 @@ socket, and under it every cold launch died
     delete a live agent (#287 close review).
   - *Unobservable* fails the start before release.
 - **The wait.** `awaitResumeRegistration` makes no session probe until
-  `PaneMarks.BornIn` sees a sidecar appear or change. It compares equality
-  only, so no clock is involved. Neither the launcher clearing the sidecar
+  `PaneMarks.BornIn` sees a sidecar appear or change, polled through the
+  shared `panebirth.Await` (#288). It compares equality only, so no clock is
+  involved. Neither the launcher clearing the sidecar
   nor a stale twin left by another agent counts as a birth. A failed
   observation mid-wait is "not yet": ending the wait would make the cleanup
   delete the session this launch just created.
@@ -897,6 +898,22 @@ socket, and under it every cold launch died
 Couch's menu refresh after a start completes stays a machine-wide
 `list-sessions`. So do other threads' pollers. That residual risk has no
 cure short of upstream zellij.
+
+**A launch that dies at birth ends its helper (`pair#288`).** When such a
+birth kills the server, the zellij client sometimes hangs instead of exiting.
+Before #288 the launcher then waited forever, and the thread stayed live
+with archive refused until Couch restarted.
+- **Cold create.** Its claim is established before zellij starts, so the
+  registration deadline never covered it. Now the launcher's birth watch ends
+  the hung client about 10 s in (see architecture.md, "Launcher birth
+  watch"), and the helper exits 1.
+  - The pane closes with `exited (1)`, and the thread reads `session-gone`
+    or `parked`. `ArchiveThread` accepts either and retires the stale `live`
+    incarnation. No Couch state was added.
+  - The launcher's own message, which names zellij's log, is not shown in
+    Couch.
+- **Cold resume.** Its wait still runs to its 15 s deadline even after the
+  helper has exited at about 10 s, then rolls back to `parked` as before.
 
 Where that lands differs by caller, and both matter:
 

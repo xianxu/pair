@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -41,7 +42,10 @@ type ZellijOps interface {
 	// fork+wait child with the tty passed through, returning the child's exit
 	// code when the pane exits. It must NOT syscall.Exec — the Go launcher has
 	// to regain control afterward for the M3 quit-cleanup / restart loop.
-	LaunchSession(session, configDir, layout string) (int, error)
+	// Cancelling ctx ends the client (SIGTERM, then SIGKILL) and still returns
+	// only after it is reaped. Only the create path's birth watch cancels it,
+	// on proof that the session died at birth (#288).
+	LaunchSession(ctx context.Context, session, configDir, layout string) (int, error)
 	// ProbeLiveLayout inspects a live session's actual pane signature. It is the
 	// rollout fallback for sessions created before workbench-layout-<tag>.
 	ProbeLiveLayout(session string) (LayoutMode, error)
@@ -298,4 +302,15 @@ type LaunchOptions struct {
 	// couch requested the repo default at process entry. In either case the
 	// normal saved-config picker must not re-open.
 	SkipConfigPicker bool
+
+	// BirthBound overrides birthBound, the create's wait for its agent pane
+	// before the birth watch asks zellij (#288). Zero means the default.
+	BirthBound time.Duration
+}
+
+func (o LaunchOptions) birthBound() time.Duration {
+	if o.BirthBound > 0 {
+		return o.BirthBound
+	}
+	return birthBound
 }

@@ -139,11 +139,28 @@ func (OSRuntime) ProbeSessionName(session string) error {
 
 // LaunchSession is the BLOCKING fork+wait handoff (NOT syscall.Exec): the tty is
 // passed straight through and the Go launcher regains control on pane exit.
-func (OSRuntime) LaunchSession(session, configDir, layout string) (int, error) {
-	return runBlockingHandoff(exec.Command("zellij",
+// Cancelling ctx ends the client (#288): see killOnCancel.
+func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
+	return runBlockingHandoff(killOnCancel(exec.CommandContext(ctx, "zellij",
 		"--config-dir", configDir,
 		"--new-session-with-layout", layout,
-		"--session", session))
+		"--session", session)))
+}
+
+// clientKillGrace is how long a cancelled client gets to exit on SIGTERM
+// before SIGKILL. A zellij client hung on a dead-at-birth server exits about
+// 50 ms after SIGTERM (measured, #288).
+const clientKillGrace = 2 * time.Second
+
+// killOnCancel makes a CommandContext handoff end gently when its ctx does:
+// SIGTERM, then SIGKILL after clientKillGrace. Run returns only once the child
+// is reaped, so a cancelled launch leaves no process holding the terminal --
+// under Couch, a child left behind would keep the helper's pty open and the
+// helper would read as alive.
+func killOnCancel(cmd *exec.Cmd) *exec.Cmd {
+	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	cmd.WaitDelay = clientKillGrace
+	return cmd
 }
 
 func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
@@ -165,14 +182,17 @@ func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
 // syscall.Exec) and maps its result to an exit code — the shared contract of the
 // create + attach zellij handoffs (#99 M3), so the Go launcher regains control
 // afterward for cleanup + the restart loop.
+//
+// The child's own status wins whenever it ran (-1 when a signal ended it). A
+// cancelled CommandContext child that still exits 0 makes Run return ctx.Err()
+// -- os/exec's contract -- but what the launcher acts on is how the client
+// ended; the birth watch knows about the cancel itself (#288). Only a child
+// that never ran reports the error.
 func runBlockingHandoff(cmd *exec.Cmd) (int, error) {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	err := cmd.Run()
-	if err == nil {
-		return 0, nil
-	}
-	if exit, ok := err.(*exec.ExitError); ok {
-		return exit.ExitCode(), nil
+	if cmd.ProcessState != nil {
+		return cmd.ProcessState.ExitCode(), nil
 	}
 	return 1, err
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
@@ -773,7 +774,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// the poller's own declaration, so the file cleared is the file awaited.
 	// Attach never clears: a live pane has already written its sidecar and
 	// won't again.
-	birthEvidence, err := titlepoller.BirthEvidence(dataDir, chosenTag, agent)
+	birthEvidence, err := panebirth.Evidence(dataDir, chosenTag, agent)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: cannot resolve the pane sidecar for '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil
@@ -788,10 +789,19 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
-	code, err := rt.LaunchSession(session, configDir, layout)
+	bound := opts.birthBound()
+	code, verdict, err := launchWatched(rt, birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)
+		return launchStep{code: 1}, nil
+	}
+	// A session that died at birth (#288) never existed, so it fails like a
+	// launch that never started: no quit cleanup, no restart.
+	if failedAtBirth(verdict, code) {
+		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
+		fmt.Fprintf(stderr, "pair: zellij session '%s' never came up: no agent pane after %s, and zellij lists no live session.\n", session, bound)
+		fmt.Fprintf(stderr, "      Its server died while starting; zellij's log is %s\n", zellijLogPath())
 		return launchStep{code: 1}, nil
 	}
 	if defaultReady != nil {

@@ -5547,3 +5547,44 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   the next missed event (replacement). One reconcile, run after every change to
   the watches and comparing each continuation prompt to its watch's CURRENT
   request, closes the class. (#280 close, rounds 1–3)
+
+- **A watchdog's verdict acts only when the outcome agrees with its cause.**
+  #288's birth watch probes zellij 10 s into a launch, while the client it
+  judges can exit on its own at the same moment. "No pane, no live session"
+  also describes a sidecar-less session that the operator just quit cleanly,
+  and acting on it would have turned that quit into a failure that skips the
+  quit cleanup. The fix takes the failure path only when the client's exit
+  code says it was killed, and rechecks the watch's context after the probe.
+  When a verdict races the thing it judges, gate the action on the outcome's
+  own evidence, and test the interleaving where the thing ends first. (#288
+  plan-quality)
+  - The guard was still dead in production: `os/exec` returns `ctx.Err()`
+    for a cancelled child that exits 0, and the caller handled that error
+    before it ever reached the code check. Pin each guard with its own
+    deterministic test. A test that only fails when two guards are both
+    removed proves neither of them. (#288 close review, BR-2 and BR-3)
+
+- **A fake of a stdlib-wrapped seam reproduces the stdlib's return for every
+  event it models.** #288's fake returned `(-1, nil)` for a cancelled launch
+  and `(0, nil)` for a released one. Real `exec.Cmd` with `Cancel` has a
+  third outcome, `ctx.Err()` for a child that exits 0 after the cancel, and
+  the code built on the fake never met it. Before trusting a fake's modelled
+  event, read the wrapped API's documented returns for that event and give
+  each one a row: one fake mode, plus a test against the real API. (#288
+  close review)
+
+- **A test child that must outlive SIGTERM `exec`s its sleeper.** macOS
+  `/bin/sh -c 'trap "" TERM; sleep 60'` forks `sleep`. The SIGKILL after
+  `WaitDelay` hits `sh`, and the orphaned `sleep`, still TERM-deaf, holds the
+  test binary's stdout, so `go test` waits out the whole sleep. Write
+  `exec sleep`: the ignored disposition survives `exec`, and the process
+  that is killed is the one holding the pipe. (#288 plan review)
+
+- **A mutation of a function is not a mutation of its use.** #288's plan said
+  "the backoff → its table fails". That was true of `nextProbeWait`, but
+  deleting the one line that *called* it left every test green, so the
+  wiring was unpinned. When a pure helper is extracted for testability, also
+  pin its call site: inject the loop's clock and assert the observable
+  sequence the helper should produce, here probe times of 1, 3 and 7 s. Then
+  mutation-check the call, not only the helper. (#288 close review, BR-4)
+

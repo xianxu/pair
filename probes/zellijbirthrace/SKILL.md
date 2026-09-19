@@ -43,6 +43,17 @@ back inconclusive. To measure an older build, put it at `<dir>/pair`.
 - **-hammer DUR:** runs `zellij list-sessions --short` back to back, DUR
   apart, from each trial's start until birth or death. 10 ms is what Couch's
   cold-resume registration poll did before #287.
+- **-exit-wait DUR** (default 20 s; pair#288): after a death, the trial waits
+  this long for Pair's launcher to exit. It notes when the launcher exited
+  and whether a zellij client was left behind, matched by the trial's tag
+  and `--new-session-with-layout` in `ps`.
+  - A launcher still running after DUR counts as `hung` if the death came
+    before the pane was born; that is what the launcher's birth watch ends.
+  - It counts as `hung-after-birth` if the death came after the pane was
+    born, which the watch does not cover.
+  - A fixed launcher exits one of two ways: within about 1–2 s when its
+    client exits on its own, or within about 10–11 s when the client hangs
+    and the watch ends it.
 
 A trial that shows neither birth nor panic is `inconclusive`. That is a
 precondition failure, not a verdict (pair#208). The note after the verdict
@@ -76,20 +87,32 @@ the same machine during a trial would be counted against it.
 
 ## Results (macOS, zellij 0.45.1, 2026-09-18)
 
-| Build | Mode | Died |
-|---|---|---|
-| — | `poke -n 5` | 3/5 |
-| main before #287 | `launch -n 10` | 4/10 |
-| main before #287 | `launch -n 10 -hammer 10ms` | 10/10 |
-| #287 | `launch -n 20` | 0/20 |
-| #287 | `launch -n 10 -hammer 10ms` | 9/10 |
+| Build | Mode | Died | Hung |
+|---|---|---|---|
+| — | `poke -n 5` | 3/5 | — |
+| main before #287 | `launch -n 10` | 4/10 | — |
+| main before #287 | `launch -n 10 -hammer 10ms` | 10/10 | — |
+| #287 | `launch -n 20` | 0/20 | — |
+| #287 | `launch -n 10 -hammer 10ms` | 9/10 | — |
+| main before #288 | `launch -n 20 -hammer 10ms` | 20/20 | 20/20 |
+| #288 | `launch -n 20 -hammer 10ms` | 20/20 | 0/20 (each exited 10.5–11.2 s after start, no client left) |
+| #288 | `launch -n 10` | 0/10 | — |
+
+The rows above the #288 ones predate `-exit-wait`, so their Hung column is empty.
 
 The third row is what Couch's cold-resume registration poll did: every cold
 resume under it died. #287 gates both the title poller and that poll on the
 pane's birth, so Pair's own launch path no longer probes during a birth
 (0/20).
 
-An *external* prober still kills new sessions (last row). That is the
-residual risk: any machine-wide `list-sessions`, such as another thread's
-60 s poller or Couch's menu refresh, can land in a new server's window. At
-their cadence the odds are low, and only upstream zellij can cure it.
+An *external* prober still kills new sessions (the `-hammer` rows). That is
+the residual risk: any machine-wide `list-sessions`, such as another
+thread's 60 s poller or Couch's menu refresh, can land in a new server's
+window. At their cadence the odds are low, and only upstream zellij can cure
+it.
+
+#288 makes such a death end the launcher instead of hanging it. The `Hung`
+column counts launchers still running 20 s after a death before birth: what
+Pair failed to notice. Re-run the hammer rows on every zellij version
+change, because the launcher's fake models 0.45.1's hung client (it writes
+0 bytes, isn't listed, and exits on SIGTERM).
