@@ -302,4 +302,15 @@ type LaunchOptions struct {
 	// couch requested the repo default at process entry. In either case the
 	// normal saved-config picker must not re-open.
 	SkipConfigPicker bool
+
+	// BirthBound overrides birthBound, the create's wait for its agent pane
+	// before the birth watch asks zellij (#288). Zero means the default.
+	BirthBound time.Duration
+}
+
+func (o LaunchOptions) birthBound() time.Duration {
+	if o.BirthBound > 0 {
+		return o.BirthBound
+	}
+	return birthBound
 }

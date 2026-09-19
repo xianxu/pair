@@ -3,6 +3,7 @@ package launcher
 import (
 	"context"
 	"errors"
+	"os/exec"
 	"syscall"
 	"testing"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 func TestCancelledHandoffEndsAndReapsTheChild(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := cancellableHandoff(ctx, "sh", "-c", "exec sleep 60")
+	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", "exec sleep 60"))
 	time.AfterFunc(50*time.Millisecond, cancel)
 	start := time.Now()
 	code, err := runBlockingHandoff(cmd)
@@ -33,7 +34,7 @@ func TestCancelledHandoffEndsAndReapsTheChild(t *testing.T) {
 
 func TestCancelledHandoffKillsAChildThatIgnoresSIGTERM(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	cmd := cancellableHandoff(ctx, "sh", "-c", `trap "" TERM; exec sleep 60`)
+	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", `trap "" TERM; exec sleep 60`))
 	cmd.WaitDelay = 200 * time.Millisecond
 	time.AfterFunc(50*time.Millisecond, cancel)
 	start := time.Now()
@@ -49,7 +50,7 @@ func TestCancelledHandoffKillsAChildThatIgnoresSIGTERM(t *testing.T) {
 }
 
 func TestUncancelledHandoffReturnsTheChildsExitCode(t *testing.T) {
-	cmd := cancellableHandoff(context.Background(), "sh", "-c", "exit 3")
+	cmd := killOnCancel(exec.CommandContext(context.Background(), "sh", "-c", "exit 3"))
 	if code, err := runBlockingHandoff(cmd); err != nil || code != 3 {
 		t.Fatalf("handoff = %d, %v; want 3, nil", code, err)
 	}

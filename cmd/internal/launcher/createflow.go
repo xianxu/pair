@@ -1,7 +1,6 @@
 package launcher
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -790,10 +789,21 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
-	code, err := rt.LaunchSession(context.Background(), session, configDir, layout)
+	bound := opts.birthBound()
+	code, verdict, err := launchWatched(rt, birthEvidence, session, configDir, layout, bound)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)
+		return launchStep{code: 1}, nil
+	}
+	// A session that died at birth (#288) never existed, so it fails like a
+	// launch that never started: no quit cleanup, no restart. Dead only when
+	// the cause matches -- the watch's kill returns -1, while a clean quit that
+	// raced the probe returns 0 and keeps the normal path.
+	if verdict == birthDead && code != 0 {
+		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
+		fmt.Fprintf(stderr, "pair: zellij session '%s' never came up: no agent pane after %s, and zellij lists no live session.\n", session, bound)
+		fmt.Fprintf(stderr, "      Its server died while starting; zellij's log is %s\n", zellijLogPath())
 		return launchStep{code: 1}, nil
 	}
 	if defaultReady != nil {

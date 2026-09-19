@@ -578,6 +578,7 @@ var permittedVocabularyCallees = map[string]bool{
 	"method.Log":               true,
 	"method.traceWrap":         true,
 	"os/exec.Command":          true,
+	"os/exec.CommandContext":   true,
 }
 
 func astParents(root ast.Node) map[ast.Node]ast.Node {
