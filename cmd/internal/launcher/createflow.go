@@ -797,10 +797,8 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	// A session that died at birth (#288) never existed, so it fails like a
-	// launch that never started: no quit cleanup, no restart. Dead only when
-	// the cause matches -- the watch's kill returns -1, while a clean quit that
-	// raced the probe returns 0 and keeps the normal path.
-	if verdict == birthDead && code != 0 {
+	// launch that never started: no quit cleanup, no restart.
+	if failedAtBirth(verdict, code) {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: zellij session '%s' never came up: no agent pane after %s, and zellij lists no live session.\n", session, bound)
 		fmt.Fprintf(stderr, "      Its server died while starting; zellij's log is %s\n", zellijLogPath())

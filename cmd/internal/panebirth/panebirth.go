@@ -21,6 +21,10 @@ import (
 // sidecar. It is the ONE declaration of that path. The launcher's create path
 // clears exactly this file before it spawns anything; if a waiter named a
 // different file, the clear would miss and a stale sidecar would pass at once.
+//
+// Birth is the file's existence, whatever its content or mtime. Each waiter
+// stats it through its own runtime seam (the poller's ModTime, the launcher's
+// FileSize), so its fake can model the pane command writing it.
 func Evidence(dataDir, tag, agent string) (string, error) {
 	paths, err := artifactpath.ResolveScoped(dataDir, tag)
 	if err != nil {

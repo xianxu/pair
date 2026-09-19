@@ -125,31 +125,35 @@ type fakeRuntime struct {
 	launchRelease   chan struct{}
 	launchReturned  chan struct{} // closed as a blocking LaunchSession returns
 	launchCancelled bool          // the launch ctx ended the blocked client
-	launchStarted   bool
-	launchProbes    int              // SessionLiveness calls made after a launch started
-	probesAtCancel  int              // launchProbes when the launch ctx ended the client
-	livenessScript  []livenessAnswer // answers after a launch started, one per probe; the last repeats
-	livenessHook    func(n int)      // runs on the n-th probe after a launch started, before it answers
-	launchProbed    chan struct{}    // signalled, never blocking, per probe after a launch started
-	defaultReads    int
-	watchers        []string            // "agent|tag|cwd|args"
-	pollers         []string            // "tag|agent"
-	pollerEnvs      []map[string]string // the environment each title poller started with
-	cmux            []string            // "tag|title"
-	ttyRecorded     []string
-	titles          []string
-	removed         []string
-	family          []string
-	devRebuilt      bool
-	proofMigrations int
-	attached        []string   // sessions handed to AttachSession
-	deleted         []string   // sessions handed to DeleteSession
-	reaped          []string   // tags handed to ReapNvim
-	swept           [][]string // liveTags per SweepOrphanNvim call
-	parkPrompts     []string   // sessions prompted via ConfirmParkNudge
-	parked          []string   // "tag|agent|move" per ParkScrollback
-	killedPollers   []string   // tags handed to KillTitlePoller
-	cmuxCleared     int        // ClearCmuxOwner calls
+	// launchQuitOnCancel: the client was already quitting cleanly when the
+	// cancel landed, so it exits 0 and the seam reports that 0 (os/exec's
+	// cancel contract, handled in runBlockingHandoff; #288 BR-2).
+	launchQuitOnCancel bool
+	launchStarted      bool
+	launchProbes       int              // SessionLiveness calls made after a launch started
+	probesAtCancel     int              // launchProbes when the launch ctx ended the client
+	livenessScript     []livenessAnswer // answers after a launch started, one per probe; the last repeats
+	livenessHook       func(n int)      // runs on the n-th probe after a launch started, before it answers
+	launchProbed       chan struct{}    // signalled, never blocking, per probe after a launch started
+	defaultReads       int
+	watchers           []string            // "agent|tag|cwd|args"
+	pollers            []string            // "tag|agent"
+	pollerEnvs         []map[string]string // the environment each title poller started with
+	cmux               []string            // "tag|title"
+	ttyRecorded        []string
+	titles             []string
+	removed            []string
+	family             []string
+	devRebuilt         bool
+	proofMigrations    int
+	attached           []string   // sessions handed to AttachSession
+	deleted            []string   // sessions handed to DeleteSession
+	reaped             []string   // tags handed to ReapNvim
+	swept              [][]string // liveTags per SweepOrphanNvim call
+	parkPrompts        []string   // sessions prompted via ConfirmParkNudge
+	parked             []string   // "tag|agent|move" per ParkScrollback
+	killedPollers      []string   // tags handed to KillTitlePoller
+	cmuxCleared        int        // ClearCmuxOwner calls
 }
 
 func (f *fakeRuntime) StartProofMigration() { f.proofMigrations++ }
@@ -286,7 +290,11 @@ func (f *fakeRuntime) LaunchSession(ctx context.Context, session, configDir, lay
 		f.mu.Lock()
 		f.launchCancelled = true
 		f.probesAtCancel = f.launchProbes
+		quitting := f.launchQuitOnCancel
 		f.mu.Unlock()
+		if quitting {
+			return 0, nil
+		}
 		return -1, nil // what a SIGTERMed client reports
 	case <-f.launchRelease:
 		return f.launchCode, f.launchErr

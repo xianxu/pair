@@ -182,14 +182,17 @@ func (OSRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
 // syscall.Exec) and maps its result to an exit code — the shared contract of the
 // create + attach zellij handoffs (#99 M3), so the Go launcher regains control
 // afterward for cleanup + the restart loop.
+//
+// The child's own status wins whenever it ran (-1 when a signal ended it). A
+// cancelled CommandContext child that still exits 0 makes Run return ctx.Err()
+// -- os/exec's contract -- but what the launcher acts on is how the client
+// ended; the birth watch knows about the cancel itself (#288). Only a child
+// that never ran reports the error.
 func runBlockingHandoff(cmd *exec.Cmd) (int, error) {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	err := cmd.Run()
-	if err == nil {
-		return 0, nil
-	}
-	if exit, ok := err.(*exec.ExitError); ok {
-		return exit.ExitCode(), nil
+	if cmd.ProcessState != nil {
+		return cmd.ProcessState.ExitCode(), nil
 	}
 	return 1, err
 }

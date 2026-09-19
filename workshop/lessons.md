@@ -5558,6 +5558,20 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   When a verdict races the thing it judges, gate the action on the outcome's
   own evidence, and test the interleaving where the thing ends first. (#288
   plan-quality)
+  - The guard was still dead in production: `os/exec` returns `ctx.Err()`
+    for a cancelled child that exits 0, and the caller handled that error
+    before it ever reached the code check. Pin each guard with its own
+    deterministic test. A test that only fails when two guards are both
+    removed proves neither of them. (#288 close review, BR-2 and BR-3)
+
+- **A fake of a stdlib-wrapped seam reproduces the stdlib's return for every
+  event it models.** #288's fake returned `(-1, nil)` for a cancelled launch
+  and `(0, nil)` for a released one. Real `exec.Cmd` with `Cancel` has a
+  third outcome, `ctx.Err()` for a child that exits 0 after the cancel, and
+  the code built on the fake never met it. Before trusting a fake's modelled
+  event, read the wrapped API's documented returns for that event and give
+  each one a row: one fake mode, plus a test against the real API. (#288
+  close review)
 
 - **A test child that must outlive SIGTERM `exec`s its sleeper.** macOS
   `/bin/sh -c 'trap "" TERM; sleep 60'` forks `sleep`. The SIGKILL after

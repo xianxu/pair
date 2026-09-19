@@ -98,7 +98,7 @@ the same machine during a trial would be counted against it.
 | #288 | `launch -n 20 -hammer 10ms` | 20/20 | 0/20 (each exited 10.5–11.2 s after start, no client left) |
 | #288 | `launch -n 10` | 0/10 | — |
 
-The 2026-09-18 runs predate `-exit-wait`, so their Hung column is empty.
+The rows above the #288 ones predate `-exit-wait`, so their Hung column is empty.
 
 The third row is what Couch's cold-resume registration poll did: every cold
 resume under it died. #287 gates both the title poller and that poll on the

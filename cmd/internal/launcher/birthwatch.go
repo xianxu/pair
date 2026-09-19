@@ -24,6 +24,12 @@ import (
 // the loaded worst case and still under Couch's 15 s registration deadline.
 const birthBound = 10 * time.Second
 
+// maxProbeWait caps the backoff between probes zellij does not answer. Each
+// probe is a machine-wide list-sessions, itself the birth-window risk for other
+// threads' launches, so a launch whose probe keeps failing asks ever less often
+// -- but it keeps asking, because standing down would leave a dead birth hung.
+const maxProbeWait = 5 * time.Minute
+
 // birthPoll is the watch's stat cadence: one stat per tick. A client that
 // exits first ends the wait at once (the sleep watches ctx), not a tick late.
 const birthPoll = 100 * time.Millisecond
@@ -60,15 +66,30 @@ func judgeUnborn(sessions []Session, err error, session string) birthVerdict {
 	return birthDead
 }
 
+// failedAtBirth is whether a create's handoff failed at birth: the watch
+// proved death AND the client did not end cleanly. The watch's kill reports -1
+// and a client that noticed the dead server exits 1, while a client that was
+// quitting cleanly as the verdict landed exits 0 -- that is a normal end, and
+// it keeps the normal path and its quit cleanup.
+func failedAtBirth(v birthVerdict, code int) bool {
+	return v == birthDead && code != 0
+}
+
+// nextProbeWait is the wait before asking zellij again after it did not answer:
+// double, capped at maxProbeWait.
+func nextProbeWait(wait time.Duration) time.Duration {
+	return min(2*wait, maxProbeWait)
+}
+
 // watchBirth waits for the create's birth evidence while LaunchSession blocks.
 // Only proof of death -- no pane AND no live session -- calls abort. It never
 // acts on a session zellij has listed live: that session may be healthy with a
 // missing sidecar, and ending it would skip the quit cleanup. An unanswered
-// probe earns another bound and another question, never a teardown. ctx ends
+// probe earns a longer wait and another question, never a teardown. ctx ends
 // when LaunchSession returns; a verdict reached after that is not acted on.
 func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound time.Duration, abort func()) birthVerdict {
-	for {
-		err := panebirth.Await(ctx, panebirth.WallClock{}, birthPoll, bound, func() (bool, error) {
+	for wait := bound; ; wait = nextProbeWait(wait) {
+		err := panebirth.Await(ctx, panebirth.WallClock{}, birthPoll, wait, func() (bool, error) {
 			_, ok := rt.FileSize(evidence)
 			return ok, nil
 		})

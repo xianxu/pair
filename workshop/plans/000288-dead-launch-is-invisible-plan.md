@@ -677,7 +677,7 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
 - [x] `workshop/lessons.md`: add a rule if the work surfaced one.
 - [x] Full suite: `TMPDIR=<scratch> make test` (memory: the test-changelog
   TMPDIR quirk), then `go test ./... -count=1`.
-- [ ] `make install`, then ask the operator to smoke-test Couch:
+- [x] `make install`, then ask the operator to smoke-test Couch:
   1. start `while :; do zellij list-sessions --short >/dev/null 2>&1; sleep 0.01; done`
      in a spare terminal;
   2. cold-create a scratch thread in Couch (retry until one launch dies;
@@ -717,3 +717,35 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
 
   Not folded: "the plan restates tests and code". The code blocks stay,
   because they are what the reviewed design is.
+- **2026-09-18, close review round 1 (FIX-THEN-SHIP; BR-2 and BR-3
+  Important).**
+  - **BR-2: the fake diverged from the seam.** `os/exec` returns `ctx.Err()`
+    when Cancel ran and the child then exits 0. `runBlockingHandoff` mapped
+    that to `(1, err)`, and `runCreate` handles `err` before the verdict, so
+    the `code != 0` guard could never see a clean exit in production.
+    - The fix: `runBlockingHandoff` returns `ProcessState.ExitCode()`
+      whenever the child ran. That is -1 for a signalled child.
+    - The fake gains `launchQuitOnCancel`, a client that exits 0 as the
+      cancel lands.
+    - `TestCancelledHandoffReportsAChildsCleanExit` is the OS-side pin.
+  - **BR-3: each cause guard is pinned on its own now.**
+    - The dead-path decision is the pure `failedAtBirth(v, code)`, with a
+      table test.
+    - Test 6 became `TestCleanQuitUnderTheWatchsCancelKeepsTheNormalPath`.
+      It is deterministic: the verdict always lands before the client
+      returns.
+    - `TestWatchBirthDoesNotJudgeALaunchThatEndedDuringItsProbe` pins the
+      post-probe recheck directly.
+    - Mutation checks, each guard removed alone: the code guard → both of its
+      tests fail; the recheck → its unit test fails; the ProcessState
+      derivation → the OS test fails; the backoff → its table fails.
+  - **Minors.**
+    - BR-4: unanswered probes back off (`nextProbeWait`, doubling, capped at
+      5 min) instead of recurring every bound.
+    - BR-5: `panebirth.Evidence` says that birth is the file's existence and
+      that each waiter stats it through its own seam.
+    - BR-6: the SKILL.md table note is disambiguated.
+    - PQ-1, the plan restating its code, is carried and not addressed. The
+      code blocks are the reviewed design, and the implementation has
+      diverged from them only where this Revisions section records it.
+

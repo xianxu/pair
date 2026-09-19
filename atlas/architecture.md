@@ -350,8 +350,10 @@ The producer consumes exact `$PAIR_AGENT_PANE_PATH` in a shell `printf` inside t
 - *Verdict* (`judgeUnborn`, one `SessionLiveness` snapshot).
   - No live session (absent or EXITED) → dead. The watch cancels the launch context, which `killOnCancel` maps to SIGTERM on the client, then SIGKILL after 2 s. `Run` returns only once the child has been reaped.
   - Listed live → the watch stands down for good. The session may be healthy with a sidecar that failed to write, and ending it later would skip the quit cleanup.
-  - The probe failed → another bound, then another question. It never tears down without an answer.
-- *Failure path.* A dead verdict fails like a launch that never started: the layout record is restored, the message names zellij's log, the code is 1, and there is no quit cleanup and no restart. The verdict must match its cause, so the dead path needs `code != 0`. A clean quit that races the probe keeps the normal path.
+  - The probe failed → the watch asks again after a wait that doubles each time, capped at 5 min (`nextProbeWait`). Each probe is a machine-wide `list-sessions`, but the watch never stops asking, and it never tears down without an answer.
+- *Failure path.* A dead verdict fails like a launch that never started: the layout record is restored, the message names zellij's log, the code is 1, and there is no quit cleanup and no restart. The verdict must match its cause, so the path is taken only when `failedAtBirth(verdict, code)`, meaning dead and `code != 0`. A clean quit that races the probe keeps the normal path.
+  - That guard depends on `runBlockingHandoff` reporting the child's own exit status whenever the child ran. `os/exec` returns `ctx.Err()` for a cancelled child that still exits 0, and treating that as a launch error would turn a clean quit into "failed to launch" (#288 BR-2).
+  - The watch also rechecks its context after each probe, so it never judges a launch that ended while zellij was being asked.
 - *Residuals.*
   - A birth still in its window at 10 s can be killed by the watch's own probe.
   - The probe adds, rarely, to the machine-wide external-prober risk for other threads' births.

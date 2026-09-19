@@ -228,29 +228,28 @@ func TestWatchEndsWithAClientThatExitsFirst(t *testing.T) {
 	}
 }
 
-// The verdict must match its cause. A session that came up without its
-// sidecar and was quit cleanly while the probe found nothing is a normal end:
-// it keeps the handoff path and its quit cleanup, whichever of the watch's
-// stop and its verdict lands first.
-func TestCleanQuitRacingTheProbeKeepsTheNormalPath(t *testing.T) {
+// The verdict must match its cause. The watch proves death -- no pane, nothing
+// listed -- while the client is already quitting cleanly: a session that came
+// up without its sidecar, quit by the operator as the probe found nothing. Its
+// cancel lands on a client that exits 0, the seam reports that 0, and the
+// normal path and its quit cleanup run. Deterministic: the verdict always
+// lands before the client returns, so this pins failedAtBirth's code guard;
+// TestWatchBirthDoesNotJudgeALaunchThatEndedDuringItsProbe pins the other.
+func TestCleanQuitUnderTheWatchsCancelKeepsTheNormalPath(t *testing.T) {
 	rt := newFakeRuntime()
 	opts, _ := watchedCreate(t, rt)
 	rt.launchBlock = true
-	rt.launchRelease = make(chan struct{})
-	rt.launchReturned = make(chan struct{})
-	rt.livenessScript = []livenessAnswer{{}} // by the time it answers, nothing is listed
-	rt.livenessHook = func(n int) {
-		if n == 1 {
-			close(rt.launchRelease) // the operator quits: the client exits 0
-			<-rt.launchReturned
-		}
-	}
+	rt.launchQuitOnCancel = true
+	rt.livenessScript = []livenessAnswer{{}}
 	rt.quitMarkers[watchedSession] = true
 
 	var stderr bytes.Buffer
 	code, err := RunLaunch(opts, rt, &stderr)
 	if err != nil || code != 0 {
 		t.Fatalf("launch = %d, %v; want 0 (stderr: %s)", code, err, stderr.String())
+	}
+	if !rt.launchCancelled {
+		t.Fatal("the dead verdict never landed; this test would not exercise the guard")
 	}
 	if strings.Contains(stderr.String(), "never came up") {
 		t.Fatalf("a clean quit was reported as a dead birth:\n%s", stderr.String())

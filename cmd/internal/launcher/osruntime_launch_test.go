@@ -55,3 +55,26 @@ func TestUncancelledHandoffReturnsTheChildsExitCode(t *testing.T) {
 		t.Fatalf("handoff = %d, %v; want 3, nil", code, err)
 	}
 }
+
+// os/exec's contract: when Cancel ran and the child then exits 0, Run returns
+// ctx.Err(). A client that was already quitting cleanly when the birth watch's
+// cancel landed is such a child. What the launcher must act on is how the
+// client ended -- the watch knows about the cancel itself -- so the handoff
+// reports the child's own status whenever the child ran. Reporting the
+// context error instead turned a clean quit into "failed to launch" and
+// skipped its quit cleanup (#288 BR-2).
+func TestCancelledHandoffReportsAChildsCleanExit(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cmd := killOnCancel(exec.CommandContext(ctx, "sh", "-c", `trap "exit 0" TERM; while :; do sleep 0.05; done`))
+	time.AfterFunc(100*time.Millisecond, cancel)
+	if code, err := runBlockingHandoff(cmd); err != nil || code != 0 {
+		t.Fatalf("handoff = %d, %v; want the child's own 0, nil", code, err)
+	}
+}
+
+func TestHandoffThatCannotStartReportsTheError(t *testing.T) {
+	cmd := killOnCancel(exec.CommandContext(context.Background(), "/nonexistent/zellij"))
+	if code, err := runBlockingHandoff(cmd); err == nil || code != 1 {
+		t.Fatalf("handoff = %d, %v; want 1 and the start error", code, err)
+	}
+}
