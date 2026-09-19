@@ -1,11 +1,12 @@
 ---
 id: 000292
-status: open
+status: working
 deps: [pair#293]
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
 estimate_hours:
+started: 2026-09-19T11:10:35-07:00
 ---
 
 # Carbonyl browser tab in the right pane, shared with the agent over DevTools
