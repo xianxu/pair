@@ -7,6 +7,7 @@ created: 2026-09-18
 updated: 2026-09-18
 estimate_hours:
 started: 2026-09-18T22:36:30-07:00
+flow: {kind: quick, provenance: inferred, spec: "3f0d4aca", done: "6ef3185a"}
 ---
 
 # Pair's Alt+n in a Couch-hosted thread confirms, then silently does nothing
