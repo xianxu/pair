@@ -54,3 +54,32 @@ func DecodeOuterRecord(raw string) (OuterRecord, error) {
 func PresentedByCouch(env Env, tag string) bool {
 	return env.CouchThreadTag != "" && env.CouchThreadTag == tag
 }
+
+// CouchOwnsRestart is the rule for whether Pair may restart a session in place
+// (#284): not when the session env names Couch (Couch created it), and not when
+// Couch presents the attached client, whose launcher refuses the restart marker
+// -- but only after quit cleanup has already torn the thread down. `pair keys`
+// reads the same rule for its hosted wording, so the help cannot promise a
+// reload that the gate refuses.
+func CouchOwnsRestart(sessionEnvHosted, presentedByCouch bool) bool {
+	return sessionEnvHosted || presentedByCouch
+}
+
+// couchRestartGate runs before an in-session restart-marker writer writes
+// anything (#284). The presenter record is input this process did not write, and
+// it gates killing a live session, so a record that cannot be read refuses. A
+// session whose tag is unresolved has no record to read (it is keyed by tag),
+// and the env half of the rule still applies to it.
+func couchRestartGate(rt Runtime, sessionEnvHosted bool, tag string) error {
+	presented := false
+	if !sessionEnvHosted && tag != "" {
+		var err error
+		if presented, err = rt.OuterPresenter(tag); err != nil {
+			return fmt.Errorf("cannot tell whether Couch presents this session (%v), so it is not restarted in place", err)
+		}
+	}
+	if CouchOwnsRestart(sessionEnvHosted, presented) {
+		return fmt.Errorf("this session's restarts belong to Couch; relaunch the thread from Couch (Alt+n)")
+	}
+	return nil
+}

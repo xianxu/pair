@@ -84,17 +84,21 @@ var bindings = []Binding{
 		Encodings: [][]byte{{PreviousLegacy}, []byte("\x1b[127;5u")}},
 	{Action: ActionNewestPage, Scope: ScopeEveryPane, Key: "Ctrl+Return", Help: "jump to the newest notification thread",
 		Encodings: [][]byte{[]byte(NewestPageSequence), []byte("\x1b[13;5:1u"), []byte("\x1b[13;5:2u")}},
-	switcher(ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
-	switcher(ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),
-	switcher(ActionRelaunch, workbenchshortcut.ChordAltN, "Alt+n", "relaunch the highlighted thread on the current binary, keeping its conversation"),
-	switcher(ActionRelaunch, workbenchshortcut.ChordCtrlAltN, "Ctrl+Alt+n", "same as Alt+n"),
+	// Relaunch is taken from every pane (#284): Pair's own restart refuses under
+	// Couch, so passing it through left a key that confirmed and did nothing.
+	// From a Pair pane it relaunches the thread on screen, in the switcher the
+	// highlighted row.
+	pairChord(ScopeEveryPane, ActionRelaunch, workbenchshortcut.ChordAltN, "Alt+n", "relaunch this thread on the current binary, keeping its conversation"),
+	pairChord(ScopeEveryPane, ActionRelaunch, workbenchshortcut.ChordCtrlAltN, "Ctrl+Alt+n", "same as Alt+n"),
+	pairChord(ScopeSwitcher, ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
+	pairChord(ScopeSwitcher, ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),
 }
 
-// switcher declares a switcher chord. Its bytes are Pair's for the same chord --
-// outside the switcher they ARE Pair's key -- so they come from Pair's table
-// rather than being restated.
-func switcher(action Action, chord workbenchshortcut.Chord, key, help string) Binding {
-	return Binding{Action: action, Scope: ScopeSwitcher, Chord: chord, Key: key, Help: help, Encodings: workbenchshortcut.ChordEncodings(chord)}
+// pairChord declares a chord whose bytes are Pair's: a switcher chord shares
+// them (outside the switcher they ARE Pair's key), an every-pane chord takes
+// them. Either way they come from Pair's table rather than being restated.
+func pairChord(scope Scope, action Action, chord workbenchshortcut.Chord, key, help string) Binding {
+	return Binding{Action: action, Scope: scope, Chord: chord, Key: key, Help: help, Encodings: workbenchshortcut.ChordEncodings(chord)}
 }
 
 // Bindings returns every declared chord in help order, deep-copied so no

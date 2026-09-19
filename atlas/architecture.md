@@ -317,16 +317,18 @@ Under Couch the page has two layers, decided by two independent facts (#282):
   first: `couchkeys.HelpSections`, the same sections `couch --help` renders.
   The session env names only whoever created the Zellij session, so it cannot
   answer this for a session Couch attaches to later.
-- **Hosting.** Pair's own Alt+n does not reload when the session env names
-  Couch (`launcher.CouchHostedEnv`: `pair restart` refuses) or when Couch
-  presents the client (the client refuses the restart marker). Either one
-  selects `keyhelp.HostedSections`, which substitutes
-  `GlobalBinding.HostedHelp` for Alt+d, Alt+n and Ctrl+Alt+n.
+- **Hosting.** Pair's own Alt+n does not reload when
+  `launcher.CouchOwnsRestart` holds: the session env names Couch, or Couch
+  presents the client. `pair restart` and in-session compaction refuse on the
+  same rule before writing anything (`pair#284`). It selects
+  `keyhelp.HostedSections`, which substitutes `GlobalBinding.HostedHelp` for
+  Alt+d, Alt+n and Ctrl+Alt+n.
 
 Rows that document a workbench chord carry it (`keyhelp.Binding.Chord`).
 `keyhelp.Layer(host, claimed, pair)` drops Pair's row for every chord the host
-takes from every pane (`couchkeys.Claimed`, empty today), so a key Couch later
-overrides changes the page with no edit outside Couch's table. keyhelp never
+takes from every pane (`couchkeys.Claimed`: Alt+n and Ctrl+Alt+n since
+`pair#284`), so a key Couch overrides changes the page with no edit outside
+Couch's table. keyhelp never
 names Couch.
 
 Two rules hold it together. **Identity is (key, context), not key** — `Alt+k` focuses the terminal from the draft and jumps back to the left pane from the terminal, so it renders twice. And **every row names its wording source**, with no "whichever source has prose wins" fallback; that fallback is precisely what would print `Alt+t` as "right-terminal tab helper disabled in draft".
@@ -481,8 +483,9 @@ actions address the draft by pane ID through `draftroute` /
 chords; the wrapper's existing translator retains paste state and pending bytes.
 `PendingInputSuffix` retains only a proper prefix of a finite marker/encoding.
 Both Return-adaptation configurations preserve partial paste and chord framing,
-and pasted shortcuts remain literal. Couch handles its three navigation keys
-outside paste and defers lifecycle chords to its switcher; see [Couch](couch.md).
+and pasted shortcuts remain literal. Couch handles its three navigation keys and
+relaunch (Alt+n) outside paste and defers the other lifecycle chords to its
+switcher; see [Couch](couch.md).
 
 **Shared terminal abstraction (#255).** Couch and `pair term` use the same
 `cmd/internal/terminal.Endpoint` for each child's UTF-8/control parser, screen,

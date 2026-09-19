@@ -100,6 +100,12 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 		fmt.Fprintln(stderr, "pair: continuation accepted by Couch; the thread owner will restart from the saved checkpoint")
 		return 0, nil
 	}
+	// A session Couch presents without having created it has no thread address
+	// to route to, and its client would refuse the marker below (#284).
+	if err := couchRestartGate(rt, false, tag); err != nil {
+		fmt.Fprintf(stderr, "pair: compaction: %v\n", err)
+		return 1, nil
+	}
 	fmt.Fprintf(stderr, "pair: compacting %s — parking scrollback, restarting from continuation…\n", session)
 	attempt := rt.MintLaunchNonce()
 	if attempt == "" {

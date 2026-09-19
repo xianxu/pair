@@ -130,11 +130,7 @@ func LaunchNative(launchArgs []string, pairHome string, stdout, stderr io.Writer
 	// bin/pair-{restart,quit}.sh): write markers, exec kill-session. They need the
 	// live ZELLIJ_SESSION_NAME the keybind fires under.
 	if args.Command == "restart" {
-		if env.CouchHosted() {
-			fmt.Fprintln(stderr, "pair: hosted inner restart is unsupported; use Couch relaunch (Alt+n)")
-			return 1, nil
-		}
-		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), os.Getenv("PAIR_TAG"), stderr), nil
+		return runRestart(rt, args, os.Getenv("ZELLIJ_SESSION_NAME"), os.Getenv("PAIR_TAG"), env.CouchHosted(), stderr), nil
 	}
 	if args.Command == "quit" {
 		return runQuit(rt, os.Getenv("ZELLIJ_SESSION_NAME"), stderr), nil

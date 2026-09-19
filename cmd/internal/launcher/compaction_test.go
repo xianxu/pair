@@ -137,3 +137,20 @@ func TestRunLaunchCompactionTagMismatch(t *testing.T) {
 		t.Fatalf("mismatch must not compact: markers=%v killed=%v", rt.writtenMarkers, rt.killed)
 	}
 }
+
+// In-session compaction is the other restart-marker writer that kills a live
+// session (#284). In a session Couch presents but did not create it has no
+// thread address to hand Couch, so it refuses before parking, marking or
+// killing anything.
+func TestRunLaunchCompactionRefusesACouchPresentedSession(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.parkOK = true
+	rt.RecordOuterTTY("demo", true)
+	code, err := run(t, compactOpts(true, false, ""), rt)
+	if err != nil || code != 1 {
+		t.Fatalf("code=%d err=%v, want the refusal", code, err)
+	}
+	if len(rt.writtenMarkers) != 0 || len(rt.touchedQuit) != 0 || len(rt.killed) != 0 || len(rt.parked) != 0 {
+		t.Fatalf("mutated before refusing: markers=%v quit=%v killed=%v parked=%v", rt.writtenMarkers, rt.touchedQuit, rt.killed, rt.parked)
+	}
+}

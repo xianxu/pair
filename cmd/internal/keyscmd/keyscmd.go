@@ -86,10 +86,9 @@ func RunWith(args []string, deps Deps, stdout, stderr io.Writer) int {
 		couch = false
 	}
 	build := keyhelp.Sections
-	if couch || launcher.CouchHostedEnv(deps.Getenv) {
-		// Pair's Alt+n does not reload when the session env names Couch (pair
-		// restart refuses) or Couch launched this client (it refuses the
-		// restart marker), so the hosted wording is the true one (#282).
+	if launcher.CouchOwnsRestart(launcher.CouchHostedEnv(deps.Getenv), couch) {
+		// The rule `pair restart` refuses by (#284), so the hosted wording is
+		// the true one exactly when Pair's Alt+n cannot reload (#282).
 		build = keyhelp.HostedSections
 	}
 	sections, err := build(deps.Sources)

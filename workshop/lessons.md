@@ -5588,3 +5588,19 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   sequence the helper should produce, here probe times of 1, 3 and 7 s. Then
   mutation-check the call, not only the helper. (#288 close review, BR-4)
 
+
+## Re-owning a chord: sweep its wire bytes across every test package
+
+**What happened (#284).** Moving Alt+n from "passes through Couch to the agent"
+to "Couch's own" meant updating the tests that pinned the old routing. The sweep
+covered only the packages that changed (`couchtty`, `couchkeys`, `keyscmd`,
+`keyhelp`). The #245 cross-layer test lives in the consumer's package
+(`wrapcmd` `TestConsoleWrapperShortcutPassthrough` drives Couch into the
+wrapper) and spells the chord as raw bytes (`\x1b[110;3u`), not as
+`ChordAltN`. Only the full `make test` found it.
+
+**Rule.** When a chord changes owner, grep the whole tree's tests for every
+encoding of it (`workbenchshortcut.ChordEncodings`: the Kitty forms like
+`110;3u` / `110;7u` and the legacy `\x1bn`) as well as its symbol, before the
+first test run. Cross-layer conformance tests sit next to the layer that
+receives the input, not the one that routes it.

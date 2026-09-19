@@ -403,8 +403,11 @@ func TestSwitcherRelaunchFindsTheThreadFromAnyDepth(t *testing.T) {
 	}
 }
 
+// Alt+d and Alt+x stay Pair's inside a displayed thread (#245); Couch acts on
+// them only in its switcher. The relaunch chords are not in this set: Couch
+// takes those from every pane (#284).
 func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
-	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltD, workbenchshortcut.ChordAltX, workbenchshortcut.ChordAltN, workbenchshortcut.ChordCtrlAltN} {
+	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltD, workbenchshortcut.ChordAltX} {
 		for _, encoding := range workbenchshortcut.ChordEncodings(chord) {
 			t.Run(renderInputBytes(encoding), func(t *testing.T) {
 				con, stdin, _ := newChordFixture(t)
@@ -413,13 +416,51 @@ func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
 				if _, err := stdin.Write(input); err != nil {
 					t.Fatal(err)
 				}
-				wire := map[workbenchshortcut.Chord]string{workbenchshortcut.ChordAltD: "\x1bd", workbenchshortcut.ChordAltX: "\x1bx", workbenchshortcut.ChordAltN: "\x1bn", workbenchshortcut.ChordCtrlAltN: "\x1b\x0e"}[chord]
+				wire := map[workbenchshortcut.Chord]string{workbenchshortcut.ChordAltD: "\x1bd", workbenchshortcut.ChordAltX: "\x1bx"}[chord]
 				waitFor(t, "forwarded lifecycle event", func() bool { return string(bytes.Join(child.Writes(), nil)) == "before"+wire+"after" })
 				con.mu.Lock()
 				focus := con.focus
 				con.mu.Unlock()
 				if focus.IsPanel() || con.menuSnapshot().CurrentFrame().Kind == MenuFrameConfirmation {
 					t.Fatal("actor input opened lifecycle confirmation")
+				}
+			})
+		}
+	}
+}
+
+// Couch takes the relaunch chords from every Pair pane (#284). Passed through,
+// they reached a Pair whose own restart refuses under Couch -- a dead key that
+// confirmed and then did nothing. So no byte of the chord may reach the child,
+// whoever created its session, and the confirmation names the thread ON SCREEN
+// even while another thread pages: the switcher's opener would land on the
+// pager, which is why "Ctrl+Space, then Alt+n" is not the same operation.
+func TestActorRelaunchChordsConfirmTheThreadOnScreen(t *testing.T) {
+	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltN, workbenchshortcut.ChordCtrlAltN} {
+		for _, encoding := range workbenchshortcut.ChordEncodings(chord) {
+			t.Run(renderInputBytes(encoding), func(t *testing.T) {
+				con, stdin, address := newChordFixture(t)
+				child := con.activeChild()
+				pager := menuAddress("pager")
+				con.attachThreadActor("c2", "pager", pager, "/w/pager", "pager", ptychild.NewFakeChild(nil))
+				con.switchTo("c1", true, arrivalOrdinary)
+				con.mu.Lock()
+				con.attention.Mark(pager, "paging")
+				con.syncAttentionLocked()
+				con.mu.Unlock()
+
+				if _, err := stdin.Write(append([]byte("before"), encoding...)); err != nil {
+					t.Fatal(err)
+				}
+				waitFor(t, "the relaunch confirmation", func() bool {
+					frame := con.menuSnapshot().CurrentFrame()
+					return frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch"
+				})
+				if got := con.menuSnapshot().CurrentFrame().Thread; got != address {
+					t.Fatalf("relaunch targets %v, want the thread on screen %v", got, address)
+				}
+				if got := string(bytes.Join(child.Writes(), nil)); got != "before" {
+					t.Fatalf("child received %q, want only the bytes before the chord", got)
 				}
 			})
 		}

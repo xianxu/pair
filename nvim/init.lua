@@ -3035,6 +3035,22 @@ end
 
 local pair_confirm_quit = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'confirm_quit.lua')
 
+-- Every confirmed lifecycle command reports its own failure (#284). Block-scoped
+-- and shared through _G: the main chunk is at Lua's 200-local ceiling (E5112,
+-- workshop/lessons.md).
+do
+  local command = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'lifecycle_command.lua')
+  _G._pair_lifecycle = {
+    run = function(argv)
+      return command.run(argv, {
+        system = vim.fn.system,
+        status = function() return vim.v.shell_error end,
+        notify = vim.notify,
+      })
+    end,
+  }
+end
+
 -- Read the per-(tag,agent) saved config so the Alt+x prompt can show the
 -- user what they're about to detach from for the future `pair resume
 -- <tag>` path. Returns nil when the tag isn't set, the agent file is
@@ -3069,7 +3085,7 @@ function _G.PairConfirmQuit()
     pair_confirm_quit.run({
       config = pair_read_saved_config(),
       confirm = vim.fn.confirm,
-      quit = function() vim.fn.system({ 'pair', 'quit' }) end,
+      quit = function() _G._pair_lifecycle.run({ 'pair', 'quit' }) end,
     })
   end)
 end
@@ -3079,7 +3095,7 @@ function _G.PairConfirmDetach()
     local ans = vim.fn.confirm('Detach from this pair session?', '&Yes\n&No', 2)
     if ans == 1 then
       if has_ui() then
-        vim.fn.system({ 'zellij', 'action', 'detach' })
+        _G._pair_lifecycle.run({ 'zellij', 'action', 'detach' })
       end
     end
   end)
@@ -3175,7 +3191,7 @@ local function pair_confirm_restart_impl(new_session)
       table.insert(argv, '--rename-to')
       table.insert(argv, rename_to)
     end
-    vim.fn.system(argv)
+    _G._pair_lifecycle.run(argv)
   end)
 end
 
@@ -3198,10 +3214,7 @@ function _G.PairConfirmAgentRestart()
         .. '\n  args:  ' .. args_line
     end
     if vim.fn.confirm(prompt, '&Yes\n&No', 2) == 1 then
-      local out = vim.fn.system({ 'pair', 'agent', 'restart' })
-      if vim.v.shell_error ~= 0 then
-        vim.notify((out:gsub('%s+$', '')), vim.log.levels.ERROR)
-      end
+      _G._pair_lifecycle.run({ 'pair', 'agent', 'restart' })
     end
   end)
 end

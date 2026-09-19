@@ -736,14 +736,18 @@ recovery, Park, Retry, Recover, Abandon, and Leave all enter that same boundary;
 same-address/same-nonce overlap shares one future, while other work overloads
 without lifecycle effects.
 
-**Alt+n / Ctrl+Alt+n relaunch the highlighted switcher row** (`pair#182`,
-`pair#245`). Couch replaces the helper with the current binary and keeps the
-conversation. While a Pair pane is displayed these chords pass inward: the agent
-receives input. In other panes Pair's own reload does not work under Couch.
-`pair restart` refuses when the session env names Couch, and a Couch-launched
-client refuses the restart marker after its quit cleanup, so in a session Couch
-presents but did not create, Pair's Alt+n ends the thread (`pair#284`). There is
-no whole-Couch relaunch; leave the switcher, rebuild and run Couch again.
+**Alt+n / Ctrl+Alt+n relaunch a thread from every pane** (`pair#182`,
+`pair#284`). They are `couchkeys.ScopeEveryPane`: from a displayed Pair pane
+`onRelaunchHotkey` targets the thread on screen, and in the switcher the
+highlighted row. Couch replaces the helper with the current binary and keeps the
+conversation. #245 had passed them inward, but Pair's own reload cannot run under
+Couch, so they were a dead key. The agent therefore does not receive them under
+Couch. Pair refuses an in-session restart before writing anything whenever
+`launcher.CouchOwnsRestart` holds: the session env names Couch, or Couch presents
+the client. That covers a session Couch presents but did not create, where a
+Couch-launched client would refuse the marker only after quit cleanup had
+already ended the thread. There is no whole-Couch relaunch; leave the switcher,
+rebuild and run Couch again.
 
 **Detach is available in the switcher** (`pair#170`, `pair#245`). Alt+d there
 detaches all live threads; a thread's Detach action operates on that thread.

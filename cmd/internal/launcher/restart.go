@@ -11,7 +11,7 @@ import (
 // ExecKillSession is terminal on the real runtime (syscall.Exec replaces the
 // process), so the return is reached only when the kill binary is missing or
 // under the fake.
-func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.Writer) int {
+func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, sessionEnvHosted bool, stderr io.Writer) int {
 	if session == "" {
 		_, _ = io.WriteString(stderr, "pair restart: ZELLIJ_SESSION_NAME unset; cannot restart cleanly.\n")
 		return 1
@@ -29,6 +29,10 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, stderr io.
 			return 1
 		}
 		tag, _ = TagForSessionName(index, session)
+	}
+	if err := couchRestartGate(rt, sessionEnvHosted, tag); err != nil {
+		fmt.Fprintf(stderr, "pair restart: %v\n", err)
+		return 1
 	}
 	agent := rt.InferAgent(tag)
 	sessionID := ""

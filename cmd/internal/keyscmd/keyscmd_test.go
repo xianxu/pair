@@ -151,29 +151,37 @@ func TestCouchPresentedPageLeadsWithCouchsKeys(t *testing.T) {
 	}
 }
 
-// Couch's section follows who presents the client (the attach record). Hosted
-// wording follows whether Pair's Alt+n can reload: not if the session env names
-// Couch (pair restart refuses) or Couch presents the client (it refuses the
-// restart marker) (#282).
+// Couch's section follows who presents the client (the attach record). The
+// Alt+n row follows who acts on the key (#284): where Couch presents the client
+// it takes Alt+n and its relaunch row is the only one; where Couch created the
+// session but does not present it, Pair's hosted row says the reload is refused
+// (launcher.CouchOwnsRestart); standalone, Pair reloads.
 func TestPresenterAndHostingAreIndependent(t *testing.T) {
+	const (
+		couchRow      = "relaunch this thread on the current binary"
+		hostedRow     = "does not reload a Couch thread"
+		standaloneRow = "reload pair — kill and re-launch"
+	)
 	for _, tc := range []struct {
-		name          string
-		vars          map[string]string
-		couch         bool
-		wantCouch     bool
-		wantHostedRow bool
+		name      string
+		vars      map[string]string
+		couch     bool
+		wantCouch bool
+		wantRow   string
 	}{
-		{"adopted: Couch presents, env not Couch's", nil, true, true, true},
-		{"Couch gone, reattached from a terminal", couchLaunched, false, false, true},
-		{"Couch-launched and presented", couchLaunched, true, true, true},
-		{"standalone", nil, false, false, false},
+		{"adopted: Couch presents, env not Couch's", nil, true, true, couchRow},
+		{"Couch gone, reattached from a terminal", couchLaunched, false, false, hostedRow},
+		{"Couch-launched and presented", couchLaunched, true, true, couchRow},
+		{"standalone", nil, false, false, standaloneRow},
 	} {
 		out := run(t, deps(tc.vars, tc.couch))
 		if got := strings.Contains(out, "open the Couch switcher"); got != tc.wantCouch {
 			t.Errorf("%s: couch section=%v", tc.name, got)
 		}
-		if got := strings.Contains(out, "does not reload under Couch"); got != tc.wantHostedRow {
-			t.Errorf("%s: hosted wording=%v", tc.name, got)
+		for _, row := range []string{couchRow, hostedRow, standaloneRow} {
+			if got := strings.Contains(out, row); got != (row == tc.wantRow) {
+				t.Errorf("%s: %q shown=%v, want only %q", tc.name, row, got, tc.wantRow)
+			}
 		}
 	}
 }

@@ -251,6 +251,7 @@ test-run-headless:
 test-lua:
 	nvim -l nvim/retention_test.lua
 	nvim -l nvim/confirm_quit_test.lua
+	nvim -l nvim/lifecycle_command_test.lua
 	nvim -l nvim/workbench_route_test.lua
 	bash tests/workbench-route-nvim-test.sh
 	nvim -l nvim/slug_test.lua
