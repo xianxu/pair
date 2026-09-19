@@ -1,11 +1,12 @@
 ---
 id: 000284
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-18
 updated: 2026-09-18
 estimate_hours:
+started: 2026-09-18T22:36:30-07:00
 ---
 
 # Pair's Alt+n in a Couch-hosted thread confirms, then silently does nothing
