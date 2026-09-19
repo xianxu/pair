@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
-estimate_hours: 9.31
+estimate_hours: 9.46
 started: 2026-09-19T11:10:35-07:00
 flow: {kind: full, provenance: inferred}
 ---
@@ -121,10 +121,25 @@ depends on this one.
 process (it listens on 127.0.0.1 only). That's acceptable *because* each tab
 uses a throwaway profile that holds nothing sensitive.
 
-**Limit.** Chrome 111 (early 2023) is fine for a development preview and for
-agent-driven checks. It doesn't stand in for testing against current Chrome.
-Carbonyl displays one page, so an agent should drive the existing page, not open
-new ones.
+**Engine risk, accepted by the operator 2026-09-19.** Carbonyl is
+unmaintained: last upstream commit 2023-02-26, last release v0.0.3, bundling
+Chromium 111. Nothing maintained does what it does (a real engine rendered as
+terminal *text*, with CDP for the agent); Browsh tracks current Firefox but
+can't be driven over CDP. Two conditions follow:
+- **The engine stays swappable.** It sits behind "launch a binary, speak CDP",
+  so a replacement keeps the record, `pair browser`, the chords, the label and
+  the lifecycle.
+- **A remote URL is never opened silently.** `IsLocalURL` classifies loopback,
+  `localhost`, private and link-local addresses, `file:`, `about:` and `data:`
+  as local. A remote URL in the URL field flashes `Chromium 111, unpatched
+  since 2023 — Enter again to open <host>, or Esc` and needs a second Enter.
+  pair#293 should prefer `open` (the patched system browser) for remote
+  Alt+clicks.
+
+**Limit.** Chrome 111 (early 2023) is fine for a development preview of your own
+dev servers, and for agent-driven checks. It doesn't stand in for testing against
+current Chrome. Carbonyl displays one page, so an agent should drive the existing
+page, not open new ones.
 
 ## Done when
 
@@ -141,6 +156,8 @@ new ones.
   profile; after the third, both are swept once the owner is proved dead. A test
   covers each.
 - A Carbonyl older than 0.0.3 gets a strip notice naming the idle-CPU bug.
+- A remote URL in the URL field needs a second Enter; a local one doesn't. A
+  test covers both, and `IsLocalURL`'s local set is closed (fuzzed).
 - The chosen frame-rate cap, and the measured CPU of Carbonyl, `pair term`,
   zellij and couch on an idle and a full-motion page, are recorded in the Log.
 
@@ -182,14 +199,20 @@ item: real-api-discovery       design=0.0 impl=0.24
 item: ux-rename-iteration      design=0.5 impl=0.08
 item: smaller-go-module        design=0.05 impl=0.16
 item: smaller-go-module        design=0.05 impl=0.2
+item: smaller-go-module        design=0.05 impl=0.08
 item: skill-or-dispatcher      design=0.1 impl=0.16
 item: atlas-docs               design=0.1 impl=0.04
 item: milestone-review         design=0.1 impl=0.16
 item: milestone-review         design=0.1 impl=0.16
 item: milestone-review         design=0.1 impl=0.16
 design-buffer: 0.15
-total: 9.31
+total: 9.46
 ```
+
+**Revision 2026-09-19 (post-gate):** one `smaller-go-module`
+(design=0.05 impl=0.08) added for `IsLocalURL` plus confirm-on-remote, after
+the operator accepted the unmaintained engine on that condition.
+9.31 → 9.46.
 
 **Item order**, top to bottom:
 1. Spike and design.
@@ -345,3 +368,22 @@ Reasons: the spike (Log) and the operator's two answers this session.
   and the probe need the sandbox off.
 - **Next:** M1 Task 1.1 (`cmd/internal/browsertab` pure helpers + fuzz), per
   `workshop/plans/000292-carbonyl-browser-tab-plan.md`. Run `sdlc state` first.
+
+### 2026-09-19 — operator decisions on the engine and the dependency
+
+- **`github.com/coder/websocket` approved** (ISC, zero transitive deps, last
+  commit 2026-06-15). It supplies the CDP client and the test fake's server
+  half; the in-tree alternative was ~250–350 lines of framing, masking,
+  continuation and close-handshake code plus its own fuzzing.
+- **Carbonyl accepted, on two conditions**, after its maintenance state was
+  measured: last commit 2023-02-26, last release v0.0.3 (2023-02-18), 19.5k
+  stars, 90 open issues, bundling Chromium 111.
+  - The engine stays swappable behind "launch a binary, speak CDP".
+  - Remote URLs are confirmed once before opening (`IsLocalURL`).
+- **Alternatives checked.** Browsh (last commit 2025-07-05) drives your
+  installed, patched Firefox and also renders real text, but Playwright can't
+  attach to Firefox over CDP, so the agent-sharing half of this issue would be
+  lost, and it costs more CPU. A current headless Chrome streaming screenshots
+  is not viable in-pane: downscaled text is unreadable, and zellij doesn't pass
+  terminal image protocols through.
+- **Estimate** 9.31 → 9.46 for the local-URL guard.
