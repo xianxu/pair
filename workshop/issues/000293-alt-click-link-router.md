@@ -1,7 +1,7 @@
 ---
 id: 000293
 status: open
-deps: []
+deps: [pair#292]
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
@@ -50,8 +50,10 @@ instead.
   exist isn't treated as a file.
 
 **Where it goes:**
-- **A URL** → `open` (the system default) for now. pair#292, which comes
-  next, switches this to a Carbonyl tab.
+- **A URL** → a Carbonyl browser tab in the right pane (pair#292). It
+  reuses the most recently used browser tab that hasn't been renamed; a named
+  tab (like `local-test`) is never reused automatically. With no reusable tab,
+  it opens a new one. (Moved here from pair#292, see Revisions.)
 - **A text file** (markdown and the like) → a new right-pane tab running `nvim
   <file>`. `path:42` opens as `nvim +42 path`.
 - **Anything else** (images, PDFs, …) → `open`, same as Shift+Cmd+click.
@@ -64,8 +66,9 @@ layer, so pair doesn't see the mouse first.
 - Couch logs the modifiers it receives. Option+click arrives with the Alt bit
   set (`macos-option-as-alt` is unset in the operator's Ghostty config).
 - Alt+click on an existing text file (and on `path:line`) opens `nvim` in a new
-  right-pane tab. Alt+click on a URL or any other file calls `open` (until
-  pair#292 makes URLs open in a Carbonyl tab).
+  right-pane tab. Alt+click on any other file calls `open`.
+- Alt+click on a URL opens or reuses a Carbonyl tab (pair#292), and never
+  reuses a named one.
 - Tests cover the target resolution: a link from the screen model, a URL in the
   row text, a relative path that exists, a relative path that doesn't, and
   `path:line`.
@@ -87,3 +90,15 @@ recording zellij's terminal output. The operator confirmed Shift+Cmd+click in
 zellij and under couch, and agreed to Alt+click for the right pane.
 Order set by the operator: enable Alt+click first (this issue), then the Carbonyl
 tab (pair#292), which becomes the URL destination.
+
+## Revisions
+
+### 2026-09-19 — Alt+click's browser destination moves here from pair#292
+
+The operator chose, in the pair#292 session, to build the browser tab first and
+hand the Alt+click wiring to this issue. The dependency flips: this issue
+depends on pair#292, which no longer depends on it.
+- **Spec delta:** a URL goes to a browser tab with pair#292's reuse rule
+  instead of `open`-until-#292.
+- **Done-when delta:** the Alt+click bullet moves over from pair#292's Done-when.
+  pair#292 records each browser tab's "renamed" flag, which the reuse rule reads.
