@@ -49,6 +49,38 @@ dead birth should fail loudly, not look alive.
   becomes recoverable or archivable through the existing paths. Check that
   no new state is needed there.
 
+### Design (2026-09-18)
+
+Durable plan: `workshop/plans/000288-dead-launch-is-invisible-plan.md`.
+
+- **The bound is 10 s**, measured from `LaunchSession`. Birth measured end to
+  end was 0.6–1.3 s idle and 1.5–2.9 s with all 12 cores saturated. 10 s is
+  3.4× the loaded worst case and still under Couch's 15 s registration
+  deadline.
+- **Teardown needs proof.** After the bound, the watch asks zellij once:
+  - no live session → dead. Cancel the launch.
+  - listed live → stand down for good. The session may be healthy with a
+    sidecar that failed to write, and ending it would skip the quit cleanup.
+  - the probe fails → wait another bound and ask again.
+- **How the client is ended.** `LaunchSession` gains a `ctx`. Cancelling it
+  sends SIGTERM, then SIGKILL after 2 s, and returns only once the client
+  has been reaped. The hung client (death B) has written nothing to the tty
+  and exits about 50 ms after SIGTERM, so the terminal needs no repair.
+  After a dead verdict the launcher fails through the existing
+  zellij-launch-failure path: layout record restored, message naming
+  zellij's log, `code: 1`, no cleanup and no restart re-entry.
+- **Death A is left alone.** In the other death mode the client notices the
+  lost server and exits 1 itself. Pair already fails there, so this issue
+  doesn't touch it.
+- **One shared wait (ARCH-DRY).** The new `cmd/internal/panebirth` holds
+  `Evidence` (moved from `titlepoller.BirthEvidence`) and `Await`, the one
+  poll loop. It serves the title poller, Couch's cold resume and the new
+  launcher watch.
+- **Couch needs no new state.** A helper that exits is noticed when its pty
+  closes. The thread then reads `parked` or `session-gone`, and archive
+  accepts both. Out of scope, noted in the plan: Couch shows only
+  `exited (1)`, not the launcher's reason.
+
 ## Done when
 
 - `probes/zellijbirthrace poke`-style kill of a Pair launch (or a
@@ -59,15 +91,17 @@ dead birth should fail loudly, not look alive.
 
 ## Plan
 
-- [ ] Measure the birth-time distribution under load to pick the bound.
-- [ ] Launcher: bounded pane-birth watch alongside `LaunchSession`, with
-      teardown on timeout, plus fake-runtime tests. This is the third waiter
-      on pane birth, after `titlepoller.awaitPaneBirth` and
-      `couchcore.awaitPaneBirth`: extract one shared helper then (the ARCH-DRY
-      note from #287's close review). Key it on
-      `titlepoller.BirthEvidence`, the single declaration of the awaited file.
-- [ ] Live check with the probe, and a Couch archive of a dead-at-birth
-      thread.
+Tasks and steps are in the durable plan.
+
+- [x] Measure the birth-time distribution under load to pick the bound.
+- [ ] `panebirth`: shared `Evidence` + `Await`; the title poller and Couch
+      move onto it (plan Tasks 1–2).
+- [ ] Launcher: a cancellable `LaunchSession` and the birth watch, with
+      fake-runtime tests and mutation checks (plan Tasks 3–4).
+- [ ] Probe `-exit-wait`/`hung=`; live before/after under `-hammer 10ms`
+      (plan Task 5).
+- [ ] Atlas + suite + operator Couch smoke: a dead-at-birth thread archives
+      without restarting Couch (plan Task 6).
 - [x] File the upstream zellij `RemoveClient` panic report (from #287), on
       the operator's go-ahead: zellij-org/zellij#5632.
 
@@ -77,3 +111,34 @@ dead birth should fail loudly, not look alive.
 
 Filed from #287. Casualty evidence and the birth-time measurements are in
 #287's Log.
+
+#### Design session
+
+- **Birth time** (`probes/zellijbirthrace launch`, base `pair` built from
+  main at `6c80d40b`):
+  - idle, n=20: 0.61–1.27 s, climbing monotonically across trials as #287
+    saw;
+  - `yes` ×12 on 12 cores (load avg 33), n=15: 1.49–2.92 s, all born.
+- **Death modes** (bare zellij, a Python pty harness in the scratchpad, with
+  the socket poked from a tight thread loop):
+  - **A:** the client logs "Lost connection to the Zellij server", restores
+    the tty and exits 1 by itself.
+  - **B, the hang:** the client stays alive and writes 0 bytes, and
+    `list-sessions` doesn't list the session. It exits 50 ms after SIGTERM
+    (status 15). In the second batch 1 of 5 deaths was B.
+  - A healthy client's SIGTERM path prints "Bye from Zellij!" and restores
+    the tty.
+- **Couch** (Explore digest):
+  - When a helper exits, Couch notices when its pty closes
+    (`couchtty/console.go` `onExit`), shows `ExitNotice` `"<label> [<actor>]
+    exited (N)"`, and drops the pane. The launcher's own stderr is not shown.
+  - After the exit, `ClassifyThread` reads `parked` or `session-gone`.
+    `ArchiveThread` accepts both, and `clearLifecycleDebris` retires the stale
+    `live` incarnation, so no new state is needed.
+  - A cold create's claim is `established` before zellij launches
+    (`createflow.go` claim vs `LaunchSession`), so Couch's 15 s registration
+    deadline doesn't cover it. That is why astro hung without limit.
+  - A cold resume waits for birth under that deadline, and the cleanup after
+    it rolls back to `parked`.
+  - Couch never relaunches on its own.
+  - The launcher must reap its zellij child, or the pty stays open.
