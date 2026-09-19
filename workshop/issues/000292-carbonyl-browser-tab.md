@@ -32,91 +32,133 @@ Verified 2026-09-19:
 
 ## Spec
 
-**Opening a tab.** Shift+Alt+B globally, and Alt+B when the right pane has
-focus, open a Carbonyl tab in the right pane.
-- **Alt+B is already taken in the draft pane:** it opens scrollback at the
-  previous prompt (`keyhelp/catalog.go:58`, `nvim/init.lua:3543`). The new
-  binding is scoped to the right pane.
-- **A shell in the right pane also uses Alt+B** (move back a word), so couch
-  intercepts it before the shell.
-- **Shift+Alt+B is free in couch** (couchkeys binds Alt+d/h/n/x).
+The durable plan is `workshop/plans/000292-carbonyl-browser-tab-plan.md`. This
+Spec is the contract; the plan holds the design detail.
+
+**Owner.** A browser tab is a new kind of `pair term` tab
+(`cmd/internal/termcmd`), beside the shell tabs. So it works in standalone pair
+as well as under couch, and it lives exactly as long as its tab in its `pair
+term`.
+
+**Opening a tab.** Alt+B in the right pane, and Shift+Alt+B from any pane,
+open a URL field in the tab strip (`[url: │]`). Enter launches Carbonyl on
+that URL as a new tab; Esc cancels and creates nothing.
+- **Alt+B is taken in the draft** (scrollback at the previous prompt,
+  `keyhelp/catalog.go:58`) and in the scrollback viewer (Alt+b/B: prompt
+  navigation, buffer-local, `nvim/scrollback.lua:485-487`). Both keep their
+  meaning: Alt+B is a right-pane role chord, and the viewer's buffer-local
+  Shift+Alt+B outranks the global there.
+- **A shell in the right pane loses Alt+B** (backward word): `pair term` takes
+  the chord before the shell, as it already does Alt+t/w/r.
+- **Shift+Alt+B moves focus to the right pane**, unlike Shift+Alt+T, because
+  the URL field needs the keyboard.
+- **A browser tab owns `pair term`'s tab keys.** Alt+t/w/r/b/←/→ are not
+  passed through to Carbonyl as they are to vim or htop (#227): Chromium has no
+  use for them, and Alt+w and Alt+r are how you close and rename the tab.
 - **Both bindings appear in Alt+h.**
 
-**Each tab runs** `carbonyl --remote-debugging-port=0 --user-data-dir=<tab
-profile dir> --fps=<cap> <url>`:
-- **A throwaway profile per tab:** it never touches the operator's real Chrome
-  profile or cookies.
-- **A capped frame rate:** every repaint goes through couch's emulator and gets
-  redrawn to the screen. Measure couch's CPU with a page idle and while
-  scrolling, and pick the cap from that.
+**Each tab runs** `carbonyl --remote-debugging-port=0 --user-data-dir=<profile>
+--fps=15 <url>`:
+- **The binary** is `$PAIR_CARBONYL` or `carbonyl` on PATH. If it's missing,
+  the strip shows a notice and no tab opens.
+- **Carbonyl older than 0.0.3 gets a strip notice.** 0.0.2 spins a CPU core
+  when idle (measured, see Log); 0.0.3 idles at 0%. The tab still opens.
+- **A throwaway profile per tab,** outside Pair's data root (under the user
+  cache dir), so storage GC never walks a Chromium profile. It never touches the
+  operator's Chrome profile.
+- **15 fps cap.** Output scales linearly with the cap, and `pair term`, zellij
+  and couch each re-parse it (measured: `pair term` alone costs 21% of a core
+  at 60 fps and 6% at 15 on a full-motion page). M2 measures the whole chain and
+  confirms or revises the value.
 
 **Name and label.** A browser tab's name is its handle.
-- It gets an automatic default (`web`, `web-2`, …) so a handle always exists,
-  and the operator can rename it (for example `local-test`).
-- The label shows the name and the site: `local-test · localhost:1111`.
-- Couch reads the site (url and title) over the DevTools protocol, not from the
-  screen.
-- Accepted by the operator: this is a development workbench, not a browser for
-  everyday use.
+- It gets an automatic default (`web`, `web-2`, …), unique across the pair
+  tag, so a handle always exists. Alt+r renames it (for example `local-test`),
+  and a renamed tab is marked *named*. #293's Alt+click reuse rule reads that
+  mark.
+- The strip label is `name · host[:port]`, e.g. `local-test · localhost:1111`.
+  `pair term` reads the url and title over the DevTools protocol, not from the
+  screen, and the label follows navigation.
+- Page titles and URLs are page-controlled, so they are sanitized before they
+  reach the strip or the record.
 
-**Setting the URL.** If Carbonyl's own interface has a usable URL bar, clicking
-the already-active tab focuses it. If not, clicking it opens a floating URL
-input, and Enter navigates through the DevTools protocol. Clicking an
-already-active tab has no action today, so this defines it for browser tabs.
+**Setting the URL.** Carbonyl's own bar can't be cleared quickly (see Log).
+Clicking an already-active browser tab opens the strip's URL field, prefilled
+with the current URL (Ctrl+U clears it, and paste works). Enter navigates
+through the DevTools protocol. `localhost:1111` becomes `http://localhost:1111`.
 
 **Shared with the agent.**
-- **A record per tab, keyed `<pair-tag>:<tab-name>`,** holding the DevTools
-  websocket address, pid, profile dir and current URL. It's written through
-  `cmd/internal/artifactpath` like pair's other tag-bearing files.
-- **`pair browser <tag>:<name>`** prints the record as JSON. An agent passes the
-  address to Playwright's `connectOverCDP` or a DevTools MCP server, and drives
-  the page the operator is watching.
-- **The record is a pointer, not the truth.** Readers check the process is
-  still alive, the way pair already checks session identity, before trusting
-  the address.
+- **A record per tab** under the tag's `browser-<tag>/` directory, written
+  through `cmd/internal/artifactpath`. It holds the name, the named flag, url,
+  title, the DevTools HTTP and websocket addresses, the Carbonyl pid and birth,
+  the owning `pair term`'s pid and birth, and the profile dir.
+- **`pair browser`** prints JSON. With no argument it lists the current tag's
+  tabs; `pair browser <name>` and `pair browser <tag>:<name>` print one. An agent
+  passes `cdp_http` to Playwright's `connectOverCDP` (or a DevTools MCP server)
+  and drives the page the operator is watching.
+- **The record is a pointer, not the truth.** Readers check the Carbonyl
+  process's identity (pid and birth time) before trusting the address, and skip
+  the record if it fails. Only the owner writes or deletes a record; a crashed
+  owner's records are swept when the owner is proved dead.
 
-**Lifecycle.**
-- Closing or parking the tab deletes the record and kills the whole Chromium
-  process group, since Chromium spawns many helper processes.
-- Couch shutdown, including a crash, does the same. An orphaned Chromium would
-  be a much worse repeat of parley#220's `fake_cliproxy` leak (105 orphans, 1.85
-  GB).
+**Lifecycle.** Everything created names its end.
+- **Closing the tab (Alt+w), or `pair term` exiting** (last tab, session quit,
+  park or archive via SIGHUP/SIGTERM) SIGKILLs the whole Carbonyl process group,
+  then deletes the record and the profile.
+- **`pair term` dying without cleanup (SIGKILL, crash):** closing the pty
+  master SIGHUPs Carbonyl's group, and the tree dies (measured: gone within
+  0.5 s). The record and profile left behind are swept on the next browser
+  launch, once their owner is proved dead.
+- **A couch crash ends nothing.** The zellij session and `pair term` outlive
+  couch, so the tab and its browser stay live and reattach with the thread.
+  This is not a leak: the owner is alive.
 
-**Alt+click destination.** With this issue, Alt+click on a URL (pair#293, which
-lands first and uses `open` until now) opens a Carbonyl tab. It reuses the most
-recently used browser tab that hasn't been renamed; a named tab (like
-`local-test`) is never reused automatically.
+**Alt+click** on a URL moves to pair#293 (operator, 2026-09-19). That issue now
+depends on this one.
 
-**Security.** The DevTools port gives full control of that browser, and any
-local process can reach it (it only listens on the local machine). That's
-acceptable *because* each tab uses a throwaway dev profile that holds nothing
-sensitive.
+**Security.** The DevTools port gives full control of that browser to any local
+process (it listens on 127.0.0.1 only). That's acceptable *because* each tab
+uses a throwaway profile that holds nothing sensitive.
 
 **Limit.** Chrome 111 (early 2023) is fine for a development preview and for
 agent-driven checks. It doesn't stand in for testing against current Chrome.
+Carbonyl displays one page, so an agent should drive the existing page, not open
+new ones.
 
 ## Done when
 
-- Shift+Alt+B (global) and Alt+B (right pane) open a Carbonyl tab, and Alt+h
-  lists both.
-- The tab label shows name · site and follows navigation.
-- The URL can be set (natively, or through the floating input plus a DevTools
-  navigate).
+- Alt+B (right pane) and Shift+Alt+B (any pane) open the URL field, and Enter
+  opens a Carbonyl tab on that URL. Alt+h lists both.
+- The tab label shows `name · host` and follows navigation.
+- Clicking the active browser tab opens the URL field, and Enter navigates
+  through DevTools.
 - `pair browser <tag>:<name>` returns a live DevTools address. A test connects
-  over the DevTools protocol, navigates, and sees the label change.
-- Closing the tab, and killing couch, leave no Carbonyl or Chromium processes
-  and no record. A test checks both.
-- Alt+click on a URL (pair#293) opens or reuses a Carbonyl tab, and never
-  reuses a named one.
-- The chosen frame-rate cap and couch's measured CPU are recorded in the Log.
+  over the DevTools protocol, navigates, and sees the label change. The same
+  runs against real Carbonyl in the live conformance probe.
+- Closing the tab, `pair term` exiting, and SIGKILL of `pair term` each leave no
+  Carbonyl or Chromium processes. The first two also leave no record or
+  profile; after the third, both are swept once the owner is proved dead. A test
+  covers each.
+- A Carbonyl older than 0.0.3 gets a strip notice naming the idle-CPU bug.
+- The chosen frame-rate cap, and the measured CPU of Carbonyl, `pair term`,
+  zellij and couch on an idle and a full-motion page, are recorded in the Log.
 
 ## Plan
 
-- [ ] Spike: does Carbonyl have a usable URL bar, and how does it behave under
-  couch's emulator (keys, mouse, CPU at different `--fps`)?
-- [ ] Tab launch, the key bindings, and the throwaway profile per tab.
-- [ ] DevTools client in couch: the label and navigation.
-- [ ] The per-tab record plus `pair browser`, and the lifecycle cleanup.
+Detailed tasks: `workshop/plans/000292-carbonyl-browser-tab-plan.md`.
+
+- [x] Spike: URL bar, terminal modes, process tree, crash path, CPU by `--fps`
+  (Log, 2026-09-19).
+- [ ] M1 — Browser tab lifecycle in `pair term`: tab kind, URL field for new
+  tabs, launch (binary lookup, version notice, profile), group kill on close and
+  exit, crash sweep of profiles, Alt+B / Shift+Alt+B plus Alt+h, tab keys owned
+  by browser tabs, default names and the named flag.
+- [ ] M2 — DevTools: CDP client, the browser-tab state machine, the `name · host`
+  label, click-the-active-tab URL field → navigate, live conformance probe, and
+  the chain CPU measurement that settles the cap.
+- [ ] M3 — Record and `pair browser`: artifactpath family plus GC registration,
+  owner-only writes and the dead-owner sweep, the subcommand, the end-to-end
+  DevTools test, atlas, operator smoke test.
 
 ## Log
 
@@ -193,3 +235,21 @@ local `http.server`); every process tree was verified gone afterwards.
   "renamed" flag the reuse rule needs. The dependency flips: #293 depends on #292.
 - **URL input in the tab strip** (operator, this session), reusing the Alt+r
   rename field, instead of a floating box.
+
+## Revisions
+
+### 2026-09-19 — Spec rewritten after the spike (pre-change-code)
+
+Reasons: the spike (Log) and the operator's two answers this session.
+- **Owner:** couch → `pair term`.
+- **Opening:** Alt+B now opens a URL field; Enter launches.
+- **URL setting:** "native bar or floating input" → the strip field plus a
+  DevTools navigate.
+- **Version:** Carbonyl ≥0.0.3 recommended, with a notice below it.
+- **Profile location:** outside the data root.
+- **Record:** a per-tag directory, owner-only writes.
+- **Lifecycle:** "couch crash kills the browser" → ownership by `pair term`
+  (couch's crash leaves the session and the browser live).
+- **Alt+click:** moved to pair#293.
+- **Done-when:** follows every change above, adds the version notice, and
+  names the chain CPU measurement.
