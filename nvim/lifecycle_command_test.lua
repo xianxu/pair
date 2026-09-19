@@ -9,12 +9,17 @@ local function check(ok, message)
   end
 end
 
+-- A sentinel rather than vim.log.levels.ERROR: the level is a dep, so this
+-- test pins that run reports AT the level it was handed.
+local ERROR_LEVEL = { 'error-level' }
+
 local function run_case(name, output, status)
   local ran, notes = nil, {}
   local ok = M.run({ 'pair', 'restart' }, {
     system = function(argv) ran = argv; return output end,
     status = function() return status end,
     notify = function(text, level) table.insert(notes, { text = text, level = level }) end,
+    error_level = ERROR_LEVEL,
   })
   check(ran and ran[1] == 'pair' and ran[2] == 'restart', name .. ': ran the exact argv')
   return ok, notes
@@ -28,7 +33,7 @@ check(ok and #notes == 0, 'success: no notification')
 -- trimmed.
 ok, notes = run_case('refusal', "pair restart: this session's restarts belong to Couch; relaunch the thread from Couch (Alt+n)\n", 1)
 check(not ok and #notes == 1, 'refusal: one notification')
-check(notes[1] and notes[1].level == vim.log.levels.ERROR, 'refusal: ERROR level')
+check(notes[1] and notes[1].level == ERROR_LEVEL, 'refusal: reported at the level it was given')
 check(notes[1] and notes[1].text == "pair restart: this session's restarts belong to Couch; relaunch the thread from Couch (Alt+n)", 'refusal: output verbatim')
 
 -- A silent failure still says what failed and how.

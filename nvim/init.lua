@@ -3046,6 +3046,7 @@ do
         system = vim.fn.system,
         status = function() return vim.v.shell_error end,
         notify = vim.notify,
+        error_level = vim.log.levels.ERROR,
       })
     end,
   }

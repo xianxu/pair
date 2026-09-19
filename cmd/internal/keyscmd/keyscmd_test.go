@@ -158,7 +158,7 @@ func TestCouchPresentedPageLeadsWithCouchsKeys(t *testing.T) {
 // (launcher.CouchOwnsRestart); standalone, Pair reloads.
 func TestPresenterAndHostingAreIndependent(t *testing.T) {
 	const (
-		couchRow      = "relaunch this thread on the current binary"
+		couchRow      = "relaunch the thread shown or highlighted"
 		hostedRow     = "does not reload a Couch thread"
 		standaloneRow = "reload pair — kill and re-launch"
 	)

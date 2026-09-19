@@ -88,7 +88,7 @@ var bindings = []Binding{
 	// Couch, so passing it through left a key that confirmed and did nothing.
 	// From a Pair pane it relaunches the thread on screen, in the switcher the
 	// highlighted row.
-	pairChord(ScopeEveryPane, ActionRelaunch, workbenchshortcut.ChordAltN, "Alt+n", "relaunch this thread on the current binary, keeping its conversation"),
+	pairChord(ScopeEveryPane, ActionRelaunch, workbenchshortcut.ChordAltN, "Alt+n", "relaunch the thread shown or highlighted, on the current binary, same conversation"),
 	pairChord(ScopeEveryPane, ActionRelaunch, workbenchshortcut.ChordCtrlAltN, "Ctrl+Alt+n", "same as Alt+n"),
 	pairChord(ScopeSwitcher, ActionDetach, workbenchshortcut.ChordAltD, "Alt+d", "detach every live thread and leave Couch; their sessions keep running"),
 	pairChord(ScopeSwitcher, ActionPark, workbenchshortcut.ChordAltX, "Alt+x", "shut down every live thread and leave Couch (asks first)"),

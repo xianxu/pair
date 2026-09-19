@@ -75,7 +75,7 @@ func couchRestartGate(rt Runtime, sessionEnvHosted bool, tag string) error {
 	if !sessionEnvHosted && tag != "" {
 		var err error
 		if presented, err = rt.OuterPresenter(tag); err != nil {
-			return fmt.Errorf("cannot tell whether Couch presents this session (%v), so it is not restarted in place", err)
+			return fmt.Errorf("cannot tell whether Couch presents this session, so it is not restarted in place: %v; re-attaching with `pair` rewrites that record", err)
 		}
 	}
 	if CouchOwnsRestart(sessionEnvHosted, presented) {
