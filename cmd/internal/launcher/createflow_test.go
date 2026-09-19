@@ -141,6 +141,7 @@ type fakeRuntime struct {
 	pollerEnvs         []map[string]string // the environment each title poller started with
 	cmux               []string            // "tag|title"
 	ttyRecorded        []string
+	presenterErr       error
 	titles             []string
 	removed            []string
 	family             []string
@@ -380,6 +381,20 @@ func (f *fakeRuntime) InZellijPane() bool             { return f.inPane }
 func (f *fakeRuntime) CommandExists(name string) bool { return !f.commandMissing[name] }
 func (f *fakeRuntime) RecordOuterTTY(tag string, couch bool) {
 	f.ttyRecorded = append(f.ttyRecorded, tag+"|"+strconv.FormatBool(couch))
+}
+
+// OuterPresenter reads back the last RecordOuterTTY for tag, as the real record
+// does; presenterErr stands in for a record that cannot be read.
+func (f *fakeRuntime) OuterPresenter(tag string) (bool, error) {
+	if f.presenterErr != nil {
+		return false, f.presenterErr
+	}
+	for i := len(f.ttyRecorded) - 1; i >= 0; i-- {
+		if recorded, couch, _ := strings.Cut(f.ttyRecorded[i], "|"); recorded == tag {
+			return couch == "true", nil
+		}
+	}
+	return false, nil
 }
 func (f *fakeRuntime) CmuxRename(tag, title string) { f.cmux = append(f.cmux, tag+"|"+title) }
 

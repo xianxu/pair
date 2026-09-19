@@ -403,8 +403,11 @@ func TestSwitcherRelaunchFindsTheThreadFromAnyDepth(t *testing.T) {
 	}
 }
 
+// Alt+d and Alt+x stay Pair's inside a displayed thread (#245); Couch acts on
+// them only in its switcher. The relaunch chords are not in this set: Couch
+// takes those from every pane (#284).
 func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
-	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltD, workbenchshortcut.ChordAltX, workbenchshortcut.ChordAltN, workbenchshortcut.ChordCtrlAltN} {
+	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltD, workbenchshortcut.ChordAltX} {
 		for _, encoding := range workbenchshortcut.ChordEncodings(chord) {
 			t.Run(renderInputBytes(encoding), func(t *testing.T) {
 				con, stdin, _ := newChordFixture(t)
@@ -413,7 +416,7 @@ func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
 				if _, err := stdin.Write(input); err != nil {
 					t.Fatal(err)
 				}
-				wire := map[workbenchshortcut.Chord]string{workbenchshortcut.ChordAltD: "\x1bd", workbenchshortcut.ChordAltX: "\x1bx", workbenchshortcut.ChordAltN: "\x1bn", workbenchshortcut.ChordCtrlAltN: "\x1b\x0e"}[chord]
+				wire := map[workbenchshortcut.Chord]string{workbenchshortcut.ChordAltD: "\x1bd", workbenchshortcut.ChordAltX: "\x1bx"}[chord]
 				waitFor(t, "forwarded lifecycle event", func() bool { return string(bytes.Join(child.Writes(), nil)) == "before"+wire+"after" })
 				con.mu.Lock()
 				focus := con.focus
@@ -426,34 +429,108 @@ func TestActorLifecycleCandidatesPassThrough(t *testing.T) {
 	}
 }
 
-func TestLifecycleCandidateUsesFocusAfterPrefix(t *testing.T) {
-	for _, prefix := range []string{"\x00", "\x00\x08"} {
-		t.Run(renderInputBytes([]byte(prefix)), func(t *testing.T) {
-			con, stdin, _ := newChordFixture(t)
-			child := con.activeChild()
-			if prefix != "\x00" {
-				con.attachThreadActor("other", "other", menuAddress("other"), "/w/other", "other", ptychild.NewFakeChild(nil))
-				con.switchTo("other", true, arrivalOrdinary)
-				child = con.activeChild()
+// Couch takes the relaunch chords from every Pair pane (#284). Passed through,
+// they reached a Pair whose own restart refuses under Couch -- a dead key that
+// confirmed and then did nothing. So no byte of the chord may reach the child,
+// whoever created its session, and the confirmation names the thread ON SCREEN
+// even while another thread pages: the switcher's opener would land on the
+// pager, which is why "Ctrl+Space, then Alt+n" is not the same operation.
+func TestActorRelaunchChordsConfirmTheThreadOnScreen(t *testing.T) {
+	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltN, workbenchshortcut.ChordCtrlAltN} {
+		for _, encoding := range workbenchshortcut.ChordEncodings(chord) {
+			t.Run(renderInputBytes(encoding), func(t *testing.T) {
+				con, stdin, address := newChordFixture(t)
+				child := con.activeChild()
+				pager := menuAddress("pager")
+				con.attachThreadActor("c2", "pager", pager, "/w/pager", "pager", ptychild.NewFakeChild(nil))
 				con.switchTo("c1", true, arrivalOrdinary)
-			}
-			chord := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX)[0]
-			input := append([]byte(prefix), chord...)
-			if _, err := stdin.Write(input); err != nil {
-				t.Fatal(err)
-			}
-			if prefix == "\x00" {
-				waitFor(t, "panel park confirmation", func() bool {
-					frame := con.menuSnapshot().CurrentFrame()
-					return frame.Kind == MenuFrameConfirmation && frame.Action == "leave"
-				})
-				if len(child.Writes()) != 0 {
-					t.Fatal("panel candidate leaked")
+				con.mu.Lock()
+				con.attention.Mark(pager, "paging")
+				con.syncAttentionLocked()
+				con.mu.Unlock()
+
+				if _, err := stdin.Write(append([]byte("before"), encoding...)); err != nil {
+					t.Fatal(err)
 				}
-			} else {
-				waitFor(t, "post-navigation actor bytes", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), chord) })
-			}
-		})
+				waitFor(t, "the relaunch confirmation", func() bool {
+					frame := con.menuSnapshot().CurrentFrame()
+					return frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch"
+				})
+				if got := con.menuSnapshot().CurrentFrame().Thread; got != address {
+					t.Fatalf("relaunch targets %v, want the thread on screen %v", got, address)
+				}
+				if got := string(bytes.Join(child.Writes(), nil)); got != "before" {
+					t.Fatalf("child received %q, want only the bytes before the chord", got)
+				}
+			})
+		}
+	}
+}
+
+// A chord in the same read as a navigation prefix is admitted against the focus
+// the prefix LEFT, not the one the read started in. Both chords belong here and
+// they differ in the actor arm, which is the point: Alt+x is the switcher's
+// alone, so after navigating back to an actor its bytes are the child's; Alt+n
+// is Couch's from every pane (#284), so it confirms in either focus — against
+// the highlighted row from the panel, and the thread on screen from an actor.
+func TestLifecycleCandidateUsesFocusAfterPrefix(t *testing.T) {
+	for _, chord := range []struct {
+		name        string
+		chord       workbenchshortcut.Chord
+		panelAction string
+		actorAction string // "" when the actor's child receives the bytes instead
+	}{
+		{"alt+x", workbenchshortcut.ChordAltX, "leave", ""},
+		{"alt+n", workbenchshortcut.ChordAltN, "relaunch", "relaunch"},
+	} {
+		for _, prefix := range []string{"\x00", "\x00\x08"} {
+			t.Run(chord.name+"/"+renderInputBytes([]byte(prefix)), func(t *testing.T) {
+				con, stdin, address := newChordFixture(t)
+				child := con.activeChild()
+				target := address
+				if prefix != "\x00" {
+					con.attachThreadActor("other", "other", menuAddress("other"), "/w/other", "other", ptychild.NewFakeChild(nil))
+					con.switchTo("other", true, arrivalOrdinary)
+					child = con.activeChild()
+					target = menuAddress("other")
+					con.switchTo("c1", true, arrivalOrdinary)
+					// A confirmation is refused for a thread the inventory does
+					// not carry, so the row has to exist for the actor arm to be
+					// observable at all.
+					con.mu.Lock()
+					con.menu = NewMenuState([]couchcore.ActionableThreadSummary{
+						{Address: address, WorkingPath: "/w/brain", Name: "brain", State: couchcore.ThreadLive},
+						{Address: target, WorkingPath: "/w/other", Name: "other", State: couchcore.ThreadLive},
+					}, address)
+					con.mu.Unlock()
+				}
+				encoding := workbenchshortcut.ChordEncodings(chord.chord)[0]
+				if _, err := stdin.Write(append([]byte(prefix), encoding...)); err != nil {
+					t.Fatal(err)
+				}
+				want, onPanel := chord.panelAction, prefix == "\x00"
+				if !onPanel {
+					want = chord.actorAction
+				}
+				if want == "" {
+					waitFor(t, "post-navigation actor bytes", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), encoding) })
+					return
+				}
+				waitFor(t, want+" confirmation", func() bool {
+					frame := con.menuSnapshot().CurrentFrame()
+					return frame.Kind == MenuFrameConfirmation && frame.Action == want
+				})
+				// Whose thread the confirmation names: from the panel, the
+				// highlighted row (leave names none); from an actor, the one the
+				// navigation prefix landed on.
+				if got := con.menuSnapshot().CurrentFrame().Thread; !onPanel && got != target {
+					t.Fatalf("%s targets %v, want the thread the prefix left focused %v", want, got, target)
+				}
+				if len(child.Writes()) != 0 {
+					t.Fatalf("candidate leaked to the child: %q", bytes.Join(child.Writes(), nil))
+				}
+			})
+		}
 	}
 }
 

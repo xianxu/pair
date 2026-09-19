@@ -127,6 +127,9 @@ type EnvOps interface {
 	// client, to outer-tty-<tag> (or removes it when stdin isn't a tty, so an
 	// earlier attach's presenter line cannot outlive it) (#282).
 	RecordOuterTTY(tag string, couch bool)
+	// OuterPresenter reads back whether the client RecordOuterTTY last recorded
+	// for tag was presented by Couch; no record is "no" (#284).
+	OuterPresenter(tag string) (bool, error)
 	// CmuxRename claims the cmux workspace for this tag and renames it to title
 	// (with the personal emoji substitution); a no-op outside cmux.
 	CmuxRename(tag, title string)

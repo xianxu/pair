@@ -154,11 +154,13 @@ type GlobalBinding struct {
 	Help string
 	// HostedHelp replaces Help when Couch launched the session or presents
 	// this client, for a chord whose Pair behavior changes there (#282); empty
-	// means Help holds either way. Alt+n does not reload under Couch: the
-	// session-env refusal is pinned by launcher
-	// TestCheckpointHostedRestartAndRenameRefuseBeforeMutation, the client-side
-	// marker refusal by launcher TestCouchClientRefusesRestartMarker. Keep it
-	// short: no hosted row may widen the page (keyscmd TestNoLayerWidensThePage).
+	// means Help holds either way. Pair's Alt+n does not reload under Couch
+	// (launcher.CouchOwnsRestart, pinned by launcher
+	// TestRunRestartRefusesACouchOwnedSessionBeforeMutation). Where Couch
+	// presents the client it takes Alt+n itself and its row replaces this one
+	// (#284), so the hosted row is read where Couch created the session but
+	// does not present it. Keep it short: no hosted row may widen the page
+	// (keyscmd TestNoLayerWidensThePage).
 	HostedHelp string
 }
 
@@ -172,7 +174,7 @@ var globalBindings = []GlobalBinding{
 		Help: "full quit — kill the session and drop it from the resurrect list"},
 	{Chord: ChordAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
 		Help:       "reload pair — kill and re-launch the workbench in place",
-		HostedHelp: "does not reload under Couch; relaunch from the Couch switcher"},
+		HostedHelp: "does not reload a Couch thread; relaunch it from Couch (Alt+n)"},
 	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
 		Help:       "reload pair (same as Alt+n)",
 		HostedHelp: "same as Alt+n under Couch"},

@@ -100,6 +100,19 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 		fmt.Fprintln(stderr, "pair: continuation accepted by Couch; the thread owner will restart from the saved checkpoint")
 		return 0, nil
 	}
+	// A session Couch presents without having created it has no thread address
+	// to route to, and its client would refuse the marker below (#284). Every
+	// other arm here names what it retained and how to resume; so does this one,
+	// because the checkpoint is already written and validated by now, and
+	// Couch's relaunch keeps the conversation rather than consuming it.
+	if err := couchRestartGate(rt, opts.Env.CouchHosted(), tag); err != nil {
+		// NOT --retry: that route needs a retained restart marker, and this arm
+		// refuses before writing one. --checkpoint takes the doc itself, which
+		// is on disk and validated by now.
+		fmt.Fprintf(stderr, "pair: compaction: %v; checkpoint kept at %s — once this session is gone, resume it with `pair continue --checkpoint %s`\n",
+			err, opts.ContinueCheckpoint.SourcePath, opts.ContinueCheckpoint.SourcePath)
+		return 1, nil
+	}
 	fmt.Fprintf(stderr, "pair: compacting %s — parking scrollback, restarting from continuation…\n", session)
 	attempt := rt.MintLaunchNonce()
 	if attempt == "" {

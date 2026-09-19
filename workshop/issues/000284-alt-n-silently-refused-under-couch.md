@@ -1,13 +1,14 @@
 ---
 id: 000284
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-18
-updated: 2026-09-18
+updated: 2026-09-19
 estimate_hours:
 started: 2026-09-18T22:36:30-07:00
-flow: {kind: quick, provenance: inferred, spec: "3f0d4aca", done: "6ef3185a"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 2.68
 ---
 
 # Pair's Alt+n in a Couch-hosted thread confirms, then silently does nothing
@@ -120,45 +121,49 @@ thread. Measured by #282's third plan review from code, not from a live repro.
 
 ## Done when
 
-- [ ] Alt+n in a Couch-hosted Pair pane either works or visibly says why not and
+- [x] Alt+n in a Couch-hosted Pair pane either works or visibly says why not and
       where to go instead; it never confirms and then does nothing.
-- [ ] Alt+n in a Couch-presented thread Couch did not create never ends the
+- [x] Alt+n in a Couch-presented thread Couch did not create never ends the
       thread; a test drives that case.
-- [ ] Alt+h's hosted wording and README agree with the new behavior.
-- [ ] With a Pair pane displayed, every encoding of Alt+n/Ctrl+Alt+n opens Couch's
+- [x] Alt+h's hosted wording and README agree with the new behavior.
+- [x] With a Pair pane displayed, every encoding of Alt+n/Ctrl+Alt+n opens Couch's
       relaunch confirmation for the thread on screen (even while another thread
       pages), and no byte of the chord reaches the child. Alt+d/Alt+x/Alt+Shift+N
       still pass through.
-- [ ] `pair restart` and in-session compaction refuse before writing any marker
+- [x] `pair restart` and in-session compaction refuse before writing any marker
       when Couch presents the client or its record is unreadable.
-- [ ] A failed quit/detach/restart/agent-restart in the draft shows its error.
-- [ ] Operator smoke on a rebuilt binary: Alt+n from the agent pane and from
+- [x] A failed quit/detach/restart/agent-restart in the draft shows its error.
+- [x] Operator smoke on a rebuilt binary: Alt+n from the agent pane and from
       the draft of a Couch thread relaunches it with the conversation kept.
 
 ## Plan
 
 - [x] Decide the direction with the operator. Couch takes Alt+n (2026-09-18).
-- [ ] Couch: relaunch chords → `ScopeEveryPane`, help row covering both scopes.
+- [x] Couch: relaunch chords → `ScopeEveryPane`, help row covering both scopes.
       Tests (red first): actor-focus Alt+n/Ctrl+Alt+n on every encoding → relaunch
       confirmation for the on-screen thread with another thread paging, zero
       chord bytes to the child, surrounding bytes forwarded. Update
       `TestActorLifecycleCandidatesPassThrough` (Alt+d/Alt+x only),
       `TestClaimedIsEveryPanePairChordsOnly`, and run
       `TestNoPairRowSharesAnEveryPaneCouchKey` on the layered page.
-- [ ] Launcher: the ownership predicate plus the `Runtime` presenter read. Gate
+- [x] Launcher: the ownership predicate plus the `Runtime` presenter read. Gate
       `runRestart` and `runCompaction`. `keyscmd` calls the predicate. Tests:
       presented-not-hosted, hosted, unreadable record → exit 1, no marker, no
       quit intent, no kill. Standalone still restarts. Update
       `TestPresenterAndHostingAreIndependent` for the claimed rows.
-- [ ] Draft: the shared notify-on-failure helper for the four confirmed lifecycle
+- [x] Draft: the shared notify-on-failure helper for the four confirmed lifecycle
       commands, with a Lua test that a non-zero exit notifies.
-- [ ] Docs: `HostedHelp` for Alt+n/Ctrl+Alt+n, README (the table row + couch
+- [x] Docs: `HostedHelp` for Alt+n/Ctrl+Alt+n, README (the table row + couch
       section), `atlas/couch.md`, `atlas/architecture.md` hosting note.
-- [ ] `go test` on touched packages, then `TMPDIR=<scratchpad> make test` in
+- [x] `go test` on touched packages, then `TMPDIR=<scratchpad> make test` in
       full. Rebuild and ask the operator to smoke test.
 
 ## Log
 
+
+
+- 2026-09-19: closed — make test green (exit 0; 212 Go pkgs + shell/Lua incl. tests/lifecycle-command-nvim-test.sh). Mutation-checked: reverting ScopeEveryPane reds the couchtty confirmation test; removing either launcher gate reds its test; reverting a draft call site to vim.fn.system reds the wiring test; restoring the --retry advice reds the recovery-route test. Operator smoke 2026-09-19: Alt+n from agent pane and draft in a Couch thread relaunched it, conversation kept.; review verdict: SHIP
+- 2026-09-19: flow upgraded quick → full — 136 added lines in code files (limit 100); an earlier round of this close already ran the full review
 ### 2026-09-18
 
 - Filed from `pair#282` scoping (code reading, not a live repro). Confirmed that
@@ -175,10 +180,74 @@ thread. Measured by #282's third plan review from code, not from a live repro.
     continuation record mailbox, polled every 500 ms (`watchContinuations`).
   - `continue --retry` needs its source session gone, so it is not in the
     adopted-case class.
-  - #246 (adoption) is still open, so today the adopted case can arise only
-    through a hand-typed `pair restart` or compaction.
+  - #246 (adoption) is still open, so the adopted case is latent today. Once
+    #246 lands, Couch's interception covers Alt+n, and the launcher gate covers
+    a hand-typed `pair restart` and compaction.
 - Operator chose "Couch takes Alt+n" over the mailbox and redirect-only
   options.
+- Implemented:
+  - `couchkeys` puts both relaunch chords on a shared `pairChord(scope, …)`
+    constructor, replacing `switcher`.
+  - `launcher.CouchOwnsRestart` and `couchRestartGate` gate `runRestart` and
+    `runCompaction`. `Runtime.OuterPresenter` is the new seam. The fake reads
+    back its own `RecordOuterTTY`.
+  - `keyscmd` derives its hosted wording from `CouchOwnsRestart`.
+  - `nvim/lifecycle_command.lua` is registered in the artifact manifest and in
+    `test-lua`.
+  - Red first: the new Couch test timed out waiting for the confirmation before
+    the scope change. Mutation-checked: removing either launcher gate fails its
+    test.
+- Two misses caught by the full `make test`:
+  - `init.lua` hit Lua's 200-local ceiling (E5112), which broke every later
+    definition. `workshop/lessons.md` already has this rule (#66), and I added
+    two top-level locals anyway. Moved the helper into a `do` block shared as
+    `_G._pair_lifecycle`.
+  - The #245 cross-layer test `wrapcmd` `TestConsoleWrapperShortcutPassthrough`
+    still sent Alt+n unpasted through Couch to the agent. My sweep had covered
+    only the packages I changed. Alt+n now sits inside its paste span, where it
+    must stay literal through both layers. A tree-wide sweep for `110;3u` /
+    `110;7u` / `ChordAltN` / `ChordCtrlAltN` found no other test assuming
+    passthrough.
+- Verification:
+  - `make test` is green (exit 0): 212 Go packages plus the shell and Lua
+    suites, run unsandboxed with the scratchpad `TMPDIR` and the five-var
+    retention scrub.
+  - Operator smoke, 2026-09-19, on the rebuilt pair and Couch: Alt+n from the
+    agent pane and from the draft of a Couch thread relaunched it with the
+    conversation kept. Smoke setup hit a separate leave bug, filed as
+    `pair#291`.
+- Close round 1: FIX-THEN-SHIP, 2 Important + 5 Minor, all fixed before the
+  close commit (the flow upgraded quick → full at 118 added code lines).
+  - BR-1 compaction's refusal stranded a validated checkpoint and named an
+    operation that discards it. Fixed as its CLASS — a refusal arm names what
+    it retained and the route onward — which covers the sibling Minor on the
+    unreadable-record message. The restart gate needs no such line: it refuses
+    before anything is written.
+  - BR-2 the four draft call sites had no failing test, so reverting one to
+    `vim.fn.system` kept the suite green. Added
+    `tests/lifecycle-command-nvim-test.sh` (wired into `make test`): it drives
+    the real `init.lua` headlessly, asserts each entry point routes through
+    `_G._pair_lifecycle.run`, and fails on any direct `vim.fn.system`.
+    Mutation-checked by reverting the detach site.
+  - Minors: pass `opts.Env.CouchHosted()` rather than a literal false; garbled
+    comment in `keyscmd`; the Lua module takes `error_level` as a dep so it
+    reads no global; `atlas/architecture.md`'s confirm-modals entry names the
+    new rule and seam; the help row reads for both scopes and still fits the
+    page (86 chars of the 104-col budget).
+- Close round 2: 7 findings disposed, BR-1 not addressed, 2 new Minors.
+  - BR-1 again, and rightly: the route I named, `pair continue --retry`, needs
+    a retained restart marker, and this arm returns before writing one. The
+    reviewer ran it. The route that survives the refusal is the checkpoint doc,
+    so the message names `pair continue --checkpoint <path>`.
+    `TestCompactionRefusalNamesARouteThatRuns` pins the class: no marker was
+    written, the named route parses, and its path resolves and validates.
+    Mutation-checked by restoring `--retry`.
+  - A comment in `lifecycle_test.go` still described the pre-#284 behavior.
+    Fixed, and swept all 25 `#284` mentions in cmd/nvim/tests for tense.
+  - The Spec claimed Alt+n joined the focus-after-prefix tests; it had not.
+    `TestLifecycleCandidateUsesFocusAfterPrefix` now runs both chords and
+    pins the arm where they differ: after navigating back to an actor, Alt+x
+    reaches the child and Alt+n confirms against the thread on screen.
 
 ## Revisions
 

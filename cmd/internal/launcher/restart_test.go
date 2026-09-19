@@ -13,7 +13,7 @@ func TestRunRestartWritesMarkersAndKills(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.inferAgent = map[string]string{"demo": "codex"} // the fake's InferAgent source
 	var stderr bytes.Buffer
-	code := runRestart(rt, LaunchArgs{Command: "restart", NewSession: true, RenameTo: "renamed"}, "pair-demo", "", &stderr)
+	code := runRestart(rt, LaunchArgs{Command: "restart", NewSession: true, RenameTo: "renamed"}, "pair-demo", "", false, &stderr)
 	if code != 0 {
 		t.Fatalf("exit %d, stderr=%q", code, stderr.String())
 	}
@@ -38,7 +38,7 @@ func TestRunRestartUsesEstablishedLedgerSessionID(t *testing.T) {
 	rt.ledger["work"] = []LedgerEntry{{Agent: "codex", SessionID: "SID-LIVE", Typed: true, SourceOrdinal: 1}}
 
 	var stderr strings.Builder
-	code := runRestart(rt, LaunchArgs{}, "📁work", "work", &stderr)
+	code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr)
 	if code != 0 {
 		t.Fatalf("runRestart code = %d stderr=%q", code, stderr.String())
 	}
@@ -57,7 +57,7 @@ func TestRunRestartDoesNotCaptureLiveIDForNewSession(t *testing.T) {
 	rt.ledger["work"] = []LedgerEntry{{Agent: "codex", SessionID: "SID-LIVE", Typed: true, SourceOrdinal: 1}}
 
 	var stderr strings.Builder
-	code := runRestart(rt, LaunchArgs{NewSession: true}, "📁work", "work", &stderr)
+	code := runRestart(rt, LaunchArgs{NewSession: true}, "📁work", "work", false, &stderr)
 	if code != 0 {
 		t.Fatalf("runRestart code = %d stderr=%q", code, stderr.String())
 	}
@@ -71,7 +71,7 @@ func TestRunRestartUsesPairTagForScopedPublicSession(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.inferAgent = map[string]string{"bugfix": "codex"}
 	var stderr bytes.Buffer
-	code := runRestart(rt, LaunchArgs{Command: "restart"}, "📁work-bugfix", "bugfix", &stderr)
+	code := runRestart(rt, LaunchArgs{Command: "restart"}, "📁work-bugfix", "bugfix", false, &stderr)
 	if code != 0 {
 		t.Fatalf("exit %d, stderr=%q", code, stderr.String())
 	}
@@ -88,7 +88,7 @@ func TestRunRestartRefusesUnreadableIndexWhenTagMustBeResolved(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.sessionIndexErr = errors.New("index unreadable")
 	var stderr bytes.Buffer
-	if code := runRestart(rt, LaunchArgs{}, "📁work", "", &stderr); code != 1 {
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "", false, &stderr); code != 1 {
 		t.Fatalf("code = %d, stderr=%q", code, stderr.String())
 	}
 	if len(rt.writtenMarkers) != 0 || len(rt.killed) != 0 {
@@ -99,7 +99,7 @@ func TestRunRestartRefusesUnreadableIndexWhenTagMustBeResolved(t *testing.T) {
 func TestRunRestartBareDefaults(t *testing.T) {
 	rt := newFakeRuntime()
 	var stderr bytes.Buffer
-	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "pair-solo", "", &stderr); code != 0 {
+	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "pair-solo", "", false, &stderr); code != 0 {
 		t.Fatalf("exit %d", code)
 	}
 	m := rt.writtenMarkers["pair-solo"]
@@ -134,7 +134,7 @@ func TestRunQuitTouchesQuitAndKills(t *testing.T) {
 func TestRunRestartMissingSession(t *testing.T) {
 	rt := newFakeRuntime()
 	var stderr bytes.Buffer
-	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "", "", &stderr); code != 1 {
+	if code := runRestart(rt, LaunchArgs{Command: "restart"}, "", "", false, &stderr); code != 1 {
 		t.Fatalf("want exit 1 on empty session, got %d", code)
 	}
 	if len(rt.writtenMarkers) != 0 || len(rt.killed) != 0 {
@@ -150,5 +150,50 @@ func TestRunQuitMissingSession(t *testing.T) {
 	}
 	if len(rt.touchedQuit) != 0 || len(rt.killed) != 0 {
 		t.Fatal("must not touch or kill when session is unset")
+	}
+}
+
+// The adopted case (#284): Couch presents a session it did not create, so the
+// session env passes, and the client would refuse the restart marker only after
+// quit cleanup had torn the thread down. The gate must refuse before ANY marker,
+// quit intent or kill -- and so must a record it cannot read, since it gates
+// killing a live session. A terminal-presented client still restarts.
+func TestRunRestartRefusesACouchOwnedSessionBeforeMutation(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		hosted    bool
+		presenter string // "couch", "terminal", "unreadable", or "" for no record
+		want      string // refusal substring; "" means the restart proceeds
+	}{
+		{"adopted: Couch presents, env not Couch's", false, "couch", "belong to Couch"},
+		{"Couch created the session", true, "", "belong to Couch"},
+		{"unreadable presenter record", false, "unreadable", "cannot tell whether Couch presents"},
+		{"terminal-presented", false, "terminal", ""},
+		{"no record", false, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.inferAgent["work"] = "codex"
+			switch tc.presenter {
+			case "couch", "terminal":
+				rt.RecordOuterTTY("work", tc.presenter == "couch")
+			case "unreadable":
+				rt.presenterErr = errors.New("outer-tty record: unexpected shape")
+			}
+			var stderr bytes.Buffer
+			code := runRestart(rt, LaunchArgs{Command: "restart"}, "📁work", "work", tc.hosted, &stderr)
+			if tc.want == "" {
+				if code != 0 || len(rt.killed) != 1 {
+					t.Fatalf("code=%d killed=%v stderr=%q, want the restart", code, rt.killed, stderr.String())
+				}
+				return
+			}
+			if code != 1 || !strings.Contains(stderr.String(), tc.want) || !strings.Contains(stderr.String(), "Couch") {
+				t.Fatalf("code=%d stderr=%q, want a refusal naming %q", code, stderr.String(), tc.want)
+			}
+			if len(rt.writtenMarkers) != 0 || len(rt.touchedQuit) != 0 || len(rt.killed) != 0 {
+				t.Fatalf("mutated before refusing: markers=%v quit=%v killed=%v", rt.writtenMarkers, rt.touchedQuit, rt.killed)
+			}
+		})
 	}
 }

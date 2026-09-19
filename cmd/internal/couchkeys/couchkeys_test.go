@@ -122,12 +122,15 @@ func TestHelpSectionsRenderEveryChordByScope(t *testing.T) {
 // Only every-pane chords that are Pair chords are claimed; switcher chords share
 // Pair's bytes but never take them from a Pair pane.
 func TestClaimedIsEveryPanePairChordsOnly(t *testing.T) {
-	if got := Claimed(Bindings()); len(got) != 0 {
-		t.Fatalf("today's table claims %v", got)
+	// Today's claims are the relaunch pair (#284); Alt+d and Alt+x are switcher
+	// chords that share Pair's bytes and are not claimed.
+	today := []workbenchshortcut.Chord{workbenchshortcut.ChordAltN, workbenchshortcut.ChordCtrlAltN}
+	if got := Claimed(Bindings()); !reflect.DeepEqual(got, today) {
+		t.Fatalf("today's table claims %v, want %v", got, today)
 	}
 	extra := Binding{Action: ActionSwitch, Scope: ScopeEveryPane, Chord: workbenchshortcut.ChordAltL, Key: "Alt+l", Help: "probe",
 		Encodings: workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltL)}
-	if got := Claimed(append(Bindings(), extra)); len(got) != 1 || got[0] != workbenchshortcut.ChordAltL {
+	if got := Claimed(append(Bindings(), extra)); !reflect.DeepEqual(got, append(today, workbenchshortcut.ChordAltL)) {
 		t.Fatalf("claimed = %v", got)
 	}
 }
@@ -161,20 +164,24 @@ func TestClaimingAPairChordReplacesItsRowOnThePage(t *testing.T) {
 }
 
 // No key has two meanings in one context: an every-pane Couch key never reaches
-// Pair, so no Pair row may carry its label either. That covers draft-local rows,
-// which have no chord for Layer to match.
+// Pair, so no Pair row left on the page Couch presents may carry its label. Read
+// off the layered page, because a claimed chord's Pair rows are Layer's to drop
+// (#284 claims Alt+n); what this adds is the draft-local rows, which have no
+// chord for Layer to match.
 func TestNoPairRowSharesAnEveryPaneCouchKey(t *testing.T) {
 	pair, err := keyhelp.HostedSections(keyhelp.DefaultSources())
 	if err != nil {
 		t.Fatal(err)
 	}
+	bs := Bindings()
 	taken := map[string]bool{}
-	for _, b := range Bindings() {
+	for _, b := range bs {
 		if b.Scope == ScopeEveryPane {
 			taken[b.Key] = true
 		}
 	}
-	for _, s := range pair {
+	couch := len(HelpSections(bs))
+	for _, s := range keyhelp.Layer(HelpSections(bs), Claimed(bs), pair)[couch:] {
 		for _, b := range s.Bindings {
 			if taken[b.Key] {
 				t.Errorf("%s also has a Pair meaning: %q", b.Key, b.Desc)

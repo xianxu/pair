@@ -512,6 +512,10 @@ func (r OSRuntime) RecordOuterTTY(tag string, couch bool) {
 	}
 }
 
+func (r OSRuntime) OuterPresenter(tag string) (bool, error) {
+	return ReadOuterPresenter(r.DataDir, tag)
+}
+
 // ReadOuterPresenter reports whether the client that last attached to tag was
 // presented by Couch -- what Alt+h reads to decide whether Couch's keys belong
 // on the page (#282). No record (never attached from a tty, or quit) is "no".

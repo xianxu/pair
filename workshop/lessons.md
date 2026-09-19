@@ -2341,6 +2341,18 @@ advice will follow the unsafe one. Where the surface has a declared verb set,
 assert in a test that each suggested command is in it, so the advice cannot
 drift from the implementation.
 
+**Sharpened by #284: existing is not enough — the remedy must be runnable FROM
+THE STATE THE REFUSAL LEAVES BEHIND.** Compaction's Couch refusal offered
+`pair continue --retry <tag>`, a declared verb that would pass the verb-set
+test above, and which cannot run there: `--retry` consumes a retained restart
+marker, and that arm returns before writing one. A refusal is a state
+transition, so ask what survives it and name the route that consumes *that*
+(here the checkpoint doc, so `--checkpoint <path>`). The test asserts the
+precondition the remedy needs, not the spelling of the verb:
+`launcher.TestCompactionRefusalNamesARouteThatRuns` checks that no marker was
+written, that the named route parses, and that the path it names resolves and
+validates.
+
 ## A stream split is not an event boundary
 
 `#146` M3's interceptor correctly returned `before / hotkey / rest`, but the
@@ -5588,3 +5600,19 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   sequence the helper should produce, here probe times of 1, 3 and 7 s. Then
   mutation-check the call, not only the helper. (#288 close review, BR-4)
 
+
+## Re-owning a chord: sweep its wire bytes across every test package
+
+**What happened (#284).** Moving Alt+n from "passes through Couch to the agent"
+to "Couch's own" meant updating the tests that pinned the old routing. The sweep
+covered only the packages that changed (`couchtty`, `couchkeys`, `keyscmd`,
+`keyhelp`). The #245 cross-layer test lives in the consumer's package
+(`wrapcmd` `TestConsoleWrapperShortcutPassthrough` drives Couch into the
+wrapper) and spells the chord as raw bytes (`\x1b[110;3u`), not as
+`ChordAltN`. Only the full `make test` found it.
+
+**Rule.** When a chord changes owner, grep the whole tree's tests for every
+encoding of it (`workbenchshortcut.ChordEncodings`: the Kitty forms like
+`110;3u` / `110;7u` and the legacy `\x1bn`) as well as its symbol, before the
+first test run. Cross-layer conformance tests sit next to the layer that
+receives the input, not the one that routes it.

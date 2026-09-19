@@ -47,8 +47,10 @@ func TestConsoleWrapperShortcutPassthrough(t *testing.T) {
 		}
 	})
 	// Pasted navigation must reach the agent literally. An unpasted tab key
-	// reaches the wrapper but performs its reserved action there.
-	literal := "\x1b[100;3u\x1bx\x1b[110;3u\x1b[1;3A\x1bh\x1bl\x1b[200~\x00\x1b[84;4u\r\x1b[201~"
+	// reaches the wrapper but performs its reserved action there. Alt+n is
+	// Couch's own from every pane (#284), so it appears only inside the paste,
+	// where it is content for both layers.
+	literal := "\x1b[100;3u\x1bx\x1b[1;3A\x1bh\x1bl\x1b[200~\x00\x1b[84;4u\x1b[110;3u\r\x1b[201~"
 	input := []byte(literal + "\x1b[84;4u" + "END245")
 	if _, err := writer.Write(input); err != nil {
 		t.Fatal(err)
