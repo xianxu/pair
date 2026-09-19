@@ -59,7 +59,15 @@ that URL as a new tab; Esc cancels and creates nothing.
 - **Both bindings appear in Alt+h.**
 
 **Each tab runs** `carbonyl --remote-debugging-port=0 --user-data-dir=<profile>
---fps=15 <url>`:
+--fps=15 --zoom=<derived> <url>`:
+- **Zoom is derived from the pane's width, not left at 100.** Carbonyl maps
+  one column to ~5.29 CSS px at zoom 100 (measured), so the right pane at 94
+  columns is a **497 px** viewport — a tablet/phone breakpoint, and a
+  `min-width:1024px` app shows only 2 of 4 columns. Zoom does NOT shrink text
+  (a glyph occupies a whole cell whatever its CSS size), so zooming out buys
+  layout width for free: at 94 columns, zoom 50 gives ~994 px and the same page
+  renders in full, still legible. `Zoom(cols)` targets ~1024 CSS px, clamped to
+  [25, 100].
 - **The binary** is `$PAIR_CARBONYL` or `carbonyl` on PATH. If it's missing,
   the strip shows a notice and no tab opens.
 - **Carbonyl older than 0.0.3 gets a strip notice.** 0.0.2 spins a CPU core
@@ -162,6 +170,10 @@ page, not open new ones.
 - A Carbonyl older than 0.0.3 gets a strip notice naming the idle-CPU bug.
 - A remote URL in the URL field needs a second Enter; a local one doesn't. A
   test covers both, and `IsLocalURL`'s local set is closed (fuzzed).
+- The launch zoom is derived from the pane width (`Zoom(cols)`, unit-tested),
+  and the live conformance probe asserts the CSS-px-per-column mapping the
+  derivation rests on, so an engine change breaks a test rather than the
+  layout.
 - The chosen frame-rate cap, and the measured CPU of Carbonyl, `pair term`,
   zellij and couch on an idle and a full-motion page, are recorded in the Log.
 
@@ -402,3 +414,41 @@ v0.0.3: the Chromium patch series is 14 patches over 54 files, +1,444/-267,
 of which only ~270 lines modify pre-existing Chromium code; Carbonyl's own
 source is 3,968 lines. Carbonyl also runs its renderer, GPU and network
 processes WITH Chromium's sandbox.
+
+### 2026-09-19 — how Carbonyl behaves at a right-pane width (94 columns)
+
+Measured with Carbonyl 0.0.3 under a pty, pages served locally, viewport read
+from the page itself.
+
+**One column is ~5.29 CSS px at zoom 100; one row ~10.3.** (dpr reported as
+0.38.) The viewport is therefore `cols * 5.29 * 100/zoom`:
+
+| Terminal | Zoom | CSS viewport | Breakpoint the page sees |
+|---|---|---|---|
+| 60x30 | 100 | 318 x 307 | phone (<=480) |
+| **94x40** | **100** | **497 x 413** | **tablet (481-768)** |
+| 120x36 | 100 | 634 x 371 | tablet |
+| 200x50 | 100 | 1055 x 518 | desktop (>1024) |
+| 94x40 | 70 | 700 x 581 | tablet |
+| 94x40 | 50 | 994 x 826 | small desktop |
+| 94x40 | 35 | 1350 x 1121 | desktop |
+
+**What that means at 94 columns:**
+- A responsive docs layout (sidebar + article) renders legibly at zoom 100, but
+  the 180 px sidebar eats ~34 of 94 columns.
+- A `min-width:1024px` desktop app shows **2 of its 4 columns**; the rest needs
+  horizontal scrolling.
+- At zoom 50 the same app fits entirely, all four columns readable, and the
+  docs page gains ~15 columns of content width.
+- **Zoom does not shrink text.** Text is drawn one glyph per cell regardless of
+  its CSS size, so lowering zoom buys layout width at no legibility cost. Every
+  font size from 8 px to 24 px still rendered at zoom 50, and the docs page was
+  still complete at zoom 35 (where a vertical scrollbar appears).
+- Not yet probed: a page with dense small text in narrow columns, where a run
+  needing more cells than CSS allots must crowd or truncate. The conformance
+  probe should cover it.
+
+**Design consequence (folded into the Spec):** derive `--zoom` from the pane's
+column count, targeting ~1024 CSS px, clamped [25, 100] — at 94 columns that is
+50. Estimate unchanged: `Zoom(cols)` is a few lines inside the existing pure-core
+item.
