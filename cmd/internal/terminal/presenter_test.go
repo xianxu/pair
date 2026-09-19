@@ -430,6 +430,88 @@ func TestPresenterReleaseRestoresOnlyOwnedKeyboardPush(t *testing.T) {
 	}
 }
 
+// ambientKeyboard is the parent's keyboard state before a presenter arrives,
+// different on each screen: the kitty flags are a stack PER SCREEN, so a push
+// or pop that lands on the wrong one shows.
+const ambientKeyboard = "\x1b[>5u\x1b[?1049h\x1b[>9u\x1b[?1049l"
+
+// parentKeyboard replays a presenter's parent stream over the ambient state and
+// reports the screen it ends on and the flags in effect there.
+func parentKeyboard(stream string) (alternate bool, flags uint32) {
+	host := vt.NewEmulator(8, 5)
+	defer host.Close()
+	host.WriteString(ambientKeyboard + stream)
+	return host.IsAltScreen(), host.KeyboardFlags()
+}
+
+// assertKeyboardRestored checks a released stream left both screens' stacks as
+// it found them: the next program on either screen inherits nothing.
+func assertKeyboardRestored(t *testing.T, label, stream string) {
+	t.Helper()
+	host := vt.NewEmulator(8, 5)
+	defer host.Close()
+	host.WriteString(ambientKeyboard + stream)
+	alternate, primary := host.IsAltScreen(), host.KeyboardFlags()
+	host.WriteString("\x1b[?1049h")
+	if other := host.KeyboardFlags(); alternate || primary != 5 || other != 9 {
+		t.Fatalf("%s: after release alternate=%v flags main=%d alt=%d, want false 5 9", label, alternate, primary, other)
+	}
+}
+
+// Setup pushes the keyboard flags on the screen it starts on, and a presented
+// child can move the parent to the other one, where the panel then paints too.
+// Without a push there, keys that exist only enhanced -- Alt+d, Ctrl+Return --
+// arrive as legacy bytes and are dead (#279).
+func TestPresenterKeyboardPushFollowsTheScreen(t *testing.T) {
+	type step struct {
+		name      string
+		alternate bool // the screen the step leaves the parent on
+		panel     bool
+	}
+	for _, tc := range []struct {
+		name  string
+		steps []step
+	}{
+		// Setup's push and the alternate screen's are then written in one paint.
+		{"alternate-first", []step{{"alternate", true, false}, {"panel over alternate", true, true}, {"primary", false, false}}},
+		{"primary-first", []step{
+			{"primary", false, false}, {"alternate", true, false}, {"panel over alternate", true, true},
+			{"primary again", false, false}, {"alternate again", true, false},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			parent := ttyio.NewFake()
+			p := NewPresenter(parent, ChildRequested)
+			primary, _ := newEndpointTest(t, "primary")
+			alternate, _ := newEndpointTest(t, "alternate")
+			primary.Feed([]byte("MAIN"), time.Now())
+			alternate.Feed([]byte("\x1b[?1049hALT"), time.Now())
+			for _, s := range tc.steps {
+				var err error
+				switch {
+				case s.panel:
+					err = p.Panel(ctx, Frame{Geometry: Geometry{8, 5}, Cells: make([]Cell, 40)})
+				case s.alternate:
+					err = p.Select(ctx, alternate, Geometry{8, 5}, make([]Cell, 8))
+				default:
+					err = p.Select(ctx, primary, Geometry{8, 5}, make([]Cell, 8))
+				}
+				if err != nil {
+					t.Fatalf("%s: %v", s.name, err)
+				}
+				if alt, flags := parentKeyboard(string(parent.Bytes())); alt != s.alternate || flags != 3 {
+					t.Fatalf("%s: alternate=%v flags=%d, want alternate=%v flags=3", s.name, alt, flags, s.alternate)
+				}
+			}
+			if err := p.Release(ctx); err != nil {
+				t.Fatal(err)
+			}
+			assertKeyboardRestored(t, "release", string(parent.Bytes()))
+		})
+	}
+}
+
 func TestPresenterReleaseCancelsEffectAndJoinsResult(t *testing.T) {
 	p, parent, e, _ := presenterFixture(t, ChildRequested)
 	if err := p.Register(context.Background(), e); err != nil {
@@ -1013,6 +1095,7 @@ func TestPresenterReleaseClosesSyncAfterAnyCutWrite(t *testing.T) {
 					t.Fatalf("cut %d: parent accepted only %d bytes", c, len(stream))
 				}
 				assertStreamBracketed(t, fmt.Sprintf("cut %d of %d", c, total), stream)
+				assertKeyboardRestored(t, fmt.Sprintf("cut %d of %d", c, total), stream)
 			}
 		})
 	}

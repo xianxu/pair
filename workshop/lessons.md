@@ -1,5 +1,30 @@
 # Lessons
 
+## A one-shot setup must cover every scope its state lives in (#279)
+
+#251 kept Couch's keyboard disambiguation by re-asserting `CSI = 1;2 u` after
+every child output batch, so the flags landed on whatever screen was current.
+The #255 migration replaced that with one `CSI > 3 u` at the first paint. Kitty
+keyboard flags are a stack **per screen**, and the presenter later moves the
+parent onto the alternate screen. From then on the parent sent legacy keys, and
+Alt+d in the switcher typed a `d` into the filter.
+
+When a migration swaps a "re-assert every time" mechanism for a single setup
+write, list the scopes that state lives in (per screen, per buffer, per client)
+and every transition the new owner makes between them. Pin each transition with
+a model of the real protocol, not a mock of the write. ARCH-ORDER.
+
+## A test must await the state its oracle reads (#279)
+
+`TestKeyboardPhysicalNotificationJump` already had a `?1049h` case, and it
+passed through the whole regression. It encoded the physical key from the host
+terminal's flags right after feeding the child, but the paint that moves the
+parent to the alternate screen is asynchronous. So the case always read the main
+screen and tested the default. When an oracle reads state that something
+produces later, wait for that state, and assert it was reached before trusting
+the verdict. A parameter that was supposed to change the world but didn't makes
+a case that is green for no reason.
+
 ## A readiness poll must not be able to kill what it waits for (#287)
 
 Pair's title poller and Couch's cold-resume registration waited for a new

@@ -56,11 +56,14 @@ type Presenter struct {
 	effects        map[string]uint64
 	origins        map[string]*Endpoint
 	confirmedModes parentModes
-	keyboardOwned  bool
+	keyboardOwned  bool // setup's push, on the screen the parent started on
 	altOwned       bool
-	history        HistoryState
-	modesKnown     bool
-	parentTouched  bool // actor-owned; even an interrupted first write requires release
+	// altKeyboardOwned: the alternate screen carries the push too. Kitty
+	// keyboard flags are a stack per screen (#279); see writeFramePacket.
+	altKeyboardOwned bool
+	history          HistoryState
+	modesKnown       bool
+	parentTouched    bool // actor-owned; even an interrupted first write requires release
 }
 
 func NewPresenter(w ttyio.Writer, policy ParentMousePolicy) *Presenter {
@@ -192,14 +195,6 @@ func (p *Presenter) write(ctx context.Context, data []byte, normal bool) error {
 		defer stop()
 	}
 	accepted, err := writeComplete(ctx, p.writer, data)
-	if accepted == len(data) {
-		if string(data) == "\x1b[?1049h" {
-			p.altOwned = true
-		}
-		if string(data) == "\x1b[?1049l" {
-			p.altOwned = false
-		}
-	}
 	if err != nil {
 		return &WriteFailure{Accepted: accepted, Total: len(data), Err: err}
 	}
@@ -264,7 +259,10 @@ func (p *Presenter) settleCancellation() {
 // arbitrary accepted prefix. CAN/ST first abort incomplete CSI/OSC controls,
 // then synchronized output closes: a frame write that failed after its bracket
 // opened would otherwise hold the parent's display until its own timeout.
-// Setup owns mouse, focus, paste and one keyboard-stack push. Render owns
+// Setup owns mouse, focus, paste and one keyboard-stack push per screen (the
+// alternate screen's is released by releaseAlt, before it leaves). The DEC
+// modes are terminal-wide, so setup writes them once; the kitty keyboard flags
+// are the one setup state a terminal keeps per screen (#279). Render owns
 // synchronized output, origin, margins, autowrap, SGR, hyperlinks and cursor
 // style/visibility. Its pixels and cursor position remain; one-shot effects
 // (including permitted title/clipboard changes) are not rolled back or replayed
@@ -272,7 +270,7 @@ func (p *Presenter) settleCancellation() {
 func parentReleaseControls(keyboardOwned bool) []byte {
 	controls := "\x18\x1b\\" + syncEnd
 	if keyboardOwned {
-		controls += "\x1b[<u"
+		controls += keyboardPop
 	}
 	controls += "\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004l\x1b[?2004l"
 	controls += "\x1b[?6l\x1b[r\x1b[?7h\x1b[0m\x1b]8;;\x1b\\\x1b[0 q\x1b[?25h"
@@ -290,7 +288,7 @@ func desiredParentModes(policy ParentMousePolicy, child Modes) parentModes {
 func parentModeDelta(before, after parentModes, known bool) string {
 	var s string
 	if !known {
-		s = "\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004h\x1b[?2004h\x1b[>3u"
+		s = "\x1b[?9l\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l\x1b[?1004h\x1b[?2004h" + keyboardPush
 	} else if before.tracking == after.tracking {
 		return ""
 	} else if before.tracking != 0 {
@@ -334,7 +332,7 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 	if errors.As(err, &failure) {
 		accepted = failure.Accepted
 	}
-	if push := strings.Index(delta, "\x1b[>3u"); push >= 0 && accepted >= push+len("\x1b[>3u") {
+	if push := strings.Index(delta, keyboardPush); push >= 0 && accepted >= push+len(keyboardPush) {
 		p.keyboardOwned = true
 	}
 	var nextHistory HistoryState
@@ -349,7 +347,7 @@ func (p *Presenter) paintPublication(ctx context.Context, f Frame, history *Hist
 			var rendered HistoryRender
 			rendered, err = RenderWithHistory(p.previous, f, *history, p.history)
 			if err == nil {
-				err = rendered.Emit(func(data []byte) error { return p.write(ctx, data, true) })
+				err = rendered.Emit(func(data []byte) error { return p.writeFramePacket(ctx, data) })
 				nextHistory = rendered.NextState()
 			}
 		}
@@ -831,8 +829,69 @@ func (p *Presenter) Copy(ctx context.Context, data []byte) error {
 }
 
 func (p *Presenter) releaseAlt() []byte {
-	if p.altOwned {
-		return []byte("\x18\x1b\\\x1b[?1049l")
+	if !p.altOwned {
+		return nil
 	}
-	return nil
+	controls := "\x18\x1b\\"
+	if p.altKeyboardOwned {
+		controls += keyboardPop
+	}
+	return []byte(controls + altLeave)
+}
+
+const (
+	altEnter = "\x1b[?1049h"
+	altLeave = "\x1b[?1049l"
+	// keyboardPush is the presenter's keyboard-stack entry: disambiguate (1)
+	// and report event types (2). keyboardPop removes exactly that entry.
+	keyboardPush = "\x1b[>3u"
+	keyboardPop  = "\x1b[<u"
+)
+
+// writeFramePacket writes one packet of a frame, and is the one place the
+// parent's screen is accounted for. A screen switch is always a packet of its
+// own (HistoryRender.Emit), so a completed switch is recorded even if a later
+// chunk of the frame fails, and release leaves only a screen actually entered.
+//
+// The kitty keyboard flags are a stack PER SCREEN, so setup's push is absent
+// on the other screen. There the parent sends legacy keys, and a chord that
+// exists only enhanced -- Alt+d, Ctrl+Return -- is dead (#279). So the push
+// follows the parent onto the alternate screen and is popped before leaving it:
+// each stack is left as it was found.
+func (p *Presenter) writeFramePacket(ctx context.Context, data []byte) error {
+	switch string(data) {
+	case altEnter:
+		entered, err := p.writeWhole(ctx, altEnter)
+		if entered {
+			p.altOwned = true
+		}
+		if err != nil {
+			return err
+		}
+		p.altKeyboardOwned, err = p.writeWhole(ctx, keyboardPush)
+		return err
+	case altLeave:
+		if p.altKeyboardOwned {
+			popped, err := p.writeWhole(ctx, keyboardPop)
+			p.altKeyboardOwned = !popped
+			if err != nil {
+				return err
+			}
+		}
+		left, err := p.writeWhole(ctx, altLeave)
+		if left {
+			p.altOwned = false
+		}
+		return err
+	}
+	return p.write(ctx, data, true)
+}
+
+// writeWhole writes one control and reports whether all of it reached the
+// parent -- which a write that then failed can still have done. Ownership is
+// recorded from that, never from the error alone.
+func (p *Presenter) writeWhole(ctx context.Context, control string) (bool, error) {
+	err := p.write(ctx, []byte(control), true)
+	var failure *WriteFailure
+	return !errors.As(err, &failure) || failure.Accepted == len(control), err
 }

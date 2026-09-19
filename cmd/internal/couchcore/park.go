@@ -107,10 +107,16 @@ type ParkResult struct {
 
 // LeaveDisposition is what leaving Couch does to threads that are still live.
 //
-// The KEY the operator pressed chooses it, not the surface they pressed it on:
-// Alt+d detaches and Alt+x parks, in an actor or in the switcher alike. Leaving
-// is the invariant either way -- a switcher with nothing live must still have a
-// way out, which is exactly the trap that produced this split (#170).
+// The KEY the operator pressed chooses the disposition: Alt+d detaches and
+// Alt+x parks. The SURFACE chooses the target: from the switcher the key
+// applies to every live thread and then leaves Couch, and a single row is
+// detached from Tab's actions instead. Leaving is the invariant either way -- a
+// switcher with nothing live must still have a way out, which is exactly the
+// trap that produced this split (#170). Pinned end to end by
+// TestConsoleRunAltDOnThePanelDetachesEveryThreadAndLeaves,
+// TestConsoleRunMenuAltXOnThePanelOpensLeaveConfirmation and, with the key
+// encoded by the terminal itself, TestKeyboardPhysicalAltDLeavesFromTheSwitcher
+// (#279).
 type LeaveDisposition string
 
 const (

@@ -137,8 +137,11 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 	c.deliverPresenterInput(event.Event)
 }
 
-// Some product chords intentionally exist only in enhanced encoding (Alt+d
-// and Alt+n), while their legacy ESC-letter bytes remain ordinary input.
+// Several product chords intentionally exist only in enhanced encoding -- every
+// workbenchshortcut row with no legacy form, Alt+d and Alt+n among them -- while
+// their legacy ESC-letter bytes remain ordinary input. They reach Couch only
+// because the presenter keeps the parent disambiguated on every screen it
+// presents on (#279).
 func productKey(event terminal.InputEvent) []byte {
 	if bytes.Equal(event.Raw, []byte{8}) {
 		return event.Raw

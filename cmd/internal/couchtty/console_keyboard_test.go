@@ -3,11 +3,13 @@ package couchtty
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
@@ -46,6 +48,11 @@ func TestKeyboardPhysicalNotificationJump(t *testing.T) {
 		t.Run(strings.ReplaceAll(mode, "\x1b", "ESC"), func(t *testing.T) {
 			f, h, b := keyboardFixture(t)
 			f.child.Feed([]byte(mode))
+			// The key comes from the screen the child's output left the parent
+			// on, and that output is painted asynchronously. Encoding it at once
+			// read the main screen, so the ?1049h case passed while the
+			// alternate screen had no keyboard push at all (#279).
+			awaitScreen(t, h, strings.HasSuffix(mode, "\x1b[?1049h"))
 			f.con.mu.Lock()
 			target := f.con.panes["c2"].thread
 			f.con.attention.Mark(target, "ready")
@@ -72,6 +79,64 @@ func TestKeyboardPhysicalNotificationJump(t *testing.T) {
 			}
 		})
 	}
+}
+
+// The operator's report behind #279: after a thread had been shown, Alt+d in
+// the switcher typed a d into the filter. A zellij actor puts the parent on its
+// alternate screen and the switcher paints over it there. Alt+d has no legacy
+// chord, so it reaches Couch only if that screen carries the keyboard push too.
+func TestKeyboardPhysicalAltDLeavesFromTheSwitcher(t *testing.T) {
+	type step struct {
+		output    string
+		alternate bool
+	}
+	for _, tc := range []struct {
+		name  string
+		steps []step
+	}{
+		{"main", nil},
+		{"alternate", []step{{"\x1b[?1049hALT", true}}},
+		{"alternate-and-back", []step{{"\x1b[?1049hALT", true}, {"\x1b[?1049lMAIN", false}}},
+		{"back-again", []step{{"\x1b[?1049hALT", true}, {"\x1b[?1049lMAIN", false}, {"\x1b[?1049hALT", true}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f, h, _ := keyboardFixture(t)
+			dispatched := make(chan map[string]string, 1)
+			setTestOps(f.con, func(name string, args map[string]string) (any, error) {
+				if name == "leave" {
+					dispatched <- args
+				}
+				return nil, nil
+			})
+			for _, s := range tc.steps {
+				f.child.Feed([]byte(s.output))
+				awaitScreen(t, h, s.alternate)
+			}
+			_, _ = f.stdin.Write(h.ctrlSpace())
+			waitFor(t, "the switcher", func() bool {
+				f.con.mu.Lock()
+				defer f.con.mu.Unlock()
+				return f.con.focus.IsPanel()
+			})
+			key := h.altD()
+			_, _ = f.stdin.Write(key)
+			select {
+			case args := <-dispatched:
+				if args["mode"] != string(couchcore.LeaveDetach) {
+					t.Fatalf("leave args = %+v, want mode=detach", args)
+				}
+			case <-time.After(time.Second):
+				t.Fatalf("physical Alt+d encoded %q (flags %d) and dispatched nothing", key, h.flags())
+			}
+		})
+	}
+}
+
+// awaitScreen waits for the parent to reach the screen a child's output asks
+// for. The key an operator presses depends on that screen's keyboard stack.
+func awaitScreen(t *testing.T, h *keyboardHost, alternate bool) {
+	t.Helper()
+	waitFor(t, fmt.Sprintf("parent alternate screen = %v", alternate), func() bool { return h.alternate() == alternate })
 }
 
 func TestKeyboardReplayAndBackground(t *testing.T) {

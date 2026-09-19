@@ -49,16 +49,33 @@ func (h *keyboardHost) depth() int {
 	return len(h.model.buffers[h.model.active].saved)
 }
 
-func (h *keyboardHost) ctrlReturn() []byte {
+// alternate reports whether the terminal is showing its alternate screen, whose
+// keyboard stack is separate from the main screen's.
+func (h *keyboardHost) alternate() bool {
+	h.kmu.Lock()
+	defer h.kmu.Unlock()
+	return h.model.active == 1
+}
+
+// press encodes one modified key the way this terminal sends it now: CSI u
+// under disambiguation (1) or all-keys (8), with an explicit press event when
+// event types (2) are reported, and its legacy bytes otherwise.
+func (h *keyboardHost) press(legacy string, code, mod int) []byte {
 	f := h.flags()
 	if f&(1|8) == 0 {
-		return []byte("\r")
+		return []byte(legacy)
 	}
 	if f&2 != 0 {
-		return []byte("\x1b[13;5:1u")
+		return []byte(fmt.Sprintf("\x1b[%d;%d:1u", code, mod))
 	}
-	return []byte("\x1b[13;5u")
+	return []byte(fmt.Sprintf("\x1b[%d;%du", code, mod))
 }
+
+func (h *keyboardHost) ctrlReturn() []byte { return h.press("\r", 13, 5) }
+func (h *keyboardHost) ctrlSpace() []byte  { return h.press("\x00", 32, 5) }
+
+// altD has no legacy chord: ESC d is also Esc followed by d.
+func (h *keyboardHost) altD() []byte { return h.press("\x1bd", 100, 3) }
 
 const keyboardCSILimit = 256
 const keyboardStackLimit = 16

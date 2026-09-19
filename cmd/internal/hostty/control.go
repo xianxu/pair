@@ -73,10 +73,6 @@ const (
 	ShowCursor     = "\x1b[?25h"
 	HideCursor     = "\x1b[?25l"
 
-	// EnableKeyboardDisambiguation adds the flag Couch needs without clearing
-	// child-requested flags or pushing another entry on the terminal stack.
-	EnableKeyboardDisambiguation = "\x1b[=1;2u"
-
 	// ResetInteractiveModes returns input/display handling to a shell-safe
 	// baseline after Couch has replayed a child's terminal modes. Raw termios
 	// restoration does not revoke DEC private modes: without this, any-event
