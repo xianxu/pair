@@ -64,7 +64,7 @@ here are in that issue's `## Log`.
 | `Label` | `cmd/internal/browsertab/label.go` | new |
 | `DefaultName` | `cmd/internal/browsertab/name.go` | new |
 | `Version` / `ParseVersion` / `VersionNotice` | `cmd/internal/browsertab/version.go` | new |
-| `Argv` / `DefaultFPS` | `cmd/internal/browsertab/launch.go` | new |
+| `Argv` / `DefaultFPS` / `Zoom` | `cmd/internal/browsertab/launch.go` | new |
 | `ParseActivePort` / `Endpoint` | `cmd/internal/browsertab/endpoint.go` | new |
 | `OwnedName` / `ParseOwnedName` / `BirthHash` | `cmd/internal/browsertab/owned.go` | new |
 | `Record` / `EncodeRecord` / `DecodeRecord` / `RecordFile` | `cmd/internal/browsertab/record.go` | new |
@@ -104,8 +104,16 @@ here are in that issue's `## Log`.
 - **Version / ParseVersion / VersionNotice** parse `carbonyl --version` output
   (`Carbonyl 0.0.3`, `Carbonyl 0.0.3-next.ab80a27`). `VersionNotice` returns
   the notice text below `MinVersion = 0.0.3`, or `""`.
+- **Zoom(cols) int** derives Carbonyl's `--zoom` from the pane width.
+  Measured: one column is ~5.29 CSS px at zoom 100, so the viewport is
+  `cols * 5.29 * 100/zoom`. At 94 columns and zoom 100 a page sees 497 px — a
+  tablet breakpoint, and a `min-width:1024px` app loses half its columns.
+  Zooming out costs no legibility (a glyph is a whole cell whatever its CSS
+  size), so `Zoom` targets `TargetViewportPx = 1024`, clamped to [25, 100]:
+  50 at 94 columns, 100 at 200, 31 at 60.
+  - Tests: those three worked examples, monotonicity in `cols`, both clamps.
 - **Argv** is the launch argv:
-  `bin --remote-debugging-port=0 --user-data-dir=<profile> --fps=<fps> <url>`.
+  `bin --remote-debugging-port=0 --user-data-dir=<profile> --fps=<fps> --zoom=<zoom> <url>`.
   `DefaultFPS = 15` (Log: `pair term` alone costs 21% of a core at 60 fps and 6%
   at 15 on a full-motion page; M2 re-measures the chain).
 - **ParseActivePort / Endpoint** parse `<profile>/DevToolsActivePort`
@@ -833,8 +841,30 @@ const DefaultFPS = 15
 
 // Argv is the Carbonyl launch argv. --user-data-dir is mandatory: without it
 // Carbonyl writes its profile into its own install directory (#292 Log).
-func Argv(bin, profile string, fps int, url string) []string {
-	return []string{bin, "--remote-debugging-port=0", "--user-data-dir=" + profile, "--fps=" + strconv.Itoa(fps), url}
+func Argv(bin, profile string, fps, zoom int, url string) []string {
+	return []string{bin, "--remote-debugging-port=0", "--user-data-dir=" + profile,
+		"--fps=" + strconv.Itoa(fps), "--zoom=" + strconv.Itoa(zoom), url}
+}
+
+// CSSPixelsPerColumn is Carbonyl's cell-to-CSS-pixel mapping at zoom 100,
+// measured 2026-09-19 (94 columns reported a 497 px viewport, dpr 0.38). The
+// live conformance probe re-checks it, so an engine change fails a test rather
+// than silently narrowing every page.
+const CSSPixelsPerColumn = 5.29
+
+// TargetViewportPx is the CSS width we want pages to lay out against: just past
+// the common 1024 desktop breakpoint.
+const TargetViewportPx = 1024
+
+// Zoom derives --zoom from the pane width. Zooming out costs no legibility --
+// text is drawn one glyph per cell whatever its CSS size -- so it buys layout
+// width for free (#292 Log).
+func Zoom(cols int) int {
+	if cols <= 0 {
+		return 100
+	}
+	z := int(math.Round(float64(cols) * CSSPixelsPerColumn / TargetViewportPx * 100))
+	return min(100, max(25, z))
 }
 ```
 
@@ -2037,7 +2067,7 @@ type browserDeps struct {
 4. `profiles.Create(owner, id)`.
 5. Pick the name with `DefaultName(taken)` over this mux's tab names (M3 adds
    the tag's record names).
-6. `ptychild.Start(Options{Argv: browsertab.Argv(bin, profile, fps, url), Size: childSizeLocked(), Env: shellEnv + deps.env, KillGroup: true, Sink: …})`,
+6. `ptychild.Start(Options{Argv: browsertab.Argv(bin, profile, fps, browsertab.Zoom(int(m.cols)), url), Size: childSizeLocked(), Env: shellEnv + deps.env, KillGroup: true, Sink: …})`,
    with the same ready-gate as `newTab`. `KillGroup: true` is what makes
    every ptychild reap path kill Chromium's helpers first (PQ-7).
 7. Build `terminalTab{kind: tabBrowser, name, label: browsertab.Label(name, url), browser: ctrl}`,
@@ -2560,6 +2590,11 @@ Behavior:
   4. `Dial` + `DiscoverTargets` yields one `page` target.
   5. `Navigate(page2)` yields `targetInfoChanged` with page2's URL and title
      within 5 s.
+  5b. **The zoom mapping still holds**: at a known column count with
+     `--zoom=100`, a page reporting `window.innerWidth` is within 5% of
+     `cols * CSSPixelsPerColumn`. And a page of dense 10 px text in a narrow
+     column drops no text run — the crowding case the 2026-09-19 measurements
+     did not cover.
   6. Idle CPU: the group's summed `ps -o time=` rises by less than 0.25 s over
      5 s.
   7. Row 0 of the child's screen (`Endpoint` text) starts with `[❮][❯][↻][`.
