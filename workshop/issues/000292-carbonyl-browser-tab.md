@@ -7,6 +7,7 @@ created: 2026-09-19
 updated: 2026-09-19
 estimate_hours: 9.31
 started: 2026-09-19T11:10:35-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Carbonyl browser tab in the right pane, shared with the agent over DevTools
