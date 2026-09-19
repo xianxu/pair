@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
-	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
@@ -15,27 +14,6 @@ import (
 // console arms time.NewTimer, so hand-advancing a fake clock would leave it
 // waiting the full lifetime and prove nothing about the arming.
 const testLifetime = 60 * time.Millisecond
-
-// lastPaintedRow is the text of the most recent reserved-row paint.
-//
-// The alternative -- host.Reset() then wait -- races the very paint it waits
-// for: on a loaded box the preceding poll can outlast a 60ms lifetime, the
-// expiry paint lands before the Reset, and the test then waits three seconds
-// for something that already happened. Asserting on the LAST row instead needs
-// no window and discards no evidence. (lastConsoleScreen is the wrong tool: it
-// splits on a full-screen takeover, which a row paint does not emit.)
-func lastPaintedRow(written string) string {
-	marker := hostty.SaveCursor
-	index := strings.LastIndex(written, marker)
-	if index < 0 {
-		return ""
-	}
-	row := written[index:]
-	if end := strings.Index(row, hostty.RestoreCursor); end >= 0 {
-		row = row[:end]
-	}
-	return row
-}
 
 // The half a pure Feed test cannot see: an idle console must REPAINT when the
 // row expires. Nothing else is guaranteed to happen at that moment, and the

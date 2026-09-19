@@ -15,12 +15,29 @@ import "fmt"
 // the presenter is the parent's sole production writer. In production the
 // region reset (`\x1b[r`) is written by its renderers and release controls
 // (#262). Release here still writes it, but only for the probe. Production uses
-// a Reservation only for ChildRows arithmetic; ReserveAndPaint, Paint and
-// Release serve cmd/probes/couchnestedrows. Whether they survive is pair#281.
+// a Reservation only for ChildRows arithmetic; ReserveAndPaint and Release
+// serve cmd/probes/couchnestedrows. Whether they survive is pair#281.
 //
 // That `pair term` can do this at all is measured, not assumed: zellij honors
 // DECSTBM from a pane process (pair#199 finding 5 -- 200 lines scrolled in the
 // region while the reserved row held its paint).
+
+// The sequences ReserveAndPaint and Release write. Unexported, and here rather
+// than in a shared control file, because nothing else uses them: the presenter
+// spells its own (#289).
+const (
+	saveCursor    = "\x1b7"
+	restoreCursor = "\x1b8"
+	resetRegion   = "\x1b[r"
+	resetSGR      = "\x1b[0m"
+	clearLine     = "\x1b[2K"
+)
+
+// setRegion pins the scrolling region to rows top..bottom (1-based, inclusive).
+func setRegion(top, bottom int) string { return fmt.Sprintf("\x1b[%d;%dr", top, bottom) }
+
+// moveTo positions the cursor (1-based).
+func moveTo(row, col int) string { return fmt.Sprintf("\x1b[%d;%dH", row, col) }
 
 // Edge is which end of the terminal a reservation takes.
 type Edge int
@@ -49,7 +66,7 @@ const (
 
 // Reservation is a terminal of Rows rows with one row held at Edge.
 //
-// It answers ChildRows, ReserveAndPaint, Paint and Release. There is no bare
+// It answers ChildRows, ReserveAndPaint and Release. There is no bare
 // `Reserve()`: a painting caller (today only cmd/probes/couchnestedrows; before
 // #255 M3, couch and `pair term`) asserts the region and draws the row together,
 // in that order, because DECSTBM homes the cursor -- so a caller that could
@@ -109,13 +126,13 @@ func (r Reservation) ChildRows() uint16 {
 
 // Release resets the region. Written on teardown, or a child that set margins
 // and died would leave the operator's shell scrolling inside a box.
-func (r Reservation) Release() string { return ResetRegion }
+func (r Reservation) Release() string { return resetRegion }
 
 // ReserveAndPaint asserts the region AND draws the row, in the one order that
 // leaves the child's cursor where it was.
 //
-// ORDER IS THE WHOLE POINT. `SetRegion` (DECSTBM) HOMES THE CURSOR as a
-// documented side effect, so `Reserve() + Paint(text)` saves a cursor that is
+// ORDER IS THE WHOLE POINT. `setRegion` (DECSTBM) HOMES THE CURSOR as a
+// documented side effect, so setting the region before saving saves a cursor
 // already at 1,1 and faithfully restores it there. Measured 2026-09-08: the
 // operator's shell prompt sat at the bottom of the pane while the caret blinked
 // on row 1. Save first, then set the region, then draw.
@@ -123,44 +140,17 @@ func (r Reservation) Release() string { return ResetRegion }
 // couch had the same latent bug at console.go and never saw it: its child is a
 // full-screen TUI that repositions the cursor on every frame, so the damage was
 // overwritten before anyone could look at it. A shell does not.
+//
+// Reset BEFORE the erase: clearLine paints with the CURRENT background, so
+// without it the row is erased in the child's colour and the text drawn in its
+// foreground. Measured 2026-09-08: `pair term`'s tab strip came out in nvim's
+// lualine colours. restoreCursor (DECRC) puts the child's attributes back
+// afterwards, so this costs the child nothing.
 func (r Reservation) ReserveAndPaint(text string) string {
 	if !r.usable() {
 		return ""
 	}
-	return SaveCursor + SetRegion(1, int(r.Rows)-1) + r.drawRow(text) + RestoreCursor
-}
-
-// drawRow is the shared tail of both painters: position, reset, erase, draw,
-// reset. ONE spelling, so the two differ only in what they say they differ in --
-// whether the region is re-asserted first.
-//
-// They were two copies of these five sequences, and the test comparing them
-// checked only that the region substring was present, so a change to one (a
-// different erase, a hide-cursor) would not have reached the other.
-//
-// Reset BEFORE the erase: ClearLine paints with the CURRENT background, so
-// without this the row is erased in the child's colour and the text drawn in its
-// foreground. RestoreCursor (DECRC) puts the child's attributes back afterwards,
-// so this costs the child nothing.
-func (r Reservation) drawRow(text string) string {
-	return MoveTo(int(r.Rows), 1) + ResetSGR + ClearLine + text + ResetSGR
-}
-
-// Paint draws the reserved row without disturbing the child.
-//
-// Save and restore BRACKET the paint. Without them the child's cursor is left
-// on the reserved row, which the operator sees as the caret jumping to the
-// bottom line every time anything is drawn.
-//
-// DELIBERATE CHANGE from the couchtty.PaintRow this replaces: on a ONE-ROW
-// terminal the old function still painted, because it guarded only rows == 0.
-// But a one-row terminal cannot be reserved from -- ChildRows gives the child
-// all of it -- so that paint landed on a row the child fully owns, overwriting
-// its content and leaving no strip anyway. Reserve and Paint now agree: if the
-// row was never reserved, nothing is drawn on it.
-func (r Reservation) Paint(text string) string {
-	if !r.usable() {
-		return ""
-	}
-	return SaveCursor + r.drawRow(text) + RestoreCursor
+	return saveCursor + setRegion(1, int(r.Rows)-1) +
+		moveTo(int(r.Rows), 1) + resetSGR + clearLine + text + resetSGR +
+		restoreCursor
 }

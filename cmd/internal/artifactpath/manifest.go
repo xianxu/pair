@@ -733,7 +733,6 @@ var NonArtifactSources = []string{
 	"cmd/internal/entrypoint/alias.go",
 	"cmd/internal/entrypoint/asset_root.go",
 	"cmd/internal/entrypoint/mode.go",
-	"cmd/internal/hostty/control.go",
 	"cmd/internal/hostty/fake.go",
 	"cmd/internal/hostty/host.go",
 	"cmd/internal/hostty/os.go",

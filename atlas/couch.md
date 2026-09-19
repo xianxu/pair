@@ -374,7 +374,8 @@ hands the child its own stdio and blocks. The mechanism is shared with `pair ter
 rather than written twice: `cmd/internal/ptychild` (a child on a pty, its
 endpoint, bounded diagnostic capture and acknowledged output publication) and
 `cmd/internal/hostty` (the operator's terminal: size, raw mode, coalesced
-resizes, the control constants). See [Terminal ownership](terminal.md).
+resizes). The escape sequences production writes to it belong to
+`terminal.Presenter`, not hostty (#289). See [Terminal ownership](terminal.md).
 
 Public launch requires terminal stdin and stdout before store, lease, or
 actor work. The stdio runner remains an injected domain seam and live

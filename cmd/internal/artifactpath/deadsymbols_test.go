@@ -12,16 +12,31 @@ import (
 	"testing"
 )
 
-// deadSymbolScope is the package this guard watches. It is deliberately one
-// package rather than the tree: couchcore is where a deletion milestone shed
-// five subsystems, and a guard that fires everywhere on day one gets an
-// allowlist instead of a fix.
-const deadSymbolScope = "cmd/internal/couchcore"
+// deadSymbolScopes are the packages this guard watches, each with its own
+// allowlist. Deliberately a list rather than the tree: a guard that fires
+// everywhere on day one gets an allowlist instead of a fix. A package joins once
+// its orphans have been dispositioned.
+//
+// couchcore is where a deletion milestone shed five subsystems. hostty lost its
+// production writer in #255 M3, when every parent-terminal write moved to
+// terminal.Presenter. Its escape-sequence constants then outlived their consumer
+// for a week, reading as live policy, which is how #279's regression hid (#289).
+var deadSymbolScopes = []struct {
+	dir       string
+	allowlist map[string]string
+}{
+	{"cmd/internal/couchcore", couchcoreDeadSymbolAllowlist},
+	{"cmd/internal/hostty", hosttyDeadSymbolAllowlist},
+}
 
-// deadSymbolAllowlist names production symbols that legitimately have no
-// production caller. Each needs a reason -- an entry without one is how this
-// guard degrades into a list of things nobody wanted to think about.
-var deadSymbolAllowlist = map[string]string{
+// Each allowlist names production symbols that legitimately have no production
+// caller. Each needs a reason -- an entry without one is how this guard
+// degrades into a list of things nobody wanted to think about.
+var hosttyDeadSymbolAllowlist = map[string]string{
+	"EdgeTop": "represented and REFUSED: NewReservation's refusal is tested against it, and its doc carries the measured reason a top strip fails (#223)",
+}
+
+var couchcoreDeadSymbolAllowlist = map[string]string{
 	"ReadStoreRetention": "pair#239 M2 Task4/5: read-only registered-store adapter; remove exemption when production GC preview is wired",
 	"RestoreThread":      "pair#239: explicitly supported typed archive restoration transaction; no new UI is in scope",
 	// Seams and non-context wrappers: production takes the Context form, the
@@ -73,29 +88,34 @@ var deadSymbolAllowlist = map[string]string{
 // ever HIDES an orphan (a false negative) -- it never invents one.
 func TestNoProductionSymbolIsReferencedOnlyByTests(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
-	declarations := productionDeclarations(t, filepath.Join(repoRoot, deadSymbolScope))
 	references := productionIdentifierCounts(t, filepath.Join(repoRoot, "cmd"))
-
-	var orphans []string
-	for name, position := range declarations {
-		if reason, allowed := deadSymbolAllowlist[name]; allowed {
-			_ = reason
-			continue
-		}
-		// One occurrence is the declaration itself.
-		if references[name] <= 1 {
-			orphans = append(orphans, position+": "+name)
-		}
-	}
-	sort.Strings(orphans)
-	for _, orphan := range orphans {
-		t.Errorf("%s has no production reference outside its own declaration.\n"+
-			"Delete it, or add it to deadSymbolAllowlist with the reason it survives.", orphan)
+	for _, scope := range deadSymbolScopes {
+		t.Run(scope.dir, func(t *testing.T) {
+			declarations := productionDeclarations(t, filepath.Join(repoRoot, scope.dir))
+			var orphans []string
+			for name, position := range declarations {
+				if _, allowed := scope.allowlist[name]; allowed {
+					continue
+				}
+				// One occurrence is the declaration itself.
+				if references[name] <= 1 {
+					orphans = append(orphans, position+": "+name)
+				}
+			}
+			sort.Strings(orphans)
+			for _, orphan := range orphans {
+				t.Errorf("%s has no production reference outside its own declaration.\n"+
+					"Delete it, or add it to %s's allowlist with the reason it survives.", orphan, scope.dir)
+			}
+		})
 	}
 }
 
-// productionDeclarations collects top-level funcs, methods and types from the
-// package's non-test files.
+// productionDeclarations collects top-level funcs, methods, types, consts and
+// vars from the package's non-test files.
+//
+// Consts and vars joined in #289: hostty's stranded surface was escape-sequence
+// constants, which a funcs-and-types scan cannot see.
 func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -109,8 +129,8 @@ func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		// A _fake.go file exists to be used by tests; that is its whole job.
-		if strings.HasSuffix(name, "_fake.go") {
+		// A fake file exists to be used by tests; that is its whole job.
+		if name == "fake.go" || strings.HasSuffix(name, "_fake.go") {
 			continue
 		}
 		file, err := parser.ParseFile(fileSet, filepath.Join(packageDir, name), nil, 0)
@@ -124,18 +144,36 @@ func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 				// interface's own method name, which this counts.
 				out[typed.Name.Name] = name
 			case *ast.GenDecl:
-				if typed.Tok != token.TYPE {
-					continue
-				}
 				for _, spec := range typed.Specs {
-					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-						out[typeSpec.Name.Name] = name
+					switch spec := spec.(type) {
+					case *ast.TypeSpec:
+						out[spec.Name.Name] = name
+					case *ast.ValueSpec:
+						if isIotaZero(spec) {
+							continue
+						}
+						for _, identifier := range spec.Names {
+							if identifier.Name != "_" {
+								out[identifier.Name] = name
+							}
+						}
 					}
 				}
 			}
 		}
 	}
 	return out
+}
+
+// isIotaZero reports an enum's `X T = iota`. That value is reached by leaving a
+// field unset, never by name, so a name count would call every one of them dead
+// (couchcore's five *Unknown values were the measured cases).
+func isIotaZero(spec *ast.ValueSpec) bool {
+	if len(spec.Values) != 1 {
+		return false
+	}
+	identifier, ok := spec.Values[0].(*ast.Ident)
+	return ok && identifier.Name == "iota"
 }
 
 var identifierPattern = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\b`)

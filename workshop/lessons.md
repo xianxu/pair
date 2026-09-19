@@ -1,5 +1,21 @@
 # Lessons
 
+## An absence check goes vacuous when its writer moves (#289)
+
+Two newest-page tests asserted "no screen takeover" by searching the host's
+bytes for `hostty.HomeAndClear`. #255 M3 moved every parent write to
+`terminal.Presenter`, which never writes that prelude, so both checks passed
+under a mutation that re-selected the current actor. A positive assertion on
+the old spelling would have failed loudly after the migration. A negative one
+went silently vacuous and read as coverage for a week.
+
+When a migration moves a write to a new owner, find every *absence* check on
+the old owner's bytes. Re-point each one at a state the new owner produces:
+here that is the presenter's selection `Token`, which every takeover
+increments. Prove it with a mutation that the new check fails and the old one
+passed. Keep the shared-constant surface under a dead-symbol guard. An oracle
+that imports a constant nothing writes is the tell. ARCH-PURPOSE / ARCH-MOCK.
+
 ## A one-shot setup must cover every scope its state lives in (#279)
 
 #251 kept Couch's keyboard disambiguation by re-asserting `CSI = 1;2 u` after

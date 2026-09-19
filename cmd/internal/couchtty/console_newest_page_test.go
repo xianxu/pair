@@ -9,7 +9,6 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/couchkeys"
-	"github.com/xianxu/pair/cmd/internal/hostty"
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
 
@@ -92,6 +91,17 @@ func activeOf(f *consoleFixture) string {
 	return f.con.active
 }
 
+// selectionOf counts the screen takeovers so far. Every switch presents through
+// Presenter.Select, whose SelectView transition increments the view's Token,
+// and Select returns before switchTo does, so the count is final by the time
+// the handler's notice is visible. A takeover of the actor already shown bumps
+// it too, which is the case landingOf cannot see.
+//
+// It replaces a search of the host's bytes for the old takeover's clear prelude.
+// Nothing has written that since #255 M3 moved every parent write to the
+// presenter, so the search could not fail (#289).
+func selectionOf(f *consoleFixture) uint64 { return f.con.presenter.View().Token }
+
 func noticeOf(f *consoleFixture) string {
 	f.con.mu.Lock()
 	defer f.con.mu.Unlock()
@@ -152,7 +162,7 @@ func TestNewestPageLandsWhereCtrlSpaceThenReturnWould(t *testing.T) {
 func TestNewestPageWithNothingPagingSaysSo(t *testing.T) {
 	f, threads := pagingFixture(t)
 	before := landingOf(f, threads)
-	f.host.Reset()
+	selection := selectionOf(f)
 
 	_, _ = f.stdin.Write([]byte(couchkeys.NewestPageSequence))
 	waitUpTo(t, time.Second, "the refusal", func() bool { return strings.Contains(noticeOf(f), "nothing is paging") })
@@ -160,8 +170,8 @@ func TestNewestPageWithNothingPagingSaysSo(t *testing.T) {
 	if after := landingOf(f, threads); !reflect.DeepEqual(after, before) {
 		t.Fatalf("with nothing paging the landing moved:\n  before %+v\n  after  %+v", before, after)
 	}
-	if written := f.host.Written(); strings.Contains(written, hostty.HomeAndClear) {
-		t.Fatalf("with nothing paging the screen was taken over: %q", written)
+	if after := selectionOf(f); after != selection {
+		t.Fatalf("with nothing paging the screen was taken over: selection %d -> %d", selection, after)
 	}
 }
 
@@ -175,7 +185,7 @@ func TestNewestPageOnTheCurrentActorAcknowledgesAndStays(t *testing.T) {
 	page(f, threads[1], "older page")
 	page(f, threads[0], "newest page, on the actor in use")
 	before := landingOf(f, threads)
-	f.host.Reset()
+	selection := selectionOf(f)
 
 	_, _ = f.stdin.Write([]byte(couchkeys.NewestPageSequence))
 	waitUpTo(t, time.Second, "the stay notice", func() bool {
@@ -192,8 +202,8 @@ func TestNewestPageOnTheCurrentActorAcknowledgesAndStays(t *testing.T) {
 	if !reflect.DeepEqual(after.attention[1], before.attention[1]) {
 		t.Fatalf("another actor's page changed: %v -> %v", before.attention[1], after.attention[1])
 	}
-	if written := f.host.Written(); strings.Contains(written, hostty.HomeAndClear) {
-		t.Fatalf("staying took over an unchanged screen: %q", written)
+	if after := selectionOf(f); after != selection {
+		t.Fatalf("staying took over an unchanged screen: selection %d -> %d", selection, after)
 	}
 }
 
