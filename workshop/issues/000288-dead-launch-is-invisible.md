@@ -151,7 +151,7 @@ Tasks and steps are in the durable plan.
       fake-runtime tests and mutation checks (plan Tasks 3–4).
 - [x] Probe `-exit-wait`/`hung=`; live before/after under `-hammer 10ms`
       (plan Task 5).
-- [ ] Atlas + suite + operator Couch smoke: a dead-at-birth thread archives
+- [x] Atlas + suite + operator Couch smoke: a dead-at-birth thread archives
       without restarting Couch (plan Task 6).
 - [x] File the upstream zellij `RemoveClient` panic report (from #287), on
       the operator's go-ahead: zellij-org/zellij#5632.
@@ -238,4 +238,39 @@ Filed from #287. Casualty evidence and the birth-time measurements are in
     no live session.` It is followed by the zellij log path, and the path is
     right.
   - fix, healthy, n=10 with no hammer: born 10, births 0.8–0.9 s.
+- **Verification.**
+  - `TMPDIR=<scratch> make test` (five-var scrub, sandbox off): exit 0, 212
+    ok, no FAIL.
+  - `make test-smoke` (default TMPDIR): exit 0. With the scratchpad TMPDIR
+    it fails on `cursorsaveslots`, because the long path uses up zellij's
+    socket-path budget. That is an environment effect, now in memory.
+  - `make install`: `bin/pair` carries the fix.
+- **Operator smoke, 2026-09-18** (Couch restarted onto the new
+  `bin/couch`):
+  1. A cold create of a scratch thread worked.
+  2. Park, then cold resume, worked. That path goes through the shared
+     `panebirth.Await`.
+  3. Under a 10 ms `list-sessions` loop, a new thread's launch died at birth.
+     After about 10 s its pane went to the session-lost state.
+  4. The thread archived without restarting Couch, and a new thread started
+     after the loop stopped.
+- **Close review, round 1: FIX-THEN-SHIP.**
+  - **BR-2, Important.** `os/exec` returns `ctx.Err()` for a cancelled child
+    that exits 0, so the `code != 0` guard was dead in production. Fixed:
+    `runBlockingHandoff` reports `ProcessState.ExitCode()` whenever the child
+    ran, and the fake models a client that is quitting cleanly as the cancel
+    lands.
+  - **BR-3, Important.** The cause guards are now pinned one by one:
+    - the pure `failedAtBirth`, with a table test;
+    - a deterministic clean-quit-under-cancel end-to-end test;
+    - a direct `watchBirth` test for the post-probe recheck.
+  - **Minors.**
+    - BR-4: unanswered probes back off (`nextProbeWait`, doubling to 5 min).
+    - BR-5: the observation rule is documented.
+    - BR-6: the SKILL.md wording is fixed.
+  - **Mutation checks, each guard removed alone:** the code guard, the
+    recheck, the ProcessState derivation and the backoff each fail their
+    own test. The new tests pass 20× under `-race`.
+  - **Live on the fixed HEAD** (`-hammer 10ms`, n=6): died 5, hung 0, the
+    launcher exited at about 10.6 s, born 1.
 
