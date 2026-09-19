@@ -1,7 +1,7 @@
 ---
 id: 000293
 status: open
-deps: [pair#292]
+deps: []
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
@@ -50,9 +50,8 @@ instead.
   exist isn't treated as a file.
 
 **Where it goes:**
-- **A URL** → a Carbonyl tab (pair#292). By default it reuses the most recently
-  used browser tab that hasn't been renamed; a named tab (like `local-test`) is
-  never reused automatically.
+- **A URL** → `open` (the system default) for now. pair#292, which comes
+  next, switches this to a Carbonyl tab.
 - **A text file** (markdown and the like) → a new right-pane tab running `nvim
   <file>`. `path:42` opens as `nvim +42 path`.
 - **Anything else** (images, PDFs, …) → `open`, same as Shift+Cmd+click.
@@ -64,9 +63,9 @@ layer, so pair doesn't see the mouse first.
 
 - Couch logs the modifiers it receives. Option+click arrives with the Alt bit
   set (`macos-option-as-alt` is unset in the operator's Ghostty config).
-- Alt+click on a URL opens or reuses a Carbonyl tab. Alt+click on an existing
-  text file (and on `path:line`) opens `nvim` in a new right-pane tab. Alt+click
-  on other files calls `open`.
+- Alt+click on an existing text file (and on `path:line`) opens `nvim` in a new
+  right-pane tab. Alt+click on a URL or any other file calls `open` (until
+  pair#292 makes URLs open in a Carbonyl tab).
 - Tests cover the target resolution: a link from the screen model, a URL in the
   row text, a relative path that exists, a relative path that doesn't, and
   `path:line`.
@@ -86,3 +85,5 @@ layer, so pair doesn't see the mouse first.
 Filed from a brain advisor session. The diagnosis in the Problem comes from
 recording zellij's terminal output. The operator confirmed Shift+Cmd+click in
 zellij and under couch, and agreed to Alt+click for the right pane.
+Order set by the operator: enable Alt+click first (this issue), then the Carbonyl
+tab (pair#292), which becomes the URL destination.
