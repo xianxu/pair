@@ -106,8 +106,11 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 	// because the checkpoint is already written and validated by now, and
 	// Couch's relaunch keeps the conversation rather than consuming it.
 	if err := couchRestartGate(rt, opts.Env.CouchHosted(), tag); err != nil {
-		fmt.Fprintf(stderr, "pair: compaction: %v; checkpoint kept at %s — compact from the relaunched thread, or pair continue --retry %s once this session is gone\n",
-			err, opts.ContinueCheckpoint.SourcePath, tag)
+		// NOT --retry: that route needs a retained restart marker, and this arm
+		// refuses before writing one. --checkpoint takes the doc itself, which
+		// is on disk and validated by now.
+		fmt.Fprintf(stderr, "pair: compaction: %v; checkpoint kept at %s — once this session is gone, resume it with `pair continue --checkpoint %s`\n",
+			err, opts.ContinueCheckpoint.SourcePath, opts.ContinueCheckpoint.SourcePath)
 		return 1, nil
 	}
 	fmt.Fprintf(stderr, "pair: compacting %s — parking scrollback, restarting from continuation…\n", session)

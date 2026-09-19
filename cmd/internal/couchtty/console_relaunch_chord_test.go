@@ -467,34 +467,70 @@ func TestActorRelaunchChordsConfirmTheThreadOnScreen(t *testing.T) {
 	}
 }
 
+// A chord in the same read as a navigation prefix is admitted against the focus
+// the prefix LEFT, not the one the read started in. Both chords belong here and
+// they differ in the actor arm, which is the point: Alt+x is the switcher's
+// alone, so after navigating back to an actor its bytes are the child's; Alt+n
+// is Couch's from every pane (#284), so it confirms in either focus — against
+// the highlighted row from the panel, and the thread on screen from an actor.
 func TestLifecycleCandidateUsesFocusAfterPrefix(t *testing.T) {
-	for _, prefix := range []string{"\x00", "\x00\x08"} {
-		t.Run(renderInputBytes([]byte(prefix)), func(t *testing.T) {
-			con, stdin, _ := newChordFixture(t)
-			child := con.activeChild()
-			if prefix != "\x00" {
-				con.attachThreadActor("other", "other", menuAddress("other"), "/w/other", "other", ptychild.NewFakeChild(nil))
-				con.switchTo("other", true, arrivalOrdinary)
-				child = con.activeChild()
-				con.switchTo("c1", true, arrivalOrdinary)
-			}
-			chord := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltX)[0]
-			input := append([]byte(prefix), chord...)
-			if _, err := stdin.Write(input); err != nil {
-				t.Fatal(err)
-			}
-			if prefix == "\x00" {
-				waitFor(t, "panel park confirmation", func() bool {
-					frame := con.menuSnapshot().CurrentFrame()
-					return frame.Kind == MenuFrameConfirmation && frame.Action == "leave"
-				})
-				if len(child.Writes()) != 0 {
-					t.Fatal("panel candidate leaked")
+	for _, chord := range []struct {
+		name        string
+		chord       workbenchshortcut.Chord
+		panelAction string
+		actorAction string // "" when the actor's child receives the bytes instead
+	}{
+		{"alt+x", workbenchshortcut.ChordAltX, "leave", ""},
+		{"alt+n", workbenchshortcut.ChordAltN, "relaunch", "relaunch"},
+	} {
+		for _, prefix := range []string{"\x00", "\x00\x08"} {
+			t.Run(chord.name+"/"+renderInputBytes([]byte(prefix)), func(t *testing.T) {
+				con, stdin, address := newChordFixture(t)
+				child := con.activeChild()
+				target := address
+				if prefix != "\x00" {
+					con.attachThreadActor("other", "other", menuAddress("other"), "/w/other", "other", ptychild.NewFakeChild(nil))
+					con.switchTo("other", true, arrivalOrdinary)
+					child = con.activeChild()
+					target = menuAddress("other")
+					con.switchTo("c1", true, arrivalOrdinary)
+					// A confirmation is refused for a thread the inventory does
+					// not carry, so the row has to exist for the actor arm to be
+					// observable at all.
+					con.mu.Lock()
+					con.menu = NewMenuState([]couchcore.ActionableThreadSummary{
+						{Address: address, WorkingPath: "/w/brain", Name: "brain", State: couchcore.ThreadLive},
+						{Address: target, WorkingPath: "/w/other", Name: "other", State: couchcore.ThreadLive},
+					}, address)
+					con.mu.Unlock()
 				}
-			} else {
-				waitFor(t, "post-navigation actor bytes", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), chord) })
-			}
-		})
+				encoding := workbenchshortcut.ChordEncodings(chord.chord)[0]
+				if _, err := stdin.Write(append([]byte(prefix), encoding...)); err != nil {
+					t.Fatal(err)
+				}
+				want, onPanel := chord.panelAction, prefix == "\x00"
+				if !onPanel {
+					want = chord.actorAction
+				}
+				if want == "" {
+					waitFor(t, "post-navigation actor bytes", func() bool { return bytes.Equal(bytes.Join(child.Writes(), nil), encoding) })
+					return
+				}
+				waitFor(t, want+" confirmation", func() bool {
+					frame := con.menuSnapshot().CurrentFrame()
+					return frame.Kind == MenuFrameConfirmation && frame.Action == want
+				})
+				// Whose thread the confirmation names: from the panel, the
+				// highlighted row (leave names none); from an actor, the one the
+				// navigation prefix landed on.
+				if got := con.menuSnapshot().CurrentFrame().Thread; !onPanel && got != target {
+					t.Fatalf("%s targets %v, want the thread the prefix left focused %v", want, got, target)
+				}
+				if len(child.Writes()) != 0 {
+					t.Fatalf("candidate leaked to the child: %q", bytes.Join(child.Writes(), nil))
+				}
+			})
+		}
 	}
 }
 

@@ -1,9 +1,12 @@
 package launcher
 
 import (
-	"github.com/xianxu/pair/cmd/internal/checkpoint"
+	"bytes"
+	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/xianxu/pair/cmd/internal/checkpoint"
 )
 
 func TestCompactionDecision(t *testing.T) {
@@ -152,5 +155,50 @@ func TestRunLaunchCompactionRefusesACouchPresentedSession(t *testing.T) {
 	}
 	if len(rt.writtenMarkers) != 0 || len(rt.touchedQuit) != 0 || len(rt.killed) != 0 || len(rt.parked) != 0 {
 		t.Fatalf("mutated before refusing: markers=%v quit=%v killed=%v parked=%v", rt.writtenMarkers, rt.touchedQuit, rt.killed, rt.parked)
+	}
+}
+
+// The refusal must name a route that RUNS from the state it leaves behind
+// (#284 close review, BR-1). The first attempt named `pair continue --retry`,
+// which needs a retained restart marker — and this arm returns before writing
+// one, so the advice was dead. What survives the refusal is the checkpoint doc
+// itself, so `--checkpoint <path>` is the route, and this pins all three facts:
+// no marker was written, the named route parses, and the path it names still
+// resolves and validates.
+func TestCompactionRefusalNamesARouteThatRuns(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.parkOK = true
+	rt.RecordOuterTTY("demo", true)
+	opts := compactOpts(true, false, "")
+	source := opts.ContinueCheckpoint.SourcePath
+	rt.files[source] = "---\ntype: continuation\nagent: claude\n---\n## NEXT ACTION\nContinue demo.\n"
+
+	var stderr bytes.Buffer
+	if code, err := RunLaunch(opts, rt, &stderr); code != 1 || err != nil {
+		t.Fatalf("code=%d err=%v, want the refusal", code, err)
+	}
+	if len(rt.writtenMarkers) != 0 {
+		t.Fatalf("a marker was written after all (%v) — then --retry would be the route", rt.writtenMarkers)
+	}
+	route := regexp.MustCompile("pair continue --checkpoint ([^\\s`]+)").FindStringSubmatch(stderr.String())
+	if route == nil {
+		t.Fatalf("refusal names no --checkpoint route: %q", stderr.String())
+	}
+	if strings.Contains(stderr.String(), "--retry") {
+		t.Fatalf("refusal still names --retry, which cannot run without a marker: %q", stderr.String())
+	}
+	if route[1] != source {
+		t.Fatalf("route names %q, want the retained checkpoint %q", route[1], source)
+	}
+	args, err := ParseArgs([]string{"continue", "--checkpoint", route[1]})
+	if err != nil || args.Command != "continue" || args.ContinueCheckpoint != source {
+		t.Fatalf("named route does not parse: %+v err=%v", args, err)
+	}
+	c, err := rt.ReadCheckpoint(args.ContinueCheckpoint)
+	if err != nil {
+		t.Fatalf("the route's checkpoint does not resolve: %v", err)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("the route's checkpoint does not validate: %v", err)
 	}
 }

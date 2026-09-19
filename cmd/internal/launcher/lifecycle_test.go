@@ -118,10 +118,11 @@ func TestRunLaunchAttachRecordsCouchPresenter(t *testing.T) {
 
 // A client Couch launched never relaunches from a Pair restart marker: it runs
 // the full quit cleanup, then refuses (createflow.go, "legacy hosted restart
-// intent refused"). This is why Pair's Alt+n does not reload under Couch, and
-// why in a session Couch presents but did not create -- where `pair restart`
-// itself does not refuse -- Alt+n ends the thread (pair#284). Alt+n's
-// HostedHelp states this (#282).
+// intent refused"). Since pair#284 that is the BACKSTOP, not the gate: Couch
+// takes Alt+n from every pane, and `pair restart` refuses before writing
+// anything whenever CouchOwnsRestart holds -- including a session Couch
+// presents but did not create, which is what used to reach this refusal and
+// end the thread.
 func TestCouchClientRefusesRestartMarker(t *testing.T) {
 	rt := newFakeRuntime()
 	scope := mustScope(t, "/home/u/work")
