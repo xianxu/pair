@@ -70,8 +70,8 @@ Chromium exposes no embedder API for any of the three, which is why it's a fork.
 
 So the two load-bearing interception points must be **re-derived** against a
 refactored paint pipeline, not re-applied. The volume is small; the expertise
-and the iteration loop are not (a Chromium build is ~100 GB and over an hour,
-per platform, and four platform binaries are published today).
+and the iteration loop are not (a Chromium build is ~100 GB and over an hour;
+upstream publishes four platform binaries, though pair needs only macos-arm64).
 
 **Not a factor:** sandboxing. Measured 2026-09-19 — Carbonyl 0.0.3's renderer,
 GPU and network processes all run **with Chromium's sandbox** (no
@@ -103,7 +103,8 @@ idle-CPU bug lived and where the navigation bar lives.
 
 **Tier 3 — own the Chromium fork (a project, not a task).** Re-derive ~270
 invasive lines against current Blink/viz, keep ~1,400 lines of additive glue
-applying, and stand up builds for four platforms.
+applying, and stand up a build — macos-arm64 only, so one artifact on the
+operator's machine, not Carbonyl's four.
 - **Only worth it against a stated trigger** (below). Absent one, it buys a
   stale engine *and* a standing obligation.
 
