@@ -118,6 +118,62 @@ architecture on Chrome: stock headless Chrome over CDP, a script injected with
   gap Browsh has.
 - This is the option to spend engineering on if the browser tab earns its place.
 
+### Tier 3 spike — the bounded rebase experiment
+
+Hardware is not the constraint (measured 2026-09-19 on the operator's M2, 96 GB
+RAM: 302 GB free disk; Chromium needs ~100–150 GB). What is unknown is exactly
+one thing — whether the text interception can be re-derived against a paint
+pipeline that has been refactored since Chromium 111. The spike exists to answer
+that, and nothing else, before anyone commits to tier 3.
+
+**Build the CURRENT stable Chromium, never 111.** A Feb-2023 tree on macOS 26
+with a 2026 SDK is *harder* to build than current Chromium: it is pinned to an
+old SDK and to fetch dependencies that may no longer resolve. So the rebase IS
+the experiment; reproducing v0.0.3 byte-for-byte is not a goal.
+
+**We need one platform, not four.** Carbonyl publishes macos-{arm64,amd64} and
+linux-{arm64,amd64}. Pair needs **macos-arm64** only, so builds happen on the
+operator's machine and the release matrix collapses to a single artifact. If
+pair ever targets Linux, this assumption is void and the cost rises.
+
+**Prerequisites** (~half a day, mostly waiting):
+- **Full Xcode.app.** Only Command Line Tools are installed
+  (`/Library/Developer/CommandLineTools`); Chromium's macOS build expects the
+  full SDK. ~10 GB.
+- `depot_tools` + `gclient sync` at a current stable tag: tens of GB, bandwidth
+  bound.
+- `ccache`, and `out/` on the internal SSD.
+
+**The four re-derivation targets** — the ~270 lines that modify pre-existing
+Chromium code, in dependency order. Each one gets a yes/no answer:
+1. **Text interception in Blink** (was `platform/fonts/font.cc`, `DrawBlobs`
+   early return). `DrawBlobs` **no longer exists**; find the current call path
+   that bloberizes and paints text runs, and suppress it there while reporting
+   the run to the bridge. **This is the make-or-break target.**
+2. **Skia glyph gating** (`SkBitmapDevice::onDrawGlyphRunList` wrapped in
+   `Bridge::BitmapMode()`). Expected to survive nearly unchanged; the function
+   is stable.
+3. **viz software output** (`SoftwareOutputDeviceProxy` +
+   `LayeredWindowUpdater` Mojo repurposed for a shared-memory terminal frame).
+   Churn is likely but the concept is intact.
+4. **DPI** (`ui/display/display.cc` → the bridge's DPI). Small and localized.
+
+Plus: confirm the additive glue still applies — the Mojo text service
+(`render_frame_host_impl` / `render_frame_impl` / `browser_interface_binders`)
+and the headless shell hook (`headless/app/headless_shell*.cc`, verified still
+present upstream 2026-09-19).
+
+**Stop rule (go/no-go).** If target 1 is not rendering text through the bridge
+after **one day of focused work**, stop and take the renderer option (stock
+Chrome over CDP with our own Go painter). Targets 2–4 are not worth attempting
+if 1 fails, since 1 is the only reason the fork exists. Record the outcome
+either way — a failed spike that names *where* it stalled is the evidence that
+keeps this from being re-litigated.
+
+**What a successful spike does NOT settle.** Per-milestone upkeep (hours every
+~4 weeks, forever) and the CVE cadence remain tier 3's standing cost. A green
+spike means the fork is *possible*, not that it is *worth it*.
+
 **Triggers that would force a tier change** (write the answer before it's
 urgent):
 - The URL field or #293's Alt+click needs to open untrusted pages routinely →
@@ -139,14 +195,33 @@ urgent):
 
 ## Plan
 
-- [ ] Tier 1: mirror + checksum the v0.0.3 artifacts, document the install,
-  wire the version check.
-- [ ] Spike (timeboxed, ~1 day): a CDP text-extraction renderer against stock
-  Chrome — inject the text/box reporter, screencast for graphics, paint cells.
-  Measure against three real pages (a local dev server, a docs site, a
-  dashboard): text fidelity, CPU, latency. Compare with Carbonyl side by side.
-- [ ] Decide tiers 2 and 3 from the spike, and record the decision + triggers.
-- [ ] Atlas: the tier, the seam, and the exit path.
+- [ ] **M1 — Tier 1, own the artifact.** Mirror + checksum the v0.0.3
+  macos-arm64 build, document the supported install, wire the version check
+  and its notice. Independent of every decision below; it is what stops a
+  silent fall back to npm's 0.0.2.
+- [ ] **M2 — Renderer spike (~1 day).** A CDP text-extraction renderer against
+  stock Chrome: inject the text/box reporter with
+  `Page.addScriptToEvaluateOnNewDocument`, `Page.startScreencast` for graphics,
+  paint cells in Go. Measure on three real pages (a local dev server, a docs
+  site, a dashboard): text fidelity, CPU, latency, side by side with Carbonyl.
+- [ ] **M3 — Chromium rebase spike (~1 day, go/no-go).** Per "Tier 3 spike"
+  above:
+  - [ ] Prerequisites: Xcode.app, depot_tools, `gclient sync` at current stable.
+  - [ ] Apply the additive glue; confirm the Mojo service and headless-shell
+        hooks still land.
+  - [ ] Target 1, text interception in Blink — the make-or-break; **stop rule:
+        one day**.
+  - [ ] Targets 2–4 (Skia gating, viz output, DPI) only if target 1 works.
+  - [ ] Build and run; compare rendering against 0.0.3 on the same pages.
+  - [ ] Record where it stalled if it stalls; that is the deliverable either
+        way.
+- [ ] **M4 — Decide and record.** Pick the tier from M2/M3 evidence, write the
+  triggers that would reopen it, and update `atlas/` with the tier, the seam
+  and the exit path.
+
+Order note: M2 before M3 deliberately. The renderer spike is the cheaper
+experiment and it bounds M3's value — if the renderer is good enough, the fork
+is unnecessary regardless of whether the rebase would have worked.
 
 ## Log
 
@@ -164,3 +239,19 @@ purpose: it tracks current Firefox (so it stays patched) and also renders real
 text, but it reads text from the DOM via a WebExtension rather than from the
 paint pass, and Firefox cannot be driven over CDP — which would cost the
 operator/agent shared-browser story that is the point of #292.
+
+### 2026-09-19 — hardware and prerequisites measured
+
+The operator asked whether their M2 with 96 GB RAM can build Chromium. Measured
+on the machine: **302 GB free** (Chromium needs ~100–150 GB), macOS 26.6.2, and
+**no Xcode.app — Command Line Tools only**, which is a prerequisite to install.
+RAM is not the limiting factor for a Chromium build (core- and I/O-bound, a few
+GB per link); 96 GB simply removes any worry about parallelism. Carbonyl's own
+readme puts fetch+build at ~1 h on an M1 Max, and incremental rebuilds after
+editing a patched file are minutes — so the iteration loop while re-deriving
+patches is tolerable.
+
+Conclusion recorded in the Spec: hardware is not the constraint, the single
+unknown is re-deriving the Blink text interception, and the spike is bounded by
+a one-day stop rule. Also recorded: build current stable Chromium rather than
+111, and pair needs only the macos-arm64 artifact where Carbonyl publishes four.
