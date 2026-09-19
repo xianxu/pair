@@ -33,7 +33,10 @@ Three things say this works here rather than being hopeful:
   draft pane (`init.lua:434,443`), and those are exactly this mode.
 - `wrapcmd` already knows the sequences by name (`wrap.go:798-799`), stripping
   them for agents that mishandle them.
-- `hostty.ResetInteractiveModes` already includes `1004` in teardown.
+- `terminal.Presenter` already raises `1004` at setup (`parentModeDelta`) and
+  lowers it at release (`parentReleaseControls`). This bullet used to cite
+  `hostty.ResetInteractiveModes`; #289 deleted that, because #255 M3 had made
+  the presenter the parent's only writer.
 
 Rendering is then pure: `StripModel` gains a `Focused bool`, and `RenderStrip`
 emits the muted styling when false. That keeps every hard case a unit test, the

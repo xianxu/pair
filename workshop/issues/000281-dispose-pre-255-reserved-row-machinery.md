@@ -19,7 +19,7 @@ rows was left in the tree, and now has no production caller:
 | symbol | reachable from |
 |---|---|
 | `ptychild.Screen` (`SafeToPaint`, `TakeRowDirty`, `HoldsCursorSave`, `MidSequence`, ...) | its own tests and `notification_benchmark_test.go` only. `TestChildHasOneTerminalAuthority` already pins that `Child` no longer holds one. |
-| `hostty.Reservation.ReserveAndPaint` / `Release`, and the unexported sequences they compose (`setRegion` and five more in `reserve.go`) | `cmd/probes/couchnestedrows` only. Production uses `Reservation` for `ChildRows` arithmetic (`couchtty/console.go:1019`). |
+| `hostty.Reservation.ReserveAndPaint` / `Release`, and the unexported sequences they compose (`setRegion` and six more in `reserve.go`) | `cmd/probes/couchnestedrows` only. Production uses `Reservation` for `ChildRows` arithmetic (`couchtty/console.go:1019`). |
 
 Dead machinery keeps misleading readers. #262's diagnosis first treated
 `hostty.Reservation` as a live second writer to the parent, because the code and

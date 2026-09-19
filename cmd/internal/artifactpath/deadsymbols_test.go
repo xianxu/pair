@@ -20,7 +20,7 @@ import (
 // couchcore is where a deletion milestone shed five subsystems. hostty lost its
 // production writer in #255 M3, when every parent-terminal write moved to
 // terminal.Presenter. Its escape-sequence constants then outlived their consumer
-// for a week, reading as live policy, which is how #279's regression hid (#289).
+// for three days, reading as live policy, which is how #279's regression hid (#289).
 var deadSymbolScopes = []struct {
 	dir       string
 	allowlist map[string]string
@@ -111,6 +111,66 @@ func TestNoProductionSymbolIsReferencedOnlyByTests(t *testing.T) {
 	}
 }
 
+// The guard's own rules, pinned on a fixture. Each rule either widens what is
+// declared or narrows what counts, so a regression in one silently hides
+// orphans rather than failing: the real scopes would stay green.
+func TestDeadSymbolGuardDeclarationRules(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"a.go": `package fixture
+
+type Kind int
+
+const (
+	KindUnknown Kind = iota
+	KindReal
+)
+
+const Sequence = "x"
+
+var Table, _ = 1, 2
+
+func Exported() {}
+
+func (Kind) Method() {}
+`,
+		"fake.go":      "package fixture\n\nfunc FakeOnly() {}\n",
+		"host_fake.go": "package fixture\n\nfunc HostFakeOnly() {}\n",
+		"a_test.go":    "package fixture\n\nfunc TestOnly() {}\n",
+	}
+	for name, source := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := productionDeclarations(t, dir)
+	want := map[string]string{
+		"Kind": "a.go", "KindReal": "a.go", "Sequence": "a.go", "Table": "a.go",
+		"Exported": "a.go", "Method": "a.go",
+	}
+	for name, file := range want {
+		if got[name] != file {
+			t.Errorf("%s declared in %q, want %q", name, got[name], file)
+		}
+	}
+	for name := range got {
+		if _, expected := want[name]; !expected {
+			// KindUnknown: an iota zero value is reached by an unset field.
+			// _: not a name. FakeOnly/HostFakeOnly/TestOnly: not production.
+			t.Errorf("%s (in %s) must not be a production declaration", name, got[name])
+		}
+	}
+	// The reference side must skip the same files, or a symbol only a fake
+	// reaches reads as live.
+	for name, production := range map[string]bool{
+		"a.go": true, "fake.go": false, "host_fake.go": false, "a_test.go": false, "notes.md": false,
+	} {
+		if isProductionSource(name) != production {
+			t.Errorf("isProductionSource(%q) = %v, want %v", name, !production, production)
+		}
+	}
+}
+
 // productionDeclarations collects top-level funcs, methods, types, consts and
 // vars from the package's non-test files.
 //
@@ -126,11 +186,7 @@ func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 	fileSet := token.NewFileSet()
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		// A fake file exists to be used by tests; that is its whole job.
-		if name == "fake.go" || strings.HasSuffix(name, "_fake.go") {
+		if entry.IsDir() || !isProductionSource(name) {
 			continue
 		}
 		file, err := parser.ParseFile(fileSet, filepath.Join(packageDir, name), nil, 0)
@@ -176,11 +232,24 @@ func isIotaZero(spec *ast.ValueSpec) bool {
 	return ok && identifier.Name == "iota"
 }
 
+// isProductionSource is the one definition of "production" both sides of the
+// guard use. Declarations and references must agree on it: a fake skipped as a
+// declaration but counted as a reference makes a symbol that only fakes reach
+// read as live (#289 close review).
+//
+// A fake file exists to be used by tests; that is its whole job.
+func isProductionSource(name string) bool {
+	if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		return false
+	}
+	return name != "fake.go" && !strings.HasSuffix(name, "_fake.go")
+}
+
 var identifierPattern = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\b`)
 
 // productionIdentifierCounts counts identifier occurrences across every
-// non-test Go file under root. Tests are excluded deliberately: a symbol only
-// tests mention is exactly what this looks for.
+// production Go file under root. Tests and fakes are excluded deliberately: a
+// symbol only they mention is exactly what this looks for.
 func productionIdentifierCounts(t *testing.T, root string) map[string]int {
 	t.Helper()
 	counts := map[string]int{}
@@ -188,8 +257,7 @@ func productionIdentifierCounts(t *testing.T, root string) map[string]int {
 		if err != nil || entry.IsDir() {
 			return nil
 		}
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		if !isProductionSource(entry.Name()) {
 			return nil
 		}
 		raw, readErr := os.ReadFile(path)

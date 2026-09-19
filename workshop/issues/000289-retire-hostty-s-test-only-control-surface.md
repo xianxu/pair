@@ -1,6 +1,6 @@
 ---
 id: 000289
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-18
@@ -8,6 +8,7 @@ updated: 2026-09-18
 estimate_hours:
 started: 2026-09-18T17:37:41-07:00
 flow: {kind: quick, provenance: inferred, spec: "226b98c6", done: "6a1ec0e6"}
+actual_hours: 0.48
 ---
 
 # Retire hostty's test-only control surface
@@ -83,7 +84,7 @@ FUNERAL: creates nothing durable.
 ## Plan
 
 - [x] Guard: multi-scope, `const`/`var`, `fake.go`, iota-zero; add hostty.
-      Watch it flag the ten hostty orphans before the fix.
+      Watch it flag the nine hostty orphans before the fix.
 - [x] Delete the dead symbols and `Reservation.Paint`; move the seven sequences to `reserve.go`.
 - [x] Rewrite the test oracles; override the contract row; update the atlas
       `couch.md` line ("the control constants") and #281's table.
@@ -92,6 +93,7 @@ FUNERAL: creates nothing durable.
 ## Log
 
 ### 2026-09-18
+- 2026-09-18: closed — dead-symbol guard (now multi-scope, consts/vars) red before fix on 9 hostty orphans, green after; newest-page Token oracle FAILS under a re-select mutation where the old HomeAndClear oracle PASSED on git-archive main; go test ./... exit 0 (unsandboxed, retention env scrubbed); make test exit 0 with TMPDIR=/private/tmp (test-changelog fails only under the /var/folders symlinked TMPDIR, unrelated); review verdict: SHIP
 
 - Filed from the #279 close review (finding `dead-exported-surface`). #279
   deleted `EnableKeyboardDisambiguation`, the #251 mechanism whose removal it
@@ -132,3 +134,17 @@ FUNERAL: creates nothing durable.
 - The first Done-when row gains "except allowlist entries that state why", for
   `EdgeTop`. A newest-page oracle row is added, because the takeover checks
   turned out to be vacuous consumers of `HomeAndClear`.
+
+### 2026-09-18 — close review (4 Minor, SHIP)
+
+- The Plan said "ten hostty orphans"; the guard flags nine (eight `control.go`
+  symbols and `Reservation.Paint`). `EdgeTop` is allowlisted, not flagged. The
+  guard comment and the lesson both said "for a week"; it was three days after
+  #255 M3 (2026-09-15). #281's table said "five more" sequences; it is six.
+- The guard counted fakes as references while skipping them as declarations.
+  Both sides now share `isProductionSource`. That surfaced couchcore's
+  `joinArgs`, which only the two fakes use, so it moved into `runner_fake.go`.
+- The guard's rules gained a fixture test. Disabling the iota-zero rule fails
+  it, and so does dropping the fake filter.
+- Open issues #217 and #241 cited deleted hostty symbols as live. Both point
+  at the presenter now.

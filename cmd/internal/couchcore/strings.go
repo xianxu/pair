@@ -2,8 +2,6 @@ package couchcore
 
 import "strings"
 
-func joinArgs(args []string) string { return strings.Join(args, " ") }
-
 func trimTrailingNewline(s string) string { return strings.TrimSpace(s) }
 
 // sanitizeKey turns a folded worktree path into a single filesystem-safe

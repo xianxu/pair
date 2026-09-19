@@ -7,7 +7,7 @@ bytes for `hostty.HomeAndClear`. #255 M3 moved every parent write to
 `terminal.Presenter`, which never writes that prelude, so both checks passed
 under a mutation that re-selected the current actor. A positive assertion on
 the old spelling would have failed loudly after the migration. A negative one
-went silently vacuous and read as coverage for a week.
+went silently vacuous and read as coverage for three days.
 
 When a migration moves a write to a new owner, find every *absence* check on
 the old owner's bytes. Re-point each one at a state the new owner produces:

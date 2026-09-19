@@ -38,8 +38,9 @@ Reconcile the full set of DEC private modes a child can hold, not just mouse,
 on every takeover path. Two axes to enumerate (ARCH-ORDER):
 
 **The modes.** Extend `ptychild.Screen` to record the child's held private
-modes as a set, and `hostty` to format a reconcile delta over an arbitrary
-mode set (generalise `PrivateModes`/`mouseReconcile`). Enumerate which modes
+modes as a set, and the reconcile delta to cover an arbitrary mode set. Since
+#255 M3 that delta is `terminal.Presenter`'s `parentModeDelta`. hostty's
+`PrivateModes` formatter had no consumer after that, and #289 deleted it. Enumerate which modes
 reconcile and which are deliberately excluded:
 - reconcile: mouse tracking (1000/1002/1003) + 1006 (done in #240), focus
   events (1004), bracketed paste (2004), cursor-key mode (1/DECCKM), and any
