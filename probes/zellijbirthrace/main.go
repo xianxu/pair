@@ -97,6 +97,8 @@ func run(args []string) int {
 
 // --- shared zellij observations -------------------------------------------
 
+// zellijTmp mirrors the layout cmd/internal/launcher's zellijLogPath names in
+// its dead-birth message (#288); a zellij layout change must update both.
 func zellijTmp() string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("zellij-%d", os.Getuid()))
 }

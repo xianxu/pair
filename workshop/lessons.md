@@ -5579,3 +5579,12 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   test binary's stdout, so `go test` waits out the whole sleep. Write
   `exec sleep`: the ignored disposition survives `exec`, and the process
   that is killed is the one holding the pipe. (#288 plan review)
+
+- **A mutation of a function is not a mutation of its use.** #288's plan said
+  "the backoff → its table fails". That was true of `nextProbeWait`, but
+  deleting the one line that *called* it left every test green, so the
+  wiring was unpinned. When a pure helper is extracted for testability, also
+  pin its call site: inject the loop's clock and assert the observable
+  sequence the helper should produce, here probe times of 1, 3 and 7 s. Then
+  mutation-check the call, not only the helper. (#288 close review, BR-4)
+

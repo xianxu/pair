@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 	"time"
+
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 )
 
 // #288: once a create's pane has not appeared within the bound, one liveness
@@ -81,8 +83,42 @@ func TestWatchBirthDoesNotJudgeALaunchThatEndedDuringItsProbe(t *testing.T) {
 	rt.livenessHook = func(int) { launchReturned() } // the client exits while zellij is asked
 	rt.livenessScript = []livenessAnswer{{}}         // and by then nothing is listed
 	aborted := false
-	v := watchBirth(ctx, rt, "/data/pane-work-claude.json", watchedSession, 10*time.Millisecond, func() { aborted = true })
+	v := watchBirth(ctx, rt, panebirth.WallClock{}, "/data/pane-work-claude.json", watchedSession, 10*time.Millisecond, func() { aborted = true })
 	if v != birthStopped || aborted {
 		t.Fatalf("verdict = %v, aborted = %v; want stopped and no abort", v, aborted)
+	}
+}
+
+// watchClock stands still until slept on, so the watch's waits are exact.
+type watchClock struct{ now time.Time }
+
+func (c *watchClock) Now() time.Time                           { return c.now }
+func (c *watchClock) Sleep(_ context.Context, d time.Duration) { c.now = c.now.Add(d) }
+
+// The backoff is wired, not only defined: with zellij unanswering, the watch
+// asks at bound, then after 2x, then after 4x -- 1 s, 3 s and 7 s on a stood-
+// still clock -- and ends the client only on the third, answered probe.
+func TestWatchBirthBacksOffBetweenUnansweredProbes(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.launchStarted = true
+	start := time.Unix(1_700_000_000, 0)
+	clock := &watchClock{now: start}
+	unanswered := livenessAnswer{err: errors.New("zellij list-sessions: context deadline exceeded")}
+	rt.livenessScript = []livenessAnswer{unanswered, unanswered, {}}
+	var askedAt []time.Duration
+	rt.livenessHook = func(int) { askedAt = append(askedAt, clock.now.Sub(start)) }
+	aborted := false
+	v := watchBirth(context.Background(), rt, clock, "/data/pane-work-claude.json", watchedSession, time.Second, func() { aborted = true })
+	if v != birthDead || !aborted {
+		t.Fatalf("verdict = %v, aborted = %v; want dead and the client ended", v, aborted)
+	}
+	want := []time.Duration{time.Second, 3 * time.Second, 7 * time.Second}
+	if len(askedAt) != len(want) {
+		t.Fatalf("probes at %v, want %v", askedAt, want)
+	}
+	for i := range want {
+		if askedAt[i] != want[i] {
+			t.Fatalf("probes at %v, want %v", askedAt, want)
+		}
 	}
 }

@@ -1,6 +1,6 @@
 ---
 id: 000288
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-18
@@ -8,6 +8,7 @@ updated: 2026-09-18
 estimate_hours: 2.66
 started: 2026-09-18T18:33:40-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 1.92
 ---
 
 # A launch whose zellij server dies at birth hangs the launcher and leaves Couch's thread live
@@ -159,6 +160,7 @@ Tasks and steps are in the durable plan.
 ## Log
 
 ### 2026-09-18
+- 2026-09-18: closed — Live (probes/zellijbirthrace launch -hammer 10ms): main hung 20/20 after dead births; this branch hung 0/20 (and 0/5 on the round-1 fix HEAD), every launcher exiting 10.5-11.2 s after start with no zellij client left, message shown with the zellij log path; healthy n=10 born 0.8-0.9 s. Unit: panebirth Await/Evidence; launcher judgeUnborn/failedAtBirth/nextProbeWait tables, sequence tests on a stateful fake (dead, born, listed-live, unknown-then-dead, client-exits-first, clean-quit-under-cancel), direct watchBirth recheck test, OS kill/reap + clean-exit-under-cancel tests; every guard individually mutation-checked; new tests 20x green under -race. Round 1 BR-2/BR-3 fixed in 83dcb21f. TMPDIR=scratch make test exit 0 (212 ok); make test-smoke exit 0. Operator smoke after Couch restart: cold create ok; park + cold resume ok; under a 10 ms list-sessions loop a new thread died at birth, went session-lost after ~10 s, archived without restarting Couch.; review verdict: FIX-THEN-SHIP
 
 Filed from #287. Casualty evidence and the birth-time measurements are in
 #287's Log.
@@ -273,4 +275,17 @@ Filed from #287. Casualty evidence and the birth-time measurements are in
     own test. The new tests pass 20× under `-race`.
   - **Live on the fixed HEAD** (`-hammer 10ms`, n=6): died 5, hung 0, the
     launcher exited at about 10.6 s, born 1.
+- **Close review, round 2: FIX-THEN-SHIP, close finalized.** BR-2, BR-3,
+  BR-5 and BR-6 were disposed addressed; BR-2 and BR-3 were verified by the
+  reviewer's own mutation checks. Fixed in the close commit:
+  - BR-4: the backoff wiring is pinned. `watchBirth` takes a
+    `panebirth.Clock`, and a stood-still-clock test asserts probes at 1 s,
+    3 s and 7 s. With the wiring removed they fall at 1, 2 and 3 s, and the
+    test fails.
+  - The zellij log layout: `zellijLogPath` and the probe's `zellijTmp` now
+    name each other.
+  - The plan's Revisions record every divergence from its code blocks,
+    which is the rule for BR-1.
+  - After the fixes: `go test ./...` passes with 73 ok, and the launcher
+    passes under `-race`.
 

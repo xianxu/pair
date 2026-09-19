@@ -87,9 +87,10 @@ func nextProbeWait(wait time.Duration) time.Duration {
 // missing sidecar, and ending it would skip the quit cleanup. An unanswered
 // probe earns a longer wait and another question, never a teardown. ctx ends
 // when LaunchSession returns; a verdict reached after that is not acted on.
-func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound time.Duration, abort func()) birthVerdict {
+// clock paces the waits; production passes panebirth.WallClock.
+func watchBirth(ctx context.Context, rt Runtime, clock panebirth.Clock, evidence, session string, bound time.Duration, abort func()) birthVerdict {
 	for wait := bound; ; wait = nextProbeWait(wait) {
-		err := panebirth.Await(ctx, panebirth.WallClock{}, birthPoll, wait, func() (bool, error) {
+		err := panebirth.Await(ctx, clock, birthPoll, wait, func() (bool, error) {
 			_, ok := rt.FileSize(evidence)
 			return ok, nil
 		})
@@ -121,14 +122,16 @@ func launchWatched(rt Runtime, evidence, session, configDir, layout string, boun
 	defer abort()
 	watchCtx, stopWatch := context.WithCancel(context.Background())
 	verdict := make(chan birthVerdict, 1)
-	go func() { verdict <- watchBirth(watchCtx, rt, evidence, session, bound, abort) }()
+	go func() { verdict <- watchBirth(watchCtx, rt, panebirth.WallClock{}, evidence, session, bound, abort) }()
 	code, err := rt.LaunchSession(launchCtx, session, configDir, layout)
 	stopWatch()
 	return code, <-verdict, err
 }
 
 // zellijLogPath is where zellij writes its log by default: a pointer for the
-// operator in the dead-birth message, not something Pair reads.
+// operator in the dead-birth message, not something Pair reads. The same
+// layout is encoded by probes/zellijbirthrace's zellijTmp, which cannot import
+// cmd/internal; a zellij layout change must update both.
 func zellijLogPath() string {
 	return filepath.Join(os.TempDir(), fmt.Sprintf("zellij-%d", os.Getuid()), "zellij-log", "zellij.log")
 }

@@ -63,6 +63,8 @@ package.
 | `panebirth.Await` | `cmd/internal/panebirth/panebirth.go` | new |
 | `panebirth.Evidence` (was `titlepoller.BirthEvidence`) | `cmd/internal/panebirth/panebirth.go` | new (moved) |
 | `birthVerdict` + `judgeUnborn` | `cmd/internal/launcher/birthwatch.go` | new |
+| `failedAtBirth` (close review BR-3) | `cmd/internal/launcher/birthwatch.go` | new |
+| `nextProbeWait` (close review BR-4) | `cmd/internal/launcher/birthwatch.go` | new |
 | `titlepoller.awaitPaneBirth` | `cmd/internal/titlepoller/run.go` | deleted |
 | `couchcore.(*Couch).awaitPaneBirth` loop | `cmd/internal/couchcore/launch_existing.go` | modified |
 
@@ -106,7 +108,9 @@ package.
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
 | `ZellijOps.LaunchSession(ctx, …)` | `cmd/internal/launcher/runtime.go`, `osruntime.go` | modified | `exec.CommandContext` + SIGTERM/SIGKILL |
-| `watchBirth` | `cmd/internal/launcher/birthwatch.go` | new | `Runtime.FileSize`, `Runtime.SessionLiveness` |
+| `watchBirth` | `cmd/internal/launcher/birthwatch.go` | new | `Runtime.FileSize`, `Runtime.SessionLiveness`, a `panebirth.Clock` |
+| `launchWatched` | `cmd/internal/launcher/birthwatch.go` | new | the watch goroutine around `LaunchSession` |
+| `killOnCancel` (was `cancellableHandoff`) | `cmd/internal/launcher/osruntime.go` | new | `exec.CommandContext` `Cancel`/`WaitDelay` |
 | create-path watch wiring | `cmd/internal/launcher/createflow.go` | modified | goroutine around `LaunchSession` |
 | `fakeRuntime.LaunchSession` | `cmd/internal/launcher/createflow_test.go` | modified | stateful fake (pane command + hung client) |
 | `probes/zellijbirthrace launch` exit watch | `probes/zellijbirthrace/main.go` | modified | live conformance |
@@ -748,4 +752,26 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
     - PQ-1, the plan restating its code, is carried and not addressed. The
       code blocks are the reviewed design, and the implementation has
       diverged from them only where this Revisions section records it.
+- **2026-09-18, close review round 2 (FIX-THEN-SHIP; close finalized, three
+  Minors fixed before the close commit).** Every divergence from this plan's
+  code blocks is recorded here (the BR-1 rule):
+  - Task 3: `cancellableHandoff(ctx, name, args...)` shipped as
+    `killOnCancel(exec.CommandContext(ctx, "zellij", ...))`. The artifact
+    vocabulary gate wants the `--config-dir` literal at a permitted exec
+    boundary, so `os/exec.CommandContext` joined `os/exec.Command` there.
+  - The fake's `livenessAfterLaunch` shipped as `launchProbed`. It also
+    gained `launchReturned`, `launchStarted` and `livenessHook` (Task 4
+    tests) and `launchQuitOnCancel` (BR-2).
+  - Task 4: the wiring shipped as `launchWatched(rt, evidence, session,
+    configDir, layout, bound)` in `birthwatch.go`, not inline in
+    `runCreate`, and the dead-path test is `failedAtBirth(verdict, code)`.
+    `watchBirth` takes a `panebirth.Clock` and loops
+    `for wait := bound; ; wait = nextProbeWait(wait)`.
+  - BR-4's wiring is pinned: `TestWatchBirthBacksOffBetweenUnansweredProbes`
+    runs the production `watchBirth` on a stood-still clock and asserts
+    probes at 1 s, 3 s and 7 s. With the wiring removed they fall at 1, 2
+    and 3 s, and the test fails.
+  - Noted, not changed: `zellijLogPath` and the probe's `zellijTmp` encode
+    the same zellij layout. Go's `cmd/internal` rule blocks sharing it, so
+    each now names the other.
 
