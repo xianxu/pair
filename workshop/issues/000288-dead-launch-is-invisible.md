@@ -145,9 +145,9 @@ The items, in order:
 Tasks and steps are in the durable plan.
 
 - [x] Measure the birth-time distribution under load to pick the bound.
-- [ ] `panebirth`: shared `Evidence` + `Await`; the title poller and Couch
+- [x] `panebirth`: shared `Evidence` + `Await`; the title poller and Couch
       move onto it (plan Tasks 1–2).
-- [ ] Launcher: a cancellable `LaunchSession` and the birth watch, with
+- [x] Launcher: a cancellable `LaunchSession` and the birth watch, with
       fake-runtime tests and mutation checks (plan Tasks 3–4).
 - [ ] Probe `-exit-wait`/`hung=`; live before/after under `-hammer 10ms`
       (plan Task 5).
@@ -197,3 +197,29 @@ Filed from #287. Casualty evidence and the birth-time measurements are in
   fresh `HOME`; zellij's cache, data and plugin dirs follow `HOME`), n=4:
   0.44–0.52 s. Plugin compilation doesn't delay the pane sidecar, so the
   10 s bound stands (plan-quality finding 4).
+
+#### Implementation
+
+- **Tasks 1–2** (`b15696a0`): `panebirth.Evidence` + `Await`, with the title
+  poller and Couch moved onto them. Couch's timeout test now asserts the
+  `(waited …)` diagnosis.
+  - The artifactpath inventory needed `panebirth.go` classified as a
+    `scoped-pane` resolved consumer.
+- **Task 3** (`7fa00c31`): `LaunchSession(ctx, …)` and the stateful fake.
+  The OS kill tests pass: SIGTERM → `(-1, nil)` and the pid is gone; a
+  TERM-deaf child is killed after `WaitDelay`.
+- **Task 4** (`5f2a1258`): the birth watch, and six end-to-end tests.
+  - All five mutation checks fail their named test:
+    - `abort` removed;
+    - alive read as dead;
+    - unknown read as dead;
+    - `stopWatch` removed (the test fails at 10.3 s, having waited out the
+      bound);
+    - both cause guards removed.
+  - The new tests pass 20× under `-race`.
+  - **Gate friction.** The `--config-dir` vocabulary gate wants the literal
+    at a permitted exec boundary, so it now goes straight to
+    `exec.CommandContext` wrapped by `killOnCancel`, instead of through a
+    helper. `os/exec.CommandContext` joins `os/exec.Command` in the permitted
+    callees.
+
