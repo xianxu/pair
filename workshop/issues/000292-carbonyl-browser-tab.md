@@ -1,7 +1,7 @@
 ---
 id: 000292
 status: open
-deps: []
+deps: [pair#293]
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
@@ -81,6 +81,11 @@ already-active tab has no action today, so this defines it for browser tabs.
   be a much worse repeat of parley#220's `fake_cliproxy` leak (105 orphans, 1.85
   GB).
 
+**Alt+click destination.** With this issue, Alt+click on a URL (pair#293, which
+lands first and uses `open` until now) opens a Carbonyl tab. It reuses the most
+recently used browser tab that hasn't been renamed; a named tab (like
+`local-test`) is never reused automatically.
+
 **Security.** The DevTools port gives full control of that browser, and any
 local process can reach it (it only listens on the local machine). That's
 acceptable *because* each tab uses a throwaway dev profile that holds nothing
@@ -100,6 +105,8 @@ agent-driven checks. It doesn't stand in for testing against current Chrome.
   over the DevTools protocol, navigates, and sees the label change.
 - Closing the tab, and killing couch, leave no Carbonyl or Chromium processes
   and no record. A test checks both.
+- Alt+click on a URL (pair#293) opens or reuses a Carbonyl tab, and never
+  reuses a named one.
 - The chosen frame-rate cap and couch's measured CPU are recorded in the Log.
 
 ## Plan
@@ -116,4 +123,5 @@ agent-driven checks. It doesn't stand in for testing against current Chrome.
 
 Filed from a brain advisor session. Design agreed in conversation. The probe
 results above were verified by running Carbonyl with a throwaway profile, with
-all processes cleaned up afterwards.
+all processes cleaned up afterwards. Order: pair#293 (Alt+click) first, then this
+issue.
