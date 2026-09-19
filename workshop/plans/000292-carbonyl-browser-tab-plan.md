@@ -182,13 +182,22 @@ here are in that issue's `## Log`.
     `PAIR_FAKE_CARBONYL=1`.
   - **Live conformance:** `cmd/probes/carbonylconformance` runs the same
     assertions against the real `carbonyl` (Task 2.6).
-- **Child.KillGroup** sends SIGKILL to `-pid` only while the child hasn't
-  been reaped (`c.done` open). Why that's safe: `ptychild`'s pump reaps only
-  after pty EOF, and EOF needs every slave holder gone, so while any group
-  member lives the leader stays a zombie and its pid (= pgid) can't be reused.
-  The residual race (check → reap → pid reused → kill) needs a pid wraparound
-  inside microseconds. It's the same window `os.Process.Signal` accepts, and
-  it's documented in the method comment.
+- **Child.KillGroup / `Options.KillGroup`** makes killing the whole process
+  group structural (plan-gate PQ-7).
+  - A child started with `Options{KillGroup: true}` has **every kill site in
+    ptychild** send SIGKILL to `-pid` instead of just the leader: `Close()`, the
+    pump's delivery-failure path, and its context-cancel path. So on every path
+    that leads to a reap, the group is killed **before** the reap. That rules
+    out a reaped leader followed by a recycled pgid, and helpers can't outlive
+    it.
+  - `KillGroup()` is the same kill exposed for the controller, which runs it
+    early (before profile removal). It's a no-op once `c.done` is closed.
+  - The ordering "controller Close before `child.Close`" in `removeTab` and
+    `closeAll` is still followed, so the profile is removed after death. But
+    the no-orphan guarantee no longer depends on that ordering.
+  - Residual race: check → reap → pid reused → kill needs a pid wraparound
+    within microseconds. It's the same window `os.Process.Signal` accepts, and
+    it's documented in the method comment.
 - **browserController** is one goroutine per browser tab, owning `State`. It
   reads events from a buffered channel (64) plus a close signal, calls `Step`,
   and runs effects in order. Async effects (Dial, Navigate) run in their own
@@ -404,7 +413,7 @@ cleared the field, and it didn't.
 | A strip-row release with no press isn't forwarded to the child | cited: presenter drops parent-area mouse (`presenter.go` `mouseInput`) | Task 2.5 asserts the fake child's `Writes()` stay empty |
 | Chromium dies on pty SIGHUP; all Carbonyl processes share one pgid | measured (issue Log) | Task 2.6 probe checks 8 and 9 re-check it on every run |
 | A Go program exits on SIGHUP by default (the fake's contract) | Go `os/signal` docs | Task 1.2 `TestFakeDiesOnSIGHUP` |
-| `ptychild` reaps only after pty EOF (the pgid-reuse argument) | cited: `child.go` pump / `Close` comment ("closing the pty ends the pump, which reaps") | Task 1.3 `TestKillGroupReachesGrandchildren` |
+| `ptychild` reaps after **any** pump exit: pty EOF, `Close()` (context cancel after `Process.Kill()` of the leader), or a failed delivery (`ingest` error → `Process.Kill()` of the leader) | cited: `child.go` `pump()` and `Close()` (plan-gate PQ-7 corrected an earlier "EOF only" claim) | Task 1.3 `TestGroupKillOptionCoversEveryReapPath` |
 | zellij `bind "Alt B"` delivers `\x1b[66;4u`, which nvim reads as `<M-B>` | by analogy with `Alt T` → `\x1b[84;4u` → `<M-T>` (live today) | the generated-Lua guard + operator smoke (Task 1.9) |
 | storagegc blocks a scope on any unrecognized entry under the data root | cited: `storagegc/inventory.go:176-256` | why profiles live outside the root; Task 3.2/3.3 inventory test for records and temps |
 | `coder/websocket` `Dial` sends no Origin header (Chrome 111 checks Origin) | read: `dial.go` sets none | Task 2.6 probe check 4 (a real dial) |
@@ -1184,7 +1193,11 @@ git commit -m "#292 M1: fakecarbonyl process contract (bar, modes, port file, he
 ### Task 1.3: `ptychild.Child.KillGroup`
 
 **Files:**
-- Modify: `cmd/internal/ptychild/child.go` (after `Signal`, ~line 262)
+- Modify: `cmd/internal/ptychild/child.go`:
+  - `Options.KillGroup bool`, stored on `Child` as `killGroup`;
+  - a `kill()` helper used at all three current `c.cmd.Process.Kill()` sites
+    (the pump's delivery-failure and context-cancel paths, and `Close()`);
+  - the exported `KillGroup()` after `Signal`.
 - Modify: `cmd/internal/ptychild/fake.go` (fake branch)
 - Test: `cmd/internal/ptychild/child_test.go`
 
@@ -1227,6 +1240,67 @@ func TestKillGroupReachesGrandchildren(t *testing.T) {
 	}
 }
 
+// TestGroupKillOptionCoversEveryReapPath pins PQ-7: with Options.KillGroup,
+// every path that ends in a reap kills the group first. The grandchild ignores
+// SIGHUP, so the kernel's pty hangup cannot be what kills it -- only the group
+// SIGKILL can.
+func TestGroupKillOptionCoversEveryReapPath(t *testing.T) {
+	for _, path := range []string{"close", "delivery-failure"} {
+		t.Run(path, func(t *testing.T) {
+			dir := t.TempDir()
+			pidFile := filepath.Join(dir, "bg.pid")
+			var failed atomic.Bool
+			opts := Options{
+				Argv:      []string{"/bin/sh", "-c", `(trap "" HUP; exec sleep 60) & echo $! > ` + pidFile + `; echo ready; wait`},
+				Size:      Size{Rows: 10, Cols: 40},
+				KillGroup: true,
+			}
+			if path == "delivery-failure" {
+				opts.Sink = func(ctx context.Context, b OutputBatch) error {
+					if bytes.Contains(b.Raw, []byte("ready")) {
+						failed.Store(true)
+						return errors.New("sink refuses")
+					}
+					return nil
+				}
+			}
+			c, err := Start(opts)
+			if err != nil {
+				t.Skipf("no pty: %v", err)
+			}
+			bg := waitPIDFile(t, pidFile)
+			if path == "close" {
+				_ = c.Close()
+			} else {
+				<-c.Exited()
+				if !failed.Load() {
+					t.Fatal("precondition: the sink never failed")
+				}
+				defer c.Close()
+			}
+			assertProcessGone(t, bg, 2*time.Second)
+		})
+	}
+}
+
+func TestWithoutTheOptionCloseKillsOnlyTheLeader(t *testing.T) {
+	// Documents why the option exists: the SIGHUP-immune grandchild survives a
+	// plain Close. The test kills it itself afterwards.
+	dir := t.TempDir()
+	pidFile := filepath.Join(dir, "bg.pid")
+	c, err := Start(Options{Argv: []string{"/bin/sh", "-c", `(trap "" HUP; exec sleep 60) & echo $! > ` + pidFile + `; wait`}, Size: Size{Rows: 10, Cols: 40}})
+	if err != nil {
+		t.Skipf("no pty: %v", err)
+	}
+	bg := waitPIDFile(t, pidFile)
+	_ = c.Close()
+	defer syscall.Kill(bg, syscall.SIGKILL)
+	time.Sleep(200 * time.Millisecond)
+	if syscall.Kill(bg, 0) != nil {
+		t.Skip("platform killed it anyway; the option is still the guarantee")
+	}
+}
+
 func TestKillGroupAfterReapIsANoop(t *testing.T) {
 	c, err := Start(Options{Argv: []string{"/bin/sh", "-c", "exit 0"}, Size: Size{Rows: 10, Cols: 40}})
 	if err != nil {
@@ -1247,18 +1321,36 @@ Expected: FAIL (`KillGroup` undefined).
 
 - [ ] **Step 3: Implement**
 
+Replace the three `_ = c.cmd.Process.Kill()` calls (in `pump()`, twice, and in
+`Close()`) with `c.kill()`:
+
+```go
+// kill ends the child for every ptychild path that is about to reap it
+// (pump delivery failure, pump context cancel, Close). With Options.KillGroup
+// it SIGKILLs the whole group BEFORE the reap, so no path reaps a leader whose
+// helpers are still alive (#292 PQ-7).
+func (c *Child) kill() {
+	if c.killGroup {
+		_ = c.KillGroup()
+		return
+	}
+	_ = c.cmd.Process.Kill()
+}
+```
+
 ```go
 // KillGroup SIGKILLs the child's whole process group. pty.Start makes the
 // child a session and group leader, so pgid == pid, and a program that spawns
 // helpers (Chromium: GPU, renderer, network) keeps them in that group (#292
 // Log: all six Carbonyl processes shared one pgid).
 //
-// It signals only while the leader is unreaped. The pump reaps after pty EOF,
-// which needs every slave holder gone, so while any group member lives the
-// leader is a zombie at worst and its pid -- the pgid -- cannot be reused.
-// After the reap it is a no-op: the group is empty or its survivors dropped
-// the tty. The remaining window (check, reap, pid reuse, kill) needs a pid
-// wraparound in microseconds, the same window os.Process.Signal accepts.
+// It signals only while the leader is unreaped (c.done open), because the
+// pgid is the leader's pid and a reaped pid can be reused. ptychild reaps on
+// three paths -- pty EOF, Close, and a failed delivery -- and with
+// Options.KillGroup the latter two call this before reaping; on EOF every slave
+// holder is already gone. After the reap it is a no-op. The remaining window
+// (check, reap, pid reuse, kill) needs a pid wraparound in microseconds, the
+// same window os.Process.Signal accepts.
 func (c *Child) KillGroup() error {
 	if c.fake != nil {
 		return c.fakeSignal(syscall.SIGKILL)
@@ -1920,8 +2012,9 @@ type browserDeps struct {
 4. `profiles.Create(owner, id)`.
 5. Pick the name with `DefaultName(taken)` over this mux's tab names (M3 adds
    the tag's record names).
-6. `ptychild.Start(Options{Argv: browsertab.Argv(bin, profile, fps, url), Size: childSizeLocked(), Env: shellEnv + deps.env, Sink: …})`,
-   with the same ready-gate as `newTab`.
+6. `ptychild.Start(Options{Argv: browsertab.Argv(bin, profile, fps, url), Size: childSizeLocked(), Env: shellEnv + deps.env, KillGroup: true, Sink: …})`,
+   with the same ready-gate as `newTab`. `KillGroup: true` is what makes
+   every ptychild reap path kill Chromium's helpers first (PQ-7).
 7. Build `terminalTab{kind: tabBrowser, name, label: browsertab.Label(name, url), browser: ctrl}`,
    where `ctrl = newBrowserController(…)` holds `profile`, `child`, and
    `State{Launching, Name: name}`.
@@ -2730,3 +2823,15 @@ Each finding was answered at the class level, not just at the site it named.
   - Scope and tag come from `DataDirFromEnv`/`PAIR_TAG`, and no tag means no
     record.
   - The dependency choice is weighed in a table.
+
+### 2026-09-19 — plan-gate round 2 (advisory PQ-7)
+
+- **The claim:** the plan said ptychild reaps only after pty EOF. It also reaps
+  after `Close()` and after a failed delivery, and both of those killed only
+  the leader.
+- **The class fix:** `Options.KillGroup` routes every kill site in ptychild
+  through a group kill before the reap. The no-orphan guarantee is now
+  structural instead of depending on the caller's close order.
+- **Pinned by** `TestGroupKillOptionCoversEveryReapPath`, using a grandchild
+  that ignores SIGHUP, so only the group kill can end it.
+- **Corrected** the relied-on-behavior table row.

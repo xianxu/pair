@@ -73,6 +73,51 @@ rounds:
           family: dependency-justification
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-19T13:02:08-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Task 1.5 maps \x15 to RenameDeleteToStart; pinned by TestCtrlUClearsTheField and the Task 2.5 pump test.
+          round: 2
+        - id: PQ-2
+          disposition: addressed
+          note: OwnedName covers profile, record and temp; name-only dead-owner proof; browserMemberPattern matches .json(.tmp)?.
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Six fuzz targets with seeds and properties added; the secondary "compress" ask was not taken (plan still restates the diff), not blocking.
+          round: 2
+        - id: PQ-4
+          disposition: addressed
+          note: State is the single authority via FxRelabel; mailbox coalesces per-target snapshots and never drops control events.
+          round: 2
+        - id: PQ-5
+          disposition: addressed
+          note: DataDirFromEnv + PAIR_TAG resolved once; empty/invalid tag means no record plus a notice.
+          round: 2
+        - id: PQ-6
+          disposition: addressed
+          note: In-tree vs coder/websocket comparison table added for operator accept/veto.
+          round: 2
+      findings:
+        - id: PQ-7
+          severity: Minor
+          title: KillGroup's safety argument claims ptychild reaps only after pty EOF; pump also reaps on Close() and on ingest failure
+          detail: |-
+            2nd in family; the rule is the plan's own "Existing behavior" table, and this row breaks it. child.go:145-163 reaps after
+            ANY read error: EOF, ctx cancel from Close() (child.go:264-270 kills the leader and closes the transport), or an
+            ingest failure (kills the leader only). After that reap, KillGroup is a no-op, so the plan is safe only because
+            controller Close (and its KillGroup) runs before child.Close. That ordering is written as a step, not as an
+            invariant. It breaks if the 3 s controller join times out, and the ingest-failure path never goes through the
+            controller at all. Fix: correct the row to name all three reap triggers; state the KillGroup-before-Close ordering
+            as an invariant in KillGroup's comment and in removeTab/closeAll; pin it with a test; and have the ingest-failure
+            path signal the group, not just the leader.
+          family: unverified-existing-behavior
+          round: 2
+      blocked: false
+content_hash: fd8515d6762baec723c06dfe37ad84bc1506ae5c6534223cf0467f3cb2edeaa8
 ---
 
 # Gate ledger — pair#292 (plan-quality)
@@ -120,11 +165,29 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   transitive deps) but never compares it with a small in-tree client for the
   one browser endpoint. One line for the operator to accept or veto.
 
+## Round 2 — 2026-09-19T13:02:08-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Task 1.5 maps \x15 to RenameDeleteToStart; pinned by TestCtrlUClearsTheField and the Task 2.5 pump test.
+- PQ-2 — addressed — OwnedName covers profile, record and temp; name-only dead-owner proof; browserMemberPattern matches .json(.tmp)?.
+- PQ-3 — addressed — Six fuzz targets with seeds and properties added; the secondary "compress" ask was not taken (plan still restates the diff), not blocking.
+- PQ-4 — addressed — State is the single authority via FxRelabel; mailbox coalesces per-target snapshots and never drops control events.
+- PQ-5 — addressed — DataDirFromEnv + PAIR_TAG resolved once; empty/invalid tag means no record plus a notice.
+- PQ-6 — addressed — In-tree vs coder/websocket comparison table added for operator accept/veto.
+
+### Raised
+
+- **PQ-7** [Minor] `unverified-existing-behavior` KillGroup's safety argument claims ptychild reaps only after pty EOF; pump also reaps on Close() and on ingest failure
+  2nd in family; the rule is the plan's own "Existing behavior" table, and this row breaks it. child.go:145-163 reaps after
+  ANY read error: EOF, ctx cancel from Close() (child.go:264-270 kills the leader and closes the transport), or an
+  ingest failure (kills the leader only). After that reap, KillGroup is a no-op, so the plan is safe only because
+  controller Close (and its KillGroup) runs before child.Close. That ordering is written as a step, not as an
+  invariant. It breaks if the 3 s controller join times out, and the ingest-failure path never goes through the
+  controller at all. Fix: correct the row to name all three reap triggers; state the KillGroup-before-Close ordering
+  as an invariant in KillGroup's comment and in removeTab/closeAll; pin it with a test; and have the ingest-failure
+  path signal the group, not just the leader.
+
 ## Open findings
 
-- **PQ-1** [Important] `unverified-existing-behavior` Task 2.5 misidentifies Ctrl+U; the Spec's "Ctrl+U clears it" is unimplemented
-- **PQ-2** [Important] `artifact-residue-no-removal-path` Record temp files land in the GC-inventoried browser dir with no removal path
-- **PQ-3** [Important] `adversarial-test-strategy` No adversarial/fuzz strategy for the parsers that read untrusted input
-- **PQ-4** [Minor] `state-single-source` Tab name/named has two writers, and the event carrying it can be dropped
-- **PQ-5** [Minor] `undefined-degraded-path` Record store's scope/tag source and the no-tag case are unspecified
-- **PQ-6** [Minor] `dependency-justification` New third-party dependency in a five-dep module, no alternative weighed
+- **PQ-7** [Minor] `unverified-existing-behavior` KillGroup's safety argument claims ptychild reaps only after pty EOF; pump also reaps on Close() and on ingest failure
