@@ -5,8 +5,9 @@ deps: []
 github_issue:
 created: 2026-09-18
 updated: 2026-09-18
-estimate_hours:
+estimate_hours: 2.66
 started: 2026-09-18T18:33:40-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # A launch whose zellij server dies at birth hangs the launcher and leaves Couch's thread live
@@ -62,6 +63,10 @@ Durable plan: `workshop/plans/000288-dead-launch-is-invisible-plan.md`.
   - listed live → stand down for good. The session may be healthy with a
     sidecar that failed to write, and ending it would skip the quit cleanup.
   - the probe fails → wait another bound and ask again.
+  - The verdict must match its cause. After a dead verdict the launcher fails
+    only if the client didn't exit cleanly (`code != 0`), and the watch never
+    aborts a launch that has already returned. A clean quit that races the
+    probe keeps the normal path and its cleanup.
 - **How the client is ended.** `LaunchSession` gains a `ctx`. Cancelling it
   sends SIGTERM, then SIGKILL after 2 s, and returns only once the client
   has been reaped. The hung client (death B) has written nothing to the tty
@@ -80,6 +85,52 @@ Durable plan: `workshop/plans/000288-dead-launch-is-invisible-plan.md`.
   closes. The thread then reads `parked` or `session-gone`, and archive
   accepts both. Out of scope, noted in the plan: Couch shows only
   `exited (1)`, not the launcher's reason.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+`sdlc estimate-source` reports the calibration as stale, so this is
+provisional. The window runs from the 18:33 claim. Design already in it:
+
+- the birth-time measurements: idle, loaded and cold cache;
+- the death-mode repro;
+- the Couch map, the plan and two review rounds.
+
+Impl is 40% of the v2 ranges. The design buffer is +15%, because a thorough
+plan doc exists. Familiarity is 1.0, because #287 worked in these same three
+packages.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec              design=1.0  impl=0.05
+item: smaller-go-module       design=0.06 impl=0.14
+item: smaller-go-module       design=0.06 impl=0.14
+item: smaller-go-module       design=0.06 impl=0.2
+item: smaller-go-module       design=0.06 impl=0.14
+item: real-api-discovery      design=0.0  impl=0.18
+item: atlas-docs              design=0.05 impl=0.05
+item: milestone-review        design=0.0  impl=0.14
+item: milestone-review        design=0.0  impl=0.14
+design-buffer: 0.15
+total: 2.66
+```
+
+The items, in order:
+- `issue-spec` covers the in-window design.
+- The four `smaller-go-module`s are:
+  - `panebirth` plus moving the poller and Couch onto it;
+  - the cancellable `LaunchSession` and the stateful fake;
+  - the birth watch, its wiring and the six sequence tests with mutation
+    checks (upper impl);
+  - the probe's `-exit-wait`/`hung=`.
+
+  Design on each is ×0.2, because the plan pre-resolves it.
+- `real-api-discovery` is the live zellij runs before and after the fix
+  under `-hammer`.
+- `atlas-docs` is the architecture and Couch paragraphs.
+- The two `milestone-review`s are the close review plus one expected fix
+  round (the close gate runs in rounds).
 
 ## Done when
 
@@ -142,3 +193,7 @@ Filed from #287. Casualty evidence and the birth-time measurements are in
     it rolls back to `parked`.
   - Couch never relaunches on its own.
   - The launcher must reap its zellij child, or the pty stays open.
+- **Cold cache** (the probe built with an overlay that gives each trial a
+  fresh `HOME`; zellij's cache, data and plugin dirs follow `HOME`), n=4:
+  0.44–0.52 s. Plugin compilation doesn't delay the pane sidecar, so the
+  10 s bound stands (plan-quality finding 4).
