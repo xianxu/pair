@@ -12,16 +12,31 @@ import (
 	"testing"
 )
 
-// deadSymbolScope is the package this guard watches. It is deliberately one
-// package rather than the tree: couchcore is where a deletion milestone shed
-// five subsystems, and a guard that fires everywhere on day one gets an
-// allowlist instead of a fix.
-const deadSymbolScope = "cmd/internal/couchcore"
+// deadSymbolScopes are the packages this guard watches, each with its own
+// allowlist. Deliberately a list rather than the tree: a guard that fires
+// everywhere on day one gets an allowlist instead of a fix. A package joins once
+// its orphans have been dispositioned.
+//
+// couchcore is where a deletion milestone shed five subsystems. hostty lost its
+// production writer in #255 M3, when every parent-terminal write moved to
+// terminal.Presenter. Its escape-sequence constants then outlived their consumer
+// for three days, reading as live policy, which is how #279's regression hid (#289).
+var deadSymbolScopes = []struct {
+	dir       string
+	allowlist map[string]string
+}{
+	{"cmd/internal/couchcore", couchcoreDeadSymbolAllowlist},
+	{"cmd/internal/hostty", hosttyDeadSymbolAllowlist},
+}
 
-// deadSymbolAllowlist names production symbols that legitimately have no
-// production caller. Each needs a reason -- an entry without one is how this
-// guard degrades into a list of things nobody wanted to think about.
-var deadSymbolAllowlist = map[string]string{
+// Each allowlist names production symbols that legitimately have no production
+// caller. Each needs a reason -- an entry without one is how this guard
+// degrades into a list of things nobody wanted to think about.
+var hosttyDeadSymbolAllowlist = map[string]string{
+	"EdgeTop": "represented and REFUSED: NewReservation's refusal is tested against it, and its doc carries the measured reason a top strip fails (#223)",
+}
+
+var couchcoreDeadSymbolAllowlist = map[string]string{
 	"ReadStoreRetention": "pair#239 M2 Task4/5: read-only registered-store adapter; remove exemption when production GC preview is wired",
 	"RestoreThread":      "pair#239: explicitly supported typed archive restoration transaction; no new UI is in scope",
 	// Seams and non-context wrappers: production takes the Context form, the
@@ -73,29 +88,94 @@ var deadSymbolAllowlist = map[string]string{
 // ever HIDES an orphan (a false negative) -- it never invents one.
 func TestNoProductionSymbolIsReferencedOnlyByTests(t *testing.T) {
 	repoRoot := filepath.Clean(filepath.Join("..", "..", ".."))
-	declarations := productionDeclarations(t, filepath.Join(repoRoot, deadSymbolScope))
 	references := productionIdentifierCounts(t, filepath.Join(repoRoot, "cmd"))
-
-	var orphans []string
-	for name, position := range declarations {
-		if reason, allowed := deadSymbolAllowlist[name]; allowed {
-			_ = reason
-			continue
-		}
-		// One occurrence is the declaration itself.
-		if references[name] <= 1 {
-			orphans = append(orphans, position+": "+name)
-		}
-	}
-	sort.Strings(orphans)
-	for _, orphan := range orphans {
-		t.Errorf("%s has no production reference outside its own declaration.\n"+
-			"Delete it, or add it to deadSymbolAllowlist with the reason it survives.", orphan)
+	for _, scope := range deadSymbolScopes {
+		t.Run(scope.dir, func(t *testing.T) {
+			declarations := productionDeclarations(t, filepath.Join(repoRoot, scope.dir))
+			var orphans []string
+			for name, position := range declarations {
+				if _, allowed := scope.allowlist[name]; allowed {
+					continue
+				}
+				// One occurrence is the declaration itself.
+				if references[name] <= 1 {
+					orphans = append(orphans, position+": "+name)
+				}
+			}
+			sort.Strings(orphans)
+			for _, orphan := range orphans {
+				t.Errorf("%s has no production reference outside its own declaration.\n"+
+					"Delete it, or add it to %s's allowlist with the reason it survives.", orphan, scope.dir)
+			}
+		})
 	}
 }
 
-// productionDeclarations collects top-level funcs, methods and types from the
-// package's non-test files.
+// The guard's own rules, pinned on a fixture. Each rule either widens what is
+// declared or narrows what counts, so a regression in one silently hides
+// orphans rather than failing: the real scopes would stay green.
+func TestDeadSymbolGuardDeclarationRules(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"a.go": `package fixture
+
+type Kind int
+
+const (
+	KindUnknown Kind = iota
+	KindReal
+)
+
+const Sequence = "x"
+
+var Table, _ = 1, 2
+
+func Exported() {}
+
+func (Kind) Method() {}
+`,
+		"fake.go":      "package fixture\n\nfunc FakeOnly() {}\n",
+		"host_fake.go": "package fixture\n\nfunc HostFakeOnly() {}\n",
+		"a_test.go":    "package fixture\n\nfunc TestOnly() {}\n",
+	}
+	for name, source := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(source), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := productionDeclarations(t, dir)
+	want := map[string]string{
+		"Kind": "a.go", "KindReal": "a.go", "Sequence": "a.go", "Table": "a.go",
+		"Exported": "a.go", "Method": "a.go",
+	}
+	for name, file := range want {
+		if got[name] != file {
+			t.Errorf("%s declared in %q, want %q", name, got[name], file)
+		}
+	}
+	for name := range got {
+		if _, expected := want[name]; !expected {
+			// KindUnknown: an iota zero value is reached by an unset field.
+			// _: not a name. FakeOnly/HostFakeOnly/TestOnly: not production.
+			t.Errorf("%s (in %s) must not be a production declaration", name, got[name])
+		}
+	}
+	// The reference side must skip the same files, or a symbol only a fake
+	// reaches reads as live.
+	for name, production := range map[string]bool{
+		"a.go": true, "fake.go": false, "host_fake.go": false, "a_test.go": false, "notes.md": false,
+	} {
+		if isProductionSource(name) != production {
+			t.Errorf("isProductionSource(%q) = %v, want %v", name, !production, production)
+		}
+	}
+}
+
+// productionDeclarations collects top-level funcs, methods, types, consts and
+// vars from the package's non-test files.
+//
+// Consts and vars joined in #289: hostty's stranded surface was escape-sequence
+// constants, which a funcs-and-types scan cannot see.
 func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 	t.Helper()
 	out := map[string]string{}
@@ -106,11 +186,7 @@ func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 	fileSet := token.NewFileSet()
 	for _, entry := range entries {
 		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		// A _fake.go file exists to be used by tests; that is its whole job.
-		if strings.HasSuffix(name, "_fake.go") {
+		if entry.IsDir() || !isProductionSource(name) {
 			continue
 		}
 		file, err := parser.ParseFile(fileSet, filepath.Join(packageDir, name), nil, 0)
@@ -124,12 +200,19 @@ func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 				// interface's own method name, which this counts.
 				out[typed.Name.Name] = name
 			case *ast.GenDecl:
-				if typed.Tok != token.TYPE {
-					continue
-				}
 				for _, spec := range typed.Specs {
-					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-						out[typeSpec.Name.Name] = name
+					switch spec := spec.(type) {
+					case *ast.TypeSpec:
+						out[spec.Name.Name] = name
+					case *ast.ValueSpec:
+						if isIotaZero(spec) {
+							continue
+						}
+						for _, identifier := range spec.Names {
+							if identifier.Name != "_" {
+								out[identifier.Name] = name
+							}
+						}
 					}
 				}
 			}
@@ -138,11 +221,35 @@ func productionDeclarations(t *testing.T, packageDir string) map[string]string {
 	return out
 }
 
+// isIotaZero reports an enum's `X T = iota`. That value is reached by leaving a
+// field unset, never by name, so a name count would call every one of them dead
+// (couchcore's five *Unknown values were the measured cases).
+func isIotaZero(spec *ast.ValueSpec) bool {
+	if len(spec.Values) != 1 {
+		return false
+	}
+	identifier, ok := spec.Values[0].(*ast.Ident)
+	return ok && identifier.Name == "iota"
+}
+
+// isProductionSource is the one definition of "production" both sides of the
+// guard use. Declarations and references must agree on it: a fake skipped as a
+// declaration but counted as a reference makes a symbol that only fakes reach
+// read as live (#289 close review).
+//
+// A fake file exists to be used by tests; that is its whole job.
+func isProductionSource(name string) bool {
+	if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		return false
+	}
+	return name != "fake.go" && !strings.HasSuffix(name, "_fake.go")
+}
+
 var identifierPattern = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\b`)
 
 // productionIdentifierCounts counts identifier occurrences across every
-// non-test Go file under root. Tests are excluded deliberately: a symbol only
-// tests mention is exactly what this looks for.
+// production Go file under root. Tests and fakes are excluded deliberately: a
+// symbol only they mention is exactly what this looks for.
 func productionIdentifierCounts(t *testing.T, root string) map[string]int {
 	t.Helper()
 	counts := map[string]int{}
@@ -150,8 +257,7 @@ func productionIdentifierCounts(t *testing.T, root string) map[string]int {
 		if err != nil || entry.IsDir() {
 			return nil
 		}
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+		if !isProductionSource(entry.Name()) {
 			return nil
 		}
 		raw, readErr := os.ReadFile(path)

@@ -499,8 +499,8 @@ func assertConsoleRestored(t *testing.T, f *consoleFixture) {
 	t.Helper()
 	written := f.host.Written()
 	for name, want := range map[string]string{
-		"scroll region reset": hostty.ResetRegion,
-		"cursor visibility":   hostty.ShowCursor,
+		"scroll region reset": "\x1b[r",
+		"cursor visibility":   "\x1b[?25h",
 		"mouse off":           "\x1b[?1003l",
 		"paste off":           "\x1b[?2004l",
 	} {
@@ -896,12 +896,6 @@ func TestSwitchingToTheActiveThreadAsksForNoRepaint(t *testing.T) {
 		t.Fatalf("a switch to the already-active thread resized it: %v", got[before:])
 	}
 }
-
-// couch's leg of the differential (#209 BR-9): what the console WRITES on a
-// takeover is exactly what hostty.RepaintFor composes — no prefix of its own,
-// no byte dropped. termcmd's leg asserts the same thing against the same
-// function, which is what makes the two consoles byte-identical for the same
-// child state; hostty's golden fixes what that function emits.
 
 func TestOpeningThePanelBlanksTheChildsScreenDeliberately(t *testing.T) {
 	f := newFixture(t, 24, 80)

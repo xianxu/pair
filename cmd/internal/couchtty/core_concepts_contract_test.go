@@ -110,6 +110,12 @@ func TestCoreConceptsContract(t *testing.T) {
 		case "`termcmd.restoreTerminal`":
 			row.paths = []string{"cmd/internal/termcmd/run.go"}
 			row.symbols = []string{"termcmd.runShellOnHost"}
+		case "`ResetRegion` / `SaveCursor` / `RestoreCursor` / `ClearLine` / `HomeAndClear` / `LeaveAltScreen` / `ShowCursor` / `SetRegion` / `MoveTo`":
+			// #289: the presenter spells every sequence production writes
+			// (#255 M3). The ones Reservation still paints with moved beside
+			// it, unexported; the rest had no consumer and were deleted.
+			row.paths = []string{"cmd/internal/hostty/reserve.go"}
+			row.symbols = []string{"resetRegion", "saveCursor", "restoreCursor", "clearLine", "setRegion", "moveTo"}
 		}
 		t.Run(row.kind+"/"+row.name, func(t *testing.T) {
 			// #151 supersedes #146's temporary flat-panel authority. Keep the

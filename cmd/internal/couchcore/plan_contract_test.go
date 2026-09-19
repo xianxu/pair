@@ -819,6 +819,15 @@ func TestIssue149BlockedRunnersDelegateToOneHandshakeAuthority(t *testing.T) {
 	}
 }
 
+// issue152RetiredDeliveredConcepts are #152 concepts later retired. The plan
+// stays the record of what #152 delivered, so each retired row still counts
+// toward its total, but its declaration must now be ABSENT from the path the
+// plan names.
+var issue152RetiredDeliveredConcepts = map[string]string{
+	"ResetInteractiveModes": "pair#289: since #255 M3 no child mode reaches the parent -- the presenter emulates " +
+		"children and its release undoes exactly what its own setup raised -- so the reset had no consumer",
+}
+
 func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 	root := filepath.Clean(filepath.Join("..", "..", ".."))
 	planPath := findPlanArtifact(t, root, "000152-couch-verified-park-resume-plan.md")
@@ -851,7 +860,12 @@ func TestIssue152DeliveredCoreConceptsResolveToGoDeclarations(t *testing.T) {
 		if status != "new" && status != "modified" && status != "deleted" {
 			t.Errorf("%s has invalid status %q", name, status)
 		}
-		if err := requireGoDeclaration(filepath.Join(root, path), name); err != nil {
+		err := requireGoDeclaration(filepath.Join(root, path), name)
+		if _, retired := issue152RetiredDeliveredConcepts[name]; retired {
+			if err == nil {
+				t.Errorf("%s is retired but still declared at %s", name, path)
+			}
+		} else if err != nil {
 			t.Errorf("%s at %s: %v", name, path, err)
 		}
 		resolved++

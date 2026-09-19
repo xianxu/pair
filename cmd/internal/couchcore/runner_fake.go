@@ -4,11 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/ptychild"
 )
+
+// joinArgs keys the fakes' call records (this one's Ops, FakeGit's GitCall).
+// It lives with them because nothing else uses it.
+func joinArgs(args []string) string { return strings.Join(args, " ") }
 
 // FakeChild is the fake's per-child state, modelled across calls.
 type FakeChild struct {

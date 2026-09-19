@@ -19,7 +19,7 @@ rows was left in the tree, and now has no production caller:
 | symbol | reachable from |
 |---|---|
 | `ptychild.Screen` (`SafeToPaint`, `TakeRowDirty`, `HoldsCursorSave`, `MidSequence`, ...) | its own tests and `notification_benchmark_test.go` only. `TestChildHasOneTerminalAuthority` already pins that `Child` no longer holds one. |
-| `hostty.Reservation.ReserveAndPaint` / `Paint` / `Release`, `hostty.SetRegion` | `cmd/probes/couchnestedrows` only. Production uses `Reservation` for `ChildRows` arithmetic (`couchtty/console.go:1019`). |
+| `hostty.Reservation.ReserveAndPaint` / `Release`, and the unexported sequences they compose (`setRegion` and six more in `reserve.go`) | `cmd/probes/couchnestedrows` only. Production uses `Reservation` for `ChildRows` arithmetic (`couchtty/console.go:1019`). |
 
 Dead machinery keeps misleading readers. #262's diagnosis first treated
 `hostty.Reservation` as a live second writer to the parent, because the code and
@@ -56,3 +56,12 @@ judgements matter:
 Filed from #262 M1's stale-prose sweep. It is not folded into #262 because
 deleting code is separable from the flicker fix. #262 only corrects the prose
 that presented this machinery as live.
+
+### 2026-09-18
+
+- pair#289 deleted `Reservation.Paint`, which only tests reached (the table
+  above called it probe-reachable). It also moved `SetRegion` and the other
+  sequences `ReserveAndPaint`/`Release` compose into `reserve.go`, unexported,
+  and deleted `control.go`. Whatever this issue decides for `ReserveAndPaint`
+  and `Release` decides for them too. `artifactpath`'s dead-symbol guard now
+  covers hostty, so deleting the painters without their sequences fails a test.

@@ -1,3 +1,16 @@
+// Package hostty owns the OPERATOR's terminal: how big it is, when it changes
+// size, and putting it in raw mode and reliably putting it back.
+//
+// It is the host half of the terminal plumbing `pair term` and `couch` share;
+// cmd/internal/ptychild is the child half. Splitting them this way is what makes
+// a console testable without a real tty -- FakeHost is scriptable, so the
+// SIGWINCH path and the restore-on-signal path are covered by tests rather than
+// only by an operator smoke.
+//
+// It spells no escape sequence production writes. Since #255 M3 every
+// parent-terminal write goes through terminal.Presenter, which owns those
+// spellings. The sequences left here are Reservation's paint (reserve.go), and
+// only cmd/probes/couchnestedrows uses that (pair#281).
 package hostty
 
 import (

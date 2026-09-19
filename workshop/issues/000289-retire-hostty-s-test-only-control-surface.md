@@ -1,6 +1,6 @@
 ---
 id: 000289
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-18
@@ -8,6 +8,7 @@ updated: 2026-09-18
 estimate_hours:
 started: 2026-09-18T17:37:41-07:00
 flow: {kind: quick, provenance: inferred, spec: "226b98c6", done: "6a1ec0e6"}
+actual_hours: 0.48
 ---
 
 # Retire hostty's test-only control surface
@@ -73,29 +74,58 @@ FUNERAL: creates nothing durable.
 
 ## Done when
 
-- [ ] No exported `hostty` symbol is referenced only by tests, except
+- [x] No exported `hostty` symbol is referenced only by tests, except
       allowlist entries that state why. A guard test fails otherwise.
-- [ ] `core_concepts_contract_test.go`'s PURE row names only symbols that exist.
-- [ ] The newest-page "no takeover" checks fail under a mutation that re-selects
+- [x] `core_concepts_contract_test.go`'s PURE row names only symbols that exist.
+- [x] The newest-page "no takeover" checks fail under a mutation that re-selects
       the current actor. The `HomeAndClear` check they replace passed under it.
-- [ ] `go test ./...` is green.
+- [x] `go test ./...` is green.
 
 ## Plan
 
-- [ ] Guard: multi-scope, `const`/`var`, `fake.go`, iota-zero; add hostty.
-      Watch it flag the ten hostty orphans before the fix.
-- [ ] Delete the dead symbols and `Reservation.Paint`; move the seven sequences to `reserve.go`.
-- [ ] Rewrite the test oracles; override the contract row; update the atlas
+- [x] Guard: multi-scope, `const`/`var`, `fake.go`, iota-zero; add hostty.
+      Watch it flag the nine hostty orphans before the fix.
+- [x] Delete the dead symbols and `Reservation.Paint`; move the seven sequences to `reserve.go`.
+- [x] Rewrite the test oracles; override the contract row; update the atlas
       `couch.md` line ("the control constants") and #281's table.
-- [ ] Mutation-check the newest-page oracle; `go test ./...`.
+- [x] Mutation-check the newest-page oracle; `go test ./...`.
 
 ## Log
 
 ### 2026-09-18
+- 2026-09-18: closed — dead-symbol guard (now multi-scope, consts/vars) red before fix on 9 hostty orphans, green after; newest-page Token oracle FAILS under a re-select mutation where the old HomeAndClear oracle PASSED on git-archive main; go test ./... exit 0 (unsandboxed, retention env scrubbed); make test exit 0 with TMPDIR=/private/tmp (test-changelog fails only under the /var/folders symlinked TMPDIR, unrelated); review verdict: SHIP
 
 - Filed from the #279 close review (finding `dead-exported-surface`). #279
   deleted `EnableKeyboardDisambiguation`, the #251 mechanism whose removal it
   diagnosed, and deferred the remainder of the sweep to this issue.
+- Guard red before the fix, as designed. The hostty scope flagged eight
+  control.go symbols plus `Reservation.Paint`, with `EdgeTop` allowlisted.
+  couchcore stayed green: the iota-zero rule absorbs its five `*Unknown` values.
+- Mutation check, both newest-page tests. The mutation re-selects the current
+  actor in the "nothing paging" branch and re-presents it in the "already
+  there" branch.
+  - On a `git archive main` copy with the old `HomeAndClear` oracle, both tests
+    PASS: the oracle was vacuous.
+  - On this branch both FAIL at the selection check ("selection 2 -> 3"), and
+    `landingOf` does not catch it.
+  - `console.go` restored from git afterwards.
+- `go test ./...` surfaced two consumers the design sweep missed. Both name
+  the deleted file or a deleted symbol, not a live one.
+  - `artifactpath.NonArtifactSources` listed `hostty/control.go`: entry removed.
+  - #152's delivered-concepts contract resolves `ResetInteractiveModes`. It
+    gains `issue152RetiredDeliveredConcepts`, after #149's retired-concept
+    precedent. A retired row still counts toward the 21, and its declaration
+    must be absent.
+  - A symbol grep misses the path-shaped references. Grep the file path too.
+- Also removed an orphaned comment in `console_test.go`. It described a
+  differential against `hostty.RepaintFor`, which no longer exists. Left alone:
+  the adjacent "C2's consumer half" block. It is stale prose about
+  `RequestRepaint`, not hostty, so it falls outside this class.
+- Verified: `go test ./...` exit 0 (unsandboxed, retention env scrubbed).
+  `make test` exit 0 with `TMPDIR` on `/private/tmp`. Under the default
+  `/var/folders` TMPDIR, `test-changelog` fails with "process target is outside
+  selected owner directory". That is the symlinked tmp path, not this diff:
+  the same script passes with a non-symlinked `TMPDIR`.
 
 ## Revisions
 
@@ -104,3 +134,17 @@ FUNERAL: creates nothing durable.
 - The first Done-when row gains "except allowlist entries that state why", for
   `EdgeTop`. A newest-page oracle row is added, because the takeover checks
   turned out to be vacuous consumers of `HomeAndClear`.
+
+### 2026-09-18 — close review (4 Minor, SHIP)
+
+- The Plan said "ten hostty orphans"; the guard flags nine (eight `control.go`
+  symbols and `Reservation.Paint`). `EdgeTop` is allowlisted, not flagged. The
+  guard comment and the lesson both said "for a week"; it was three days after
+  #255 M3 (2026-09-15). #281's table said "five more" sequences; it is six.
+- The guard counted fakes as references while skipping them as declarations.
+  Both sides now share `isProductionSource`. That surfaced couchcore's
+  `joinArgs`, which only the two fakes use, so it moved into `runner_fake.go`.
+- The guard's rules gained a fixture test. Disabling the iota-zero rule fails
+  it, and so does dropping the fake filter.
+- Open issues #217 and #241 cited deleted hostty symbols as live. Both point
+  at the presenter now.
