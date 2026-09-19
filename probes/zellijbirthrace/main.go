@@ -248,9 +248,12 @@ type launchFlags struct {
 	pair    string
 	hammer  time.Duration
 	timeout time.Duration
-	logPath string
-	report  string
-	parent  int // the launch parent's pid; the child stops when it is gone
+	// exitWait is how long a died trial waits for Pair's launcher to exit
+	// (#288): a launch whose server died at birth must not hang.
+	exitWait time.Duration
+	logPath  string
+	report   string
+	parent   int // the launch parent's pid; the child stops when it is gone
 }
 
 func parseLaunchFlags(mode string, args []string) (launchFlags, error) {
@@ -260,6 +263,7 @@ func parseLaunchFlags(mode string, args []string) (launchFlags, error) {
 	fs.StringVar(&lf.pair, "pair", "pair", "the pair binary to launch")
 	fs.DurationVar(&lf.hammer, "hammer", 0, "run `zellij list-sessions` at this cadence during each trial (0 = off)")
 	fs.DurationVar(&lf.timeout, "timeout", 15*time.Second, "per-trial wait for birth or death")
+	fs.DurationVar(&lf.exitWait, "exit-wait", 20*time.Second, "after a death, wait this long for pair's launcher to exit (0 = don't)")
 	fs.StringVar(&lf.logPath, "zellij-log", filepath.Join(zellijTmp(), "zellij-log", "zellij.log"), "zellij log")
 	fs.StringVar(&lf.report, "report", "", "(child) where to write the report")
 	fs.IntVar(&lf.parent, "parent", 0, "(child) the parent's pid")
@@ -270,7 +274,8 @@ func parseLaunchFlags(mode string, args []string) (launchFlags, error) {
 func (lf launchFlags) argv() []string {
 	return []string{
 		"-n", fmt.Sprint(lf.n), "-pair", lf.pair, "-hammer", lf.hammer.String(),
-		"-timeout", lf.timeout.String(), "-zellij-log", lf.logPath, "-report", lf.report,
+		"-timeout", lf.timeout.String(), "-exit-wait", lf.exitWait.String(),
+		"-zellij-log", lf.logPath, "-report", lf.report,
 		"-parent", fmt.Sprint(lf.parent),
 	}
 }
@@ -312,7 +317,7 @@ func runLaunchParent(args []string) int {
 		return 1
 	}
 
-	budget := time.Duration(lf.n)*(lf.timeout+15*time.Second) + time.Minute
+	budget := time.Duration(lf.n)*(lf.timeout+lf.exitWait+15*time.Second) + time.Minute
 	deadline := time.Now().Add(budget)
 	printed := 0
 	for {
@@ -406,10 +411,13 @@ func launchTrials(lf launchFlags, out io.Writer) int {
 		tag := fmt.Sprintf("br%dt%dx", os.Getpid(), i)
 		t := launchTrial(lf, env, repo, xdg, tag)
 		counts[t.verdict]++
+		if t.hung != "" {
+			counts[t.hung]++
+		}
 		fmt.Fprintf(out, "trial %d tag=%s verdict=%s birth=%s%s\n", i, tag, t.verdict, t.birth.Round(time.Millisecond), t.note)
 	}
-	fmt.Fprintf(out, "PROBE-RESULT mode=launch n=%d hammer=%s born=%d died=%d inconclusive=%d\n",
-		lf.n, lf.hammer, counts["born"], counts["died"], counts["inconclusive"])
+	fmt.Fprintf(out, "PROBE-RESULT mode=launch n=%d hammer=%s born=%d died=%d inconclusive=%d hung=%d hung-after-birth=%d\n",
+		lf.n, lf.hammer, counts["born"], counts["died"], counts["inconclusive"], counts["hung"], counts["hung-after-birth"])
 	return 0
 }
 
@@ -417,6 +425,7 @@ type trialResult struct {
 	verdict string
 	birth   time.Duration
 	note    string
+	hung    string // "hung" or "hung-after-birth": a died trial whose launcher never exited
 }
 
 func launchTrial(lf launchFlags, env []string, repo, xdg, tag string) (result trialResult) {
@@ -453,14 +462,14 @@ func launchTrial(lf launchFlags, env []string, repo, xdg, tag string) (result tr
 			listed, exitedState := sessionState(name)
 			switch {
 			case mark.since() > 0:
-				return trialResult{verdict: "died", birth: result.birth, note: " (panic after the pane was born)"}
+				return died(lf, start, exited, tag, "hung-after-birth", trialResult{birth: result.birth, note: " (panic after the pane was born)"})
 			case !listed || exitedState:
-				return trialResult{verdict: "died", birth: result.birth, note: fmt.Sprintf(" (session %q not live after birth)", name)}
+				return died(lf, start, exited, tag, "hung-after-birth", trialResult{birth: result.birth, note: fmt.Sprintf(" (session %q not live after birth)", name)})
 			}
 			return trialResult{verdict: "born", birth: result.birth}
 		}
 		if mark.since() > 0 {
-			return trialResult{verdict: "died", note: " (zellij panic before the pane was born)"}
+			return died(lf, start, exited, tag, "hung", trialResult{note: " (zellij panic before the pane was born)"})
 		}
 		select {
 		case <-exited:
@@ -470,6 +479,46 @@ func launchTrial(lf launchFlags, env []string, repo, xdg, tag string) (result tr
 		time.Sleep(20 * time.Millisecond)
 	}
 	return trialResult{verdict: "inconclusive", note: " (neither birth nor panic within " + lf.timeout.String() + ")"}
+}
+
+// died completes a died trial with whether Pair noticed (#288): the launcher
+// should exit on its own -- at once when its zellij client does, within the
+// birth watch's bound when the client hangs -- and leave no client behind. A
+// launcher still running after lf.exitWait is hung, counted under hangKind:
+// "hung" for a death before the pane was born (what the birth watch ends),
+// "hung-after-birth" for one after (outside it).
+func died(lf launchFlags, start time.Time, exited <-chan struct{}, tag, hangKind string, r trialResult) trialResult {
+	r.verdict = "died"
+	if lf.exitWait <= 0 {
+		return r
+	}
+	select {
+	case <-exited:
+		r.note += fmt.Sprintf("; launcher exited %s after start", time.Since(start).Round(100*time.Millisecond))
+		if clientLeftBehind(tag) {
+			r.note += ", zellij client left behind"
+		}
+	case <-time.After(lf.exitWait):
+		r.note += fmt.Sprintf("; launcher still running after %s (%s)", lf.exitWait, hangKind)
+		r.hung = hangKind
+	}
+	return r
+}
+
+// clientLeftBehind reports whether a zellij client for the trial's session is
+// still running. It matches the ASCII tag, not the session name, whose 📁 ps
+// may escape.
+func clientLeftBehind(tag string) bool {
+	out, err := exec.Command("ps", "-axo", "command=").Output()
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, "--new-session-with-layout") && strings.Contains(line, tag) {
+			return true
+		}
+	}
+	return false
 }
 
 // hammer runs `zellij list-sessions --short` back to back with cadence between

@@ -149,7 +149,7 @@ Tasks and steps are in the durable plan.
       move onto it (plan Tasks 1–2).
 - [x] Launcher: a cancellable `LaunchSession` and the birth watch, with
       fake-runtime tests and mutation checks (plan Tasks 3–4).
-- [ ] Probe `-exit-wait`/`hung=`; live before/after under `-hammer 10ms`
+- [x] Probe `-exit-wait`/`hung=`; live before/after under `-hammer 10ms`
       (plan Task 5).
 - [ ] Atlas + suite + operator Couch smoke: a dead-at-birth thread archives
       without restarting Couch (plan Task 6).
@@ -222,4 +222,20 @@ Filed from #287. Casualty evidence and the birth-time measurements are in
     `exec.CommandContext` wrapped by `killOnCancel`, instead of through a
     helper. `os/exec.CommandContext` joins `os/exec.Command` in the permitted
     callees.
+- **Task 5, live** (`probes/zellijbirthrace launch -hammer 10ms`, sandbox
+  off):
+  - base (`pair` from main at `6c80d40b`), n=20: died 20, **hung 20**. Every
+    death was before birth, and every launcher was still running 20 s later.
+    In Pair launches the hang is the rule, not the 1-in-5 of the bare
+    repro.
+  - fix (branch HEAD `5f2a1258` code), n=20: died 20, **hung 0**.
+    - Every launcher exited 10.5–11.2 s after start, which is the bound plus
+      teardown.
+    - `ps` found no zellij client left behind.
+    - `hung-after-birth` was 0 in both runs.
+  - fix, one trial with the pty output printed: `pair: zellij session
+    '📁birthrace-…' never came up: no agent pane after 10s, and zellij lists
+    no live session.` It is followed by the zellij log path, and the path is
+    right.
+  - fix, healthy, n=10 with no hammer: born 10, births 0.8–0.9 s.
 

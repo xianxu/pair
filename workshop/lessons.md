@@ -5547,3 +5547,21 @@ Owned terminal teardown must finish before fallback stderr writes: stderr often 
   the next missed event (replacement). One reconcile, run after every change to
   the watches and comparing each continuation prompt to its watch's CURRENT
   request, closes the class. (#280 close, rounds 1–3)
+
+- **A watchdog's verdict acts only when the outcome agrees with its cause.**
+  #288's birth watch probes zellij 10 s into a launch, while the client it
+  judges can exit on its own at the same moment. "No pane, no live session"
+  also describes a sidecar-less session that the operator just quit cleanly,
+  and acting on it would have turned that quit into a failure that skips the
+  quit cleanup. The fix takes the failure path only when the client's exit
+  code says it was killed, and rechecks the watch's context after the probe.
+  When a verdict races the thing it judges, gate the action on the outcome's
+  own evidence, and test the interleaving where the thing ends first. (#288
+  plan-quality)
+
+- **A test child that must outlive SIGTERM `exec`s its sleeper.** macOS
+  `/bin/sh -c 'trap "" TERM; sleep 60'` forks `sleep`. The SIGKILL after
+  `WaitDelay` hits `sh`, and the orphaned `sleep`, still TERM-deaf, holds the
+  test binary's stdout, so `go test` waits out the whole sleep. Write
+  `exec sleep`: the ignored disposition survives `exec`, and the process
+  that is killed is the one holding the pipe. (#288 plan review)

@@ -248,7 +248,7 @@ Nothing durable is created.
 **Files:**
 - Create: `cmd/internal/panebirth/panebirth.go`, `cmd/internal/panebirth/panebirth_test.go`
 
-- [ ] **Step 1: failing tests** (`panebirth_test.go`, a fake clock whose
+- [x] **Step 1: failing tests** (`panebirth_test.go`, a fake clock whose
   `Sleep(ctx, d)` advances `now` by `d` and counts calls, and whose `Now()`
   does not advance on its own):
   - born on the first observation → nil, zero sleeps;
@@ -264,8 +264,8 @@ Nothing durable is created.
     the wait. Errors only, then grace passes → the error is in the chain.
   - `Evidence` returns exactly `artifactpath.ResolveScoped(d, t).PaneChecked(a)`,
     and an invalid tag errors.
-- [ ] **Step 2:** `go test ./cmd/internal/panebirth/` → FAIL (undefined).
-- [ ] **Step 3: implement.**
+- [x] **Step 2:** `go test ./cmd/internal/panebirth/` → FAIL (undefined).
+- [x] **Step 3: implement.**
 
 ```go
 // Package panebirth is Pair's evidence that a zellij session has been born
@@ -340,7 +340,7 @@ func Await(ctx context.Context, clock Clock, poll, grace time.Duration, born fun
 }
 ```
 
-- [ ] **Step 4:** `go test ./cmd/internal/panebirth/` → PASS.
+- [x] **Step 4:** `go test ./cmd/internal/panebirth/` → PASS.
 
 ### Task 2: move the title poller and Couch onto it
 
@@ -350,7 +350,7 @@ func Await(ctx context.Context, clock Clock, poll, grace time.Duration, born fun
 - Modify: `cmd/internal/couchcore/launch_existing.go:376-401` (`awaitPaneBirth` body)
 - Modify: `cmd/internal/launcher/createflow.go:776`, `cmd/internal/launcher/pane_birth_test.go:28` (`titlepoller.BirthEvidence` → `panebirth.Evidence`)
 
-- [ ] **Step 1:** Title poller gate:
+- [x] **Step 1:** Title poller gate:
 
 ```go
 	panePath, err := panebirth.Evidence(opts.DataDir, opts.Tag, opts.Agent)
@@ -373,7 +373,7 @@ func (c pollerClock) Sleep(_ context.Context, d time.Duration) { c.rt.Sleep(d) }
 
   Keep the #287 comment block and repoint "the create path clears it" at
   `panebirth.Evidence`.
-- [ ] **Step 2:** Couch: the loop body becomes one `Await` over
+- [x] **Step 2:** Couch: the loop body becomes one `Await` over
   `observePaneSidecars` + `baseline.BornIn`, `panebirth.WallClock{}`, poll
   10 ms, and a grace of `time.Until(deadline)` from `ctx.Deadline()`. The
   registration context always has one; without one it returns an error. It
@@ -386,11 +386,11 @@ func (c pollerClock) Sleep(_ context.Context, d time.Duration) { c.rt.Sleep(d) }
   - Strengthen `TestColdResumeTimesOutWhenThePaneIsNeverBorn` to assert the
     diagnosis suffix (`waited`), which it doesn't check today, so that losing
     `DeadlineExceeded` fails a test.
-- [ ] **Step 3:** `go test ./cmd/internal/titlepoller/ ./cmd/internal/couchcore/ ./cmd/internal/launcher/ ./cmd/internal/artifactpath/`
+- [x] **Step 3:** `go test ./cmd/internal/titlepoller/ ./cmd/internal/couchcore/ ./cmd/internal/launcher/ ./cmd/internal/artifactpath/`
   → PASS. Expect the artifactpath manifest and the couchcore plan-contract
   inventory gates to ask for the new files to be classified. Follow their
   messages, as #287 did for `couchcore/panebirth.go`.
-- [ ] **Step 4:** Commit `#288: panebirth: one pane-birth wait for the poller, Couch and (next) the launcher`.
+- [x] **Step 4:** Commit `#288: panebirth: one pane-birth wait for the poller, Couch and (next) the launcher`.
 
 ## Chunk 2: the launcher's birth watch
 
@@ -403,7 +403,7 @@ func (c pollerClock) Sleep(_ context.Context, d time.Duration) { c.rt.Sleep(d) }
 - Modify: `cmd/internal/launcher/createflow_test.go:213-223` (fake), `retention_test.go:49-52`
 - Test: `cmd/internal/launcher/osruntime_launch_test.go` (new)
 
-- [ ] **Step 1: failing test (OS side).** Factor the command construction as
+- [x] **Step 1: failing test (OS side).** Factor the command construction as
   `cancellableHandoff(ctx, name string, args ...string) *exec.Cmd` so it can
   be driven with `sh`. Both scripts must `exec` the sleeper. macOS `/bin/sh`
   otherwise forks it, and the orphan keeps the test binary's stdout open,
@@ -414,8 +414,8 @@ func (c pollerClock) Sleep(_ context.Context, d time.Duration) { c.rt.Sleep(d) }
   - `sh -c 'trap "" TERM; exec sleep 60'` (an ignored signal stays ignored
     across `exec`), with `cmd.WaitDelay` set to 200 ms in the test → returns
     within 1.5 s, having been killed.
-- [ ] **Step 2:** Run it: FAIL (undefined).
-- [ ] **Step 3: implement.**
+- [x] **Step 2:** Run it: FAIL (undefined).
+- [x] **Step 3: implement.**
 
 ```go
 // clientKillGrace is how long a cancelled client gets to exit on SIGTERM
@@ -444,7 +444,7 @@ func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout s
   Runtime doc: "Cancelling ctx ends the client (SIGTERM, then SIGKILL) and
   still returns only after it is reaped. Only the create path's birth watch
   cancels it (#288)."
-- [ ] **Step 4: fake.** Add these fields, all guarded by `f.mu` where the
+- [x] **Step 4: fake.** Add these fields, all guarded by `f.mu` where the
   watch goroutine reads them:
   - `launchWrites map[string]string`, applied under `f.mu` at the start of
     `LaunchSession`: the pane command's writes, i.e. birth;
@@ -461,9 +461,9 @@ func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout s
   `launchRelease` (returns `launchCode`), and `time.After(5 * time.Second)`
   (returns `99, errors.New("fake: launch never released")` so a broken watch
   fails loudly).
-- [ ] **Step 5:** `go test -race ./cmd/internal/launcher/` → PASS, with no
+- [x] **Step 5:** `go test -race ./cmd/internal/launcher/` → PASS, with no
   behaviour change. There is no watch yet, and existing creates don't block.
-- [ ] **Step 6:** Commit `#288: launcher: LaunchSession takes a context that ends a hung client`.
+- [x] **Step 6:** Commit `#288: launcher: LaunchSession takes a context that ends a hung client`.
 
 ### Task 4: the watch
 
@@ -472,7 +472,7 @@ func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout s
 - Modify: `cmd/internal/launcher/createflow.go:788-799`, `runtime.go` (`LaunchOptions.BirthBound`)
 - Test: `cmd/internal/launcher/pane_birth_test.go` (end-to-end cases)
 
-- [ ] **Step 1: failing pure test** (`birthwatch_test.go`, a table):
+- [x] **Step 1: failing pure test** (`birthwatch_test.go`, a table):
 
 | sessions / err | want |
 |---|---|
@@ -482,7 +482,7 @@ func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout s
 | ours `SessionExited` | `birthDead` |
 | ours `SessionLive` / `Attached` / `Detached` | `birthAlive` |
 
-- [ ] **Step 2: failing end-to-end tests** (`pane_birth_test.go`, fake
+- [x] **Step 2: failing end-to-end tests** (`pane_birth_test.go`, fake
   runtime, `opts.BirthBound = 30 * time.Millisecond`):
   1. **Dead birth, the hang:** `launchBlock`, no pane, and liveness `[]` →
      code 1; stderr contains `never came up` and the session name;
@@ -509,8 +509,8 @@ func (OSRuntime) LaunchSession(ctx context.Context, session, configDir, layout s
      `LaunchSession` has returned, then answers `[]` → code 0, no "never came
      up", and the normal handoff path (`handedOff`, cleanup reached). The
      outcome holds under every interleaving of `stopWatch` and the verdict.
-- [ ] **Step 3:** Run them → FAIL.
-- [ ] **Step 4: implement `birthwatch.go`.**
+- [x] **Step 3:** Run them → FAIL.
+- [x] **Step 4: implement `birthwatch.go`.**
 
 ```go
 // birthBound is how long a create waits for its agent pane before asking
@@ -583,7 +583,7 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
 }
 ```
 
-- [ ] **Step 5: wire into `runCreate`** (it replaces the bare `LaunchSession`
+- [x] **Step 5: wire into `runCreate`** (it replaces the bare `LaunchSession`
   call):
 
 ```go
@@ -610,8 +610,8 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
   It is a pointer in a message, not something Pair reads. Add
   `LaunchOptions.BirthBound time.Duration` (0 means `birthBound`) with a
   `birthBound()` accessor.
-- [ ] **Step 6:** `go test -race -count=1 ./cmd/internal/launcher/ ./cmd/internal/panebirth/` → PASS.
-- [ ] **Step 7: mutation checks** (revert each after it runs):
+- [x] **Step 6:** `go test -race -count=1 ./cmd/internal/launcher/ ./cmd/internal/panebirth/` → PASS.
+- [x] **Step 7: mutation checks** (revert each after it runs):
   - `abort()` removed → test 1 fails, via the fake's 5 s safety return and
     `launchCancelled` false;
   - `birthAlive` treated as `birthDead` → test 3 fails;
@@ -620,7 +620,7 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
     waits out the 10 s bound;
   - both cause guards removed (the post-probe `ctx` check and `code != 0`) →
     test 6 fails.
-- [ ] **Step 8:** Commit `#288: launcher: a create whose pane never comes and whose session is gone fails instead of hanging`.
+- [x] **Step 8:** Commit `#288: launcher: a create whose pane never comes and whose session is gone fails instead of hanging`.
 
 ## Chunk 3: live conformance and docs
 
@@ -628,7 +628,7 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
 
 **Files:** Modify `probes/zellijbirthrace/main.go` (`launchTrial`, `launchFlags`, the summary line), `probes/zellijbirthrace/SKILL.md`
 
-- [ ] **Step 1:** Add the flag `-exit-wait DUR` (default 20 s). On a `died`
+- [x] **Step 1:** Add the flag `-exit-wait DUR` (default 20 s). On a `died`
   verdict, before teardown, wait up to that long for the launcher to exit:
   - it exits → note ` launcher exited after X`, then check the process table
     (`ps -axo command=`) for a line containing both
@@ -645,9 +645,9 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
 
   `PROBE-RESULT` gains both. Keep the `born`, `died` and `inconclusive`
   counts as they are.
-- [ ] **Step 2:** `go vet ./probes/zellijbirthrace/`, and `make test-smoke`
+- [x] **Step 2:** `go vet ./probes/zellijbirthrace/`, and `make test-smoke`
   (the bare run still only describes itself).
-- [ ] **Step 3: live, sandbox off.** Build the pre-fix `pair` (main) and the
+- [x] **Step 3: live, sandbox off.** Build the pre-fix `pair` (main) and the
   fixed one into `<scratch>/{base,fix}/pair`, then run `launch -n 20
   -hammer 10ms` against each.
   - Expect base: `hung` ≥ 1 (death B).
@@ -659,23 +659,23 @@ func watchBirth(ctx context.Context, rt Runtime, evidence, session string, bound
 
   If base shows no hang in 20 trials, rerun with a larger `-n`. The verdict
   needs a window that could have seen a hang (lessons.md, #262).
-- [ ] **Step 4:** Record both runs in SKILL.md's Results table and in the
+- [x] **Step 4:** Record both runs in SKILL.md's Results table and in the
   issue Log.
 
 ### Task 6: docs + operator smoke
 
-- [ ] `atlas/architecture.md`:
+- [x] `atlas/architecture.md`:
   - retarget the birth-gate paragraph to `panebirth`;
   - add a "Launcher birth watch (`pair#288`)" paragraph: the bound, the
     verdicts, teardown only on proof, and the Couch consequence.
-- [ ] `atlas/couch.md`:
+- [x] `atlas/couch.md`:
   - note that a dead-at-birth cold create now ends its helper at about 10 s
     and the thread reads `session-gone`, which is archivable;
   - and that the cold-resume wait still runs to its 15 s deadline.
-- [ ] Check `atlas/index.md` for new files: `panebirth` needs no new atlas
+- [x] Check `atlas/index.md` for new files: `panebirth` needs no new atlas
   file.
-- [ ] `workshop/lessons.md`: add a rule if the work surfaced one.
-- [ ] Full suite: `TMPDIR=<scratch> make test` (memory: the test-changelog
+- [x] `workshop/lessons.md`: add a rule if the work surfaced one.
+- [x] Full suite: `TMPDIR=<scratch> make test` (memory: the test-changelog
   TMPDIR quirk), then `go test ./... -count=1`.
 - [ ] `make install`, then ask the operator to smoke-test Couch:
   1. start `while :; do zellij list-sessions --short >/dev/null 2>&1; sleep 0.01; done`
