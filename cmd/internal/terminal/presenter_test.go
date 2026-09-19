@@ -463,39 +463,53 @@ func assertKeyboardRestored(t *testing.T, label, stream string) {
 // Without a push there, keys that exist only enhanced -- Alt+d, Ctrl+Return --
 // arrive as legacy bytes and are dead (#279).
 func TestPresenterKeyboardPushFollowsTheScreen(t *testing.T) {
-	ctx := context.Background()
-	parent := ttyio.NewFake()
-	p := NewPresenter(parent, ChildRequested)
-	primary, _ := newEndpointTest(t, "primary")
-	alternate, _ := newEndpointTest(t, "alternate")
-	primary.Feed([]byte("MAIN"), time.Now())
-	alternate.Feed([]byte("\x1b[?1049hALT"), time.Now())
-	show := func(e *Endpoint) func() error {
-		return func() error { return p.Select(ctx, e, Geometry{8, 5}, make([]Cell, 8)) }
-	}
-	panel := func() error { return p.Panel(ctx, Frame{Geometry: Geometry{8, 5}, Cells: make([]Cell, 40)}) }
-	for _, step := range []struct {
+	type step struct {
 		name      string
-		paint     func() error
-		alternate bool
+		alternate bool // the screen the step leaves the parent on
+		panel     bool
+	}
+	for _, tc := range []struct {
+		name  string
+		steps []step
 	}{
-		{"primary", show(primary), false},
-		{"alternate", show(alternate), true},
-		{"panel over alternate", panel, true},
-		{"primary again", show(primary), false},
-		{"alternate again", show(alternate), true},
+		// Setup's push and the alternate screen's are then written in one paint.
+		{"alternate-first", []step{{"alternate", true, false}, {"panel over alternate", true, true}, {"primary", false, false}}},
+		{"primary-first", []step{
+			{"primary", false, false}, {"alternate", true, false}, {"panel over alternate", true, true},
+			{"primary again", false, false}, {"alternate again", true, false},
+		}},
 	} {
-		if err := step.paint(); err != nil {
-			t.Fatalf("%s: %v", step.name, err)
-		}
-		if alt, flags := parentKeyboard(string(parent.Bytes())); alt != step.alternate || flags != 3 {
-			t.Fatalf("%s: alternate=%v flags=%d, want alternate=%v flags=3", step.name, alt, flags, step.alternate)
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			parent := ttyio.NewFake()
+			p := NewPresenter(parent, ChildRequested)
+			primary, _ := newEndpointTest(t, "primary")
+			alternate, _ := newEndpointTest(t, "alternate")
+			primary.Feed([]byte("MAIN"), time.Now())
+			alternate.Feed([]byte("\x1b[?1049hALT"), time.Now())
+			for _, s := range tc.steps {
+				var err error
+				switch {
+				case s.panel:
+					err = p.Panel(ctx, Frame{Geometry: Geometry{8, 5}, Cells: make([]Cell, 40)})
+				case s.alternate:
+					err = p.Select(ctx, alternate, Geometry{8, 5}, make([]Cell, 8))
+				default:
+					err = p.Select(ctx, primary, Geometry{8, 5}, make([]Cell, 8))
+				}
+				if err != nil {
+					t.Fatalf("%s: %v", s.name, err)
+				}
+				if alt, flags := parentKeyboard(string(parent.Bytes())); alt != s.alternate || flags != 3 {
+					t.Fatalf("%s: alternate=%v flags=%d, want alternate=%v flags=3", s.name, alt, flags, s.alternate)
+				}
+			}
+			if err := p.Release(ctx); err != nil {
+				t.Fatal(err)
+			}
+			assertKeyboardRestored(t, "release", string(parent.Bytes()))
+		})
 	}
-	if err := p.Release(ctx); err != nil {
-		t.Fatal(err)
-	}
-	assertKeyboardRestored(t, "release", string(parent.Bytes()))
 }
 
 func TestPresenterReleaseCancelsEffectAndJoinsResult(t *testing.T) {

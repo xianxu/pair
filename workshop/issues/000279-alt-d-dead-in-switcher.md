@@ -1,6 +1,6 @@
 ---
 id: 000279
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-17
@@ -8,6 +8,7 @@ updated: 2026-09-18
 estimate_hours:
 started: 2026-09-18T16:25:00-07:00
 flow: {kind: quick, provenance: inferred, spec: "df59b374", done: "1c64ca99"}
+actual_hours: 0.85
 ---
 
 # alt+d no longer detaches from the switcher
@@ -99,10 +100,10 @@ The fix and its invariants:
 ## Done when
 
 - [x] alt+d in the switcher dispatches `leave{mode:detach}` after an actor on the
-      alternate screen has been shown. A Couch test encodes the key with the
-      host emulator's own `SendKey`, under whatever flags Couch left on that
-      screen, so a future change to screen or keyboard handling cannot silently
-      re-break it.
+      alternate screen has been shown. A Couch test encodes the key from the host
+      terminal's current flags, using the independent per-screen keyboard model
+      `keyboardHost.press`, so a future change to screen or keyboard handling
+      cannot silently re-break it.
 - [x] The presenter's keyboard push is balanced per screen. Replaying its parent
       stream into the vt emulator shows the alternate screen disambiguated while
       presented. After release, or after a write cut at any byte, both screens'
@@ -112,7 +113,7 @@ The fix and its invariants:
 - [x] `park.go:111`'s wording says the key picks the disposition and the scope
       picks the target (the switcher means every live thread), and it cites the
       console tests that pin both chords.
-- [ ] Operator smoke: in a rebuilt Couch, after visiting a thread, Ctrl+Space
+- [x] Operator smoke: in a rebuilt Couch, after visiting a thread, Ctrl+Space
       then Alt+d detaches every thread and leaves Couch.
 
 ## Plan
@@ -122,7 +123,7 @@ The fix and its invariants:
       is correct.
 - [x] Find the introducing change: `f32bb4cf`, not `cea10ac4` or `df2a8897`.
 - [x] Red: a Couch end-to-end test (alternate-screen actor → panel → alt+d
-      encoded by the host emulator → `leave`), plus a presenter per-screen
+      encoded from the host's per-screen flags → `leave`), plus a presenter per-screen
       keyboard test that includes the write-cut sweep.
 - [x] Fix in `terminal.Presenter`: push after `?1049h`, pop before `?1049l`
       (both on the paint path and on release), and track ownership per screen.
@@ -139,6 +140,12 @@ The fix and its invariants:
   `park.go:111` with a test. The first row became "alt+d reaches its declared
   handler"; the other three stand, re-worded. Added the per-screen keyboard
   invariant and an operator smoke.
+- 2026-09-18 (close review): Done-when row 1 and its Plan step named the host
+  emulator's `SendKey` as the encoder. As delivered, the Couch test encodes with
+  `keyboardHost.press` over the independent per-screen `keyboardModel`, because
+  the Couch fixture's host is a `FakeHost` with no `SendKey`. Reworded both to
+  match; the guarantee (the key is encoded from live per-screen flags) is
+  unchanged.
 
 ## Log
 
@@ -153,6 +160,7 @@ The fix and its invariants:
   switcher.
 
 ### 2026-09-18
+- 2026-09-18: closed — Root cause: kitty keyboard flags are per-screen; the presenter pushed once (f32bb4cf, #255 M3) and zellij actors move the parent to the alternate screen, where alt+d arrived as legacy ESC d. Fix in terminal.Presenter.writeFramePacket: push after ?1049h, pop before ?1049l and at release. Red then green: TestKeyboardPhysicalAltDLeavesFromTheSwitcher, TestPresenterKeyboardPushFollowsTheScreen, the keyboard check in the cut-write sweep, and the de-raced TestKeyboardPhysicalNotificationJump ?1049h case. Mutation-checked: 5 mutations, each caught. go test ./... green (72 packages, sandbox off, retention env scrubbed). make -k test fails only the known pre-existing test-changelog. alt+x verified live. Operator smoke 09-18: rebuilt couch, opened a thread, Ctrl+Space then Alt+d detached every thread and left Couch.; review verdict: FIX-THEN-SHIP
 
 - Traced the path; the issue's hypothesis doesn't hold. With the panel focused,
   `dispatchInputCandidate` (`couchtty/console.go`) does **not** forward: the
@@ -219,3 +227,43 @@ The fix and its invariants:
   target passes.
 - Pair's right-hand terminal (`termcmd`) shares the presenter and gets the same
   balance. Its own tests are green.
+- Operator smoke (09-18): stopped the old Couch (pid 76024, SIGTERM), ran
+  the rebuilt Couch from this branch, opened a thread, then pressed Ctrl+Space
+  and Alt+d. It detached every thread and left Couch ("works (global detach)").
+- Close review (round 1): FIX-THEN-SHIP, with six Minor findings and nothing
+  blocking. Handled in the close commit:
+  - *Done-when names `SendKey`* (doc-claim-accuracy): reworded the row and its
+    Plan step to the mechanism actually used; see Revisions.
+  - *`terminal_input.go` lists two enhanced-only chords where the table has
+    seven* (same family): the comment now points at the table's no-legacy rows
+    ("Alt+d and Alt+n among them") instead of restating a list that can go stale.
+  - *`hostty.EnableKeyboardDisambiguation` is dead* (dead-exported-surface):
+    deleted. It is the #251 mechanism this issue diagnosed, and its comment still
+    described it as Couch's policy. The same family is much larger than the
+    review named: every `hostty/control.go` symbol has been test-only since #255
+    M3. That sweep is filed as #289 rather than widening this bugfix.
+  - *`writeFramePacket` spells write-then-record three ways*
+    (repeated-write-then-record): collapsed into `Presenter.writeWhole`, which
+    returns whether the whole control landed. Every ownership bit is recorded
+    from it.
+  - *`keyboardHost` re-implements vt's kitty stack and encoder* (same family):
+    not addressed, deliberately. `keyboardHost` is #251's independent reading of
+    the protocol, with its own bounds, partition and fuzz tests. Keeping it
+    beside the vendored vt gives the Couch tests an oracle that does not share
+    an implementation with the emulator Couch's endpoints run on. This issue
+    only generalized its encoder (`press`) from one key to three.
+  - *Smoke evidence uncommitted* (durable-record-uncommitted): it lands in this
+    close commit; the unrelated working-tree changes stay out.
+  - Also from the review's notes: `TestPresenterKeyboardPushFollowsTheScreen`
+    now covers a first paint that is an alternate-screen actor, so setup's push
+    and the alternate screen's land in one paint. Mutation-checked: removing the
+    alternate-screen push fails both orderings. The `parentReleaseControls`
+    comment now states that the DEC modes are terminal-wide and the kitty stack
+    is the one per-screen setup state.
+- Full-suite rerun after the review fixes: `TestConsoleRunRootEscapeClearsFilterThenReplaysActor`
+  failed once ("returned actor was not admitted"), and once more in 30 isolated
+  runs. It was 0/400 on both `main` and this branch, even run side by side. The
+  path it drives is the same on both, since its child never switches screens.
+  The test itself races: it reads `View().Admitted` once, as soon as the text is
+  on screen, but admission is the `PresentView` transition that follows the
+  frame's writes. That is the lesson's class, so it now waits for admission.

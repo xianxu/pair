@@ -260,7 +260,9 @@ func (p *Presenter) settleCancellation() {
 // then synchronized output closes: a frame write that failed after its bracket
 // opened would otherwise hold the parent's display until its own timeout.
 // Setup owns mouse, focus, paste and one keyboard-stack push per screen (the
-// alternate screen's is released by releaseAlt, before it leaves). Render owns
+// alternate screen's is released by releaseAlt, before it leaves). The DEC
+// modes are terminal-wide, so setup writes them once; the kitty keyboard flags
+// are the one setup state a terminal keeps per screen (#279). Render owns
 // synchronized output, origin, margins, autowrap, SGR, hyperlinks and cursor
 // style/visibility. Its pixels and cursor position remain; one-shot effects
 // (including permitted title/clipboard changes) are not rolled back or replayed
@@ -859,26 +861,25 @@ const (
 func (p *Presenter) writeFramePacket(ctx context.Context, data []byte) error {
 	switch string(data) {
 	case altEnter:
-		err := p.write(ctx, data, true)
-		if wholeWrite(err, len(data)) {
+		entered, err := p.writeWhole(ctx, altEnter)
+		if entered {
 			p.altOwned = true
 		}
 		if err != nil {
 			return err
 		}
-		err = p.write(ctx, []byte(keyboardPush), true)
-		p.altKeyboardOwned = wholeWrite(err, len(keyboardPush))
+		p.altKeyboardOwned, err = p.writeWhole(ctx, keyboardPush)
 		return err
 	case altLeave:
 		if p.altKeyboardOwned {
-			err := p.write(ctx, []byte(keyboardPop), true)
-			p.altKeyboardOwned = !wholeWrite(err, len(keyboardPop))
+			popped, err := p.writeWhole(ctx, keyboardPop)
+			p.altKeyboardOwned = !popped
 			if err != nil {
 				return err
 			}
 		}
-		err := p.write(ctx, data, true)
-		if wholeWrite(err, len(data)) {
+		left, err := p.writeWhole(ctx, altLeave)
+		if left {
 			p.altOwned = false
 		}
 		return err
@@ -886,9 +887,11 @@ func (p *Presenter) writeFramePacket(ctx context.Context, data []byte) error {
 	return p.write(ctx, data, true)
 }
 
-// wholeWrite reports whether all n bytes of a write reached the parent, which
-// a write that then failed can still have done.
-func wholeWrite(err error, n int) bool {
+// writeWhole writes one control and reports whether all of it reached the
+// parent -- which a write that then failed can still have done. Ownership is
+// recorded from that, never from the error alone.
+func (p *Presenter) writeWhole(ctx context.Context, control string) (bool, error) {
+	err := p.write(ctx, []byte(control), true)
 	var failure *WriteFailure
-	return !errors.As(err, &failure) || failure.Accepted == n
+	return !errors.As(err, &failure) || failure.Accepted == len(control), err
 }

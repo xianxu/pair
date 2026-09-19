@@ -189,9 +189,11 @@ func TestConsoleRunRootEscapeClearsFilterThenReplaysActor(t *testing.T) {
 		f.con.mu.Unlock()
 		return !focus.IsPanel() && strings.Contains(f.screenText(), "progress while switcher was open")
 	})
-	if f.con.presenter.View().Admitted != f.child.Endpoint().ID() {
-		t.Fatal("returned actor was not admitted")
-	}
+	// Admission is the PresentView transition, which follows the frame's writes:
+	// the text above can be on screen a moment before it (#279 close).
+	waitFor(t, "returned actor admitted", func() bool {
+		return f.con.presenter.View().Admitted == f.child.Endpoint().ID()
+	})
 }
 
 func lastConsoleScreen(written string) string {
