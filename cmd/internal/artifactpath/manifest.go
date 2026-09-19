@@ -379,6 +379,8 @@ var SourceClassifications = []SourceClassification{
 			"usage: pair-review-readiness [--prepare] <file>\n",
 			"pair-review-readiness: classify failed (nvim/readiness.lua)\n"),
 	},
+	{Path: "cmd/internal/panebirth/panebirth.go", Kind: ResolvedConsumer,
+		Families: []string{"pane"}, BindingNames: []string{"scoped-pane"}},
 	{Path: "cmd/internal/titlepoller/run.go", Kind: ResolvedConsumer,
 		Families: []string{"draft", "title-pid"}, BindingNames: []string{"scoped-draft", "scoped-title-pid"}},
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,

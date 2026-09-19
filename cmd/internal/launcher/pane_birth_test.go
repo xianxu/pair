@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
-	"github.com/xianxu/pair/cmd/internal/titlepoller"
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 )
 
 // #287: the title poller makes no zellij call until this launch's agent pane
@@ -25,7 +25,7 @@ func TestCreateClearsTheAgentPaneSidecarBeforeSpawningAnything(t *testing.T) {
 	}
 	// What the poller this create spawns will wait for: the file that must be
 	// gone when it starts.
-	stale, err := titlepoller.BirthEvidence(opts.Env.DataDir, "bugfix", "claude")
+	stale, err := panebirth.Evidence(opts.Env.DataDir, "bugfix", "claude")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
@@ -773,7 +774,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// the poller's own declaration, so the file cleared is the file awaited.
 	// Attach never clears: a live pane has already written its sidecar and
 	// won't again.
-	birthEvidence, err := titlepoller.BirthEvidence(dataDir, chosenTag, agent)
+	birthEvidence, err := panebirth.Evidence(dataDir, chosenTag, agent)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair: cannot resolve the pane sidecar for '%s': %v\n", chosenTag, err)
 		return launchStep{code: 1}, nil

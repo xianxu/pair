@@ -120,6 +120,12 @@ func TestColdResumeTimesOutWhenThePaneIsNeverBorn(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "await Pair registration") {
 		t.Fatalf("Resume error = %v, want the registration failure", err)
 	}
+	// The diagnosis is keyed on DeadlineExceeded. The birth wait's own grace
+	// races the registration context, and whichever passes first must still
+	// read as a deadline, or the operator loses the "(waited …)" explanation.
+	if !strings.Contains(err.Error(), "(waited ") {
+		t.Fatalf("Resume error = %v, want the deadline diagnosis", err)
+	}
 	// Probes do follow: the failure's diagnosis and the start cleanup's presence
 	// check both ask once the deadline has passed. None may interleave with the
 	// wait, so no pane observation can come after the first probe.

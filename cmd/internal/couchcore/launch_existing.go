@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/orientation"
+	"github.com/xianxu/pair/cmd/internal/panebirth"
 )
 
 type trackedThreadLaunch struct {
@@ -376,28 +377,25 @@ func (c *Couch) observePaneSidecars(address ThreadAddress) (PaneMarks, error) {
 // awaitPaneBirth polls the thread's pane sidecars, which costs a glob and a
 // stat and asks zellij nothing, until one has been born since baseline.
 //
-// A failed observation is "not yet", never birth. It also doesn't end the wait:
-// a transient stat error after a good create would otherwise fail registration,
-// and the cold-resume cleanup would then delete the session this launch just
-// made. The last error rides the deadline's error, for the diagnosis.
+// A failed observation is "not yet", never birth. It also doesn't end the wait
+// (panebirth.Await owns that rule): a transient stat error after a good create
+// would otherwise fail registration, and the cold-resume cleanup would then
+// delete the session this launch just made. The last error rides the
+// deadline's error, for the diagnosis. The grace is the registration
+// deadline itself, and Await reports either one passing as
+// DeadlineExceeded, which diagnoseRegistrationFailure keys on.
 func (c *Couch) awaitPaneBirth(ctx context.Context, address ThreadAddress, baseline PaneMarks) error {
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	var lastErr error
-	for {
-		now, err := c.observePaneSidecars(address)
-		if err == nil && baseline.BornIn(now) {
-			return nil
-		}
-		if err != nil {
-			lastErr = fmt.Errorf("observe pane sidecars: %w", err)
-		}
-		select {
-		case <-ctx.Done():
-			return errors.Join(ctx.Err(), lastErr)
-		case <-ticker.C:
-		}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return errors.New("pane birth wait has no registration deadline")
 	}
+	return panebirth.Await(ctx, panebirth.WallClock{}, 10*time.Millisecond, time.Until(deadline), func() (bool, error) {
+		now, err := c.observePaneSidecars(address)
+		if err != nil {
+			return false, fmt.Errorf("observe pane sidecars: %w", err)
+		}
+		return baseline.BornIn(now), nil
+	})
 }
 
 func (c *Couch) awaitFreshRegistration(ctx context.Context, address ThreadAddress, agent, attempt string) error {
