@@ -114,6 +114,10 @@ through the DevTools protocol. `localhost:1111` becomes `http://localhost:1111`.
   couch, so the tab and its browser stay live and reattach with the thread.
   This is not a leak: the owner is alive.
 
+**Engine maintenance** is pair#295: which layer we own (the artifact, the Rust
+core, or the Chromium fork) now that we rely on an unmaintained engine. #292
+ships behind the swappable seam so that decision can be made on evidence.
+
 **Alt+click** on a URL moves to pair#293 (operator, 2026-09-19). That issue now
 depends on this one.
 
@@ -387,3 +391,14 @@ Reasons: the spike (Log) and the operator's two answers this session.
   is not viable in-pane: downscaled text is unreadable, and zellij doesn't pass
   terminal image protocols through.
 - **Estimate** 9.31 → 9.46 for the local-URL guard.
+
+### 2026-09-19 — engine ownership filed as pair#295
+
+The operator's position: relying on an unmaintained engine means owning it. The
+open question is which layer, so pair#295 carries the measured tiers (mirror the
+artifact / fork the Rust core / fork Chromium / own a CDP-based renderer
+instead), the triggers for each, and a timeboxed spike. Measured for it, at tag
+v0.0.3: the Chromium patch series is 14 patches over 54 files, +1,444/-267,
+of which only ~270 lines modify pre-existing Chromium code; Carbonyl's own
+source is 3,968 lines. Carbonyl also runs its renderer, GPU and network
+processes WITH Chromium's sandbox.
