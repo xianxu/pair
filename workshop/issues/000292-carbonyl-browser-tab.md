@@ -1,7 +1,7 @@
 ---
 id: 000292
 status: working
-deps: [pair#293]
+deps: []
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
@@ -126,3 +126,70 @@ Filed from a brain advisor session. Design agreed in conversation. The probe
 results above were verified by running Carbonyl with a throwaway profile, with
 all processes cleaned up afterwards. Order: pair#293 (Alt+click) first, then this
 issue.
+
+### 2026-09-19 — spike (Plan item 1)
+
+Ran under a real pty (Python `pty` + `pyte` screen model, scratch profile,
+local `http.server`); every process tree was verified gone afterwards.
+
+- **Idle CPU: Carbonyl 0.0.2 spins a full core.** The installed build
+  (`npm` `latest` = `0.0.2-next.bacf3db`) held one process at 99.9% CPU with a
+  static page, at `--fps` 60, 30, 15 and 1, with `--disable-gpu`, and on
+  `about:blank`. `sample` put 1205/1704 samples in
+  `RenderThread::boot → recv_timeout → Timespec::now`. Once idle, the render
+  loop's frame deadline is in the past, so `recv_timeout(deadline - now)` is a
+  zero timeout and the loop spins. Upstream fixed it in b4ab3a87 "fix(renderer):
+  fix idling CPU usage (#126)", shipped in **v0.0.3** (2023-02-18). The npm
+  `latest` tag was never moved (it's `next` = `0.0.3-next.ab80a27`). Carbonyl
+  **0.0.3 (GitHub release zip) idles at 0.0%**. Measured, 10 s windows, Carbonyl
+  tree only:
+
+  | build | page | fps | Carbonyl CPU | output |
+  |---|---|---|---|---|
+  | 0.0.2 | static | 60/30/15/1 | ~100% | 0 B/s |
+  | 0.0.3 | static | 60/30/15 | 0.0% | 0 B/s |
+  | 0.0.3 | wheel scroll, 4 Hz | 60/30/15 | 10–14% | ~19 KB/s |
+  | 0.0.3 | CSS animation, full motion | 60 | 5.4% | 822 KB/s |
+  | 0.0.3 | same | 30 | 5.3% | 421 KB/s |
+  | 0.0.3 | same | 15 | 5.1% | 214 KB/s |
+  | 0.0.3 | same | 10 | 5.2% | 146 KB/s |
+
+  Output scales linearly with the cap, and every byte is re-parsed by `pair
+  term`'s emulator, then zellij, then couch. So the cap bounds the whole chain,
+  not Carbonyl. The downstream CPU is still to be measured (M2).
+- **URL bar exists but can't be cleared quickly.** Row 0 is Carbonyl's own
+  `[❮][❯][↻][ url ]`. A click places a cursor and typed text inserts there;
+  backspace-to-empty, then typing and Enter, navigates (verified via
+  `/json/list`). Ctrl+U, Ctrl+A/Ctrl+K do nothing, and Alt+Backspace deletes
+  one character, in both 0.0.2 and 0.0.3. → pair-owned URL input + DevTools
+  navigate (operator chose the tab-strip field, below).
+- **Terminal modes:** `?1049h` (alt screen), `?1003h` + `?1006h` (any-event SGR
+  mouse), `?25l`. Startup sends two DCS queries, `$qm` (DECRQSS) and
+  `+q544e` (XTGETTCAP "TN"). Answering them changes nothing.
+- **Process tree:** the npm wrapper is `bash → node (path lookup) → carbonyl`;
+  6 processes under 0.0.2's wrapper, 5 with the 0.0.3 binary directly. All share
+  one process group (the pty child is a session leader).
+- **Crash path:** SIGKILL of the process holding the pty master → the kernel
+  SIGHUPs the foreground group → the whole Carbonyl tree was gone within 0.5 s.
+  A dead `pair term` therefore takes its browsers with it. Only the files it
+  wrote (profile dir, record) survive a crash.
+- **DevTools:** `DevToolsActivePort` appears in the profile dir within ~1 s;
+  `/json/list` carries url and title. The address is 127.0.0.1-only.
+- **Carbonyl writes its profile into its install dir when given no
+  `--user-data-dir`** (the npm package's `build/` holds `Local Storage` etc. from
+  the operator's first run), so the flag is mandatory.
+
+### 2026-09-19 — design corrections (operator-confirmed)
+
+- **Owner is `pair term`, not couch.** Right-pane tabs are `pair term`'s
+  (`cmd/internal/termcmd`). A browser tab is a new tab kind there, so it works in
+  standalone pair as well as under couch.
+- **A couch crash does not end the browser.** The zellij server daemonizes
+  (atlas/couch.md, "A clean alt+d detach and a couch crash leave identical
+  external state"), so `pair term` and its tabs outlive couch. The invariant is
+  tied to the owner: a Carbonyl process group lives exactly as long as its tab in
+  its `pair term`.
+- **Alt+click moves to #293** (operator, this session). #292 records the
+  "renamed" flag the reuse rule needs. The dependency flips: #293 depends on #292.
+- **URL input in the tab strip** (operator, this session), reusing the Alt+r
+  rename field, instead of a floating box.
