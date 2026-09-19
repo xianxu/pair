@@ -50,10 +50,19 @@ instead.
   exist isn't treated as a file.
 
 **Where it goes:**
-- **A URL** → a Carbonyl browser tab in the right pane (pair#292). It
+- **A local URL** → a Carbonyl browser tab in the right pane (pair#292). It
   reuses the most recently used browser tab that hasn't been renamed; a named
   tab (like `local-test`) is never reused automatically. With no reusable tab,
   it opens a new one. (Moved here from pair#292, see Revisions.)
+- **A remote URL** → `open`, the patched system browser, by default. Carbonyl
+  bundles Chromium 111 with no upstream commit since 2023-02-26, so a click
+  that opens an arbitrary site in it is the one path worth avoiding. `open` is
+  also what Shift+Cmd+click already does, so the two gestures agree on remote
+  links and differ only where the browser tab is the better answer.
+  `browsertab.IsLocalURL` (pair#292) is the shared classifier — loopback,
+  `localhost`, private and link-local addresses, `file:`, `about:`, `data:`.
+  An operator who wants a remote page in the pane can still type or paste it
+  into the URL field, which confirms once.
 - **A text file** (markdown and the like) → a new right-pane tab running `nvim
   <file>`. `path:42` opens as `nvim +42 path`.
 - **Anything else** (images, PDFs, …) → `open`, same as Shift+Cmd+click.
@@ -102,3 +111,12 @@ depends on pair#292, which no longer depends on it.
   instead of `open`-until-#292.
 - **Done-when delta:** the Alt+click bullet moves over from pair#292's Done-when.
   pair#292 records each browser tab's "renamed" flag, which the reuse rule reads.
+
+### 2026-09-19 — remote links default to the system browser
+
+pair#292's engine risk (unmaintained Carbonyl, Chromium 111) is accepted there
+on the condition that a remote URL is never opened silently. That condition
+lands here too, because Alt+click is the gesture most likely to hit an
+arbitrary site: remote goes to `open`, local goes to the browser tab, and
+`IsLocalURL` is shared rather than restated. See also pair#295 (engine
+maintenance tiers), which is where a future engine swap would revisit this.
