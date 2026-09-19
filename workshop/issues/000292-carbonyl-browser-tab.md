@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
-estimate_hours:
+estimate_hours: 9.31
 started: 2026-09-19T11:10:35-07:00
 ---
 
@@ -142,6 +142,63 @@ new ones.
 - A Carbonyl older than 0.0.3 gets a strip notice naming the idle-CPU bug.
 - The chosen frame-rate cap, and the measured CPU of Carbonyl, `pair term`,
   zellij and couch on an idle and a full-motion page, are recorded in the Log.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+**Derivation:**
+- **Design hours:** v2 ranges, with the ×0.2 spec-quality discount on every
+  code primitive. The durable plan resolves their decisions, with code and
+  tests written out.
+- **Undiscounted design:** `issue-spec`, which is the spike and design already
+  spent since the claim, and `ux-rename-iteration`: three operator smoke rounds
+  plus the chain CPU measurement.
+- **Library check (Step 2.5):** `coder/websocket` halves the CDP client's
+  discounted design range; 0.3 was picked.
+- **Implementation hours:** 40% of the v2 ranges (v3.1), picked at the upper
+  part of each range for items that carry fuzz or pty tests.
+- **Familiarity 1.2:** the Carbonyl/CDP stack is novel but bounded, inside a
+  familiar codebase, so the multiplier sits between ×1.0 and ×1.5.
+- **Design buffer +15%:** thorough plan doc (v2.1).
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.2
+item: issue-spec               design=1.0 impl=0.12
+item: smaller-go-module        design=0.05 impl=0.2
+item: greenfield-go-module     design=0.2 impl=0.32
+item: smaller-go-module        design=0.05 impl=0.12
+item: smaller-go-module        design=0.05 impl=0.16
+item: smaller-go-module        design=0.05 impl=0.16
+item: cross-cutting-refactor   design=0.1 impl=0.2
+item: tui-screen               design=0.2 impl=0.4
+item: api-integration          design=0.3 impl=0.4
+item: tui-screen               design=0.2 impl=0.32
+item: tui-screen               design=0.2 impl=0.4
+item: smaller-go-module        design=0.05 impl=0.2
+item: real-api-discovery       design=0.0 impl=0.24
+item: ux-rename-iteration      design=0.5 impl=0.08
+item: smaller-go-module        design=0.05 impl=0.16
+item: smaller-go-module        design=0.05 impl=0.2
+item: skill-or-dispatcher      design=0.1 impl=0.16
+item: atlas-docs               design=0.1 impl=0.04
+item: milestone-review         design=0.1 impl=0.16
+item: milestone-review         design=0.1 impl=0.16
+item: milestone-review         design=0.1 impl=0.16
+design-buffer: 0.15
+total: 9.31
+```
+
+**Item order**, top to bottom:
+1. Spike and design.
+2. M1: pure core, fakecarbonyl, `ptychild` group kill, profile store, strip
+   field, chords.
+3. Controller and lifecycle.
+4. M2: CDP client, state machine, DevTools phases and URL field, conformance
+   probe, real-API discovery, operator rounds.
+5. M3: record, artifactpath, `pair browser`, atlas.
+6. Three milestone reviews.
 
 ## Plan
 
