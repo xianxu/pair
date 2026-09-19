@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/orientation"
@@ -789,7 +790,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	configDir := filepath.Join(opts.PairHome, "zellij")
 	layout := filepath.Join(opts.PairHome, "zellij", "layouts", LayoutAssetBasename(layoutResolution.Mode))
-	code, err := rt.LaunchSession(session, configDir, layout)
+	code, err := rt.LaunchSession(context.Background(), session, configDir, layout)
 	if err != nil {
 		restoreLayoutRecord(rt, dataDir, chosenTag, priorLayout)
 		fmt.Fprintf(stderr, "pair: failed to launch zellij session '%s': %v\n", session, err)

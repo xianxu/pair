@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -46,9 +47,9 @@ func (r *retainedRuntime) EnsureThreadAddress(scope RepoScope, tag string, couch
 	r.events = append(r.events, "claim")
 	return r.fakeRuntime.EnsureThreadAddress(scope, tag, couch)
 }
-func (r *retainedRuntime) LaunchSession(session, configDir, layout string) (int, error) {
+func (r *retainedRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
 	r.events = append(r.events, "launch")
-	return r.fakeRuntime.LaunchSession(session, configDir, layout)
+	return r.fakeRuntime.LaunchSession(ctx, session, configDir, layout)
 }
 func (r *retainedRuntime) AttachSession(session, configDir string) (int, error) {
 	r.events = append(r.events, "attach")

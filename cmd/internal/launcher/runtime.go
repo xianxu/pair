@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"context"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -41,7 +42,10 @@ type ZellijOps interface {
 	// fork+wait child with the tty passed through, returning the child's exit
 	// code when the pane exits. It must NOT syscall.Exec — the Go launcher has
 	// to regain control afterward for the M3 quit-cleanup / restart loop.
-	LaunchSession(session, configDir, layout string) (int, error)
+	// Cancelling ctx ends the client (SIGTERM, then SIGKILL) and still returns
+	// only after it is reaped. Only the create path's birth watch cancels it,
+	// on proof that the session died at birth (#288).
+	LaunchSession(ctx context.Context, session, configDir, layout string) (int, error)
 	// ProbeLiveLayout inspects a live session's actual pane signature. It is the
 	// rollout fallback for sessions created before workbench-layout-<tag>.
 	ProbeLiveLayout(session string) (LayoutMode, error)

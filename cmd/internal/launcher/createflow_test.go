@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -116,25 +117,39 @@ type fakeRuntime struct {
 	killErr              error
 	launchHook           func(int)
 	launchCount          int // number of create handoffs (restart-loop iterations)
-	defaultReads         int
-	watchers             []string            // "agent|tag|cwd|args"
-	pollers              []string            // "tag|agent"
-	pollerEnvs           []map[string]string // the environment each title poller started with
-	cmux                 []string            // "tag|title"
-	ttyRecorded          []string
-	titles               []string
-	removed              []string
-	family               []string
-	devRebuilt           bool
-	proofMigrations      int
-	attached             []string   // sessions handed to AttachSession
-	deleted              []string   // sessions handed to DeleteSession
-	reaped               []string   // tags handed to ReapNvim
-	swept                [][]string // liveTags per SweepOrphanNvim call
-	parkPrompts          []string   // sessions prompted via ConfirmParkNudge
-	parked               []string   // "tag|agent|move" per ParkScrollback
-	killedPollers        []string   // tags handed to KillTitlePoller
-	cmuxCleared          int        // ClearCmuxOwner calls
+
+	// #288: LaunchSession models zellij across the birth watch. Everything the
+	// watch goroutine touches is guarded by mu.
+	launchWrites    map[string]string // files the layout's pane command writes as the session starts; the agent pane sidecar here is a birth
+	launchBlock     bool              // a client that stays up until the launch ctx is cancelled, launchRelease closes, or a 5 s safety fails the test
+	launchRelease   chan struct{}
+	launchReturned  chan struct{} // closed as a blocking LaunchSession returns
+	launchCancelled bool          // the launch ctx ended the blocked client
+	launchStarted   bool
+	launchProbes    int              // SessionLiveness calls made after a launch started
+	probesAtCancel  int              // launchProbes when the launch ctx ended the client
+	livenessScript  []livenessAnswer // answers after a launch started, one per probe; the last repeats
+	livenessHook    func(n int)      // runs on the n-th probe after a launch started, before it answers
+	launchProbed    chan struct{}    // signalled, never blocking, per probe after a launch started
+	defaultReads    int
+	watchers        []string            // "agent|tag|cwd|args"
+	pollers         []string            // "tag|agent"
+	pollerEnvs      []map[string]string // the environment each title poller started with
+	cmux            []string            // "tag|title"
+	ttyRecorded     []string
+	titles          []string
+	removed         []string
+	family          []string
+	devRebuilt      bool
+	proofMigrations int
+	attached        []string   // sessions handed to AttachSession
+	deleted         []string   // sessions handed to DeleteSession
+	reaped          []string   // tags handed to ReapNvim
+	swept           [][]string // liveTags per SweepOrphanNvim call
+	parkPrompts     []string   // sessions prompted via ConfirmParkNudge
+	parked          []string   // "tag|agent|move" per ParkScrollback
+	killedPollers   []string   // tags handed to KillTitlePoller
+	cmuxCleared     int        // ClearCmuxOwner calls
 }
 
 func (f *fakeRuntime) StartProofMigration() { f.proofMigrations++ }
@@ -188,17 +203,53 @@ func (f *fakeRuntime) Sessions() ([]Session, error) {
 // SessionLiveness models the real one faithfully: every non-exited session is
 // SessionLive, because a liveness snapshot never asked -- a fake that kept
 // attached/detached here would let a test pass that production cannot.
+//
+// After a launch has started, a livenessScript answers in its place: those
+// probes are the birth watch's (#288), made from its goroutine.
 func (f *fakeRuntime) SessionLiveness() ([]Session, error) {
+	f.mu.Lock()
 	f.livenessCalls++
-	out := make([]Session, len(f.sessions))
-	for i, s := range f.sessions {
+	sessions, err := f.sessions, f.sessionsErr
+	var hook func(int)
+	n := 0
+	if f.launchStarted {
+		f.launchProbes++
+		n = f.launchProbes
+		if len(f.livenessScript) > 0 {
+			answer := f.livenessScript[min(n, len(f.livenessScript))-1]
+			sessions, err = answer.sessions, answer.err
+		}
+		hook = f.livenessHook
+	}
+	probed := f.launchProbed
+	f.mu.Unlock()
+	if n > 0 {
+		if hook != nil {
+			hook(n)
+		}
+		if probed != nil {
+			select {
+			case probed <- struct{}{}:
+			default:
+			}
+		}
+	}
+	out := make([]Session, len(sessions))
+	for i, s := range sessions {
 		out[i] = s
 		if s.State != SessionExited {
 			out[i].State = SessionLive
 		}
 	}
-	return out, f.sessionsErr
+	return out, err
 }
+
+// livenessAnswer is one scripted SessionLiveness result.
+type livenessAnswer struct {
+	sessions []Session
+	err      error
+}
+
 func (f *fakeRuntime) SessionBlocksReuse(session string) bool { return f.blocksReuse[session] }
 func (f *fakeRuntime) ProbeSessionName(session string) error {
 	f.probeCount++ // #215: every probe is a subprocess; some tests bound the count
@@ -210,9 +261,13 @@ func (f *fakeRuntime) ProbeSessionName(session string) error {
 	}
 	return nil
 }
-func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, error) {
+func (f *fakeRuntime) LaunchSession(ctx context.Context, session, configDir, layout string) (int, error) {
 	f.mu.Lock()
 	f.filesAtLaunch = append(f.filesAtLaunch, maps.Clone(f.files))
+	for path, data := range f.launchWrites {
+		f.files[path] = data
+	}
+	f.launchStarted = true
 	f.mu.Unlock()
 	f.launched = session
 	f.launchLayout = layout
@@ -220,7 +275,24 @@ func (f *fakeRuntime) LaunchSession(session, configDir, layout string) (int, err
 	if f.launchHook != nil {
 		f.launchHook(f.launchCount)
 	}
-	return f.launchCode, f.launchErr
+	if !f.launchBlock {
+		return f.launchCode, f.launchErr
+	}
+	if f.launchReturned != nil {
+		defer close(f.launchReturned)
+	}
+	select {
+	case <-ctx.Done():
+		f.mu.Lock()
+		f.launchCancelled = true
+		f.probesAtCancel = f.launchProbes
+		f.mu.Unlock()
+		return -1, nil // what a SIGTERMed client reports
+	case <-f.launchRelease:
+		return f.launchCode, f.launchErr
+	case <-time.After(5 * time.Second):
+		return 99, errors.New("fake: a blocked launch was never released")
+	}
 }
 
 // SnapshotOps
