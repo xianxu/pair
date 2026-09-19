@@ -86,7 +86,7 @@ cheapest first.
 **Tier 1 — own the artifact (do this regardless).** The binary must not be able
 to disappear, and #292 must not depend on npm's `latest` tag (which still points
 at 0.0.2, the build that spins a CPU core when idle).
-- Mirror the v0.0.3 release for the platforms we use, with checksums.
+- Mirror the v0.0.3 release for macos-arm64, with checksums.
 - A documented install path pair supports, wired through `PAIR_CARBONYL`.
 - `pair doctor` (or the browser tab's own notice) names the supported version.
 
@@ -117,6 +117,14 @@ architecture on Chrome: stock headless Chrome over CDP, a script injected with
 - Costs fidelity against engine-level interception: canvas/WebGL text,
   transforms, shadow DOM and generated content are weaker — the same class of
   gap Browsh has.
+- **Must reproduce the cell-to-CSS-pixel contract.** Carbonyl maps one column
+  to ~5.29 CSS px at zoom 100 (measured 2026-09-19), which is what lets
+  pair#292 derive `--zoom` from the pane width and hand pages a ~1024 px
+  viewport at 94 columns. Any replacement engine or renderer owes the same two
+  properties: a *controllable* viewport width independent of the cell grid, and
+  text drawn one glyph per cell so zooming out costs no legibility. A renderer
+  that can only downscale pixels has neither, which is the real reason the
+  screenshot approach was rejected.
 - This is the option to spend engineering on if the browser tab earns its place.
 
 ### Tier 3 spike — the bounded rebase experiment
@@ -256,3 +264,18 @@ Conclusion recorded in the Spec: hardware is not the constraint, the single
 unknown is re-deriving the Blink text interception, and the spike is bounded by
 a one-day stop rule. Also recorded: build current stable Chromium rather than
 111, and pair needs only the macos-arm64 artifact where Carbonyl publishes four.
+
+### 2026-09-19 — the viewport contract a replacement must honor
+
+Measured while answering "how well does Carbonyl work at 94 columns" (full
+table in pair#292's Log): one column is ~5.29 CSS px at zoom 100, so the right
+pane sees a 497 px viewport by default — a tablet breakpoint, and a
+`min-width:1024px` app loses half its columns. pair#292 therefore derives
+`--zoom` from the pane width, targeting ~1024 px.
+
+That turns two engine properties into requirements for any tier-3 fork or
+renderer replacement: a viewport width that can be set independently of the
+cell grid, and text drawn one glyph per cell (so zoom buys layout width without
+shrinking text). Both fall out of the same patches this issue is about — the
+text interception and the DPI override. A renderer that only downscales
+screenshots satisfies neither.
