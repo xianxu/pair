@@ -150,30 +150,40 @@ Two reuses, not new inventions:
 
 ### Direction detection
 
-Unlike a bare toggle, Pair now must know which way it is going, because expand
-and collapse do different focus work. Prefer a truth source over an inference:
-check whether `list-panes --json` exposes a fullscreen flag (`zellijpane.Pane`
-parses none today — `zellijpane.go:17-28`) and use it if present. Only if zellij
-does not report it should the presence of the focus record stand in as the state,
-and then the record's lifecycle *is* the state machine and must be written and
-cleared accordingly. Say which one was chosen and why in `## Log`.
+Unlike a bare toggle, Pair must know which way it is going, because expand and
+collapse do different focus work.
 
-One helpful constraint: while fullscreen the other panes are hidden, so focus
-cannot leave the right terminal by mouse. The state is harder to desync than it
-looks.
+**Settled live, 2026-09-20: `list-panes --json` carries `is_fullscreen` per
+pane.** That is the truth source — use it. The fallback this section previously
+contemplated (treating the presence of the focus record as the state) is not
+needed and should not be built. `zellijpane.Pane` does not parse the field today
+(`zellijpane.go:17-28`, which already parses its sibling `is_floating`); adding it
+is the whole change.
+
+Measured, same session: the right terminal went 95 → 191 columns and back, rows
+unchanged at 51. Note that hidden panes keep reporting their *old* geometry while
+another pane is fullscreen — the agent and draft still reported cols=96 at their
+original x/y — so pane geometry is not a usable signal for anything but the
+target itself. `is_fullscreen` is.
 
 ### Order of operations is load-bearing
 
 Whether zellij's fullscreen follows focus is unknown (below). Both sequences are
 written so that it does not matter:
 
-    expand:    record focused id → focus-pane-id <right terminal> → toggle-fullscreen
+    expand:    record focused id → toggle-fullscreen --pane-id <right terminal>
     collapse:  toggle-fullscreen → focus-pane-id <recorded> → clear record
 
-Focusing *before* fullscreening makes the target unambiguous without `--pane-id`;
-exiting fullscreen *before* restoring focus means a focus-following
-implementation cannot strand the operator in a fullscreen draft. Do not reorder
-these as a "simplification".
+**Measured live, 2026-09-20.** `toggle-fullscreen --pane-id X` *pulls focus to X*
+as a side effect, with no separate focus call: focus was on the draft before the
+probe and on the right terminal during it. So the expand half of focus carry is
+free — one command both maximises and lands the operator in the pane.
+
+The collapse half is not free, and is exactly the gap this issue fills: leaving
+fullscreen left focus on the right terminal. It did **not** return to the draft.
+Pair must restore focus explicitly, after exiting fullscreen. Do not reorder
+collapse as a "simplification" — exiting first is what keeps a focus-following
+implementation from re-targeting fullscreen onto the draft.
 
 ### Unchanged
 
@@ -194,17 +204,21 @@ fires when the right terminal is *not* focused, which is the common case.
 Each changes the spec if it goes the wrong way. Establish them in a live session
 and record the answers in `## Log`:
 
-1. **Does fullscreen follow focus?** Now load-bearing in both directions. The
-   ordering above is designed to be safe either way, but confirm it rather than
-   trusting the design.
+1. **Does fullscreen follow focus?** ~~Open~~ **half answered** (2026-09-20):
+   `--pane-id` targeting pulls focus *to* the target on entry, and exiting leaves
+   focus where it was. What remains untested is whether moving focus *while*
+   fullscreen re-targets which pane is fullscreen — the case that would matter if
+   anything can steal focus mid-fullscreen.
 2. **What do the swap-layout rungs do to a fullscreen pane?** `Alt+Up`/`Alt+Down`
    step the draft ladder through zellij swap layouts that re-tile existing panes
    (`main-3.kdl:27-32`). A swap may force an exit, be refused, or corrupt the rung
    state — and if it exits fullscreen behind Pair's back, the focus record leaks.
 3. **What happens under the `Alt+Shift+D` split?** Confirm fullscreening one half
    hides the other, and that the last-used-half memory survives the round trip.
-4. **Does `pair term` re-render correctly across the geometry jump?** The pane
-   goes from ~93 to 186 columns in one step. The reserved tab-strip row and the
+4. **Does `pair term` re-render correctly across the geometry jump?** Measured
+   95 → 191 → 95 columns live with a clean result confirmed by the operator, so
+   this looks free; the tab strip's bytes were not inspected, so treat it as
+   promising rather than closed. The pane The reserved tab-strip row and the
    presenter's geometry epoch already handle rung changes, but this is the largest
    single resize Pair will have made, and #223's scroll-region history says
    geometry edges are where this breaks.
@@ -308,6 +322,40 @@ missing `\x1b[13;10u` meta-family sibling and the KKP host-dependency of
 `\x1b[13;4u`. Both gained weight in the move, since a global chord that is dead
 on a host is dead in every pane. Corresponding Done-when and Plan entries added.
 #296 closed as superseded.
+
+### 2026-09-20 — live probe, before any code
+
+Ran `toggle-fullscreen --pane-id terminal_1` against this very workbench, held
+it ~10s, reverted. Script and captures in the session scratchpad
+(`fsprobe/{1-before,2-fullscreen,3-after}.json`). The revert was unconditional
+and owned by the same shell, so it could not be orphaned by a dead caller.
+
+    terminal_1  before      cols=95   fullscreen=False  focused=False
+    terminal_1  fullscreen  cols=191  fullscreen=True   focused=True
+    terminal_1  after       cols=95   fullscreen=False  focused=True
+
+Four findings, three of which change the design:
+
+- **`is_fullscreen` exists** in `list-panes --json`. Direction detection is a
+  solved problem; the focus-record-as-state fallback is dropped from the Spec.
+- **`--pane-id` pulls focus to the target.** Focus was on the draft before and
+  on the right terminal during. The expand half of focus carry is free.
+- **Exiting does not restore focus.** It stayed on the right terminal — the
+  precise gap this issue exists to close.
+- **Full width is 191 columns, not 186.** Worth noting only because the
+  Done-when asserts against screen width rather than a literal, which is why
+  that phrasing was chosen.
+
+Operator confirmed the live result looked right ("works so nice"), which is
+weak-but-real evidence for unknown 4.
+
+**Unrelated observation for whoever implements this:** every entry in this
+thread's `terminal-panes-<tag>` registry has a dead pid, while `pair term` is
+plainly alive as `terminal_1`. `TerminalPaneIDs()` filters on `procutil.Alive`,
+so it would currently return empty and pane classification would fall back to
+the title arm that `layoutflow.go:63-71` documents as broken since #199 M3
+(BR-48). This issue plans to reuse that registry for split-half selection.
+Observed, not diagnosed — verify before depending on it.
 
 ## Log
 
