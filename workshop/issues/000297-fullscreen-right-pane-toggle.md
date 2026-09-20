@@ -386,9 +386,20 @@ and narrows the #226 obligation without changing the chosen native toggle.
 - [x] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
 - [x] Close #296 as superseded.
 - [x] `make test`, then operator smoke test before closing (baseline exceptions logged; operator accepted smoke 2026-09-20).
-- [ ] Remove Codex transcript record-size cutoffs; regress oversized records and preserved identity validation.
+- [ ] Remove arbitrary inventory data-size cutoffs across providers; regress oversized records and preserved identity validation.
 
 ## Revisions
+
+### 2026-09-20 — remove the reader cliffs across providers
+
+Operator clarified that the cutoff removal must not be Codex-only: "remove all
+arbitrary limits." Apply the same no-size-cutoff policy across native transcript
+scanners, events/usage, and incremental reads. Sweep inventory ledger/log/config
+and SQLite result readers too: their producers have no matching size ceiling.
+Preserve chunk sizes, schema/identity/path checks, and bounded diagnostic output.
+No unrelated repo-wide limits are in scope. Memory still scales with complete
+records or existing batch results; this change does not promise constant memory.
+This supersedes the Codex-only scope in the earlier revision below.
 
 ### 2026-09-20 — operator-approved transcript-reader side quest
 
