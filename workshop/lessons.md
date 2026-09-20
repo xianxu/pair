@@ -1,5 +1,12 @@
 # Lessons
 
+## Retiring an action also retires descriptions of its retry path (#291 review)
+
+The boundary review found two present-tense `submit/compose` descriptions after
+the editor had become submit-only. When removing an action, sweep both initial
+delivery and recovery descriptions for its vocabulary. Preserve historical
+artifact explanations only where older records can still contain that action.
+
 ## An absence check goes vacuous when its writer moves (#289)
 
 Two newest-page tests asserted "no screen takeover" by searching the host's

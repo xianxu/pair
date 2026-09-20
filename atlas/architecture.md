@@ -1109,12 +1109,12 @@ changes that exact ID to `submitted`; only submitted entries reach the matcher.
 An indeterminate, edited, cleared, or compose-only preparation can therefore
 remain readable without manufacturing a user turn that the agent never saw.
 The editor's production delivery sequencer checks focus, body write, semantic
-submit/compose, and refocus results through the traced Zellij action seam. Only
+submit, and refocus results through the traced Zellij action seam. Only
 a successful semantic submit confirms dispatch. A post-dispatch marker failure
 retains commit-only state for the next authored action, so recovery never
 retransmits the already-delivered body.
 Delivery also retains the last confirmed phase across pre-dispatch retries. A
-confirmed body write resumes at semantic submit/compose without rewriting; an
+confirmed body write resumes at semantic submit without rewriting; an
 indeterminate body-write outcome blocks automatic retry. The stateful test seam
 models focus, composer contents, and dispatch history rather than return codes
 alone.

@@ -1,13 +1,14 @@
 ---
 id: 000291
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-19
 updated: 2026-09-20
 estimate_hours:
 started: 2026-09-20T14:05:57-07:00
-flow: {kind: quick, provenance: inferred, spec: "59e58412", done: "8f7b93b9"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 1.02
 ---
 
 # Couch leave aborts on a thread whose recorded-live Pair is gone
@@ -102,6 +103,13 @@ So the fix is not "skip and report". It is:
   filed with.
 
 ### 2026-09-20 — implementation on main
+- Review SHIP; corrected its sole minor finding: two present-tense atlas
+  descriptions of semantic submit/compose now reflect submit-only delivery.
+  The wider review window includes intervening main commits; local verification
+  above covers the full Couch package suites despite the reviewer stopping its
+  duplicate broad run. No implementation changes were required by review.
+- 2026-09-20: closed — Six stale-record preflight regressions fail before and pass after; couchcore/couchtty/couchcmd full suites pass; Leave and Detach race tests pass; vet passes; pair and couch rebuilt. Dead entries emit no leave result while running and uncertain processes remain untouched.; review verdict: SHIP
+- 2026-09-20: flow upgraded quick → full — 824 added lines in code files (limit 100)
 
 - Operator reproduced the failure on tools (`couch-2e662a595ae09564`), then
   requested fixing this on main before resuming #292. The recorded PID 3779
