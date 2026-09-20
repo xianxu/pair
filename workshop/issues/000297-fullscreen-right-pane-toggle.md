@@ -1,6 +1,6 @@
 ---
 id: 000297
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-20
@@ -8,6 +8,7 @@ updated: 2026-09-20
 estimate_hours: 2.48
 started: 2026-09-20T09:53:35-07:00
 flow: {kind: full, provenance: operator}
+actual_hours: 3.65
 ---
 
 # Alt+Shift+Return globally toggles the right pane between 50/50 and fullscreen, restoring focus
@@ -541,6 +542,7 @@ verification and operator smoke steps. No production code changed during plannin
 ## Log
 
 ### 2026-09-20 — diagnostic audience correction
+- 2026-09-20: closed — Operator accepted fullscreen smoke in another thread; disposable native fullscreen and actual-chord conformance passed; affected inventory/sessionwatch/context/slug suites and make pair pass; oversized records across all four providers plus ledger/log/config/SQLite regressions pass; real Codex root recognized after cutoff removal. Earlier full Go suite passed; fresh full/race checks running. make test has documented unchanged-baseline changelog ownership failure, and review suite passes in clean test environment.; review verdict: SHIP
 
 Operator clarified that toggle/focus failures should be logged for the agent,
 not surfaced as terminal errors or editor notifications: the user generally
@@ -659,3 +661,14 @@ provisional. No binding/config was hand-written and no end-to-end relaunch fix
 is claimed. This side quest removes the confirmed reader-limit cause, not the
 separate #291 global detach problem. Full Go and race checks are in progress;
 the previously reproduced changelog integration baseline exception remains.
+
+### 2026-09-20 — close review and final verification
+
+Main-session full Go suite completed successfully. Fresh affected suites and
+inventory race checks pass; incremental JSONL fuzzing passed 222,976 cases.
+SDLC close returned SHIP, no Critical/Important findings, and codecomplete.
+Advisory BR-1/BR-2 addressed in the close commit: classify both core-concept
+tables and reconcile plan checkboxes/evidence with accepted smoke and the
+documented non-green make-test baseline. Reviewer's separately stopped broad
+run does not supersede the completed main-session run. No production code
+changed after review. Publication is not part of this local close.

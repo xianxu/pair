@@ -5616,3 +5616,18 @@ encoding of it (`workbenchshortcut.ChordEncodings`: the Kitty forms like
 `110;3u` / `110;7u` and the legacy `\x1bn`) as well as its symbol, before the
 first test run. Cross-layer conformance tests sit next to the layer that
 receives the input, not the one that routes it.
+
+## 2026-09-20 — #297 close: reconcile plan evidence, not only its log
+
+The close review found explicit PURE/INTEGRATION labels missing from both
+concept tables and pending acceptance rows left behind after successful tests
+and operator smoke acceptance. Before close, sweep every concept table and
+acceptance checkbox; append a dated reconciliation linking exceptions to the
+actual evidence. A baseline test failure is a qualified result, not a green
+suite, and an accepted smoke report does not imply unreported observations.
+
+Reader-size caps also need a matching writer contract. A metadata-only cap
+silently became a whole-transcript record cap as scanning expanded. Sweep all
+consumers/providers when changing that policy, and test large valid records
+plus malformed/conflicting evidence after them; a larger arbitrary cap only
+moves the failure threshold (ARCH-FUNERAL, ARCH-PURPOSE).

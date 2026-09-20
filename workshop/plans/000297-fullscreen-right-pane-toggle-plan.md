@@ -25,25 +25,25 @@ Add `mouse_scroll_resize false` for standalone Pair. Leave #226 open: it also re
 
 ## Core concepts
 
-| Name | Lives in | Status |
-|---|---|---|
-| BindingScope / GlobalBinding | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
-| Pane | `cmd/internal/zellijpane/zellijpane.go` | modified |
-| FullscreenPlan | `cmd/internal/layoutcmd/fullscreen.go` | new |
-| FullscreenState / FullscreenEvent / FullscreenTransition | `cmd/internal/layoutcmd/fullscreen.go` | new |
-| terminalToggleBurst / terminalToggleSteps | `cmd/internal/layoutcmd/resizeplan.go` | deleted |
+| Name | Kind | Lives in | Status |
+|---|---|---|---|
+| BindingScope / GlobalBinding | PURE | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
+| Pane | PURE | `cmd/internal/zellijpane/zellijpane.go` | modified |
+| FullscreenPlan | PURE | `cmd/internal/layoutcmd/fullscreen.go` | new |
+| FullscreenState / FullscreenEvent / FullscreenTransition | PURE | `cmd/internal/layoutcmd/fullscreen.go` | new |
+| terminalToggleBurst / terminalToggleSteps | PURE | `cmd/internal/layoutcmd/resizeplan.go` | deleted |
 
 `BindingScope` distinguishes global from draft-only bindings. The existing table remains the source for Go routing, Lua generation and help (ARCH-DRY). Keep its existing exported names to limit churn, with comments explaining that it also holds generated draft bindings.
 
 `Pane` gains observed fullscreen state. `PlanFullscreen` returns a `FullscreenPlan` from observed panes, invoking pane ID, last terminal, live terminal IDs and remembered return ID. It selects expand, collapse or no-op and the target/return IDs. It does not compute geometry or implement a new window manager (ARCH-PURE).
 
-| Name | Lives in | Status | Wraps |
-|---|---|---|---|
-| FullscreenReturnStore | `cmd/internal/workbenchshortcut/fullscreen_store.go` | new | existing pane-ID sidecar helpers |
-| FullscreenRuntime / RunToggleFocused | `cmd/internal/layoutcmd/fullscreen.go`, `layoutcmd.go` | modified | pane observation, store and zellij actions |
-| Paths fullscreen members | `cmd/internal/artifactpath/paths.go`, `manifest.go`, `gc.go` | modified | canonical artifact paths, export and collection |
-| Pane action dispatch | `cmd/internal/wrapcmd/wrap.go`, `cmd/internal/termcmd/run.go`, `nvim/workbench_route.lua` | modified | chord to existing layout CLI |
-| Stateful fullscreen fixture | `cmd/internal/layoutcmd/fullscreen_test.go` | new | same runtime interface as production |
+| Name | Kind | Lives in | Status | Wraps |
+|---|---|---|---|---|
+| FullscreenReturnStore | INTEGRATION | `cmd/internal/workbenchshortcut/fullscreen_store.go` | new | existing pane-ID sidecar helpers |
+| FullscreenRuntime / RunToggleFocused | INTEGRATION | `cmd/internal/layoutcmd/fullscreen.go`, `layoutcmd.go` | modified | pane observation, store and zellij actions |
+| Paths fullscreen members | PURE | `cmd/internal/artifactpath/paths.go`, `manifest.go`, `gc.go` | modified | canonical artifact paths, export and collection policy |
+| Pane action dispatch | INTEGRATION | `cmd/internal/wrapcmd/wrap.go`, `cmd/internal/termcmd/run.go`, `nvim/workbench_route.lua` | modified | chord to existing layout CLI |
+| Stateful fullscreen fixture | INTEGRATION | `cmd/internal/layoutcmd/fullscreen_test.go` | new | same runtime interface as production |
 
 The runtime extension is specific to fullscreen, avoiding new persistence requirements on unrelated pane-focus callers. `termcmd.OSRuntime` delegates storage to the same helper as `layoutcmd.OSRuntime`.
 
@@ -134,11 +134,12 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [x] Add `mouse_scroll_resize false`; retain Couch's compatibility filter and record #226's remaining requirements.
 - [x] Update README shortcuts and Terminal setup: supported KKP configuration, host mapping caveats, no promise on legacy hosts unable to distinguish Shift+Alt+Return. Mark the changed bindings as breaking in CHANGELOG.
 - [x] Update architecture and review descriptions, removing obsolete menu/width claims. Follow the target datatype/review convention if editing its human-facing prose. Ensure atlas index remains complete.
-- [ ] Run `go test ./cmd/internal/keyhelp ./cmd/internal/keyscmd ./cmd/internal/couchcmd`; then `make test` and `git diff --check`. Expect PASS; diagnose any failures before claiming completion.
+- [x] Run `go test ./cmd/internal/keyhelp ./cmd/internal/keyscmd ./cmd/internal/couchcmd`; then `make test` and `git diff --check`. Go/diff checks pass; integration baseline exceptions diagnosed and recorded below, not claimed green.
 - [x] Build in `~/workspace/pair`; run the actual chord through draft, agent and terminal routes in a disposable live session, with a shell and nvim. Verify split-half round trip and strip redraw. The earlier native-command probe does not substitute for checking new keyboard wiring.
 - [x] Add `TestFullscreenZellijConformance` behind `PAIR_LIVE_ZELLIJ=1`, using `pairlifecycletest.StartControlledZellijWithOptions` and disposable configuration. Run `PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run TestFullscreenZellijConformance -count=1` before closing this issue and on supported zellij upgrades or changes to the modeled toggle/focus behavior; compare observations with the same invariants enforced by the stateful fixture.
-- [ ] Operator smoke in the workbench: draft cursor preserved after fullscreen/back; shell, nvim and carbonyl where available; Ctrl+Space still opens Couch. Record observations precisely; do not close that row on automated evidence alone.
-- [ ] Update issue evidence, then `sdlc close --issue 297 --verified '<actual commands and observations>'`. The close boundary owns the mandatory fresh-context code review; resolve findings there. Publish through `sdlc pr` / `sdlc merge` after all required evidence is present.
+- [x] Operator smoke accepted: operator reported it works in another thread and explicitly said to consider smoke passed. Earlier Ctrl+Space probe also passed; no additional per-application observations are inferred.
+- [x] Update issue evidence and run `sdlc close --issue 297 --verified '<actual commands and observations>'`. SHIP, no blocking findings; minor documentation findings addressed in the close commit.
+- [ ] Publish through `sdlc pr` / `sdlc merge` (separate from the requested local issue close).
 
 One atomic review boundary; no milestone labels. Estimate follows the full-flow plan-quality gate, not this draft plan.
 
@@ -215,3 +216,17 @@ readers, plus inventory ledger/log/config and SQLite result cutoffs without
 matching writer bounds. Keep chunk sizes, malformed-data rejection, identity
 and path checks, and bounded diagnostics. Add oversized-provider regressions
 and runtime/ledger checks; no unrelated limits elsewhere in Pair are changed.
+
+### 2026-09-20 — close-review evidence reconciliation
+
+Addressed advisory BR-1 by classifying both concept tables, and BR-2 by
+reconciling the acceptance rows with actual evidence. Main-session full
+`go test ./... -count=1` passed (log `/tmp/pair-297-close-go.log`); the reviewer
+separately stopped its own broad run and correctly made no full-suite claim.
+Fresh affected suites, race tests, build and diff checks pass; incremental
+framer fuzzing passed 222,976 cases. Previously recorded live conformance and
+actual-chord tests passed. Operator explicitly accepted smoke in another thread.
+Full `make test` remains qualified by the unchanged-baseline changelog owner
+failure; review integration passes in a clean test environment. Close returned
+SHIP and set codecomplete. Publication has not occurred. No code changed after
+the reviewed commit; the close commit only reconciles documentation/evidence.
