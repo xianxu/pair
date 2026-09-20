@@ -385,9 +385,25 @@ and narrows the #226 obligation without changing the chosen native toggle.
 - [x] Resolve the `;10u` meta sibling: register it, or document why not.
 - [x] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
 - [x] Close #296 as superseded.
-- [ ] `make test`, then operator smoke test before closing.
+- [x] `make test`, then operator smoke test before closing (baseline exceptions logged; operator accepted smoke 2026-09-20).
+- [ ] Remove Codex transcript record-size cutoffs; regress oversized records and preserved identity validation.
 
 ## Revisions
+
+### 2026-09-20 — operator-approved transcript-reader side quest
+
+The operator accepted the fullscreen smoke in another thread and requested the
+Codex transcript limit fix on this branch before close. The actual root rollout
+contains valid event records above 1 MiB, so the identity scanner drops the root
+and relaunch incorrectly reports missing completed-turn evidence. Remove Codex
+record cutoffs in identity, events, usage, and targeted incremental reads; retain
+other providers' and ledger limits. Reuse chunked framing and strict JSON/identity
+validation (ARCH-DRY, ARCH-FUNERAL), not a larger arbitrary cap. Full scans hold
+one record at a time; incremental validation retains the observed suffix as it
+already does. Memory scales with those bytes, not a constant-memory claim. No
+new JSON parser or silent skipping of malformed/identity-conflicting records.
+Tests must cover >1 MiB and >8 MiB records, evidence after large records, and
+malformed/conflicting metadata. Confirm the real root is recognized read-only.
 
 ### 2026-09-20 — global scope + focus carry
 
