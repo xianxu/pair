@@ -279,3 +279,20 @@ cell grid, and text drawn one glyph per cell (so zoom buys layout width without
 shrinking text). Both fall out of the same patches this issue is about — the
 text interception and the DPI override. A renderer that only downscales
 screenshots satisfies neither.
+
+### 2026-09-19 — the cell budget a replacement has to paint into
+
+The 94 columns above was an estimate; measured on the operator's M2, the right
+pane is **93 columns** collapsed and **123** expanded (`Alt+Shift+Enter`,
+`pair layout toggle-focused`). Full table in pair#292's Log. The 5.29 CSS px
+per column contract is unchanged, and so is the requirement it imposes on any
+fork or replacement renderer.
+
+What the real numbers sharpen is the *size of the job*. Even at 123 columns a
+page sees only 651 px at zoom 100 — still a tablet breakpoint — so the
+viewport-independent-of-the-grid property is not a nicety for narrow panes, it
+is load-bearing at every pane width pair actually uses. And the worst case a
+replacement must render legibly is the **collapsed** pane: ~1024 CSS px of
+layout painted into 93 cells. A renderer that only downscales pixels fails
+that outright; a Browsh-style text-run painter has to crowd or truncate runs
+there, which is where its fidelity gap will first show.

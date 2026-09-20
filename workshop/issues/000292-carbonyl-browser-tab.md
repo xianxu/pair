@@ -61,13 +61,16 @@ that URL as a new tab; Esc cancels and creates nothing.
 **Each tab runs** `carbonyl --remote-debugging-port=0 --user-data-dir=<profile>
 --fps=15 --zoom=<derived> <url>`:
 - **Zoom is derived from the pane's width, not left at 100.** Carbonyl maps
-  one column to ~5.29 CSS px at zoom 100 (measured), so the right pane at 94
-  columns is a **497 px** viewport — a tablet/phone breakpoint, and a
-  `min-width:1024px` app shows only 2 of 4 columns. Zoom does NOT shrink text
-  (a glyph occupies a whole cell whatever its CSS size), so zooming out buys
-  layout width for free: at 94 columns, zoom 50 gives ~994 px and the same page
-  renders in full, still legible. `Zoom(cols)` targets ~1024 CSS px, clamped to
-  [25, 100].
+  one column to ~5.29 CSS px at zoom 100 (measured), so the right pane at its
+  real widths — **93 columns** collapsed, **123** expanded (Alt+Shift+Enter,
+  measured on the operator's M2) — is a **492 px** / **651 px** viewport at
+  zoom 100. Both are tablet breakpoints, and a `min-width:1024px` app shows
+  only 2 of 4 columns: expanding the pane does NOT reach a desktop layout on
+  its own. Zoom does not shrink text (a glyph occupies a whole cell whatever
+  its CSS size), so zooming out buys layout width for free. `Zoom(cols)`
+  targets ~1024 CSS px, clamped to [25, 100]: **48 at 93 columns, 64 at 123**.
+- **The pane width changes mid-session**, so a launch-derived zoom goes stale
+  (see Log, 2026-09-19): re-derive on resize. Open — not yet in Done-when.
 - **The binary** is `$PAIR_CARBONYL` or `carbonyl` on PATH. If it's missing,
   the strip shows a notice and no tab opens.
 - **Carbonyl older than 0.0.3 gets a strip notice.** 0.0.2 spins a CPU core
@@ -463,3 +466,51 @@ from the page itself.
 column count, targeting ~1024 CSS px, clamped [25, 100] — at 94 columns that is
 50. Estimate unchanged: `Zoom(cols)` is a few lines inside the existing pure-core
 item.
+
+### 2026-09-19 — the right pane's *real* widths: 93 columns, 123 expanded
+
+The 94-column figure the table above was probed at was an estimate. Measured
+live on the operator's M2 (full-screen Ghostty, layout 3):
+
+| Right pane | Columns | Viewport at zoom 100 | `Zoom(cols)` | Viewport at that zoom |
+|---|---|---|---|---|
+| collapsed (50%) | **93** | 492 px — tablet | **48** | 1025 px |
+| expanded (Alt+Shift+Enter, ~65%) | **123** | 651 px — still tablet | **64** | 1017 px |
+
+Three things follow.
+
+1. **The estimate held.** 93 vs the probed 94 is within noise, so the whole
+   table above and the `CSSPixelsPerColumn = 5.29` contract stand unchanged.
+2. **Expanding the pane does not buy a desktop layout — zoom still has to.**
+   At 123 columns a page still sees 651 px at zoom 100, below the 768 px
+   tablet ceiling, so a `min-width:1024px` app is broken at *both* pane widths
+   without the derivation. What the expansion buys instead is **cell budget**:
+   the same ~1024 px layout is drawn across 124 cells rather than 93, ~33%
+   more cells per CSS pixel. That is exactly the headroom the "dense small
+   text in narrow columns" risk noted above needs, so the crowding probe
+   should run at 93, not 123 — 93 is the worst case.
+3. **A launch-derived zoom goes stale, asymmetrically** (new, not yet in
+   Done-when). `Zoom(cols)` is computed once at launch, but Alt+Shift+Enter
+   re-tiles the column under a live tab:
+   - launched collapsed (zoom 48), then expanded → 1356 px. Benign: wider than
+     the target, still desktop.
+   - launched expanded (zoom 64), then collapsed → **769 px**. Falls back past
+     the desktop breakpoint, and the `min-width:1024px` app loses half its
+     columns again — the precise failure `Zoom(cols)` exists to prevent.
+   So the tab owes a re-derive on pane resize. Unprobed: whether Carbonyl
+   re-lays-out on SIGWINCH at all, and whether zoom can be changed after
+   launch (`--zoom` is a launch flag; CDP `Emulation.setPageScaleFactor` /
+   `setDeviceMetricsOverride` are the candidates, and the tab already holds a
+   CDP connection). pair#285 wants the same thing from the other direction —
+   it derives zoom from the pane width *at restore* rather than replaying a
+   recorded one.
+
+Chord reference: `Alt+Shift+Enter` → `pair layout toggle-focused`, a blind
+three-step `zellij action resize increase|decrease left` burst; state is
+classified once at ≥60% of screen width (`cmd/internal/layoutcmd/resizeplan.go`).
+
+**Arithmetic note on the plan.** `000292-...-plan.md` lists "50 at 94 columns"
+as a `Zoom` worked example, and that is off by one: `round(94 * 5.29 / 1024 *
+100) = 49`. The other two examples (100 at 200, 31 at 60) are right. The
+worked examples become unit tests, so fix the prose before writing them —
+better still, use the measured 48 at 93 and 64 at 123.
