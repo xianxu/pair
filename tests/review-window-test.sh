@@ -423,7 +423,7 @@ grep -q '^review-alt-x-map$' "$RT/r3" && pass "Alt+x no-op map wired in review p
 grep -q '^definition-map$' "$RT/r3" && pass "Shift+Alt+d definition map wired" || fail "definition map missing"
 grep -q '^definition-kkp-map$' "$RT/r3" && pass "Shift+Alt+d forwarded KKP definition map wired" || fail "definition KKP map missing"
 grep -q '^no-alt-o-map$' "$RT/r3" && pass "Alt+o is not bound in review pane" || fail "Alt+o still bound"
-grep -q '^global-fullscreen-map$' "$RT/r3" && pass "Alt+Shift+Return global fullscreen keymap wired" || fail "send menu map missing"
+grep -q '^global-fullscreen-map$' "$RT/r3" && pass "Alt+Shift+Return global fullscreen keymap wired" || fail "global fullscreen map missing"
 grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"

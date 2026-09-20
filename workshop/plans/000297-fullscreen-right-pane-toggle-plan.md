@@ -108,7 +108,7 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [x] Test `FullscreenTransition` with exhaustive short event sequences and terminal-state invariants; test `RunToggleFocused` against a stateful runtime with deterministic fault injection at each effect and controlled concurrent entry. Assert round-trip layout/process preservation and that no later effect occurs after a failed or unconfirmed outcome.
 - [x] Delete `resizeplan.go`, `resizeplan_test.go` and now-unused geometry helpers after checking references. Keep geometry parsing used elsewhere.
 - [x] Run `go test ./cmd/internal/zellijpane ./cmd/internal/layoutcmd ./cmd/internal/workbenchshortcut ./cmd/internal/artifactpath ./cmd/internal/termcmd`. Expect PASS.
-- [ ] Commit with issue reference and author trailer.
+- [x] Commit with issue reference and author trailer.
 
 ### Task 2: Global toggle, draft-local rungs and editor retirements
 
@@ -123,8 +123,8 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [x] Remove review's local Shift+Alt+Return menu map; keep its exported menu API. Update tests to assert normal submission and remaining menu behavior, retiring only compose-without-submit cases.
 - [x] Document at the Return encoding why modifier 10 is not added. Add an assertion that Shift+Super+Return is not consumed as Shift+Alt+Return.
 - [x] Run `go run ./cmd/internal/workbenchshortcut/generatecmd --out nvim/workbench_actions.lua`, then `make runtimebundle-generate`.
-- [ ] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd ./cmd/internal/termcmd` and `make test-lua test-queue test-submission-transaction test-review`. Expect PASS.
-- [ ] Commit with issue reference and author trailer.
+- [x] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd ./cmd/internal/termcmd` and `make test-lua test-queue test-submission-transaction test-review`. Expect PASS.
+- [x] Commit with issue reference and author trailer.
 
 ### Task 3: Help, config and acceptance
 
@@ -135,7 +135,7 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [x] Update README shortcuts and Terminal setup: supported KKP configuration, host mapping caveats, no promise on legacy hosts unable to distinguish Shift+Alt+Return. Mark the changed bindings as breaking in CHANGELOG.
 - [x] Update architecture and review descriptions, removing obsolete menu/width claims. Follow the target datatype/review convention if editing its human-facing prose. Ensure atlas index remains complete.
 - [ ] Run `go test ./cmd/internal/keyhelp ./cmd/internal/keyscmd ./cmd/internal/couchcmd`; then `make test` and `git diff --check`. Expect PASS; diagnose any failures before claiming completion.
-- [ ] Build in `~/workspace/pair`; run the actual chord through draft, agent and terminal routes in a disposable live session, with a shell and nvim. Verify split-half round trip and strip redraw. The earlier native-command probe does not substitute for checking new keyboard wiring.
+- [x] Build in `~/workspace/pair`; run the actual chord through draft, agent and terminal routes in a disposable live session, with a shell and nvim. Verify split-half round trip and strip redraw. The earlier native-command probe does not substitute for checking new keyboard wiring.
 - [x] Add `TestFullscreenZellijConformance` behind `PAIR_LIVE_ZELLIJ=1`, using `pairlifecycletest.StartControlledZellijWithOptions` and disposable configuration. Run `PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run TestFullscreenZellijConformance -count=1` before closing this issue and on supported zellij upgrades or changes to the modeled toggle/focus behavior; compare observations with the same invariants enforced by the stateful fixture.
 - [ ] Operator smoke in the workbench: draft cursor preserved after fullscreen/back; shell, nvim and carbonyl where available; Ctrl+Space still opens Couch. Record observations precisely; do not close that row on automated evidence alone.
 - [ ] Update issue evidence, then `sdlc close --issue 297 --verified '<actual commands and observations>'`. The close boundary owns the mandatory fresh-context code review; resolve findings there. Publish through `sdlc pr` / `sdlc merge` after all required evidence is present.
@@ -185,3 +185,13 @@ failed before the condition was corrected.
 The generated `direct_command` binding executes the layout CLI from every
 editor, including the draft. No draft-only Lua wrapper function is needed;
 that supersedes Task 2's extra function while retaining actual mapping tests.
+
+### 2026-09-20 — integration test environment and baseline failure
+
+Lua, queue, and submission suites passed through `make -k test`. The review
+suite also passes when inherited Pair/Couch/Zellij session variables are removed
+from the test subprocess; its fake Pair binary does not implement the inherited
+retention protocol. The unchanged baseline reproduces that review failure under
+the hosted environment. Changelog-open fails with the same owner-directory error
+both on unchanged HEAD and with session variables cleared. Full `make test`
+remains non-green; no unrelated retention change is included in #297.
