@@ -7,6 +7,14 @@ terminal), labelled `name · host`, navigable from a URL field in the tab strip,
 and shared with the agent through a per-tab DevTools record that `pair browser`
 prints.
 
+**Engine risk, accepted 2026-09-19.** Carbonyl is unmaintained (last upstream
+commit 2023-02-26) and bundles Chromium 111. The operator accepted it because
+nothing maintained renders a real browser as terminal text *and* exposes CDP for
+the agent. Two consequences are design constraints, not asides: the engine stays
+behind a swappable seam (a tab kind that launches a binary and speaks CDP, so a
+future engine keeps the record, `pair browser`, chords, labels and lifecycle),
+and a remote URL is never opened silently (`IsLocalURL` + confirm-on-remote).
+
 **Architecture:** A new package `cmd/internal/browsertab` holds the pure core:
 URL normalization, labels, default names, the version gate, launch argv, the
 record codec, and the per-tab state machine (`Step`). It also holds three thin
@@ -23,8 +31,10 @@ input events, new dependency `github.com/coder/websocket` v1.8.15 (zero
 transitive deps, ISC), Chrome DevTools Protocol (Target + Page domains) as
 spoken by Carbonyl 0.0.3 (Chrome 111).
 
-**Dependency choice (the first non-terminal third-party dep; operator may
-veto):** `coder/websocket` versus a small in-tree RFC 6455 implementation.
+**Dependency choice — APPROVED by the operator 2026-09-19** (the first
+non-terminal third-party dep): `coder/websocket` versus a small in-tree RFC
+6455 implementation. Recorded for the reviewer, since the alternative below is
+no longer open.
 
 | | In-tree | `coder/websocket` |
 |---|---|---|
@@ -34,9 +44,9 @@ veto):** `coder/websocket` versus a small in-tree RFC 6455 implementation.
 | Transitive deps | none | none |
 | Other | — | maintained; its `Dial` sends no Origin header, which Chrome 111's DevTools requires |
 
-In-tree buys nothing but independence from one well-scoped module. The
-dependency wins; if the operator prefers no new dependency, Task 2.1 grows an
-`wsconn.go` of that size instead.
+In-tree buys nothing but independence from one well-scoped module, and the
+module is actively maintained (last commit 2026-06-15, ISC, zero transitive
+deps). The operator approved it.
 
 **Source of truth for scope:** `workshop/issues/000292-carbonyl-browser-tab.md`
 (`## Spec`, `## Done when`). The spike measurements that motivate the numbers
@@ -50,11 +60,11 @@ here are in that issue's `## Log`.
 
 | Name | Lives in | Status |
 |------|----------|--------|
-| `NormalizeURL` | `cmd/internal/browsertab/url.go` | new |
+| `NormalizeURL` / `IsLocalURL` | `cmd/internal/browsertab/url.go` | new |
 | `Label` | `cmd/internal/browsertab/label.go` | new |
 | `DefaultName` | `cmd/internal/browsertab/name.go` | new |
 | `Version` / `ParseVersion` / `VersionNotice` | `cmd/internal/browsertab/version.go` | new |
-| `Argv` / `DefaultFPS` | `cmd/internal/browsertab/launch.go` | new |
+| `Argv` / `DefaultFPS` / `Zoom` | `cmd/internal/browsertab/launch.go` | new |
 | `ParseActivePort` / `Endpoint` | `cmd/internal/browsertab/endpoint.go` | new |
 | `OwnedName` / `ParseOwnedName` / `BirthHash` | `cmd/internal/browsertab/owned.go` | new |
 | `Record` / `EncodeRecord` / `DecodeRecord` / `RecordFile` | `cmd/internal/browsertab/record.go` | new |
@@ -72,6 +82,16 @@ here are in that issue's `## Log`.
     will use it for Alt+click.
   - **DRY rationale:** one normalization for every entry point (field, Alt+click,
     agent CLI if one is ever added).
+- **IsLocalURL** answers "does this URL stay on this machine or a private
+  network": loopback, `localhost`, `*.localhost`, `*.test`/`*.localdomain`,
+  RFC 1918 and link-local addresses, plus `file:`, `about:` and `data:`.
+  Everything else is remote.
+  - **Why it exists:** Carbonyl bundles Chromium 111 and has had no upstream
+    commit since 2023-02-26, so it renders untrusted web content with 3.5 years
+    of unpatched CVEs. The operator accepted the engine on 2026-09-19 on the
+    condition that a remote URL is not opened silently.
+  - **Used by:** the URL field's confirm-on-remote (Task 1.8), and pair#293's
+    Alt+click routing, which should prefer `open` for remote URLs.
 - **Label** returns `name · host[:port]`, or just `name` when there's no host
   (about:blank, data:, file:). The result is sanitized by the strip's existing
   `rowtext.Sanitize`, not here. The strip is the single egress, as with tab
@@ -84,8 +104,16 @@ here are in that issue's `## Log`.
 - **Version / ParseVersion / VersionNotice** parse `carbonyl --version` output
   (`Carbonyl 0.0.3`, `Carbonyl 0.0.3-next.ab80a27`). `VersionNotice` returns
   the notice text below `MinVersion = 0.0.3`, or `""`.
+- **Zoom(cols) int** derives Carbonyl's `--zoom` from the pane width.
+  Measured: one column is ~5.29 CSS px at zoom 100, so the viewport is
+  `cols * 5.29 * 100/zoom`. At 94 columns and zoom 100 a page sees 497 px — a
+  tablet breakpoint, and a `min-width:1024px` app loses half its columns.
+  Zooming out costs no legibility (a glyph is a whole cell whatever its CSS
+  size), so `Zoom` targets `TargetViewportPx = 1024`, clamped to [25, 100]:
+  50 at 94 columns, 100 at 200, 31 at 60.
+  - Tests: those three worked examples, monotonicity in `cols`, both clamps.
 - **Argv** is the launch argv:
-  `bin --remote-debugging-port=0 --user-data-dir=<profile> --fps=<fps> <url>`.
+  `bin --remote-debugging-port=0 --user-data-dir=<profile> --fps=<fps> --zoom=<zoom> <url>`.
   `DefaultFPS = 15` (Log: `pair term` alone costs 21% of a core at 60 fps and 6%
   at 15 on a full-motion page; M2 re-measures the chain).
 - **ParseActivePort / Endpoint** parse `<profile>/DevToolsActivePort`
@@ -272,6 +300,7 @@ a Go native fuzz target (`testing.F`).
 | Target | Input source | Seeds (beyond the table) | Properties |
 |---|---|---|---|
 | `FuzzNormalizeURL` (Task 1.1) | operator typing/paste, #293 Alt+click | `"\x1b[2J"`, `"a\u0085b"`, 64 KiB of `a`, `"http://"`, `"::"`, `"localhost:99999"`, `"127.0.0.1.evil.com:1"` | never panics; on success the output has no C0/C1/space, `url.Parse` succeeds with a non-empty scheme, and normalizing it again is a fixed point |
+| `FuzzIsLocalURL` (Task 1.1) | same | `"http://127.0.0.1.evil.com/"`, `"http://localhost.evil.com/"`, `"http://[::1]/"`, `"http://0x7f.0.0.1/"`, `"http://127.1/"`, `"http://10.0.0.1/"`, `"http://user@localhost@evil.com/"` | never panics; **local is a closed set**: every string it calls local parses to a host that is loopback, RFC 1918, link-local, or a reserved local suffix — asserted by re-deriving from `net.ParseIP`/`url.Parse`, not by restating the predicate |
 | `FuzzParseActivePort` (Task 1.1) | a file in a dir Chromium writes | `""`, `"\n"`, `"65536\n/devtools/browser/x"`, `"1\n/devtools/browser/\x00"`, `"1 \n/devtools/browser/x"`, CRLF | never panics; on success both addresses are exactly `http://127.0.0.1:<1-65535>` / `ws://127.0.0.1:<port>/devtools/browser/…` with no whitespace or control bytes |
 | `FuzzParseOwnedName` (Task 1.1) | directory entries anyone can create | `"0-aaaaaaaaaaaa-1"`, `"01-aaaaaaaaaaaa-1"`, `"9999999999999999999-aaaaaaaaaaaa-1"`, uppercase hex, trailing `/` | never panics; on success `OwnedName` round-trips to the same string and pid > 0 |
 | `FuzzDecodeCDPMessage` (Task 2.1) | websocket frames from Carbonyl (page-influenced) | truncated JSON, duplicate `id`, `id` as string, `params` as array, 1 MiB title, title with `\x1b]52;` | never panics; a decoded `TargetInfo`'s URL/Title pass through `rowtext.Sanitize` before any egress (asserted via `TargetEvent`'s constructor) |
@@ -812,8 +841,30 @@ const DefaultFPS = 15
 
 // Argv is the Carbonyl launch argv. --user-data-dir is mandatory: without it
 // Carbonyl writes its profile into its own install directory (#292 Log).
-func Argv(bin, profile string, fps int, url string) []string {
-	return []string{bin, "--remote-debugging-port=0", "--user-data-dir=" + profile, "--fps=" + strconv.Itoa(fps), url}
+func Argv(bin, profile string, fps, zoom int, url string) []string {
+	return []string{bin, "--remote-debugging-port=0", "--user-data-dir=" + profile,
+		"--fps=" + strconv.Itoa(fps), "--zoom=" + strconv.Itoa(zoom), url}
+}
+
+// CSSPixelsPerColumn is Carbonyl's cell-to-CSS-pixel mapping at zoom 100,
+// measured 2026-09-19 (94 columns reported a 497 px viewport, dpr 0.38). The
+// live conformance probe re-checks it, so an engine change fails a test rather
+// than silently narrowing every page.
+const CSSPixelsPerColumn = 5.29
+
+// TargetViewportPx is the CSS width we want pages to lay out against: just past
+// the common 1024 desktop breakpoint.
+const TargetViewportPx = 1024
+
+// Zoom derives --zoom from the pane width. Zooming out costs no legibility --
+// text is drawn one glyph per cell whatever its CSS size -- so it buys layout
+// width for free (#292 Log).
+func Zoom(cols int) int {
+	if cols <= 0 {
+		return 100
+	}
+	z := int(math.Round(float64(cols) * CSSPixelsPerColumn / TargetViewportPx * 100))
+	return min(100, max(25, z))
 }
 ```
 
@@ -1321,8 +1372,12 @@ Expected: FAIL (`KillGroup` undefined).
 
 - [ ] **Step 3: Implement**
 
-Replace the three `_ = c.cmd.Process.Kill()` calls (in `pump()`, twice, and in
-`Close()`) with `c.kill()`:
+Replace **every** leader-only kill before a reap with `c.kill()`: the two in
+`pump()` (delivery failure, context cancel), the one in `Close()`, **and** the
+one in `Start()`'s `initTerminal`-failure path (`cmd.Process.Kill()` then
+`cmd.Wait()`). The fourth came from the round-3 plan-gate note. A `grep -n
+'Process.Kill' cmd/internal/ptychild/child.go` after the change should show
+only the body of `kill()` itself:
 
 ```go
 // kill ends the child for every ptychild path that is about to reap it
@@ -1773,7 +1828,7 @@ Expected: FAIL to compile (`StripField`, `InsertPaste` undefined).
         controller wrote, so they can't disagree (plan-gate minor). The
         controller exists from Task 1.8; until then, this branch is unreachable
         because no browser tab can be created.
-      - `url`: Task 1.8 fills this in.
+      - `url`: Task 1.8 fills this in, including the remote-URL confirmation.
     - `terminalTab` gains:
 
       ```go
@@ -2012,7 +2067,7 @@ type browserDeps struct {
 4. `profiles.Create(owner, id)`.
 5. Pick the name with `DefaultName(taken)` over this mux's tab names (M3 adds
    the tag's record names).
-6. `ptychild.Start(Options{Argv: browsertab.Argv(bin, profile, fps, url), Size: childSizeLocked(), Env: shellEnv + deps.env, KillGroup: true, Sink: …})`,
+6. `ptychild.Start(Options{Argv: browsertab.Argv(bin, profile, fps, browsertab.Zoom(int(m.cols)), url), Size: childSizeLocked(), Env: shellEnv + deps.env, KillGroup: true, Sink: …})`,
    with the same ready-gate as `newTab`. `KillGroup: true` is what makes
    every ptychild reap path kill Chromium's helpers first (PQ-7).
 7. Build `terminalTab{kind: tabBrowser, name, label: browsertab.Label(name, url), browser: ctrl}`,
@@ -2487,8 +2542,20 @@ Commit `#292 M2: controller dials DevTools; strip label follows navigation`.
   (`ParentPressMouse`); assert that in the test rather than assume it.
 - **`finishField` `url` branch:**
   - `NormalizeURL(text)`; on error, flash `not a URL: <err>`.
+  - **Remote URLs are confirmed once.** When `!browsertab.IsLocalURL(url)` and
+    this field session hasn't confirmed yet, don't act: flash `Chromium 111,
+    unpatched since 2023 — Enter again to open <host>, or Esc` for 8 s, mark
+    the session confirmed, and re-open the field with the same text. A second
+    Enter proceeds. Esc cancels. Local URLs never see this.
+    - It's one keystroke, it names the risk where the decision is made, and it
+      keeps remote pages possible.
+    - The confirmed flag lives on the pump's `fieldSession`, so it's per
+      session: a later edit of the same tab confirms again.
   - With `tabID == -1` → `newBrowserTab(url)`.
   - Otherwise → `t.browser.Send(Event{Kind: EvNavigate, URL: url})`.
+  - Tests: `TestLocalURLOpensWithoutConfirmation`,
+    `TestRemoteURLNeedsASecondEnter` (first Enter creates no tab and flashes;
+    second opens), `TestEscAfterTheWarningCreatesNothing`.
 - **Tests:**
   - A pump test with a fake mux: a strip-row click on the active browser chip
     begins a url field prefilled with the current URL; Ctrl+U (`\x15`, mapped
@@ -2523,6 +2590,11 @@ Behavior:
   4. `Dial` + `DiscoverTargets` yields one `page` target.
   5. `Navigate(page2)` yields `targetInfoChanged` with page2's URL and title
      within 5 s.
+  5b. **The zoom mapping still holds**: at a known column count with
+     `--zoom=100`, a page reporting `window.innerWidth` is within 5% of
+     `cols * CSSPixelsPerColumn`. And a page of dense 10 px text in a narrow
+     column drops no text run — the crowding case the 2026-09-19 measurements
+     did not cover.
   6. Idle CPU: the group's summed `ps -o time=` rises by less than 0.25 s over
      5 s.
   7. Row 0 of the child's screen (`Endpoint` text) starts with `[❮][❯][↻][`.

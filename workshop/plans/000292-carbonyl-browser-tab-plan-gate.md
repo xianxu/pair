@@ -117,7 +117,16 @@ rounds:
           family: unverified-existing-behavior
           round: 2
       blocked: false
-content_hash: fd8515d6762baec723c06dfe37ad84bc1506ae5c6534223cf0467f3cb2edeaa8
+    - "n": 3
+      timestamp: "2026-09-19T13:05:21-07:00"
+      agent: claude
+      dispose:
+        - id: PQ-7
+          disposition: addressed
+          note: 'Options.KillGroup routes the pump (child.go:151,157) and Close (:272) kills through a group SIGKILL before the reap; row corrected; pinned by TestGroupKillOptionCoversEveryReapPath. Implementer: Start''s initTerminal-failure path (child.go:131, cmd.Process.Kill then Wait) is a 4th kill+reap site that the kill() sweep should cover too.'
+          round: 3
+      blocked: false
+content_hash: 1f702f275223f71cedb0435f5910e4e1f6532d30bea17586df3ef3a968716ee1
 ---
 
 # Gate ledger — pair#292 (plan-quality)
@@ -188,6 +197,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   as an invariant in KillGroup's comment and in removeTab/closeAll; pin it with a test; and have the ingest-failure
   path signal the group, not just the leader.
 
+## Round 3 — 2026-09-19T13:05:21-07:00 (claude) — passed
+
+### Disposed
+
+- PQ-7 — addressed — Options.KillGroup routes the pump (child.go:151,157) and Close (:272) kills through a group SIGKILL before the reap; row corrected; pinned by TestGroupKillOptionCoversEveryReapPath. Implementer: Start's initTerminal-failure path (child.go:131, cmd.Process.Kill then Wait) is a 4th kill+reap site that the kill() sweep should cover too.
+
 ## Open findings
 
-- **PQ-7** [Minor] `unverified-existing-behavior` KillGroup's safety argument claims ptychild reaps only after pty EOF; pump also reaps on Close() and on ingest failure
+(none — every finding has been disposed)

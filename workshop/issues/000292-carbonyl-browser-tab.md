@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-19
 updated: 2026-09-19
-estimate_hours: 9.31
+estimate_hours: 9.46
 started: 2026-09-19T11:10:35-07:00
 flow: {kind: full, provenance: inferred}
 ---
@@ -59,7 +59,18 @@ that URL as a new tab; Esc cancels and creates nothing.
 - **Both bindings appear in Alt+h.**
 
 **Each tab runs** `carbonyl --remote-debugging-port=0 --user-data-dir=<profile>
---fps=15 <url>`:
+--fps=15 --zoom=<derived> <url>`:
+- **Zoom is derived from the pane's width, not left at 100.** Carbonyl maps
+  one column to ~5.29 CSS px at zoom 100 (measured), so the right pane at its
+  real widths — **93 columns** collapsed, **123** expanded (Alt+Shift+Enter,
+  measured on the operator's M2) — is a **492 px** / **651 px** viewport at
+  zoom 100. Both are tablet breakpoints, and a `min-width:1024px` app shows
+  only 2 of 4 columns: expanding the pane does NOT reach a desktop layout on
+  its own. Zoom does not shrink text (a glyph occupies a whole cell whatever
+  its CSS size), so zooming out buys layout width for free. `Zoom(cols)`
+  targets ~1024 CSS px, clamped to [25, 100]: **48 at 93 columns, 64 at 123**.
+- **The pane width changes mid-session**, so a launch-derived zoom goes stale
+  (see Log, 2026-09-19): re-derive on resize. Open — not yet in Done-when.
 - **The binary** is `$PAIR_CARBONYL` or `carbonyl` on PATH. If it's missing,
   the strip shows a notice and no tab opens.
 - **Carbonyl older than 0.0.3 gets a strip notice.** 0.0.2 spins a CPU core
@@ -114,6 +125,10 @@ through the DevTools protocol. `localhost:1111` becomes `http://localhost:1111`.
   couch, so the tab and its browser stay live and reattach with the thread.
   This is not a leak: the owner is alive.
 
+**Engine maintenance** is pair#295: which layer we own (the artifact, the Rust
+core, or the Chromium fork) now that we rely on an unmaintained engine. #292
+ships behind the swappable seam so that decision can be made on evidence.
+
 **Alt+click** on a URL moves to pair#293 (operator, 2026-09-19). That issue now
 depends on this one.
 
@@ -121,10 +136,25 @@ depends on this one.
 process (it listens on 127.0.0.1 only). That's acceptable *because* each tab
 uses a throwaway profile that holds nothing sensitive.
 
-**Limit.** Chrome 111 (early 2023) is fine for a development preview and for
-agent-driven checks. It doesn't stand in for testing against current Chrome.
-Carbonyl displays one page, so an agent should drive the existing page, not open
-new ones.
+**Engine risk, accepted by the operator 2026-09-19.** Carbonyl is
+unmaintained: last upstream commit 2023-02-26, last release v0.0.3, bundling
+Chromium 111. Nothing maintained does what it does (a real engine rendered as
+terminal *text*, with CDP for the agent); Browsh tracks current Firefox but
+can't be driven over CDP. Two conditions follow:
+- **The engine stays swappable.** It sits behind "launch a binary, speak CDP",
+  so a replacement keeps the record, `pair browser`, the chords, the label and
+  the lifecycle.
+- **A remote URL is never opened silently.** `IsLocalURL` classifies loopback,
+  `localhost`, private and link-local addresses, `file:`, `about:` and `data:`
+  as local. A remote URL in the URL field flashes `Chromium 111, unpatched
+  since 2023 — Enter again to open <host>, or Esc` and needs a second Enter.
+  pair#293 should prefer `open` (the patched system browser) for remote
+  Alt+clicks.
+
+**Limit.** Chrome 111 (early 2023) is fine for a development preview of your own
+dev servers, and for agent-driven checks. It doesn't stand in for testing against
+current Chrome. Carbonyl displays one page, so an agent should drive the existing
+page, not open new ones.
 
 ## Done when
 
@@ -141,6 +171,12 @@ new ones.
   profile; after the third, both are swept once the owner is proved dead. A test
   covers each.
 - A Carbonyl older than 0.0.3 gets a strip notice naming the idle-CPU bug.
+- A remote URL in the URL field needs a second Enter; a local one doesn't. A
+  test covers both, and `IsLocalURL`'s local set is closed (fuzzed).
+- The launch zoom is derived from the pane width (`Zoom(cols)`, unit-tested),
+  and the live conformance probe asserts the CSS-px-per-column mapping the
+  derivation rests on, so an engine change breaks a test rather than the
+  layout.
 - The chosen frame-rate cap, and the measured CPU of Carbonyl, `pair term`,
   zellij and couch on an idle and a full-motion page, are recorded in the Log.
 
@@ -182,14 +218,20 @@ item: real-api-discovery       design=0.0 impl=0.24
 item: ux-rename-iteration      design=0.5 impl=0.08
 item: smaller-go-module        design=0.05 impl=0.16
 item: smaller-go-module        design=0.05 impl=0.2
+item: smaller-go-module        design=0.05 impl=0.08
 item: skill-or-dispatcher      design=0.1 impl=0.16
 item: atlas-docs               design=0.1 impl=0.04
 item: milestone-review         design=0.1 impl=0.16
 item: milestone-review         design=0.1 impl=0.16
 item: milestone-review         design=0.1 impl=0.16
 design-buffer: 0.15
-total: 9.31
+total: 9.46
 ```
+
+**Revision 2026-09-19 (post-gate):** one `smaller-go-module`
+(design=0.05 impl=0.08) added for `IsLocalURL` plus confirm-on-remote, after
+the operator accepted the unmaintained engine on that condition.
+9.31 → 9.46.
 
 **Item order**, top to bottom:
 1. Spike and design.
@@ -311,3 +353,164 @@ Reasons: the spike (Log) and the operator's two answers this session.
 - **Alt+click:** moved to pair#293.
 - **Done-when:** follows every change above, adds the version notice, and
   names the chain CPU measurement.
+
+### 2026-09-19 — plan approved; handoff
+
+- **Plan approved.** `sdlc change-code` passed. Plan-quality needed 3 rounds:
+  - PQ-1…6 were addressed in round 1.
+  - PQ-7 was advisory and fixed structurally with `ptychild`
+    `Options.KillGroup`.
+  - The gate's round-3 note, `Start()`'s `initTerminal`-failure kill as a
+    fourth site, is folded into Task 1.3.
+- **Branch** `000292-carbonyl-browser-tab` is in place in `~/workspace/pair`.
+  The unrelated dirty files (Makefile typechange, `bootstrap.sh`,
+  `merge-check.yml`, `scripts/issue-sync.sh` deleted,
+  `scripts/merge-checks.d/40-duplicate-issue-id.sh`) are NOT ours; leave them
+  unstaged.
+- **Estimate-quality was info (non-blocking).** It judged 9.31 h likely low,
+  by about 2–3 h:
+  - one `ux-rename-iteration` item for three operator rounds;
+  - no item for Task 3.3, or for the fake's DevTools half (Task 2.2);
+  - `familiarity` 1.2 where the table's novel-but-bounded row is ×1.5;
+  - the `coder/websocket` veto branch not costed.
+
+  Not revised: the estimate stands as derived at the gate, and the close ledger
+  will measure the gap.
+- **Open operator decisions:**
+  - Accept or veto `github.com/coder/websocket` (plan header table).
+  - Install Carbonyl ≥0.0.3. The npm `latest` tag is 0.0.2, which spins a core
+    when idle. Use `npm i -g carbonyl@next`, or the v0.0.3 release zip with
+    `PAIR_CARBONYL=<path>`.
+- **Spike harness + engine, durable** (moved out of temp 2026-09-19):
+  `~/.local/share/pair/spike-292/` holds
+  - `carbonyl-0.0.3/carbonyl` — the GitHub v0.0.3 release build, the one
+    measured throughout. Use it as `PAIR_CARBONYL=~/.local/share/pair/spike-292/carbonyl-0.0.3/carbonyl`.
+    sha256 `bedd919620a384f53f18ff5d12ddbd06ad6dab9c9481a2b1e3a667344264102b`.
+  - `spike.py` — render under a pty into a pyte screen; scenarios `look`,
+    `urlbar`, `cpu`, `sample`. Env: `SPIKE_BIN`, `SPIKE_URL`, `SPIKE_COLS`,
+    `SPIKE_ROWS`, `SPIKE_ARGS` (e.g. `--zoom=50`).
+  - `termcost.py` — CPU of `pair term` relaying Carbonyl, by fps. The starting
+    point for M2's chain measurement.
+  - `crash.py` — owner-SIGKILL → does the Carbonyl tree die.
+  - `site/` — the local pages: `index`, `page2`, `long`, `anim`, `viewport`
+    (reports `window.innerWidth`), `sizes`, `docs`, `wide` (min-width 1024).
+    Serve with `python3 -m http.server 18765 --bind 127.0.0.1 --directory site`.
+  Pty allocation and these probes need the sandbox off.
+- **Next:** M1 Task 1.1 (`cmd/internal/browsertab` pure helpers + fuzz), per
+  `workshop/plans/000292-carbonyl-browser-tab-plan.md`. Run `sdlc state` first.
+
+### 2026-09-19 — operator decisions on the engine and the dependency
+
+- **`github.com/coder/websocket` approved** (ISC, zero transitive deps, last
+  commit 2026-06-15). It supplies the CDP client and the test fake's server
+  half; the in-tree alternative was ~250–350 lines of framing, masking,
+  continuation and close-handshake code plus its own fuzzing.
+- **Carbonyl accepted, on two conditions**, after its maintenance state was
+  measured: last commit 2023-02-26, last release v0.0.3 (2023-02-18), 19.5k
+  stars, 90 open issues, bundling Chromium 111.
+  - The engine stays swappable behind "launch a binary, speak CDP".
+  - Remote URLs are confirmed once before opening (`IsLocalURL`).
+- **Alternatives checked.** Browsh (last commit 2025-07-05) drives your
+  installed, patched Firefox and also renders real text, but Playwright can't
+  attach to Firefox over CDP, so the agent-sharing half of this issue would be
+  lost, and it costs more CPU. A current headless Chrome streaming screenshots
+  is not viable in-pane: downscaled text is unreadable, and zellij doesn't pass
+  terminal image protocols through.
+- **Estimate** 9.31 → 9.46 for the local-URL guard.
+
+### 2026-09-19 — engine ownership filed as pair#295
+
+The operator's position: relying on an unmaintained engine means owning it. The
+open question is which layer, so pair#295 carries the measured tiers (mirror the
+artifact / fork the Rust core / fork Chromium / own a CDP-based renderer
+instead), the triggers for each, and a timeboxed spike. Measured for it, at tag
+v0.0.3: the Chromium patch series is 14 patches over 54 files, +1,444/-267,
+of which only ~270 lines modify pre-existing Chromium code; Carbonyl's own
+source is 3,968 lines. Carbonyl also runs its renderer, GPU and network
+processes WITH Chromium's sandbox.
+
+### 2026-09-19 — how Carbonyl behaves at a right-pane width (94 columns)
+
+Measured with Carbonyl 0.0.3 under a pty, pages served locally, viewport read
+from the page itself.
+
+**One column is ~5.29 CSS px at zoom 100; one row ~10.3.** (dpr reported as
+0.38.) The viewport is therefore `cols * 5.29 * 100/zoom`:
+
+| Terminal | Zoom | CSS viewport | Breakpoint the page sees |
+|---|---|---|---|
+| 60x30 | 100 | 318 x 307 | phone (<=480) |
+| **94x40** | **100** | **497 x 413** | **tablet (481-768)** |
+| 120x36 | 100 | 634 x 371 | tablet |
+| 200x50 | 100 | 1055 x 518 | desktop (>1024) |
+| 94x40 | 70 | 700 x 581 | tablet |
+| 94x40 | 50 | 994 x 826 | small desktop |
+| 94x40 | 35 | 1350 x 1121 | desktop |
+
+**What that means at 94 columns:**
+- A responsive docs layout (sidebar + article) renders legibly at zoom 100, but
+  the 180 px sidebar eats ~34 of 94 columns.
+- A `min-width:1024px` desktop app shows **2 of its 4 columns**; the rest needs
+  horizontal scrolling.
+- At zoom 50 the same app fits entirely, all four columns readable, and the
+  docs page gains ~15 columns of content width.
+- **Zoom does not shrink text.** Text is drawn one glyph per cell regardless of
+  its CSS size, so lowering zoom buys layout width at no legibility cost. Every
+  font size from 8 px to 24 px still rendered at zoom 50, and the docs page was
+  still complete at zoom 35 (where a vertical scrollbar appears).
+- Not yet probed: a page with dense small text in narrow columns, where a run
+  needing more cells than CSS allots must crowd or truncate. The conformance
+  probe should cover it.
+
+**Design consequence (folded into the Spec):** derive `--zoom` from the pane's
+column count, targeting ~1024 CSS px, clamped [25, 100] — at 94 columns that is
+50. Estimate unchanged: `Zoom(cols)` is a few lines inside the existing pure-core
+item.
+
+### 2026-09-19 — the right pane's *real* widths: 93 columns, 123 expanded
+
+The 94-column figure the table above was probed at was an estimate. Measured
+live on the operator's M2 (full-screen Ghostty, layout 3):
+
+| Right pane | Columns | Viewport at zoom 100 | `Zoom(cols)` | Viewport at that zoom |
+|---|---|---|---|---|
+| collapsed (50%) | **93** | 492 px — tablet | **48** | 1025 px |
+| expanded (Alt+Shift+Enter, ~65%) | **123** | 651 px — still tablet | **64** | 1017 px |
+
+Three things follow.
+
+1. **The estimate held.** 93 vs the probed 94 is within noise, so the whole
+   table above and the `CSSPixelsPerColumn = 5.29` contract stand unchanged.
+2. **Expanding the pane does not buy a desktop layout — zoom still has to.**
+   At 123 columns a page still sees 651 px at zoom 100, below the 768 px
+   tablet ceiling, so a `min-width:1024px` app is broken at *both* pane widths
+   without the derivation. What the expansion buys instead is **cell budget**:
+   the same ~1024 px layout is drawn across 124 cells rather than 93, ~33%
+   more cells per CSS pixel. That is exactly the headroom the "dense small
+   text in narrow columns" risk noted above needs, so the crowding probe
+   should run at 93, not 123 — 93 is the worst case.
+3. **A launch-derived zoom goes stale, asymmetrically** (new, not yet in
+   Done-when). `Zoom(cols)` is computed once at launch, but Alt+Shift+Enter
+   re-tiles the column under a live tab:
+   - launched collapsed (zoom 48), then expanded → 1356 px. Benign: wider than
+     the target, still desktop.
+   - launched expanded (zoom 64), then collapsed → **769 px**. Falls back past
+     the desktop breakpoint, and the `min-width:1024px` app loses half its
+     columns again — the precise failure `Zoom(cols)` exists to prevent.
+   So the tab owes a re-derive on pane resize. Unprobed: whether Carbonyl
+   re-lays-out on SIGWINCH at all, and whether zoom can be changed after
+   launch (`--zoom` is a launch flag; CDP `Emulation.setPageScaleFactor` /
+   `setDeviceMetricsOverride` are the candidates, and the tab already holds a
+   CDP connection). pair#285 wants the same thing from the other direction —
+   it derives zoom from the pane width *at restore* rather than replaying a
+   recorded one.
+
+Chord reference: `Alt+Shift+Enter` → `pair layout toggle-focused`, a blind
+three-step `zellij action resize increase|decrease left` burst; state is
+classified once at ≥60% of screen width (`cmd/internal/layoutcmd/resizeplan.go`).
+
+**Arithmetic note on the plan.** `000292-...-plan.md` lists "50 at 94 columns"
+as a `Zoom` worked example, and that is off by one: `round(94 * 5.29 / 1024 *
+100) = 49`. The other two examples (100 at 200, 31 at 60) are right. The
+worked examples become unit tests, so fix the prose before writing them —
+better still, use the measured 48 at 93 and 64 at 123.

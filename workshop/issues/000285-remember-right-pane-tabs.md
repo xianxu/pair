@@ -28,6 +28,23 @@ recreate them on cold start.
 **Remembered, per tab and in order:** name, working directory, last command
 line run. Plus the active tab.
 
+**Browser tabs (pair#292) are a second tab kind** and need their own record
+fields and restore rule:
+- **Remembered:** the tab kind, its URL, its name, and whether the operator
+  renamed it (`named`). Not the profile dir — it is throwaway and dies with
+  the tab.
+- **Restore:** relaunch Carbonyl on the recorded URL, with `--zoom` re-derived
+  from the *current* pane width rather than the recorded one (pair#292's
+  `Zoom(cols)`), since a cold start often has a different geometry. There is no
+  shell, so the prefill rule below does not apply — a browser tab restores by
+  navigating, which is what its Enter would have done anyway.
+- **Degraded:** if the engine is missing at restore (no `carbonyl`, no
+  `PAIR_CARBONYL`), keep the entry, skip the launch, and notice once. Dropping
+  the entry would silently lose the operator's URL.
+- **Bound:** N browser tabs mean N Chromium process groups at cold start. Worth
+  a cap or a "restore on first focus" rule if a thread accumulates them —
+  decide when the record is designed, not after a resume starts six browsers.
+
 **Restore:** when `pair term` starts as the layout's primary right pane and a
 record exists, it opens one tab per entry, in order, with the recorded name and
 cwd, selects the recorded active tab, and places each tab's last command in its
@@ -154,3 +171,10 @@ Survey pointers for the implementing session:
   (`zellij attach`) in `launcher/createflow.go`.
 - Test seams: `ptychild.NewFakeChild` (records writes), `admitTab`-based fakes
   in `termcmd/presentation_test.go`, `hostty.FakeHost`, `fakeRuntime`.
+
+### 2026-09-19 — browser tabs join the tab model (pair#292)
+
+pair#292 adds a browser tab kind to `pair term`. Its Spec gained the record
+fields and restore rule above. Two are load-bearing: `--zoom` is re-derived
+from the pane width at restore rather than replayed, and a resume must not
+silently start a browser per remembered tab without a bound.
