@@ -62,6 +62,12 @@ both ways**:
   focus to the recorded pane, clear the record. The operator lands back in the
   draft with the cursor where they left it.
 
+Precision, measured: zellij restores **the tiling that was in effect**, not the
+layout's declared proportions — the probe went 95 → 191 → 95 columns. Those are
+the same thing only as long as nothing has dragged the split. "50/50" throughout
+this issue means the resting state, not a re-tile that collapse performs; if a
+true snap-back is wanted, it is extra work and is not specified here.
+
 Two states, one press each way. The ~2/3 rung is retired — operator decision,
 2026-09-20: a true toggle is worth more than a middle width, and the draft ladder
 (`Alt+Up`/`Alt+Down`) already covers partial re-tiling.
@@ -105,6 +111,50 @@ than in one.
   the same way #232/#233 are. Establish which hosts deliver it before promising
   the behaviour in the README's *Terminal setup* table; if it is host-dependent,
   that is a documentation row, not code.
+
+### Demote Alt+Up / Alt+Down to the draft pane
+
+Operator decision, 2026-09-20. `ChordAltUp` / `ChordAltDown` step the draft's
+height ladder and are currently **global** (`shortcut.go:183-186`), so they fire
+from the right terminal and the agent pane too. They were made global for a
+reason that has expired: stepping a rung re-applies a swap layout, which re-tiles
+the whole workbench and therefore snaps an accidentally-dragged left/right split
+back to its layout proportions. It was the quick undo for a mis-drag. With
+ctrl+wheel resize filtered, the mis-drag largely stopped happening, and the
+global reach is now just a chord the right pane cannot use for itself.
+
+Make both draft-local. In every other pane they fall through to
+`DispositionPass` and reach the child, which is the passthrough default.
+
+**This dissolves unknown 2.** A draft-local rung chord is unreachable while the
+right pane is fullscreen, because the draft is hidden and cannot hold focus.
+"What do the rungs do to a fullscreen pane" stops being a question rather than
+needing an answer.
+
+**Do not implement this by deleting the two entries.** `RenderLuaGlobalMaps`
+(`render_lua.go`) generates the draft's nvim keymaps from `GlobalBindings()`, so
+removing them removes the draft binding as well — the opposite of the intent.
+`_G.PairLayoutBigger` / `_G.PairLayoutSmaller` exist in `init.lua:3415,3439`, but
+nothing hand-binds `<M-Up>` / `<M-Down>` to them.
+
+Design decision for the plan, with a recommendation: add a **scope field** to the
+binding (draft-local vs global) rather than a second table or a hand-written
+keymap. `DecideGlobal` / `IsGlobalChord` filter on it, so the chord stops being
+intercepted from other panes; `RenderLuaGlobalMaps` keeps rendering it, so the
+draft keeps working; `keyhelp/catalog.go:63-64` flips from `ContextGlobal` to
+`ContextDraft` off the same source. One table, one truth — the rule #257 states
+and #132 paid for. A hand-written keymap in `init.lua` would work and is the
+cheaper diff, but it re-creates exactly the second hand-maintained list this repo
+keeps removing.
+
+**Premise check before this lands.** "Ctrl+scroll is disabled" is true *here* and
+not everywhere: couch filters ctrl+wheel (#213, done), but `mouse_scroll_resize
+false` is still absent from `zellij/config.kdl` (#226, open), so a standalone
+`pair` session outside couch still resizes on ctrl+wheel — and #268 (ctrl+drag
+motion in pair) is open and unverified. Removing the global undo from standalone
+pair while the mis-drag is still live there is the one way this change bites.
+Landing #226's one-line config change alongside it makes the premise true
+everywhere and closes that ticket; do that, or record why not.
 
 ### Chord retirements — two, both deliberate
 
@@ -209,10 +259,11 @@ and record the answers in `## Log`:
    focus where it was. What remains untested is whether moving focus *while*
    fullscreen re-targets which pane is fullscreen — the case that would matter if
    anything can steal focus mid-fullscreen.
-2. **What do the swap-layout rungs do to a fullscreen pane?** `Alt+Up`/`Alt+Down`
-   step the draft ladder through zellij swap layouts that re-tile existing panes
-   (`main-3.kdl:27-32`). A swap may force an exit, be refused, or corrupt the rung
-   state — and if it exits fullscreen behind Pair's back, the focus record leaks.
+2. ~~**What do the swap-layout rungs do to a fullscreen pane?**~~ **Dissolved**
+   by demoting `Alt+Up`/`Alt+Down` to the draft (above): a draft-local chord
+   cannot fire while the draft is hidden. If that demotion is dropped from this
+   issue, this unknown comes back.
+
 3. **What happens under the `Alt+Shift+D` split?** Confirm fullscreening one half
    hides the other, and that the last-used-half memory survives the round trip.
 4. **Does `pair term` re-render correctly across the geometry jump?** Measured
@@ -243,6 +294,15 @@ and record the answers in `## Log`:
 - `Alt+Up`/`Alt+Down` behave sanely while fullscreen (per unknown 2 — either they
   work, or Pair exits fullscreen first; a corrupted rung ladder or a leaked focus
   record is a fail).
+- `Alt+Up`/`Alt+Down` step the draft ladder from the draft, and reach the child
+  as ordinary passthrough from the agent pane and the right terminal.
+- The draft's `<M-Up>`/`<M-Down>` keymaps still exist after the demotion — a
+  regression test proves the generated Lua table still carries them, since
+  deleting the global entries is the obvious wrong implementation.
+- `keyhelp` describes both as draft-scoped, derived from the routing source
+  rather than restated.
+- `mouse_scroll_resize false` is in `zellij/config.kdl` and #226 is closed, or
+  the decision not to is recorded with its reason.
 - `terminalToggleBurst`, `terminalToggleSteps` and the 60% classification are
   gone, along with `resizeplan_test.go`; no code depends on zellij's resize step
   size any more.
@@ -277,6 +337,10 @@ and record the answers in `## Log`:
 - [ ] Rebuild `RunToggleFocused` as the expand/collapse sequences with the focus
       record; delete `resizeplan.go` and its tests.
 - [ ] Retire the two nvim keymaps + the dead `no_submit` branch.
+- [ ] Add the binding scope field; demote `Alt+Up`/`Alt+Down` to draft-local
+      without dropping their generated keymaps.
+- [ ] Land `mouse_scroll_resize false` (#226) so the demotion's premise holds
+      outside couch, or record why not.
 - [ ] Seam tests for both sequences incl. ordering, split-half selection, and the
       missing-recorded-pane fallback; global/passthrough guard.
 - [ ] README rows, `keyhelp` catalog, `Alt+h` help, CHANGELOG, atlas vocabulary.
@@ -356,6 +420,24 @@ so it would currently return empty and pane classification would fall back to
 the title arm that `layoutflow.go:63-71` documents as broken since #199 M3
 (BR-48). This issue plans to reuse that registry for split-half selection.
 Observed, not diagnosed — verify before depending on it.
+
+### 2026-09-20 — Alt+Up/Alt+Down demoted to the draft
+
+**Reason.** Operator: the chords are global only because stepping a rung
+re-tiles the workbench and thus undid an accidental left/right split drag. With
+ctrl+wheel resize filtered, that need has expired, and the global reach now just
+denies the chord to the right pane's child.
+
+**Delta.** New Spec section demoting both to draft-local via a binding scope
+field, explicitly *not* by deleting the entries — `RenderLuaGlobalMaps`
+generates the draft's keymaps from `GlobalBindings()`, so deletion would remove
+the draft binding too. Unknown 2 dissolved as a consequence: a draft-local chord
+cannot fire while the draft is hidden by fullscreen. Flagged that the premise
+holds under couch but not standalone pair (#226 open, #268 unverified), and
+bundled #226's one-liner.
+
+Also corrected a spec imprecision found by the probe: collapse restores the
+tiling that was in effect, not the layout's declared 50/50.
 
 ## Log
 
