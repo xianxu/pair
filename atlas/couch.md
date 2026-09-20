@@ -807,6 +807,13 @@ driven to completion under both, and one carrying an `unknown` incarnation is
 SKIPPED and reported under both -- Couch cannot vouch for that state, so neither
 killing it nor claiming to have safely detached it is honest.
 
+The detach sweep rechecks each recorded-live process by exact identity (#291).
+Confirmed-dead bookkeeping is retired through `clearLifecycleDebris`, without
+signalling, tearing down a surviving session, or adding a leave-report line.
+Its saved conversation can still classify as parked. Unknown processes and
+live processes without a session are preserved and reported as skipped;
+observation failures and detach failures still stop the sweep.
+
 **A failed start ends only what it created (`pair#230`).** Every failure after
 a start's helper is acknowledged runs `quiescePostAckStart`, which ends the
 helper and -- only when the start OWNS the session -- quiesces it, meaning

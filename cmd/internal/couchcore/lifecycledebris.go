@@ -23,8 +23,9 @@ var ErrThreadRolledBack = errors.New("the thread was rolled back: it carried not
 // recoverable thread neither startable nor archivable, and refuses -- with a
 // code -- whenever it cannot.
 //
-// It serves BOTH callers that need a record the store's structural guards will
-// accept: re-adoption before a start (resume.go) and ArchiveThread. Those guards
+// It serves callers that need a record the store's structural guards will
+// accept: re-adoption before a start, ArchiveThread, and Leave's retirement
+// of dead clients. Those guards
 // -- one incarnation at a time, no open park, no claim outstanding -- are
 // structural invariants, not lifecycle opinions, so the rule for clearing them
 // is written once and here.

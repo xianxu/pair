@@ -78,14 +78,17 @@ So the fix is not "skip and report". It is:
 - Leave with a thread whose recorded Pair process and session are gone detaches
   every other live thread, retires the dead one's incarnation, exits Couch, and
   says nothing about it.
-- That thread afterwards reads as `session gone`, not as live.
+- That thread afterwards has no live incarnation; it reads as `parked` when
+  its saved conversation is resumable, otherwise `session gone`.
 - A live thread whose session is absent is neither signalled nor retired.
 - An error after a detach signal still stops leave and names the thread.
 - A test drives leave across a stale record placed before live ones.
+- Unknown process identity is preserved and reported skipped; observation
+  errors and cancellation stop leave without inventing successful detaches.
 
 ## Plan
 
-- [ ] Reuse `clearLifecycleDebris` in `Leave`; drive the stale-record ordering
+- [x] Reuse `clearLifecycleDebris` in `Leave`; drive the stale-record ordering
       in a test; confirm `reportLeave` stays silent for a retired thread.
 
 ## Log
@@ -106,6 +109,13 @@ So the fix is not "skip and report". It is:
 - Reuse exact-process observation and `clearLifecycleDebris` for confirmed
   dead incarnations (ARCH-DRY). Preserve unknown processes and live processes
   without a session; do not signal them. Keep errors after signalling fatal.
+- Six preflight cases failed before implementation and pass after it. All
+  couchcore, couchtty and couchcmd tests pass; targeted Leave/Detach race
+  tests and vet pass. Repeated new regressions pass ten runs. Built both
+  `bin/pair` and `bin/couch`; the current shell resolves couch to this checkout.
+- Dead retirement contributes no Detached/Parked/Skipped entry, so the existing
+  `Console.reportLeave` emits no line for it. Existing partial-failure tests
+  still prove that a failed signalled detach stops the sweep.
 
 ## Revisions
 

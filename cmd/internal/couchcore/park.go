@@ -168,6 +168,9 @@ type LeaveResult struct {
 // Serial by choice: shutdown is not a throughput path, and each exact identity
 // gets the full bounded budget rather than competing for it.
 func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	result := LeaveResult{Disposition: disposition}
 	switch disposition {
 	case LeaveDetach, LeavePark:
@@ -186,6 +189,9 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 		return result, err
 	}
 	for _, record := range snapshot.Records {
+		if err := ctx.Err(); err != nil {
+			return result, err
+		}
 		if record.Park != nil {
 			if c.PairLifecycle == nil {
 				return result, errors.New("Pair lifecycle controller is unavailable")
@@ -219,6 +225,31 @@ func (c *Couch) Leave(ctx context.Context, disposition LeaveDisposition) (LeaveR
 				return result, fmt.Errorf("leave couch: park %s did not produce verified inactive history", record.Address.Tag)
 			}
 			result.Parked = append(result.Parked, record.Address)
+			continue
+		}
+		// A recorded live incarnation is history, not current liveness. The
+		// switcher may already show this thread as parked from its ledger.
+		incarnation := record.Incarnations[0]
+		identity := ProcessIdentity{PID: incarnation.PID, Identity: incarnation.Identity}
+		switch observeExactProcessOrUnknown(c.Proc, identity) {
+		case Dead:
+			if _, err := c.clearLifecycleDebris(record); err != nil {
+				return result, fmt.Errorf("leave couch: reconcile %s: %w", record.Address.Tag, err)
+			}
+			// Retiring dead bookkeeping neither detaches nor parks an agent,
+			// so it contributes no line to the operator's leave report.
+			continue
+		case Unknown:
+			result.Skipped = append(result.Skipped, record.Address)
+			continue
+		}
+		session, err := c.recoverySession(ctx, record.Address)
+		if err != nil {
+			return result, fmt.Errorf("leave couch: observe %s: %w", record.Address.Tag, err)
+		}
+		if !session.Present {
+			// A missing session does not authorize stopping a live process.
+			result.Skipped = append(result.Skipped, record.Address)
 			continue
 		}
 		if _, detachErr := c.Detach(ctx, record.Address); detachErr != nil {

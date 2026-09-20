@@ -300,6 +300,128 @@ func TestLeaveDetachesLiveThreadsSequentiallyAndRetainsPartialFailure(t *testing
 	}
 }
 
+// Recorded-live is a claim to recheck, not proof that a client can detach.
+func TestLeaveRechecksRecordedLiveBeforeDetaching(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		process string
+		session bool
+		retired bool
+	}{
+		{"dead-absent", "dead", false, true},
+		{"dead-surviving-session", "dead", true, true},
+		{"reused-pid-absent", "reused", false, true},
+		{"live-absent", "live", false, false},
+		{"unknown-absent", "unknown", false, false},
+		{"identity-unreadable-absent", "identity-error", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store, ns, first := createControllerThread(t)
+			second := validThreadRecord(t)
+			second.Address.Tag = "couch-fedcba9876543210"
+			second.StartingPath, second.WorkingPath = ns.Dir(), ns.Dir()
+			second.Reservation = false
+			second.Incarnations = []ThreadIncarnation{{PID: 43, Identity: "pair-second", State: IncarnationLive}}
+			second, err := store.CreateThread(second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			artifacts := NewFakeThreadArtifactCollisionChecker()
+			artifacts.SetPairSession(first.Address, "pair-first", tc.session)
+			artifacts.SetPairSession(second.Address, "pair-second", true)
+			proc := NewFakeProcOps()
+			switch tc.process {
+			case "live":
+				proc.Set(42, "pair-helper")
+			case "reused":
+				proc.Set(42, "unrelated-process")
+			case "unknown":
+				proc.SetUnknown(42)
+			case "identity-error":
+				proc.Set(42, "pair-helper")
+				proc.IdentityErr[42] = true
+			}
+			proc.Set(43, "pair-second")
+			proc.DiesOn[43] = syscall.SIGTERM
+			couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, Clock: FixedClock{T: time.Unix(100, 0).UTC()}, sleep: func(time.Duration) {}}
+			result, err := couch.Leave(context.Background(), LeaveDetach)
+			if err != nil {
+				t.Fatalf("Leave = %+v, %v; stale first thread must not block healthy second", result, err)
+			}
+			if !reflect.DeepEqual(result.Detached, []ThreadAddress{second.Address}) || len(result.Parked) != 0 {
+				t.Fatalf("Leave = %+v; only healthy second thread was detached", result)
+			}
+			wantSkipped := []ThreadAddress(nil)
+			if !tc.retired {
+				wantSkipped = []ThreadAddress{first.Address}
+			}
+			if !reflect.DeepEqual(result.Skipped, wantSkipped) {
+				t.Fatalf("Skipped = %+v, want %+v", result.Skipped, wantSkipped)
+			}
+			after, err := store.GetThread(first.Address)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.retired {
+				if len(after.Incarnations) != 0 || after.VerifiedPark != nil || after.LatestLaunchProfile == nil {
+					t.Fatalf("retired thread lost resume history or gained park authority: %+v", after)
+				}
+			} else if !reflect.DeepEqual(after, first) {
+				t.Fatalf("unproved thread changed: before %+v, after %+v", first, after)
+			}
+			if len(proc.Signals[42]) != 0 || len(proc.GroupSignals[42]) != 0 {
+				t.Fatalf("signalled first thread: %+v / %+v", proc.Signals, proc.GroupSignals)
+			}
+			if !reflect.DeepEqual(proc.GroupSignals[43], []os.Signal{syscall.SIGTERM}) {
+				t.Fatalf("healthy thread signals = %+v", proc.GroupSignals)
+			}
+			detached, err := store.GetThread(second.Address)
+			if err != nil || len(detached.Incarnations) != 0 || detached.VerifiedPark != nil {
+				t.Fatalf("healthy thread was not detached: %+v, %v", detached, err)
+			}
+			binding, err := artifacts.PairSession(first.Address)
+			if err != nil || binding.Present != tc.session {
+				t.Fatalf("first session changed: %+v, %v", binding, err)
+			}
+			if len(artifacts.Quiesces()) != 0 || len(artifacts.TriggeredQuits()) != 0 {
+				t.Fatal("leave tore down an agent session")
+			}
+		})
+	}
+}
+
+func TestLeaveObservationErrorPreservesRecordedLive(t *testing.T) {
+	store, _, thread := createControllerThread(t)
+	proc := NewFakeProcOps()
+	proc.Set(42, "pair-helper")
+	artifacts := NewFakeThreadArtifactCollisionChecker()
+	observationErr := errors.New("session inventory unreadable")
+	artifacts.BeforePairSession = func(ThreadAddress) error { return observationErr }
+	couch := &Couch{Threads: store, Proc: proc, Artifacts: artifacts, Clock: FixedClock{T: time.Unix(100, 0).UTC()}}
+	result, err := couch.Leave(context.Background(), LeaveDetach)
+	if !errors.Is(err, observationErr) {
+		t.Fatalf("Leave = %+v, %v; want observation failure", result, err)
+	}
+	after, getErr := store.GetThread(thread.Address)
+	if getErr != nil || !reflect.DeepEqual(after, thread) || len(proc.Signals) != 0 || len(result.Detached) != 0 || len(result.Skipped) != 0 {
+		t.Fatalf("failed observation mutated thread: %+v, %v; signals %+v; result %+v", after, getErr, proc.Signals, result)
+	}
+}
+
+func TestLeaveCanceledDoesNotRetireDeadIncarnation(t *testing.T) {
+	store, _, thread := createControllerThread(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	couch := &Couch{Threads: store, Proc: NewFakeProcOps(), Artifacts: NewFakeThreadArtifactCollisionChecker(), Clock: FixedClock{T: time.Unix(100, 0).UTC()}}
+	if _, err := couch.Leave(ctx, LeaveDetach); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Leave error = %v, want cancellation", err)
+	}
+	after, err := store.GetThread(thread.Address)
+	if err != nil || !reflect.DeepEqual(after, thread) {
+		t.Fatalf("canceled leave mutated thread: %+v, %v", after, err)
+	}
+}
+
 // An unknown incarnation is skipped, not parked. Parking is the destructive
 // option and Couch cannot vouch for what that thread is doing.
 func TestLeaveSkipsUnknownIncarnationsRatherThanParkingThem(t *testing.T) {
