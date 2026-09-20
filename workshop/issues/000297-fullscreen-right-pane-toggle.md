@@ -563,3 +563,28 @@ Full `make test` stopped at those stale scrollback mapping expectations;
 `go test ./...` runs separately so that prerequisite failure cannot hide Go
 coverage. Disposable live conformance and adversarial coverage are in progress.
 No issue-close or operator smoke claim yet.
+
+### 2026-09-20 — verification checkpoint
+
+`go test ./...` passed. Focused changed-package suites and race checks for
+layoutcmd/workbenchshortcut/termcmd passed. Exhaustive six-event transition
+sequences, generated pane inventories, and a controlled overlapping invocation
+using the real file lock pass. Parser fuzzing completed 219,540 executions in
+three seconds without failures. Artifact environment-export tests and launcher
+tests pass after adding the planned canonical fullscreen bindings.
+
+`PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run
+TestFullscreenZellijConformance -count=1 -v` passed on Zellij 0.45.1: draft,
+agent, both same-right cases, a manually resized split, and native focus-away
+behavior. Actual client input and exact geometry are checked, not just focus
+flags. Live testing exposed redundant focus returning "already focused";
+the reducer now skips Focus when return equals terminal (plan revision added).
+Exhaustive sequences also caught premature failure events stopping an initial
+state; initial invalid outcomes now remain no-ops as specified.
+
+`make test` stopped at `test-changelog`: "viewer: process target is outside
+selected owner directory". An unchanged HEAD archive built in
+`/tmp/pair-297-baseline.uRzMy3` reproduces the identical failure. This is not
+claimed green; the remaining integration suites run via `make -k test`.
+Actual new-chord disposable smoke and operator smoke remain pending. The
+in-place `make pair` build succeeded; operator was asked to smoke after relaunch.
