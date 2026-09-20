@@ -1,11 +1,12 @@
 ---
 id: 000291
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-19
-updated: 2026-09-19
+updated: 2026-09-20
 estimate_hours:
+started: 2026-09-20T14:05:57-07:00
 ---
 
 # Couch leave aborts on a thread whose recorded-live Pair is gone
