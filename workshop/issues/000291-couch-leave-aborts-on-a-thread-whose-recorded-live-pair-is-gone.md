@@ -97,3 +97,28 @@ So the fix is not "skip and report". It is:
 - Operator settled the direction the same day (see Spec): mark it lost, carry
   on, stay silent. Superseded the "skip and report" reading this issue was
   filed with.
+
+### 2026-09-20 — implementation on main
+
+- Operator reproduced the failure on tools (`couch-2e662a595ae09564`), then
+  requested fixing this on main before resuming #292. The recorded PID 3779
+  is absent; the switcher correctly offers the saved conversation as parked.
+- Reuse exact-process observation and `clearLifecycleDebris` for confirmed
+  dead incarnations (ARCH-DRY). Preserve unknown processes and live processes
+  without a session; do not signal them. Keep errors after signalling fatal.
+
+## Revisions
+
+### 2026-09-20 — current classifier and implementation scope
+
+- The earlier Done-when wording "session gone" predates ledger-backed cold
+  resume: a retired thread with a resolvable saved conversation is **parked**;
+  only one without that proof is **session gone**. Acceptance is that it no
+  longer carries a live incarnation; classification remains evidence-derived.
+- Before detaching each eligible recorded-live thread, check its exact process.
+  Dead means retire through existing cleanup and continue silently, including
+  when its session survives. Unknown means preserve and report skipped. Live
+  with an absent session also means preserve and skip. Observation/write errors
+  stop leave, as do errors from the existing detach operation.
+- Regression coverage includes stale-first ordering, PID reuse, surviving
+  sessions, live/unknown preservation, cancellation and observation errors.
