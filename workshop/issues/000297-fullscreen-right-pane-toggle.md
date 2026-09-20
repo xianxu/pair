@@ -367,24 +367,24 @@ Durable implementation plan: [native fullscreen toggle](../plans/000297-fullscre
 The 2026-09-20 implementation-planning revision below supersedes stale unknowns
 and narrows the #226 obligation without changing the chosen native toggle.
 
-- [ ] Settle the four live unknowns in a real session; record answers in `## Log`
+- [x] Settle the four live unknowns in a real session; record answers in `## Log`
       before writing code. Any that goes the wrong way amends the Spec.
-- [ ] Decide direction detection (zellij flag vs focus record) and record why.
-- [ ] Move `ChordAltShiftEnter` into `globalBindings` (`HandledInPane`, NvimKey);
+- [x] Decide direction detection (zellij flag vs focus record) and record why.
+- [x] Move `ChordAltShiftEnter` into `globalBindings` (`HandledInPane`, NvimKey);
       drop it from `roleBindings`.
-- [ ] Rebuild `RunToggleFocused` as the expand/collapse sequences with the focus
+- [x] Rebuild `RunToggleFocused` as the expand/collapse sequences with the focus
       record; delete `resizeplan.go` and its tests.
-- [ ] Retire the two nvim keymaps + the dead `no_submit` branch.
-- [ ] Add the binding scope field; demote `Alt+Up`/`Alt+Down` to draft-local
+- [x] Retire the two nvim keymaps + the dead `no_submit` branch.
+- [x] Add the binding scope field; demote `Alt+Up`/`Alt+Down` to draft-local
       without dropping their generated keymaps.
-- [ ] Land `mouse_scroll_resize false` (#226) so the demotion's premise holds
+- [x] Land `mouse_scroll_resize false` (#226) so the demotion's premise holds
       outside couch, or record why not.
-- [ ] Seam tests for both sequences incl. ordering, split-half selection, and the
+- [x] Seam tests for both sequences incl. ordering, split-half selection, and the
       missing-recorded-pane fallback; global/passthrough guard.
-- [ ] README rows, `keyhelp` catalog, `Alt+h` help, CHANGELOG, atlas vocabulary.
-- [ ] Resolve the `;10u` meta sibling: register it, or document why not.
-- [ ] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
-- [ ] Close #296 as superseded.
+- [x] README rows, `keyhelp` catalog, `Alt+h` help, CHANGELOG, atlas vocabulary.
+- [x] Resolve the `;10u` meta sibling: register it, or document why not.
+- [x] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
+- [x] Close #296 as superseded.
 - [ ] `make test`, then operator smoke test before closing.
 
 ## Revisions
@@ -588,3 +588,26 @@ selected owner directory". An unchanged HEAD archive built in
 claimed green; the remaining integration suites run via `make -k test`.
 Actual new-chord disposable smoke and operator smoke remain pending. The
 in-place `make pair` build succeeded; operator was asked to smoke after relaunch.
+
+### 2026-09-20 — implemented and ready for operator smoke
+
+Implementation committed as `f7389846`. A fresh `go test ./... -count=1`
+passed after the corrections. Final combined live command:
+`PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run
+'^TestFullscreen(ChordZellijLive|ZellijConformance)$' -count=1 -v` passed
+(4.209s). Actual bytes traverse the production Zellij config, draft nvim map,
+generic agent wrapper, terminal shells in both split halves, and a fullscreen
+nvim child. Checks include focus, exact restored geometry, persistent child
+screen, terminal-strip redraw, cleared return records, and absent diagnostics.
+Disposable sessions are cleaned up; the operator's session was not mutated.
+
+`make -k test` completed with the changelog baseline failure and a review-toggle
+failure caused by inherited hosted-session retention settings. Both reproduce
+on unchanged HEAD. With Pair/Couch/Zellij session variables removed only from
+the test subprocess environment, `make test-review` passes completely; the
+changelog failure persists. `make pair` and `git diff --check` pass.
+
+Remaining: operator smoke after relaunch (draft cursor and Ctrl+Space; carbonyl
+where available), then the SDLC-owned close review and publication. No close or
+publish performed. The review-protocol target's shortcut correction is left as
+an uncommitted inline proposal for the operator, per its datatype convention.
