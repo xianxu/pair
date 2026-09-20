@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-20
 updated: 2026-09-20
-estimate_hours:
+estimate_hours: 2.48
 started: 2026-09-20T09:53:35-07:00
 ---
 
@@ -327,6 +327,38 @@ and record the answers in `## Log`:
   longer describe two widths).
 - Operator smoke-tests it live in `~/workspace/pair`: draft → fullscreen → back
   to draft, with a shell, with nvim, and — once #292 lands — with carbonyl.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; calibration is marked stale by estimate-source.
+Derived after plan-quality accepted round 2. Native zellij actions, the existing
+picker, sidecar helpers and diagnostic writer cover the external mechanisms;
+the small pure transition model is the only new core. Familiar existing stack.
+
+Decomposition: fullscreen model/executor (greenfield Go, base design 0.5 × 0.2
+spec discount; impl 0.8 × 0.4); store/path lifecycle and Go routing (two smaller
+Go extensions, each design 0.2 × 0.2, impl 0.5 × 0.4); editor routing (Lua,
+design 1.5 × 0.2, impl 1.0 × 0.4); no-submit retirement (cross-cutting refactor,
+design 0.5 × 0.2, impl 0.5 × 0.4); docs (design 0.15 × 0.2, impl 0.2 × 0.4);
+one close review (design 0.1 × 0.2, impl 0.5 × 0.4); live conformance
+(real-API discovery, impl 0.4 × 0.4). Thorough-plan design buffer 15%.
+No additional library needed: use the already-tested native fullscreen command.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.32
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: lua-neovim design=0.30 impl=0.40
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+item: real-api-discovery design=0.00 impl=0.16
+design-buffer: 0.15
+total: 2.48
+```
 
 ## Plan
 
