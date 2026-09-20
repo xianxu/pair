@@ -480,6 +480,13 @@ verification and operator smoke steps. No production code changed during plannin
 
 ## Log
 
+### 2026-09-20 — diagnostic audience correction
+
+Operator clarified that toggle/focus failures should be logged for the agent,
+not surfaced as terminal errors or editor notifications: the user generally
+cannot address them. The durable plan's Revisions section records the change
+and replaces the handler-level UI error requirement with log-only diagnostics.
+
 ### 2026-09-20 — native probe evidence confirmed
 
 Operator reconfirmed the prior native maximize/restore test and that Ctrl+Space
