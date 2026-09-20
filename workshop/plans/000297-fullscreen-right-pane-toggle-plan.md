@@ -91,6 +91,7 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [ ] Add failing routing tests proving the fullscreen action executes from the agent and terminal and never reaches a fullscreen child; draft rungs pass through outside the draft while retaining generated draft maps.
 - [ ] Add scope to the existing binding table; global Return has `HandledInPane` and `AgentReserved`. Remove its role-only entry/case. Filter actual global routing by scope.
 - [ ] Add the wrapper executor case and reuse the terminal's existing layout action. Expose the native layout CLI as a generated direct Lua action so review/scrollback/changelog execute it from their own pane, preserving invoking identity. Do not route this action into the draft first.
+- [ ] Surface execution failures at each input handler: capture the CLI diagnostic/exit status in the terminal and call `mux.reportError`; use the wrapper's `shortcutErrorReporter` (stderr fallback); report a nonzero Lua subprocess result through the existing editor notification convention. Add handler-level failure tests for all three routes. The current terminal handler discards stderr/status and must change.
 - [ ] Make `workbench_route.lua` install draft-scoped rows only in the draft. Add the draft Lua function for the toggle. Test actual draft and review maps with headless nvim, including the removed local override.
 - [ ] Remove the append-without-send map and its now-unreachable `no_submit` parameter/branches through `send_and_clear`, `submit_operator_text`, `submission.lua`, `send_to_agent` and `draft_send.lua`. Preserve normal submission retry/uncertain-write handling and wrapper Return behavior.
 - [ ] Remove review's local Shift+Alt+Return menu map; keep its exported menu API. Update tests to assert normal submission and remaining menu behavior, retiring only compose-without-submit cases.
@@ -113,3 +114,11 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [ ] Update issue evidence, then `sdlc close --issue 297 --verified '<actual commands and observations>'`. The close boundary owns the mandatory fresh-context code review; resolve findings there. Publish through `sdlc pr` / `sdlc merge` after all required evidence is present.
 
 One atomic review boundary; no milestone labels. Estimate follows the full-flow plan-quality gate, not this draft plan.
+
+## Revisions
+
+### 2026-09-20 — plan review: report failures at input handlers
+
+The reviewer found that the existing terminal handler discards layout failures.
+Task 2 now explicitly carries errors through terminal, wrapper and Lua handlers,
+with tests at those boundaries; runtime-only error tests cannot prove delivery.
