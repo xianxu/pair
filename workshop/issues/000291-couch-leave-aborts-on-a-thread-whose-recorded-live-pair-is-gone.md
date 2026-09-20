@@ -7,6 +7,7 @@ created: 2026-09-19
 updated: 2026-09-20
 estimate_hours:
 started: 2026-09-20T14:05:57-07:00
+flow: {kind: quick, provenance: inferred, spec: "59e58412", done: "8f7b93b9"}
 ---
 
 # Couch leave aborts on a thread whose recorded-live Pair is gone
