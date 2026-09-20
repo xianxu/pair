@@ -101,7 +101,7 @@ The `pair-slug` script summarizes what the current agent session is about to dis
 - **Transcript Parsing:** Register the versioned record adapter in `cmd/internal/sessioninventory/event.go`; slugging consumes the shared bounded `TextEventWindowForRoot` projection and must not parse an agent format itself.
 - **Model Sandbox Execution:** Ensure that invoking the agent in summarize mode (`agy -p "<prompt>"` / `muse exec "<prompt>"`) runs inside a clean sandbox (e.g. setting `cmd.Dir = os.TempDir()` in [cmd/internal/model/model.go](file:///Users/xianxu/workspace/pair/cmd/internal/model/model.go), the shared model runner). This prevents the agent from triggering expensive workspace exploration tools, speeding up slug generation from 20s to 1s.
 
-**Telemetry Signal** (aspect `4`, see §3): `slug-parse` from `pair-slug` — `fired` when inventory projects ≥1 text turn, **`near-miss`** when an established root yields 0 turns, and `fail` when its bounded record stream cannot be read. A near-miss points to the shared versioned event adapter, not a slug-local parser.
+**Telemetry Signal** (aspect `4`, see §3): `slug-parse` from `pair-slug` — `fired` when inventory projects ≥1 text turn, **`near-miss`** when an established root yields 0 turns, and `fail` when its chunked record stream cannot be read. A near-miss points to the shared versioned event adapter, not a slug-local parser.
 
 ---
 

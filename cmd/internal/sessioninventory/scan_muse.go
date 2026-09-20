@@ -41,7 +41,7 @@ func scanMuseFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) {
 	if err != nil {
 		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentMuse, &nativeID, artifact, err.Error())}, false
 	}
-	err = visitJSONLines(runtime, artifact, jsonRecordLimit, func(line []byte) bool {
+	err = visitJSONLines(runtime, artifact, unlimitedRecordSize, func(line []byte) bool {
 		applyMuseRecord(&state, entry, line, &diagnostics)
 		return false
 	})

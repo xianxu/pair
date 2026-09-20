@@ -195,3 +195,23 @@ retention protocol. The unchanged baseline reproduces that review failure under
 the hosted environment. Changelog-open fails with the same owner-directory error
 both on unchanged HEAD and with session variables cleared. Full `make test`
 remains non-green; no unrelated retention change is included in #297.
+
+### 2026-09-20 — accepted smoke and transcript-size side quest
+
+Operator smoke passed in another thread. Before close, remove the Codex-only
+record cutoffs from identity scanning and downstream event/usage/incremental
+readers using the existing framing seam; preserve other provider and ledger
+limits. Add failing >1 MiB/>8 MiB regressions, keep malformed/conflicting
+identity rejection, verify the actual root transcript read-only, and rerun
+affected suites. Chunk sizes remain bounded; memory is proportional to the
+largest record (full scan) or observed suffix (existing incremental API).
+This supersedes any suggestion of a constant-memory JSON projection redesign.
+
+### 2026-09-20 — provider-independent cutoff removal
+
+Operator broadened the side quest to all arbitrary inventory data-size limits.
+Remove per-record cutoffs across Claude/Codex/Muse/Agy, full and incremental
+readers, plus inventory ledger/log/config and SQLite result cutoffs without
+matching writer bounds. Keep chunk sizes, malformed-data rejection, identity
+and path checks, and bounded diagnostics. Add oversized-provider regressions
+and runtime/ledger checks; no unrelated limits elsewhere in Pair are changed.

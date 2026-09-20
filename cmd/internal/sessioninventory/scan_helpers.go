@@ -11,10 +11,13 @@ import (
 )
 
 const (
-	metadataRecordLimit = int64(1 << 20)
-	jsonRecordLimit     = int64(8 << 20)
 	readChunkSize       = int64(64 << 10)
+	unlimitedRecordSize = int64(-1)
 )
+
+func recordExceedsLimit(size int, limit int64) bool {
+	return limit != unlimitedRecordSize && int64(size) > limit
+}
 
 var (
 	errTruncatedRecord = errors.New("session inventory JSONL record is not newline terminated")
@@ -47,8 +50,8 @@ func visitJSONLinesAt(runtime Runtime, artifact Artifact, lineLimit int64, visit
 // frameJSONLArtifact is the one chunked reader under every consumer of an
 // append-only JSONL artifact. It reads in readChunkSize ranges, calls line for
 // each newline-terminated record (CR kept — a consumer that wants it gone
-// strips it) with the record's byte offset, and enforces the ONE bound such an
-// artifact has: no record longer than recordLimit. The file itself is
+// strips it) with the record's byte offset. A nonnegative recordLimit caps
+// each record; unlimitedRecordSize disables that cutoff. The file itself is
 // unbounded — its length is defined to grow. What an unterminated tail MEANS
 // is the consumer's call, so it comes back rather than being judged here:
 // the transcript framer treats it as a truncated record, the ledger reader
@@ -73,7 +76,7 @@ func frameJSONLArtifact(runtime Runtime, artifact Artifact, recordLimit int64, l
 			if newline < 0 {
 				break
 			}
-			if int64(newline) > recordLimit {
+			if recordExceedsLimit(newline, recordLimit) {
 				return nil, false, ErrReadLimit
 			}
 			record := pending[:newline]
@@ -83,7 +86,7 @@ func frameJSONLArtifact(runtime Runtime, artifact Artifact, recordLimit int64, l
 			}
 			pendingOffset += uint64(newline + 1)
 		}
-		if int64(len(pending)) > recordLimit {
+		if recordExceedsLimit(len(pending), recordLimit) {
 			return nil, false, ErrReadLimit
 		}
 		if eof {
@@ -169,8 +172,8 @@ func edgeProvenance(role Role, schema string, artifact Artifact) []EdgeProvenanc
 }
 
 // readJSONLArtifact returns the whole body of an append-only JSONL artifact,
-// bounded PER RECORD rather than per file — the bound frameJSONLArtifact
-// enforces, and the one visitJSONLinesAt already applied to transcripts. The
+// with an optional per-record bound enforced by frameJSONLArtifact. Inventory
+// consumers disable that bound because writers have no matching ceiling. The
 // owner ledger was read with a whole-file cap instead, so a thread that had
 // been relaunched often enough became unresumable the moment its ledger
 // crossed 8 MiB (#237). The body comes back byte for byte, partial last line

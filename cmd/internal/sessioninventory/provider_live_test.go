@@ -53,7 +53,7 @@ func validateCopiedLiveAgySample(t *testing.T, installed OSRuntime) (bool, strin
 			continue
 		}
 		pairs++
-		transcriptRaw, transcriptErr := installed.ReadFile(transcript.Artifact, 8<<20)
+		transcriptRaw, transcriptErr := installed.ReadFile(transcript.Artifact, unlimitedRecordSize)
 		sourceDatabase, dbErr := installed.resolveArtifact(database.Artifact)
 		if dbErr != nil || transcriptErr != nil {
 			continue
@@ -68,7 +68,7 @@ func validateCopiedLiveAgySample(t *testing.T, installed OSRuntime) (bool, strin
 		copied := NewOSRuntime(home, t.TempDir())
 		database.Artifact = Artifact{StorageRoot: "agy-conversations", RelativePath: id + ".db", Kind: ArtifactDatabase}
 		transcript.Artifact = Artifact{StorageRoot: "agy-brain", RelativePath: transcript.Artifact.RelativePath, Kind: ArtifactTranscript}
-		records, frame, frameErr := FrameJSONLSuffix(JSONLFrameState{}, transcriptRaw, jsonRecordLimit)
+		records, frame, frameErr := FrameJSONLSuffix(JSONLFrameState{}, transcriptRaw, unlimitedRecordSize)
 		if frameErr != nil || len(frame.IncompleteTail) != 0 {
 			continue
 		}

@@ -2,11 +2,27 @@ package sessioninventory_test
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 )
+
+func TestAgyDatabaseSchemaBeyondOldReadLimit(t *testing.T) {
+	nativeID := "55555555-5555-4555-8555-555555555555"
+	runtime, database, transcript := incrementalAgyFixture(nativeID)
+	// An unrelated column's default can be large without changing the required
+	// allowlisted column names/types or the one identity row.
+	runtime.PutSQLite(database.Artifact, agySchemaQuery, sessioninventory.SQLiteResult{
+		Columns: []string{"cid", "name", "type", "dflt_value"},
+		Rows:    [][]string{{"0", "cascade_id", "TEXT", ""}, {"1", "trajectory_type", "INTEGER", ""}, {"2", "source", "INTEGER", ""}, {"3", "extra", "TEXT", strings.Repeat("x", (1<<20)+1)}},
+	})
+	state, diagnostics, err := sessioninventory.ValidateAgyDelta(runtime, database, transcript, nil, nil)
+	if err != nil || state.Disputed || !state.FirstRecordValidated || len(diagnostics) != 0 {
+		t.Fatalf("large valid SQLite schema: state=%+v diagnostics=%v err=%v", state, diagnostics, err)
+	}
+}
 
 const (
 	agySchemaQuery = "pragma table_info(trajectory_meta)"

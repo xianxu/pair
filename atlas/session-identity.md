@@ -28,7 +28,7 @@ malformed, unreadable, or unknown-schema evidence is retained as a stable coded
 diagnostic rather than guessed away. Stable IDs, ordering, chronology fallback,
 artifact paths, and a forest-only canonical projection are pure functions.
 
-All native I/O crosses one injected runtime: named storage roots, bounded file
+All native I/O crosses one injected runtime: named storage roots, chunked file
 reads, read-only SQLite, and process/open-file snapshots. The sibling
 `sessioninventorytest` package supplies a persistent stateful fake, while
 `make test-native-session-live` checks installed native shapes without printing
@@ -86,10 +86,14 @@ Inventory queries remain the only native-session read authority. Context/token
 usage, title activity, bounded slug text events, review scoping, launcher
 recovery/resume hints, and changelog keying consume an established owner
 projection by reading one ledger and its proof-named artifacts. That ledger
-read is bounded per record (`jsonRecordLimit`, through the one chunked JSONL
-framer transcripts use), never per file: the ledger keeps every generation and
-grows with each launch, so a whole-file cap was a cliff every long-lived
-thread reached (#237). The selected-
+read uses the same chunked JSONL framer as transcripts, without arbitrary
+record/file-size cutoffs (#297). Native transcripts, ledger rows, Pair logs and
+configs, and SQLite result bodies have no matching writer ceiling; reader caps
+made valid growing evidence disappear (#237, #297). Reads remain chunked at
+64 KiB, with schema/identity/path checks intact. This is not a constant-memory
+promise: full Codex/Claude/Muse scans retain a complete record; Agy and
+incremental validation retain observed records, and ledger/log consumers retain
+their parsed input. The selected-
 scope catalog is the shared persistent advancement owner: an accepted suffix is
 published monotonically through `CatalogStore`, and later unchanged queries
 reuse that parser cursor without rereading body bytes. Catalog loss falls back

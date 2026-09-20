@@ -96,10 +96,9 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 	if ledger.RelativePath == "" {
 		return query, nil
 	}
-	// Per-record bound, not per-file: the ledger grows with every launch by
-	// construction, and a whole-file cap made every long-lived thread
-	// unresumable at 8 MiB (#237).
-	raw, err := readJSONLArtifact(runtime, ledger, jsonRecordLimit)
+	// Both the ledger and its launch boundary snapshots grow without a writer
+	// size cap. Keep chunked reads without imposing a reader-only cutoff.
+	raw, err := readJSONLArtifact(runtime, ledger, unlimitedRecordSize)
 	if err != nil {
 		return SessionQuery{}, err
 	}

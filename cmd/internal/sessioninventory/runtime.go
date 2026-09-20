@@ -51,6 +51,8 @@ type SQLiteResult struct {
 
 // Runtime is the sole IO boundary for native session discovery and live
 // evidence. Every path is resolved through an authorized StorageRoot.
+// ReadFile and QuerySQLite accept -1 for no data-size cutoff; ReadAt always
+// takes a nonnegative chunk size. Explicit nonnegative limits remain supported.
 // pair:155-concept integration new M1
 type Runtime interface {
 	NativeRoots(Agent) []StorageRoot

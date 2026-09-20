@@ -6,6 +6,12 @@ tagged in git (`vN.M`) and tracked in the homebrew formula at
 
 ## Unreleased
 
+### Fixes
+
+- Session inventory no longer rejects valid growing transcripts or Pair evidence
+  because of arbitrary byte-size cutoffs. Large tool results no longer make a
+  conversation disappear from resume detection; identity validation remains intact.
+
 ### Breaking keybindings
 
 - **Alt+Shift+Return now toggles right-terminal fullscreen from any Pair pane**,

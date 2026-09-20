@@ -12,8 +12,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
-const pairArtifactReadLimit = int64(64 << 20)
-
 type pairOwner struct {
 	scope string
 	tag   string
@@ -66,7 +64,7 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 		switch {
 		case historyArtifact && artifactpath.IsLedgerHistorySidecar(name):
 			tag := historyTag
-			raw, readErr := readJSONLArtifact(runtime, file.Artifact, jsonRecordLimit)
+			raw, readErr := readJSONLArtifact(runtime, file.Artifact, unlimitedRecordSize)
 			if readErr != nil {
 				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, "", nil, "ledger:"+tag, "Pair ledger is unreadable"))
 				continue
@@ -93,7 +91,7 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			}
 		case historyArtifact && artifactpath.IsLogHistorySidecar(name):
 			tag := historyTag
-			raw, readErr := runtime.ReadFile(file.Artifact, pairArtifactReadLimit)
+			raw, readErr := runtime.ReadFile(file.Artifact, unlimitedRecordSize)
 			if readErr != nil {
 				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, "", nil, "log:"+tag, "Pair log is unreadable"))
 				continue
@@ -106,7 +104,7 @@ func RecoverPairBindings(runtime Runtime, inventory Inventory, scopeMode, curren
 			if !allowed[agent] {
 				continue
 			}
-			raw, readErr := runtime.ReadFile(file.Artifact, pairArtifactReadLimit)
+			raw, readErr := runtime.ReadFile(file.Artifact, unlimitedRecordSize)
 			if readErr != nil {
 				diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticStorageUnreadable, agent, nil, "config:"+tag, "Pair config is unreadable"))
 				continue

@@ -125,7 +125,7 @@ func ValidateTargetWork(runtime Runtime, agent Agent, eligible []ArtifactObserva
 		if !ok {
 			continue
 		}
-		observed, err := ObserveStableArtifact(runtime, root, observation.Entry, JSONLFrameState{}, jsonRecordLimit)
+		observed, err := ObserveStableArtifact(runtime, root, observation.Entry, JSONLFrameState{}, unlimitedRecordSize)
 		if err != nil || len(observed.FrameState.IncompleteTail) != 0 {
 			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticNodeMalformed, agent, nil, observation.Entry.Artifact, "target artifact did not reach a valid stable EOF"))
 			continue
@@ -184,7 +184,7 @@ func AdvanceTargetValidation(runtime Runtime, prior TargetValidation, current []
 	if !ok {
 		return TargetValidation{}, nil, ErrArtifactChanged
 	}
-	observed, err := ObserveStableArtifact(runtime, root, observation.Entry, previous.FrameState, jsonRecordLimit)
+	observed, err := ObserveStableArtifact(runtime, root, observation.Entry, previous.FrameState, unlimitedRecordSize)
 	if err != nil || len(observed.FrameState.IncompleteTail) != 0 {
 		return TargetValidation{}, nil, ErrArtifactChanged
 	}
@@ -244,7 +244,7 @@ func advanceAgyTargetValidation(runtime Runtime, prior TargetValidation, current
 	if !ok {
 		return TargetValidation{}, nil, ErrArtifactChanged
 	}
-	observed, err := ObserveStableArtifact(runtime, root, transcript.Entry, previous.FrameState, jsonRecordLimit)
+	observed, err := ObserveStableArtifact(runtime, root, transcript.Entry, previous.FrameState, unlimitedRecordSize)
 	if err != nil || len(observed.FrameState.IncompleteTail) != 0 {
 		return TargetValidation{}, nil, ErrArtifactChanged
 	}
@@ -300,7 +300,7 @@ func validateAgyTargetWork(runtime Runtime, eligible []ArtifactObservation) ([]T
 		if !ok {
 			continue
 		}
-		observed, err := ObserveStableArtifact(runtime, root, transcript.Entry, JSONLFrameState{}, jsonRecordLimit)
+		observed, err := ObserveStableArtifact(runtime, root, transcript.Entry, JSONLFrameState{}, unlimitedRecordSize)
 		if err != nil || len(observed.FrameState.IncompleteTail) != 0 {
 			continue
 		}

@@ -386,7 +386,7 @@ and narrows the #226 obligation without changing the chosen native toggle.
 - [x] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
 - [x] Close #296 as superseded.
 - [x] `make test`, then operator smoke test before closing (baseline exceptions logged; operator accepted smoke 2026-09-20).
-- [ ] Remove arbitrary inventory data-size cutoffs across providers; regress oversized records and preserved identity validation.
+- [x] Remove arbitrary inventory data-size cutoffs across providers; regress oversized records and preserved identity validation.
 
 ## Revisions
 
@@ -638,3 +638,24 @@ Remaining: operator smoke after relaunch (draft cursor and Ctrl+Space; carbonyl
 where available), then the SDLC-owned close review and publication. No close or
 publish performed. The review-protocol target's shortcut correction is left as
 an uncommitted inline proposal for the operator, per its datatype convention.
+
+### 2026-09-20 — smoke accepted; reader cutoffs removed
+
+Operator reported the new shortcut works in another thread and explicitly
+accepted the smoke test. Per the subsequent scope expansion, removed arbitrary
+inventory data-size cutoffs for every native provider, events/usage, incremental
+validation, ledgers, Pair logs/configs, and SQLite results. Chunk sizes, explicit
+bounded-runtime capability, stderr diagnostic bound, path/schema/identity checks
+remain. Tests first reproduced 1 MiB and 8 MiB record failures, then passed;
+Claude/Muse/Agy oversized scans/events, Codex initial/append and later evidence,
+malformed/conflicting identity, large ledger/log/config and SQLite cases pass.
+The full affected suite (sessioninventory/sessioninventorytest/sessionwatch/
+contextcmd/slugcmd) passes, as do make pair and diff checks.
+
+Read-only rebuilt inventory now recognizes this thread's actual Codex root as
+resumable, with no root-identity diagnostic; before the fix it was absent.
+The same query finds the root for the thread but still labels the binding
+provisional. No binding/config was hand-written and no end-to-end relaunch fix
+is claimed. This side quest removes the confirmed reader-limit cause, not the
+separate #291 global detach problem. Full Go and race checks are in progress;
+the previously reproduced changelog integration baseline exception remains.
