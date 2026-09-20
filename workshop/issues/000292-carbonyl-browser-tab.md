@@ -378,10 +378,21 @@ Reasons: the spike (Log) and the operator's two answers this session.
   - Install Carbonyl ≥0.0.3. The npm `latest` tag is 0.0.2, which spins a core
     when idle. Use `npm i -g carbonyl@next`, or the v0.0.3 release zip with
     `PAIR_CARBONYL=<path>`.
-- **Spike harness** (scratch, not committed):
-  `/tmp/claude-501/spike/{spike.py,termcost.py,site/}`, plus the v0.0.3 zip
-  unpacked at `/tmp/claude-501/spike/c003/carbonyl-0.0.3/carbonyl`. Pty tests
-  and the probe need the sandbox off.
+- **Spike harness + engine, durable** (moved out of temp 2026-09-19):
+  `~/.local/share/pair/spike-292/` holds
+  - `carbonyl-0.0.3/carbonyl` — the GitHub v0.0.3 release build, the one
+    measured throughout. Use it as `PAIR_CARBONYL=~/.local/share/pair/spike-292/carbonyl-0.0.3/carbonyl`.
+    sha256 `bedd919620a384f53f18ff5d12ddbd06ad6dab9c9481a2b1e3a667344264102b`.
+  - `spike.py` — render under a pty into a pyte screen; scenarios `look`,
+    `urlbar`, `cpu`, `sample`. Env: `SPIKE_BIN`, `SPIKE_URL`, `SPIKE_COLS`,
+    `SPIKE_ROWS`, `SPIKE_ARGS` (e.g. `--zoom=50`).
+  - `termcost.py` — CPU of `pair term` relaying Carbonyl, by fps. The starting
+    point for M2's chain measurement.
+  - `crash.py` — owner-SIGKILL → does the Carbonyl tree die.
+  - `site/` — the local pages: `index`, `page2`, `long`, `anim`, `viewport`
+    (reports `window.innerWidth`), `sizes`, `docs`, `wide` (min-width 1024).
+    Serve with `python3 -m http.server 18765 --bind 127.0.0.1 --directory site`.
+  Pty allocation and these probes need the sandbox off.
 - **Next:** M1 Task 1.1 (`cmd/internal/browsertab` pure helpers + fuzz), per
   `workshop/plans/000292-carbonyl-browser-tab-plan.md`. Run `sdlc state` first.
 
