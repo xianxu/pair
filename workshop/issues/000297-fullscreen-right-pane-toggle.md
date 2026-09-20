@@ -1,11 +1,12 @@
 ---
 id: 000297
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-20
 updated: 2026-09-20
 estimate_hours:
+started: 2026-09-20T09:53:35-07:00
 ---
 
 # Alt+Shift+Return globally toggles the right pane between 50/50 and fullscreen, restoring focus
