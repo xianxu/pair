@@ -7,6 +7,7 @@ created: 2026-09-20
 updated: 2026-09-20
 estimate_hours: 2.48
 started: 2026-09-20T09:53:35-07:00
+flow: {kind: full, provenance: operator}
 ---
 
 # Alt+Shift+Return globally toggles the right pane between 50/50 and fullscreen, restoring focus
