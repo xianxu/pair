@@ -1,14 +1,14 @@
 ---
 id: 000297
 status: open
-deps: [pair#296]
+deps: []
 github_issue:
 created: 2026-09-20
 updated: 2026-09-20
 estimate_hours:
 ---
 
-# Alt+Shift+Return toggles the right pane between 50/50 and fullscreen
+# Alt+Shift+Return globally toggles the right pane between 50/50 and fullscreen, restoring focus
 
 ## Problem
 
@@ -24,6 +24,12 @@ that, and widening it by adding resize steps would keep inheriting the burst's
 fragility: the step size is a zellij constant Pair re-derives by measurement, and
 `resizeplan.go` already carries the caveat that a future zellij step change
 "degrades to a different stable pair of widths".
+
+The chord is also pane-local, which makes it useless at the moment the operator
+actually wants it. The workflow is: typing in the draft → maximise the right pane
+and start working in it → come back to the draft and keep typing. Today that
+costs an `Alt+k` before and after, and the chord does not even exist outside the
+right pane.
 
 zellij has the operation natively:
 
@@ -46,107 +52,222 @@ mouse-drag exposure that made the floating right terminal untenable in #123
 
 ## Spec
 
-With the right pane focused, `Alt+Shift+Return` toggles that pane between the
-layout's resting 50/50 tiling and zellij fullscreen. **Two states, one press each
-way.** The ~2/3 rung is retired — operator decision, 2026-09-20: a true toggle is
-worth more than a middle width, and the draft ladder (`Alt+Up`/`Alt+Down`) already
-covers partial re-tiling.
+`Alt+Shift+Return` becomes a **global** chord that toggles the right terminal
+between the layout's resting 50/50 tiling and zellij fullscreen, **carrying focus
+both ways**:
 
-- `ActionToggleFocusedLayout` and the `handleTerminalChord` seam keep their
-  current shape (`termcmd/run.go:631`); only what `layoutcmd.RunToggleFocused`
-  does changes.
-- Use `toggle-fullscreen`, not `toggle-no-ui-fullscreen`. The operator's goal is
-  columns; zellij's UI bars cost rows, not columns, so the no-UI variant buys
-  nothing here and costs the status bar. Say this at the call site so the next
-  reader doesn't "upgrade" it.
-- Prefer `--pane-id` with the right terminal's known ID over relying on ambient
-  focus. Pair already resolves it (`currentRightTerminalPane`,
-  `rt.TerminalPaneIDs()`), and an explicit target keeps the action from acting on
-  whatever zellij thinks is focused if the two ever disagree.
-- Unchanged: the chord is a no-op when a right terminal is not focused
-  (`layoutcmd.go:251-254`). This issue does not make it global.
+- **Expand** (from any pane): record the currently focused pane, focus the right
+  terminal, fullscreen it. The operator lands in the maximised pane ready to work.
+- **Collapse** (from the fullscreen right terminal): leave fullscreen, restore
+  focus to the recorded pane, clear the record. The operator lands back in the
+  draft with the cursor where they left it.
 
-**This is mostly a deletion.** `terminalToggleBurst`, `terminalToggleSteps`, the
-60%-of-screen expanded/collapsed classification and `resizeplan_test.go` all go.
-`zellij action toggle-fullscreen` is itself a toggle, so Pair no longer has to
-infer which direction to move — today's width-threshold state machine exists only
-because `resize` is directional. Removing it removes Pair's dependence on
-zellij's resize step size entirely. Do not replace it with a fullscreen-state
-detector unless something below proves one is needed (`zellijpane.Pane` parses no
-`IsFullscreen` field today; check whether `list-panes --json` even carries one
-before designing around it). ARCH-DRY / Simplicity First.
+Two states, one press each way. The ~2/3 rung is retired — operator decision,
+2026-09-20: a true toggle is worth more than a middle width, and the draft ladder
+(`Alt+Up`/`Alt+Down`) already covers partial re-tiling.
+
+### Global, not role-scoped
+
+Move `ChordAltShiftEnter` from `roleBindings` into `globalBindings` with
+`HandledInPane: true`, following the `ChordAltShiftLeft/Right/T` precedent
+(#216/#243): every pane acts on it directly rather than routing a Lua call into
+the draft, and the draft gets its own `NvimKey` entry for the same action.
+
+**This subsumes #296.** `RightTerminalChordPassesThrough` already returns false
+for any global (`!IsGlobalChord(chord)`, `shortcut.go:398-400`), so a global chord
+is never forwarded to a full-screen child. The carbonyl passthrough problem #296
+was filed to fix disappears as a consequence of this change rather than needing
+its own reservation mechanism. Close #296 as superseded when this lands; do not
+build both.
+
+The standard global tradeoff applies and is accepted: a full-screen application
+in the right pane can no longer claim this chord. That is the same bargain #258
+struck for the tab chords, and it is the point — the chord must work *especially*
+when carbonyl owns the screen.
+
+### Chord retirements — two, both deliberate
+
+`Alt+Shift+Return` currently means two other things. Operator decision,
+2026-09-20: **retire both** rather than relocate them, so the chord has one
+meaning everywhere.
+
+1. **Draft: append-without-send.** `nvim/init.lua:3540` binds `<S-M-CR>` in
+   normal + insert to `send_and_clear(true)` — append the buffer to the agent's
+   composer with a trailing newline, do not submit. Remove the keymap. Then check
+   whether anything else passes `no_submit`; if not, the parameter and its branch
+   in `send_and_clear` (`init.lua:1522`) are dead and go too — a retirement that
+   leaves the dead limb behind is half done.
+2. **Review pane: the send menu.** `nvim/review.lua:706` binds `<M-S-CR>`
+   buffer-locally to `open_mode_menu` — the mode/instruction selector, which also
+   applies a pending round (#89 M3). Buffer-locality does not protect it: a Pair
+   global is intercepted at the pane wrapper before nvim sees the bytes. Removing
+   it leaves `<M-CR>` (`finish_human_turn`) as the review pane's only Return
+   action, and `open_mode_menu` still reachable via its module export
+   (`review.lua:793`). **This one was surfaced after the retirement decision was
+   taken** — if the review send menu is load-bearing in practice, relocating it to
+   a free chord is a cheaper change than reversing this issue's design.
+
+Also update: `keyhelp/catalog.go:45` (the `<S-M-CR>` draft entry) and
+`README.md:122`.
+
+### Focus memory
+
+The record of "which pane to come back to" needs a home. Reuse the existing
+sidecar pattern — `workbenchshortcut`'s package doc already carves out
+`LastLeftPaneStore`'s "small sidecar helpers" as the one impure corner, and
+`ShortcutDecision` already carries `RecordLastLeftPaneID` /
+`RecordLastTerminalPaneID`. Add the fullscreen-return record there; do not invent
+a second storage mechanism.
+
+Two reuses, not new inventions:
+
+- **Which half to fullscreen under an `Alt+Shift+D` split:** the last-used-half
+  memory `ActionFocusRightTerminal` already consults. One derivation of "the right
+  terminal you mean", shared (ARCH-DRY).
+- **When the recorded pane is gone:** fall back to the draft pane id, exactly as
+  `ChordAltK` does (`shortcut.go:307-310`).
+
+### Direction detection
+
+Unlike a bare toggle, Pair now must know which way it is going, because expand
+and collapse do different focus work. Prefer a truth source over an inference:
+check whether `list-panes --json` exposes a fullscreen flag (`zellijpane.Pane`
+parses none today — `zellijpane.go:17-28`) and use it if present. Only if zellij
+does not report it should the presence of the focus record stand in as the state,
+and then the record's lifecycle *is* the state machine and must be written and
+cleared accordingly. Say which one was chosen and why in `## Log`.
+
+One helpful constraint: while fullscreen the other panes are hidden, so focus
+cannot leave the right terminal by mouse. The state is harder to desync than it
+looks.
+
+### Order of operations is load-bearing
+
+Whether zellij's fullscreen follows focus is unknown (below). Both sequences are
+written so that it does not matter:
+
+    expand:    record focused id → focus-pane-id <right terminal> → toggle-fullscreen
+    collapse:  toggle-fullscreen → focus-pane-id <recorded> → clear record
+
+Focusing *before* fullscreening makes the target unambiguous without `--pane-id`;
+exiting fullscreen *before* restoring focus means a focus-following
+implementation cannot strand the operator in a fullscreen draft. Do not reorder
+these as a "simplification".
+
+### Unchanged
+
+`ActionToggleFocusedLayout` and the `handleTerminalChord` seam keep their shape
+(`termcmd/run.go:631`). Use `toggle-fullscreen`, not `toggle-no-ui-fullscreen` —
+the goal is columns, and zellij's UI bars cost rows; say so at the call site so
+the next reader does not "upgrade" it.
+
+**This remains mostly a deletion on the layout side.** `terminalToggleBurst`,
+`terminalToggleSteps`, the 60%-of-screen classification and `resizeplan_test.go`
+all go, and with them Pair's dependence on zellij's resize step size. What
+replaces them is focus bookkeeping, not geometry arithmetic. Note that
+`RunToggleFocused` must stop keying off `focusedRightTerminal` — the chord now
+fires when the right terminal is *not* focused, which is the common case.
 
 ### Unknowns to settle live before the design is fixed
 
-These are zellij behaviours, not Pair decisions, and each one changes the spec if
-it goes the wrong way. Establish them in a live session and record the answers in
-`## Log`:
+Each changes the spec if it goes the wrong way. Establish them in a live session
+and record the answers in `## Log`:
 
-1. **Does fullscreen follow focus?** `Alt+k` is the keyboard escape back to the
-   left stack (`shortcut.go:390-397`). If moving focus while fullscreen makes the
-   *newly focused* pane fullscreen, `Alt+k` from a fullscreen terminal traps the
-   operator in a fullscreen draft. If instead focus movement exits fullscreen,
-   the behaviour is fine as-is. If it traps, Pair must exit fullscreen before
-   honouring `Alt+k`, and that becomes a Done-when.
+1. **Does fullscreen follow focus?** Now load-bearing in both directions. The
+   ordering above is designed to be safe either way, but confirm it rather than
+   trusting the design.
 2. **What do the swap-layout rungs do to a fullscreen pane?** `Alt+Up`/`Alt+Down`
    step the draft ladder through zellij swap layouts that re-tile existing panes
-   (`main-3.kdl:27-32`). Whether a swap forces an exit from fullscreen, is
-   refused, or corrupts the rung state is unknown.
-3. **What happens under the `Alt+Shift+D` split?** Fullscreen is per-pane, so
-   fullscreening one half should hide the other. Confirm that, and that `Alt+k`'s
-   last-used-half memory (`RecordLastTerminalPaneID`) survives the round trip.
+   (`main-3.kdl:27-32`). A swap may force an exit, be refused, or corrupt the rung
+   state — and if it exits fullscreen behind Pair's back, the focus record leaks.
+3. **What happens under the `Alt+Shift+D` split?** Confirm fullscreening one half
+   hides the other, and that the last-used-half memory survives the round trip.
 4. **Does `pair term` re-render correctly across the geometry jump?** The pane
    goes from ~93 to 186 columns in one step. The reserved tab-strip row and the
-   presenter's geometry epoch already handle rung changes, so this should be
-   free — but it is the largest single resize Pair will have made, and #223's
-   scroll-region history says geometry edges are where this breaks.
-
-### Relationship to #296
-
-`Alt+Shift+Return` is currently forwarded to a full-screen child by #227's
-passthrough, so under carbonyl — a TUI that owns the screen — this chord will not
-reach Pair at all. **#296 is a hard dependency for the carbonyl use case**, not a
-nice-to-have: without it the operator can enter fullscreen from a shell and then
-has no way back out once carbonyl is running.
+   presenter's geometry epoch already handle rung changes, but this is the largest
+   single resize Pair will have made, and #223's scroll-region history says
+   geometry edges are where this breaks.
 
 ## Done when
 
-- With the right pane focused at 50/50, `Alt+Shift+Return` makes it fill the
-  whole tab; pressing it again restores the previous tiling with the agent and
-  draft panes back in place.
-- Round-tripping leaves the workbench in exactly the layout it started in —
-  same rung, same pane sizes, same focus, no process restarts.
+- From the draft, `Alt+Shift+Return` fullscreens the right pane **and moves focus
+  into it**; pressing it again restores the 50/50 tiling **and returns focus to
+  the draft**, cursor position intact.
+- The same round trip works from the agent pane, and from the right pane itself
+  (where "restore focus" means staying put).
+- Round-tripping leaves the workbench in exactly the layout it started in — same
+  rung, same pane sizes, same focus, no process restarts.
+- The chord fires from every pane while a full-screen TUI (nvim, and later
+  carbonyl) runs in the right pane, and the TUI receives no bytes for it.
 - The right pane measures full screen width at fullscreen (186 columns on the
   operator's machine; assert against the screen width, not a literal).
-- `Alt+k` still escapes to the left stack from a fullscreen right pane, and does
-  not leave a fullscreen draft behind (per unknown 1 — if zellij's behaviour
-  forces an explicit exit, Pair does it).
+- Under an `Alt+Shift+D` split, the last-used half is the one that fullscreens,
+  and that memory survives the round trip.
+- When the recorded pane is gone at collapse time, focus falls back to the draft
+  rather than being left in the hidden pane or dropped.
 - `Alt+Up`/`Alt+Down` behave sanely while fullscreen (per unknown 2 — either they
-  work, or Pair exits fullscreen first; a corrupted rung ladder is a fail).
-- Under an `Alt+Shift+D` split, fullscreening one half hides the other and
-  `Alt+k`'s last-used-half memory survives the round trip.
+  work, or Pair exits fullscreen first; a corrupted rung ladder or a leaked focus
+  record is a fail).
 - `terminalToggleBurst`, `terminalToggleSteps` and the 60% classification are
   gone, along with `resizeplan_test.go`; no code depends on zellij's resize step
   size any more.
-- A test at the `layoutcmd` seam asserts the emitted zellij action for a focused
-  right terminal and the no-op for every other focus, without a live zellij.
-- README's `Alt+Shift+Return` row (`README.md:123`) and `pair keys` / `Alt+h`
-  help describe the new two-state toggle; CHANGELOG entry written.
+- The draft's append-without-send keymap is gone, and `send_and_clear`'s
+  `no_submit` branch with it if nothing else calls it.
+- The review pane's `<M-S-CR>` send-menu keymap is gone (or relocated, if that
+  decision is revisited — see Spec).
+- A test at the `layoutcmd` seam asserts the full action sequence for expand and
+  for collapse, including order, without a live zellij.
+- `IsGlobalChord(ChordAltShiftEnter)` is true and a guard asserts the chord
+  cannot pass through to a full-screen child.
+- #296 is closed as superseded, with the reason recorded.
+- README's `Alt+Shift+Return` rows (`README.md:122-123`), `pair keys` / `Alt+h`
+  help and `keyhelp/catalog.go:45` describe one global toggle; CHANGELOG entry
+  written and flagged as a breaking keybinding change.
 - `atlas/` updated if the layout vocabulary changes ("expanded" / "collapsed" no
   longer describe two widths).
-- Operator smoke-tests it live in `~/workspace/pair`: toggle in and out with a
-  shell, with nvim, and — once #292 lands — with carbonyl.
+- Operator smoke-tests it live in `~/workspace/pair`: draft → fullscreen → back
+  to draft, with a shell, with nvim, and — once #292 lands — with carbonyl.
 
 ## Plan
 
 - [ ] Settle the four live unknowns in a real session; record answers in `## Log`
       before writing code. Any that goes the wrong way amends the Spec.
-- [ ] Replace `RunToggleFocused`'s burst with a single targeted
-      `toggle-fullscreen`; delete `resizeplan.go` and its tests.
-- [ ] Handle whatever unknowns 1–2 demand (exit-before-focus-move / before-rung).
-- [ ] Seam test for the emitted action + the non-terminal-focus no-op.
-- [ ] README row, `Alt+h` help, CHANGELOG, atlas vocabulary.
+- [ ] Decide direction detection (zellij flag vs focus record) and record why.
+- [ ] Move `ChordAltShiftEnter` into `globalBindings` (`HandledInPane`, NvimKey);
+      drop it from `roleBindings`.
+- [ ] Rebuild `RunToggleFocused` as the expand/collapse sequences with the focus
+      record; delete `resizeplan.go` and its tests.
+- [ ] Retire the two nvim keymaps + the dead `no_submit` branch.
+- [ ] Seam tests for both sequences incl. ordering, split-half selection, and the
+      missing-recorded-pane fallback; global/passthrough guard.
+- [ ] README rows, `keyhelp` catalog, `Alt+h` help, CHANGELOG, atlas vocabulary.
+- [ ] Close #296 as superseded.
 - [ ] `make test`, then operator smoke test before closing.
+
+## Revisions
+
+### 2026-09-20 — global scope + focus carry
+
+**Reason.** The pane-local design was filed and immediately revised by the
+operator: the chord is wanted precisely when focus is *not* in the right pane.
+The workflow is draft → maximise → work → back to draft mid-sentence, and a
+toggle that requires already being in the right pane does not serve it.
+
+**Delta.**
+- Scope: right-pane-focused → **global**, via `globalBindings` +
+  `HandledInPane`, following the #216/#243 tab-chord precedent.
+- Behaviour: added **focus carry** — record focus on expand, restore it on
+  collapse, with a documented fallback and explicit operation ordering.
+- Dependency: `deps: [pair#296]` **removed**. Going global makes the passthrough
+  reservation automatic, so #296 is subsumed rather than depended on, and should
+  be closed as superseded.
+- Retirements: the global claim takes the chord away from two existing bindings
+  (draft append-without-send, review send menu). Both retired per operator
+  decision; the review-pane one was discovered after that decision and is flagged
+  in the Spec as cheaply reversible.
+- Unchanged from the original: two states not three, `toggle-fullscreen` over
+  `toggle-no-ui-fullscreen`, the `resizeplan.go` deletion, and the four live
+  unknowns (unknown 1 promoted to load-bearing).
 
 ## Log
 
@@ -162,3 +283,9 @@ rather than assuming the version bump had helped.
 more than it adds. Operator chose the two-state toggle (50/50 ↔ full) over
 keeping ~2/3 as a middle rung: one press each way is worth more than the
 intermediate width.
+
+Revised the same day to a global chord with focus carry — see `## Revisions`.
+The chord-collision survey found two existing bindings, not one: the draft's
+append-without-send (`init.lua:3540`) and the review pane's send menu
+(`review.lua:706`). The operator's retirement decision was taken knowing only
+the first.
