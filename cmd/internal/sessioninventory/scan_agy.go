@@ -89,7 +89,7 @@ func scanAgyDatabase(runtime Runtime, nativeID string, databaseEntry, transcript
 	transcript.Kind = ArtifactTranscript
 	transcriptEntry.Artifact = transcript
 	var records []FramedJSONLRecord
-	err := visitJSONLinesAt(runtime, transcript, jsonRecordLimit, func(line []byte, offset uint64) bool {
+	err := visitJSONLinesAt(runtime, transcript, unlimitedRecordSize, func(line []byte, offset uint64) bool {
 		records = append(records, FramedJSONLRecord{Offset: int64(offset), Bytes: append([]byte(nil), line...)})
 		return false
 	})
@@ -166,11 +166,11 @@ func validateAgyDatabaseEvidence(runtime Runtime, database Artifact, nativeID st
 	if err != nil || !bytes.Equal(header, sqliteHeader) {
 		return "missing SQLite v3 header"
 	}
-	schema, err := runtime.QuerySQLite(database, agyTrajectorySchemaQuery, metadataRecordLimit)
+	schema, err := runtime.QuerySQLite(database, agyTrajectorySchemaQuery, unlimitedRecordSize)
 	if err != nil || !validAgySchema(schema) {
 		return "trajectory_meta schema is not Agy v1"
 	}
-	facts, err := runtime.QuerySQLite(database, agyTrajectoryFactsQuery, metadataRecordLimit)
+	facts, err := runtime.QuerySQLite(database, agyTrajectoryFactsQuery, unlimitedRecordSize)
 	if err != nil || !validAgyIdentityFacts(facts, nativeID) {
 		return "trajectory_meta identity row is not Agy v1"
 	}

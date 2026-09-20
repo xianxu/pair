@@ -709,11 +709,11 @@ local function send_esc_to_agent()
 end
 
 _G.PairDraftSend = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'draft_send.lua')
-local function draftSendCommands(body, no_submit) return _G.PairDraftSend.commands(body, no_submit) end
+local function draftSendCommands(body) return _G.PairDraftSend.commands(body) end
 
 _G.PairDraftSendCommands = draftSendCommands
 
-local function send_to_agent(body, no_submit, resume_phase)
+local function send_to_agent(body, resume_phase)
   -- focus up to agent pane, type body, press Enter, focus back down.
   --
   -- We deliberately do NOT clear the agent's input first. The "[Image #N]"
@@ -737,19 +737,13 @@ local function send_to_agent(body, no_submit, resume_phase)
   -- zellij's semantic send-keys action for the modified chord instead
   -- of synthesizing it as raw ESC+CR bytes.
   --
-  -- no_submit (Alt+Shift+Enter path): land the body in the agent's
-  -- composer followed by a literal newline but DON'T submit. A bare CR
-  -- (write 13) is exactly what pair-wrap rewrites into the agent's
-  -- insert-newline sequence — the same byte the comment above warns is
-  -- *not* a submit — so it leaves the cursor on a fresh line in the
-  -- composer, ready for more input.
   if type(_G.PairTestSendToAgent) == 'function' then
-    return _G.PairTestSendToAgent(body, no_submit, resume_phase)
+    return _G.PairTestSendToAgent(body, resume_phase)
   end
   if not has_ui() and type(_G.PairTestZellijExecutor) ~= 'function' then
     return false, 'start', 'no attached UI'
   end
-  return _G.PairDraftSend.send(body, no_submit, function(label, argv, opts)
+  return _G.PairDraftSend.send(body, function(label, argv, opts)
     return PairZellijTrace.action(label, argv, opts)
   end, function()
     vim.cmd('sleep 100m')
@@ -791,8 +785,8 @@ end, function()
   local uv = vim.uv or vim.loop
   return vim.fn.sha256(table.concat({ tostring(uv.hrtime()), tostring(vim.fn.getpid()), tostring({}) }, ':'))
 end)
-function _G.submit_operator_text(authored_body, agent_text, no_submit)
-  return _G.PairSubmission.submit_operator_text(authored_body, agent_text, no_submit)
+function _G.submit_operator_text(authored_body, agent_text)
+  return _G.PairSubmission.submit_operator_text(authored_body, agent_text)
 end
 function _G.send_generated_prompt(body)
   return _G.PairSubmission.send_generated_prompt(body)
@@ -1515,11 +1509,10 @@ end
 
 -- ---------------------------------------------------------------------------
 -- send_and_clear: Alt+Return sends the entire buffer, logs it, clears the
--- draft, and resets to *. With no_submit=true (Alt+Shift+Return) the body lands
--- in the agent's composer followed by a literal newline but is NOT submitted.
+-- draft, and resets to *.
 -- ---------------------------------------------------------------------------
 
-local function send_and_clear(no_submit)
+local function send_and_clear()
   local body = buffer_text()
   if body:match('^%s*$') then return end
   -- Strip-then-check happens before any side effects: a comment-only buffer
@@ -1529,7 +1522,7 @@ local function send_and_clear(no_submit)
 
   -- Durability is the submission gate. Do this before queue consumption or
   -- draft mutation so any failure leaves all authored state intact.
-  if not submit_operator_text(body, stripped, no_submit) then return end
+  if not submit_operator_text(body, stripped) then return end
 
   local from_queue = (type(nav.pos) == 'table' and nav.pos.kind == 'queue')
 
@@ -3536,9 +3529,6 @@ end
 
 vim.keymap.set({ 'n', 'i' }, '<M-CR>', send_and_clear,
   { silent = true, desc = 'pair: send buffer + clear' })
-
-vim.keymap.set({ 'n', 'i' }, '<S-M-CR>', function() send_and_clear(true) end,
-  { silent = true, desc = 'pair: append buffer to agent (newline, no send) + clear' })
 
 vim.keymap.set({ 'n', 'i' }, '<M-b>', pair_scrollback_prev_prompt,
   { silent = true, desc = 'pair: open scrollback on previous prompt (Alt+/ then Alt+b)' })

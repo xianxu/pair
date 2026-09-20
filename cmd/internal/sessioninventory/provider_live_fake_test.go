@@ -35,7 +35,7 @@ func TestLiveJSONLProviderBehaviorMatchesStatefulFake(t *testing.T) {
 					continue
 				}
 				attempts++
-				raw, readErr := runtime.ReadFile(observation.Entry.Artifact, 8<<20)
+				raw, readErr := runtime.ReadFile(observation.Entry.Artifact, -1)
 				if readErr == nil && liveAppendMatchesFake(t, agent, observation.Entry, raw) {
 					return
 				}
@@ -77,7 +77,7 @@ func liveAgyAppendMatchesFake(t *testing.T, installed sessioninventory.OSRuntime
 		if !ok || transcript.Size > 8<<20 {
 			continue
 		}
-		raw, err := installed.ReadFile(transcript.Artifact, 8<<20)
+		raw, err := installed.ReadFile(transcript.Artifact, -1)
 		if err != nil {
 			continue
 		}

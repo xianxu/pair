@@ -17,9 +17,10 @@ type FramedJSONLRecord struct {
 
 // FrameJSONLSuffix splits newly observed bytes without treating an incomplete
 // final record as malformed. The returned values never alias caller storage.
+// A recordLimit of unlimitedRecordSize disables the per-record cutoff.
 func FrameJSONLSuffix(state JSONLFrameState, suffix []byte, recordLimit int64) ([]FramedJSONLRecord, JSONLFrameState, error) {
 	original := JSONLFrameState{ParserCompleteOffset: state.ParserCompleteOffset, IncompleteTail: append([]byte(nil), state.IncompleteTail...)}
-	if state.ParserCompleteOffset < 0 || recordLimit < 0 || int64(len(state.IncompleteTail)) > recordLimit {
+	if state.ParserCompleteOffset < 0 || recordLimit < unlimitedRecordSize || recordExceedsLimit(len(state.IncompleteTail), recordLimit) {
 		return nil, original, ErrReadLimit
 	}
 	pending := make([]byte, 0, len(state.IncompleteTail)+len(suffix))
@@ -32,7 +33,7 @@ func FrameJSONLSuffix(state JSONLFrameState, suffix []byte, recordLimit int64) (
 		if newline < 0 {
 			break
 		}
-		if int64(newline) > recordLimit {
+		if recordExceedsLimit(newline, recordLimit) {
 			return nil, original, ErrReadLimit
 		}
 		recordBytes := pending[:newline]
@@ -44,7 +45,7 @@ func FrameJSONLSuffix(state JSONLFrameState, suffix []byte, recordLimit int64) (
 		offset += consumed
 		pending = pending[newline+1:]
 	}
-	if int64(len(pending)) > recordLimit {
+	if recordExceedsLimit(len(pending), recordLimit) {
 		return nil, original, ErrReadLimit
 	}
 	return records, JSONLFrameState{ParserCompleteOffset: offset, IncompleteTail: append([]byte(nil), pending...)}, nil

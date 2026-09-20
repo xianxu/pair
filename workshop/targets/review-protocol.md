@@ -4,6 +4,7 @@ slug: review-protocol
 status: active
 issue: 000066
 created: 2026-06-19
+updated: 2026-09-20
 ---
 
 # Review Workbench Protocol — the agent ↔ review-nvim state machine
@@ -174,8 +175,10 @@ channels and the bar read the same value.
 - **draft window** — free text ("now do a copy edit"; fact-check is also just free text,
   keeping the current mode).
 - **review nvim** — `Alt+Return` sends the human turn immediately with the current
-  mode; `Alt+Shift+Return` opens a send menu (parley's UI shape: mode list plus
-  optional multi-line instruction box). On confirm it finishes the human turn with the
+  mode. The send menu has no keybinding for now; invoke it explicitly with
+  `:lua PairReviewPane.open_mode_menu("/absolute/path/to/document.md")` in review
+  nvim (parley's UI shape: mode list plus optional multi-line instruction box).
+  On confirm it finishes the human turn with the
   selected mode and optional instruction for that single round only.
 - **display** — the review bar's `🪄 <Mode>` segment (above).
 
@@ -230,3 +233,8 @@ lands. Braille spinner + compact elapsed: `⠹ 45s` → `⠹ 2m`.
 6. **The review is the xx-fix-under-docflow record flow** (propose edits → apply → rounds),
    NOT `doc-review` (read-only fact-check) standing in for it. `doc-review` is an optional
    input, never the review. (See *What "review" means here*.)
+
+## Revisions
+
+2026-09-20 — #297 retires the review send-menu shortcut. The menu remains
+available through an explicit Neovim command; no replacement keybinding is assigned.

@@ -38,6 +38,12 @@ func TestFakeRuntimeModelsPersistentStorageAndFailures(t *testing.T) {
 	if _, err := runtime.ReadFile(first.Artifact, 3); !errors.Is(err, sessioninventory.ErrReadLimit) {
 		t.Fatalf("bounded read error = %v, want ErrReadLimit", err)
 	}
+	if got, err := runtime.ReadFile(first.Artifact, -1); err != nil || string(got) != "updated" {
+		t.Fatalf("unlimited read=%q, %v", got, err)
+	}
+	if _, err := runtime.ReadFile(first.Artifact, -2); !errors.Is(err, sessioninventory.ErrReadLimit) {
+		t.Fatalf("invalid read limit: %v", err)
+	}
 	if got, eof, err := runtime.ReadAt(first.Artifact, 1, 2); err != nil || eof || string(got) != "pd" {
 		t.Fatalf("range read = %q, eof=%v, err=%v", got, eof, err)
 	}
@@ -60,6 +66,14 @@ func TestFakeRuntimeModelsSQLiteAndProcessMutation(t *testing.T) {
 	query := "select id, parent from trajectory"
 	wantRows := sessioninventory.SQLiteResult{Columns: []string{"id", "parent"}, Rows: [][]string{{"root", ""}}}
 	runtime.PutSQLite(database, query, wantRows)
+	if got, err := runtime.QuerySQLite(database, query, -1); err != nil || len(got.Rows) != 1 {
+		t.Fatalf("unlimited query: %#v, %v", got, err)
+	}
+	for _, limit := range []int64{-2, 0, 1} {
+		if _, err := runtime.QuerySQLite(database, query, limit); !errors.Is(err, sessioninventory.ErrReadLimit) {
+			t.Fatalf("bounded/invalid query %d: %v", limit, err)
+		}
+	}
 	if got, err := runtime.QuerySQLite(database, query, 4096); err != nil || !slices.Equal(got.Columns, wantRows.Columns) || len(got.Rows) != 1 || !slices.Equal(got.Rows[0], wantRows.Rows[0]) {
 		t.Fatalf("sqlite result = %#v, %v", got, err)
 	}

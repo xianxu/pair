@@ -137,12 +137,14 @@ func (r OSRuntime) ListFiles(requested StorageRoot) ([]FileEntry, error) {
 	return result, nil
 }
 
+// ReadFile accepts -1 for unlimited artifact bytes; nonnegative limits remain
+// enforced. Namespace and regular-file validation apply in both modes.
 func (r OSRuntime) ReadFile(artifact Artifact, limit int64) ([]byte, error) {
 	filePath, err := r.resolveArtifact(artifact)
 	if err != nil {
 		return nil, err
 	}
-	if limit < 0 {
+	if limit < unlimitedRecordSize {
 		return nil, ErrReadLimit
 	}
 	file, err := os.Open(filePath)
@@ -150,6 +152,9 @@ func (r OSRuntime) ReadFile(artifact Artifact, limit int64) ([]byte, error) {
 		return nil, err
 	}
 	defer file.Close()
+	if limit == unlimitedRecordSize {
+		return io.ReadAll(file)
+	}
 	content, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err != nil {
 		return nil, err
@@ -181,12 +186,14 @@ func (r OSRuntime) ReadAt(artifact Artifact, offset, limit int64) ([]byte, bool,
 	return content[:read], errors.Is(err, io.EOF), nil
 }
 
+// QuerySQLite accepts -1 for unlimited CSV output. Queries remain read-only,
+// and stderr diagnostics retain their independent bound in either mode.
 func (r OSRuntime) QuerySQLite(artifact Artifact, query string, limit int64) (SQLiteResult, error) {
 	filePath, err := r.resolveArtifact(artifact)
 	if err != nil {
 		return SQLiteResult{}, err
 	}
-	if limit < 0 {
+	if limit < unlimitedRecordSize {
 		return SQLiteResult{}, ErrReadLimit
 	}
 	stdout := newBoundedBuffer(limit)
@@ -297,6 +304,9 @@ type boundedBuffer struct {
 func newBoundedBuffer(limit int64) *boundedBuffer { return &boundedBuffer{limit: limit} }
 
 func (b *boundedBuffer) Write(content []byte) (int, error) {
+	if b.limit == unlimitedRecordSize {
+		return b.buffer.Write(content)
+	}
 	originalLength := len(content)
 	remaining := b.limit - int64(b.buffer.Len())
 	if remaining < int64(len(content)) {

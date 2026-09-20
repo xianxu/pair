@@ -31,22 +31,23 @@ end
 
 -- Headless Neovim test: we have the vim API available!
 if vim and vim.api then
-  -- Buffer setup must preserve the shared overlay-global mappings. Historical
-  -- scrollback-local guards used to shadow Alt+x and Alt+Up/Down after the
-  -- router installed them globally.
+  -- Buffer setup preserves global routes, but draft-height keys have no
+  -- normal-mode mapping in a viewer (#297).
   do
     local path = vim.fn.tempname() .. '.ansi'
     vim.fn.writefile({ 'scrollback' }, path)
     vim.cmd('edit ' .. vim.fn.fnameescape(path))
     for key, target in pairs({
       ['<M-x>'] = 'PairConfirmQuit',
-      ['<M-Up>'] = 'PairLayoutBigger',
-      ['<M-Down>'] = 'PairLayoutSmaller',
+      ['<S-M-CR>'] = '', -- direct CLI action, not a draft Lua function
     }) do
       local mapping = vim.fn.maparg(key, 'n', false, true)
       eq(mapping.desc, 'pair global: ' .. target,
          key .. ' retains shared global route after scrollback setup')
       eq(mapping.buffer, 0, key .. ' is not shadowed by a buffer-local map')
+    end
+    for _, key in ipairs({ '<M-Up>', '<M-Down>' }) do
+      eq(vim.fn.maparg(key, 'n'), '', key .. ' has no draft resize map after scrollback setup')
     end
   end
 

@@ -433,17 +433,26 @@ be dragged off position by its frame with no config gate, so the terminal
 moved into the tiled tree: tiled panes have no mouse-move operation at all,
 making the workbench drag-immune while keeping the agent pane's frame and full mouse support. (Since `#199` M4 the layout-3 terminal is borderless; drag-immunity comes from the tiled pivot, not from the frame.)
 The filler (and its key-swallowing focus trap) is gone. `Alt+Shift+Enter`
-re-tiles the column boundary between 50% and ~2/3 width via
-`pair layout toggle-focused` — the left stack genuinely narrows and reflows
-while expanded (no overlay; nothing floats). The toggle is a blind
-three-action `zellij action resize increase|decrease left` burst (#124):
-zellij's tiled resize step is a stable 5% of the screen (RESIZE_PERCENT), so
-1/2 ↔ ~2/3 is always exactly three steps — no geometry re-reads or settle
-pauses (state classified once: terminal ≥60% of screen width = expanded).
-Integer sizes are FIXED in zellij (refusing the `resize` action), but Pair
-drives draft-rung changes through swap layouts, not resize, so FIXED is
-harmless; the terminal column itself is percent-sized, which is what lets the
-width toggle step `zellij action resize` against it.
+invokes `pair layout toggle-focused` from any Pair pane. It uses Zellij's native
+`toggle-fullscreen --pane-id` to maximize one selected right terminal, retaining
+Zellij's bars. A split expands only that half. The second press restores the
+existing tiling and focuses the invoking pane; without a right terminal it is a
+no-op. This replaces the old three-resize width toggle.
+
+`cmd/internal/layoutcmd/fullscreen.go` owns pure selection (`PlanFullscreen`)
+and the effect/result transition model (`FullscreenTransition`); its executor
+observes panes through `zellijpane` and runs the declared effects. Observed
+`is_fullscreen` determines direction, while the invoking process's
+`ZELLIJ_PANE_ID` identifies where focus should return. Missing or malformed
+fullscreen observations fail before a toggle. The scoped
+`workbenchshortcut.FullscreenReturnStore` stores the return pane and serializes
+operations; it is not evidence that a pane is currently fullscreen. Collapse
+falls back to the draft if the recorded pane is gone. Errors are logged
+internally, without shortcut messages in the terminal or editor.
+
+Draft-height rungs remain swap-layout operations, independent of fullscreen.
+Their Alt+Up/Down bindings are draft-only; terminals, agents and editor overlays
+do not route those keys to the draft.
 
 The panes wrap their command in `sh -c "..."` so the shell expands pane paths, `$PAIR_TAG`, and `$PAIR_HOME` at exec time — zellij itself does not interpolate env vars in `command`/`args` fields.
 
@@ -470,14 +479,19 @@ Keybindings use `clear-defaults=true` (#245). The explicit KDL bindings only
 forward bytes; inherited mode switches, floating-pane controls, resizes and
 swap-layout actions are disabled. Zellij chooses the receiving pane, whose
 process decides the meaning: `pair wrap` passes every workbench chord except
-Shift+Alt+T/Left/Right; draft Neovim, `pair term` and Pair-owned overlays retain
+Shift+Alt+T/Left/Right and Shift+Alt+Enter; draft Neovim, `pair term` and Pair-owned overlays retain
 their declared actions. Help/changelog use the same pane-local delivery.
 
 `workbenchshortcut.Decide` applies the agent policy before globals.
-`GlobalBinding.AgentReserved` marks the three terminal-tab exceptions;
-`nvim/workbench_actions.lua` is generated from that registry. Non-agent global
-actions address the draft by pane ID through `draftroute` /
-`nvim/workbench_route.lua`, keeping command text out of a focused shell.
+`GlobalBinding.Scope` distinguishes global bindings from draft-only resizing
+before `AgentReserved` admits terminal-tab actions and fullscreen in the agent.
+`nvim/workbench_actions.lua` is generated from the same registry; help derives
+its contexts from scope before grouping agent reservations. Fullscreen carries
+`DirectCommand = {"layout", "toggle-focused"}` so `nvim/workbench_route.lua`
+executes Pair in the invoking editor, preserving its pane ID and capturing
+command output. Other routed actions address the draft by pane ID through
+`draftroute` / `nvim/workbench_route.lua`, keeping command text out of a focused
+shell. Draft-only maps are omitted from review, scrollback and changelog editors.
 
 `workbenchshortcut.FindChordOutsidePaste` looks ahead for complete unpasted
 chords; the wrapper's existing translator retains paste state and pending bytes.
@@ -795,7 +809,7 @@ Loaded via `nvim -u`, fully isolated from the user's main nvim config. Provides:
 
 - Drafting-friendly defaults: no line numbers, wrap, linebreak, breakindent, spell, persistent undo under `~/.local/share/pair/undo/`, `cmdheight=0` to keep the cmdline out of the way, custom statusline (see "prompt history & queue" below).
 - `<M-CR>` (Alt+Return, normal+insert) — `send_and_clear`: append buffer to log, send to agent pane via `zellij action move-focus up` + `write-chars` + `send-keys "Alt Enter"` (every successful body write is followed by a ~100ms settle, so the submit event cannot overtake the body it belongs to — a short draft measured only 18ms apart reached the wrapper out of order and sat idle in the composer, #266), clear `*` (when source was `*`, or when a send from `+N` parked a non-empty draft into the queue — see "Prompt history & queue"), save, drop into insert mode.
-- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — `send_and_clear(no_submit=true)`: identical flow (strip, log, queue handling, clear, reset) but writes a bare CR (`write 13`) instead of the semantic Alt+Enter submit event. pair-wrap rewrites a bare CR into the agent's insert-newline sequence rather than its submit byte, so the draft lands in the agent's composer on a fresh line, **unsubmitted** — append-without-send.
+- `<S-M-CR>` (Alt+Shift+Return, normal+insert) — generated global right-terminal fullscreen action. It executes `pair layout toggle-focused` directly, without reading, logging or clearing the draft. The former append-without-send map and `no_submit` chain are removed; normal submission retains its staged-write, indeterminate-outcome and commit-only retry behavior.
 - `<M-Left>` / `<M-Right>` — navigate the prompt-history / queue position one slot at a time (see below).
 - `<S-M-Left>` / `<S-M-Right>` — switch the RIGHT terminal's tabs, from any pane, without moving focus (#216). These are workbench globals, not draft navigation; they replaced a region-boundary jump that was deleted with them.
 - `<M-b>` — `pair_scrollback_prev_prompt`: open the scrollback viewer already positioned on the previous agent-conversation prompt — a one-key shortcut for `Alt+/` then `Alt+b`. Shells out `zellij run --floating … -- pair-scrollback-open --jump prev`. See the scrollback section's "Jump-on-open shortcut".

@@ -42,7 +42,7 @@ var Catalog = catalog{
 	include: []entry{
 		// --- Draft: compose and send -------------------------------------
 		{Key: "<M-CR>", Display: "Alt+⏎", Group: groupDraft, Order: 10, Context: ContextDraft, Source: SourceNvim},
-		{Key: "<S-M-CR>", Display: "Shift+Alt+⏎", Group: groupDraft, Order: 20, Context: ContextDraft, Source: SourceNvim},
+		{Key: "<S-M-CR>", Display: "Shift+Alt+⏎", Group: groupPanes, Order: 20, Context: ContextGlobal, Source: SourceGlobal},
 		{Key: "<C-c>", Display: "Ctrl+c", Group: groupDraft, Order: 30, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<M-i>", Display: "Alt+i", Group: groupDraft, Order: 40, Context: ContextDraft, Source: SourceNvim},
 		{Key: "<C-_>", Display: "Ctrl+/", Group: groupDraft, Order: 50, Context: ContextDraft, Source: SourceNvim},
@@ -70,7 +70,6 @@ var Catalog = catalog{
 		{Key: "Alt+r", Group: groupTerminal, Order: 30, Context: ContextTerminal, Source: SourceRole},
 		{Key: "Alt+Shift+d", Group: groupTerminal, Order: 40, Context: ContextTerminal, Source: SourceRole},
 		{Key: "Alt+k", Group: groupTerminal, Order: 50, Context: ContextTerminal, Source: SourceRole},
-		{Key: "Alt+Shift+⏎", Group: groupTerminal, Order: 60, Context: ContextTerminal, Source: SourceRole},
 		// Distinct catalog keys from the draft's <M-Left>/<M-Right> history rows: the
 		// (key, context) identity rule is what makes the same physical key safe to
 		// document twice with different meanings.
@@ -162,8 +161,6 @@ func roleChordKey(c workbenchshortcut.Chord) string {
 		return "Alt+Shift+d"
 	case workbenchshortcut.ChordAltK:
 		return "Alt+k"
-	case workbenchshortcut.ChordAltShiftEnter:
-		return "Alt+Shift+⏎"
 	case workbenchshortcut.ChordAltLeft:
 		return "Alt+← (terminal)"
 	case workbenchshortcut.ChordAltRight:

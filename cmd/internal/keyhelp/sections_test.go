@@ -127,16 +127,40 @@ func TestReservedShortcutHelpMatchesPolicy(t *testing.T) {
 		if found.Key == "" {
 			t.Fatalf("no help for %s", global.NvimKey)
 		}
-		if strings.Contains(found.Desc, "outside the agent pane") == global.AgentReserved {
+		if strings.Contains(found.Desc, "outside the agent pane") != (global.Scope == workbenchshortcut.ScopeGlobal && !global.AgentReserved) {
 			t.Errorf("scope description for %s: %q", global.NvimKey, found.Desc)
 		}
 		wantContext, wantGroup := ContextWorkbench, found.Group
-		if global.AgentReserved {
+		if global.Scope == workbenchshortcut.ScopeDraft {
+			wantContext = ContextDraft
+		} else if global.AgentReserved {
 			wantContext, wantGroup = ContextGlobal, groupAgent
 		}
 		if found.Context != wantContext || found.Group != wantGroup {
 			t.Errorf("scope metadata for %s: %+v", global.NvimKey, found)
 		}
+	}
+}
+
+func TestFullscreenHasOneGlobalHelpRow(t *testing.T) {
+	sections, err := Sections(DefaultSources())
+	if err != nil {
+		t.Fatal(err)
+	}
+	count := 0
+	for _, section := range sections {
+		for _, b := range section.Bindings {
+			if b.Chord == workbenchshortcut.ChordAltShiftEnter {
+				count++
+				if b.Context != ContextGlobal || !strings.Contains(b.Desc, "right terminal fullscreen") ||
+					!strings.Contains(b.Desc, "return focus") || strings.Contains(b.Desc, "focused pane") {
+					t.Errorf("fullscreen row: %+v", b)
+				}
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("fullscreen rows = %d, want 1", count)
 	}
 }
 

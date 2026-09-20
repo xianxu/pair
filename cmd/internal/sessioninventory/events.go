@@ -46,7 +46,7 @@ func visitNativeEventsForRoot(runtime Runtime, root Node, visit func(NativeEvent
 		return nil, err
 	}
 	var diagnostics []Diagnostic
-	err = visitJSONLinesAt(runtime, artifact, jsonRecordLimit, func(line []byte, lineStart uint64) bool {
+	err = visitJSONLinesAt(runtime, artifact, unlimitedRecordSize, func(line []byte, lineStart uint64) bool {
 		events, found := NativeEventsFromRecords(root.Agent, root.StableID, []FramedJSONLRecord{{Offset: int64(lineStart), Bytes: line}})
 		diagnostics = append(diagnostics, found...)
 		for _, event := range events {

@@ -5,79 +5,9 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 	"github.com/xianxu/pair/cmd/internal/zellijpane"
-	"strconv"
 	"strings"
 	"testing"
 )
-
-// The toggle fires a fixed three-action burst (zellij's tiled resize step is
-// a stable 5% of the screen, so 1/2 ↔ ~2/3 is always exactly three steps) —
-// no settle pauses, no re-reads. #124.
-
-func TestToggleFocusedExpandsInOneBurst(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(tiledWorkbenchJSON(75, 150))}
-	var stderr bytes.Buffer
-
-	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	want := "resize increase left,resize increase left,resize increase left"
-	if got := strings.Join(rt.ops, ","); got != want {
-		t.Fatalf("ops = %q, want %q", got, want)
-	}
-}
-
-func TestToggleFocusedCollapsesInOneBurst(t *testing.T) {
-	// 105/150 = 70% ≥ 60% reads as expanded.
-	rt := &fakeRuntime{panesJSON: []byte(tiledWorkbenchJSON(105, 150))}
-	var stderr bytes.Buffer
-
-	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	want := "resize decrease left,resize decrease left,resize decrease left"
-	if got := strings.Join(rt.ops, ","); got != want {
-		t.Fatalf("ops = %q, want %q", got, want)
-	}
-}
-
-func tiledWorkbenchJSON(terminalCols, screenCols int) string {
-	left := strconv.Itoa(screenCols - terminalCols)
-	return `[
-		{"id":1,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + left + `,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":0,"pane_columns":` + left + `,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,"pane_x":` + left + `,"pane_columns":` + strconv.Itoa(terminalCols) + `,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
-	]`
-}
-
-func TestToggleFocusedIgnoresLeftFocus(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
-		{"id":1,"is_plugin":false,"is_focused":true,"is_floating":false,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":4,"is_plugin":false,"is_focused":false,"is_floating":false,"pane_x":75,"title":"terminal","terminal_command":"pair term"}
-	]`)}
-	var stderr bytes.Buffer
-
-	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	if len(rt.ops) != 0 {
-		t.Fatalf("ops = %v, want no-op for left focus", rt.ops)
-	}
-}
-
-func TestToggleFocusedRefusesWithoutGeometry(t *testing.T) {
-	rt := &fakeRuntime{panesJSON: []byte(`[
-		{"id":4,"is_plugin":false,"is_focused":true,"is_floating":false,"title":"terminal","terminal_command":"pair term"}
-	]`)}
-	var stderr bytes.Buffer
-
-	if code := RunToggleFocused(nil, rt, &stderr); code != 0 {
-		t.Fatalf("code = %d stderr=%q", code, stderr.String())
-	}
-	if len(rt.ops) != 0 {
-		t.Fatalf("ops = %v, want no-op without tiled geometry", rt.ops)
-	}
-}
 
 func TestFocusRightTerminalFocusesTiledTerminalByID(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: []byte(`[

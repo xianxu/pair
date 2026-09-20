@@ -49,7 +49,7 @@ func scanCodexFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool) 
 
 	state := newCodexScannerState(entry, nativeID)
 	var diagnostics []Diagnostic
-	err := visitJSONLines(runtime, artifact, metadataRecordLimit, func(line []byte) bool {
+	err := visitJSONLines(runtime, artifact, unlimitedRecordSize, func(line []byte) bool {
 		applyCodexRecord(&state, entry, line, &diagnostics)
 		return false
 	})

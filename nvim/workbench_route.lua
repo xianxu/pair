@@ -1,5 +1,7 @@
--- Shared routing for workbench-global shortcuts received by Pair-owned nvim
--- panes. Draft executes locally; overlays address the draft pane explicitly.
+-- Shared routing for workbench shortcuts received by Pair-owned nvim panes.
+-- Direct commands run in the invoking editor, preserving its pane identity.
+-- Other actions execute locally in the draft or route there from overlays;
+-- draft-scoped maps are installed only in the draft.
 local M = {}
 
 local here = debug.getinfo(1, 'S').source:sub(2):match('(.*/)') or './'
@@ -108,18 +110,27 @@ end
 
 function M.install_global_maps(is_draft)
   for key, binding in pairs(M.global_maps) do
-    vim.keymap.set({ 'n', 'i' }, key, function()
-      if is_draft then
-        local action = _G[binding.fn]
-        if type(action) == 'function' then
-          action()
+    if binding.scope ~= 'draft' or is_draft then
+      vim.keymap.set({ 'n', 'i' }, key, function()
+        if binding.direct_command then
+          -- Preserve this process's ZELLIJ_PANE_ID. The Go executor owns all
+          -- diagnostics; capture output and ignore its already-logged failure.
+          local home = vim.env.PAIR_HOME or ''
+          local command = { home ~= '' and (home .. '/bin/pair') or 'pair' }
+          vim.list_extend(command, binding.direct_command)
+          vim.fn.system(command)
+        elseif is_draft then
+          local action = _G[binding.fn]
+          if type(action) == 'function' then
+            action()
+          else
+            report(binding.fn .. ' is unavailable')
+          end
         else
-          report(binding.fn .. ' is unavailable')
+          M.route(binding.fn, binding.focus)
         end
-      else
-        M.route(binding.fn, binding.focus)
-      end
-    end, { silent = true, desc = 'pair global: ' .. binding.fn })
+      end, { silent = true, desc = 'pair global: ' .. binding.fn })
+    end
   end
 end
 

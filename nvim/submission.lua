@@ -19,7 +19,7 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
     return true
   end
 
-  function submit.submit_operator_text(authored_body, agent_text, no_submit)
+  function submit.submit_operator_text(authored_body, agent_text)
     if not submit.retry_pending_commit() then return false end
     if pending ~= nil and pending.phase == 'indeterminate' then
       notify_error('Pair input dispatch blocked — reconcile the agent composer after an indeterminate body write')
@@ -37,13 +37,13 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
       notify_error('Pair log append failed — ' .. tostring(err or 'unknown error'))
       return false
     end
-    local send_ok, phase, send_err = send_low_level(agent_text, no_submit, pending.phase)
+    local send_ok, phase, send_err = send_low_level(agent_text, pending.phase)
     pending.phase = phase or 'indeterminate'
-    if not send_ok and pending.phase ~= 'dispatched' and pending.phase ~= 'composed' then
+    if not send_ok and pending.phase ~= 'dispatched' then
       notify_error('Pair input dispatch failed — ' .. tostring(send_err or 'unknown error'))
       return false
     end
-    if not no_submit and pending.phase ~= 'dispatched' then
+    if pending.phase ~= 'dispatched' then
       notify_error('Pair input dispatch failed — submit was not confirmed')
       return false
     end
@@ -56,11 +56,6 @@ function M.new(append_authored, commit_authored, send_low_level, notify_error, m
       -- commit-only retry remains pending.
       return true
     end
-    if pending.phase == 'composed' and not send_ok then
-      notify_error('Pair input composed with UI warning — ' .. tostring(send_err or 'unknown error'))
-    end
-    pending = nil -- completed compose-only transfer remains non-evidence.
-    return true
   end
 
   -- Returns whether the send actually reached the agent. It used to discard

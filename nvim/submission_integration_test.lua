@@ -2,7 +2,7 @@
 local case = assert(os.getenv('PAIR_TEST_TX_CASE'))
 local pair = assert(os.getenv('PAIR_TEST_BIN'))
 local log_path = assert(os.getenv('PAIR_LOG_PATH'))
-local fail_kind = case:gsub('^focus%-draft%-compose$', 'focus-draft')
+local fail_kind = case
 local failed = false
 local state = { focus = 'draft', composer = '', dispatches = {} }
 
@@ -31,9 +31,6 @@ _G.PairTestZellijExecutor = function(label, argv)
     assert(state.focus == 'agent')
     state.dispatches[#state.dispatches + 1] = state.composer
     state.composer = ''
-  elseif kind == 'newline' then
-    assert(state.focus == 'agent')
-    state.composer = state.composer .. '\n'
   end
   return { code = 0 }
 end
@@ -42,22 +39,21 @@ local notifications = {}
 local original_notify = vim.notify
 vim.notify = function(message) notifications[#notifications + 1] = tostring(message) end
 
-local no_submit = case == 'newline' or case == 'focus-draft-compose'
-local first = _G.submit_operator_text('BODY', 'BODY', no_submit)
-if case == 'focus-agent' or case == 'submit' or case == 'newline' then
+local first = _G.submit_operator_text('BODY', 'BODY')
+if case == 'focus-agent' or case == 'submit' then
   assert(not first)
-  assert(_G.submit_operator_text('BODY', 'BODY', no_submit))
+  assert(_G.submit_operator_text('BODY', 'BODY'), table.concat(notifications, '\n'))
 elseif case == 'write-body' then
   assert(not first)
-  assert(not _G.submit_operator_text('BODY', 'BODY', no_submit))
-elseif case == 'focus-draft' or case == 'focus-draft-compose' or case == 'commit' then
+  assert(not _G.submit_operator_text('BODY', 'BODY'))
+elseif case == 'focus-draft' or case == 'commit' then
   assert(first)
 else
   error('unknown case ' .. case)
 end
 
 if case == 'commit' then
-  assert(_G.submit_operator_text('NEXT', 'NEXT', false))
+  assert(_G.submit_operator_text('NEXT', 'NEXT'))
 end
 
 local file = assert(io.open(log_path, 'rb'))
@@ -73,8 +69,6 @@ table.sort(facts)
 
 if case == 'write-body' then
   assert(#state.dispatches == 0 and #facts == 0 and state.composer == '')
-elseif case == 'newline' or case == 'focus-draft-compose' then
-  assert(#state.dispatches == 0 and #facts == 0 and state.composer == 'BODY\n')
 elseif case == 'commit' then
   assert(#state.dispatches == 2 and state.dispatches[1] == 'BODY' and state.dispatches[2] == 'NEXT')
   assert(#facts == 2 and facts[1] == 'BODY' and facts[2] == 'NEXT')

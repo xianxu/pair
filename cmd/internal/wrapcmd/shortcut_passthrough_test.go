@@ -122,7 +122,7 @@ func TestWrapperShortcutStreamPartitions(t *testing.T) {
 
 func TestAgentAllUnreservedChordEncodingsReachInput(t *testing.T) {
 	for chord := workbenchshortcut.Chord(1); chord < workbenchshortcut.ChordMax(); chord++ {
-		if chord == workbenchshortcut.ChordAltShiftT || chord == workbenchshortcut.ChordAltShiftLeft || chord == workbenchshortcut.ChordAltShiftRight {
+		if chord == workbenchshortcut.ChordAltShiftT || chord == workbenchshortcut.ChordAltShiftLeft || chord == workbenchshortcut.ChordAltShiftRight || chord == workbenchshortcut.ChordAltShiftEnter {
 			continue
 		}
 		for _, raw := range workbenchshortcut.ChordEncodings(chord) {

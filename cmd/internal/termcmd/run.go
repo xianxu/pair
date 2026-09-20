@@ -31,6 +31,7 @@ import (
 type Runtime interface {
 	CachedDraftPaneID() (string, bool)
 	CurrentPaneID() string
+	FullscreenStore() workbenchshortcut.FullscreenStore
 	ListPanesJSON() ([]byte, error)
 	LastLeftPaneID() (string, error)
 	RecordLastLeftPaneID(string) error
@@ -258,9 +259,7 @@ func runDecision(decision workbenchshortcut.ShortcutDecision, panes workbenchPan
 	case workbenchshortcut.ActionSplitTerminalDown:
 		return splitTerminalDown(rt)
 	case workbenchshortcut.ActionToggleFocusedLayout:
-		if layoutcmd.RunToggleFocused(nil, rt, io.Discard) != 0 {
-			return fmt.Errorf("toggle focused layout failed")
-		}
+		_ = layoutcmd.RunToggleFocused(nil, rt, io.Discard)
 		return nil
 	default:
 		return nil
@@ -513,7 +512,7 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 			}
 			if chord, ok := inputChord(event); ok {
 				flushPending()
-				if workbenchshortcut.RightTerminalChordPassesThrough(chord) && mux.activeChildOwnsScreen() {
+				if workbenchshortcut.IsDraftChord(chord) || (workbenchshortcut.RightTerminalChordPassesThrough(chord) && mux.activeChildOwnsScreen()) {
 					mux.writeEvents([]terminal.InputEvent{event})
 					continue
 				}
@@ -725,6 +724,10 @@ func (OSRuntime) CachedDraftPaneID() (string, bool) {
 
 func (OSRuntime) CurrentPaneID() string {
 	return os.Getenv("ZELLIJ_PANE_ID")
+}
+
+func (OSRuntime) FullscreenStore() workbenchshortcut.FullscreenStore {
+	return layoutcmd.OSRuntime{}.FullscreenStore()
 }
 
 func (OSRuntime) LastLeftPaneID() (string, error) {

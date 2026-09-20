@@ -129,20 +129,29 @@ type ShortcutDecision struct {
 	FocusDraft               bool
 }
 
+type BindingScope int
+
+const (
+	ScopeGlobal BindingScope = iota
+	ScopeDraft
+)
+
 type GlobalBinding struct {
-	Chord       Chord
-	Action      ShortcutAction
-	LuaFunction string
-	NvimKey     string
-	FocusDraft  bool
+	Scope BindingScope
+	// DirectCommand runs Pair in the invoking editor, preserving its pane ID.
+	DirectCommand []string
+	Chord         Chord
+	Action        ShortcutAction
+	LuaFunction   string
+	NvimKey       string
+	FocusDraft    bool
 	// HandledInPane marks a global the FOCUSED PANE acts on itself, instead of
 	// routing LuaFunction into the draft. Every other global's action is a
 	// draft Lua call, so DecideGlobal sets DraftLuaFunction and both Go
 	// executors branch on that field first; a chord that must deliver bytes to
 	// the RIGHT pane cannot be expressed that way, and routing it through nvim
 	// would make tab switching depend on the draft being alive (#216).
-	// LuaFunction stays populated regardless — it is what RenderLuaGlobalMaps
-	// emits for the draft's own keymap.
+	// LuaFunction or DirectCommand supplies the generated editor action.
 	HandledInPane bool
 	// AgentReserved keeps this action available when the agent owns input.
 	// Every other workbench chord passes through that role.
@@ -164,9 +173,13 @@ type GlobalBinding struct {
 	HostedHelp string
 }
 
+// The shared binding table includes global and draft-scoped rows. Consumers
+// must inspect Scope rather than treating table membership as global eligibility.
 // Keyed literals (not positional): #132 added Help, and a positional list makes
 // every future field a silent shift of the one before it.
 var globalBindings = []GlobalBinding{
+	{Chord: ChordAltShiftEnter, Action: ActionToggleFocusedLayout, NvimKey: "<S-M-CR>", HandledInPane: true, AgentReserved: true,
+		DirectCommand: []string{"layout", "toggle-focused"}, Help: "toggle right terminal fullscreen; return focus on exit"},
 	{Chord: ChordAltD, Action: ActionConfirmDetach, LuaFunction: "PairConfirmDetach", NvimKey: "<M-d>", FocusDraft: true,
 		Help:       "detach from the session (re-attach with `pair`)",
 		HostedHelp: "detach only this Zellij client, not the Couch thread"},
@@ -180,9 +193,9 @@ var globalBindings = []GlobalBinding{
 		HostedHelp: "same as Alt+n under Couch"},
 	{Chord: ChordAltShiftN, Action: ActionRestartAgent, LuaFunction: "PairConfirmAgentRestart", NvimKey: "<M-N>", FocusDraft: true,
 		Help: "restart only the agent conversation, keeping the workbench"},
-	{Chord: ChordAltUp, Action: ActionGrowDraft, LuaFunction: "PairLayoutBigger", NvimKey: "<M-Up>", FocusDraft: false,
+	{Chord: ChordAltUp, Scope: ScopeDraft, Action: ActionGrowDraft, LuaFunction: "PairLayoutBigger", NvimKey: "<M-Up>", FocusDraft: false,
 		Help: "grow the draft pane along the height ladder"},
-	{Chord: ChordAltDown, Action: ActionShrinkDraft, LuaFunction: "PairLayoutSmaller", NvimKey: "<M-Down>", FocusDraft: false,
+	{Chord: ChordAltDown, Scope: ScopeDraft, Action: ActionShrinkDraft, LuaFunction: "PairLayoutSmaller", NvimKey: "<M-Down>", FocusDraft: false,
 		Help: "shrink the draft pane along the height ladder"},
 	{Chord: ChordAltC, Action: ActionToggleReview, LuaFunction: "PairReviewToggle", NvimKey: "<M-c>", FocusDraft: false,
 		Help: "open / show / hide the review pane"},
@@ -221,7 +234,6 @@ var roleBindings = []RoleBinding{
 	{Chord: ChordAltR, Role: PaneRoleRightTerminal, Help: "rename the current terminal tab"},
 	{Chord: ChordAltShiftD, Role: PaneRoleRightTerminal, Help: "split a second terminal below"},
 	{Chord: ChordAltK, Role: PaneRoleRightTerminal, Help: "jump back to the left pane you came from"},
-	{Chord: ChordAltShiftEnter, Role: PaneRoleRightTerminal, Help: "toggle the focused side's width"},
 	// Handled by termcmd.handleTerminalChord (run.go:484-489), NOT by Decide — the
 	// terminal chord surface is split across two seams and their sets differ. #132's
 	// first cut documented only Decide's, so "Terminal tabs" rendered with no way to
@@ -235,8 +247,15 @@ func RoleBindings() []RoleBinding {
 	return append([]RoleBinding(nil), roleBindings...)
 }
 
+// GlobalBindings returns a copy of the shared binding table, including
+// draft-scoped rows. The name is retained for existing callers; use Scope,
+// IsGlobalChord or IsDraftChord to determine where a binding applies.
 func GlobalBindings() []GlobalBinding {
-	return append([]GlobalBinding(nil), globalBindings...)
+	bindings := append([]GlobalBinding(nil), globalBindings...)
+	for i := range bindings {
+		bindings[i].DirectCommand = append([]string(nil), bindings[i].DirectCommand...)
+	}
+	return bindings
 }
 
 func RoleForPane(p zellijpane.Pane) PaneRole {
@@ -277,9 +296,14 @@ func TitleIdentifiesRightTerminal(title string) bool {
 }
 
 func Decide(in ShortcutInput) ShortcutDecision {
+	if in.Role == PaneRoleLeftDraft {
+		if binding, ok := globalDraftAction(in.Chord); ok && binding.Scope == ScopeDraft {
+			return bindingDecision(binding)
+		}
+	}
 	if in.Role == PaneRoleLeftAgent {
 		binding, ok := globalDraftAction(in.Chord)
-		if !ok || !binding.AgentReserved {
+		if !ok || binding.Scope != ScopeGlobal || !binding.AgentReserved {
 			return ShortcutDecision{Disposition: DispositionPass}
 		}
 	}
@@ -314,8 +338,6 @@ func Decide(in ShortcutInput) ShortcutDecision {
 				TargetPaneID:             target,
 				RecordLastTerminalPaneID: in.FocusedPaneID,
 			}
-		case ChordAltShiftEnter:
-			return handle(ActionToggleFocusedLayout)
 		case ChordAltJ, ChordAltSlash, ChordAltShiftC, ChordCtrlAltC:
 			return ShortcutDecision{Disposition: DispositionSwallow}
 		default:
@@ -352,20 +374,24 @@ func Decide(in ShortcutInput) ShortcutDecision {
 // inventory. Pair-owned input wrappers already establish that the chord came
 // from a primary pane; only pane-relative shortcuts need Role/geometry data.
 func DecideGlobal(chord Chord) (ShortcutDecision, bool) {
-	if binding, ok := globalDraftAction(chord); ok {
-		if binding.HandledInPane {
-			// No DraftLuaFunction: the executors branch on that field first, so
-			// setting it would route this into the draft instead.
-			return ShortcutDecision{Disposition: DispositionHandle, Action: binding.Action}, true
-		}
-		return ShortcutDecision{
-			Disposition:      DispositionHandle,
-			Action:           binding.Action,
-			DraftLuaFunction: binding.LuaFunction,
-			FocusDraft:       binding.FocusDraft,
-		}, true
+	if binding, ok := globalDraftAction(chord); ok && binding.Scope == ScopeGlobal {
+		return bindingDecision(binding), true
 	}
 	return ShortcutDecision{}, false
+}
+
+func bindingDecision(binding GlobalBinding) ShortcutDecision {
+	if binding.HandledInPane {
+		// No DraftLuaFunction: the executors branch on that field first, so
+		// setting it would route this into the draft instead.
+		return ShortcutDecision{Disposition: DispositionHandle, Action: binding.Action}
+	}
+	return ShortcutDecision{
+		Disposition:      DispositionHandle,
+		Action:           binding.Action,
+		DraftLuaFunction: binding.LuaFunction,
+		FocusDraft:       binding.FocusDraft,
+	}
 }
 
 func globalDraftAction(chord Chord) (GlobalBinding, bool) {
@@ -383,8 +409,15 @@ func globalDraftAction(chord Chord) (GlobalBinding, bool) {
 // split once so nothing open-codes `_, ok := DecideGlobal(chord)` and reads ok
 // as a classification.
 func IsGlobalChord(chord Chord) bool {
-	_, ok := globalDraftAction(chord)
-	return ok
+	binding, ok := globalDraftAction(chord)
+	return ok && binding.Scope == ScopeGlobal
+}
+
+// IsDraftChord identifies bindings owned only by the draft editor. Other panes
+// must leave these bytes with their child even when it is not fullscreen.
+func IsDraftChord(chord Chord) bool {
+	binding, ok := globalDraftAction(chord)
+	return ok && binding.Scope == ScopeDraft
 }
 
 // RightTerminalChordPassesThrough reports whether a right-terminal chord is
@@ -420,12 +453,9 @@ var chordSequences = []struct {
 	{"\x1b[110;3u", ChordAltN},
 	{"\x1b[110;7u", ChordCtrlAltN},
 	{"\x1b[78;4u", ChordAltShiftN},
-	// Two modifier families, because terminals disagree about how to report
-	// Alt: bit 2 ("alt") gives modifier 3, bit 8 ("meta") gives 9, and adding
-	// shift gives 4 and 10 respectively. ChordAltLeft/Right have carried both
-	// since e6eee5a3; Up/Down had only the bit-2 form, so on a meta-style
-	// terminal they were silently dead. Registering both everywhere makes the
-	// family the rule rather than a per-chord accident (#216 BR-2).
+	// Retain legacy arrow modifier aliases. Kitty CSI-u uses different bits:
+	// modifier 4 is Shift+Alt; CSI 13;10u is Shift+Super, NOT Alt, and must
+	// not be registered as Alt+Shift+Enter.
 	{"\x1b[1;3A", ChordAltUp}, {"\x1b[1;9A", ChordAltUp},
 	{"\x1b[1;3B", ChordAltDown}, {"\x1b[1;9B", ChordAltDown},
 	{"\x1b[99;3u", ChordAltC},

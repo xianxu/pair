@@ -1,7 +1,7 @@
 -- Production authored-text delivery transaction over Zellij actions.
 local M = {}
 
-function M.commands(body, no_submit)
+function M.commands(body)
   local cmds = {
     { kind = 'focus-agent', label = 'draft.send.focus-agent', argv = { 'zellij', 'action', 'move-focus', 'up' } },
     {
@@ -11,21 +11,17 @@ function M.commands(body, no_submit)
       opts = { redact = { [4] = body } },
     },
   }
-  if no_submit then
-    cmds[#cmds + 1] = { kind = 'compose', label = 'draft.send.newline', argv = { 'zellij', 'action', 'write', '13' } }
-  else
-    cmds[#cmds + 1] = { kind = 'submit', label = 'draft.send.submit', argv = { 'zellij', 'action', 'send-keys', 'Alt Enter' } }
-  end
+  cmds[#cmds + 1] = { kind = 'submit', label = 'draft.send.submit', argv = { 'zellij', 'action', 'send-keys', 'Alt Enter' } }
   cmds[#cmds + 1] = { kind = 'refocus', label = 'draft.send.focus-draft', argv = { 'zellij', 'action', 'move-focus', 'down' } }
   return cmds
 end
 
-function M.send(body, no_submit, action, settle, resume_phase)
+function M.send(body, action, settle, resume_phase)
   resume_phase = resume_phase or 'start'
   if resume_phase == 'indeterminate' then
     return false, resume_phase, 'body write outcome is indeterminate; reconcile the agent composer manually'
   end
-  local cmds = M.commands(body, no_submit)
+  local cmds = M.commands(body)
   if resume_phase == 'written' then
     cmds = { cmds[1], cmds[3], cmds[4] }
   elseif resume_phase ~= 'start' then
@@ -44,7 +40,6 @@ function M.send(body, no_submit, action, settle, resume_phase)
     end
     if cmd.kind == 'write' then phase = 'written' end
     if cmd.kind == 'submit' then phase = 'dispatched' end
-    if cmd.kind == 'compose' then phase = 'composed' end
     if cmd.kind == 'write' then settle() end
   end
   return true, phase

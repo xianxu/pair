@@ -1673,6 +1673,8 @@ func (p *proxy) handleWorkbenchChord(chord workbenchshortcut.Chord) bool {
 // from the agent pane (#213's lesson, applied forward).
 var switchTerminalTab = layoutcmd.SwitchRightTerminalTab
 
+var toggleFocusedLayout = layoutcmd.RunToggleFocused
+
 func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDecision) bool {
 	if decision.DraftLuaFunction != "" {
 		rt := p.draftRouteRuntime
@@ -1693,6 +1695,11 @@ func (p *proxy) executeWorkbenchDecision(decision workbenchshortcut.ShortcutDeci
 		return true
 	}
 	switch decision.Action {
+	case workbenchshortcut.ActionToggleFocusedLayout:
+		// The shared executor logs failures for agent diagnosis. Shortcut input
+		// must not print over the agent display or interrupt it with an alert.
+		_ = toggleFocusedLayout(nil, layoutcmd.OSRuntime{}, io.Discard)
+		return true
 	case workbenchshortcut.ActionTerminalPrevTab, workbenchshortcut.ActionTerminalNextTab, workbenchshortcut.ActionTerminalNewTab:
 		if chord, ok := workbenchshortcut.TabChordFor(decision.Action); ok {
 			_ = switchTerminalTab(layoutcmd.OSRuntime{}, chord)

@@ -11,9 +11,8 @@
 // Two rules earn their keep here, both learned from real breakage:
 //
 //   - A binding is identified by (key, CONTEXT), never by key alone. Alt+t/w/r are
-//     deliberate no-ops in the draft but new/close/rename tab in the terminal, and
-//     Shift+Alt+⏎ means append-no-send in the draft and toggle-layout in the
-//     terminal. One row per key would publish one of each pair as a lie.
+//     deliberate no-ops in the draft but new/close/rename tab in the terminal.
+//     One row per key would publish one of each pair as a lie.
 //   - Every row names the source its wording comes from. There is no "whichever
 //     source has prose wins" fallback: that rule is exactly what would ship
 //     "right-terminal tab helper disabled in draft" as Alt+t's description.

@@ -1,6 +1,6 @@
 ---
 id: 000297
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-20
@@ -8,6 +8,7 @@ updated: 2026-09-20
 estimate_hours: 2.48
 started: 2026-09-20T09:53:35-07:00
 flow: {kind: full, provenance: operator}
+actual_hours: 3.65
 ---
 
 # Alt+Shift+Return globally toggles the right pane between 50/50 and fullscreen, restoring focus
@@ -367,27 +368,54 @@ Durable implementation plan: [native fullscreen toggle](../plans/000297-fullscre
 The 2026-09-20 implementation-planning revision below supersedes stale unknowns
 and narrows the #226 obligation without changing the chosen native toggle.
 
-- [ ] Settle the four live unknowns in a real session; record answers in `## Log`
+- [x] Settle the four live unknowns in a real session; record answers in `## Log`
       before writing code. Any that goes the wrong way amends the Spec.
-- [ ] Decide direction detection (zellij flag vs focus record) and record why.
-- [ ] Move `ChordAltShiftEnter` into `globalBindings` (`HandledInPane`, NvimKey);
+- [x] Decide direction detection (zellij flag vs focus record) and record why.
+- [x] Move `ChordAltShiftEnter` into `globalBindings` (`HandledInPane`, NvimKey);
       drop it from `roleBindings`.
-- [ ] Rebuild `RunToggleFocused` as the expand/collapse sequences with the focus
+- [x] Rebuild `RunToggleFocused` as the expand/collapse sequences with the focus
       record; delete `resizeplan.go` and its tests.
-- [ ] Retire the two nvim keymaps + the dead `no_submit` branch.
-- [ ] Add the binding scope field; demote `Alt+Up`/`Alt+Down` to draft-local
+- [x] Retire the two nvim keymaps + the dead `no_submit` branch.
+- [x] Add the binding scope field; demote `Alt+Up`/`Alt+Down` to draft-local
       without dropping their generated keymaps.
-- [ ] Land `mouse_scroll_resize false` (#226) so the demotion's premise holds
+- [x] Land `mouse_scroll_resize false` (#226) so the demotion's premise holds
       outside couch, or record why not.
-- [ ] Seam tests for both sequences incl. ordering, split-half selection, and the
+- [x] Seam tests for both sequences incl. ordering, split-half selection, and the
       missing-recorded-pane fallback; global/passthrough guard.
-- [ ] README rows, `keyhelp` catalog, `Alt+h` help, CHANGELOG, atlas vocabulary.
-- [ ] Resolve the `;10u` meta sibling: register it, or document why not.
-- [ ] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
-- [ ] Close #296 as superseded.
-- [ ] `make test`, then operator smoke test before closing.
+- [x] README rows, `keyhelp` catalog, `Alt+h` help, CHANGELOG, atlas vocabulary.
+- [x] Resolve the `;10u` meta sibling: register it, or document why not.
+- [x] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
+- [x] Close #296 as superseded.
+- [x] `make test`, then operator smoke test before closing (baseline exceptions logged; operator accepted smoke 2026-09-20).
+- [x] Remove arbitrary inventory data-size cutoffs across providers; regress oversized records and preserved identity validation.
 
 ## Revisions
+
+### 2026-09-20 — remove the reader cliffs across providers
+
+Operator clarified that the cutoff removal must not be Codex-only: "remove all
+arbitrary limits." Apply the same no-size-cutoff policy across native transcript
+scanners, events/usage, and incremental reads. Sweep inventory ledger/log/config
+and SQLite result readers too: their producers have no matching size ceiling.
+Preserve chunk sizes, schema/identity/path checks, and bounded diagnostic output.
+No unrelated repo-wide limits are in scope. Memory still scales with complete
+records or existing batch results; this change does not promise constant memory.
+This supersedes the Codex-only scope in the earlier revision below.
+
+### 2026-09-20 — operator-approved transcript-reader side quest
+
+The operator accepted the fullscreen smoke in another thread and requested the
+Codex transcript limit fix on this branch before close. The actual root rollout
+contains valid event records above 1 MiB, so the identity scanner drops the root
+and relaunch incorrectly reports missing completed-turn evidence. Remove Codex
+record cutoffs in identity, events, usage, and targeted incremental reads; retain
+other providers' and ledger limits. Reuse chunked framing and strict JSON/identity
+validation (ARCH-DRY, ARCH-FUNERAL), not a larger arbitrary cap. Full scans hold
+one record at a time; incremental validation retains the observed suffix as it
+already does. Memory scales with those bytes, not a constant-memory claim. No
+new JSON parser or silent skipping of malformed/identity-conflicting records.
+Tests must cover >1 MiB and >8 MiB records, evidence after large records, and
+malformed/conflicting metadata. Confirm the real root is recognized read-only.
 
 ### 2026-09-20 — global scope + focus carry
 
@@ -514,6 +542,7 @@ verification and operator smoke steps. No production code changed during plannin
 ## Log
 
 ### 2026-09-20 — diagnostic audience correction
+- 2026-09-20: closed — Operator accepted fullscreen smoke in another thread; disposable native fullscreen and actual-chord conformance passed; affected inventory/sessionwatch/context/slug suites and make pair pass; oversized records across all four providers plus ledger/log/config/SQLite regressions pass; real Codex root recognized after cutoff removal. Earlier full Go suite passed; fresh full/race checks running. make test has documented unchanged-baseline changelog ownership failure, and review suite passes in clean test environment.; review verdict: SHIP
 
 Operator clarified that toggle/focus failures should be logged for the agent,
 not surfaced as terminal errors or editor notifications: the user generally
@@ -544,3 +573,102 @@ The chord-collision survey found two existing bindings, not one: the draft's
 append-without-send (`init.lua:3540`) and the review pane's send menu
 (`review.lua:706`). The operator's retirement decision was taken knowing only
 the first.
+
+### 2026-09-20 — implementation checkpoint
+
+Passed full-flow change-code gates and entered branch
+`000297-fullscreen-right-pane-toggle`. Native fullscreen planning, effect-order
+transition, return storage/lock/diagnostics, and global wrapper/terminal/editor
+routing are implemented in the working tree. The resize-burst implementation
+and append-without-submit chain are removed. Failure handlers remain silent;
+the executor records diagnostics once (ARCH-ORDER, ARCH-DRY).
+
+Focused layout/parser tests and wrapper tests pass. Integration testing found
+one real routing gap: terminal decoding consumed newly draft-only Alt+Up/Down
+even when the action router passed them. The terminal now consults binding
+scope before routing and forwards these keys to its child. Exhaustive terminal
+and viewer tests still need their old global-rung assertions reconciled.
+Full `make test` stopped at those stale scrollback mapping expectations;
+`go test ./...` runs separately so that prerequisite failure cannot hide Go
+coverage. Disposable live conformance and adversarial coverage are in progress.
+No issue-close or operator smoke claim yet.
+
+### 2026-09-20 — verification checkpoint
+
+`go test ./...` passed. Focused changed-package suites and race checks for
+layoutcmd/workbenchshortcut/termcmd passed. Exhaustive six-event transition
+sequences, generated pane inventories, and a controlled overlapping invocation
+using the real file lock pass. Parser fuzzing completed 219,540 executions in
+three seconds without failures. Artifact environment-export tests and launcher
+tests pass after adding the planned canonical fullscreen bindings.
+
+`PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run
+TestFullscreenZellijConformance -count=1 -v` passed on Zellij 0.45.1: draft,
+agent, both same-right cases, a manually resized split, and native focus-away
+behavior. Actual client input and exact geometry are checked, not just focus
+flags. Live testing exposed redundant focus returning "already focused";
+the reducer now skips Focus when return equals terminal (plan revision added).
+Exhaustive sequences also caught premature failure events stopping an initial
+state; initial invalid outcomes now remain no-ops as specified.
+
+`make test` stopped at `test-changelog`: "viewer: process target is outside
+selected owner directory". An unchanged HEAD archive built in
+`/tmp/pair-297-baseline.uRzMy3` reproduces the identical failure. This is not
+claimed green; the remaining integration suites run via `make -k test`.
+Actual new-chord disposable smoke and operator smoke remain pending. The
+in-place `make pair` build succeeded; operator was asked to smoke after relaunch.
+
+### 2026-09-20 — implemented and ready for operator smoke
+
+Implementation committed as `f7389846`. A fresh `go test ./... -count=1`
+passed after the corrections. Final combined live command:
+`PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run
+'^TestFullscreen(ChordZellijLive|ZellijConformance)$' -count=1 -v` passed
+(4.209s). Actual bytes traverse the production Zellij config, draft nvim map,
+generic agent wrapper, terminal shells in both split halves, and a fullscreen
+nvim child. Checks include focus, exact restored geometry, persistent child
+screen, terminal-strip redraw, cleared return records, and absent diagnostics.
+Disposable sessions are cleaned up; the operator's session was not mutated.
+
+`make -k test` completed with the changelog baseline failure and a review-toggle
+failure caused by inherited hosted-session retention settings. Both reproduce
+on unchanged HEAD. With Pair/Couch/Zellij session variables removed only from
+the test subprocess environment, `make test-review` passes completely; the
+changelog failure persists. `make pair` and `git diff --check` pass.
+
+Remaining: operator smoke after relaunch (draft cursor and Ctrl+Space; carbonyl
+where available), then the SDLC-owned close review and publication. No close or
+publish performed. The review-protocol target's shortcut correction is left as
+an uncommitted inline proposal for the operator, per its datatype convention.
+
+### 2026-09-20 — smoke accepted; reader cutoffs removed
+
+Operator reported the new shortcut works in another thread and explicitly
+accepted the smoke test. Per the subsequent scope expansion, removed arbitrary
+inventory data-size cutoffs for every native provider, events/usage, incremental
+validation, ledgers, Pair logs/configs, and SQLite results. Chunk sizes, explicit
+bounded-runtime capability, stderr diagnostic bound, path/schema/identity checks
+remain. Tests first reproduced 1 MiB and 8 MiB record failures, then passed;
+Claude/Muse/Agy oversized scans/events, Codex initial/append and later evidence,
+malformed/conflicting identity, large ledger/log/config and SQLite cases pass.
+The full affected suite (sessioninventory/sessioninventorytest/sessionwatch/
+contextcmd/slugcmd) passes, as do make pair and diff checks.
+
+Read-only rebuilt inventory now recognizes this thread's actual Codex root as
+resumable, with no root-identity diagnostic; before the fix it was absent.
+The same query finds the root for the thread but still labels the binding
+provisional. No binding/config was hand-written and no end-to-end relaunch fix
+is claimed. This side quest removes the confirmed reader-limit cause, not the
+separate #291 global detach problem. Full Go and race checks are in progress;
+the previously reproduced changelog integration baseline exception remains.
+
+### 2026-09-20 — close review and final verification
+
+Main-session full Go suite completed successfully. Fresh affected suites and
+inventory race checks pass; incremental JSONL fuzzing passed 222,976 cases.
+SDLC close returned SHIP, no Critical/Important findings, and codecomplete.
+Advisory BR-1/BR-2 addressed in the close commit: classify both core-concept
+tables and reconcile plan checkboxes/evidence with accepted smoke and the
+documented non-green make-test baseline. Reviewer's separately stopped broad
+run does not supersede the completed main-session run. No production code
+changed after review. Publication is not part of this local close.

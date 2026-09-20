@@ -53,7 +53,7 @@ func scanClaudeFile(runtime Runtime, entry FileEntry) (Fact, []Diagnostic, bool)
 	if err != nil {
 		return Fact{}, []Diagnostic{artifactDiagnostic(DiagnosticSchemaNearMiss, AgentClaude, &nativeID, artifact, err.Error())}, false
 	}
-	err = visitJSONLines(runtime, artifact, jsonRecordLimit, func(line []byte) bool {
+	err = visitJSONLines(runtime, artifact, unlimitedRecordSize, func(line []byte) bool {
 		applyClaudeRecord(&state, entry, line, &diagnostics)
 		return false
 	})

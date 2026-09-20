@@ -81,15 +81,16 @@ func TestGlobalChordFiresUnderAFullScreenChild(t *testing.T) {
 // Every chord in the table, both alt-screen states. Under a full-screen child a
 // pass-through chord's raw bytes reach the child and nothing else does; a chord
 // that does NOT pass through (global, or M-k) never reaches the child. At a
-// shell (ownsScreen=false) NO recognised chord's bytes reach the child — the
-// pre-#227 behaviour, which the existing pump tests already assert in detail.
+// shell (ownsScreen=false), only draft-only chords reach the child, with their
+// raw bytes unchanged.
 func TestEveryChordAgainstBothAltScreenStates(t *testing.T) {
 	for _, seq := range workbenchshortcut.ChordSequences() {
 		chord, ok := workbenchshortcut.DecodeChord([]byte(seq))
 		if !ok {
 			t.Fatalf("%q did not decode to a chord", seq)
 		}
-		pass := workbenchshortcut.RightTerminalChordPassesThrough(chord)
+		draftOnly := workbenchshortcut.IsDraftChord(chord)
+		pass := draftOnly || workbenchshortcut.RightTerminalChordPassesThrough(chord)
 
 		t.Run("fullscreen/"+workbenchshortcut.ChordName(chord)+"/"+seq, func(t *testing.T) {
 			mux := &fakeMux{ownsScreen: true, activeName: "work"}
@@ -111,6 +112,12 @@ func TestEveryChordAgainstBothAltScreenStates(t *testing.T) {
 		t.Run("shell/"+workbenchshortcut.ChordName(chord)+"/"+seq, func(t *testing.T) {
 			mux := &fakeMux{ownsScreen: false, activeName: "work"}
 			pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{}, io.Discard)
+			if draftOnly {
+				if got := strings.Join(mux.ops, ","); got != "write:"+seq {
+					t.Fatalf("draft-only chord %q: shell ops = %q, want the raw bytes forwarded", seq, got)
+				}
+				return
+			}
 			for _, op := range mux.ops {
 				if strings.HasPrefix(op, "write:") {
 					t.Fatalf("at a shell, recognised chord %q must not reach the child: ops = %v", seq, mux.ops)

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"syscall"
 	"testing"
 )
@@ -44,6 +45,14 @@ func TestOSRuntimeBoundaries(t *testing.T) {
 	if _, err := runtime.ReadFile(files[0].Artifact, 3); !errors.Is(err, ErrReadLimit) {
 		t.Fatalf("bounded read error = %v, want ErrReadLimit", err)
 	}
+	if got, err := runtime.ReadFile(files[0].Artifact, -1); err != nil || string(got) != "root" {
+		t.Fatalf("unlimited read = %q, %v", got, err)
+	}
+	for _, limit := range []int64{-2, 0} {
+		if _, err := runtime.ReadFile(files[0].Artifact, limit); !errors.Is(err, ErrReadLimit) {
+			t.Fatalf("limit %d: %v", limit, err)
+		}
+	}
 	if got, eof, err := runtime.ReadAt(files[0].Artifact, 1, 2); err != nil || eof || string(got) != "oo" {
 		t.Fatalf("range read = %q, eof=%v, err=%v", got, eof, err)
 	}
@@ -67,6 +76,9 @@ func TestOSRuntimeBoundaries(t *testing.T) {
 	}
 	if _, err := runtime.ReadFile(Artifact{StorageRoot: roots[0].Name, RelativePath: "escape.jsonl"}, 32); !errors.Is(err, ErrPathEscape) {
 		t.Fatalf("symlink read error = %v, want ErrPathEscape", err)
+	}
+	if _, err := runtime.ReadFile(Artifact{StorageRoot: roots[0].Name, RelativePath: "escape.jsonl"}, -1); !errors.Is(err, ErrPathEscape) {
+		t.Fatalf("unlimited escaped read: %v", err)
 	}
 	if err := syscall.Mkfifo(filepath.Join(roots[0].Path, "blocking.jsonl"), 0o600); err != nil {
 		t.Fatal(err)
@@ -136,5 +148,22 @@ func TestOSRuntimeSQLiteReadOnlyAdapter(t *testing.T) {
 	}
 	if _, err := runtime.QuerySQLite(database, "create table forbidden(value text)", 4096); err == nil {
 		t.Fatal("read-only adapter accepted a write query")
+	}
+	const largeQuery = "select hex(zeroblob(600000)) as payload"
+	if _, err := runtime.QuerySQLite(database, largeQuery, 1<<20); !errors.Is(err, ErrReadLimit) {
+		t.Fatalf("bounded query: %v", err)
+	}
+	large, err := runtime.QuerySQLite(database, largeQuery, -1)
+	if err != nil || len(large.Rows) != 1 || len(large.Rows[0][0]) != 1200000 {
+		t.Fatalf("unlimited query: rows=%d err=%v", len(large.Rows), err)
+	}
+	if _, err := runtime.QuerySQLite(database, "create table still_forbidden(value text)", -1); err == nil {
+		t.Fatal("unlimited query allowed write")
+	}
+	if _, err := runtime.QuerySQLite(database, largeQuery, -2); !errors.Is(err, ErrReadLimit) {
+		t.Fatalf("invalid query limit: %v", err)
+	}
+	if _, err := runtime.QuerySQLite(database, "select "+strings.Repeat("missing_column", 1000), -1); !errors.Is(err, ErrReadLimit) {
+		t.Fatalf("unlimited stdout must retain bounded error diagnostics: %v", err)
 	}
 }

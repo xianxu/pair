@@ -817,9 +817,9 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 	fmt.Fprintln(w)
 	// Couch's chords, laid out by the function Pair's Alt+h page uses (#282).
 	fmt.Fprint(w, keyhelp.Render(couchkeys.HelpSections(bindings)))
-	fmt.Fprintln(w, "\nThe agent also reserves these terminal-tab keys:")
+	fmt.Fprintln(w, "\nThe agent also reserves these Pair shortcuts:")
 	for _, binding := range workbenchshortcut.GlobalBindings() {
-		if binding.AgentReserved {
+		if binding.Scope == workbenchshortcut.ScopeGlobal && binding.AgentReserved {
 			fmt.Fprintf(w, "  %s  %s\n", workbenchshortcut.ChordName(binding.Chord), binding.Help)
 		}
 	}

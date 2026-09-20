@@ -272,7 +272,7 @@ func (f *FakeRuntime) ReadFile(artifact sessioninventory.Artifact, limit int64) 
 	if !ok {
 		return nil, fmt.Errorf("read %s: file not found", key)
 	}
-	if limit < 0 || int64(len(stored.content)) > limit {
+	if limit < -1 || (limit != -1 && int64(len(stored.content)) > limit) {
 		return nil, sessioninventory.ErrReadLimit
 	}
 	return append([]byte(nil), stored.content...), nil
@@ -325,7 +325,7 @@ func (f *FakeRuntime) QuerySQLite(artifact sessioninventory.Artifact, query stri
 			size += int64(len(value))
 		}
 	}
-	if limit < 0 || size > limit {
+	if limit < -1 || (limit != -1 && size > limit) {
 		return sessioninventory.SQLiteResult{}, sessioninventory.ErrReadLimit
 	}
 	return cloned, nil

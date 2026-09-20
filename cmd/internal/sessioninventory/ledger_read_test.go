@@ -2,7 +2,6 @@ package sessioninventory_test
 
 import (
 	"bytes"
-	"errors"
 	"strings"
 	"testing"
 
@@ -15,7 +14,7 @@ const v1Launch = `{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent
 // A ledger grows with every launch by construction, so a whole-file cap is a
 // cliff every long-lived thread reaches. The owner ledger was read with an
 // 8 MiB one; the operator's thread crossed it on its 14th relaunch and became
-// unresumable (#237). The bound is per record now.
+// unresumable (#237).
 func TestQuerySessionReadsALedgerLargerThanTheOldWholeFileCap(t *testing.T) {
 	t.Parallel()
 	runtime := sessioninventorytest.NewFakeRuntime()
@@ -34,19 +33,42 @@ func TestQuerySessionReadsALedgerLargerThanTheOldWholeFileCap(t *testing.T) {
 	}
 }
 
-// The per-record cap stays: one line over jsonRecordLimit is still refused.
-func TestQuerySessionStillRefusesASingleOversizedLedgerRecord(t *testing.T) {
+// Launch snapshots grow too: a valid record must not acquire a reader-only cap.
+func TestInventoryReadsASingleLargeLedgerRecord(t *testing.T) {
 	t.Parallel()
 	runtime := sessioninventorytest.NewFakeRuntime()
 	pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
 	runtime.SetPairDataRoot(pairRoot)
 	ledger := sessioninventory.Artifact{StorageRoot: pairRoot.Name, RelativePath: "ledger-work.jsonl"}
-	oversized := `{"v":1,"kind":"launch","pad":"` + strings.Repeat("x", 8<<20) + `"}` + "\n"
-	runtime.PutFile(sessioninventory.FileEntry{Artifact: ledger}, []byte(v1Launch+oversized))
+	large := strings.TrimSuffix(v1Launch, "}\n") + strings.Repeat(" ", 8<<20) + "}\n"
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: ledger}, []byte(large))
 
-	_, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
-	if !errors.Is(err, sessioninventory.ErrReadLimit) {
-		t.Fatalf("err = %v, want ErrReadLimit for a record over the per-record cap", err)
+	query, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || query.Status != sessioninventory.BindingProvisional || hasDiagnostic(query.Diagnostics, sessioninventory.DiagnosticPairRecordMalformed) {
+		t.Fatalf("large valid ledger query: status=%s err=%v diagnostics=%v", query.Status, err, query.Diagnostics)
+	}
+	inventory, err := sessioninventory.RecoverPairBindings(runtime, sessioninventory.Inventory{}, "current", "scope", []sessioninventory.Agent{sessioninventory.AgentCodex})
+	if err != nil || hasDiagnostic(inventory.Diagnostics, sessioninventory.DiagnosticStorageUnreadable) || hasDiagnostic(inventory.Diagnostics, sessioninventory.DiagnosticPairRecordMalformed) {
+		t.Fatalf("large valid ledger inventory: %v, %v", err, inventory.Diagnostics)
+	}
+}
+
+func TestRecoverPairBindingsReadsLargeLogAndConfig(t *testing.T) {
+	for _, name := range []string{"log-work.md", "config-work-codex.json"} {
+		t.Run(name, func(t *testing.T) {
+			runtime := sessioninventorytest.NewFakeRuntime()
+			root := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}
+			runtime.SetPairDataRoot(root)
+			content := append(bytes.Repeat([]byte(" "), 64<<20), []byte(`{"agent":"codex","session_id":"native-root"}`)...)
+			runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: name}}, content)
+			inventory, err := sessioninventory.RecoverPairBindings(runtime, sessioninventory.Inventory{}, "current", "scope", []sessioninventory.Agent{sessioninventory.AgentCodex})
+			if err != nil || hasDiagnostic(inventory.Diagnostics, sessioninventory.DiagnosticStorageUnreadable) || hasDiagnostic(inventory.Diagnostics, sessioninventory.DiagnosticPairRecordMalformed) {
+				t.Fatalf("large artifact: %v, %v", err, inventory.Diagnostics)
+			}
+			if strings.HasPrefix(name, "config") && !hasDiagnostic(inventory.Diagnostics, sessioninventory.DiagnosticBindingStale) {
+				t.Fatal("config was not parsed")
+			}
+		})
 	}
 }
 
