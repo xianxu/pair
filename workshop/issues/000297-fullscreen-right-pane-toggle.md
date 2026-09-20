@@ -330,6 +330,10 @@ and record the answers in `## Log`:
 
 ## Plan
 
+Durable implementation plan: [native fullscreen toggle](../plans/000297-fullscreen-right-pane-toggle-plan.md).
+The 2026-09-20 implementation-planning revision below supersedes stale unknowns
+and narrows the #226 obligation without changing the chosen native toggle.
+
 - [ ] Settle the four live unknowns in a real session; record answers in `## Log`
       before writing code. Any that goes the wrong way amends the Spec.
 - [ ] Decide direction detection (zellij flag vs focus record) and record why.
@@ -440,7 +444,47 @@ bundled #226's one-liner.
 Also corrected a spec imprecision found by the probe: collapse restores the
 tiling that was in effect, not the layout's declared 50/50.
 
+### 2026-09-20 — implementation-planning revision
+
+**Reason.** Preserve the prior native-command evidence and turn the existing
+operator decisions into an executable plan. The operator reiterated that the
+maximize/restore command was already tested; no replacement resizing mechanism
+is needed.
+
+**Delta.** Native `toggle-fullscreen --pane-id` remains the implementation.
+A disposable 160×40 four-pane session confirmed a split half expands from
+80×20 to 160×40 and hides its sibling. Focusing the draft or sibling exits
+fullscreen. After exit, multiple panes can report `is_focused=true`; use the
+invoking `ZELLIJ_PANE_ID` for return focus. Session deleted after probing.
+The live registry now includes pane 1 / PID 90791, matching its running term.
+
+Review is unwrapped nvim and installs generated global maps itself; its local
+menu binding shadows the proposed global. The generated Lua dispatcher must
+execute the toggle from the invoking editor, not inject it into the draft.
+
+The Kitty specification identifies modifier 10 as Shift+Super, not Shift+Alt;
+document its absence for Return rather than adding an unrelated global chord.
+Document negotiated-KKP support separately from physical host smoke evidence.
+Add the standalone mouse-resize setting, but keep #226 open: its filter removal
+and version-floor decision exceed that config change. The obsolete Done-when
+row asking what draft rungs do while fullscreen is superseded by their already
+specified draft-only scope.
+
+Couch handles Ctrl+Space in `Console.dispatchInputCandidate` before forwarding
+input to the zellij child (`couchkeys.ActionSwitch`, `ScopeEveryPane`), so native
+pane fullscreen leaves the switcher available. The operator also confirmed
+in this session that Ctrl+Space worked during the earlier fullscreen test.
+
+The durable plan records these corrections and the remaining implementation,
+verification and operator smoke steps. No production code changed during planning.
+
 ## Log
+
+### 2026-09-20 — native probe evidence confirmed
+
+Operator reconfirmed the prior native maximize/restore test and that Ctrl+Space
+opened Couch while the right pane was fullscreen. These checks are settled;
+remaining live acceptance concerns the implemented chord and focus restoration.
 
 ### 2026-09-20
 
