@@ -544,3 +544,22 @@ The chord-collision survey found two existing bindings, not one: the draft's
 append-without-send (`init.lua:3540`) and the review pane's send menu
 (`review.lua:706`). The operator's retirement decision was taken knowing only
 the first.
+
+### 2026-09-20 — implementation checkpoint
+
+Passed full-flow change-code gates and entered branch
+`000297-fullscreen-right-pane-toggle`. Native fullscreen planning, effect-order
+transition, return storage/lock/diagnostics, and global wrapper/terminal/editor
+routing are implemented in the working tree. The resize-burst implementation
+and append-without-submit chain are removed. Failure handlers remain silent;
+the executor records diagnostics once (ARCH-ORDER, ARCH-DRY).
+
+Focused layout/parser tests and wrapper tests pass. Integration testing found
+one real routing gap: terminal decoding consumed newly draft-only Alt+Up/Down
+even when the action router passed them. The terminal now consults binding
+scope before routing and forwards these keys to its child. Exhaustive terminal
+and viewer tests still need their old global-rung assertions reconciled.
+Full `make test` stopped at those stale scrollback mapping expectations;
+`go test ./...` runs separately so that prerequisite failure cannot hide Go
+coverage. Disposable live conformance and adversarial coverage are in progress.
+No issue-close or operator smoke claim yet.
