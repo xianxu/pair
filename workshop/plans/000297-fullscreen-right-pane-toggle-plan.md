@@ -30,11 +30,12 @@ Add `mouse_scroll_resize false` for standalone Pair. Leave #226 open: it also re
 | BindingScope / GlobalBinding | `cmd/internal/workbenchshortcut/shortcut.go` | modified |
 | Pane | `cmd/internal/zellijpane/zellijpane.go` | modified |
 | FullscreenPlan | `cmd/internal/layoutcmd/fullscreen.go` | new |
+| FullscreenState / FullscreenEvent / FullscreenTransition | `cmd/internal/layoutcmd/fullscreen.go` | new |
 | terminalToggleBurst / terminalToggleSteps | `cmd/internal/layoutcmd/resizeplan.go` | deleted |
 
 `BindingScope` distinguishes global from draft-only bindings. The existing table remains the source for Go routing, Lua generation and help (ARCH-DRY). Keep its existing exported names to limit churn, with comments explaining that it also holds generated draft bindings.
 
-`Pane` gains observed fullscreen state. `FullscreenPlan` is a small pure decision over observed panes, invoking pane ID, last terminal, live terminal IDs and remembered return ID. It selects expand, collapse or no-op and the target/return IDs. It does not compute geometry or implement a new window manager (ARCH-PURE).
+`Pane` gains observed fullscreen state. `PlanFullscreen` returns a `FullscreenPlan` from observed panes, invoking pane ID, last terminal, live terminal IDs and remembered return ID. It selects expand, collapse or no-op and the target/return IDs. It does not compute geometry or implement a new window manager (ARCH-PURE).
 
 | Name | Lives in | Status | Wraps |
 |---|---|---|---|
@@ -67,6 +68,31 @@ fullscreen + press -> toggle-fullscreen --pane-id terminal -> focus return -> cl
 
 These rules enumerate the relevant interrupted sequences without a retry service (ARCH-ORDER). The lock/store are per validated repo scope and tag; payload IDs are checked against current non-plugin panes (ARCH-SECURE). One bounded record and one stable lock file per thread are collected by the existing artifact GC; clear the record on successful collapse and reset stale state on a new expansion (ARCH-FUNERAL).
 
+`FullscreenTransition(state FullscreenState, event FullscreenEvent)` owns effect
+ordering in production. State holds the immutable plan and an unexported phase;
+the IO shell receives effects and returns outcomes, never assigns phases.
+Events are Begin, Confirmed, Failed and Unconfirmed. The phases/effects are:
+
+| State/event | Next state | Effect |
+|---|---|---|
+| Initial/Begin, expand | Saving | Save return ID |
+| Saving/Confirmed | Toggling | Native toggle |
+| Initial/Begin, collapse | Toggling | Native toggle |
+| Toggling/Confirmed, expand | Done | None |
+| Toggling/Confirmed, collapse with return | Focusing | Focus return ID |
+| Toggling/Confirmed, collapse without return | Clearing | Clear record |
+| Focusing/Confirmed | Clearing | Clear record |
+| Clearing/Confirmed | Done | None |
+| Any waiting state/Failed or Unconfirmed | Stopped | None |
+| Terminal state/any event or invalid event | Same state | None |
+
+An initial no-op plan finishes without effects. The shell treats nonzero external
+command outcomes as Unconfirmed and local storage errors as Failed; neither
+permits subsequent effects. There is no retry loop or persisted transition
+journal. Process interruption leaves the bounded return record as described
+above; each new invocation begins with fresh zellij observation. Sequence tests
+exercise this exact production function, including rejected late completions.
+
 Interactive operating envelope: one pane-list read per normal invocation, O(number of panes) pure selection, one zellij toggle on expand and at most one focus call after collapse. No polling, resize bursts or sleeps on the keypress path. Tests assert call bounds; the issue's prior measurements establish the external pane-list cost, not a new latency promise (ARCH-CONSTRAINTS). Fake state carries fullscreen owner, focus, geometry, return record and controllable failures; use the recorded live findings for conformance (ARCH-MOCK).
 
 ## Chunk 1: Implement and verify one atomic change
@@ -75,11 +101,11 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 
 **Files:** `cmd/internal/zellijpane/zellijpane{,_test}.go`; new `cmd/internal/layoutcmd/fullscreen{,_test}.go`; `cmd/internal/layoutcmd/layoutcmd{,_test}.go`; new `cmd/internal/workbenchshortcut/fullscreen_store{,_test}.go`; `cmd/internal/artifactpath/{paths,manifest,gc}.go` and their tests; `cmd/internal/termcmd/run{,_test}.go`.
 
-- [ ] Write failing tests for the parser and pure expand/collapse selection: draft, agent, same terminal, split half, stale return, duplicate focus flags, invalid observations and absent terminal.
+- [ ] Test `zellijpane.Parse`/`paneFrom` with fuzzed malformed pane observations, preserving unknown fullscreen state; test `PlanFullscreen` with generated pane inventories and independently stated target/return/identity invariants.
 - [ ] Run `go test ./cmd/internal/zellijpane ./cmd/internal/layoutcmd ./cmd/internal/workbenchshortcut` and confirm failures concern the new behavior.
-- [ ] Implement observed fullscreen parsing and the pure plan. Extend the runtime seam for current pane identity and return-store operations. Execute the two action sequences above.
+- [ ] Implement observed fullscreen parsing, `PlanFullscreen` and `FullscreenTransition`. Extend the runtime seam for current pane identity and return-store operations. Execute only effects emitted by the transition function and feed each result back as an event.
 - [ ] Implement bounded return storage using the existing atomic pane-ID helper, plus nonblocking mutual exclusion. Add canonical paths, family/consumer declarations, environment export and GC enumeration; do not construct filenames in executors.
-- [ ] Replace burst tests with the stateful runtime tests. Assert dimensions/rung/process identities survive a round trip, selected half stays selected, and exact effect ordering. Inject failures at save, toggle, focus and clear, plus concurrent invocation and externally exited fullscreen.
+- [ ] Test `FullscreenTransition` with exhaustive short event sequences and terminal-state invariants; test `RunToggleFocused` against a stateful runtime with deterministic fault injection at each effect and controlled concurrent entry. Assert round-trip layout/process preservation and that no later effect occurs after a failed or unconfirmed outcome.
 - [ ] Delete `resizeplan.go`, `resizeplan_test.go` and now-unused geometry helpers after checking references. Keep geometry parsing used elsewhere.
 - [ ] Run `go test ./cmd/internal/zellijpane ./cmd/internal/layoutcmd ./cmd/internal/workbenchshortcut ./cmd/internal/artifactpath ./cmd/internal/termcmd`. Expect PASS.
 - [ ] Commit with issue reference and author trailer.
@@ -110,6 +136,7 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [ ] Update architecture and review descriptions, removing obsolete menu/width claims. Follow the target datatype/review convention if editing its human-facing prose. Ensure atlas index remains complete.
 - [ ] Run `go test ./cmd/internal/keyhelp ./cmd/internal/keyscmd ./cmd/internal/couchcmd`; then `make test` and `git diff --check`. Expect PASS; diagnose any failures before claiming completion.
 - [ ] Build in `~/workspace/pair`; run the actual chord through draft, agent and terminal routes in a disposable live session, with a shell and nvim. Verify split-half round trip and strip redraw. The earlier native-command probe does not substitute for checking new keyboard wiring.
+- [ ] Add `TestFullscreenZellijConformance` behind `PAIR_LIVE_ZELLIJ=1`, using `pairlifecycletest.StartControlledZellijWithOptions` and disposable configuration. Run `PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run TestFullscreenZellijConformance -count=1` before closing this issue and on supported zellij upgrades or changes to the modeled toggle/focus behavior; compare observations with the same invariants enforced by the stateful fixture.
 - [ ] Operator smoke in the workbench: draft cursor preserved after fullscreen/back; shell, nvim and carbonyl where available; Ctrl+Space still opens Couch. Record observations precisely; do not close that row on automated evidence alone.
 - [ ] Update issue evidence, then `sdlc close --issue 297 --verified '<actual commands and observations>'`. The close boundary owns the mandatory fresh-context code review; resolve findings there. Publish through `sdlc pr` / `sdlc merge` after all required evidence is present.
 
@@ -135,3 +162,11 @@ Task 2 now requires log delivery and silent shortcut handlers, with tests for bo
 The stop-on-failure and retained-record rules are unchanged. A failed log write
 does not fall back to a user notification. This policy applies to this feature;
 it does not authorize changing error handling elsewhere in Pair.
+
+### 2026-09-20 — implementation gate refinements
+
+PQ-1: the production `FullscreenTransition` now owns effect outcomes and ordering,
+including unconfirmed outcomes and ignored late completions. It adds no durable
+workflow or retry mechanism. PQ-2: parser, decision, transition and executor tests
+now name their functions and adversarial strategies instead of prose case lists.
+PQ-3: the repeatable conformance command and its upgrade/change trigger are explicit.
