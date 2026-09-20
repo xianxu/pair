@@ -1,6 +1,6 @@
 ---
 id: 000296
-status: open
+status: wontfix
 deps: [pair#227]
 github_issue:
 created: 2026-09-20
@@ -160,3 +160,18 @@ passthrough exception. `TestRightTerminalChordPassesThrough` currently asserts
 the opposite behaviour, so the change is a contract flip in a green test, not a
 gap in coverage. Also noted the absent `;10u` meta sibling and the KKP
 dependency of `\x1b[13;4u` as adjacent questions.
+
+### 2026-09-20 — superseded by #297, closed
+
+Closed wontfix. #297 makes `Alt+Shift+Return` a **global** chord, and
+`RightTerminalChordPassesThrough` already returns false for any global
+(`shortcut.go:398-400`) — so the passthrough reservation this issue was filed to
+build happens as a side effect there, with no `PairReserved` mechanism needed.
+The ARCH-DRY question about where a second hard-coded exception should live is
+moot: there is no second exception.
+
+Not lost in the move: both encoding items were carried into #297 under
+`### Chord encoding — absorbed from #296` — the missing `\x1b[13;10u`
+meta-family sibling and the KKP host-dependency of `\x1b[13;4u`. They gained
+weight rather than losing it, since a global chord dead on a host is dead in
+every pane.

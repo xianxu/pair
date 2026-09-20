@@ -73,7 +73,7 @@ Move `ChordAltShiftEnter` from `roleBindings` into `globalBindings` with
 (#216/#243): every pane acts on it directly rather than routing a Lua call into
 the draft, and the draft gets its own `NvimKey` entry for the same action.
 
-**This subsumes #296.** `RightTerminalChordPassesThrough` already returns false
+**This absorbed #296** (closed wontfix/superseded 2026-09-20). `RightTerminalChordPassesThrough` already returns false
 for any global (`!IsGlobalChord(chord)`, `shortcut.go:398-400`), so a global chord
 is never forwarded to a full-screen child. The carbonyl passthrough problem #296
 was filed to fix disappears as a consequence of this change rather than needing
@@ -84,6 +84,27 @@ The standard global tradeoff applies and is accepted: a full-screen application
 in the right pane can no longer claim this chord. That is the same bargain #258
 struck for the tab chords, and it is the point — the chord must work *especially*
 when carbonyl owns the screen.
+
+### Chord encoding — absorbed from #296
+
+`ChordAltShiftEnter` registers exactly one sequence, `\x1b[13;4u`
+(`shortcut.go:437`). Two gaps come with it, and **going global raises the stakes
+on both**: a chord that is dead on a given host is now dead in every pane rather
+than in one.
+
+- **The meta-family sibling is missing.** `shortcut.go:423-428` establishes the
+  rule that both modifier families are registered — bit-2 "alt" reports modifier
+  3/4, bit-8 "meta" reports 9/10 — precisely so a chord is not silently dead on a
+  meta-style terminal, and `TestMetaSiblings` enforces it for the chords it
+  covers. `\x1b[13;10u` is absent. Confirm whether it is genuinely unreachable
+  for Enter or an oversight, and register it if reachable.
+- **`\x1b[13;4u` is a Kitty-keyboard encoding.** Pair pushes `\x1b[>3u` to the
+  host (`terminal/presenter.go:847`), so the form arrives on a KKP host such as
+  Ghostty. On a host without KKP, Shift+Alt+Enter is likely indistinguishable
+  from Alt+Enter at the byte level, which would make this chord host-dependent in
+  the same way #232/#233 are. Establish which hosts deliver it before promising
+  the behaviour in the README's *Terminal setup* table; if it is host-dependent,
+  that is a documentation row, not code.
 
 ### Chord retirements — two, both deliberate
 
@@ -219,6 +240,10 @@ and record the answers in `## Log`:
   for collapse, including order, without a live zellij.
 - `IsGlobalChord(ChordAltShiftEnter)` is true and a guard asserts the chord
   cannot pass through to a full-screen child.
+- `Alt+Shift+Enter`'s meta-family sibling is either registered or its absence
+  is documented at the chord table with the reason.
+- Which hosts deliver `\x1b[13;4u` is established; if the chord is
+  host-dependent, the README *Terminal setup* table says so.
 - #296 is closed as superseded, with the reason recorded.
 - README's `Alt+Shift+Return` rows (`README.md:122-123`), `pair keys` / `Alt+h`
   help and `keyhelp/catalog.go:45` describe one global toggle; CHANGELOG entry
@@ -241,6 +266,8 @@ and record the answers in `## Log`:
 - [ ] Seam tests for both sequences incl. ordering, split-half selection, and the
       missing-recorded-pane fallback; global/passthrough guard.
 - [ ] README rows, `keyhelp` catalog, `Alt+h` help, CHANGELOG, atlas vocabulary.
+- [ ] Resolve the `;10u` meta sibling: register it, or document why not.
+- [ ] Establish the KKP host matrix for `\x1b[13;4u`; README row if needed.
 - [ ] Close #296 as superseded.
 - [ ] `make test`, then operator smoke test before closing.
 
@@ -268,6 +295,19 @@ toggle that requires already being in the right pane does not serve it.
 - Unchanged from the original: two states not three, `toggle-fullscreen` over
   `toggle-no-ui-fullscreen`, the `resizeplan.go` deletion, and the four live
   unknowns (unknown 1 promoted to load-bearing).
+
+### 2026-09-20 — #296 absorbed
+
+**Reason.** #296 existed to stop #227's passthrough forwarding this chord to a
+full-screen child. Making the chord global does that as a side effect, leaving
+#296 with only two orphan items and no deliverable of its own — a live ticket
+whose content would have been lost on closing it.
+
+**Delta.** Added `### Chord encoding — absorbed from #296` carrying both: the
+missing `\x1b[13;10u` meta-family sibling and the KKP host-dependency of
+`\x1b[13;4u`. Both gained weight in the move, since a global chord that is dead
+on a host is dead in every pane. Corresponding Done-when and Plan entries added.
+#296 closed as superseded.
 
 ## Log
 
