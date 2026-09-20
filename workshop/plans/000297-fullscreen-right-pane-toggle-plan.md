@@ -91,7 +91,7 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 - [ ] Add failing routing tests proving the fullscreen action executes from the agent and terminal and never reaches a fullscreen child; draft rungs pass through outside the draft while retaining generated draft maps.
 - [ ] Add scope to the existing binding table; global Return has `HandledInPane` and `AgentReserved`. Remove its role-only entry/case. Filter actual global routing by scope.
 - [ ] Add the wrapper executor case and reuse the terminal's existing layout action. Expose the native layout CLI as a generated direct Lua action so review/scrollback/changelog execute it from their own pane, preserving invoking identity. Do not route this action into the draft first.
-- [ ] Surface execution failures at each input handler: capture the CLI diagnostic/exit status in the terminal and call `mux.reportError`; use the wrapper's `shortcutErrorReporter` (stderr fallback); report a nonzero Lua subprocess result through the existing editor notification convention. Add handler-level failure tests for all three routes. The current terminal handler discards stderr/status and must change.
+- [ ] Record execution failures in an agent-readable diagnostic log shared by all toggle entry paths. Reuse the existing bounded diagnostic logging infrastructure and canonical path ownership; include the operation stage, target/return pane IDs and failure detail. For shortcut invocations, do not call `mux.reportError`, print to the terminal, or show editor notifications. Add handler-level failure tests for terminal, wrapper and Lua routes proving a diagnostic is retained and no user-facing error is emitted. Avoid duplicate records when the shared executor already logged the failure; logging failure must not trigger UI fallback or further layout actions.
 - [ ] Make `workbench_route.lua` install draft-scoped rows only in the draft. Add the draft Lua function for the toggle. Test actual draft and review maps with headless nvim, including the removed local override.
 - [ ] Remove the append-without-send map and its now-unreachable `no_submit` parameter/branches through `send_and_clear`, `submit_operator_text`, `submission.lua`, `send_to_agent` and `draft_send.lua`. Preserve normal submission retry/uncertain-write handling and wrapper Return behavior.
 - [ ] Remove review's local Shift+Alt+Return menu map; keep its exported menu API. Update tests to assert normal submission and remaining menu behavior, retiring only compose-without-submit cases.
@@ -122,3 +122,16 @@ One atomic review boundary; no milestone labels. Estimate follows the full-flow 
 The reviewer found that the existing terminal handler discards layout failures.
 Task 2 now explicitly carries errors through terminal, wrapper and Lua handlers,
 with tests at those boundaries; runtime-only error tests cannot prove delivery.
+
+### 2026-09-20 — operator correction: diagnostics belong in logs
+
+**Reason.** The operator cannot generally act on a failed toggle/focus operation;
+surfacing a terminal error or editor notification adds interruption without a
+useful recovery action. The agent needs the diagnostic for investigation.
+
+**Delta.** Supersedes the previous review revision's user-facing error delivery.
+Throughout this plan, "reported" failures mean recorded in the diagnostic log.
+Task 2 now requires log delivery and silent shortcut handlers, with tests for both.
+The stop-on-failure and retained-record rules are unchanged. A failed log write
+does not fall back to a user notification. This policy applies to this feature;
+it does not authorize changing error handling elsewhere in Pair.
