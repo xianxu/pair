@@ -12,13 +12,16 @@ import (
 func TestShortcutHelpDerivesReservations(t *testing.T) {
 	var out bytes.Buffer
 	usage(&out)
+	if !strings.Contains(out.String(), "Pair shortcuts:") || strings.Contains(out.String(), "terminal-tab keys:") {
+		t.Fatal("reserved heading must include fullscreen")
+	}
 	for _, binding := range couchkeys.Bindings() {
 		if !strings.Contains(out.String(), binding.Key) || !strings.Contains(out.String(), binding.Help) {
 			t.Errorf("navigation omitted: %+v", binding)
 		}
 	}
 	for _, binding := range workbenchshortcut.GlobalBindings() {
-		if binding.AgentReserved && !strings.Contains(out.String(), workbenchshortcut.ChordName(binding.Chord)) {
+		if binding.Scope == workbenchshortcut.ScopeGlobal && binding.AgentReserved && !strings.Contains(out.String(), workbenchshortcut.ChordName(binding.Chord)) {
 			t.Errorf("agent reservation omitted: %v", binding.Chord)
 		}
 	}

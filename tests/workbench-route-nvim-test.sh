@@ -8,6 +8,8 @@ tmp="$(mktemp -d "${TMPDIR:-/tmp}/pair-nvim-route.XXXXXX")"
 trap 'rm -rf "$tmp"' EXIT
 
 mkdir -p "$tmp/bin"
+export PAIR_RETENTION_PROTOCOL=''
+export PAIR_TEST_REAL_BIN="$ROOT/bin/pair"
 cat > "$tmp/bin/zellij" <<EOF
 #!/bin/sh
 printf '%s\n' "\$*" >> "$tmp/all-actions"
@@ -131,16 +133,53 @@ action write --pane-id 42 13'
     exit 1
   }
 
-  run_overlay_map "$init" '<M-Up>'
-  got="$(cat "$tmp/actions")"
-  want_layout='action write --pane-id 42 28
-action write --pane-id 42 14
-action write-chars --pane-id 42 :lua PairLayoutBigger()
-action write --pane-id 42 13'
-  [ "$got" = "$want_layout" ] || {
-    printf 'FAIL %s effective Alt+Up focus-preserving route:\n%s\n' "$init" "$got"
-    exit 1
-  }
+done
+
+# Fullscreen executes from the invoking editor, even without a draft locator.
+# A failing CLI owns diagnostics; neither stdout/stderr nor vim.notify may leak.
+cat > "$tmp/bin/pair" <<'SH'
+#!/bin/sh
+if [ "$*" != 'layout toggle-focused' ]; then
+  exec "$PAIR_TEST_REAL_BIN" "$@"
+fi
+printf '%s:%s\n' "$ZELLIJ_PANE_ID" "$*" >> "$PAIR_TEST_DIRECT_LOG"
+printf 'captured stdout\n'
+printf 'captured stderr\n' >&2
+exit 17
+SH
+chmod +x "$tmp/bin/pair"
+cat > "$tmp/fullscreen-driver.lua" <<'LUA'
+vim.notify = function() error('fullscreen must not notify') end
+for _, key in ipairs({ '<M-Up>', '<M-Down>' }) do
+  assert((vim.fn.maparg(key, 'n') ~= '') == (vim.env.TEST_INIT == 'init'), key .. ' scope')
+end
+for _, mode in ipairs({ 'n', 'i' }) do
+  local mapping = vim.fn.maparg('<S-M-CR>', mode, false, true)
+  assert(mapping.buffer == 0, 'review must not shadow fullscreen with a local menu')
+  assert(type(mapping.callback) == 'function', 'fullscreen missing')
+  mapping.callback()
+  assert(vim.v.shell_error == 17, 'exercise a failing fullscreen command')
+end
+local messages = vim.api.nvim_exec2('messages', { output = true }).output
+assert(not messages:find('captured stdout', 1, true) and not messages:find('captured stderr', 1, true),
+  'fullscreen command output reached editor messages')
+vim.cmd('qa!')
+LUA
+for init in init review scrollback changelog; do
+  : > "$tmp/direct-log"
+  PATH="$tmp/bin:$PATH" PAIR_HOME='' PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
+    PAIR_DRAFT_PANE_PATH='' ZELLIJ_PANE_ID=81 TEST_INIT="$init" \
+    PAIR_TEST_DIRECT_LOG="$tmp/direct-log" PAIR_TEST_REAL_BIN="$ROOT/bin/pair" \
+    run_headless -- nvim --headless -u "$ROOT/nvim/$init.lua" \
+      "$tmp/view-$init.md" -l "$tmp/fullscreen-driver.lua" > "$tmp/direct-output" 2>&1 || {
+        cat "$tmp/direct-output"
+        exit 1
+      }
+  [ "$(cat "$tmp/direct-log")" = '81:layout toggle-focused
+81:layout toggle-focused' ] || { printf 'FAIL %s direct fullscreen argv\n' "$init"; exit 1; }
+  if grep -Eq 'captured stdout|captured stderr|fullscreen must not notify' "$tmp/direct-output"; then
+    printf 'FAIL %s fullscreen diagnostic leaked\n' "$init"; exit 1
+  fi
 done
 
 for init in init.lua review.lua scrollback.lua changelog.lua; do

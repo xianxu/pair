@@ -20,9 +20,9 @@ import (
 
 func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":4,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
 	]`
 	tests := []struct {
 		name    string
@@ -46,10 +46,8 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 		{name: "alt j swallowed", chord: "Alt+j"},
 		{name: "alt k last left", chord: "Alt+k", last: "1", wantOps: []string{"focus-pane-id 1"}},
 		{name: "alt k draft fallback", chord: "Alt+k", wantOps: []string{"focus-pane-id 2"}},
-		{name: "alt shift enter fires the three-step expand burst", chord: "Alt+Shift+Enter", wantOps: []string{
-			"resize increase left",
-			"resize increase left",
-			"resize increase left",
+		{name: "alt shift enter uses native fullscreen", chord: "Alt+Shift+Enter", wantOps: []string{
+			"toggle-fullscreen --pane-id 4",
 		}},
 	}
 
@@ -74,8 +72,8 @@ func TestRunTestShortcutRightTerminalActions(t *testing.T) {
 
 func TestRunTestShortcutIgnoresNonTerminalPane(t *testing.T) {
 	panes := `[
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":true,"is_plugin":false,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}
 	]`
 	for _, chord := range []string{"Alt+r", "Alt+Shift+d"} {
 		t.Run(chord, func(t *testing.T) {
@@ -94,8 +92,8 @@ func TestRunTestShortcutIgnoresNonTerminalPane(t *testing.T) {
 
 func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua"},
-		{"id":3,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua"},
+		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
 	]`
 	rt := &fakeRuntime{panesJSON: panes}
 	var stderr bytes.Buffer
@@ -111,11 +109,11 @@ func TestRunTestShortcutRecordsLeftPane(t *testing.T) {
 	}
 }
 
-func TestRunTestShortcutIgnoresLeftLayoutToggle(t *testing.T) {
+func TestRunTestShortcutGlobalLayoutToggle(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_focused":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
 	]`
 	rt := &fakeRuntime{panesJSON: panes}
 	var stderr bytes.Buffer
@@ -123,8 +121,8 @@ func TestRunTestShortcutIgnoresLeftLayoutToggle(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%q", code, stderr.String())
 	}
-	if len(rt.ops) != 0 {
-		t.Fatalf("ops = %v, want none", rt.ops)
+	if len(rt.ops) != 1 || rt.ops[0] != "toggle-fullscreen --pane-id 3" || rt.fullscreenRecord != "1" {
+		t.Fatalf("ops = %v, return=%s; want native toggle and agent return", rt.ops, rt.fullscreenRecord)
 	}
 }
 
@@ -166,10 +164,10 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "alt n routes restart to draft", chunks: [][]byte{[]byte("\x1b[110;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"},
 		{name: "ctrl alt n routes restart to draft", chunks: [][]byte{[]byte("\x1b[110;7u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"},
 		{name: "shift alt n routes agent restart to draft", chunks: [][]byte{[]byte("\x1b[78;4u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmAgentRestart(),write --pane-id 2 13"},
-		{name: "alt up routes grow to draft", chunks: [][]byte{[]byte("\x1b[1;3A")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairLayoutBigger(),write --pane-id 2 13"},
-		{name: "alt down routes shrink to draft", chunks: [][]byte{[]byte("\x1b[1;3B")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairLayoutSmaller(),write --pane-id 2 13"},
+		{name: "alt up passes through outside draft", chunks: [][]byte{[]byte("\x1b[1;3A")}, wantMux: "write:\x1b[1;3A"},
+		{name: "alt down passes through outside draft", chunks: [][]byte{[]byte("\x1b[1;3B")}, wantMux: "write:\x1b[1;3B"},
 		{name: "alt c routes review toggle to draft", chunks: [][]byte{[]byte("\x1b[99;3u")}, wantRTOps: "write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairReviewToggle(),write --pane-id 2 13"},
-		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "resize increase left,resize increase left,resize increase left"},
+		{name: "layout toggle", chunks: [][]byte{[]byte("\x1b[13;4u")}, wantRTOps: "toggle-fullscreen --pane-id 4"},
 		{name: "mouse top row passes to child", chunks: [][]byte{[]byte("\x1b[<0;8;1M")}, wantMux: "write:\x1b[<0;8;1M"},
 		{name: "mouse shell row passes through", chunks: [][]byte{[]byte("\x1b[<0;8;2M")}, wantMux: "write:\x1b[<0;8;2M"},
 		{name: "mouse wheel up scrolls zellij viewport", chunks: [][]byte{[]byte("\x1b[<64;8;5M")}, wantRTOps: "scroll-up"},
@@ -236,9 +234,9 @@ func TestPumpStdinReportsFocusFailureWithoutWriting(t *testing.T) {
 
 func TestSplitTerminalDownIsNativeTiledSplit(t *testing.T) {
 	panes := `[
-		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":4,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
 	]`
 	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4"}
 
@@ -277,10 +275,10 @@ func TestSplitHalfChordsWorkViaRegistry(t *testing.T) {
 	// tab-strip title ("[terminal 1]") defeats the title fallback. Only the
 	// terminal-pane registry identifies it.
 	panes := `[
-		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-		{"id":3,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":26,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
-		{"id":4,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_y":26,"pane_columns":75,"pane_rows":25,"title":"[terminal 1]","terminal_command":null}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+		{"id":3,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":26,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_y":26,"pane_columns":75,"pane_rows":25,"title":"[terminal 1]","terminal_command":null}
 	]`
 	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4", terminalPaneIDs: []string{"3", "4"}, lastLeft: "2"}
 	var stderr bytes.Buffer
@@ -303,9 +301,9 @@ func TestChordRoleResolvesOwnPaneUnderAmbiguousFocus(t *testing.T) {
 	// role resolution must prefer ZELLIJ_PANE_ID over the is_focused scan —
 	// otherwise the draft wins by list order and the chord silently passes.
 	panes := `[
-		{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":4,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"},
-		{"id":2,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}
+		{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"},
+		{"id":2,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}
 	]`
 	rt := &fakeRuntime{panesJSON: panes, currentPaneID: "4"}
 	var stderr bytes.Buffer
@@ -321,8 +319,8 @@ func TestChordRoleResolvesOwnPaneUnderAmbiguousFocus(t *testing.T) {
 
 func TestSplitTerminalDownRefusesWithoutRightTerminal(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: `[
-		{"id":1,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-		{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}
+		{"id":1,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+		{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}
 	]`}
 
 	if err := splitTerminalDown(rt); err == nil {
@@ -335,7 +333,7 @@ func TestSplitTerminalDownRefusesWithoutRightTerminal(t *testing.T) {
 
 func TestPumpStdinConsumesGlobalChordWhenDraftMissing(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: `[
-		{"id":4,"is_focused":true,"is_floating":true,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
+		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":true,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
 	]`}
 	mux := &fakeMux{}
 
@@ -688,9 +686,9 @@ func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 	}
 	if f.panesJSON == "" {
 		return []byte(`[
-			{"id":1,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
-			{"id":2,"is_focused":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
-				{"id":4,"is_focused":true,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
+			{"id":1,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"},
+			{"id":2,"is_focused":false,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"},
+				{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"is_plugin":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}
 		]`), nil
 	}
 	return []byte(f.panesJSON), nil
@@ -980,8 +978,8 @@ func TestRightTerminalClassifierClassifiesAsARightTerminal(t *testing.T) {
 // is id 7 — distinct from every other id in the fixture — so a fast path
 // reading the wrong sidecar produces a different answer.
 const workbenchFixturePanes = `[
-	{"id":4,"is_focused":true,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
-	{"id":7,"is_focused":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
+	{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":false,"pane_x":75,"title":"[terminal 1]","terminal_command":"sh -c exec pair term"},
+	{"id":7,"is_focused":false,"is_fullscreen":false,"is_floating":false,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua d.md"}
 ]`
 
 func TestFocusedWorkbenchPanesFastPathAnswersWhatTheSlowPathWould(t *testing.T) {
@@ -1076,6 +1074,8 @@ func TestTerminalHelpAndChangelogRouteWithoutFocusChange(t *testing.T) {
 }
 
 type fakeRuntime struct {
+	fullscreenRecord       string
+	fullscreenErrors       []string
 	panesJSON              string
 	cachedDraft            string
 	currentPaneID          string

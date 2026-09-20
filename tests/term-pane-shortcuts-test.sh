@@ -10,6 +10,7 @@ export PAIR_HOME="$tmp/home"
 export PAIR_DATA_DIR="$tmp/data"
 export PAIR_TAG=t
 export PAIR_AGENT=codex
+unset ZELLIJ_PANE_ID
 mkdir -p "$PAIR_HOME/bin" "$PAIR_DATA_DIR"
 export PAIR_DRAFT_PATH="$tmp/draft.md"
 export PAIR_DRAFT_PANE_PATH="$PAIR_DATA_DIR/draft-pane-t.json"
@@ -41,15 +42,16 @@ export PATH="$fakebin:$PAIR_HOME/bin:$PATH"
 
 agent='{"id":1,"is_plugin":false,"is_focused":FOCUS_AGENT,"is_floating":false,"pane_x":0,"pane_columns":75,"pane_rows":39,"title":"codex","terminal_command":"pair wrap codex"}'
 draft='{"id":2,"is_plugin":false,"is_focused":FOCUS_DRAFT,"is_floating":false,"pane_x":0,"pane_columns":75,"pane_rows":12,"title":"draft","terminal_command":"nvim -u /pair/nvim/init.lua /data/draft-t.md"}'
-terminal='{"id":4,"is_plugin":false,"is_focused":FOCUS_TERM,"is_floating":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}'
-review='{"id":4,"is_plugin":false,"is_focused":FOCUS_REVIEW,"is_floating":true,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}'
+terminal='{"id":4,"is_plugin":false,"is_focused":FOCUS_TERM,"is_fullscreen":FULLSCREEN_TERM,"is_floating":false,"pane_x":75,"pane_columns":75,"pane_rows":51,"title":"terminal","terminal_command":"pair term"}'
+review='{"id":5,"is_plugin":false,"is_focused":FOCUS_REVIEW,"is_floating":true,"title":"review","terminal_command":"nvim -u /pair/nvim/review.lua /tmp/review.md"}'
 
 write_panes() {
   focus="$1"
+  terminal_state="${terminal/FULLSCREEN_TERM/${2:-false}}"
   printf '[%s,%s,%s,%s]\n' \
     "${agent/FOCUS_AGENT/$([ "$focus" = agent ] && echo true || echo false)}" \
     "${draft/FOCUS_DRAFT/$([ "$focus" = draft ] && echo true || echo false)}" \
-    "${terminal/FOCUS_TERM/$([ "$focus" = terminal ] && echo true || echo false)}" \
+    "${terminal_state/FOCUS_TERM/$([ "$focus" = terminal ] && echo true || echo false)}" \
     "${review/FOCUS_REVIEW/$([ "$focus" = review ] && echo true || echo false)}" \
     > "$tmp/panes.json"
 }
@@ -139,13 +141,16 @@ write_panes terminal
 run_shortcut "Alt+j"
 check_eq "right Alt+j is no-op" "$(actions)" ""
 
-# The toggle is a blind three-step burst (#124): zellij's tiled resize step is
-# a stable 5% of the screen, so 1/2 <-> ~2/3 is always exactly three actions.
-write_panes terminal
-run_shortcut "Alt+Shift+Enter"
-check_eq "right Alt+Shift+Enter fires the three-step expand burst" "$(actions)" "resize increase left
-resize increase left
-resize increase left"
+# #297: expand from the draft, then collapse from the fullscreen terminal and
+# restore the original caller. The fake pane report models each observed state.
+write_panes draft
+ZELLIJ_PANE_ID=2 run_shortcut "Alt+Shift+Enter"
+check_eq "draft Alt+Shift+Enter fullscreens the right terminal" "$(actions)" "toggle-fullscreen --pane-id 4"
+
+write_panes terminal true
+ZELLIJ_PANE_ID=4 run_shortcut "Alt+Shift+Enter"
+check_eq "right Alt+Shift+Enter exits fullscreen and restores draft focus" "$(actions)" "toggle-fullscreen --pane-id 4
+focus-pane-id 2"
 
 write_panes terminal
 rm -f "$PAIR_DATA_DIR/last-left-pane-t"

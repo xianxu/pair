@@ -33,6 +33,8 @@
 //   of the terminal.
 mouse_hover_effects false
 advanced_mouse_actions false
+// Keep Ctrl+wheel from changing pane geometry, including outside Couch.
+mouse_scroll_resize false
 focus_follows_mouse false
 // Pair notifications travel through Zellij's single host-output owner.
 host_notification_protocol "osc9"

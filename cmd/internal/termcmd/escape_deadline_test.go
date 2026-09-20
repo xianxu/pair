@@ -67,26 +67,31 @@ func TestEscapeThenJAfterTheDeadlineIsTwoKeysNotAltJ(t *testing.T) {
 // Every chord, every split point, both sides of the deadline. Generated from
 // the chord table so a chord added later is covered without editing this.
 //
-// "The chord fired" is observed as the child never seeing the bytes. That
-// guarantee is structural, not a property of Decide's dispositions: the pump
-// consumes a recognised chord via chordRest before any writeActive, and the
-// two executors it hands the chord to cannot write — handleChord is never
-// given the mux, and handleTerminalChord holds it but calls only the tab
-// verbs (newTab/closeActive/previousTab/nextTab/reportError). So a write of
-// chord bytes is exactly the misroute. Errors reported through reportError
-// (the fake runtime has no panes) are expected and not asserted; ChordAltR
-// begins a rename, which is also not a write.
+// Draft-only chords reach the shell byte-for-byte; every other recognised
+// chord is consumed. Errors reported through reportError (the fake runtime
+// has no panes) are expected and not asserted; ChordAltR begins a rename,
+// which is also not a write.
 func TestEveryChordSplitAtEveryByteResolvesAgainstTheDeadline(t *testing.T) {
 	for _, seq := range workbenchshortcut.ChordSequences() {
+		chord, ok := workbenchshortcut.DecodeChord([]byte(seq))
+		if !ok {
+			t.Fatalf("%q did not decode to a chord", seq)
+		}
 		for cut := 1; cut < len(seq); cut++ {
 			head, tail := []byte(seq[:cut]), []byte(seq[cut:])
 			t.Run(fmt.Sprintf("%q/split%d", seq, cut), func(t *testing.T) {
 				mux := &fakeMux{activeName: "work"}
 				timer := beforeDeadline()
 				pumpStdinWithTimer(&splitReader{chunks: [][]byte{head, tail}}, mux, &fakeRuntime{}, io.Discard, timer)
-				for _, op := range mux.ops {
-					if strings.HasPrefix(op, "write:") {
-						t.Fatalf("complete chord reached child:%v", mux.ops)
+				if workbenchshortcut.IsDraftChord(chord) {
+					if got := strings.Join(mux.ops, ","); got != "write:"+seq {
+						t.Fatalf("draft-only chord %q: ops = %q, want the raw bytes forwarded", seq, got)
+					}
+				} else {
+					for _, op := range mux.ops {
+						if strings.HasPrefix(op, "write:") {
+							t.Fatalf("complete chord reached child:%v", mux.ops)
+						}
 					}
 				}
 				if len(head) == 1 && head[0] == 27 && timer.resets == 0 {

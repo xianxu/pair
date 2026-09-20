@@ -703,8 +703,6 @@ local function start_review(buf, file)
   for _, mode in ipairs({ 'n', 'i' }) do
     vim.keymap.set(mode, '<M-CR>', function() finish_human_turn(buf, file) end,
       { buffer = buf, silent = true })
-    vim.keymap.set(mode, '<M-S-CR>', function() open_mode_menu(buf, file) end,
-      { buffer = buf, silent = true, desc = 'review: send menu' })
   end
   pcall(vim.api.nvim_del_user_command, 'PairReviewShip')
   vim.api.nvim_create_user_command('PairReviewShip', function() request_ship(file) end, {})

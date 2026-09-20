@@ -95,8 +95,8 @@ func resolveRightTerminal(rt Runtime) (zellijpane.Pane, bool, error) {
 
 // resolveRightTerminalID is the IO shell: sidecars first, pane list only when
 // they decline. Callers of this need the pane's ID and nothing else — the ones
-// that need geometry (RunToggleFocused) still list panes unconditionally,
-// because no sidecar carries geometry.
+// that need observed fullscreen state (RunToggleFocused) still list panes
+// unconditionally, because no sidecar carries that state.
 func resolveRightTerminalID(rt Runtime) (string, bool, error) {
 	// Sidecar reads degrade gracefully: a missing record or registry costs the
 	// resolution its fast path, never its correctness.
@@ -225,71 +225,6 @@ func RunFocusTerminal(args []string, rt Runtime, stderr io.Writer) int {
 		return 1
 	}
 	return 0
-}
-
-// RunToggleFocused re-tiles the right terminal column between half the
-// screen and ~two thirds by firing the planner's fixed three-step burst
-// (resizeplan.go) back-to-back — no geometry re-reads, no pacing (live #124:
-// consecutive resize actions all apply).
-func RunToggleFocused(args []string, rt Runtime, stderr io.Writer) int {
-	if len(args) > 0 {
-		fmt.Fprintln(stderr, "usage: pair layout toggle-focused")
-		return 2
-	}
-	panesJSON, err := rt.ListPanesJSON()
-	if err != nil {
-		fmt.Fprintf(stderr, "pair layout toggle-focused: list panes: %v\n", err)
-		return 1
-	}
-	panes := zellijpane.Parse(panesJSON)
-	// Graceful degradation as in FocusRightTerminal: a registry read error
-	// only narrows classification to report-derived signals.
-	terminalIDs, err := rt.TerminalPaneIDs()
-	if err != nil {
-		terminalIDs = nil
-	}
-	focused, ok := focusedRightTerminal(panes, terminalIDs)
-	if !ok {
-		return 0
-	}
-	screenCols, _ := tiledScreenSize(panes)
-	burst, ok := terminalToggleBurst(focused.Columns, screenCols)
-	if !ok {
-		return 0
-	}
-	for _, action := range burst {
-		if err := rt.RunZellijAction(action...); err != nil {
-			fmt.Fprintf(stderr, "pair layout toggle-focused: resize: %v\n", err)
-			return 1
-		}
-	}
-	return 0
-}
-
-func focusedRightTerminal(panes []zellijpane.Pane, terminalPaneIDs []string) (zellijpane.Pane, bool) {
-	for _, pane := range panes {
-		if pane.IsPlugin || !pane.IsFocused || !isRightTerminal(pane, terminalPaneIDs) {
-			continue
-		}
-		return pane, true
-	}
-	return zellijpane.Pane{}, false
-}
-
-func tiledScreenSize(panes []zellijpane.Pane) (int, int) {
-	var columns, rows int
-	for _, pane := range panes {
-		if pane.IsPlugin || pane.IsFloating {
-			continue
-		}
-		if right := pane.X + pane.Columns; right > columns {
-			columns = right
-		}
-		if pane.Rows > rows {
-			rows = pane.Rows
-		}
-	}
-	return columns, rows
 }
 
 func isRightTerminal(pane zellijpane.Pane, terminalPaneIDs []string) bool {

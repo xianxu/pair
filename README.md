@@ -18,12 +18,14 @@ Launches a `zellij` workbench in one of two layouts:
   than the pane, and `Alt+r` edits the tab name in place on that row.
   When a **full-screen app** runs there (Neovim, `less`, `htop` — anything on
   the alternate screen), those pane chords pass through to it instead of being
-  intercepted, so the app can bind `Alt+t` and the rest (#227). Two survive
-  regardless, so you are never trapped: `Alt+k` still returns to the left
+  intercepted, so the app can bind `Alt+t` and the rest (#227). Pair's navigation
+  remains available: `Alt+k` still returns to the left
   stack, and the global `Shift+Alt+←`/`→`/`Shift+Alt+t` still switch and create
   tabs from anywhere (#243 delivers them as globals so they survive the
-  passthrough). At
-  a shell prompt every chord is intercepted as before.
+  passthrough). `Alt+Shift+Return` toggles right-terminal fullscreen from any
+  Pair pane, including the agent and editor overlays. At
+  a shell prompt terminal-local chords are intercepted; draft-only Alt+Up/Down
+  pass through to the shell.
 
 Layout flags are Pair-owned and may appear before or after the agent name but
 before `--`, for example `pair codex --layout3` or
@@ -119,8 +121,7 @@ one-line description can't carry.
 | **Alt+Return** | nvim (normal/insert) | Send buffer to agent. Note for consistency, claude's keybinding also changed to Alt+return as send, and return as newline |
 | **Return** | agent pane | Insert a newline in Claude, Codex, and Agy composers; Pair translates it to Muse's native Shift+Return. The rewrite is *positively gated* for every agent: Pair rewrites only while it can see a live composer on screen, so in a permission picker, a selection menu, or any state it doesn't recognize, Return stays a plain Enter and the dialog confirms. Set `PAIR_WRAP_REMAP_RETURN=0` to turn the rewrite off entirely (that also disables overlay detection and its telemetry). |
 | **Alt+Return** | agent pane | Always submits, in every state. |
-| **Alt+Shift+Return** | nvim (normal/insert) | Append buffer to the agent's composer followed by a newline, but do **not** submit — leaves the cursor on a fresh line in the agent input for more typing. Logs + clears the draft like Alt+Return. |
-| **Alt+Shift+Return** | layout 3 terminal | Re-tile the terminal column between 1/2 and 2/3 width (the left stack narrows and reflows while expanded) without recreating any processes. |
+| **Alt+Shift+Return** | any Pair pane | Toggle native fullscreen for the selected right terminal; a split expands only the selected half. Press again to restore the tiling and focus the invoking pane. Zellij's bars remain visible. No-op without a right terminal. |
 | **Alt+j** | draft | Focus the agent pane. Click the draft to return from the agent. |
 | **Alt+k** | layout 3 draft/terminal | Move between the last-focused left Pair pane and the right terminal. |
 | **Alt+t** | layout 3 terminal | Create a Pair-owned local terminal tab. |
@@ -134,7 +135,7 @@ one-line description can't carry.
 | **Shift+Alt+d** | review pane (visual) | Define the selected term inline. The pair agent answers through `pair review definition`, and the pane stores the result as a durable footnote. |
 | **Ctrl+C** | nvim (normal/insert) | Send ESC (0x1b) to the agent pane — interrupts claude's in-flight stream without leaving the draft |
 | **Alt+←** / **Alt+→** | nvim (normal/insert) | Walk through prompt history (`-N`) and queued prompts (`+N`) one slot at a time. |
-| **Alt+↑** / **Alt+↓** | non-agent panes | Step the nvim pane along a `minimized` ↔ `12 lines` ↔ `1/3` ladder one rung at a time. When minimized, claude pane always have focus |
+| **Alt+↑** / **Alt+↓** | draft only | Step the draft along a `minimized` ↔ `12 lines` ↔ `1/3` ladder one rung at a time. Minimizing focuses the agent; click the draft to grow it again. |
 | **Alt+i** | nvim (normal/insert) | Attach clipboard image to the agent and insert anchor text at cursor location |
 | **Alt+1**…**Alt+9** | nvim (insert, popup visible) | Quick-pick the Nth visible completion item (counting from the top of the popup). |
 | **1**…**9** | nvim (z= spell popup visible) | Pick the Nth spell suggestion. `z=` opens the popup for the word under the cursor (tagged `1`…`9`); picking — or `Esc` to dismiss — leaves you in normal mode |
@@ -154,8 +155,9 @@ one-line description can't carry.
 | **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
-The focused agent receives all workbench shortcuts except **Shift+Alt+T** and
-**Shift+Alt+Left/Right**, which create or switch right-terminal tabs. Under
+The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
+**Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
+right-terminal tabs or toggle right-terminal fullscreen. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
 **Ctrl+Return** remain Couch navigation shortcuts, and Couch takes **Alt+n** /
 **Ctrl+Alt+n** to relaunch the thread. Alt+Up/Down, Alt+Left/Right, Alt+j/k,
@@ -163,9 +165,11 @@ help, compact and the other lifecycle chords reach the agent. Click another pane
 to leave it. Existing Return and Alt+Backspace input adaptation still applies.
 
 “Non-agent panes” includes the draft, right terminal, review, scrollback and
-change-log Neovim overlays. Their workbench actions route to the draft by pane
-ID; confirmation actions focus the draft, while resize and review actions
-preserve focus. Pair disables inherited Zellij keybindings, including its
+change-log Neovim overlays. Fullscreen runs from the invoking pane; it does not
+route through the draft. Confirmation actions route to and focus the draft;
+review toggle preserves focus. Alt+Up/Down is installed only in the draft.
+Alt+Shift+Return no longer appends draft text or opens the review send menu;
+Alt+Return still sends normally. Pair disables inherited Zellij keybindings, including its
 floating-pane, resize, grouping and swap-layout shortcuts.
 
 ## Prompt history & queue
@@ -256,6 +260,21 @@ Pair leans on `Alt+<key>` chords for almost every action — `Alt+Return` to sen
 Symptom when not configured: `Alt+Return` may still send (since that chord doesn't have a macOS special character), but `Alt+x` prints `≈` in nvim, `Alt+n` prints `˜`, `Alt+d` prints `∂`, etc. — the literal Unicode insertions tell you the chord was eaten by macOS before reaching pair.
 
 Newer MacOS `Alt+n` sends dead-tilda. You can use [Ukelele](https://software.sil.org/ukelele/) to create a Mac keyboard configuration without those dead-letter.
+
+**Fullscreen needs a distinguishable Shift+Alt+Return.** Option-as-Meta alone
+does not guarantee that chord survives the host terminal. Pair recognizes
+`CSI 13;4u` for Shift+Alt+Return. Under the
+[Kitty keyboard protocol modifier rules](https://sw.kovidgoyal.net/kitty/keyboard-protocol/#modifiers),
+`CSI 13;10u` means Shift+Super+Return (Shift+Command on macOS), so Pair does
+not register modifier 10 as an Alt alias for Return.
+
+Kitty and [Ghostty](https://ghostty.org/docs/features) support the Kitty keyboard
+protocol; in WezTerm, enable
+[`enable_kitty_keyboard = true`](https://wezterm.org/config/lua/config/enable_kitty_keyboard.html)
+to allow applications to negotiate it. These are documented host capabilities,
+not physical-key test results for every terminal. If fullscreen does not fire,
+check the host's protocol support and key interception; the Option settings
+above address ordinary Alt chords, not a guarantee of modified Return delivery.
 
 ## Install
 

@@ -515,16 +515,19 @@ func (p Paths) LifecycleJournal() string {
 func (p Paths) ScrollbackPending() string {
 	return p.tagged("scrollback-pending-", ".md")
 }
-func (p Paths) LastLeftPane() string     { return p.tagged("last-left-pane-", "") }
-func (p Paths) LastTerminalPane() string { return p.tagged("last-terminal-pane-", "") }
-func (p Paths) TerminalPanes() string    { return p.tagged("terminal-panes-", "") }
-func (p Paths) ZellijActions() string    { return p.tagged("zellij-actions-", ".jsonl") }
-func (p Paths) ReviewOpen() string       { return p.tagged("review-", ".open") }
-func (p Paths) ReviewMode() string       { return p.tagged("review-", ".mode") }
-func (p Paths) ReviewTarget() string     { return p.tagged("review-target-", ".json") }
-func (p Paths) ReviewContext() string    { return p.tagged("review-context-", ".md") }
-func (p Paths) ReviewHandoff() string    { return p.tagged("review-handoff-", ".json") }
-func (p Paths) ReviewLanded() string     { return p.tagged("review-landed-", ".json") }
+func (p Paths) LastLeftPane() string          { return p.tagged("last-left-pane-", "") }
+func (p Paths) LastTerminalPane() string      { return p.tagged("last-terminal-pane-", "") }
+func (p Paths) FullscreenReturn() string      { return p.tagged("fullscreen-return-", "") }
+func (p Paths) FullscreenLock() string        { return p.tagged("fullscreen-lock-", "") }
+func (p Paths) FullscreenDiagnostics() string { return p.tagged("fullscreen-diagnostics-", ".jsonl") }
+func (p Paths) TerminalPanes() string         { return p.tagged("terminal-panes-", "") }
+func (p Paths) ZellijActions() string         { return p.tagged("zellij-actions-", ".jsonl") }
+func (p Paths) ReviewOpen() string            { return p.tagged("review-", ".open") }
+func (p Paths) ReviewMode() string            { return p.tagged("review-", ".mode") }
+func (p Paths) ReviewTarget() string          { return p.tagged("review-target-", ".json") }
+func (p Paths) ReviewContext() string         { return p.tagged("review-context-", ".md") }
+func (p Paths) ReviewHandoff() string         { return p.tagged("review-handoff-", ".json") }
+func (p Paths) ReviewLanded() string          { return p.tagged("review-landed-", ".json") }
 func (p Paths) ReviewDefinitionRequest() string {
 	return p.tagged("review-definition-request-", ".json")
 }
@@ -601,6 +604,9 @@ func (p Paths) EnvironmentBindings(agent string) ([]Binding, error) {
 		{Name: "PAIR_WORKBENCH_LAYOUT_PATH", Path: p.WorkbenchLayout()},
 		{Name: "PAIR_LAST_LEFT_PANE_PATH", Path: p.LastLeftPane()},
 		{Name: "PAIR_LAST_TERMINAL_PANE_PATH", Path: p.LastTerminalPane()},
+		{Name: "PAIR_FULLSCREEN_RETURN_PATH", Path: p.FullscreenReturn()},
+		{Name: "PAIR_FULLSCREEN_LOCK_PATH", Path: p.FullscreenLock()},
+		{Name: "PAIR_FULLSCREEN_DIAGNOSTICS_PATH", Path: p.FullscreenDiagnostics()},
 		{Name: "PAIR_TERMINAL_PANES_PATH", Path: p.TerminalPanes()},
 		{Name: "PAIR_ZELLIJ_ACTIONS_PATH", Path: p.ZellijActions()},
 		{Name: "PAIR_REVIEW_OPEN_PATH", Path: p.ReviewOpen()},

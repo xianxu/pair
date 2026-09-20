@@ -4,6 +4,21 @@ All notable user-facing changes to `pair` land here. Each release is also
 tagged in git (`vN.M`) and tracked in the homebrew formula at
 [xianxu/homebrew-pair](https://github.com/xianxu/homebrew-pair).
 
+## Unreleased
+
+### Breaking keybindings
+
+- **Alt+Shift+Return now toggles right-terminal fullscreen from any Pair pane**,
+  including the agent, draft, review, scrollback and changelog. A split expands
+  only the selected terminal half; pressing again restores the tiling and returns
+  focus to the invoking pane. Zellij's bars stay visible. Without a right
+  terminal, the shortcut does nothing. This replaces the terminal width toggle,
+  draft append-without-send action and review send-menu binding. Alt+Return
+  still submits normally; the review menu API remains available.
+- **Alt+Up/Down now changes draft height only from the draft.** Other panes no
+  longer route those keys to draft resizing. Fullscreen requires the host to
+  deliver Shift+Alt+Return distinctly; see [Terminal setup](README.md#terminal-setup).
+
 ## v1.26 — 2026-08-16
 
 ### Homebrew smoke fix

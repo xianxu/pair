@@ -16,6 +16,19 @@ func RenderLuaGlobalMaps() string {
 		out.WriteString(strconv.Quote(binding.LuaFunction))
 		out.WriteString(", focus = ")
 		out.WriteString(strconv.FormatBool(binding.FocusDraft))
+		if binding.Scope == ScopeDraft {
+			out.WriteString(", scope = 'draft'")
+		}
+		if len(binding.DirectCommand) > 0 {
+			out.WriteString(", direct_command = { ")
+			for i, arg := range binding.DirectCommand {
+				if i > 0 {
+					out.WriteString(", ")
+				}
+				out.WriteString(strconv.Quote(arg))
+			}
+			out.WriteString(" }")
+		}
 		out.WriteString(" },\n")
 	}
 	out.WriteString("}\n")

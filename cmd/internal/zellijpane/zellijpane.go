@@ -21,10 +21,12 @@ type Pane struct {
 	IsFocused       bool
 	IsPlugin        bool
 	IsFloating      bool
-	X               int
-	Y               int
-	Columns         int
-	Rows            int
+	// Nil means the report did not supply a boolean; absence is not tiled.
+	IsFullscreen *bool
+	X            int
+	Y            int
+	Columns      int
+	Rows         int
 }
 
 // Parse decodes the `list-panes --json` output and returns every pane object it
@@ -84,6 +86,10 @@ func paneFrom(m map[string]interface{}) (Pane, bool) {
 		return Pane{}, false
 	}
 	title, _ := m["title"].(string)
+	var fullscreen *bool
+	if value, ok := m["is_fullscreen"].(bool); ok {
+		fullscreen = &value
+	}
 	return Pane{
 		ID:              id,
 		TerminalCommand: tc,
@@ -91,6 +97,7 @@ func paneFrom(m map[string]interface{}) (Pane, bool) {
 		IsFocused:       focused,
 		IsPlugin:        plugin,
 		IsFloating:      floating,
+		IsFullscreen:    fullscreen,
 		X:               intNumber(m["pane_x"]),
 		Y:               intNumber(m["pane_y"]),
 		Columns:         intNumber(m["pane_columns"]),

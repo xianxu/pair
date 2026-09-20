@@ -138,6 +138,7 @@ func generatedResolvedBindings() []ResolvedBinding {
 	environmentFamilies := []string{
 		"adapt", "agent", "agent-pid", "agent-ready", "config", "draft",
 		"image-capture", "ledger", "log", "nvim-pid", "outer-tty", "pair-wrap-pid",
+		"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics",
 		"pane", "queue", "quote", "scrollback", "slug",
 	}
 	renameFamilies := []string{
@@ -149,6 +150,7 @@ func generatedResolvedBindings() []ResolvedBinding {
 	addFamilies("scoped-rename", "ResolveScoped", "RenameArtifacts", renameFamilies)
 	addFamilies("legacy-rename", "ResolveLegacyFlat", "RenameArtifacts", renameFamilies)
 	addFamilies("scoped-wrapper", "ResolveScoped", "", []string{"last-left-pane", "last-terminal-pane", "terminal-panes"})
+	addFamilies("scoped-fullscreen", "ResolveScoped", "", []string{"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics"})
 	addFamilies("composite", "Resolve", "", []string{
 		"adapt", "agent", "agent-pid", "agent-ready", "changelog", "config",
 		"draft", "ledger", "log", "nvim-pid", "outer-tty", "pane", "queue",
@@ -173,6 +175,9 @@ type SourceClassification struct {
 // family requires adding its constructor and classifying every source consumer.
 // pair:m5-concept pure
 var Families = []Family{
+	{Name: "fullscreen-return", Token: "fullscreen-return-"},
+	{Name: "fullscreen-lock", Token: "fullscreen-lock-"},
+	{Name: "fullscreen-diagnostics", Token: "fullscreen-diagnostics-"},
 	{Name: "agent-default", Token: "agent-default-"},
 	{Name: "draft", Token: "draft-"},
 	{Name: "ledger", Token: "ledger-"},
@@ -263,6 +268,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/storagegc/capture_metadata.go", Kind: ResolvedConsumer, Families: []string{"parked"}, BindingNames: []string{"parsed-parked-capture"}},
 	{Path: "cmd/internal/artifactpath/gc.go", Kind: Constructor, Families: []string{"agent", "lifecycle", "parked", "scrollback"}},
 	{Path: "cmd/internal/artifactpath/paths.go", Kind: Constructor, Families: []string{
+		"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics",
 		"adapt", "agent", "agent-default", "agent-pid", "agent-ready", "changelog", "config",
 		"continuation", "draft", "image-capture", "layout", "layout-mode",
 		"last-left-pane", "last-terminal-pane", "ledger", "log", "nvim-pid",
@@ -386,6 +392,9 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
 		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
 		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
+	{Path: "cmd/internal/workbenchshortcut/fullscreen_store.go", Kind: ResolvedConsumer,
+		Families:     []string{"fullscreen-return", "fullscreen-lock", "fullscreen-diagnostics"},
+		BindingNames: []string{"scoped-fullscreen-fullscreen-return", "scoped-fullscreen-fullscreen-lock", "scoped-fullscreen-fullscreen-diagnostics"}},
 	{Path: "cmd/internal/continuationcmd/continuation.go", Kind: VocabularyConsumer, Families: []string{"native-session"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("native-session", "session_id: %s\n", "fmt.Fprintf", 1, 1),
 	}},
@@ -785,7 +794,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/launcher/zellij.go",
 	"cmd/internal/launcher/zellijparse.go",
 	"cmd/internal/layoutcmd/layoutcmd.go",
-	"cmd/internal/layoutcmd/resizeplan.go",
+	"cmd/internal/layoutcmd/fullscreen.go",
 	"cmd/internal/model/model.go",
 	"cmd/internal/pairlog/runcli.go",
 	"cmd/internal/pairlog/store.go",
@@ -1067,6 +1076,9 @@ var GCClassifications = map[string]GCClassification{
 	"scrollback-pending":        {SessionRetention, GCCollectable, "Paths.ScrollbackPending"},
 	"last-left-pane":            {SessionRetention, GCCollectable, "Paths.LastLeftPane"},
 	"last-terminal-pane":        {SessionRetention, GCCollectable, "Paths.LastTerminalPane"},
+	"fullscreen-return":         {SessionRetention, GCCollectable, "Paths.FullscreenReturn"},
+	"fullscreen-lock":           {SessionRetention, GCCollectable, "Paths.FullscreenLock"},
+	"fullscreen-diagnostics":    {DebugRetention, GCCollectable, "Paths.FullscreenDiagnostics"},
 	"terminal-panes":            {SessionRetention, GCCollectable, "Paths.TerminalPanes"},
 	"zellij-actions":            {SessionRetention, GCCollectable, "Paths.ZellijActions"},
 	"review":                    {SessionRetention, GCCollectable, "Paths.ReviewTarget and Review siblings"},

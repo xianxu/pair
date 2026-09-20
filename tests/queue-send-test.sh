@@ -67,7 +67,7 @@ _G.PairTestSessionLogAppend = function(body)
   return true
 end
 _G.PairTestSessionLogCommit = function() return true end
-_G.PairTestSendToAgent = function(_, no_submit) return true, no_submit and 'composed' or 'dispatched' end
+_G.PairTestSendToAgent = function() return true, 'dispatched' end
 local function cm(l)
   local m = vim.fn.maparg(l,'n',false,true)
   if type(m)~='table' or not m.callback then O:write('E missing-map '..l..'\n') end
@@ -89,17 +89,16 @@ for body in (lc..'\n---\n'):gmatch('## %S+ %S+\n\n(.-)\n\n%-%-%-') do
   O:write('L '..body..'\n')
 end
 local d=io.open(dd..'/draft-test.md'); O:write('D '..((d and d:read('*a') or ''):gsub('%s+\$',''))..'\n'); if d then d:close() end
-local function dump_cmds(prefix, no_submit)
+local function dump_cmds(prefix)
   if type(_G.PairDraftSendCommands) ~= 'function' then
     O:write('C '..prefix..' missing\n')
     return
   end
-  for _,cmd in ipairs(_G.PairDraftSendCommands('HELLO', no_submit)) do
+  for _,cmd in ipairs(_G.PairDraftSendCommands('HELLO')) do
     O:write('C '..prefix..' '..cmd.label..' '..table.concat(cmd.argv, ' ')..'\n')
   end
 end
-dump_cmds('submit', false)
-dump_cmds('append', true)
+dump_cmds('submit')
 O:close(); vim.cmd('qall!')  -- force-quit the dirtied throwaway buffer (#60)
 LUA
 }
@@ -148,12 +147,6 @@ if has "C submit draft.send.submit zellij action send-keys Alt Enter"; then
   pass "draft submit command uses semantic Alt Enter"
 else
   fail "draft submit command"; sed 's/^/    /' "$RT/result.txt"
-fi
-if has "C append draft.send.newline zellij action write 13" \
-   && [ "$(count '^C append .*send-keys Alt Enter')" = "0" ]; then
-  pass "draft append-only command stays newline without submit"
-else
-  fail "draft append-only command"; sed 's/^/    /' "$RT/result.txt"
 fi
 
 # --- 6. durable-log failure leaves every authored state surface intact. -----

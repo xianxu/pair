@@ -187,9 +187,12 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   200-local chunk ceiling.) The cross-process `review-<tag>.open` path is centralized in
   `nvim/review/seam.lua` (one fallback rule for writer + reader).
 - **send menu + waiting cue** (`nvim/review.lua`, `nvim/review/menu.lua`,
-  `nvim/review/spinner.lua`) — `Alt+Shift+Return` opens a Parley-shaped send menu
-  (mode selector plus a one-round optional instruction editor with focused cursor
-  affordances), then finishes the human turn with the selected mode/instruction.
+  `nvim/review/spinner.lua`) — the exported `PairReviewPane.open_mode_menu(file)`
+  API presents a mode selector plus a one-round optional instruction editor,
+  then finishes the human turn with the selected mode/instruction. Its former
+  `Alt+Shift+Return` binding is retired: that chord now invokes global
+  right-terminal fullscreen directly from this editor, preserving its pane ID
+  for focus restoration. There is no buffer-local map overriding the global.
   `Alt+Return` keeps the current mode and sends directly. Send and ship pokes mark the
   pane as awaiting the agent, displayed by the statusline spinner until the next
   handoff clears it.

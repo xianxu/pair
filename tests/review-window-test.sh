@@ -110,7 +110,8 @@ local function check()
   local mapdefine = vim.fn.maparg('<M-D>', 'x') ~= ''
   local mapdefine_kkp = vim.fn.maparg('\027[68;4u', 'x') ~= ''
   local mapo = vim.fn.maparg('<M-o>', 'n') == ''
-  local mapshiftcr = vim.fn.maparg('<M-S-CR>', 'n') ~= ''
+  local fullscreen = vim.fn.maparg('<S-M-CR>', 'n', false, true)
+  local mapshiftcr = type(fullscreen.callback) == 'function' and fullscreen.buffer == 0
   local ship_cmd = vim.api.nvim_get_commands({}).PairReviewShip ~= nil
   local sf = _G.PairReviewPane and _G.PairReviewPane.state_file()
   local sf_ok = sf and (vim.uv or vim.loop).fs_stat(sf) ~= nil
@@ -125,7 +126,7 @@ local function check()
   OUT:write((mapdefine and 'definition-map\n') or 'NO-definition-map\n')
   OUT:write((mapdefine_kkp and 'definition-kkp-map\n') or 'NO-definition-kkp-map\n')
   OUT:write((mapo and 'no-alt-o-map\n') or 'HAS-alt-o-map\n')
-  OUT:write((mapshiftcr and 'mode-menu-map\n') or 'NO-mode-menu-map\n')
+  OUT:write((mapshiftcr and 'global-fullscreen-map\n') or 'NO-global-fullscreen-map\n')
   OUT:write((ship_cmd and 'ship-cmd\n') or 'NO-ship-cmd\n')
   OUT:write((sf_ok and 'state-file\n') or 'NO-state\n')
   OUT:write(((#marks >= 1) and 'markers\n') or 'NO-markers\n')
@@ -422,7 +423,7 @@ grep -q '^review-alt-x-map$' "$RT/r3" && pass "Alt+x no-op map wired in review p
 grep -q '^definition-map$' "$RT/r3" && pass "Shift+Alt+d definition map wired" || fail "definition map missing"
 grep -q '^definition-kkp-map$' "$RT/r3" && pass "Shift+Alt+d forwarded KKP definition map wired" || fail "definition KKP map missing"
 grep -q '^no-alt-o-map$' "$RT/r3" && pass "Alt+o is not bound in review pane" || fail "Alt+o still bound"
-grep -q '^mode-menu-map$' "$RT/r3" && pass "Alt+Shift+Return send menu keymap wired" || fail "send menu map missing"
+grep -q '^global-fullscreen-map$' "$RT/r3" && pass "Alt+Shift+Return global fullscreen keymap wired" || fail "send menu map missing"
 grep -q '^ship-cmd$' "$RT/r3" && pass ":PairReviewShip command wired" || fail ":PairReviewShip missing"
 grep -q '^state-file$' "$RT/r3" && pass "open-state file written" || fail "no state file"
 grep -q '^markers$' "$RT/r3" && pass "🤖 markers rendered" || fail "no marker extmarks"

@@ -189,10 +189,10 @@ func TestShortcutDecision(t *testing.T) {
 			want:  ShortcutDecision{Disposition: DispositionSwallow},
 		},
 		{
-			name:  "left draft alt shift enter passes through",
+			name:  "left draft alt shift enter toggles fullscreen",
 			role:  PaneRoleLeftDraft,
 			chord: ChordAltShiftEnter,
-			want:  ShortcutDecision{Disposition: DispositionPass},
+			want:  ShortcutDecision{Disposition: DispositionHandle, Action: ActionToggleFocusedLayout},
 		},
 		{
 			name:  "other panes pass through",
@@ -278,6 +278,47 @@ func TestDecodeGlobalChord(t *testing.T) {
 	}
 }
 
+func TestFullscreenAndDraftResizeScope(t *testing.T) {
+	binding, ok := globalDraftAction(ChordAltShiftEnter)
+	if !ok || !binding.HandledInPane || !binding.AgentReserved || binding.Scope != ScopeGlobal ||
+		!reflect.DeepEqual(binding.DirectCommand, []string{"layout", "toggle-focused"}) {
+		t.Fatalf("fullscreen binding: %+v", binding)
+	}
+	for _, role := range []PaneRole{PaneRoleLeftAgent, PaneRoleLeftDraft, PaneRoleRightTerminal} {
+		got := Decide(ShortcutInput{Role: role, Chord: ChordAltShiftEnter})
+		if got.Disposition != DispositionHandle || got.Action != ActionToggleFocusedLayout || got.DraftLuaFunction != "" {
+			t.Errorf("fullscreen role %v: %+v", role, got)
+		}
+		for _, chord := range []Chord{ChordAltUp, ChordAltDown} {
+			if _, ok := DecideGlobal(chord); ok || IsGlobalChord(chord) {
+				t.Errorf("draft resize %v classified global", chord)
+			}
+			got := Decide(ShortcutInput{Role: role, Chord: chord})
+			if (got.Disposition == DispositionHandle) != (role == PaneRoleLeftDraft) {
+				t.Errorf("resize role %v: %+v", role, got)
+			}
+		}
+	}
+	if chord, ok := DecodeChord([]byte("\x1b[13;10u")); ok {
+		t.Errorf("Kitty Shift+Super consumed as %v", chord)
+	}
+}
+
+func TestDraftScopeWinsOverAgentReservation(t *testing.T) {
+	original := globalBindings
+	globalBindings = append([]GlobalBinding(nil), original...)
+	defer func() { globalBindings = original }()
+	for i := range globalBindings {
+		if globalBindings[i].Chord == ChordAltUp {
+			globalBindings[i].AgentReserved = true
+		}
+	}
+	got := Decide(ShortcutInput{Role: PaneRoleLeftAgent, Chord: ChordAltUp})
+	if got.Disposition != DispositionPass {
+		t.Fatalf("draft key reserved by agent: %+v", got)
+	}
+}
+
 func TestGlobalDecisionMatrix(t *testing.T) {
 	globals := []struct {
 		chord  Chord
@@ -290,8 +331,6 @@ func TestGlobalDecisionMatrix(t *testing.T) {
 		{ChordAltN, ActionRestartPair, "PairConfirmRestart", true},
 		{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart", true},
 		{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart", true},
-		{ChordAltUp, ActionGrowDraft, "PairLayoutBigger", false},
-		{ChordAltDown, ActionShrinkDraft, "PairLayoutSmaller", false},
 		{ChordAltC, ActionToggleReview, "PairReviewToggle", false},
 		{ChordAltH, ActionOpenHelp, "PairOpenHelp", false},
 		{ChordAltL, ActionOpenChangelog, "PairOpenChangelog", false},
@@ -631,11 +670,11 @@ func TestEveryArrowChordRegistersBothModifierFamilies(t *testing.T) {
 
 func TestIsGlobalChordMatchesTheGlobalTable(t *testing.T) {
 	for _, b := range GlobalBindings() {
-		if !IsGlobalChord(b.Chord) {
+		if IsGlobalChord(b.Chord) != (b.Scope == ScopeGlobal) {
 			t.Errorf("IsGlobalChord(%v) = false, want true (in globalBindings)", ChordName(b.Chord))
 		}
 	}
-	for _, c := range []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltJ, ChordAltK, ChordAltShiftEnter, ChordUnknown} {
+	for _, c := range []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltJ, ChordAltK, ChordAltUp, ChordAltDown, ChordUnknown} {
 		if IsGlobalChord(c) {
 			t.Errorf("IsGlobalChord(%v) = true, want false (role-scoped/unknown)", ChordName(c))
 		}
@@ -643,7 +682,7 @@ func TestIsGlobalChordMatchesTheGlobalTable(t *testing.T) {
 }
 
 func TestRightTerminalChordPassesThrough(t *testing.T) {
-	for _, c := range []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltShiftD, ChordAltShiftEnter, ChordAltLeft, ChordAltRight, ChordAltJ, ChordAltSlash, ChordAltShiftC, ChordCtrlAltC} {
+	for _, c := range []Chord{ChordAltT, ChordAltW, ChordAltR, ChordAltShiftD, ChordAltUp, ChordAltDown, ChordAltLeft, ChordAltRight, ChordAltJ, ChordAltSlash, ChordAltShiftC, ChordCtrlAltC} {
 		if !RightTerminalChordPassesThrough(c) {
 			t.Errorf("%v should pass through to a full-screen child", ChordName(c))
 		}
@@ -656,7 +695,7 @@ func TestRightTerminalChordPassesThrough(t *testing.T) {
 		t.Error("ChordUnknown must not pass through")
 	}
 	for _, b := range GlobalBindings() {
-		if RightTerminalChordPassesThrough(b.Chord) {
+		if b.Scope == ScopeGlobal && RightTerminalChordPassesThrough(b.Chord) {
 			t.Errorf("global %v must not pass through", ChordName(b.Chord))
 		}
 	}
@@ -696,7 +735,7 @@ func TestTabChordForDeliversGlobalChords(t *testing.T) {
 }
 
 func TestAgentReservationPolicyMatrix(t *testing.T) {
-	reserved := map[Chord]ShortcutAction{ChordAltShiftT: ActionTerminalNewTab, ChordAltShiftLeft: ActionTerminalPrevTab, ChordAltShiftRight: ActionTerminalNextTab}
+	reserved := map[Chord]ShortcutAction{ChordAltShiftEnter: ActionToggleFocusedLayout, ChordAltShiftT: ActionTerminalNewTab, ChordAltShiftLeft: ActionTerminalPrevTab, ChordAltShiftRight: ActionTerminalNextTab}
 	for chord := ChordUnknown; chord < ChordMax(); chord++ {
 		got := Decide(ShortcutInput{Role: PaneRoleLeftAgent, Chord: chord})
 		want := ShortcutDecision{Disposition: DispositionPass}
@@ -730,7 +769,7 @@ func TestRoleLocalHelpAndChangelog(t *testing.T) {
 }
 
 func TestAgentReservationMetadataIsExact(t *testing.T) {
-	want := map[Chord]bool{ChordAltShiftT: true, ChordAltShiftLeft: true, ChordAltShiftRight: true}
+	want := map[Chord]bool{ChordAltShiftEnter: true, ChordAltShiftT: true, ChordAltShiftLeft: true, ChordAltShiftRight: true}
 	got := map[Chord]bool{}
 	for _, b := range GlobalBindings() {
 		if b.AgentReserved {

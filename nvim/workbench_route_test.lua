@@ -26,8 +26,9 @@ local expected = {
   ['<M-n>'] = { fn = 'PairConfirmRestart', focus = true },
   ['<C-M-n>'] = { fn = 'PairConfirmRestart', focus = true },
   ['<M-N>'] = { fn = 'PairConfirmAgentRestart', focus = true },
-  ['<M-Up>'] = { fn = 'PairLayoutBigger', focus = false },
-  ['<M-Down>'] = { fn = 'PairLayoutSmaller', focus = false },
+  ['<M-Up>'] = { fn = 'PairLayoutBigger', focus = false, scope = 'draft' },
+  ['<M-Down>'] = { fn = 'PairLayoutSmaller', focus = false, scope = 'draft' },
+  ['<S-M-CR>'] = { fn = '', focus = false, direct_command = { 'layout', 'toggle-focused' } },
   ['<M-c>'] = { fn = 'PairReviewToggle', focus = false },
   -- #216: the draft's half of the from-anywhere tab chords. focus = false is
   -- the requirement, not a detail — the whole point is that the cursor never
@@ -67,6 +68,27 @@ assert(route.validate_cached_draft(record, 'pair-work', function() return false 
 assert(route.validate_cached_draft('bad json', 'pair-work', function() return true end) == nil)
 
 print('workbench_route_test ok')
+
+for _, is_draft in ipairs({ false, true }) do
+  for _, key in ipairs({ '<M-Up>', '<M-Down>', '<S-M-CR>' }) do
+    pcall(vim.keymap.del, { 'n', 'i' }, key)
+  end
+  route.install_global_maps(is_draft)
+  for _, key in ipairs({ '<M-Up>', '<M-Down>' }) do
+    assert((vim.fn.maparg(key, 'n') ~= '') == is_draft, key .. ' scope')
+  end
+  local system, notify = vim.fn.system, vim.notify
+  local calls = {}
+  vim.fn.system = function(argv)
+    calls[#calls + 1] = argv
+    return 'failure already logged by Go'
+  end
+  vim.notify = function() error('fullscreen must be silent') end
+  vim.fn.maparg('<S-M-CR>', 'n', false, true).callback()
+  local home = vim.env.PAIR_HOME or ''
+  assert(vim.deep_equal(calls, { { home ~= '' and (home .. '/bin/pair') or 'pair', 'layout', 'toggle-focused' } }))
+  vim.fn.system, vim.notify = system, notify
+end
 
 -- #216 BR-13: the key -> function-name mapping above pins which function runs;
 -- this pins what that function actually executes.

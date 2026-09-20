@@ -261,7 +261,7 @@ func TestTranslateStdinHandlesWorkbenchShortcutWithoutReturnRemap(t *testing.T) 
 	}{
 		{name: "alt k", in: "\x1bkhello\r", wantOut: "\x1bkhello\r"},
 		{name: "alt x", in: "\x1b[120;3u", wantOut: "\x1b[120;3u"},
-		{name: "agent alt shift enter passes through", in: "\x1b[13;4u", wantOut: "\x1b[13;4u"},
+		{name: "agent alt shift enter toggles fullscreen", in: "\x1b[13;4u", wantHandled: "Alt+Shift+Enter"},
 		{name: "payload before alt k", in: "hello\r\x1bk", wantOut: "hello\r\x1bk"},
 	}
 

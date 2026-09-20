@@ -76,7 +76,7 @@ func DiscoverStorageOwners(root, scope string, names []string) ([]StorageOwner, 
 		tag, ok := TagFromHistorySidecar(name)
 		if !ok {
 			for _, f := range Families {
-				if (f.Name == "wrap-events" || f.Name == "adapt") && strings.HasPrefix(anchor, f.Token) && strings.HasSuffix(anchor, ".jsonl") {
+				if (f.Name == "wrap-events" || f.Name == "adapt" || f.Name == "fullscreen-diagnostics") && strings.HasPrefix(anchor, f.Token) && strings.HasSuffix(anchor, ".jsonl") {
 					tag = strings.TrimSuffix(strings.TrimPrefix(anchor, f.Token), ".jsonl")
 					ok = true
 				}
@@ -242,6 +242,9 @@ func ownerCandidates(p Paths, path string, agents []string) []ArtifactMember {
 	add("scrollback-pending", p.ScrollbackPending())
 	add("last-left-pane", p.LastLeftPane())
 	add("last-terminal-pane", p.LastTerminalPane())
+	add("fullscreen-return", p.FullscreenReturn())
+	add("fullscreen-lock", p.FullscreenLock())
+	add("fullscreen-diagnostics", p.FullscreenDiagnostics())
 	add("terminal-panes", p.TerminalPanes())
 	add("zellij-actions", p.ZellijActions())
 	add("review", p.ReviewOpen(), p.ReviewMode(), p.ReviewTarget(), p.ReviewContext(), p.ReviewHandoff(), p.ReviewLanded(), p.ReviewDefinitionRequest(), p.ReviewDefinitionResult())

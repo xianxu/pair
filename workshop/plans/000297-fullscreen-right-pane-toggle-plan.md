@@ -101,28 +101,28 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 
 **Files:** `cmd/internal/zellijpane/zellijpane{,_test}.go`; new `cmd/internal/layoutcmd/fullscreen{,_test}.go`; `cmd/internal/layoutcmd/layoutcmd{,_test}.go`; new `cmd/internal/workbenchshortcut/fullscreen_store{,_test}.go`; `cmd/internal/artifactpath/{paths,manifest,gc}.go` and their tests; `cmd/internal/termcmd/run{,_test}.go`.
 
-- [ ] Test `zellijpane.Parse`/`paneFrom` with fuzzed malformed pane observations, preserving unknown fullscreen state; test `PlanFullscreen` with generated pane inventories and independently stated target/return/identity invariants.
-- [ ] Run `go test ./cmd/internal/zellijpane ./cmd/internal/layoutcmd ./cmd/internal/workbenchshortcut` and confirm failures concern the new behavior.
-- [ ] Implement observed fullscreen parsing, `PlanFullscreen` and `FullscreenTransition`. Extend the runtime seam for current pane identity and return-store operations. Execute only effects emitted by the transition function and feed each result back as an event.
-- [ ] Implement bounded return storage using the existing atomic pane-ID helper, plus nonblocking mutual exclusion. Add canonical paths, family/consumer declarations, environment export and GC enumeration; do not construct filenames in executors.
-- [ ] Test `FullscreenTransition` with exhaustive short event sequences and terminal-state invariants; test `RunToggleFocused` against a stateful runtime with deterministic fault injection at each effect and controlled concurrent entry. Assert round-trip layout/process preservation and that no later effect occurs after a failed or unconfirmed outcome.
-- [ ] Delete `resizeplan.go`, `resizeplan_test.go` and now-unused geometry helpers after checking references. Keep geometry parsing used elsewhere.
-- [ ] Run `go test ./cmd/internal/zellijpane ./cmd/internal/layoutcmd ./cmd/internal/workbenchshortcut ./cmd/internal/artifactpath ./cmd/internal/termcmd`. Expect PASS.
+- [x] Test `zellijpane.Parse`/`paneFrom` with fuzzed malformed pane observations, preserving unknown fullscreen state; test `PlanFullscreen` with generated pane inventories and independently stated target/return/identity invariants.
+- [x] Run `go test ./cmd/internal/zellijpane ./cmd/internal/layoutcmd ./cmd/internal/workbenchshortcut` and confirm failures concern the new behavior.
+- [x] Implement observed fullscreen parsing, `PlanFullscreen` and `FullscreenTransition`. Extend the runtime seam for current pane identity and return-store operations. Execute only effects emitted by the transition function and feed each result back as an event.
+- [x] Implement bounded return storage using the existing atomic pane-ID helper, plus nonblocking mutual exclusion. Add canonical paths, family/consumer declarations, environment export and GC enumeration; do not construct filenames in executors.
+- [x] Test `FullscreenTransition` with exhaustive short event sequences and terminal-state invariants; test `RunToggleFocused` against a stateful runtime with deterministic fault injection at each effect and controlled concurrent entry. Assert round-trip layout/process preservation and that no later effect occurs after a failed or unconfirmed outcome.
+- [x] Delete `resizeplan.go`, `resizeplan_test.go` and now-unused geometry helpers after checking references. Keep geometry parsing used elsewhere.
+- [x] Run `go test ./cmd/internal/zellijpane ./cmd/internal/layoutcmd ./cmd/internal/workbenchshortcut ./cmd/internal/artifactpath ./cmd/internal/termcmd`. Expect PASS.
 - [ ] Commit with issue reference and author trailer.
 
 ### Task 2: Global toggle, draft-local rungs and editor retirements
 
 **Files:** `cmd/internal/workbenchshortcut/{shortcut.go,shortcut_test.go,render_lua.go}`; `cmd/internal/wrapcmd/{wrap.go,keymap_registry_test.go,shortcut_passthrough_test.go}`; `cmd/internal/termcmd/{run.go,passthrough_test.go}`; `nvim/{workbench_actions.lua,workbench_route.lua,workbench_route_test.lua,init.lua,review.lua,draft_send.lua,submission.lua}` and submission tests; `tests/{workbench-route-nvim-test.sh,review-window-test.sh,submission-transaction-nvim-test.sh,queue-send-test.sh}`.
 
-- [ ] Add failing routing tests proving the fullscreen action executes from the agent and terminal and never reaches a fullscreen child; draft rungs pass through outside the draft while retaining generated draft maps.
-- [ ] Add scope to the existing binding table; global Return has `HandledInPane` and `AgentReserved`. Remove its role-only entry/case. Filter actual global routing by scope.
-- [ ] Add the wrapper executor case and reuse the terminal's existing layout action. Expose the native layout CLI as a generated direct Lua action so review/scrollback/changelog execute it from their own pane, preserving invoking identity. Do not route this action into the draft first.
-- [ ] Record execution failures in an agent-readable diagnostic log shared by all toggle entry paths. Reuse the existing bounded diagnostic logging infrastructure and canonical path ownership; include the operation stage, target/return pane IDs and failure detail. For shortcut invocations, do not call `mux.reportError`, print to the terminal, or show editor notifications. Add handler-level failure tests for terminal, wrapper and Lua routes proving a diagnostic is retained and no user-facing error is emitted. Avoid duplicate records when the shared executor already logged the failure; logging failure must not trigger UI fallback or further layout actions.
-- [ ] Make `workbench_route.lua` install draft-scoped rows only in the draft. Add the draft Lua function for the toggle. Test actual draft and review maps with headless nvim, including the removed local override.
-- [ ] Remove the append-without-send map and its now-unreachable `no_submit` parameter/branches through `send_and_clear`, `submit_operator_text`, `submission.lua`, `send_to_agent` and `draft_send.lua`. Preserve normal submission retry/uncertain-write handling and wrapper Return behavior.
-- [ ] Remove review's local Shift+Alt+Return menu map; keep its exported menu API. Update tests to assert normal submission and remaining menu behavior, retiring only compose-without-submit cases.
-- [ ] Document at the Return encoding why modifier 10 is not added. Add an assertion that Shift+Super+Return is not consumed as Shift+Alt+Return.
-- [ ] Run `go run ./cmd/internal/workbenchshortcut/generatecmd --out nvim/workbench_actions.lua`, then `make runtimebundle-generate`.
+- [x] Add failing routing tests proving the fullscreen action executes from the agent and terminal and never reaches a fullscreen child; draft rungs pass through outside the draft while retaining generated draft maps.
+- [x] Add scope to the existing binding table; global Return has `HandledInPane` and `AgentReserved`. Remove its role-only entry/case. Filter actual global routing by scope.
+- [x] Add the wrapper executor case and reuse the terminal's existing layout action. Expose the native layout CLI as a generated direct Lua action so review/scrollback/changelog execute it from their own pane, preserving invoking identity. Do not route this action into the draft first.
+- [x] Record execution failures in an agent-readable diagnostic log shared by all toggle entry paths. Reuse the existing bounded diagnostic logging infrastructure and canonical path ownership; include the operation stage, target/return pane IDs and failure detail. For shortcut invocations, do not call `mux.reportError`, print to the terminal, or show editor notifications. Add handler-level failure tests for terminal, wrapper and Lua routes proving a diagnostic is retained and no user-facing error is emitted. Avoid duplicate records when the shared executor already logged the failure; logging failure must not trigger UI fallback or further layout actions.
+- [x] Make `workbench_route.lua` install draft-scoped rows only in the draft. Add the draft Lua function for the toggle. Test actual draft and review maps with headless nvim, including the removed local override.
+- [x] Remove the append-without-send map and its now-unreachable `no_submit` parameter/branches through `send_and_clear`, `submit_operator_text`, `submission.lua`, `send_to_agent` and `draft_send.lua`. Preserve normal submission retry/uncertain-write handling and wrapper Return behavior.
+- [x] Remove review's local Shift+Alt+Return menu map; keep its exported menu API. Update tests to assert normal submission and remaining menu behavior, retiring only compose-without-submit cases.
+- [x] Document at the Return encoding why modifier 10 is not added. Add an assertion that Shift+Super+Return is not consumed as Shift+Alt+Return.
+- [x] Run `go run ./cmd/internal/workbenchshortcut/generatecmd --out nvim/workbench_actions.lua`, then `make runtimebundle-generate`.
 - [ ] Run `go test ./cmd/internal/workbenchshortcut ./cmd/internal/wrapcmd ./cmd/internal/termcmd` and `make test-lua test-queue test-submission-transaction test-review`. Expect PASS.
 - [ ] Commit with issue reference and author trailer.
 
@@ -130,13 +130,13 @@ Interactive operating envelope: one pane-list read per normal invocation, O(numb
 
 **Files:** `cmd/internal/keyhelp/{catalog.go,sections.go}` and tests; `cmd/internal/couchcmd/run.go` and help tests; `zellij/config.kdl`; `README.md`; `CHANGELOG.md`; `atlas/{architecture.md,review-workbench.md,index.md}`; `workshop/targets/review-protocol.md`; issue #297.
 
-- [ ] Derive generated-binding help context from binding scope before existing agent-reservation handling. Replace the obsolete draft/terminal Return rows with one global toggle row. Update the Couch reserved-key heading.
-- [ ] Add `mouse_scroll_resize false`; retain Couch's compatibility filter and record #226's remaining requirements.
-- [ ] Update README shortcuts and Terminal setup: supported KKP configuration, host mapping caveats, no promise on legacy hosts unable to distinguish Shift+Alt+Return. Mark the changed bindings as breaking in CHANGELOG.
-- [ ] Update architecture and review descriptions, removing obsolete menu/width claims. Follow the target datatype/review convention if editing its human-facing prose. Ensure atlas index remains complete.
+- [x] Derive generated-binding help context from binding scope before existing agent-reservation handling. Replace the obsolete draft/terminal Return rows with one global toggle row. Update the Couch reserved-key heading.
+- [x] Add `mouse_scroll_resize false`; retain Couch's compatibility filter and record #226's remaining requirements.
+- [x] Update README shortcuts and Terminal setup: supported KKP configuration, host mapping caveats, no promise on legacy hosts unable to distinguish Shift+Alt+Return. Mark the changed bindings as breaking in CHANGELOG.
+- [x] Update architecture and review descriptions, removing obsolete menu/width claims. Follow the target datatype/review convention if editing its human-facing prose. Ensure atlas index remains complete.
 - [ ] Run `go test ./cmd/internal/keyhelp ./cmd/internal/keyscmd ./cmd/internal/couchcmd`; then `make test` and `git diff --check`. Expect PASS; diagnose any failures before claiming completion.
 - [ ] Build in `~/workspace/pair`; run the actual chord through draft, agent and terminal routes in a disposable live session, with a shell and nvim. Verify split-half round trip and strip redraw. The earlier native-command probe does not substitute for checking new keyboard wiring.
-- [ ] Add `TestFullscreenZellijConformance` behind `PAIR_LIVE_ZELLIJ=1`, using `pairlifecycletest.StartControlledZellijWithOptions` and disposable configuration. Run `PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run TestFullscreenZellijConformance -count=1` before closing this issue and on supported zellij upgrades or changes to the modeled toggle/focus behavior; compare observations with the same invariants enforced by the stateful fixture.
+- [x] Add `TestFullscreenZellijConformance` behind `PAIR_LIVE_ZELLIJ=1`, using `pairlifecycletest.StartControlledZellijWithOptions` and disposable configuration. Run `PAIR_LIVE_ZELLIJ=1 go test ./cmd/internal/layoutcmd -run TestFullscreenZellijConformance -count=1` before closing this issue and on supported zellij upgrades or changes to the modeled toggle/focus behavior; compare observations with the same invariants enforced by the stateful fixture.
 - [ ] Operator smoke in the workbench: draft cursor preserved after fullscreen/back; shell, nvim and carbonyl where available; Ctrl+Space still opens Couch. Record observations precisely; do not close that row on automated evidence alone.
 - [ ] Update issue evidence, then `sdlc close --issue 297 --verified '<actual commands and observations>'`. The close boundary owns the mandatory fresh-context code review; resolve findings there. Publish through `sdlc pr` / `sdlc merge` after all required evidence is present.
 
@@ -170,3 +170,18 @@ including unconfirmed outcomes and ignored late completions. It adds no durable
 workflow or retry mechanism. PQ-2: parser, decision, transition and executor tests
 now name their functions and adversarial strategies instead of prose case lists.
 PQ-3: the repeatable conformance command and its upgrade/change trigger are explicit.
+
+### 2026-09-20 — live conformance: already-focused return
+
+Zellij reports an error for `focus-pane-id` when the target is already focused.
+After collapse, the fullscreen terminal remains focused. When the recorded
+return ID equals that terminal, the transition therefore emits Clear directly
+instead of a redundant Focus. Other return targets retain explicit focus restore.
+The same-right round trip in the live test exposed this; the reducer regression
+failed before the condition was corrected.
+
+### 2026-09-20 — generated direct editor action
+
+The generated `direct_command` binding executes the layout CLI from every
+editor, including the draft. No draft-only Lua wrapper function is needed;
+that supersedes Task 2's extra function while retaining actual mapping tests.

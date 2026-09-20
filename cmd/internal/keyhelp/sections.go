@@ -53,7 +53,7 @@ func sections(src SourceReader, hosted bool) ([]Section, error) {
 		}
 		globalHelp[b.NvimKey] = help
 		globalBindings[b.NvimKey] = b
-		if !b.AgentReserved {
+		if b.Scope == workbenchshortcut.ScopeGlobal && !b.AgentReserved {
 			globalHelp[b.NvimKey] += " (outside the agent pane)"
 		}
 	}
@@ -73,7 +73,9 @@ func sections(src SourceReader, hosted bool) ([]Section, error) {
 			return nil, err
 		}
 		if e.Source == SourceGlobal {
-			if globalBindings[e.Key].AgentReserved {
+			if globalBindings[e.Key].Scope == workbenchshortcut.ScopeDraft {
+				e.Context = ContextDraft
+			} else if globalBindings[e.Key].AgentReserved {
 				e.Group, e.Context = groupAgent, ContextGlobal
 			} else {
 				e.Context = ContextWorkbench
