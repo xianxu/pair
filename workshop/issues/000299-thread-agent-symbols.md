@@ -19,7 +19,9 @@ Agy, and Qoder at a glance.
 
 ## Spec
 
-Add an agent badge to every thread row that already exposes the current agent.
+Add an agent badge as a suffix to every repository/thread label that already
+exposes the current agent. For example, render `brainⓞ` and
+`parley.nvimⓠ`; the badge reflects the agent currently owning that thread.
 Use these symbols and meanings:
 
 | Agent | Badge | Meaning |
@@ -61,3 +63,12 @@ all thread views render the same symbol.
 ### 2026-09-20
 
 Created with the requested Anthropic/OpenAI/Facebook/Google/Qoder badge map.
+
+## Revisions
+
+### 2026-09-20 — Badge placement clarified
+
+The symbol is a suffix on the displayed repository/thread label, not a
+replacement for the agent name. Examples: `brainⓞ` for a Codex thread and
+`parley.nvimⓠ` for a Qoder thread. The suffix reflects the agent currently
+owning that thread.
