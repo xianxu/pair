@@ -1,0 +1,9 @@
+{
+  "agent": "qoder",
+  "version": "1.1.60",
+  "captured_at": "2026-09-21T12:19:00Z",
+  "command": ["qoder"],
+  "files": {
+    "composer.raw": "f5386166b1442dde212291f56bee7eb4eac752411b86d58c649460bb606f43d1"
+  }
+}

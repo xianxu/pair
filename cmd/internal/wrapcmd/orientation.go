@@ -179,15 +179,22 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 	if !recognized || p.orientation.codexStartupPending {
 		return false
 	}
+	promptCol := 0
+	if p.agentBasename == "qoder" {
+		promptCol = 1
+	}
 	for y := snapshot.Cursor.Y; y >= 0; y-- {
-		cell := snapshot.CellAt(0, y)
+		cell := snapshot.CellAt(promptCol, y)
 		if cell == nil || strings.TrimSpace(cell.Content) == "" {
+			continue
+		}
+		if cell.Content == claudeComposerRule {
 			continue
 		}
 		if !orientationPromptOK(p.agentBasename, cell.Content) {
 			return false
 		}
-		for x := 2; x < snapshot.Width; x++ {
+		for x := promptCol + 2; x < snapshot.Width; x++ {
 			c := snapshot.CellAt(x, y)
 			if c == nil || strings.TrimSpace(c.Content) == "" {
 				continue
@@ -203,9 +210,14 @@ func orientationPromptOK(agent, content string) bool {
 	// Muse shares the Return remap's prompt authority (musePromptGlyphs) so the
 	// two gates cannot disagree about what a composer looks like; the row-content
 	// guard below this call stays layered on top, and it is what keeps a menu
-	// from reading as a composer. Every other harness has one captured glyph.
+	// from reading as a composer. Every other harness has one captured glyph,
+	// except Qoder which paints `>` in default mode and `*` in yolo mode at
+	// column 1 rather than column 0.
 	if agent == "muse" {
 		return musePromptGlyphs[content]
+	}
+	if agent == "qoder" {
+		return content == ">" || content == "*"
 	}
 	prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">"}[agent]
 	return content == prompt

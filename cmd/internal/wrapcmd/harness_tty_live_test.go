@@ -549,10 +549,11 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 		"agy":    {"agy", "--dangerously-skip-permissions"},
 		"codex":  {"codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"},
 		"muse":   {"muse"},
+		"qoder":  {"qoder"},
 	}
 	command, ok := commands[harness]
 	if !ok {
-		t.Fatalf("PAIR_LIVE_HARNESS=%q, want agy, codex, or muse", harness)
+		t.Fatalf("PAIR_LIVE_HARNESS=%q, want agy, claude, codex, muse, or qoder", harness)
 	}
 	executable, err := exec.LookPath(command[0])
 	if err != nil {

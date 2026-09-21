@@ -203,7 +203,7 @@ func TestOrientationCapturedComposersWithoutReturnRemap(t *testing.T) {
 			}
 		})
 	}
-	for _, agent := range []string{"claude", "codex", "agy", "muse"} {
+	for _, agent := range []string{"claude", "codex", "agy", "muse", "qoder"} {
 		if !seen[agent] {
 			t.Errorf("missing %s fixture", agent)
 		}

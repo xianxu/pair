@@ -219,6 +219,7 @@ func TestHarnessTTYFixtureConformance(t *testing.T) {
 var ttyFixtureNegativeGaps = map[string]string{
 	"claude": "Claude's declining state is its permission prompt. A child spawned from an agent session inherits auto-approve mode — verified 2026-08-20: the child ran Bash(uptime) and returned output with no prompt, despite `uptime` not being allowlisted — so the prompt is unreachable from here. The route is registered as the `permission prompt` scenario in harnessTTYDrivenScenarios; run it from a plain terminal with default (ask) permissions to capture overlay.raw.",
 	"muse":   "Muse's slash menu and `?` shortcut sheet were both driven live on 1.3.0-R3233.1 (see harnessTTYDrivenScenarios) and neither declines: each paints below the composer box and leaves it intact, so menu.raw is discrimination evidence rather than a negative. The remaining declining state is a tool-approval dialog, which needs a real tool call; capture overlay.raw when one is available.",
+	"qoder":  "no overlay.raw captured. Qoder's declining state is its permission picker or mode indicator overlay. The yolo-mode capture (qoder-raw1.txt) shows the same ruled-box composer with a `*` prompt instead of `>`, which the recognizer correctly accepts. A real declining state — a modal dialog or picker that the gate must refuse — has not been captured; drive one from a non-yolo session with default permissions.",
 }
 
 // ttyFixtureReactionGaps records claims about how a harness REACTS to bytes we
@@ -231,6 +232,7 @@ var ttyFixtureReactionGaps = map[string]string{
 	"agy":    "no Return has been pressed on any captured Agy screen. That Agy inserts a newline on LF in its slash menu rather than selecting is an observation from reading the screen, not a driven result.",
 	"claude": "no Return has been pressed on any captured Claude screen. The gate stays open on the slash menu and in bash mode, so Return remaps to Claude's newline on both; what Claude does with it is undriven.",
 	"codex":  "no Return has been pressed on any captured Codex screen. The composer remap to LF is undriven; the overlay path is the one with independent evidence, since the interstitial's own footer says Enter continues.",
+	"qoder":  "no Return has been pressed on any captured Qoder screen. That `\\\\<CR>` inserts a newline in the composer is inferred from Qoder sharing Claude's keymap convention; what Qoder does with it is undriven.",
 }
 
 // harnessPressesReturn reports whether a harness has a driven scenario that
@@ -275,6 +277,7 @@ var ttyFixtureDiscriminationGaps = map[string]string{
 	"claude": "no captured declining state at all; see ttyFixtureNegativeGaps. Claude does not reuse its prompt glyph as a menu marker — menu.raw pins its slash menu rendering below the box with column 0 blank — so the Agy failure mode does not apply; what is still unproven is a blocking dialog the gate must refuse.",
 	"agy":    "agy/1.1.15/overlay.raw declines on hidden cursor and cursor position, not on any composer-vs-picker rule, and menu.raw shows Agy painting a menu marker in the SAME bright blue as the composer prompt. The permission-picker capture is reachable by dropping --dangerously-skip-permissions from the agy driven scenario and driving one tool call; attempted 2026-08-19 and blocked, the account was in \"Verifying your account...\" and would not execute tool calls.",
 	"muse":   "no captured declining state at all; see ttyFixtureNegativeGaps. muse/1.3.0-R3233.1/menu.raw does rule out the Agy failure mode: Muse's slash menu paints its rows below the box and leaves column 0 blank, so it never reuses the prompt glyph as a selection marker. What is still unproven is a blocking dialog the gate must refuse.",
+	"qoder":  "no captured declining state at all; see ttyFixtureNegativeGaps. Qoder's ruled-box composer shape is shared with Claude; whether Qoder reuses the prompt column for a picker or menu marker is unproven. The yolo-mode capture shows the same shape with a `*` prompt, accepted correctly; a modal dialog or picker that paints inside the box is the remaining unproven declining state.",
 }
 
 // ttyFixtureEnvironmentGaps records harnesses whose captures cannot be taken
@@ -806,6 +809,7 @@ func TestComposerReturnExpectationMatchesProfile(t *testing.T) {
 		"codex":  "\n",
 		"muse":   "\x1b[13;2u",
 		"agy":    "\n",
+		"qoder":  "\\\r",
 	}
 	for harness, wantBytes := range want {
 		got, ok := composerReturnBytes(harness)

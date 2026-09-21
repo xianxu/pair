@@ -76,6 +76,15 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 		composerGate: composerGatePositive,
 		recognize:    museComposerActive,
 	},
+	"qoder": {
+		keymap: sendKeymap{
+			plainCR: []byte{'\\', '\r'},
+			altCR:   []byte{'\r'},
+			altBS:   []byte{0x15},
+		},
+		composerGate: composerGatePositive,
+		recognize:    qoderComposerActive,
+	},
 }
 
 // profileForHarness returns a copy whose mutable keymap slices are the

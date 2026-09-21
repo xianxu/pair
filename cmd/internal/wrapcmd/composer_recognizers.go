@@ -267,6 +267,51 @@ func sameForeground(a, b color.Color) bool {
 	return ar == br && ag == bg && ab == bb && aa == ba
 }
 
+// qoderComposerActive reports whether the cursor rests inside Qoder's live
+// composer: a prompt glyph at column 1 between two rule rows. Qoder reuses
+// Claude's ruled-box shape but indents its prompt by one column (a space at
+// column 0, then ">" in default mode or "*" in yolo mode) and paints its top
+// and bottom rules in different greys, so colour agreement is not required —
+// the enclosing shape plus the prompt glyph discriminates against Qoder's
+// permission pickers (which use ❯, not >) and the startup screen's separator
+// lines (which have no prompt glyph at column 1).
+// Qoder hides the system cursor and renders its own visual cursor, so
+// CursorVisible is not required.
+func qoderComposerActive(snapshot terminalSnapshot) bool {
+	if !snapshotCoordinatesValid(snapshot) || snapshot.Cursor.X < 2 {
+		return false
+	}
+	const promptCol = 1
+	for promptY := snapshot.Cursor.Y + 1; promptY >= 0; promptY-- {
+		if promptY >= snapshot.Height || promptY-1 < 0 {
+			continue
+		}
+		prompt := snapshot.CellAt(promptCol, promptY)
+		if prompt == nil || (prompt.Content != ">" && prompt.Content != "*") {
+			continue
+		}
+		topRule := snapshot.CellAt(0, promptY-1)
+		if topRule == nil || topRule.Content != claudeComposerRule {
+			continue
+		}
+		bottomFound := false
+		for y := promptY + 1; y < snapshot.Height; y++ {
+			cell := snapshot.CellAt(0, y)
+			if cell == nil || strings.TrimSpace(cell.Content) == "" {
+				continue
+			}
+			if cell.Content == claudeComposerRule && y >= snapshot.Cursor.Y {
+				bottomFound = true
+			}
+			break
+		}
+		if bottomFound {
+			return true
+		}
+	}
+	return false
+}
+
 func agyComposerActive(snapshot terminalSnapshot) bool {
 	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) {
 		return false
