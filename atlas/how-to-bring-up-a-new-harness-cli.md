@@ -6,6 +6,32 @@ This guide outlines how to bring up a new agent harness CLI (e.g., `muse`) and a
 
 ---
 
+## 0. The Agent Registry and Couch (read first)
+
+A new harness joins one list before anything else: `supportedAgents` in
+[cmd/internal/launcher/agent_defaults.go](file:///Users/xianxu/workspace/pair/cmd/internal/launcher/agent_defaults.go),
+consumed everywhere as `launcher.AgentInventory()` / `launcher.IsSupportedAgent()`.
+There is no per-host agent table. Pair's launcher validation, **couch's start
+form and switch-agent menu** (`couchtty/menu_switchagent.go`), switch-agent's
+launch check (`couchcmd/run.go`, which also requires the `pair` and `<agent>`
+executables on `PATH`), storage-GC collection, and rename/migrate all derive
+from that one slice — joining it lights couch up without touching couch code.
+`sessioninventory` keeps a second typed enum (`Agent` in
+`cmd/internal/sessioninventory/model.go`) consumed by its scanners and the
+native-binding records; join both.
+
+**Couch — the session supervisor and second host — adds no harness-specific
+surface of its own.** A couch-hosted thread is spawned as
+`pair resume <tag> [layout flag]`
+([cmd/internal/couchcore/launch_existing.go](file:///Users/xianxu/workspace/pair/cmd/internal/couchcore/launch_existing.go)),
+so every pair-side adaptation below — the wrap TTY profile, the resume token,
+the session inventory — applies under couch unchanged. The one coupling that
+matters during bring-up: the sessioninventory scanner (aspect 3) is also what
+feeds couch's parked/live projection and its native-binding resume — no
+scanner, no couch resume. See [couch.md](couch.md) for the supervisor itself.
+
+---
+
 ## 1. Key Integration Aspects
 
 ### Aspect 1: Return Key Remapping
@@ -79,7 +105,7 @@ Keep the fixture inventory bounded: the newest version directory per harness, pl
 - Add one versioned facts-only scanner and sanitized fixtures. It must enumerate roots and descendants, validate native parent edges, and emit allowlisted operator/progress events. Unknown shapes become coded diagnostics.
 - Whole-workbench launch and agent-only restart synchronously append a provisional launch baseline before input, then pass its physical ordinal to `pair session-watch`.
 - The watcher uses the shared scanner and exact Pair-log matcher. Process/open-file snapshots corroborate a candidate but never select one; only a unique completed round persists a binding and refreshes config.
-- Add the agent to `ScannerForAgent`, `SupportsAgent`, conformance, `QuerySession`, activity, and `pair session-inventory` tests. A pre-round quit must remain provisional; repeated rounds must remain ambiguous. Consumers must read only the established root projection, never reintroduce a native path formula.
+- Add the agent to `ScannerForAgent`, `SupportsAgent`, conformance, `QuerySession`, activity, and `pair session-inventory` tests. A pre-round quit must remain provisional; repeated rounds must remain ambiguous. Consumers must read only the established root projection, never reintroduce a native path formula. The same scanner feeds couch: its parked/live projection (`ActionableThreadInventory`) and native-binding resume consume sessioninventory bindings, so this aspect is also the couch bring-up — no scanner, no couch resume.
 
 **Recovery Flags:**
 - **File:** `cmd/internal/launcher/agentargs.go`
@@ -157,14 +183,16 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
 
 When introducing a new agent `<name>`, ensure you complete each item:
 
-1. [ ] **Verify Return Key remapping** on the harness profile in `harnessTTYProfiles` (Enter = newline, Alt+Enter = send), and pin it with a captured fixture under `cmd/internal/wrapcmd/testdata/tty/`.
-2. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
-3. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration.
-4. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken` and `composeResumeArgs`, then prove `OSRuntime.AgentSessionExists` and `EstablishedSessionID` consume scanner inventory rather than native paths or config identity.
-5. [ ] **Add slug generation support** in `pair-slug` (shared inventory text projection + sandboxed print execution).
-6. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
-7. [ ] **White-list permissions** in the agent's global or workspace settings directory.
-8. [ ] **Register the user-prompt glyph** in `nvim/scrollback.lua` for `Alt+b` jumping.
+1. [ ] **Join the agent registry** — `supportedAgents` in `cmd/internal/launcher/agent_defaults.go` plus the `Agent` enum in `cmd/internal/sessioninventory/model.go` (see §0). Couch, storage-GC, and rename/migrate follow automatically.
+2. [ ] **Verify Return Key remapping** on the harness profile in `harnessTTYProfiles` (Enter = newline, Alt+Enter = send), and pin it with a captured fixture under `cmd/internal/wrapcmd/testdata/tty/`.
+3. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
+4. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration.
+5. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken` and `composeResumeArgs`, then prove `OSRuntime.AgentSessionExists` and `EstablishedSessionID` consume scanner inventory rather than native paths or config identity.
+6. [ ] **Add slug generation support** in `pair-slug` (shared inventory text projection + sandboxed print execution).
+7. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
+8. [ ] **White-list permissions** in the agent's global or workspace settings directory.
+9. [ ] **Register the user-prompt glyph** in `nvim/scrollback.lua` for `Alt+b` jumping.
+10. [ ] **Verify under couch** — the agent appears in couch's start and switch-agent menus, and a hosted thread launches, parks, and cold-resumes through couch (this exercises §0: the registry, the wrap profile, and the scanner through couch's `pair resume <tag>` spawn).
 
 ---
 
