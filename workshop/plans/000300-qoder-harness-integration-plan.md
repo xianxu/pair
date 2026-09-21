@@ -553,107 +553,89 @@ git commit -m "#300 M2: qoder events, watcher/ledger membership, AgentSessionExi
 
 ---
 
-## Chunk 3: Milestones M3 (TTY, capture-first) and M4 (slug/glyphs/settings)
+## Chunk 3: Milestones M3 (TTY) and M4 (slug/glyphs/settings)
 
-### Task 9: Live capture (the evidence for everything in M3/M4)
+### Task 9: Bootstrap profile + live capture — one atomic commit
 
 **Files:**
+- Modify: `cmd/internal/wrapcmd/harness_tty_live_test.go` (`commands` map `:547-556`)
+- Modify: `cmd/internal/wrapcmd/harness_tty.go` (`harnessTTYProfiles`: keymap + `composerGatePositive` + `recognize`)
+- Modify: `cmd/internal/wrapcmd/harness_tty_fixture_test.go` (`TestComposerReturnExpectationMatchesProfile` `:803-819`; gap ledgers only where the oracle reads them)
 - Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/composer.raw` (capture)
-- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/overlay.raw` (capture, driven scenario)
+- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/overlay.raw` (capture, driven scenario — optional, Step 4)
 - Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/metadata.json`
 
-- [ ] **Step 1: Capture the composer**
+**Why bootstrap-first (verified against the harness, not assumed):** a capture cannot run before a positive gate exists, so the intermediate "keymap-only fail-closed profile" (earlier draft of this plan) is not a capturable — nor even committable — state. It is replaced by this atomic landing:
 
-```bash
-PAIR_LIVE_HARNESS=qoder \
-PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/composer.raw \
-  go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveConformance -count=1 -v
-```
+- `TestHarnessTTYLiveConformance` hard-fatals for any harness with no `commands` row — `PAIR_LIVE_HARNESS=%q, want agy, codex, or muse` (`harness_tty_live_test.go:547-556`). Row first.
+- The capture's startup predicate IS the recognizer: `newHarnessTTYLiveClassifier` fatals `%s has no positive-gated live profile` unless a `composerGatePositive` profile with non-nil `recognize` already exists (`harness_tty_live_test.go:216-218`), and `configureHarnessTTY` releases the terminal for every non-positive gate (`wrap.go:1565-1580`).
+- The fixture oracle makes captures and gate atomic from the other direction too: fixtures for a non-positive-gated agent error (`harness_tty_fixture_test.go:93-96`), and a positive gate with no fixtures fatals (`:134-136`). No split commit is green.
+- Capture-first survives in substance: no `.raw` byte is ever hand-authored, and the recognizer must be validated by the classifier against live qoder bytes (`harnessTTYRecognized`) before any capture is written. The capture then freezes both.
 
-Expected: the test drives qoder to its idle composer and records literal PTY bytes. It fails with the exact recapture destination if the harness doesn't reach a composer — that failure output *is* the diagnosis (atlas aspect 2).
+- [ ] **Step 1: Register the command row** — `"qoder": {"qoder"}`, plus any disable/onboarding flag qoder demonstrably needs from a spawned PTY, mirroring how the codex/agy rows carry theirs.
 
-- [ ] **Step 2: Capture one blocking overlay**
-
-Drive one keystroke past startup to trigger a permission picker or selection menu (`PAIR_LIVE_SCENARIO` picks a single scenario; check the driven-conformance test's scenario list for the closest existing one and add a qoder scenario if none fits):
-
-```bash
-PAIR_LIVE_HARNESS=qoder \
-PAIR_LIVE_SCENARIO=<permission-or-picker-scenario> \
-PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/overlay.raw \
-  go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveDrivenConformance -count=1 -v
-```
-
-- [ ] **Step 3: Write metadata.json** — exact `qoder --version` output, argv, RFC3339 capture time, SHA-256 per raw file (copy the format of `testdata/tty/muse/*/metadata.json`).
-
-- [ ] **Step 4: Commit** the captures untouched (never hand-edit a `.raw`):
-
-```bash
-git add cmd/internal/wrapcmd/testdata/tty/qoder/
-git commit -m "#300 M3: qoder 1.1.59 live TTY captures (composer + overlay)"
-```
-
-### Task 10: Fail-closed keymap profile
-
-**Files:**
-- Modify: `cmd/internal/wrapcmd/harness_tty.go` (`harnessTTYProfiles`)
-- Test: `cmd/internal/wrapcmd/harness_tty_fixture_test.go` (auto-replays the new fixture)
-
-- [ ] **Step 1: Read the capture, then register the profile**
-
-From `composer.raw`, determine the Return semantics (which byte sequence submits; whether the composer inserts LF on plain Enter). Then register — **keymap only, no `composerGate`** (atlas: unset gate = fail closed = correct starting point):
+- [ ] **Step 2: Author the bootstrap profile.** Hand-run qoder in a real terminal; read the idle composer (prompt chrome, cursor state, any OSC). Register in `harnessTTYProfiles`:
 
 ```go
 "qoder": {
 	keymap: sendKeymap{
-		plainCR: []byte{'\n'}, // ← replace with the captured newline, whatever it is
-		altCR:   []byte{'\r'}, // ← replace with the captured submit key
-		altBS:   []byte{0x15}, // ← replace with the captured kill-line, if the capture shows one
+		plainCR: ..., // observed Return semantics; final values pinned by the capture
+		altCR:   ...,
+		altBS:   ...,
 	},
-	// overlay/composerGate/recognize: deliberately unset until captures prove them
+	composerGate: composerGatePositive,
+	recognize:    ..., // first approximation from the live screen
 },
 ```
 
-The fixture test enforces `composer.raw` remaps to the profile's own `keymap.plainCR` and that the Return decision is identical at every byte split — it reads expectations from the profile, so no restatement here.
+Recognizer decision tree, in order of preference (atlas aspect 1): (a) qoder emits a native composer-availability OSC → wrap it; (b) qoder paints claude's ruled-box shape (`─` rules flanking the prompt row) → add a spec to `ruledBoxComposerActive`, not a fourth near-copy; (c) a novel glyph/shape → new recognizer function.
 
-- [ ] **Step 2: Register the honest gap ledgers**
+- [ ] **Step 3: Iterate the live capture.** `PAIR_LIVE_HARNESS=qoder go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveConformance -count=1 -v` until the classifier reports `recognized` (what it reports instead, naming the blocker: `harnessTTYUnauthenticated`, `harnessTTYWorkspaceTrust`, `harnessTTYWaiting`). Then add `PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/composer.raw` and capture. A recognizer that never fires ends in `reported recognition but no recognized prefix; recapture destination: …`; one that fires too early truncates the capture — `firstRecognizedHarnessTTYPrefix` (`:853-867`) cuts at the first recognized byte, so confirm the captured screen is the settled composer. Refine the recognizer, never the fixture.
 
-Until the recognizer (Task 11) and markers (Task 12) land, add qoder to `ttyFixtureNegativeGaps` (or the appropriate ledger) exactly as the atlas describes — the ledgers expire when the gap closes, and a false "no gap" entry is a lie to the reviewer.
-
-- [ ] **Step 3: Run**
-
-Run: `go test ./cmd/internal/wrapcmd -run 'Fixture|HarnessTTY'`
-Expected: PASS — qoder fixture replays; unknown-composer decisions are uniform across every split (fail-closed passthrough is trivially consistent).
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Capture one blocking overlay (preferred, not required).** Add a `harnessTTYDrivenScenarios["qoder"]` row (name/`send`/`until`/`wantComposer: false`/`file: "overlay.raw"`; set `discriminating: true` only if the screen truly is composer-shaped — it is honor-system and is what retires the discrimination ledger). Run:
 
 ```bash
-git add cmd/internal/wrapcmd/harness_tty.go
-git commit -m "#300 M3: qoder TTY profile — keymap from capture, fail-closed gate"
+PAIR_LIVE_HARNESS=qoder PAIR_LIVE_SCENARIO=<name> \
+PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/overlay.raw \
+  go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveDrivenConformance -count=1 -v
 ```
 
-### Task 11: Composer recognizer (evidence-gated)
+An unreachable screen skips (`did not reach … may not be reproducible`). If nothing declines today, skip the capture and take the honest-gap path in Step 6.
+
+- [ ] **Step 5: metadata.json** — exact `qoder --version` output, argv (the `commands` row), RFC3339 capture time, SHA-256 per raw file (copy `testdata/tty/muse/*/metadata.json`).
+
+- [ ] **Step 6: Ledgers — touch only where the oracle reads them** (`harness_tty_fixture_test.go:73-84` seeds the positive-gated set; `:141-150` is the expiry logic):
+  - overlay.raw captured and the scenario is `discriminating` → **no** entry in either gap ledger (a `ttyFixtureNegativeGaps` entry plus a captured overlay.raw errors: "now has a captured declining state; drop its entry").
+  - overlay.raw captured but it declines on incidental state (cursor/size), not composer-vs-picker → `ttyFixtureDiscriminationGaps["qoder"]` naming the unproven separation.
+  - no overlay capture → both `ttyFixtureNegativeGaps["qoder"]` and `ttyFixtureDiscriminationGaps["qoder"]`, each with the measured reason.
+  Also add the qoder row to `TestComposerReturnExpectationMatchesProfile` (`:803-819`) — its table iterates itself, so omission is silent staleness, not a failure.
+
+- [ ] **Step 7: Run and commit as ONE tree state.** `go test ./cmd/internal/wrapcmd` green (the fixture oracle now replays composer.raw through the profile), then a single commit — commands row + profile (keymap/gate/recognizer) + captures + metadata + expectation row + ledger entries:
+
+```bash
+git commit -m "#300 M3: qoder 1.1.59 live TTY capture — profile, recognizer, fixtures (atomic)"
+```
+
+### Task 10: Recognizer hardening from the frozen captures
 
 **Files:**
-- Modify: `cmd/internal/wrapcmd/composer_recognizers.go`
-- Modify: `cmd/internal/wrapcmd/harness_tty.go` (opt into `composerGatePositive` + `recognize`)
+- Modify: `cmd/internal/wrapcmd/composer_recognizers.go` (or the qoder profile's inline `recognize`)
 - Test: `cmd/internal/wrapcmd/composer_recognizers_test.go` (spec over snapshots)
 
-- [ ] **Step 1: Identify the stable signal from the capture** — cursor position/visibility, prompt/composer chrome, or OSC. Decision tree, in order of preference (atlas aspect 1): (a) qoder emits a native composer-availability OSC → wrap `composerGatePositive` around it; (b) qoder paints claude's ruled-box shape (`─` rules flanking the prompt row) → **reuse `ruledBoxComposerActive` by adding a spec**, not a fourth near-copy; (c) a novel glyph/shape → new recognizer function with a snapshot spec.
-- [ ] **Step 2: Write the failing spec** — snapshot fixtures (build from `composer.raw` via the existing snapshot-construction helpers used by the claude/muse recognizer tests) asserting active at the composer and inactive at the overlay screen.
-- [ ] **Step 3: Implement the recognizer + opt in** to `composerGatePositive` on the qoder profile; remove qoder from `ttyFixtureDiscriminationGaps` if the captures now discriminate.
-- [ ] **Step 4:** `go test ./cmd/internal/wrapcmd` green; commit `#300 M3: qoder composer recognizer (from captured <signal>)`.
+- [ ] **Step 1: Failing spec first** — snapshot cases built from `composer.raw` (active) and `overlay.raw` (inactive) via the same construction helpers the claude/muse recognizer tests use. If the spec exposes brittleness (recognizer fires on the overlay, or depends on state the snapshot can't pin), refine the recognizer and re-run Task 9 Step 3's live conformance to confirm it still fires on real bytes.
+- [ ] **Step 2:** `go test ./cmd/internal/wrapcmd` green; if the spec now proves discrimination that Task 9 Step 6 had to record as a gap, retire that entry in the same commit. Commit `#300 M3: qoder composer recognizer spec (from captured <signal>)`.
 
-### Task 12: Overlay markers (evidence-gated)
+### Task 11: Overlay markers (evidence-gated)
 
 **Files:**
 - Modify: `cmd/internal/wrapcmd/harness_tty.go` (or a new `qoder` detector block following `detectAgyOverlayOpen`)
 - Test: extend the marker table tests (`agyPickerMarkers`/`musePickerMarkers` test shapes)
 
-- [ ] **Step 1:** From `overlay.raw`, extract the verbatim picker strings (permission prompts **and** any selection/AskUserQuestion menu — atlas aspect 2's muse lesson: a missing selection marker reproduces as "Enter inserts newline"). Add a `qoderPickerMarkers` set + `detectQoderOverlayOpen` wiring `pickerActive` exactly as agy/muse do; register `overlay` on the profile. OSC-based detection preferred if the capture shows one.
-- [ ] **Step 2:** Failing test first (marker table rows), implement, `go test ./cmd/internal/wrapcmd` green, clear qoder from `ttyFixtureNegativeGaps`.
+- [ ] **Step 1:** From `overlay.raw`, extract the verbatim picker strings (permission prompts **and** any selection/AskUserQuestion menu — atlas aspect 2's muse lesson: a missing selection marker reproduces as "Enter inserts newline"). Add a `qoderPickerMarkers` set + `detectQoderOverlayOpen` wiring `pickerActive` exactly as agy/muse do; register `overlay` on the profile. OSC-based detection preferred if the capture shows one. If Task 9's Step 4 found no reachable declining screen, this task starts by driving one (same `PAIR_LIVE_SCENARIO` path).
+- [ ] **Step 2:** Failing test first (marker table rows), implement, `go test ./cmd/internal/wrapcmd` green. If Task 9 took the no-overlay path and recorded a `ttyFixtureNegativeGaps["qoder"]` entry, drop it now that a declining state is captured (an entry plus a captured overlay.raw is an oracle error — `harness_tty_fixture_test.go:145-146`).
 - [ ] **Step 3:** Commit `#300 M3: qoder overlay markers (permission + selection pickers)`.
 
-### Task 13: `--session-id` mint decision (evidence-gated)
+### Task 12: `--session-id` mint decision (evidence-gated) + M3 boundary
 
 **Files (if honored):** `cmd/internal/wrapcmd/wrap.go:2280` (`freshAgentInvocation`), test beside it.
 
@@ -671,7 +653,7 @@ giving the watcher deterministic identity from launch. If not honored, leave it:
 
 - [ ] **Step 2:** M3 boundary: `go test ./...` green; `sdlc milestone-close --issue 300 --milestone M3`; log the verdict.
 
-### Task 14: Slug generation (M4)
+### Task 13: Slug generation (M4)
 
 **Files:**
 - Modify: `cmd/internal/model/model.go:64-101` (`DefaultModel`, `Run`)
@@ -704,14 +686,14 @@ func runQoder(r Request) (string, error) {
 
 - [ ] **Step 4:** `go test ./cmd/internal/model` green; live: `pair-slug` on a real qoder session produces a slug (manual smoke; slug-parse telemetry `fired` in the adapt log). Commit `#300 M4: qoder slug generation via qoder -p`.
 
-### Task 15: Prompt glyphs (capture-gated, three places one commit)
+### Task 14: Prompt glyphs (capture-gated, where each consumer applies)
 
 **Files:**
 - Modify: `nvim/scrollback.lua:370-375` (`PROMPT_PATTERN_BY_AGENT`)
 - Modify: `cmd/internal/wrapcmd/orientation.go:202-212` (`orientationPromptOK` map)
-- Modify: `cmd/internal/changelogcmd/distill.go:17-21` (`promptGlyphChar`)
+- Possibly modify: `cmd/internal/changelogcmd/distill.go:17-21` (`promptGlyphChar` — see Step 1)
 
-- [ ] **Step 1:** From `composer.raw` (and a scrollback capture if needed), take qoder's user-prompt glyph. Register all three in **one commit** — they are sync-commented single-source (distill.go's comment says so explicitly):
+- [ ] **Step 1:** From `composer.raw` (and a scrollback capture if needed), take qoder's user-prompt glyph. Register in `scrollback.lua` and `orientationPromptOK` unconditionally — both tables cover every harness (orientation has a dedicated muse branch, so qoder joins the map). For `distill.go`: the map deliberately has **no muse row** and `glyphFor` falls back to claude's glyph (`distill.go:33-38`); establish whether that omission is deliberate (distill doesn't consume muse sessions) or lagging, and apply the same test to qoder — register only if the consumer actually reads qoder sessions. If the check reveals muse is consumed-but-absent, record it in `## Log` as a peer finding for its own issue; don't fix it here.
 
 ```lua
 qoder  = [[^<glyph>]],
@@ -725,10 +707,10 @@ prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">", "qoder"
 "qoder": "<glyph>",
 ```
 
-- [ ] **Step 2:** Tests: scrollback glyph has no Go test (Lua) — smoke via Alt+b in M5; `orientationPromptOK` and `distill` glyph rows extend their existing tests. `go test ./cmd/internal/wrapcmd ./cmd/internal/changelogcmd` green.
-- [ ] **Step 3:** Commit `#300 M4: qoder prompt glyph (scrollback, orientation, distill — one source)`.
+- [ ] **Step 2:** Tests: scrollback glyph has no Go test (Lua) — smoke via Alt+b in M5; `orientationPromptOK` and (if registered) the distill glyph rows extend their existing tests. `go test ./cmd/internal/wrapcmd ./cmd/internal/changelogcmd` green.
+- [ ] **Step 3:** Commit `#300 M4: qoder prompt glyph (scrollback + orientation[, distill])`.
 
-### Task 16: Settings (aspect 6, static)
+### Task 15: Settings (aspect 6, static)
 
 **Files:**
 - Modify (config, outside repo): `~/.qoder/settings.json`
@@ -738,7 +720,7 @@ prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">", "qoder"
 - [ ] **Step 2:** Verify `trustDirectories` covers the pair workspace (already true) and add `../ariadne` if continuous cross-repo testing needs it (operator decision).
 - [ ] **Step 3:** No signal, no test — this is static config (atlas aspect 6). Log the outcome.
 
-### Task 17: M4 boundary
+### Task 16: M4 boundary
 
 - [ ] `go test ./...` green; `sdlc milestone-close --issue 300 --milestone M4`; log the verdict.
 
@@ -746,31 +728,31 @@ prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">", "qoder"
 
 ## Chunk 4: Milestone M5 — end-to-end, couch, docs
 
-### Task 18: Standalone pair live smoke
+### Task 17: Standalone pair live smoke
 
 - [ ] **Step 1:** `pair` boots qoder in the two-pane layout (Zellij + nvim draft). Verify: plain Enter inserts a newline in the composer; Alt+Enter sends; a permission picker confirms on plain Enter; mouse scroll is smooth; Alt+b jumps between user prompts; the composer survives a resize.
 - [ ] **Step 2:** Restart-in-place (Alt+n) round-trips the session; `pair resume <tag>` cold-resumes it (established binding from the completed round — aspect 3).
-- [ ] **Step 3:** `doctor/doctor.sh` on the session's adapt log: `return-remap` has a healthy fired:bypass ratio, zero `overlay-detect` near-misses, `session-id` fired, `slug-parse` fired. Any near-miss `detail` is a new marker string — add it (Task 12's set) and note it.
+- [ ] **Step 3:** `doctor/doctor.sh` on the session's adapt log: `return-remap` has a healthy fired:bypass ratio, zero `overlay-detect` near-misses, `session-id` fired, `slug-parse` fired. Any near-miss `detail` is a new marker string — add it (Task 11's set) and note it.
 - [ ] **Step 4:** Log the smoke evidence in `## Log` (the close gate's `--verified` cites it).
 
-### Task 19: Couch round-trip
+### Task 18: Couch round-trip
 
 - [ ] **Step 1:** `couch` start form lists qoder (registry-derived — should have worked since M1); start a hosted qoder thread on a repo path.
 - [ ] **Step 2:** Live → park → cold resume through the couch switcher; switch-agent from an existing claude/muse thread to qoder and back. Verify the parked/live projection shows correct states (scanner-fed).
 - [ ] **Step 3:** Log evidence; any failure is a finding against §0's claims — investigate before patching couch (couch is agent-agnostic by design; a qoder-specific couch fix is a red flag).
 
-### Task 20: Docs + atlas sweep
+### Task 19: Docs + atlas sweep
 
 **Files:**
-- Modify: `README.md` (agent lists at ~lines 39, 122, 241, 291, 566, 607-608, 714)
+- Modify: `README.md` (agent rosters — locate via the Step 1 sweep, not a hand inventory)
 - Modify: `atlas/index.md`, `atlas/couch.md:321`, `atlas/session-identity.md:15`, `atlas/how-to-bring-up-a-new-harness-cli.md` (parity note if anything was learned), `doctor/README.md` + `doctor/SKILL.md` (agent lists)
 - Modify: `CHANGELOG.md`
 
-- [ ] **Step 1:** Sweep every agent-roster restatement (`rg -n 'claude.*codex.*agy.*muse|muse' README.md atlas/ doctor/` — the enumeration from the M1 inventory). Each is a hand-maintained restatement of the registry; update all of them in one commit.
+- [ ] **Step 1:** Sweep every agent-roster restatement case-insensitively and separator-agnostically — `rg -n -i 'claude|codex|agy|muse' README.md atlas/ doctor/ CHANGELOG.md` — keeping only roster-shaped hits (prose enumerations, tables, help text). README's rosters are Title-case and slash-joined (e.g. "(claude/codex/agy)"), so a lowercase list pattern misses them. The sweep output, not a hand-copied inventory, is the worklist; update all hits in one commit.
 - [ ] **Step 2:** Atlas: no new architecture expected, but if capture revealed a new terminal shape/protocol fact, extend `atlas/terminal.md`; note qoder in `atlas/session-identity.md`'s storage-root table if one exists.
 - [ ] **Step 3:** Commit `#300 M5: docs sweep — qoder joins every agent roster`.
 
-### Task 21: Close
+### Task 20: Close
 
 - [ ] **Step 1:** `go test ./...` + `make -f Makefile.local test-native-terminal-ci` if terminal-adjacent code changed (M3 did).
 - [ ] **Step 2:** Update the issue `## Log` with per-milestone evidence; `sdlc close --issue 300 --verified '<smoke + suite evidence>'` (omit `--actual`; close measures it).
@@ -779,8 +761,17 @@ prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">", "qoder"
 
 ## Notes for the executor
 
-- **Capture-first is absolute** (Tasks 9-12, 15): any step that wants to write a recognizer, marker, or glyph without a capture beside it is doing the wrong thing — stop and capture. Hand-authored bytes are how Codex's dead `48;2;57;57;57` gate happened (atlas aspect 2).
+- **Capture-first is absolute, and it fixes the order it permits** (Tasks 9-11, 14): no recognizer, marker, or glyph without a capture beside it — but the capture harness requires a positive-gated profile with a live-validated recognizer before it records anything (Task 9). The bootstrap recognizer is authored from the live screen and must make the classifier report `recognized` on real bytes before the capture is written; hand-authored fixture bytes are how Codex's dead `48;2;57;57;57` gate happened (atlas aspect 2).
 - **Don't touch couch** (except its pinning tests): every couch behavior derives from the launcher registry and sessioninventory (§0). A qoder-specific couch change means the registry contract broke — fix the contract.
-- **Fail-closed ordering**: registry (M1) → scanner (M2) → profile (M3) is the safe sequence; each milestone leaves main working with the later surfaces failing closed (verified in Task 1 Step 5).
+- **Fail-closed ordering**: registry (M1) → scanner (M2) → profile (M3) is the safe sequence; each milestone leaves main working with the later surfaces failing closed (verified in Task 1 Step 5). Within M3 there is no keymap-only fail-closed intermediate — the wrapcmd oracle admits no such state (`harness_tty_fixture_test.go:93-96,134-136`), so the profile lands positive-gated in the same commit as its captures.
 - **Fixture hygiene**: newest qoder version dir only under `testdata/tty/`; when qoder self-updates and a recapture lands, delete the old dir (one capture set ≈ 45% of the wrapcmd suite's runtime — atlas aspect 2).
 - When Part B implementation begins, re-run `sdlc change-code --issue 300` — this plan's M1-M5 boundaries mean the full flow (plan-quality + estimate at entry, per-milestone reviews).
+
+---
+
+## Revisions
+
+### 2026-09-21 — plan-quality review round 1 (fresh-context qoder, ariadne plan-quality prompt): Important + Minor addressed
+
+- **Important (harness-test-oracle-mismatch):** M3 Tasks 9-12 resequenced. The keymap-only fail-closed profile was not a capturable or committable state: `TestHarnessTTYLiveConformance` hard-fatals without a `commands` row (`harness_tty_live_test.go:547-556`), the capture's startup predicate requires an existing positive-gated profile with non-nil `recognize` (`:216-218`; `configureHarnessTTY` drops the terminal for non-positive gates, `wrap.go:1565-1580`), and the fixture oracle errors on fixtures-for-non-gated and fatals on gate-without-fixtures (`harness_tty_fixture_test.go:93-96,134-136`). Task 9 now lands the commands row + bootstrap profile/recognizer (authored from the live screen, validated by the classifier before any capture) + captures + metadata + the `TestComposerReturnExpectationMatchesProfile` row (`:803-819`) + oracle-read ledger entries in ONE commit; Task 10 is the recognizer spec over the frozen captures; Task 11 keeps the overlay markers; Task 12 is session-id + M3 boundary.
+- **Minor (roster-sweep-pattern-undermatches):** The docs sweep's regex replaced by a case-insensitive, separator-agnostic sweep (README rosters are Title-case and slash-joined; the old pattern matched zero README lines and the line inventory was stale). The glyph task now registers qoder only where each consumer applies — `distill.go` deliberately lacks muse and falls back to claude (`distill.go:33-38`) — instead of unconditionally in all three maps.

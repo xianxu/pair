@@ -86,8 +86,8 @@ Durable plan: `workshop/plans/000300-qoder-harness-integration-plan.md` (Part A 
 - [x] Author the durable bring-up plan via `superpowers-writing-plans` → `workshop/plans/000300-qoder-harness-integration-plan.md`.
 - [ ] M1 — registry + launcher arg plumbing: `supportedAgents`/`Agent` enum join, fresh-args validation, resume token + `extractExplicitResume`; fail-closed intermediate verified.
 - [ ] M2 — session inventory scanner: claude-family core extraction, `ScanQoder` + roots + wiring, event adapter + watcher/ledger membership + `AgentSessionExists`, live conformance.
-- [ ] M3 — TTY, capture-first: live captures (`composer.raw`/`overlay.raw`), fail-closed keymap profile, composer recognizer, overlay markers, `--session-id` mint decision.
-- [ ] M4 — slug + glyphs + settings: `runQoder` print invocation, prompt glyph in all three registrations, permission/trust config.
+- [ ] M3 — TTY: bootstrap positive-gated profile + live captures (`composer.raw`/`overlay.raw`) landing atomically (the capture harness requires the gate before bytes), composer recognizer spec, overlay markers, `--session-id` mint decision.
+- [ ] M4 — slug + glyphs + settings: `runQoder` print invocation, prompt glyph in the consuming registrations (scrollback + orientation; distill only if it applies), permission/trust config.
 - [ ] M5 — end-to-end: standalone pair live smoke (Enter/Alt+Enter/pickers/Alt+b/Alt+n/resume + doctor telemetry), couch round-trip, docs/atlas roster sweep, close.
 
 ## Log
@@ -113,4 +113,26 @@ Durable plan: `workshop/plans/000300-qoder-harness-integration-plan.md` (Part A 
   `IsSupportedAgent` + LookPath pair/agent; `couchcore/launch_existing.go:58`
   spawns `pair resume <tag> [layout flag]`; couchcore resume/binding paths
   consume sessioninventory.
+
+### 2026-09-21
+
+- Plan-quality gate run manually (fresh-context qoder with ariadne's exact
+  plan-quality prompt; sdlc's gate dispatch bypassed per operator direction):
+  round 1 verdict FAILURE — one Important, one Minor. Important
+  (`harness-test-oracle-mismatch`): M3's capture-first sequence contradicted
+  the wrapcmd harness at four registration points — no `commands` row
+  (`harness_tty_live_test.go:547-556`), the capture predicate itself requires
+  an existing positive-gated profile with non-nil `recognize`
+  (`:216-218`; `wrap.go:1565-1580`), captures and gate must land atomically
+  (`harness_tty_fixture_test.go:93-96,134-136`), and
+  `TestComposerReturnExpectationMatchesProfile` needs its own qoder row
+  (`:803-819`). Minor (`roster-sweep-pattern-undermatches`): the docs-sweep
+  regex missed Title-case/slash-joined rosters and the README line inventory
+  was partly stale.
+- Plan revised (see `## Revisions` in
+  `workshop/plans/000300-qoder-harness-integration-plan.md`): M3 resequenced
+  to Task 9 bootstrap+capture atomic, 10 recognizer spec, 11 markers, 12
+  session-id + M3 boundary (13-20 renumbered); glyph task registers only where
+  each consumer applies (distill.go deliberately lacks muse); docs sweep is
+  sweep-driven, not a hand inventory. Round 2 dispatched.
 
