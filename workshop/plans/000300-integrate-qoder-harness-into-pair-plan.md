@@ -380,6 +380,7 @@ git commit -m "#300 M2: extract claude-family scanner core (claude + qoder share
 
 **Files:**
 - Create: `cmd/internal/sessioninventory/scan_qoder.go`
+- Modify: `cmd/internal/sessioninventory/model.go:444-451` (`validAgent` case)
 - Modify: `cmd/internal/sessioninventory/runtime_os.go:33-46`
 - Modify: `cmd/internal/sessioninventory/conformance.go:131-145`
 - Modify: `cmd/internal/sessioninventory/incremental_inventory.go` (two switches, lines ~135-142 and ~193-200)
@@ -474,6 +475,8 @@ case AgentQoder:
 
 `provider_contract.go`: `ProviderQoderJSONLV1 ProviderContract = "qoder-jsonl-v1"` and the `ProviderContractFor` case mapping (qoder-projects + qoder-v1 → that contract).
 
+`model.go` `validAgent` (`:444-451`): add `AgentQoder` to the case list — it gates `ValidateScannerState`/`ScannerStateFact`, catalog entries, and the CLI's `--agent qoder`; without it the scanner's own first test fails, not just a later surface.
+
 `runcli.go`: `var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse, AgentQoder}` and the usage string gains `|qoder`.
 
 - [ ] **Step 4: Run to verify pass**
@@ -494,6 +497,7 @@ git commit -m "#300 M2: qoder session scanner (claude-family core, qoder-v1 sche
 
 **Files:**
 - Modify: `cmd/internal/sessioninventory/event.go:53-62`
+- Modify: `cmd/internal/sessioninventory/target.go:199-227` (`observationNativeID` case)
 - Modify: `cmd/internal/sessionwatch/sessionwatch.go:33-40`
 - Modify: `cmd/internal/sessionledger/record.go:478-491`
 - Test: `cmd/internal/sessioninventory/events_test.go` (extend), `cmd/internal/launcher/osruntime_test.go` (extend)
@@ -523,10 +527,12 @@ Expected: FAIL.
 
 `event.go` `NormalizeNativeEvent`: `case AgentQoder: return normalizeClaudeEvent(record)` — qoder records are claude-shaped (ground facts); the fixture test pins it. If the noise records produce `EventNearMiss` dispositions (a telemetry storm), add the qoder noise `type` values to the normalizer's ignore set with a comment naming them — evidence decides, not speculation.
 
+`target.go` `observationNativeID` (`:199-227`): this is a per-agent switch, **not** agent-agnostic — add `case AgentQoder:` using `claudePathFact` over `qoder-projects` (claude's own arm is the shape). Without it `AgentSessionExists("qoder", …)` returns false (`NativeSessionCandidateExistsFromObservations` → `selectNamedArtifacts` → `""`), and the watcher's `TargetNewLaunch` discovery (`target.go:133`) finds no new qoder sessions — the binding round-trip the Done-when rests on.
+
 `sessionwatch.go` `SupportsAgent`: add `"qoder"` to the case list.
 `sessionledger/record.go` `isSupportedAgent`: add the qoder case (match the file's existing shape).
 
-`osruntime_test.go`: add a present/absent pair for qoder — fake runtime root `qoder-projects` with a `<uuid>.jsonl` transcript → `AgentSessionExists("qoder", uuid, cwd)` true; empty root → false. (Delegation is already agent-agnostic; the test proves the root row reaches it.)
+`osruntime_test.go`: add a present/absent pair for qoder — fake runtime root `qoder-projects` with a `<uuid>.jsonl` transcript → `AgentSessionExists("qoder", uuid, cwd)` true; empty root → false. The test proves the root row reaches the (now completed) per-agent delegation.
 
 - [ ] **Step 4: Run to verify pass**
 
@@ -590,7 +596,7 @@ git commit -m "#300 M2: qoder events, watcher/ledger membership, AgentSessionExi
 
 Recognizer decision tree, in order of preference (atlas aspect 1): (a) qoder emits a native composer-availability OSC → wrap it; (b) qoder paints claude's ruled-box shape (`─` rules flanking the prompt row) → add a spec to `ruledBoxComposerActive`, not a fourth near-copy; (c) a novel glyph/shape → new recognizer function.
 
-- [ ] **Step 3: Iterate the live capture.** `PAIR_LIVE_HARNESS=qoder go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveConformance -count=1 -v` until the classifier reports `recognized` (what it reports instead, naming the blocker: `harnessTTYUnauthenticated`, `harnessTTYWorkspaceTrust`, `harnessTTYWaiting`). Then add `PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/composer.raw` and capture. A recognizer that never fires ends in `reported recognition but no recognized prefix; recapture destination: …`; one that fires too early truncates the capture — `firstRecognizedHarnessTTYPrefix` (`:853-867`) cuts at the first recognized byte, so confirm the captured screen is the settled composer. Refine the recognizer, never the fixture.
+- [ ] **Step 3: Iterate the live capture.** `PAIR_LIVE_HARNESS=qoder go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveConformance -count=1 -v` until the classifier reports `recognized` (what it reports instead, naming the blocker: `harnessTTYUnauthenticated`, `harnessTTYWorkspaceTrust`, `harnessTTYWaiting`). Then add `PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/composer.raw` and capture. A recognizer that never fires times out at startup with `state=waiting` (`harness_tty_live_test.go:592-594`); `reported recognition but no recognized prefix` (`:595-598`) is the byte-replay path — the live stream looked recognized but replaying the captured bytes cannot reproduce it, and a recognizer that fires too early also truncates the capture (`firstRecognizedHarnessTTYPrefix` `:853-867` cuts at the first recognized byte). Either way: confirm the captured screen is the settled composer, and refine the recognizer, never the fixture.
 
 - [ ] **Step 4: Capture one blocking overlay (preferred, not required).** Add a `harnessTTYDrivenScenarios["qoder"]` row (name/`send`/`until`/`wantComposer: false`/`file: "overlay.raw"`; set `discriminating: true` only if the screen truly is composer-shaped — it is honor-system and is what retires the discrimination ledger). Run:
 
@@ -604,11 +610,11 @@ An unreachable screen skips (`did not reach … may not be reproducible`). If no
 
 - [ ] **Step 5: metadata.json** — exact `qoder --version` output, argv (the `commands` row), RFC3339 capture time, SHA-256 per raw file (copy `testdata/tty/muse/*/metadata.json`).
 
-- [ ] **Step 6: Ledgers — touch only where the oracle reads them** (`harness_tty_fixture_test.go:73-84` seeds the positive-gated set; `:141-150` is the expiry logic):
-  - overlay.raw captured and the scenario is `discriminating` → **no** entry in either gap ledger (a `ttyFixtureNegativeGaps` entry plus a captured overlay.raw errors: "now has a captured declining state; drop its entry").
-  - overlay.raw captured but it declines on incidental state (cursor/size), not composer-vs-picker → `ttyFixtureDiscriminationGaps["qoder"]` naming the unproven separation.
-  - no overlay capture → both `ttyFixtureNegativeGaps["qoder"]` and `ttyFixtureDiscriminationGaps["qoder"]`, each with the measured reason.
-  Also add the qoder row to `TestComposerReturnExpectationMatchesProfile` (`:803-819`) — its table iterates itself, so omission is silent staleness, not a failure.
+- [ ] **Step 6: Per-harness registrations + ledgers — every one the oracle reads** (`harness_tty_fixture_test.go:73-84` seeds the positive-gated set; `:141-150` and `:160-176` are the expiry oracles):
+  - **Profile registry**: `TestHarnessTTYProfileRegistry` (`harness_tty_test.go:20-31`) iterates its own profile + recognizer tables — add the qoder rows or the profile lands unpinned (silent staleness, same class as the expectation table).
+  - **Return expectation**: the qoder row in `TestComposerReturnExpectationMatchesProfile` (`:803-819`) — its table iterates itself, so omission is silent staleness, not a failure.
+  - **Negative/discrimination ledgers**: overlay.raw captured and the scenario is `discriminating` → **no** entry in either ledger (a `ttyFixtureNegativeGaps` entry plus a captured overlay.raw errors: "now has a captured declining state; drop its entry"); overlay.raw captured but it declines on incidental state (cursor/size), not composer-vs-picker → `ttyFixtureDiscriminationGaps["qoder"]` naming the unproven separation; no overlay capture → both `ttyFixtureNegativeGaps["qoder"]` and `ttyFixtureDiscriminationGaps["qoder"]`, each with the measured reason.
+  - **Reaction gap**: every positively gated harness must either press Return in a driven scenario (`pressesReturn`) or carry a `ttyFixtureReactionGaps` entry (`:160-176`). Prefer a `pressesReturn` scenario — it directly evidences Done-when's core claim (plain Enter inserts a newline, Alt+Enter sends). If no Return can be driven before landing, record the entry with the honest undriven reason; the entry expires the moment a `pressesReturn` scenario lands (the oracle errors on both stale presence and missing absence).
 
 - [ ] **Step 7: Run and commit as ONE tree state.** `go test ./cmd/internal/wrapcmd` green (the fixture oracle now replays composer.raw through the profile), then a single commit — commands row + profile (keymap/gate/recognizer) + captures + metadata + expectation row + ledger entries:
 
@@ -775,3 +781,9 @@ prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">", "qoder"
 
 - **Important (harness-test-oracle-mismatch):** M3 Tasks 9-12 resequenced. The keymap-only fail-closed profile was not a capturable or committable state: `TestHarnessTTYLiveConformance` hard-fatals without a `commands` row (`harness_tty_live_test.go:547-556`), the capture's startup predicate requires an existing positive-gated profile with non-nil `recognize` (`:216-218`; `configureHarnessTTY` drops the terminal for non-positive gates, `wrap.go:1565-1580`), and the fixture oracle errors on fixtures-for-non-gated and fatals on gate-without-fixtures (`harness_tty_fixture_test.go:93-96,134-136`). Task 9 now lands the commands row + bootstrap profile/recognizer (authored from the live screen, validated by the classifier before any capture) + captures + metadata + the `TestComposerReturnExpectationMatchesProfile` row (`:803-819`) + oracle-read ledger entries in ONE commit; Task 10 is the recognizer spec over the frozen captures; Task 11 keeps the overlay markers; Task 12 is session-id + M3 boundary.
 - **Minor (roster-sweep-pattern-undermatches):** The docs sweep's regex replaced by a case-insensitive, separator-agnostic sweep (README rosters are Title-case and slash-joined; the old pattern matched zero README lines and the line inventory was stale). The glyph task now registers qoder only where each consumer applies — `distill.go` deliberately lacks muse and falls back to claude (`distill.go:33-38`) — instead of unconditionally in all three maps.
+
+### 2026-09-21 — plan-quality review round 2 (fresh-context qoder): both prior findings addressed; two new Minors folded in
+
+- Verdict: INFO. PQ-1 disposed `addressed` (M3 resequencing verified at all four registration points against the code); PQ-2 disposed `addressed` (sweep and per-consumer glyph verified). Approved to start.
+- **Minor A folded (harness-test-oracle-mismatch, 2nd in family):** Task 9 Step 6 now names two more wrapcmd registration points — `TestHarnessTTYProfileRegistry` (`harness_tty_test.go:20-31`, silent staleness by omission) and the `ttyFixtureReactionGaps` oracle (`harness_tty_fixture_test.go:160-176`: every positively gated harness presses Return in a driven scenario or carries an entry; a `pressesReturn` scenario is preferred since it evidences Done-when's Enter/Alt+Enter claim directly). Step 3's failure-mode labels corrected per PQ-1's residual note: a never-firing recognizer times out `state=waiting` (`:592-594`); the `no recognized prefix` fatal is the byte-replay path (`:595-598`).
+- **Minor B folded (agent-dispatch-registration-gap):** Task 6 adds `validAgent` (`model.go:444-451` — it gates `ValidateScannerState`/`ScannerStateFact`/catalog/CLI, so the scanner's own first test needs it); Task 7 adds `observationNativeID` (`target.go:199-227`) and replaces the factually wrong "(Delegation is already agent-agnostic)" parenthetical — without the qoder case, `AgentSessionExists("qoder", …)` stays false and the watcher's `TargetNewLaunch` discovery (`target.go:133`) finds no new sessions.
