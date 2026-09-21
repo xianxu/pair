@@ -19,6 +19,16 @@ func TestScanTurnBoundaries(t *testing.T) {
 	if got := scanTurnBoundaries([]string{"› codex prompt"}, "claude"); len(got) != 0 {
 		t.Fatalf("claude glyph wrongly matched codex prompt: %v", got)
 	}
+	// qoder indents its prompt glyph to column 1 (qoderPromptCol in wrapcmd),
+	// so its submitted echo renders ` > text` — the leading space is part of
+	// the boundary. A flush-left or further-indented `>` is not a turn.
+	qoderLines := []string{" > Reply with exactly: ok", "> flush left", "  > indented"}
+	if got := scanTurnBoundaries(qoderLines, "qoder"); !reflect.DeepEqual(got, []int{0}) {
+		t.Fatalf("qoder got %v want [0]", got)
+	}
+	if got := scanTurnBoundaries(qoderLines, "claude"); len(got) != 0 {
+		t.Fatalf("claude glyph wrongly matched qoder lines: %v", got)
+	}
 }
 
 func TestLocateFoundWalksBackTwoTurns(t *testing.T) {

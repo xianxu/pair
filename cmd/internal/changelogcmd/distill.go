@@ -14,10 +14,18 @@ import (
 // after a `──` line): a bare `>` can over-match agy output, which now feeds the
 // no-op gate as well as the lookback, so a false boundary can delay/add one
 // distill — graceful (self-heals within ~1 press), never corrupts the log.
+// qoder's value carries a leading space because Qoder indents its prompt glyph
+// to column 1 (qoderPromptCol in cmd/internal/wrapcmd/composer_recognizers.go —
+// the shared glyph authority); the captured submitted echo renders ` > text`,
+// so the space is part of the boundary. Its yolo `*` glyph is a deliberate
+// omission like agy's above: the captured echo evidence covers default mode
+// only, and a missed boundary degrades gracefully (extra lookback), never
+// corrupts the log.
 var promptGlyphChar = map[string]string{
 	"claude": "❯",
 	"codex":  "›",
 	"agy":    ">",
+	"qoder":  " >",
 }
 
 // promptGlyphByAgent — line-start regex per agent, derived from promptGlyphChar

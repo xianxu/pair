@@ -127,7 +127,19 @@ if vim and vim.api then
     "> quoted in markdown",-- 8: no match (preceded by text, no horizontal rule)
   }, { false, true, false, true, false, false, false, false })
 
-  -- 4. Refresh helper: re-renders the backing .ansi file, reloads this buffer,
+  -- 4. Test Qoder pattern: the prompt glyph sits at column 1 (qoderPromptCol
+  -- in cmd/internal/wrapcmd/composer_recognizers.go), so the submitted echo
+  -- renders as ` > text` — one leading space. `>` is the default-mode glyph,
+  -- `*` the yolo glyph. The row's derivation from that Go authority is pinned
+  -- by TestScrollbackQoderPatternTracksPromptAuthority (wrapcmd).
+  test_agent_pattern('qoder', {
+    " > hello",            -- 1: match
+    " * yolo prompt",      -- 2: match (yolo glyph)
+    "  > indented",        -- 3: no match (glyph must sit at column 1)
+    "> flush left",        -- 4: no match (qoder indents its prompt)
+  }, { true, true, false, false })
+
+  -- 5. Refresh helper: re-renders the backing .ansi file, reloads this buffer,
   -- strips ANSI escapes back to text, and preserves read-only viewer state.
   do
     assert(type(M.refresh_buffer) == 'function', 'refresh_buffer helper must exist')
@@ -168,7 +180,7 @@ if vim and vim.api then
     eq(vim.bo[buf].readonly, true, 'refresh leaves buffer readonly')
   end
 
-  -- 5. Refresh failure: keep the old visible buffer and locked viewer state.
+  -- 6. Refresh failure: keep the old visible buffer and locked viewer state.
   do
     local dir = tmpdir()
     local ansi = dir .. '/scrollback-test-codex.ansi'
@@ -194,7 +206,7 @@ if vim and vim.api then
     eq(vim.bo[buf].readonly, true, 'renderer failure leaves buffer readonly')
   end
 
-  -- 6. G behavior: refresh first, then land at the refreshed end.
+  -- 7. G behavior: refresh first, then land at the refreshed end.
   do
     assert(type(M.refresh_then_end) == 'function', 'refresh_then_end helper must exist')
     local dir = tmpdir()
@@ -230,7 +242,7 @@ if vim and vim.api then
     vim.api.nvim_win_close(win, true)
   end
 
-  -- 7. Refresh with a pending marker must not replace the annotate-attached
+  -- 8. Refresh with a pending marker must not replace the annotate-attached
   -- buffer, because markers are buffer text until VimLeavePre emits them.
   do
     local annotate = M.annotate
@@ -271,7 +283,7 @@ if vim and vim.api then
     vim.b[buf].pair_annotate = false
   end
 
-  -- 8. Clean annotate-attached refresh reloads content, rebaselines marker
+  -- 9. Clean annotate-attached refresh reloads content, rebaselines marker
   -- state, and recreates the scrollback footer affordance at the new end.
   do
     local annotate = M.annotate
