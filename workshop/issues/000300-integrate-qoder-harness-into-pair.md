@@ -80,10 +80,10 @@ launcher agent registry is the single choke point both hosts share.
 
 ## Plan
 
-Durable plan: `workshop/plans/000300-qoder-harness-integration-plan.md` (Part A done; Part B = M1–M5 below, each its own review boundary).
+Durable plan: `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md` (Part A done; Part B = M1–M5 below, each its own review boundary).
 
 - [x] Extend `atlas/how-to-bring-up-a-new-harness-cli.md` for couch (Part A — 1e912472).
-- [x] Author the durable bring-up plan via `superpowers-writing-plans` → `workshop/plans/000300-qoder-harness-integration-plan.md`.
+- [x] Author the durable bring-up plan via `superpowers-writing-plans` → `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md`.
 - [ ] M1 — registry + launcher arg plumbing: `supportedAgents`/`Agent` enum join, fresh-args validation, resume token + `extractExplicitResume`; fail-closed intermediate verified.
 - [ ] M2 — session inventory scanner: claude-family core extraction, `ScanQoder` + roots + wiring, event adapter + watcher/ledger membership + `AgentSessionExists`, live conformance.
 - [ ] M3 — TTY: bootstrap positive-gated profile + live captures (`composer.raw`/`overlay.raw`) landing atomically (the capture harness requires the gate before bytes), composer recognizer spec, overlay markers, `--session-id` mint decision.
@@ -130,9 +130,16 @@ Durable plan: `workshop/plans/000300-qoder-harness-integration-plan.md` (Part A 
   regex missed Title-case/slash-joined rosters and the README line inventory
   was partly stale.
 - Plan revised (see `## Revisions` in
-  `workshop/plans/000300-qoder-harness-integration-plan.md`): M3 resequenced
+  `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md`): M3 resequenced
   to Task 9 bootstrap+capture atomic, 10 recognizer spec, 11 markers, 12
   session-id + M3 boundary (13-20 renumbered); glyph task registers only where
   each consumer applies (distill.go deliberately lacks muse); docs sweep is
-  sweep-driven, not a hand inventory. Round 2 dispatched.
+  sweep-driven, not a hand inventory.
+- Found while regenerating the round-2 prompt: the binary resolves the durable
+  plan as `<issue-basename>-plan.md` (`cmd/sdlc/reviewwindow.go:155`), so the
+  off-convention filename meant the plan was never injected inline into either
+  review round (round 1's reviewer read it from disk instead). Renamed to
+  `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md`; the real
+  gate at `change-code` will now carry it inline. Round 2 dispatched with the
+  plan embedded + the round-1 findings as the prior-findings block.
 
