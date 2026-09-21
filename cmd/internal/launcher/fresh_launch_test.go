@@ -12,6 +12,7 @@ func TestValidateFreshAgentArgs(t *testing.T) {
 		"codex":  {{"resume"}, {"--model", "x", "fork", "--last"}, {"-cx=y", "resume"}, {"--approve-for-me", "resume"}, {"exec", "--model", "x", "resume"}},
 		"agy":    {{"-c"}, {"--continue=true"}, {"--conversation=x"}, {"-conversation=x"}},
 		"muse":   {{"--provider", "echo", "resume"}, {"resume", "--last"}, {"exec", "--session-id=x"}, {"--worktree", "create", "resume"}},
+		"qoder":  {{"-c"}, {"--continue"}, {"-r", "abc"}, {"--resume", "abc"}, {"--resume=abc"}, {"--session-id", "x"}, {"--session-id=x"}, {"--fork-session"}, {"--remote"}, {"--remote", "task"}, {"--remote-session", "x"}, {"--teleport", "x"}, {"--remote-control", "x"}, {"--list-sessions"}, {"--delete-session", "1"}, {"-dc"}, {"--debug", "--continue"}, {"--worktree", "--resume"}},
 	} {
 		for _, args := range cases {
 			if err := ValidateFreshAgentArgs(agent, args); err == nil {
@@ -23,6 +24,7 @@ func TestValidateFreshAgentArgs(t *testing.T) {
 		"claude": {{"--model", "--resume"}, {"--system-prompt", "--continue"}, {"--", "--resume"}, {"--name", "attach"}, {"--allowed-tools", "Bash", "attach"}},
 		"codex":  {{"--model", "resume"}, {"-c", "resume"}, {"-mresume"}, {"--", "resume"}, {"a prompt about resume"}},
 		"agy":    {{"--model", "--continue"}}, "muse": {{"--model", "resume"}, {"--provider=resume"}},
+		"qoder": {{"-m", "some-model", "hello"}, {"--model", "m", "-p"}, {"--model", "--resume"}, {"--worktree", "feat", "hello"}, {"--tools", "a", "b", "--", "hi"}, {"-w", "some/dir", "hello"}, {"-dp"}, {"--", "--resume"}, {"hello", "world"}},
 	} {
 		for _, args := range cases {
 			if err := ValidateFreshAgentArgs(agent, args); err != nil {
