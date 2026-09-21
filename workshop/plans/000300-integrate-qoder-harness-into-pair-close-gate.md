@@ -191,6 +191,61 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-21T10:28:42-07:00"
+      agent: claude
+      findings:
+        - id: BR-17
+          severity: Critical
+          title: Fresh-arg validator no longer rejects short-flag clusters like -pr sid (regression from base)
+          detail: 'This is the 3rd finding in family resume-form-recognized-but-not-stripped. Removing "r" from forbiddenShort (fresh_args.go:26, :34; claude and qoder) in favour of resumeform.Selector loses rejection of any cluster where r is not the first letter. A differential run at base 367610e7 vs head shows ValidateFreshAgentArgs(claude|qoder, ["-pr","sid"]), ["-vr","sid"] and ["-hr","x"] error at base and return nil at head. A "fresh" launch given -pr <sid> reaches the CLI and resumes an existing conversation, which is what the guard exists to prevent. Selector only matches an exact -r token or a token starting with -r; the Form comment''s claim that a cluster containing the selector "normalizes to the glued reading" is false for r in a non-first position. TestResumeFormTableRoundTrip and TestResumeSpellingDivergences only test -r<id> and -r. Rule covering the class: the set of tokens a fresh launch refuses must be a superset of what any earlier site refused, and cluster letters must derive from resumeform.Forms, not a hand-kept forbiddenShort string. Fix: add a resumeform helper (e.g. ClusterLetters(agent) from the single-letter Glued spellings) and have forbidsCluster consult it alongside ''c''. Add a table-ranged test that puts each Glued letter after a bool short letter (-p<letter>) and requires rejection, and keep the base rows -cr, -rp, -pc.'
+          family: resume-form-recognized-but-not-stripped
+          round: 4
+        - id: BR-18
+          severity: Important
+          title: Qoder wiring at ProviderContractFor and AdvanceTargetValidation is pinned by no test; the BR-16 rule was only partly carried out
+          detail: 'This is the 5th finding in family agent-dispatch-registration-gap. Do not fix only this instance. Mutation checks on a scratch copy of head show that deleting the AgentQoder case from ProviderContractFor turns no test red, and neither does deleting it from AdvanceTargetValidation. AdvanceTargetValidation (switch at incremental_inventory.go:198, no default) then returns the prior state unchanged with the frame offset advanced, so the watcher consumes qoder bytes without applying them and emits no diagnostic. ValidateTargetWork (:138) silently skips. The per-agent test tables still list only claude/codex/muse: TestProviderContractFor, TestAppendOnlyProviderConformance (a qoder row passes when added in scratch), provider_live_fake_test.go (its validateLiveRecords default returns ErrArtifactChanged for qoder), native_large_record_test, scan_fuzz_test and query_test. The plan Revisions (BR-16) bound M2 to the rule that every per-agent dispatch reachable from AgentInventory() is derived from one list or probed by the parity test, but only sessionledger was added to the probe. Not probed: ProviderContractFor, observationNativeID, artifactScannerShape, ValidateTargetWork/AdvanceTargetValidation, NormalizeNativeEvent and the runtime roots. Rule: one per-agent capability table, or a parity test ranging AgentInventory() through the testdata/native/<agent>/v1 fixtures and exercising every dispatch, plus fail-closed default arms in the two switches. Range the per-agent tables above from the same list.'
+          family: agent-dispatch-registration-gap
+          round: 4
+        - id: BR-19
+          severity: Important
+          title: Epoch-millis timestamps are accepted with no range check and fabricate chronology
+          detail: 'claudeFamilyTime.nativeTime (scan_claude.go:46) turns any int64 into a metadata-sourced instant via time.UnixMilli, while the ISO path is implicitly bounded to years 0000-9999 by RFC3339 parsing. A qoder record with "timestamp":9223372036854775807 is accepted with no diagnostic. `pair session-inventory --agent qoder --json` then printed created_at "292278994-08-17T07:12:55.807Z", which is not RFC3339, and the poisoned session sorts as the newest. activity.go:48 copies the value into a time.Time-typed json field, and json.Marshal of that year fails with "year outside of range [0,9999]". A record of -62135596800000 makes ValidateScannerState fail on the zero time. This transcript is input this program did not produce (ARCH-SECURE). Fix: parse the millis into a typed instant at the boundary and reject values outside a sane window (e.g. 2000-01-01 to year 9999), returning an error so the record disputes visibly like a malformed ISO string. Add a scan test row for it.'
+          family: untrusted-input-parsed-without-bounds
+          round: 4
+        - id: BR-20
+          severity: Important
+          title: Qoder-only grammar admissions silently widened claude's scanner and event grammar
+          detail: 'This is the 2nd finding in family refactor-changes-sibling-agent-behavior. Task 5 promised the refactor is "invisible to the claude suite", but two claude admissions changed. First, claudeRecord.Timestamp is now claudeFamilyTime for every agent, so ValidateClaudeDelta on {"type":"user","sessionId":"<id>","timestamp":1787907630000} returned disputed=false with a 2026 chronology (probe), where the old string field made it a malformed-record dispute. Second, normalizeClaudeEvent (event.go:113) is shared, so claude records of type workspace-directories, runtime-config, worktree-state and active-leaf are now EventIgnored instead of EventNearMiss. Both weaken claude''s near-miss drift detector, and no claude-side negative test pins them. Rule: every grammar admission a new family member needs is a parameter of the shared core (e.g. a family spec carrying acceptsEpochMillis and extraIgnoredTypes), defaulting to the existing agent''s prior behavior, with a claude negative row per admission. Do not widen the shared type.'
+          family: refactor-changes-sibling-agent-behavior
+          round: 4
+        - id: BR-21
+          severity: Minor
+          title: event.go comment overstates ignore-set completeness; file-history-snapshot still near-misses on real qoder transcripts
+          detail: 'Tally over the 10 real ~/.qoder transcripts: 1834 accepted, 2818 ignored, 53 near-miss, all 53 of type file-history-snapshot. Claude shows the same near-miss baseline for many types (mode, permission-mode, file-history-*), so this is consistent noise, not a blocker. Add the type with evidence or soften the comment "Without them the whole qoder stream is near-miss".'
+          family: unbacked-existing-behavior-claim
+          round: 4
+        - id: BR-22
+          severity: Minor
+          title: resumeform.Strip is agent-agnostic for glued -r<x> across all agents
+          detail: Strip drops any token starting with -r plus a non-empty, non-'=' remainder for every agent, including codex, muse and agy (single-dash long flags). A legitimate -r* flag of another agent would be lost from persisted args. Currently latent; the old strip only removed exact -r and -r=. Consider passing the agent so only its own spellings are removed.
+          family: resume-form-recognized-but-not-stripped
+          round: 4
+        - id: BR-23
+          severity: Minor
+          title: resumeform.Forms is an exported mutable package map
+          detail: Four packages read one writable exported map that is the single source of truth. Keep it unexported behind Selector/Extract/Strip and expose an accessor for the round-trip tests.
+          family: hand-restated-registry
+          round: 4
+        - id: BR-24
+          severity: Minor
+          title: Plan has no M2 Revisions entry; live-conformance and manual steps are unlogged; Task 7 names the wrong test file
+          detail: 'The only in-window Revisions entry covers the M1 advisories. Task 7 names events_test.go (actual file is event_test.go), and Task 7 Step 5 and Task 8 Step 3 have no logged evidence. I ran the qoder-only conformance against real ~/.qoder in a scratch copy: ok, 10 nodes, 7 roots, no diagnostics. Whole-suite TestLiveNativeSessionShapeConformance fails on this machine because of agy drift (pre-existing, unrelated to M2). Record the evidence and the claude-family admissions in a Revisions entry.'
+          family: plan-prose-restates-diff
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -269,7 +324,36 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-16** [Minor] `agent-dispatch-registration-gap` Parity test covers 3 of the session-side agent dispatch sites; sessionledger.isSupportedAgent is named in the gap message but never probed
   This is the 4th finding in this family, so I state the rule instead of fixing another site: every per-agent dispatch reachable from AgentInventory() must either derive from one exported list or be probed by the parity test, and a known-gap message must not name a site the test does not probe. Today the test probes ScannerForAgent, CLI acceptance and sessionwatch.SupportsAgent. Its gap text also names sessionledger, whose `isSupportedAgent` (record.go:480) is a second hand copy of `claude|codex|agy|muse`. An M2 that flips scanner and watcher support but misses the ledger ends with a green parity test and ledger-rejected qoder records. Unprobed dispatch sites include NormalizeNativeEvent, ProviderContractFor, target.go:211, the incremental_inventory switches and the runtime_os native roots. Prefer deriving SupportsAgent and isSupportedAgent from one exported predicate, or add a ledger probe to the parity test.
 
+## Round 4 — 2026-09-21T10:28:42-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-17** [Critical] `resume-form-recognized-but-not-stripped` Fresh-arg validator no longer rejects short-flag clusters like -pr sid (regression from base)
+  This is the 3rd finding in family resume-form-recognized-but-not-stripped. Removing "r" from forbiddenShort (fresh_args.go:26, :34; claude and qoder) in favour of resumeform.Selector loses rejection of any cluster where r is not the first letter. A differential run at base 367610e7 vs head shows ValidateFreshAgentArgs(claude|qoder, ["-pr","sid"]), ["-vr","sid"] and ["-hr","x"] error at base and return nil at head. A "fresh" launch given -pr <sid> reaches the CLI and resumes an existing conversation, which is what the guard exists to prevent. Selector only matches an exact -r token or a token starting with -r; the Form comment's claim that a cluster containing the selector "normalizes to the glued reading" is false for r in a non-first position. TestResumeFormTableRoundTrip and TestResumeSpellingDivergences only test -r<id> and -r. Rule covering the class: the set of tokens a fresh launch refuses must be a superset of what any earlier site refused, and cluster letters must derive from resumeform.Forms, not a hand-kept forbiddenShort string. Fix: add a resumeform helper (e.g. ClusterLetters(agent) from the single-letter Glued spellings) and have forbidsCluster consult it alongside 'c'. Add a table-ranged test that puts each Glued letter after a bool short letter (-p<letter>) and requires rejection, and keep the base rows -cr, -rp, -pc.
+- **BR-18** [Important] `agent-dispatch-registration-gap` Qoder wiring at ProviderContractFor and AdvanceTargetValidation is pinned by no test; the BR-16 rule was only partly carried out
+  This is the 5th finding in family agent-dispatch-registration-gap. Do not fix only this instance. Mutation checks on a scratch copy of head show that deleting the AgentQoder case from ProviderContractFor turns no test red, and neither does deleting it from AdvanceTargetValidation. AdvanceTargetValidation (switch at incremental_inventory.go:198, no default) then returns the prior state unchanged with the frame offset advanced, so the watcher consumes qoder bytes without applying them and emits no diagnostic. ValidateTargetWork (:138) silently skips. The per-agent test tables still list only claude/codex/muse: TestProviderContractFor, TestAppendOnlyProviderConformance (a qoder row passes when added in scratch), provider_live_fake_test.go (its validateLiveRecords default returns ErrArtifactChanged for qoder), native_large_record_test, scan_fuzz_test and query_test. The plan Revisions (BR-16) bound M2 to the rule that every per-agent dispatch reachable from AgentInventory() is derived from one list or probed by the parity test, but only sessionledger was added to the probe. Not probed: ProviderContractFor, observationNativeID, artifactScannerShape, ValidateTargetWork/AdvanceTargetValidation, NormalizeNativeEvent and the runtime roots. Rule: one per-agent capability table, or a parity test ranging AgentInventory() through the testdata/native/<agent>/v1 fixtures and exercising every dispatch, plus fail-closed default arms in the two switches. Range the per-agent tables above from the same list.
+- **BR-19** [Important] `untrusted-input-parsed-without-bounds` Epoch-millis timestamps are accepted with no range check and fabricate chronology
+  claudeFamilyTime.nativeTime (scan_claude.go:46) turns any int64 into a metadata-sourced instant via time.UnixMilli, while the ISO path is implicitly bounded to years 0000-9999 by RFC3339 parsing. A qoder record with "timestamp":9223372036854775807 is accepted with no diagnostic. `pair session-inventory --agent qoder --json` then printed created_at "292278994-08-17T07:12:55.807Z", which is not RFC3339, and the poisoned session sorts as the newest. activity.go:48 copies the value into a time.Time-typed json field, and json.Marshal of that year fails with "year outside of range [0,9999]". A record of -62135596800000 makes ValidateScannerState fail on the zero time. This transcript is input this program did not produce (ARCH-SECURE). Fix: parse the millis into a typed instant at the boundary and reject values outside a sane window (e.g. 2000-01-01 to year 9999), returning an error so the record disputes visibly like a malformed ISO string. Add a scan test row for it.
+- **BR-20** [Important] `refactor-changes-sibling-agent-behavior` Qoder-only grammar admissions silently widened claude's scanner and event grammar
+  This is the 2nd finding in family refactor-changes-sibling-agent-behavior. Task 5 promised the refactor is "invisible to the claude suite", but two claude admissions changed. First, claudeRecord.Timestamp is now claudeFamilyTime for every agent, so ValidateClaudeDelta on {"type":"user","sessionId":"<id>","timestamp":1787907630000} returned disputed=false with a 2026 chronology (probe), where the old string field made it a malformed-record dispute. Second, normalizeClaudeEvent (event.go:113) is shared, so claude records of type workspace-directories, runtime-config, worktree-state and active-leaf are now EventIgnored instead of EventNearMiss. Both weaken claude's near-miss drift detector, and no claude-side negative test pins them. Rule: every grammar admission a new family member needs is a parameter of the shared core (e.g. a family spec carrying acceptsEpochMillis and extraIgnoredTypes), defaulting to the existing agent's prior behavior, with a claude negative row per admission. Do not widen the shared type.
+- **BR-21** [Minor] `unbacked-existing-behavior-claim` event.go comment overstates ignore-set completeness; file-history-snapshot still near-misses on real qoder transcripts
+  Tally over the 10 real ~/.qoder transcripts: 1834 accepted, 2818 ignored, 53 near-miss, all 53 of type file-history-snapshot. Claude shows the same near-miss baseline for many types (mode, permission-mode, file-history-*), so this is consistent noise, not a blocker. Add the type with evidence or soften the comment "Without them the whole qoder stream is near-miss".
+- **BR-22** [Minor] `resume-form-recognized-but-not-stripped` resumeform.Strip is agent-agnostic for glued -r<x> across all agents
+  Strip drops any token starting with -r plus a non-empty, non-'=' remainder for every agent, including codex, muse and agy (single-dash long flags). A legitimate -r* flag of another agent would be lost from persisted args. Currently latent; the old strip only removed exact -r and -r=. Consider passing the agent so only its own spellings are removed.
+- **BR-23** [Minor] `hand-restated-registry` resumeform.Forms is an exported mutable package map
+  Four packages read one writable exported map that is the single source of truth. Keep it unexported behind Selector/Extract/Strip and expose an accessor for the round-trip tests.
+- **BR-24** [Minor] `plan-prose-restates-diff` Plan has no M2 Revisions entry; live-conformance and manual steps are unlogged; Task 7 names the wrong test file
+  The only in-window Revisions entry covers the M1 advisories. Task 7 names events_test.go (actual file is event_test.go), and Task 7 Step 5 and Task 8 Step 3 have no logged evidence. I ran the qoder-only conformance against real ~/.qoder in a scratch copy: ok, 10 nodes, 7 roots, no diagnostics. Whole-suite TestLiveNativeSessionShapeConformance fails on this machine because of agy drift (pre-existing, unrelated to M2). Record the evidence and the claude-family admissions in a Revisions entry.
+
 ## Open findings
 
 - **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
 - **BR-16** [Minor] `agent-dispatch-registration-gap` Parity test covers 3 of the session-side agent dispatch sites; sessionledger.isSupportedAgent is named in the gap message but never probed
+- **BR-17** [Critical] `resume-form-recognized-but-not-stripped` Fresh-arg validator no longer rejects short-flag clusters like -pr sid (regression from base)
+- **BR-18** [Important] `agent-dispatch-registration-gap` Qoder wiring at ProviderContractFor and AdvanceTargetValidation is pinned by no test; the BR-16 rule was only partly carried out
+- **BR-19** [Important] `untrusted-input-parsed-without-bounds` Epoch-millis timestamps are accepted with no range check and fabricate chronology
+- **BR-20** [Important] `refactor-changes-sibling-agent-behavior` Qoder-only grammar admissions silently widened claude's scanner and event grammar
+- **BR-21** [Minor] `unbacked-existing-behavior-claim` event.go comment overstates ignore-set completeness; file-history-snapshot still near-misses on real qoder transcripts
+- **BR-22** [Minor] `resume-form-recognized-but-not-stripped` resumeform.Strip is agent-agnostic for glued -r<x> across all agents
+- **BR-23** [Minor] `hand-restated-registry` resumeform.Forms is an exported mutable package map
+- **BR-24** [Minor] `plan-prose-restates-diff` Plan has no M2 Revisions entry; live-conformance and manual steps are unlogged; Task 7 names the wrong test file
