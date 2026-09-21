@@ -15,6 +15,7 @@ func TestProviderContractFor(t *testing.T) {
 		{name: "claude", agent: AgentClaude, root: "claude-projects", schema: "claude-v1", want: ProviderClaudeJSONLV1},
 		{name: "codex", agent: AgentCodex, root: "codex-sessions", schema: "codex-v1", want: ProviderCodexJSONLV1},
 		{name: "muse", agent: AgentMuse, root: "muse-sessions", schema: "muse-v1", want: ProviderMuseJSONLV1},
+		{name: "qoder", agent: AgentQoder, root: "qoder-projects", schema: "qoder-v1", want: ProviderQoderJSONLV1},
 		{name: "agy transcript", agent: AgentAgy, root: "agy-brain", schema: "agy-transcript-v1", want: ProviderAgyTranscriptJSONLV1},
 		{name: "agy sqlite", agent: AgentAgy, root: "agy-conversations", schema: "agy-v1"},
 		{name: "unknown schema", agent: AgentClaude, root: "claude-projects", schema: "claude-v2"},

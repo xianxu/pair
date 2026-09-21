@@ -59,6 +59,19 @@ func FuzzScanMuseV1Records(f *testing.F) {
 	})
 }
 
+func FuzzScanQoderV1Records(f *testing.F) {
+	f.Add([]byte(`{"type":"user","timestamp":"2026-08-28T09:01:00Z","sessionId":"11111111-1111-4111-8111-111111111111","isSidechain":false}`))
+	f.Add([]byte(`{"type":"future"}`))
+	f.Fuzz(func(t *testing.T, record []byte) {
+		runtime := sessioninventorytest.NewFakeRuntime()
+		root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentQoder, Name: "qoder-projects"}
+		runtime.AddRoot(root)
+		runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}}, boundedRecord(record))
+		result := sessioninventory.ScanQoder(runtime)
+		assertFixedFacts(t, result.Facts, sessioninventory.AgentQoder, "11111111-1111-4111-8111-111111111111")
+	})
+}
+
 func boundedRecord(record []byte) []byte {
 	record = boundedBytes(record)
 	return append(record, '\n')

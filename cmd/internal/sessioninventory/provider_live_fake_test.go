@@ -21,7 +21,7 @@ func TestLiveJSONLProviderBehaviorMatchesStatefulFake(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, agent := range []sessioninventory.Agent{sessioninventory.AgentClaude, sessioninventory.AgentCodex, sessioninventory.AgentMuse} {
+	for _, agent := range []sessioninventory.Agent{sessioninventory.AgentClaude, sessioninventory.AgentCodex, sessioninventory.AgentMuse, sessioninventory.AgentQoder} {
 		agent := agent
 		t.Run(string(agent), func(t *testing.T) {
 			observations, diagnostics := sessioninventory.ObserveAgentMetadata(runtime, agent)
@@ -153,6 +153,9 @@ func validateLiveRecords(agent sessioninventory.Agent, entry sessioninventory.Fi
 		return state, err
 	case sessioninventory.AgentMuse:
 		state, _, err := sessioninventory.ValidateMuseDelta(entry, prior, records)
+		return state, err
+	case sessioninventory.AgentQoder:
+		state, _, err := sessioninventory.ValidateQoderDelta(entry, prior, records)
 		return state, err
 	default:
 		return sessioninventory.ScannerState{}, sessioninventory.ErrArtifactChanged

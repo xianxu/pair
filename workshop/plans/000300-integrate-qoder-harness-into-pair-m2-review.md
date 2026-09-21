@@ -136,3 +136,130 @@ findings:
     detail: |
       The only in-window Revisions entry covers the M1 advisories. Task 7 names events_test.go (actual file is event_test.go), and Task 7 Step 5 and Task 8 Step 3 have no logged evidence. I ran the qoder-only conformance against real ~/.qoder in a scratch copy: ok, 10 nodes, 7 roots, no diagnostics. Whole-suite TestLiveNativeSessionShapeConformance fails on this machine because of agy drift (pre-existing, unrelated to M2). Record the evidence and the claude-family admissions in a Revisions entry.
 ```
+
+---
+
+## Re-review — 2026-09-21T10:59:59-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 300 — integrate qoder harness into pair |
+| repo | pair |
+| issue file | workshop/issues/000300-integrate-qoder-harness-into-pair.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 77df4b5e8aa48d378ecba8255edd1f33704b2db9..42deeee430af17dcc1c226298492d48485872d99 |
+| command | sdlc milestone-close --issue 300 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-21T10:59:59-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+**Summary.** The pinned window `77df4b5e..42deeee4` is a single commit that adds one line to the issue Log, and `workshop/issues/` is excluded from the diff. The `stat` and `names` recipes therefore show nothing. The open findings concern the M2 code, so I inspected head 42deeee4 via `git archive` scratch copies and used mutation runs instead of trusting the Log. Six of the eight open findings are addressed at head, each with a regression test that goes red when the fix is reverted: BR-17, 19, 20, 21, 22 and 23. Two are not. BR-18 (the qoder dispatch class) has no fix in any commit. The fix is in the dirty working tree only, and even there mutation runs show two named dispatch sites and the runtime roots still unpinned. BR-24 (plan Revisions) is absent at head; the working-tree draft misnames the code and overclaims. The Log line committed in this window (line 184) says both are "addressed". No commit contains that work, and the working-tree version only partly delivers it.
+
+## 1. Strengths
+- **BR-17:** cluster letters now derive from the Glued spellings (`resumeform/resumeform.go` `ShortLetters`, consulted at `launcher/fresh_args.go:55`). `TestFreshValidatorRefusesResumeLettersInClusters` (`resume_forms_test.go:38`) is ranged over `resumeform.Forms()`. It also keeps the base rows `-cr`, `-rp` and `-pc`. With the `ShortLetters` term removed, it fails on `-pr`, `-vr` and `-hr` for both claude and qoder.
+- **BR-19:** the epoch-millis window (`scan_claude.go:39-42, 82-92`) is a typed, bounded value that disputes visibly. `TestQoderMillisTimestampBounds` covers `MaxInt64` and `-62135596800000`, and goes red without the bound.
+- **BR-20:** the qoder admissions are now parameters. `claudeFamilySpec.acceptsMillis` and per-agent `claudeFamilyNoiseTypes` default to claude's prior behavior. Each has a claude negative row (`TestIncrementalClaudeRejectsNumericTimestamp`, `event_test.go:50-53`), and each mutation goes red.
+- **BR-22/23:** `Strip(agent, …)` is strictly per-agent, and every production caller threads the agent (`agentargs.go:222`, `sessionwatch.go:52`). The `forms` map is unexported behind a copying `Forms()` accessor.
+- **BR-21:** the ignore-set comment is now tied to a dated measurement.
+
+## 2. Critical findings
+None.
+
+## 3. Important findings
+- **BR-18 (family `agent-dispatch-registration-gap`, 6th touch).** Head has no fix at all. The working tree adds qoder rows to six tables, a `dispatch_parity_test.go` and `default:` arms, but none of it is committed. I overlaid the working-tree `sessioninventory/*.go` onto a head export and deleted each qoder arm in turn:
+
+  | Mutation (delete qoder arm) | Result |
+  |---|---|
+  | `ProviderContractFor` | red |
+  | `artifactScannerShape` | red |
+  | `observationNativeID` | red |
+  | `NormalizeNativeEvent` | red |
+  | `AdvanceTargetValidation` | **GREEN** |
+  | `ValidateTargetWork` | **GREEN** |
+  | `runtime_os.go` qoder native root | **GREEN** |
+
+  - **What is still open:** the Advance/ValidateTargetWork/roots items are exactly the sites the finding named and BR-16 bound M2 to probe.
+  - **The new parity test overclaims:** `TestEveryAgentDispatchParity`'s doc comment says deleting a case from `ValidateTargetWork` or `AdvanceTargetValidation` turns a sub-assertion red. The test never calls either function. It ranges a hard-coded four-agent list, not `AgentInventory()`. Its `validateAgentDelta` is a hand-written switch that restates the production one.
+  - **The new `ValidateTargetWork` default arm is a no-op:** it sets `err`, and the next `if err != nil … continue` swallows it with no diagnostic. That is identical to the old silent skip, so the "fail-closed" claim holds only for `AdvanceTargetValidation`, which returns a generic `ErrArtifactChanged`.
+  - **The rule that covers the class:**
+    1. Replace the two duplicated four-arm delta switches (`incremental_inventory.go:138-148` and `:198-209`, ARCH-DRY) with one `deltaValidatorFor(agent)` per-agent capability entry that fails closed with a diagnostic.
+    2. Export the single agent list (`runcli.go` `supportedAgents`) and range the parity test from it, failing on an agent with no row.
+    3. Have the parity probe call `ValidateTargetWork` and `AdvanceTargetValidation` (append a suffix record, then advance) and assert each agent's native roots are non-empty.
+  - **Verification:** re-run the seven mutations above and require every one to go red.
+
+## 4. Minor findings
+- **BR-24 (open):** the plan has no M2 `## Revisions` entry at head. The working-tree draft (`plan.md:815-828`) names fields that don't exist. It cites `acceptsEpochMillis` and `extraIgnoredTypes`, but the code has `acceptsMillis` and the function `claudeFamilyNoiseTypes`. It states "every per-agent dispatch … is probed" and "fail-closed default arms … instead of silently skipping", which the mutations above disprove. It has a typo, "untrusted-inputarsed". Commit it only after those statements are true.
+- The Log line at head (line 184) records BR-18 and BR-24 as delivered when no commit contains them (raised as a new finding below).
+- `event.go` counts ("10 files, `active-leaf` ×1751") are a dated snapshot. The corpus is now 17 files with 2095 `active-leaf` records, which is fine because the comment carries a date.
+
+## 5. Test coverage notes
+Coverage for BR-17, 19, 20, 22 and 23 is real, table-ranged where the class is enumerable, and verified by mutation. The gaps are the three green mutations under BR-18.
+
+Two package tests, `TestEveryCoreConceptIntroductionMatchesDeclarations` and `TestEveryIssueOwnedTypeHasConceptDisposition`, fail in my scratch export only because it has no git history. The launcher's `TestCreateLayoutWrapperPreservesAgentCommand` fails there because the runtime assets aren't generated. Neither indicates a regression.
+
+## 6. Architecture (each principle worked)
+- **ARCH-DRY:** flag. The duplicated per-agent delta switches and the test-side `validateAgentDelta` are the class BR-18 belongs to.
+- **ARCH-PURE:** pass. Validators are pure over framed records, with IO behind the `Runtime` seam.
+- **ARCH-PURPOSE:** flag. The BR-18 sweep fixed the enumerable siblings that turned red but left `AdvanceTargetValidation`, `ValidateTargetWork` and the roots (shadow-sweep incomplete). BR-17/19/20 were fixed at rule level.
+- **ARCH-MOCK:** pass. Fakes are used and the real `~/.qoder` live run is recorded in the Log. The qoder-only conformance is manual, so there is no scheduled cadence yet.
+- **ARCH-CONSTRAINTS:** pass. Nothing new on a hot path.
+- **ARCH-SECURE:** pass. The millis input is bounded and typed at the boundary, and the failure path disputes visibly.
+- **ARCH-ORDER:** pass. No new state is held between events. The claude-family transition function is reused with per-agent parameters.
+- **ARCH-FUNERAL:** pass. Nothing new is created durably.
+
+## 7. Plan revision recommendations
+Add the M2 `## Revisions` entry, corrected to name `acceptsMillis` and `claudeFamilyNoiseTypes`. Record BR-18's delivered rule only once the probe for the two incremental sites and the roots exists and is verified by mutation.
+
+Re-pin the review window: base 77df4b5e excludes all M2 code, and the previous milestone close is 367610e7.
+
+```findings
+dispose:
+  - id: BR-17
+    disposition: addressed
+    note: |
+      launcher/fresh_args.go:55 consults resumeform.ShortLetters; TestFreshValidatorRefusesResumeLettersInClusters (table-ranged over Forms(), base rows kept) goes red on -pr/-vr/-hr for claude and qoder when the derivation is removed (mutation run).
+  - id: BR-18
+    disposition: not-addressed
+    note: |
+      No fix is committed at head. In the uncommitted tree, deleting the qoder arm from AdvanceTargetValidation, from ValidateTargetWork, or from the runtime_os native roots turns NO test red. TestEveryAgentDispatchParity never calls ValidateTargetWork/AdvanceTargetValidation despite its doc comment, and it ranges a hard-coded list. The ValidateTargetWork default arm sets err but the loop's `if err != nil ... continue` drops it with no diagnostic, so it is still a silent skip. Rule: one per-agent delta-validator table used by both switches (fail closed with a diagnostic); export the single agent list and range the parity test from it; probe ValidateTargetWork, AdvanceTargetValidation and NativeRoots per agent; then re-run all seven arm-deletion mutations and require red.
+  - id: BR-19
+    disposition: addressed
+    note: |
+      scan_claude.go:39-42,82-92 bounds millis to 2000-01-01..9999-12-31 and disputes visibly; TestQoderMillisTimestampBounds (MaxInt64 and -62135596800000 rows) goes red when the bound is removed.
+  - id: BR-20
+    disposition: addressed
+    note: |
+      acceptsMillis lives on claudeFamilySpec and claudeFamilyNoiseTypes is per-agent; claude negative rows (TestIncrementalClaudeRejectsNumericTimestamp, event_test.go:50-53) go red under both mutations (claude accepting millis, claude gaining the qoder noise set).
+  - id: BR-21
+    disposition: addressed
+    note: |
+      file-history-snapshot joins qoder's ignore set, and the event.go comment now cites a dated measurement instead of the overclaim.
+  - id: BR-22
+    disposition: addressed
+    note: |
+      resumeform.Strip(agent, args) uses only the agent's own form; all production callers thread the agent (agentargs.go:222, sessionwatch.go:52); TestStripIsPerAgent pins codex/agy/claude preservation.
+  - id: BR-23
+    disposition: addressed
+    note: |
+      forms is unexported behind a copying Forms() accessor; tests range the accessor.
+  - id: BR-24
+    disposition: not-addressed
+    note: |
+      Head's plan has no M2 Revisions entry. The uncommitted draft (plan.md:815-828) names non-existent fields (acceptsEpochMillis, extraIgnoredTypes; code has acceptsMillis and the function claudeFamilyNoiseTypes), claims every dispatch is probed and the default arms fail closed (both disproved by the BR-18 mutations), and has a typo in a family slug. Correct it and commit it with the code it describes.
+findings:
+  - id: new
+    severity: Minor
+    family: unbacked-existing-behavior-claim
+    title: |
+      Issue Log line 184 (this window) records BR-18/BR-24 as delivered; no commit contains them and the working-tree version only partly delivers them
+    detail: |
+      The Log says qoder rows, fail-closed defaults and a parity probe for "every JSONL agent" landed; git shows the code/test/plan changes uncommitted (8 modified files plus untracked dispatch_parity_test.go). Rule: a Log/plan claim that a coverage or fail-closed property holds must be committed alongside the code and backed by an arm-deletion mutation that turns red. Correct the claim, or land the missing probes, before recording it.
+```

@@ -144,6 +144,8 @@ func ValidateTargetWork(runtime Runtime, agent Agent, eligible []ArtifactObserva
 			state, found, err = ValidateMuseDelta(observation.Entry, nil, observed.Records)
 		case AgentQoder:
 			state, found, err = ValidateQoderDelta(observation.Entry, nil, observed.Records)
+		default:
+			err = fmt.Errorf("unsupported agent for target validation: %s", agent)
 		}
 		diagnostics = append(diagnostics, found...)
 		if err != nil || state.Disputed || !state.FirstRecordValidated {
@@ -204,6 +206,8 @@ func AdvanceTargetValidation(runtime Runtime, prior TargetValidation, current []
 		state, diagnostics, err = ValidateMuseDelta(observation.Entry, &state, observed.Records)
 	case AgentQoder:
 		state, diagnostics, err = ValidateQoderDelta(observation.Entry, &state, observed.Records)
+	default:
+		err = fmt.Errorf("unsupported agent for advance validation: %s", state.Agent)
 	}
 	if err != nil || state.Disputed {
 		return TargetValidation{}, diagnostics, ErrArtifactChanged

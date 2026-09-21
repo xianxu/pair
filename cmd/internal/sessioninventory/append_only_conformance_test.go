@@ -46,6 +46,14 @@ func TestAppendOnlyProviderConformance(t *testing.T) {
 				return state, err
 			},
 		},
+		{
+			name: "qoder", agent: sessioninventory.AgentQoder, root: "qoder-projects", relative: "-repo/11111111-1111-4111-8111-111111111111.jsonl", schema: "qoder-v1",
+			fixture: filepath.Join("testdata", "native", "qoder", "v1", "qoder-projects", "-repo", "11111111-1111-4111-8111-111111111111.jsonl"),
+			validate: func(entry sessioninventory.FileEntry, prior *sessioninventory.ScannerState, records []sessioninventory.FramedJSONLRecord) (sessioninventory.ScannerState, error) {
+				state, _, err := sessioninventory.ValidateQoderDelta(entry, prior, records)
+				return state, err
+			},
+		},
 	}
 	for _, test := range tests {
 		test := test

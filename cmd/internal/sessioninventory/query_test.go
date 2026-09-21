@@ -147,6 +147,7 @@ func TestQuerySessionCatalogLossProofClassCoversEveryAgentWithoutBodyReads(t *te
 		{sessioninventory.AgentClaude, "claude-v1", []sessioninventory.Artifact{{StorageRoot: "claude-projects", RelativePath: "-repo/" + id + ".jsonl"}}},
 		{sessioninventory.AgentCodex, "codex-v1", []sessioninventory.Artifact{{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-test-" + id + ".jsonl"}}},
 		{sessioninventory.AgentMuse, "muse-v1", []sessioninventory.Artifact{{StorageRoot: "muse-sessions", RelativePath: "2026/08/28/" + id + "/session.jsonl"}}},
+		{sessioninventory.AgentQoder, "qoder-v1", []sessioninventory.Artifact{{StorageRoot: "qoder-projects", RelativePath: "-repo/" + id + ".jsonl"}}},
 		{sessioninventory.AgentAgy, "agy-v1", []sessioninventory.Artifact{
 			{StorageRoot: "agy-conversations", RelativePath: id + ".db"},
 			{StorageRoot: "agy-brain", RelativePath: id + "/.system_generated/logs/transcript.jsonl"},
@@ -155,7 +156,7 @@ func TestQuerySessionCatalogLossProofClassCoversEveryAgentWithoutBodyReads(t *te
 		test := test
 		t.Run(string(test.agent), func(t *testing.T) {
 			runtime := sessioninventorytest.NewFakeRuntime()
-			for _, rootName := range []string{"claude-projects", "codex-sessions", "muse-sessions", "agy-conversations", "agy-brain"} {
+			for _, rootName := range []string{"claude-projects", "codex-sessions", "muse-sessions", "qoder-projects", "agy-conversations", "agy-brain"} {
 				for _, artifact := range test.artifacts {
 					if artifact.StorageRoot == rootName {
 						runtime.AddRoot(sessioninventory.StorageRoot{Agent: test.agent, Name: rootName, Path: "/native/" + rootName})

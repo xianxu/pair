@@ -23,6 +23,7 @@ func TestNativeLargeRecordsScanAndEvents(t *testing.T) {
 		scan                     func(sessioninventory.Runtime) sessioninventory.ScanResult
 	}{
 		{sessioninventory.AgentClaude, "claude-projects", "-repo/11111111-1111-4111-8111-111111111111.jsonl", "11111111-1111-4111-8111-111111111111", sessioninventory.ScanClaude},
+		{sessioninventory.AgentQoder, "qoder-projects", "-repo/11111111-1111-4111-8111-111111111111.jsonl", "11111111-1111-4111-8111-111111111111", sessioninventory.ScanQoder},
 		{sessioninventory.AgentMuse, "muse-sessions", "2026/08/28/77777777-7777-4777-8777-777777777777/session.jsonl", "77777777-7777-4777-8777-777777777777", sessioninventory.ScanMuse},
 		{sessioninventory.AgentAgy, "agy-brain", "55555555-5555-4555-8555-555555555555/.system_generated/logs/transcript.jsonl", "55555555-5555-4555-8555-555555555555", sessioninventory.ScanAgy},
 	} {
