@@ -3120,9 +3120,11 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		}
 
 		*rolling = append(*rolling, data...)
-		if len(*rolling) > rollingTailLen {
-			*rolling = (*rolling)[len(*rolling)-rollingTailLen:]
-		}
+		// Detectors and the OSC scan see the full carry+chunk; the carry is
+		// bounded only afterwards (the BR-35 rule). Bounding first dropped
+		// any OSC that sat more than a tail's worth of bytes before the end
+		// of the chunk — never scanned at all, by either the detectors or
+		// the OSC telemetry below.
 		p.checkOverlayOpen(data, *rolling)
 		matches := oscRe.FindAllSubmatchIndex(*rolling, -1)
 		if len(matches) > 0 {
@@ -3141,9 +3143,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 				}
 			}
 			*rolling = (*rolling)[last[1]:]
-			return
-		}
-		if idx := indexByte(data, 0x07); idx >= 0 {
+		} else if idx := indexByte(data, 0x07); idx >= 0 {
 			start := idx - 16
 			if start < 0 {
 				start = 0
@@ -3159,6 +3159,9 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 			} else {
 				p.debug("BEL-skip", snippet)
 			}
+		}
+		if len(*rolling) > rollingTailLen {
+			*rolling = (*rolling)[len(*rolling)-rollingTailLen:]
 		}
 	}()
 }

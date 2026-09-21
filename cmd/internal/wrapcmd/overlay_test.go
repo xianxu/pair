@@ -74,6 +74,28 @@ func TestHandleChunk_PanickingOverlayDetectorDoesNotStrandReturn(t *testing.T) {
 	}
 }
 
+// TestHandleChunk_OscScannedBeforeCarryIsBounded pins the shared-pump half of
+// the BR-35 rule for the sibling harnesses: the pump used to bound `rolling`
+// to rollingTailLen before checkOverlayOpen, so an OSC sitting more than a
+// tail's worth of bytes before the end of one chunk was never scanned at all.
+// Claude's picker OSC anywhere in the chunk must still arm the overlay.
+func TestHandleChunk_OscScannedBeforeCarryIsBounded(t *testing.T) {
+	profile, ok := profileForHarness("claude", true)
+	if !ok {
+		t.Fatal("claude profile missing")
+	}
+	p := &proxy{agentBasename: "claude", ttyProfile: &profile}
+	rolling := make([]byte, 0, rollingTailLen*2)
+	chunk := append([]byte("\x1b]777;"+pickerOpenOSCBody+"\x07"), bytes.Repeat([]byte("x"), rollingTailLen+128)...)
+	p.handleChunk(chunk, &rolling)
+	if !p.pickerActive.Load() {
+		t.Fatal("picker OSC ahead of a long chunk's tail window was not detected")
+	}
+	if len(rolling) > rollingTailLen {
+		t.Fatalf("carry = %d bytes, want bounded to %d", len(rolling), rollingTailLen)
+	}
+}
+
 func TestOverlayDetectorByAgent(t *testing.T) {
 	cases := []struct {
 		name      string
