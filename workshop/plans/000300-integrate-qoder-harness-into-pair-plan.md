@@ -858,3 +858,9 @@ Verdict on round 9 was BLOCKED with two open Importants (BR-35, BR-36) plus four
 ### 2026-09-21 — M3 close follow-up: M4 design note from the boundary review
 
 The round-10 boundary review (SHIP) left one architectural note for M4 beyond the two M5-owned roster items (`atlas/couch.md:321`, `README.md` Return row + rosters): Task 14 owes qoder's glyphs to `nvim/scrollback.lua`'s `PROMPT_PATTERN_BY_AGENT` and to `distill.go`, and Lua cannot read `qoderPromptGlyphs` (the single authority from BR-30). Task 14 must name how that consumer stays in sync — a checked-in generated table or a parity test against the Go map — rather than restating `>`/`*` by hand.
+
+### 2026-09-21 — M4 execution deltas (Task 13 as landed)
+
+- **`DefaultQoderModel` pin:** `qoder --list-models` publishes no pricing metadata, so the default is the cheap/fast tier alias `Efficient` (verified live end-to-end), chosen over any specific `*-Flash` id so the pin survives model-generation churn.
+- **Task 13 Step 2 reference corrected:** the plan said "see how `runAgy` is tested"; no `runAgy` test exists. The dispatch test uses the package's existing fake-binary seam (`TestRunCodexCLIWithoutAPIKey` pattern: script on PATH capturing argv/stdin/cwd).
+- **Task 13 Step 4 live evidence:** the invocation shape is proven live through the production dispatch by the new gated test `TestRunQoderLiveConformance` (`PAIR_LIVE_QODER_MODEL=1`). The binding-driven `pair-slug` run on a real session (`slug-parse` fired in the adapt log) is exercised by M5 Task 17's standalone smoke — the first qoder pair session is created there; no binding can exist before it.

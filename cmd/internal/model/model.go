@@ -32,6 +32,10 @@ const (
 	// defaults; callers may override per Request.
 	DefaultClaudeModel = "claude-haiku-4-5"
 	DefaultOpenAIModel = "gpt-5.4-mini"
+	// DefaultQoderModel is qoder's cheap/fast tier alias, pinned live from
+	// `qoder --list-models` (#300 M4, 2026-09-21). A tier alias rather than a
+	// specific model id so the pin survives qoder's model-generation churn.
+	DefaultQoderModel = "Efficient"
 )
 
 // Request is one model call.
@@ -43,7 +47,7 @@ const (
 // exactly as the original runAgyModel did. Fixing that is out of scope for the
 // #53 extraction; revisit if agy change-log quality suffers.
 type Request struct {
-	Agent           string        // "claude" | "codex" | "agy"
+	Agent           string        // "claude" | "codex" | "agy" | "muse" | "qoder"
 	Model           string        // "" → DefaultModel(Agent)
 	Prompt          string        // instructions / system prompt
 	Input           string        // content on stdin
@@ -68,6 +72,9 @@ func DefaultModel(agent string) string {
 	if agent == "muse" {
 		return DefaultOpenAIModel
 	}
+	if agent == "qoder" {
+		return DefaultQoderModel
+	}
 	return DefaultClaudeModel
 }
 
@@ -90,6 +97,8 @@ func Run(r Request) (string, error) {
 		return runCodexCLI(r)
 	case "agy":
 		return runAgy(r)
+	case "qoder":
+		return runQoder(r)
 	case "muse":
 		if os.Getenv("OPENAI_API_KEY") != "" {
 			return runOpenAI(r)
@@ -126,6 +135,19 @@ func runAgy(r Request) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "agy", "-p", r.Prompt)
+	cmd.Dir = os.TempDir()
+	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
+	out, err := cmd.Output()
+	return string(out), err
+}
+
+// runQoder invokes `qoder -p` for headless summarization. TempDir avoids the
+// workspace's agent context; PAIR_SLUG_NESTED=1 guards recursion.
+func runQoder(r Request) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "qoder", "-p", "--model", r.Model, r.Prompt)
+	cmd.Stdin = strings.NewReader(r.Input)
 	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")
 	out, err := cmd.Output()
