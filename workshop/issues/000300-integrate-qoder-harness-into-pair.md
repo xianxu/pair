@@ -145,7 +145,7 @@ Durable plan: `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md` 
 
 - [x] Extend `atlas/how-to-bring-up-a-new-harness-cli.md` for couch (Part A — 1e912472).
 - [x] Author the durable bring-up plan via `superpowers-writing-plans` → `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md`.
-- [ ] M1 — registry + launcher arg plumbing: `supportedAgents`/`Agent` enum join, fresh-args validation, resume token + `extractExplicitResume`; fail-closed intermediate verified.
+- [x] M1 — registry + launcher arg plumbing: `supportedAgents`/`Agent` enum join, fresh-args validation, resume token + `extractExplicitResume`; fail-closed intermediate verified.
 - [ ] M2 — session inventory scanner: claude-family core extraction, `ScanQoder` + roots + wiring, event adapter + watcher/ledger membership + `AgentSessionExists`, live conformance.
 - [ ] M3 — TTY: bootstrap positive-gated profile + live captures (`composer.raw`/`overlay.raw`) landing atomically (the capture harness requires the gate before bytes), composer recognizer spec, overlay markers, `--session-id` mint decision.
 - [ ] M4 — slug + glyphs + settings: `runQoder` print invocation, prompt glyph in the consuming registrations (scrollback + orientation; distill only if it applies), permission/trust config.
@@ -176,6 +176,7 @@ Durable plan: `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md` 
   consume sessioninventory.
 
 ### 2026-09-21
+- 2026-09-21: closed M1 — Boundary review round 2 findings addressed (BR-8..BR-14): codex --add-dir variadic regression fixed strictly per-agent and pinned (fresh_args.go freshVariadicOption + TestFreshVariadicOptionIsPerAgent, TestValidateFreshAgentArgs codex rows); qoder resume forms enumerated once (explicitResumeForms) and stripped at every persist site (persistedConfigArgs, sessionwatch.StripResumeArgs) with failing-first TestQoderShortResumeRoundTrip over space/short/inline; qoder registry parity is now mechanical (TestAgentInventoryParityWithSessionTables with named known-gap entry M2 must delete) and the intermediate schema_near_miss is pinned in the CLI golden matrix; session-side registry single-sourced (supportedAgents derives validAgent+usage); valueless --resume no longer returns the next flag as the id; --tools reachable in the qoder value list. Full go test ./... green (SUITE-EXIT=0).; review verdict: SHIP
 
 - Plan-quality gate run manually (fresh-context qoder with ariadne's exact
   plan-quality prompt; sdlc's gate dispatch bypassed per operator direction):
