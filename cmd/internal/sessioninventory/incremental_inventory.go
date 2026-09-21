@@ -146,6 +146,7 @@ func ValidateTargetWork(runtime Runtime, agent Agent, eligible []ArtifactObserva
 			state, found, err = ValidateQoderDelta(observation.Entry, nil, observed.Records)
 		default:
 			err = fmt.Errorf("unsupported agent for target validation: %s", agent)
+			diagnostics = append(diagnostics, Diagnostic{Code: DiagnosticSchemaNearMiss, Agent: agent, Detail: "unsupported agent for target validation"})
 		}
 		diagnostics = append(diagnostics, found...)
 		if err != nil || state.Disputed || !state.FirstRecordValidated {

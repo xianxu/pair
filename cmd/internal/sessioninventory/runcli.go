@@ -21,6 +21,13 @@ type SessionInventoryCLI struct{}
 // all derive from it.
 var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse, AgentQoder}
 
+// SupportedAgents returns the session-side agent inventory. Every per-agent
+// dispatch (scanner, provider contract, delta validator, event adapter,
+// watcher, ledger) must be ranged from this list or probed through it.
+func SupportedAgents() []Agent {
+	return append([]Agent(nil), supportedAgents...)
+}
+
 var sessionInventoryUsage = "usage: pair session-inventory [--agent " + agentPattern() + "] [--scope current|all] [--json] [--conformance]"
 
 func agentPattern() string {
