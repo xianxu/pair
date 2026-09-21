@@ -3,6 +3,8 @@ package launcher
 import (
 	"fmt"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/resumeform"
 )
 
 // freshAgentSpec is the per-agent context-selector surface
@@ -10,6 +12,8 @@ import (
 // short-flag cluster letters, split into selectors (rejected anywhere in the
 // cluster) and value-taking letters (a letter that takes a value ends the
 // cluster scan — the rest of the cluster is that option's glued value).
+// Resume spellings are not restated here: they come from resumeform.Forms
+// (BR-15), so the validator cannot drift from the extractors and strip sites.
 type freshAgentSpec struct {
 	forbiddenFlags string
 	forbiddenShort string
@@ -18,16 +22,16 @@ type freshAgentSpec struct {
 
 var freshAgentSpecs = map[string]freshAgentSpec{
 	"claude": {
-		forbiddenFlags: "--resume --continue --session-id --fork-session --from-pr --teleport --cloud",
-		forbiddenShort: "cr",
+		forbiddenFlags: "--continue --session-id --fork-session --from-pr --teleport --cloud",
+		forbiddenShort: "c",
 		valueShort:     "nwd",
 	},
 	"agy": {
-		forbiddenFlags: "-c --continue -continue --conversation -conversation",
+		forbiddenFlags: "-c --continue -continue -conversation",
 	},
 	"qoder": {
-		forbiddenFlags: "--resume --continue --session-id --fork-session --remote --remote-session --teleport --remote-control --list-sessions --delete-session",
-		forbiddenShort: "cr",
+		forbiddenFlags: "--continue --session-id --fork-session --remote --remote-session --teleport --remote-control --list-sessions --delete-session",
+		forbiddenShort: "c",
 		valueShort:     "mniwo",
 	},
 }
@@ -76,7 +80,7 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 			return nil
 		}
 		flag, _, inline := strings.Cut(arg, "=")
-		forbidden := spec.forbidsFlag(flag)
+		forbidden := spec.forbidsFlag(flag) || resumeform.Selector(agent, arg)
 		if agent == "muse" && flag == "--session-id" {
 			forbidden = true
 		}

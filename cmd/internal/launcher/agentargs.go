@@ -1,6 +1,10 @@
 package launcher
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/resumeform"
+)
 
 // Per-agent launch-argument composition — the pure decisions behind the shell
 // launcher's resume-token / --session-id / --no-alt-screen handling (#99 M1,
@@ -200,21 +204,17 @@ func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string
 		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")
 }
 
-// persistedConfigArgs strips every per-agent resume binding from saved launch
-// parameters. Established inventory is the binding authority; leaving generated
-// resume flags in compatibility config would compound them on every relaunch.
-// Handles every resume form the extractors accept
-// (claude --resume / --session-id, qoder --resume / -r in both forms, agy
-// --conversation incl. the inline form, codex/muse leading `resume <id>`), so
-// no accepted form can silently accumulate — the bug shell 2079-2082 guards.
-// Agent-agnostic: stripping a form the current agent never uses is a harmless
-// no-op.
+// persistedConfigArgs strips every resume binding from saved launch
+// parameters. Established inventory is the binding authority; leaving
+// generated resume flags in compatibility config would compound them on
+// every relaunch. The spellings live in one table (resumeform.Forms) shared
+// with the extractors, the validator and sessionwatch; the deterministic
+// --session-id pin is stripped alongside them. Agent-agnostic: stripping a
+// form the current agent never uses is a harmless no-op.
 func persistedConfigArgs(args []string) []string {
 	out := stripCodexResumeSubcommand(args)
+	out = resumeform.Strip(out)
 	out = stripFlagAllForms(out, "--session-id")
-	out = stripFlagAllForms(out, "--resume")
-	out = stripFlagAllForms(out, "-r")
-	out = stripFlagAllForms(out, "--conversation")
 	return out
 }
 

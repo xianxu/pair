@@ -3,8 +3,8 @@ package sessionwatch
 import (
 	"bytes"
 	"encoding/json"
-	"strings"
 
+	"github.com/xianxu/pair/cmd/internal/resumeform"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
@@ -40,30 +40,16 @@ func SupportsAgent(agent string) bool {
 	}
 }
 
-// StripResumeArgs removes every resume binding the launcher's extractors
-// accept (space and inline `--resume`, qoder's `-r` in both forms, the
-// codex/muse leading `resume <id>`) from args before they are persisted; the
-// session_id field is the canonical store for that binding.
+// StripResumeArgs removes every resume spelling the shared resume-form table
+// defines (resumeform.Forms — the same table the launcher's extractor and
+// validator read) plus the codex/muse leading `resume <id>` subcommand from
+// args before they are persisted; the session_id field is the canonical store
+// for that binding.
 func StripResumeArgs(agent string, args []string) []string {
-	stripped := make([]string, 0, len(args))
-	i := 0
 	if (agent == "codex" || agent == "muse") && len(args) >= 2 && args[0] == "resume" {
-		i = 2
+		args = args[2:]
 	}
-	for i < len(args) {
-		arg := args[i]
-		if arg == "--resume" || arg == "-r" {
-			i += 2
-			continue
-		}
-		if strings.HasPrefix(arg, "--resume=") || strings.HasPrefix(arg, "-r=") {
-			i++
-			continue
-		}
-		stripped = append(stripped, arg)
-		i++
-	}
-	return stripped
+	return resumeform.Strip(args)
 }
 
 func ConfigJSON(payload ConfigPayload) ([]byte, error) {
