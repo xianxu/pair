@@ -551,6 +551,48 @@ rounds:
       boundary: M4
       recipe: milestone-review
       blocked: true
+    - "n": 12
+      timestamp: "2026-09-21T16:49:31-07:00"
+      agent: claude
+      dispose:
+        - id: BR-42
+          disposition: addressed
+          note: trimLiveTail now trims the glyph once; TestPromptGlyphRowsDriveBothReaders ranges the registry over both readers. Reverting the TrimSpace makes the qoder row fail ("trimLiveTail leaves the bare input box").
+          round: 12
+        - id: BR-43
+          disposition: addressed
+          note: changelogcmd.PromptGlyph plus TestDistillQoderGlyphTracksPromptAuthority derive from qoderPromptCol and pin the * omission. Setting qoderPromptCol to 0 reddens both parity tests.
+          round: 12
+        - id: BR-44
+          disposition: addressed
+          note: runQoder passes --no-session-persistence and wantArgs pins it; reverting it fails TestRunQoderDispatchesToQoderCLI. The live conformance run passed and left no new files under ~/.qoder/projects.
+          round: 12
+        - id: BR-45
+          disposition: addressed
+          note: Plan Task 17 Step 3 now owns the settled-footer capture, the isFooterChrome extension and the no-op Alt+l check.
+          round: 12
+        - id: BR-46
+          disposition: addressed
+          note: The parity test escapes in the Vim dialect (backslash, ], -, ^), which is what vim.fn.search consumes; the sorted class still derives to ^ [*>] and matches the Lua row.
+          round: 12
+        - id: BR-47
+          disposition: addressed
+          note: The allowlist moved to the repo-local .qoder/settings.local.json with measured repo-bound scope and a measured chained-command denial; user scope is restored.
+          round: 12
+        - id: BR-48
+          disposition: addressed
+          note: The OSC pump test is table-driven over claude and codex; both rows fail when the bound-first order is restored in scratch.
+          round: 12
+      findings:
+        - id: BR-49
+          severity: Minor
+          title: runClaude and runMuse still persist a transcript per headless call, the class BR-44 fixed only for qoder
+          detail: 'This is the 3rd finding in family `headless-call-leaves-durable-residue`. The rule: every headless runner in model.go must pass its agent''s no-persistence flag or carry a comment naming why it cannot, pinned by one table test over the agents Run dispatches. `claude --help` lists `--no-session-persistence` and `muse exec --help` lists `--no-session-log`; `codex exec` already passes `--ephemeral`. `~/.claude/projects` holds residue project dirs from `-private-tmp` cwds. The gap predates this diff and is outside qoder''s scope, so it does not block M4. Log it as a follow-up issue rather than widening #300.'
+          family: headless-call-leaves-durable-residue
+          round: 12
+      boundary: M4
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -772,6 +814,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-48** [Minor] `refactor-changes-sibling-agent-behavior` Pump scan-before-bound change is pinned for Claude only; Codex's OSC detector and the OSC telemetry loop share the path
   TestHandleChunk_OscScannedBeforeCarryIsBounded covers Claude's picker OSC. detectCodexQuestionOSC(rolling) and the OSC telemetry loop now also see the unbounded carry+chunk with no regression row. Rule: a shared-path change is pinned over every profile that reads it. Fix: table-drive the test over each profile with an OSC overlay detector.
 
+## Round 12 — 2026-09-21T16:49:31-07:00 (claude) — passed
+
+### Disposed
+
+- BR-42 — addressed — trimLiveTail now trims the glyph once; TestPromptGlyphRowsDriveBothReaders ranges the registry over both readers. Reverting the TrimSpace makes the qoder row fail ("trimLiveTail leaves the bare input box").
+- BR-43 — addressed — changelogcmd.PromptGlyph plus TestDistillQoderGlyphTracksPromptAuthority derive from qoderPromptCol and pin the * omission. Setting qoderPromptCol to 0 reddens both parity tests.
+- BR-44 — addressed — runQoder passes --no-session-persistence and wantArgs pins it; reverting it fails TestRunQoderDispatchesToQoderCLI. The live conformance run passed and left no new files under ~/.qoder/projects.
+- BR-45 — addressed — Plan Task 17 Step 3 now owns the settled-footer capture, the isFooterChrome extension and the no-op Alt+l check.
+- BR-46 — addressed — The parity test escapes in the Vim dialect (backslash, ], -, ^), which is what vim.fn.search consumes; the sorted class still derives to ^ [*>] and matches the Lua row.
+- BR-47 — addressed — The allowlist moved to the repo-local .qoder/settings.local.json with measured repo-bound scope and a measured chained-command denial; user scope is restored.
+- BR-48 — addressed — The OSC pump test is table-driven over claude and codex; both rows fail when the bound-first order is restored in scratch.
+
+### Raised
+
+- **BR-49** [Minor] `headless-call-leaves-durable-residue` runClaude and runMuse still persist a transcript per headless call, the class BR-44 fixed only for qoder
+  This is the 3rd finding in family `headless-call-leaves-durable-residue`. The rule: every headless runner in model.go must pass its agent's no-persistence flag or carry a comment naming why it cannot, pinned by one table test over the agents Run dispatches. `claude --help` lists `--no-session-persistence` and `muse exec --help` lists `--no-session-log`; `codex exec` already passes `--ephemeral`. `~/.claude/projects` holds residue project dirs from `-private-tmp` cwds. The gap predates this diff and is outside qoder's scope, so it does not block M4. Log it as a follow-up issue rather than widening #300.
+
 ## Open findings
 
 - **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
@@ -780,10 +839,4 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
 - **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
 - **BR-41** [Minor] `detector-carry-bounded-before-scan` Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk
-- **BR-42** [Important] `agent-dispatch-registration-gap` trimLiveTail's empty-box check `t == glyph` can never match qoder's space-prefixed " >" glyph
-- **BR-43** [Important] `hand-restated-registry` distill's qoder glyph " >" restates qoderPromptGlyphs/qoderPromptCol by hand with no parity guard
-- **BR-44** [Important] `headless-call-leaves-durable-residue` runQoder persists a transcript per slug/changelog call; --no-session-persistence is not passed
-- **BR-45** [Important] `deferred-work-not-in-executing-task` The carried qoder footer-trim item lives only in a Revisions paragraph; Task 17's steps omit it
-- **BR-46** [Minor] `unbacked-existing-behavior-claim` Parity test's class escape uses Lua-pattern dialect but scrollback.lua patterns are Vim regex
-- **BR-47** [Minor] `permission-allowlist-scope` Standard-set allow rules registered at user scope, broader than claude's project-scoped precedent
-- **BR-48** [Minor] `refactor-changes-sibling-agent-behavior` Pump scan-before-bound change is pinned for Claude only; Codex's OSC detector and the OSC telemetry loop share the path
+- **BR-49** [Minor] `headless-call-leaves-durable-residue` runClaude and runMuse still persist a transcript per headless call, the class BR-44 fixed only for qoder
