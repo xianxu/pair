@@ -7,6 +7,7 @@ created: 2026-09-20
 updated: 2026-09-20
 estimate_hours:
 started: 2026-09-20T18:58:25-07:00
+flow: {kind: quick, provenance: inferred, spec: "8c42eb10", done: "6d744b6d"}
 ---
 
 # integrate qoder harness into pair
