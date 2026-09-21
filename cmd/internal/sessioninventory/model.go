@@ -16,6 +16,7 @@ const (
 	AgentCodex  Agent = "codex"
 	AgentAgy    Agent = "agy"
 	AgentMuse   Agent = "muse"
+	AgentQoder  Agent = "qoder"
 )
 
 type Role string
@@ -443,7 +444,7 @@ func diagnosticID(d Diagnostic) string {
 
 func validAgent(agent Agent) bool {
 	switch agent {
-	case AgentClaude, AgentCodex, AgentAgy, AgentMuse:
+	case AgentClaude, AgentCodex, AgentAgy, AgentMuse, AgentQoder:
 		return true
 	default:
 		return false

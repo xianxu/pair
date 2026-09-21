@@ -15,7 +15,7 @@ import (
 // pair:155-concept integration new M2 session-inventory
 type SessionInventoryCLI struct{}
 
-var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse}
+var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse, AgentQoder}
 
 // RunCLI resolves the production runtime and emits one buffered result.
 func RunCLI(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -73,16 +73,16 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 	activity := flags.Bool("activity", false, "internal established-root activity")
 	ownerTag := flags.String("owner", "", "internal established owner tag")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
+		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse|qoder] [--scope current|all] [--json] [--conformance]"
 	}
 	if *scope != "current" && *scope != "all" {
 		return cliOptions{}, fmt.Sprintf("pair session-inventory: unsupported scope %q", *scope)
 	}
 	if *activity && (*agentName == "" || *scope != "current" || *conformance) {
-		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
+		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse|qoder] [--scope current|all] [--json] [--conformance]"
 	}
 	if *ownerTag != "" && (*agentName == "" || *scope != "current" || *conformance || *activity || *jsonOutput) {
-		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
+		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse|qoder] [--scope current|all] [--json] [--conformance]"
 	}
 	agents := append([]Agent(nil), supportedAgents...)
 	if *agentName != "" {

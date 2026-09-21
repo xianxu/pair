@@ -21,7 +21,7 @@
     "name": "invalid flag",
     "exit": 1,
     "stdout": "",
-    "stderr": "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]\n"
+    "stderr": "usage: pair session-inventory [--agent claude|codex|agy|muse|qoder] [--scope current|all] [--json] [--conformance]\n"
   },
   {
     "name": "fatal storage",
