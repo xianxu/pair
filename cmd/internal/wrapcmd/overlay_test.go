@@ -160,6 +160,17 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			wantMatch: "Permission Required",
 		},
 		{
+			// The header marker is the one deliberate exception to "markers
+			// must be chrome agent prose cannot forge": it is ordinary
+			// English, but it titles every permission picker. BR-38 pins the
+			// exemption's boundary — the topic in other words, other case, or
+			// not contiguous must stay closed.
+			name:     "qoder spaced prose about permissions does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("Permission is required for this tool to run.\r\n"),
+			wantOpen: false,
+		},
+		{
 			name:     "qoder composer text does not open overlay",
 			agent:    "qoder",
 			raw:      []byte("\x1b[7;1H\x1b[38;2;149;149;146m────\x1b[8;1H\x1b[38;2;149;124;173m> \x1b[?25h\x1b[8;3HType your message or @path/to/file"),

@@ -179,10 +179,7 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 	if !recognized || p.orientation.codexStartupPending {
 		return false
 	}
-	promptCol := 0
-	if p.agentBasename == "qoder" {
-		promptCol = qoderPromptCol
-	}
+	promptCol := p.orientation.profile.orientationPromptCol
 	for y := snapshot.Cursor.Y; y >= 0; y-- {
 		cell := snapshot.CellAt(promptCol, y)
 		if cell == nil || strings.TrimSpace(cell.Content) == "" {
@@ -193,7 +190,7 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 		// not composer content. Gated per-profile: for every other agent a
 		// rule cell here means the cursor is not in the composer, and it must
 		// keep declining.
-		if p.agentBasename == "qoder" && cell.Content == claudeComposerRule {
+		if p.orientation.profile.orientationRuleCellTolerant && cell.Content == claudeComposerRule {
 			continue
 		}
 		if !orientationPromptOK(p.agentBasename, cell.Content) {
@@ -293,11 +290,10 @@ func agyUncoloredOrientationComposer(snapshot terminalSnapshot, modelFooter stri
 		return true
 	}
 	if !ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
-		promptOK:             func(c uv.Cell) bool { return c.Content == ">" && c.Style.Fg == nil },
-		ruleAt:               rule,
-		minCursorX:           2,
-		maxRows:              25,
-		requireVisibleCursor: true,
+		promptOK:   func(c uv.Cell) bool { return c.Content == ">" && c.Style.Fg == nil },
+		ruleAt:     rule,
+		minCursorX: 2,
+		maxRows:    25,
 	}) {
 		return false, modelFooter
 	}

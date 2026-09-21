@@ -292,6 +292,42 @@ func TestOrientationRuleCellToleranceStaysPerProfile(t *testing.T) {
 		})
 	}
 }
+
+// TestOrientationUncoloredAgyRequiresVisibleCursor pins the fail-safe default
+// of the spec's allowHiddenCursor field (BR-37): only Qoder's spec sets it, so
+// the agy uncolored fallback must keep declining a snapshot whose system cursor
+// is hidden even when the box is otherwise complete. The visible-cursor row is
+// the control — without it a decline could come from the box shape rather than
+// the cursor, and the hidden row would pin nothing.
+func TestOrientationUncoloredAgyRequiresVisibleCursor(t *testing.T) {
+	// The closing rule must sit directly below the prompt row: the fallback's
+	// footer scan reads the row after that closing rule for the shortcuts line.
+	box := "\x1b[6;1H─────\x1b[7;1H> alpha\x1b[8;1H─────" +
+		"\x1b[9;1H? for shortcuts Claude Sonnet 4.6 (Thinking)"
+	cases := []struct {
+		name   string
+		stream string
+		want   bool
+	}{
+		{name: "visible cursor inside the composer", stream: box + "\x1b[?25h\x1b[7;5H", want: true},
+		{name: "hidden cursor inside the composer", stream: box + "\x1b[?25l\x1b[7;5H", want: false},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			p := &proxy{agentBasename: "agy", stdout: io.Discard, lifecycleEvents: make(chan TurnObservation, 8)}
+			p.orientation = newOrientationDelivery(orientation.Request{SchemaVersion: 1, Tag: "work", Agent: "agy", Attempt: "n", Body: "read context"})
+			if err := p.configureHarnessTTY(false, 120, 38); err != nil {
+				t.Fatal(err)
+			}
+			defer p.closeTerminal()
+			var rolling []byte
+			p.handleChunk([]byte(test.stream), &rolling)
+			if got := p.orientationComposerActive(p.terminal.Snapshot()); got != test.want {
+				t.Fatalf("orientationComposerActive = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
 func TestOrientationChildEnvironmentAndReadinessStatus(t *testing.T) {
 	isolateNotificationSockets(t)
 	t.Setenv("PAIR_SCOPE_KEY", "")

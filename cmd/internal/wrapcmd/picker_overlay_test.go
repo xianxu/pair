@@ -2,6 +2,7 @@ package wrapcmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -97,6 +98,33 @@ func TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText(t *testing.T) {
 			checkOverlayBytes(p, []byte("\x1b[1G\x1b[2K"))
 			if p.pickerActive.Load() {
 				t.Fatalf("%s: pickerActive re-armed from consumed picker bytes", file)
+			}
+		})
+	}
+}
+
+// TestCheckOverlayOpen_QoderSplitFooterSurvivesLongSecondChunk is BR-35's pin:
+// the raw window must be scanned at its full carry+chunk length BEFORE it is
+// re-bounded to one tail. The split below cuts the footer's \x1b[23m — the same
+// escape the selection.raw 6426/6616 replay cut — so the marker exists only in
+// the concatenation. A window bounded before the scan drops the marker's head
+// once the second chunk carries more than a tail's worth of bytes: measured
+// during the M3 review as armed with 0 and 100 bytes of filler, disarmed from
+// 400. The 0-byte row is the short-chunk control; 600 and 2000 discriminate.
+func TestCheckOverlayOpen_QoderSplitFooterSurvivesLongSecondChunk(t *testing.T) {
+	head := []byte("\x1b[38;2;149;149;143m\u2191\u2193navigate\u00b7Enter\x1b[2")
+	tail := []byte("3mselect\u00b7Esccancel\x1b[39m")
+	for _, filler := range []int{0, 600, 2000} {
+		t.Run(fmt.Sprintf("filler=%d", filler), func(t *testing.T) {
+			p := proxyForHarness("qoder")
+			checkOverlayBytes(p, head)
+			if p.pickerActive.Load() {
+				t.Fatal("the split head must not arm the overlay on its own")
+			}
+			second := append(append([]byte(nil), tail...), bytes.Repeat([]byte("x"), filler)...)
+			checkOverlayBytes(p, second)
+			if !p.pickerActive.Load() {
+				t.Fatalf("footer split inside its escape with %d bytes of filler did not arm pickerActive", filler)
 			}
 		})
 	}

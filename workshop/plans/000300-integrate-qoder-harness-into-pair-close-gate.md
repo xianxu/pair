@@ -392,6 +392,78 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: true
+    - "n": 9
+      timestamp: "2026-09-21T15:03:05-07:00"
+      agent: claude
+      dispose:
+        - id: BR-28
+          disposition: addressed
+          note: 'overlayRawTail is proxy-owned, mutated only under overlayMu, and cleared in emitPlainCR beside overlayTextTail. Scratch revert (drop the `p.overlayRawTail = nil` line) turns TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText red on both overlay.raw and selection.raw. The consumption sweep is complete: overlayTextTail and overlayRawTail are cleared, and the claude/codex OSC paths advance `rolling` past the last match (wrap.go:3136).'
+          round: 9
+        - id: BR-29
+          disposition: addressed
+          note: qoderComposerActive is a ruledBoxComposerSpec registration (promptCol, requireVisibleCursor). ruledBoxComposerActive owns the only ruled-box loop; the callers are muse, claude, the agy orientation fallback and qoder. The differential rows are unchanged and green.
+          round: 9
+        - id: BR-30
+          disposition: addressed
+          note: qoderPromptCol and qoderPromptGlyphs (composer_recognizers.go) are read by the recognizer spec, by orientationComposerActive (promptCol) and by orientationPromptOK. No second restatement of column 1 or of `>`/`*` remains in Go.
+          round: 9
+        - id: BR-31
+          disposition: addressed
+          note: The rule-cell skip is gated to qoder. With the gate removed in a scratch copy, TestOrientationRuleCellToleranceStaysPerProfile goes red for claude, muse and agy, while the qoder positive row stays true.
+          round: 9
+        - id: BR-32
+          disposition: addressed
+          note: TestRunLaunchForcedCreateQoderMintProbesQoderSessions uses the agent-keyed fake. With the probe reverted to the literal "claude" in a scratch copy, both subtests fail (MINTED-1 instead of MINTED-2; empty PAIR_SESSION_ID).
+          round: 9
+        - id: BR-33
+          disposition: addressed
+          note: The ttyFixtureExpectation comment now says only overlay.raw takes the shared declining default. A glued-prose negative row for "forfuturesessions" was added to TestOverlayDetectorByAgent. The class residual is raised as a new Minor below.
+          round: 9
+        - id: BR-34
+          disposition: addressed
+          note: Task 14 is amended, the Goal cites 1.1.60, and atlas/architecture.md:1203 now names the MintsSessionID set. The stale 1.1.59 fixture paths in the Core concepts table and Task 9 are covered by the M3 Revisions entry; the sweep gap is in the atlas finding below.
+          round: 9
+      findings:
+        - id: BR-35
+          severity: Important
+          title: Qoder raw window is truncated to 512 bytes before it is scanned, so it is not split-proof for chunks longer than about 500 bytes
+          detail: 'detectQoderOverlayOpen (wrap.go:925-930) appends the chunk, trims to the last rollingTailLen bytes, then scans. A marker that straddles a chunk boundary inside an escape is missed whenever the second chunk carries more than about 500 bytes after the split. Measured in a scratch copy: first chunk `...Enter\x1b[2`, second chunk `3mselect·Esccancel` plus filler. Armed=true with 0 and 100 bytes of filler, armed=false with 400, 600 and 2000. The atlas and plan claim the byte-contiguous window cannot be corrupted by a split. TestHarnessTTYFixtureConformance cannot see this, because both marker paints sit within about 200 bytes of the end of their fixtures, so every replayed split leaves a short second chunk. Fix: scan stripTerminalControls(prevTail+data) and only then bound the carry. Add a test that puts the split inside the marker''s escape with at least 1 KB of trailing bytes. The composer gate still forces bare CR on the captured picker shapes, which is why this is Important rather than Critical.'
+          family: detector-carry-bounded-before-scan
+          round: 9
+        - id: BR-36
+          severity: Important
+          title: atlas/architecture.md still enumerates profiles without Qoder at :694 (keymaps), :702 (ruled-box sharing) and :704 (conformance expectation)
+          detail: 'This is the 5th finding in family `hand-restated-registry`, and the rule matters more than this instance. Rule: when a harness registers, grep the previous newest harness (`grep -n -i muse atlas/*.md`) and extend every hit that enumerates sibling harnesses in the same commit; log the sweep. Today :694 lists keymaps for Claude/Codex/Agy/Muse only (not `\`-CR/CR/Ctrl-U for Qoder). :702 says muse and claude "share one ruledBoxComposerActive ... prompt glyph at column 0", which is now false: Qoder is a third spec, with promptCol 1 and requireVisibleCursor false. :704 lists the composer.raw keymap expectation without Qoder. :700 and :1203 were edited in this same range, two lines away. Line 903 ("Claude, Codex, Agy, and Muse record parsing") is also stale from M2; sweep it too.'
+          family: hand-restated-registry
+          round: 9
+        - id: BR-37
+          severity: Minor
+          title: requireVisibleCursor defaults permissive, and the agy orientation fallback's hidden-cursor decline is pinned by no test
+          detail: 'This is the 5th finding in family `refactor-changes-sibling-agent-behavior`. Rule: a spec field added for one harness must default to the prior behaviour of every existing spec, so invert it to `allowHiddenCursor` and only Qoder sets it. Then no sibling needs touching and a forgotten field cannot fail open. Measured: flipping requireVisibleCursor to false on claude reddens TestClaudeComposerActiveSnapshotDifferential, and on muse it reddens TestMuseComposerActiveSnapshotDifferential and TestMuseFixtureEvidence. Flipping it on agyUncoloredOrientationComposer (orientation.go:300) turns no test red. Add a hidden-cursor negative row for the agy uncolored path.'
+          family: refactor-changes-sibling-agent-behavior
+          round: 9
+        - id: BR-38
+          severity: Minor
+          title: '"Permission Required" is ordinary English, which the atlas rule and the dropped forfuturesessions marker say a marker must not be'
+          detail: BR-33 fixed the instance it named, not the class of markers that agent output can produce. "Permission Required" survives the strip with real spaces and appears in any transcript, tool output or source file that mentions the phrase (this repo's own atlas and wrap.go do). It arms pickerActive, and the next composer Enter then passes a bare CR and submits a draft. The code comment defends the header as the generic marker, which is a defensible tradeoff but the opposite of the rule stated two paragraphs later. Either require co-occurrence with a body marker, or amend the atlas rule to say the header is exempt and why, and pin a spaced-prose negative row.
+          family: overlay-marker-matches-agent-prose
+          round: 9
+        - id: BR-39
+          severity: Minor
+          title: orientation.go branches on p.agentBasename == "qoder" at two sites plus orientationPromptOK, instead of a per-profile orientation field
+          detail: Behaviour is now pinned per sibling, so this is design only. A profile-carried promptCol and ruleCellTolerant would drop the string compares and make the M4 glyph consumers derive the same way.
+          family: agent-dispatch-registration-gap
+          round: 9
+        - id: BR-40
+          severity: Minor
+          title: Qoder adds the fourth copy of the overlay tail-carry block and a third identical marker-scan loop
+          detail: ARCH-DRY. detectQoderOverlayText is identical to detectAgyOverlayText and detectCodexOverlayText apart from the marker slice, and the `visible = p.overlayTextTail + visible; p.overlayTextTail = textSuffix(...)` block now sits at wrap.go:792, 828, 865 and 935. A shared `firstMarker(visible, markers)` and a `p.overlayVisible(data)` helper would collapse them.
+          family: hand-restated-registry
+          round: 9
+      boundary: M3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -551,6 +623,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-34** [Minor] `plan-prose-restates-diff` Plan and atlas lag M3: Task 14 still lists orientation.go, Goal cites 1.1.59, architecture.md:1203 says --session-id is claude-only
   orientation.go's qoder branch landed in M3 Task 9, so Task 14's orientationPromptOK map row is superseded and the M3 Revisions entry omits it. The plan Goal says v1.1.59 while fixtures are 1.1.60. atlas/architecture.md:1203 still says "For claude ... --session-id is deterministic" though qoder now pins too.
 
+## Round 9 — 2026-09-21T15:03:05-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-28 — addressed — overlayRawTail is proxy-owned, mutated only under overlayMu, and cleared in emitPlainCR beside overlayTextTail. Scratch revert (drop the `p.overlayRawTail = nil` line) turns TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText red on both overlay.raw and selection.raw. The consumption sweep is complete: overlayTextTail and overlayRawTail are cleared, and the claude/codex OSC paths advance `rolling` past the last match (wrap.go:3136).
+- BR-29 — addressed — qoderComposerActive is a ruledBoxComposerSpec registration (promptCol, requireVisibleCursor). ruledBoxComposerActive owns the only ruled-box loop; the callers are muse, claude, the agy orientation fallback and qoder. The differential rows are unchanged and green.
+- BR-30 — addressed — qoderPromptCol and qoderPromptGlyphs (composer_recognizers.go) are read by the recognizer spec, by orientationComposerActive (promptCol) and by orientationPromptOK. No second restatement of column 1 or of `>`/`*` remains in Go.
+- BR-31 — addressed — The rule-cell skip is gated to qoder. With the gate removed in a scratch copy, TestOrientationRuleCellToleranceStaysPerProfile goes red for claude, muse and agy, while the qoder positive row stays true.
+- BR-32 — addressed — TestRunLaunchForcedCreateQoderMintProbesQoderSessions uses the agent-keyed fake. With the probe reverted to the literal "claude" in a scratch copy, both subtests fail (MINTED-1 instead of MINTED-2; empty PAIR_SESSION_ID).
+- BR-33 — addressed — The ttyFixtureExpectation comment now says only overlay.raw takes the shared declining default. A glued-prose negative row for "forfuturesessions" was added to TestOverlayDetectorByAgent. The class residual is raised as a new Minor below.
+- BR-34 — addressed — Task 14 is amended, the Goal cites 1.1.60, and atlas/architecture.md:1203 now names the MintsSessionID set. The stale 1.1.59 fixture paths in the Core concepts table and Task 9 are covered by the M3 Revisions entry; the sweep gap is in the atlas finding below.
+
+### Raised
+
+- **BR-35** [Important] `detector-carry-bounded-before-scan` Qoder raw window is truncated to 512 bytes before it is scanned, so it is not split-proof for chunks longer than about 500 bytes
+  detectQoderOverlayOpen (wrap.go:925-930) appends the chunk, trims to the last rollingTailLen bytes, then scans. A marker that straddles a chunk boundary inside an escape is missed whenever the second chunk carries more than about 500 bytes after the split. Measured in a scratch copy: first chunk `...Enter\x1b[2`, second chunk `3mselect·Esccancel` plus filler. Armed=true with 0 and 100 bytes of filler, armed=false with 400, 600 and 2000. The atlas and plan claim the byte-contiguous window cannot be corrupted by a split. TestHarnessTTYFixtureConformance cannot see this, because both marker paints sit within about 200 bytes of the end of their fixtures, so every replayed split leaves a short second chunk. Fix: scan stripTerminalControls(prevTail+data) and only then bound the carry. Add a test that puts the split inside the marker's escape with at least 1 KB of trailing bytes. The composer gate still forces bare CR on the captured picker shapes, which is why this is Important rather than Critical.
+- **BR-36** [Important] `hand-restated-registry` atlas/architecture.md still enumerates profiles without Qoder at :694 (keymaps), :702 (ruled-box sharing) and :704 (conformance expectation)
+  This is the 5th finding in family `hand-restated-registry`, and the rule matters more than this instance. Rule: when a harness registers, grep the previous newest harness (`grep -n -i muse atlas/*.md`) and extend every hit that enumerates sibling harnesses in the same commit; log the sweep. Today :694 lists keymaps for Claude/Codex/Agy/Muse only (not `\`-CR/CR/Ctrl-U for Qoder). :702 says muse and claude "share one ruledBoxComposerActive ... prompt glyph at column 0", which is now false: Qoder is a third spec, with promptCol 1 and requireVisibleCursor false. :704 lists the composer.raw keymap expectation without Qoder. :700 and :1203 were edited in this same range, two lines away. Line 903 ("Claude, Codex, Agy, and Muse record parsing") is also stale from M2; sweep it too.
+- **BR-37** [Minor] `refactor-changes-sibling-agent-behavior` requireVisibleCursor defaults permissive, and the agy orientation fallback's hidden-cursor decline is pinned by no test
+  This is the 5th finding in family `refactor-changes-sibling-agent-behavior`. Rule: a spec field added for one harness must default to the prior behaviour of every existing spec, so invert it to `allowHiddenCursor` and only Qoder sets it. Then no sibling needs touching and a forgotten field cannot fail open. Measured: flipping requireVisibleCursor to false on claude reddens TestClaudeComposerActiveSnapshotDifferential, and on muse it reddens TestMuseComposerActiveSnapshotDifferential and TestMuseFixtureEvidence. Flipping it on agyUncoloredOrientationComposer (orientation.go:300) turns no test red. Add a hidden-cursor negative row for the agy uncolored path.
+- **BR-38** [Minor] `overlay-marker-matches-agent-prose` "Permission Required" is ordinary English, which the atlas rule and the dropped forfuturesessions marker say a marker must not be
+  BR-33 fixed the instance it named, not the class of markers that agent output can produce. "Permission Required" survives the strip with real spaces and appears in any transcript, tool output or source file that mentions the phrase (this repo's own atlas and wrap.go do). It arms pickerActive, and the next composer Enter then passes a bare CR and submits a draft. The code comment defends the header as the generic marker, which is a defensible tradeoff but the opposite of the rule stated two paragraphs later. Either require co-occurrence with a body marker, or amend the atlas rule to say the header is exempt and why, and pin a spaced-prose negative row.
+- **BR-39** [Minor] `agent-dispatch-registration-gap` orientation.go branches on p.agentBasename == "qoder" at two sites plus orientationPromptOK, instead of a per-profile orientation field
+  Behaviour is now pinned per sibling, so this is design only. A profile-carried promptCol and ruleCellTolerant would drop the string compares and make the M4 glyph consumers derive the same way.
+- **BR-40** [Minor] `hand-restated-registry` Qoder adds the fourth copy of the overlay tail-carry block and a third identical marker-scan loop
+  ARCH-DRY. detectQoderOverlayText is identical to detectAgyOverlayText and detectCodexOverlayText apart from the marker slice, and the `visible = p.overlayTextTail + visible; p.overlayTextTail = textSuffix(...)` block now sits at wrap.go:792, 828, 865 and 935. A shared `firstMarker(visible, markers)` and a `p.overlayVisible(data)` helper would collapse them.
+
 ## Open findings
 
 - **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
@@ -558,10 +657,9 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Minor] `unbacked-existing-behavior-claim` Issue Log line 184 (this window) records BR-18/BR-24 as delivered; no commit contains them and the working-tree version only partly delivers them
 - **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
 - **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
-- **BR-28** [Critical] `overlay-flag-rearmed-from-stale-input` Qoder raw rolling-buffer scan re-arms pickerActive after the confirming Enter (ARCH-ORDER)
-- **BR-29** [Important] `qoder-branch-copies-claude` qoderComposerActive re-implements ruledBoxComposerActive instead of adding a spec (ARCH-DRY)
-- **BR-30** [Important] `hand-restated-registry` Qoder prompt column 1 and glyph set >/* are restated in the recognizer and in orientation.go
-- **BR-31** [Important] `refactor-changes-sibling-agent-behavior` Shared orientationComposerActive now skips column-N rule cells for every agent; sibling behavior changes unpinned
-- **BR-32** [Important] `agent-dispatch-registration-gap` Qoder create-path mint (createflow.go:596 AgentSessionExists(agent, ...)) is pinned by no test
-- **BR-33** [Minor] `unbacked-existing-behavior-claim` ttyFixtureExpectation comment says selection.raw takes the shared default, but it has its own explicit row
-- **BR-34** [Minor] `plan-prose-restates-diff` Plan and atlas lag M3: Task 14 still lists orientation.go, Goal cites 1.1.59, architecture.md:1203 says --session-id is claude-only
+- **BR-35** [Important] `detector-carry-bounded-before-scan` Qoder raw window is truncated to 512 bytes before it is scanned, so it is not split-proof for chunks longer than about 500 bytes
+- **BR-36** [Important] `hand-restated-registry` atlas/architecture.md still enumerates profiles without Qoder at :694 (keymaps), :702 (ruled-box sharing) and :704 (conformance expectation)
+- **BR-37** [Minor] `refactor-changes-sibling-agent-behavior` requireVisibleCursor defaults permissive, and the agy orientation fallback's hidden-cursor decline is pinned by no test
+- **BR-38** [Minor] `overlay-marker-matches-agent-prose` "Permission Required" is ordinary English, which the atlas rule and the dropped forfuturesessions marker say a marker must not be
+- **BR-39** [Minor] `agent-dispatch-registration-gap` orientation.go branches on p.agentBasename == "qoder" at two sites plus orientationPromptOK, instead of a per-profile orientation field
+- **BR-40** [Minor] `hand-restated-registry` Qoder adds the fourth copy of the overlay tail-carry block and a third identical marker-scan loop

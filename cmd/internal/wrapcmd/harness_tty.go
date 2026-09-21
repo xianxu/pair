@@ -18,6 +18,13 @@ type harnessTTYProfile struct {
 	composerGate       composerGatePolicy
 	recognize          composerRecognizer
 	captureSetsOverlay bool
+	// orientationPromptCol and orientationRuleCellTolerant serve the
+	// orientation auto-submit gate's composer probe, which re-reads the same
+	// harness quirks the recognizer spec encodes. They live here so a harness
+	// quirk is declared once, at its profile row, rather than as an
+	// agentBasename comparison inside orientation.go.
+	orientationPromptCol        int
+	orientationRuleCellTolerant bool
 }
 
 var harnessTTYProfiles = map[string]harnessTTYProfile{
@@ -82,9 +89,11 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 			altCR:   []byte{'\r'},
 			altBS:   []byte{0x15},
 		},
-		overlay:      detectQoderOverlayOpen,
-		composerGate: composerGatePositive,
-		recognize:    qoderComposerActive,
+		overlay:                     detectQoderOverlayOpen,
+		composerGate:                composerGatePositive,
+		recognize:                   qoderComposerActive,
+		orientationPromptCol:        qoderPromptCol,
+		orientationRuleCellTolerant: true,
 	},
 }
 

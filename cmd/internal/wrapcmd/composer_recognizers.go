@@ -138,10 +138,11 @@ type ruledBoxComposerSpec struct {
 	promptCol int
 	// minCursorX is the first column the harness leaves for composer text.
 	minCursorX int
-	// requireVisibleCursor is false for a harness that hides the system cursor
-	// behind one it paints itself (Qoder), so hidden-cursor snapshots still
-	// qualify.
-	requireVisibleCursor bool
+	// allowHiddenCursor is true only for a harness that hides the system cursor
+	// behind one it paints itself (Qoder), so hidden-cursor snapshots may still
+	// qualify. The zero value requires the visible cursor — the prior behaviour
+	// of every spec — so a spec that forgets the field fails closed.
+	allowHiddenCursor bool
 }
 
 // ruledBoxComposerActive reports whether the cursor rests inside a ruled box.
@@ -152,7 +153,7 @@ type ruledBoxComposerSpec struct {
 func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec) bool {
 	if !snapshotCoordinatesValid(snapshot) ||
 		snapshot.Cursor.X < spec.minCursorX ||
-		(spec.requireVisibleCursor && !snapshot.CursorVisible) {
+		(!spec.allowHiddenCursor && !snapshot.CursorVisible) {
 		return false
 	}
 
@@ -223,8 +224,7 @@ func museComposerActive(snapshot terminalSnapshot) bool {
 		},
 		maxRows: museComposerMaxRows,
 		// Column 0 is the prompt and column 1 its trailing space.
-		minCursorX:           2,
-		requireVisibleCursor: true,
+		minCursorX: 2,
 	})
 }
 
@@ -263,8 +263,7 @@ func claudeComposerActive(snapshot terminalSnapshot) bool {
 		},
 		maxRows: claudeComposerMaxRows,
 		// Column 0 is the prompt and column 1 its trailing space.
-		minCursorX:           2,
-		requireVisibleCursor: true,
+		minCursorX: 2,
 	})
 }
 
@@ -305,10 +304,10 @@ var qoderPromptGlyphs = map[string]bool{">": true, "*": true}
 // qoderPromptGlyphs) and the startup screen's separator lines (which have no
 // prompt glyph at qoderPromptCol).
 //
-// Qoder hides the system cursor and renders its own visual cursor, so
-// CursorVisible is not required. Heights are unbounded like Claude's: the box
-// cannot absorb distant chrome because its closing rule is the first painted
-// column-0 row below the prompt.
+// Qoder hides the system cursor and renders its own visual cursor, which is
+// why its spec — and only its spec — sets allowHiddenCursor. Heights are
+// unbounded like Claude's: the box cannot absorb distant chrome because its
+// closing rule is the first painted column-0 row below the prompt.
 func qoderComposerActive(snapshot terminalSnapshot) bool {
 	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
 		promptOK: func(c uv.Cell) bool {
@@ -318,10 +317,10 @@ func qoderComposerActive(snapshot terminalSnapshot) bool {
 			cell := s.CellAt(0, y)
 			return cell != nil && cell.Content == claudeComposerRule
 		},
-		maxRows:              0,
-		promptCol:            qoderPromptCol,
-		minCursorX:           2,
-		requireVisibleCursor: false,
+		maxRows:           0,
+		promptCol:         qoderPromptCol,
+		minCursorX:        2,
+		allowHiddenCursor: true,
 	})
 }
 

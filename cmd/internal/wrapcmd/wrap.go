@@ -787,12 +787,35 @@ func detectCodexOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	if open, reason := detectCodexQuestionOSC(rolling); open {
 		return true, reason
 	}
+	return detectCodexOverlayText(p.overlayVisible(data))
+}
+
+// overlayVisible folds this chunk's stripped text into the carried visible
+// tail and returns the concatenation, re-bounding the carry. The escapes are
+// stripped per chunk BEFORE they reach the carry, so what is carried is plain
+// text; the tail exists only so a marker split across two chunks still reads
+// whole. A nil receiver is fine: callers without a proxy get the plain strip.
+func (p *proxy) overlayVisible(data []byte) string {
 	visible := stripTerminalControls(data)
-	if p != nil {
-		visible = p.overlayTextTail + visible
-		p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	if p == nil {
+		return visible
 	}
-	return detectCodexOverlayText(visible)
+	visible = p.overlayTextTail + visible
+	p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	return visible
+}
+
+// firstMarker returns the first configured marker found in visible. The text
+// detectors differ only in their marker set, so one loop keeps them from
+// drifting apart; markers are probed in slice order, so the reason string is
+// deterministic.
+func firstMarker(visible string, markers []string) (bool, string) {
+	for _, marker := range markers {
+		if strings.Contains(visible, marker) {
+			return true, marker
+		}
+	}
+	return false, ""
 }
 
 func detectCodexQuestionOSC(rolling []byte) (bool, string) {
@@ -806,12 +829,7 @@ func detectCodexQuestionOSC(rolling []byte) (bool, string) {
 }
 
 func detectCodexOverlayText(visible string) (bool, string) {
-	for _, marker := range codexPickerMarkers {
-		if strings.Contains(visible, marker) {
-			return true, marker
-		}
-	}
-	return false, ""
+	return firstMarker(visible, codexPickerMarkers)
 }
 
 var agyPickerMarkers = []string{
@@ -823,21 +841,11 @@ var agyPickerMarkers = []string{
 }
 
 func detectAgyOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
-	visible := stripTerminalControls(data)
-	if p != nil {
-		visible = p.overlayTextTail + visible
-		p.overlayTextTail = textSuffix(visible, rollingTailLen)
-	}
-	return detectAgyOverlayText(visible)
+	return detectAgyOverlayText(p.overlayVisible(data))
 }
 
 func detectAgyOverlayText(visible string) (bool, string) {
-	for _, marker := range agyPickerMarkers {
-		if strings.Contains(visible, marker) {
-			return true, marker
-		}
-	}
-	return false, ""
+	return firstMarker(visible, agyPickerMarkers)
 }
 
 var musePickerMarkers = []string{
@@ -860,14 +868,12 @@ var musePickerMarkers = []string{
 }
 
 func detectMuseOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
-	visible := stripTerminalControls(data)
-	if p != nil {
-		visible = p.overlayTextTail + visible
-		p.overlayTextTail = textSuffix(visible, rollingTailLen)
-	}
-	return detectMuseOverlayText(visible)
+	return detectMuseOverlayText(p.overlayVisible(data))
 }
 
+// detectMuseOverlayText folds both sides rather than calling firstMarker: Muse
+// vary-cases its markers across versions, and the reason string must keep the
+// marker's declared spelling, so the loop stays its own.
 func detectMuseOverlayText(visible string) (bool, string) {
 	low := asciiFold(visible)
 	for _, marker := range musePickerMarkers {
@@ -917,34 +923,35 @@ func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	// escape sequence cannot corrupt it the way per-chunk stripping can. This
 	// is not hypothetical: replaying selection.raw split 6426/6616 cut the
 	// footer inside \x1b[23m, and the stripped tail kept the truncated escape
-	// verbatim, destroying "Enterselect". It is proxy-owned rather than the
-	// chunk pump's rolling slice so emitPlainCR can clear it when the
-	// confirming Enter consumes pickerActive — a raw window that outlives
-	// consumption re-arms the flag off its own consumed bytes.
+	// verbatim, destroying "Enterselect".
+	//
+	// The scan sees the whole carry+chunk BEFORE any bounding. A marker that
+	// straddles the boundary inside an escape is split across the two, and
+	// bounding the carry first would drop the marker's head whenever the new
+	// chunk carries more than a tail's worth of bytes after the split — that
+	// is BR-35: armed with 0 or 100 bytes of trailing filler, disarmed with
+	// 400, 600 or 2000.
+	//
+	// The window is proxy-owned rather than the chunk pump's rolling slice so
+	// emitPlainCR can clear it when the confirming Enter consumes
+	// pickerActive — a raw window that outlives consumption re-arms the flag
+	// off its own consumed bytes (BR-28).
 	if p != nil {
-		p.overlayRawTail = append(p.overlayRawTail, data...)
-		if len(p.overlayRawTail) > rollingTailLen {
-			p.overlayRawTail = p.overlayRawTail[len(p.overlayRawTail)-rollingTailLen:]
+		haystack := append(append([]byte(nil), p.overlayRawTail...), data...)
+		open, reason := detectQoderOverlayText(stripTerminalControls(haystack))
+		if len(haystack) > rollingTailLen {
+			haystack = haystack[len(haystack)-rollingTailLen:]
 		}
-		if open, reason := detectQoderOverlayText(stripTerminalControls(p.overlayRawTail)); open {
+		p.overlayRawTail = haystack
+		if open {
 			return true, reason
 		}
 	}
-	visible := stripTerminalControls(data)
-	if p != nil {
-		visible = p.overlayTextTail + visible
-		p.overlayTextTail = textSuffix(visible, rollingTailLen)
-	}
-	return detectQoderOverlayText(visible)
+	return detectQoderOverlayText(p.overlayVisible(data))
 }
 
 func detectQoderOverlayText(visible string) (bool, string) {
-	for _, marker := range qoderPickerMarkers {
-		if strings.Contains(visible, marker) {
-			return true, marker
-		}
-	}
-	return false, ""
+	return firstMarker(visible, qoderPickerMarkers)
 }
 
 func stripTerminalControls(raw []byte) string {
