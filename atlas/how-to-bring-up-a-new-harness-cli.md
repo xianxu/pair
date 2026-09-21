@@ -106,10 +106,10 @@ Keep the fixture inventory bounded: the newest version directory per harness, pl
 
 **Discovery & Watcher:**
 - **Files:** native shape/event parsing lives in `cmd/internal/sessioninventory`; generation monitoring and persistence live in `cmd/internal/sessionwatch`.
-- Add one versioned facts-only scanner and sanitized fixtures. It must enumerate roots and descendants, validate native parent edges, and emit allowlisted operator/progress events. Unknown shapes become coded diagnostics.
+- Add one versioned facts-only scanner and sanitized fixtures. It must enumerate roots and descendants, validate native parent edges, and emit allowlisted operator/progress events. Unknown shapes become coded diagnostics. **A transcript whose record transition and path layout match an existing family should become a parameterized producer of that family's core, not a copy** — qoder (a claude-family transcript: same `type`/`sessionId`/`isSidechain`/`timestamp`/`message.role` transition, same `<project>/<uuid>.jsonl` + `<uuid>/subagents/agent-*.jsonl` layout) lands as `ScanQoder`/`ValidateQoderDelta` over `scanClaudeFamily(runtime, agent, schema)`; copy the pattern, not the code (ARCH-DRY). Two record-shape quirks measurably break the naive reuse: qoder's bookkeeping records (`runtime-config`, `active-leaf`) carry epoch-millisecond **integer** timestamps where transcript records carry ISO strings — accept both in the family's timestamp type or every qoder root reads Disputed and non-resumable — and the bookkeeping `type`s need explicit event-normalizer ignore entries, or every qoder stream is a near-miss storm (`active-leaf` repeats per turn).
 - Whole-workbench launch and agent-only restart synchronously append a provisional launch baseline before input, then pass its physical ordinal to `pair session-watch`.
 - The watcher uses the shared scanner and exact Pair-log matcher. Process/open-file snapshots corroborate a candidate but never select one; only a unique completed round persists a binding and refreshes config.
-- Add the agent to `ScannerForAgent`, `SupportsAgent`, conformance, `QuerySession`, activity, and `pair session-inventory` tests. A pre-round quit must remain provisional; repeated rounds must remain ambiguous. Consumers must read only the established root projection, never reintroduce a native path formula. The same scanner feeds couch: its parked/live projection (`ActionableThreadInventory`) and native-binding resume consume sessioninventory bindings, so this aspect is also the couch bring-up — no scanner, no couch resume.
+- Add the agent to `ScannerForAgent`, `SupportsAgent`, conformance, `QuerySession`, activity, and `pair session-inventory` tests. A pre-round quit must remain provisional; repeated rounds must remain ambiguous. Consumers must read only the established root projection, never reintroduce a native path formula. The same scanner feeds couch: its parked/live projection (`ActionableThreadInventory`) and native-binding resume consume sessioninventory bindings, so this aspect is also the couch bring-up — no scanner, no couch resume. Two completeness gates bite here: the CLI result matrix golden (`testdata/golden/cli-result-matrix.json`) pins per-agent CLI behavior, and `cmd/internal/artifactpath`'s exhaustive production-source inventory requires every new `cmd/internal/**` file listed in `NonArtifactSources` (or classified) — a missing row fails `TestProductionArtifactReferencesAreExactlyClassified` long after the change that added the file.
 
 **Recovery Flags:**
 - **File:** `cmd/internal/launcher/agentargs.go`
@@ -118,7 +118,17 @@ Keep the fixture inventory bounded: the newest version directory per harness, pl
   `resume <id>` subcommand; Claude uses `--resume <id>`, and Agy uses
   `--conversation <id>`.
 - Extend `OSRuntime.AgentSessionExists` with the agent's native artifact and add
-  a focused launcher test for both present and absent sessions.
+  a focused launcher test for both present and absent sessions. This is a per-agent
+  chain, not a derived one: `observationNativeID` in `sessioninventory/target.go`
+  is where the agent's storage root becomes a resume identifier, and without its
+  case the existence check returns false against a perfectly good inventory.
+- **Membership is coupled — flip it in one commit.** `sessionwatch.SupportsAgent`
+  and `sessionledger`'s `isSupportedAgent` (record.go) are separate per-agent
+  dispatches; `TestAgentInventoryParityWithSessionTables` (launcher) ranges
+  `AgentInventory()` over the scanner, CLI, watch and ledger tables and fails
+  the moment one side flips without the others, so scanner + events + watch +
+  ledger land together. `NormalizeNativeEvent` and `ProviderContractFor` in
+  sessioninventory are part of the same flip.
 
 **Telemetry Signal** (aspect `3`, see §3): `session-id` from `pair session-watch` — `fired` after a durable binding append, **`near-miss`** when PID identity changes or native records cannot form an allowlisted round, and `fail` when no completed round appears in the startup window. The ledger remains authoritative if config refresh fails.
 
@@ -190,7 +200,7 @@ When introducing a new agent `<name>`, ensure you complete each item:
 1. [ ] **Join the agent registry** — the launcher list `supportedAgents` in `cmd/internal/launcher/agent_defaults.go` (couch, storage-GC, and rename/migrate follow automatically), plus on the session side the `Agent` enum constant in `cmd/internal/sessioninventory/model.go` and the `supportedAgents` list in `cmd/internal/sessioninventory/runcli.go` (see §0 — `validAgent` and the usage line derive from that list, so a new harness lands as one enum constant plus one list entry).
 2. [ ] **Verify Return Key remapping** on the harness profile in `harnessTTYProfiles` (Enter = newline, Alt+Enter = send), and pin it with a captured fixture under `cmd/internal/wrapcmd/testdata/tty/`.
 3. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
-4. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration.
+4. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration. Land scanner + events + watch/ledger membership in one commit and make the launcher parity test (`TestAgentInventoryParityWithSessionTables`) pass without a known-gap entry (see aspect 3).
 5. [ ] **Configure Launcher Recovery** in `cmd/internal/launcher`: extend `resumeToken` and `composeResumeArgs`, and add the harness's resume spellings (space / inline / glued short) to `resumeform.Forms` (`cmd/internal/resumeform`) — the one table extraction, persisted-config stripping (launcher **and** sessionwatch) and the fresh-arg validator all read, so a spelling cannot be honored at one site and lost at another (#300 BR-15). Then prove `OSRuntime.AgentSessionExists` and `EstablishedSessionID` consume scanner inventory rather than native paths or config identity.
 6. [ ] **Add slug generation support** in `pair-slug` (shared inventory text projection + sandboxed print execution).
 7. [ ] **Confirm mouse scroll and scrollback render** work smoothly without drawing glitch issues.
