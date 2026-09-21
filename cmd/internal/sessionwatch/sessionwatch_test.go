@@ -26,6 +26,9 @@ func TestStripResumeArgsRemovesCanonicalResumeBindings(t *testing.T) {
 		{agent: "codex", args: []string{"resume", "abc", "--no-alt-screen"}, want: []string{"--no-alt-screen"}},
 		{agent: "muse", args: []string{"resume", "abc", "--model", "x"}, want: []string{"--model", "x"}},
 		{agent: "agy", args: []string{"--model", "x", "--resume", "abc", "--flag"}, want: []string{"--model", "x", "--flag"}},
+		{agent: "qoder", args: []string{"--model", "x", "-r", "abc", "--flag"}, want: []string{"--model", "x", "--flag"}},
+		{agent: "qoder", args: []string{"--resume=abc", "--flag"}, want: []string{"--flag"}},
+		{agent: "claude", args: []string{"--resume=abc", "--flag"}, want: []string{"--flag"}},
 		{agent: "codex", args: []string{"--foo", "bar", "resume"}, want: []string{"--foo", "bar", "resume"}},
 	}
 	for _, test := range tests {

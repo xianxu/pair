@@ -203,15 +203,17 @@ func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string
 // persistedConfigArgs strips every per-agent resume binding from saved launch
 // parameters. Established inventory is the binding authority; leaving generated
 // resume flags in compatibility config would compound them on every relaunch.
-// Handles all four agents' surfaces
-// (claude --resume / --session-id, agy --conversation incl. the inline form, codex
-// leading `resume <id>`) so an agy/codex resume can't silently accumulate — the
-// bug shell 2079-2082 guards. Agent-agnostic: stripping a form the current agent
-// never uses is a harmless no-op.
+// Handles every resume form the extractors accept
+// (claude --resume / --session-id, qoder --resume / -r in both forms, agy
+// --conversation incl. the inline form, codex/muse leading `resume <id>`), so
+// no accepted form can silently accumulate — the bug shell 2079-2082 guards.
+// Agent-agnostic: stripping a form the current agent never uses is a harmless
+// no-op.
 func persistedConfigArgs(args []string) []string {
 	out := stripCodexResumeSubcommand(args)
 	out = stripFlagAllForms(out, "--session-id")
 	out = stripFlagAllForms(out, "--resume")
+	out = stripFlagAllForms(out, "-r")
 	out = stripFlagAllForms(out, "--conversation")
 	return out
 }

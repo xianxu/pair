@@ -4,6 +4,7 @@ package sessioninventory
 
 import (
 	"path"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -442,14 +443,7 @@ func diagnosticID(d Diagnostic) string {
 	return StableID("diagnostic", string(d.Severity), string(d.Code), string(d.Agent), nativeID, storageRoot, relativePath, sourceRef)
 }
 
-func validAgent(agent Agent) bool {
-	switch agent {
-	case AgentClaude, AgentCodex, AgentAgy, AgentMuse, AgentQoder:
-		return true
-	default:
-		return false
-	}
-}
+func validAgent(agent Agent) bool { return slices.Contains(supportedAgents, agent) }
 
 func validRole(role Role) bool { return role == RoleRoot || role == RoleSubagent }
 

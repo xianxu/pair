@@ -159,6 +159,15 @@ func TestRunCLIResultMatrix(t *testing.T) {
 		}
 	})
 
+	t.Run("qoder known gap surfaces as unsupported-agent near miss", func(t *testing.T) {
+		var stdout, stderr bytes.Buffer
+		code := sessioninventory.RunCLIWithRuntime([]string{"--json"}, env(nil), sessioninventorytest.NewFakeRuntime(), &stdout, &stderr)
+		matrix = append(matrix, cliGoldenResult{Name: "qoder known gap", Exit: code, Stdout: stdout.String(), Stderr: stderr.String()})
+		if code != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"code":"schema_near_miss","agent":"qoder"`) {
+			t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+		}
+	})
+
 	assertCLIGolden(t, "cli-result-matrix.json", matrix)
 }
 

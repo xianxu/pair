@@ -126,6 +126,35 @@ func TestQoderExplicitResumeAndPersistedArgs(t *testing.T) {
 	if got := persistedConfigArgs([]string{"--model", "m", "--resume", "sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
 		t.Errorf("persisted qoder resume must strip (no accumulation): %v", got)
 	}
+	if got := persistedConfigArgs([]string{"--model", "m", "-r", "sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+		t.Errorf("persisted qoder -r resume must strip (no accumulation): %v", got)
+	}
+	if got := persistedConfigArgs([]string{"--model", "m", "--resume=sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+		t.Errorf("persisted qoder inline resume must strip (no accumulation): %v", got)
+	}
+}
+
+// Every resume form extractExplicitResume accepts must survive the persist →
+// relaunch → fresh round trip: stripped from the persisted config, composed
+// exactly once on relaunch, and accepted by the fresh-arg guard (BR-9).
+func TestQoderShortResumeRoundTrip(t *testing.T) {
+	for _, pinned := range [][]string{
+		{"--model", "m", "-r", "abc"},
+		{"--model", "m", "--resume", "abc"},
+		{"--model", "m", "--resume=abc"},
+	} {
+		persisted := persistedConfigArgs(pinned)
+		if !reflect.DeepEqual(persisted, []string{"--model", "m"}) {
+			t.Fatalf("persisted keeps a resume form: %v -> %v", pinned, persisted)
+		}
+		relaunched := composeResumeArgs("qoder", persisted, "sid2")
+		if !reflect.DeepEqual(relaunched, []string{"--model", "m", "--resume", "sid2"}) {
+			t.Fatalf("relaunch accumulates resume bindings: %v -> %v", pinned, relaunched)
+		}
+		if err := ValidateFreshAgentArgs("qoder", FreshAgentArgs(relaunched)); err != nil {
+			t.Fatalf("fresh path rejects the persisted args for %v: %v", pinned, err)
+		}
+	}
 }
 
 func TestMuseResumeArgs(t *testing.T) {

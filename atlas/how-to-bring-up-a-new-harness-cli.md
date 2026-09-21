@@ -18,7 +18,11 @@ executables on `PATH`), storage-GC collection, and rename/migrate all derive
 from that one slice — joining it lights couch up without touching couch code.
 `sessioninventory` keeps a second typed enum (`Agent` in
 `cmd/internal/sessioninventory/model.go`) consumed by its scanners and the
-native-binding records; join both.
+native-binding records, plus its own canonical per-agent list `supportedAgents`
+in `cmd/internal/sessioninventory/runcli.go` — `validAgent` (which gates
+scanner state, catalogs, and the CLI's `--agent`), the CLI usage line, and the
+default scan set all derive from that one list, so the session-side join is
+the enum constant plus that list. Join both sides.
 
 **Couch — the session supervisor and second host — adds no harness-specific
 surface of its own.** A couch-hosted thread is spawned as
@@ -183,7 +187,7 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
 
 When introducing a new agent `<name>`, ensure you complete each item:
 
-1. [ ] **Join the agent registry** — `supportedAgents` in `cmd/internal/launcher/agent_defaults.go` plus the `Agent` enum in `cmd/internal/sessioninventory/model.go` (see §0). Couch, storage-GC, and rename/migrate follow automatically.
+1. [ ] **Join the agent registry** — the launcher list `supportedAgents` in `cmd/internal/launcher/agent_defaults.go` (couch, storage-GC, and rename/migrate follow automatically), plus on the session side the `Agent` enum constant in `cmd/internal/sessioninventory/model.go` and the `supportedAgents` list in `cmd/internal/sessioninventory/runcli.go` (see §0 — `validAgent` and the usage line derive from that list, so a new harness lands as one enum constant plus one list entry).
 2. [ ] **Verify Return Key remapping** on the harness profile in `harnessTTYProfiles` (Enter = newline, Alt+Enter = send), and pin it with a captured fixture under `cmd/internal/wrapcmd/testdata/tty/`.
 3. [ ] **Check for blocking TUI overlays** (permission pickers **and** user selection / AskUserQuestion menus) and implement a PTY overlay detector and register it on the harness profile in `harnessTTYProfiles` if needed — verify plain Enter confirms the picker and Alt+Enter is not required.
 4. [ ] **Implement Session Inventory + Watching** with a versioned scanner/event adapter, conformance fixture, provisional launch baseline, and completed-round watcher; use open files only as corroboration.

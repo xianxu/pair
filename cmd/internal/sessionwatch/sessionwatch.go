@@ -3,6 +3,7 @@ package sessionwatch
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
@@ -39,8 +40,10 @@ func SupportsAgent(agent string) bool {
 	}
 }
 
-// StripResumeArgs removes resume bindings from args before they are persisted;
-// the session_id field is the canonical store for that binding.
+// StripResumeArgs removes every resume binding the launcher's extractors
+// accept (space and inline `--resume`, qoder's `-r` in both forms, the
+// codex/muse leading `resume <id>`) from args before they are persisted; the
+// session_id field is the canonical store for that binding.
 func StripResumeArgs(agent string, args []string) []string {
 	stripped := make([]string, 0, len(args))
 	i := 0
@@ -48,11 +51,16 @@ func StripResumeArgs(agent string, args []string) []string {
 		i = 2
 	}
 	for i < len(args) {
-		if args[i] == "--resume" {
+		arg := args[i]
+		if arg == "--resume" || arg == "-r" {
 			i += 2
 			continue
 		}
-		stripped = append(stripped, args[i])
+		if strings.HasPrefix(arg, "--resume=") || strings.HasPrefix(arg, "-r=") {
+			i++
+			continue
+		}
+		stripped = append(stripped, arg)
 		i++
 	}
 	return stripped
