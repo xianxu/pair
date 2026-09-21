@@ -464,6 +464,44 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: true
+    - "n": 10
+      timestamp: "2026-09-21T15:25:08-07:00"
+      agent: claude
+      dispose:
+        - id: BR-35
+          disposition: addressed
+          note: wrap.go:940-946 scans stripTerminalControls(carry+data) before bounding; TestCheckOverlayOpen_QoderSplitFooterSurvivesLongSecondChunk reddens at filler=600/2000 when the order is reverted in scratch.
+          round: 10
+        - id: BR-36
+          disposition: addressed
+          note: architecture.md :694 (Qoder keymap), :702 (three specs, promptCol/allowHiddenCursor), :704 (conformance) and :903 now name Qoder; atlas couch.md:321 is explicitly M5 Task 19's.
+          round: 10
+        - id: BR-37
+          disposition: addressed
+          note: Field inverted to allowHiddenCursor (only Qoder sets it); TestOrientationUncoloredAgyRequiresVisibleCursor reddens when the agy uncolored spec allows a hidden cursor.
+          round: 10
+        - id: BR-38
+          disposition: addressed
+          note: 'Atlas amendment option taken: how-to line 87 states the header exemption and its bound (one Enter consumes pickerActive); spaced-prose negative row added in overlay_test.go.'
+          round: 10
+        - id: BR-39
+          disposition: addressed
+          note: orientationPromptCol and orientationRuleCellTolerant now live on harnessTTYProfile; orientationComposerActive has no agentBasename compare left. orientationPromptOK keeps its agent-keyed glyph read on purpose.
+          round: 10
+        - id: BR-40
+          disposition: addressed
+          note: overlayVisible and firstMarker replace the four carry blocks and three loops; Muse keeps its own folded loop for the reason stated at wrap.go:872.
+          round: 10
+      findings:
+        - id: BR-41
+          severity: Minor
+          title: Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk
+          detail: Pre-existing and outside this window; it is the class BR-35 belongs to, and the Qoder instance was fixed while the siblings were not. wrap.go:3122-3127 appends to rolling, trims it to rollingTailLen, and only then calls checkOverlayOpen(data, *rolling) and the oscRe scan. detectClaudeOverlayOpen and detectCodexQuestionOSC read only rolling, so an OSC 777 or OSC 9 with more than 512 bytes after it in the same read is dropped before the scan. The rule is that any carry must be scanned at full carry+chunk length and bounded afterwards; here that means moving the trim below the two scans. Not shown to bite in practice (those OSCs usually arrive alone), so no gate blocks on it.
+          family: detector-carry-bounded-before-scan
+          round: 10
+      boundary: M3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -650,6 +688,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-40** [Minor] `hand-restated-registry` Qoder adds the fourth copy of the overlay tail-carry block and a third identical marker-scan loop
   ARCH-DRY. detectQoderOverlayText is identical to detectAgyOverlayText and detectCodexOverlayText apart from the marker slice, and the `visible = p.overlayTextTail + visible; p.overlayTextTail = textSuffix(...)` block now sits at wrap.go:792, 828, 865 and 935. A shared `firstMarker(visible, markers)` and a `p.overlayVisible(data)` helper would collapse them.
 
+## Round 10 — 2026-09-21T15:25:08-07:00 (claude) — passed
+
+### Disposed
+
+- BR-35 — addressed — wrap.go:940-946 scans stripTerminalControls(carry+data) before bounding; TestCheckOverlayOpen_QoderSplitFooterSurvivesLongSecondChunk reddens at filler=600/2000 when the order is reverted in scratch.
+- BR-36 — addressed — architecture.md :694 (Qoder keymap), :702 (three specs, promptCol/allowHiddenCursor), :704 (conformance) and :903 now name Qoder; atlas couch.md:321 is explicitly M5 Task 19's.
+- BR-37 — addressed — Field inverted to allowHiddenCursor (only Qoder sets it); TestOrientationUncoloredAgyRequiresVisibleCursor reddens when the agy uncolored spec allows a hidden cursor.
+- BR-38 — addressed — Atlas amendment option taken: how-to line 87 states the header exemption and its bound (one Enter consumes pickerActive); spaced-prose negative row added in overlay_test.go.
+- BR-39 — addressed — orientationPromptCol and orientationRuleCellTolerant now live on harnessTTYProfile; orientationComposerActive has no agentBasename compare left. orientationPromptOK keeps its agent-keyed glyph read on purpose.
+- BR-40 — addressed — overlayVisible and firstMarker replace the four carry blocks and three loops; Muse keeps its own folded loop for the reason stated at wrap.go:872.
+
+### Raised
+
+- **BR-41** [Minor] `detector-carry-bounded-before-scan` Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk
+  Pre-existing and outside this window; it is the class BR-35 belongs to, and the Qoder instance was fixed while the siblings were not. wrap.go:3122-3127 appends to rolling, trims it to rollingTailLen, and only then calls checkOverlayOpen(data, *rolling) and the oscRe scan. detectClaudeOverlayOpen and detectCodexQuestionOSC read only rolling, so an OSC 777 or OSC 9 with more than 512 bytes after it in the same read is dropped before the scan. The rule is that any carry must be scanned at full carry+chunk length and bounded afterwards; here that means moving the trim below the two scans. Not shown to bite in practice (those OSCs usually arrive alone), so no gate blocks on it.
+
 ## Open findings
 
 - **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
@@ -657,9 +711,4 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Minor] `unbacked-existing-behavior-claim` Issue Log line 184 (this window) records BR-18/BR-24 as delivered; no commit contains them and the working-tree version only partly delivers them
 - **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
 - **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
-- **BR-35** [Important] `detector-carry-bounded-before-scan` Qoder raw window is truncated to 512 bytes before it is scanned, so it is not split-proof for chunks longer than about 500 bytes
-- **BR-36** [Important] `hand-restated-registry` atlas/architecture.md still enumerates profiles without Qoder at :694 (keymaps), :702 (ruled-box sharing) and :704 (conformance expectation)
-- **BR-37** [Minor] `refactor-changes-sibling-agent-behavior` requireVisibleCursor defaults permissive, and the agy orientation fallback's hidden-cursor decline is pinned by no test
-- **BR-38** [Minor] `overlay-marker-matches-agent-prose` "Permission Required" is ordinary English, which the atlas rule and the dropped forfuturesessions marker say a marker must not be
-- **BR-39** [Minor] `agent-dispatch-registration-gap` orientation.go branches on p.agentBasename == "qoder" at two sites plus orientationPromptOK, instead of a per-profile orientation field
-- **BR-40** [Minor] `hand-restated-registry` Qoder adds the fourth copy of the overlay tail-carry block and a third identical marker-scan loop
+- **BR-41** [Minor] `detector-carry-bounded-before-scan` Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk

@@ -273,3 +273,105 @@ findings:
 - Add a `## Revisions` entry that says the Core concepts table row and the Task 9 `Create:` paths (`qoder/1.1.59/`) are superseded by `qoder/1.1.60/`.
 - After the truncate-before-scan fix lands, amend the M3 execution-deltas entry so the "split-proof" claim is stated with its window semantics.
 - Record the atlas sweep grep and its hit list in the issue Log.
+
+---
+
+## Re-review — 2026-09-21T15:25:08-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 300 — integrate qoder harness into pair |
+| repo | pair |
+| issue file | workshop/issues/000300-integrate-qoder-harness-into-pair.md |
+| boundary | milestone M3 |
+| milestone | M3 |
+| window | 301c53815433ccbc16f2cdf33b43ea4f3ded0e4b..d2a1e81f4f2729c86939f5b12c097a173c16d3f5 |
+| command | sdlc milestone-close --issue 300 --milestone M3 |
+| reviewer | claude |
+| timestamp | 2026-09-21T15:25:08-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All six open findings (BR-35..BR-40) are fixed at head `d2a1e81f`. I checked each against the pinned tree and mutation-tested the behavioural ones in a scratch copy of HEAD. I found one new finding, a Minor. It sits in code this window did not touch, and it is the same bound-before-scan class as BR-35. The Qoder-related tests (`Qoder|OrientationRuleCell|OrientationUncoloredAgy|OverlayDetectorByAgent|ComposerActive|TTYFixture|Adversarial`) pass. A full `go test` of `wrapcmd` and `launcher` in this sandbox shows 18 failures, all `mkdir /tmp/...: operation not permitted`, none from a test assertion. The issue Log records a full unsandboxed `go test ./...` at EXIT=0. I did not reproduce that run.
+
+## Strengths
+- **BR-35 regression pin** (`picker_overlay_test.go:107-129`). The split lands inside `\x1b[23m`, so the marker exists only in the concatenation. With the scan/bound order reverted in scratch, the 600 and 2000 filler rows go red and the 0-byte row stays green as the control. That is real fail-without-fix evidence.
+- **BR-37 default inversion** (`composer_recognizers.go:141-145`). Only Qoder sets `allowHiddenCursor`, so a forgotten field fails closed. Setting `allowHiddenCursor: true` on the agy uncolored spec in scratch reddens `TestOrientationUncoloredAgyRequiresVisibleCursor/hidden_cursor_inside_the_composer`. That row had no coverage before, and its visible-cursor control row shows the decline comes from the cursor rather than the box shape.
+- **BR-39 profile fields.** `orientationPromptCol` and `orientationRuleCellTolerant` (`harness_tty.go`) replace the `agentBasename == "qoder"` compares in the scan. `TestOrientationRuleCellToleranceStaysPerProfile` pins the sibling negatives and the Qoder positive.
+- **BR-40 helpers.** `overlayVisible` and `firstMarker` collapse the four carry blocks and three loops. `overlayVisible` returns the full concatenation and bounds only the carry, so the visible path is split-proof too. It is nil-receiver safe, and Muse keeps its own folded loop with a stated reason.
+- **Lock discipline.** The raw tail is touched only under `overlayMu`. The detector runs through `detectOverlayOpen` (`wrap.go:1889`), and `emitPlainCR` clears it under the same lock (`wrap.go:2001-2005`).
+
+## Critical findings
+None.
+
+## Important findings
+None. BR-35 and BR-36 are both closed.
+
+## Minor findings
+- The shared chunk pump has the BR-35 flaw, in code this window did not touch; details are in the findings block below.
+- `overlayTextTail` and `overlayRawTail` must be cleared together, and that happens at a single site (`wrap.go:2004-2005`). A `resetOverlayCarry()` method would keep a third carry from being forgotten (ARCH-ORDER, cosmetic).
+- `p.overlayRawTail = haystack[len-512:]` keeps the whole chunk-sized backing array alive. `append([]byte(nil), ...)` on the slice would release it. The retention is bounded to one chunk.
+
+## Architecture pass
+- ARCH-DRY: pass. BR-29 and BR-40 consolidated the ruled-box loop, the carry block and the marker loop. The remaining `orientationPromptOK` agent-keyed glyph read is a documented choice, since the glyph maps are the shared authority.
+- ARCH-PURE: pass. `ruledBoxComposerActive` and `firstMarker` are pure and tested directly. The raw-tail mutation is confined to the locked detector seam.
+- ARCH-PURPOSE: one flag, the new Minor. The Qoder instance is fixed, but the shared pump's `rolling` still has the same class of flaw.
+- ARCH-MOCK: pass. The tests run the recognizer and detector against frozen live captures via `harnessSessionFake`, on the same seam production uses.
+- ARCH-CONSTRAINTS: pass. Carries are capped at `rollingTailLen`, and the scan cost is linear in one chunk plus 512 bytes.
+- ARCH-SECURE: pass. Untrusted agent output arms `pickerActive` only through exact markers. BR-38's exposure (the exact string `Permission Required` in agent prose) is now a documented, bounded exemption rather than an accident.
+- ARCH-ORDER: pass. `pickerActive` is consumed only by `emitPlainCR`, and the invariant that both tails are cleared on consumption is pinned by `TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText` over both frozen captures.
+- ARCH-FUNERAL: pass. The carries are in-memory, capped at 512 bytes and cleared on consumption. No durable artifact is added.
+
+## Test coverage notes
+- `TestOverlayDetectorByAgent`'s `qoder spaced prose about permissions does not open overlay` row pins only "other words, other case, non-contiguous" in one sentence. The test comment and atlas claim three separate boundaries, but one row covers them. This is acceptable for the exemption chosen, and the exact-string exposure is accepted and documented.
+- I did not mutation-test the BR-39 profile fields in scratch. The Log says zeroing either one reddens a named row, and both rows exist at HEAD.
+
+## Architectural notes for upcoming work
+- M4's `scrollback.lua` `PROMPT_PATTERN_BY_AGENT` and `distill.go` should derive their glyph from `qoderPromptGlyphs`, as Task 14 already says. Lua cannot import the Go map, so the plan should name how that consumer stays in sync (a generated table or a parity test).
+
+## Plan revision recommendations
+None required; the plan's `## Revisions` entry for round 2 matches the code. Two items are owned by M5 Task 19 and must not be lost:
+- `atlas/couch.md:321` still reads "selects claude, codex, agy or muse".
+- `README.md:122` (Return row) and the `README.md:39/241/291/566` rosters omit Qoder's `\<CR>` remap and Qoder itself.
+
+```findings
+dispose:
+  - id: BR-35
+    disposition: addressed
+    note: |
+      wrap.go:940-946 scans stripTerminalControls(carry+data) before bounding; TestCheckOverlayOpen_QoderSplitFooterSurvivesLongSecondChunk reddens at filler=600/2000 when the order is reverted in scratch.
+  - id: BR-36
+    disposition: addressed
+    note: |
+      architecture.md :694 (Qoder keymap), :702 (three specs, promptCol/allowHiddenCursor), :704 (conformance) and :903 now name Qoder; atlas couch.md:321 is explicitly M5 Task 19's.
+  - id: BR-37
+    disposition: addressed
+    note: |
+      Field inverted to allowHiddenCursor (only Qoder sets it); TestOrientationUncoloredAgyRequiresVisibleCursor reddens when the agy uncolored spec allows a hidden cursor.
+  - id: BR-38
+    disposition: addressed
+    note: |
+      Atlas amendment option taken: how-to line 87 states the header exemption and its bound (one Enter consumes pickerActive); spaced-prose negative row added in overlay_test.go.
+  - id: BR-39
+    disposition: addressed
+    note: |
+      orientationPromptCol and orientationRuleCellTolerant now live on harnessTTYProfile; orientationComposerActive has no agentBasename compare left. orientationPromptOK keeps its agent-keyed glyph read on purpose.
+  - id: BR-40
+    disposition: addressed
+    note: |
+      overlayVisible and firstMarker replace the four carry blocks and three loops; Muse keeps its own folded loop for the reason stated at wrap.go:872.
+findings:
+  - id: new
+    severity: Minor
+    family: detector-carry-bounded-before-scan
+    title: |
+      Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk
+    detail: |
+      Pre-existing and outside this window; it is the class BR-35 belongs to, and the Qoder instance was fixed while the siblings were not. wrap.go:3122-3127 appends to rolling, trims it to rollingTailLen, and only then calls checkOverlayOpen(data, *rolling) and the oscRe scan. detectClaudeOverlayOpen and detectCodexQuestionOSC read only rolling, so an OSC 777 or OSC 9 with more than 512 bytes after it in the same read is dropped before the scan. The rule is that any carry must be scanned at full carry+chunk length and bounded afterwards; here that means moving the trim below the two scans. Not shown to bite in practice (those OSCs usually arrive alone), so no gate blocks on it.
+```
