@@ -80,7 +80,7 @@ launcher agent registry is the single choke point both hosts share.
 
 ## Plan
 
-- [ ] Extend `atlas/how-to-bring-up-a-new-harness-cli.md` for couch (Part A — this session).
+- [x] Extend `atlas/how-to-bring-up-a-new-harness-cli.md` for couch (Part A — this session).
 - [ ] Author the durable bring-up plan via `superpowers-writing-plans` → `workshop/plans/` when implementation starts (Part B is a #134-muse-scale effort: full flow, milestones to be defined there, not here).
 
 ## Log
@@ -92,3 +92,18 @@ launcher agent registry is the single choke point both hosts share.
   couch). Couch consumes the launcher registry with no table of its own and
   spawns hosted threads via `pair resume <tag>` — the wrap profile and
   inventory work apply unchanged, which is the fact the atlas doc is missing.
+- Ran the full verb sequence late (exploration preceded `claim`/`start-plan`;
+  caught up: claim → start-plan → change-code, quick flow inferred, in-place
+  branch `000300-integrate-qoder-harness-into-pair`).
+- Part A landed (1e912472): guide gains §0 (agent registry + couch hosting
+  model), a scanner→couch coupling note in aspect 3, and checklist items 1
+  (join the registry) and 10 (verify under couch). ARCH-DRY: §0 points at the
+  registry instead of restating an agent roster; ARCH-PURPOSE: the couch
+  coverage is the enablement class for the Part B bring-up, not an aside.
+- Verified facts behind §0 against code: `launcher/agent_defaults.go`
+  `supportedAgents`; `couchtty/menu_switchagent.go` uses
+  `launcher.AgentInventory()`; `couchcmd/run.go` `SwitchLaunchCheck` uses
+  `IsSupportedAgent` + LookPath pair/agent; `couchcore/launch_existing.go:58`
+  spawns `pair resume <tag> [layout flag]`; couchcore resume/binding paths
+  consume sessioninventory.
+
