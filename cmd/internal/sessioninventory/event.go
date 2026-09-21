@@ -60,6 +60,8 @@ func NormalizeNativeEvent(agent Agent, record []byte) ([]NativeEvent, EventDispo
 		return normalizeAgyEvent(record)
 	case AgentMuse:
 		return normalizeMuseEvent(record)
+	case AgentQoder:
+		return normalizeClaudeEvent(record)
 	default:
 		return nil, EventNearMiss
 	}
@@ -104,6 +106,11 @@ func normalizeClaudeEvent(record []byte) ([]NativeEvent, EventDisposition) {
 	if value.Type != "user" && value.Type != "assistant" {
 		switch value.Type {
 		case "attachment", "ai-title", "last-prompt", "atis-latch", "system":
+			return nil, EventIgnored
+		// qoder's per-turn bookkeeping types (ground facts: workspace-directories,
+		// runtime-config, worktree-state open every transcript; active-leaf
+		// repeats per turn). Without them the whole qoder stream is near-miss.
+		case "workspace-directories", "runtime-config", "worktree-state", "active-leaf":
 			return nil, EventIgnored
 		default:
 			return nil, EventNearMiss

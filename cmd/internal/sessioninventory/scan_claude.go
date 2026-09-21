@@ -5,17 +5,49 @@ import (
 	"errors"
 	"path"
 	"strings"
+	"time"
 )
 
 type claudeRecord struct {
-	Timestamp   string `json:"timestamp"`
-	SessionID   string `json:"sessionId"`
-	IsSidechain *bool  `json:"isSidechain"`
-	Type        string `json:"type"`
+	Timestamp   claudeFamilyTime `json:"timestamp"`
+	SessionID   string           `json:"sessionId"`
+	IsSidechain *bool            `json:"isSidechain"`
+	Type        string           `json:"type"`
 	Message     struct {
 		Role    string          `json:"role"`
 		Content json.RawMessage `json:"content"`
 	} `json:"message"`
+}
+
+// claudeFamilyTime accepts the timestamp encodings the claude family writes:
+// ISO-8601 strings (claude and qoder transcript records) and
+// epoch-millisecond numbers (qoder's runtime-config and active-leaf
+// bookkeeping records).
+type claudeFamilyTime struct {
+	ISO    string
+	Millis *int64
+}
+
+func (value *claudeFamilyTime) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	if len(data) != 0 && data[0] == '"' {
+		return json.Unmarshal(data, &value.ISO)
+	}
+	var millis int64
+	if err := json.Unmarshal(data, &millis); err != nil {
+		return err
+	}
+	value.Millis = &millis
+	return nil
+}
+
+func (value claudeFamilyTime) nativeTime() *NativeTime {
+	if value.Millis != nil {
+		return &NativeTime{Value: time.UnixMilli(*value.Millis).UTC(), Source: TimeSourceMetadata}
+	}
+	return metadataTime(value.ISO)
 }
 
 func ScanClaude(runtime Runtime) ScanResult {
@@ -131,7 +163,7 @@ func applyClaudeFamilyRecord(state *ScannerState, entry FileEntry, line []byte, 
 	}
 	state.FirstRecordValidated = true
 	if state.Chronology == nil || state.Chronology.Source != TimeSourceMetadata {
-		if parsed := metadataTime(record.Timestamp); parsed != nil {
+		if parsed := record.Timestamp.nativeTime(); parsed != nil {
 			state.Chronology = parsed
 		}
 	}

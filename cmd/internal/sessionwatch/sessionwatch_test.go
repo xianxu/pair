@@ -7,7 +7,7 @@ import (
 )
 
 func TestSupportsEveryInventoryAgent(t *testing.T) {
-	for _, agent := range []string{"claude", "codex", "agy", "muse"} {
+	for _, agent := range []string{"claude", "codex", "agy", "muse", "qoder"} {
 		if !SupportsAgent(agent) {
 			t.Fatalf("%s is not watchable", agent)
 		}

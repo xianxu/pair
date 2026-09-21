@@ -66,9 +66,9 @@
     "stderr": ""
   },
   {
-    "name": "qoder known gap",
+    "name": "no native storage",
     "exit": 0,
-    "stdout": "{\"schema_version\":1,\"forests\":[],\"correlations\":[],\"ambiguities\":[],\"diagnostics\":[{\"diagnostic_id\":\"diagnostic-6296d94035cc5bb5f5e6ec48\",\"severity\":\"warning\",\"code\":\"schema_near_miss\",\"agent\":\"qoder\",\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":null}]}\n",
+    "stdout": "{\"schema_version\":1,\"forests\":[],\"correlations\":[],\"ambiguities\":[],\"diagnostics\":[]}\n",
     "stderr": ""
   }
 ]

@@ -477,7 +477,7 @@ func sortArtifactProofs(artifacts []ArtifactProof) {
 
 func isSupportedAgent(agent string) bool {
 	switch agent {
-	case "claude", "codex", "agy", "muse":
+	case "claude", "codex", "agy", "muse", "qoder":
 		return true
 	default:
 		return false

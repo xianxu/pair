@@ -138,6 +138,8 @@ func ScannerForAgent(agent Agent) ScannerFunc {
 		return ScanAgy
 	case AgentMuse:
 		return ScanMuse
+	case AgentQoder:
+		return ScanQoder
 	default:
 		return func(Runtime) ScanResult {
 			return ScanResult{Diagnostics: []Diagnostic{diagnostic(DiagnosticSchemaNearMiss, agent, nil, "unsupported agent")}}

@@ -1,0 +1,6 @@
+{"type":"workspace-directories","sessionId":"11111111-1111-4111-8111-111111111111","directories":["/repo"]}
+{"type":"runtime-config","sessionId":"11111111-1111-4111-8111-111111111111","model":"","reasoningEffort":null,"contextWindow":null,"generation":null,"timestamp":1787907630000}
+{"type":"worktree-state","sessionId":"11111111-1111-4111-8111-111111111111","worktreeSession":null}
+{"type":"user","uuid":"aaaaaaaa-0001-4000-8000-000000000001","timestamp":"2026-08-28T09:01:00.000Z","message":{"role":"user","content":"sanitized root prompt"},"permissionMode":"default","origin":{"kind":"human"},"promptId":"aaaaaaaa-0002-4000-8000-000000000002","isSidechain":false,"cwd":"/repo","sessionId":"11111111-1111-4111-8111-111111111111","userType":"external","entrypoint":"cli","version":"1.1.59"}
+{"type":"active-leaf","sessionId":"11111111-1111-4111-8111-111111111111","leafUuid":"aaaaaaaa-0001-4000-8000-000000000001","explicit":false,"timestamp":1787907660000}
+{"type":"assistant","uuid":"aaaaaaaa-0003-4000-8000-000000000003","timestamp":"2026-08-28T09:01:01.000Z","message":{"role":"assistant","content":[{"type":"text","text":"sanitized response"}]},"isSidechain":false,"cwd":"/repo","sessionId":"11111111-1111-4111-8111-111111111111"}

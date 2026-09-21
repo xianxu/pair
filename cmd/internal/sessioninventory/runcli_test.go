@@ -159,11 +159,11 @@ func TestRunCLIResultMatrix(t *testing.T) {
 		}
 	})
 
-	t.Run("qoder known gap surfaces as unsupported-agent near miss", func(t *testing.T) {
+	t.Run("every supported agent scans clean with no native storage", func(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 		code := sessioninventory.RunCLIWithRuntime([]string{"--json"}, env(nil), sessioninventorytest.NewFakeRuntime(), &stdout, &stderr)
-		matrix = append(matrix, cliGoldenResult{Name: "qoder known gap", Exit: code, Stdout: stdout.String(), Stderr: stderr.String()})
-		if code != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"code":"schema_near_miss","agent":"qoder"`) {
+		matrix = append(matrix, cliGoldenResult{Name: "no native storage", Exit: code, Stdout: stdout.String(), Stderr: stderr.String()})
+		if code != 0 || stderr.Len() != 0 || !strings.Contains(stdout.String(), `"schema_version":1`) || !strings.Contains(stdout.String(), `"diagnostics":[]`) || strings.Contains(stdout.String(), "schema_near_miss") {
 			t.Fatalf("code=%d stdout=%q stderr=%q", code, stdout.String(), stderr.String())
 		}
 	})

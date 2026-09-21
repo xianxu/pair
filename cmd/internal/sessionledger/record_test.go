@@ -84,6 +84,17 @@ func TestParseLedgerRejectsUnsupportedTypedAgentsAcrossKinds(t *testing.T) {
 	}
 }
 
+func TestParseLedgerAcceptsEverySupportedTypedAgent(t *testing.T) {
+	t.Parallel()
+	for _, agent := range []string{"claude", "codex", "agy", "muse", "qoder"} {
+		row := `{"v":1,"kind":"launch","scope_key":"scope","tag":"work","agent":"` + agent + `","pair_log_offset":0,"native_watermarks":[]}`
+		parsed := ParseLedger([]byte(row + "\n"))
+		if len(parsed.Records) != 1 || parsed.Records[0].Agent != agent || len(parsed.MalformedOrdinals) != 0 {
+			t.Fatalf("agent %s parsed=%#v", agent, parsed)
+		}
+	}
+}
+
 func TestParseLedgerRejectsDuplicateKeysAcrossFormatsAndNesting(t *testing.T) {
 	t.Parallel()
 	for _, row := range []string{

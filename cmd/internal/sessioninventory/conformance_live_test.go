@@ -18,7 +18,7 @@ func TestLiveNativeSessionShapeConformance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, conformanceErr := RunConformance(runtime, AgentClaude, AgentCodex, AgentAgy, AgentMuse)
+	report, conformanceErr := RunConformance(runtime, AgentClaude, AgentCodex, AgentAgy, AgentMuse, AgentQoder)
 	rendered, err := RenderConformance(report)
 	if err != nil {
 		t.Fatal(err)

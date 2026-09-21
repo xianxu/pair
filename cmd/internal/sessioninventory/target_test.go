@@ -4,7 +4,7 @@ import "testing"
 
 func TestColdAuthorizationMatrixSelectsOnlyPostBoundaryArtifacts(t *testing.T) {
 	t.Parallel()
-	for _, agent := range []Agent{AgentClaude, AgentCodex, AgentMuse} {
+	for _, agent := range []Agent{AgentClaude, AgentCodex, AgentMuse, AgentQoder} {
 		agent := agent
 		t.Run(string(agent), func(t *testing.T) {
 			old, fresh := targetObservation(agent, "old"), targetObservation(agent, "fresh")
@@ -84,6 +84,12 @@ func targetObservation(agent Agent, id string) ArtifactObservation {
 		artifact.RelativePath = "2026/08/28/77777777-7777-4777-8777-777777777777/session.jsonl"
 		if id == "fresh" || id == "second" {
 			artifact.RelativePath = "2026/08/28/88888888-8888-4888-8888-888888888888/session.jsonl"
+		}
+	case AgentQoder:
+		artifact.StorageRoot = "qoder-projects"
+		artifact.RelativePath = "-repo/11111111-1111-4111-8111-111111111111.jsonl"
+		if id == "fresh" || id == "second" {
+			artifact.RelativePath = "-repo/22222222-2222-4222-8222-222222222222.jsonl"
 		}
 	}
 	return ArtifactObservation{Agent: agent, Entry: FileEntry{Artifact: artifact}}

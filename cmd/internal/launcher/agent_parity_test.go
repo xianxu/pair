@@ -13,10 +13,8 @@ import (
 // sessionInventoryKnownGaps names inventory agents whose session-side wiring
 // (scanner, event adapter, provider contract, watcher/ledger membership) is
 // still missing. The parity test asserts each gap is still exactly this shape,
-// so the milestone that closes it must delete the entry.
-var sessionInventoryKnownGaps = map[string]string{
-	"qoder": "pair#300 M2: no sessioninventory scanner/event adapter/provider contract; not watchable and ledger-rejected (all four probed below)",
-}
+// so the milestone that closes it must delete the entry. Empty as of #300 M2.
+var sessionInventoryKnownGaps = map[string]string{}
 
 func TestAgentInventoryParityWithSessionTables(t *testing.T) {
 	for _, agent := range AgentInventory() {
