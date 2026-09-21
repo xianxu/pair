@@ -3,6 +3,8 @@ package wrapcmd
 import (
 	"bytes"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -63,6 +65,40 @@ func TestCheckOverlayOpen_QoderPermissionPicker(t *testing.T) {
 	checkOverlayBytes(p, []byte("\x1b[2GAllow\x1b[8Gthis\x1b[13Gcommand\x1b[21Gto\x1b[24Grun?\r\r\n"))
 	if !p.pickerActive.Load() {
 		t.Fatalf("pickerActive should be true after seeing qoder permission picker")
+	}
+}
+
+// TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText is the consumption
+// counterpart of the codex stale-text test, over both frozen qoder captures:
+// the raw haystack that makes marker detection split-proof must be cleared
+// when the confirming Enter consumes pickerActive, or its own consumed bytes
+// re-arm the flag on the next chunk and the following composer Enter passes a
+// bare CR, submitting a draft the user meant to continue on a new line.
+func TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText(t *testing.T) {
+	for _, file := range []string{"overlay.raw", "selection.raw"} {
+		t.Run(file, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join("testdata", "tty", "qoder", "1.1.60", file))
+			if err != nil {
+				t.Fatalf("read %s: %v", file, err)
+			}
+			p := proxyForHarness("qoder")
+			checkOverlayBytes(p, raw)
+			if !p.pickerActive.Load() {
+				t.Fatalf("%s paint must arm pickerActive", file)
+			}
+			if got := p.emitPlainCR(nil); !bytes.Equal(got, []byte{'\r'}) {
+				t.Fatalf("confirming Enter = %q, want bare CR", got)
+			}
+			if p.pickerActive.Load() {
+				t.Fatal("pickerActive should clear after the confirming Enter")
+			}
+			// A chunk with no marker of its own must not re-arm the flag from
+			// the consumed picker bytes still inside the raw window.
+			checkOverlayBytes(p, []byte("\x1b[1G\x1b[2K"))
+			if p.pickerActive.Load() {
+				t.Fatalf("%s: pickerActive re-armed from consumed picker bytes", file)
+			}
+		})
 	}
 }
 

@@ -433,10 +433,11 @@ var ttyFixtureExpectation = map[string]map[string]bool{
 	// prompt glyph included — intact, so the gate stays open and Return remaps
 	// there. The menu's own `❯` selection marker lands in the prompt glyph's
 	// column but below the closing rule, which the box-bounded recognizer
-	// ignores. The permission picker (overlay.raw) and the question picker
-	// (selection.raw) both take the shared declining default; both are caught
-	// by qoderPickerMarkers, so their decline survives a recognizer that
-	// would otherwise accept a ruled card.
+	// ignores. The permission picker (overlay.raw) takes the shared declining
+	// default; the question picker (selection.raw) carries its own row only
+	// because the shared map does not name that file. On both screens the box
+	// recognizer declines AND qoderPickerMarkers arms the overlay, so the
+	// emitted Return is a bare CR on either account.
 	"qoder": {"menu.raw": true, "selection.raw": false},
 }
 

@@ -181,14 +181,19 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 	}
 	promptCol := 0
 	if p.agentBasename == "qoder" {
-		promptCol = 1
+		promptCol = qoderPromptCol
 	}
 	for y := snapshot.Cursor.Y; y >= 0; y-- {
 		cell := snapshot.CellAt(promptCol, y)
 		if cell == nil || strings.TrimSpace(cell.Content) == "" {
 			continue
 		}
-		if cell.Content == claudeComposerRule {
+		// Qoder parks its hidden system cursor on the closing rule after a
+		// repaint, so a rule cell at the prompt column is Qoder's own chrome,
+		// not composer content. Gated per-profile: for every other agent a
+		// rule cell here means the cursor is not in the composer, and it must
+		// keep declining.
+		if p.agentBasename == "qoder" && cell.Content == claudeComposerRule {
 			continue
 		}
 		if !orientationPromptOK(p.agentBasename, cell.Content) {
@@ -207,17 +212,16 @@ func (p *proxy) orientationComposerActive(snapshot terminalSnapshot) bool {
 }
 
 func orientationPromptOK(agent, content string) bool {
-	// Muse shares the Return remap's prompt authority (musePromptGlyphs) so the
-	// two gates cannot disagree about what a composer looks like; the row-content
-	// guard below this call stays layered on top, and it is what keeps a menu
-	// from reading as a composer. Every other harness has one captured glyph,
-	// except Qoder which paints `>` in default mode and `*` in yolo mode at
-	// column 1 rather than column 0.
+	// Muse shares the Return remap's prompt authority (musePromptGlyphs) and
+	// Qoder shares qoderPromptGlyphs, so the two gates cannot disagree about
+	// what a composer looks like; the row-content guard below this call stays
+	// layered on top, and it is what keeps a menu from reading as a composer.
+	// Every other harness has one captured glyph.
 	if agent == "muse" {
 		return musePromptGlyphs[content]
 	}
 	if agent == "qoder" {
-		return content == ">" || content == "*"
+		return qoderPromptGlyphs[content]
 	}
 	prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">"}[agent]
 	return content == prompt
@@ -289,8 +293,11 @@ func agyUncoloredOrientationComposer(snapshot terminalSnapshot, modelFooter stri
 		return true
 	}
 	if !ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
-		promptOK: func(c uv.Cell) bool { return c.Content == ">" && c.Style.Fg == nil },
-		ruleAt:   rule, minCursorX: 2, maxRows: 25,
+		promptOK:             func(c uv.Cell) bool { return c.Content == ">" && c.Style.Fg == nil },
+		ruleAt:               rule,
+		minCursorX:           2,
+		maxRows:              25,
+		requireVisibleCursor: true,
 	}) {
 		return false, modelFooter
 	}

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Bring the `qoder` CLI (v1.1.59) up to parity with `claude`/`codex`/`agy`/`muse` across all surfaces of `atlas/how-to-bring-up-a-new-harness-cli.md` (§0 registry, aspects 1–7), in both hosts (standalone pair and couch).
+**Goal:** Bring the `qoder` CLI (v1.1.60; the design facts below were verified against 1.1.59 and the harness self-updated before capture — see the M3 execution-deltas Revisions entry) up to parity with `claude`/`codex`/`agy`/`muse` across all surfaces of `atlas/how-to-bring-up-a-new-harness-cli.md` (§0 registry, aspects 1–7), in both hosts (standalone pair and couch).
 
 **Architecture:** Qoder is claude-family on disk (transcript JSONL records decode through the claude record transition; resume is `--resume <uuid>`; session storage is `~/.qoder/projects/<encoded-repo>/<uuid>.jsonl`), so the scanner derives from a parameterized claude-family core rather than a copy (ARCH-DRY). Every other surface is a registration in an existing per-agent seam; the TTY recognizer and prompt glyphs are **capture-first** — no recognizer or glyph is written from imagination, only from bytes recorded through the live PTY seam (atlas aspect 2 discipline).
 
@@ -696,25 +696,22 @@ func runQoder(r Request) (string, error) {
 
 **Files:**
 - Modify: `nvim/scrollback.lua:370-375` (`PROMPT_PATTERN_BY_AGENT`)
-- Modify: `cmd/internal/wrapcmd/orientation.go:202-212` (`orientationPromptOK` map)
 - Possibly modify: `cmd/internal/changelogcmd/distill.go:17-21` (`promptGlyphChar` — see Step 1)
 
-- [ ] **Step 1:** From `composer.raw` (and a scrollback capture if needed), take qoder's user-prompt glyph. Register in `scrollback.lua` and `orientationPromptOK` unconditionally — both tables cover every harness (orientation has a dedicated muse branch, so qoder joins the map). For `distill.go`: the map deliberately has **no muse row** and `glyphFor` falls back to claude's glyph (`distill.go:33-38`); establish whether that omission is deliberate (distill doesn't consume muse sessions) or lagging, and apply the same test to qoder — register only if the consumer actually reads qoder sessions. If the check reveals muse is consumed-but-absent, record it in `## Log` as a peer finding for its own issue; don't fix it here.
+Superseded by the M3 review-fix round: `orientationPromptOK`'s qoder branch landed in M3 Task 9 and now reads the shared `qoderPromptGlyphs` authority (`composer_recognizers.go`), so no glyph is registered here from a second source — any M4 consumer derives from that map.
+
+- [ ] **Step 1:** Take qoder's user-prompt glyph from the shared `qoderPromptGlyphs` authority (`composer_recognizers.go`; captured bytes are `>` in default mode, `*` in yolo). Register in `scrollback.lua`. For `distill.go`: the map deliberately has **no muse row** and `glyphFor` falls back to claude's glyph (`distill.go:33-38`); establish whether that omission is deliberate (distill doesn't consume muse sessions) or lagging, and apply the same test to qoder — register only if the consumer actually reads qoder sessions. If the check reveals muse is consumed-but-absent, record it in `## Log` as a peer finding for its own issue; don't fix it here.
 
 ```lua
 qoder  = [[^<glyph>]],
 ```
 
 ```go
-prompt := map[string]string{"claude": "❯", "codex": "›", "agy": ">", "qoder": "<glyph>"}[agent]
-```
-
-```go
 "qoder": "<glyph>",
 ```
 
-- [ ] **Step 2:** Tests: scrollback glyph has no Go test (Lua) — smoke via Alt+b in M5; `orientationPromptOK` and (if registered) the distill glyph rows extend their existing tests. `go test ./cmd/internal/wrapcmd ./cmd/internal/changelogcmd` green.
-- [ ] **Step 3:** Commit `#300 M4: qoder prompt glyph (scrollback + orientation[, distill])`.
+- [ ] **Step 2:** Tests: scrollback glyph has no Go test (Lua) — smoke via Alt+b in M5; (if registered) the distill glyph rows extend their existing tests. `go test ./cmd/internal/wrapcmd ./cmd/internal/changelogcmd` green.
+- [ ] **Step 3:** Commit `#300 M4: qoder prompt glyph (scrollback[, distill])`.
 
 ### Task 15: Settings (aspect 6, static)
 
@@ -833,3 +830,14 @@ Verdict REWORK on window `367610e7..fa89157c` (Critical BR-17, Important BR-18/B
 - **Task 9 capture path (addition):** driven captures are bounded by the new `trimmedHarnessTTYCapture` (`harness_tty_live_test.go`) to the capture's final synchronized paint block, and only when that block replays to the same Return decision as the whole stream (verified, never assumed; a harness with no synchronized updates or a differently-deciding final block keeps its full capture). Evidence: qoder's permission picker is the last 5.5KB of a 55KB capture and the question picker the last 6.6KB of 104KB; the slash menu correctly kept its full 13KB. Pinned by `TestTrimmedHarnessTTYCapture`.
 - **Task 11 detector (addition beyond "exactly as agy/muse do"):** `detectQoderOverlayOpen` also scans the raw rolling buffer before its stripped-tail path. Evidence: the all-splits fixture replay went red at split 6426/6616 of `selection.raw` — a chunk boundary cut `\x1b[23m` between `Enter` and `select`, and per-chunk stripping keeps the truncated escape verbatim, severing the marker in the tail; the byte-contiguous rolling window cannot be corrupted that way (same haystack claude/codex scan for OSC).
 - **Task 11 second family:** the question picker (`selection.raw`, AskUserQuestion UI) lands beside the permission picker (`overlay.raw`); `qoderPickerMarkers` carries both families' verbatim stripped strings (`AskingUser`, `Enterselect` added to the permission four). `ttyFixtureNegativeGaps["qoder"]` dropped; `ttyFixtureDiscriminationGaps`/`ttyFixtureReactionGaps` rewritten to what the captures prove and leave unproven.
+
+### 2026-09-21 — M3 boundary review (fresh-context claude): REWORK round 7 — fixes landed as M3 review-fix commits
+
+Verdict REWORK on window `301c5381..1b1977c4` (Critical BR-28, Important BR-29–BR-32, plus minors). Code fixes in the `#300 M3:` review-fix commits; the plan-side deltas below supersede stale body text (Task 14 amended in place above, orientation landing moved into M3).
+
+- **BR-28 (Critical, overlay-flag-rearmed-from-stale-input):** the raw window `detectQoderOverlayOpen` scans is now proxy-owned (`proxy.overlayRawTail`, bounded to `rollingTailLen`), not the chunk pump's loop-local `rolling`: `emitPlainCR` clears it beside `overlayTextTail` when the confirming Enter consumes `pickerActive`, so consumed picker bytes cannot re-arm the flag on a later chunk (previously: paint → Enter → one small chunk re-armed from the stale slice, and the next composer Enter submitted a draft). Pinned by `TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText` over both frozen captures (paint, `emitPlainCR`, small chunk, assert false), the qoder counterpart of the codex stale-text test.
+- **BR-29 (Important, qoder-branch-copies-claude):** `ruledBoxComposerSpec` gained `promptCol` and `requireVisibleCursor`; `qoderComposerActive` is now a spec registration and `ruledBoxComposerActive` owns the only ruled-box loop (qoder: `promptCol` 1, `requireVisibleCursor` false, unbounded height; claude/muse/agy specs carry `requireVisibleCursor: true`). All qoder composer differential rows unchanged and green.
+- **BR-30 (Important, hand-restated-registry):** `qoderPromptCol` and `qoderPromptGlyphs` (`{">", "*"}`) in `composer_recognizers.go` are the single authority; `orientationPromptOK`'s qoder branch reads the map rather than restating column and glyphs. **M4 glyph consumers (`scrollback.lua`, `distill.go`) derive from this authority — Task 14 amended above.**
+- **BR-31 (Important, refactor-changes-sibling-agent-behavior):** the `claudeComposerRule` skip in `orientationComposerActive` is gated to qoder (which parks its hidden cursor on the closing rule), and the prompt column derives from `qoderPromptCol`. `TestOrientationRuleCellToleranceStaysPerProfile` pins the sibling negatives (claude/muse/agy flip true without the gate — mutation-verified — and codex stays false via its recognizer barrier) plus the qoder positive contrast.
+- **BR-32 (Important, agent-dispatch-registration-gap, 7th in family):** `TestRunLaunchForcedCreateQoderMintProbesQoderSessions` pins the create-path mint: a `qoder|MINTED-1` collision retries to `MINTED-2` and appends `--session-id MINTED-2`; a `claude|MINTED-1` collision does not block qoder. Both subtests fail against a literal `"claude"` probe (mutation-verified).
+- **Minors:** the `ttyFixtureExpectation` comment now says only `overlay.raw` takes the shared declining default (`selection.raw`'s row exists because the shared map does not name that file); the generic `forfuturesessions` marker was **dropped** from `qoderPickerMarkers` (a word-by-word paint glues that prose anywhere, arming `pickerActive` off agent output — the permission family keeps three specific strings) with the glued-prose negative row in `TestOverlayDetectorByAgent`; `atlas/architecture.md` no longer calls `--session-id` claude-only (the `MintsSessionID` set); `atlas/how-to-bring-up-a-new-harness-cli.md` records the prose-marker rule and `overlayRawTail`.

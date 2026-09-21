@@ -193,6 +193,18 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			raw:      []byte("press Enter to select an option"),
 			wantOpen: false,
 		},
+		{
+			// The same prose painted the way Qoder paints its picker bodies —
+			// word-by-word at absolute columns, so the strip glues the words.
+			// "for future sessions" was a marker in the first cut of
+			// qoderPickerMarkers and would arm here; it is ordinary prose, so
+			// any agent output gluing it would turn the user's next composer
+			// Enter into a submit. Re-adding it fails this row.
+			name:     "qoder glued prose about future sessions does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("saved \x1b[8Gfor\x1b[12Gfuture\x1b[19Gsessions"),
+			wantOpen: false,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

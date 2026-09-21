@@ -261,6 +261,13 @@ type proxy struct {
 	// re-detecting stale picker text after Enter clears pickerActive.
 	overlayMu       sync.Mutex
 	overlayTextTail string
+	// overlayRawTail is the raw haystack some detectors need for split-proof
+	// marker matching: a chunk boundary inside an escape can corrupt the
+	// per-chunk strip, while contiguous raw bytes cannot. It shares
+	// overlayTextTail's lifetime rule — cleared when the confirming Enter
+	// consumes pickerActive — so consumed picker bytes can never re-arm the
+	// flag from a later chunk.
+	overlayRawTail []byte
 	// overlayConsumeHook is a deterministic test seam invoked while an older
 	// Return owns overlayMu after consuming its overlay state.
 	overlayConsumeHook func()
@@ -883,10 +890,16 @@ var qoderPickerMarkers = []string{
 	// captured question. Plain Enter must confirm the highlighted choice —
 	// remapping to the composer's newline would leak a literal newline into
 	// the picker.
+	//
+	// The capture's fourth body string, "for future sessions", is deliberately
+	// NOT a marker: unlike the other three it is ordinary English prose that a
+	// word-by-word paint glues wherever it appears, so agent output discussing
+	// future sessions would arm pickerActive and turn the user's next composer
+	// Enter into a submit. The permission picker is still covered three ways by
+	// the strings above, all present in the same frozen strip.
 	"Permission Required",
 	"Allowthiscommandtorun?",
 	"Rejectandtypesomething",
-	"forfuturesessions",
 	// Qoder's question picker (its AskUserQuestion UI), captured live in
 	// qoder/1.1.60/selection.raw: an "Asking User" header over a ruled card
 	// listing options with a `❯` selection marker, closed by a keybinding
@@ -900,15 +913,22 @@ var qoderPickerMarkers = []string{
 }
 
 func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
-	// The raw rolling buffer is byte-contiguous, so a chunk boundary inside an
+	// The raw haystack is byte-contiguous, so a chunk boundary inside an
 	// escape sequence cannot corrupt it the way per-chunk stripping can. This
 	// is not hypothetical: replaying selection.raw split 6426/6616 cut the
 	// footer inside \x1b[23m, and the stripped tail kept the truncated escape
-	// verbatim, destroying "Enterselect". The buffer sees only the last
-	// rollingTailLen raw bytes — fewer visible chars than the tail below —
-	// so it can only arm earlier, never later.
-	if open, reason := detectQoderOverlayText(stripTerminalControls(rolling)); open {
-		return true, reason
+	// verbatim, destroying "Enterselect". It is proxy-owned rather than the
+	// chunk pump's rolling slice so emitPlainCR can clear it when the
+	// confirming Enter consumes pickerActive — a raw window that outlives
+	// consumption re-arms the flag off its own consumed bytes.
+	if p != nil {
+		p.overlayRawTail = append(p.overlayRawTail, data...)
+		if len(p.overlayRawTail) > rollingTailLen {
+			p.overlayRawTail = p.overlayRawTail[len(p.overlayRawTail)-rollingTailLen:]
+		}
+		if open, reason := detectQoderOverlayText(stripTerminalControls(p.overlayRawTail)); open {
+			return true, reason
+		}
 	}
 	visible := stripTerminalControls(data)
 	if p != nil {
@@ -1975,6 +1995,7 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 	overlayActive := p.pickerActive.Swap(false)
 	if overlayActive {
 		p.overlayTextTail = ""
+		p.overlayRawTail = nil
 	}
 	if p.overlayConsumeHook != nil {
 		p.overlayConsumeHook()

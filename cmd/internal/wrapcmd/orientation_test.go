@@ -209,6 +209,89 @@ func TestOrientationCapturedComposersWithoutReturnRemap(t *testing.T) {
 		}
 	}
 }
+
+// TestOrientationRuleCellToleranceStaysPerProfile pins the per-profile half of
+// orientationComposerActive's rule-cell tolerance. Qoder parks its hidden
+// system cursor on the closing rule after a repaint, so only Qoder may skip a
+// rule cell at the prompt column and keep scanning upward; for every sibling a
+// rule cell there means the cursor is not in the composer. A shared skip made
+// claude report composer-ready with its cursor on the closing rule (measured
+// false→true versus base), which would auto-submit an orientation prompt into
+// a composer the user was not in.
+func TestOrientationRuleCellToleranceStaysPerProfile(t *testing.T) {
+	const grey = "136;136;136"
+	cases := []struct {
+		name   string
+		agent  string
+		stream string
+		want   bool
+	}{
+		{
+			// The measured regression. The claude recognizer accepts the
+			// cursor resting on the closing rule, so only the per-profile gate
+			// in orientationComposerActive keeps the answer false.
+			name:   "claude cursor on the closing rule",
+			agent:  "claude",
+			stream: claudeBox(5, "❯", grey, "alpha") + "\x1b[?25h\x1b[8;3H",
+			want:   false,
+		},
+		{
+			name:  "muse cursor on the closing rule",
+			agent: "muse",
+			stream: "\x1b[7;1H\x1b[2m────\x1b[8;1H\x1b[22m⟩ work on #140" +
+				"\x1b[9;1H\x1b[2m────\x1b[?25h\x1b[9;15H",
+			want: false,
+		},
+		{
+			// Agy reaches this gate uncolored only through the ruled-box
+			// fallback, which accepts the cursor on the closing rule; the rule
+			// cell must still decline for agy. The second rule row and footer
+			// below the cursor are what the fallback's footer scan needs, the
+			// shape its live capture paints.
+			name:  "agy cursor on the closing rule",
+			agent: "agy",
+			stream: "\x1b[6;1H─────\x1b[7;1H> alpha" +
+				"\x1b[8;1H─────\x1b[9;1H─────" +
+				"\x1b[10;1H? for shortcuts Claude Sonnet 4.6 (Thinking)" +
+				"\x1b[?25h\x1b[8;4H",
+			want: false,
+		},
+		{
+			// Codex paints no rules, and its recognizer already declines a
+			// rule cell at column 0 wherever the cursor rests, so it should
+			// never deliver one to the orientation scan. The row guards that
+			// barrier if codex's scan is ever loosened.
+			name:   "codex cursor on a divider row",
+			agent:  "codex",
+			stream: "\x1b[7;1H\x1b[1m›\x1b[22m alpha\x1b[8;1H─────\x1b[?25h\x1b[8;4H",
+			want:   false,
+		},
+		{
+			// The tolerance is real and per-profile: qoder's hidden cursor
+			// parks on the closing rule of its own composer and the gate must
+			// stay true, or the captured composer.raw stops auto-submitting.
+			name:   "qoder cursor on the closing rule",
+			agent:  "qoder",
+			stream: qoderBox(6, ">", "alpha") + "\x1b[?25l\x1b[8;4H",
+			want:   true,
+		},
+	}
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			p := &proxy{agentBasename: test.agent, stdout: io.Discard, lifecycleEvents: make(chan TurnObservation, 8)}
+			p.orientation = newOrientationDelivery(orientation.Request{SchemaVersion: 1, Tag: "work", Agent: test.agent, Attempt: "n", Body: "read context"})
+			if err := p.configureHarnessTTY(false, 120, 38); err != nil {
+				t.Fatal(err)
+			}
+			defer p.closeTerminal()
+			var rolling []byte
+			p.handleChunk([]byte(test.stream), &rolling)
+			if got := p.orientationComposerActive(p.terminal.Snapshot()); got != test.want {
+				t.Fatalf("orientationComposerActive = %t, want %t", got, test.want)
+			}
+		})
+	}
+}
 func TestOrientationChildEnvironmentAndReadinessStatus(t *testing.T) {
 	isolateNotificationSockets(t)
 	t.Setenv("PAIR_SCOPE_KEY", "")

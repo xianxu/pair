@@ -885,6 +885,46 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	}
 }
 
+// TestRunLaunchForcedCreateQoderMintProbesQoderSessions pins the create-path
+// half of qoder's --session-id mint: the collision probe must ask about the
+// agent being launched, not a hard-coded "claude". The fake is keyed
+// agent|sid, so a wrong-agent probe is observable — the first subtest fails if
+// the probe reads claude's sessions and the second fails if a claude collision
+// blocks qoder's mint (a literal probe leaves qoder's freshly minted UUID
+// unprobed against its own transcripts).
+func TestRunLaunchForcedCreateQoderMintProbesQoderSessions(t *testing.T) {
+	t.Run("qoder collision retries", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.uuids = []string{"MINTED-1", "MINTED-2"}
+		rt.agentSessions["qoder|MINTED-1"] = true
+		code, err := run(t, baseOpts(LaunchArgs{Agent: "qoder", ForcedTag: "bugfix"}), rt)
+		if err != nil || code != 0 {
+			t.Fatalf("code=%d err=%v", code, err)
+		}
+		if rt.env["PAIR_SESSION_ID"] != "MINTED-2" {
+			t.Fatalf("PAIR_SESSION_ID = %q, want MINTED-2 after collision", rt.env["PAIR_SESSION_ID"])
+		}
+		if !strings.Contains(launchArgsText(t, rt.env), "--session-id MINTED-2") {
+			t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
+		}
+		if ledger := rt.ledger["bugfix"]; len(ledger) != 1 || ledger[0].Agent != "qoder" || ledger[0].SessionID != "MINTED-2" {
+			t.Fatalf("ledger = %+v, want qoder/MINTED-2", ledger)
+		}
+	})
+	t.Run("claude collision does not block qoder", func(t *testing.T) {
+		rt := newFakeRuntime()
+		rt.uuids = []string{"MINTED-1"}
+		rt.agentSessions["claude|MINTED-1"] = true
+		code, err := run(t, baseOpts(LaunchArgs{Agent: "qoder", ForcedTag: "bugfix"}), rt)
+		if err != nil || code != 0 {
+			t.Fatalf("code=%d err=%v", code, err)
+		}
+		if rt.env["PAIR_SESSION_ID"] != "MINTED-1" {
+			t.Fatalf("PAIR_SESSION_ID = %q, want MINTED-1: another agent's session must not block qoder", rt.env["PAIR_SESSION_ID"])
+		}
+	})
+}
+
 func TestRunLaunchAbortsBeforeHandoffWhenNativeLaunchBoundaryFails(t *testing.T) {
 	rt := newFakeRuntime()
 	rt.prepareLaunchErr = errors.New("baseline unavailable")

@@ -343,6 +343,55 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 8
+      timestamp: "2026-09-21T14:35:41-07:00"
+      agent: claude
+      findings:
+        - id: BR-28
+          severity: Critical
+          title: Qoder raw rolling-buffer scan re-arms pickerActive after the confirming Enter (ARCH-ORDER)
+          detail: 'Reproduced at head: paint overlay.raw or selection.raw, emitPlainCR consumes the flag, then one small chunk re-arms it from stale rolling bytes; the next composer Enter passes a bare CR and submits the draft. emitPlainCR clears only overlayTextTail; rolling is loop-local. Claude/codex OSC paths trim rolling at wrap.go:3115 and codex text never reads it. Codex has TestCheckOverlayOpen_CodexDoesNotRedetectStalePickerText (overlay_test.go:253); qoder has no counterpart. Rule: detector input that outlives flag consumption is reset at consumption. Fix by giving the raw window a proxy-owned tail cleared in emitPlainCR, or advance past the matched marker; add a paint, Enter, small-chunk test over both fixtures.'
+          family: overlay-flag-rearmed-from-stale-input
+          round: 8
+        - id: BR-29
+          severity: Important
+          title: qoderComposerActive re-implements ruledBoxComposerActive instead of adding a spec (ARCH-DRY)
+          detail: 'composer_recognizers.go duplicates the Cursor.Y+1 prompt scan and the ruledBoxBottomRule scan. The atlas paragraph edited in this diff says add a spec rather than a fourth near-copy, and plan Task 9 Step 2(b) orders the same. The real differences are promptCol and requireVisibleCursor spec fields. Rule: a ruled-box harness registers a ruledBoxComposerSpec and no other function owns that loop.'
+          family: qoder-branch-copies-claude
+          round: 8
+        - id: BR-30
+          severity: Important
+          title: Qoder prompt column 1 and glyph set >/* are restated in the recognizer and in orientation.go
+          detail: 'qoderComposerActive hard-codes promptCol=1 and ">"/"*"; orientationComposerActive and orientationPromptOK restate both. Muse''s precedent is musePromptGlyphs, shared so the two gates cannot disagree. Rule: one qoderPromptCol and one qoderPromptGlyphs authority read by both gates; M4''s scrollback/distill glyph consumers should derive from it too.'
+          family: hand-restated-registry
+          round: 8
+        - id: BR-31
+          severity: Important
+          title: Shared orientationComposerActive now skips column-N rule cells for every agent; sibling behavior changes unpinned
+          detail: 'orientation.go:190 skips claudeComposerRule for all agents, but only qoder needs it (composer.raw''s hidden cursor parks on the closing rule; without the skip the fixture fails). Measured with a claude box and cursor on the closing rule: orientationComposerActive goes false to true versus base. No test pins claude, codex, agy or muse. Rule: sibling behavior changes only through a per-profile field, with a negative row per sibling.'
+          family: refactor-changes-sibling-agent-behavior
+          round: 8
+        - id: BR-32
+          severity: Important
+          title: Qoder create-path mint (createflow.go:596 AgentSessionExists(agent, ...)) is pinned by no test
+          detail: 'Only the shouldMintSessionID predicate is tested. Reverting the probe to the literal "claude" leaves every launcher test green except sandbox failures. Rule: an agent-identity branch is either derived from a registry predicate or has a runCreate test per registry-true agent, using the agent-keyed fake so a hard-coded sibling is observable. Test: runCreate for qoder with agentSessions["qoder|MINTED-1"]=true expects MINTED-2 and --session-id MINTED-2.'
+          family: agent-dispatch-registration-gap
+          round: 8
+        - id: BR-33
+          severity: Minor
+          title: ttyFixtureExpectation comment says selection.raw takes the shared default, but it has its own explicit row
+          detail: Only overlay.raw is the shared default (""); the qoder row lists selection.raw false explicitly. Also the qoder prose-does-not-open-overlay test feeds spaced text while Qoder paints body rows glued, so it does not model the real false-positive risk for glued markers like forfuturesessions and Enterselect.
+          family: unbacked-existing-behavior-claim
+          round: 8
+        - id: BR-34
+          severity: Minor
+          title: 'Plan and atlas lag M3: Task 14 still lists orientation.go, Goal cites 1.1.59, architecture.md:1203 says --session-id is claude-only'
+          detail: orientation.go's qoder branch landed in M3 Task 9, so Task 14's orientationPromptOK map row is superseded and the M3 Revisions entry omits it. The plan Goal says v1.1.59 while fixtures are 1.1.60. atlas/architecture.md:1203 still says "For claude ... --session-id is deterministic" though qoder now pins too.
+          family: plan-prose-restates-diff
+          round: 8
+      boundary: M3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -483,6 +532,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
   ValidateTargetWork's default (incremental_inventory.go:148-149) hand-builds a Diagnostic{} with no artifact context, while the lines just above use artifactDiagnostic(...); AdvanceTargetValidation's default (:210-211) emits no diagnostic at all and returns bare ErrArtifactChanged. Pick one shape (artifactDiagnostic with the observation's artifact in both, or a shared helper) so the watcher's fallback path reports why. The Advance default arm still carries no failing-without-it test, which is the BR-25 residual above.
 
+## Round 8 — 2026-09-21T14:35:41-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-28** [Critical] `overlay-flag-rearmed-from-stale-input` Qoder raw rolling-buffer scan re-arms pickerActive after the confirming Enter (ARCH-ORDER)
+  Reproduced at head: paint overlay.raw or selection.raw, emitPlainCR consumes the flag, then one small chunk re-arms it from stale rolling bytes; the next composer Enter passes a bare CR and submits the draft. emitPlainCR clears only overlayTextTail; rolling is loop-local. Claude/codex OSC paths trim rolling at wrap.go:3115 and codex text never reads it. Codex has TestCheckOverlayOpen_CodexDoesNotRedetectStalePickerText (overlay_test.go:253); qoder has no counterpart. Rule: detector input that outlives flag consumption is reset at consumption. Fix by giving the raw window a proxy-owned tail cleared in emitPlainCR, or advance past the matched marker; add a paint, Enter, small-chunk test over both fixtures.
+- **BR-29** [Important] `qoder-branch-copies-claude` qoderComposerActive re-implements ruledBoxComposerActive instead of adding a spec (ARCH-DRY)
+  composer_recognizers.go duplicates the Cursor.Y+1 prompt scan and the ruledBoxBottomRule scan. The atlas paragraph edited in this diff says add a spec rather than a fourth near-copy, and plan Task 9 Step 2(b) orders the same. The real differences are promptCol and requireVisibleCursor spec fields. Rule: a ruled-box harness registers a ruledBoxComposerSpec and no other function owns that loop.
+- **BR-30** [Important] `hand-restated-registry` Qoder prompt column 1 and glyph set >/* are restated in the recognizer and in orientation.go
+  qoderComposerActive hard-codes promptCol=1 and ">"/"*"; orientationComposerActive and orientationPromptOK restate both. Muse's precedent is musePromptGlyphs, shared so the two gates cannot disagree. Rule: one qoderPromptCol and one qoderPromptGlyphs authority read by both gates; M4's scrollback/distill glyph consumers should derive from it too.
+- **BR-31** [Important] `refactor-changes-sibling-agent-behavior` Shared orientationComposerActive now skips column-N rule cells for every agent; sibling behavior changes unpinned
+  orientation.go:190 skips claudeComposerRule for all agents, but only qoder needs it (composer.raw's hidden cursor parks on the closing rule; without the skip the fixture fails). Measured with a claude box and cursor on the closing rule: orientationComposerActive goes false to true versus base. No test pins claude, codex, agy or muse. Rule: sibling behavior changes only through a per-profile field, with a negative row per sibling.
+- **BR-32** [Important] `agent-dispatch-registration-gap` Qoder create-path mint (createflow.go:596 AgentSessionExists(agent, ...)) is pinned by no test
+  Only the shouldMintSessionID predicate is tested. Reverting the probe to the literal "claude" leaves every launcher test green except sandbox failures. Rule: an agent-identity branch is either derived from a registry predicate or has a runCreate test per registry-true agent, using the agent-keyed fake so a hard-coded sibling is observable. Test: runCreate for qoder with agentSessions["qoder|MINTED-1"]=true expects MINTED-2 and --session-id MINTED-2.
+- **BR-33** [Minor] `unbacked-existing-behavior-claim` ttyFixtureExpectation comment says selection.raw takes the shared default, but it has its own explicit row
+  Only overlay.raw is the shared default (""); the qoder row lists selection.raw false explicitly. Also the qoder prose-does-not-open-overlay test feeds spaced text while Qoder paints body rows glued, so it does not model the real false-positive risk for glued markers like forfuturesessions and Enterselect.
+- **BR-34** [Minor] `plan-prose-restates-diff` Plan and atlas lag M3: Task 14 still lists orientation.go, Goal cites 1.1.59, architecture.md:1203 says --session-id is claude-only
+  orientation.go's qoder branch landed in M3 Task 9, so Task 14's orientationPromptOK map row is superseded and the M3 Revisions entry omits it. The plan Goal says v1.1.59 while fixtures are 1.1.60. atlas/architecture.md:1203 still says "For claude ... --session-id is deterministic" though qoder now pins too.
+
 ## Open findings
 
 - **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
@@ -490,3 +558,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Minor] `unbacked-existing-behavior-claim` Issue Log line 184 (this window) records BR-18/BR-24 as delivered; no commit contains them and the working-tree version only partly delivers them
 - **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
 - **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
+- **BR-28** [Critical] `overlay-flag-rearmed-from-stale-input` Qoder raw rolling-buffer scan re-arms pickerActive after the confirming Enter (ARCH-ORDER)
+- **BR-29** [Important] `qoder-branch-copies-claude` qoderComposerActive re-implements ruledBoxComposerActive instead of adding a spec (ARCH-DRY)
+- **BR-30** [Important] `hand-restated-registry` Qoder prompt column 1 and glyph set >/* are restated in the recognizer and in orientation.go
+- **BR-31** [Important] `refactor-changes-sibling-agent-behavior` Shared orientationComposerActive now skips column-N rule cells for every agent; sibling behavior changes unpinned
+- **BR-32** [Important] `agent-dispatch-registration-gap` Qoder create-path mint (createflow.go:596 AgentSessionExists(agent, ...)) is pinned by no test
+- **BR-33** [Minor] `unbacked-existing-behavior-claim` ttyFixtureExpectation comment says selection.raw takes the shared default, but it has its own explicit row
+- **BR-34** [Minor] `plan-prose-restates-diff` Plan and atlas lag M3: Task 14 still lists orientation.go, Goal cites 1.1.59, architecture.md:1203 says --session-id is claude-only
