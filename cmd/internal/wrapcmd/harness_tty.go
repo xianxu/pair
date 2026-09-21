@@ -82,6 +82,7 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 			altCR:   []byte{'\r'},
 			altBS:   []byte{0x15},
 		},
+		overlay:      detectQoderOverlayOpen,
 		composerGate: composerGatePositive,
 		recognize:    qoderComposerActive,
 	},

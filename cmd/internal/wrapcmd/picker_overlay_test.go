@@ -53,6 +53,19 @@ func TestCheckOverlayOpen_AgyPickerMarkers(t *testing.T) {
 	}
 }
 
+// TestCheckOverlayOpen_QoderPermissionPicker confirms that Qoder's permission
+// picker trips pickerActive through the profile registry, so the next plain
+// Return confirms the highlighted choice instead of remapping to a newline the
+// picker would never accept. The question row arrives word-by-word, matching
+// the frozen overlay.raw paint.
+func TestCheckOverlayOpen_QoderPermissionPicker(t *testing.T) {
+	p := proxyForHarness("qoder")
+	checkOverlayBytes(p, []byte("\x1b[2GAllow\x1b[8Gthis\x1b[13Gcommand\x1b[21Gto\x1b[24Grun?\r\r\n"))
+	if !p.pickerActive.Load() {
+		t.Fatalf("pickerActive should be true after seeing qoder permission picker")
+	}
+}
+
 // TestCheckOverlayOpen_UnrelatedOSCSkipped covers the broader
 // negative case: any OSC that isn't the picker-open body must be a
 // no-op, even on claude. Guards against accidentally tripping on

@@ -142,6 +142,57 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			raw:      []byte("Enter to select"),
 			wantOpen: false,
 		},
+		{
+			// Qoder's permission picker, as captured live in overlay.raw: the
+			// question row is painted word-by-word at absolute columns, so no
+			// spaces survive the strip between its words.
+			name:      "qoder permission picker question opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\x1b[2GAllow\x1b[8Gthis\x1b[13Gcommand\x1b[21Gto\x1b[24Grun?\r\r\n"),
+			wantOpen:  true,
+			wantMatch: "Allowthiscommandtorun?",
+		},
+		{
+			name:      "qoder permission picker header opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\x1b[38;2;238;238;235mPermission Required\x1b[39m"),
+			wantOpen:  true,
+			wantMatch: "Permission Required",
+		},
+		{
+			name:     "qoder composer text does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("\x1b[7;1H\x1b[38;2;149;149;146m────\x1b[8;1H\x1b[38;2;149;124;173m> \x1b[?25h\x1b[8;3HType your message or @path/to/file"),
+			wantOpen: false,
+		},
+		{
+			// Qoder's question picker header, as captured live in
+			// selection.raw: two styled runs split by an absolute-column jump,
+			// so the gap between "Asking" and "User" carries no space byte.
+			name:      "qoder question picker header opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\r\r\n\r\r\n\x1b[38;2;238;238;235m\x1b[1m Asking\x1b[22m\x1b[39m\x1b[9G\x1b[38;2;238;238;235m\x1b[1mUser\x1b[22m\x1b[39m\x1b[K\r\x1b[1B"),
+			wantOpen:  true,
+			wantMatch: "AskingUser",
+		},
+		{
+			// The question picker's keybinding footer, verbatim from
+			// selection.raw's strip. It is the family's own statement that
+			// Enter selects the highlighted option.
+			name:      "qoder question picker footer opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\x1b[38;2;149;149;143m\u2191\u2193navigate\u00b7Enterselect\u00b7Esccancel\x1b[39m"),
+			wantOpen:  true,
+			wantMatch: "Enterselect",
+		},
+		{
+			// A composer message that merely discusses selecting must not arm
+			// the overlay: the marker is the glued footer paint, not the words.
+			name:     "qoder prose about enter select does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("press Enter to select an option"),
+			wantOpen: false,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

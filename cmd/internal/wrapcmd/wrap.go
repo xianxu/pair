@@ -871,6 +871,62 @@ func detectMuseOverlayText(visible string) (bool, string) {
 	return false, ""
 }
 
+var qoderPickerMarkers = []string{
+	// Qoder's permission picker, captured live in qoder/1.1.60/overlay.raw
+	// (a Bash tool approval from a `--permission-mode default` session).
+	// Qoder paints the picker BODY word-by-word at absolute columns, so the
+	// spaces between those words never reach the stream and the frozen strip
+	// reads them glued ("Allowthiscommandtorun?"); the header emits real
+	// spaces between its per-character runs and survives the strip intact.
+	// Markers are verbatim from that strip. The header is the generic marker —
+	// it titles every permission picker — while the body strings pin the one
+	// captured question. Plain Enter must confirm the highlighted choice —
+	// remapping to the composer's newline would leak a literal newline into
+	// the picker.
+	"Permission Required",
+	"Allowthiscommandtorun?",
+	"Rejectandtypesomething",
+	"forfuturesessions",
+	// Qoder's question picker (its AskUserQuestion UI), captured live in
+	// qoder/1.1.60/selection.raw: an "Asking User" header over a ruled card
+	// listing options with a `❯` selection marker, closed by a keybinding
+	// footer. Both strings are verbatim from that capture's strip; the header
+	// is painted as two styled runs split by an absolute-column jump, so the
+	// gap between them carries no space byte. The footer is the family's own
+	// statement that Enter selects, which is why the wrapper must not rewrite
+	// it to a newline (#000042's muse shape).
+	"AskingUser",
+	"Enterselect",
+}
+
+func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	// The raw rolling buffer is byte-contiguous, so a chunk boundary inside an
+	// escape sequence cannot corrupt it the way per-chunk stripping can. This
+	// is not hypothetical: replaying selection.raw split 6426/6616 cut the
+	// footer inside \x1b[23m, and the stripped tail kept the truncated escape
+	// verbatim, destroying "Enterselect". The buffer sees only the last
+	// rollingTailLen raw bytes — fewer visible chars than the tail below —
+	// so it can only arm earlier, never later.
+	if open, reason := detectQoderOverlayText(stripTerminalControls(rolling)); open {
+		return true, reason
+	}
+	visible := stripTerminalControls(data)
+	if p != nil {
+		visible = p.overlayTextTail + visible
+		p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	}
+	return detectQoderOverlayText(visible)
+}
+
+func detectQoderOverlayText(visible string) (bool, string) {
+	for _, marker := range qoderPickerMarkers {
+		if strings.Contains(visible, marker) {
+			return true, marker
+		}
+	}
+	return false, ""
+}
+
 func stripTerminalControls(raw []byte) string {
 	stripped := ansi.Strip(raw)
 	stripped = bytesReplaceAll(stripped, '\r')
