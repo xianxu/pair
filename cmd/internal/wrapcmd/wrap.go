@@ -2275,7 +2275,7 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		return nil, errors.New("missing agent command")
 	}
 	agent := filepath.Base(currentArgv[0])
-	freshArgs := launcher.FreshAgentArgs(currentArgv[1:])
+	freshArgs := launcher.FreshAgentArgs(agent, currentArgv[1:])
 	sessionID := ""
 	if agent == "claude" {
 		sessionID = freshUUID()

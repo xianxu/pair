@@ -209,17 +209,23 @@ func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string
 // generated resume flags in compatibility config would compound them on
 // every relaunch. The spellings live in one table (resumeform.Forms) shared
 // with the extractors, the validator and sessionwatch; the deterministic
-// --session-id pin is stripped alongside them. Agent-agnostic: stripping a
-// form the current agent never uses is a harmless no-op.
-func persistedConfigArgs(args []string) []string {
-	out := stripCodexResumeSubcommand(args)
-	out = resumeform.Strip(out)
+// --session-id pin is stripped alongside them. The strip is strictly
+// per-agent (BR-22): args saved for agent A are only rewritten by A's own
+// spellings — claude/qoder reuse the shared --resume/-r table, codex/muse
+// the leading `resume <id>` subcommand — so a peer agent's legit token
+// (e.g. a claude prompt word `resume`) is never eaten.
+func persistedConfigArgs(agent string, args []string) []string {
+	out := args
+	if agent == "codex" || agent == "muse" {
+		out = stripCodexResumeSubcommand(out)
+	}
+	out = resumeform.Strip(agent, out)
 	out = stripFlagAllForms(out, "--session-id")
 	return out
 }
 
 // FreshAgentArgs preserves user-authored launch options while removing every
 // generated conversation-restoration binding.
-func FreshAgentArgs(args []string) []string {
-	return persistedConfigArgs(args)
+func FreshAgentArgs(agent string, args []string) []string {
+	return persistedConfigArgs(agent, args)
 }

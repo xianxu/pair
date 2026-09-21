@@ -49,6 +49,29 @@ func TestValidateQoderDelta(t *testing.T) {
 	}
 }
 
+// BR-19: the epoch-millis path is bounded. A value outside the representable
+// window disputes the record visibly — like a malformed ISO string — instead
+// of fabricating a chronology the rest of the pipeline cannot marshal.
+func TestQoderMillisTimestampBounds(t *testing.T) {
+	t.Parallel()
+	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "qoder-projects", RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}}
+	for _, record := range []string{
+		`{"type":"runtime-config","sessionId":"11111111-1111-4111-8111-111111111111","timestamp":9223372036854775807}`,
+		`{"type":"runtime-config","sessionId":"11111111-1111-4111-8111-111111111111","timestamp":-62135596800000}`,
+		`{"type":"runtime-config","sessionId":"11111111-1111-4111-8111-111111111111","timestamp":253402300800000}`,
+	} {
+		state, diagnostics, err := sessioninventory.ValidateQoderDelta(entry, nil, []sessioninventory.FramedJSONLRecord{{Bytes: []byte(record)}})
+		if err != nil || !state.Disputed || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticNodeMalformed) {
+			t.Errorf("record %s: state=%#v diagnostics=%#v err=%v", record, state, diagnostics, err)
+		}
+	}
+	// The floor itself stays admissible (2000-01-01T00:00:00Z).
+	state, diagnostics, err := sessioninventory.ValidateQoderDelta(entry, nil, []sessioninventory.FramedJSONLRecord{{Bytes: []byte(`{"type":"runtime-config","sessionId":"11111111-1111-4111-8111-111111111111","timestamp":946684800000}`)}})
+	if err != nil || state.Disputed || diagnosticPresent(diagnostics, sessioninventory.DiagnosticNodeMalformed) {
+		t.Fatalf("floor rejected: state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
+	}
+}
+
 func TestIncrementalQoderMalformedSuffixFailsClosed(t *testing.T) {
 	t.Parallel()
 	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "qoder-projects", RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}}

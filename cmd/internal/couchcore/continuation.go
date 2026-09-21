@@ -229,7 +229,7 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	if profile == nil || profile.Agent != request.Source.Agent {
 		return c.failContinuation(record, errors.New("continuation launch profile no longer matches source"))
 	}
-	argv := launcher.FreshAgentArgs(profile.Argv)
+	argv := launcher.FreshAgentArgs(profile.Agent, profile.Argv)
 	if err := launcher.ValidateFreshAgentArgs(profile.Agent, argv); err != nil {
 		return c.failContinuation(record, err)
 	}

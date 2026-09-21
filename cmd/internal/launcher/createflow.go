@@ -625,7 +625,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	sessionID := firstNonEmpty(explicitResume, newSid)
-	persistedArgs := persistedConfigArgs(agentArgs)
+	persistedArgs := persistedConfigArgs(agent, agentArgs)
 	repoRoot := envScopeRoot(env)
 	repoName := DefaultTag(repoRoot)
 	if sessionEntry.SessionName != "" {
@@ -957,7 +957,7 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	if quarantine {
 		rt.Remove(configPath)
 	}
-	savedArgsClean := persistedConfigArgs(saved.Args)
+	savedArgsClean := persistedConfigArgs(agent, saved.Args)
 	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 
 	labels := make([]string, len(choices))

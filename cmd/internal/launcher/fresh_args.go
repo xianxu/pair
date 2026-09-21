@@ -45,12 +45,19 @@ func (spec freshAgentSpec) forbidsFlag(flag string) bool {
 	return false
 }
 
-func (spec freshAgentSpec) forbidsCluster(cluster string) bool {
+// forbidsCluster scans a short-flag cluster for a selector letter in any
+// position after `-`. The forbidden set is the agent's static letters plus the
+// resume letters derived from resumeform.Forms: `-pr sid` hides `-r` exactly
+// like `-r sid` does, and the validator must refuse it (BR-17). A value-taking
+// letter ends the scan — the remainder is that option's glued value, so `-nr`
+// is `-n r`, not a resume.
+func (spec freshAgentSpec) forbidsCluster(agent, cluster string) bool {
+	forbidden := spec.forbiddenShort + resumeform.ShortLetters(agent)
 	for _, r := range cluster[1:] {
 		if strings.ContainsRune(spec.valueShort, r) {
 			return false
 		}
-		if strings.ContainsRune(spec.forbiddenShort, r) {
+		if strings.ContainsRune(forbidden, r) {
 			return true
 		}
 	}
@@ -84,8 +91,8 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 		if agent == "muse" && flag == "--session-id" {
 			forbidden = true
 		}
-		if !forbidden && spec.forbiddenShort != "" && strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") {
-			forbidden = spec.forbidsCluster(arg)
+		if !forbidden && strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") {
+			forbidden = spec.forbidsCluster(agent, arg)
 		}
 		if forbidden {
 			return fmt.Errorf("%s argument %q selects an existing conversation", agent, arg)

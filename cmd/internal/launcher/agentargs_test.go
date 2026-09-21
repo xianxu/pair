@@ -6,7 +6,7 @@ import (
 )
 
 func TestFreshAgentArgsDropsRestorationAndKeepsUserOptions(t *testing.T) {
-	got := FreshAgentArgs([]string{"--sandbox", "danger-full-access", "resume", "old-id", "--model", "gpt-5"})
+	got := FreshAgentArgs("codex", []string{"--sandbox", "danger-full-access", "resume", "old-id", "--model", "gpt-5"})
 	want := []string{"--sandbox", "danger-full-access", "--model", "gpt-5"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("FreshAgentArgs() = %v, want %v", got, want)
@@ -123,13 +123,13 @@ func TestQoderExplicitResumeAndPersistedArgs(t *testing.T) {
 	if got := extractExplicitResume("qoder", []string{"hello"}); got != "" {
 		t.Fatalf("extractExplicitResume qoder plain prompt = %q, want empty", got)
 	}
-	if got := persistedConfigArgs([]string{"--model", "m", "--resume", "sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+	if got := persistedConfigArgs("qoder", []string{"--model", "m", "--resume", "sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
 		t.Errorf("persisted qoder resume must strip (no accumulation): %v", got)
 	}
-	if got := persistedConfigArgs([]string{"--model", "m", "-r", "sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+	if got := persistedConfigArgs("qoder", []string{"--model", "m", "-r", "sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
 		t.Errorf("persisted qoder -r resume must strip (no accumulation): %v", got)
 	}
-	if got := persistedConfigArgs([]string{"--model", "m", "--resume=sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+	if got := persistedConfigArgs("qoder", []string{"--model", "m", "--resume=sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
 		t.Errorf("persisted qoder inline resume must strip (no accumulation): %v", got)
 	}
 }
@@ -143,7 +143,7 @@ func TestQoderShortResumeRoundTrip(t *testing.T) {
 		{"--model", "m", "--resume", "abc"},
 		{"--model", "m", "--resume=abc"},
 	} {
-		persisted := persistedConfigArgs(pinned)
+		persisted := persistedConfigArgs("qoder", pinned)
 		if !reflect.DeepEqual(persisted, []string{"--model", "m"}) {
 			t.Fatalf("persisted keeps a resume form: %v -> %v", pinned, persisted)
 		}
@@ -151,7 +151,7 @@ func TestQoderShortResumeRoundTrip(t *testing.T) {
 		if !reflect.DeepEqual(relaunched, []string{"--model", "m", "--resume", "sid2"}) {
 			t.Fatalf("relaunch accumulates resume bindings: %v -> %v", pinned, relaunched)
 		}
-		if err := ValidateFreshAgentArgs("qoder", FreshAgentArgs(relaunched)); err != nil {
+		if err := ValidateFreshAgentArgs("qoder", FreshAgentArgs("qoder", relaunched)); err != nil {
 			t.Fatalf("fresh path rejects the persisted args for %v: %v", pinned, err)
 		}
 	}
@@ -167,7 +167,7 @@ func TestMuseResumeArgs(t *testing.T) {
 	if got := extractExplicitResume("muse", []string{"please", "resume", "sid-1"}); got != "" {
 		t.Fatalf("muse prompt must not be treated as resume, got %q", got)
 	}
-	if got := persistedConfigArgs([]string{"resume", "sid", "--model", "x"}); !reflect.DeepEqual(got, []string{"--model", "x"}) {
+	if got := persistedConfigArgs("muse", []string{"resume", "sid", "--model", "x"}); !reflect.DeepEqual(got, []string{"--model", "x"}) {
 		t.Errorf("persisted muse resume: got %v", got)
 	}
 }
@@ -209,25 +209,30 @@ func TestShouldMintClaudeSessionID(t *testing.T) {
 
 // Every agent's resume binding is stripped before persisting — the claude subset
 // AND agy --conversation (both forms) AND codex leading `resume <id>` — so a
-// resume can't compound in the saved args on relaunch (review I1).
+// resume can't compound in the saved args on relaunch (review I1). Each strip
+// is strictly per-agent (BR-22).
 func TestPersistedConfigArgsStripsBinding(t *testing.T) {
 	// claude subset.
-	if got := persistedConfigArgs([]string{"--search", "--session-id", "u", "--resume", "r", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--search", "--no-alt-screen"}) {
+	if got := persistedConfigArgs("claude", []string{"--search", "--session-id", "u", "--resume", "r", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--search", "--no-alt-screen"}) {
 		t.Errorf("claude: got %v", got)
 	}
 	// agy --conversation, space + inline forms.
-	if got := persistedConfigArgs([]string{"--conversation", "cid", "--search"}); !reflect.DeepEqual(got, []string{"--search"}) {
+	if got := persistedConfigArgs("agy", []string{"--conversation", "cid", "--search"}); !reflect.DeepEqual(got, []string{"--search"}) {
 		t.Errorf("agy space form: got %v", got)
 	}
-	if got := persistedConfigArgs([]string{"--conversation=cid", "--search"}); !reflect.DeepEqual(got, []string{"--search"}) {
+	if got := persistedConfigArgs("agy", []string{"--conversation=cid", "--search"}); !reflect.DeepEqual(got, []string{"--search"}) {
 		t.Errorf("agy inline form: got %v", got)
 	}
 	// codex leading `resume <id>` (position-sensitive) + trailing saved flags kept.
-	if got := persistedConfigArgs([]string{"resume", "sid", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--no-alt-screen"}) {
+	if got := persistedConfigArgs("codex", []string{"resume", "sid", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--no-alt-screen"}) {
 		t.Errorf("codex resume subcommand: got %v", got)
 	}
 	// codex global options may precede the resume command.
-	if got := persistedConfigArgs([]string{"--sandbox", "danger-full-access", "resume", "sid", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--sandbox", "danger-full-access", "--no-alt-screen"}) {
+	if got := persistedConfigArgs("codex", []string{"--sandbox", "danger-full-access", "resume", "sid", "--no-alt-screen"}); !reflect.DeepEqual(got, []string{"--sandbox", "danger-full-access", "--no-alt-screen"}) {
 		t.Errorf("codex global-options resume subcommand: got %v", got)
+	}
+	// A claude prompt word `resume` is data, not a codex subcommand (BR-22).
+	if got := persistedConfigArgs("claude", []string{"resume", "the-migration"}); !reflect.DeepEqual(got, []string{"resume", "the-migration"}) {
+		t.Errorf("claude prompt eaten by codex strip: %v", got)
 	}
 }

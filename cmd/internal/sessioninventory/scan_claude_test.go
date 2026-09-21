@@ -113,3 +113,14 @@ func TestIncrementalClaudeMalformedSuffixFailsClosed(t *testing.T) {
 		t.Fatalf("state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
 	}
 }
+
+// BR-20: qoder's epoch-millis admission is a parameter, not a widening of the
+// shared type — claude records carrying an integer timestamp still dispute.
+func TestIncrementalClaudeRejectsNumericTimestamp(t *testing.T) {
+	t.Parallel()
+	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "claude-projects", RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}}
+	state, diagnostics, err := sessioninventory.ValidateClaudeDelta(entry, nil, []sessioninventory.FramedJSONLRecord{{Bytes: []byte(`{"type":"user","sessionId":"11111111-1111-4111-8111-111111111111","timestamp":1787907630000}`)}})
+	if err != nil || !state.Disputed || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticNodeMalformed) {
+		t.Fatalf("state=%#v diagnostics=%#v err=%v", state, diagnostics, err)
+	}
+}

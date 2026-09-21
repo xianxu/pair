@@ -120,7 +120,7 @@ func runCompaction(opts LaunchOptions, rt Runtime, stderr io.Writer) (int, error
 		return 1, nil
 	}
 	saved := readSavedConfig(rt, resolveConfigPath(rt, opts.Env.DataDir, tag, agent))
-	marker := RestartMarker{AgentArgs: FreshAgentArgs(saved.Args), Version: 1, Attempt: attempt, Tag: tag, Agent: agent, NewSession: true, Continue: opts.ContinueSlug, Checkpoint: opts.ContinueCheckpoint}
+	marker := RestartMarker{AgentArgs: FreshAgentArgs(agent, saved.Args), Version: 1, Attempt: attempt, Tag: tag, Agent: agent, NewSession: true, Continue: opts.ContinueSlug, Checkpoint: opts.ContinueCheckpoint}
 	if err := rt.WriteRestartMarker(session, marker); err != nil {
 		fmt.Fprintf(stderr, "pair: write continuation restart intent: %v\n", err)
 		return 1, nil

@@ -162,7 +162,7 @@ func composeTagRestartArgs(action, agent string, savedArgsClean, agentExtra []st
 	case "saved+resume":
 		return composeResumeArgs(agent, savedArgsClean, savedSession)
 	case "new+resume":
-		return composeResumeArgs(agent, persistedConfigArgs(agentExtra), savedSession)
+		return composeResumeArgs(agent, persistedConfigArgs(agent, agentExtra), savedSession)
 	case "saved":
 		return append([]string(nil), savedArgsClean...)
 	default: // "new" and any unmatched selection keep the typed args verbatim.

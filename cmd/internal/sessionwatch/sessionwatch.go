@@ -49,7 +49,7 @@ func StripResumeArgs(agent string, args []string) []string {
 	if (agent == "codex" || agent == "muse") && len(args) >= 2 && args[0] == "resume" {
 		args = args[2:]
 	}
-	return resumeform.Strip(args)
+	return resumeform.Strip(agent, args)
 }
 
 func ConfigJSON(payload ConfigPayload) ([]byte, error) {
