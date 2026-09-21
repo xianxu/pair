@@ -70,6 +70,7 @@ func TestResumeTokenPerAgent(t *testing.T) {
 		{"codex", "s1", []string{"resume", "s1"}},
 		{"agy", "s1", []string{"--conversation", "s1"}},
 		{"muse", "s1", []string{"resume", "s1"}},
+		{"qoder", "s1", []string{"--resume", "s1"}},
 		{"claude", "", nil},
 		{"unknown", "s1", nil},
 	}
@@ -101,8 +102,29 @@ func TestComposeResumeArgsOrdering(t *testing.T) {
 	if got := composeResumeArgs("claude", []string{"--search"}, "sid"); !reflect.DeepEqual(got, []string{"--search", "--resume", "sid"}) {
 		t.Errorf("claude resume trails: %v", got)
 	}
+	if got := composeResumeArgs("qoder", []string{"--model", "m"}, "sid"); !reflect.DeepEqual(got, []string{"--model", "m", "--resume", "sid"}) {
+		t.Errorf("qoder resume trails like claude (global flag): %v", got)
+	}
 	if got := composeResumeArgs("claude", []string{"--search"}, ""); !reflect.DeepEqual(got, []string{"--search"}) {
 		t.Errorf("no sid → saved args unchanged: %v", got)
+	}
+}
+
+func TestQoderExplicitResumeAndPersistedArgs(t *testing.T) {
+	if got := extractExplicitResume("qoder", []string{"--resume", "abc"}); got != "abc" {
+		t.Fatalf("extractExplicitResume qoder space form = %q, want abc", got)
+	}
+	if got := extractExplicitResume("qoder", []string{"-r", "abc"}); got != "abc" {
+		t.Fatalf("extractExplicitResume qoder short form = %q, want abc", got)
+	}
+	if got := extractExplicitResume("qoder", []string{"--resume=abc"}); got != "abc" {
+		t.Fatalf("extractExplicitResume qoder inline form = %q, want abc", got)
+	}
+	if got := extractExplicitResume("qoder", []string{"hello"}); got != "" {
+		t.Fatalf("extractExplicitResume qoder plain prompt = %q, want empty", got)
+	}
+	if got := persistedConfigArgs([]string{"--model", "m", "--resume", "sid"}); !reflect.DeepEqual(got, []string{"--model", "m"}) {
+		t.Errorf("persisted qoder resume must strip (no accumulation): %v", got)
 	}
 }
 

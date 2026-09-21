@@ -51,9 +51,10 @@ func buildConfigJSON(agent string, args []string, sid string) (string, error) {
 // pins, or "" if none. Per-agent surface (shell create branch 2053-2075): claude
 // `--resume <id>`, agy `--conversation <id>` / `--conversation=<id>`, codex the
 // leading `resume <id>` subcommand, muse the same `resume <id>` subcommand as
-// codex. Drives both the tag-restart picker gate (a passed-in resume leaves the
-// picker nothing to offer) and the pre-write of config-<tag>-<agent>.json so the
-// id is captured from the start.
+// codex, qoder `--resume <id>` / `-r <id>` / `--resume=<id>`. Drives both the
+// tag-restart picker gate (a passed-in resume leaves the picker nothing to
+// offer) and the pre-write of config-<tag>-<agent>.json so the id is captured
+// from the start.
 func extractExplicitResume(agent string, args []string) string {
 	switch agent {
 	case "codex", "muse":
@@ -76,6 +77,17 @@ func extractExplicitResume(agent string, args []string) string {
 			// Only a non-empty inline value pins the id; a bare `--conversation=`
 			// keeps scanning (the shell's `^--conversation=(.+)` needs ≥1 char).
 			if v, ok := strings.CutPrefix(tok, "--conversation="); ok && v != "" {
+				return v
+			}
+			prev = tok
+		}
+	case "qoder":
+		prev := ""
+		for _, tok := range args {
+			if prev == "--resume" || prev == "-r" {
+				return tok
+			}
+			if v, ok := strings.CutPrefix(tok, "--resume="); ok && v != "" {
 				return v
 			}
 			prev = tok

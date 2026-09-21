@@ -141,14 +141,15 @@ func codexValueGlobalOption(arg string) bool {
 
 // resumeToken is the per-agent surface for resuming a session id: claude uses
 // `--resume <id>`, codex uses the `resume <id>` subcommand, agy uses
-// `--conversation <id>`, muse uses `resume <id>` (like codex). Empty sid (or an
+// `--conversation <id>`, muse uses `resume <id>` (like codex), qoder uses
+// `--resume <id>` (like claude; a global flag, any position). Empty sid (or an
 // unknown agent) yields no token.
 func resumeToken(agent, sid string) []string {
 	if sid == "" {
 		return nil
 	}
 	switch agent {
-	case "claude":
+	case "claude", "qoder":
 		return []string{"--resume", sid}
 	case "codex":
 		return []string{"resume", sid}
