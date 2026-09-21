@@ -5,9 +5,9 @@ deps: []
 github_issue:
 created: 2026-09-20
 updated: 2026-09-20
-estimate_hours:
+estimate_hours: 5.35
 started: 2026-09-20T18:58:25-07:00
-flow: {kind: quick, provenance: inferred, spec: "8c42eb10", done: "6d744b6d"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # integrate qoder harness into pair
@@ -77,6 +77,67 @@ launcher agent registry is the single choke point both hosts share.
   launches, parks, and cold-resumes through couch.
 - `atlas/how-to-bring-up-a-new-harness-cli.md` reflects the couch
   architecture; `make test` green.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.*
+
+**Derivation:**
+- **Design hours:** v2 ranges, with the ×0.2 spec-quality discount on every
+  code primitive — the durable plan resolves their decisions with files, code
+  and failure modes written out.
+- **Undiscounted design:** `issue-spec` (the spec + plan + two external review
+  rounds already spent since the claim) and `ux-rename-iteration` (live TTY
+  adaptation is not pre-resolvable by a plan).
+- **Library check (Step 2.5):** no external library applies; the short-circuit
+  is internal — qoder is claude-family (claude-shaped JSONL transcripts), so
+  the claude scanner core, normalizers and arg plumbing are mirrored rather
+  than rebuilt. That is what holds the M2 items in the smaller-module range.
+- **Implementation hours:** 40% of the v2 ranges (v3.1). Upper part for the
+  items that ride live-capture iteration (M3 tui-screen, both
+  `real-api-discovery` budgets) and for the multi-site wiring items.
+- **Familiarity 1.0:** the repo's harness bring-up pattern (muse precedent +
+  the atlas checklist) is established; the genuinely novel surfaces (qoder's
+  TTY bytes, the `qoder -p` invocation) carry their own `real-api-discovery`
+  budgets instead.
+- **Design buffer +15%:** thorough plan doc (v2.1).
+- **Boundaries:** one `milestone-review` per review boundary — M1–M4 closes
+  plus the final close.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec              design=1.00 impl=0.08
+item: smaller-go-module       design=0.06 impl=0.12
+item: smaller-go-module       design=0.06 impl=0.16
+item: cross-cutting-refactor  design=0.10 impl=0.16
+item: greenfield-go-module    design=0.30 impl=0.24
+item: smaller-go-module       design=0.06 impl=0.16
+item: tui-screen              design=0.30 impl=0.28
+item: real-api-discovery      design=0.00 impl=0.24
+item: smaller-go-module       design=0.06 impl=0.12
+item: smaller-go-module       design=0.06 impl=0.16
+item: smaller-go-module       design=0.05 impl=0.08
+item: real-api-discovery      design=0.00 impl=0.16
+item: atlas-docs              design=0.04 impl=0.06
+item: ux-rename-iteration     design=0.30 impl=0.08
+item: milestone-review        design=0.00 impl=0.10
+item: milestone-review        design=0.00 impl=0.10
+item: milestone-review        design=0.00 impl=0.10
+item: milestone-review        design=0.00 impl=0.10
+item: milestone-review        design=0.00 impl=0.10
+design-buffer: 0.15
+total: 5.35
+```
+
+**Item order**, top to bottom:
+1. Issue spec + durable plan + two review rounds (already spent).
+2. M1: registry + enum join; fresh-args + resume-token/`extractExplicitResume` plumbing.
+3. M2: claude-family scanner core extraction; `ScanQoder` + roots + dispatch wiring; event adapter + watcher/ledger membership + `AgentSessionExists`.
+4. M3: bootstrap profile + recognizer + captures + registrations; live TTY discovery; overlay markers + session-id mint.
+5. M4: slug via `qoder -p`; glyphs + settings.
+6. M5: standalone smoke + couch round-trip; docs/atlas sweep; one operator iteration round.
+7. Five boundary reviews (M1–M4 closes + final close).
 
 ## Plan
 
@@ -149,4 +210,21 @@ Durable plan: `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md` 
   `observationNativeID` (`target.go:199`) added to Tasks 6/7 with the wrong
   "agent-agnostic" claim corrected. Implementation continues via the normal
   sdlc flow (`change-code`), whose plan-quality gate now sees this plan inline.
+- `sdlc change-code` inference: **full** ("a design of 837 lines (limit 500)";
+  M1–M5 rows). Plan-quality gate (binary dispatch, claude) round 1:
+  **INFO/passed** — no blocking findings; 7 advisory Minors recorded in
+  `workshop/plans/000300-integrate-qoder-harness-into-pair-plan-gate.md` for
+  the close review (registry half-joins in M1 + no parity test; `usage.go:60`
+  context meter + create-path `shouldMintClaudeSessionID` missed by the hand
+  inventory; Task 9 Step 6 omits `assertFixtureIsMachineNeutral`; Tasks
+  2/3/5/6/7/13/14 embed stale implementation bodies; Task 7 Step 5 names a
+  non-existent test — the real one is
+  `TestLiveNativeSessionShapeConformance` gated by
+  `PAIR_LIVE_NATIVE_SESSIONS=1`; M5 has no own milestone-close; no non-goals).
+  Carry each into implementation as it becomes live (use the correct live-test
+  name in Task 7; extend `usage.go` or list as non-goal; neutral-cwd capture
+  policy in Task 9).
+- Estimate derived per `estimate-logic-v3.1` (Method A, familiarity 1.0,
+  +15% design buffer): **total 5.35h** — 19 items, item order in
+  `## Estimate`. Reconciliation verified (recomputed 5.3485, tol 0.2675).
 
