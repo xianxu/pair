@@ -31,6 +31,31 @@ func TestScanTurnBoundaries(t *testing.T) {
 	}
 }
 
+// Every registry row in promptGlyphChar must drive BOTH of its readers: the
+// line-start boundary regex (scanTurnBoundaries) and the empty-input-box footer
+// detection (trimLiveTail/isFooterChrome). A row that lands in only one reader
+// is a silent half-registration — how qoder's space-prefixed " >" glyph stayed
+// invisible to the box check (TrimSpace(line) was compared to the raw glyph, so
+// ">" never equalled " >") while the boundary regex worked.
+func TestPromptGlyphRowsDriveBothReaders(t *testing.T) {
+	for agent, glyph := range promptGlyphChar {
+		t.Run(agent, func(t *testing.T) {
+			submitted := glyph + "give me a summary"
+			if got := scanTurnBoundaries([]string{"committed output", submitted}, agent); !reflect.DeepEqual(got, []int{1}) {
+				t.Fatalf("boundary reader: scanTurnBoundaries(%q, %q) = %v, want [1]", submitted, agent, got)
+			}
+			// The idle empty input box as rendered: the glyph plus the terminal's
+			// cursor padding after it. It is the LAST line, so trimLiveTail must
+			// strip it or the volatile box leaks into the distill anchor (#58).
+			box := glyph + " "
+			lines := []string{"stable committed line", box}
+			if got := trimLiveTail(lines, agent); !reflect.DeepEqual(got, []string{"stable committed line"}) {
+				t.Fatalf("box reader: trimLiveTail leaves the bare input box %q for %q: got %v", box, agent, got)
+			}
+		})
+	}
+}
+
 func TestLocateFoundWalksBackTwoTurns(t *testing.T) {
 	lines := []string{"a", "❯ t1", "b", "❯ t2", "c", "anchorX", "new1", "new2"}
 	anchor := []string{"anchorX"}

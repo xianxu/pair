@@ -59,7 +59,10 @@ func TestRunQoderDispatchesToQoderCLI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantArgs := "-p\n--model\n" + DefaultQoderModel + "\nprompt text\n"
+	// --no-session-persistence: each `qoder -p` call otherwise persists a
+	// session transcript under ~/.qoder/projects (measured), and the slug fires
+	// at every turn end — unbounded per-turn residue with no owner and no sweep.
+	wantArgs := "-p\n--no-session-persistence\n--model\n" + DefaultQoderModel + "\nprompt text\n"
 	if string(args) != wantArgs {
 		t.Fatalf("qoder argv = %q, want %q", args, wantArgs)
 	}

@@ -143,10 +143,14 @@ func runAgy(r Request) (string, error) {
 
 // runQoder invokes `qoder -p` for headless summarization. TempDir avoids the
 // workspace's agent context; PAIR_SLUG_NESTED=1 guards recursion.
+// --no-session-persistence keeps the call from writing a session transcript
+// under ~/.qoder/projects — the slug fires at every turn end, so persistence
+// here is unbounded per-turn residue with no owner and no sweep (#300 M4
+// review BR-44; the flag only applies with --print, which is always passed).
 func runQoder(r Request) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout())
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "qoder", "-p", "--model", r.Model, r.Prompt)
+	cmd := exec.CommandContext(ctx, "qoder", "-p", "--no-session-persistence", "--model", r.Model, r.Prompt)
 	cmd.Stdin = strings.NewReader(r.Input)
 	cmd.Dir = os.TempDir()
 	cmd.Env = append(os.Environ(), "PAIR_SLUG_NESTED=1")

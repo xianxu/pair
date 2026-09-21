@@ -502,6 +502,55 @@ rounds:
       boundary: M3
       recipe: milestone-review
       blocked: false
+    - "n": 11
+      timestamp: "2026-09-21T16:37:48-07:00"
+      agent: claude
+      findings:
+        - id: BR-42
+          severity: Important
+          title: trimLiveTail's empty-box check `t == glyph` can never match qoder's space-prefixed " >" glyph
+          detail: 'distill.go:70 compares TrimSpace(line) to the raw glyph, so ">" never equals " >". The registry comment calls promptGlyphChar the single source for both the turn-boundary regex and the empty-box detection, but only the regex reader is tested. Rule: a registry row is not landed until a table test ranges the registry and drives every reader. Fix: range promptGlyphChar over scanTurnBoundaries and trimLiveTail, and normalise the glyph once.'
+          family: agent-dispatch-registration-gap
+          round: 11
+        - id: BR-43
+          severity: Important
+          title: distill's qoder glyph " >" restates qoderPromptGlyphs/qoderPromptCol by hand with no parity guard
+          detail: 'Plan Task 14 requires every M4 consumer to derive from the authority. The Lua consumer got a parity test; distill.go:28 got a comment, and its own test only compares the literal to itself, so changing qoderPromptCol reddens nothing. Distill also drops yolo `*` while the Lua row keeps it, on the same evidence. Rule: enumerate consumers of qoderPromptGlyphs/Col (recognizer, orientation, Lua, distill) and require each derived or parity-pinned. Fix: export a changelogcmd accessor and assert it in a wrapcmd parity test, pinning the `*` omission.'
+          family: hand-restated-registry
+          round: 11
+        - id: BR-44
+          severity: Important
+          title: runQoder persists a transcript per slug/changelog call; --no-session-persistence is not passed
+          detail: 'ARCH-FUNERAL. Measured under ~/.qoder/projects/-private-tmp and the TMPDIR project dir: each `qoder -p` leaves an ~9KB jsonl plus a session dir, and `qoder --help` lists --no-session-persistence. The slug fires at turn end, so growth is per turn with no sweep. Fix: add the flag to runQoder''s argv, update wantArgs, and confirm it composes with -p in the live conformance test.'
+          family: headless-call-leaves-durable-residue
+          round: 11
+        - id: BR-45
+          severity: Important
+          title: The carried qoder footer-trim item lives only in a Revisions paragraph; Task 17's steps omit it
+          detail: 'The plan Revisions entry (plan line 872) says qoder''s live footer matches no isFooterChrome row, so trimLiveTail strips nothing and Alt+l anchors on volatile chrome (the #58 FullRedistill class), and it calls this "now an M5 Task 17 scope item". Task 17 Steps 1-4 (plan lines 736-739) have no Alt+l/distill step, so the M5 checklist will not exercise it although the registration ships the degraded state now. Fix: add a Task 17 step to capture the settled footer, extend isFooterChrome, and verify a no-op press.'
+          family: deferred-work-not-in-executing-task
+          round: 11
+        - id: BR-46
+          severity: Minor
+          title: Parity test's class escape uses Lua-pattern dialect but scrollback.lua patterns are Vim regex
+          detail: scrollback_glyph_parity_test.go:46 escapes with %], %-, %^ while PROMPT_PATTERN_BY_AGENT is consumed by vim.fn.search. The comment claims the derivation stays total for any future glyph; a `-` or `]` glyph would derive a wrong class (matching `%` too) and the test would then require it. Dead for `>` and `*` today. Use Vim collection escapes.
+          family: unbacked-existing-behavior-claim
+          round: 11
+        - id: BR-47
+          severity: Minor
+          title: Standard-set allow rules registered at user scope, broader than claude's project-scoped precedent
+          detail: ARCH-SECURE. Bash(git:*), Bash(make:*), Bash(zellij:*) in ~/.qoder/settings.json apply in every repo qoder opens, while claude's equivalents are project-scoped and verb-specific. The A/B ran five simple probes and did not confirm chained commands such as `git status && ...` fall outside the prefix rule. Prefer <repo>/.qoder/settings.local.json or verify the chained-command behavior.
+          family: permission-allowlist-scope
+          round: 11
+        - id: BR-48
+          severity: Minor
+          title: Pump scan-before-bound change is pinned for Claude only; Codex's OSC detector and the OSC telemetry loop share the path
+          detail: 'TestHandleChunk_OscScannedBeforeCarryIsBounded covers Claude''s picker OSC. detectCodexQuestionOSC(rolling) and the OSC telemetry loop now also see the unbounded carry+chunk with no regression row. Rule: a shared-path change is pinned over every profile that reads it. Fix: table-drive the test over each profile with an OSC overlay detector.'
+          family: refactor-changes-sibling-agent-behavior
+          round: 11
+      boundary: M4
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -704,6 +753,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-41** [Minor] `detector-carry-bounded-before-scan` Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk
   Pre-existing and outside this window; it is the class BR-35 belongs to, and the Qoder instance was fixed while the siblings were not. wrap.go:3122-3127 appends to rolling, trims it to rollingTailLen, and only then calls checkOverlayOpen(data, *rolling) and the oscRe scan. detectClaudeOverlayOpen and detectCodexQuestionOSC read only rolling, so an OSC 777 or OSC 9 with more than 512 bytes after it in the same read is dropped before the scan. The rule is that any carry must be scanned at full carry+chunk length and bounded afterwards; here that means moving the trim below the two scans. Not shown to bite in practice (those OSCs usually arrive alone), so no gate blocks on it.
 
+## Round 11 — 2026-09-21T16:37:48-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-42** [Important] `agent-dispatch-registration-gap` trimLiveTail's empty-box check `t == glyph` can never match qoder's space-prefixed " >" glyph
+  distill.go:70 compares TrimSpace(line) to the raw glyph, so ">" never equals " >". The registry comment calls promptGlyphChar the single source for both the turn-boundary regex and the empty-box detection, but only the regex reader is tested. Rule: a registry row is not landed until a table test ranges the registry and drives every reader. Fix: range promptGlyphChar over scanTurnBoundaries and trimLiveTail, and normalise the glyph once.
+- **BR-43** [Important] `hand-restated-registry` distill's qoder glyph " >" restates qoderPromptGlyphs/qoderPromptCol by hand with no parity guard
+  Plan Task 14 requires every M4 consumer to derive from the authority. The Lua consumer got a parity test; distill.go:28 got a comment, and its own test only compares the literal to itself, so changing qoderPromptCol reddens nothing. Distill also drops yolo `*` while the Lua row keeps it, on the same evidence. Rule: enumerate consumers of qoderPromptGlyphs/Col (recognizer, orientation, Lua, distill) and require each derived or parity-pinned. Fix: export a changelogcmd accessor and assert it in a wrapcmd parity test, pinning the `*` omission.
+- **BR-44** [Important] `headless-call-leaves-durable-residue` runQoder persists a transcript per slug/changelog call; --no-session-persistence is not passed
+  ARCH-FUNERAL. Measured under ~/.qoder/projects/-private-tmp and the TMPDIR project dir: each `qoder -p` leaves an ~9KB jsonl plus a session dir, and `qoder --help` lists --no-session-persistence. The slug fires at turn end, so growth is per turn with no sweep. Fix: add the flag to runQoder's argv, update wantArgs, and confirm it composes with -p in the live conformance test.
+- **BR-45** [Important] `deferred-work-not-in-executing-task` The carried qoder footer-trim item lives only in a Revisions paragraph; Task 17's steps omit it
+  The plan Revisions entry (plan line 872) says qoder's live footer matches no isFooterChrome row, so trimLiveTail strips nothing and Alt+l anchors on volatile chrome (the #58 FullRedistill class), and it calls this "now an M5 Task 17 scope item". Task 17 Steps 1-4 (plan lines 736-739) have no Alt+l/distill step, so the M5 checklist will not exercise it although the registration ships the degraded state now. Fix: add a Task 17 step to capture the settled footer, extend isFooterChrome, and verify a no-op press.
+- **BR-46** [Minor] `unbacked-existing-behavior-claim` Parity test's class escape uses Lua-pattern dialect but scrollback.lua patterns are Vim regex
+  scrollback_glyph_parity_test.go:46 escapes with %], %-, %^ while PROMPT_PATTERN_BY_AGENT is consumed by vim.fn.search. The comment claims the derivation stays total for any future glyph; a `-` or `]` glyph would derive a wrong class (matching `%` too) and the test would then require it. Dead for `>` and `*` today. Use Vim collection escapes.
+- **BR-47** [Minor] `permission-allowlist-scope` Standard-set allow rules registered at user scope, broader than claude's project-scoped precedent
+  ARCH-SECURE. Bash(git:*), Bash(make:*), Bash(zellij:*) in ~/.qoder/settings.json apply in every repo qoder opens, while claude's equivalents are project-scoped and verb-specific. The A/B ran five simple probes and did not confirm chained commands such as `git status && ...` fall outside the prefix rule. Prefer <repo>/.qoder/settings.local.json or verify the chained-command behavior.
+- **BR-48** [Minor] `refactor-changes-sibling-agent-behavior` Pump scan-before-bound change is pinned for Claude only; Codex's OSC detector and the OSC telemetry loop share the path
+  TestHandleChunk_OscScannedBeforeCarryIsBounded covers Claude's picker OSC. detectCodexQuestionOSC(rolling) and the OSC telemetry loop now also see the unbounded carry+chunk with no regression row. Rule: a shared-path change is pinned over every profile that reads it. Fix: table-drive the test over each profile with an OSC overlay detector.
+
 ## Open findings
 
 - **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
@@ -712,3 +780,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
 - **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
 - **BR-41** [Minor] `detector-carry-bounded-before-scan` Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk
+- **BR-42** [Important] `agent-dispatch-registration-gap` trimLiveTail's empty-box check `t == glyph` can never match qoder's space-prefixed " >" glyph
+- **BR-43** [Important] `hand-restated-registry` distill's qoder glyph " >" restates qoderPromptGlyphs/qoderPromptCol by hand with no parity guard
+- **BR-44** [Important] `headless-call-leaves-durable-residue` runQoder persists a transcript per slug/changelog call; --no-session-persistence is not passed
+- **BR-45** [Important] `deferred-work-not-in-executing-task` The carried qoder footer-trim item lives only in a Revisions paragraph; Task 17's steps omit it
+- **BR-46** [Minor] `unbacked-existing-behavior-claim` Parity test's class escape uses Lua-pattern dialect but scrollback.lua patterns are Vim regex
+- **BR-47** [Minor] `permission-allowlist-scope` Standard-set allow rules registered at user scope, broader than claude's project-scoped precedent
+- **BR-48** [Minor] `refactor-changes-sibling-agent-behavior` Pump scan-before-bound change is pinned for Claude only; Codex's OSC detector and the OSC telemetry loop share the path

@@ -75,24 +75,37 @@ func TestHandleChunk_PanickingOverlayDetectorDoesNotStrandReturn(t *testing.T) {
 }
 
 // TestHandleChunk_OscScannedBeforeCarryIsBounded pins the shared-pump half of
-// the BR-35 rule for the sibling harnesses: the pump used to bound `rolling`
-// to rollingTailLen before checkOverlayOpen, so an OSC sitting more than a
-// tail's worth of bytes before the end of one chunk was never scanned at all.
-// Claude's picker OSC anywhere in the chunk must still arm the overlay.
+// the BR-35 rule over every profile whose overlay detector reads the raw
+// rolling window: the pump used to bound `rolling` to rollingTailLen before
+// checkOverlayOpen, so an OSC sitting more than a tail's worth of bytes before
+// the end of one chunk was never scanned at all. Each agent's OSC anywhere in
+// the chunk must still arm the overlay. A future OSC-consuming detector must
+// add its row here (text-marker detectors — agy/muse/qoder — do not read OSC).
 func TestHandleChunk_OscScannedBeforeCarryIsBounded(t *testing.T) {
-	profile, ok := profileForHarness("claude", true)
-	if !ok {
-		t.Fatal("claude profile missing")
+	cases := []struct {
+		agent string
+		osc   []byte
+	}{
+		{"claude", []byte("\x1b]777;" + pickerOpenOSCBody + "\x07")},
+		{"codex", []byte("\x1b]9;" + codexQuestionOSC9Prefix + " probe\x07")},
 	}
-	p := &proxy{agentBasename: "claude", ttyProfile: &profile}
-	rolling := make([]byte, 0, rollingTailLen*2)
-	chunk := append([]byte("\x1b]777;"+pickerOpenOSCBody+"\x07"), bytes.Repeat([]byte("x"), rollingTailLen+128)...)
-	p.handleChunk(chunk, &rolling)
-	if !p.pickerActive.Load() {
-		t.Fatal("picker OSC ahead of a long chunk's tail window was not detected")
-	}
-	if len(rolling) > rollingTailLen {
-		t.Fatalf("carry = %d bytes, want bounded to %d", len(rolling), rollingTailLen)
+	for _, tc := range cases {
+		t.Run(tc.agent, func(t *testing.T) {
+			profile, ok := profileForHarness(tc.agent, true)
+			if !ok {
+				t.Fatalf("%s profile missing", tc.agent)
+			}
+			p := &proxy{agentBasename: tc.agent, ttyProfile: &profile}
+			rolling := make([]byte, 0, rollingTailLen*2)
+			chunk := append(append([]byte(nil), tc.osc...), bytes.Repeat([]byte("x"), rollingTailLen+128)...)
+			p.handleChunk(chunk, &rolling)
+			if !p.pickerActive.Load() {
+				t.Fatalf("%s picker OSC ahead of a long chunk's tail window was not detected", tc.agent)
+			}
+			if len(rolling) > rollingTailLen {
+				t.Fatalf("carry = %d bytes, want bounded to %d", len(rolling), rollingTailLen)
+			}
+		})
 	}
 }
 
