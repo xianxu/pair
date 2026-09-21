@@ -1,6 +1,7 @@
 package sessioninventory_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,13 +66,16 @@ func TestEveryAgentDispatchParity(t *testing.T) {
 
 func TestAdvanceTargetValidationPerAgent(t *testing.T) {
 	t.Parallel()
-	for _, agent := range []sessioninventory.Agent{
-		sessioninventory.AgentClaude, sessioninventory.AgentCodex,
-		sessioninventory.AgentMuse, sessioninventory.AgentQoder,
-	} {
+	for _, agent := range sessioninventory.SupportedAgents() {
 		agent := agent
 		t.Run(string(agent), func(t *testing.T) {
 			t.Parallel()
+			if agent == sessioninventory.AgentAgy {
+				t.Skip("agy advance chain requires SQLite fixtures covered by assertAgyAppendStateMatchesFull")
+			}
+			if agentFixtureNativeID(agent) == "" {
+				t.Skip("no fixture native ID for advance test")
+			}
 			runtime := sessioninventorytest.NewFakeRuntime()
 			rootName := agentFixtureRoot(agent)
 			nativeID := agentFixtureNativeID(agent)
@@ -123,6 +127,9 @@ func TestAdvanceTargetValidationPerAgent(t *testing.T) {
 			if advanced.Results[key].RawObservedOffset <= prior.Results[key].RawObservedOffset {
 				t.Fatal("advance did not move offset forward")
 			}
+			if len(advanced.Events) < len(prior.Events) {
+				t.Fatalf("advance lost events: prior=%d advanced=%d", len(prior.Events), len(advanced.Events))
+			}
 		})
 	}
 }
@@ -156,26 +163,55 @@ func TestValidateTargetWorkRejectsUnknownAgent(t *testing.T) {
 func TestAdvanceTargetValidationRejectsUnknownAgent(t *testing.T) {
 	t.Parallel()
 	runtime := sessioninventorytest.NewFakeRuntime()
-	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects", Path: "/native/claude"}
+	agent := sessioninventory.AgentClaude
+	rootName := agentFixtureRoot(agent)
+	nativeID := agentFixtureNativeID(agent)
+	relative := agentFixtureRelative(agent)
+	root := sessioninventory.StorageRoot{Agent: agent, Name: rootName}
 	runtime.AddRoot(root)
-	artifact := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-repo/test.jsonl", Kind: sessioninventory.ArtifactTranscript}
-	entry := sessioninventory.FileEntry{Artifact: artifact, StableFileID: "dev:1/ino:1", GenerationToken: "gen:1", MutationToken: "ctime:1"}
-	runtime.PutFile(entry, []byte(`{"type":"user","timestamp":"2026-08-28T09:01:00Z","sessionId":"11111111-1111-4111-8111-111111111111","isSidechain":false}`+"\n"))
-	prior := sessioninventory.TargetValidation{
-		State: sessioninventory.ScannerState{Agent: sessioninventory.Agent("future"), NativeID: "test"},
-		Observations: []sessioninventory.ArtifactObservation{{
-			Agent: sessioninventory.Agent("future"), Entry: entry, ScannerSchema: "future-v1",
-		}},
-		Results: map[string]sessioninventory.IncrementalResult{
-			targetKey(artifact): {},
-		},
+
+	raw, err := os.ReadFile(filepath.Join("testdata", "native", string(agent), "v1", rootName, filepath.FromSlash(relative)))
+	if err != nil {
+		t.Fatal(err)
 	}
-	current := []sessioninventory.ArtifactObservation{{
-		Agent: sessioninventory.Agent("future"), Entry: entry, ScannerSchema: "future-v1",
-	}}
-	_, _, err := sessioninventory.AdvanceTargetValidation(runtime, prior, current)
-	if err == nil {
-		t.Fatal("unknown agent advance did not error")
+	birth := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
+	entry := sessioninventory.FileEntry{
+		Artifact:        sessioninventory.Artifact{StorageRoot: rootName, RelativePath: relative, Kind: sessioninventory.ArtifactTranscript},
+		StableFileID:    "dev:1/ino:1",
+		GenerationToken: "gen:1",
+		MutationToken:   "ctime:1",
+		BirthTime:       &birth,
+		ModTime:         &birth,
+	}
+	runtime.PutFile(entry, raw)
+
+	observations, _ := sessioninventory.ObserveAgentMetadata(runtime, agent)
+	validations, _ := sessioninventory.ValidateTargetWork(runtime, agent, observations)
+	var prior *sessioninventory.TargetValidation
+	for i := range validations {
+		if validations[i].State.NativeID == nativeID {
+			prior = &validations[i]
+			break
+		}
+	}
+	if prior == nil {
+		t.Fatal("no prior validation for native ID")
+	}
+
+	prior.State.Agent = sessioninventory.Agent("future")
+	runtime.AddRoot(sessioninventory.StorageRoot{Agent: sessioninventory.Agent("future"), Name: rootName})
+
+	runtime.AppendFile(entry.Artifact, agentAppendRecord(agent, nativeID), "ctime:2")
+	current, _ := sessioninventory.ObserveAgentMetadata(runtime, agent)
+	var filtered []sessioninventory.ArtifactObservation
+	for _, obs := range current {
+		if obs.Entry.Artifact.RelativePath == relative {
+			filtered = append(filtered, obs)
+		}
+	}
+	_, _, advanceErr := sessioninventory.AdvanceTargetValidation(runtime, *prior, filtered)
+	if !errors.Is(advanceErr, sessioninventory.ErrArtifactChanged) {
+		t.Fatalf("expected ErrArtifactChanged for unknown agent, got: %v", advanceErr)
 	}
 }
 

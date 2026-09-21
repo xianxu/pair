@@ -292,6 +292,57 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-21T11:07:10-07:00"
+      agent: claude
+      dispose:
+        - id: BR-18
+          disposition: not-addressed
+          note: 'Mutation on HEAD copy: deleting the qoder arm of AdvanceTargetValidation, either new default arm, or (in sessioninventory) the ValidateTargetWork qoder arm / runtime_os qoder root turns nothing red in sessioninventory, sessionwatch, launcher or sessionledger; ValidateTargetWork and the runtime root are caught only by an older launcher test. dispatch_parity_test.go never calls ValidateTargetWork/AdvanceTargetValidation (test-local validateAgentDelta switch), ranges a hard-coded list, and the ValidateTargetWork default arm still drops err silently at the `continue`. Rule: export the single agent list, range the parity test from it, drive the production incremental switches, add unknown-agent rows with a diagnostic, then require every arm-deletion mutation red.'
+          round: 6
+        - id: BR-24
+          disposition: not-addressed
+          note: Revisions entry now exists with the evidence, but it names non-existent fields (acceptsEpochMillis/extraIgnoredTypes vs acceptsMillis/claudeFamilyNoiseTypes), keeps the slug typo untrusted-inputarsed-without-bounds, and claims every dispatch is probed and both default arms fail closed (disproved by the BR-18 mutations). Correct the entry.
+          round: 6
+        - id: BR-25
+          disposition: not-addressed
+          note: Code is committed now, but the overclaim class persists at three sites (issue Log line, plan Revisions bullet, dispatch_parity_test.go:11-16 comment) claiming coverage that an arm-deletion mutation does not turn red. State only what is pinned, or land the BR-18 probes first.
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
+    - "n": 7
+      timestamp: "2026-09-21T11:24:03-07:00"
+      agent: claude
+      dispose:
+        - id: BR-18
+          disposition: addressed
+          note: Qoder wiring is pinned at every per-agent dispatch site (16 arm-deletion mutations, all red) and the parity test ranges SupportedAgents(); the one unpinned fail-closed arm (Advance default) is carried under BR-25.
+          round: 7
+        - id: BR-24
+          disposition: addressed
+          note: Plan Revisions (plan lines ~815-829) records the Task 7 filename correction, live-conformance evidence and claude-family admissions; every cited test exists (TestQoderMillisTimestampBounds, TestIncrementalClaudeRejectsNumericTimestamp, TestEveryTableSpellingRoundTrips, TestResumeFormTableRoundTrip).
+          round: 7
+        - id: BR-25
+          disposition: not-addressed
+          note: 'The claim "unknown-agent tests pin both default arms" (Log 183, plan Revisions "BR-16 rule as delivered") is false for AdvanceTargetValidation: deleting its default arm turns no test red. The test returns ErrArtifactChanged at incremental_inventory.go:183-184 (prior.Results[key] is a zero IncrementalResult, so StableFileID "" != "dev:1/ino:1") and never reaches the switch. It also asserts only err != nil, not ErrArtifactChanged. Fix: build the prior from a real ValidateTargetWork result, set prior.State.Agent to "future", AddRoot for that agent, then assert errors.Is(err, ErrArtifactChanged) and that Results is unchanged; confirm red with the arm deleted. Then correct both prose claims to say what the test pins.'
+          round: 7
+      findings:
+        - id: BR-26
+          severity: Minor
+          title: TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
+          detail: 'dispatch_parity_test.go:70-73 lists claude/codex/muse/qoder by hand, so a sixth JSONL agent is forced through the Validate chain (fixture required) but silently skipped by the Advance test; only the vacuous default-arm test would then stand between it and an unwired Advance switch. This is the 3rd finding in family hand-restated-registry. Rule: any test that claims to cover "every agent" ranges SupportedAgents() (skipping agy explicitly). The same test file also restates per-agent facts in five switch helpers (agentFixtureRoot, agentSchema, agentFixtureNativeID, agentFixtureRelative, agentAppendRecord), and targetKey duplicates the unexported targetArtifactKey; adding a fixture-descriptor table keyed by SupportedAgents() would make one row the only per-agent edit.'
+          family: hand-restated-registry
+          round: 7
+        - id: BR-27
+          severity: Minor
+          title: The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
+          detail: ValidateTargetWork's default (incremental_inventory.go:148-149) hand-builds a Diagnostic{} with no artifact context, while the lines just above use artifactDiagnostic(...); AdvanceTargetValidation's default (:210-211) emits no diagnostic at all and returns bare ErrArtifactChanged. Pick one shape (artifactDiagnostic with the observation's artifact in both, or a shared helper) so the watcher's fallback path reports why. The Advance default arm still carries no failing-without-it test, which is the BR-25 residual above.
+          family: agent-dispatch-registration-gap
+          round: 7
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -409,10 +460,33 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-25** [Minor] `unbacked-existing-behavior-claim` Issue Log line 184 (this window) records BR-18/BR-24 as delivered; no commit contains them and the working-tree version only partly delivers them
   The Log says qoder rows, fail-closed defaults and a parity probe for "every JSONL agent" landed; git shows the code/test/plan changes uncommitted (8 modified files plus untracked dispatch_parity_test.go). Rule: a Log/plan claim that a coverage or fail-closed property holds must be committed alongside the code and backed by an arm-deletion mutation that turns red. Correct the claim, or land the missing probes, before recording it.
 
+## Round 6 — 2026-09-21T11:07:10-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-18 — not-addressed — Mutation on HEAD copy: deleting the qoder arm of AdvanceTargetValidation, either new default arm, or (in sessioninventory) the ValidateTargetWork qoder arm / runtime_os qoder root turns nothing red in sessioninventory, sessionwatch, launcher or sessionledger; ValidateTargetWork and the runtime root are caught only by an older launcher test. dispatch_parity_test.go never calls ValidateTargetWork/AdvanceTargetValidation (test-local validateAgentDelta switch), ranges a hard-coded list, and the ValidateTargetWork default arm still drops err silently at the `continue`. Rule: export the single agent list, range the parity test from it, drive the production incremental switches, add unknown-agent rows with a diagnostic, then require every arm-deletion mutation red.
+- BR-24 — not-addressed — Revisions entry now exists with the evidence, but it names non-existent fields (acceptsEpochMillis/extraIgnoredTypes vs acceptsMillis/claudeFamilyNoiseTypes), keeps the slug typo untrusted-inputarsed-without-bounds, and claims every dispatch is probed and both default arms fail closed (disproved by the BR-18 mutations). Correct the entry.
+- BR-25 — not-addressed — Code is committed now, but the overclaim class persists at three sites (issue Log line, plan Revisions bullet, dispatch_parity_test.go:11-16 comment) claiming coverage that an arm-deletion mutation does not turn red. State only what is pinned, or land the BR-18 probes first.
+
+## Round 7 — 2026-09-21T11:24:03-07:00 (claude) — passed
+
+### Disposed
+
+- BR-18 — addressed — Qoder wiring is pinned at every per-agent dispatch site (16 arm-deletion mutations, all red) and the parity test ranges SupportedAgents(); the one unpinned fail-closed arm (Advance default) is carried under BR-25.
+- BR-24 — addressed — Plan Revisions (plan lines ~815-829) records the Task 7 filename correction, live-conformance evidence and claude-family admissions; every cited test exists (TestQoderMillisTimestampBounds, TestIncrementalClaudeRejectsNumericTimestamp, TestEveryTableSpellingRoundTrips, TestResumeFormTableRoundTrip).
+- BR-25 — not-addressed — The claim "unknown-agent tests pin both default arms" (Log 183, plan Revisions "BR-16 rule as delivered") is false for AdvanceTargetValidation: deleting its default arm turns no test red. The test returns ErrArtifactChanged at incremental_inventory.go:183-184 (prior.Results[key] is a zero IncrementalResult, so StableFileID "" != "dev:1/ino:1") and never reaches the switch. It also asserts only err != nil, not ErrArtifactChanged. Fix: build the prior from a real ValidateTargetWork result, set prior.State.Agent to "future", AddRoot for that agent, then assert errors.Is(err, ErrArtifactChanged) and that Results is unchanged; confirm red with the arm deleted. Then correct both prose claims to say what the test pins.
+
+### Raised
+
+- **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
+  dispatch_parity_test.go:70-73 lists claude/codex/muse/qoder by hand, so a sixth JSONL agent is forced through the Validate chain (fixture required) but silently skipped by the Advance test; only the vacuous default-arm test would then stand between it and an unwired Advance switch. This is the 3rd finding in family hand-restated-registry. Rule: any test that claims to cover "every agent" ranges SupportedAgents() (skipping agy explicitly). The same test file also restates per-agent facts in five switch helpers (agentFixtureRoot, agentSchema, agentFixtureNativeID, agentFixtureRelative, agentAppendRecord), and targetKey duplicates the unexported targetArtifactKey; adding a fixture-descriptor table keyed by SupportedAgents() would make one row the only per-agent edit.
+- **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
+  ValidateTargetWork's default (incremental_inventory.go:148-149) hand-builds a Diagnostic{} with no artifact context, while the lines just above use artifactDiagnostic(...); AdvanceTargetValidation's default (:210-211) emits no diagnostic at all and returns bare ErrArtifactChanged. Pick one shape (artifactDiagnostic with the observation's artifact in both, or a shared helper) so the watcher's fallback path reports why. The Advance default arm still carries no failing-without-it test, which is the BR-25 residual above.
+
 ## Open findings
 
 - **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
 - **BR-16** [Minor] `agent-dispatch-registration-gap` Parity test covers 3 of the session-side agent dispatch sites; sessionledger.isSupportedAgent is named in the gap message but never probed
-- **BR-18** [Important] `agent-dispatch-registration-gap` Qoder wiring at ProviderContractFor and AdvanceTargetValidation is pinned by no test; the BR-16 rule was only partly carried out
-- **BR-24** [Minor] `plan-prose-restates-diff` Plan has no M2 Revisions entry; live-conformance and manual steps are unlogged; Task 7 names the wrong test file
 - **BR-25** [Minor] `unbacked-existing-behavior-claim` Issue Log line 184 (this window) records BR-18/BR-24 as delivered; no commit contains them and the working-tree version only partly delivers them
+- **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
+- **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
