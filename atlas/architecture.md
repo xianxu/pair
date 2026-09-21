@@ -903,13 +903,14 @@ split keeps the model out of the live buffer:
   Claude, Codex, Agy, Muse, and Qoder record parsing stays in the versioned inventory
   adapter, and the shadow sweep rejects slug-local native parsers. It derives the
   left from the git branch (`git -C <cwd>`); asks a small model (`$PAIR_SLUG_MODEL`,
-  default `claude-haiku-4-5` via `claude -p`, or `gpt-5.4-mini` when
-  `PAIR_AGENT=codex`) for the `<focus>` right over a **user-biased**
+  default `claude-haiku-4-5` via `claude -p`, `gpt-5.4-mini` when
+  `PAIR_AGENT=codex`/`muse`, or the `Efficient` tier alias when
+  `PAIR_AGENT=qoder`) for the `<focus>` right over a **user-biased**
   window (`selectWindow` extends back past tool-only turns to include real user
   prompts). Codex uses the direct OpenAI Responses API when `OPENAI_API_KEY` is
   exported; otherwise it shells through `codex exec` so subscription-authenticated
   Codex CLI sessions still work. The per-agent model dispatch
-  (claude/codex/agy/OpenAI-Responses) lives in the shared **`cmd/internal/model`**
+  (claude/codex/agy/qoder/OpenAI-Responses) lives in the shared **`cmd/internal/model`**
   package (`model.Run`), extracted from pair-slug in #53 so `cmd/pair-changelog`
   (the Alt+l change-log distiller) shares one dispatch; the OpenAI output-token
   cap is a per-call parameter (pair-slug passes 64, the change-log a larger

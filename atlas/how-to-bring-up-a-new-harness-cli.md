@@ -173,6 +173,8 @@ To minimize confirmation prompt fatigue and allow the agent to run commands, cre
 
 Align local settings in workspace directories with parent configurations (e.g. `../ariadne/`) to support continuous testing and seamless automation.
 
+Qoder's profile is `~/.qoder/settings.json` (user) plus per-repo `.qoder/settings.json` (team) / `.qoder/settings.local.json` (local): `permissions.trustDirectories` mounts workspaces and `permissions.allow` takes Claude-style rules — `Bash(git:*)` … `Bash(zellij:*)` white-list the standard set (prefix match). Every Bash decision logs its decision point (`shell.readonly.allow`, `shell.rule_prefix.allow`, `shell.no_match.ask`, …) to `~/.qoder/logs/runs/*/qodercli.log` — read that log to verify a rule took effect.
+
 **Telemetry Signal:** none. This aspect is *static config*, not a runtime mechanism — there is no per-run trigger to emit, so it has no flight-recorder signal. Drift here surfaces as confirmation-prompt fatigue, not a missing signal.
 
 ---
@@ -189,8 +191,10 @@ The scrollback viewer (`Alt+/`) maps **Alt+b** (and **Alt+Shift+B**) to jump bet
     codex  = [[^›]],
     agy    = [[\(──.*\n\)\zs>]],
     muse   = [[^>]],
+    qoder  = [=[^ [*>]]=],
   }
   ```
+  When the glyph authority lives in Go (qoder's derive from `qoderPromptGlyphs` + `qoderPromptCol` in `cmd/internal/wrapcmd/composer_recognizers.go`), do not hand-sync: add a parity test deriving the expected Lua pattern from the Go values (`cmd/internal/wrapcmd/scrollback_glyph_parity_test.go` for qoder), and register a behavior row in `nvim/scrollback_test.lua`. A pattern whose character class ends the row needs the leveled `[=[…]=]` long-string form — `]]` fuses with the class-closing `]` otherwise.
 
 **Telemetry Signal** (aspect `7`, see §3): `prompt-search` from `nvim/scrollback.lua` (`jump_to_prompt`, via `nvim/adapt.lua`) — `fired` on a successful Alt+b jump; **`near-miss`** (deduped per viewer) when the pattern matches *nowhere* in a non-empty scrollback, which means the agent's prompt glyph changed and Alt+b can never land. (A miss in only one direction is ordinary end-of-scrollback and is *not* logged.)
 
