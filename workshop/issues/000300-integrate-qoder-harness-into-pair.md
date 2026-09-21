@@ -80,8 +80,15 @@ launcher agent registry is the single choke point both hosts share.
 
 ## Plan
 
-- [x] Extend `atlas/how-to-bring-up-a-new-harness-cli.md` for couch (Part A — this session).
-- [ ] Author the durable bring-up plan via `superpowers-writing-plans` → `workshop/plans/` when implementation starts (Part B is a #134-muse-scale effort: full flow, milestones to be defined there, not here).
+Durable plan: `workshop/plans/000300-qoder-harness-integration-plan.md` (Part A done; Part B = M1–M5 below, each its own review boundary).
+
+- [x] Extend `atlas/how-to-bring-up-a-new-harness-cli.md` for couch (Part A — 1e912472).
+- [x] Author the durable bring-up plan via `superpowers-writing-plans` → `workshop/plans/000300-qoder-harness-integration-plan.md`.
+- [ ] M1 — registry + launcher arg plumbing: `supportedAgents`/`Agent` enum join, fresh-args validation, resume token + `extractExplicitResume`; fail-closed intermediate verified.
+- [ ] M2 — session inventory scanner: claude-family core extraction, `ScanQoder` + roots + wiring, event adapter + watcher/ledger membership + `AgentSessionExists`, live conformance.
+- [ ] M3 — TTY, capture-first: live captures (`composer.raw`/`overlay.raw`), fail-closed keymap profile, composer recognizer, overlay markers, `--session-id` mint decision.
+- [ ] M4 — slug + glyphs + settings: `runQoder` print invocation, prompt glyph in all three registrations, permission/trust config.
+- [ ] M5 — end-to-end: standalone pair live smoke (Enter/Alt+Enter/pickers/Alt+b/Alt+n/resume + doctor telemetry), couch round-trip, docs/atlas roster sweep, close.
 
 ## Log
 
