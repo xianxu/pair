@@ -193,14 +193,22 @@ func codexAltScreenArgs(args []string, optOut bool) []string {
 	return append(stripped, "--no-alt-screen")
 }
 
-// shouldMintClaudeSessionID decides whether the create path should pin a
-// deterministic claude session id (via --session-id) instead of leaving it to
-// Claude. Skip when a resume already pinned one, when the user passed
-// their own --session-id, or when --fork-session lets claude allocate internally.
-// Only Claude supports the flag; every agent's durable binding is established
-// independently by the causal-round watcher.
-func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string) bool {
-	return agent == "claude" && explicitResume == "" &&
+// MintsSessionID reports whether pair pins a caller-minted --session-id at
+// launch: claude, whose jsonl is keyed by the id pair chooses (#20), and
+// qoder, which honors the same flag (verified live at 1.1.60 — the transcript
+// lands under ~/.qoder/projects/<slug>/<minted id>.jsonl). Every other agent's
+// durable binding is established independently by the causal-round watcher.
+func MintsSessionID(agent string) bool {
+	return agent == "claude" || agent == "qoder"
+}
+
+// shouldMintSessionID decides whether the create path should pin a
+// deterministic session id (via --session-id) instead of leaving it to the
+// agent. Skip when a resume already pinned one, when the user passed
+// their own --session-id, or when --fork-session lets the agent allocate
+// internally.
+func shouldMintSessionID(agent, explicitResume string, agentExtra []string) bool {
+	return MintsSessionID(agent) && explicitResume == "" &&
 		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")
 }
 

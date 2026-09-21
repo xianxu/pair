@@ -2277,10 +2277,10 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	agent := filepath.Base(currentArgv[0])
 	freshArgs := launcher.FreshAgentArgs(agent, currentArgv[1:])
 	sessionID := ""
-	if agent == "claude" {
+	if launcher.MintsSessionID(agent) {
 		sessionID = freshUUID()
 		if sessionID == "" {
-			return nil, errors.New("cannot mint fresh claude session id")
+			return nil, fmt.Errorf("cannot mint fresh %s session id", agent)
 		}
 		freshArgs = append(freshArgs, "--session-id", sessionID)
 	}

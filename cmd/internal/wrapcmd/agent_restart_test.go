@@ -121,52 +121,48 @@ func TestSIGUSR2ReExecsWrapperWithoutReplacingPaneProcess(t *testing.T) {
 	}
 }
 
-func TestFreshClaudeInvocationMintsInvocationIDButKeepsRecoveryProvisional(t *testing.T) {
-	data := t.TempDir()
-	request, err := freshAgentInvocation(
-		"/pair/bin/pair", "",
-		[]string{"claude", "--model", "opus", "--resume", "old-session"},
-		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope"},
-		time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := request.argv[len(request.argv)-2]; got != "--session-id" {
-		t.Fatalf("argv = %v, want fresh --session-id", request.argv)
-	}
-	if got := envValue(request.env, "PAIR_SESSION_ID"); got == "" || got == "old-session" {
-		t.Fatalf("PAIR_SESSION_ID = %q, want fresh id", got)
-	} else if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`).MatchString(got) {
-		t.Fatalf("PAIR_SESSION_ID = %q, want UUID", got)
-	}
-	if _, err := os.Stat(filepath.Join(data, "config-work-claude.json")); !os.IsNotExist(err) {
-		t.Fatalf("fresh provisional launch wrote config: %v", err)
+func TestFreshPinAgentsMintSessionIDButKeepRecoveryProvisional(t *testing.T) {
+	for _, agent := range []string{"claude", "qoder"} {
+		t.Run(agent, func(t *testing.T) {
+			data := t.TempDir()
+			request, err := freshAgentInvocation(
+				"/pair/bin/pair", "",
+				[]string{agent, "--model", "opus", "--resume", "old-session"},
+				[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope"},
+				time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := request.argv[len(request.argv)-2]; got != "--session-id" {
+				t.Fatalf("argv = %v, want fresh --session-id", request.argv)
+			}
+			if got := envValue(request.env, "PAIR_SESSION_ID"); got == "" || got == "old-session" {
+				t.Fatalf("PAIR_SESSION_ID = %q, want fresh id", got)
+			} else if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`).MatchString(got) {
+				t.Fatalf("PAIR_SESSION_ID = %q, want UUID", got)
+			}
+			if _, err := os.Stat(filepath.Join(data, "config-work-"+agent+".json")); !os.IsNotExist(err) {
+				t.Fatalf("fresh provisional launch wrote config: %v", err)
+			}
+		})
 	}
 }
 
 func TestFreshAgentInvocationWatcherMatchesAsyncAgentRegistry(t *testing.T) {
 	bound := time.Date(2026, 8, 19, 9, 31, 0, 456, time.UTC)
-	for _, tc := range []struct {
-		agent string
-		watch bool
-	}{
-		{agent: "codex", watch: true},
-		{agent: "agy", watch: true},
-		{agent: "muse", watch: true},
-		{agent: "claude", watch: true},
-	} {
-		t.Run(tc.agent, func(t *testing.T) {
-			request, err := freshAgentInvocation("/pair", "", []string{tc.agent, "--flag"}, []string{
+	for _, agent := range launcher.AgentInventory() {
+		t.Run(agent, func(t *testing.T) {
+			request, err := freshAgentInvocation("/pair", "", []string{agent, "--flag"}, []string{
 				"PAIR_DATA_DIR=" + t.TempDir(), "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope", "HOME=/home/me",
 			}, bound)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got := len(request.watcherArgv) > 0; got != tc.watch {
-				t.Fatalf("watcher present = %v, want %v: %v", got, tc.watch, request.watcherArgv)
+			if len(request.watcherArgv) == 0 {
+				t.Fatalf("watcher absent for supported agent: %v", request.watcherArgv)
 			}
-			if tc.watch && !containsArgPair(request.watcherArgv, "--pid-not-before", bound.Format(time.RFC3339Nano)) {
+			if !containsArgPair(request.watcherArgv, "--pid-not-before", bound.Format(time.RFC3339Nano)) {
 				t.Fatalf("watcher argv = %v, want generation bound", request.watcherArgv)
 			}
 		})

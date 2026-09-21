@@ -585,14 +585,15 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// root immediately; fresh launches wait for a completed causal round.
 	explicitResume := extractExplicitResume(agent, agentArgs)
 
-	// Claude: mint a deterministic --session-id (uuidgen + collision retry) so
-	// two tags in one cwd can't race for the same new jsonl (#20). This remains
-	// invocation authority only until the watcher establishes the causal round.
+	// Claude/qoder: mint a deterministic --session-id (uuidgen + collision
+	// retry) so two tags in one cwd can't race for the same new jsonl (#20).
+	// This remains invocation authority only until the watcher establishes the
+	// causal round.
 	newSid := ""
-	if shouldMintClaudeSessionID(agent, explicitResume, agentArgs) {
+	if shouldMintSessionID(agent, explicitResume, agentArgs) {
 		for i := 0; i < 5; i++ {
 			cand := rt.MintUUID()
-			if cand != "" && !rt.AgentSessionExists("claude", cand, env.Cwd) {
+			if cand != "" && !rt.AgentSessionExists(agent, cand, env.Cwd) {
 				newSid = cand
 				break
 			}

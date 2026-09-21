@@ -188,22 +188,26 @@ func TestCodexAltScreenIdempotent(t *testing.T) {
 	}
 }
 
-// Named case for the claude --session-id mint/skip decision (judge INFO #3).
-func TestShouldMintClaudeSessionID(t *testing.T) {
-	if !shouldMintClaudeSessionID("claude", "", nil) {
-		t.Error("fresh claude with no resume/flags → mint")
+// Named case for the --session-id mint/skip decision (judge INFO #3). Every
+// supported agent is ranged, so a sixth agent joining the inventory must
+// declare which side of the mint set it is on.
+func TestShouldMintSessionID(t *testing.T) {
+	minters := map[string]bool{"claude": true, "qoder": true}
+	for _, agent := range AgentInventory() {
+		if got := shouldMintSessionID(agent, "", nil); got != minters[agent] {
+			t.Errorf("fresh %s with no resume/flags: mint = %v, want %v", agent, got, minters[agent])
+		}
 	}
-	if shouldMintClaudeSessionID("codex", "", nil) {
-		t.Error("codex has no --session-id flag → never mint")
-	}
-	if shouldMintClaudeSessionID("claude", "resumed-sid", nil) {
-		t.Error("explicit resume already pinned → skip")
-	}
-	if shouldMintClaudeSessionID("claude", "", []string{"--session-id", "u"}) {
-		t.Error("user passed --session-id → their uuid wins, skip")
-	}
-	if shouldMintClaudeSessionID("claude", "", []string{"--fork-session"}) {
-		t.Error("--fork-session → claude allocates internally, skip")
+	for _, agent := range []string{"claude", "qoder"} {
+		if shouldMintSessionID(agent, "resumed-sid", nil) {
+			t.Errorf("%s explicit resume already pinned → skip", agent)
+		}
+		if shouldMintSessionID(agent, "", []string{"--session-id", "u"}) {
+			t.Errorf("%s user passed --session-id → their uuid wins, skip", agent)
+		}
+		if shouldMintSessionID(agent, "", []string{"--fork-session"}) {
+			t.Errorf("%s --fork-session → agent allocates internally, skip", agent)
+		}
 	}
 }
 
