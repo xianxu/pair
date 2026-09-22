@@ -175,6 +175,9 @@ Durable plan: `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md` 
   spawns `pair resume <tag> [layout flag]`; couchcore resume/binding paths
   consume sessioninventory.
 
+### 2026-09-21 (M5 live smoke)
+- Operator live-verified from inside a pair-hosted qoder session: the AskUserQuestion picker round-tripped correctly — overlay rendered, arrows navigated, Enter confirmed a choice (no newline leak), selection returned to the agent. Exercises the M3-captured overlay path (`detectQoderOverlayOpen` + Return remap) against the running harness, not just the frozen fixtures.
+
 ### 2026-09-21
 - 2026-09-21: closed M4 — Round-10 findings BR-42..BR-45 + minors E/F/H fixed at rule level: registry-ranging glyph table test (red-first, 4 rows) + exported PromptGlyph accessor with derived parity assertion (qoderPromptCol mutation reddens both parity tests); runQoder passes --no-session-persistence (wantArgs red-first, live conformance PASS 5.57s, TMPDIR project dir measured byte-untouched); Task 17 gained Step 3 (settled-footer capture -> isFooterChrome -> no-op Alt+l); Lua parity escape switched to Vim dialect; allowlist moved to repo-local .qoder/settings.local.json with measured scope (repo allow / tmp ask) and no prefix-rule leak into compound tails; pump OSC test table-driven over claude+codex (bound-first order reddens both rows). Full go test ./... EXIT=0 (74 packages).; review verdict: SHIP
 - 2026-09-21: closed M3 — Round-9 findings BR-35..BR-40 fixed with pins (all mutation-verified red-then-restored); full go test ./... EXIT=0; atlas muse-sweep executed and logged; review verdict: SHIP
