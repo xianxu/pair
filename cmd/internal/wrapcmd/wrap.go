@@ -1909,12 +1909,33 @@ func (p *proxy) detectOverlayOpen(data, rolling []byte) overlayDetection {
 	// live recorder so the extra strip+scan isn't paid when telemetry is off.
 	var detection overlayDetection
 	if p.adapt != nil && !p.pickerActive.Load() {
-		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
+		visible := stripTerminalControls(data)
+		profile := p.observationProfile()
+		if snippet, ok := promptShape(visible); ok && !nearMissProgressLine(snippet, profile.progressShapes) && snippet != p.lastNearMiss {
 			p.lastNearMiss = snippet
 			detection.nearMiss = snippet
 		}
 	}
 	return detection
+}
+
+// nearMissProgressLine reports whether a prompt-shaped line is in fact one of
+// the harness's own progress renders. The tripwire's generic shapes are
+// deliberately agent-agnostic, so the disambiguation (qoder's spinner footer
+// says "esc to cancel") lives at the profile row. Such renders must NOT be
+// added as overlay markers instead: arming the overlay would flip plain Enter
+// to the bypass path mid-generation and submit the composer.
+func nearMissProgressLine(line string, progressShapes []string) bool {
+	if len(progressShapes) == 0 {
+		return false
+	}
+	low := asciiFold(line)
+	for _, s := range progressShapes {
+		if strings.Contains(low, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // genericPromptShapes are phrasings common to interactive confirm/permission

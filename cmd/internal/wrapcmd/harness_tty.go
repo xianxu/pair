@@ -25,6 +25,12 @@ type harnessTTYProfile struct {
 	// agentBasename comparison inside orientation.go.
 	orientationPromptCol        int
 	orientationRuleCellTolerant bool
+	// progressShapes are fragments of this harness's own activity renders
+	// (spinners, generation footers) that the generic tripwire's shapes can
+	// collide with. A near-miss whose matched LINE carries one of these is
+	// progress being repainted, not a prompt — see nearMissProgressLine.
+	// Lowercase ASCII like genericPromptShapes (compared via asciiFold).
+	progressShapes []string
 }
 
 var harnessTTYProfiles = map[string]harnessTTYProfile{
@@ -89,9 +95,12 @@ var harnessTTYProfiles = map[string]harnessTTYProfile{
 			altCR:   []byte{'\r'},
 			altBS:   []byte{0x15},
 		},
-		overlay:                     detectQoderOverlayOpen,
-		composerGate:                composerGatePositive,
-		recognize:                   qoderComposerActive,
+		overlay:      detectQoderOverlayOpen,
+		composerGate: composerGatePositive,
+		recognize:    qoderComposerActive,
+		// The generation footer "⠋ Generating... (esc to cancel, 0s)" hits
+		// the tripwire's "esc to cancel"; live smoke vocabulary only.
+		progressShapes:              []string{"generating...", "thinking..."},
 		orientationPromptCol:        qoderPromptCol,
 		orientationRuleCellTolerant: true,
 	},
