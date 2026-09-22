@@ -280,6 +280,36 @@ func TestTrimLiveTail(t *testing.T) {
 	if got := trimLiveTail(meter, "claude"); !reflect.DeepEqual(got, content) {
 		t.Fatalf("context-meter footer: got %v", got)
 	}
+	// qoder settled footer (M5 Task 17 live capture): none of these rows matched
+	// any case as of M4, so the whole volatile footer leaked into the anchor and
+	// locate found it flush with the tail on the next press → the new turn was
+	// silently dropped (#58 class, qoder shape). Rows verbatim from the smoke
+	// session's cleaned render (pair scrollback render --plain).
+	qcontent := []string{" > list the probe file", " ▪ Done — /tmp/pair300-picker-probe created (exit 0, no output)."}
+	qfooter := append(append([]string{}, qcontent...),
+		"                                                               ? for shortcuts",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" Shift+Tab to Accept Edits",
+		"",
+		"  2 AGENTS.md files · 1 MCP server · 44 skills",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" >   Type your message or @path/to/file",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" Auto Model · ctx ░░░░░░░░░░ 0% · ~/workspace/pair")
+	if got := trimLiveTail(qfooter, "qoder"); !reflect.DeepEqual(got, qcontent) {
+		t.Fatalf("qoder settled footer: got %v", got)
+	}
+	// The ctx meter renders partially filled once context is used, and qoder's
+	// activity render ("esc to cancel") is footer chrome too.
+	qworking := append(append([]string{}, qcontent...),
+		" ⠋ Generating... (esc to cancel, 2s)",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" >   Type your message or @path/to/file",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" Auto Model · ctx ▓▓░░░░░░░░ 15% · ~/workspace/pair")
+	if got := trimLiveTail(qworking, "qoder"); !reflect.DeepEqual(got, qcontent) {
+		t.Fatalf("qoder working footer: got %v", got)
+	}
 }
 
 func TestLooksLikeChangelog(t *testing.T) {

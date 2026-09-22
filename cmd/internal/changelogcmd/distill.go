@@ -60,13 +60,22 @@ var (
 	// stopped trimLiveTail dead, leaking the whole volatile footer into the
 	// anchor → locate misses → FullRedistill / stale turn count (#58).
 	contextMeterRe = regexp.MustCompile(`^\d+% context\b`)
+	// qoderStatusRe matches qoder's status bar, e.g.
+	// "Auto Model · ctx ░░░░░░░░░░ 0% · ~/workspace/pair" — the meter fills
+	// with ▓ as context is used. As the LAST line it stalls the trim the same
+	// way claude's meter did (#58); captured live in M5 Task 17.
+	qoderStatusRe = regexp.MustCompile(`· ctx [░▓█]+ \d+% · `)
+	// qoderHintsRe matches qoder's resource-hints row, e.g.
+	// "2 AGENTS.md files · 1 MCP server · 44 skills" — counts churn as the
+	// project's agent files / MCP servers / skills change.
+	qoderHintsRe = regexp.MustCompile(`^\d+ AGENTS\.md files? · `)
 )
 
 // isFooterChrome reports whether line belongs to the live UI footer — none of
 // which is committed scrollback (#58). The footer is multi-block when the agent
 // is working: a thinking spinner + rule ABOVE the input box, then the box + rule
-// + status below. Claude-shaped; other agents still get the generic blank / box
-// / rule cases.
+// + status below. Claude-shaped, plus qoder's rows (captured live, M5 Task 17);
+// other agents still get the generic blank / box / rule cases.
 func isFooterChrome(line, glyph string) bool {
 	t := strings.TrimSpace(line)
 	switch {
@@ -81,6 +90,20 @@ func isFooterChrome(line, glyph string) bool {
 	case strings.Contains(t, "esc to interrupt"):
 		return true
 	case contextMeterRe.MatchString(t): // "100% context used" context meter
+		return true
+	case t == "? for shortcuts": // qoder shortcut hint (right-aligned row)
+		return true
+	case strings.HasPrefix(t, "Shift+Tab to "): // qoder mode line
+		return true
+	// qoder's empty input box carries the placeholder on the drawn row, so the
+	// bare-glyph case above never matches it.
+	case strings.HasSuffix(t, "Type your message or @path/to/file"):
+		return true
+	case qoderHintsRe.MatchString(t): // "2 AGENTS.md files · 1 MCP server · 44 skills"
+		return true
+	case qoderStatusRe.MatchString(t): // "Auto Model · ctx ░░… 0% · ~/workspace/pair"
+		return true
+	case strings.Contains(t, "esc to cancel"): // "⠋ Generating... (esc to cancel, 2s)"
 		return true
 	}
 	return false
