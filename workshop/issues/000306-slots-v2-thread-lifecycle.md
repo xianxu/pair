@@ -112,7 +112,7 @@ Detailed design: [implementation plan](../plans/000306-slots-v2-thread-lifecycle
 
 Execute the durable plan after operator approval and the full change-code gate.
 
-- [ ] Map existing thread states and specify per-workspace occupancy and repo-wide admission.
+- [x] Map existing thread states and specify per-workspace occupancy and repo-wide admission.
 - [ ] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
 - [ ] Verify dirty park/resume, continuation, replacement, and primary behavior.
 
@@ -131,6 +131,12 @@ on park. Proposed stable workspace association plus admission checked under the
 existing store lock, reusing ThreadStartClaim through readiness (ARCH-DRY,
 ARCH-PURE, ARCH-ORDER). No implementation changes yet.
 
+
+### 2026-09-23 — design reviews passed
+
+Fresh-context spec and plan reviews approved the proposal without blocking findings.
+The durable plan includes both sides of the park/final-admission ordering test.
+Awaiting operator approval before change-code; no implementation or estimate yet.
 
 ## Revisions
 
