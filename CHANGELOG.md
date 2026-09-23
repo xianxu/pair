@@ -6,6 +6,12 @@ tagged in git (`vN.M`) and tracked in the homebrew formula at
 
 ## Unreleased
 
+### Qoder integration
+
+- Pair and Couch now offer Qoder as an agent. Pair supports its composer keys,
+  picker confirmation, native session inventory and resume, prompt navigation,
+  slug generation, and repo-local permission settings.
+
 ### Fixes
 
 - Session inventory no longer rejects valid growing transcripts or Pair evidence

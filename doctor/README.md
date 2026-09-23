@@ -1,6 +1,6 @@
 # pair-doctor — diagnose agent-harness integration drift
 
-`pair` adapts each harness (claude/codex/agy) across the integration aspects in
+`pair` adapts each harness (claude/codex/agy/muse/qoder) across the integration aspects in
 [`../atlas/how-to-bring-up-a-new-harness-cli.md`](../atlas/how-to-bring-up-a-new-harness-cli.md).
 Harnesses update and break those adaptations *silently* — a renamed picker
 string or a changed transcript shape doesn't error, the adaptation just stops
@@ -37,8 +37,8 @@ The output maps to the signal registry in
 
 | Finding | Likely drift | Fix |
 |---|---|---|
-| `overlay-detect/near-miss` (aspect 2) | harness renamed its picker; the `detail` holds the new wording | add that string to `codexPickerMarkers` / `agyPickerMarkers` / `musePickerMarkers` (or the OSC body for claude) in `cmd/internal/wrapcmd/wrap.go` |
-| `return-remap` all `bypass`, no `fired` (aspect 1) | remap stopped engaging | check the agent's entry in `harnessTTYProfiles` (`cmd/internal/wrapcmd/harness_tty.go`) via `profileForHarness`; a `composer unknown` reason means a positively gated profile had no snapshot or no registered recognizer, `composer inactive` means the recognizer ran and declined — all four harnesses now have one, so this reason is reachable for `claude` too. No profile at all logs nothing — plain Return simply passes through, which is also what `PAIR_WRAP_REMAP_RETURN=0` produces (it disables overlay detection and its `overlay-detect` telemetry too) |
+| `overlay-detect/near-miss` (aspect 2) | harness renamed its picker; the `detail` holds the new wording | add that string to `codexPickerMarkers` / `agyPickerMarkers` / `musePickerMarkers` / `qoderPickerMarkers` (or the OSC body for claude) in `cmd/internal/wrapcmd/wrap.go` |
+| `return-remap` all `bypass`, no `fired` (aspect 1) | remap stopped engaging | check the agent's entry in `harnessTTYProfiles` (`cmd/internal/wrapcmd/harness_tty.go`) via `profileForHarness`; a `composer unknown` reason means a positively gated profile had no snapshot or no registered recognizer, `composer inactive` means the recognizer ran and declined — all five harnesses now have one, so this reason is reachable for `claude` too. No profile at all logs nothing — plain Return simply passes through, which is also what `PAIR_WRAP_REMAP_RETURN=0` produces (it disables overlay detection and its `overlay-detect` telemetry too) |
 | `return-remap` reason `composer inactive` on a real composer (aspect 1) | the harness repainted its composer and the recognizer no longer matches | recapture evidence with `PAIR_LIVE_HARNESS=<agent> go test ./cmd/internal/wrapcmd -run TestHarnessTTYLive -count=1 -v`, then fix the recognizer in `composer_recognizers.go` against the new fixture |
 | `session-id/fail` or `near-miss` (aspect 3) | session file moved or id format changed | update the watch-dir / find / id-extract logic in `cmd/internal/sessionwatch` |
 | `slug-parse/near-miss` (aspect 4) | transcript schema changed | update the parser in `cmd/pair-slug/slug.go` |
@@ -61,7 +61,7 @@ frozen sample in the matcher's test so the *same* drift is caught next time.
 ## Entry points
 
 The primary, agent-agnostic entry is **`:PairDoctor`** in pair's nvim (#000048):
-it hands whatever agent is running (claude / codex / agy / vanilla) a
+it hands whatever agent is running (claude / codex / agy / muse / qoder / vanilla) a
 `$PAIR_HOME`-absolute instruction to run `doctor.sh` and propose fixes — so it
 works under any agent and from any cwd, unlike a `.claude/skills/` entry (claude
 only) or a bare `doctor/doctor.sh` (resolves only in the pair repo). The
