@@ -32,6 +32,7 @@ Exercise a small suitable dependency issue/update or code change driven through 
 
 ## Done when
 
+- New host slots start at an accepted local source commit containing unpublished relevant work; record source address/SHA and prove remote/main tracking does not replace that starting point. Dependency clones independently initialize per their remote contract.
 - Two independent parley.nvim issues land from :1/:2 while :0 coordinates; all addresses/directories remain identifiable and reusable.
 - Live evidence covers parked admission, activation, grouping, separate preferences, and dirty park/resume.
 - Captured before/after refs prove exact-commit branching, unchanged resting baseline at land, explicit refresh, and no cross-workspace mutation.
@@ -60,3 +61,10 @@ Created from the agreed workspace/UI contract and the request for a clean task b
 ### 2026-09-23 — Exercise nested dependency isolation and ordinary cross-repo work
 
 Reason: operator agreed nested environments, ordinary remote dependency clones and existing per-repository publication. Delta: added the authoritative scope clarification and acceptance criteria above; original task context remains as provenance. No implementation or lifecycle-status change is claimed by this revision.
+
+### 2026-09-23 — verify local-source host initialization
+
+Reason: operator clarified new slots inherit relevant committed local work.
+Delta: acceptance now proves the initial host HEAD/resting branch use the accepted
+local source SHA even when it differs from remote main; dependency initialization
+remains separately governed by the agreed remote-clone contract.
