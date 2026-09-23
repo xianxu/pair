@@ -31,6 +31,99 @@ The agreed numbered main-worktree path is `../worktree/<repo>-slotN/<repo>` rela
 
 Existing dependency clones retain selected revisions, dirty files and local commits during provisioning/resume. Allocation and recovery distinguish an enclosing directory, the registered main worktree, and partially acquired dependencies; never take over unrelated content. No dependency clone automatically receives a Couch slot/thread entry. Primary repos retain their ordinary sibling environment and direct UI access; numbered environments are accessed through their main thread.
 
+### Proposed provisioning design — 2026-09-23 (awaiting approval)
+
+**Boundary.** Add one reusable workspace-provisioning operation to Couch's
+existing operation/dispatch system. Its explicit inputs identify a primary repo
+path and positive slot number. It prepares a working directory and returns its
+verified address/path/readiness; it does not launch an agent. Keep initial use
+on an internal operation surface. #306 will call the same operation when its
+new-thread flow allocates a slot and will enforce repo-wide parked admission.
+No fetch, directory creation, or composition runs during start-form preview.
+
+**Identity and layout.** Consume `sdlc workspace --json` schema v2 through an
+injected, cancellable process seam. Require valid typed fields and reject older,
+unknown, truncated or inconsistent output. Resolve the canonical primary and
+Git common directory, derive the agreed nested candidate path, and revalidate
+new/existing worktrees through the same resolver. Do not copy Ariadne's Git
+identity implementation into Pair. The result is an observation; mutation needs
+fresh checks while holding the provisioning lease (ARCH-DRY, ARCH-SECURE).
+
+**Number policy.** Explicit :N requests never silently substitute another number.
+For the later automatic caller, expose a pure selection policy: reuse the lowest
+ready workspace with no thread, otherwise allocate the lowest unused positive
+number. A parked, live or detached thread occupies its workspace. Unknown
+occupancy or partial preparation is not free space; report it for inspection or
+retry. Thread inventory/admission comes from #306's authoritative caller; this
+issue does not invent another registry. Never renumber existing workspaces.
+
+**Create.** Before mutation, select the remote whose main branch is configured
+for the primary baseline; an explicit remote may resolve ambiguity. Fail visibly
+if no unique remote/main source exists. Fetch that main ref, capture its commit,
+create main-slotN tracking that remote/main, and create the registered nested
+worktree. Dependency origins are independently governed by Weave and are not
+inferred from this main-repository remote. Invoke `weave compile` with default
+targets from the host worktree. Publish ready only after exit 0 and final identity
+validation. Dependencies remain private ordinary sibling clones; no dependency
+thread or preference record is created.
+
+**Existing workspace.** A verified ready workspace returns without fetch,
+checkout, reset, or compile. Its current issue branch, dirty/untracked files,
+resting baseline/upstream, dependency revisions/work, and machine-wide tool
+supplier remain unchanged. A registered conventional workspace without a Couch
+readiness record can be inspected; dependency preparation requires an explicit
+request before marking it ready. Do not infer setup success from directory
+existence. A missing or externally changed workspace must be revalidated rather
+than trusted because it has a saved receipt.
+
+**Ownership and recovery.** Serialize mutations for a slot across processes,
+with repository-wide exclusion for allocation/ref creation where required. Use
+OS-held leases and ensure live setup children retain the relevant exclusion if
+the caller dies; avoid holding the Couch thread-store lock during network/build
+work. Weave owns its dependency setup lock and clone-stage recovery. Pair owns
+only the host worktree transaction and its readiness evidence.
+
+Represent absent, reserved, host-created, preparing, ready, retry-needed and
+conflicting observations explicitly in a pure transition model (ARCH-ORDER).
+Record intent before effects and reconcile actual Git/filesystem state after
+uncertain outcomes. Store bounded per-slot metadata outside the working tree,
+keyed by canonical repo identity, slot, and operation generation. A marker alone
+never authorizes takeover. Reuse only a host/ref proven to belong to this
+transaction or independently verified as an existing compatible workspace.
+Unrelated directories, branches, symlink aliases and malformed records refuse
+without overwriting anything. An interrupted reservation or failed setup stays
+attached to the same number, with its diagnostics and an explicit retry path.
+Never automatically remove worktrees, branches, dependency clones or user files.
+
+**Process lifetime and progress.** Preparation runs outside the UI event loop,
+reports human-readable progress, and supports cancellation. Cancellation stops
+and joins owned command processes; if outcome remains uncertain, persist that
+uncertainty and reconcile before another mutation. Do not parse Weave diagnostic
+strings into state. Design the exact wait/timeout limits and bounded diagnostic
+storage in the implementation plan. Existing ready resume performs only local
+validation. Long clone/build work is allowed to take visibly longer than that.
+
+**Retention.** Workspaces and dependency clones intentionally persist per slot,
+not per launch. One current transaction/readiness record and stable lock files
+per slot replace prior generations instead of accumulating attempt history.
+Temporary files have owned cleanup; diagnostic retention is bounded. Explicit
+environment removal ends their lifetime; this issue adds no automatic deletion
+policy (ARCH-FUNERAL).
+
+**Verification.** Pure tests cover number selection and transitions. Stateful
+fakes behind the same process/storage seams model refs, worktree membership,
+filesystem contents, command outcomes and setup phases; deterministic barriers
+exercise concurrency and caller death. Real temporary Git fixtures verify
+non-origin remotes, paths with spaces, hyphenated repo names, branch/path
+collisions, upstream selection and interrupted creation. Conformance to the
+actual SDLC v2 output and Weave setup contract is checked separately from fake
+integration. Production dispatcher tests prove prepare/ready/retry behavior and
+that failure launches no agent. Existing primary startup remains covered.
+
+The implementation plan must name exact files and seams, the transition table,
+locks/process lifetime, metadata validation, resource limits, and test commands
+before code changes. This is larger than the quick-flow shell.
+
 ## Done when
 
 - Primary plus :1/:2 provision at the exact conventional paths with correct resting branches and configured upstreams.
@@ -56,8 +149,26 @@ Task outline only; settle implementation design through start-plan before change
 
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
 
+### 2026-09-23 — prerequisites verified and design started
+
+Ariadne #242/#243 are published; the current atlas contracts specify nested
+host worktrees, JSON v2 and private ordinary dependency clones. Claimed #305 and
+ran start-plan. Initial claim publication encountered newer origin/main; fetched
+and merged the remote metadata prerequisite while preserving existing local
+edits, then published the claim with `sdlc issue sync --issue 305 --push`.
+Rebuilt the existing Ariadne supplier's sdlc/weave binaries (no supplier change);
+`sdlc workspace --json` now reports schema_version 2. Proposed the provisioning
+boundary above for review; no implementation has started.
+
 ## Revisions
 
 ### 2026-09-23 — Provision nested environments with private ordinary clones
 
 Reason: operator agreed nested environments, ordinary remote dependency clones and existing per-repository publication. Delta: added the authoritative scope clarification and acceptance criteria above; original task context remains as provenance. No implementation or lifecycle-status change is claimed by this revision.
+
+### 2026-09-23 — proposed operation and recovery contract
+
+Reason: prerequisites are delivered and the operator requested starting #305.
+Delta: added the proposed provisioning design, including explicit numbered
+preparation, #306 integration boundary, reuse policy, evidence/lease ownership,
+and test expectations. Awaiting design approval; prior requirements remain.
