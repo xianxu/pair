@@ -41,6 +41,10 @@ on an internal operation surface through `DirectStoreExecutor`, avoiding the
 unavailable CLI live-owner route and an unnecessary singleton supervisor lease.
 #306 will call the same operation when its
 new-thread flow allocates a slot and will enforce repo-wide parked admission.
+#306 calls this readiness operation before launching/opening a numbered workspace
+or cold-resuming a parked thread. Reattachment to a still-running agent reconnects
+without setup; primary :0 behavior stays unchanged. Errors return visibly; the
+next ordinary invocation recovers without an automatic retry loop.
 No fetch, directory creation, or composition runs during start-form preview.
 
 **Identity and layout.** Consume `sdlc workspace --json` schema v2 through an
@@ -85,8 +89,7 @@ workflow, not a provisioning prerequisite or an automatic Couch action.
 checkout, reset, or compile. Its current issue branch, dirty/untracked files,
 resting baseline/upstream, dependency revisions/work, and machine-wide tool
 supplier remain unchanged. A registered conventional workspace without a Couch
-readiness record can be inspected; dependency preparation requires an explicit
-request before marking it ready. Do not infer setup success from directory
+readiness record can be inspected; the same readiness operation prepares dependencies before marking it ready. Do not infer setup success from directory
 existence. A missing or externally changed workspace must be revalidated rather
 than trusted because it has a saved receipt.
 
@@ -100,8 +103,8 @@ work. Never automatically remove worktrees, branches or dependency clones.
 
 **Setup success and retry.** Store one success marker in the host's Git
 administrative directory only after Weave exits 0 and host validation succeeds.
-A valid marker skips compilation. Without one, explicit retry reruns
-`weave compile`; new hosts run it immediately. Weave owns dependency locking,
+A valid marker skips compilation. Without one, the same invocation runs `weave compile` for new or existing
+verified hosts. No retry flag or separate retry operation is needed. Weave owns dependency locking,
 partial setup and retry recovery. Couch keeps no dependency inventory, nonce
 bindings or setup phases. A crash between compile success and marker publication
 simply causes another compile. The marker records initial setup success, not
@@ -111,7 +114,7 @@ ongoing build freshness; later dependency/source changes need explicit Weave/bui
 stream diagnostics, and support bounded cancellation of owned processes. Weave's
 own inherited lock protects any surviving setup descendants. No persisted
 uncertain-outcome state or diagnostic history is needed: absence of the success
-marker remains sufficient retry evidence.
+marker remains sufficient evidence to rerun safe setup on the next ordinary invocation.
 
 **Retention.** One host-creation lock per repo; at most one small intent and one
 success marker per slot. Remove owned intent after success, or retry that bounded
@@ -150,7 +153,7 @@ Product direction is agreed; the simplified detailed plan passed fresh review an
 
 - [ ] Implement checked identity transport, request grammar and pure selection/host decision table.
 - [ ] Implement host creation intent, one Git creation lock and cancellable process execution.
-- [ ] Implement and verify host creation, setup, reuse and explicit retry with real Git conformance.
+- [ ] Implement and verify host creation, setup, reuse and repeated invocation with real Git conformance.
 - [ ] Wire the internal operation, production runtime, progress and result rendering.
 - [ ] Document the contract for #306, run verification, and close through one review boundary.
 
@@ -268,3 +271,10 @@ Delta: replaced active ownership/recovery, retention and verification design wit
 Git-derived host decisions, one host creation lock and a setup-success marker.
 Removed Couch dependency inventory, persisted setup phases and private fetch refs;
 retained bounded intent for interrupted Git creation. Historical logs remain.
+
+### 2026-09-23 — remove retry mode
+
+Reason: operator wants repeatable operations to reapply safe commands whenever
+success is unconfirmed. Delta: readiness now runs missing setup on every ordinary
+invocation, without --retry. #306 uses it before numbered-slot launch/cold resume;
+warm reattachment skips setup. Repeat-call recovery is an explicit test obligation.
