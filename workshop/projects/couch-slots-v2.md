@@ -514,7 +514,7 @@ the host without fetching or composing. Thread admission and launch remain with 
 <a id="pair-306"></a>
 ### pair#306 — Durable slots with local Couch state
 
-**status:** working — detailed plan reviewed; awaiting operator approval
+**status:** working — execution approved; change-code gate in progress
 **started:** 2026-09-23
 
 The [issue](../issues/000306-slots-v2-thread-lifecycle.md) and
@@ -524,7 +524,7 @@ slots offer resume or start fresh without an archive prerequisite. Shared lifecy
 code and current supervisor locking remain; new reservation systems and repository
 ownership coordination are excluded. Fresh review approved the concrete local
 storage, migration, retention and recovery plan after corrections. Implementation
-awaits operator plan approval and the change-code gate.
+has operator approval and awaits the change-code gate.
 
 ## Log
 
@@ -790,3 +790,9 @@ Reason: complete the integration design for local slot authority. Delta: specifi
 a shared ThreadStore backend, repository enrollment and migration ordering, GC
 routing, stable slot selection and atomic fresh-conversation replacement. Fresh
 review passed after corrections; no runtime implementation or estimate yet.
+
+### 2026-09-23 — #306 execution approved
+
+Operator approved the detailed local-state plan. The change-code review prompted
+clarifications to transition authority, operating limits and cleanup/test contracts;
+implementation remains gated while those refinements are reviewed.

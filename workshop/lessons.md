@@ -139,6 +139,10 @@ representative evidence, not an exhaustive index.
 
 ## Planning, review, and repository hygiene
 
+- When reusing lifecycle machinery, name its transition authority and cancellation
+  owner explicitly. New durable files also need a final consumer and removal
+  policy; tests should name risky functions and their mechanical guard. (#306)
+
 - A plan's entity tables name live symbols and promised cases. Before a boundary,
   reconcile every checkbox, acceptance row, concept table, and revision with
   observed evidence; do not tick a row because the code exists. (#262, #297)
