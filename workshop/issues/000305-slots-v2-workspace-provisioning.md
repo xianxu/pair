@@ -306,6 +306,16 @@ Built-CLI smoke confirms created/reused/prepared with baseline and dirty work
 preserved. Parser fuzz seeds and short single-worker campaigns pass. All code is
 committed as 76ba5bfd; closing review now owns the remaining acceptance boundary.
 
+### 2026-09-23 — close review correction
+
+First boundary review passed targeted/race/live tests and all architecture
+principles, with no production-code findings. It returned REWORK for BR-3: the
+active plan still named provision_fake_test.go although the delivered fixture
+lives in provision_git_test.go. Corrected all active entity/file mappings and
+added the lesson. BR-1/BR-2 are carried copies of the disputed reverse dependency;
+the review accepted the actual #305/#306 ownership split but omitted explicit
+ledger dispositions. Requesting those withdrawals on re-review. No code changes.
+
 ## Revisions
 
 ### 2026-09-23 — Provision nested environments with private ordinary clones
