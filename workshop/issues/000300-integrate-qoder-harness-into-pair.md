@@ -271,3 +271,8 @@ Durable plan: `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md` 
 
 - `sdlc close --issue 300` measured 4.16 focused hours and dispatched the full-issue review. The gate returned REWORK and left the issue working on one Critical documentation finding: the durable plan's Core concepts table grouped IO scanner entry points and the `runQoder` subprocess under PURE (ARCH-PURE). The other seven carried findings were disposed as addressed; no new code behavior finding was raised.
 - Swept every Pure table row for external reads, process launches, and retained state. Split scanner entry points from deterministic record transitions; left `runQoder` only in Integration points and `DefaultModel` in Pure; moved TTY profile registration and its mutable overlay detector to Integration points. Appended the plan Revisions note and a lesson. This is a classification correction; code and tests are unchanged. Re-run the close gate after committing the correction and the review artifacts.
+
+### 2026-09-22 — Close review round 14 (REWORK, BR-51)
+
+- The second `sdlc close` measured 4.29 focused hours and disposed BR-50, then returned REWORK for a Critical plan-location mismatch: Core concepts still pointed at the pre-capture `qoder/1.1.59/` directory and conflated user trust settings with the final repo-local command allowlist.
+- Checked the Core concepts locations against delivered files and the final M4 settings decision. Corrected the table, Task 9's capture paths, and Task 15's config path; retained dated discovery notes as history. Added a Revisions entry and a reusable lesson. Production code and test results are unchanged; re-run the close gate.

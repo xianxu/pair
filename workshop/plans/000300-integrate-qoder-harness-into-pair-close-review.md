@@ -92,3 +92,75 @@ findings:
     detail: |
       The plan's PURE table lists scanClaudeFamily, ScanQoder, and runQoder, although the scanners consume Runtime and runQoder launches a subprocess. Reclassify these entry points as INTEGRATION and record the correction in ## Revisions.
 ```
+
+---
+
+## Re-review — 2026-09-22T21:03:51-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 300 — integrate qoder harness into pair |
+| repo | pair |
+| issue file | workshop/issues/000300-integrate-qoder-harness-into-pair.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 08e9ec027c7a55bb1ae6d5054bbdeb0b61a82889..7fce0627ed4c7120b02931df95d7b146c83ffa2f |
+| command | sdlc close --issue 300 |
+| reviewer | codex |
+| timestamp | 2026-09-22T21:03:51-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The BR-50 correction is valid: the plan now classifies the scanner entry points and `runQoder` as INTEGRATION, consistent with their runtime reads and subprocess call. One Core concepts row still points to a fixture directory absent from the pinned head, so the plan and code disagree at this boundary.
+
+### Strengths
+
+- The scanner keeps record validation separate from reads through `Runtime` ([scan_claude.go](/Users/xianxu/workspace/pair/cmd/internal/sessioninventory/scan_claude.go:104)).
+- Qoder’s composer uses the shared ruled-box recognizer with a Qoder-specific spec ([composer_recognizers.go](/Users/xianxu/workspace/pair/cmd/internal/wrapcmd/composer_recognizers.go:311)).
+- README and atlas changes cover the new user-facing agent.
+
+### Critical findings
+
+- **Core concepts table contradicts the pinned tree — ARCH-PURPOSE.** The Integration points table names `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/` as the new capture location ([plan](/Users/xianxu/workspace/pair/workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md:59)). The pinned head contains only `1.1.60/`. The same table names `~/.qoder/settings.json` as the trust configuration ([plan](/Users/xianxu/workspace/pair/workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md:64)), while its later revision says the allowlist moved to repo-local `.qoder/settings.local.json` ([plan](/Users/xianxu/workspace/pair/workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md:892)). Update the table to describe the delivered locations and append a `## Revisions` entry recording the reconciliation. This is the **5th finding in family `plan-prose-restates-diff`**: reconcile *every* Core concepts location against the delivered tree and final decisions, rather than fixing only these two cells.
+
+### Important findings
+
+None.
+
+### Minor findings
+
+None.
+
+### Test coverage notes
+
+`go test ./cmd/internal/sessioninventory ./cmd/internal/model ./cmd/internal/wrapcmd -count=1` passed. BR-50 changes plan classification only, so its evidence is the before/after plan diff and the referenced code; no wording test is needed. The fixture-path finding is established by the pinned tree, not a runtime test.
+
+### Architectural notes for upcoming work
+
+ARCH-DRY **pass**: the scanner and composer reuse shared implementations. ARCH-PURE **pass for BR-50**: the revised labels follow the effect boundary. ARCH-PURPOSE **flag**: the concept table still describes locations that were superseded. ARCH-MOCK **pass**: fake runtime and captured TTY replay cover the new seams. ARCH-CONSTRAINTS **pass**: no new unbounded work found in this review. ARCH-SECURE **pass**: no new credential exposure found. ARCH-ORDER **pass**: overlay consumption has a regression test. ARCH-FUNERAL **pass**: headless Qoder calls disable session persistence.
+
+### Plan revision recommendation
+
+Append a dated `## Revisions` entry stating that the Core concepts location sweep changed the capture row to `1.1.60/` and the trust row to repo-local `.qoder/settings.local.json`.
+
+```findings
+dispose:
+  - id: BR-50
+    disposition: addressed
+    note: |
+      The pinned plan diff moves scanClaudeFamily, scanClaudeFamilyFile, ScanQoder, and runQoder out of PURE; scan_claude.go reads Runtime and model.go launches qoder. The 2026-09-22 Revisions entry records the taxonomy correction.
+findings:
+  - id: new
+    severity: Critical
+    family: plan-prose-restates-diff
+    title: |
+      Core concepts locations still contradict the delivered capture and settings locations
+    detail: |
+      The plan table at lines 59 and 64 names qoder/1.1.59/ and user-scope ~/.qoder/settings.json; the pinned tree has captures only under qoder/1.1.60/, and the plan's later revision says the allowlist moved to repo-local .qoder/settings.local.json. This is the 5th finding in family plan-prose-restates-diff. Sweep every Core concepts location against the delivered tree and final decisions, then correct the table and record the sweep in ## Revisions.
+```

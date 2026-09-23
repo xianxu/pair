@@ -27,6 +27,7 @@
 |------|----------|--------|
 | `AgentQoder` (enum value) | `cmd/internal/sessioninventory/model.go` | new |
 | `supportedAgents` + qoder row | `cmd/internal/launcher/agent_defaults.go` | modified |
+| Session inventory `supportedAgents` row | `cmd/internal/sessioninventory/runcli.go` | modified |
 | Claude-family record transition (`validateClaudeFamilyDelta`) | `cmd/internal/sessioninventory/scan_claude.go` | modified |
 | `ValidateQoderDelta` | `cmd/internal/sessioninventory/scan_qoder.go` | new |
 | `resumeToken`/`composeResumeArgs` qoder case | `cmd/internal/launcher/agentargs.go` | modified |
@@ -34,17 +35,17 @@
 | `ValidateFreshAgentArgs`/`freshValueOption` qoder case | `cmd/internal/launcher/fresh_args.go` | modified |
 | Qoder composer recognizer | `cmd/internal/wrapcmd/composer_recognizers.go` | new (capture-gated) |
 | `DefaultModel` qoder row | `cmd/internal/model/model.go` | modified |
-| Prompt-glyph registrations | `nvim/scrollback.lua`, `cmd/internal/wrapcmd/orientation.go`, `cmd/internal/changelogcmd/distill.go` | modified (capture-gated) |
+| Prompt-glyph authority and consumers | `cmd/internal/wrapcmd/composer_recognizers.go`, `nvim/scrollback.lua`, `cmd/internal/wrapcmd/orientation.go`, `cmd/internal/changelogcmd/distill.go` | modified (capture-gated) |
 
-- **`AgentQoder` + `supportedAgents` row** — the §0 registry pair. One string in the launcher slice (couch menus, switch-agent validation, storage-GC, rename/migrate derive from it automatically) and one typed value in the sessioninventory enum (scanners, ledger records, CLI). They join in the same commit — a half-joined registry is the drift the atlas §0 warns about.
-  - **Relationships:** 1:1 launcher-string ↔ enum-value; N consumers read both.
-  - **DRY rationale:** every host derives from these two; no per-host roster (ARCH-DRY, ARCH-PURPOSE — the registry is *enforced*, not restated).
+- **`AgentQoder` + both `supportedAgents` rows** — the launcher roster drives couch menus, switch-agent validation, storage-GC, and rename/migrate; the sessioninventory roster drives scanner/CLI acceptance, and the enum gives it a typed value. The launcher/session roster parity test enforces membership across the two lists.
+  - **Relationships:** launcher roster ↔ sessioninventory roster ↔ enum value; their consumers derive from those entries.
+  - **DRY rationale:** there is no per-host Couch roster; the parity test catches a half-joined agent (ARCH-DRY, ARCH-PURPOSE).
   - **Future extensions:** the next harness joins the same two rows.
-- **Claude-family scanner core** — `ScanClaude`'s record transition (`applyClaudeRecord`, `claudePathFact`) is agent-agnostic except for the `Agent` constant and `ScannerSchema` string. Parameterize both; claude and qoder become two thin producers of one transition.
+- **Claude-family scanner core** — `ScanClaude`'s record transition (`applyClaudeFamilyRecord`, `claudePathFact`) is shared under an agent-specific `claudeFamilySpec`; claude and qoder are thin producers of one transition.
   - **Relationships:** 1 transition : N producers (claude-v1, qoder-v1).
   - **DRY rationale:** qoder transcripts pass the claude decode (`type`/`sessionId`/`isSidechain`/`timestamp`/`message.role` — verified against a real transcript); a copy would fork the transition and drift at the next record-shape change (ARCH-DRY).
   - **Future extensions:** any claude-transcript-derived harness (the family keeps growing).
-- **TTY profile / recognizer / glyphs** — capture-first. The profile ships **fail-closed first** (keymap only, no `composerGate`), the recognizer and glyph registers only after fixtures prove the stable signal.
+- **TTY profile / recognizer / glyphs** — capture-first. The qoder profile landed atomically with a positive composer gate and live captures; an unrecognized screen passes bare CR. The recognizer and glyph registrations follow the captured signal.
   - **Relationships:** profile 1:1 with the wrap proxy instance; recognizer is a pure function over `terminalSnapshot` (atlas aspect 2).
   - **DRY rationale:** if qoder paints claude's ruled-box composer shape, it shares `ruledBoxComposerActive` via a spec, not a near-copy (atlas aspect 2 explicitly demands this).
   - **Future extensions:** overlay marker families grow from `near-miss` telemetry `detail` strings.
@@ -53,21 +54,22 @@
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
-| `scanClaudeFamily` / `scanClaudeFamilyFile` and `ScanQoder` | `cmd/internal/sessioninventory/scan_claude.go`, `scan_qoder.go` | modified / new | `Runtime` native roots, files, and record reads |
+| `scanClaudeFamily` / `scanClaudeFamilyFile` and `ScanQoder` | `cmd/internal/sessioninventory/scan_claude.go`, `cmd/internal/sessioninventory/scan_qoder.go` | modified / new | `Runtime` native roots, files, and record reads |
 | `qoder` TTY profile registration | `cmd/internal/wrapcmd/harness_tty.go` | new entry | proxy keymap, recognizer, and overlay dispatch |
 | OSRuntime qoder root | `cmd/internal/sessioninventory/runtime_os.go` | new row | `~/.qoder/projects` filesystem |
-| Live TTY capture fixtures | `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/` | new | real qoder PTY output |
+| Live TTY capture fixtures | `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.60/` | new | real qoder PTY output |
 | Scanner conformance fixtures | `cmd/internal/sessioninventory/testdata/native/qoder/v1/qoder-projects/` | new | real qoder transcript shapes (sanitized) |
 | `ProviderQoderJSONLV1` contract | `cmd/internal/sessioninventory/provider_contract.go` | new row | reviewed append-only producer contract |
-| Watcher/ledger/CLI membership | `sessionwatch/sessionwatch.go`, `sessionledger/record.go`, `sessioninventory/runcli.go` | modified | agent allowlists |
+| Watcher/ledger/CLI membership | `cmd/internal/sessionwatch/sessionwatch.go`, `cmd/internal/sessionledger/record.go`, `cmd/internal/sessioninventory/runcli.go` | modified | agent allowlists |
 | `detectQoderOverlayOpen` | `cmd/internal/wrapcmd/wrap.go` | new | proxy-owned rolling overlay state |
-| Qoder settings (trust) | `~/.qoder/settings.json` | config | qoder permission system (aspect 6, static — no signal) |
+| Qoder workspace trust | `~/.qoder/settings.json` | existing user config | `permissions.trustDirectories` |
+| Qoder command allowlist | `<repo>/.qoder/settings.local.json` | local config | repo-scoped `permissions.allow` |
 | `runQoder` print invocation | `cmd/internal/model/model.go` | new | `qoder -p` subprocess (slug summarize) |
 
 - **OSRuntime qoder root** — name `qoder-projects`, path `~/.qoder/projects`. Feeds `AgentSessionExists`, `QuerySession`, couch's native-binding resume.
   - **Injected into:** every scanner/observation consumer; nothing agent-specific beyond the row (ARCH-PURE).
 - **Live TTY fixtures** — captured bytes through the bounded PTY seam, never hand-authored (atlas aspect 2). `metadata.json` carries `--version` string, argv, RFC3339 time, per-file SHA-256. Bounded inventory: newest version dir only.
-- **`runQoder`** — `qoder -p` with `cmd.Dir = os.TempDir()` (sandbox: no workspace context), `PAIR_SLUG_NESTED=1`, mirroring `runAgy`/`runMuse`.
+- **`runQoder`** — `qoder -p --no-session-persistence` with `cmd.Dir = os.TempDir()` (sandbox: no workspace context) and `PAIR_SLUG_NESTED=1`. The no-persistence flag prevents one transcript per slug call.
 
 **Test surface.** Pure entities get colocated unit tests (launcher arg tables, scanner deltas over fixture records, recognizer-over-snapshot). Integration seams get fakes already in-tree (`sessioninventorytest.NewFakeRuntime`, fixture replay at every byte split) plus live conformance (opt-in `PAIR_LIVE_*`) — no new fakes needed; the capture fixtures *are* the stateful double for the real CLI's paint behavior, and live conformance is the drift check (ARCH-MOCK).
 
@@ -364,7 +366,7 @@ func scanClaudeFamily(runtime Runtime, agent Agent, schema string) ScanResult {
 func ScanClaude(runtime Runtime) ScanResult { return scanClaudeFamily(runtime, AgentClaude, "claude-v1") }
 ```
 
-Thread `agent`/`schema` through `scanClaudeFile` → `scanClaudeFamilyFile`, `applyClaudeRecord` (parameterize the `AgentClaude` constant in its diagnostics and the `state.Agent` field), and `ValidateClaudeDelta` → `validateClaudeFamilyDelta(entry, prior, records, agent, schema)`. Keep the exported `ValidateClaudeDelta(entry, prior, records)` as a one-line delegate with claude's constants (its consumers in `incremental_inventory.go` keep compiling untouched). Parameterize the "unrecognized Claude v1 path" message with the schema string.
+Thread `agent`/`schema` through `scanClaudeFile` → `scanClaudeFamilyFile`, `applyClaudeFamilyRecord` (parameterize the `AgentClaude` constant in its diagnostics and the `state.Agent` field), and `ValidateClaudeDelta` → `validateClaudeFamilyDelta(entry, prior, records, agent, schema)`. Keep the exported `ValidateClaudeDelta(entry, prior, records)` as a one-line delegate with claude's constants (its consumers in `incremental_inventory.go` keep compiling untouched). Parameterize the "unrecognized Claude v1 path" message with the schema string.
 
 - [ ] **Step 2: Verify behavior preservation**
 
@@ -569,9 +571,9 @@ git commit -m "#300 M2: qoder events, watcher/ledger membership, AgentSessionExi
 - Modify: `cmd/internal/wrapcmd/harness_tty_live_test.go` (`commands` map `:547-556`)
 - Modify: `cmd/internal/wrapcmd/harness_tty.go` (`harnessTTYProfiles`: keymap + `composerGatePositive` + `recognize`)
 - Modify: `cmd/internal/wrapcmd/harness_tty_fixture_test.go` (`TestComposerReturnExpectationMatchesProfile` `:803-819`; gap ledgers only where the oracle reads them)
-- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/composer.raw` (capture)
-- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/overlay.raw` (capture, driven scenario — optional, Step 4)
-- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/metadata.json`
+- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.60/composer.raw` (capture)
+- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.60/overlay.raw` (capture, driven scenario — optional, Step 4)
+- Create: `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.60/metadata.json`
 
 **Why bootstrap-first (verified against the harness, not assumed):** a capture cannot run before a positive gate exists, so the intermediate "keymap-only fail-closed profile" (earlier draft of this plan) is not a capturable — nor even committable — state. It is replaced by this atomic landing:
 
@@ -598,13 +600,13 @@ git commit -m "#300 M2: qoder events, watcher/ledger membership, AgentSessionExi
 
 Recognizer decision tree, in order of preference (atlas aspect 1): (a) qoder emits a native composer-availability OSC → wrap it; (b) qoder paints claude's ruled-box shape (`─` rules flanking the prompt row) → add a spec to `ruledBoxComposerActive`, not a fourth near-copy; (c) a novel glyph/shape → new recognizer function.
 
-- [ ] **Step 3: Iterate the live capture.** `PAIR_LIVE_HARNESS=qoder go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveConformance -count=1 -v` until the classifier reports `recognized` (what it reports instead, naming the blocker: `harnessTTYUnauthenticated`, `harnessTTYWorkspaceTrust`, `harnessTTYWaiting`). Then add `PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/composer.raw` and capture. A recognizer that never fires times out at startup with `state=waiting` (`harness_tty_live_test.go:592-594`); `reported recognition but no recognized prefix` (`:595-598`) is the byte-replay path — the live stream looked recognized but replaying the captured bytes cannot reproduce it, and a recognizer that fires too early also truncates the capture (`firstRecognizedHarnessTTYPrefix` `:853-867` cuts at the first recognized byte). Either way: confirm the captured screen is the settled composer, and refine the recognizer, never the fixture.
+- [ ] **Step 3: Iterate the live capture.** `PAIR_LIVE_HARNESS=qoder go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveConformance -count=1 -v` until the classifier reports `recognized` (what it reports instead, naming the blocker: `harnessTTYUnauthenticated`, `harnessTTYWorkspaceTrust`, `harnessTTYWaiting`). Then add `PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.60/composer.raw` and capture. A recognizer that never fires times out at startup with `state=waiting` (`harness_tty_live_test.go:592-594`); `reported recognition but no recognized prefix` (`:595-598`) is the byte-replay path — the live stream looked recognized but replaying the captured bytes cannot reproduce it, and a recognizer that fires too early also truncates the capture (`firstRecognizedHarnessTTYPrefix` `:853-867` cuts at the first recognized byte). Either way: confirm the captured screen is the settled composer, and refine the recognizer, never the fixture.
 
 - [ ] **Step 4: Capture one blocking overlay (preferred, not required).** Add a `harnessTTYDrivenScenarios["qoder"]` row (name/`send`/`until`/`wantComposer: false`/`file: "overlay.raw"`; set `discriminating: true` only if the screen truly is composer-shaped — it is honor-system and is what retires the discrimination ledger). Run:
 
 ```bash
 PAIR_LIVE_HARNESS=qoder PAIR_LIVE_SCENARIO=<name> \
-PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/overlay.raw \
+PAIR_LIVE_CAPTURE_OUT=cmd/internal/wrapcmd/testdata/tty/qoder/1.1.60/overlay.raw \
   go test ./cmd/internal/wrapcmd -run TestHarnessTTYLiveDrivenConformance -count=1 -v
 ```
 
@@ -718,10 +720,11 @@ qoder  = [[^<glyph>]],
 ### Task 15: Settings (aspect 6, static)
 
 **Files:**
-- Modify (config, outside repo): `~/.qoder/settings.json`
+- Modify (repo-local config): `<repo>/.qoder/settings.local.json` (`permissions.allow`)
+- Verify (existing user config): `~/.qoder/settings.json` (`permissions.trustDirectories`)
 - Possibly create: workspace-local qoder settings for `../ariadne` alignment (evidence first)
 
-- [ ] **Step 1:** Inspect qoder's settings schema for a command-allowlist surface (`qoder --help` full dump; check whether `--permission-mode`/settings support per-tool allowlists like `.claude/settings.json`). If an allowlist exists, register the standard set: `git`, `make`, `sdlc`, `lsof`, `zellij`. If only `trustDirectories` + `--permission-mode` exist, that *is* qoder's permission surface — document that in `## Log` and stop (no invented config).
+- [ ] **Step 1:** Inspect qoder's settings schema for a command-allowlist surface (`qoder --help` full dump; check whether `--permission-mode`/settings support per-tool allowlists like `.claude/settings.json`). If an allowlist exists, register the standard set in `<repo>/.qoder/settings.local.json`: `git`, `make`, `sdlc`, `lsof`, `zellij`. If only `trustDirectories` + `--permission-mode` exist, that *is* qoder's permission surface — document that in `## Log` and stop (no invented config).
 - [ ] **Step 2:** Verify `trustDirectories` covers the pair workspace (already true) and add `../ariadne` if continuous cross-repo testing needs it (operator decision).
 - [ ] **Step 3:** No signal, no test — this is static config (atlas aspect 6). Log the outcome.
 
@@ -894,3 +897,7 @@ The gate refused finalization with four open Importants; all are fixed before th
 ### 2026-09-22 — Close review BR-50: correct pure/integration classification
 
 The close review found the Core concepts table classified scanner IO and a subprocess as PURE. The classification now follows the function boundary (ARCH-PURE): `validateClaudeFamilyDelta` and `ValidateQoderDelta` are deterministic transitions over supplied records; `scanClaudeFamily`, `scanClaudeFamilyFile`, and `ScanQoder` read native roots and records through `Runtime` and are INTEGRATION. `DefaultModel` is a pure model-name choice; `runQoder` launches `qoder -p` and remains only in Integration points. The Qoder TTY profile registration and `detectQoderOverlayOpen` are also listed as INTEGRATION because they connect the pure snapshot recognizer to the proxy and its mutable overlay carry. Other Pure table rows were checked for external reads, process launches, and retained state; no further IO entry point remains there. This corrects plan taxonomy only; implementation and test behavior are unchanged.
+
+### 2026-09-22 — Close review BR-51: reconcile location table and active steps
+
+The second close review found that Core concepts still pointed to the planned `qoder/1.1.59/` capture and treated user settings as the final allowlist. I checked each Core concepts location against the delivered tree and the final M4 settings decision. The live fixtures are under `qoder/1.1.60/`; the command allowlist is in repo-local `.qoder/settings.local.json`, while `~/.qoder/settings.json` supplies existing workspace trust. The table now distinguishes those roles. Task 9's active capture paths and Task 15's active config path follow the same delivered locations; the historical 1.1.59 preflight and M4 discovery/review notes remain as dated evidence. The scanner, launcher, TTY, model, and glyph source paths in Core concepts resolve in the tree. This reconciles plan prose with the delivered implementation; no production behavior changed.

@@ -634,6 +634,23 @@ rounds:
           round: 13
       recipe: milestone-review
       blocked: true
+    - "n": 14
+      timestamp: "2026-09-22T21:03:51-07:00"
+      agent: codex
+      dispose:
+        - id: BR-50
+          disposition: addressed
+          note: The pinned plan diff moves scanClaudeFamily, scanClaudeFamilyFile, ScanQoder, and runQoder out of PURE; scan_claude.go reads Runtime and model.go launches qoder. The 2026-09-22 Revisions entry records the taxonomy correction.
+          round: 14
+      findings:
+        - id: BR-51
+          severity: Critical
+          title: Core concepts locations still contradict the delivered capture and settings locations
+          detail: 'The plan table at lines 59 and 64 names qoder/1.1.59/ and user-scope ~/.qoder/settings.json; the pinned tree has captures only under qoder/1.1.60/, and the plan''s later revision says the allowlist moved to repo-local .qoder/settings.local.json. This is the 5th finding in family plan-prose-restates-diff. Sweep every Core concepts location against the delivered tree and final decisions, then correct the table and record the sweep in ## Revisions.'
+          family: plan-prose-restates-diff
+          round: 14
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -889,6 +906,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-50** [Critical] `pure-integration-classification-drift` Core concepts labels scanner IO and runQoder as PURE (ARCH-PURE)
   The plan's PURE table lists scanClaudeFamily, ScanQoder, and runQoder, although the scanners consume Runtime and runQoder launches a subprocess. Reclassify these entry points as INTEGRATION and record the correction in ## Revisions.
 
+## Round 14 — 2026-09-22T21:03:51-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-50 — addressed — The pinned plan diff moves scanClaudeFamily, scanClaudeFamilyFile, ScanQoder, and runQoder out of PURE; scan_claude.go reads Runtime and model.go launches qoder. The 2026-09-22 Revisions entry records the taxonomy correction.
+
+### Raised
+
+- **BR-51** [Critical] `plan-prose-restates-diff` Core concepts locations still contradict the delivered capture and settings locations
+  The plan table at lines 59 and 64 names qoder/1.1.59/ and user-scope ~/.qoder/settings.json; the pinned tree has captures only under qoder/1.1.60/, and the plan's later revision says the allowlist moved to repo-local .qoder/settings.local.json. This is the 5th finding in family plan-prose-restates-diff. Sweep every Core concepts location against the delivered tree and final decisions, then correct the table and record the sweep in ## Revisions.
+
 ## Open findings
 
-- **BR-50** [Critical] `pure-integration-classification-drift` Core concepts labels scanner IO and runQoder as PURE (ARCH-PURE)
+- **BR-51** [Critical] `plan-prose-restates-diff` Core concepts locations still contradict the delivered capture and settings locations

@@ -1257,6 +1257,17 @@ decision path as explicit inputs. When revising scope during implementation,
 re-read the plan's core-concepts/integration tables and either implement every
 listed surface or add a `## Revisions` entry narrowing the table before close.
 
+## Plan locations must follow delivered artifacts
+
+#300's close review found stale fixture-version and settings-scope paths in the
+Core concepts table after the capture and allowlist had moved. A dated revision
+recorded the decisions, but active plan steps still pointed at the old paths.
+
+**Rule.** After a capture version or configuration scope changes, search the
+whole active plan for the old location. Reconcile the Core concepts table and
+executable task steps against the delivered tree, then record the change in
+`## Revisions`. Keep historical observations explicitly dated.
+
 ## `git mv` of source must be swept through the atlas before merge
 
 #92 relocated `slug`/`changelog`/`continuation` logic from `cmd/pair-<name>/`
