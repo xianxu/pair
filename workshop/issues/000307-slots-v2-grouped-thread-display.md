@@ -1,11 +1,12 @@
 ---
 id: 000307
-status: open
+status: working
 deps: [pair#306]
 github_issue:
 created: 2026-09-22
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T16:46:34-07:00
 ---
 
 # Slots v2: group switcher and tab bar
