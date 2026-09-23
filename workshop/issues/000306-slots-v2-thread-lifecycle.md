@@ -319,6 +319,16 @@ regressions pass with outside bytes unchanged. BR-3's temporary README marker is
 folded into final prose, and documentation checks pass. Full post-fix verification
 is in progress before re-running close. No waiver or bypass requested.
 
+### 2026-09-23 — post-review verification passed
+
+After BR-1/BR-2/BR-3 fixes, `go test ./... -count=1` exited zero again
+(`/tmp/pair306-postreview-full.log`). Focused guarded-reader/migration/archive/
+two-slot race tests passed (30.055s); affected-package vet and rebuilt Pair/Couch
+also passed. README tests pass and no unresolved edit markers remain in its
+numbered-slot guidance. Re-running close for explicit disposition of all three
+findings. The guarded local reader is used by every enumerated local authority
+path; ordinary global reads retain compatibility.
+
 ## Revisions
 
 ### 2026-09-23 — Thread ownership remains with the environment main checkout

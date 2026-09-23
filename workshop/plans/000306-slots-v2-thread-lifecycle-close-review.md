@@ -58,7 +58,7 @@ Targeted tests cover many lifecycle paths and local-storage hazards, but no regr
 
 7. Plan revision recommendations
 
-- Add a `## Revisions` entry enumerating every direct local metadata reader and requiring guarded reads plus a symlinked-payload regression test. 
+- Add a `## Revisions` entry enumerating every direct local metadata reader and requiring guarded reads plus a symlinked-payload regression test.
 
 ```findings
 findings:
