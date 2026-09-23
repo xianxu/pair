@@ -12,16 +12,34 @@ estimate_hours:
 
 ## Problem
 
+Multiple threads are useful only if the operator can immediately recognize their repo grouping and select the intended workspace.
+
 ## Spec
+
+Project: `pair/workshop/projects/couch-slots-v2.md`. Fresh task derived from the current v2 contract; historical task bodies are not prerequisites or implementation plans.
+
+Group primary and slots together in both switcher and tab bar using one ordering derivation. Switcher shows full names and actual paths: pair /path/to/main, then indented pair:1 /path/to/worktree/pair-slot1, pair:2 ... . Tab bar shows pair :1 :2 brain ariadne ... . :0 denotes the primary but its normal display remains repo. Sort slot numbers numerically; retain stable workspace identity for selection/actions rather than parsing displayed text.
+
+Preserve existing lifecycle/state, focus, notification, and navigation behavior. Define rendering when the primary has no visible thread, when slots are parked, and when width is constrained: group context must remain understandable. Keep full address available where shorthand would be ambiguous. ARCH-DRY: switcher and bar consume the same grouped order; no unrelated visual redesign.
 
 ## Done when
 
--
+- Switcher shows grouped full labels and actual checkout paths with slot indentation; tab bar shows repo followed by :N labels.
+- :2 sorts before :10; input record order cannot split a group or change navigation order unexpectedly.
+- Keyboard/click selection activates the correct workspace after refresh/reordering; no selection relies on label parsing.
+- Tests cover absent primary, parked members, multiple repos, narrow widths, and existing notification/focus states.
+- Operator help and screenshots or rendered fixtures show the agreed examples.
 
 ## Plan
 
-- [ ]
+Task outline only; settle implementation design through start-plan before change-code.
+
+- [ ] Specify shared group ordering and absent-primary/narrow-width presentation.
+- [ ] Wire both UI projections and selection/navigation to the shared order.
+- [ ] Verify rendered examples plus real activation routing.
 
 ## Log
 
-### 2026-09-22
+### 2026-09-22 — fresh v2 task
+
+Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
