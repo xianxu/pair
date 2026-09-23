@@ -183,12 +183,20 @@ selected by `storeForAddress(address) (*ThreadStore, error)` and
 Global namespace remains the supervisor identity; physical backend root owns its
 journal/lock/path checks. Do not make `.couch` a second supervisor namespace.
 
-Route these primitives, where lifecycle callers already converge: CreateThread,
+Route these primitives, where lifecycle callers already converge: AllocateThreadTag, CreateThread,
 GetThread, GetPathLaunchPreference, updateExistingThread, advanceSuccessfulStart,
 deleteThreadIf, archiveThread, RestoreThread and continuation materialization.
 RecordPath becomes an error-returning routed lookup; failures cannot silently
 fall back to a global path. Snapshot/ArchivedThreads aggregate all discovered
 backends while preserving native identities. No duplicated park/resume state machine.
+
+AllocateThreadTag routes by workingPath before allocation (threadtag.go:17); its
+CreateThread call uses the same local backend. A slot-current collision is a slot
+conflict, not a reason to draw eight new tags or retry against global storage.
+Extract its entropy/artifact-claim loop so StartFreshSlot can reuse native tag
+collision claiming without first inserting a separate record. StartFreshSlot owns
+the one journal that replaces current state; release the new artifact claim if
+publication is proven not to have committed, following existing failed-start rules.
 
 StoreLayout owns current membership and membership-journal entries. Global mode
 keeps manifest membership. Local mode derives zero/one current address from
@@ -438,12 +446,14 @@ existing explicit filesystem maintenance model without adding a lifecycle API.
 
 - SlotIdentity / ParseWorkspaceReference: fuzz malformed transport/path/number inputs; validate canonical round trips and rejection without IO.
 - DecideSlotOpen / SelectNewSlot: pure decision tables over observed facts and requested action; assert no fresh effect from uncertain ownership and no allocation of a present directory.
+- AllocateThreadTag / spawnResolved: run production allocation with an enrolled slot and a broken local backend; assert the exact local error, unchanged global records and no helper launch. A current-slot conflict must not redraw tags.
 - StoreLayout / storeForAddress / storeForPath: real temporary stores with corrupt bytes and mismatched addresses; public lifecycle calls must mutate only the selected backend and never fall back.
 - EnrollSlotRepository: inject failure at each journal publication boundary and vary source bytes between retries; assert exactly one authority and reference preservation, including old-reader refusal before removal.
 - OSSlotCatalog: stateful discovery fixture plus real Git conformance; adversarial path replacement and excessive candidate counts must refuse without side effects, subprocess counters pin the read-only fast path.
 - Snapshot / ArchivedThreads / CouchReferences: exercise all five GC entry points against local-only owners with interleaved publication and receipt replay; assert retained owners cannot be collected and preview writes nothing.
 - ObserveSlotSessions / RecoverSlot / StartFreshSlot: stateful session evidence plus real store journals; failed scans are unknown, and pause-channel interleavings of resume/fresh prove one claim and preserved old evidence.
 - prepareTrackedWorkspace / spawnResolved / launchTrackedThread: controlled readiness barriers and fake process handshake; cancellation, park and identity changes must prevent forbidden helper release, while a later ordinary open recovers.
+- spawnResolved / FinalizePark: use pause channels at final admission observation and park publication, plus the real operation queue. If park commits before the final observation, new-slot launch refuses with the parked address and no helper release; if launch is admitted first, a later park does not retroactively revoke it but blocks the next create. Existing-slot recovery remains allowed in either ordering; the existing claim guard permits only one live owner. No sleep-based race test or new atomic cross-store reservation is implied.
 - StartResolution.CommitArgs / operation dispatch / menu row selection: accepted-target round trips and target/profile mutation tests; submissions retain exact slot and selection survives conversation replacement.
 
 ## Chunk 2 — implementation and verification
@@ -576,3 +586,10 @@ transition, operating-envelope, artifact-lifetime and function-test descriptions
 Added those contracts while reusing existing claims/queue/journals, and compressed
 test-case inventories into production-boundary strategies. No new slot state enum,
 removal command or reservation system is introduced. Rerun the gate on these inputs.
+
+### 2026-09-23 — plan gate PQ-1/PQ-2 refinements
+
+PQ-1: explicitly route AllocateThreadTag and share only its native collision
+claiming with atomic fresh replacement; local errors cannot fall back globally.
+PQ-2: name the park-publication/final-admission ordering seam and production test
+assertions for both orderings, using existing operation queue and claim ownership.
