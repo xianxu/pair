@@ -31,7 +31,7 @@ Update the agreed switcher examples to `pair /workspace/pair`, indented `pair:1 
 
 ### Proposed display details — 2026-09-23
 
-Shared pure UI projection groups by primary checkout identity, sorts repo groups alphabetically with deterministic path tie-breaks, and sorts slot numbers numerically. Grouped rows retain canonical workspace labels; custom names remain supplementary and searchable. Different checkouts with the same repo name remain distinct and get path qualifiers.
+Shared pure UI projection groups by existing primary checkout repo scope (slots map through their verified primary root), sorts repo groups alphabetically with deterministic path tie-breaks, and sorts slot numbers numerically. Grouped rows retain canonical workspace labels; custom names remain supplementary and searchable. Different checkouts with the same repo name remain distinct and get path qualifiers.
 
 Switcher shows all existing actionable members, including parked and addressless recovery slots, with full labels and slot indentation. Tabs retain attached/pending membership; parked slots do not gain tabs. Without a primary tab the first visible slot is `pair:1`, followed by `:2`. Missing primary creates no synthetic action. Existing left-to-right clipping remains; full switcher labels preserve context after filtering or scrolling.
 
@@ -83,3 +83,7 @@ issue still owns shared ordering, indentation and grouped tab labels.
 ### 2026-09-23 — proposed shared presentation design
 
 Reason: #306 interfaces are now available and #307 is next. Delta: added explicit proposed group ordering, naming, absent-primary, parked-tab membership and width rules, plus a durable implementation plan; retained the original outline and prior scope decisions. No new lifecycle states or persistence are proposed.
+
+### 2026-09-23 — review corrected primary identity
+
+Reason: ordinary StartingPath can name a subdirectory, not a checkout root. Delta: proposed grouping now uses existing repo scopes, derives stable names independently of mutable labels, and preserves label disambiguation for legacy primary conversations sharing a checkout. The plan adds production sequence tests for these cases.
