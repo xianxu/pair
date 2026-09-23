@@ -32,7 +32,8 @@ Exercise a small suitable dependency issue/update or code change driven through 
 
 ## Done when
 
-- New host slots start at an accepted local source commit containing unpublished relevant work; record source address/SHA and prove remote/main tracking does not replace that starting point. Dependency clones independently initialize per their remote contract.
+- New host slots start at captured fetched configured-remote main even when primary local HEAD differs or its working tree is dirty; local work remains untouched. Dependency clones independently initialize per their remote contract.
+- After startup, explicitly prepare and bring local committed work into a destination issue branch; record its source address/SHA and prove both resting branches retain their baselines.
 - Two independent parley.nvim issues land from :1/:2 while :0 coordinates; all addresses/directories remain identifiable and reusable.
 - Live evidence covers parked admission, activation, grouping, separate preferences, and dirty park/resume.
 - Captured before/after refs prove exact-commit branching, unchanged resting baseline at land, explicit refresh, and no cross-workspace mutation.
@@ -68,3 +69,11 @@ Reason: operator clarified new slots inherit relevant committed local work.
 Delta: acceptance now proves the initial host HEAD/resting branch use the accepted
 local source SHA even when it differs from remote main; dependency initialization
 remains separately governed by the agreed remote-clone contract.
+
+### 2026-09-23 — separate initial remote baseline from later transfer
+
+Reason: operator restored remote-main provisioning and deferred local-work
+selection to the agent/operator after startup. Delta: supersedes the previous
+local-source host initialization criterion. Verify initial remote-main creation
+and later explicit source-snapshot issue branching as separate actions, with no
+automatic local commit/stash/transfer during provisioning.
