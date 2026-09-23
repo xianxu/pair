@@ -9,14 +9,17 @@ package couchcmd
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/term"
@@ -107,6 +110,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 	if err != nil {
 		return nil, err
 	}
+	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
@@ -286,6 +290,13 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		defer lease.Close()
 	}
 
+	operationContext := context.Background()
+	if op.Name == "provision-workspace" {
+		var stop context.CancelFunc
+		operationContext, stop = signal.NotifyContext(operationContext, os.Interrupt, syscall.SIGTERM)
+		defer stop()
+	}
+
 	var console *couchtty.Console
 	var runner couchcore.Runner
 	if forceConsole {
@@ -299,6 +310,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		fmt.Fprintf(stderr, "couch: %v\n", err)
 		return 1
 	}
+	c.WorkspaceProgress = stderr
 	// The one place the CLI's layout choice reaches the domain. Set here rather
 	// than through NewCouchWith so the Runtime interface -- and every fake
 	// implementing it -- stays unchanged. An empty layout is a non-launch form,
@@ -334,7 +346,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 			callArgs = prepared.Resolution.CommitArgs()
 		}
 		result, err = couchcore.DispatchOperation(executors, couchcore.OperationCall{
-			Name: op.Name, Args: callArgs, Implicit: true, Context: context.Background(),
+			Name: op.Name, Args: callArgs, Implicit: true, Context: operationContext,
 		})
 	}
 	if err != nil {
@@ -663,6 +675,10 @@ func render(w io.Writer, op couchcore.Operation, result any) int {
 		}
 	}
 	switch v := result.(type) {
+	case couchcore.ProvisionResult:
+		if err := json.NewEncoder(w).Encode(v); err != nil {
+			return 1
+		}
 	case couchcore.ContinuationResult:
 		return render(w, op, v.Status)
 	case couchcore.ContinuationStatus:

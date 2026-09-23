@@ -385,7 +385,7 @@ review and Ariadne publication follow; #242 stays closed.
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
-**status:** working — simplified engineering plan reviewed; implementation pending approval
+**status:** working — provisioning implemented; verification and close review in progress
 **started:** 2026-09-23
 
 Both prerequisite contracts are available. The [implementation plan](../plans/000305-slots-v2-workspace-provisioning-plan.md)
@@ -598,3 +598,11 @@ Delta: #305 removes --retry and ensures readiness on each invocation. #306 calls
 it before numbered-slot launch/cold resume; warm reattachment only reconnects.
 Missing setup success reruns Weave; failures are visible and another ordinary
 open/resume retries. Primary :0 setup behavior remains unchanged.
+
+### 2026-09-23 — #305 implementation
+
+The repeatable readiness operation is implemented, with internal CLI access,
+remote-main SHA capture, host creation recovery and a Weave success marker.
+Focused race tests, actual SDLC/Weave conformance and built-CLI smoke pass.
+Full-suite verification and close review remain in progress. #306 will wire
+normal slot open/cold resume to readiness; grouped UI and preferences follow.

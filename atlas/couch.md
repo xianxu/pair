@@ -144,6 +144,11 @@ hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
 `describe`, `archive`, `recover-thread` and `recover-checkpoint` are TUI/in-process operations. `orientation-status` is
 an internal owner operation for one launch attempt.
 
+Numbered directory preparation uses `couch --internal provision-workspace <primary>
+--slot=N [--remote=R]` without taking a supervisor lease or launching a thread.
+See [workspace provisioning](workspace-provisioning.md) for readiness, repeat-call
+recovery and the #306 lifecycle integration boundary.
+
 Continuation has five internal operations (`pair#249`, `pair#280`):
 
 - `request-continuation`, invoked as `couch --internal request-continuation <absolute-path>`, durably accepts the hosted source's exact checkpoint. The inherited scope, tag, agent, session, launch ordinal, and expected digest bind publication to the writer's validated bytes and current source generation. This metadata operation can run in another worktree without becoming a second supervisor.

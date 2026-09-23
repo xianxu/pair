@@ -125,10 +125,14 @@ func readOptionalFile(path string) ([]byte, bool, error) {
 // writeAtomicBytes also serves unlocked continuation materialization. Its old
 // generic staging files are outside coordinated store cleanup authority.
 func writeAtomicBytes(path string, raw []byte) error {
+	return writeAtomicBytesWithPattern(path, raw, ".thread-store-*")
+}
+
+func writeAtomicBytesWithPattern(path string, raw []byte, pattern string) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".thread-store-*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), pattern)
 	if err != nil {
 		return err
 	}

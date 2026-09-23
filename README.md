@@ -881,3 +881,16 @@ text rendering use the same grapheme segmentation as the backend.
 
 Release notes: [`CHANGELOG.md`](CHANGELOG.md). For design rationale and
 architecture, see [the original pensive](docs/vision/2026-05-02-01-pensive-nvim-as-input-field-for-tui-coding-agents.md) and [`atlas/architecture.md`](atlas/architecture.md).
+
+## Numbered workspace preparation (internal)
+
+Couch can prepare a durable numbered worktree and its Weave dependencies:
+
+```sh
+couch --internal provision-workspace /absolute/path/to/repo --slot=1
+```
+
+Repeat the same command after interrupted setup. Completed work is reused;
+unconfirmed setup reruns `weave compile`. This operation prepares directories
+without starting an agent. See the [workspace provisioning contract](atlas/workspace-provisioning.md)
+for remote selection, paths and the separate lifecycle/UI integration work.

@@ -74,6 +74,7 @@ const (
 	ResultDescription
 	ResultConsole
 	ResultOrientationStatus
+	ResultWorkspace
 )
 
 // OperationPresentation assigns every typed operation exactly one UI/process
@@ -144,6 +145,16 @@ type StopResult struct {
 
 func Operations() []Operation {
 	return []Operation{
+		{
+			Name: "provision-workspace", Summary: "Prepare a durable numbered workspace",
+			Execution: ExecuteDirectStore, Effect: EffectProcess, Confirmation: ConfirmNone,
+			Result: ResultWorkspace, Presentation: PresentationInternal,
+			Args: []ArgSpec{
+				{Name: "path", Summary: "primary repository path", Required: true},
+				{Name: "slot", Summary: "positive workspace number", Required: true, FlagOnly: true, ValueRequired: true},
+				{Name: "remote", Summary: "configured Git remote", FlagOnly: true, ValueRequired: true},
+			},
+		},
 		{
 			Name: "prepare-start", Summary: "Resolve a start request without starting anything",
 			Execution: ExecuteLiveOwner, Effect: EffectAuthority, Confirmation: ConfirmNone, Result: ResultStartResolution,
