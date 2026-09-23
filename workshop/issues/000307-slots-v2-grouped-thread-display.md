@@ -49,7 +49,7 @@ Both consumers use the same projection; selection remains keyed by `ThreadRowKey
 
 ## Plan
 
-Detailed proposed plan: [Grouped Thread Display](../plans/000307-grouped-thread-display-plan.md). Awaiting operator approval before change-code. The original outline below remains the issue-level acceptance checklist.
+Detailed proposed plan: [Grouped Thread Display](../plans/000307-slots-v2-grouped-thread-display-plan.md). Operator approved on 2026-09-23; change-code gates in progress. The original outline below remains the issue-level acceptance checklist.
 
 - [ ] Specify shared group ordering and absent-primary/narrow-width presentation.
 - [ ] Wire both UI projections and selection/navigation to the shared order.
@@ -87,3 +87,7 @@ Reason: #306 interfaces are now available and #307 is next. Delta: added explici
 ### 2026-09-23 — review corrected primary identity
 
 Reason: ordinary StartingPath can name a subdirectory, not a checkout root. Delta: proposed grouping now uses existing repo scopes, derives stable names independently of mutable labels, and preserves label disambiguation for legacy primary conversations sharing a checkout. The plan adds production sequence tests for these cases.
+
+### 2026-09-23 — operator approval and gate clarification
+
+Operator approved the detailed plan. PQ-1 is addressed by the plan's explicit known-root/legacy display-path and qualifier contract; source rows and operation identities remain unchanged. Renamed the plan to the exact issue stem for gate discovery. Implementation has not begun.
