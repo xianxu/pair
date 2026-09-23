@@ -385,12 +385,12 @@ review and Ariadne publication follow; #242 stays closed.
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
-**status:** codecomplete — verification passed; SHIP close review; publication next
+**status:** done — [Pair PR155](https://github.com/xianxu/pair/pull/155) merged; SHIP review
 **actual:** 4.66h
 **closed:** 2026-09-23
 **started:** 2026-09-23
 
-Both prerequisite contracts are available. The [implementation plan](../plans/000305-slots-v2-workspace-provisioning-plan.md)
+Both prerequisite contracts are available. The [implementation plan](../history/plans/000305-slots-v2-workspace-provisioning-plan.md)
 uses remote-main initialization, one repository lock for host Git creation,
 small creation intent and a setup-success marker. Missing success runs Weave again on the same readiness invocation; Weave owns dependency locking and recovery. Ready reuse validates
 the host without fetching or composing. Thread admission and launch remain with pair#306.
@@ -543,7 +543,7 @@ preferences and acceptance tasks were aligned without reopening #242.
 
 [ariadne#246]: ../../../ariadne/workshop/issues/000246-slots-v2-durable-slot-landing.md
 
-[pair#305]: ../issues/000305-slots-v2-workspace-provisioning.md
+[pair#305]: ../history/issues/000305-slots-v2-workspace-provisioning.md
 
 [pair#306]: ../issues/000306-slots-v2-thread-lifecycle.md
 
@@ -614,3 +614,9 @@ normal slot open/cold resume to readiness; grouped UI and preferences follow.
 Provisioning passed the full Go suite, targeted race/vet checks, build, parser fuzz,
 CLI smoke and live SDLC/Weave conformance. The close review returned SHIP;
 measured actual is 4.66h. Publication follows; #306 owns thread integration.
+
+### 2026-09-23 — #305 published
+
+Pair PR155 merged; SDLC marked #305 done and archived its issue and plan.
+Updated the portfolio status and links. #306 can now integrate directory readiness
+with thread creation and cold resume.
