@@ -1,11 +1,12 @@
 ---
 id: 000306
-status: open
+status: working
 deps: [pair#305]
 github_issue:
 created: 2026-09-22
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T13:12:13-07:00
 ---
 
 # Slots v2: multiple threads and parked admission
