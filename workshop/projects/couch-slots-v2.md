@@ -385,7 +385,7 @@ review and Ariadne publication follow; #242 stays closed.
 <a id="ariadne-244"></a>
 ### ariadne#244 — Concurrent issue workflows
 
-**status:** working — M1 and M2 closed with SHIP; final issue review pending
+**status:** done — M1, M2 and final issue review SHIP; PR #129 merged
 **est:** 17.01h (revised simplified scope)
 **started:** 2026-09-23
 
@@ -672,3 +672,7 @@ Implemented the simplified publication scope and passed the full workspace/SDLC 
 [ariadne#244 M1]: #ariadne-244-m1
 
 [ariadne#244 M2]: #ariadne-244-m2
+
+### 2026-09-23 — ariadne#244 published
+
+Ariadne PR https://github.com/xianxu/ariadne/pull/129 merged. SDLC marked #244 done, archived its issue/plan/review records and adopted measured actual 6.38h. Claims use fresh remote status; explicit documentation commits publish with three-way conflict handling in every checkout. Planning/close reviewers run unlocked and reject stale or interrupted results before persistence. Full workspace/SDLC tests, vet, real Git races, signal/race checks and nested dependency recovery passed; known #210 fixture remains excluded.
