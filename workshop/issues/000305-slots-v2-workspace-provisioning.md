@@ -154,11 +154,14 @@ before code changes. This is larger than the quick-flow shell.
 
 ## Plan
 
-Task outline only; settle implementation design through start-plan before change-code.
+Engineering plan: [000305-slots-v2-workspace-provisioning-plan.md](../plans/000305-slots-v2-workspace-provisioning-plan.md).
+Product direction is agreed; the detailed plan is awaiting review/approval.
 
-- [ ] Specify allocation/reuse and reconcile existing Couch startup with the shared workspace contract.
-- [ ] Implement provisioning and recovery behind the existing startup boundary with Git fixtures.
-- [ ] Verify repeat setup and publish the lifecycle integration contract.
+- [ ] Implement checked identity transport, request grammar and pure selection/transition model.
+- [ ] Implement durable evidence, inherited leases and cancellable process execution.
+- [ ] Implement and verify host creation, setup, reuse and explicit retry with real Git conformance.
+- [ ] Wire the internal operation, production runtime, progress and result rendering.
+- [ ] Document the contract for #306, run verification, and close through one review boundary.
 
 ## Log
 
@@ -186,6 +189,17 @@ It must also specify the caller-held occupancy/allocation exclusion spanning
 number selection and provisioning for #306. Startup exploration confirmed the
 internal DirectStoreExecutor route; PrepareStart remains free of setup effects.
 Issue schema and diff whitespace checks passed. Awaiting operator design review.
+
+### 2026-09-23 — engineering plan drafted
+
+The operator requested continuing after agreeing remote-main initialization.
+Ran start-plan and wrote the durable engineering plan. Startup exploration
+confirmed DirectStoreExecutor is the suitable internal operation boundary.
+Weave has no source-freshness cache: the plan defines ready as initial setup
+completion, with host/dependency-instance validation and explicit recompilation
+for later source changes. Pair and Weave each retain their own inherited leases;
+Pair must not assume its descriptor propagates through all Weave descendants.
+Plan review and operator approval precede implementation.
 
 ## Revisions
 
@@ -219,3 +233,11 @@ remote/main; source-workspace/accepted-local-SHA provisioning inputs are removed
 Local changes remain untouched. Bringing committed work over after slot startup
 is an explicit operator/agent action on an issue branch, owned by ariadne#245.
 Updated acceptance and retry evidence to use the remote baseline.
+
+### 2026-09-23 — detailed implementation plan
+
+Reason: operator requested continuing #305 on the settled provisioning contract.
+Delta: replaced the initial three-step task outline with the durable plan and
+five concrete execution checkpoints, retaining one issue-close review boundary.
+Added explicit readiness meaning, subprocess/lease ownership, recovery proofs,
+resource bounds and verification commands in the plan. No code changes yet.
