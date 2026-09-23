@@ -14,7 +14,7 @@ record for interrupted Git operations, and a setup-success marker per host.
 **Tech stack:** Go, existing typed operation dispatcher, Git, SDLC JSON v2,
 Weave compile, flock, existing strict JSON and atomic-file helpers.
 **Issue:** `workshop/issues/000305-slots-v2-workspace-provisioning.md`.
-**Status:** Simplified proposal; prior plan review applies to the superseded design.
+**Status:** Simplified plan reviewed; awaiting operator approval.
 **Flow:** Full, one issue-close boundary. Expected code exceeds 100 added lines;
 approval of this plan includes using `sdlc change-code --issue 305 --flow=full`.
 Derive the estimate after that command's plan-quality gate, before implementation.
@@ -116,6 +116,10 @@ For a fully Git-verified conventional host, preserve all refs/files and proceed
 to the success-marker check. No fetch is needed, and no existing upstream is
 silently retargeted. An externally created complete compatible host can be
 prepared on explicit --retry; otherwise explain that preparation is unconfirmed.
+For that first preparation without intent or success marker, capture the observed
+main-slotN tip under the creation lock as baseline_sha, preserving current HEAD
+and files. Otherwise use the recorded intent/marker baseline; ready reuse returns
+the marker baseline.
 
 For an absent host, select remote: explicit --remote; otherwise main's configured
 remote when its merge target is refs/heads/main; otherwise the sole configured
@@ -171,8 +175,13 @@ Weave owns source acquisition, its environment lock, partial clones/builds and
 recovery. Couch streams its diagnostics and uses its exit status. No parsing of
 Weave messages or observation of individual dependencies is needed.
 
-On exit 0, revalidate host identity and atomically write SetupSuccess. Only then
-return ready. On failure/interruption, leave success unrecorded and expose retry.
+On exit 0, briefly reacquire the creation lock, revalidate host identity, and
+atomically write SetupSuccess. A concurrently published valid marker wins;
+use its baseline rather than replacing it. Publication and owned temporary-file
+cleanup both hold this same lock, so cleanup cannot remove an active write.
+Only then return ready. If the lock is busy or validation/publication fails,
+report unconfirmed setup and allow explicit retry; another compile is acceptable.
+On failure/interruption, leave success unrecorded and expose retry.
 A crash after compile succeeded but before marker publication is harmless: the
 next explicit retry reruns compile. A lost success acknowledgment needs no new
 Couch state. Repeated compilation is allowed by Weave's retry contract.
@@ -268,6 +277,9 @@ operation/CLI/readme contracts.
 - [ ] Write failing tests: missing marker runs Weave; exit 0 writes success;
   failure does not; lost publication repeats compile; valid success skips it;
   malformed/mismatched markers refuse; host branch/dirty changes are preserved.
+- [ ] Use a deterministic barrier to overlap marker publication and temporary
+  cleanup; verify the shared lock protects active writes. Test externally created
+  hosts capture main-slotN as baseline without changing current HEAD/files.
 - [ ] Model Weave busy/success/failure through the process seam. Test serial
   duplicate retries as acceptable and no duplicate host creation or thread launch.
 - [ ] Wire PresentationInternal + ExecuteDirectStore + EffectProcess + a new
@@ -343,3 +355,11 @@ Weave setup runs after releasing it and uses Weave's own lock/recovery. This als
 removes private fetch refs: cooperative fetch/capture is serialized. Retain only
 small host creation intent/evidence for interrupted Git operations. Earlier
 review approvals apply to the superseded design, not this simplified proposal.
+
+### 2026-09-23 — simplified plan review corrections
+
+Reason: fresh review found a marker-publication/temporary-cleanup race and an
+undefined baseline for externally created hosts. Delta: briefly reacquire the
+existing creation lock for final validation/publication; a valid concurrent marker
+wins. Capture the resting-branch tip for first preparation of an external host.
+Added focused tests. Weave still runs outside the lock; no new state or lock.

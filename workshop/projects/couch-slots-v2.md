@@ -385,7 +385,7 @@ review and Ariadne publication follow; #242 stays closed.
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
-**status:** working — simplified engineering plan under review; implementation pending approval
+**status:** working — simplified engineering plan reviewed; implementation pending approval
 **started:** 2026-09-23
 
 Both prerequisite contracts are available. The [implementation plan](../plans/000305-slots-v2-workspace-provisioning-plan.md)
