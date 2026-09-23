@@ -135,6 +135,16 @@ Revised active spec/plan to remove free-workspace reuse, archive prerequisite an
 new admission-reservation machinery. Earlier design reviews are superseded; no
 code changes or new estimate. Migration/retention integration remains planning work.
 
+### 2026-09-23 — concrete local-storage planning
+
+Traced shared ThreadStore mutation primitives and all five gcruntime reference
+operations. The engineering plan now specifies a routed local backend, no redundant
+local manifest, root-enrollment cutover, a format fence for old readers, stable UI
+slot targets, scope-based recovery evidence and atomic fresh replacement. Existing
+serial operation scheduling and supervisor ownership remain unchanged. The retained
+conversation/archive machinery is reused; a separate bounded raw-backup policy
+covers damaged metadata. Fresh engineering review is in progress; no runtime edits.
+
 ## Revisions
 
 ### 2026-09-23 — Thread ownership remains with the environment main checkout
