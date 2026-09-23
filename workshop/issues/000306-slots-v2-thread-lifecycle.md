@@ -40,6 +40,61 @@ Warm reattachment to a still-running agent only reconnects and does not compile.
 Primary :0 retains existing setup behavior. Preserve normal thread/session
 ownership and resume-binding checks; dirty files and issue branches are valid.
 
+### Implementation proposal — 2026-09-23
+
+The existing project behavior is approved; the following engineering design
+awaits operator review. Preserve opaque thread tags and Pair's per-worktree scope
+keys. Add a stable optional workspace association to thread records: physical
+Git common directory, primary root, worktree root and optional slot number.
+A workspace address belongs to a directory; replacing its thread changes the
+opaque tag, not the workspace address. Ordinary dependency clones and arbitrary
+worktrees have no numbered host address. Legacy records are resolved from their
+paths without rewriting their native session identity.
+
+Use the existing start form and operation. An ordinary path requests fresh work:
+use its workspace if available, otherwise select the lowest free existing numbered
+host, then the lowest unused positive number. An explicit `repo:N` or contextual
+`:N` selects exactly that workspace and refuses if occupied. Repo shorthand is
+`:0` when resolving existing threads. Start preview shows the chosen address and
+path; submission must keep that selection or refuse stale preview. Automatic
+selection never skips an ambiguous/partial workspace to allocate another.
+Explicitly opening the affected number retries normal readiness.
+
+`couch <path>` remains an open action: return to the unique existing live/detached/
+parked thread in that workspace. Never select a parked thread in another workspace
+or pick arbitrarily among multiple legacy matches. An ambiguous open reports the
+matching tags/paths and activation actions. All fresh-thread creation—including
+archive-then-start replacement—obeys repository-wide parked admission. Resuming,
+continuing, reattaching or changing the agent on an existing thread is allowed
+while a sibling is parked because these do not allocate another thread.
+
+Admission uses ClassifyThread's evidence, not park receipt presence. Live,
+detached, parked, raw reservations and active start claims occupy the whole
+worktree, including its subdirectories. Parked rows anywhere in the same Git
+repository block fresh creation. Unknown/unreadable ownership and open lifecycle
+transactions require attention; they never prove vacancy. Positively stopped,
+unresumable debris can be replaced under existing cleanup rules. Another repo,
+including a private dependency clone, does not share the host's admission key.
+Merely discovering a clone creates no Couch thread.
+
+Combine new-record creation and its existing ThreadStartClaim into one journaled
+store transaction after revalidating the observed record set under the existing
+store lock. Reserve before provisioning, hold through launch, release on confirmed
+failure. Reuse the claim nonce, supervisor identity and interrupted-start recovery;
+add no reservation file, TTL, setup phase or additional lifecycle lock. External
+setup/probes run outside the store lock. Recheck fresh admission after setup before
+child release; a park that wins that check blocks the new launch. A park occurring
+after the final admission check is ordered after the admitted start.
+
+All non-warm numbered launches (including continuation and agent replacement) use
+#305 readiness before the final native-binding/continuation checks. Missing success
+repeats compile; readiness failure rolls back only this start claim and preserves
+parked conversation and filesystem work. Warm attachment skips setup. Primary and
+ordinary worktree setup behavior stays unchanged. Dirty host/dependency work,
+branches, commits and directories survive every thread lifecycle operation.
+
+Detailed design: [implementation plan](../plans/000306-slots-v2-thread-lifecycle-plan.md).
+
 ## Done when
 
 - Primary and two slots can run concurrently; each is independently addressable and follows existing lifecycle behavior.
@@ -55,7 +110,7 @@ ownership and resume-binding checks; dirty files and issue branches are valid.
 
 ## Plan
 
-Task outline only; settle implementation design through start-plan before change-code.
+Execute the durable plan after operator approval and the full change-code gate.
 
 - [ ] Map existing thread states and specify per-workspace occupancy and repo-wide admission.
 - [ ] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
@@ -66,6 +121,16 @@ Task outline only; settle implementation design through start-plan before change
 ### 2026-09-22 — fresh v2 task
 
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
+
+### 2026-09-23 — claim and design
+
+Claimed #306 after #305 merged. Mapped all fresh starts to spawnResolved and all
+child creation to launchTrackedThread. Found path-only occupancy, non-atomic
+allocation/claim, narrowed startup evidence and loss of incarnation repo identity
+on park. Proposed stable workspace association plus admission checked under the
+existing store lock, reusing ThreadStartClaim through readiness (ARCH-DRY,
+ARCH-PURE, ARCH-ORDER). No implementation changes yet.
+
 
 ## Revisions
 
@@ -78,3 +143,10 @@ Reason: operator agreed nested environments, ordinary remote dependency clones a
 Reason: operator agreed setup recovery belongs to the normal slot-opening action.
 Delta: require #305 readiness before launch/cold resume, with repeatable missing
 setup recovery; warm reattachment and primary setup behavior stay unchanged.
+
+### 2026-09-23 — lifecycle design proposal
+
+Reason: turn the agreed multiple-thread contract into executable boundaries.
+Delta: specify automatic versus exact workspace selection, conservative legacy
+handling, atomic admission/claim, and final checks after readiness. Preserve the
+existing lifecycle and scope keys; grouped UI and preference UX remain #307/#308.
