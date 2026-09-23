@@ -102,7 +102,7 @@ Detailed design and remaining engineering work:
 
 Execute the durable plan after operator approval and the full change-code gate.
 
-- [ ] Finalize local storage/migration and recovery integration against the revised durable-slot model.
+- [x] Finalize local storage/migration and recovery integration against the revised durable-slot model.
 - [ ] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
 - [ ] Verify local authority/index rebuilding, dirty-work preservation, resume/start-fresh recovery, and primary compatibility.
 
@@ -262,6 +262,19 @@ was checked against existing start transitions and operationQueue; refined the
 plan with explicit transition authority, operating envelope, artifact cleanup
 ownership and function-level test strategies. No new lifecycle state machinery.
 Rerunning change-code before any runtime edits.
+
+### 2026-09-23 — implementation gate passed; storage foundation
+
+change-code passed plan-quality and estimate-quality and created the in-place issue
+branch. Accepted estimate: 14.37h after separating implementation boundaries.
+Baseline couchcore and gcruntime suites passed. Local backend tests first exposed
+wrong-tag archive and symlink-lock writes; guards now reject both. Focused layout,
+atomic successful-start recovery, absent-state read and schema compatibility tests
+pass (explicit Go file set while parallel migration tests are in their red phase).
+Catalog/reference/allocation foundations have focused and parser-fuzz evidence;
+routing, migration and GC integration are in progress. No completion claim.
+Plan gate PQ-5 is carried to implementation: audit direct metadata and retention
+consumers as well as lifecycle primitives for local authority.
 
 ## Revisions
 
