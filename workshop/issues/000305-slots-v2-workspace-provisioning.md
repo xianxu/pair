@@ -155,7 +155,7 @@ before code changes. This is larger than the quick-flow shell.
 ## Plan
 
 Engineering plan: [000305-slots-v2-workspace-provisioning-plan.md](../plans/000305-slots-v2-workspace-provisioning-plan.md).
-Product direction is agreed; the detailed plan is awaiting review/approval.
+Product direction is agreed; the detailed plan passed fresh review and awaits operator approval.
 
 - [ ] Implement checked identity transport, request grammar and pure selection/transition model.
 - [ ] Implement durable evidence, inherited leases and cancellable process execution.
@@ -200,6 +200,17 @@ completion, with host/dependency-instance validation and explicit recompilation
 for later source changes. Pair and Weave each retain their own inherited leases;
 Pair must not assume its descriptor propagates through all Weave descendants.
 Plan review and operator approval precede implementation.
+
+### 2026-09-23 — engineering plan review complete
+
+Fresh plan review found and resolved two gaps: shared remote-tracking fetch/read
+races and interrupted upstream configuration after branch creation. The revised
+plan captures the fetched SHA through an attempt-owned ref and separately models
+absent/matching/conflicting upstream keys on retry. The second review approved
+the plan. A temporary real-Git probe confirmed atomic dual-ref fetching and that
+a later slot fetch preserves the first attempt's captured SHA. Issue/project
+schemas and diff whitespace checks pass. No production code has changed;
+operator approval is the remaining checkpoint before change-code.
 
 ## Revisions
 
