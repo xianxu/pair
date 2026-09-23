@@ -695,6 +695,17 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchcore/path.go",
 	"cmd/internal/couchcore/pathops.go",
 	"cmd/internal/couchcore/relaunch.go",
+	// Workspace provisioning uses Git-owned repository metadata, not the
+	// tag-bearing Pair artifact families catalogued above (#305).
+	"cmd/internal/couchcore/provision.go",
+	"cmd/internal/couchcore/provision_dispatch.go",
+	"cmd/internal/couchcore/provision_host.go",
+	"cmd/internal/couchcore/provision_io.go",
+	"cmd/internal/couchcore/provision_lock_unix.go",
+	"cmd/internal/couchcore/provision_request.go",
+	"cmd/internal/couchcore/provision_select.go",
+	"cmd/internal/couchcore/provision_store.go",
+	"cmd/internal/couchcore/workspace_identity.go",
 	"cmd/internal/couchcore/procops.go",
 	"cmd/internal/couchcore/ptyrunner.go",
 	"cmd/internal/couchcore/registry.go",

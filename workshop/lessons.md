@@ -84,6 +84,9 @@ representative evidence, not an exhaustive index.
 
 ## Interfaces, schemas, and data
 
+- Reconcile active plan entity tables and task file lists with delivered code;
+  appending a revision alone leaves the active mappings false. (#305)
+
 - Treat a command, escape sequence, JSON record, sidecar, and persisted row as a
   closed grammar. Test unknown complete controls, prefixes, missing fields,
   empty fields, malformed records, conflicting evidence, and exact boundaries.

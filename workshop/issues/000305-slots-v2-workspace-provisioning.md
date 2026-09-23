@@ -1,6 +1,6 @@
 ---
 id: 000305
-status: working
+status: codecomplete
 deps: [ariadne#242, ariadne#243]
 github_issue:
 created: 2026-09-22
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours: 6.95
 started: 2026-09-23T10:54:57-07:00
 flow: {kind: full, provenance: operator}
+actual_hours: 4.66
 ---
 
 # Slots v2: provision durable numbered workspaces
@@ -205,13 +206,13 @@ total: 6.95
 ## Plan
 
 Engineering plan: [000305-slots-v2-workspace-provisioning-plan.md](../plans/000305-slots-v2-workspace-provisioning-plan.md).
-Product direction is agreed; the simplified detailed plan passed fresh review and awaits operator approval.
+The operator approved implementation; code is implemented and final verification/close is underway.
 
-- [ ] Implement checked identity transport, request grammar and pure selection/host decision table.
-- [ ] Implement host creation intent, one Git creation lock and cancellable process execution.
-- [ ] Implement and verify host creation, setup, reuse and repeated invocation with real Git conformance.
-- [ ] Wire the internal operation, production runtime, progress and result rendering.
-- [ ] Document the contract for #306, run verification, and close through one review boundary.
+- [x] Implement checked identity transport, request grammar and pure selection/host decision table.
+- [x] Implement host creation intent, one Git creation lock and cancellable process execution.
+- [x] Implement and verify host creation, setup, reuse and repeated invocation with real Git conformance.
+- [x] Wire the internal operation, production runtime, progress and result rendering.
+- [x] Document the contract for #306 and run verification; one SDLC close review follows.
 
 ## Log
 
@@ -220,6 +221,7 @@ Product direction is agreed; the simplified detailed plan passed fresh review an
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
 
 ### 2026-09-23 — prerequisites verified and design started
+- 2026-09-23: closed — Full go test ./... -count=1 passed independently by author and second reviewer; targeted race/vet/build/live SDLC-Weave/CLI smoke and parser fuzz passed. No code changes since ea2b507f; BR-3 docs corrected, BR-1/BR-2 disputed with executable same-slot/no-thread evidence in issue Log.; review verdict: SHIP
 
 Ariadne #242/#243 are published; the current atlas contracts specify nested
 host worktrees, JSON v2 and private ordinary dependency clones. Claimed #305 and
@@ -279,6 +281,64 @@ and define an external host's first baseline from its resting-branch tip.
 Both corrections and focused tests are in the plan. Issue/project schema checks
 and diff whitespace checks pass. Implementation awaits operator approval.
 
+### 2026-09-23 — implementation and focused verification
+
+Passed change-code and created the in-place implementation branch. Plan-quality
+accepted at the configured round cap with the disputed #306 reverse-dependency
+finding retained; the operation requires no thread reservation or launch API.
+Estimate-quality accepted 6.95 calibrated ship hours. Implemented repeatable
+provisioning through the internal dispatcher, remote-main capture from fetch
+porcelain, Git-owned partial recovery, one host creation lock and one setup marker.
+
+Verification so far: original couchcore/couchcmd baseline passed; focused tests,
+real Git recovery and race tests passed; actual SDLC/Weave conformance passed.
+Built Pair and Couch (correct target: make pair bin/couch). Isolated built-CLI
+smoke returned created → reused → prepared after marker removal, preserving local
+primary/slot files and the feature branch. Full-suite inventory guards exposed
+missing registrations for new files; those were corrected. Final suite/close is
+still pending. No UI or thread-lifecycle behavior was changed (#306 owns that).
+
+### 2026-09-23 — final verification before close
+
+`go test ./... -count=1` passes after inventory registration fixes. Targeted
+`go test -race` for provisioning/identity/selection/CLI and recovery tests passes;
+`go vet ./cmd/internal/couchcore ./cmd/internal/couchcmd` passes. `make pair
+bin/couch` succeeds. Live `TestProvisionConformance` passes with real SDLC/Weave.
+Built-CLI smoke confirms created/reused/prepared with baseline and dirty work
+preserved. Parser fuzz seeds and short single-worker campaigns pass. All code is
+committed as 76ba5bfd; closing review now owns the remaining acceptance boundary.
+
+### 2026-09-23 — close review correction
+
+First boundary review passed targeted/race/live tests and all architecture
+principles, with no production-code findings. It returned REWORK for BR-3: the
+active plan still named provision_fake_test.go although the delivered fixture
+lives in provision_git_test.go. Corrected all active entity/file mappings and
+added the lesson. BR-1/BR-2 are carried copies of the disputed reverse dependency;
+the review accepted the actual #305/#306 ownership split but omitted explicit
+ledger dispositions. Requesting those withdrawals on re-review. No code changes.
+
+### 2026-09-23 — reservation finding disputed with executable evidence
+
+Second review passed its own full Go suite, targeted/race evidence and live
+conformance, and disposed BR-3. It retained BR-1/BR-2 despite acknowledging no
+thread/supervisor/agent effects. Requesting a different supported gate reviewer
+for that technical disagreement, using the receiving-code-review skill.
+
+The reusable boundary rule is: a readiness operation grants directory readiness,
+not thread capacity. There is no token handoff across this API. Its only consumer
+in #305 is DirectStoreExecutor's explicit path/slot call. Ensure never calls
+SelectWorkspaceNumber, a thread store, or a launch API. Two Ensure callers for
+the same slot are deliberately allowed: TestProvisionRecoveryConcurrentWeaveBusy
+and TestProvisionRecoveryConcurrentPublishedMarkerWins exercise them; Git host
+creation and marker publication serialize under HostCreationLease, while Weave
+owns setup exclusion. TestProvisionCLI asserts zero runner/supervisor effects.
+Thus missing #306 cannot produce a duplicate thread or invalidate #305's contract.
+#306 already declares deps: [pair#305]. The requested reverse edge is a cycle,
+not a prerequisite. BR-1/BR-2 should be withdrawn unless a concrete violated
+#305 invariant can be shown. Future admission/launch invariants belong to #306.
+No code changed since both independent verification runs.
+
 ## Revisions
 
 ### 2026-09-23 — Provision nested environments with private ordinary clones
@@ -334,3 +394,5 @@ Reason: operator wants repeatable operations to reapply safe commands whenever
 success is unconfirmed. Delta: readiness now runs missing setup on every ordinary
 invocation, without --retry. #306 uses it before numbered-slot launch/cold resume;
 warm reattachment skips setup. Repeat-call recovery is an explicit test obligation.
+
+- 2026-09-23: Close review returned SHIP (window 570f8566..835e6a03); BR-1/BR-2 withdrawn after scope evidence, BR-3 corrected. Actual measured 4.66h. Minor advisories: Ensure rejects corrupt/conflicting observations before NextHostAction; immediate busy-lock refusal after compile intentionally requires another readiness call and may recompile. Live conformance cadence documented in atlas: provisioning/consumed-contract changes and #309 acceptance. No blocking findings remain.

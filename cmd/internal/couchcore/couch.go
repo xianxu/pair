@@ -23,6 +23,8 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	Workspaces             WorkspaceReadiness
+	WorkspaceProgress      io.Writer
 	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
 	ContinuationSource     func(context.Context, ThreadAddress) (ContinuationSource, error)
 	Namespace              CouchNamespace

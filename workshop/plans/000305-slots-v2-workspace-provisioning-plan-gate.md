@@ -80,6 +80,36 @@ rounds:
           family: external-transition-ordering
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-23T12:24:06-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-2
+          disposition: not-addressed
+          note: 'The plan still defers the reservation token, owner, lifetime, and atomic handoff to #306, explicitly rejects a #306 dependency, and therefore leaves selection-to-provisioning exclusion undefined.'
+          round: 3
+        - id: PQ-7
+          disposition: addressed
+          note: The plan now enumerates cancellation, caller death, concurrent requests, late completion, marker publication races, ownership, cancellation/join policy, and deterministic barrier tests.
+          round: 3
+      blocked: true
+    - "n": 4
+      timestamp: "2026-09-23T12:24:56-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-2
+          disposition: not-addressed
+          note: 'The plan still defers the reservation representation to #306 and explicitly says #305 requires no reservation capability; the required cross-issue contract remains undefined.'
+          round: 4
+      findings:
+        - id: PQ-8
+          severity: Important
+          title: 'Define the #306 reservation spanning selection and provisioning'
+          detail: 'This is the 2nd finding in family `cross-issue-capability-contract`. State the reusable rule for every cross-issue capability: define the token/identity, authority, acquisition point after selection, ownership, lifetime through provisioning and launch, atomic handoff, and release/recovery on failure or cancellation; update the issue dependency metadata to declare pair#306. The current plan only says that #306 reserves before provisioning and releases on failure (plan:41-45), while also declaring that #305 has no reservation capability (plan:37-40), so competing automatic callers can still select the same workspace without an executable exclusion contract.'
+          family: cross-issue-capability-contract
+          round: 4
+      blocked: false
+content_hash: 2d2e39efb0f35c278fb931846519cfe98f978c074762f6b982563103a702e3b1
 ---
 
 # Gate ledger — pair#305 (plan-quality)
@@ -120,7 +150,25 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-7** [Important] `external-transition-ordering` Model provisioning's interrupting and concurrent event ordering explicitly
   ARCH-ORDER is not satisfied by the host decision table alone: the plan must name the state/event transitions and policies for process death or cancellation during Git/Weave, a second request observing the same host, late compile completion after cancellation, and marker publication races, including who remains running, who cancels or queues, and how each interleaving is reproduced. The current text only says “reconcile” and “another compile is acceptable” (plan:216-229, 231-241), leaving the legal temporal behavior implicit.
 
+## Round 3 — 2026-09-23T12:24:06-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-2 — not-addressed — The plan still defers the reservation token, owner, lifetime, and atomic handoff to #306, explicitly rejects a #306 dependency, and therefore leaves selection-to-provisioning exclusion undefined.
+- PQ-7 — addressed — The plan now enumerates cancellation, caller death, concurrent requests, late completion, marker publication races, ownership, cancellation/join policy, and deterministic barrier tests.
+
+## Round 4 — 2026-09-23T12:24:56-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-2 — not-addressed — The plan still defers the reservation representation to #306 and explicitly says #305 requires no reservation capability; the required cross-issue contract remains undefined.
+
+### Raised
+
+- **PQ-8** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning
+  This is the 2nd finding in family `cross-issue-capability-contract`. State the reusable rule for every cross-issue capability: define the token/identity, authority, acquisition point after selection, ownership, lifetime through provisioning and launch, atomic handoff, and release/recovery on failure or cancellation; update the issue dependency metadata to declare pair#306. The current plan only says that #306 reserves before provisioning and releases on failure (plan:41-45), while also declaring that #305 has no reservation capability (plan:37-40), so competing automatic callers can still select the same workspace without an executable exclusion contract.
+
 ## Open findings
 
 - **PQ-2** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning
-- **PQ-7** [Important] `external-transition-ordering` Model provisioning's interrupting and concurrent event ordering explicitly
+- **PQ-8** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning

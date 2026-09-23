@@ -589,7 +589,7 @@ func TestEveryOperationHasASummaryAndDescribedArgs(t *testing.T) {
 func TestOperationArityMatchesExpectation(t *testing.T) {
 	// Declared in the test rather than read from the operation itself, so
 	// this cannot degrade into asserting X == X.
-	want := map[string]int{"recover-thread": 3, "recover-checkpoint": 4, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
+	want := map[string]int{"provision-workspace": 3, "recover-thread": 3, "recover-checkpoint": 4, "request-continuation": 7, "continue-thread": 3, "retry-continuation": 4, "dismiss-continuation": 4, "continuation-status": 4, "prepare-switch-agent": 4, "switch-agent": 5, "orientation-status": 4, "prepare-start": 2, "start": 4, "list": 0, "show": 2, "stop": 1, "name": 4, "describe": 4, "publish-description": 3, "switch": 2, "attach": 3, "park": 4, "detach": 3, "leave": 1, "resume": 4, "archive": 3, "archived": 0, "relaunch": 3}
 	for _, op := range couchcore.Operations() {
 		if got := len(op.Args); got != want[op.Name] {
 			t.Errorf("%s has %d args, want %d", op.Name, got, want[op.Name])

@@ -142,6 +142,16 @@ func DirectStoreExecutor(c *Couch) OperationExecutor {
 	return func(call OperationCall) (any, error) {
 		a := call.Args
 		switch call.Operation.Name {
+		case "provision-workspace":
+			request, err := ParseProvisionRequest(a["path"], a["slot"], a["remote"])
+			if err != nil {
+				return nil, err
+			}
+			if c.Workspaces == nil {
+				return nil, fmt.Errorf("workspace provisioner is unavailable")
+			}
+			request.Progress = c.WorkspaceProgress
+			return c.Workspaces.Ensure(call.Context, request)
 		case "list":
 			return c.ThreadInventoryContext(call.Context)
 		case "show":

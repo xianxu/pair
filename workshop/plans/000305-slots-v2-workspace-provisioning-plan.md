@@ -14,7 +14,7 @@ record for interrupted Git operations, and a setup-success marker per host.
 **Tech stack:** Go, existing typed operation dispatcher, Git, SDLC JSON v2,
 Weave compile, flock, existing strict JSON and atomic-file helpers.
 **Issue:** `workshop/issues/000305-slots-v2-workspace-provisioning.md`.
-**Status:** Simplified plan reviewed; awaiting operator approval.
+**Status:** Implemented and verified; SHIP close review passed; publication next.
 **Flow:** Full, one issue-close boundary. Expected code exceeds 100 added lines;
 approval of this plan includes using `sdlc change-code --issue 305 --flow=full`.
 Derive the estimate after that command's plan-quality gate, before implementation.
@@ -65,7 +65,7 @@ All new production files below live in `cmd/internal/couchcore/` unless qualifie
 | Name | Lives in | Status |
 | --- | --- | --- |
 | WorkspaceIdentity | workspace_identity.go | new |
-| ProvisionRequest / ProvisionResult | provision.go | new |
+| ProvisionRequest / ProvisionResult | provision_request.go | new |
 | CreationIntent / SetupSuccess | provision_store.go | new |
 | HostObservation / NextHostAction | provision_host.go | new |
 | SelectWorkspaceNumber | provision_select.go | new |
@@ -97,9 +97,10 @@ advisory; #306 must revalidate/reserve thread capacity through its own authority
 | --- | --- | --- | --- |
 | WorkspaceProvisioner | provision.go | new | linear orchestration |
 | ProvisionIO / OSProvisionIO | provision_io.go | new | Git, SDLC, Weave, progress |
-| ProvisionStore | provision_store.go | new | intent/success atomic files |
+| ProvisionStore / ProvisionStorage | provision_store.go | new | intent/success atomic files and injected storage |
+| WorkspaceReadiness | provision_dispatch.go | new | provisioner capability injected into Couch |
 | HostCreationLease | provision_lock_unix.go | new | repository-wide Git creation flock |
-| ProvisionFixture | provision_fake_test.go | new | stateful test seam |
+| ProvisionFixture | provision_git_test.go | new | stateful test seam |
 | Couch.Workspaces | couch.go | modified | injected provisioner |
 | Operations / DirectStoreExecutor | ops.go / operationdispatch.go | modified | typed internal operation |
 | OSRuntime.NewCouchWith / render | ../couchcmd/run.go | modified | production wiring and JSON output |
@@ -279,31 +280,31 @@ outcomes and real temporary Git repositories for actual ref/worktree behavior.
 ### Task 1 — checked inputs and host decisions
 
 Create workspace_identity.go, provision_host.go, provision_select.go and colocated
-tests. Put request/result structs in provision.go, records in provision_store.go.
+tests. Put request/result structs in provision_request.go, records in provision_store.go.
 
-- [ ] ParseWorkspaceIdentity / ParseProvisionRequest: malformed transport/grammar
+- [x] ParseWorkspaceIdentity / ParseProvisionRequest: malformed transport/grammar
   → strict decode, required-field checks and fuzzed boundary input.
-- [ ] NextHostAction: incomplete/conflicting observations → total decision table
+- [x] NextHostAction: incomplete/conflicting observations → total decision table
   with safe refusal and repeat-invocation properties.
-- [ ] SelectWorkspaceNumber: unsorted/occupied/partial observations → pure minimum
+- [x] SelectWorkspaceNumber: unsorted/occupied/partial observations → pure minimum
   selection; output never implies a thread reservation.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'Test(WorkspaceIdentity|ProvisionRequest|ProvisionHost|SelectWorkspaceNumber)' -count=1`.
+- [x] Run `go test ./cmd/internal/couchcore -run 'Test(WorkspaceIdentity|ProvisionRequest|ProvisionHost|SelectWorkspaceNumber)' -count=1`.
 
 ### Task 2 — host creation and small durable records
 
 Create provision_io.go, provision_store.go, provision_lock_unix.go,
-provision_fake_test.go, provision_git_test.go, provision_subprocess_test.go.
+provision_git_test.go, provision_subprocess_test.go.
 
-- [ ] WorkspaceProvisioner.ensureHost: interrupted Git effects and foreign
+- [x] WorkspaceProvisioner.ensureHost: interrupted Git effects and foreign
   collisions → reconcile owned evidence in stateful fake + real Git fixture;
   verify repeated calls preserve user refs/files.
-- [ ] ParseFetchBaseline: malformed/ambiguous fetch output and later tracking-ref
+- [x] ParseFetchBaseline: malformed/ambiguous fetch output and later tracking-ref
   changes → strict porcelain parsing + real Git with deterministic intervening fetch.
-- [ ] ProvisionStore read/write: malformed, oversized, aliased or interrupted
+- [x] ProvisionStore read/write: malformed, oversized, aliased or interrupted
   records → strict bounded IO and atomic publication; barriers guard cleanup races.
-- [ ] AcquireHostCreationLease / OSProvisionIO.Run: contention, caller death and
+- [x] AcquireHostCreationLease / OSProvisionIO.Run: contention, caller death and
   hanging children → subprocess fixtures prove inherited exclusion and bounded wait.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'TestProvision(Host|Git|Store|Lease)|TestParseFetchBaseline' -count=1`.
+- [x] Run `go test ./cmd/internal/couchcore -run 'TestProvision(Host|Git|Store|Lease)|TestParseFetchBaseline' -count=1`.
 
 ### Task 3 — Weave readiness and production operation
 
@@ -311,32 +312,32 @@ Implement WorkspaceProvisioner.Ensure in provision.go. Modify couch.go, ops.go,
 operationdispatch.go, couchcmd/run.go. Add couchcmd/provision_test.go and update
 operation/CLI contracts. Inject production IO in OSRuntime.NewCouchWith.
 
-- [ ] WorkspaceProvisioner.Ensure: lost acknowledgments and repeated invocations
+- [x] WorkspaceProvisioner.Ensure: lost acknowledgments and repeated invocations
   → stateful fixture models success/busy/failure; confirmed setup skips Weave,
   unconfirmed setup repeats it without a mode flag or dependency simulation.
-- [ ] DirectStoreExecutor / RunWithRuntime: malformed calls and setup failures
+- [x] DirectStoreExecutor / RunWithRuntime: malformed calls and setup failures
   → exercise CLI through the real dispatcher with injected IO; assert progress on
   stderr, JSON result on stdout and no supervisor/thread/agent creation.
-- [ ] Register PresentationInternal + ExecuteDirectStore + EffectProcess + new
+- [x] Register PresentationInternal + ExecuteDirectStore + EffectProcess + new
   workspace result family; args path, --slot=N, optional --remote=R.
-- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`.
+- [x] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`.
 
 ### Task 4 — conformance, documentation and one close boundary
 
 Add provision_conformance_test.go, atlas/workspace-provisioning.md; update
 README.md, atlas/couch.md, atlas/index.md, issue and project state.
 
-- [ ] TestProvisionConformance: actual SDLC v2 + Weave against isolated Git
+- [x] TestProvisionConformance: actual SDLC v2 + Weave against isolated Git
   fixtures → verify initial setup, repeat readiness and preservation of host and
   dependency work. Minimal manifests omit package/tool/generator effects.
-- [ ] Run `PAIR_LIVE_WORKSPACE=1 go test ./cmd/internal/couchcore -run '^TestProvisionConformance$' -count=1 -v`.
-- [ ] Document repeatable readiness, marker semantics, #306 ownership and manual
+- [x] Run `PAIR_LIVE_WORKSPACE=1 go test ./cmd/internal/couchcore -run '^TestProvisionConformance$' -count=1 -v`.
+- [x] Document repeatable readiness, marker semantics, #306 ownership and manual
   recovery for unverifiable partial hosts; link the atlas page.
-- [ ] Run targeted race tests, `make runtimebundle-generate`, `go test ./... -count=1`,
+- [x] Run targeted race tests, `make runtimebundle-generate`, `go test ./... -count=1`,
   and `go vet ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
-- [ ] Build `make pair couch`; smoke the CLI against isolated temporary repos/data.
-- [ ] Reconcile evidence and commit; run `sdlc close --issue 305
-  --verified '<observed evidence>'` once, then sdlc pr / sdlc merge.
+- [x] Build `make pair bin/couch`; smoke the CLI against isolated temporary repos/data.
+- [x] Reconcile evidence and run `sdlc close --issue 305 --verified '<observed evidence>'`; SHIP.
+- [ ] Publish the close records with sdlc pr / sdlc merge.
 
 ## Operating envelope and exclusions
 
@@ -369,9 +370,9 @@ short host-only lock extent. ARCH-SECURE: strict records, canonical Git identity
 and non-destructive collision refusals. ARCH-FUNERAL: one success marker, bounded
 creation evidence, no attempt history/dependency nonce files/private fetch refs.
 
-Obtain fresh plan review and checkpoint the issue/plan, then present this revised
-plan for operator approval. Continue with change-code's plan-quality/estimate
-steps and an in-place branch in this checkout; preserve unrelated local files.
+Operator approval, plan-quality/estimate gates and implementation are complete
+on the in-place issue branch. Verification and the SHIP close review passed;
+publish through sdlc pr / sdlc merge while preserving unrelated local files.
 
 ## Revisions
 
@@ -445,3 +446,47 @@ split; documentation of that caller's obligations does not make it a prerequisit
 PQ-7: added explicit interruption/event branches with ownership, busy/cancel
 policy, publication rules and deterministic test seams, retaining linear Ensure
 and no persisted setup-phase machinery as the operator requested.
+
+### 2026-09-23 — implementation verification command correction
+
+The Makefile exposes bin/couch, not a phony couch target. Use make pair bin/couch;
+the earlier make pair couch built Pair then refused the nonexistent target.
+The implementation reuses a parameterized atomic writer for a provisioning-only
+temporary prefix; the selector remains an explicitly documented #306 integration API.
+
+### 2026-09-23 — implementation checkpoint
+
+Operator approved implementation. SDLC change-code passed plan-quality at its
+configured review cap; disputed PQ-2/PQ-8 reservation demands remain recorded for
+close review. #305 consumes no #306 capability and performs no thread effects.
+Estimate-quality accepted the calibrated decomposition. Created the in-place
+000305 branch. Implemented the operation, pure transport/decisions, inherited
+creation lease, bounded subprocesses, host intent and atomic setup success.
+Live conformance requires a recorded HTTPS dependency origin; fixtures use Git
+insteadOf transport rewriting to isolated local repositories, not local-source
+Weave declarations. Requests need no retry flag. Task-1 request/result types live
+in provision_request.go; WorkspaceReadiness lives in provision_dispatch.go; the
+stateful Git fixture lives in provision_git_test.go. No extra fake framework.
+Focused/race and live tests passed; full-suite inventory checks were updated for
+new files and the deliberately deferred #306 selector consumer. Final suite and
+SDLC close remain to be completed.
+
+### 2026-09-23 — reconcile delivered concept locations (BR-3)
+
+Updated active entity mappings and task file lists, not only this revision:
+ProvisionFixture lives in provision_git_test.go; request/results in
+provision_request.go; WorkspaceReadiness in provision_dispatch.go. The storage
+seam is named ProvisionStorage with ProvisionStore as its OS implementation.
+The close reviewer found no production-code issues and passed focused, race and
+live conformance tests. Its ARCH-PURPOSE finding explicitly accepted the #306
+boundary; BR-1/BR-2 (carried PQ-2/PQ-8) therefore need explicit withdrawal in the
+next ledger disposition rather than remaining accidentally open. No #306 API is
+consumed: the deployed operation prepares directories without thread authority.
+
+### 2026-09-23 — close review completed
+
+The final review withdrew the reverse-dependency/reservation findings: #305 grants
+directory readiness; #306 owns admission. Active file mappings were corrected.
+Three minor advisories remain nonblocking: early conflict rejection, immediate
+busy-lock refusal after compile, and live-conformance cadence (now documented
+in the atlas). No production changes followed the reviewed implementation.
