@@ -5,7 +5,7 @@ goal: "Enable concurrent development through durable numbered workspaces with pr
 done_when: "In parley.nvim, the primary coordinates work while :1 and :2 each complete an independent issue through integration; all three remain identifiable and reusable, dirty work survives park/resume, and neither implementation workspace is silently changed by activity in another."
 status: ideation
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-09-23
 sources: [pair/workshop/projects/couch-slots.md, brain/workshop/pensive/2026-09-11-01-pensive-couch-slots.md]
 ---
 
@@ -19,7 +19,63 @@ the original project's issue list is not automatically the v2 commitment.
 
 ## PRD
 
-### Current UI and task contract — 2026-09-22
+### Current layout and dependency contract — 2026-09-23
+
+This agreed decision supersedes the flat paths and unresolved dependency-policy
+alternatives in the dated sections below. Other thread, branch, resting-baseline,
+and preference behavior remains as previously agreed.
+
+- A primary remains `/workspace/pair`. Its numbered main worktrees live at
+  `/workspace/worktree/pair-slot1/pair`, `/workspace/worktree/pair-slot2/pair`,
+  and so on. Each enclosing `pair-slotN/` directory holds that environment's
+  sibling dependencies, such as `ariadne/`; `../ariadne` therefore resolves
+  privately without changing the dependency's logical name.
+- Main numbered checkouts remain Git worktrees with the existing `main-slotN`
+  resting-branch contract. Dependencies are ordinary independent clones from
+  their recorded remote sources, initially selecting `origin/main`. Normal
+  compile/setup/resume preserves an existing dependency's chosen revision,
+  branch, dirty files and local commits. Operator and agent may explicitly use
+  ordinary Git to select another revision or develop in that dependency.
+- Local-source dependency provisioning is out of scope: no automatic snapshot
+  of the primary dependency, linked dependency worktree, or live primary symlink.
+  There is no shared dependency shelf between numbered environments. A new
+  lockfile/version-management system is not a product requirement; acquisition
+  failure and recovery details belong to the engineering design in ariadne#243.
+- Generated links may point into the environment's dependency clones. Editing
+  one of those clones intentionally affects its consumers there; another
+  environment remains unchanged. Copied/merged outputs require normal explicit
+  recompilation. Source isolation does not imply machine-wide package isolation.
+- Source bindings and installed tools are separate: ordinary provisioning,
+  resume and build do not silently change the machine-wide tool supplier.
+  Explicit installation remains available.
+- Primary and numbered slots support the same development capabilities,
+  including coordinated changes across repositories. Primary repos share the
+  existing sibling environment under `/workspace/` and have direct Couch UI
+  entries. Each numbered environment has private siblings and one main Couch
+  thread; its dependency checkouts are accessed through that thread and do not
+  automatically acquire slot addresses, threads or preference records.
+- Use each repository's existing SDLC workflow. A thread in `pair:1` may drive
+  an Ariadne issue/change, publish it first when Pair depends on it, then publish
+  Pair. Reservations and subsequent issue-body updates retain their normal
+  explicit publication steps. No automatic recursive merge, multi-repository
+  publication transaction, or special primary-only cross-repo mode is added.
+
+```text
+pair       /workspace/pair
+  pair:1   /workspace/worktree/pair-slot1/pair
+  pair:2   /workspace/worktree/pair-slot2/pair
+ariadne    /workspace/ariadne
+```
+
+The ordinary clones at `pair-slot1/ariadne` and `pair-slot2/ariadne` are accessed
+through their respective Pair threads, not automatically listed as Couch slots.
+
+ariadne#242 remains the completed flat-layout implementation. ariadne#243 now
+owns its nested-layout resolver/consumer follow-up as well as dependency setup;
+ariadne#244–246 and pair#305–309 consume this revised contract. Engineering plans
+and any necessary Weave changes still require their normal design gates.
+
+### UI and task contract — 2026-09-22 (layout superseded above)
 
 This section and the fresh task list below supersede earlier open UI questions,
 model-default suggestions, directory alternatives, and the `adopt` terminology.
@@ -192,7 +248,7 @@ accidentally taking another issue's implementation. Ownership transfer after
 claim and review is also unresolved. Reading a transcript or TTY log may supply
 additional reasoning, but whether and how to do that is still exploratory.
 
-### Decisions still needed
+### Open questions recorded on 2026-09-22 (dependency/layout settled above)
 
 - Choose the canonical directory spelling and how new slot numbers are allocated
   or bounded. `main-slotN` and display address `repo:N` are settled.
@@ -241,13 +297,18 @@ dependency policy, and recovery details before deriving implementation scope.
 
 ## Breakdown
 
+Current scope: the 2026-09-23 contract above governs all outstanding tasks. #242
+is complete; #243 is working and includes the nested identity follow-up. The
+2026-09-22 baseline below is retained as the original breakdown. Dependency
+policy is now settled; detailed implementation/recovery design remains.
+
 Fresh task baseline requested on 2026-09-22. Every issue below is newly created;
 no earlier slot issue is reused or a dependency. Issue bodies contain the detailed
 scope, completion criteria, verification expectations, and blocking references.
 No implementation has started and no estimates or deadline are committed.
 
 - [x] Resolve repository and workspace identity [ariadne#242]
-- [ ] Resolve dependency and shared-tool bindings [ariadne#243]
+- [x] Resolve dependency and shared-tool bindings [ariadne#243]
 - [ ] Make concurrent issue workflows safe [ariadne#244]
 - [ ] Support branching from a workspace and explicit refresh [ariadne#245]
 - [ ] Land without removing or refreshing the workspace [ariadne#246]
@@ -282,6 +343,28 @@ returned SHIP after strict OID validation and README corrections. The regression
 suite passed with the known #210 missing-plan test excluded; publication follows
 the close gate. Provisioning and lifecycle operations remain subsequent tasks.
 
+<a id="ariadne-243"></a>
+### ariadne#243 — Nested identity and dependency setup
+
+**status:** done — [Ariadne PR128](https://github.com/xianxu/ariadne/pull/128) merged; SHIP review
+**actual:** 2.89h
+**closed:** 2026-09-23
+**started:** 2026-09-22
+
+**Scope event 2026-09-23:** adopts ordinary remote dependency clones in each
+numbered environment and adds the nested-layout follow-up to #242's shared
+resolver. The shared-baseline/local-source alternatives are superseded. Existing
+SDLC handles dependency-first publication; the task does not add recursive merge.
+
+**Implementation event 2026-09-23:** nested identity and JSON v2, environment-local
+SDLC content lookup, ordinary remote-main dependency acquisition and inherited
+setup exclusion are implemented. Pair#310/PR154 and parley.nvim#274/PR199 supply
+remote metadata. Two real Parley environments passed initial/repeat composition,
+private feature/dirty-work preservation and runtime acceptance. The full Go suite
+and vet passed; existing #210 remains excluded. One Parley performance spec timed
+out in the full run and passed all three cases on an isolated rerun. Boundary
+review and Ariadne publication follow; #242 stays closed.
+
 ## Log
 
 ### 2026-09-22 — fresh definition requested
@@ -306,6 +389,16 @@ claimed and implementation has not started. Existing issues remain untouched.
 ariadne#242 merged through PR #127 and was archived after a SHIP close review.
 The shared resolver and SDLC consumers are available in ariadne main. The next
 project task is ariadne#243, whose dependency-binding decision remains open.
+
+### 2026-09-23 — nested environments and dependency workflow agreed
+
+Recorded the operator's four-point agreement: nested main worktrees with private
+sibling clones; dependencies initially from origin/main with explicit later
+revision selection; symmetric development capabilities with different Couch UI
+visibility; existing per-repository SDLC for coordinated work. Updated all nine
+outstanding task contracts and their acceptance criteria. #242 stays complete;
+#243 owns the layout follow-up. No implementation, timeline, or project lifecycle
+transition is implied by this documentation update.
 
 ## Revisions
 
@@ -397,9 +490,22 @@ replace that sequence. In particular, auditing/reusing historical issues is no
 longer the route to this project’s implementation scope. Prior revision entries
 remain historical context; the current UI/task contract takes precedence.
 
+### 2026-09-23 — nested layout replaces flat slots
+
+Reason: concurrent base-layer development exposed conflicts from live shared
+sources; the operator chose isolated sibling environments while retaining
+relative dependency declarations and fast local cross-repository edits.
+Delta: the new leading contract replaces flat slot paths, the shared dependency
+baseline proposal, and local-source acquisition alternatives. Dependencies start
+from their recorded origin/main and retain state until explicitly changed.
+Couch visibility distinguishes primary repos from numbered environments; SDLC
+publication remains per repository. #243 adds the nested identity correction;
+#244/#245/#246 now depend on that contract. Provisioning, UI, lifecycle,
+preferences and acceptance tasks were aligned without reopening #242.
+
 [ariadne#242]: #ariadne-242
 
-[ariadne#243]: ../../../ariadne/workshop/issues/000243-slots-v2-dependency-bindings.md
+[ariadne#243]: ../../../ariadne/workshop/history/issues/000243-slots-v2-dependency-bindings.md
 
 [ariadne#244]: ../../../ariadne/workshop/issues/000244-slots-v2-concurrent-workflows.md
 
@@ -416,3 +522,15 @@ remain historical context; the current UI/task contract takes precedence.
 [pair#308]: ../issues/000308-slots-v2-workspace-preferences.md
 
 [pair#309]: ../issues/000309-slots-v2-three-workspace-trial.md
+
+### 2026-09-23 — #243 implementation checkpoint
+
+Reason: approved engineering plan executed. Delta: updated the #243 detail block
+with implemented scope and real verification, preserving earlier design history.
+
+### 2026-09-23 — #243 published
+
+Reason: server-side merge confirmed. Delta: #243 is done via Ariadne PR128,
+measured actual 2.89h, with metadata prerequisites merged via Pair PR154 and
+Parley PR199. Updated its detail status and archived issue link. The next
+Ariadne task remains #244; #242 was not reopened.

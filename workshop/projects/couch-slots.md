@@ -4,10 +4,10 @@ name: "couch-slots"
 goal: "Let one repo host several concurrent couch threads — a small, rigid set of numbered worktree slots per work repo, co-tenancy for brain — without the two-agents-in-one-repo gaps that today's tooling tolerates only because they are rare."
 done_when: "The operator runs two threads in pair (primary + slot1) through a full issue lifecycle each — claim, plan, change-code, close, merge — in parallel, with no silent double-claim, no multi-minute stall on issue new, slot1's tree intact and reset after merge, and both threads distinguishable in the status row and switcher; and brain admits a second thread at its primary path."
 status: defined
-mvp_scope: [ariadne#223, ariadne#222, ariadne#214, pair#197, pair#236]
+mvp_scope: [ariadne#223, ariadne#222, ariadne#214, ariadne#230, ariadne#240, pair#197, pair#236, pair#299]
 explicitly_out: [pair#153]
 created: 2026-09-11
-updated: 2026-09-12
+updated: 2026-09-21
 sources: [brain/workshop/pensive/2026-09-11-01-pensive-couch-slots.md, pair/workshop/projects/couch.md, pair/workshop/history/issues/000153-couch-managed-worktree-lifecycle.md]
 ---
 
@@ -212,3 +212,69 @@ Not committed to a timeline. The operator wants a dedicated block for tasks
 [ariadne#223]: #ariadne-223
 [ariadne#222]: #ariadne-222
 [pair#197]: #pair-197
+
+## Revisions
+
+### 2026-09-21 — rigid operator contract supersedes the layout sketch
+
+The operator-facing surface is now the design center: `couch <repo>` always
+means the primary checkout on `main` tracking the configured remote's `main`,
+and `couch <repo> :N` always means one durable, numbered secondary directory
+under `worktree/` with one canonical resting branch tracking the remote `main`.
+Couch owns idempotent provisioning, resume-before-spawn, and refusal on a
+wrong-repository, dirty, or otherwise unsafe existing path. It does not delete
+slots.
+
+The earlier slot-first `worktree/slotN/<repo>` plus `slotN` branch is no longer
+the operator contract. The implementation must choose one canonical repo-first
+spelling (`pair-1`/`main-1` or the more explicit `pair-slot1`/`main-slot1`)
+before code lands; status may render the friendlier `pair :N`. The branch is
+remote-trunk-tracking for reset purposes, but `sdlc push` remains refused and
+issue work stays on issue branches.
+
+This narrows couch's responsibility. Ariadne detects the contract from the
+working path/branch and becomes slot-aware; it does not create a competing
+layout. Cross-repo relative dependencies remain an explicit boundary: a
+single-repo slot path does not automatically provide a sibling `ariadne`, so
+the project depends on the deterministic fallback in ariadne#230 or an
+equivalent slot peer-map decision.
+
+The revision is shaped by ARCH-DRY and ARCH-SECURE: one shared slot contract,
+and no silent repair of operator-visible filesystem or branch state.
+
+### 2026-09-21 (later) — slot setup and branch authority remain design work
+
+Creating the worktree is only the first provisioning step. Once couch enters a
+new slot, it should run `weave link` from that slot to restore ariadne-styled
+dependencies against the main slots, followed by `weave compile` in the slot
+root. Add a fixture/conformance check for a fresh slot, the dependency targets,
+and a clean repeat compile; this is an explicit dependency of the slot-start
+measurement rather than an assumed side effect.
+
+The resting-branch policy is not settled by the rigid path contract. Compare:
+
+- `main-slotN` follows the remote `main`; milestone close fetches and rebases
+  the issue work against remote trunk before returning the slot to that tip.
+- `main-slotN` forks from the local primary `main`; the slot merges back to
+  local `main`, and the operator controls when local `main` absorbs remote
+  changes.
+
+The first is a remote-trunk follower; the second is a local integration lane.
+Choose one, including who owns the rebase/merge and what happens to unpublished
+slot commits, before implementing slot-aware merge (ARCH-ORDER, ARCH-SECURE).
+
+### 2026-09-21 (later still) — slots select default agent profiles
+
+Treat each durable slot as a configurable workspace, not only a path and branch.
+It should carry a default harness/model profile. The convention can be primary
+`pair:0` for process management, `pair:1` for high-quality design, and `pair:2`
+for post-review implementation on a faster/cheaper model. `:0` is omitted in
+normal display.
+
+The profile is a default selection, not a gate bypass or a role encoded
+irreversibly in the slot number. Couch should persist and display the effective
+harness/model across park and resume, while allowing an explicit override.
+Unavailable profiles need a visible refusal or fallback decision; silently
+starting a different model would make the operator's mental model unsafe
+(ARCH-SECURE). The project should add a dedicated issue when moving from design
+to committed scope.
