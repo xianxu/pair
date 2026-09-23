@@ -8,10 +8,11 @@ import (
 
 func TestValidateFreshAgentArgs(t *testing.T) {
 	for agent, cases := range map[string][][]string{
-		"claude": {{"-c"}, {"-rabc"}, {"-pc"}, {"--resume=x"}, {"--session-id=x"}, {"--fork-session"}, {"--from-pr", "12"}, {"--teleport"}, {"--debug", "--continue"}, {"attach", "x"}},
-		"codex":  {{"resume"}, {"--model", "x", "fork", "--last"}, {"-cx=y", "resume"}, {"--approve-for-me", "resume"}, {"exec", "--model", "x", "resume"}},
+		"claude": {{"-c"}, {"-rabc"}, {"-pc"}, {"-pr", "sid"}, {"-vr", "sid"}, {"-hr", "x"}, {"--resume=x"}, {"--session-id=x"}, {"--fork-session"}, {"--from-pr", "12"}, {"--teleport"}, {"--debug", "--continue"}, {"attach", "x"}},
+		"codex":  {{"resume"}, {"--model", "x", "fork", "--last"}, {"-cx=y", "resume"}, {"--approve-for-me", "resume"}, {"exec", "--model", "x", "resume"}, {"--add-dir", "/x", "resume", "abc"}, {"--add-dir", "/x", "fork", "--last"}},
 		"agy":    {{"-c"}, {"--continue=true"}, {"--conversation=x"}, {"-conversation=x"}},
 		"muse":   {{"--provider", "echo", "resume"}, {"resume", "--last"}, {"exec", "--session-id=x"}, {"--worktree", "create", "resume"}},
+		"qoder":  {{"-c"}, {"--continue"}, {"-r", "abc"}, {"--resume", "abc"}, {"--resume=abc"}, {"-pr", "sid"}, {"-vr", "sid"}, {"-hr", "x"}, {"--session-id", "x"}, {"--session-id=x"}, {"--fork-session"}, {"--remote"}, {"--remote", "task"}, {"--remote-session", "x"}, {"--teleport", "x"}, {"--remote-control", "x"}, {"--list-sessions"}, {"--delete-session", "1"}, {"-dc"}, {"--debug", "--continue"}, {"--worktree", "--resume"}},
 	} {
 		for _, args := range cases {
 			if err := ValidateFreshAgentArgs(agent, args); err == nil {
@@ -23,6 +24,7 @@ func TestValidateFreshAgentArgs(t *testing.T) {
 		"claude": {{"--model", "--resume"}, {"--system-prompt", "--continue"}, {"--", "--resume"}, {"--name", "attach"}, {"--allowed-tools", "Bash", "attach"}},
 		"codex":  {{"--model", "resume"}, {"-c", "resume"}, {"-mresume"}, {"--", "resume"}, {"a prompt about resume"}},
 		"agy":    {{"--model", "--continue"}}, "muse": {{"--model", "resume"}, {"--provider=resume"}},
+		"qoder": {{"-m", "some-model", "hello"}, {"--model", "m", "-p"}, {"--model", "--resume"}, {"--worktree", "feat", "hello"}, {"--tools", "a", "b", "--", "hi"}, {"-w", "some/dir", "hello"}, {"-dp"}, {"--", "--resume"}, {"hello", "world"}},
 	} {
 		for _, args := range cases {
 			if err := ValidateFreshAgentArgs(agent, args); err != nil {
@@ -31,6 +33,29 @@ func TestValidateFreshAgentArgs(t *testing.T) {
 		}
 	}
 }
+func TestFreshVariadicOptionIsPerAgent(t *testing.T) {
+	cases := []struct {
+		agent, flag string
+		want        bool
+	}{
+		{"claude", "--add-dir", true},
+		{"claude", "--file", true},
+		{"claude", "--tools", true},
+		{"codex", "--add-dir", false},
+		{"agy", "--add-dir", false},
+		{"qoder", "--add-dir", false},
+		{"qoder", "--tools", true},
+		{"codex", "--tools", false},
+		{"muse", "--tools", false},
+		{"agy", "--tools", false},
+	}
+	for _, tc := range cases {
+		if got := freshVariadicOption(tc.agent, tc.flag); got != tc.want {
+			t.Errorf("freshVariadicOption(%q, %q) = %v, want %v", tc.agent, tc.flag, got, tc.want)
+		}
+	}
+}
+
 func TestFreshLaunchProfile(t *testing.T) {
 	raw, err := BuildCouchFreshLaunchProfile("work", "codex", []string{}, "explicit", "explicit")
 	if err != nil {

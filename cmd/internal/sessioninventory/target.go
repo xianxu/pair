@@ -213,6 +213,11 @@ func observationNativeID(agent Agent, artifact Artifact) string {
 		if ok && role == RoleRoot && artifact.StorageRoot == "muse-sessions" {
 			return id
 		}
+	case AgentQoder:
+		id, _, role, ok := claudePathFact(artifact.RelativePath)
+		if ok && role == RoleRoot && artifact.StorageRoot == "qoder-projects" {
+			return id
+		}
 	case AgentAgy:
 		if artifact.StorageRoot == "agy-conversations" {
 			id, _ := agyDatabasePathID(artifact.RelativePath)

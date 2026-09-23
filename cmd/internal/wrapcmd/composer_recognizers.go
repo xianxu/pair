@@ -121,7 +121,7 @@ var musePromptGlyphs = map[string]bool{"⟩": true, "›": true, "❯": true, ">
 // Anchoring on the *enclosing* rules rather than on rules directly above and
 // below the prompt is what lets the composer grow past one line.
 type ruledBoxComposerSpec struct {
-	// promptOK qualifies the column-0 cell of a candidate prompt row.
+	// promptOK qualifies the cell at promptCol of a candidate prompt row.
 	promptOK func(uv.Cell) bool
 	// ruleAt reports whether row y is one of the box's rule rows.
 	ruleAt func(terminalSnapshot, int) bool
@@ -133,16 +133,27 @@ type ruledBoxComposerSpec struct {
 	// and takes the first painted column-0 row below as the closing rule: the
 	// box cannot absorb distant chrome regardless of height.
 	maxRows int
+	// promptCol is the column the harness paints its prompt glyph in. Zero for
+	// Claude and Muse; Qoder indents by one column (see qoderPromptCol).
+	promptCol int
 	// minCursorX is the first column the harness leaves for composer text.
 	minCursorX int
+	// allowHiddenCursor is true only for a harness that hides the system cursor
+	// behind one it paints itself (Qoder), so hidden-cursor snapshots may still
+	// qualify. The zero value requires the visible cursor — the prior behaviour
+	// of every spec — so a spec that forgets the field fails closed.
+	allowHiddenCursor bool
 }
 
 // ruledBoxComposerActive reports whether the cursor rests inside a ruled box.
 // The prompt sits at or above the cursor — except when the cursor rests on the
 // box's own top rule — and the closing rule must sit at or below the cursor.
+// This is the only function that owns the ruled-box scan: a harness with a
+// ruled box registers a spec, however its prompt column and glyphs differ.
 func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec) bool {
-	if !snapshot.CursorVisible || !snapshotCoordinatesValid(snapshot) ||
-		snapshot.Cursor.X < spec.minCursorX {
+	if !snapshotCoordinatesValid(snapshot) ||
+		snapshot.Cursor.X < spec.minCursorX ||
+		(!spec.allowHiddenCursor && !snapshot.CursorVisible) {
 		return false
 	}
 
@@ -153,7 +164,7 @@ func ruledBoxComposerActive(snapshot terminalSnapshot, spec ruledBoxComposerSpec
 		if promptY >= snapshot.Height || promptY-1 < 0 {
 			continue
 		}
-		prompt := snapshot.CellAt(0, promptY)
+		prompt := snapshot.CellAt(spec.promptCol, promptY)
 		if prompt == nil || !spec.promptOK(*prompt) || !spec.ruleAt(snapshot, promptY-1) {
 			continue
 		}
@@ -265,6 +276,52 @@ func sameForeground(a, b color.Color) bool {
 	ar, ag, ab, aa := a.RGBA()
 	br, bg, bb, ba := b.RGBA()
 	return ar == br && ag == bg && ab == bb && aa == ba
+}
+
+// qoderPromptCol is the ONE authority for the column Qoder indents its
+// composer prompt to. Qoder reserves column 0 for a leading space (and paints
+// its rules across the full width from column 0), so its prompt sits one
+// column right of Claude's and Muse's.
+const qoderPromptCol = 1
+
+// qoderPromptGlyphs is the ONE authority for what may sit at qoderPromptCol
+// of a Qoder composer prompt row. Both consumers read it — qoderComposerActive
+// (the Return remap's gate) and orientationPromptOK (the orientation
+// auto-submit gate) — because a glyph accepted by one and rejected by the
+// other is a state where Return inserts a newline in a composer orientation
+// refuses to submit into. `>` is the captured default-mode glyph and `*` the
+// captured yolo-mode glyph (see testdata/tty/qoder/1.1.60/*). Menu selection
+// markers are deliberately NOT here: Qoder marks a highlighted picker row with
+// `❯`, which must keep reading as a picker rather than a composer.
+var qoderPromptGlyphs = map[string]bool{">": true, "*": true}
+
+// qoderComposerActive reports whether the cursor rests inside Qoder's live
+// composer: a prompt glyph at qoderPromptCol between two rule rows. Qoder
+// reuses Claude's ruled-box shape but indents its prompt by one column and
+// paints its top and bottom rules in different greys, so colour agreement is
+// not required — the enclosing shape plus the prompt glyph discriminates
+// against Qoder's permission pickers (whose markers are not
+// qoderPromptGlyphs) and the startup screen's separator lines (which have no
+// prompt glyph at qoderPromptCol).
+//
+// Qoder hides the system cursor and renders its own visual cursor, which is
+// why its spec — and only its spec — sets allowHiddenCursor. Heights are
+// unbounded like Claude's: the box cannot absorb distant chrome because its
+// closing rule is the first painted column-0 row below the prompt.
+func qoderComposerActive(snapshot terminalSnapshot) bool {
+	return ruledBoxComposerActive(snapshot, ruledBoxComposerSpec{
+		promptOK: func(c uv.Cell) bool {
+			return qoderPromptGlyphs[c.Content]
+		},
+		ruleAt: func(s terminalSnapshot, y int) bool {
+			cell := s.CellAt(0, y)
+			return cell != nil && cell.Content == claudeComposerRule
+		},
+		maxRows:           0,
+		promptCol:         qoderPromptCol,
+		minCursorX:        2,
+		allowHiddenCursor: true,
+	})
 }
 
 func agyComposerActive(snapshot terminalSnapshot) bool {

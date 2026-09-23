@@ -99,6 +99,9 @@ func artifactScannerShape(agent Agent, artifact Artifact) (string, ArtifactKind,
 	case AgentMuse:
 		_, _, _, ok := musePathFact(artifact.RelativePath)
 		return "muse-v1", ArtifactTranscript, ok && artifact.StorageRoot == "muse-sessions"
+	case AgentQoder:
+		_, _, _, ok := claudePathFact(artifact.RelativePath)
+		return "qoder-v1", ArtifactTranscript, ok && artifact.StorageRoot == "qoder-projects"
 	case AgentAgy:
 		if artifact.StorageRoot == "agy-conversations" {
 			_, ok := agyDatabasePathID(artifact.RelativePath)
@@ -139,6 +142,11 @@ func ValidateTargetWork(runtime Runtime, agent Agent, eligible []ArtifactObserva
 			state, found, err = ValidateCodexDelta(observation.Entry, nil, observed.Records)
 		case AgentMuse:
 			state, found, err = ValidateMuseDelta(observation.Entry, nil, observed.Records)
+		case AgentQoder:
+			state, found, err = ValidateQoderDelta(observation.Entry, nil, observed.Records)
+		default:
+			err = fmt.Errorf("unsupported agent for target validation: %s", agent)
+			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, agent, nil, observation.Entry.Artifact, "unsupported agent for target validation"))
 		}
 		diagnostics = append(diagnostics, found...)
 		if err != nil || state.Disputed || !state.FirstRecordValidated {
@@ -197,6 +205,11 @@ func AdvanceTargetValidation(runtime Runtime, prior TargetValidation, current []
 		state, diagnostics, err = ValidateCodexDelta(observation.Entry, &state, observed.Records)
 	case AgentMuse:
 		state, diagnostics, err = ValidateMuseDelta(observation.Entry, &state, observed.Records)
+	case AgentQoder:
+		state, diagnostics, err = ValidateQoderDelta(observation.Entry, &state, observed.Records)
+	default:
+		err = fmt.Errorf("unsupported agent for advance validation: %s", state.Agent)
+		diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticSchemaNearMiss, state.Agent, nil, observation.Entry.Artifact, "unsupported agent for advance validation"))
 	}
 	if err != nil || state.Disputed {
 		return TargetValidation{}, diagnostics, ErrArtifactChanged

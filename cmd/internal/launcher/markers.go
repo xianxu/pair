@@ -194,7 +194,7 @@ func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartP
 		if m.Version != 0 {
 			base.AgentArgs = append([]string(nil), m.AgentArgs...)
 		} else if m.Continue != "" {
-			base.AgentArgs = FreshAgentArgs(base.AgentArgs)
+			base.AgentArgs = FreshAgentArgs(agent, base.AgentArgs)
 		}
 		return restartPlan{Args: base, DropConfig: true, ContinueSlug: m.Continue}
 	}

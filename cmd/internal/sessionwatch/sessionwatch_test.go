@@ -7,7 +7,7 @@ import (
 )
 
 func TestSupportsEveryInventoryAgent(t *testing.T) {
-	for _, agent := range []string{"claude", "codex", "agy", "muse"} {
+	for _, agent := range []string{"claude", "codex", "agy", "muse", "qoder"} {
 		if !SupportsAgent(agent) {
 			t.Fatalf("%s is not watchable", agent)
 		}
@@ -26,6 +26,12 @@ func TestStripResumeArgsRemovesCanonicalResumeBindings(t *testing.T) {
 		{agent: "codex", args: []string{"resume", "abc", "--no-alt-screen"}, want: []string{"--no-alt-screen"}},
 		{agent: "muse", args: []string{"resume", "abc", "--model", "x"}, want: []string{"--model", "x"}},
 		{agent: "agy", args: []string{"--model", "x", "--resume", "abc", "--flag"}, want: []string{"--model", "x", "--flag"}},
+		{agent: "qoder", args: []string{"--model", "x", "-r", "abc", "--flag"}, want: []string{"--model", "x", "--flag"}},
+		{agent: "qoder", args: []string{"--resume=abc", "--flag"}, want: []string{"--flag"}},
+		{agent: "claude", args: []string{"--resume=abc", "--flag"}, want: []string{"--flag"}},
+		{agent: "qoder", args: []string{"-rabc", "--flag"}, want: []string{"--flag"}},
+		{agent: "qoder", args: []string{"-r=abc", "--flag"}, want: []string{"--flag"}},
+		{agent: "claude", args: []string{"--resume", "--model", "m"}, want: []string{"--model", "m"}},
 		{agent: "codex", args: []string{"--foo", "bar", "resume"}, want: []string{"--foo", "bar", "resume"}},
 	}
 	for _, test := range tests {

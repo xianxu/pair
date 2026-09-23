@@ -549,10 +549,11 @@ func TestHarnessTTYLiveConformance(t *testing.T) {
 		"agy":    {"agy", "--dangerously-skip-permissions"},
 		"codex":  {"codex", "--no-alt-screen", "-c", "check_for_update_on_startup=false"},
 		"muse":   {"muse"},
+		"qoder":  {"qoder"},
 	}
 	command, ok := commands[harness]
 	if !ok {
-		t.Fatalf("PAIR_LIVE_HARNESS=%q, want agy, codex, or muse", harness)
+		t.Fatalf("PAIR_LIVE_HARNESS=%q, want agy, claude, codex, muse, or qoder", harness)
 	}
 	executable, err := exec.LookPath(command[0])
 	if err != nil {
@@ -762,6 +763,38 @@ var harnessTTYDrivenScenarios = map[string][]harnessTTYDrivenScenario{
 		{name: "slash menu", args: []string{"--dangerously-skip-permissions"},
 			send: "/", until: "Navigate", wantComposer: true, file: "menu.raw"},
 	},
+	// Qoder's declining state is its permission picker. The default permission
+	// mode still auto-ran `ls -la` inside this trusted repo but asked before
+	// `ls -ld /tmp` (measured 2026-09-21), so the prompt asks the agent to
+	// touch a path outside the workspace. Model routing makes the exact first
+	// tool call vary, so the scenario skips when the picker does not appear —
+	// same contract as Claude's permission prompt.
+	"qoder": {
+		{name: "permission prompt", args: []string{"--permission-mode", "default"},
+			send:  "run the shell command: ls -ld /tmp\r",
+			until: "Rejectandtypesomething", wantComposer: false, file: "overlay.raw",
+			timeout: 120 * time.Second,
+		},
+		// Qoder's question picker is its AskUserQuestion UI: an "Asking User"
+		// header over a ruled card of options, closed by a footer stating that
+		// Enter selects. That footer is why a missing marker here reproduces as
+		// "Enter inserts newline" (the #000042 muse shape). The scenario asks a
+		// question the model must route through the tool, so it skips like the
+		// permission prompt when routing differs.
+		{name: "selection prompt",
+			send:  "Use your question tool to ask me which fruit I prefer, apple or banana.\r",
+			until: "Enterselect", wantComposer: false, file: "selection.raw",
+			timeout: 150 * time.Second,
+		},
+		// The slash menu keeps the composer box live below its own list and
+		// paints its `❯` selection marker in the prompt glyph's own column but
+		// below the closing rule, so the box-bounded recognizer still selects
+		// the composer and the gate stays open. Pinned as the screen where a
+		// qoder recognizer is most likely to break. Sent bare — a CR would
+		// submit the slash as a message instead of opening the menu.
+		{name: "slash menu", send: "/",
+			until: "Show version info", wantComposer: true, file: "menu.raw"},
+	},
 }
 
 // TestHarnessTTYLiveDrivenConformance drives the installed harness one
@@ -794,6 +827,7 @@ func TestHarnessTTYLiveDrivenConformance(t *testing.T) {
 				t.Skipf("%s did not reach %q; it may not be reproducible right now: %v", harness, scenario.until, err)
 			}
 			assertHarnessTTYLiveDecision(t, harness, out, scenario.wantComposer)
+			out = trimmedHarnessTTYCapture(t, harness, out)
 			writeHarnessTTYCaptureIfRequested(t, harness, harness+" "+scenario.name, repoRoot, out)
 		})
 	}
@@ -848,6 +882,68 @@ func driveHarnessTTYScenario(t *testing.T, harness, executable, repoRoot string,
 			return strings.Contains(strings.ToLower(string(stripTerminalControls(retained))), strings.ToLower(scenario.until))
 		},
 	})
+}
+
+// synchronizedUpdateBegin opens a terminal synchronized-update block. A driver
+// that wraps each repaint in one (Qoder does) paints the whole screen under
+// test in the final block, which lets a capture be bounded to that paint.
+const synchronizedUpdateBegin = "\x1b[?2026h"
+
+// trimmedHarnessTTYCapture bounds a driven capture to its final synchronized
+// paint block when that block still replays to the same Return decision as the
+// whole stream. A declining screen's evidence is its own paint; the bytes
+// before it are startup animation and spinner churn — Qoder's permission
+// picker is the last 5.5KB of a 55KB capture, and the question picker the last
+// 6.6KB of 104KB. Every fixture replays at every byte split on every `go test`,
+// so leaving the churn in is a permanent cost for no evidence.
+//
+// The cut is verified rather than assumed: a harness whose last repaint does
+// not reproduce the decision (or that emits no synchronized updates) keeps its
+// full capture, so a wrong guess costs bytes, never correctness. This mirrors
+// the composer path's rule — the shortest prefix the recognizer accepts — with
+// the driven path's tail: the shortest suffix that decides the same way.
+func trimmedHarnessTTYCapture(t *testing.T, harness string, out []byte) []byte {
+	t.Helper()
+	cut := bytes.LastIndex(out, []byte(synchronizedUpdateBegin))
+	if cut <= 0 {
+		return out
+	}
+	suffix := out[cut:]
+	full, trimmed := replayHarnessTTYSplit(t, harness, out, len(out)), replayHarnessTTYSplit(t, harness, suffix, len(suffix))
+	if full != trimmed {
+		t.Logf("%s capture keeps all %d bytes: the final %d-byte paint block decides differently (%+v vs %+v)",
+			harness, len(out), len(suffix), trimmed, full)
+		return out
+	}
+	t.Logf("%s capture bounded to its final %d-byte paint block (full stream %d bytes)", harness, len(suffix), len(out))
+	return suffix
+}
+
+// TestTrimmedHarnessTTYCapture pins the bounding rule: cut to the final
+// synchronized paint block only when the cut replays to the same decision.
+func TestTrimmedHarnessTTYCapture(t *testing.T) {
+	picker, err := os.ReadFile("testdata/tty/qoder/1.1.60/overlay.raw")
+	if err != nil {
+		t.Fatalf("read picker fixture: %v", err)
+	}
+	noise := bytes.Repeat([]byte("spinner frame churn\r\r\n"), 200)
+	withNoise := append(append([]byte(nil), noise...), picker...)
+	if got := trimmedHarnessTTYCapture(t, "qoder", withNoise); !bytes.Equal(got, picker) {
+		t.Fatalf("trimmed capture = %d bytes, want the final %d-byte paint block", len(got), len(picker))
+	}
+
+	if got := trimmedHarnessTTYCapture(t, "qoder", noise); !bytes.Equal(got, noise) {
+		t.Fatal("a stream with no synchronized paint block was modified")
+	}
+
+	composer, err := os.ReadFile("testdata/tty/qoder/1.1.60/composer.raw")
+	if err != nil {
+		t.Fatalf("read composer fixture: %v", err)
+	}
+	blocked := append(append([]byte(nil), composer...), []byte(synchronizedUpdateBegin+"a plain sentence with no picker marker")...)
+	if got := trimmedHarnessTTYCapture(t, "qoder", blocked); !bytes.Equal(got, blocked) {
+		t.Fatal("a capture whose final block decides differently was trimmed")
+	}
 }
 
 func firstRecognizedHarnessTTYPrefix(t *testing.T, harness string, raw []byte) int {

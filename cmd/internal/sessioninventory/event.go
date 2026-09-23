@@ -52,8 +52,8 @@ func nativeTextEvent(kind NativeEventKind, text, source string) (NativeEvent, bo
 
 func NormalizeNativeEvent(agent Agent, record []byte) ([]NativeEvent, EventDisposition) {
 	switch agent {
-	case AgentClaude:
-		return normalizeClaudeEvent(record)
+	case AgentClaude, AgentQoder:
+		return normalizeClaudeEvent(agent, record)
 	case AgentCodex:
 		return normalizeCodexEvent(record)
 	case AgentAgy:
@@ -65,12 +65,38 @@ func NormalizeNativeEvent(agent Agent, record []byte) ([]NativeEvent, EventDispo
 	}
 }
 
+// claudeFamilyNoiseTypes lists the non-message record types each claude-family
+// member writes and pair deliberately ignores. The sets are per-agent: a new
+// member's noise must not silently widen claude's near-miss detector, which is
+// the drift signal for record-shape changes.
+func claudeFamilyNoiseTypes(agent Agent) map[string]bool {
+	base := []string{"attachment", "ai-title", "last-prompt", "atis-latch", "system"}
+	var extra []string
+	if agent == AgentQoder {
+		// Measured over the real ~/.qoder transcripts (2026-09-21, 10 files):
+		// the four bookkeeping types open every transcript and repeat per turn
+		// (active-leaf ×1751), and file-history-snapshot recurs with qoder's
+		// snapshot cadence. Without them every qoder stream carries a
+		// near-miss floor hundreds deep; two types (attachment, system) are
+		// shared with claude's base set above.
+		extra = []string{"workspace-directories", "runtime-config", "worktree-state", "active-leaf", "file-history-snapshot"}
+	}
+	types := make(map[string]bool, len(base)+len(extra))
+	for _, value := range base {
+		types[value] = true
+	}
+	for _, value := range extra {
+		types[value] = true
+	}
+	return types
+}
+
 type textBlock struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
 
-func normalizeClaudeEvent(record []byte) ([]NativeEvent, EventDisposition) {
+func normalizeClaudeEvent(agent Agent, record []byte) ([]NativeEvent, EventDisposition) {
 	var value struct {
 		Type        string `json:"type"`
 		IsSidechain bool   `json:"isSidechain"`
@@ -102,12 +128,10 @@ func normalizeClaudeEvent(record []byte) ([]NativeEvent, EventDisposition) {
 		}
 	}
 	if value.Type != "user" && value.Type != "assistant" {
-		switch value.Type {
-		case "attachment", "ai-title", "last-prompt", "atis-latch", "system":
+		if claudeFamilyNoiseTypes(agent)[value.Type] {
 			return nil, EventIgnored
-		default:
-			return nil, EventNearMiss
 		}
+		return nil, EventNearMiss
 	}
 	if value.Message.Role != value.Type {
 		return nil, EventNearMiss

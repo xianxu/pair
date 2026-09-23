@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/resumeform"
 )
 
 // Pure create-flow logic behind RunLaunch's create path (#99 M2, ported from
@@ -48,15 +50,17 @@ func buildConfigJSON(agent string, args []string, sid string) (string, error) {
 }
 
 // extractExplicitResume returns the session id an explicit resume token on argv
-// pins, or "" if none. Per-agent surface (shell create branch 2053-2075): claude
-// `--resume <id>`, agy `--conversation <id>` / `--conversation=<id>`, codex the
-// leading `resume <id>` subcommand, muse the same `resume <id>` subcommand as
-// codex. Drives both the tag-restart picker gate (a passed-in resume leaves the
-// picker nothing to offer) and the pre-write of config-<tag>-<agent>.json so the
-// id is captured from the start.
+// pins, or "" if none. The per-agent spellings live in one table
+// (resumeform.Forms) shared with the strip sites and the fresh-arg validator
+// (BR-15); codex and muse resume via a leading `resume <id>` subcommand
+// instead. Drives both the tag-restart picker gate (a passed-in resume leaves
+// the picker nothing to offer) and the pre-write of config-<tag>-<agent>.json
+// so the id is captured from the start.
 func extractExplicitResume(agent string, args []string) string {
-	switch agent {
-	case "codex", "muse":
+	if id := resumeform.Extract(agent, args); id != "" {
+		return id
+	}
+	if agent == "codex" || agent == "muse" {
 		if i := codexResumeCommandIndex(args); i >= 0 {
 			return args[i+1]
 		}
@@ -66,19 +70,6 @@ func extractExplicitResume(agent string, args []string) string {
 		// also covers the canonical `composeResumeArgs` placement at args[0].
 		if len(args) >= 2 && args[0] == "resume" && args[1] != "" {
 			return args[1]
-		}
-	case "claude", "agy":
-		prev := ""
-		for _, tok := range args {
-			if prev == "--resume" || prev == "--conversation" {
-				return tok
-			}
-			// Only a non-empty inline value pins the id; a bare `--conversation=`
-			// keeps scanning (the shell's `^--conversation=(.+)` needs ≥1 char).
-			if v, ok := strings.CutPrefix(tok, "--conversation="); ok && v != "" {
-				return v
-			}
-			prev = tok
 		}
 	}
 	return ""
@@ -171,7 +162,7 @@ func composeTagRestartArgs(action, agent string, savedArgsClean, agentExtra []st
 	case "saved+resume":
 		return composeResumeArgs(agent, savedArgsClean, savedSession)
 	case "new+resume":
-		return composeResumeArgs(agent, persistedConfigArgs(agentExtra), savedSession)
+		return composeResumeArgs(agent, persistedConfigArgs(agent, agentExtra), savedSession)
 	case "saved":
 		return append([]string(nil), savedArgsClean...)
 	default: // "new" and any unmatched selection keep the typed args verbatim.

@@ -12,7 +12,8 @@ Pair separates identities that used to be partly conflated:
 - **Public session name** — the stable zellij socket binding recorded in
   `session-names.jsonl` for one `{scope, tag}`.
 - **Agent** — the resource running under a tag, such as `claude`, `codex`,
-  `agy`, or `muse`. A tag can have sessions from more than one agent over time.
+  `agy`, `muse`, or `qoder`. A tag can have sessions from more than one agent
+  over time.
 - **Native session id** — the agent's own resumable conversation id. Fresh
   launches expose it as recovery state only after Pair establishes a completed
   causal round; an explicit scanner-authorized resume may establish it at the
@@ -21,8 +22,8 @@ Pair separates identities that used to be partly conflated:
 ## Native-session forest inventory
 
 `cmd/internal/sessioninventory` is the single model and scanner boundary for
-native session storage (#155 M1). Its versioned Claude, Codex, Agy, and Muse
-scanners emit facts into a deterministic forest: complete roots, validated
+native session storage (#155 M1). Its versioned Claude, Codex, Agy, Muse, and
+Qoder scanners emit facts into a deterministic forest: complete roots, validated
 native parent/child edges, and explicit unbound orphans. Missing, conflicting,
 malformed, unreadable, or unknown-schema evidence is retained as a stable coded
 diagnostic rather than guessed away. Stable IDs, ordering, chronology fallback,
@@ -91,7 +92,7 @@ record/file-size cutoffs (#297). Native transcripts, ledger rows, Pair logs and
 configs, and SQLite result bodies have no matching writer ceiling; reader caps
 made valid growing evidence disappear (#237, #297). Reads remain chunked at
 64 KiB, with schema/identity/path checks intact. This is not a constant-memory
-promise: full Codex/Claude/Muse scans retain a complete record; Agy and
+promise: full Codex/Claude/Muse/Qoder scans retain a complete record; Agy and
 incremental validation retain observed records, and ledger/log consumers retain
 their parsed input. The selected-
 scope catalog is the shared persistent advancement owner: an accepted suffix is

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
+	"github.com/xianxu/pair/cmd/internal/resumeform"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
@@ -32,30 +33,23 @@ type ObserveInput = WatcherInventory
 
 func SupportsAgent(agent string) bool {
 	switch agent {
-	case "claude", "codex", "agy", "muse":
+	case "claude", "codex", "agy", "muse", "qoder":
 		return true
 	default:
 		return false
 	}
 }
 
-// StripResumeArgs removes resume bindings from args before they are persisted;
-// the session_id field is the canonical store for that binding.
+// StripResumeArgs removes every resume spelling the shared resume-form table
+// defines (resumeform.Forms — the same table the launcher's extractor and
+// validator read) plus the codex/muse leading `resume <id>` subcommand from
+// args before they are persisted; the session_id field is the canonical store
+// for that binding.
 func StripResumeArgs(agent string, args []string) []string {
-	stripped := make([]string, 0, len(args))
-	i := 0
 	if (agent == "codex" || agent == "muse") && len(args) >= 2 && args[0] == "resume" {
-		i = 2
+		args = args[2:]
 	}
-	for i < len(args) {
-		if args[i] == "--resume" {
-			i += 2
-			continue
-		}
-		stripped = append(stripped, args[i])
-		i++
-	}
-	return stripped
+	return resumeform.Strip(agent, args)
 }
 
 func ConfigJSON(payload ConfigPayload) ([]byte, error) {

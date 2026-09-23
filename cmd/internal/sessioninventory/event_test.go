@@ -36,6 +36,22 @@ func TestNormalizeNativeEvent(t *testing.T) {
 		{name: "agy structured tool step", agent: AgentAgy, record: `{"type":"RUN_COMMAND","content":{"command":"private"},"status":"done"}`, disposition: EventAccepted, kinds: []NativeEventKind{EventToolResult}},
 		{name: "agy error", agent: AgentAgy, record: `{"type":"ERROR_MESSAGE","content":"private"}`, disposition: EventAccepted, kinds: []NativeEventKind{EventTerminal}},
 		{name: "agy malformed wrapper", agent: AgentAgy, record: `{"type":"USER_INPUT","content":"<USER_REQUEST>one</USER_REQUEST><USER_REQUEST>two</USER_REQUEST>"}`, disposition: EventNearMiss},
+		{name: "qoder operator", agent: AgentQoder, record: `{"type":"user","uuid":"aaaaaaaa-0001-4000-8000-000000000001","timestamp":"2026-08-28T09:01:00.000Z","message":{"role":"user","content":"tell me about this repo"},"isSidechain":false,"sessionId":"11111111-1111-4111-8111-111111111111"}`, disposition: EventAccepted, kinds: []NativeEventKind{EventOperator}, text: "tell me about this repo"},
+		{name: "qoder assistant", agent: AgentQoder, record: `{"type":"assistant","timestamp":"2026-08-28T09:01:01.000Z","message":{"role":"assistant","content":[{"type":"text","text":"working"}]},"isSidechain":false,"sessionId":"11111111-1111-4111-8111-111111111111"}`, disposition: EventAccepted, kinds: []NativeEventKind{EventAssistant}, text: "working"},
+		{name: "qoder sidechain ignored", agent: AgentQoder, record: `{"type":"user","message":{"role":"user","content":"hidden"},"isSidechain":true,"sessionId":"11111111-1111-4111-8111-111111111111"}`, disposition: EventIgnored},
+		{name: "qoder workspace directories ignored", agent: AgentQoder, record: `{"type":"workspace-directories","sessionId":"11111111-1111-4111-8111-111111111111","directories":["/repo"]}`, disposition: EventIgnored},
+		{name: "qoder runtime config ignored", agent: AgentQoder, record: `{"type":"runtime-config","sessionId":"11111111-1111-4111-8111-111111111111","model":"","reasoningEffort":null,"contextWindow":null,"generation":null,"timestamp":1787907630000}`, disposition: EventIgnored},
+		{name: "qoder worktree state ignored", agent: AgentQoder, record: `{"type":"worktree-state","sessionId":"11111111-1111-4111-8111-111111111111","worktreeSession":null}`, disposition: EventIgnored},
+		{name: "qoder active leaf ignored", agent: AgentQoder, record: `{"type":"active-leaf","sessionId":"11111111-1111-4111-8111-111111111111","leafUuid":"aaaaaaaa-0001-4000-8000-000000000001","explicit":false,"timestamp":1787907660000}`, disposition: EventIgnored},
+		{name: "qoder last prompt ignored", agent: AgentQoder, record: `{"type":"last-prompt","sessionId":"11111111-1111-4111-8111-111111111111","lastPrompt":"sanitized"}`, disposition: EventIgnored},
+		{name: "qoder file history snapshot ignored", agent: AgentQoder, record: `{"type":"file-history-snapshot","sessionId":"11111111-1111-4111-8111-111111111111","snapshot":{}}`, disposition: EventIgnored},
+		// BR-20: the qoder-only noise admissions are parameters — for claude
+		// the same record types stay near-miss (the drift detector stays wide).
+		{name: "claude workspace directories near miss", agent: AgentClaude, record: `{"type":"workspace-directories","sessionId":"s","directories":["/repo"]}`, disposition: EventNearMiss},
+		{name: "claude runtime config near miss", agent: AgentClaude, record: `{"type":"runtime-config","sessionId":"s","timestamp":1787907630000}`, disposition: EventNearMiss},
+		{name: "claude worktree state near miss", agent: AgentClaude, record: `{"type":"worktree-state","sessionId":"s","worktreeSession":null}`, disposition: EventNearMiss},
+		{name: "claude active leaf near miss", agent: AgentClaude, record: `{"type":"active-leaf","sessionId":"s","timestamp":1787907660000}`, disposition: EventNearMiss},
+		{name: "claude file history snapshot near miss", agent: AgentClaude, record: `{"type":"file-history-snapshot","sessionId":"s","snapshot":{}}`, disposition: EventNearMiss},
 		{name: "muse operator", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"started","prompt":"hello"}}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventOperator}, text: "hello"},
 		{name: "muse assistant", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"assistant_message_committed"}}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventAssistant}},
 		{name: "muse tool call", agent: AgentMuse, record: `{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"assistant_tool_calls_committed"}}}`, disposition: EventAccepted, kinds: []NativeEventKind{EventToolCall}},
@@ -99,6 +115,7 @@ func FuzzNormalizeNativeEvent(f *testing.F) {
 	f.Add("codex", []byte(`{"type":"response_item","payload":{"type":"future"}}`))
 	f.Add("agy", []byte(`{"type":"USER_INPUT","content":"<USER_REQUEST>broken"}`))
 	f.Add("muse", []byte(`{"record_type":"event","payload_type":"runtime.session","payload":{"kind":"run","event":{"kind":"terminal"}}}`))
+	f.Add("qoder", []byte(`{"type":"runtime-config","sessionId":"11111111-1111-4111-8111-111111111111","timestamp":1787907630000}`))
 	f.Fuzz(func(t *testing.T, agentName string, record []byte) {
 		if len(record) > 2<<20 {
 			record = record[:2<<20]

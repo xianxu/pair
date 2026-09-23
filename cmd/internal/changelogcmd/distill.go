@@ -8,16 +8,27 @@ import (
 
 // promptGlyphChar is the per-agent prompt glyph — the SINGLE source for both the
 // line-start regex (promptGlyphByAgent, derived below) and the empty-input-box
-// detection (trimLiveTail). Sync-commented to nvim/scrollback.lua
-// PROMPT_PATTERN_BY_AGENT. claude/codex are faithful; agy is a DELIBERATE
-// SIMPLIFICATION of scrollback's box-aware variant (`\(──.*\n\)\zs>` — a `>` only
-// after a `──` line): a bare `>` can over-match agy output, which now feeds the
-// no-op gate as well as the lookback, so a false boundary can delay/add one
-// distill — graceful (self-heals within ~1 press), never corrupts the log.
+// detection (trimLiveTail), with PromptGlyph as the accessor for external
+// consumers (pinned by wrapcmd's TestDistillQoderGlyphTracksPromptAuthority).
+// Sync-commented to nvim/scrollback.lua PROMPT_PATTERN_BY_AGENT. claude/codex
+// are faithful; agy is a DELIBERATE SIMPLIFICATION of scrollback's box-aware
+// variant (`\(──.*\n\)\zs>` — a `>` only after a `──` line): a bare `>` can
+// over-match agy output, which now feeds the no-op gate as well as the lookback,
+// so a false boundary can delay/add one distill — graceful (self-heals within
+// ~1 press), never corrupts the log. qoder's value carries a leading space
+// because Qoder indents its prompt glyph to column 1 (qoderPromptCol in
+// cmd/internal/wrapcmd/composer_recognizers.go — the shared glyph authority);
+// the captured submitted echo renders ` > text`, so the space is part of the
+// boundary. Only the regex keeps it: the empty-box check compares the TRIMMED
+// glyph, because the box row itself is matched on its trimmed form. Its yolo
+// `*` glyph is a deliberate omission like agy's above: the captured echo
+// evidence covers default mode only, and a missed boundary degrades gracefully
+// (extra lookback), never corrupts the log.
 var promptGlyphChar = map[string]string{
 	"claude": "❯",
 	"codex":  "›",
 	"agy":    ">",
+	"qoder":  " >",
 }
 
 // promptGlyphByAgent — line-start regex per agent, derived from promptGlyphChar
@@ -49,13 +60,22 @@ var (
 	// stopped trimLiveTail dead, leaking the whole volatile footer into the
 	// anchor → locate misses → FullRedistill / stale turn count (#58).
 	contextMeterRe = regexp.MustCompile(`^\d+% context\b`)
+	// qoderStatusRe matches qoder's status bar, e.g.
+	// "Auto Model · ctx ░░░░░░░░░░ 0% · ~/workspace/pair" — the meter fills
+	// with ▓ as context is used. As the LAST line it stalls the trim the same
+	// way claude's meter did (#58); captured live in M5 Task 17.
+	qoderStatusRe = regexp.MustCompile(`· ctx [░▓█]+ \d+% · `)
+	// qoderHintsRe matches qoder's resource-hints row, e.g.
+	// "2 AGENTS.md files · 1 MCP server · 44 skills" — counts churn as the
+	// project's agent files / MCP servers / skills change.
+	qoderHintsRe = regexp.MustCompile(`^\d+ AGENTS\.md files? · `)
 )
 
 // isFooterChrome reports whether line belongs to the live UI footer — none of
 // which is committed scrollback (#58). The footer is multi-block when the agent
 // is working: a thinking spinner + rule ABOVE the input box, then the box + rule
-// + status below. Claude-shaped; other agents still get the generic blank / box
-// / rule cases.
+// + status below. Claude-shaped, plus qoder's rows (captured live, M5 Task 17);
+// other agents still get the generic blank / box / rule cases.
 func isFooterChrome(line, glyph string) bool {
 	t := strings.TrimSpace(line)
 	switch {
@@ -71,6 +91,20 @@ func isFooterChrome(line, glyph string) bool {
 		return true
 	case contextMeterRe.MatchString(t): // "100% context used" context meter
 		return true
+	case t == "? for shortcuts": // qoder shortcut hint (right-aligned row)
+		return true
+	case strings.HasPrefix(t, "Shift+Tab to "): // qoder mode line
+		return true
+	// qoder's empty input box carries the placeholder on the drawn row, so the
+	// bare-glyph case above never matches it.
+	case strings.HasSuffix(t, "Type your message or @path/to/file"):
+		return true
+	case qoderHintsRe.MatchString(t): // "2 AGENTS.md files · 1 MCP server · 44 skills"
+		return true
+	case qoderStatusRe.MatchString(t): // "Auto Model · ctx ░░… 0% · ~/workspace/pair"
+		return true
+	case strings.Contains(t, "esc to cancel"): // "⠋ Generating... (esc to cancel, 2s)"
+		return true
 	}
 	return false
 }
@@ -79,17 +113,33 @@ func isFooterChrome(line, glyph string) bool {
 // anchor/slice/turn-count work on stable committed scrollback — anchoring on the
 // volatile footer is what made `locate` miss → FullRedistill every press (#58).
 // It strips trailing chrome lines iteratively (handling the multi-block thinking
-// footer), stopping at the first committed-content line. Pure.
+// footer), stopping at the first committed-content line. The glyph is normalised
+// once here — TrimSpace drops qoder's boundary-only leading space — so both
+// readers of the registry agree on what the bare input box looks like (#300 M4
+// review BR-42). Pure.
 func trimLiveTail(lines []string, agent string) []string {
-	glyph := promptGlyphChar[agent]
+	glyph := strings.TrimSpace(promptGlyphChar[agent])
 	if glyph == "" {
-		glyph = promptGlyphChar["claude"]
+		glyph = strings.TrimSpace(promptGlyphChar["claude"])
 	}
 	end := len(lines)
 	for end > 0 && isFooterChrome(lines[end-1], glyph) {
 		end--
 	}
 	return lines[:end]
+}
+
+// PromptGlyph returns the raw registry glyph for agent (including any leading
+// indentation — qoder's submitted echo renders " > text"), falling back to
+// claude's row. Exported so consumers outside this package pin their derivation
+// against this registry instead of hand-restating it: the wrapcmd parity test
+// asserts PromptGlyph("qoder") equals qoderPromptCol spaces + ">", so moving the
+// authority's column reddens distill's row too (#300 M4 review BR-43).
+func PromptGlyph(agent string) string {
+	if glyph, ok := promptGlyphChar[agent]; ok {
+		return glyph
+	}
+	return promptGlyphChar["claude"]
 }
 
 // looksLikeChangelog reports whether s is a plausible change log: at least one

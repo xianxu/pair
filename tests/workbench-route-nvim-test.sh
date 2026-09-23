@@ -168,7 +168,8 @@ LUA
 for init in init review scrollback changelog; do
   : > "$tmp/direct-log"
   PATH="$tmp/bin:$PATH" PAIR_HOME='' PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
-    PAIR_DRAFT_PANE_PATH='' ZELLIJ_PANE_ID=81 TEST_INIT="$init" \
+    PAIR_DRAFT_PANE_PATH='' PAIR_LAYOUT_MODE_PATH="$tmp/layout-mode-$init" \
+    ZELLIJ_PANE_ID=81 TEST_INIT="$init" \
     PAIR_TEST_DIRECT_LOG="$tmp/direct-log" PAIR_TEST_REAL_BIN="$ROOT/bin/pair" \
     run_headless -- nvim --headless -u "$ROOT/nvim/$init.lua" \
       "$tmp/view-$init.md" -l "$tmp/fullscreen-driver.lua" > "$tmp/direct-output" 2>&1 || {
@@ -201,6 +202,7 @@ PairOpenChangelog()
 vim.cmd('qa!')
 LUA
 PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t \
+  PAIR_LAYOUT_MODE_PATH="$tmp/layout-mode-view" \
   PAIR_ACTION_LOG="$tmp/actions" \
   run_headless -- nvim --headless -u "$ROOT/nvim/init.lua" "$tmp/draft.md" -l "$tmp/view-driver.lua"
 want_views='run --floating --close-on-exit --name help --width 100% --height 70% --x 0 --y 15% -- pair-help
@@ -223,5 +225,6 @@ end
 vim.cmd('qa!')
 LUA
 PATH="$tmp/bin:$PATH" PAIR_HOME="$ROOT" PAIR_DATA_DIR="$tmp/data" PAIR_TAG=t FAIL_VIEW=1 \
+  PAIR_LAYOUT_MODE_PATH="$tmp/layout-mode-view-failure" \
   run_headless -- nvim --headless -u "$ROOT/nvim/init.lua" "$tmp/draft.md" -l "$tmp/view-failure-driver.lua"
 printf 'workbench-route-nvim-test ok\n'

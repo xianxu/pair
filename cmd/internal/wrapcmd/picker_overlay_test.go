@@ -2,7 +2,10 @@ package wrapcmd
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -50,6 +53,80 @@ func TestCheckOverlayOpen_AgyPickerMarkers(t *testing.T) {
 	checkOverlayBytes(p, []byte("Do you want to proceed?\r\n> 1. Yes\r\n2. No"))
 	if !p.pickerActive.Load() {
 		t.Fatalf("pickerActive should be true after seeing agy picker marker")
+	}
+}
+
+// TestCheckOverlayOpen_QoderPermissionPicker confirms that Qoder's permission
+// picker trips pickerActive through the profile registry, so the next plain
+// Return confirms the highlighted choice instead of remapping to a newline the
+// picker would never accept. The question row arrives word-by-word, matching
+// the frozen overlay.raw paint.
+func TestCheckOverlayOpen_QoderPermissionPicker(t *testing.T) {
+	p := proxyForHarness("qoder")
+	checkOverlayBytes(p, []byte("\x1b[2GAllow\x1b[8Gthis\x1b[13Gcommand\x1b[21Gto\x1b[24Grun?\r\r\n"))
+	if !p.pickerActive.Load() {
+		t.Fatalf("pickerActive should be true after seeing qoder permission picker")
+	}
+}
+
+// TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText is the consumption
+// counterpart of the codex stale-text test, over both frozen qoder captures:
+// the raw haystack that makes marker detection split-proof must be cleared
+// when the confirming Enter consumes pickerActive, or its own consumed bytes
+// re-arm the flag on the next chunk and the following composer Enter passes a
+// bare CR, submitting a draft the user meant to continue on a new line.
+func TestCheckOverlayOpen_QoderDoesNotRedetectStalePickerText(t *testing.T) {
+	for _, file := range []string{"overlay.raw", "selection.raw"} {
+		t.Run(file, func(t *testing.T) {
+			raw, err := os.ReadFile(filepath.Join("testdata", "tty", "qoder", "1.1.60", file))
+			if err != nil {
+				t.Fatalf("read %s: %v", file, err)
+			}
+			p := proxyForHarness("qoder")
+			checkOverlayBytes(p, raw)
+			if !p.pickerActive.Load() {
+				t.Fatalf("%s paint must arm pickerActive", file)
+			}
+			if got := p.emitPlainCR(nil); !bytes.Equal(got, []byte{'\r'}) {
+				t.Fatalf("confirming Enter = %q, want bare CR", got)
+			}
+			if p.pickerActive.Load() {
+				t.Fatal("pickerActive should clear after the confirming Enter")
+			}
+			// A chunk with no marker of its own must not re-arm the flag from
+			// the consumed picker bytes still inside the raw window.
+			checkOverlayBytes(p, []byte("\x1b[1G\x1b[2K"))
+			if p.pickerActive.Load() {
+				t.Fatalf("%s: pickerActive re-armed from consumed picker bytes", file)
+			}
+		})
+	}
+}
+
+// TestCheckOverlayOpen_QoderSplitFooterSurvivesLongSecondChunk is BR-35's pin:
+// the raw window must be scanned at its full carry+chunk length BEFORE it is
+// re-bounded to one tail. The split below cuts the footer's \x1b[23m — the same
+// escape the selection.raw 6426/6616 replay cut — so the marker exists only in
+// the concatenation. A window bounded before the scan drops the marker's head
+// once the second chunk carries more than a tail's worth of bytes: measured
+// during the M3 review as armed with 0 and 100 bytes of filler, disarmed from
+// 400. The 0-byte row is the short-chunk control; 600 and 2000 discriminate.
+func TestCheckOverlayOpen_QoderSplitFooterSurvivesLongSecondChunk(t *testing.T) {
+	head := []byte("\x1b[38;2;149;149;143m\u2191\u2193navigate\u00b7Enter\x1b[2")
+	tail := []byte("3mselect\u00b7Esccancel\x1b[39m")
+	for _, filler := range []int{0, 600, 2000} {
+		t.Run(fmt.Sprintf("filler=%d", filler), func(t *testing.T) {
+			p := proxyForHarness("qoder")
+			checkOverlayBytes(p, head)
+			if p.pickerActive.Load() {
+				t.Fatal("the split head must not arm the overlay on its own")
+			}
+			second := append(append([]byte(nil), tail...), bytes.Repeat([]byte("x"), filler)...)
+			checkOverlayBytes(p, second)
+			if !p.pickerActive.Load() {
+				t.Fatalf("footer split inside its escape with %d bytes of filler did not arm pickerActive", filler)
+			}
+		})
 	}
 }
 

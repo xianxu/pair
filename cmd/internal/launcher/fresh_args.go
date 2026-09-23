@@ -3,7 +3,66 @@ package launcher
 import (
 	"fmt"
 	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/resumeform"
 )
+
+// freshAgentSpec is the per-agent context-selector surface
+// ValidateFreshAgentArgs consults: forbidden standalone flags plus the
+// short-flag cluster letters, split into selectors (rejected anywhere in the
+// cluster) and value-taking letters (a letter that takes a value ends the
+// cluster scan — the rest of the cluster is that option's glued value).
+// Resume spellings are not restated here: they come from resumeform.Forms
+// (BR-15), so the validator cannot drift from the extractors and strip sites.
+type freshAgentSpec struct {
+	forbiddenFlags string
+	forbiddenShort string
+	valueShort     string
+}
+
+var freshAgentSpecs = map[string]freshAgentSpec{
+	"claude": {
+		forbiddenFlags: "--continue --session-id --fork-session --from-pr --teleport --cloud",
+		forbiddenShort: "c",
+		valueShort:     "nwd",
+	},
+	"agy": {
+		forbiddenFlags: "-c --continue -continue -conversation",
+	},
+	"qoder": {
+		forbiddenFlags: "--continue --session-id --fork-session --remote --remote-session --teleport --remote-control --list-sessions --delete-session",
+		forbiddenShort: "c",
+		valueShort:     "mniwo",
+	},
+}
+
+func (spec freshAgentSpec) forbidsFlag(flag string) bool {
+	for _, value := range strings.Fields(spec.forbiddenFlags) {
+		if value == flag {
+			return true
+		}
+	}
+	return false
+}
+
+// forbidsCluster scans a short-flag cluster for a selector letter in any
+// position after `-`. The forbidden set is the agent's static letters plus the
+// resume letters derived from resumeform.Forms: `-pr sid` hides `-r` exactly
+// like `-r sid` does, and the validator must refuse it (BR-17). A value-taking
+// letter ends the scan — the remainder is that option's glued value, so `-nr`
+// is `-n r`, not a resume.
+func (spec freshAgentSpec) forbidsCluster(agent, cluster string) bool {
+	forbidden := spec.forbiddenShort + resumeform.ShortLetters(agent)
+	for _, r := range cluster[1:] {
+		if strings.ContainsRune(spec.valueShort, r) {
+			return false
+		}
+		if strings.ContainsRune(forbidden, r) {
+			return true
+		}
+	}
+	return false
+}
 
 // ValidateFreshAgentArgs rejects native context selectors rather than changing
 // accepted argv. Option values and text after -- remain literal data.
@@ -11,6 +70,7 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 	if !IsSupportedAgent(agent) {
 		return fmt.Errorf("unsupported fresh agent %q", agent)
 	}
+	spec := freshAgentSpecs[agent]
 	commandSeen := false
 	execSeen := false
 	for i := 0; i < len(argv); i++ {
@@ -27,32 +87,12 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 			return nil
 		}
 		flag, _, inline := strings.Cut(arg, "=")
-		forbidden := false
-		switch agent {
-		case "claude":
-			switch flag {
-			case "--resume", "--continue", "--session-id", "--fork-session", "--from-pr", "--teleport", "--cloud":
-				forbidden = true
-			}
-			if strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") {
-				for _, r := range arg[1:] {
-					if r == 'c' || r == 'r' {
-						forbidden = true
-						break
-					}
-					if r == 'n' || r == 'w' || r == 'd' {
-						break
-					}
-				}
-			}
-		case "agy":
-			switch flag {
-			case "-c", "--continue", "-continue", "--conversation", "-conversation":
-				forbidden = true
-			}
-		}
+		forbidden := spec.forbidsFlag(flag) || resumeform.Selector(agent, arg)
 		if agent == "muse" && flag == "--session-id" {
 			forbidden = true
+		}
+		if !forbidden && strings.HasPrefix(arg, "-") && !strings.HasPrefix(arg, "--") {
+			forbidden = spec.forbidsCluster(agent, arg)
 		}
 		if forbidden {
 			return fmt.Errorf("%s argument %q selects an existing conversation", agent, arg)
@@ -69,8 +109,11 @@ func ValidateFreshAgentArgs(agent string, argv []string) error {
 				if agent == "claude" && (flag == "-d" || flag == "--debug" || flag == "-w" || flag == "--worktree" || flag == "--prompt-suggestions" || flag == "--remote-control") && strings.HasPrefix(argv[i+1], "-") {
 					continue
 				}
+				if agent == "qoder" && flag == "--worktree" && strings.HasPrefix(argv[i+1], "-") {
+					continue
+				}
 				i++
-				if agent == "claude" && freshVariadicOption(flag) {
+				if freshVariadicOption(agent, flag) {
 					for i+1 < len(argv) && !strings.HasPrefix(argv[i+1], "-") {
 						if strings.ContainsRune(argv[i], 0) {
 							return fmt.Errorf("fresh arguments contain NUL")
@@ -110,6 +153,8 @@ func freshValueOption(agent, flag string) bool {
 		flags = "--add-dir --agent --effort -i --prompt-interactive --input-format --json-schema --log-file --mode --model --new-project --output-format -p --print --prompt --print-timeout --project"
 	case "muse":
 		flags = "--agents --provider --preset --model --reasoning-effort --base-url --image --workspace --worktree-base --worktree-existing --approval-mode --approval-judge --echo-delay-ms --sandbox-network"
+	case "qoder":
+		flags = "--model --reasoning-effort --thinking --thinking-budget --context-window --prompt-interactive --cwd --config-dir --permission-mode --allowed-mcp-server-names --allowed-tools --disallowed-tools --attachment --plugin-dir --name --add-dir --output-format --input-format --max-output-tokens --agent --agents --append-system-prompt --system-prompt --output-style --max-model-request-retries --mcp-config --setting-sources --settings --worktree --tools -m -i -w -n -o"
 	}
 	for _, value := range strings.Fields(flags) {
 		if value == flag {
@@ -119,10 +164,21 @@ func freshValueOption(agent, flag string) bool {
 	return false
 }
 
-func freshVariadicOption(flag string) bool {
-	switch flag {
-	case "--add-dir", "--allowedTools", "--allowed-tools", "--disallowedTools", "--disallowed-tools", "--betas", "--file", "--mcp-config", "--tools":
-		return true
+// freshVariadicOption reports flags that take multiple values (consumed until
+// the next flag token). Strictly per-agent: a flag from another agent's table
+// must not swallow positionals a later command check would reject.
+func freshVariadicOption(agent, flag string) bool {
+	var flags string
+	switch agent {
+	case "claude":
+		flags = "--add-dir --allowedTools --allowed-tools --disallowedTools --disallowed-tools --betas --file --mcp-config --tools"
+	case "qoder":
+		flags = "--tools"
+	}
+	for _, value := range strings.Fields(flags) {
+		if value == flag {
+			return true
+		}
 	}
 	return false
 }

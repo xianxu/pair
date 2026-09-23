@@ -77,6 +77,48 @@ func TestOverlayDrift_NearMissDeduped(t *testing.T) {
 	}
 }
 
+// TestOverlayNearMiss_QoderProgressSuppressed is the M5 live-smoke finding
+// (#300, Task 17 Step 4): qoder's generation footer — "⠋ Generating... (esc
+// to cancel, 0s)" — collides with the generic tripwire's "esc to cancel"
+// shape, so every spinner tick logged a near-miss against a harness that had
+// not drifted at all. Progress renders are the qoder profile's declared
+// vocabulary; a prompt-shaped line carrying one is not a prompt. The counter
+// ticks (0s → 1s → …), so near-miss dedupe could never have absorbed them.
+func TestOverlayNearMiss_QoderProgressSuppressed(t *testing.T) {
+	var buf bytes.Buffer
+	p := proxyForHarness("qoder")
+	p.adapt = adapt.New(&buf, "pair-wrap", "qoder")
+
+	// Verbatim renders from the smoke's scrollback-qsmoke300-qoder.raw.
+	for _, spinner := range []string{
+		"⠋ Generating... (esc to cancel, 0s)",
+		"⠹ Thinking...(esc to cancel, 2s)",
+	} {
+		p.checkOverlayOpen([]byte(spinner), []byte(spinner))
+	}
+	if recs := decodeAdapt(t, &buf); len(recs) != 0 {
+		t.Fatalf("known progress renders must not near-miss, got: %s", buf.String())
+	}
+
+	// Positive control: a genuine drifted prompt still trips the wire.
+	drifted := []byte("Apply this patch to the worktree? (y/n)")
+	p.checkOverlayOpen(drifted, drifted)
+	recs := decodeAdapt(t, &buf)
+	if len(recs) != 1 || recs[0]["outcome"] != "near-miss" {
+		t.Fatalf("want one near-miss for the drifted prompt, got: %s", buf.String())
+	}
+
+	// Scoping control: the suppression is qoder's own vocabulary, not a
+	// global amnesty — the same bytes under claude must still near-miss.
+	var claudeBuf bytes.Buffer
+	c := proxyForHarness("claude")
+	c.adapt = adapt.New(&claudeBuf, "pair-wrap", "claude")
+	c.checkOverlayOpen([]byte("⠋ Generating... (esc to cancel, 0s)"), []byte("⠋ Generating... (esc to cancel, 0s)"))
+	if recs := decodeAdapt(t, &claudeBuf); len(recs) != 1 || recs[0]["outcome"] != "near-miss" {
+		t.Fatalf("progress suppression must not leak to claude, got: %s", claudeBuf.String())
+	}
+}
+
 // TestOverlayKnownMarker_EmitsFiredNotNearMiss is the positive control: a
 // marker we still recognize arms the overlay and logs `fired`, never a
 // near-miss.

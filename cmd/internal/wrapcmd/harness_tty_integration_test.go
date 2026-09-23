@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -217,6 +218,44 @@ func TestHarnessTTYIntegration_CodexCaptureOverlayPrecedence(t *testing.T) {
 	}
 	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) || f.proxy.pickerActive.Load() {
 		t.Fatalf("capture overlay Enter = %q active=%t, want bare CR and clear", got, f.proxy.pickerActive.Load())
+	}
+}
+
+// TestHarnessTTYIntegration_QoderCaptureOverlayPrecedence pins the marker set
+// against the frozen qoder captures through the production strip path: the
+// composer must leave the overlay flag alone, and the permission picker
+// (overlay.raw) must arm it so the next plain Return passes a bare CR through
+// to confirm the picker instead of remapping into a newline it would never
+// accept.
+func TestHarnessTTYIntegration_QoderCaptureOverlayPrecedence(t *testing.T) {
+	f := newHarnessSessionFake(t, "qoder", true)
+	t.Cleanup(f.close)
+	// The captures were taken at 120x38; replaying 120-wide absolute cursor
+	// positions into the 80-wide default would wrap the picker paint.
+	f.resize(120, 38)
+
+	composer, err := os.ReadFile(filepath.Join("testdata", "tty", "qoder", "1.1.60", "composer.raw"))
+	if err != nil {
+		t.Fatalf("read qoder composer capture: %v", err)
+	}
+	f.output(string(composer))
+	if f.proxy.pickerActive.Load() {
+		t.Fatal("composer capture must not arm the overlay flag")
+	}
+	if got := f.enter(); !bytes.Equal(got, []byte{'\\', '\r'}) {
+		t.Fatalf("composer Enter = %q, want Qoder's backslash-CR remap", got)
+	}
+
+	overlay, err := os.ReadFile(filepath.Join("testdata", "tty", "qoder", "1.1.60", "overlay.raw"))
+	if err != nil {
+		t.Fatalf("read qoder permission picker capture: %v", err)
+	}
+	f.output(string(overlay))
+	if !f.proxy.pickerActive.Load() {
+		t.Fatal("permission picker capture must arm the overlay flag from its markers")
+	}
+	if got := f.enter(); !bytes.Equal(got, []byte{'\r'}) || f.proxy.pickerActive.Load() {
+		t.Fatalf("picker Enter = %q active=%t, want bare CR and clear", got, f.proxy.pickerActive.Load())
 	}
 }
 

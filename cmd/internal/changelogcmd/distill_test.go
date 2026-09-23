@@ -19,6 +19,41 @@ func TestScanTurnBoundaries(t *testing.T) {
 	if got := scanTurnBoundaries([]string{"› codex prompt"}, "claude"); len(got) != 0 {
 		t.Fatalf("claude glyph wrongly matched codex prompt: %v", got)
 	}
+	// qoder indents its prompt glyph to column 1 (qoderPromptCol in wrapcmd),
+	// so its submitted echo renders ` > text` — the leading space is part of
+	// the boundary. A flush-left or further-indented `>` is not a turn.
+	qoderLines := []string{" > Reply with exactly: ok", "> flush left", "  > indented"}
+	if got := scanTurnBoundaries(qoderLines, "qoder"); !reflect.DeepEqual(got, []int{0}) {
+		t.Fatalf("qoder got %v want [0]", got)
+	}
+	if got := scanTurnBoundaries(qoderLines, "claude"); len(got) != 0 {
+		t.Fatalf("claude glyph wrongly matched qoder lines: %v", got)
+	}
+}
+
+// Every registry row in promptGlyphChar must drive BOTH of its readers: the
+// line-start boundary regex (scanTurnBoundaries) and the empty-input-box footer
+// detection (trimLiveTail/isFooterChrome). A row that lands in only one reader
+// is a silent half-registration — how qoder's space-prefixed " >" glyph stayed
+// invisible to the box check (TrimSpace(line) was compared to the raw glyph, so
+// ">" never equalled " >") while the boundary regex worked.
+func TestPromptGlyphRowsDriveBothReaders(t *testing.T) {
+	for agent, glyph := range promptGlyphChar {
+		t.Run(agent, func(t *testing.T) {
+			submitted := glyph + "give me a summary"
+			if got := scanTurnBoundaries([]string{"committed output", submitted}, agent); !reflect.DeepEqual(got, []int{1}) {
+				t.Fatalf("boundary reader: scanTurnBoundaries(%q, %q) = %v, want [1]", submitted, agent, got)
+			}
+			// The idle empty input box as rendered: the glyph plus the terminal's
+			// cursor padding after it. It is the LAST line, so trimLiveTail must
+			// strip it or the volatile box leaks into the distill anchor (#58).
+			box := glyph + " "
+			lines := []string{"stable committed line", box}
+			if got := trimLiveTail(lines, agent); !reflect.DeepEqual(got, []string{"stable committed line"}) {
+				t.Fatalf("box reader: trimLiveTail leaves the bare input box %q for %q: got %v", box, agent, got)
+			}
+		})
+	}
 }
 
 func TestLocateFoundWalksBackTwoTurns(t *testing.T) {
@@ -244,6 +279,36 @@ func TestTrimLiveTail(t *testing.T) {
 		"❯ ", "────────", "  ⏵⏵ bypass permissions on · esc to interrupt", "                  100% context used")
 	if got := trimLiveTail(meter, "claude"); !reflect.DeepEqual(got, content) {
 		t.Fatalf("context-meter footer: got %v", got)
+	}
+	// qoder settled footer (M5 Task 17 live capture): none of these rows matched
+	// any case as of M4, so the whole volatile footer leaked into the anchor and
+	// locate found it flush with the tail on the next press → the new turn was
+	// silently dropped (#58 class, qoder shape). Rows verbatim from the smoke
+	// session's cleaned render (pair scrollback render --plain).
+	qcontent := []string{" > list the probe file", " ▪ Done — /tmp/pair300-picker-probe created (exit 0, no output)."}
+	qfooter := append(append([]string{}, qcontent...),
+		"                                                               ? for shortcuts",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" Shift+Tab to Accept Edits",
+		"",
+		"  2 AGENTS.md files · 1 MCP server · 44 skills",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" >   Type your message or @path/to/file",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" Auto Model · ctx ░░░░░░░░░░ 0% · ~/workspace/pair")
+	if got := trimLiveTail(qfooter, "qoder"); !reflect.DeepEqual(got, qcontent) {
+		t.Fatalf("qoder settled footer: got %v", got)
+	}
+	// The ctx meter renders partially filled once context is used, and qoder's
+	// activity render ("esc to cancel") is footer chrome too.
+	qworking := append(append([]string{}, qcontent...),
+		" ⠋ Generating... (esc to cancel, 2s)",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" >   Type your message or @path/to/file",
+		"──────────────────────────────────────────────────────────────────────────────",
+		" Auto Model · ctx ▓▓░░░░░░░░ 15% · ~/workspace/pair")
+	if got := trimLiveTail(qworking, "qoder"); !reflect.DeepEqual(got, qcontent) {
+		t.Fatalf("qoder working footer: got %v", got)
 	}
 }
 

@@ -20,6 +20,94 @@ func TestDefaultModelByAgent(t *testing.T) {
 	if got := DefaultModel("agy"); got != DefaultClaudeModel {
 		t.Fatalf("agy default = %q, want %q", got, DefaultClaudeModel)
 	}
+	if got := DefaultModel("qoder"); got != DefaultQoderModel {
+		t.Fatalf("qoder default = %q, want %q", got, DefaultQoderModel)
+	}
+}
+
+// TestRunQoderDispatchesToQoderCLI pins the #300 M4 dispatch row: a qoder
+// session's slug/changelog must exec `qoder -p --model <default> <prompt>` —
+// before this row existed the request fell through to runClaude and invoked
+// the claude binary with a claude model id. The fake captures argv, stdin,
+// and cwd to pin the invocation shape (prompt as arg, input on stdin,
+// TempDir sandbox so no workspace agent context loads).
+func TestRunQoderDispatchesToQoderCLI(t *testing.T) {
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args")
+	stdinPath := filepath.Join(dir, "stdin")
+	cwdPath := filepath.Join(dir, "cwd")
+	script := strings.Join([]string{
+		"#!/bin/sh",
+		"printf '%s\\n' \"$@\" > '" + argsPath + "'",
+		"pwd -P > '" + cwdPath + "'",
+		"cat > '" + stdinPath + "'",
+		"printf 'qoder cli output\\n'",
+	}, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "qoder"), []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+	got, err := Run(Request{Agent: "qoder", Prompt: "prompt text", Input: "input text"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "qoder cli output\n" {
+		t.Fatalf("Run = %q", got)
+	}
+	args, err := os.ReadFile(argsPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// --no-session-persistence: each `qoder -p` call otherwise persists a
+	// session transcript under ~/.qoder/projects (measured), and the slug fires
+	// at every turn end — unbounded per-turn residue with no owner and no sweep.
+	wantArgs := "-p\n--no-session-persistence\n--model\n" + DefaultQoderModel + "\nprompt text\n"
+	if string(args) != wantArgs {
+		t.Fatalf("qoder argv = %q, want %q", args, wantArgs)
+	}
+	stdin, err := os.ReadFile(stdinPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(stdin) != "input text" {
+		t.Fatalf("qoder stdin = %q", stdin)
+	}
+	cwd, err := os.ReadFile(cwdPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCwd, err := filepath.EvalSymlinks(os.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(cwd)) != wantCwd {
+		t.Fatalf("qoder cwd = %q, want %q", strings.TrimSpace(string(cwd)), wantCwd)
+	}
+}
+
+// TestRunQoderLiveConformance is the Task 13 Step 4 live check: the installed
+// qoder CLI through the production dispatch, proving what the fake cannot —
+// that real qoder accepts runQoder's exact argv shape, consumes stdin, and
+// returns a parseable body. Gated (t.Skip, no build tag, matching the
+// PAIR_LIVE_* convention) so the default suite stays offline:
+//
+//	PAIR_LIVE_QODER_MODEL=1 go test ./cmd/internal/model -run QoderLive -v
+func TestRunQoderLiveConformance(t *testing.T) {
+	if os.Getenv("PAIR_LIVE_QODER_MODEL") != "1" {
+		t.Skip("set PAIR_LIVE_QODER_MODEL=1 to exercise the installed qoder CLI")
+	}
+	out, err := Run(Request{
+		Agent:  "qoder",
+		Prompt: "What is the secret word in the input? Answer with one word.",
+		Input:  "The secret word is BANANA.",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "BANANA") {
+		t.Fatalf("qoder live output = %q, want the word BANANA from stdin", out)
+	}
 }
 
 func TestResponseTextParsesOutputTextConvenience(t *testing.T) {

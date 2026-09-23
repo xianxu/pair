@@ -5,7 +5,7 @@ description: Use when a pair agent-harness adaptation feels off — Enter leakin
 
 # pair-doctor — diagnose agent-harness integration drift
 
-`pair` adapts each harness (claude/codex/agy) across the integration aspects in
+`pair` adapts each harness (claude/codex/agy/muse/qoder) across the integration aspects in
 `atlas/how-to-bring-up-a-new-harness-cli.md`. Harnesses update and break those
 adaptations *silently* — a renamed picker string or changed transcript shape
 doesn't error, the adaptation just stops firing. The **flight recorder**

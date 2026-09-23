@@ -74,6 +74,41 @@ func TestHandleChunk_PanickingOverlayDetectorDoesNotStrandReturn(t *testing.T) {
 	}
 }
 
+// TestHandleChunk_OscScannedBeforeCarryIsBounded pins the shared-pump half of
+// the BR-35 rule over every profile whose overlay detector reads the raw
+// rolling window: the pump used to bound `rolling` to rollingTailLen before
+// checkOverlayOpen, so an OSC sitting more than a tail's worth of bytes before
+// the end of one chunk was never scanned at all. Each agent's OSC anywhere in
+// the chunk must still arm the overlay. A future OSC-consuming detector must
+// add its row here (text-marker detectors — agy/muse/qoder — do not read OSC).
+func TestHandleChunk_OscScannedBeforeCarryIsBounded(t *testing.T) {
+	cases := []struct {
+		agent string
+		osc   []byte
+	}{
+		{"claude", []byte("\x1b]777;" + pickerOpenOSCBody + "\x07")},
+		{"codex", []byte("\x1b]9;" + codexQuestionOSC9Prefix + " probe\x07")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.agent, func(t *testing.T) {
+			profile, ok := profileForHarness(tc.agent, true)
+			if !ok {
+				t.Fatalf("%s profile missing", tc.agent)
+			}
+			p := &proxy{agentBasename: tc.agent, ttyProfile: &profile}
+			rolling := make([]byte, 0, rollingTailLen*2)
+			chunk := append(append([]byte(nil), tc.osc...), bytes.Repeat([]byte("x"), rollingTailLen+128)...)
+			p.handleChunk(chunk, &rolling)
+			if !p.pickerActive.Load() {
+				t.Fatalf("%s picker OSC ahead of a long chunk's tail window was not detected", tc.agent)
+			}
+			if len(rolling) > rollingTailLen {
+				t.Fatalf("carry = %d bytes, want bounded to %d", len(rolling), rollingTailLen)
+			}
+		})
+	}
+}
+
 func TestOverlayDetectorByAgent(t *testing.T) {
 	cases := []struct {
 		name      string
@@ -140,6 +175,80 @@ func TestOverlayDetectorByAgent(t *testing.T) {
 			name:     "muse startup text does not open overlay from generic enter hint",
 			agent:    "muse",
 			raw:      []byte("Enter to select"),
+			wantOpen: false,
+		},
+		{
+			// Qoder's permission picker, as captured live in overlay.raw: the
+			// question row is painted word-by-word at absolute columns, so no
+			// spaces survive the strip between its words.
+			name:      "qoder permission picker question opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\x1b[2GAllow\x1b[8Gthis\x1b[13Gcommand\x1b[21Gto\x1b[24Grun?\r\r\n"),
+			wantOpen:  true,
+			wantMatch: "Allowthiscommandtorun?",
+		},
+		{
+			name:      "qoder permission picker header opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\x1b[38;2;238;238;235mPermission Required\x1b[39m"),
+			wantOpen:  true,
+			wantMatch: "Permission Required",
+		},
+		{
+			// The header marker is the one deliberate exception to "markers
+			// must be chrome agent prose cannot forge": it is ordinary
+			// English, but it titles every permission picker. BR-38 pins the
+			// exemption's boundary — the topic in other words, other case, or
+			// not contiguous must stay closed.
+			name:     "qoder spaced prose about permissions does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("Permission is required for this tool to run.\r\n"),
+			wantOpen: false,
+		},
+		{
+			name:     "qoder composer text does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("\x1b[7;1H\x1b[38;2;149;149;146m────\x1b[8;1H\x1b[38;2;149;124;173m> \x1b[?25h\x1b[8;3HType your message or @path/to/file"),
+			wantOpen: false,
+		},
+		{
+			// Qoder's question picker header, as captured live in
+			// selection.raw: two styled runs split by an absolute-column jump,
+			// so the gap between "Asking" and "User" carries no space byte.
+			name:      "qoder question picker header opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\r\r\n\r\r\n\x1b[38;2;238;238;235m\x1b[1m Asking\x1b[22m\x1b[39m\x1b[9G\x1b[38;2;238;238;235m\x1b[1mUser\x1b[22m\x1b[39m\x1b[K\r\x1b[1B"),
+			wantOpen:  true,
+			wantMatch: "AskingUser",
+		},
+		{
+			// The question picker's keybinding footer, verbatim from
+			// selection.raw's strip. It is the family's own statement that
+			// Enter selects the highlighted option.
+			name:      "qoder question picker footer opens overlay",
+			agent:     "qoder",
+			raw:       []byte("\x1b[38;2;149;149;143m\u2191\u2193navigate\u00b7Enterselect\u00b7Esccancel\x1b[39m"),
+			wantOpen:  true,
+			wantMatch: "Enterselect",
+		},
+		{
+			// A composer message that merely discusses selecting must not arm
+			// the overlay: the marker is the glued footer paint, not the words.
+			name:     "qoder prose about enter select does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("press Enter to select an option"),
+			wantOpen: false,
+		},
+		{
+			// The same prose painted the way Qoder paints its picker bodies —
+			// word-by-word at absolute columns, so the strip glues the words.
+			// "for future sessions" was a marker in the first cut of
+			// qoderPickerMarkers and would arm here; it is ordinary prose, so
+			// any agent output gluing it would turn the user's next composer
+			// Enter into a submit. Re-adding it fails this row.
+			name:     "qoder glued prose about future sessions does not open overlay",
+			agent:    "qoder",
+			raw:      []byte("saved \x1b[8Gfor\x1b[12Gfuture\x1b[19Gsessions"),
 			wantOpen: false,
 		},
 	}

@@ -16,7 +16,7 @@ type AgentDefault struct {
 	Args  []string `json:"args"`
 }
 
-var supportedAgents = []string{"claude", "codex", "agy", "muse"}
+var supportedAgents = []string{"claude", "codex", "agy", "muse", "qoder"}
 
 // AgentInventory is Pair's shared supported-harness set. Couch and artifact
 // maintenance consume this instead of growing their own agent enums.

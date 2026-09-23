@@ -318,7 +318,7 @@ to a second process. No caller produces that refusal today: cross-actor routing
 was punted with `pair#147`.
 
 Switch agent (`pair#184`) uses the highlighted thread's action menu. The form
-selects claude, codex, agy or muse, then edits parameters loaded from the shared
+selects claude, codex, agy, muse, or qoder, then edits parameters loaded from the shared
 starting-path preference. Confirming `switch-agent` revalidates the accepted
 `prepare-switch-agent` fingerprint, parks the exact outgoing incarnation and
 starts a fresh context at the same thread address and working path. Selecting

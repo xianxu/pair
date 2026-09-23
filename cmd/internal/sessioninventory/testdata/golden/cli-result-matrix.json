@@ -21,7 +21,7 @@
     "name": "invalid flag",
     "exit": 1,
     "stdout": "",
-    "stderr": "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]\n"
+    "stderr": "usage: pair session-inventory [--agent agy|claude|codex|muse|qoder] [--scope current|all] [--json] [--conformance]\n"
   },
   {
     "name": "fatal storage",
@@ -63,6 +63,12 @@
     "name": "unreadable Pair evidence",
     "exit": 0,
     "stdout": "{\"schema_version\":1,\"forests\":[],\"correlations\":[],\"ambiguities\":[],\"diagnostics\":[{\"diagnostic_id\":\"diagnostic-d804193b878ed73616142e47\",\"severity\":\"error\",\"code\":\"storage_unreadable\",\"agent\":\"codex\",\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":\"config:work\"},{\"diagnostic_id\":\"diagnostic-ce7f80a461a37dd8d00468bd\",\"severity\":\"error\",\"code\":\"storage_unreadable\",\"agent\":null,\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":\"ledger:work\"},{\"diagnostic_id\":\"diagnostic-da7f21cb9d6d8c1345631b5b\",\"severity\":\"error\",\"code\":\"storage_unreadable\",\"agent\":null,\"native_id\":null,\"storage_root\":null,\"relative_path\":null,\"source_ref\":\"log:work\"}]}\n",
+    "stderr": ""
+  },
+  {
+    "name": "no native storage",
+    "exit": 0,
+    "stdout": "{\"schema_version\":1,\"forests\":[],\"correlations\":[],\"ambiguities\":[],\"diagnostics\":[]}\n",
     "stderr": ""
   }
 ]

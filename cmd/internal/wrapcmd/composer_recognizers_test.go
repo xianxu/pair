@@ -415,6 +415,102 @@ func TestMuseComposerActiveSnapshotDifferential(t *testing.T) {
 	runComposerSnapshotDifferential(t, cases, museComposerActive)
 }
 
+// qoderBox paints a Qoder composer frame: the opening rule, the prompt row
+// (glyph at column 1, reverse-video block cursor, placeholder text), then the
+// closing rule, matching the 1.1.60 capture's escapes. top is the 1-based row
+// of the opening rule.
+func qoderBox(top int, glyph string, body ...string) string {
+	rule := "\x1b[38;2;149;149;146m" + strings.Repeat("─", 40) + "\x1b[39m"
+	out := fmt.Sprintf("\x1b[%d;1H%s", top, rule)
+	out += fmt.Sprintf("\x1b[%d;2H\x1b[38;2;149;124;173m%s\x1b[39m"+
+		"\x1b[4G\x1b[48;2;149;149;143m\x1b[38;2;30;30;30m \x1b[49m\x1b[38;2;149;149;143m %s\x1b[39m",
+		top+1, glyph, body[0])
+	for i, line := range body[1:] {
+		out += fmt.Sprintf("\x1b[%d;2H%s", top+2+i, line)
+	}
+	return out + fmt.Sprintf("\x1b[%d;1H%s", top+1+len(body), rule)
+}
+
+func TestQoderComposerActiveSnapshotDifferential(t *testing.T) {
+	literal, err := os.ReadFile("testdata/tty/qoder/1.1.60/composer.raw")
+	if err != nil {
+		t.Fatalf("read literal Qoder fixture: %v", err)
+	}
+	// Qoder 1.1.60 indents its prompt glyph by one column (">" in default
+	// mode, "*" in yolo mode) between rule rows it repaints in its own greys,
+	// and hides the system cursor behind its reverse-video block cursor. A
+	// chevron or a rule pair without a prompt glyph is not a composer.
+	const promptFG = "\x1b[38;2;149;124;173m"
+	cases := []composerDifferentialCase{
+		{name: "literal captured composer", stream: literal, want: true},
+		{name: "generated captured signature", stream: []byte(qoderBox(6, ">", "Type your message") + "\x1b[?25h\x1b[7;4H"), want: true},
+		{name: "yolo mode asterisk prompt", stream: []byte(qoderBox(6, "*", "work on #300") + "\x1b[?25l\x1b[7;4H"), want: true},
+		{
+			// Qoder hides the system cursor and draws its own; hiding it must
+			// not decline the composer the way it does for other harnesses.
+			name:   "hidden system cursor",
+			stream: []byte(qoderBox(6, ">", "alpha") + "\x1b[?25l\x1b[7;4H"),
+			want:   true,
+		},
+		{
+			name:   "cursor on a painted continuation row",
+			stream: []byte(qoderBox(6, ">", "alpha", "beta") + "\x1b[?25l\x1b[8;4H"),
+			want:   true,
+		},
+		{
+			name:   "blank line inside the draft",
+			stream: []byte(qoderBox(6, ">", "alpha", "", "gamma") + "\x1b[?25l\x1b[9;4H"),
+			want:   true,
+		},
+		{
+			name:   "cursor resting on the closing rule",
+			stream: []byte(qoderBox(6, ">", "alpha") + "\x1b[?25l\x1b[8;4H"),
+			want:   true,
+		},
+		{
+			// Unlike Claude, Qoder's rules need not agree in colour: the
+			// capture repaints the opening rule dimmer than the closing one.
+			name: "rules whose greys disagree",
+			stream: []byte("\x1b[6;1H\x1b[2m\x1b[38;2;78;78;75m" + strings.Repeat("─", 40) + "\x1b[39m\x1b[22m" +
+				"\x1b[7;2H\x1b[38;2;149;124;173m> \x1b[39m" +
+				"\x1b[8;1H\x1b[38;2;149;149;146m" + strings.Repeat("─", 40) + "\x1b[39m" +
+				"\x1b[?25l\x1b[7;4H"),
+			want: true,
+		},
+		{
+			name:   "prompt with no rule above",
+			stream: []byte(fmt.Sprintf("\x1b[7;2H%s> alpha\x1b[39m\x1b[8;1H%s\x1b[?25l\x1b[7;4H", promptFG, "\x1b[38;2;149;149;146m"+strings.Repeat("─", 40)+"\x1b[39m")),
+		},
+		{
+			name:   "prompt with no rule below",
+			stream: []byte(fmt.Sprintf("\x1b[6;1H\x1b[38;2;149;149;146m%s\x1b[39m\x1b[7;2H%s> alpha\x1b[39m\x1b[9;1Hstatus\x1b[?25l\x1b[7;4H", strings.Repeat("─", 40), promptFG)),
+		},
+		{
+			// Qoder's pickers mark their selection with a chevron, which is not
+			// the composer prompt glyph; a chevron between rules must decline.
+			name:   "chevron selection marker between rules",
+			stream: []byte(qoderBox(6, "❯", "1. Allow") + "\x1b[?25l\x1b[7;4H"),
+		},
+		{
+			// The startup screen pairs its separator rules with no prompt
+			// glyph at column 1, which is what keeps the gate closed there.
+			name:   "separator rows without a prompt glyph",
+			stream: []byte(qoderBox(6, " ", "Tips for getting started") + "\x1b[?25l\x1b[7;4H"),
+		},
+		{
+			name:   "cursor parked past the closing rule",
+			stream: []byte(qoderBox(6, ">", "alpha") + "\x1b[?25l\x1b[10;4H"),
+		},
+		{
+			name:   "cursor before the composer text column",
+			stream: []byte(qoderBox(6, ">", "alpha") + "\x1b[?25l\x1b[7;1H"),
+		},
+		{name: "erased composer", stream: []byte(qoderBox(6, ">", "alpha") + "\x1b[2J\x1b[?25l\x1b[7;4H")},
+	}
+
+	runComposerSnapshotDifferential(t, cases, qoderComposerActive)
+}
+
 func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing.T) {
 	maxInt := int(^uint(0) >> 1)
 	snapshots := []struct {
@@ -434,6 +530,7 @@ func TestComposerRecognizersRejectAdversarialSnapshotsWithoutBlocking(t *testing
 		{"codex", codexComposerActive},
 		{"agy", agyComposerActive},
 		{"muse", museComposerActive},
+		{"qoder", qoderComposerActive},
 	}
 
 	for _, snapshot := range snapshots {

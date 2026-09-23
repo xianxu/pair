@@ -231,6 +231,7 @@ var ttyFixtureReactionGaps = map[string]string{
 	"agy":    "no Return has been pressed on any captured Agy screen. That Agy inserts a newline on LF in its slash menu rather than selecting is an observation from reading the screen, not a driven result.",
 	"claude": "no Return has been pressed on any captured Claude screen. The gate stays open on the slash menu and in bash mode, so Return remaps to Claude's newline on both; what Claude does with it is undriven.",
 	"codex":  "no Return has been pressed on any captured Codex screen. The composer remap to LF is undriven; the overlay path is the one with independent evidence, since the interstitial's own footer says Enter continues.",
+	"qoder":  "no Return has been pressed on any captured Qoder screen. That `\\\\<CR>` inserts a newline in the composer is inferred from Qoder sharing Claude's keymap convention; what Qoder does with it is undriven. The overlay path has better evidence than most: the question picker's own footer (selection.raw) says `↑↓navigate·Enterselect·Esccancel`, and the permission picker holds focus the same way — but nobody has pressed Return on either screen, so that a bare CR confirms the highlighted choice remains inferred.",
 }
 
 // harnessPressesReturn reports whether a harness has a driven scenario that
@@ -275,6 +276,7 @@ var ttyFixtureDiscriminationGaps = map[string]string{
 	"claude": "no captured declining state at all; see ttyFixtureNegativeGaps. Claude does not reuse its prompt glyph as a menu marker — menu.raw pins its slash menu rendering below the box with column 0 blank — so the Agy failure mode does not apply; what is still unproven is a blocking dialog the gate must refuse.",
 	"agy":    "agy/1.1.15/overlay.raw declines on hidden cursor and cursor position, not on any composer-vs-picker rule, and menu.raw shows Agy painting a menu marker in the SAME bright blue as the composer prompt. The permission-picker capture is reachable by dropping --dangerously-skip-permissions from the agy driven scenario and driving one tool call; attempted 2026-08-19 and blocked, the account was in \"Verifying your account...\" and would not execute tool calls.",
 	"muse":   "no captured declining state at all; see ttyFixtureNegativeGaps. muse/1.3.0-R3233.1/menu.raw does rule out the Agy failure mode: Muse's slash menu paints its rows below the box and leaves column 0 blank, so it never reuses the prompt glyph as a selection marker. What is still unproven is a blocking dialog the gate must refuse.",
+	"qoder":  "qoder/1.1.60 declines on two captured screens, neither painted in the composer's own shape: overlay.raw's permission picker replaces the box entirely, and selection.raw's question picker paints a ruled card whose option rows put `❯` at column 0 where the composer keeps `>` at column 1 — the recognizer refuses on shape in both cases rather than on any composer-vs-picker rule. menu.raw shows the slash menu painting below a live box, so the Agy failure mode does not apply. What is still unproven is a blocking dialog painted inside a live composer box.",
 }
 
 // ttyFixtureEnvironmentGaps records harnesses whose captures cannot be taken
@@ -427,6 +429,16 @@ var ttyFixtureExpectation = map[string]map[string]bool{
 	// which is the evidence this profile's inverted keymap rests on. It paints
 	// below the box like the menu, so the gate stays open there too.
 	"muse": {"menu.raw": true, "shortcuts.raw": true},
+	// Qoder's slash menu paints below the composer box and leaves the box —
+	// prompt glyph included — intact, so the gate stays open and Return remaps
+	// there. The menu's own `❯` selection marker lands in the prompt glyph's
+	// column but below the closing rule, which the box-bounded recognizer
+	// ignores. The permission picker (overlay.raw) takes the shared declining
+	// default; the question picker (selection.raw) carries its own row only
+	// because the shared map does not name that file. On both screens the box
+	// recognizer declines AND qoderPickerMarkers arms the overlay, so the
+	// emitted Return is a bare CR on either account.
+	"qoder": {"menu.raw": true, "selection.raw": false},
 }
 
 // ttyFixtureReturnExpectation reports whether a fixture file must remap Return,
@@ -806,6 +818,7 @@ func TestComposerReturnExpectationMatchesProfile(t *testing.T) {
 		"codex":  "\n",
 		"muse":   "\x1b[13;2u",
 		"agy":    "\n",
+		"qoder":  "\\\r",
 	}
 	for harness, wantBytes := range want {
 		got, ok := composerReturnBytes(harness)

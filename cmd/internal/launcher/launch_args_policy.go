@@ -218,7 +218,7 @@ func DecideLaunchArgs(in LaunchArgInputs) LaunchArgDecision {
 			return out
 		}
 	} else if savedConfigUsable(in.Agent, in.Saved) {
-		args = persistedConfigArgs(in.Saved.Args)
+		args = persistedConfigArgs(in.Agent, in.Saved.Args)
 		argsSelected = true
 	} else if in.Saved.Agent != "" && in.Saved.Agent != in.Agent {
 		out.Warnings = append(out.Warnings, fmt.Sprintf("saved config agent %q does not match requested agent %q; ignoring it", in.Saved.Agent, in.Agent))

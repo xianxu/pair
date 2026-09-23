@@ -372,6 +372,28 @@ func TestOSRuntimeAgentSessionExistsFindsNestedCodexRollout(t *testing.T) {
 	}
 }
 
+func TestOSRuntimeAgentSessionExistsFindsQoderTranscript(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	sid := "12345678-1234-1234-1234-123456789abc"
+	path := filepath.Join(home, ".qoder", "projects", "-repo", sid+".jsonl")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	first := fmt.Sprintf(`{"type":"user","timestamp":"2026-08-28T09:01:00.000Z","message":{"role":"user","content":"sanitized"},"isSidechain":false,"sessionId":%q}`+"\n", sid)
+	if err := os.WriteFile(path, []byte(first), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if !(OSRuntime{}).AgentSessionExists("qoder", sid, "/repo") {
+		t.Fatal("AgentSessionExists(qoder) did not find the transcript")
+	}
+	t.Setenv("HOME", t.TempDir())
+	if (OSRuntime{}).AgentSessionExists("qoder", sid, "/repo") {
+		t.Fatal("AgentSessionExists(qoder) accepted an empty native root")
+	}
+}
+
 func TestOSRuntimeSessionNameIndexStore(t *testing.T) {
 	dataDir := t.TempDir()
 	rt := NewOSRuntime(dataDir, "/pair")

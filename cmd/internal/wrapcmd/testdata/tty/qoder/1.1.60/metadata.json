@@ -1,0 +1,12 @@
+{
+  "agent": "qoder",
+  "version": "1.1.60",
+  "captured_at": "2026-09-21T21:15:20Z",
+  "command": ["qoder"],
+  "files": {
+    "composer.raw": "f5386166b1442dde212291f56bee7eb4eac752411b86d58c649460bb606f43d1",
+    "menu.raw": "c9920264b1bfd33a948b98786894b8b4f928fe90adbdd7ec690bd60032dc712a",
+    "overlay.raw": "08d4be367aa33e3986312751846afb272b23ea095422dcc3e1b0482459b818ae",
+    "selection.raw": "14d0acb79fa9181288a9fb50078db6f257fb0e17663f8dc6abf17dc13e91a62a"
+  }
+}

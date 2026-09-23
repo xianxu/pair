@@ -365,6 +365,13 @@ end
 -- distinct leading glyph:
 --   claude — ❯  (U+276F, HEAVY RIGHT-POINTING ANGLE QUOTATION MARK)
 --   codex  — ›  (U+203A, SINGLE RIGHT-POINTING ANGLE QUOTATION MARK)
+--   qoder  — `>` (default) / `*` (yolo), indented to column 1: qoder
+--            reserves column 0, so its submitted echo renders ` > text`.
+--            The qoder row is DERIVED from the qoderPromptGlyphs +
+--            qoderPromptCol authority in cmd/internal/wrapcmd/
+--            composer_recognizers.go and kept honest by
+--            TestScrollbackQoderPatternTracksPromptAuthority (wrapcmd),
+--            which fails on any drift.
 -- Lookup falls back to claude's pattern so unknown agents still get a
 -- useful default.
 local PROMPT_PATTERN_BY_AGENT = {
@@ -372,6 +379,7 @@ local PROMPT_PATTERN_BY_AGENT = {
   codex  = [[^›]],
   agy    = [[\(──.*\n\)\zs>]],
   muse   = [[^>]],
+  qoder  = [=[^ [*>]]=],
 }
 
 -- Adaptation flight recorder (atlas §3). Load the sibling emitter by this

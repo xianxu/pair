@@ -9,13 +9,34 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // SessionInventoryCLI is the public stable diagnostic surface.
 // pair:155-concept integration new M2 session-inventory
 type SessionInventoryCLI struct{}
 
-var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse}
+// supportedAgents is the single per-agent list on the session side: CLI
+// --agent validation (validAgent), the usage line, and the default scan set
+// all derive from it.
+var supportedAgents = []Agent{AgentAgy, AgentClaude, AgentCodex, AgentMuse, AgentQoder}
+
+// SupportedAgents returns the session-side agent inventory. Every per-agent
+// dispatch (scanner, provider contract, delta validator, event adapter,
+// watcher, ledger) must be ranged from this list or probed through it.
+func SupportedAgents() []Agent {
+	return append([]Agent(nil), supportedAgents...)
+}
+
+var sessionInventoryUsage = "usage: pair session-inventory [--agent " + agentPattern() + "] [--scope current|all] [--json] [--conformance]"
+
+func agentPattern() string {
+	names := make([]string, 0, len(supportedAgents))
+	for _, agent := range supportedAgents {
+		names = append(names, string(agent))
+	}
+	return strings.Join(names, "|")
+}
 
 // RunCLI resolves the production runtime and emits one buffered result.
 func RunCLI(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
@@ -73,16 +94,16 @@ func parseCLIOptions(args []string) (cliOptions, string) {
 	activity := flags.Bool("activity", false, "internal established-root activity")
 	ownerTag := flags.String("owner", "", "internal established owner tag")
 	if err := flags.Parse(args); err != nil || flags.NArg() != 0 {
-		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
+		return cliOptions{}, sessionInventoryUsage
 	}
 	if *scope != "current" && *scope != "all" {
 		return cliOptions{}, fmt.Sprintf("pair session-inventory: unsupported scope %q", *scope)
 	}
 	if *activity && (*agentName == "" || *scope != "current" || *conformance) {
-		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
+		return cliOptions{}, sessionInventoryUsage
 	}
 	if *ownerTag != "" && (*agentName == "" || *scope != "current" || *conformance || *activity || *jsonOutput) {
-		return cliOptions{}, "usage: pair session-inventory [--agent claude|codex|agy|muse] [--scope current|all] [--json] [--conformance]"
+		return cliOptions{}, sessionInventoryUsage
 	}
 	agents := append([]Agent(nil), supportedAgents...)
 	if *agentName != "" {

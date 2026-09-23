@@ -1,6 +1,10 @@
 package launcher
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/xianxu/pair/cmd/internal/resumeform"
+)
 
 // Per-agent launch-argument composition — the pure decisions behind the shell
 // launcher's resume-token / --session-id / --no-alt-screen handling (#99 M1,
@@ -141,14 +145,15 @@ func codexValueGlobalOption(arg string) bool {
 
 // resumeToken is the per-agent surface for resuming a session id: claude uses
 // `--resume <id>`, codex uses the `resume <id>` subcommand, agy uses
-// `--conversation <id>`, muse uses `resume <id>` (like codex). Empty sid (or an
+// `--conversation <id>`, muse uses `resume <id>` (like codex), qoder uses
+// `--resume <id>` (like claude; a global flag, any position). Empty sid (or an
 // unknown agent) yields no token.
 func resumeToken(agent, sid string) []string {
 	if sid == "" {
 		return nil
 	}
 	switch agent {
-	case "claude":
+	case "claude", "qoder":
 		return []string{"--resume", sid}
 	case "codex":
 		return []string{"resume", sid}
@@ -188,35 +193,47 @@ func codexAltScreenArgs(args []string, optOut bool) []string {
 	return append(stripped, "--no-alt-screen")
 }
 
-// shouldMintClaudeSessionID decides whether the create path should pin a
-// deterministic claude session id (via --session-id) instead of leaving it to
-// Claude. Skip when a resume already pinned one, when the user passed
-// their own --session-id, or when --fork-session lets claude allocate internally.
-// Only Claude supports the flag; every agent's durable binding is established
-// independently by the causal-round watcher.
-func shouldMintClaudeSessionID(agent, explicitResume string, agentExtra []string) bool {
-	return agent == "claude" && explicitResume == "" &&
+// MintsSessionID reports whether pair pins a caller-minted --session-id at
+// launch: claude, whose jsonl is keyed by the id pair chooses (#20), and
+// qoder, which honors the same flag (verified live at 1.1.60 — the transcript
+// lands under ~/.qoder/projects/<slug>/<minted id>.jsonl). Every other agent's
+// durable binding is established independently by the causal-round watcher.
+func MintsSessionID(agent string) bool {
+	return agent == "claude" || agent == "qoder"
+}
+
+// shouldMintSessionID decides whether the create path should pin a
+// deterministic session id (via --session-id) instead of leaving it to the
+// agent. Skip when a resume already pinned one, when the user passed
+// their own --session-id, or when --fork-session lets the agent allocate
+// internally.
+func shouldMintSessionID(agent, explicitResume string, agentExtra []string) bool {
+	return MintsSessionID(agent) && explicitResume == "" &&
 		!hasFlag(agentExtra, "--session-id") && !hasFlag(agentExtra, "--fork-session")
 }
 
-// persistedConfigArgs strips every per-agent resume binding from saved launch
-// parameters. Established inventory is the binding authority; leaving generated
-// resume flags in compatibility config would compound them on every relaunch.
-// Handles all four agents' surfaces
-// (claude --resume / --session-id, agy --conversation incl. the inline form, codex
-// leading `resume <id>`) so an agy/codex resume can't silently accumulate — the
-// bug shell 2079-2082 guards. Agent-agnostic: stripping a form the current agent
-// never uses is a harmless no-op.
-func persistedConfigArgs(args []string) []string {
-	out := stripCodexResumeSubcommand(args)
+// persistedConfigArgs strips every resume binding from saved launch
+// parameters. Established inventory is the binding authority; leaving
+// generated resume flags in compatibility config would compound them on
+// every relaunch. The spellings live in one table (resumeform.Forms) shared
+// with the extractors, the validator and sessionwatch; the deterministic
+// --session-id pin is stripped alongside them. The strip is strictly
+// per-agent (BR-22): args saved for agent A are only rewritten by A's own
+// spellings — claude/qoder reuse the shared --resume/-r table, codex/muse
+// the leading `resume <id>` subcommand — so a peer agent's legit token
+// (e.g. a claude prompt word `resume`) is never eaten.
+func persistedConfigArgs(agent string, args []string) []string {
+	out := args
+	if agent == "codex" || agent == "muse" {
+		out = stripCodexResumeSubcommand(out)
+	}
+	out = resumeform.Strip(agent, out)
 	out = stripFlagAllForms(out, "--session-id")
-	out = stripFlagAllForms(out, "--resume")
-	out = stripFlagAllForms(out, "--conversation")
 	return out
 }
 
 // FreshAgentArgs preserves user-authored launch options while removing every
 // generated conversation-restoration binding.
-func FreshAgentArgs(args []string) []string {
-	return persistedConfigArgs(args)
+func FreshAgentArgs(agent string, args []string) []string {
+	return persistedConfigArgs(agent, args)
 }

@@ -261,6 +261,13 @@ type proxy struct {
 	// re-detecting stale picker text after Enter clears pickerActive.
 	overlayMu       sync.Mutex
 	overlayTextTail string
+	// overlayRawTail is the raw haystack some detectors need for split-proof
+	// marker matching: a chunk boundary inside an escape can corrupt the
+	// per-chunk strip, while contiguous raw bytes cannot. It shares
+	// overlayTextTail's lifetime rule — cleared when the confirming Enter
+	// consumes pickerActive — so consumed picker bytes can never re-arm the
+	// flag from a later chunk.
+	overlayRawTail []byte
 	// overlayConsumeHook is a deterministic test seam invoked while an older
 	// Return owns overlayMu after consuming its overlay state.
 	overlayConsumeHook func()
@@ -780,12 +787,35 @@ func detectCodexOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
 	if open, reason := detectCodexQuestionOSC(rolling); open {
 		return true, reason
 	}
+	return detectCodexOverlayText(p.overlayVisible(data))
+}
+
+// overlayVisible folds this chunk's stripped text into the carried visible
+// tail and returns the concatenation, re-bounding the carry. The escapes are
+// stripped per chunk BEFORE they reach the carry, so what is carried is plain
+// text; the tail exists only so a marker split across two chunks still reads
+// whole. A nil receiver is fine: callers without a proxy get the plain strip.
+func (p *proxy) overlayVisible(data []byte) string {
 	visible := stripTerminalControls(data)
-	if p != nil {
-		visible = p.overlayTextTail + visible
-		p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	if p == nil {
+		return visible
 	}
-	return detectCodexOverlayText(visible)
+	visible = p.overlayTextTail + visible
+	p.overlayTextTail = textSuffix(visible, rollingTailLen)
+	return visible
+}
+
+// firstMarker returns the first configured marker found in visible. The text
+// detectors differ only in their marker set, so one loop keeps them from
+// drifting apart; markers are probed in slice order, so the reason string is
+// deterministic.
+func firstMarker(visible string, markers []string) (bool, string) {
+	for _, marker := range markers {
+		if strings.Contains(visible, marker) {
+			return true, marker
+		}
+	}
+	return false, ""
 }
 
 func detectCodexQuestionOSC(rolling []byte) (bool, string) {
@@ -799,12 +829,7 @@ func detectCodexQuestionOSC(rolling []byte) (bool, string) {
 }
 
 func detectCodexOverlayText(visible string) (bool, string) {
-	for _, marker := range codexPickerMarkers {
-		if strings.Contains(visible, marker) {
-			return true, marker
-		}
-	}
-	return false, ""
+	return firstMarker(visible, codexPickerMarkers)
 }
 
 var agyPickerMarkers = []string{
@@ -816,21 +841,11 @@ var agyPickerMarkers = []string{
 }
 
 func detectAgyOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
-	visible := stripTerminalControls(data)
-	if p != nil {
-		visible = p.overlayTextTail + visible
-		p.overlayTextTail = textSuffix(visible, rollingTailLen)
-	}
-	return detectAgyOverlayText(visible)
+	return detectAgyOverlayText(p.overlayVisible(data))
 }
 
 func detectAgyOverlayText(visible string) (bool, string) {
-	for _, marker := range agyPickerMarkers {
-		if strings.Contains(visible, marker) {
-			return true, marker
-		}
-	}
-	return false, ""
+	return firstMarker(visible, agyPickerMarkers)
 }
 
 var musePickerMarkers = []string{
@@ -853,14 +868,12 @@ var musePickerMarkers = []string{
 }
 
 func detectMuseOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
-	visible := stripTerminalControls(data)
-	if p != nil {
-		visible = p.overlayTextTail + visible
-		p.overlayTextTail = textSuffix(visible, rollingTailLen)
-	}
-	return detectMuseOverlayText(visible)
+	return detectMuseOverlayText(p.overlayVisible(data))
 }
 
+// detectMuseOverlayText folds both sides rather than calling firstMarker: Muse
+// vary-cases its markers across versions, and the reason string must keep the
+// marker's declared spelling, so the loop stays its own.
 func detectMuseOverlayText(visible string) (bool, string) {
 	low := asciiFold(visible)
 	for _, marker := range musePickerMarkers {
@@ -869,6 +882,76 @@ func detectMuseOverlayText(visible string) (bool, string) {
 		}
 	}
 	return false, ""
+}
+
+var qoderPickerMarkers = []string{
+	// Qoder's permission picker, captured live in qoder/1.1.60/overlay.raw
+	// (a Bash tool approval from a `--permission-mode default` session).
+	// Qoder paints the picker BODY word-by-word at absolute columns, so the
+	// spaces between those words never reach the stream and the frozen strip
+	// reads them glued ("Allowthiscommandtorun?"); the header emits real
+	// spaces between its per-character runs and survives the strip intact.
+	// Markers are verbatim from that strip. The header is the generic marker —
+	// it titles every permission picker — while the body strings pin the one
+	// captured question. Plain Enter must confirm the highlighted choice —
+	// remapping to the composer's newline would leak a literal newline into
+	// the picker.
+	//
+	// The capture's fourth body string, "for future sessions", is deliberately
+	// NOT a marker: unlike the other three it is ordinary English prose that a
+	// word-by-word paint glues wherever it appears, so agent output discussing
+	// future sessions would arm pickerActive and turn the user's next composer
+	// Enter into a submit. The permission picker is still covered three ways by
+	// the strings above, all present in the same frozen strip.
+	"Permission Required",
+	"Allowthiscommandtorun?",
+	"Rejectandtypesomething",
+	// Qoder's question picker (its AskUserQuestion UI), captured live in
+	// qoder/1.1.60/selection.raw: an "Asking User" header over a ruled card
+	// listing options with a `❯` selection marker, closed by a keybinding
+	// footer. Both strings are verbatim from that capture's strip; the header
+	// is painted as two styled runs split by an absolute-column jump, so the
+	// gap between them carries no space byte. The footer is the family's own
+	// statement that Enter selects, which is why the wrapper must not rewrite
+	// it to a newline (#000042's muse shape).
+	"AskingUser",
+	"Enterselect",
+}
+
+func detectQoderOverlayOpen(p *proxy, data, rolling []byte) (bool, string) {
+	// The raw haystack is byte-contiguous, so a chunk boundary inside an
+	// escape sequence cannot corrupt it the way per-chunk stripping can. This
+	// is not hypothetical: replaying selection.raw split 6426/6616 cut the
+	// footer inside \x1b[23m, and the stripped tail kept the truncated escape
+	// verbatim, destroying "Enterselect".
+	//
+	// The scan sees the whole carry+chunk BEFORE any bounding. A marker that
+	// straddles the boundary inside an escape is split across the two, and
+	// bounding the carry first would drop the marker's head whenever the new
+	// chunk carries more than a tail's worth of bytes after the split — that
+	// is BR-35: armed with 0 or 100 bytes of trailing filler, disarmed with
+	// 400, 600 or 2000.
+	//
+	// The window is proxy-owned rather than the chunk pump's rolling slice so
+	// emitPlainCR can clear it when the confirming Enter consumes
+	// pickerActive — a raw window that outlives consumption re-arms the flag
+	// off its own consumed bytes (BR-28).
+	if p != nil {
+		haystack := append(append([]byte(nil), p.overlayRawTail...), data...)
+		open, reason := detectQoderOverlayText(stripTerminalControls(haystack))
+		if len(haystack) > rollingTailLen {
+			haystack = haystack[len(haystack)-rollingTailLen:]
+		}
+		p.overlayRawTail = haystack
+		if open {
+			return true, reason
+		}
+	}
+	return detectQoderOverlayText(p.overlayVisible(data))
+}
+
+func detectQoderOverlayText(visible string) (bool, string) {
+	return firstMarker(visible, qoderPickerMarkers)
 }
 
 func stripTerminalControls(raw []byte) string {
@@ -1826,12 +1909,33 @@ func (p *proxy) detectOverlayOpen(data, rolling []byte) overlayDetection {
 	// live recorder so the extra strip+scan isn't paid when telemetry is off.
 	var detection overlayDetection
 	if p.adapt != nil && !p.pickerActive.Load() {
-		if snippet, ok := promptShape(stripTerminalControls(data)); ok && snippet != p.lastNearMiss {
+		visible := stripTerminalControls(data)
+		profile := p.observationProfile()
+		if snippet, ok := promptShape(visible); ok && !nearMissProgressLine(snippet, profile.progressShapes) && snippet != p.lastNearMiss {
 			p.lastNearMiss = snippet
 			detection.nearMiss = snippet
 		}
 	}
 	return detection
+}
+
+// nearMissProgressLine reports whether a prompt-shaped line is in fact one of
+// the harness's own progress renders. The tripwire's generic shapes are
+// deliberately agent-agnostic, so the disambiguation (qoder's spinner footer
+// says "esc to cancel") lives at the profile row. Such renders must NOT be
+// added as overlay markers instead: arming the overlay would flip plain Enter
+// to the bypass path mid-generation and submit the composer.
+func nearMissProgressLine(line string, progressShapes []string) bool {
+	if len(progressShapes) == 0 {
+		return false
+	}
+	low := asciiFold(line)
+	for _, s := range progressShapes {
+		if strings.Contains(low, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // genericPromptShapes are phrasings common to interactive confirm/permission
@@ -1919,6 +2023,7 @@ func (p *proxy) emitPlainCR(out []byte) []byte {
 	overlayActive := p.pickerActive.Swap(false)
 	if overlayActive {
 		p.overlayTextTail = ""
+		p.overlayRawTail = nil
 	}
 	if p.overlayConsumeHook != nil {
 		p.overlayConsumeHook()
@@ -2275,12 +2380,12 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		return nil, errors.New("missing agent command")
 	}
 	agent := filepath.Base(currentArgv[0])
-	freshArgs := launcher.FreshAgentArgs(currentArgv[1:])
+	freshArgs := launcher.FreshAgentArgs(agent, currentArgv[1:])
 	sessionID := ""
-	if agent == "claude" {
+	if launcher.MintsSessionID(agent) {
 		sessionID = freshUUID()
 		if sessionID == "" {
-			return nil, errors.New("cannot mint fresh claude session id")
+			return nil, fmt.Errorf("cannot mint fresh %s session id", agent)
 		}
 		freshArgs = append(freshArgs, "--session-id", sessionID)
 	}
@@ -3036,9 +3141,11 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 		}
 
 		*rolling = append(*rolling, data...)
-		if len(*rolling) > rollingTailLen {
-			*rolling = (*rolling)[len(*rolling)-rollingTailLen:]
-		}
+		// Detectors and the OSC scan see the full carry+chunk; the carry is
+		// bounded only afterwards (the BR-35 rule). Bounding first dropped
+		// any OSC that sat more than a tail's worth of bytes before the end
+		// of the chunk — never scanned at all, by either the detectors or
+		// the OSC telemetry below.
 		p.checkOverlayOpen(data, *rolling)
 		matches := oscRe.FindAllSubmatchIndex(*rolling, -1)
 		if len(matches) > 0 {
@@ -3057,9 +3164,7 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 				}
 			}
 			*rolling = (*rolling)[last[1]:]
-			return
-		}
-		if idx := indexByte(data, 0x07); idx >= 0 {
+		} else if idx := indexByte(data, 0x07); idx >= 0 {
 			start := idx - 16
 			if start < 0 {
 				start = 0
@@ -3075,6 +3180,9 @@ func (p *proxy) handleChunk(data []byte, rolling *[]byte) {
 			} else {
 				p.debug("BEL-skip", snippet)
 			}
+		}
+		if len(*rolling) > rollingTailLen {
+			*rolling = (*rolling)[len(*rolling)-rollingTailLen:]
 		}
 	}()
 }

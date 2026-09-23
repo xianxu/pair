@@ -139,6 +139,10 @@ representative evidence, not an exhaustive index.
 - A plan's entity tables name live symbols and promised cases. Before a boundary,
   reconcile every checkbox, acceptance row, concept table, and revision with
   observed evidence; do not tick a row because the code exists. (#262, #297)
+- Classify each plan function by its effects: deterministic transitions are pure;
+  filesystem reads, process launches, and mutable proxy state are integration
+  points. After a capture version or config scope changes, reconcile active
+  plan paths with delivered artifacts and record the delta. (ARCH-PURE, #300)
 - A milestone or close commit carries its own review verdict and evidence. Keep
   estimates measured, issue status owned by `sdlc`, and durable docs synced before
   long-running work. (#134, #146, #206)
