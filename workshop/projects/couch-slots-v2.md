@@ -385,7 +385,7 @@ review and Ariadne publication follow; #242 stays closed.
 <a id="ariadne-244"></a>
 ### ariadne#244 — Concurrent issue workflows
 
-**status:** working — M1 closed with SHIP; M2 integration in progress
+**status:** working — M1 and M2 closed with SHIP; final issue review pending
 **est:** 17.01h (revised simplified scope)
 **started:** 2026-09-23
 
@@ -394,7 +394,7 @@ publication in every checkout, including :0 and private dependency clones.
 Real claim/allocation races and caller-state preservation tests pass; the full
 workspace/SDLC suite and vet pass (known ariadne#210 fixture excluded). M2 retains
 short external-review locks and validation before result persistence; its integrated
-workflow tests pass, with final signal/full-suite verification remaining.
+workflow, real signal/race, and full regression tests pass; its review returned SHIP.
 
 <a id="ariadne-244-m1"></a>
 ### ariadne#244 M1 — Claims and selected documentation publication
@@ -408,6 +408,19 @@ for three-way publication in every checkout. Full workspace/SDLC tests and vet
 passed, including real clone/worktree claim races and isolated caller state.
 Identical Git commits do not establish caller ownership; ambiguous reservation
 acknowledgments remain uncertain. Review lock changes belong to M2.
+
+<a id="ariadne-244-m2"></a>
+### ariadne#244 M2 — Review lock scope and integration
+**closed:** 2026-09-23
+**actual:** 1.34h
+
+**status:** closed; SHIP review, no findings
+
+Planning and close reviewers run without the repository lock. Prepared inputs,
+branch identity and ledger generations are revalidated before recording results.
+Stale, interrupted and failed-relock reviews cannot persist authority. Real CLI
+SIGINT/SIGTERM cleanup, full regression tests, vet and nested dependency
+publication/conflict recovery passed (known #210 fixture excluded).
 
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
@@ -657,3 +670,5 @@ with thread creation and cold resume.
 Implemented the simplified publication scope and passed the full workspace/SDLC regression suite plus vet. Reservations use remote status without a slot ownership registry; the branch name associates local work with its issue. Identical Git candidate commits do not establish caller ownership. The M1 review returned SHIP with no findings; external-review lock changes are the separate M2 boundary.
 
 [ariadne#244 M1]: #ariadne-244-m1
+
+[ariadne#244 M2]: #ariadne-244-m2
