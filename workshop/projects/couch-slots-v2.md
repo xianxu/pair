@@ -301,6 +301,12 @@ dependency graph; all ten issue records and this project passed schema
 validation. Issue bodies were checkpointed with `sdlc issue sync`. No task was
 claimed and implementation has not started. Existing issues remain untouched.
 
+### 2026-09-22 — workspace identity published
+
+ariadne#242 merged through PR #127 and was archived after a SHIP close review.
+The shared resolver and SDLC consumers are available in ariadne main. The next
+project task is ariadne#243, whose dependency-binding decision remains open.
+
 ## Revisions
 
 ### 2026-09-22 — committed snapshots and issue branches
