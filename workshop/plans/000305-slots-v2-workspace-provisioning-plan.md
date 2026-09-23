@@ -65,7 +65,7 @@ All new production files below live in `cmd/internal/couchcore/` unless qualifie
 | Name | Lives in | Status |
 | --- | --- | --- |
 | WorkspaceIdentity | workspace_identity.go | new |
-| ProvisionRequest / ProvisionResult | provision.go | new |
+| ProvisionRequest / ProvisionResult | provision_request.go | new |
 | CreationIntent / SetupSuccess | provision_store.go | new |
 | HostObservation / NextHostAction | provision_host.go | new |
 | SelectWorkspaceNumber | provision_select.go | new |
@@ -97,9 +97,10 @@ advisory; #306 must revalidate/reserve thread capacity through its own authority
 | --- | --- | --- | --- |
 | WorkspaceProvisioner | provision.go | new | linear orchestration |
 | ProvisionIO / OSProvisionIO | provision_io.go | new | Git, SDLC, Weave, progress |
-| ProvisionStore | provision_store.go | new | intent/success atomic files |
+| ProvisionStore / ProvisionStorage | provision_store.go | new | intent/success atomic files and injected storage |
+| WorkspaceReadiness | provision_dispatch.go | new | provisioner capability injected into Couch |
 | HostCreationLease | provision_lock_unix.go | new | repository-wide Git creation flock |
-| ProvisionFixture | provision_fake_test.go | new | stateful test seam |
+| ProvisionFixture | provision_git_test.go | new | stateful test seam |
 | Couch.Workspaces | couch.go | modified | injected provisioner |
 | Operations / DirectStoreExecutor | ops.go / operationdispatch.go | modified | typed internal operation |
 | OSRuntime.NewCouchWith / render | ../couchcmd/run.go | modified | production wiring and JSON output |
@@ -279,7 +280,7 @@ outcomes and real temporary Git repositories for actual ref/worktree behavior.
 ### Task 1 — checked inputs and host decisions
 
 Create workspace_identity.go, provision_host.go, provision_select.go and colocated
-tests. Put request/result structs in provision.go, records in provision_store.go.
+tests. Put request/result structs in provision_request.go, records in provision_store.go.
 
 - [x] ParseWorkspaceIdentity / ParseProvisionRequest: malformed transport/grammar
   → strict decode, required-field checks and fuzzed boundary input.
@@ -292,7 +293,7 @@ tests. Put request/result structs in provision.go, records in provision_store.go
 ### Task 2 — host creation and small durable records
 
 Create provision_io.go, provision_store.go, provision_lock_unix.go,
-provision_fake_test.go, provision_git_test.go, provision_subprocess_test.go.
+provision_git_test.go, provision_subprocess_test.go.
 
 - [x] WorkspaceProvisioner.ensureHost: interrupted Git effects and foreign
   collisions → reconcile owned evidence in stateful fake + real Git fixture;
@@ -469,3 +470,15 @@ stateful Git fixture lives in provision_git_test.go. No extra fake framework.
 Focused/race and live tests passed; full-suite inventory checks were updated for
 new files and the deliberately deferred #306 selector consumer. Final suite and
 SDLC close remain to be completed.
+
+### 2026-09-23 — reconcile delivered concept locations (BR-3)
+
+Updated active entity mappings and task file lists, not only this revision:
+ProvisionFixture lives in provision_git_test.go; request/results in
+provision_request.go; WorkspaceReadiness in provision_dispatch.go. The storage
+seam is named ProvisionStorage with ProvisionStore as its OS implementation.
+The close reviewer found no production-code issues and passed focused, race and
+live conformance tests. Its ARCH-PURPOSE finding explicitly accepted the #306
+boundary; BR-1/BR-2 (carried PQ-2/PQ-8) therefore need explicit withdrawal in the
+next ledger disposition rather than remaining accidentally open. No #306 API is
+consumed: the deployed operation prepares directories without thread authority.
