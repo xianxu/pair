@@ -1,7 +1,7 @@
 # Slots v2: local state and durable recovery plan
 
 > **For agentic workers:** Consult AGENTS.md Section 3 for delegation. Apply
-> superpowers-writing-plans to finalize integration details before change-code;
+> superpowers-executing-plans or superpowers-subagent-driven-development to
 > execute approved tasks with TDD and the existing SDLC gates.
 
 **Goal:** Make numbered slots durable directory-backed Couch threads whose local
@@ -15,10 +15,9 @@ Couch threads while giving managed slots local storage and recovery behavior.
 **Tech Stack:** Go, existing threadrecord validation and lifecycle transitions,
 atomic/journaled storage, SDLC workspace v2, Git, #305 WorkspaceReadiness.
 
-**Status:** Operator-approved direction; revised planning work, not an executable
-implementation approval. The earlier global-store plan and its reviews are
-superseded. Storage/migration details below must be resolved and reviewed before
-change-code. No code changes or estimate are claimed.
+**Status:** Operator-approved direction; concrete engineering plan passed fresh
+review after corrections. Earlier global-store reviews are superseded. Awaiting
+operator approval of this detailed plan before change-code; no code or estimate yet.
 **Issue:** `workshop/issues/000306-slots-v2-thread-lifecycle.md`.
 **Flow:** Full; in-place branch when entering implementation. Estimate follows
 plan-quality review. Preserve unrelated local work.
@@ -52,8 +51,8 @@ worktree/pair-slot1/
   ariadne/
 ```
 
-File names above are the proposed minimal layout; validate them against the
-existing transaction/retention integration before implementation.
+The local layout uses the existing ThreadRecord and PathLaunchPreference formats.
+Current membership derives directly from thread.json; no local manifest is stored.
 
 | Local state | Purpose and lifetime |
 | --- | --- |
@@ -61,7 +60,7 @@ existing transaction/retention integration before implementation.
 | preferences.json | Agent and supported arguments, independent of the current conversation; survives start fresh |
 | continuation.md | Couch-owned checkpoint/orientation material; follows the retained continuation's existing cleanup rules |
 | Transaction journal/lock if required | Reuse current atomicity/recovery semantics at the local storage boundary; no new domain state or setup phase |
-| Retained conversation/recovery evidence | Preserve superseded handles and damaged records before replacement; storage layout and bounded retention must be specified before implementation |
+| Retained conversation/recovery evidence | Preserve superseded handles and damaged records before replacement; existing archive grace for valid records; bounded raw recovery backups below |
 
 Derive slot number, host path and repo membership from convention plus Git proof.
 Do not duplicate those as an editable authoritative inventory. Missing local state
@@ -125,99 +124,328 @@ Directory existence guarantees a stable place to recover, not guaranteed launch
 success despite environmental failures. Origin/main is only a creation baseline.
 No resume/recovery path resets files, commits, branches or private dependencies.
 
-## Core concepts and existing seams
+## Core concepts
 
-This table identifies real existing reuse points and the required responsibilities.
-It intentionally does not promise speculative new class names. Final engineering
-planning must name the concrete functions and signatures after storage exploration.
+### Pure entities
 
-| Concept / existing symbol | Current home | Planned disposition |
+| Name | Lives in (under cmd/internal/) | Status |
 | --- | --- | --- |
-| WorkspaceIdentity / ParseWorkspaceIdentity | cmd/internal/couchcore/workspace_identity.go | Reuse verified numbered membership; distinguish dependency/ordinary worktree |
-| WorkspaceProvisioner.Ensure / WorkspaceReadiness | cmd/internal/couchcore/provision.go, provision_dispatch.go | Reuse repeatable setup; leave Git metadata ownership intact |
-| ThreadRecord / threadrecord.Record | cmd/internal/couchcore/thread.go; cmd/internal/threadrecord/record.go | Separate durable slot identity from current conversation handle; retain validators and lifecycle facts |
-| PathLaunchPreference | cmd/internal/couchcore/launchprofile.go | Local home for numbered preferences; #308 owns preference UX/inheritance |
-| ThreadStore | cmd/internal/couchcore/threadstore.go, storejournal.go | Introduce local authoritative storage without duplicating lifecycle logic; preserve atomic record/preference updates |
-| AdvanceStartTransaction / CommitStartClaim | cmd/internal/couchcore/starttransaction.go, threadstore.go | Reuse existing concurrent-start protection and interrupted-start recovery |
-| ClassifyThread / DecideResume | cmd/internal/couchcore/actionableinventory.go, resume.go | Retain process/conversation evidence; slot presence must remain visible when resume is unavailable |
-| launchTrackedThread | cmd/internal/couchcore/launch_existing.go | Shared cold readiness hook before final conversation proof; warm bypass |
-| storagegc store registry and references | cmd/internal/storagegc/stores.go, collector.go | Recognize local current/history references before global records retire |
+| SlotIdentity | couchcore/slot.go | new |
+| SlotObservation / DecideSlotOpen | couchcore/slot.go | new |
+| ThreadTarget / ThreadRowKey | couchcore/threadtarget.go | new |
+| ParseWorkspaceReference | couchcore/workspaceref.go | new |
+| SlotAllocation / SelectNewSlot | couchcore/slotallocation.go | new |
+| ThreadRecord / PathLaunchPreference | couchcore/thread.go, launchprofile.go | reused wire formats |
+| ActionableThreadSummary / ThreadSummary | couchcore/actionableinventory.go, threadinventory.go | modified |
+| StartResolution | couchcore/startresolution.go | modified |
 
-Pure decisions: slot discovery classification, open-versus-create intent,
-recoverable-conversation versus explicit-fresh outcome, parked creation policy.
-Integration: Git/SDLC observation, local record/index IO, native session evidence,
-existing launch effects. Use the existing stateful fakes and real temp stores/Git.
-Do not implement another lifecycle state machine merely to rename existing states.
+SlotIdentity is a physical primary/environment/host path plus repo common-dir
+identity and positive number, derived from checked WorkspaceIdentity. No new UUID.
+ThreadTarget is a tagged choice of ordinary ThreadAddress or SlotIdentity; a slot
+may have no current conversation address. ThreadRowKey is comparable and uses
+slot host path for slot rows, existing scope/tag for ordinary rows. UI selection
+therefore survives fresh conversation replacement and can represent damaged or
+uninitialized slots without fabricating native conversation tags.
 
-## Chunk 2 — revised work breakdown
+SlotObservation combines discovery, record decode result and existing lifecycle
+proofs. DecideSlotOpen yields attach/resume/initialize/offer-fresh/refuse; it writes
+no persistent status field. Existing ClassifyThread continues to classify an
+actual conversation. New-slot selection is lowest unused positive number, never
+an existing directory. Partial/unreadable known slots return attention instead of
+silently moving to a higher number. Remove obsolete SelectWorkspaceNumber and its
+dead-symbol waiver once SelectNewSlot replaces its former advisory contract.
 
-### 1. Finalize storage and migration integration before implementation
+Workspace references accept canonical :0/:N and repo:N; unqualified repo means
+:0. Resolve context through SDLC, preserving its dependency-context refusal for
+bare :N. Opaque native tags remain exact references. Resolve an existing slot
+without requiring thread.json; reject malformed/overflowing/noncanonical numbers.
+StartResolution preserves original input, action (open/create/fresh), chosen target
+and accepted profile; CommitArgs reproduces that request. Changed target/profile
+refuses submission. Preview performs no setup or migration.
 
-- [ ] Trace ThreadStore callers, Pair record readers, scope/tag assumptions and GC
-  references. Choose the smallest storage seam preserving the existing pure
-  lifecycle transitions, revision checks and atomic record/preference writes.
-- [ ] Specify local initialization, schema validation, evidence retention layout,
-  index rebuilding and repo-root discovery. Specify which independent existing
-  evidence can recover a conversation when thread.json is damaged; do not add
-  another authoritative slot registry merely to recover the first one.
-- [ ] Specify migration of existing numbered records without changing native
-  conversation handles. Disambiguate legacy multiple-record cases explicitly.
-  Select one authority at every step; use repeatable local publication and an
-  explicit cutover rule, not concurrent writes to global and local copies.
-- [ ] Make all readers/retention consumers honor that cutover before retiring the
-  global copy. A failed/interrupted migration preserves the previous authority;
-  an index can lag without losing the locally owned slot. Test each boundary.
-- [ ] Define repo parked-check/create ordering under the existing owner/creation
-  mechanisms. Do not add repository ownership, cross-instance coordination,
-  whole-store snapshot CAS, or separate workspace reservation machinery.
-- [ ] Write the concrete integration signatures/files/test cases, run fresh plan
-  review and operator review, then full `sdlc change-code --issue 306` gates.
+### Integration points
 
-### 2. Implement authoritative local records and derived discovery
+| Name | Lives in (under cmd/internal/) | Status | Wraps |
+| --- | --- | --- | --- |
+| SlotCatalog / OSSlotCatalog | couchcore/slotcatalog.go | new | registered worktrees, conventional environment dirs, SDLC v2 |
+| SlotCatalogFake | couchcore/slotcatalog_fake.go | new | mutable discovered roots/slots/errors |
+| StoreLayout | couchcore/threadstore_layout.go | new | global manifest vs local single-current layout |
+| storeForAddress / storeForPath | couchcore/threadstore_location.go | new | ThreadStore backend routing |
+| EnrollSlotRepository | couchcore/slotmigration.go | new | bounded local copy plus global authority cutover |
+| RecoverSlot / StartFreshSlot | couchcore/slotrecovery.go | new | existing ownership probes and local journal |
+| ObserveSlotSessions | couchcore/slotsessions.go | new | native scoped bindings/artifacts and current session/process evidence |
+| prepareTrackedWorkspace | couchcore/slotlaunch.go | new | #305 readiness before final cold-launch proof |
+| CouchReferences | gcruntime/references.go | modified | all five retention entry points |
 
-- [ ] TDD: discover verified :1/:2 with no global rows; missing local metadata
-  still yields visible existing slots. Reject foreign/conflicting conventional
-  directories; nested dependency clones yield no extra slot rows.
-- [ ] Implement local record/preferences/continuation persistence and shared store
-  seam. Migrate numbered records with their conversation handles unchanged.
-- [ ] Test interruption/corruption at each migration/cutover step; verify global
-  index deletion/rebuild and duplicate index entries do not duplicate slots.
-- [ ] Exercise GC with references held only in local current/history records:
-  those artifacts must remain protected. Define end/retention for every new file.
+Keep `Couch.Threads *ThreadStore`. Add backend-only children rooted at `.couch`,
+selected by `storeForAddress(address) (*ThreadStore, error)` and
+`storeForPath(physicalPath) (*ThreadStore, error)`. Children do not route recursively.
+Global namespace remains the supervisor identity; physical backend root owns its
+journal/lock/path checks. Do not make `.couch` a second supervisor namespace.
 
-### 3. Implement shared open/resume/start-fresh behavior
+Route these primitives, where lifecycle callers already converge: CreateThread,
+GetThread, GetPathLaunchPreference, updateExistingThread, advanceSuccessfulStart,
+deleteThreadIf, archiveThread, RestoreThread and continuation materialization.
+RecordPath becomes an error-returning routed lookup; failures cannot silently
+fall back to a global path. Snapshot/ArchivedThreads aggregate all discovered
+backends while preserving native identities. No duplicated park/resume state machine.
 
-- [ ] TDD at real operation boundaries: open live, detached, parked, uninitialized,
-  incomplete, failed-conversation and damaged-record slots; visible recovery actions
-  must work. No archive prerequisite for any confirmed-stopped recovery case.
-- [ ] Keep existing duplicate-start claims/CAS and stopped-process reconciliation;
-  prove competing resume/fresh requests cannot launch two agents in one slot.
-- [ ] Add cold readiness before final native/continuation binding validation for
-  new, resumed and replacement conversations; warm attach skips compilation.
-- [ ] Preserve and retain old conversation evidence on explicit start fresh;
-  missing/ambiguous binding alone never proves no live agent remains.
-- [ ] Make create-another obey parked :0/:N checks; opening/repairing existing slots
-  stays available. Show all parked blockers; another repo remains independent.
-- [ ] Wire exact slot references and actual paths through CLI/start form/switcher
-  actions; keep grouping layout in #307. Rework #305's advisory selector so it no
-  longer treats an existing slot as a free container for a different durable thread;
-  remove it if the new allocation path does not need it, rather than retain dead code.
+StoreLayout owns current membership and membership-journal entries. Global mode
+keeps manifest membership. Local mode derives zero/one current address from
+thread.json and emits no manifest entry. Invalid local bytes produce a SlotObservation
+error and block destructive retention; they do not produce an empty current set.
+Each local current read verifies its actual scope/tag against the requested address.
+Old tags only address retained archives and cannot mutate the new current record.
+Local preferences are one existing PathLaunchPreference at preferences.json;
+continuation.md stays a derived rendering of the embedded checkpoint. Existing
+start registration journals thread.json and preferences.json atomically.
 
-### 4. Acceptance, docs and publication
+## Repository discovery and metadata routing
 
-- [ ] Run primary/:1/:2 through create, park/resume, continuation and start fresh
-  using stateful production-boundary tests. Snapshot dirty/untracked files, active
-  branches and unpublished commits in host and private dependencies before/after.
-- [ ] Verify closed-set slot discovery plus open-world primary compatibility,
-  exact references, readiness retry, and unchanged supervisor/separate-store behavior.
-- [ ] Run focused suites and deterministic race tests; full `go test ./... -count=1`,
-  changed-package vet, `make runtimebundle-generate`, `make pair bin/couch`.
-- [ ] Run isolated real SDLC/Weave conformance using #305's fixture; fake the agent
-  launcher. Repeat when consumed contracts change and in #309 acceptance.
-- [ ] Update README/atlas/project and downstream #307/#308/#309 acceptance contracts;
-  document metadata recovery and retained conversation behavior before close.
-- [ ] Checkpoint observed evidence. `sdlc close` owns the mandatory boundary review;
-  fix blockers, then commit close records, `sdlc pr` and `sdlc merge --yes`.
+Enroll physical primary roots in the existing global threadstore manifest as
+`slot_repositories`; upgrade that manifest to schema 2 on first enrollment. Schema
+1 stays supported for ordinary stores. This root-location list is necessary
+configuration, not a slot inventory: all numbered membership/current records come
+from disk. Keep only an in-memory native-address-to-local-store index. Rebuild at
+startup/explicit repo open and on an address miss; detect duplicate addresses rather
+than last-write-wins. Slot current-record operations re-read local state even on
+index hits. An index holds locations, never decoded lifecycle authority.
+
+A v2 manifest is also the compatibility fence: old Couch and old GC reject it
+before accessing a partially understood working set. Create it under the existing
+Pair retention coordinator before retiring global references. A missing/unreadable
+manifest in an initialized registered namespace blocks GC; it is not an empty
+inventory. Losing root configuration requires explicitly reopening/re-enrolling
+known repos; it cannot be recovered by a whole-machine scan.
+
+OSSlotCatalog uses ProvisionIO's bounded subprocess seam and the shared SDLC JSON
+parser. Reuse/expose WorkspaceProvisioner.identity rather than another parser.
+List registered Git worktrees and conventional `<repo>-slotN` directories once per
+repo operation; validate main host linkage. Nonexistent/incomplete hosts remain
+attention entries with exact paths, never ready launch authority. No recursive
+dependency scan or automatic dependency enrollment. Refuse symlink-swapped or
+foreign paths. Read-only inventory and GC preview never initialize `.couch`.
+
+`COUCH_STORE_DIR` remains the supervisor namespace. Metadata/continuation commands
+resolve inherited scope/tag through the same route map, rebuilding from enrolled
+roots if needed, regardless of cwd. No new environment-selected store authority.
+The Pair launcher has no direct ThreadStore reader; its trusted launch profile,
+scope/tag, and global native artifacts remain unchanged.
+
+## Migration and atomicity
+
+Migration occurs on explicit managed-repo open under the existing supervisor
+ownership boundary, not on inventory refresh. Enroll one repo at a time:
+
+1. Discover and validate candidates outside locks. Acquire existing locks in order:
+   Pair retention coordinator, global store, then local store(s) in physical-path
+   order. Revalidate source records and local path identity before copying. No
+   network, agent or session probes while these locks are held.
+2. For each slot, select its unique legacy current record, preserving exact native
+   address, revision, profile, metadata and continuation. Copy its matching preference
+   and existing archived records/grace to the local layout with local journals.
+   Also copy slots with zero current records but existing path preferences or
+   archives; those facts do not depend on a selected current conversation.
+   Multiple plausible current records require explicit tag selection after normal
+   ownership checks; no newest-record heuristic. Conflicting local data refuses.
+3. Publish all local copies durably first. Before root enrollment commits they are
+   staging, and the global records remain authoritative. A retry compares exact
+   source/content and reuses matching staged copies; changes are not overwritten.
+4. One global journal commits schema 2 plus root enrollment as its FIRST entry,
+   then removes migrated
+   global records/preferences/membership. After enrollment, local is authoritative
+   for every slot in that repo, even if local decode later fails. No stale-global
+   fallback. Readers hold/recover that existing global journal before routing.
+5. For a newly created repo with no legacy slot records, enrollment is simply the
+   schema/root-list publication before local records. A failed new setup still
+   leaves a discoverable directory to reopen, not a global hidden reservation.
+
+This avoids a separate migration receipt/state machine or cross-root journal:
+local preparation is repeatable; the existing global journal owns the single
+root-enrollment commit. Bound one enrollment to 128 slots / 64 MiB copied metadata
+(initial workstation envelope; refuse larger batches with explicit diagnosis).
+Use content/revision revalidation on interrupted retries. Runtime cannot mutate
+staged local records before enrollment. Existing running owners must be brought
+under this Couch's proven control before migration; no competing-supervisor protocol.
+
+Catalog IO is split into bounded filesystem candidate enumeration and Git/SDLC
+validation for launch. GC uses only the former while holding retention coordination:
+read candidate directories/local metadata, protect referenced owners and block on
+unverifiable paths. It must never invoke Git, SDLC or session probes under that
+lock. Mutation validates Git outside locks and rechecks physical path identity at
+publication. This preserves one discovery convention without requiring slow probes
+in maintenance critical sections.
+
+GC stays registered by the original namespace. ReadStoreRetention and
+CouchReferences.Snapshot enumerate enrolled local stores independently of the
+in-memory index. Recover, Onboard, Detach and Forget use the same resolver;
+archive references carry the actual backing-store locator so receipts reach the
+right journal. Local current records protect global native artifact owners by
+scope/tag. Existing archive grace/record hashes/GC receipts retain their meaning.
+Missing/corrupt slot current state, roots or pending local journals block GC for
+unresolved ownership instead of silently collecting potentially referenced data.
+GC apply can recover journals; preview remains strictly read-only.
+
+## Same-slot recovery and fresh conversation
+
+ObserveSlotSessions collects a complete candidate set for the slot's known native
+scope from existing session-name bindings, scoped artifact owners, local current/
+archive records and Couch's hosted registry. Use existing process-start identities,
+SessionPresence/DetachedSessions and native-binding resolvers on that set. A failed
+scan, unreadable binding index or unanswerable process probe yields uncertainty.
+This is observation of managed Pair sessions, not a promise to discover arbitrary
+unmanaged shell processes. A verified absence is required before a fresh launch.
+
+A single proven surviving conversation can reconstruct a missing local record
+using verified path, native address and available launch profile; missing profile
+requires explicit agent/profile selection. Multiple historical conversations never
+choose themselves: show candidates and offer explicit fresh after absence proof.
+An unsupported record version is preserved and requires a compatible binary or
+explicit supported recovery; ordinary open cannot overwrite it.
+
+StartFreshSlot is a distinct confirmed action, available on slot rows with no
+resumable conversation. It can also be deliberately selected on a stopped slot.
+For live slots the operator first parks using the existing action. Do not silently
+kill or abandon an uncertain agent to make fresh possible. Recovery from a checkpoint
+remains available and reuses the same local storage and readiness boundaries.
+
+For explicit fresh, allocate a new opaque native tag using the existing collision
+claimer. Under the local store lock, revision-check the old record (or compare its
+preserved invalid bytes), retain the old valid record via existing archive/grace
+paths, and install the new current record with its existing ThreadStartClaim in
+one local journal. Keep slot preferences/name/description; new conversation summary
+and continuation do not pretend to describe the old conversation. A competing fresh
+or resume request observes the same claim and cannot install another current record.
+Do not implement this as public ArchiveThread followed by AllocateThreadTag.
+
+A failed first start clears its claim using existing recovery; the slot remains
+visible even if no current conversation record survives. On failed fresh launch,
+old conversation evidence remains available for inspection in history. Ordinary
+slot open offers retry of the new conversation or explicit start fresh once absence
+is proved; no historical restore action is promised by this change. Never silently
+restore an older record over an uncertain new agent. Existing process failure handling
+still distinguishes pre-release confirmed failure from post-release uncertainty.
+
+Valid retired records use existing 60-day archive retention; retained native owners
+are visible to the same GC. Damaged raw records are preserved by digest under
+`.couch/recovery/` before replacement: at most 16 files / 64 MiB per slot (matching
+the existing 4 MiB metadata read envelope). Never truncate or auto-delete unknown
+bytes to fit; on overflow report an exact export/remove action before recovery.
+Those exceptional backups are operator-owned forensic files and are not scanned
+as native ownership authority. Keep unresolved native ownership protected until
+normal evidence or explicit stopped-slot fresh recovery establishes the current set.
+
+## Launch and admission sequence
+
+- Preview chooses create/open/fresh and exact slot, without side effects. Explicit
+  :N always targets that slot. Ordinary `couch <path>` opens existing work; the
+  start form's create action allocates another slot when appropriate.
+- New-slot creation reads all same-repo parked evidence, including primary :0 and
+  ordinary threads whose verified common Git identity matches. It refuses on
+  parked or uncertain relevant ownership and lists activation/inspection actions.
+- The existing couchtty operationQueue serializes interactive creation/park
+  mutations. Reuse it and #305's Git collision protection; concurrent direct callers
+  remain bound to the accepted number, and local no-replace current-record creation
+  plus existing claim CAS admits at most one agent. Add no owner-local creation
+  mutex, repo ownership lock, durable reservation or store-wide snapshot CAS.
+- If setup returns failure/cancellation, leave the incomplete slot visible and
+  release operation scope. Retrying ordinary open resumes readiness. If parked work
+  appeared during setup, retain the newly created slot but stop before first launch
+  and name the blocker. Opening that already-existing slot is then an explicit
+  action under the existing-slot rules, never an automatic loop around refusal.
+- All non-warm launch shapes hold their existing start claim during readiness.
+  prepareTrackedWorkspace runs before final resume-binding/continuation proof and
+  before starting the blocked helper. Recheck physical identity/profile after setup;
+  accepted-profile drift returns to preview. Primary/unaddressed starts skip setup.
+- Existing-slot attach/resume/fresh does not allocate slots and remains permitted
+  while siblings are parked. Existing claim CAS, helper handshake, registration,
+  cancellation and interrupted-owner recovery prevent competing process starts.
+
+## Chunk 2 — implementation and verification
+
+### Task 1 — local layout, routing and root enrollment
+
+Files: new couchcore/slot.go, slotcatalog.go, slotcatalog_fake.go,
+threadstore_layout.go, threadstore_location.go, slotmigration.go and colocated tests;
+modify threadstore.go, storejournal.go, continuation_store.go, retention.go,
+archive_gc.go, gcruntime/references.go and their tests.
+
+- [ ] Write failing tests for local single-current layout, atomic successful-start
+  record/preferences update, journal recovery, wrong-tag refusal, routed metadata
+  mutation from another cwd, and schema-1 primary compatibility.
+- [ ] Implement the layout adapter and routed primitives; do not copy lifecycle
+  methods. Make namespace-vs-backend root path validation explicit.
+- [ ] Test root enrollment fault injection after each local publication and global
+  journal entry. Test stale source, conflicting local bytes, ambiguous candidates,
+  native-address preservation, zero-current preference/archive migration and
+  old-format refusal immediately after the first cutover journal entry and before
+  global refs disappear.
+- [ ] Wire all five GC methods; test local-only references, index rebuild,
+  malformed/missing records, receipt replay against a newer archive, and concurrent
+  publication/GC. Preview must make no writes.
+- [ ] Run targeted store/retention/gcruntime tests and race sequences; commit.
+
+### Task 2 — slot discovery, references and stable rows
+
+Files: new couchcore/threadtarget.go, workspaceref.go, slotallocation.go and tests;
+modify actionableinventory.go, threadinventory.go, threadmetadata.go,
+startresolution.go, startup.go and couchtty/menu.go/menu_refresh.go/menu_render.go.
+
+- [ ] Test disk-only slots, incomplete/foreign/symlink candidates, lost index,
+  missing/corrupt thread.json, nested dependencies and arbitrary worktree behavior.
+- [ ] Implement SlotObservation and ThreadTarget/ThreadRowKey in the common
+  inventory. Migrate menu selection/in-flight row matching to stable row keys;
+  keep native-address maps for terminal/attention/continuation ownership.
+- [ ] Test :0/:N/repo:N and opaque references through CLI and operation dispatch;
+  preview fingerprint must retain chosen slot/action. No synthetic native address.
+- [ ] Wire full repo evidence in startupAsks and update its narrowed/full proof
+  equivalence tests. Remove obsolete advisory selector and one-thread-per-path prose.
+- [ ] Run inventory, metadata, startup and menu suites; commit.
+
+### Task 3 — recover, start fresh, and readiness
+
+Files: new couchcore/slotsessions.go, slotrecovery.go, slotlaunch.go and tests;
+modify recovery.go/recovery_execute.go, couch.go, resume.go, switchagent.go,
+continuation.go, launch_existing.go, threadtag.go, ops.go, operationdispatch.go,
+couchcmd/run.go, couchcmd/continuation.go and corresponding CLI/menu wiring/tests.
+
+- [ ] Build stateful SlotCatalogFake plus controlled readiness/session fakes on
+  the existing FakeRunner/FakeProcOps/artifact fixture and real temporary stores.
+- [ ] Test actual open/fresh operations across live/detached/parked/no-record/
+  corrupt/unsupported/multiple-history states. Confirm recoverable choices work,
+  unknown ownership refuses, old evidence survives and no archive gesture is needed.
+- [ ] Implement RecoverSlot and atomic fresh replacement; keep current transition
+  validators and native launch handles. Exercise concurrent fresh/resume and dead
+  owner recovery using pause channels, never timing-dependent sleeps.
+- [ ] Wire readiness for new/cold/fresh-existing launches; test warm bypass,
+  cancellation/failure then ordinary retry, binding changes during compile,
+  primary unchanged and responsive console cancellation while setup runs. The
+  existing serial mutation queue may delay another repo's queued launch; this task
+  does not introduce parallel scheduling. Repo independence means admission policy,
+  not concurrent execution of queued mutations.
+- [ ] Cover parked primary/sibling/all parked producers at every create entry
+  point, park during setup, and explicit existing-slot recovery while siblings
+  remain parked. No number escalation on partial setup.
+- [ ] Run targeted lifecycle/CLI/TUI tests and race sequences; commit.
+
+### Task 4 — integrated acceptance and publication
+
+- [ ] Real temporary Git host/private dependency fixtures: primary + :1 + :2,
+  independent park/resume, continuation, lost binding, corrupt record, start fresh.
+  Compare dirty/untracked bytes, active refs and local SHAs before/after recovery.
+- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
+  ./cmd/internal/couchtty ./cmd/internal/gcruntime ./cmd/internal/storagegc -count=1`
+  and targeted `-race` tests; vet changed packages.
+- [ ] Run `make runtimebundle-generate`, `go test ./... -count=1`,
+  `make pair bin/couch`, and isolated installed-SDLC/Weave conformance using #305's
+  ProvisionFixture plus fake agent runner. All must exit zero. Repeat live contract
+  checks when provisioning/identity dependencies change and in #309 acceptance.
+- [ ] Update README, atlas/couch.md, atlas/workspace-provisioning.md, atlas/index.md,
+  project and #307–309 consumer specs. No grouped tab layout or preference UX in #306.
+- [ ] Reconcile concept tables and acceptance evidence; `sdlc close --issue 306
+  --verified '<observed evidence>'` owns the one fresh-context boundary review.
+  Fix blockers, commit review trailers, `sdlc pr`, `sdlc merge --yes`, preserve
+  unrelated local files. One close boundary; no artificial milestone tags.
 
 ## Constraints and simplifications
 
@@ -264,3 +492,25 @@ revision captures the agreed design and next planning tasks, not implementation.
 Documentation review: fresh-context review approved this project/spec/plan revision
 without blockers. This confirms consistency with the agreed direction; it does not
 replace the unfinished storage/migration design or its implementation approval.
+
+### 2026-09-23 — concrete storage and recovery integration
+
+Read-only exploration found lifecycle IO concentrated in ThreadStore and all
+external retention consumption in gcruntime.CouchReferences. Chose a routed
+ThreadStore with single-current local layout, repository-root enrollment as the
+authority cutover, shared GC routing/version fence and slot-target UI identity.
+Specified migration ordering, no synthetic native addresses, atomic same-slot
+fresh replacement, finite raw evidence retention, and actual boundary tests.
+The existing process/supervisor model remains; no additional durable admission
+reservation or whole-store snapshot transaction is introduced.
+
+### 2026-09-23 — engineering review corrections
+
+Review found a promise to resume arbitrary archived conversation records without
+a corresponding operation. Removed that unrequested promise: failed fresh retains
+old evidence for inspection and offers retry/start-fresh in the durable slot.
+Clarified migration of zero-current slots with retained preferences/history and
+made the schema-2 fence the first global cutover journal entry.
+
+Fresh-context engineering recheck approved these corrections with no remaining
+blockers. Implementation still requires operator plan approval and change-code.

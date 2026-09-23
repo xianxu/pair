@@ -510,7 +510,7 @@ the host without fetching or composing. Thread admission and launch remain with 
 <a id="pair-306"></a>
 ### pair#306 — Durable slots with local Couch state
 
-**status:** working — design revised; implementation not started
+**status:** working — detailed plan reviewed; awaiting operator approval
 **started:** 2026-09-23
 
 The [issue](../issues/000306-slots-v2-thread-lifecycle.md) and
@@ -518,8 +518,9 @@ The [issue](../issues/000306-slots-v2-thread-lifecycle.md) and
 `pair-slotN/.couch/` authoritative and global slot listings rebuildable. Existing
 slots offer resume or start fresh without an archive prerequisite. Shared lifecycle
 code and current supervisor locking remain; new reservation systems and repository
-ownership coordination are excluded. Previous plan-review approvals apply to the
-superseded global-store proposal; storage/migration integration needs fresh review.
+ownership coordination are excluded. Fresh review approved the concrete local
+storage, migration, retention and recovery plan after corrections. Implementation
+awaits operator plan approval and the change-code gate.
 
 ## Log
 
@@ -778,3 +779,10 @@ and #307–309 consumer contracts; no implementation completion or estimate impl
 Recorded ordinary-Git branch/refresh guidance and regression coverage, with no
 new runtime mechanism. Close measured 0.60h; quick flow had no estimate. The
 project task is locally accepted; PR130 publication is pending merge.
+
+### 2026-09-23 — #306 engineering plan reviewed
+
+Reason: complete the integration design for local slot authority. Delta: specified
+a shared ThreadStore backend, repository enrollment and migration ordering, GC
+routing, stable slot selection and atomic fresh-conversation replacement. Fresh
+review passed after corrections; no runtime implementation or estimate yet.
