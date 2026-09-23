@@ -38,6 +38,24 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-23T13:00:33-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: not-addressed
+          note: The issue still lacks pair#306 dependency metadata and the plan still leaves reservation token, ownership, lifetime, handoff, and recovery undefined.
+          round: 3
+        - id: BR-2
+          disposition: not-addressed
+          note: 'The plan still says #306 designs the reservation representation without an executable selection-to-provisioning exclusion contract.'
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: The active plan now names provision_git_test.go for ProvisionFixture and no longer references the nonexistent provision_fake_test.go.
+          round: 3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#305 (boundary-review)
@@ -63,8 +81,15 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Critical] `plan-entity-table-truth` Core concepts and Task 2 name a nonexistent fixture file
   workshop/plans/000305-slots-v2-workspace-provisioning-plan.md:96-103,294-295 names provision_fake_test.go, but ProvisionFixture is implemented in cmd/internal/couchcore/provision_git_test.go. Update the plan and record the correction in ## Revisions.
 
+## Round 3 — 2026-09-23T13:00:33-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — not-addressed — The issue still lacks pair#306 dependency metadata and the plan still leaves reservation token, ownership, lifetime, handoff, and recovery undefined.
+- BR-2 — not-addressed — The plan still says #306 designs the reservation representation without an executable selection-to-provisioning exclusion contract.
+- BR-3 — addressed — The active plan now names provision_git_test.go for ProvisionFixture and no longer references the nonexistent provision_fake_test.go.
+
 ## Open findings
 
 - **BR-1** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning
 - **BR-2** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning
-- **BR-3** [Critical] `plan-entity-table-truth` Core concepts and Task 2 name a nonexistent fixture file
