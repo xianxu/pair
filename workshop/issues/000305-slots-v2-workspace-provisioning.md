@@ -205,12 +205,12 @@ total: 6.95
 ## Plan
 
 Engineering plan: [000305-slots-v2-workspace-provisioning-plan.md](../plans/000305-slots-v2-workspace-provisioning-plan.md).
-Product direction is agreed; the simplified detailed plan passed fresh review and awaits operator approval.
+The operator approved implementation; code is implemented and final verification/close is underway.
 
-- [ ] Implement checked identity transport, request grammar and pure selection/host decision table.
-- [ ] Implement host creation intent, one Git creation lock and cancellable process execution.
-- [ ] Implement and verify host creation, setup, reuse and repeated invocation with real Git conformance.
-- [ ] Wire the internal operation, production runtime, progress and result rendering.
+- [x] Implement checked identity transport, request grammar and pure selection/host decision table.
+- [x] Implement host creation intent, one Git creation lock and cancellable process execution.
+- [x] Implement and verify host creation, setup, reuse and repeated invocation with real Git conformance.
+- [x] Wire the internal operation, production runtime, progress and result rendering.
 - [ ] Document the contract for #306, run verification, and close through one review boundary.
 
 ## Log
@@ -278,6 +278,23 @@ serialize success publication and temporary cleanup under the existing lock,
 and define an external host's first baseline from its resting-branch tip.
 Both corrections and focused tests are in the plan. Issue/project schema checks
 and diff whitespace checks pass. Implementation awaits operator approval.
+
+### 2026-09-23 — implementation and focused verification
+
+Passed change-code and created the in-place implementation branch. Plan-quality
+accepted at the configured round cap with the disputed #306 reverse-dependency
+finding retained; the operation requires no thread reservation or launch API.
+Estimate-quality accepted 6.95 calibrated ship hours. Implemented repeatable
+provisioning through the internal dispatcher, remote-main capture from fetch
+porcelain, Git-owned partial recovery, one host creation lock and one setup marker.
+
+Verification so far: original couchcore/couchcmd baseline passed; focused tests,
+real Git recovery and race tests passed; actual SDLC/Weave conformance passed.
+Built Pair and Couch (correct target: make pair bin/couch). Isolated built-CLI
+smoke returned created → reused → prepared after marker removal, preserving local
+primary/slot files and the feature branch. Full-suite inventory guards exposed
+missing registrations for new files; those were corrected. Final suite/close is
+still pending. No UI or thread-lifecycle behavior was changed (#306 owns that).
 
 ## Revisions
 
