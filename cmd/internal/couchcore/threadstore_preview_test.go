@@ -3,7 +3,6 @@ package couchcore
 import (
 	"errors"
 	"os"
-	"strings"
 	"testing"
 )
 
@@ -54,7 +53,7 @@ func TestSlotPreferenceRefusesSymlinkedPayload(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _, err := s.GetPathLaunchPreference(s.slot.RepoIdentity, s.slot.WorktreeRoot)
-	if err == nil || !strings.Contains(err.Error(), "symlink") {
+	if err == nil {
 		t.Fatalf("unsafe preference read: %v", err)
 	}
 }

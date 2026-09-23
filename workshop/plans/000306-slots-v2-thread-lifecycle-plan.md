@@ -639,7 +639,7 @@ losing global root discovery rejected intact local state, and archived inventory
 listed stale global slot copies. Preserve local bytes when enrollment has no
 legacy migration source, keep conflict refusal when sources exist, and filter
 stale archive copies after enrollment. Focused migration, routing and read-only
-preview tests pass. ARCH-SSOT keeps the local backend authoritative.
+preview tests pass. ARCH-DRY keeps the local backend authoritative.
 
 ### 2026-09-23 — reconcile implementation symbols and recovery evidence
 
@@ -668,3 +668,69 @@ package-only diagnostic run that was interrupted for a stack capture. No code
 change followed that diagnostic. The verified implementation is committed through
 2581fa81, joined with published project history by 0913376c. Close/publication
 remains the last unchecked task.
+
+### 2026-09-23 — BR-1/BR-2 complete direct-reader audit
+
+Reason: close review reproduced local current-record reads following symlinks.
+Delta (ARCH-DRY): local payload authority now shares a descriptor-relative,
+no-follow reader; every parent and final file is checked, only regular files are
+read, and bounded reads detect growth. Ordinary global IO keeps its compatibility.
+
+Concrete reader inventory and handling:
+
+- `GetThread`/`readThreadLocked`, `updateExistingThread` (including
+  `ApplyThreadMetadata`, park, claim and continuation mutations), `Snapshot`, and
+  `advanceSuccessfulStart` now read current through `readPayload`.
+- `CreateThread`, `GetPathLaunchPreference`, successful-start preference updates,
+  delete/archive and continuation removal use `readOptionalPayload`.
+  `loadManifestLocked` uses the ordinary global manifest or `localMembership`;
+  the latter reads guarded local `thread.json`, never a second local manifest.
+- `storeForAddress` local current/envelope/archive candidates and
+  the selected backend's membership reads are guarded. `storeForPath` derives the
+  backend location without reading records. The remaining raw current read
+  in `storeForAddress` is confined to the ordinary global branch; enrolled slot
+  origins do not acquire authority from that copy. `discoveredBackendsFromRoots`
+  discovers directories, not record authority.
+- `ArchivedThreads` scans each backend under its lock/replay boundary, reads
+  archives through `readRetentionFile`, rejects symlinks/invalid layouts, and
+  retains duplicate and stale-global filtering. `RestoreThread` guards both
+  current and archive-grace optional reads as well as archived record reads.
+- `recoverStoreJournalLockedChecked` guards journal authority;
+  `applyJournalEntryChecked` guards before/after comparison targets including
+  parent directories. `writeStoreAtomicLockedChecked` checks local payload
+  destinations and size before publication. Journals have a 256 MiB serialized
+  read/write bound (64 MiB migration before/after images plus base64 and envelope
+  headroom); ordinary payloads retain 4 MiB. `commitJournalLockedChecked`
+  preflights both entry images before journal publication, preventing a durable
+  journal whose images exceed the replay reader limit.
+- `materializeContinuation` reads no derived payload: its source is the validated
+  embedded checkpoint. Local publication now uses the backend lock and checked
+  atomic writer; ordinary global publication remains unchanged.
+- `readArchiveGraceLocked`, `retentionSnapshotBackend`,
+  `onboardArchiveGraceBackend`, `readArchiveReceiptLocked`, `DetachArchive`, and
+  `ForgetArchiveReceipt` retain guarded metadata reads. GC consumers are explicit:
+  `CouchReferences.Snapshot` -> `ReadStoreRetention`/`RetentionSnapshot`;
+  `Recover` -> `RecoverStoreRetention`; `Onboard` -> `OnboardStoreArchiveGrace`;
+  `Detach` -> `DetachStoreArchive`; `Forget` -> `ForgetStoreArchiveReceipt`.
+  These traverse enrolled backends or select the retained archive locator and
+  require readable local current evidence before destructive work.
+- Enrollment source/staged payload reads in `EnrollSlotRepository`, current and
+  backup reads in `readSlotCurrentLocked`, `replaceSlotCurrent`,
+  `slotRecoveryBackupLocked`, `releaseRefusedSlotClaim`, and archived session
+  observation in `ObserveSlotSessions` already use `readRetentionFile` and inherit
+  the stronger local reader. Native artifact inspection stays on its existing
+  artifactpath contracts; it does not supply local conversation metadata.
+
+Regressions reproduce rejection at exported read/mutation/start/park boundaries,
+raw locked read, snapshot, journal authority and replay targets (including a
+foreign archive directory), preserving outside bytes and current symlinks.
+Additional cases reject FIFO/directory/oversized metadata, recover a valid journal
+larger than 4 MiB, and refuse oversized images before creating a journal.
+
+### 2026-09-23 — BR-3 final operator documentation
+
+Reason: close review rejected the temporary replacement marker in the README.
+Delta: finalized the agent-authored numbered-slot prose under the approved
+implementation/documentation scope; no operator-authored pending edits were
+changed. README/atlas/presentation checks pass. The only remaining robot glyphs
+in README describe existing annotation controls and are not edit markers.

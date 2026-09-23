@@ -95,11 +95,18 @@ func (c *Couch) materializeContinuation(record ThreadRecord) (string, error) {
 	if err := cp.Validate(); err != nil {
 		return "", err
 	}
-	path, err := c.continuationPath(record.Address)
+	backend, err := c.Threads.storeForAddress(record.Address)
 	if err != nil {
 		return "", err
 	}
-	if err := writeAtomicBytes(path, []byte(cp.Body)); err != nil {
+	path := backend.continuationPath(record.Address)
+	publish := func() error { return writeAtomicBytes(path, []byte(cp.Body)) }
+	if backend.layout.Local {
+		publish = func() error {
+			return backend.withLock(func() error { return backend.writeStoreAtomicLocked(path, []byte(cp.Body)) })
+		}
+	}
+	if err := publish(); err != nil {
 		return "", err
 	}
 	return path, nil

@@ -307,6 +307,18 @@ stopped continuation replacement, CLI :0/:N/repo:N and two-slot dirty-work isola
 Project/downstream issue contracts and atlas/README guidance were updated. The
 close command owns the fresh-context review; publication is still pending.
 
+### 2026-09-23 — close review rework: local reader boundary
+
+First close returned REWORK. BR-1 carried the direct-consumer enumeration from
+planning; the plan now lists every current/preference/archive/journal/continuation/
+recovery/retention reader and all five GC adapters. BR-2 reproduced symlink-following
+current reads and journal replay; all local authority now uses the shared anchored
+no-follow reader. Payload/journal limits are enforced before publication as well
+as reads. Exported lifecycle, journal replay, outside-path and oversized-image
+regressions pass with outside bytes unchanged. BR-3's temporary README marker is
+folded into final prose, and documentation checks pass. Full post-fix verification
+is in progress before re-running close. No waiver or bypass requested.
+
 ## Revisions
 
 ### 2026-09-23 — Thread ownership remains with the environment main checkout

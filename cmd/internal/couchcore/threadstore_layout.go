@@ -4,8 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/sys/unix"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // StoreLayout adapts the shared transaction writer to single-current slot
@@ -117,9 +120,80 @@ func (s *ThreadStore) readOptionalPayload(path string) ([]byte, bool, error) {
 	if !s.layout.Local {
 		return readOptionalFile(path)
 	}
-	raw, err := s.readRetentionFile(path)
+	raw, err := s.readPayload(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false, nil
 	}
 	return raw, err == nil, err
+}
+
+// Local journals may carry both before and after images for the 64 MiB
+// migration budget, encoded as base64. Keep envelope headroom and enforce the
+// same serialized bound on publication and recovery.
+const localJournalLimit int64 = 256 << 20
+const localPayloadLimit int64 = 4 << 20
+
+func (s *ThreadStore) payloadLimit(path string) int64 {
+	if path == s.journalPath() {
+		return localJournalLimit
+	}
+	return localPayloadLimit
+}
+
+func (s *ThreadStore) readPayload(path string) ([]byte, error) {
+	if !s.layout.Local {
+		return os.ReadFile(path)
+	}
+	return s.readLocalPayload(path, s.payloadLimit(path))
+}
+
+// Open each component relative to the retained parent descriptor. Unlike a
+// Lstat followed by ReadFile, replacement with a symlink cannot redirect reads.
+func (s *ThreadStore) readLocalPayload(path string, limit int64) ([]byte, error) {
+	if s.slot == nil {
+		return nil, errors.New("local store has no slot identity")
+	}
+	storeRel, err := filepath.Rel(s.root, path)
+	if err != nil || storeRel == "." || storeRel == ".." || filepath.IsAbs(storeRel) || strings.HasPrefix(storeRel, ".."+string(filepath.Separator)) {
+		return nil, errors.New("metadata outside store")
+	}
+	rel, err := filepath.Rel(s.slot.EnvironmentRoot, path)
+	if err != nil || rel == "." || rel == ".." || filepath.IsAbs(rel) || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return nil, errors.New("metadata outside store")
+	}
+	fd, err := unix.Open(s.slot.EnvironmentRoot, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { unix.Close(fd) }()
+	parts := strings.Split(rel, string(filepath.Separator))
+	for _, part := range parts[:len(parts)-1] {
+		next, err := unix.Openat(fd, part, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+		if err != nil {
+			return nil, fmt.Errorf("unsafe metadata parent %s: %w", path, err)
+		}
+		unix.Close(fd)
+		fd = next
+	}
+	fileFD, err := unix.Openat(fd, parts[len(parts)-1], unix.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, fmt.Errorf("open metadata %s: %w", path, err)
+	}
+	file := os.NewFile(uintptr(fileFD), path)
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() || info.Size() > limit {
+		return nil, errors.New("invalid local metadata file type or size")
+	}
+	raw, err := io.ReadAll(io.LimitReader(file, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(raw)) > limit {
+		return nil, errors.New("local metadata exceeds size limit")
+	}
+	return raw, nil
 }

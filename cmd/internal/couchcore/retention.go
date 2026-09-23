@@ -98,7 +98,7 @@ func (s *ThreadStore) readArchiveGraceLocked(address ThreadAddress) (ArchiveRete
 func (s *ThreadStore) readRetentionFile(path string) ([]byte, error) {
 	base := s.namespace.Dir()
 	if s.layout.Local {
-		base = s.slot.EnvironmentRoot
+		return s.readLocalPayload(path, localPayloadLimit)
 	}
 	rel, err := filepath.Rel(base, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -239,7 +239,7 @@ func (s *ThreadStore) RestoreThread(address ThreadAddress) error {
 		if manifestContains(manifest, address) {
 			return &ThreadExistsError{Address: address}
 		}
-		if _, present, err := readOptionalFile(s.recordPath(address)); err != nil {
+		if _, present, err := s.readOptionalPayload(s.recordPath(address)); err != nil {
 			return err
 		} else if present {
 			return &ThreadExistsError{Address: address}
@@ -251,7 +251,7 @@ func (s *ThreadStore) RestoreThread(address ThreadAddress) error {
 		if err != nil {
 			return err
 		}
-		grace, graceExists, err := readOptionalFile(s.archiveGracePath(address))
+		grace, graceExists, err := s.readOptionalPayload(s.archiveGracePath(address))
 		if err != nil {
 			return err
 		}

@@ -352,7 +352,7 @@ func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevisi
 	}
 	var result ThreadRecord
 	err := s.withLock(func() error {
-		currentRaw, err := os.ReadFile(s.recordPath(address))
+		currentRaw, err := s.readPayload(s.recordPath(address))
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 		}
@@ -732,7 +732,7 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 			// ReasonInvalid unreachable in production -- a documented state
 			// with a label, an Enter notice and an archive exit that no store
 			// could ever produce.
-			raw, err := os.ReadFile(s.recordPath(address))
+			raw, err := s.readPayload(s.recordPath(address))
 			if err != nil {
 				snapshot.Unreadable = append(snapshot.Unreadable, address)
 				continue
@@ -792,7 +792,7 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		if err != nil {
 			return err
 		}
-		threadRaw, err := os.ReadFile(s.recordPath(address))
+		threadRaw, err := s.readPayload(s.recordPath(address))
 		if err != nil {
 			return err
 		}
@@ -1064,7 +1064,7 @@ func sortThreadAddresses(addresses []ThreadAddress) {
 }
 
 func (s *ThreadStore) readThreadLocked(address ThreadAddress) (ThreadRecord, error) {
-	raw, err := os.ReadFile(s.recordPath(address))
+	raw, err := s.readPayload(s.recordPath(address))
 	if errors.Is(err, os.ErrNotExist) {
 		return ThreadRecord{}, fmt.Errorf("%w: %+v", ErrThreadNotFound, address)
 	}
@@ -1163,6 +1163,17 @@ func (s *ThreadStore) commitJournalLockedChecked(journal storeJournal, check fun
 		return errors.New("cannot write through a preview store")
 	}
 	journal.Entries = s.layout.journalEntries(journal.Entries)
+	if s.layout.Local {
+		for _, entry := range journal.Entries {
+			limit := s.payloadLimit(filepath.Join(s.root, entry.Path))
+			for _, image := range []*[]byte{entry.Expected, entry.After} {
+				if image != nil && int64(len(*image)) > limit {
+					return errors.New("local journal image exceeds payload size limit")
+				}
+			}
+		}
+	}
+
 	if err := checkStoreContext(check); err != nil {
 		return err
 	}

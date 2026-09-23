@@ -107,7 +107,9 @@ representative evidence, not an exhaustive index.
   well as mutators. Each backend must recover its journal before an authoritative
   read; previews must instead refuse pending recovery without mutating. Test
   missing global discovery, stale global copies, and creating the second local
-  backend after the first has enrolled. (#306)
+  backend after the first has enrolled. All local payload reads, including journal
+  replay and restore comparisons, share the guarded path/type/size reader; test
+  symlinked current records through lifecycle APIs. (#306)
 - Historical compatibility has an immutable source boundary and an explicit
   migration policy. A cache must not survive an authority downgrade, and a
   relocated index needs an overlap-read epoch. (#255)
