@@ -483,7 +483,7 @@ publication/conflict recovery passed (known #210 fixture excluded).
 <a id="ariadne-245"></a>
 ### ariadne#245 — Branch from a workspace and refresh
 
-**status:** codecomplete — [Ariadne PR130](https://github.com/xianxu/ariadne/pull/130) open; boundary findings fixed
+**status:** done — [Ariadne PR130](https://github.com/xianxu/ariadne/pull/130) merged; boundary findings fixed
 **actual:** 0.60h
 **started:** 2026-09-23
 **closed:** 2026-09-23
@@ -493,6 +493,10 @@ issue branch before SDLC checkpoints and refresh a resting slot only explicitly.
 No new commands, metadata files or runtime behavior. Real-Git fixtures verify
 source/resting/dependency preservation and unsafe-case refusal observations;
 related suites pass. Both FIX-THEN-SHIP findings were corrected and verified.
+
+**Publication event 2026-09-23:** PR130 merged, CI passed, and the
+[issue](../../../ariadne/workshop/history/issues/000245-slots-v2-branch-and-refresh.md)
+and review records were archived. Ariadne main is synced with origin/main.
 
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
