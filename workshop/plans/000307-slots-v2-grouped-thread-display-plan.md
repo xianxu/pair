@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go, existing Couch reducers/renderers, ANSI terminal fixtures and console test harness.
 
-**Status:** Proposed; awaiting operator approval before `sdlc change-code --issue 307 --flow full`.
+**Status:** Operator approved on 2026-09-23; entering change-code gates.
 
 ## Design
 
@@ -24,6 +24,10 @@
 - Retain left-to-right width clipping and the switcher's 40x10 minimum. There is no new horizontal scrolling policy. Since clipping removes the right suffix, a shorthand slot can only be drawn after its group anchor; if that anchor consumes the width, later chips have no span. Paths and supplementary names yield space before the workspace address. Test clipped labels and wide/control characters through the existing sanitizing helpers.
 - Selection/actions never parse label text. Slot refresh preserves `ThreadRowKey` across native conversation replacement. Native address remains the terminal click target; an absent native pane cannot be selected by tab click. Existing pending placeholders remain unclickable.
 - Dependency clones are not discovered by this projection: its input is only existing actionable inventory and actual attached panes. No directory scan or basename-based inference may invent additional members.
+
+### Unmatched/legacy path contract
+
+`ThreadPresentation.Path` is presentation-only: for slots it is the validated `WorktreeRoot`; for primary members matched by scope to a slot identity it is that identity's `PrimaryRoot`; for ordinary rows with a scope-matched ancestor it is that ancestor. Otherwise it is `WorkingPath`, falling back to `StartingPath`, then the literal `(path unavailable)`. This fallback is displayed as recorded context, never asserted to be a verified checkout. Group key is always the existing nonempty ordinary repo scope; a row with no scope uses its complete native address as a private singleton key. Unknown-root groups sort by that key. Same-name groups get ` [root]` when root is known and ` [scope]` otherwise, using the full stable value, never an inferred basename. Label collisions within a group use existing native tag suffix disambiguation. Group metadata chooses known roots before unknown fallback and resolves inconsistent legacy candidates by lexical root order, independent of input order. Path rendering never changes the source row or action arguments; no label/path fallback authorizes a different operation. This is bounded best-effort compatibility for legacy records, not filesystem discovery.
 
 ### Approaches considered
 
@@ -44,7 +48,7 @@
 | `StatusActor` | `cmd/internal/couchtty/reserve.go` | modified |
 | `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | modified |
 
-`ThreadPresentation` holds the unchanged source row plus group key, full workspace label, and indentation. `PresentThreads(rows)` returns one deterministically sorted copy. Group metadata and labels derive from typed identities and the existing pure repo-scope derivation; it does not mutate rows or perform IO. Map presentation entries by `menuRowKey`, including addressless recovery slots; never key them solely by zero native address. One group owns many entries. This removes competing per-surface sorting (ARCH-DRY). It is ephemeral and has no persisted cache.
+`ThreadPresentation` holds the unchanged source row plus group key, full workspace label, display path, and indentation. `PresentThreads(rows)` returns one deterministically sorted copy. Group metadata and labels derive from typed identities and the existing pure repo-scope derivation; it does not mutate rows or perform IO. Map presentation entries by `menuRowKey`, including addressless recovery slots; never key them solely by zero native address. One group owns many entries. This removes competing per-surface sorting (ARCH-DRY). It is ephemeral and has no persisted cache.
 
 `menuRows` applies the existing pass overlay and orders through this projection. All switcher navigation, filtering, reconciliation and rendering keep using viewed lookups; no alternate direct reads of `MenuState.Inventory` are introduced.
 
@@ -122,3 +126,9 @@ Reason: the reviewer found that starting directories can be below the checkout r
 ### 2026-09-23 — advisory review approved
 
 Fresh-context spec/plan review approved the revised design with no remaining blockers. Operator approval remains pending; no runtime changes or test-pass claims have been made.
+
+### 2026-09-23 — gate feedback and approved execution
+
+Reason: operator approved, and plan gate PQ-1 requested an executable legacy fallback contract. Delta: specify display path, unknown-root qualification, collision and deterministic metadata rules; no action identity changes. Rename this plan to the issue's full stem so the binary includes it directly. PQ-2 test prose compression is advisory; executable tests will carry concrete cases, with the strategy summary below owning their oracles.
+
+Test strategy: `PresentThreads` uses permutation/property tests to assert complete stable identity ordering, source immutability, and exact known/unknown path contracts. `renderRootMenuFrame` uses rendered fixtures and reducer event sequences to prove label/context preservation and exact stable-key activation under filtering and refresh. `statusModelLocked` uses the existing stateful console harness to vary attachment/observation order and compare visible-member order with the switcher. `RenderStatusRow` sweeps widths and untrusted Unicode/control text and asserts drawn cell spans map to the exact native target.
