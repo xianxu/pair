@@ -1,13 +1,14 @@
 ---
 id: 000300
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-20
-updated: 2026-09-20
+updated: 2026-09-22
 estimate_hours: 5.35
 started: 2026-09-20T18:58:25-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 4.42
 ---
 
 # integrate qoder harness into pair
@@ -255,6 +256,7 @@ Durable plan: `workshop/plans/000300-integrate-qoder-harness-into-pair-plan.md` 
 - 2026-09-21: M4 review fix round (round-10 verdict FIX-THEN-SHIP; four open Importants + minors E/F/H) — all closed at rule level. **BR-42:** `trimLiveTail`'s empty-box check compared `TrimSpace(line)` to the raw glyph, so qoder's space-prefixed `" >"` never matched `">"`; the registry row now drives both readers by construction — `TestPromptGlyphRowsDriveBothReaders` ranges `promptGlyphChar` over `scanTurnBoundaries` AND `trimLiveTail` with each agent's drawn box row (red-first: qoder row only), and `trimLiveTail` normalizes the glyph once (`strings.TrimSpace`; the boundary regex keeps the leading space). **BR-43:** `changelogcmd.PromptGlyph(agent)` is the exported accessor; `TestDistillQoderGlyphTracksPromptAuthority` (wrapcmd) derives the expected value from `qoderPromptCol` + ">" and asserts equality, pins the yolo `*` omission from both ends; mutation `qoderPromptCol 1→0` reddens it and the Lua parity test. **BR-44:** `runQoder` passes `--no-session-persistence` (argv pinned red-first via `wantArgs`); live conformance PASS 5.57s, and the TMPDIR project dir was measured byte-untouched (same 2 files, mtimes 16:00:28; the pre-flag jsonl is the reviewer's measured residue, now not reproducible). **BR-45:** plan Task 17 gained Step 3 — settled-footer capture → `isFooterChrome` extension → no-op Alt+l verification (the carried #58-class item now lives in the executing task, restated in Revisions). **E:** the Lua parity test escapes in the Vim dialect (`\`, `\]`, `\-`, `\^` — consumed by `vim.fn.search`) and the missing-file fatal names drift. **F:** the allowlist moved from user scope to `<repo>/.qoder/settings.local.json` (merged with qoder's own entry); measured — repo cwd `make --version` → `shell.rule_prefix.allow` (ran, GNU Make 3.81), `/tmp` cwd same command → `shell.no_match.ask` (denied; scope is repo-bound), and the chained probe `git rev-parse --show-toplevel && mkdir -p /tmp/pair300-chain-probe` → single `shell.no_match.ask` (denied; no prefix-rule leak into compound tails, dir not created); `~/.qoder/settings.json` restored to pre-M4 (backups `/tmp/qoder-settings-backup-1790033243.json`, `-1790034148.json`). **H:** `TestHandleChunk_OscScannedBeforeCarryIsBounded` is table-driven over every OSC-reading profile (claude 777 + codex `9;Plan mode prompt:`); both rows red under the restored bound-first order, green after. Verified: full `go test ./...` EXIT=0 (74 packages ok).
 
 ### 2026-09-22 — M5 continuation
+- 2026-09-22: closed — Operator confirmed standalone Qoder keys, pickers, resize, Alt+b/Alt+l/Alt+n/resume and Couch park/cold-resume/switch-agent/state projection; fresh isolated doctor log: remap fired 1, session-id fired 1, slug-parse fired 2, zero near-miss/fail; go test ./... and native terminal CI passed.; review verdict: SHIP
 
 - Operator reports qoder now loads in a Couch-hosted thread. The parked Pair TTY window for `couch-16efd58677ab012e` shows Qoder CLI v1.1.61 answering two prompts; it retains only 40 rendered lines, so it does not prove earlier interactions. Local `agent-ready-couch-16efd58677ab012e-qoder.json` and `config-couch-16efd58677ab012e-qoder.json` corroborate the hosted launch. This accepts Task 18's launch observation only; menu listing, park/cold-resume, switch-agent both ways, and parked/live projection still need direct evidence.
 - Task 19 roster sweep landed in 5501f23f: README, Couch and architecture atlas, doctor README and skill, and CHANGELOG. `atlas/index.md` and `atlas/session-identity.md` already name Qoder; no new terminal protocol fact was found for `atlas/terminal.md`. The how-to status line refers specifically to #134's historical telemetry verification, so it remains unchanged until Qoder telemetry is measured.

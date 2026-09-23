@@ -651,6 +651,16 @@ rounds:
           round: 14
       recipe: milestone-review
       blocked: true
+    - "n": 15
+      timestamp: "2026-09-22T21:10:04-07:00"
+      agent: codex
+      dispose:
+        - id: BR-51
+          disposition: addressed
+          note: The pinned plan changes the capture row to qoder/1.1.60/ (line 60), matching the committed fixtures, and separates ~/.qoder/settings.json workspace trust from <repo>/.qoder/settings.local.json permissions.allow (lines 65–66). Task 9 and Task 15 use those locations; the September 22 Revisions entry records the reconciliation. The local-only allowlist exists in the review workspace with the five specified rules; it is intentionally untracked.
+          round: 15
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -917,6 +927,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-51** [Critical] `plan-prose-restates-diff` Core concepts locations still contradict the delivered capture and settings locations
   The plan table at lines 59 and 64 names qoder/1.1.59/ and user-scope ~/.qoder/settings.json; the pinned tree has captures only under qoder/1.1.60/, and the plan's later revision says the allowlist moved to repo-local .qoder/settings.local.json. This is the 5th finding in family plan-prose-restates-diff. Sweep every Core concepts location against the delivered tree and final decisions, then correct the table and record the sweep in ## Revisions.
 
+## Round 15 — 2026-09-22T21:10:04-07:00 (codex) — passed
+
+### Disposed
+
+- BR-51 — addressed — The pinned plan changes the capture row to qoder/1.1.60/ (line 60), matching the committed fixtures, and separates ~/.qoder/settings.json workspace trust from <repo>/.qoder/settings.local.json permissions.allow (lines 65–66). Task 9 and Task 15 use those locations; the September 22 Revisions entry records the reconciliation. The local-only allowlist exists in the review workspace with the five specified rules; it is intentionally untracked.
+
 ## Open findings
 
-- **BR-51** [Critical] `plan-prose-restates-diff` Core concepts locations still contradict the delivered capture and settings locations
+(none — every finding has been disposed)

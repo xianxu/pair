@@ -164,3 +164,55 @@ findings:
     detail: |
       The plan table at lines 59 and 64 names qoder/1.1.59/ and user-scope ~/.qoder/settings.json; the pinned tree has captures only under qoder/1.1.60/, and the plan's later revision says the allowlist moved to repo-local .qoder/settings.local.json. This is the 5th finding in family plan-prose-restates-diff. Sweep every Core concepts location against the delivered tree and final decisions, then correct the table and record the sweep in ## Revisions.
 ```
+
+---
+
+## Re-review — 2026-09-22T21:10:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 300 — integrate qoder harness into pair |
+| repo | pair |
+| issue file | workshop/issues/000300-integrate-qoder-harness-into-pair.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 08e9ec027c7a55bb1ae6d5054bbdeb0b61a82889..2c594b033add86065e7bad1c3ace81cf496167cf |
+| command | sdlc close --issue 300 |
+| reviewer | codex |
+| timestamp | 2026-09-22T21:10:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The remaining finding, BR-51, is addressed. The plan now points to the committed Qoder 1.1.60 captures and distinguishes existing user-level workspace trust from the repo-local command allowlist. I found no new blocking issue in the pinned range.
+
+**Strengths**
+
+- The Core concepts paths match the scanner, launcher, TTY, model, and glyph files in the pinned tree.
+- The Claude-family scanner shares a record transition while keeping Qoder’s timestamp and noise rules agent-specific.
+- Captured TTY fixtures, resume-form tests, and cross-agent parity tests cover the main integration paths.
+
+**Critical findings:** None.
+
+**Important findings:** None.
+
+**Minor findings:** None.
+
+**Test coverage:** Six focused Go packages passed with `-count=1`: launcher, resumeform, sessioninventory, wrapcmd, model, and changelogcmd. `git diff --check` passed. I did not rerun the full suite or live Qoder conformance in this review.
+
+**Architecture:** ARCH-DRY, ARCH-PURE, ARCH-PURPOSE, ARCH-MOCK, ARCH-CONSTRAINTS, ARCH-SECURE, ARCH-ORDER, and ARCH-FUNERAL: pass for this boundary. The shared scanner and resume-form table avoid parallel implementations; pure record decisions are separated from runtime reads; captured replay and focused integration tests exercise the new paths; the inspected changes introduce no unresolved trust, ordering, resource, or durable-residue finding.
+
+**Plan revisions:** None needed.
+
+```findings
+dispose:
+  - id: BR-51
+    disposition: addressed
+    note: |
+      The pinned plan changes the capture row to qoder/1.1.60/ (line 60), matching the committed fixtures, and separates ~/.qoder/settings.json workspace trust from <repo>/.qoder/settings.local.json permissions.allow (lines 65–66). Task 9 and Task 15 use those locations; the September 22 Revisions entry records the reconciliation. The local-only allowlist exists in the review workspace with the five specified rules; it is intentionally untracked.
+```
