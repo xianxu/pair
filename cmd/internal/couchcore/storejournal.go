@@ -46,7 +46,7 @@ func (s *ThreadStore) recoverStoreJournalLockedChecked(check func() error) error
 	if err := s.clearStorePublicationLocked(check); err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(s.journalPath())
+	raw, err := s.readPayload(s.journalPath())
 	if errors.Is(err, os.ErrNotExist) {
 		return nil
 	}
@@ -82,7 +82,7 @@ func (s *ThreadStore) applyJournalEntryChecked(entry storeJournalEntry, check fu
 		return fmt.Errorf("unsafe thread store journal path %q", entry.Path)
 	}
 	target := filepath.Join(s.root, entry.Path)
-	current, exists, err := readOptionalFile(target)
+	current, exists, err := s.readOptionalPayload(target)
 	if err != nil {
 		return err
 	}
@@ -211,12 +211,23 @@ func (s *ThreadStore) writeStoreAtomicLocked(path string, raw []byte) error {
 }
 
 func (s *ThreadStore) writeStoreAtomicLockedChecked(path string, raw []byte, check func() error) (err error) {
+	if s.readOnly {
+		return errors.New("cannot write through a preview store")
+	}
 	if err := checkStoreContext(check); err != nil {
 		return err
 	}
 	relative, e := filepath.Rel(s.root, path)
 	if e != nil || relative == "." || relative == ".." || filepath.IsAbs(relative) || len(relative) > 3 && relative[:3] == "../" || path == s.publicationPath() {
 		return errors.New("publication target is outside store payloads")
+	}
+	if s.layout.Local {
+		if int64(len(raw)) > s.payloadLimit(path) {
+			return errors.New("local metadata exceeds size limit")
+		}
+		if _, _, err := s.readOptionalPayload(path); err != nil {
+			return err
+		}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err

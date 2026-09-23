@@ -57,3 +57,12 @@ Created from the agreed workspace/UI contract and the request for a clean task b
 ### 2026-09-23 — Show nested main paths without inventing dependency slots
 
 Reason: operator agreed nested environments, ordinary remote dependency clones and existing per-repository publication. Delta: added the authoritative scope clarification and acceptance criteria above; original task context remains as provenance. No implementation or lifecycle-status change is claimed by this revision.
+
+### 2026-09-23 — consume durable slot row identity from #306
+
+Reason: #306 separates directory identity from the replaceable native conversation.
+Delta: group `ThreadTarget`/`ThreadRowKey` by repository and slot number; retain
+host-path row identity across refresh and fresh conversation. Addressless recovery
+rows remain selectable through `open-slot`/`fresh-slot`. Native scope/tag remains
+the process/terminal lookup key. #306 supplies these functional rows, while this
+issue still owns shared ordering, indentation and grouped tab labels.

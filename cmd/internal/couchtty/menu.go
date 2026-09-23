@@ -1,7 +1,6 @@
 package couchtty
 
 import (
-	"errors"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -72,6 +71,8 @@ type MenuFrame struct {
 	Instance        uint64
 	Kind            MenuFrameKind
 	Filter          string
+	SelectedKey     couchcore.ThreadRowKey
+	RowKey          couchcore.ThreadRowKey
 	SelectedAddress couchcore.ThreadAddress
 	SelectedItem    string
 	Thread          couchcore.ThreadAddress
@@ -187,6 +188,7 @@ type MenuState struct {
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
 // work, so completion does not depend on whichever frame is visible later.
 type MenuOperationOrigin struct {
+	RowKey      couchcore.ThreadRowKey
 	PanelOrigin bool
 	// ContinuationID correlates durable automatic work without routing it
 	// through the reattachment pass. PreserveFocus controls child adoption.
@@ -240,6 +242,7 @@ const (
 )
 
 type MenuEvent struct {
+	RowKey       couchcore.ThreadRowKey
 	Kind         MenuEventKind
 	Key          PanelKey
 	Address      couchcore.ThreadAddress
@@ -284,7 +287,7 @@ func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcor
 	owned := append([]couchcore.ActionableThreadSummary(nil), inventory...)
 	root := MenuFrame{Instance: 1, Kind: MenuFrameRoot}
 	if len(owned) > 0 {
-		root.SelectedAddress = owned[0].Address
+		selectMenuRow(&root, owned[0])
 	}
 	return MenuState{Inventory: owned, InventoryReady: inventory != nil, Frames: []MenuFrame{root}, ActiveAddress: active, FrameSequence: 1}
 }
@@ -310,29 +313,36 @@ func visibleRootThreads(inventory []couchcore.ActionableThreadSummary, frame Men
 	if frame.Filter == "" {
 		return append([]couchcore.ActionableThreadSummary(nil), inventory...)
 	}
-	fields := make([]couchcore.ThreadReferenceFields, len(inventory))
-	for i, thread := range inventory {
-		fields[i] = couchcore.ThreadReferenceFields{
-			Address:     thread.Address,
-			Name:        thread.Name,
-			WorkingPath: thread.WorkingPath,
+	ordinary := make([]couchcore.ThreadReferenceFields, 0, len(inventory))
+	for _, row := range inventory {
+		if row.Target.Kind != couchcore.ThreadTargetSlot {
+			ordinary = append(ordinary, couchcore.ThreadReferenceFields{Address: row.Address, Name: row.Name, WorkingPath: row.WorkingPath})
 		}
 	}
-	addresses, err := couchcore.MatchThreadReferenceFields(fields, frame.Filter)
-	if errors.Is(err, couchcore.ErrThreadReferenceNotFound) {
-		return []couchcore.ActionableThreadSummary{}
-	}
-	if err != nil {
-		return []couchcore.ActionableThreadSummary{}
-	}
+	addresses, _ := couchcore.MatchThreadReferenceFields(ordinary, frame.Filter)
 	wanted := make(map[couchcore.ThreadAddress]bool, len(addresses))
 	for _, address := range addresses {
 		wanted[address] = true
 	}
-	visible := make([]couchcore.ActionableThreadSummary, 0, len(addresses))
-	for _, thread := range inventory {
-		if wanted[thread.Address] {
-			visible = append(visible, thread)
+	visible := make([]couchcore.ActionableThreadSummary, 0, len(inventory))
+	ref, matched, refErr := couchcore.ParseWorkspaceReference(frame.Filter)
+	for _, row := range inventory {
+		if row.Target.Kind != couchcore.ThreadTargetSlot {
+			if wanted[row.Address] {
+				visible = append(visible, row)
+			}
+			continue
+		}
+		slot := row.Target.Slot
+		accept := false
+		if matched {
+			accept = refErr == nil && ref.Number == slot.Number && (ref.Repo == "" || ref.Repo == slot.Repo)
+		} else {
+			needle := strings.ToLower(frame.Filter)
+			accept = strings.Contains(strings.ToLower(row.Label()), needle) || strings.Contains(strings.ToLower(row.WorkingPath), needle) || (row.Address.Tag != "" && strings.Contains(strings.ToLower(string(row.Address.Tag)), needle))
+		}
+		if accept {
+			visible = append(visible, row)
 		}
 	}
 	return visible
@@ -390,14 +400,14 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return reduceParkHotkey(next, event)
 	}
 	if event.Kind == MenuEventMouseSwitch {
-		thread, ok := menuThread(next, event.Address)
+		thread, ok := menuThreadTarget(next, event.RowKey, event.Address)
 		// A pending row is not ready: a click on it lands nowhere (pair#206).
 		if !ok || !menuThreadActionable(thread) || !menuRowSelectable(next, event.Address) {
 			return next, nil
 		}
 		next.Frames = next.Frames[:1]
-		next.Frames[0].SelectedAddress = event.Address
-		state, effects := dispatchThreadOperation(next, enterOperationFor(thread), event.Address)
+		selectMenuRow(&next.Frames[0], thread)
+		state, effects := dispatchMenuRow(next, enterOperationFor(thread), thread)
 		// Only mark a dispatch that HAPPENED. dispatchThreadOperation refuses
 		// when another operation is in flight and returns the state unchanged;
 		// marking that would leave Manual set on someone else's operation.
@@ -537,7 +547,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			state.Notice = errorMenuNotice(thread.Label() + ": " + unusableThreadNotice(thread))
 			return state, nil
 		}
-		return dispatchThreadOperation(state, enterOperationFor(thread), thread.Address)
+		return dispatchMenuRow(state, enterOperationFor(thread), thread)
 	case KeyTab:
 		thread, ok := selectedMenuThread(state)
 		if !ok {
@@ -546,7 +556,7 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		}
 		items := menuActionsFor(state, thread)
 		appendMenuFrame(&state, MenuFrame{
-			Kind: MenuFrameActions, Thread: thread.Address, SelectedItem: items[0],
+			Kind: MenuFrameActions, RowKey: menuRowKey(thread), Thread: thread.Address, SelectedItem: items[0],
 		})
 	case KeyEscape:
 		if frame.Filter != "" {
@@ -670,6 +680,9 @@ func pastParticiple(operation string) string {
 // One authority, because a click must take Enter's rule rather than a restatement
 // of it -- the restatement had already diverged on its first day (pair#172).
 func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
+	if thread.Target.Kind == couchcore.ThreadTargetSlot && !thread.Live() {
+		return "open-slot"
+	}
 	if thread.State == couchcore.ThreadUnusable && thread.Recovery != nil && thread.Recovery.Recover {
 		return "recover-thread"
 	}
@@ -682,7 +695,7 @@ func enterOperationFor(thread couchcore.ActionableThreadSummary) string {
 func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	key = hierarchyNavigationKey(key, KeyEnter)
 	frame := &state.Frames[len(state.Frames)-1]
-	thread, ok := menuThread(state, frame.Thread)
+	thread, ok := menuThreadTarget(state, frame.RowKey, frame.Thread)
 	if !ok {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
@@ -718,7 +731,7 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			// The genuine special case: these collect text before they can run,
 			// which no declaration expresses.
 			appendMenuFrame(&state, MenuFrame{
-				Kind: MenuFrameText, Thread: thread.Address, Action: frame.SelectedItem,
+				Kind: MenuFrameText, RowKey: menuRowKey(thread), Thread: thread.Address, Action: frame.SelectedItem,
 			})
 		default:
 			// Everything else asks the DECLARATION whether it confirms, instead
@@ -735,11 +748,11 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 			}
 			if confirms {
 				appendMenuFrame(&state, MenuFrame{
-					Kind: MenuFrameConfirmation, Thread: thread.Address, Action: frame.SelectedItem, SelectedItem: "cancel",
+					Kind: MenuFrameConfirmation, RowKey: menuRowKey(thread), Thread: thread.Address, Action: frame.SelectedItem, SelectedItem: "cancel",
 				})
 				return state, nil
 			}
-			return dispatchThreadOperation(state, frame.SelectedItem, thread.Address)
+			return dispatchMenuRow(state, frame.SelectedItem, thread)
 		}
 	}
 	return state, nil
@@ -751,7 +764,7 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 	binds := menuFrameBindsThread(*frame)
 	var thread couchcore.ActionableThreadSummary
 	if binds {
-		found, ok := menuThread(state, frame.Thread)
+		found, ok := menuThreadTarget(state, frame.RowKey, frame.Thread)
 		if !ok {
 			return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 		}
@@ -787,13 +800,14 @@ func reduceConfirmationKey(state MenuState, key PanelKey) (MenuState, []MenuEffe
 		confirms, _ := couchcore.OperationConfirms(frame.Action)
 		if frame.SelectedItem != frame.Action || !confirms ||
 			(binds && frame.Action == "archive" && !containsMenuItem(menuActionItems(thread), "archive")) ||
-			(binds && frame.Action != "archive" && !thread.Live()) {
+			(binds && frame.Action == "fresh-slot" && !slotFreshOffered(thread)) ||
+			(binds && frame.Action != "archive" && frame.Action != "fresh-slot" && !thread.Live()) {
 			return discardThreadFrames(state, frame.Thread, "thread action is no longer applicable"), nil
 		}
 		if frame.Action == "leave" {
 			return dispatchMenuOperation(state, leaveEffect(couchcore.LeaveDisposition(frame.Mode)), couchcore.ThreadAddress{})
 		}
-		return dispatchThreadOperation(state, frame.Action, thread.Address)
+		return dispatchMenuRow(state, frame.Action, thread)
 	}
 	return state, nil
 }
@@ -803,7 +817,7 @@ func reduceTextKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		key.Kind = KeyEscape
 	}
 	frame := &state.Frames[len(state.Frames)-1]
-	thread, ok := menuThread(state, frame.Thread)
+	thread, ok := menuThreadTarget(state, frame.RowKey, frame.Thread)
 	if !ok {
 		return discardThreadFrames(state, frame.Thread, "thread is no longer actionable"), nil
 	}
@@ -1108,7 +1122,7 @@ func requestStartPreview(state MenuState) (MenuState, []MenuEffect) {
 	if path == "" {
 		path = "."
 	}
-	request := PreviewRequest{Generation: frame.Generation, Path: path}
+	request := PreviewRequest{Generation: frame.Generation, Path: path, Action: couchcore.StartCreate}
 	if frame.AgentSticky {
 		request.Agent = frame.Agent
 	}
@@ -1159,6 +1173,9 @@ func startMenuEffect(frame MenuFrame) MenuEffect {
 // menuThreadActionable is the one place the menu asks whether a row can be
 // acted on, so the Enter rule and the action list cannot disagree about it.
 func menuThreadActionable(thread couchcore.ActionableThreadSummary) bool {
+	if thread.Target.Kind == couchcore.ThreadTargetSlot {
+		return true
+	}
 	if thread.State == couchcore.ThreadUnusable && thread.Recovery != nil && thread.Recovery.Recover {
 		return true
 	}
@@ -1214,6 +1231,26 @@ var menuLiveActions = []string{"detach", "relaunch", "park", "switch-agent", "na
 // the switcher. A guard must be able to fail, and production must not coerce its
 // input into agreement. The test reads this function and compares.
 func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
+	if thread.Target.Kind == couchcore.ThreadTargetSlot {
+		ordinary := thread
+		ordinary.Target = couchcore.ThreadTarget{}
+		ordinary.RowKey = couchcore.ThreadRowKey{}
+		items := []string{}
+		if !thread.Live() {
+			items = append(items, "open-slot")
+		}
+		if slotFreshOffered(thread) {
+			items = append(items, "fresh-slot")
+		}
+		if thread.Address != (couchcore.ThreadAddress{}) {
+			for _, item := range menuActionItems(ordinary) {
+				if item != "archive" && item != "resume" && item != "recover-thread" {
+					items = append(items, item)
+				}
+			}
+		}
+		return items
+	}
 	if recovery := thread.Recovery; recovery != nil && (thread.State == couchcore.ThreadUnusable || (thread.Continuation != nil && thread.Continuation.Phase != checkpoint.Complete)) {
 		items := []string{}
 		if recovery.Recover {
@@ -1316,6 +1353,9 @@ func menuActionItems(thread couchcore.ActionableThreadSummary) []string {
 // and a guard that cannot fail is not a guard. The offer is written, the
 // permission is written, and TestActionOfferedImpliesPermitted compares them.
 func menuArchiveOffered(thread couchcore.ActionableThreadSummary) bool {
+	if thread.Target.Kind == couchcore.ThreadTargetSlot {
+		return false
+	}
 	// "checking..." is not a verdict about the thread -- it says the evidence
 	// did not resolve this round. Archive stops a session and cannot be undone,
 	// so offering it here is how an operator retires a thread whose agent is
@@ -1346,7 +1386,7 @@ func confirmationMenuItems(state MenuState, frame MenuFrame) []string {
 		}
 		return []string{"cancel", "leave couch, parking " + strconv.Itoa(live) + " live threads"}
 	}
-	thread, _ := menuThread(state, frame.Thread)
+	thread, _ := menuThreadTarget(state, frame.RowKey, frame.Thread)
 	// The item's FIRST WORD is its id (menuItemID), and Enter dispatches only
 	// when that id equals frame.Action. So the action name is prepended
 	// STRUCTURALLY rather than written out per case: relaunch shipped with
@@ -1484,15 +1524,27 @@ func discardThreadFrames(state MenuState, address couchcore.ThreadAddress, notic
 func reconcileRootSelection(state *MenuState, preferred couchcore.ThreadAddress) {
 	selectable := selectableRootRows(*state)
 	frame := &state.Frames[0]
-	frame.SelectedAddress = couchcore.ThreadAddress{}
-	for _, thread := range selectable {
-		if thread.Address == preferred {
-			frame.SelectedAddress = preferred
-			return
+	preferredKey := frame.SelectedKey
+	if preferredKey.Kind == couchcore.ThreadTargetSlot && preferred == frame.SelectedAddress {
+		for _, row := range selectable {
+			if menuRowKey(row) == preferredKey {
+				selectMenuRow(frame, row)
+				return
+			}
 		}
 	}
+	if preferred != (couchcore.ThreadAddress{}) {
+		for _, row := range selectable {
+			if row.Address == preferred {
+				selectMenuRow(frame, row)
+				return
+			}
+		}
+	}
+	frame.SelectedAddress = couchcore.ThreadAddress{}
+	frame.SelectedKey = couchcore.ThreadRowKey{}
 	if len(selectable) > 0 {
-		frame.SelectedAddress = selectable[0].Address
+		selectMenuRow(frame, selectable[0])
 	}
 }
 
@@ -1504,7 +1556,7 @@ func moveRootSelection(state *MenuState, delta int) {
 	}
 	current := 0
 	for i, thread := range selectable {
-		if thread.Address == state.Frames[0].SelectedAddress {
+		if (state.Frames[0].SelectedKey.Kind == couchcore.ThreadTargetSlot && menuRowKey(thread) == state.Frames[0].SelectedKey) || (state.Frames[0].SelectedKey.Kind != couchcore.ThreadTargetSlot && thread.Address == state.Frames[0].SelectedAddress) {
 			current = i
 			break
 		}
@@ -1516,7 +1568,7 @@ func moveRootSelection(state *MenuState, delta int) {
 	if current >= len(selectable) {
 		current = len(selectable) - 1
 	}
-	state.Frames[0].SelectedAddress = selectable[current].Address
+	selectMenuRow(&state.Frames[0], selectable[current])
 }
 
 func selectableRootRows(state MenuState) []couchcore.ActionableThreadSummary {
@@ -1561,12 +1613,13 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 		if invalidThreadFrame {
 			continue
 		}
-		thread, ok := menuThread(state, frame.Thread)
+		thread, ok := menuThreadTarget(state, frame.RowKey, frame.Thread)
 		if !ok {
 			invalidThreadFrame = true
 			setBookkeepingNotice(&state, hiddenThreadNotice(priorInventory, frame.Thread))
 			continue
 		}
+		frame.Thread = thread.Address
 		switch frame.Kind {
 		case MenuFrameActions:
 			if bound != (couchcore.ThreadAddress{}) {
@@ -1596,7 +1649,8 @@ func reconcileMenuFrames(state MenuState, previous ...[]couchcore.ActionableThre
 			confirms, _ := couchcore.OperationConfirms(frame.Action)
 			if (bound != (couchcore.ThreadAddress{}) && bound != frame.Thread) || !confirms ||
 				(frame.Action == "archive" && !operationInFlight && !containsMenuItem(menuActionItems(thread), "archive")) ||
-				(frame.Action != "archive" && !operationInFlight && !thread.Live()) {
+				(frame.Action == "fresh-slot" && !operationInFlight && !slotFreshOffered(thread)) ||
+				(frame.Action != "archive" && frame.Action != "fresh-slot" && !operationInFlight && !thread.Live()) {
 				invalidThreadFrame = true
 				setBookkeepingNotice(&state, "thread action is no longer applicable")
 				continue
@@ -1642,7 +1696,7 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		return state
 	}
 	state.InFlight = MenuOperationOrigin{}
-	if origin.Address != (couchcore.ThreadAddress{}) {
+	if origin.Address != (couchcore.ThreadAddress{}) && origin.Operation != "open-slot" && origin.Operation != "fresh-slot" {
 		if _, stillActionable := menuThread(state, origin.Address); !stillActionable {
 			return state
 		}
@@ -1685,8 +1739,11 @@ func reduceOperationResult(state MenuState, event MenuEvent) MenuState {
 		if origin.FrameKind == MenuFrameText && originVisible && originFrame.Thread == origin.Address && originFrame.Action == event.Operation {
 			state.Frames = state.Frames[:origin.Depth-1]
 		}
-	case "start":
+	case "start", "open-slot", "fresh-slot":
 		if originVisible {
+			if origin.RowKey.Kind == couchcore.ThreadTargetSlot {
+				state.Frames[0].SelectedKey = origin.RowKey
+			}
 			state = restoreMenuPrefixPreservingStart(state, 1, origin)
 			state.Frames[0].SelectedAddress = event.Address
 		}
@@ -1724,7 +1781,7 @@ func endsItsOwnChild(operation string) bool {
 // terminal focus; leave terminates the console and has no next frame to update.
 func operationNeedsProjectionRefresh(operation string) bool {
 	switch operation {
-	case "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
+	case "open-slot", "fresh-slot", "start", "park", "detach", "resume", "name", "describe", "archive", "relaunch", "switch-agent", "retry-continuation", "dismiss-continuation", "continue-thread":
 		return true
 	case "switch", "leave":
 		return false
@@ -1778,6 +1835,9 @@ func menuOperationOriginFrame(state MenuState, origin MenuOperationOrigin) (Menu
 func menuOperationMatches(origin MenuOperationOrigin, event MenuEvent) bool {
 	if origin.Operation == "" || origin.Attempt == 0 || origin.Attempt != event.Attempt || origin.Operation != event.Operation {
 		return false
+	}
+	if origin.Operation == "open-slot" || origin.Operation == "fresh-slot" {
+		return true
 	}
 	if origin.Operation == "start" && origin.Address == (couchcore.ThreadAddress{}) {
 		return !event.Success || event.Address != (couchcore.ThreadAddress{})
@@ -1906,7 +1966,7 @@ func (s MenuState) SelectedThreadAddress() couchcore.ThreadAddress {
 }
 
 func selectedMenuThread(state MenuState) (couchcore.ActionableThreadSummary, bool) {
-	return menuThread(state, state.CurrentFrame().SelectedAddress)
+	return menuThreadTarget(state, state.CurrentFrame().SelectedKey, state.CurrentFrame().SelectedAddress)
 }
 
 func findMenuThread(inventory []couchcore.ActionableThreadSummary, address couchcore.ThreadAddress) (couchcore.ActionableThreadSummary, bool) {

@@ -103,6 +103,13 @@ representative evidence, not an exhaustive index.
 - Writes that can race themselves are atomic. Append-only stores expose an
   explicit commit result; readers classify mixed formats before opening them.
   (#206, #255)
+- When relocating authoritative storage, audit inventory and archive readers as
+  well as mutators. Each backend must recover its journal before an authoritative
+  read; previews must instead refuse pending recovery without mutating. Test
+  missing global discovery, stale global copies, and creating the second local
+  backend after the first has enrolled. All local payload reads, including journal
+  replay and restore comparisons, share the guarded path/type/size reader; test
+  symlinked current records through lifecycle APIs. (#306)
 - Historical compatibility has an immutable source boundary and an explicit
   migration policy. A cache must not survive an authority downgrade, and a
   relocated index needs an overlap-read epoch. (#255)
@@ -138,6 +145,10 @@ representative evidence, not an exhaustive index.
   describes. (#245, #249)
 
 ## Planning, review, and repository hygiene
+
+- When reusing lifecycle machinery, name its transition authority and cancellation
+  owner explicitly. New durable files also need a final consumer and removal
+  policy; tests should name risky functions and their mechanical guard. (#306)
 
 - A plan's entity tables name live symbols and promised cases. Before a boundary,
   reconcile every checkbox, acceptance row, concept table, and revision with

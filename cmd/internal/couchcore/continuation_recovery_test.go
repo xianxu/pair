@@ -236,7 +236,7 @@ func TestContinuationArchivePreservesSnapshotRemovesDerivedCopy(t *testing.T) {
 	if err := c.Threads.ArchiveThread(record.Address); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(c.continuationPath(record.Address)); !os.IsNotExist(err) {
+	if _, err := os.Stat(mustContinuationPath(t, c, record.Address)); !os.IsNotExist(err) {
 		t.Fatalf("derived snapshot survived archive: %v", err)
 	}
 	archived, err := c.Threads.ArchivedThreads()

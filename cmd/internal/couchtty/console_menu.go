@@ -285,6 +285,9 @@ func (c *Console) startMenuPreview(request PreviewRequest) {
 	go func() {
 		defer c.workers.Done()
 		args := map[string]string{"path": request.Path}
+		if request.Action != "" {
+			args["action"] = string(request.Action)
+		}
 		if request.Agent != "" {
 			args["agent"] = request.Agent
 		}

@@ -48,7 +48,7 @@ func TestContinuationPublishExecuteAndReceipt(t *testing.T) {
 	if result.Status.Phase != checkpoint.Running || result.Orientation == nil {
 		t.Fatalf("premature completion %+v", result)
 	}
-	materialized, err := os.ReadFile(env.Couch.continuationPath(source.Address))
+	materialized, err := os.ReadFile(mustContinuationPath(t, env.Couch, source.Address))
 	if err != nil || string(materialized) != body {
 		t.Fatalf("snapshot %q %v", materialized, err)
 	}
@@ -145,4 +145,13 @@ func TestContinuationConcurrentPublicationDeduplicates(t *testing.T) {
 	if record.Continuation.ID != id || record.Park != nil || record.Continuation.Phase != checkpoint.Pending {
 		t.Fatalf("concurrent publication %+v", record)
 	}
+}
+
+func mustContinuationPath(t *testing.T, c *Couch, address ThreadAddress) string {
+	t.Helper()
+	path, err := c.continuationPath(address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return path
 }

@@ -19,6 +19,64 @@ the original project's issue list is not automatically the v2 commitment.
 
 ## PRD
 
+### Current slot storage and recovery contract — 2026-09-23
+
+Numbered slots are directory-backed durable threads. For `pair:1`, the enclosing
+`/workspace/worktree/pair-slot1/` contains `.couch/`, the `pair/` host worktree and
+its private dependency clones. A verified conventional slot remains present when
+its agent stops, its conversation ends, or Couch metadata needs recovery. It is
+never an empty workspace to allocate to a different thread merely because its
+record is missing. Git membership still distinguishes a real slot from an
+unrelated or conflicting directory.
+
+`.couch/` is the authoritative home for the slot's Couch-owned state: stable slot
+thread identity and current conversation reference, description/timestamps/layout,
+launch/park/continuation recovery records, and independent launch preferences.
+Couch-owned continuation material lives there too. Any global slot listing is a
+rebuildable index; no second authoritative global copy of these records is kept.
+Directory convention and Git supply slot number/path/repository membership;
+metadata does not maintain a competing editable slot inventory.
+
+Slot lifetime, conversation lifetime and running-process lifetime are distinct.
+Opening a slot attaches to a running agent, resumes its recoverable conversation,
+or offers **start fresh here** when the previous conversation cannot be resumed.
+Starting fresh preserves the slot, preferences, host/dependency files and Git state,
+and retains prior conversation evidence. It never requires the operator to archive
+the slot. Missing/corrupt local records trigger reconstruction where evidence is
+sufficient, or a concrete recovery choice; they cannot permanently retire a slot.
+Uncertain live ownership still blocks a second agent until resolved. Permission,
+tool, service and Git conflicts remain visible errors of opening that same slot.
+No silent fallback discards a conversation, and unknown does not mean stopped.
+
+New-slot creation is distinct from opening or starting fresh in an existing slot.
+A parked primary or numbered thread blocks **adding another slot**. Returning to,
+repairing, or starting a fresh conversation in an existing slot does not add one.
+Incomplete known slots must be recovered through normal open, not bypassed by
+allocating ever-higher numbers. Creation initializes a new host from fetched remote
+main; recovery never resets an existing checkout to that baseline. Missing setup
+success repeats #305 readiness; warm attachment only reconnects.
+
+This is a deliberate closed-set model for managed numbered slots. Existing primary
+and arbitrary-path Couch threads retain their open-set discovery/storage behavior
+and participate in the repo's parked-work check. Launch, park, resume, continuation
+and process-ownership protections remain shared. Keep today's per-store supervisor
+lock and separate-store behavior; repository ownership and multi-Couch coordination
+are outside this project revision.
+
+Scope: pair#306 owns local Couch storage, discovery/index rebuilding, migration of
+existing numbered-slot records, same-slot recovery and lifecycle integration.
+Pair#307 consumes one derived slot view for grouping. Pair#308 owns preference UX
+and inheritance, using `.couch/` as the numbered-slot preference home. Pair#309
+verifies missing/corrupt metadata, lost conversation recovery, and retained dirty
+work. Native agent transcripts and Pair's existing drafts/scrollback/session
+sidecars stay in their current stores for this version; this is not a portable
+whole-session bundle. #305's Git creation lock/intent and setup-success marker
+retain their existing homes and single authority.
+
+This contract supersedes the earlier #306 proposal for free-workspace selection,
+archive-before-replacement and store-wide admission snapshots. The engineering
+plan must be revised around local authority before implementation.
+
 ### Current host starting-point contract — 2026-09-23
 
 New host slots start from fetched configured-remote main. Couch captures that
@@ -330,7 +388,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Support branching from a workspace and explicit refresh [ariadne#245]
 - [ ] Land without removing or refreshing the workspace [ariadne#246]
 - [x] Provision durable numbered workspaces [pair#305]
-- [ ] Support full slot threads and parked-thread admission [pair#306]
+- [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [ ] Group slots in the switcher and tab bar [pair#307]
 - [ ] Persist independent workspace preferences [pair#308]
 - [ ] Run the three-workspace acceptance trial [pair#309]
@@ -452,6 +510,23 @@ Both prerequisite contracts are available. The [implementation plan](../history/
 uses remote-main initialization, one repository lock for host Git creation,
 small creation intent and a setup-success marker. Missing success runs Weave again on the same readiness invocation; Weave owns dependency locking and recovery. Ready reuse validates
 the host without fetching or composing. Thread admission and launch remain with pair#306.
+
+<a id="pair-306"></a>
+### pair#306 — Durable slots with local Couch state
+
+**status:** codecomplete — SHIP review passed; publication pending
+**actual:** 4.52h
+**closed:** 2026-09-23 (local acceptance)
+**started:** 2026-09-23
+
+The [issue](../issues/000306-slots-v2-thread-lifecycle.md) and
+[revised plan](../plans/000306-slots-v2-thread-lifecycle-plan.md) make
+`pair-slotN/.couch/` authoritative and global slot listings rebuildable. Existing
+slots offer resume or start fresh without an archive prerequisite. Shared lifecycle
+code and current supervisor locking remain; new reservation systems and repository
+ownership coordination are excluded. Fresh review approved the concrete local
+storage, migration, retention and recovery plan after corrections. Implementation
+has operator approval and passed the change-code gate (estimate 14.37h).
 
 ## Log
 
@@ -603,7 +678,7 @@ preferences and acceptance tasks were aligned without reopening #242.
 
 [pair#305]: ../history/issues/000305-slots-v2-workspace-provisioning.md
 
-[pair#306]: ../issues/000306-slots-v2-thread-lifecycle.md
+[pair#306]: #pair-306
 
 [pair#307]: ../issues/000307-slots-v2-grouped-thread-display.md
 
@@ -695,8 +770,47 @@ Implemented the simplified publication scope and passed the full workspace/SDLC 
 
 Ariadne PR https://github.com/xianxu/ariadne/pull/129 merged. SDLC marked #244 done, archived its issue/plan/review records and adopted measured actual 6.38h. Claims use fresh remote status; explicit documentation commits publish with three-way conflict handling in every checkout. Planning/close reviewers run unlocked and reject stale or interrupted results before persistence. Full workspace/SDLC tests, vet, real Git races, signal/race checks and nested dependency recovery passed; known #210 fixture remains excluded.
 
+### 2026-09-23 — durable slots own their Couch state
+
+Reason: operator identified managed slots as a closed set and rejected recovery
+that requires archiving the slot. Delta: adopted authoritative environment-local
+`.couch/`, rebuildable global listings, and separate slot/conversation/process
+lifetimes. Replaced free-workspace allocation with new-slot creation and existing-
+slot open/resume/start-fresh. Preserve the existing supervisor model and #305 setup
+records; no multi-instance repository ownership work. Updated #306's active plan
+and #307–309 consumer contracts; no implementation completion or estimate implied.
+
 ### 2026-09-23 — ariadne#245 implementation accepted
 
 Recorded ordinary-Git branch/refresh guidance and regression coverage, with no
 new runtime mechanism. Close measured 0.60h; quick flow had no estimate. The
 project task is locally accepted; PR130 publication is pending merge.
+
+### 2026-09-23 — #306 engineering plan reviewed
+
+Reason: complete the integration design for local slot authority. Delta: specified
+a shared ThreadStore backend, repository enrollment and migration ordering, GC
+routing, stable slot selection and atomic fresh-conversation replacement. Fresh
+review passed after corrections; no runtime implementation or estimate yet.
+
+### 2026-09-23 — #306 execution approved
+
+Operator approved the detailed local-state plan. The change-code review prompted
+clarifications to transition authority, operating limits and cleanup/test contracts;
+implementation remains gated while those refinements are reviewed.
+
+### 2026-09-23 — #306 implementation underway
+
+Reason: execution and estimate gates passed. Delta: shared local storage, root
+enrollment, GC routing and stable slot rows now have focused passing tests.
+Launch/recovery integration is in progress. Explicit re-enrollment preserves
+existing local state when no legacy source exists; stale global archive copies
+are excluded from the authoritative listing. Integrated verification remains open.
+
+### 2026-09-23 — #306 accepted for publication
+
+Close returned SHIP with no remaining findings after guarded local-reader fixes.
+Full repository tests, targeted race tests, builds, vet and installed SDLC/Weave
+conformance passed. SDLC measured 4.52h. Local `.couch` authority, recovery/fresh,
+parked admission and canonical slot addressing are accepted; grouped presentation
+and preference UX remain #307/#308. PR publication follows.

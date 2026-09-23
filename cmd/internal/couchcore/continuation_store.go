@@ -95,16 +95,33 @@ func (c *Couch) materializeContinuation(record ThreadRecord) (string, error) {
 	if err := cp.Validate(); err != nil {
 		return "", err
 	}
-	path := c.continuationPath(record.Address)
-	if err := writeAtomicBytes(path, []byte(cp.Body)); err != nil {
+	backend, err := c.Threads.storeForAddress(record.Address)
+	if err != nil {
+		return "", err
+	}
+	path := backend.continuationPath(record.Address)
+	publish := func() error { return writeAtomicBytes(path, []byte(cp.Body)) }
+	if backend.layout.Local {
+		publish = func() error {
+			return backend.withLock(func() error { return backend.writeStoreAtomicLocked(path, []byte(cp.Body)) })
+		}
+	}
+	if err := publish(); err != nil {
 		return "", err
 	}
 	return path, nil
 }
-func (c *Couch) continuationPath(address ThreadAddress) string {
-	return c.Threads.continuationPath(address)
+func (c *Couch) continuationPath(address ThreadAddress) (string, error) {
+	backend, err := c.Threads.storeForAddress(address)
+	if err != nil {
+		return "", err
+	}
+	return backend.continuationPath(address), nil
 }
 
 func (s *ThreadStore) continuationPath(address ThreadAddress) string {
+	if s.layout.Local {
+		return filepath.Join(s.root, "continuation.md")
+	}
 	return filepath.Join(s.root, "continuation", address.RepoScope, string(address.Tag)+".md")
 }

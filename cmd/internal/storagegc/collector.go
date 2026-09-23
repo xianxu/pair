@@ -14,11 +14,12 @@ import (
 )
 
 type ArchiveReference struct {
-	Store      string                    `json:"store"`
-	Owner      artifactpath.StorageOwner `json:"owner"`
-	RecordHash string                    `json:"record_hash"`
-	ArchivedAt time.Time                 `json:"archived_at"`
-	ClockError string                    `json:"clock_error,omitempty"`
+	SlotEnvironment string                    `json:"slot_environment,omitempty"`
+	Store           string                    `json:"store"`
+	Owner           artifactpath.StorageOwner `json:"owner"`
+	RecordHash      string                    `json:"record_hash"`
+	ArchivedAt      time.Time                 `json:"archived_at"`
+	ClockError      string                    `json:"clock_error,omitempty"`
 }
 type References struct {
 	Visible  []artifactpath.StorageOwner

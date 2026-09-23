@@ -15,9 +15,33 @@ the pty console, actor panel, notices, and complete local lifecycle shipped in
 The absolute physical `COUCH_STORE_DIR` is one durable namespace. One Couch
 supervisor owns it through a non-inherited advisory lease; another supervisor
 refuses with verified PID/process-start identity. `couchcore.ThreadStore` is
-the mutable authority for composite thread records, using one global store
-lock, revision-checked record updates, and a recoverable write-ahead journal
-for membership or multi-record changes.
+the shared lifecycle interface. Primary and arbitrary-path records use the global
+store; numbered slots use `<environment>/.couch/` with one current conversation
+record, separate preferences, and retained history. Each backend uses the existing
+lock, revision checks and recoverable journal. The supervisor lease still belongs
+to the global namespace.
+
+
+### Durable numbered slots (#306)
+
+Directory/Git identity supplies the durable slot; native scope/tag identifies its
+current conversation. Slot rows stay selectable when current metadata is missing
+or damaged. Explicit fresh conversation replaces the current reference and retains
+old evidence without retiring the directory or preferences. Unknown process/session
+ownership still refuses launch.
+
+Global manifest schema 2 stores enrolled primary roots, not slot lifecycle facts.
+Catalog enumeration rebuilds the slot inventory. Enrollment stages local metadata
+before publishing the root and retiring global copies; interrupted journals replay
+idempotently. Retention independently enumerates local stores and preserves native
+owners referenced by current or archived records. Missing/corrupt ownership blocks
+GC. Archive deletion receipts carry the backing slot location.
+
+Key seams: `slotcatalog.go`, `threadstore_layout.go`, `threadstore_location.go`,
+`slotmigration.go`, `threadstore_preview.go`, `slotinventory.go`, and the shared
+retention adapters. Slot row keys use host paths; process/terminal maps retain
+native addresses. Creation admission and launch recovery are described in
+[workspace provisioning](workspace-provisioning.md).
 
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not a metadata or display authority. The one-time journal import
@@ -139,7 +163,7 @@ argument/result family, effect, confirmation, execution owner, and presentation.
 `list`, `show` and `archived` project as public `--list`, `--show` and
 `--archived`; the hosted-agent hook `publish-description` projects only through
 hidden `couch --internal publish-description <text>`. `prepare-start`, `start`,
-`attach`, `switch`, `park`, `resume`, `relaunch`, `prepare-switch-agent`,
+`attach`, `switch`, `park`, `resume`, `open-slot`, `fresh-slot`, `relaunch`, `prepare-switch-agent`,
 `switch-agent`, `leave`, `stop`, `name`,
 `describe`, `archive`, `recover-thread` and `recover-checkpoint` are TUI/in-process operations. `orientation-status` is
 an internal owner operation for one launch attempt.

@@ -17,15 +17,19 @@ import (
 // ArchiveDetachRequest is the root transaction's immutable archive identity.
 // OperationID is unique per root collection and survives cross-store recovery.
 type ArchiveDetachRequest struct {
-	OperationID string        `json:"operation_id"`
-	Address     ThreadAddress `json:"address"`
-	RecordHash  string        `json:"record_hash"`
-	ArchivedAt  time.Time     `json:"archived_at"`
+	SlotEnvironment string        `json:"slot_environment,omitempty"`
+	OperationID     string        `json:"operation_id"`
+	Address         ThreadAddress `json:"address"`
+	RecordHash      string        `json:"record_hash"`
+	ArchivedAt      time.Time     `json:"archived_at"`
 }
 
 var archiveOperationPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
 
 func (r ArchiveDetachRequest) validate() error {
+	if r.SlotEnvironment != "" && !workspaceAbsolute(r.SlotEnvironment) {
+		return errors.New("invalid archive slot locator")
+	}
 	if !archiveOperationPattern.MatchString(r.OperationID) || r.ArchivedAt.IsZero() {
 		return errors.New("invalid archive detach operation")
 	}
@@ -36,7 +40,7 @@ func (r ArchiveDetachRequest) validate() error {
 	return validateThreadAddress(r.Address)
 }
 func (r ArchiveDetachRequest) matches(other ArchiveDetachRequest) bool {
-	return r.OperationID == other.OperationID && r.Address == other.Address && r.RecordHash == other.RecordHash && r.ArchivedAt.Equal(other.ArchivedAt)
+	return r.SlotEnvironment == other.SlotEnvironment && r.OperationID == other.OperationID && r.Address == other.Address && r.RecordHash == other.RecordHash && r.ArchivedAt.Equal(other.ArchivedAt)
 }
 func (s *ThreadStore) archiveReceiptPath(operationID string) string {
 	return filepath.Join(s.root, "gc-receipts", operationID+".json")
@@ -80,10 +84,33 @@ func (s *ThreadStore) readArchiveReceiptLocked(request ArchiveDetachRequest) ([]
 // A matching receipt is completion evidence; replay never inspects a newer
 // archive at the same address after the original operation finished.
 func (s *ThreadStore) DetachArchive(held *storagegc.Locked, request ArchiveDetachRequest) error {
+	if !s.layout.Local {
+		if err := request.validate(); err != nil {
+			return err
+		}
+		if err := s.withRetentionWrite(held, func() error { return nil }); err != nil {
+			return err
+		}
+		backend, err := s.retentionArchiveBackend(held, request)
+		if err != nil {
+			return err
+		}
+		if backend != s {
+			return backend.DetachArchive(held, request)
+		}
+	}
+	if s.layout.Local && (s.slot == nil || request.SlotEnvironment != s.slot.EnvironmentRoot) {
+		return errors.New("archive request backing store mismatch")
+	}
 	if err := request.validate(); err != nil {
 		return err
 	}
 	return s.withRetentionWrite(held, func() error {
+		if s.layout.Local {
+			if err := s.requireLocalRetentionCurrent(); err != nil {
+				return err
+			}
+		}
 		if _, exists, err := s.readArchiveReceiptLocked(request); err != nil {
 			return err
 		} else if exists {
@@ -126,10 +153,33 @@ func (s *ThreadStore) DetachArchive(held *storagegc.Locked, request ArchiveDetac
 // ForgetArchiveReceipt is called only after durable root finalization. It
 // removes exact receipt bytes and never touches the reusable archive address.
 func (s *ThreadStore) ForgetArchiveReceipt(held *storagegc.Locked, request ArchiveDetachRequest) error {
+	if !s.layout.Local {
+		if err := request.validate(); err != nil {
+			return err
+		}
+		if err := s.withRetentionWrite(held, func() error { return nil }); err != nil {
+			return err
+		}
+		backend, err := s.retentionArchiveBackend(held, request)
+		if err != nil {
+			return err
+		}
+		if backend != s {
+			return backend.ForgetArchiveReceipt(held, request)
+		}
+	}
+	if s.layout.Local && (s.slot == nil || request.SlotEnvironment != s.slot.EnvironmentRoot) {
+		return errors.New("archive request backing store mismatch")
+	}
 	if err := request.validate(); err != nil {
 		return err
 	}
 	return s.withRetentionWrite(held, func() error {
+		if s.layout.Local {
+			if err := s.requireLocalRetentionCurrent(); err != nil {
+				return err
+			}
+		}
 		raw, exists, err := s.readArchiveReceiptLocked(request)
 		if err != nil || !exists {
 			return err

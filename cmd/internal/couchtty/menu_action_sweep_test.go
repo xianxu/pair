@@ -75,6 +75,9 @@ func TestEveryOfferedActionIsReachableFromEnter(t *testing.T) {
 // until someone adds to one.
 func TestRowActionDeclarationsAndTheMenuAgreeInBothDirections(t *testing.T) {
 	offered := map[string]bool{}
+	for _, action := range menuActionItems(menuSlotRow(1, "")) {
+		offered[action] = true
+	}
 	for _, state := range []couchcore.ActionableThreadState{
 		couchcore.ThreadLive, couchcore.ThreadParked, couchcore.ThreadBusy, couchcore.ThreadUnusable,
 		couchcore.ThreadDetached,

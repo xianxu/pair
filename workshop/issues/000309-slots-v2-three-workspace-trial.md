@@ -77,3 +77,12 @@ selection to the agent/operator after startup. Delta: supersedes the previous
 local-source host initialization criterion. Verify initial remote-main creation
 and later explicit source-snapshot issue branching as separate actions, with no
 automatic local commit/stash/transfer during provisioning.
+
+### 2026-09-23 — include durable-conversation recovery acceptance
+
+Reason: a slot survives lost or unusable conversation records. Delta: acceptance
+must include explicit fresh conversation in the same directory, preservation of
+local work/preferences/history, and renewed discovery after losing the global
+slot listing (the repository root must be supplied again). Use #306's automated
+local storage, GC, incomplete setup and two-slot isolation tests as prerequisites;
+the operator trial still owns real parley.nvim issues and grouped UI evidence.

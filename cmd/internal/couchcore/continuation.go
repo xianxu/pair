@@ -335,6 +335,9 @@ func (c *Couch) executeContinuation(ctx context.Context, record ThreadRecord) (C
 	if err != nil {
 		return c.failContinuation(record, err)
 	}
+	if err := c.prepareTrackedWorkspace(ctx, claimed, request.Attempt, false); err != nil {
+		return c.failContinuation(record, errors.Join(err, c.rollbackTrackedStart(claimed, request.Attempt)))
+	}
 	var authorityErr error
 	if request.SourceAbsence != nil {
 		authorityErr = c.verifyAbsentContinuation(ctx, claimed)

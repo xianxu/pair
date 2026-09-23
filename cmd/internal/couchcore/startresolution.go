@@ -16,6 +16,9 @@ type StartResolutionFingerprint string
 var ErrStartResolutionChanged = errors.New("start resolution changed")
 
 type StartResolutionInput struct {
+	OriginalInput       string
+	Action              StartAction
+	Target              ThreadTarget
 	CanonicalPath       string
 	Worktree            Worktree
 	Issue               string
@@ -29,6 +32,9 @@ type StartResolutionInput struct {
 
 // StartResolution is the immutable authority shared by preview and launch.
 type StartResolution struct {
+	OriginalInput      string                     `json:"original_input,omitempty"`
+	Action             StartAction                `json:"action,omitempty"`
+	Target             ThreadTarget               `json:"target"`
 	CanonicalPath      string                     `json:"canonical_path"`
 	Worktree           Worktree                   `json:"worktree"`
 	Issue              string                     `json:"issue,omitempty"`
@@ -74,6 +80,7 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 		return StartResolution{}, errors.New("start resolution selected an unsupported agent")
 	}
 	resolution := StartResolution{
+		OriginalInput: input.OriginalInput, Action: input.Action, Target: input.Target,
 		CanonicalPath:      input.CanonicalPath,
 		Worktree:           input.Worktree,
 		Issue:              input.Issue,
@@ -108,6 +115,12 @@ func launchProfileDigest(profile LaunchProfile) string {
 func fingerprintStartResolution(resolution StartResolution) StartResolutionFingerprint {
 	digest := sha256.New()
 	writeFingerprintField(digest, "pair-start-resolution-v1")
+	writeFingerprintField(digest, resolution.OriginalInput)
+	writeFingerprintField(digest, string(resolution.Action))
+	writeFingerprintField(digest, string(resolution.Target.Kind))
+	writeFingerprintField(digest, resolution.Target.Slot.WorktreeRoot)
+	writeFingerprintField(digest, resolution.Target.Slot.RepoIdentity)
+	writeFingerprintUint(digest, uint64(resolution.Target.Slot.Number))
 	writeFingerprintField(digest, resolution.CanonicalPath)
 	writeFingerprintField(digest, string(resolution.Worktree))
 	writeFingerprintField(digest, resolution.Issue)
@@ -149,10 +162,18 @@ func (r StartResolution) CommitArgs() map[string]string {
 	// No worktree: StartArgs.WorkingDir prefers Cwd, which `path` supplies, so
 	// re-resolution never reads it. An argument nothing reads is one more thing
 	// a caller can get subtly wrong for no benefit.
-	return map[string]string{
-		"path":        r.CanonicalPath,
+	path := r.CanonicalPath
+	if r.OriginalInput != "" {
+		path = r.OriginalInput
+	}
+	args := map[string]string{
+		"path":        path,
 		"agent":       r.RequestedAgent,
 		"issue":       r.Issue,
 		"fingerprint": string(r.Fingerprint),
 	}
+	if r.Action != "" {
+		args["action"] = string(r.Action)
+	}
+	return args
 }

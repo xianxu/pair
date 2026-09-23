@@ -1,8 +1,10 @@
 package couchcore
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"github.com/xianxu/pair/cmd/internal/launcher"
 	"sort"
 	"strings"
 )
@@ -31,6 +33,17 @@ func (s *ThreadStore) ApplyThreadMetadata(address ThreadAddress, expectedRevisio
 // An unreadable record participates by ADDRESS only. Its tag can be matched;
 // its path and name cannot, because reading them is what failed.
 func (c *Couch) ResolveThreadReference(repoScope, ref string) ([]ThreadRecord, error) {
+	path, workspaceRef, err := c.WorkspaceReferencePath(context.Background(), ref)
+	if err != nil {
+		return nil, err
+	}
+	if workspaceRef {
+		scope, err := launcher.ResolveRepoScope(path)
+		if err != nil {
+			return nil, err
+		}
+		repoScope = scope.Key
+	}
 	snapshot, err := c.Threads.Snapshot()
 	if err != nil {
 		return nil, err
@@ -42,6 +55,18 @@ func (c *Couch) ResolveThreadReference(repoScope, ref string) ([]ThreadRecord, e
 		// unreadable record as a known state -- the exact conflation the split
 		// exists to prevent.
 		records = append(records, ThreadRecord{Address: address})
+	}
+	if workspaceRef {
+		var matches []ThreadRecord
+		for _, record := range records {
+			if record.Address.RepoScope == repoScope {
+				matches = append(matches, record)
+			}
+		}
+		if len(matches) == 0 {
+			return nil, fmt.Errorf("%w: workspace %s has no readable current thread; open the slot to recover it or explicitly start fresh", ErrThreadReferenceNotFound, ref)
+		}
+		return finishThreadReference(ref, matches)
 	}
 	return ResolveThreadReference(records, repoScope, ref)
 }

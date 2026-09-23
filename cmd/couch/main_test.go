@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -25,15 +26,33 @@ func TestBareCouchInstalledCommand(t *testing.T) {
 		t.Fatalf("build couch: %v\n%s", err, out)
 	}
 
+	// Use an isolated repository: managed startup enrolls known slot locations.
+	fleet, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	launchRoot := filepath.Join(fleet, "alpha")
+	init := exec.Command("git", "init", "-b", "main", launchRoot)
+	if out, err := init.CombinedOutput(); err != nil {
+		t.Fatalf("fixture git init: %v %s", err, out)
+	}
+	identity, err := json.Marshal(map[string]any{"schema_version": 2, "repo": "alpha", "repo_identity": filepath.Join(launchRoot, ".git"), "primary_root": launchRoot, "fleet_root": fleet, "environment_root": fleet, "worktree_root": launchRoot, "kind": "primary", "address": "alpha:0", "slot": 0, "branch": "main", "head": nil, "resting_branch": "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	callLog := filepath.Join(t.TempDir(), "calls")
-	// A stub that FAILS if invoked. couch stopped consuming ariadne's fleet
-	// policy provider at pair#170 M4 -- the repository identity it wanted is
-	// derived locally now -- so any call here is a regression, and the call log
-	// below asserts none happened.
+	// Only the workspace identity contract is supported; policy-provider calls
+	// remain forbidden. The JSON describes this fixture's real Git checkout.
 	writeExecutable(t, filepath.Join(binDir, "sdlc"), fmt.Sprintf(`#!/bin/sh
 printf 'sdlc %%s\n' "$*" >> %q
+if [ "$#" = 2 ] && [ "$1" = workspace ] && [ "$2" = --json ]; then
+cat <<'PAIR_FIXTURE_IDENTITY'
+%s
+PAIR_FIXTURE_IDENTITY
+else
 exit 90
-`, callLog))
+fi
+`, callLog, identity))
 	writeExecutable(t, filepath.Join(binDir, "pair"), fmt.Sprintf(`#!/bin/sh
 printf 'pair %%s\n' "$*" >> %q
 printf 'COUCH_INSTALLED_PAIR_MARKER\n'
@@ -44,7 +63,7 @@ sleep 2
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		cmd := exec.CommandContext(ctx, couchBin)
-		cmd.Dir = root
+		cmd.Dir = launchRoot
 		cmd.Env = installedEnv(t, binDir)
 		master, err := pty.Start(cmd)
 		if err != nil {
@@ -113,11 +132,13 @@ sleep 2
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Inverted at pair#170 M4: this asserted couch DID call the provider.
-		// The deletion's most externally visible consequence is that couch no
-		// longer shells out to sdlc at all, so the absence is the assertion.
-		if bytes.Contains(calls, []byte("sdlc")) {
-			t.Fatalf("couch still invoked sdlc: %q", calls)
+		for _, line := range strings.Split(strings.TrimSpace(string(calls)), "\n") {
+			if strings.HasPrefix(line, "sdlc ") && line != "sdlc workspace --json" {
+				t.Fatalf("unexpected SDLC contract: %q", line)
+			}
+		}
+		if !bytes.Contains(calls, []byte("sdlc workspace --json")) {
+			t.Fatal("workspace context was not resolved")
 		}
 		assertExactPairResumeCall(t, calls)
 	})
@@ -125,7 +146,7 @@ sleep 2
 	t.Run("pipe refuses before effects", func(t *testing.T) {
 		before, _ := os.ReadFile(callLog)
 		cmd := exec.Command(couchBin)
-		cmd.Dir = root
+		cmd.Dir = launchRoot
 		cmd.Env = installedEnv(t, binDir)
 		if err := cmd.Run(); err == nil {
 			t.Fatal("bare couch with pipes succeeded")

@@ -307,18 +307,22 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, err
 			}
 			return c.ReadOrientationStatus(ctx, address, a["agent"], a["attempt"])
+		case "open-slot":
+			return c.OpenSlot(ctx, a["path"], a["agent"])
+		case "fresh-slot":
+			return c.StartFreshSlot(ctx, a["path"], a["agent"])
 		case "prepare-start":
 			path := a["path"]
 			if path == "" {
 				path = "."
 			}
-			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"]})
+			return c.PrepareStart(ctx, StartArgs{Cwd: path, Stack: a["agent"], Action: StartAction(a["action"])})
 		case "start":
 			// The SAME inputs the preview resolved from, so re-resolution is
 			// comparable. Passing the RESOLVED agent where the operator gave
 			// none would change AgentSource and therefore the fingerprint.
 			rec, h, err := c.SpawnPrepared(ctx, StartArgs{
-				Cwd: a["path"], Stack: a["agent"], Issue: a["issue"],
+				Cwd: a["path"], Stack: a["agent"], Issue: a["issue"], Action: StartAction(a["action"]),
 			}, StartResolutionFingerprint(a["fingerprint"]))
 			if err != nil {
 				return nil, err
@@ -392,6 +396,19 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("leave: invalid mode %q (want detach or park)", a["mode"])
 			}
 		case "resume":
+			if a["tag"] == "" && a["warm-only"] != "true" && c.Slots != nil {
+				ref, recognized, err := ParseWorkspaceReference(a["ref"])
+				if err != nil {
+					return nil, err
+				}
+				if recognized && ref.Number > 0 {
+					path, _, err := c.WorkspaceReferencePath(ctx, a["ref"])
+					if err != nil {
+						return nil, err
+					}
+					return c.OpenSlot(ctx, path, "")
+				}
+			}
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err

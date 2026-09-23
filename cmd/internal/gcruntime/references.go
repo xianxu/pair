@@ -46,13 +46,13 @@ func (r CouchReferences) Snapshot(ctx context.Context, held *storagegc.Locked, p
 			if err != nil {
 				return refs, err
 			}
-			refs.Archives = append(refs.Archives, storagegc.ArchiveReference{Store: path, Owner: owner, RecordHash: a.RecordHash, ArchivedAt: a.ArchivedAt, ClockError: a.ClockError})
+			refs.Archives = append(refs.Archives, storagegc.ArchiveReference{Store: path, SlotEnvironment: a.SlotEnvironment, Owner: owner, RecordHash: a.RecordHash, ArchivedAt: a.ArchivedAt, ClockError: a.ClockError})
 		}
 	}
 	return refs, nil
 }
 func archiveRequest(id string, ref storagegc.ArchiveReference) couchcore.ArchiveDetachRequest {
-	return couchcore.ArchiveDetachRequest{OperationID: id, Address: couchcore.ThreadAddress{RepoScope: ref.Owner.RepoScope, Tag: couchcore.ThreadTag(ref.Owner.Tag)}, RecordHash: ref.RecordHash, ArchivedAt: ref.ArchivedAt}
+	return couchcore.ArchiveDetachRequest{OperationID: id, SlotEnvironment: ref.SlotEnvironment, Address: couchcore.ThreadAddress{RepoScope: ref.Owner.RepoScope, Tag: couchcore.ThreadTag(ref.Owner.Tag)}, RecordHash: ref.RecordHash, ArchivedAt: ref.ArchivedAt}
 }
 func (r CouchReferences) Detach(held *storagegc.Locked, id string, ref storagegc.ArchiveReference) error {
 	ns, err := couchcore.ExistingCouchNamespace(ref.Store)

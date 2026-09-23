@@ -222,7 +222,11 @@ func TestPublicApplyPreservesProtectedOwnersAndCollectsIndependentBuckets(t *tes
 			t.Fatalf("changed survivor %s: %q %v", label, b, err)
 		}
 	}
-	for _, path := range []string{store.RecordPath(r.Address), filepath.Join(ns.Dir(), "threadstore", "archive", scope, owners["new-archive"].Tag+".json")} {
+	recordPath, err := store.RecordPath(r.Address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{recordPath, filepath.Join(ns.Dir(), "threadstore", "archive", scope, owners["new-archive"].Tag+".json")} {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatal(err)
 		}

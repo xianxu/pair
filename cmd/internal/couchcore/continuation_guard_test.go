@@ -95,6 +95,8 @@ func TestContinuationRefusesMatchesTheGuardForEveryRowAction(t *testing.T) {
 		"archive":              "never offered on a live row; its own admission is archiveContinuationVacant",
 		"recover-thread":       "offered only on recovery rows, never composed",
 		"recover-checkpoint":   "offered only on recovery rows, never composed",
+		"open-slot":            "path-based dispatcher tested by TestSlotOpenColdUsesContinuationGuard; hosted/warm open preserves the existing conversation",
+		"fresh-slot":           "explicit slot recovery tested by TestSlotFreshContinuationProtectsLiveAndUnknownOwners and TestSlotFreshRetainsStoppedContinuationWithoutArchiveGesture; requires stopped owners and retains the request",
 	}
 	for _, op := range Operations() {
 		if !op.RowAction {

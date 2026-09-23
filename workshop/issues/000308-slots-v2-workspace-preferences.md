@@ -56,3 +56,13 @@ Created from the agreed workspace/UI contract and the request for a clean task b
 ### 2026-09-23 — Preferences belong to the numbered thread, not each dependency
 
 Reason: operator agreed nested environments, ordinary remote dependency clones and existing per-repository publication. Delta: added the authoritative scope clarification and acceptance criteria above; original task context remains as provenance. No implementation or lifecycle-status change is claimed by this revision.
+
+### 2026-09-23 — build preference UX on local storage from #306
+
+Reason: `.couch` is the authoritative slot store across conversation replacement.
+Delta: #306 routes the existing path preference API to
+`<environment>/.couch/preferences.json` and preserves it during fresh conversation.
+This issue should reuse that storage and successful-launch publication, finishing
+inheritance/selection UX and restart isolation coverage rather than introducing
+another store. Primary preferences remain in the global backend. No new preferred
+model setting is authorized.

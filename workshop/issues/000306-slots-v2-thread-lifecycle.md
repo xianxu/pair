@@ -1,6 +1,6 @@
 ---
 id: 000306
-status: working
+status: codecomplete
 deps: [pair#305]
 github_issue:
 created: 2026-09-22
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours: 14.37
 started: 2026-09-23T13:12:13-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 4.52
 ---
 
 # Slots v2: multiple threads and parked admission
@@ -20,7 +21,7 @@ Couch must permit multiple threads in one repo while preventing forgotten parked
 
 Project: `pair/workshop/projects/couch-slots-v2.md`. Fresh task derived from the current v2 contract; historical task bodies are not prerequisites or implementation plans.
 
-Allow primary repo (alias repo:0) and additional repo:1, repo:2, etc. Each workspace hosts a full thread with the existing main-thread lifecycle: start, activate/attach, park, resume, continuation, replacement/archive. Use workspace identity for occupancy; repository identity still groups threads. An existing parked thread anywhere in that repo blocks new-thread creation until the operator activates parked work. Show which threads require attention and offer the existing activation path; do not silently create another slot or auto-resume an arbitrary thread.
+Allow primary repo (alias repo:0) and additional repo:1, repo:2, etc. Each numbered workspace is a durable thread with start, activate/attach, park, resume, continuation and start-fresh behavior. Slot identity persists across conversation replacement; repository identity groups threads. An existing parked thread anywhere in that repo blocks adding another slot until the operator activates parked work. Show which threads require attention and offer the existing activation path; do not silently create another slot or auto-resume an arbitrary thread.
 
 Apply admission at the authoritative startup boundary for every caller, revalidating concurrent requests. Existing live-thread switching remains allowed. Preserve dirty files and active branches through park/resume and keep workspace address/directory through completed-thread replacement. Resolve precise existing states (including detached, failed, and unreadable records) using current lifecycle authority during design. No brain co-tenancy, agent roles, or scheduling system.
 
@@ -41,10 +42,46 @@ Warm reattachment to a still-running agent only reconnects and does not compile.
 Primary :0 retains existing setup behavior. Preserve normal thread/session
 ownership and resume-binding checks; dirty files and issue branches are valid.
 
+### Authoritative local-slot design — 2026-09-23
+
+This revision supersedes the initial global-store admission proposal. Each verified
+numbered environment is a durable Couch slot/thread. Its `pair-slotN/.couch/` owns
+Couch thread/conversation references, lifecycle recovery records, preferences and
+continuation material. Slot identity survives conversation replacement; existing
+Pair/native conversation tags remain conversation handles. The directory convention
+and Git establish membership; an absent global registration never makes a slot free.
+Global slot listings are rebuildable indexes, not a second authoritative store.
+
+New-slot creation chooses an unused number, checks repo-wide parked work and uses
+#305's creation/readiness path. Existing slots—including incomplete setup—are opened
+or recovered, never reused as free containers for newly allocated slot identities.
+An existing parked :0 or :N blocks adding slots; open/resume/start-fresh within an
+existing slot remains available. Reuse current launch/start-claim/park machinery for
+competing agent starts; do not add a store-wide snapshot reservation system, new
+workspace occupancy states, setup phases, lease expirations or repository ownership.
+
+Opening attaches to a running agent or resumes a recoverable conversation. When
+conversation recovery fails, explicitly offer start fresh in the same slot. Preserve
+old evidence and all host/dependency work and preferences; no archive gesture is
+required. Reconstruct missing metadata only from verified evidence; preserve damaged
+records before replacement. A missing binding is not proof no process is running.
+Unknown live ownership, access errors, unsupported versions and Git conflicts must
+be resolved or explained, never silently overwritten or classified as vacancy.
+
+The existing primary/arbitrary-path storage model and per-store supervisor lock
+remain. Numbered slots use local storage while sharing lifecycle behavior. Keep
+Pair sidecars/native transcripts and #305 Git setup records at their existing homes.
+Migration and retention consumers must learn the local authoritative record before
+its global copy is retired; migration must preserve conversation identity and be
+repeatable after interruption. No dual-authoritative operation is acceptable.
+
+Detailed design and remaining engineering work:
+[implementation plan](../plans/000306-slots-v2-thread-lifecycle-plan.md).
+
 ## Done when
 
 - Primary and two slots can run concurrently; each is independently addressable and follows existing lifecycle behavior.
-- A parked :0 or :N blocks every new-thread entry point for that repo with actionable activation; another repo is unaffected.
+- A parked :0 or :N blocks every new-slot creation entry point for that repo with actionable activation; existing-slot recovery remains possible and another repo is unaffected.
 - Multiple parked threads remain visible and creation stays blocked while any remains parked.
 - Park/resume, continuation, and replacement preserve workspace identity; park/resume preserves dirty/untracked work and active branch.
 - Stateful startup tests cover admission races and existing failure/recovery states without duplicate live ownership.
@@ -54,13 +91,21 @@ ownership and resume-binding checks; dirty files and issue branches are valid.
 - Numbered-slot open/cold resume invokes readiness; missing setup is recovered
   by the same action without a retry flag. Warm reattach never compiles.
 
+- Numbered-slot state is authoritative under its environment's `.couch/`; deleting
+  only the global index does not lose slots, preferences or conversation references.
+- Missing/corrupt Couch metadata and lost conversation bindings allow verified
+  reconstruction or explicit start fresh within the same slot, without archive.
+  Unknown live ownership cannot be bypassed by start fresh.
+- Migrated slot records keep existing conversation handles; interrupted migration
+  is repeatable, and retention/GC cannot delete locally referenced session data.
+
 ## Plan
 
-Task outline only; settle implementation design through start-plan before change-code.
+Execute the durable plan after operator approval and the full change-code gate.
 
-- [ ] Map existing thread states and specify per-workspace occupancy and repo-wide admission.
-- [ ] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
-- [ ] Verify dirty park/resume, continuation, replacement, and primary behavior.
+- [x] Finalize local storage/migration and recovery integration against the revised durable-slot model.
+- [x] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
+- [x] Verify local authority/index rebuilding, dirty-work preservation, resume/start-fresh recovery, and primary compatibility.
 
 ## Estimate
 
@@ -168,6 +213,124 @@ total: 14.37
 
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
 
+### 2026-09-23 — claim and design
+- 2026-09-23: closed — Post-review go test ./... -count=1 passed; local-reader/migration/archive/slot acceptance race tests passed; affected-package vet and make pair bin/couch passed. BR-1 exhaustive direct-reader/GC enumeration added; BR-2 all local current, journal replay, restore and continuation IO uses guarded no-follow reads with pre-publication size limits, regressions preserve outside targets; BR-3 README finalized. Earlier installed SDLC/Weave conformance passed; dependency interfaces unchanged by review fixes. Logs /tmp/pair306-postreview-full.log, /tmp/pair306-postreview-race.log, /tmp/pair306-postreview-vet.log.; review verdict: SHIP
+
+Claimed #306 after #305 merged. Mapped all fresh starts to spawnResolved and all
+child creation to launchTrackedThread. Found path-only occupancy, non-atomic
+allocation/claim, narrowed startup evidence and loss of incarnation repo identity
+on park. Proposed stable workspace association plus admission checked under the
+existing store lock, reusing ThreadStartClaim through readiness (ARCH-DRY,
+ARCH-PURE, ARCH-ORDER). No implementation changes yet.
+
+
+### 2026-09-23 — design reviews passed
+
+Fresh-context spec and plan reviews approved the proposal without blocking findings.
+The durable plan includes both sides of the park/final-admission ordering test.
+Awaiting operator approval before change-code; no implementation or estimate yet.
+
+### 2026-09-23 — local authority and durable-slot recovery
+
+Operator approved `.couch/` as authoritative, rebuildable global slot listings and
+resume-or-start-fresh within a durable slot. Preserve the current supervisor model.
+Revised active spec/plan to remove free-workspace reuse, archive prerequisite and
+new admission-reservation machinery. Earlier design reviews are superseded; no
+code changes or new estimate. Migration/retention integration remains planning work.
+
+### 2026-09-23 — concrete local-storage planning
+
+Traced shared ThreadStore mutation primitives and all five gcruntime reference
+operations. The engineering plan now specifies a routed local backend, no redundant
+local manifest, root-enrollment cutover, a format fence for old readers, stable UI
+slot targets, scope-based recovery evidence and atomic fresh replacement. Existing
+serial operation scheduling and supervisor ownership remain unchanged. The retained
+conversation/archive machinery is reused; a separate bounded raw-backup policy
+covers damaged metadata. Fresh engineering review is in progress; no runtime edits.
+
+### 2026-09-23 — engineering plan review passed
+
+Fresh-context review approved the detailed plan after removing an unsupported
+historical-conversation restore promise, covering migration with no current record,
+and ordering the old-reader format fence before global reference removal. The
+durable plan now specifies concrete storage, GC, launch and recovery integration
+and verification boundaries. Awaiting operator plan approval; no runtime edits.
+
+### 2026-09-23 — execution approved; gate refinement
+
+Operator approved the detailed plan. First change-code review became stale after
+a peer project commit moved HEAD, so no gate result was persisted. Its feedback
+was checked against existing start transitions and operationQueue; refined the
+plan with explicit transition authority, operating envelope, artifact cleanup
+ownership and function-level test strategies. No new lifecycle state machinery.
+Rerunning change-code before any runtime edits.
+
+### 2026-09-23 — implementation gate passed; storage foundation
+
+change-code passed plan-quality and estimate-quality and created the in-place issue
+branch. Accepted estimate: 14.37h after separating implementation boundaries.
+Baseline couchcore and gcruntime suites passed. Local backend tests first exposed
+wrong-tag archive and symlink-lock writes; guards now reject both. Focused layout,
+atomic successful-start recovery, absent-state read and schema compatibility tests
+pass (explicit Go file set while parallel migration tests are in their red phase).
+Catalog/reference/allocation foundations have focused and parser-fuzz evidence;
+routing, migration and GC integration are in progress. No completion claim.
+Plan gate PQ-5 is carried to implementation: audit direct metadata and retention
+consumers as well as lifecycle primitives for local authority.
+
+### 2026-09-23 — implementation checkpoint and integrated verification
+
+Committed local storage/lifecycle integration as 3f484d02. Focused tests cover
+root-list loss, migration conflicts, stale global archive filtering, two-slot
+fresh recovery and dirty-file isolation. Installed SDLC/Weave conformance passed;
+GC suites and builds passed. Broad verification is in progress: source inventory
+and CLI fixture expectations need updating for the new workspace identity call.
+The PQ-5 audit found ArchivedThreads skipping journal recovery; regression and
+shared-lock repair are landing before final verification. No issue-close claim.
+
+### 2026-09-23 — final integrated verification before close
+
+`go test ./... -count=1` exited zero: couchcore 276.672s, couchcmd 37.501s,
+couchtty 9.308s, gcruntime 192.627s, storagegc 19.725s. Final targeted slot/storage/
+startup race suite passed (101.427s). Vet, runtime bundle generation and
+`make pair bin/couch` passed. Installed `PAIR_LIVE_WORKSPACE=1` provisioning
+conformance passed against disposable host/private-dependency repositories.
+Raw logs are under `/tmp/pair306-*`, outside the repository.
+
+The overlapping package-only run was intentionally interrupted for a stack capture
+when it took longer than baseline: it was executing fsync in an ordinary warm
+fixture, not blocked on a lock; that test passed alone. The complete full run above
+supersedes that interrupted diagnostic run and includes every affected package.
+
+Verified boundaries include parked admission on both sides of final admission,
+exact accepted targets, no preview setup, missing-host repair, local metadata/GC
+routing, root-list rebuild, ambiguous/live-owner refusal, malformed-record backups,
+stopped continuation replacement, CLI :0/:N/repo:N and two-slot dirty-work isolation.
+Project/downstream issue contracts and atlas/README guidance were updated. The
+close command owns the fresh-context review; publication is still pending.
+
+### 2026-09-23 — close review rework: local reader boundary
+
+First close returned REWORK. BR-1 carried the direct-consumer enumeration from
+planning; the plan now lists every current/preference/archive/journal/continuation/
+recovery/retention reader and all five GC adapters. BR-2 reproduced symlink-following
+current reads and journal replay; all local authority now uses the shared anchored
+no-follow reader. Payload/journal limits are enforced before publication as well
+as reads. Exported lifecycle, journal replay, outside-path and oversized-image
+regressions pass with outside bytes unchanged. BR-3's temporary README marker is
+folded into final prose, and documentation checks pass. Full post-fix verification
+is in progress before re-running close. No waiver or bypass requested.
+
+### 2026-09-23 — post-review verification passed
+
+After BR-1/BR-2/BR-3 fixes, `go test ./... -count=1` exited zero again
+(`/tmp/pair306-postreview-full.log`). Focused guarded-reader/migration/archive/
+two-slot race tests passed (30.055s); affected-package vet and rebuilt Pair/Couch
+also passed. README tests pass and no unresolved edit markers remain in its
+numbered-slot guidance. Re-running close for explicit disposition of all three
+findings. The guarded local reader is used by every enumerated local authority
+path; ordinary global reads retain compatibility.
+
 ## Revisions
 
 ### 2026-09-23 — Thread ownership remains with the environment main checkout
@@ -179,3 +342,18 @@ Reason: operator agreed nested environments, ordinary remote dependency clones a
 Reason: operator agreed setup recovery belongs to the normal slot-opening action.
 Delta: require #305 readiness before launch/cold resume, with repeatable missing
 setup recovery; warm reattachment and primary setup behavior stay unchanged.
+
+### 2026-09-23 — lifecycle design proposal
+
+Reason: turn the agreed multiple-thread contract into executable boundaries.
+Delta: specify automatic versus exact workspace selection, conservative legacy
+handling, atomic admission/claim, and final checks after readiness. Preserve the
+existing lifecycle and scope keys; grouped UI and preference UX remain #307/#308.
+
+### 2026-09-23 — supersede global-store allocation design
+
+Reason: managed numbered directories define durable slots; unrecoverable
+conversation state must not force slot retirement. Delta: local Couch authority,
+separate conversation recovery, existing lifecycle protection, and explicit storage
+migration/retention tasks. Removed the earlier free-container and whole-store CAS
+proposal from the active spec; its review approvals no longer authorize execution.

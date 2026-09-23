@@ -5,6 +5,7 @@ import "github.com/xianxu/pair/cmd/internal/couchcore"
 // PreviewRequest is one immutable start-form generation submitted to the
 // asynchronous owner boundary.
 type PreviewRequest struct {
+	Action        couchcore.StartAction
 	SwitchAddress couchcore.ThreadAddress
 	SwitchArgv    string
 
