@@ -390,8 +390,7 @@ review and Ariadne publication follow; #242 stays closed.
 
 Both prerequisite contracts are available. The [implementation plan](../plans/000305-slots-v2-workspace-provisioning-plan.md)
 uses remote-main initialization, one repository lock for host Git creation,
-small creation intent and a setup-success marker. Missing success permits explicit
-Weave retry; Weave owns dependency locking and recovery. Ready reuse validates
+small creation intent and a setup-success marker. Missing success runs Weave again on the same readiness invocation; Weave owns dependency locking and recovery. Ready reuse validates
 the host without fetching or composing. Thread admission and launch remain with pair#306.
 
 ## Log
@@ -591,3 +590,11 @@ Reason: operator requested a simpler design using repeatable Weave compilation.
 Delta: #305 now uses one Git creation lock, bounded host intent and one successful
 setup marker; removes Couch dependency inventory and provisioning phase tracking.
 The revised plan needs fresh review and approval before implementation.
+
+### 2026-09-23 — repeatable readiness on slot open
+
+Reason: operator prefers idempotent operations over a separate retry mode.
+Delta: #305 removes --retry and ensures readiness on each invocation. #306 calls
+it before numbered-slot launch/cold resume; warm reattachment only reconnects.
+Missing setup success reruns Weave; failures are visible and another ordinary
+open/resume retries. Primary :0 setup behavior remains unchanged.

@@ -24,11 +24,16 @@ Derive the estimate after that command's plan-quality gate, before implementatio
 ```text
 couch --internal provision-workspace /absolute/primary --slot=1
 couch --internal provision-workspace /absolute/primary --slot=1 --remote=upstream
-couch --internal provision-workspace /absolute/primary --slot=1 --retry
 ```
 
 Return JSON with schema_version 1, address, path, resting_branch, baseline_sha
 and disposition (created/reused/prepared); progress/errors go to stderr.
+The operation ensures readiness on every call: reuse verified completed work,
+complete provable missing Git steps, and rerun safe setup when success is absent.
+Errors end the invocation visibly; there is no background or unbounded retry loop.
+#306 calls it when creating/opening a numbered workspace or cold-resuming its
+parked thread, before agent launch. Warm reattachment to a still-running agent
+only reconnects; it does not run setup. Primary :0 behavior remains unchanged.
 The operation creates no agent/thread. #306 supplies automatic number selection,
 parked admission and the reservation through thread launch. Existing start-form
 preview remains read-only; existing primary startup does not invoke provisioning.
@@ -115,7 +120,7 @@ thread-store or singleton supervisor lock here. Weave gets no Pair lease.
 For a fully Git-verified conventional host, preserve all refs/files and proceed
 to the success-marker check. No fetch is needed, and no existing upstream is
 silently retargeted. An externally created complete compatible host can be
-prepared on explicit --retry; otherwise explain that preparation is unconfirmed.
+prepared by the same invocation when successful setup is unconfirmed.
 For that first preparation without intent or success marker, capture the observed
 main-slotN tip under the creation lock as baseline_sha, preserving current HEAD
 and files. Otherwise use the recorded intent/marker baseline; ready reuse returns
@@ -132,7 +137,7 @@ commands remain outside Couch's lock; record and consistently use that observed
 SHA, never reread it as the creation start point. No implicit local-main update.
 
 CreationIntent is `<common>/couch-workspaces/<N>/creation.json`, bounded 16 KiB.
-If it exists, explicit retry uses its recorded SHA without fetching again.
+If it exists, the same invocation uses its recorded SHA without fetching again.
 Invalid JSON/version/path/identity refuses rather than being treated as absent.
 Create the environment directory exclusively; existing unrelated content refuses.
 Record its filesystem identity before using it. A crash before ownership evidence
@@ -162,8 +167,8 @@ version and exact host/common/admin paths against current Git identity.
 Changed HEAD, issue branch or dirty files do not invalidate it.
 
 Valid marker -> return reused. Missing marker -> initial setup is unconfirmed.
-For a newly created host, run setup immediately. For an existing incomplete host,
-ordinary invocation explains --retry; that explicit retry reruns Weave. Invalid
+Run setup for both newly created and existing verified hosts when success is
+unconfirmed. No retry flag or separate retry operation is needed. Invalid
 marker contents refuse for inspection instead of authorizing host mutation.
 If a host is externally removed/replaced, validate Git anew; never accept a
 success marker from another administrative directory.
@@ -180,10 +185,10 @@ atomically write SetupSuccess. A concurrently published valid marker wins;
 use its baseline rather than replacing it. Publication and owned temporary-file
 cleanup both hold this same lock, so cleanup cannot remove an active write.
 Only then return ready. If the lock is busy or validation/publication fails,
-report unconfirmed setup and allow explicit retry; another compile is acceptable.
+report unconfirmed setup and allow another invocation; another compile is acceptable.
 On failure/interruption, leave success unrecorded and expose retry.
 A crash after compile succeeded but before marker publication is harmless: the
-next explicit retry reruns compile. A lost success acknowledgment needs no new
+next invocation reruns compile. A lost success acknowledgment needs no new
 Couch state. Repeated compilation is allowed by Weave's retry contract.
 
 If another Weave setup is active (including surviving descendants), its own
@@ -202,9 +207,9 @@ No growing journal or additional ref/nonce cleanup protocol is required.
 | Verified observation | Action |
 | --- | --- |
 | Host absent, no conflicts | create from remote baseline, run Weave |
-| Owned partial Git creation | explicit retry completes provable missing steps |
+| Owned partial Git creation | complete provable missing steps |
 | Host valid, success marker valid | reuse, no fetch/compile |
-| Host valid, success absent | new creation runs Weave; later invocation requires --retry |
+| Host valid, success absent | run Weave in this invocation |
 | Weave exits 0 | validate host and atomically mark success |
 | Weave fails / outcome unconfirmed | no success marker; show diagnostic/retry |
 | Foreign paths/refs, corrupt evidence, unverifiable partial host | refuse without overwriting work |
@@ -280,10 +285,12 @@ operation/CLI/readme contracts.
 - [ ] Use a deterministic barrier to overlap marker publication and temporary
   cleanup; verify the shared lock protects active writes. Test externally created
   hosts capture main-slotN as baseline without changing current HEAD/files.
+- [ ] Test identical invocations recover missing success after failure/interruption
+  without a retry flag, preserve owned Git progress and skip confirmed setup.
 - [ ] Model Weave busy/success/failure through the process seam. Test serial
   duplicate retries as acceptable and no duplicate host creation or thread launch.
 - [ ] Wire PresentationInternal + ExecuteDirectStore + EffectProcess + a new
-  workspace result family. Args: path, --slot=N, optional --remote=R, --retry.
+  workspace result family. Args: path, --slot=N, optional --remote=R.
 - [ ] Inject WorkspaceProvisioner in OSRuntime.NewCouchWith; route progress to
   stderr and result JSON to stdout. Tests explicitly inject the fake, never an
   ambient real process/filesystem fallback. Keep PrepareStart unchanged.
@@ -363,3 +370,11 @@ undefined baseline for externally created hosts. Delta: briefly reacquire the
 existing creation lock for final validation/publication; a valid concurrent marker
 wins. Capture the resting-branch tip for first preparation of an external host.
 Added focused tests. Weave still runs outside the lock; no new state or lock.
+
+### 2026-09-23 — one repeatable readiness operation
+
+Reason: operator removed the distinction between initial setup and explicit retry.
+Delta: removed --retry; every call reuses verified completion and reapplies safe
+unconfirmed steps. #306 invokes readiness before numbered-workspace launch/cold
+resume; warm reattachment skips setup. Failure returns visibly; the next ordinary
+invocation recovers without a separate mode. Existing collision safeguards remain.
