@@ -316,6 +316,27 @@ added the lesson. BR-1/BR-2 are carried copies of the disputed reverse dependenc
 the review accepted the actual #305/#306 ownership split but omitted explicit
 ledger dispositions. Requesting those withdrawals on re-review. No code changes.
 
+### 2026-09-23 — reservation finding disputed with executable evidence
+
+Second review passed its own full Go suite, targeted/race evidence and live
+conformance, and disposed BR-3. It retained BR-1/BR-2 despite acknowledging no
+thread/supervisor/agent effects. Requesting a different supported gate reviewer
+for that technical disagreement, using the receiving-code-review skill.
+
+The reusable boundary rule is: a readiness operation grants directory readiness,
+not thread capacity. There is no token handoff across this API. Its only consumer
+in #305 is DirectStoreExecutor's explicit path/slot call. Ensure never calls
+SelectWorkspaceNumber, a thread store, or a launch API. Two Ensure callers for
+the same slot are deliberately allowed: TestProvisionRecoveryConcurrentWeaveBusy
+and TestProvisionRecoveryConcurrentPublishedMarkerWins exercise them; Git host
+creation and marker publication serialize under HostCreationLease, while Weave
+owns setup exclusion. TestProvisionCLI asserts zero runner/supervisor effects.
+Thus missing #306 cannot produce a duplicate thread or invalidate #305's contract.
+#306 already declares deps: [pair#305]. The requested reverse edge is a cycle,
+not a prerequisite. BR-1/BR-2 should be withdrawn unless a concrete violated
+#305 invariant can be shown. Future admission/launch invariants belong to #306.
+No code changed since both independent verification runs.
+
 ## Revisions
 
 ### 2026-09-23 — Provision nested environments with private ordinary clones
