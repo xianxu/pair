@@ -382,6 +382,33 @@ and vet passed; existing #210 remains excluded. One Parley performance spec time
 out in the full run and passed all three cases on an isolated rerun. Boundary
 review and Ariadne publication follow; #242 stays closed.
 
+<a id="ariadne-244"></a>
+### ariadne#244 — Concurrent issue workflows
+
+**status:** working — M1 closed with SHIP; M2 integration in progress
+**est:** 17.01h (revised simplified scope)
+**started:** 2026-09-23
+
+M1 provides fresh status-only claims and explicit selected documentation-commit
+publication in every checkout, including :0 and private dependency clones.
+Real claim/allocation races and caller-state preservation tests pass; the full
+workspace/SDLC suite and vet pass (known ariadne#210 fixture excluded). M2 retains
+short external-review locks and validation before result persistence; its integrated
+workflow tests pass, with final signal/full-suite verification remaining.
+
+<a id="ariadne-244-m1"></a>
+### ariadne#244 M1 — Claims and selected documentation publication
+**closed:** 2026-09-23
+**actual:** 4.76h
+
+**status:** closed; SHIP review, no findings
+
+Fresh remote status reserves work; agents explicitly select documentation commits
+for three-way publication in every checkout. Full workspace/SDLC tests and vet
+passed, including real clone/worktree claim races and isolated caller state.
+Identical Git commits do not establish caller ownership; ambiguous reservation
+acknowledgments remain uncertain. Review lock changes belong to M2.
+
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
@@ -601,6 +628,10 @@ it before numbered-slot launch/cold resume; warm reattachment only reconnects.
 Missing setup success reruns Weave; failures are visible and another ordinary
 open/resume retries. Primary :0 setup behavior remains unchanged.
 
+### 2026-09-23 — ariadne#244 publication scope simplified
+
+The operator confirmed origin/main status as the reservation authority: fresh conditional open→working claims, with already-working refusal and no owner tokens or private receipt store. The agent selects a coherent documentation commit, potentially grouping issue, separate plan and related project records; SDLC publishes its Git change against fresh origin/main with merge/conflict handling. This applies equally to :0, numbered worktrees and ordinary dependency clones. Local issue sync remains issue-file-only. External reviews must release local transaction locks and revalidate before persisting results. The earlier #244 engineering estimate is superseded; no implementation completion is implied.
+
 ### 2026-09-23 — #305 implementation
 
 The repeatable readiness operation is implemented, with internal CLI access,
@@ -620,3 +651,9 @@ measured actual is 4.66h. Publication follows; #306 owns thread integration.
 Pair PR155 merged; SDLC marked #305 done and archived its issue and plan.
 Updated the portfolio status and links. #306 can now integrate directory readiness
 with thread creation and cold resume.
+
+### 2026-09-23 — ariadne#244 M1 verification checkpoint
+
+Implemented the simplified publication scope and passed the full workspace/SDLC regression suite plus vet. Reservations use remote status without a slot ownership registry; the branch name associates local work with its issue. Identical Git candidate commits do not establish caller ownership. The M1 review returned SHIP with no findings; external-review lock changes are the separate M2 boundary.
+
+[ariadne#244 M1]: #ariadne-244-m1
