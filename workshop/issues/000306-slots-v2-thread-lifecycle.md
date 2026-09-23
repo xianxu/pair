@@ -276,6 +276,16 @@ routing, migration and GC integration are in progress. No completion claim.
 Plan gate PQ-5 is carried to implementation: audit direct metadata and retention
 consumers as well as lifecycle primitives for local authority.
 
+### 2026-09-23 — implementation checkpoint and integrated verification
+
+Committed local storage/lifecycle integration as 3f484d02. Focused tests cover
+root-list loss, migration conflicts, stale global archive filtering, two-slot
+fresh recovery and dirty-file isolation. Installed SDLC/Weave conformance passed;
+GC suites and builds passed. Broad verification is in progress: source inventory
+and CLI fixture expectations need updating for the new workspace identity call.
+The PQ-5 audit found ArchivedThreads skipping journal recovery; regression and
+shared-lock repair are landing before final verification. No issue-close claim.
+
 ## Revisions
 
 ### 2026-09-23 — Thread ownership remains with the environment main checkout
