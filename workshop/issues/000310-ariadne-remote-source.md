@@ -1,11 +1,12 @@
 ---
 id: 000310
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T10:33:47-07:00
 ---
 
 # Record Ariadne remote acquisition source
