@@ -146,7 +146,7 @@ This remains larger than the quick-flow shell.
 ## Plan
 
 Engineering plan: [000305-slots-v2-workspace-provisioning-plan.md](../plans/000305-slots-v2-workspace-provisioning-plan.md).
-Product direction is agreed; the simplified detailed plan is undergoing fresh review before operator approval.
+Product direction is agreed; the simplified detailed plan passed fresh review and awaits operator approval.
 
 - [ ] Implement checked identity transport, request grammar and pure selection/host decision table.
 - [ ] Implement host creation intent, one Git creation lock and cancellable process execution.
@@ -211,6 +211,14 @@ marker. A missing marker permits explicit compile retry. One repo lock covers
 host Git creation only; Weave owns setup exclusion. Retained small creation
 intent for safely reconciling interrupted Git effects. Prior review applies to
 the superseded design; no implementation has started.
+
+### 2026-09-23 — simplified plan reviewed
+
+Fresh review accepted the simplified architecture with two bounded corrections:
+serialize success publication and temporary cleanup under the existing lock,
+and define an external host's first baseline from its resting-branch tip.
+Both corrections and focused tests are in the plan. Issue/project schema checks
+and diff whitespace checks pass. Implementation awaits operator approval.
 
 ## Revisions
 
