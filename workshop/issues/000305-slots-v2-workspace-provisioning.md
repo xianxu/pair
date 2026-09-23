@@ -90,53 +90,44 @@ request before marking it ready. Do not infer setup success from directory
 existence. A missing or externally changed workspace must be revalidated rather
 than trusted because it has a saved receipt.
 
-**Ownership and recovery.** Serialize mutations for a slot across processes,
-with repository-wide exclusion for allocation/ref creation where required. Use
-OS-held leases and ensure live setup children retain the relevant exclusion if
-the caller dies; avoid holding the Couch thread-store lock during network/build
-work. Weave owns its dependency setup lock and clone-stage recovery. Pair owns
-only the host worktree transaction and its readiness evidence.
+**Ownership and recovery.** One repository-wide OS lock serializes host Git
+verification, fetch/capture and creation; direct Git children inherit it. Release
+it before Weave setup. Keep a small creation-intent record with the captured SHA
+and ownership evidence to reconcile interrupted Git operations. Git/filesystem
+facts determine the next step; there is no persisted provisioning phase machine.
+Refuse foreign paths/refs and unverifiable partial creation without overwriting
+work. Never automatically remove worktrees, branches or dependency clones.
 
-Represent absent, reserved, host-created, preparing, ready, retry-needed and
-conflicting observations explicitly in a pure transition model (ARCH-ORDER).
-Record intent before effects and reconcile actual Git/filesystem state after
-uncertain outcomes. Store bounded per-slot metadata outside the working tree,
-keyed by canonical repo identity, slot, and operation generation. A marker alone
-never authorizes takeover. Reuse only a host/ref proven to belong to this
-transaction or independently verified as an existing compatible workspace.
-Unrelated directories, branches, symlink aliases and malformed records refuse
-without overwriting anything. An interrupted reservation or failed setup stays
-attached to the same number, with its diagnostics and an explicit retry path.
-Never automatically remove worktrees, branches, dependency clones or user files.
+**Setup success and retry.** Store one success marker in the host's Git
+administrative directory only after Weave exits 0 and host validation succeeds.
+A valid marker skips compilation. Without one, explicit retry reruns
+`weave compile`; new hosts run it immediately. Weave owns dependency locking,
+partial setup and retry recovery. Couch keeps no dependency inventory, nonce
+bindings or setup phases. A crash between compile success and marker publication
+simply causes another compile. The marker records initial setup success, not
+ongoing build freshness; later dependency/source changes need explicit Weave/build.
 
-**Process lifetime and progress.** Preparation runs outside the UI event loop,
-reports human-readable progress, and supports cancellation. Cancellation stops
-and joins owned command processes; if outcome remains uncertain, persist that
-uncertainty and reconcile before another mutation. Do not parse Weave diagnostic
-strings into state. Design the exact wait/timeout limits and bounded diagnostic
-storage in the implementation plan. Existing ready resume performs only local
-validation. Long clone/build work is allowed to take visibly longer than that.
+**Process lifetime and progress.** Run preparation outside the UI event loop,
+stream diagnostics, and support bounded cancellation of owned processes. Weave's
+own inherited lock protects any surviving setup descendants. No persisted
+uncertain-outcome state or diagnostic history is needed: absence of the success
+marker remains sufficient retry evidence.
 
-**Retention.** Workspaces and dependency clones intentionally persist per slot,
-not per launch. One current transaction/readiness record and stable lock files
-per slot replace prior generations instead of accumulating attempt history.
-Temporary files have owned cleanup; diagnostic retention is bounded. Explicit
-environment removal ends their lifetime; this issue adds no automatic deletion
-policy (ARCH-FUNERAL).
+**Retention.** One host-creation lock per repo; at most one small intent and one
+success marker per slot. Remove owned intent after success, or retry that bounded
+cleanup later. Keep diagnostic tails in memory only. Worktrees and clones persist
+until explicit removal (ARCH-FUNERAL).
 
-**Verification.** Pure tests cover number selection and transitions. Stateful
-fakes behind the same process/storage seams model refs, worktree membership,
-filesystem contents, command outcomes and setup phases; deterministic barriers
-exercise concurrency and caller death. Real temporary Git fixtures verify
-non-origin remotes, paths with spaces, hyphenated repo names, branch/path
-collisions, upstream selection and interrupted creation. Conformance to the
-actual SDLC v2 output and Weave setup contract is checked separately from fake
-integration. Production dispatcher tests prove prepare/ready/retry behavior and
-that failure launches no agent. Existing primary startup remains covered.
+**Verification.** Test pure number selection and a small host decision table.
+Stateful process/storage fakes cover host refs, membership, files, locks and
+command outcomes without simulating dependency internals. Real Git fixtures
+cover collisions, captured remote baselines, interrupted creation and upstream
+configuration. Check real SDLC v2 and Weave conformance separately. Test failed
+compile, lost success publication, repeat compile, and ready reuse through the
+production dispatcher; provisioning launches no agent.
 
-The implementation plan must name exact files and seams, the transition table,
-locks/process lifetime, metadata validation, resource limits, and test commands
-before code changes. This is larger than the quick-flow shell.
+The durable plan names files, seams, bounded processes and test commands.
+This remains larger than the quick-flow shell.
 
 ## Done when
 
@@ -155,10 +146,10 @@ before code changes. This is larger than the quick-flow shell.
 ## Plan
 
 Engineering plan: [000305-slots-v2-workspace-provisioning-plan.md](../plans/000305-slots-v2-workspace-provisioning-plan.md).
-Product direction is agreed; the detailed plan passed fresh review and awaits operator approval.
+Product direction is agreed; the simplified detailed plan is undergoing fresh review before operator approval.
 
-- [ ] Implement checked identity transport, request grammar and pure selection/transition model.
-- [ ] Implement durable evidence, inherited leases and cancellable process execution.
+- [ ] Implement checked identity transport, request grammar and pure selection/host decision table.
+- [ ] Implement host creation intent, one Git creation lock and cancellable process execution.
 - [ ] Implement and verify host creation, setup, reuse and explicit retry with real Git conformance.
 - [ ] Wire the internal operation, production runtime, progress and result rendering.
 - [ ] Document the contract for #306, run verification, and close through one review boundary.
@@ -212,6 +203,15 @@ a later slot fetch preserves the first attempt's captured SHA. Issue/project
 schemas and diff whitespace checks pass. No production code has changed;
 operator approval is the remaining checkpoint before change-code.
 
+### 2026-09-23 — simplify setup recovery
+
+The operator requested a simpler design after confirming repeatable Weave setup.
+Replaced dependency inventory and provisioning phases with one setup-success
+marker. A missing marker permits explicit compile retry. One repo lock covers
+host Git creation only; Weave owns setup exclusion. Retained small creation
+intent for safely reconciling interrupted Git effects. Prior review applies to
+the superseded design; no implementation has started.
+
 ## Revisions
 
 ### 2026-09-23 — Provision nested environments with private ordinary clones
@@ -252,3 +252,11 @@ Delta: replaced the initial three-step task outline with the durable plan and
 five concrete execution checkpoints, retaining one issue-close review boundary.
 Added explicit readiness meaning, subprocess/lease ownership, recovery proofs,
 resource bounds and verification commands in the plan. No code changes yet.
+
+### 2026-09-23 — simplify provisioning design
+
+Reason: operator requested simplification around repeatable weave compile.
+Delta: replaced active ownership/recovery, retention and verification design with
+Git-derived host decisions, one host creation lock and a setup-success marker.
+Removed Couch dependency inventory, persisted setup phases and private fetch refs;
+retained bounded intent for interrupted Git creation. Historical logs remain.
