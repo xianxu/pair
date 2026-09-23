@@ -577,7 +577,7 @@ preferences and acceptance tasks were aligned without reopening #242.
 
 [ariadne#243]: ../../../ariadne/workshop/history/issues/000243-slots-v2-dependency-bindings.md
 
-[ariadne#244]: ../../../ariadne/workshop/issues/000244-slots-v2-concurrent-workflows.md
+[ariadne#244]: ../../../ariadne/workshop/history/issues/000244-slots-v2-concurrent-workflows.md
 
 [ariadne#245]: ../../../ariadne/workshop/issues/000245-slots-v2-branch-and-refresh.md
 
