@@ -103,8 +103,8 @@ Detailed design and remaining engineering work:
 Execute the durable plan after operator approval and the full change-code gate.
 
 - [x] Finalize local storage/migration and recovery integration against the revised durable-slot model.
-- [ ] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
-- [ ] Verify local authority/index rebuilding, dirty-work preservation, resume/start-fresh recovery, and primary compatibility.
+- [x] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
+- [x] Verify local authority/index rebuilding, dirty-work preservation, resume/start-fresh recovery, and primary compatibility.
 
 ## Estimate
 
@@ -285,6 +285,27 @@ GC suites and builds passed. Broad verification is in progress: source inventory
 and CLI fixture expectations need updating for the new workspace identity call.
 The PQ-5 audit found ArchivedThreads skipping journal recovery; regression and
 shared-lock repair are landing before final verification. No issue-close claim.
+
+### 2026-09-23 — final integrated verification before close
+
+`go test ./... -count=1` exited zero: couchcore 276.672s, couchcmd 37.501s,
+couchtty 9.308s, gcruntime 192.627s, storagegc 19.725s. Final targeted slot/storage/
+startup race suite passed (101.427s). Vet, runtime bundle generation and
+`make pair bin/couch` passed. Installed `PAIR_LIVE_WORKSPACE=1` provisioning
+conformance passed against disposable host/private-dependency repositories.
+Raw logs are under `/tmp/pair306-*`, outside the repository.
+
+The overlapping package-only run was intentionally interrupted for a stack capture
+when it took longer than baseline: it was executing fsync in an ordinary warm
+fixture, not blocked on a lock; that test passed alone. The complete full run above
+supersedes that interrupted diagnostic run and includes every affected package.
+
+Verified boundaries include parked admission on both sides of final admission,
+exact accepted targets, no preview setup, missing-host repair, local metadata/GC
+routing, root-list rebuild, ambiguous/live-owner refusal, malformed-record backups,
+stopped continuation replacement, CLI :0/:N/repo:N and two-slot dirty-work isolation.
+Project/downstream issue contracts and atlas/README guidance were updated. The
+close command owns the fresh-context review; publication is still pending.
 
 ## Revisions
 

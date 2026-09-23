@@ -17,7 +17,7 @@ atomic/journaled storage, SDLC workspace v2, Git, #305 WorkspaceReadiness.
 
 **Status:** Operator-approved direction; concrete engineering plan passed fresh
 review after corrections. Operator approved execution on 2026-09-23. Earlier
-global-store reviews are superseded; change-code passed and implementation is in progress.
+global-store reviews are superseded; change-code passed; implementation and verification passed, close review pending.
 **Issue:** `workshop/issues/000306-slots-v2-thread-lifecycle.md`.
 **Flow:** Full; in-place branch when entering implementation. Estimate follows
 plan-quality review. Preserve unrelated local work.
@@ -491,9 +491,9 @@ threadstore_layout.go, threadstore_location.go, slotmigration.go and colocated t
 modify threadstore.go, storejournal.go, continuation_store.go, retention.go,
 archive_gc.go, gcruntime/references.go and their tests.
 
-- [ ] Write failing production-boundary tests using the function-level strategies above.
-- [ ] Implement StoreLayout and routed primitives, then root enrollment and all five GC methods; share lifecycle methods and keep physical-backend validation explicit.
-- [ ] Run targeted store/retention/gcruntime tests and race sequences; commit.
+- [x] Write failing production-boundary tests using the function-level strategies above.
+- [x] Implement StoreLayout and routed primitives, then root enrollment and all five GC methods; share lifecycle methods and keep physical-backend validation explicit.
+- [x] Run targeted store/retention/gcruntime tests and race sequences; commit.
 
 ### Task 2 — slot discovery, references and stable rows
 
@@ -501,10 +501,10 @@ Files: new couchcore/threadtarget.go, workspaceref.go, slotallocation.go and tes
 modify actionableinventory.go, threadinventory.go, threadmetadata.go,
 startresolution.go, startup.go and couchtty/menu.go/menu_refresh.go/menu_render.go.
 
-- [ ] Write failing catalog, reference and row-selection tests using the strategies above.
-- [ ] Implement SlotObservation and stable ThreadTarget/ThreadRowKey in inventory and menu; retain native addresses for process ownership.
-- [ ] Wire accepted-target startup resolution and complete repository admission evidence; retire the obsolete advisory selector.
-- [ ] Run inventory, metadata, startup and menu suites; commit.
+- [x] Write failing catalog, reference and row-selection tests using the strategies above.
+- [x] Implement SlotObservation and stable ThreadTarget/ThreadRowKey in inventory and menu; retain native addresses for process ownership.
+- [x] Wire accepted-target startup resolution and complete repository admission evidence; retire the obsolete advisory selector.
+- [x] Run inventory, metadata, startup and menu suites; commit.
 
 ### Task 3 — recover, start fresh, and readiness
 
@@ -513,23 +513,23 @@ modify recovery.go/recovery_execute.go, couch.go, resume.go, switchagent.go,
 continuation.go, launch_existing.go, threadtag.go, ops.go, operationdispatch.go,
 couchcmd/run.go, couchcmd/continuation.go and corresponding CLI/menu wiring/tests.
 
-- [ ] Build stateful catalog/readiness/session fixtures using existing FakeRunner/FakeProcOps and real temporary stores; write failing recovery/launch tests per strategies above.
-- [ ] Implement RecoverSlot, atomic StartFreshSlot and readiness at cold launch boundaries, preserving current transition validators and serial operation scheduling.
-- [ ] Run targeted lifecycle/CLI/TUI tests and race sequences; commit.
+- [x] Build stateful catalog/readiness/session fixtures using existing FakeRunner/FakeProcOps and real temporary stores; write failing recovery/launch tests per strategies above.
+- [x] Implement RecoverSlot, atomic StartFreshSlot and readiness at cold launch boundaries, preserving current transition validators and serial operation scheduling.
+- [x] Run targeted lifecycle/CLI/TUI tests and race sequences; commit.
 
 ### Task 4 — integrated acceptance and publication
 
-- [ ] Real temporary Git host/private dependency fixtures: primary + :1 + :2,
+- [x] Real temporary Git host/private dependency fixtures: primary + :1 + :2,
   independent park/resume, continuation, lost binding, corrupt record, start fresh.
   Compare dirty/untracked bytes, active refs and local SHAs before/after recovery.
-- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
+- [x] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd
   ./cmd/internal/couchtty ./cmd/internal/gcruntime ./cmd/internal/storagegc -count=1`
   and targeted `-race` tests; vet changed packages.
-- [ ] Run `make runtimebundle-generate`, `go test ./... -count=1`,
+- [x] Run `make runtimebundle-generate`, `go test ./... -count=1`,
   `make pair bin/couch`, and isolated installed-SDLC/Weave conformance using #305's
   ProvisionFixture plus fake agent runner. All must exit zero. Repeat live contract
   checks when provisioning/identity dependencies change and in #309 acceptance.
-- [ ] Update README, atlas/couch.md, atlas/workspace-provisioning.md, atlas/index.md,
+- [x] Update README, atlas/couch.md, atlas/workspace-provisioning.md, atlas/index.md,
   project and #307–309 consumer specs. No grouped tab layout or preference UX in #306.
 - [ ] Reconcile concept tables and acceptance evidence; `sdlc close --issue 306
   --verified '<observed evidence>'` owns the one fresh-context boundary review.
@@ -658,3 +658,13 @@ Continuation source/target processes participate in fresh's existing absence
 proof, so stopped failed requests can be replaced while live/unknown owners refuse.
 A real-Git two-slot acceptance fixture caught absent-target preference preview;
 read-only preview now accepts a safely absent backend without creating it.
+
+### 2026-09-23 — verification complete, close review pending
+
+Full repository tests, targeted race tests, vet, runtime bundle generation,
+binaries and installed external conformance passed. The full repository run
+includes all five affected packages named in Task 4 and supersedes a redundant
+package-only diagnostic run that was interrupted for a stack capture. No code
+change followed that diagnostic. The verified implementation is committed through
+2581fa81, joined with published project history by 0913376c. Close/publication
+remains the last unchecked task.
