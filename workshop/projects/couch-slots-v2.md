@@ -382,6 +382,17 @@ and vet passed; existing #210 remains excluded. One Parley performance spec time
 out in the full run and passed all three cases on an isolated rerun. Boundary
 review and Ariadne publication follow; #242 stays closed.
 
+<a id="pair-305"></a>
+### pair#305 — Provision durable numbered workspaces
+
+**status:** working — engineering plan reviewed; implementation pending approval
+**started:** 2026-09-23
+
+Both prerequisite contracts are available. The [implementation plan](../plans/000305-slots-v2-workspace-provisioning-plan.md)
+uses remote-main initialization, an internal provisioning operation, inherited
+leases and explicit retry. Ready reuse validates initialized workspace instances
+without fetching or composing. Thread admission and launch remain with pair#306.
+
 ## Log
 
 ### 2026-09-22 — fresh definition requested
@@ -566,3 +577,9 @@ the agent/operator after slot startup. Delta: restored fetched remote/main as
 the new host baseline in #305 and #309, removed local-source preparation from
 provisioning, and retained explicit later issue-branch transfer via ariadne#245.
 This supersedes the preceding local-commit initialization revision.
+
+### 2026-09-23 — Pair provisioning engineering plan
+
+Reason: operator requested continuing pair#305 after settling remote-main
+initialization. Delta: recorded #305's working design state and durable plan;
+no implementation completion, estimate or timeline is claimed.

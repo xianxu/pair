@@ -17,7 +17,7 @@ Couch owns the host worktree transaction and evidence that initial setup finishe
 **Tech stack:** Go, existing Couch operation dispatcher, Git, SDLC JSON v2,
 Weave compile, POSIX flock, existing strict JSON and atomic publication helpers.
 
-**Status:** Proposed engineering plan; product boundary approved in conversation.
+**Status:** Fresh review approved; awaiting operator plan approval. Product boundary agreed.
 **Issue:** `workshop/issues/000305-slots-v2-workspace-provisioning.md`.
 **Flow:** Full: expected production changes exceed 100 lines; design exceeds the
 quick-flow design limit. One atomic issue-close review, no artificial milestones.
@@ -213,11 +213,34 @@ multiple choices, the local-dot remote, empty/missing remotes, and inconsistent
 tracking configuration. Validate remote names through git config/remotes and pass
 argv arrays, not shell strings. No remote URL is stored in progress/receipts.
 
-Fetch precisely `refs/heads/main:refs/remotes/<remote>/main` with no tags. Resolve
-the fetched tracking ref to a full commit OID and persist the baseline before
-creating a branch. The primary's local main/HEAD, index and working files stay
-untouched. A later fetch elsewhere may move the tracking ref; the recorded SHA
-is still the chosen baseline. Establish upstream separately from the SHA.
+Before fetching, persist a reservation with the generation token, selected
+remote and an absent private ref `refs/couch/provision/<N>/<attempt>`. Fetch with
+`--atomic --no-tags --no-write-fetch-head` and two explicit refspecs:
+
+```text
+refs/heads/main:refs/couch/provision/<N>/<attempt>
+refs/heads/main:refs/remotes/<remote>/main
+```
+
+Read the full commit OID from the attempt-owned ref, never from the shared
+remote-tracking ref or FETCH_HEAD. Different slots can update tracking without
+changing each other's captured baseline. No force refspec is used. A concurrent
+tracking update that makes the atomic fetch fail leaves the attempt retryable;
+inspect its private ref before any retry rather than assuming no effect occurred.
+A valid complete private ref from that attempt proves its fetched baseline even
+if command acknowledgment was lost. An absent private ref permits another fetch
+only through explicit retry; malformed/conflicting state refuses.
+
+Persist the private ref's SHA before host creation. The primary's local
+main/HEAD, index and working files stay untouched. Upstream is a separate
+relationship and may point at a subsequently advanced remote-tracking commit.
+Keep the attempt-owned ref while incomplete, including failure before the
+baseline record write. Once the host and resting ref prove the captured baseline
+is reachable, delete only that exact private ref with expected-old-OID checking.
+Deletion failure leaves a cleanup-pending field, not a failed successful setup;
+next operation retries that one ref cleanup under the slot lease. One active
+private ref per slot is permitted; do not start a new generation until the old
+ref/receipt is reconciled. Tests assert no ref growth across repeated retries.
 
 On first request, reject any pre-existing destination environment directory,
 resting ref or registered worktree unless the whole existing host resolves as a
@@ -236,7 +259,17 @@ atomic absent-ref update and attempt-identifying reflog message, then set upstre
 Record resulting evidence before worktree registration. On uncertain completion,
 only an exact ref/SHA plus matching creation evidence permits continuation. A
 missing/unreliable reflog refuses for manual inspection instead of guessing.
-Git config contains expected branch remote/merge, validated on retry.
+
+Model upstream configuration as its own intent/effects. After branch ownership
+is proved, observe all values of branch.main-slotN.remote and .merge. Expected
+values are the reserved remote name and refs/heads/main. Absent values are safe
+to fill after persisting configuration intent; matching values are idempotent.
+Conflicting or duplicate values refuse without replacing them. Write missing
+keys separately and re-read both before publishing upstream-ready. A crash after
+either write is reconciled by the same rule on explicit retry. No worktree-add
+effect is admitted until the ref and both upstream keys are proved. Apply this
+repair only to an attempt-owned new branch; adoption of an existing complete
+host requires its already-unambiguous upstream and never rewrites it.
 
 Create the host with `git worktree add <host-path> main-slotN` without force.
 Reconcile an interrupted add by checking SDLC identity, registration, .git link,
@@ -258,16 +291,21 @@ reason, not an invented rollback. The table is implemented in ProvisionMachine.
 
 | State / observation | Event | Next state / effect |
 | --- | --- | --- |
-| no record, empty candidate | explicit create | resolve remote/fetch |
-| baseline observed | capture succeeds | persist reserved record |
-| reserved, destination absent | continue | create environment, record identity |
+| no record, empty candidate | explicit create | resolve remote, persist fetch intent/private ref |
+| fetch-intent, private ref absent | continue / explicit retry | atomic fetch into private + tracking refs |
+| fetch outcome uncertain | retry | inspect owned private ref; pin it or refetch if absent |
+| baseline observed in private ref | capture succeeds | persist baseline, reserve creation |
+| reserved baseline, destination absent | continue | create environment, record identity |
 | reserved, environment ownership proved | continue | record branch intent, create-only ref |
 | branch intent, effect uncertain | retry | inspect ref/reflog; confirm or refuse |
-| owned branch, valid upstream | continue | register worktree |
+| owned branch, upstream missing/partial | continue / explicit retry | persist config intent, fill only absent expected keys |
+| owned branch, upstream conflicts/duplicates | any | refuse without config replacement |
+| owned branch, verified complete upstream | continue | register worktree |
 | add intent, effect uncertain | retry | inspect registration/host; confirm or refuse |
 | verified host | continue | bind host, persist host-created |
 | host-created | setup request | persist preparing, invoke Weave |
-| preparing | exit 0 + final valid bindings | persist ready, return result |
+| preparing | exit 0 + final valid bindings | persist ready, delete exact temporary ref, return result |
+| ready with cleanup-pending ref | next request | compare-and-delete owned ref, retain pending if failed |
 | preparing | nonzero/cancel/unknown outcome | persist retry-needed, retain progress |
 | retry-needed | ordinary request | report explicit retry instruction |
 | retry-needed | explicit retry, evidence valid | resume last confirmed phase |
@@ -345,7 +383,7 @@ publication/restart; never clean unknown environment contents (ARCH-FUNERAL).
 - ARCH-ORDER: production effects run only through the machine, with durable intent
   and observable uncertain outcomes; test interrupted/interleaved sequences.
 - ARCH-FUNERAL: reusable environments intentionally persist; metadata replaces
-  prior generations, with owned temporary-file cleanup and bounded diagnostics.
+  prior generations, with owned temporary-file cleanup, one owned fetch ref per slot until reconciled, and bounded diagnostics.
 
 ## Chunk 1: Implement and verify one provision operation
 
@@ -420,7 +458,9 @@ provision_conformance_test.go (new); workspace_identity.go integration.
 - [ ] Run `go test ./cmd/internal/couchcore -run 'TestProvision(Controller|Git)' -count=1`.
 - [ ] Implement controller as Observe → machine event → persist intent → effect
   → observe outcome; do not bypass the model for convenient retries.
-- [ ] Test source/remote movement and effect acknowledgment loss. Same-slot
+- [ ] Test source/remote movement between simultaneous slot fetches, exact private-OID capture,
+  partial upstream writes, conflicting config, owned-ref cleanup, and effect
+  acknowledgment loss. Same-slot
   concurrent requests converge on one identity; different slots do not renumber.
 - [ ] Add `PAIR_LIVE_WORKSPACE=1` conformance using installed SDLC v2 and Weave
   against a temporary minimal repo with no packages/tools/generators. Real Git
@@ -485,3 +525,21 @@ resolve material findings, and checkpoint issue/plan before presenting it.
 After operator approval, `sdlc change-code --issue 305` owns plan-quality,
 estimate derivation and the in-place implementation branch. No separate worktree
 is created for this Parley development session.
+
+## Revisions
+
+### 2026-09-23 — first plan review: fetch and upstream recovery
+
+Reason: fresh review found a fetch/read race through shared remote-tracking refs
+and an unspecified interruption between branch creation and upstream writes.
+Delta: reserve an attempt-owned fetch ref, use atomic dual-ref fetch and read
+only that private ref; retain/reconcile it with bounded cleanup. Added explicit
+upstream intent, absent/matching/conflicting-key handling and retry transitions.
+Added deterministic tests for both classes before seeking implementation approval.
+
+### 2026-09-23 — review approved and fetch contract probed
+
+Fresh review approved the revised plan with no remaining significant gaps.
+A temporary real-Git fixture proved atomic dual-ref fetch accepts both refspecs,
+and a second slot fetch after remote advancement leaves the first private SHA
+unchanged. This checks the planned primitive, not implementation completion.
