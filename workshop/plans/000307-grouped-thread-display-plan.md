@@ -14,9 +14,10 @@
 
 ### Behavior
 
-- Group by canonical primary checkout path, never repository basename or display label. A slot provides `SlotIdentity.PrimaryRoot`; match its primary against the ordinary row's canonical starting checkout. Standalone ordinary rows use their starting path, falling back to working path, then native address when neither exists. Distinct checkouts named `pair` remain distinct groups.
-- Sort groups by case-folded repository display name, then canonical group key; primary/ordinary members precede numbered members; numbered members sort numerically. Native scope/tag and stable row key break remaining ties. Do not let input order, state, recency, renaming or attachment completion change the order.
-- Use the verified slot's repo name for its group. Groups without slots retain existing ordinary labels. In a slot group, primary displays `pair`; numbered rows display `pair:1`, `pair:2`. Preserve custom names as supplementary switcher text and as search inputs, without replacing the workspace address. Keep existing label disambiguation for unrelated ordinary threads; same-name repository groups receive a stable path qualifier on their group label.
+- Group by the existing primary checkout repo scope, never basename or display label. A verified slot supplies `PrimaryRoot`: use the existing pure `launcher.ResolveRepoScope(PrimaryRoot).Key` to match ordinary `Address.RepoScope`. Each slot maps to that primary scope; ordinary members use their own scope. Addressless slots retain host-path row identity. Distinct checkouts named `pair` remain distinct groups. No new hash or persisted identity is introduced.
+- Derive stable group names independently of mutable `Name` and `WorkingPath`. Slot groups use the verified `Repo` and `PrimaryRoot`. For ordinary groups, recover the checkout root by comparing `launcher.ResolveRepoScope` keys for the absolute `StartingPath` and its lexical ancestors to the existing address scope (bounded by path depth, pure, no filesystem calls); use that root basename. Missing/unmatched legacy paths fall back to the scope as sort key and retain existing display-label behavior. Do not guess that the starting directory itself is a checkout. Attached fallback rows use `pane.tree` as their starting-path candidate and the same native scope; fallback → inventory retains the group.
+- Sort groups by case-folded stable repository name, then canonical group key; primary/ordinary members precede numbered members; numbered members sort numerically. Native scope/tag and stable row key break remaining ties. Do not let input order, state, recency, renaming or attachment completion change the order.
+- Use the verified slot's repo name for its group. Groups without slots retain existing ordinary labels. In a slot group, primary displays `pair`; numbered rows display `pair:1`, `pair:2`. Preserve custom names as supplementary switcher text and as search inputs, without replacing the workspace address. Keep existing native-address suffix disambiguation for all colliding ordinary labels, including multiple legacy primary conversations inside a slot group; same-name repository groups receive a stable path qualifier on their group label.
 - Switcher rows show full workspace labels and actual host checkout paths; numbered rows gain two spaces of indentation. They retain state/age, notifications, selection styling, and existing recovery actions. Missing or filtered-out primary creates no synthetic actionable row: full slot labels remain self-explanatory.
 - Tab membership stays as today: attached panes and pending reattachment placeholders. Parked/unattached slots remain visible in the switcher; this work does not start them or add inert tabs for them. Sort tab members through the same group derivation, including placeholders in their proper group position. Reattachment scheduling remains recency-based and independent of display order.
 - Within visible tabs, the primary uses the repo label; later slot chips use `:N`. If no primary tab is present, the first visible slot uses `pair:N`, followed by `:N`. Placeholder-to-attached replacement keeps its position and all existing spinner, focus and notification behavior.
@@ -43,7 +44,7 @@
 | `StatusActor` | `cmd/internal/couchtty/reserve.go` | modified |
 | `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | modified |
 
-`ThreadPresentation` holds the unchanged source row plus group key, full workspace label, and indentation. `PresentThreads(rows)` returns one deterministically sorted copy. Group metadata and labels derive from typed identities; it does not mutate rows or perform IO. Map presentation entries by `menuRowKey`, including addressless recovery slots; never key them solely by zero native address. One group owns many entries. This removes competing per-surface sorting (ARCH-DRY). It is ephemeral and has no persisted cache.
+`ThreadPresentation` holds the unchanged source row plus group key, full workspace label, and indentation. `PresentThreads(rows)` returns one deterministically sorted copy. Group metadata and labels derive from typed identities and the existing pure repo-scope derivation; it does not mutate rows or perform IO. Map presentation entries by `menuRowKey`, including addressless recovery slots; never key them solely by zero native address. One group owns many entries. This removes competing per-surface sorting (ARCH-DRY). It is ephemeral and has no persisted cache.
 
 `menuRows` applies the existing pass overlay and orders through this projection. All switcher navigation, filtering, reconciliation and rendering keep using viewed lookups; no alternate direct reads of `MenuState.Inventory` are introduced.
 
@@ -62,7 +63,7 @@ Extract substantive presentation assembly into `cmd/internal/couchtty/console_pr
 - **ARCH-PURE / ARCH-DRY:** one O(n log n) pure projection, O(n) temporary storage, no filesystem/process calls during render or while holding console lock. No new persisted state or background worker.
 - **ARCH-PURPOSE:** enumerate and test switcher rows, up/down selection, filter ordering, refresh reconciliation, status tabs, pending placeholders, click spans and native activation. Previous-thread and newest-notification navigation are identity/event-based and retain those rules; they are not reinterpreted as positional navigation.
 - **ARCH-MOCK:** existing console harness provides controllable input, pane attachment and inventory; test dispatched operation/address/path plus selected pane, not a function-call count alone.
-- **ARCH-CONSTRAINTS:** local terminal interaction path; preserve existing 100-row menu performance budget and add a pure 1,000-row benchmark for growth visibility. These are regression workloads, not hard inventory limits. Width/height bound rendering, not discovery. Disk/network IO and new concurrency are absent.
+- **ARCH-CONSTRAINTS:** local terminal interaction path; preserve existing 100-row menu performance budgets (`TestMenuTargetPerformance`: open 50 ms, filter/navigation/render/refresh 16 ms, feedback 100 ms) and add a pure 1,000-row benchmark for growth visibility. These are regression workloads, not hard inventory limits. Width/height bound rendering, not discovery. Disk/network IO and new concurrency are absent.
 - **ARCH-SECURE:** labels, names and paths remain untrusted display text, sanitized by existing `rowtext`/menu clipping. Typed slot identities arrive through #306 validation; invalid or missing metadata falls back to an ordinary row without guessing from `-slotN` text. No credential access.
 - **ARCH-ORDER:** new projection holds no state across events. Existing menu reducer owns selection. Sequences to pin: select slot → permuted refresh; select slot → new native address; remove selected row → existing fallback; pending placeholder → attached pane before inventory catches up; stale inventory result → existing generation rejection. Presentation must not reset focus, attention acknowledgment, pass state or selection.
 - **ARCH-FUNERAL:** creates no durable runtime artifact because presentation values die with the render/model invocation. Test fixtures live in source control; existing thread storage retention is unchanged.
@@ -80,9 +81,9 @@ Extract substantive presentation assembly into `cmd/internal/couchtty/console_pr
 
 ### Task 2: Switcher rendering and stable navigation
 
-**Files:** modify `cmd/internal/couchtty/menu_reattach.go`, `menu_render.go`, `menu.go` only as needed; extend `menu_slot_test.go`, `menu_render_test.go`, `menu_mouse_test.go` and `menu_test.go`.
+**Files:** modify `cmd/internal/couchtty/menu_reattach.go`, `menu_render.go`, `menu.go` only as needed; extend `menu_slot_test.go`, `menu_render_test.go`, `mouse_test.go` and `menu_test.go`.
 
-- [ ] Add failing reducer/render tests asserting full labels, two-space slot indentation, actual nested host paths, numeric grouping, custom-name searching, parked status, addressless recovery rows, same-name repos and full labels when filtering hides the primary.
+- [ ] Add failing reducer/render tests asserting full labels, two-space slot indentation, actual nested host paths, numeric grouping, custom-name searching, parked status, addressless recovery rows, same-name repos, multiple legacy primary rows with identical custom names, and full labels when filtering hides the primary.
 - [ ] Drive selection → shuffled refresh → changed native conversation → Enter and click. Assert unchanged slot key and exact `open-slot` path or live native switch address. Include pending pass rows and removal fallback; do not rely solely on direct helper calls.
 - [ ] Run `go test ./cmd/internal/couchtty -run 'Test.*(Slot|Group|Menu|PresentThreads)' -count=1`; record the relevant red failures.
 - [ ] Route viewed menu order through `PresentThreads`; derive rendered labels by stable key. Keep existing reducer selection and pass overlay machinery, adding only the grouping integration and name search preservation required by the design.
@@ -90,9 +91,9 @@ Extract substantive presentation assembly into `cmd/internal/couchtty/console_pr
 
 ### Task 3: Grouped tab projection and activation
 
-**Files:** create `cmd/internal/couchtty/console_presentation.go` and `console_presentation_test.go`; modify `console.go`, `reserve.go`; extend `reserve_test.go`, `console_reattach_test.go`, `console_mouse_test.go`; classify the new production file in `cmd/internal/artifactpath/manifest.go`.
+**Files:** create `cmd/internal/couchtty/console_presentation.go` and `console_presentation_test.go`; modify `console.go`, `reserve.go`; extend `reserve_test.go`, `reserve_mouse_test.go`, `console_reattach_test.go`, `console_mouse_test.go`; classify the new production file in `cmd/internal/artifactpath/manifest.go`.
 
-- [ ] Add failing console tests attaching panes in reverse order, delivering permuted inventory, mixing groups and pending placeholders. Assert tab order equals the switcher order restricted to tab members. Cover absent/parked primary, missing inventory fallback, and placeholder completion before refresh.
+- [ ] Add failing console tests attaching panes in reverse order, delivering permuted inventory, mixing groups and pending placeholders. Assert tab order equals the switcher order restricted to tab members. Cover absent/parked primary, missing inventory fallback, fallback → inventory for a thread launched in `/repo/subdir` whose `pane.tree` is `/repo`, renamed ordinary rows, and placeholder completion before refresh. Assert stable group keys/order and exact native activation for legacy duplicate primary rows.
 - [ ] Add renderer cases for `pair :1 :2`, `pair:1 :2` without a primary, duplicate repo names, active/bell/spinner styles, very narrow widths and wide/control text. Assert every chip span stays within width and selects precisely the intended native address; placeholders/gaps have no target.
 - [ ] Run `go test ./cmd/internal/couchtty -run 'Test.*(Status|Presentation|Reattach|Mouse|Group)' -count=1`; expect the new grouping assertions to fail.
 - [ ] Assemble status membership through `PresentThreads` using current inventory plus attached fallback rows. Preserve native lookup and attention/focus semantics, keep reattach scheduling separate, and derive shorthand from the displayed group sequence in `RenderStatusRow`.
@@ -107,3 +108,17 @@ Extract substantive presentation assembly into `cmd/internal/couchtty/console_pr
 - [ ] Build via `make pair bin/couch`; verify the fixtures and a disposable console harness exercise click/Enter routing to all three nested host paths without listing their dependency clones. Do not launch or park the operator's live threads to smoke-test.
 - [ ] Update atlas and project progress, record verification in the issue, commit the finished work, then use `sdlc close --issue 307 --verified '<actual evidence>'`. The binary owns the fresh boundary review; fix blocking findings and rerun affected checks. One atomic close boundary, no Mx tags.
 - [ ] Follow `sdlc pr` and `sdlc merge` gates for integration, and update the project with the resulting actual/closed/PR evidence.
+
+## Revisions
+
+### 2026-09-23 — verify test ownership and explicit budgets
+
+Reason: checked planned file paths and the current performance contract. Delta: corrected switcher mouse test ownership to `mouse_test.go`, included status span tests in `reserve_mouse_test.go`, and named the existing per-interaction budgets.
+
+### 2026-09-23 — fresh review: canonical scope and legacy labels
+
+Reason: the reviewer found that starting directories can be below the checkout root, mutable names could accidentally influence sort keys, and legacy duplicate primary rows need disambiguation. Delta: group using existing native repo scopes with slots mapped through the pure primary-root scope derivation; recover ordinary root names only by scope-matched lexical ancestors of immutable starting paths, otherwise fall back to scope. Retain native suffix disambiguation within every group and add subdirectory/fallback/rename/legacy-duplicate sequence tests.
+
+### 2026-09-23 — advisory review approved
+
+Fresh-context spec/plan review approved the revised design with no remaining blockers. Operator approval remains pending; no runtime changes or test-pass claims have been made.
