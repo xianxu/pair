@@ -211,7 +211,7 @@ The operator approved implementation; code is implemented and final verification
 - [x] Implement host creation intent, one Git creation lock and cancellable process execution.
 - [x] Implement and verify host creation, setup, reuse and repeated invocation with real Git conformance.
 - [x] Wire the internal operation, production runtime, progress and result rendering.
-- [ ] Document the contract for #306, run verification, and close through one review boundary.
+- [x] Document the contract for #306 and run verification; one SDLC close review follows.
 
 ## Log
 
@@ -295,6 +295,16 @@ smoke returned created → reused → prepared after marker removal, preserving 
 primary/slot files and the feature branch. Full-suite inventory guards exposed
 missing registrations for new files; those were corrected. Final suite/close is
 still pending. No UI or thread-lifecycle behavior was changed (#306 owns that).
+
+### 2026-09-23 — final verification before close
+
+`go test ./... -count=1` passes after inventory registration fixes. Targeted
+`go test -race` for provisioning/identity/selection/CLI and recovery tests passes;
+`go vet ./cmd/internal/couchcore ./cmd/internal/couchcmd` passes. `make pair
+bin/couch` succeeds. Live `TestProvisionConformance` passes with real SDLC/Weave.
+Built-CLI smoke confirms created/reused/prepared with baseline and dirty work
+preserved. Parser fuzz seeds and short single-worker campaigns pass. All code is
+committed as 76ba5bfd; closing review now owns the remaining acceptance boundary.
 
 ## Revisions
 
