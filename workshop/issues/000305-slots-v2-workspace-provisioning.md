@@ -19,7 +19,7 @@ Couch needs a predictable directory and Git worktree for each additional repo th
 
 Project: `pair/workshop/projects/couch-slots-v2.md`. Fresh task derived from the current v2 contract; historical task bodies are not prerequisites or implementation plans.
 
-Provision :1, :2, and subsequent numbered workspaces at ../worktree/repo-slotN relative to the primary checkout. Initially create main-slotN at the selected source workspace’s local commit, retaining configured-remote main as its upstream. Existing workspaces retain their current branch and files; provisioning/resuming is not refresh. Use the shared Ariadne identity contract and dependency setup from the prerequisite tasks.
+Provision :1, :2, and subsequent numbered workspaces at ../worktree/repo-slotN relative to the primary checkout. Initially create main-slotN from fetched configured-remote main with that upstream. Existing workspaces retain their current branch and files; provisioning/resuming is not refresh. Use the shared Ariadne identity contract and dependency setup from the prerequisite tasks.
 
 Specify number allocation and reuse under concurrency, distinguishing available persistent workspaces from occupied threads. Never renumber surviving addresses. Validate existing paths and branches rather than taking them over. Serialize competing provisioning requests and recover from partially created worktree/dependency setup without deleting user work. The repo-wide parked-thread admission rule is owned by the lifecycle task. ARCH-DRY: one provisioning path for every UI entry point; ARCH-FUNERAL: directories persist across thread replacement and issue landing.
 
@@ -34,9 +34,8 @@ Existing dependency clones retain selected revisions, dirty files and local comm
 ### Proposed provisioning design — 2026-09-23 (awaiting approval)
 
 **Boundary.** Add one reusable workspace-provisioning operation to Couch's
-existing operation/dispatch system. Its explicit inputs identify a source workspace
-(default :0), the accepted local source commit, and a positive destination slot
-number. Resolve the primary repo from that source for layout and identity. It prepares a working directory and returns its
+existing operation/dispatch system. Its explicit inputs identify a primary repo
+path and positive slot number. It prepares a working directory and returns its
 verified address/path/readiness; it does not launch an agent. Keep initial use
 on an internal operation surface through `DirectStoreExecutor`, avoiding the
 unavailable CLI live-owner route and an unnecessary singleton supervisor lease.
@@ -60,30 +59,27 @@ occupancy or partial preparation is not free space; report it for inspection or
 retry. Thread inventory/admission comes from #306's authoritative caller; this
 issue does not invent another registry. Never renumber existing workspaces.
 
-**Create from local work.** The operator/agent reviews local changes, commits
-those relevant to the intended work, and selects the source workspace's resulting
-commit before provisioning. The source defaults to :0; an explicit source such
-as :1 selects that workspace. Capture and record its address and full SHA. The
-new main-slotN starts at exactly that commit, including unpublished local work.
-Git carries the whole committed snapshot and its ancestry; relevance is decided
-when preparing the commit, not by Couch extracting selected issue files. The
-existing clean-source readiness requirement applies before accepting the source.
-
-Select the configured remote/main upstream separately from the starting commit;
-an explicit remote may resolve ambiguity. Fail visibly if no unique upstream
-can be established. Fetch only if needed to establish tracking metadata; fetched
-main never replaces the accepted local starting SHA. Revalidate the source and
-accepted SHA before the first creation effect. If the source changed, refuse
-and re-preview rather than silently taking its newer commit. Once reserved,
-retries retain the recorded source SHA and reconcile existing creation effects.
-Create main-slotN at that SHA, set its remote/main upstream, and create the
-registered nested worktree. Source refs/files remain unchanged by provisioning.
+**Create from remote main.** Select the configured remote/main source; an
+explicit remote may resolve ambiguity. Fail visibly if no unique source can be
+established. Fetch that main ref, capture and record its full SHA, create
+main-slotN at that SHA with remote/main as its upstream, and create the registered
+nested worktree. Record the captured SHA before creation effects so interrupted
+retries reconcile against the same baseline rather than silently choosing a
+newer remote tip. Couch does not select, commit, stash or transfer local changes.
+Dirty files and unpublished commits in the primary do not prevent creation when
+Git can safely create the separate worktree; they remain untouched.
 
 Invoke `weave compile` with default targets from the host worktree. Publish ready
-only after exit 0 and final identity validation. Dependency origins are governed
-by Weave: private ordinary sibling clones still initialize from their recorded
-origin/main. Local-source initialization here concerns the host repo; it does
-not add local dependency transfer or create dependency threads/preferences.
+only after exit 0 and final identity validation. Dependency origins remain
+independently governed by Weave: private ordinary sibling clones initialize from
+their recorded origin/main, without dependency threads or preference records.
+
+**Bring local work over later.** Once the slot is started, the operator and agent
+may prepare relevant source commits and explicitly create an issue branch from
+another workspace's committed snapshot, following ariadne#245's clean-source and
+safe-destination rules. This action records the source address/SHA and leaves
+both resting branches unchanged. Local-work transfer is a separate requested
+workflow, not a provisioning prerequisite or an automatic Couch action.
 
 **Existing workspace.** A verified ready workspace returns without fetch,
 checkout, reset, or compile. Its current issue branch, dirty/untracked files,
@@ -144,16 +140,16 @@ before code changes. This is larger than the quick-flow shell.
 
 ## Done when
 
-- A source commit containing relevant unpublished local changes becomes the exact initial host HEAD and main-slotN SHA; remote/main tracking is configured independently.
-- The source address/SHA is recorded, source drift before creation is refused, and retries preserve the original accepted SHA after reservation.
-- Tests distinguish local source HEAD from remote main, prove the local changes arrive, and prove no source ref/files are altered by provisioning.
+- Initial host HEAD and main-slotN equal the captured fetched remote/main SHA, with the configured upstream recorded.
+- Interrupted retries retain the recorded remote baseline; ready workspace reuse performs no implicit refresh.
+- Tests make local HEAD differ from remote main and include dirty/untracked source work: provisioning uses remote main and preserves all local refs/files without committing, stashing or transferring them.
 - Primary plus :1/:2 provision at the exact conventional paths with correct resting branches and configured upstreams.
 - Repeated provisioning/resume preserves a dirty active branch and does not fetch/reset an existing workspace implicitly.
 - Simultaneous requests cannot create duplicate workspace identities; unrelated path/branch collisions are refused.
 - Interrupted Git/dependency provisioning has a tested retry path and never destroys pre-existing content.
 - Fixtures cover missing remotes, non-origin remotes, repo names containing hyphens, and paths with spaces.
 
-- Exact paths are `/workspace/worktree/<repo>-slotN/<repo>` with separate sibling dependency clones for :1 and :2; dependency origin/main initialization follows the dependency contract; host initialization uses the accepted local source SHA.
+- Exact paths are `/workspace/worktree/<repo>-slotN/<repo>` with separate sibling dependency clones for :1 and :2; dependency origin/main initialization follows the dependency contract; host initialization uses fetched configured-remote main.
 - Repeated provision/resume and interrupted setup preserve both main-worktree and dependency-clone work, without creating extra dependency threads or changing shared-tool supply.
 
 ## Plan
@@ -213,3 +209,13 @@ Remote/main remains the upstream; dependency clones retain their separate remote
 initialization contract. Added source provenance, drift/retry rules and acceptance
 cases. Earlier review approval predates this correction; detailed design remains
 subject to the normal review/approval gates.
+
+### 2026-09-23 — restore remote-main provisioning
+
+Reason: operator chose predictable provisioning because Couch cannot judge which
+local edits should be committed or transferred. Delta: supersedes the preceding
+local-source initialization revision. New hosts start from captured fetched
+remote/main; source-workspace/accepted-local-SHA provisioning inputs are removed.
+Local changes remain untouched. Bringing committed work over after slot startup
+is an explicit operator/agent action on an issue branch, owned by ariadne#245.
+Updated acceptance and retry evidence to use the remote baseline.
