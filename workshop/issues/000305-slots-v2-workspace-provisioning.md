@@ -19,7 +19,7 @@ Couch needs a predictable directory and Git worktree for each additional repo th
 
 Project: `pair/workshop/projects/couch-slots-v2.md`. Fresh task derived from the current v2 contract; historical task bodies are not prerequisites or implementation plans.
 
-Provision :1, :2, and subsequent numbered workspaces at ../worktree/repo-slotN relative to the primary checkout. Initially create main-slotN from fetched configured-remote main with that upstream. Existing workspaces retain their current branch and files; provisioning/resuming is not refresh. Use the shared Ariadne identity contract and dependency setup from the prerequisite tasks.
+Provision :1, :2, and subsequent numbered workspaces at ../worktree/repo-slotN relative to the primary checkout. Initially create main-slotN at the selected source workspace’s local commit, retaining configured-remote main as its upstream. Existing workspaces retain their current branch and files; provisioning/resuming is not refresh. Use the shared Ariadne identity contract and dependency setup from the prerequisite tasks.
 
 Specify number allocation and reuse under concurrency, distinguishing available persistent workspaces from occupied threads. Never renumber surviving addresses. Validate existing paths and branches rather than taking them over. Serialize competing provisioning requests and recover from partially created worktree/dependency setup without deleting user work. The repo-wide parked-thread admission rule is owned by the lifecycle task. ARCH-DRY: one provisioning path for every UI entry point; ARCH-FUNERAL: directories persist across thread replacement and issue landing.
 
@@ -34,8 +34,9 @@ Existing dependency clones retain selected revisions, dirty files and local comm
 ### Proposed provisioning design — 2026-09-23 (awaiting approval)
 
 **Boundary.** Add one reusable workspace-provisioning operation to Couch's
-existing operation/dispatch system. Its explicit inputs identify a primary repo
-path and positive slot number. It prepares a working directory and returns its
+existing operation/dispatch system. Its explicit inputs identify a source workspace
+(default :0), the accepted local source commit, and a positive destination slot
+number. Resolve the primary repo from that source for layout and identity. It prepares a working directory and returns its
 verified address/path/readiness; it does not launch an agent. Keep initial use
 on an internal operation surface through `DirectStoreExecutor`, avoiding the
 unavailable CLI live-owner route and an unnecessary singleton supervisor lease.
@@ -59,15 +60,30 @@ occupancy or partial preparation is not free space; report it for inspection or
 retry. Thread inventory/admission comes from #306's authoritative caller; this
 issue does not invent another registry. Never renumber existing workspaces.
 
-**Create.** Before mutation, select the remote whose main branch is configured
-for the primary baseline; an explicit remote may resolve ambiguity. Fail visibly
-if no unique remote/main source exists. Fetch that main ref, capture its commit,
-create main-slotN tracking that remote/main, and create the registered nested
-worktree. Dependency origins are independently governed by Weave and are not
-inferred from this main-repository remote. Invoke `weave compile` with default
-targets from the host worktree. Publish ready only after exit 0 and final identity
-validation. Dependencies remain private ordinary sibling clones; no dependency
-thread or preference record is created.
+**Create from local work.** The operator/agent reviews local changes, commits
+those relevant to the intended work, and selects the source workspace's resulting
+commit before provisioning. The source defaults to :0; an explicit source such
+as :1 selects that workspace. Capture and record its address and full SHA. The
+new main-slotN starts at exactly that commit, including unpublished local work.
+Git carries the whole committed snapshot and its ancestry; relevance is decided
+when preparing the commit, not by Couch extracting selected issue files. The
+existing clean-source readiness requirement applies before accepting the source.
+
+Select the configured remote/main upstream separately from the starting commit;
+an explicit remote may resolve ambiguity. Fail visibly if no unique upstream
+can be established. Fetch only if needed to establish tracking metadata; fetched
+main never replaces the accepted local starting SHA. Revalidate the source and
+accepted SHA before the first creation effect. If the source changed, refuse
+and re-preview rather than silently taking its newer commit. Once reserved,
+retries retain the recorded source SHA and reconcile existing creation effects.
+Create main-slotN at that SHA, set its remote/main upstream, and create the
+registered nested worktree. Source refs/files remain unchanged by provisioning.
+
+Invoke `weave compile` with default targets from the host worktree. Publish ready
+only after exit 0 and final identity validation. Dependency origins are governed
+by Weave: private ordinary sibling clones still initialize from their recorded
+origin/main. Local-source initialization here concerns the host repo; it does
+not add local dependency transfer or create dependency threads/preferences.
 
 **Existing workspace.** A verified ready workspace returns without fetch,
 checkout, reset, or compile. Its current issue branch, dirty/untracked files,
@@ -128,13 +144,16 @@ before code changes. This is larger than the quick-flow shell.
 
 ## Done when
 
+- A source commit containing relevant unpublished local changes becomes the exact initial host HEAD and main-slotN SHA; remote/main tracking is configured independently.
+- The source address/SHA is recorded, source drift before creation is refused, and retries preserve the original accepted SHA after reservation.
+- Tests distinguish local source HEAD from remote main, prove the local changes arrive, and prove no source ref/files are altered by provisioning.
 - Primary plus :1/:2 provision at the exact conventional paths with correct resting branches and configured upstreams.
 - Repeated provisioning/resume preserves a dirty active branch and does not fetch/reset an existing workspace implicitly.
 - Simultaneous requests cannot create duplicate workspace identities; unrelated path/branch collisions are refused.
 - Interrupted Git/dependency provisioning has a tested retry path and never destroys pre-existing content.
 - Fixtures cover missing remotes, non-origin remotes, repo names containing hyphens, and paths with spaces.
 
-- Exact paths are `/workspace/worktree/<repo>-slotN/<repo>` with separate sibling dependency clones for :1 and :2; origin/main initialization follows the dependency contract.
+- Exact paths are `/workspace/worktree/<repo>-slotN/<repo>` with separate sibling dependency clones for :1 and :2; dependency origin/main initialization follows the dependency contract; host initialization uses the accepted local source SHA.
 - Repeated provision/resume and interrupted setup preserve both main-worktree and dependency-clone work, without creating extra dependency threads or changing shared-tool supply.
 
 ## Plan
@@ -184,3 +203,13 @@ Reason: prerequisites are delivered and the operator requested starting #305.
 Delta: added the proposed provisioning design, including explicit numbered
 preparation, #306 integration boundary, reuse policy, evidence/lease ownership,
 and test expectations. Awaiting design approval; prior requirements remain.
+
+### 2026-09-23 — new slots inherit committed local work
+
+Reason: the operator clarified that relevant local edits should be committed
+and carried into newly created slots. Delta: replaced the earlier fetched-main
+host initialization with the selected source workspace's accepted local SHA.
+Remote/main remains the upstream; dependency clones retain their separate remote
+initialization contract. Added source provenance, drift/retry rules and acceptance
+cases. Earlier review approval predates this correction; detailed design remains
+subject to the normal review/approval gates.
