@@ -145,6 +145,14 @@ serial operation scheduling and supervisor ownership remain unchanged. The retai
 conversation/archive machinery is reused; a separate bounded raw-backup policy
 covers damaged metadata. Fresh engineering review is in progress; no runtime edits.
 
+### 2026-09-23 — engineering plan review passed
+
+Fresh-context review approved the detailed plan after removing an unsupported
+historical-conversation restore promise, covering migration with no current record,
+and ordering the old-reader format fence before global reference removal. The
+durable plan now specifies concrete storage, GC, launch and recovery integration
+and verification boundaries. Awaiting operator plan approval; no runtime edits.
+
 ## Revisions
 
 ### 2026-09-23 — Thread ownership remains with the environment main checkout
