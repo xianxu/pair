@@ -268,6 +268,20 @@ boundaries are derived when each task starts.
 The first outstanding product decision is dependency binding in ariadne#243.
 No change to old issue statuses or bodies is part of this breakdown.
 
+<a id="ariadne-242"></a>
+### ariadne#242 — Resolve repository and workspace identity
+
+**est:** 2.65h
+**actual:** 1.35h
+**started:** 2026-09-22
+**closed:** 2026-09-22
+
+Shared Git-verified workspace identity and the read-only JSON command are
+implemented, including SDLC artifact/project/calibration consumers. Close review
+returned SHIP after strict OID validation and README corrections. The regression
+suite passed with the known #210 missing-plan test excluded; publication follows
+the close gate. Provisioning and lifecycle operations remain subsequent tasks.
+
 ## Log
 
 ### 2026-09-22 — fresh definition requested
@@ -377,7 +391,7 @@ replace that sequence. In particular, auditing/reusing historical issues is no
 longer the route to this project’s implementation scope. Prior revision entries
 remain historical context; the current UI/task contract takes precedence.
 
-[ariadne#242]: ../../../ariadne/workshop/issues/000242-slots-v2-workspace-identity.md
+[ariadne#242]: #ariadne-242
 
 [ariadne#243]: ../../../ariadne/workshop/issues/000243-slots-v2-dependency-bindings.md
 
