@@ -15,7 +15,8 @@ outside the store lock and revalidate before releasing the launch helper.
 **Tech Stack:** Go, existing journaled ThreadStore, SDLC workspace JSON v2, Git,
 WorkspaceReadiness, Pair blocked helper, stateful test doubles and real temp repos.
 
-**Status:** Proposed; operator approval required before change-code/implementation.
+**Status:** Spec and plan reviews approved; awaiting operator approval before
+change-code/implementation.
 **Issue:** `workshop/issues/000306-slots-v2-thread-lifecycle.md`.
 **Flow:** Full: expected change exceeds the 100-line quick-flow code limit.
 One atomic delivery and one close review, no milestone labels. Estimate follows
@@ -255,7 +256,8 @@ ops.go, couchcmd/run.go and couchtty/menu.go/menu_render.go where wiring require
   launches, warm/primary bypass, cancellation, failed readiness retry, and binding
   replacement during compile. Readiness must occur while the owned claim is busy.
 - [ ] Add blocked-setup tests: competing same-slot creation refuses, another repo
-  progresses, park during setup blocks fresh child release, dead-owner recovery
+  progresses, park during setup blocks fresh child release, a park after final
+  admission does not retroactively cancel the admitted launch, dead-owner recovery
   preserves files and releases only the abandoned claim.
 - [ ] Implement shared preparation before final binding/continuation proof; retain
   existing helper acknowledgment/registration semantics and error diagnostics.
@@ -305,3 +307,10 @@ Derived from #306's agreed scope and live code exploration after #305 merged.
 Reuse the existing claim and journal; make workspace association durable and
 apply repo-wide policy at fresh creation. Pending spec/plan review and operator
 approval; no code or estimate has been produced.
+
+### 2026-09-23 — spec and plan review approved
+
+Fresh-context spec review and subsequent plan review found no blocking issues.
+Added the complementary ordering test: a park after final admission does not
+retroactively cancel the admitted start. Awaiting operator design approval under
+AGENTS.md §2 and the brainstorming/writing-plans skills.
