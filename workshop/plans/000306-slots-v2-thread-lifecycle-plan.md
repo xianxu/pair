@@ -190,6 +190,26 @@ RecordPath becomes an error-returning routed lookup; failures cannot silently
 fall back to a global path. Snapshot/ArchivedThreads aggregate all discovered
 backends while preserving native identities. No duplicated park/resume state machine.
 
+All ThreadStore operations reachable from numbered-slot open/park/resume/fresh/
+continuation/recovery use the selected local backend. The list above names routing
+primitives, not exceptions for callers that already converge there. Preserve that
+convergence rather than adding a second routing layer to every lifecycle method:
+
+| Consumer family | Existing methods covered by routed authority |
+| --- | --- |
+| Park | BeginPark, AdvancePark, AppendParkAttempt, FinalizePark, ClearVerifiedPark, AbandonPark delegate to updateExistingThread |
+| Start | CommitStartClaim and AdvanceStart use updateExistingThread or advanceSuccessfulStart; DeleteStart and DeletePristineThread use deleteThreadIf |
+| Incarnation recovery | RetireIncarnation, RetireUnprovenIncarnation, retireIncarnation, RetireProvedDeadIncarnations, MarkIncarnationUnknown, ReconcileRegisteredTarget converge on routed mutation primitives |
+| Continuation | PublishContinuation, BeginContinuationFromRetiredIncarnations, DismissFailedContinuation, AdvanceContinuation use updateExistingThread; materialization uses the routed continuation path |
+| Conversation retirement | ArchiveThread/ArchiveThreadExpected use archiveThread; RestoreThread uses its routed backend |
+
+Implementing changes must audit all ThreadStore receiver methods for direct IO;
+any new bypass of these primitives routes at its own IO boundary. Public-path
+park/resume/start tests use an enrolled local slot and a global-store sentinel:
+record/preference bytes and successful transitions must occur locally, with global
+record paths absent and unchanged global primary records. Reading the root-location
+manifest is still necessary namespace routing, not global slot-record authority.
+
 AllocateThreadTag routes by workingPath before allocation (threadtag.go:17); its
 CreateThread call uses the same local backend. A slot-current collision is a slot
 conflict, not a reason to draw eight new tags or retry against global storage.
@@ -593,3 +613,10 @@ PQ-1: explicitly route AllocateThreadTag and share only its native collision
 claiming with atomic fresh replacement; local errors cannot fall back globally.
 PQ-2: name the park-publication/final-admission ordering seam and production test
 assertions for both orderings, using existing operation queue and claim ownership.
+
+### 2026-09-23 — PQ-3 routing clarification
+
+The reviewer treated the primitive list as an exhaustive public-method list.
+Clarified the universal routing rule and the existing park/start/incarnation/
+continuation delegation families. Production transition tests must prove local
+record authority; do not duplicate routing in methods already using shared IO.
