@@ -385,13 +385,14 @@ review and Ariadne publication follow; #242 stays closed.
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
-**status:** working — engineering plan reviewed; implementation pending approval
+**status:** working — simplified engineering plan under review; implementation pending approval
 **started:** 2026-09-23
 
 Both prerequisite contracts are available. The [implementation plan](../plans/000305-slots-v2-workspace-provisioning-plan.md)
-uses remote-main initialization, an internal provisioning operation, inherited
-leases and explicit retry. Ready reuse validates initialized workspace instances
-without fetching or composing. Thread admission and launch remain with pair#306.
+uses remote-main initialization, one repository lock for host Git creation,
+small creation intent and a setup-success marker. Missing success permits explicit
+Weave retry; Weave owns dependency locking and recovery. Ready reuse validates
+the host without fetching or composing. Thread admission and launch remain with pair#306.
 
 ## Log
 
@@ -583,3 +584,10 @@ This supersedes the preceding local-commit initialization revision.
 Reason: operator requested continuing pair#305 after settling remote-main
 initialization. Delta: recorded #305's working design state and durable plan;
 no implementation completion, estimate or timeline is claimed.
+
+### 2026-09-23 — simplify #305 setup recovery
+
+Reason: operator requested a simpler design using repeatable Weave compilation.
+Delta: #305 now uses one Git creation lock, bounded host intent and one successful
+setup marker; removes Couch dependency inventory and provisioning phase tracking.
+The revised plan needs fresh review and approval before implementation.
