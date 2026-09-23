@@ -19,6 +19,22 @@ the original project's issue list is not automatically the v2 commitment.
 
 ## PRD
 
+### Current host starting-point contract — 2026-09-23
+
+New slots start from relevant committed local work in the source workspace
+(default :0, or an explicitly selected :N). The operator/agent commits relevant
+edits before preparation; Couch records the source address and exact commit and
+creates main-slotN at that SHA. The transferred snapshot includes its committed
+ancestry. The source must meet the agreed clean-source readiness checks.
+Remote/main remains the tracking upstream and does not determine the starting
+SHA. Source movement after acceptance cannot silently change what is provisioned;
+retries retain the reserved SHA. Existing slots keep their current state.
+
+This supersedes the earlier requirement to initialize the host from fetched
+remote main. It applies to the main worktree of the numbered environment;
+private dependency clones retain the origin/main initialization contract below.
+#305 owns provisioning and #309 verifies the inherited local work in the trial.
+
 ### Current layout and dependency contract — 2026-09-23
 
 This agreed decision supersedes the flat paths and unresolved dependency-policy
@@ -534,3 +550,10 @@ Reason: server-side merge confirmed. Delta: #243 is done via Ariadne PR128,
 measured actual 2.89h, with metadata prerequisites merged via Pair PR154 and
 Parley PR199. Updated its detail status and archived issue link. The next
 Ariadne task remains #244; #242 was not reopened.
+
+### 2026-09-23 — host slots start from local commits
+
+Reason: operator explicitly requested carrying relevant committed local changes
+into new slots. Delta: host main-slotN starts at the accepted source-workspace
+SHA, with remote/main tracking configured separately. Updated #305 and #309;
+private dependency initialization and explicit refresh retain their contracts.
