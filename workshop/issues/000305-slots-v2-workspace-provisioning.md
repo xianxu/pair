@@ -1,6 +1,6 @@
 ---
 id: 000305
-status: working
+status: codecomplete
 deps: [ariadne#242, ariadne#243]
 github_issue:
 created: 2026-09-22
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours: 6.95
 started: 2026-09-23T10:54:57-07:00
 flow: {kind: full, provenance: operator}
+actual_hours: 4.66
 ---
 
 # Slots v2: provision durable numbered workspaces
@@ -220,6 +221,7 @@ The operator approved implementation; code is implemented and final verification
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
 
 ### 2026-09-23 — prerequisites verified and design started
+- 2026-09-23: closed — Full go test ./... -count=1 passed independently by author and second reviewer; targeted race/vet/build/live SDLC-Weave/CLI smoke and parser fuzz passed. No code changes since ea2b507f; BR-3 docs corrected, BR-1/BR-2 disputed with executable same-slot/no-thread evidence in issue Log.; review verdict: SHIP
 
 Ariadne #242/#243 are published; the current atlas contracts specify nested
 host worktrees, JSON v2 and private ordinary dependency clones. Claimed #305 and
@@ -392,3 +394,5 @@ Reason: operator wants repeatable operations to reapply safe commands whenever
 success is unconfirmed. Delta: readiness now runs missing setup on every ordinary
 invocation, without --retry. #306 uses it before numbered-slot launch/cold resume;
 warm reattachment skips setup. Repeat-call recovery is an explicit test obligation.
+
+- 2026-09-23: Close review returned SHIP (window 570f8566..835e6a03); BR-1/BR-2 withdrawn after scope evidence, BR-3 corrected. Actual measured 4.66h. Minor advisories: Ensure rejects corrupt/conflicting observations before NextHostAction; immediate busy-lock refusal after compile intentionally requires another readiness call and may recompile. Live conformance cadence documented in atlas: provisioning/consumed-contract changes and #309 acceptance. No blocking findings remain.

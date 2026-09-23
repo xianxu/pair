@@ -92,3 +92,9 @@ transport and minimal manifests; it installs no packages or tools:
 ```sh
 PAIR_LIVE_WORKSPACE=1 go test ./cmd/internal/couchcore -run '^TestProvisionConformance$' -count=1 -v
 ```
+
+Run this live check whenever provisioning or the consumed SDLC/Weave identity or
+setup contract changes, and during pair#309 acceptance. Ensure rejects corrupt
+or conflicting observations before consulting NextHostAction. The creation lock
+is nonblocking, including after compile: contention can require another readiness
+call and repeat compile if no success marker was published.

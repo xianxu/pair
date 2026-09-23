@@ -56,6 +56,39 @@ rounds:
           round: 3
       recipe: milestone-review
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-23T13:05:43-07:00"
+      agent: claude
+      dispose:
+        - id: BR-1
+          disposition: withdrawn
+          note: 'Overtaken by the design: #305 has no thread effects (TestProvisionCLI checks for no runner or supervisor effects). Plan lines 37-47 place the reservation token, lifetime and release in #306, and #306 already declares deps pair#305, so a reverse edge would be a cycle.'
+          round: 4
+        - id: BR-2
+          disposition: withdrawn
+          note: 'Same as BR-1. The class rule is stated in the plan: a readiness operation grants directory readiness, not thread capacity; the capability owner (#306) defines its own reservation. No #305 invariant is violated.'
+          round: 4
+      findings:
+        - id: BR-4
+          severity: Minor
+          title: NextHostAction refuse rows (HostConflict/SetupConflict) are never produced by production Ensure
+          detail: readSuccess and verifyHost errors return before the table is consulted, so its conflict rows are only exercised by unit tests. Route conflicting observations through the table or document the short-circuit.
+          family: decision-table-bypassed-by-early-error
+          round: 4
+        - id: BR-5
+          severity: Minor
+          title: A busy lock after a long Weave run discards a completed setup as unconfirmed
+          detail: Taking the creation lock without waiting after up to 20 minutes of setup turns a brief lock held by another slot's creation into a forced recompile. A short bounded wait would keep the design.
+          family: nonblocking-lease-after-long-work
+          round: 4
+        - id: BR-6
+          severity: Minor
+          title: The live SDLC/Weave conformance check only runs when opted in, with no schedule
+          detail: TestProvisionConformance runs only with PAIR_LIVE_WORKSPACE=1; ARCH-MOCK asks for a named schedule for live drift checks.
+          family: live-conformance-cadence
+          round: 4
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#305 (boundary-review)
@@ -89,7 +122,24 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-2 — not-addressed — The plan still says #306 designs the reservation representation without an executable selection-to-provisioning exclusion contract.
 - BR-3 — addressed — The active plan now names provision_git_test.go for ProvisionFixture and no longer references the nonexistent provision_fake_test.go.
 
+## Round 4 — 2026-09-23T13:05:43-07:00 (claude) — passed
+
+### Disposed
+
+- BR-1 — withdrawn — Overtaken by the design: #305 has no thread effects (TestProvisionCLI checks for no runner or supervisor effects). Plan lines 37-47 place the reservation token, lifetime and release in #306, and #306 already declares deps pair#305, so a reverse edge would be a cycle.
+- BR-2 — withdrawn — Same as BR-1. The class rule is stated in the plan: a readiness operation grants directory readiness, not thread capacity; the capability owner (#306) defines its own reservation. No #305 invariant is violated.
+
+### Raised
+
+- **BR-4** [Minor] `decision-table-bypassed-by-early-error` NextHostAction refuse rows (HostConflict/SetupConflict) are never produced by production Ensure
+  readSuccess and verifyHost errors return before the table is consulted, so its conflict rows are only exercised by unit tests. Route conflicting observations through the table or document the short-circuit.
+- **BR-5** [Minor] `nonblocking-lease-after-long-work` A busy lock after a long Weave run discards a completed setup as unconfirmed
+  Taking the creation lock without waiting after up to 20 minutes of setup turns a brief lock held by another slot's creation into a forced recompile. A short bounded wait would keep the design.
+- **BR-6** [Minor] `live-conformance-cadence` The live SDLC/Weave conformance check only runs when opted in, with no schedule
+  TestProvisionConformance runs only with PAIR_LIVE_WORKSPACE=1; ARCH-MOCK asks for a named schedule for live drift checks.
+
 ## Open findings
 
-- **BR-1** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning
-- **BR-2** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning
+- **BR-4** [Minor] `decision-table-bypassed-by-early-error` NextHostAction refuse rows (HostConflict/SetupConflict) are never produced by production Ensure
+- **BR-5** [Minor] `nonblocking-lease-after-long-work` A busy lock after a long Weave run discards a completed setup as unconfirmed
+- **BR-6** [Minor] `live-conformance-cadence` The live SDLC/Weave conformance check only runs when opted in, with no schedule

@@ -14,7 +14,7 @@ record for interrupted Git operations, and a setup-success marker per host.
 **Tech stack:** Go, existing typed operation dispatcher, Git, SDLC JSON v2,
 Weave compile, flock, existing strict JSON and atomic-file helpers.
 **Issue:** `workshop/issues/000305-slots-v2-workspace-provisioning.md`.
-**Status:** Approved and implemented; final verification/close in progress.
+**Status:** Implemented and verified; SHIP close review passed; publication next.
 **Flow:** Full, one issue-close boundary. Expected code exceeds 100 added lines;
 approval of this plan includes using `sdlc change-code --issue 305 --flow=full`.
 Derive the estimate after that command's plan-quality gate, before implementation.
@@ -336,8 +336,8 @@ README.md, atlas/couch.md, atlas/index.md, issue and project state.
 - [x] Run targeted race tests, `make runtimebundle-generate`, `go test ./... -count=1`,
   and `go vet ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
 - [x] Build `make pair bin/couch`; smoke the CLI against isolated temporary repos/data.
-- [ ] Reconcile evidence and commit; run `sdlc close --issue 305
-  --verified '<observed evidence>'` once, then sdlc pr / sdlc merge.
+- [x] Reconcile evidence and run `sdlc close --issue 305 --verified '<observed evidence>'`; SHIP.
+- [ ] Publish the close records with sdlc pr / sdlc merge.
 
 ## Operating envelope and exclusions
 
@@ -370,9 +370,9 @@ short host-only lock extent. ARCH-SECURE: strict records, canonical Git identity
 and non-destructive collision refusals. ARCH-FUNERAL: one success marker, bounded
 creation evidence, no attempt history/dependency nonce files/private fetch refs.
 
-Obtain fresh plan review and checkpoint the issue/plan, then present this revised
-plan for operator approval. Continue with change-code's plan-quality/estimate
-steps and an in-place branch in this checkout; preserve unrelated local files.
+Operator approval, plan-quality/estimate gates and implementation are complete
+on the in-place issue branch. Verification and the SHIP close review passed;
+publish through sdlc pr / sdlc merge while preserving unrelated local files.
 
 ## Revisions
 
@@ -482,3 +482,11 @@ live conformance tests. Its ARCH-PURPOSE finding explicitly accepted the #306
 boundary; BR-1/BR-2 (carried PQ-2/PQ-8) therefore need explicit withdrawal in the
 next ledger disposition rather than remaining accidentally open. No #306 API is
 consumed: the deployed operation prepares directories without thread authority.
+
+### 2026-09-23 — close review completed
+
+The final review withdrew the reverse-dependency/reservation findings: #305 grants
+directory readiness; #306 owns admission. Active file mappings were corrected.
+Three minor advisories remain nonblocking: early conflict rejection, immediate
+busy-lock refusal after compile, and live-conformance cadence (now documented
+in the atlas). No production changes followed the reviewed implementation.

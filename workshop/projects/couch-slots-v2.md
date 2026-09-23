@@ -329,7 +329,7 @@ No implementation has started and no estimates or deadline are committed.
 - [ ] Make concurrent issue workflows safe [ariadne#244]
 - [ ] Support branching from a workspace and explicit refresh [ariadne#245]
 - [ ] Land without removing or refreshing the workspace [ariadne#246]
-- [ ] Provision durable numbered workspaces [pair#305]
+- [x] Provision durable numbered workspaces [pair#305]
 - [ ] Support full slot threads and parked-thread admission [pair#306]
 - [ ] Group slots in the switcher and tab bar [pair#307]
 - [ ] Persist independent workspace preferences [pair#308]
@@ -385,7 +385,9 @@ review and Ariadne publication follow; #242 stays closed.
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
-**status:** working — provisioning implemented; verification and close review in progress
+**status:** codecomplete — verification passed; SHIP close review; publication next
+**actual:** 4.66h
+**closed:** 2026-09-23
 **started:** 2026-09-23
 
 Both prerequisite contracts are available. The [implementation plan](../plans/000305-slots-v2-workspace-provisioning-plan.md)
@@ -606,3 +608,9 @@ remote-main SHA capture, host creation recovery and a Weave success marker.
 Focused race tests, actual SDLC/Weave conformance and built-CLI smoke pass.
 Full-suite verification and close review remain in progress. #306 will wire
 normal slot open/cold resume to readiness; grouped UI and preferences follow.
+
+### 2026-09-23 — #305 close review passed
+
+Provisioning passed the full Go suite, targeted race/vet checks, build, parser fuzz,
+CLI smoke and live SDLC/Weave conformance. The close review returned SHIP;
+measured actual is 4.66h. Publication follows; #306 owns thread integration.
