@@ -17,7 +17,7 @@ atomic/journaled storage, SDLC workspace v2, Git, #305 WorkspaceReadiness.
 
 **Status:** Operator-approved direction; concrete engineering plan passed fresh
 review after corrections. Operator approved execution on 2026-09-23. Earlier
-global-store reviews are superseded; change-code is in progress, with no code yet.
+global-store reviews are superseded; change-code passed and implementation is in progress.
 **Issue:** `workshop/issues/000306-slots-v2-thread-lifecycle.md`.
 **Flow:** Full; in-place branch when entering implementation. Estimate follows
 plan-quality review. Preserve unrelated local work.
@@ -631,3 +631,12 @@ record authority; do not duplicate routing in methods already using shared IO.
 
 Split the aggregate retention strategy into one adversarial guard per concrete GC
 consumer and ThreadStore inventory method; no architectural or scope change.
+
+### 2026-09-23 — authority recovery checks during implementation
+
+Failing production tests exposed two local-authority gaps: re-enrollment after
+losing global root discovery rejected intact local state, and archived inventory
+listed stale global slot copies. Preserve local bytes when enrollment has no
+legacy migration source, keep conflict refusal when sources exist, and filter
+stale archive copies after enrollment. Focused migration, routing and read-only
+preview tests pass. ARCH-SSOT keeps the local backend authoritative.

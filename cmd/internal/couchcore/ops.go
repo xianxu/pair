@@ -145,6 +145,8 @@ type StopResult struct {
 
 func Operations() []Operation {
 	return []Operation{
+		{Name: "open-slot", Summary: "Open or recover this durable slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmNone, Result: ResultStart, Presentation: PresentationTUI, RowAction: true, Args: []ArgSpec{{Name: "path", Summary: "slot host checkout", Required: true}, {Name: "agent", Summary: "agent when initialization needs a profile", FlagOnly: true, ValueRequired: true}}},
+		{Name: "fresh-slot", Summary: "Start a fresh conversation in this slot", Execution: ExecuteLiveOwner, Effect: EffectProcess, Confirmation: ConfirmRequired, Result: ResultStart, Presentation: PresentationTUI, RowAction: true, Args: []ArgSpec{{Name: "path", Summary: "slot host checkout", Required: true}, {Name: "agent", Summary: "agent for the fresh conversation", FlagOnly: true, ValueRequired: true}}},
 		{
 			Name: "provision-workspace", Summary: "Prepare a durable numbered workspace",
 			Execution: ExecuteDirectStore, Effect: EffectProcess, Confirmation: ConfirmNone,
@@ -161,6 +163,7 @@ func Operations() []Operation {
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "path", Summary: "repo or subdirectory to start in (default: .)", Required: false},
+				{Name: "action", Summary: "open or create", FlagOnly: true, ValueRequired: true},
 				{Name: "agent", Summary: "Pair agent to use instead of path/root history (--agent=<name>)", Required: false, FlagOnly: true, ValueRequired: true},
 			},
 		},
@@ -193,6 +196,7 @@ func Operations() []Operation {
 			Presentation: PresentationTUI,
 			Args: []ArgSpec{
 				{Name: "path", Summary: "canonical path the preview resolved", Required: true, Implicit: true},
+				{Name: "action", Summary: "accepted open or create intent", Implicit: true},
 				{Name: "agent", Summary: "agent the operator explicitly requested, if any", Required: false, Implicit: true},
 				{Name: "issue", Summary: "issue the preview resolved, if any", Required: false, Implicit: true},
 				{Name: "fingerprint", Summary: "fingerprint of the resolution the preview accepted", Required: true, Implicit: true},

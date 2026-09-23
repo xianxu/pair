@@ -66,19 +66,28 @@ then inspect sibling dependency clones before removing their environment.
 
 #305 supplies directory readiness only. It has no thread reservation or launch
 side effects and does not acquire the singleton Couch supervisor lease.
-`SelectWorkspaceNumber` is advisory: lowest ready/free workspace, otherwise lowest
-unused positive number; unknown or partial observations require attention.
+`SelectNewSlot` chooses the lowest unused positive number; existing directories
+remain durable slots even without a usable conversation. Partial or uncertain
+candidates require attention instead of being skipped.
 
-`pair#306` owns authoritative admission/reservation and will call readiness before
-numbered-slot launch or cold resume. Warm reattachment reconnects a running agent
-without compilation. Primary :0 setup behavior is unchanged. Those lifecycle
-hooks and grouped UI are separate tasks and are not implemented by #305.
+`pair#306` connects readiness to ordinary slot open/cold resume and new-slot
+creation. Warm reattachment reconnects a running agent without compilation.
+Primary :0 setup behavior is unchanged. A parked primary or numbered thread
+blocks adding another slot; opening or starting fresh within an existing slot
+remains available. Preview carries its exact chosen target and has no setup or
+migration effects; submission refuses changed selection instead of renumbering.
+
+Couch state lives beside the Git host at `<environment>/.couch/`: `thread.json`,
+`preferences.json`, derived `continuation.md`, retained `archive/` and archive
+clocks, plus existing journal/lock files. The environment remains after failed
+starts and conversation replacement. Native transcripts and Pair sidecars stay in
+their existing stores. [Couch](couch.md) maps enrollment, local storage and GC.
 
 ## Code and verification
 
 - `cmd/internal/couchcore/provision.go`: Ensure and Git reconciliation.
 - `workspace_identity.go`, `provision_request.go`, `provision_host.go`,
-  `provision_select.go`: checked transport and pure decisions.
+  `slotallocation.go`: checked transport and pure decisions.
 - `provision_io.go`, `provision_lock_unix.go`, `provision_store.go`: bounded
   process execution, inherited lease and strict atomic metadata.
 - `ops.go`, `operationdispatch.go`, `cmd/internal/couchcmd/run.go`: internal

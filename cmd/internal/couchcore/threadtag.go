@@ -21,6 +21,13 @@ func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt
 	if artifacts == nil {
 		return ThreadRecord{}, errors.New("allocate thread tag: nil artifact collision checker")
 	}
+	backend, err := s.storeForPath(workingPath)
+	if err != nil {
+		return ThreadRecord{}, err
+	}
+	if backend != s {
+		return backend.AllocateThreadTag(repoScope, workingPath, createdAt, entropy, artifacts)
+	}
 	for attempt := 0; attempt < threadTagAttempts; attempt++ {
 		var random [8]byte
 		if _, err := io.ReadFull(entropy, random[:]); err != nil {
@@ -53,7 +60,7 @@ func (s *ThreadStore) AllocateThreadTag(repoScope, workingPath string, createdAt
 			return ThreadRecord{}, errors.Join(err, fmt.Errorf("release scoped artifact claim: %w", releaseErr))
 		}
 		var exists *ThreadExistsError
-		if !errors.As(err, &exists) {
+		if s.layout.Local || !errors.As(err, &exists) {
 			return ThreadRecord{}, err
 		}
 	}

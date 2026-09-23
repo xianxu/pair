@@ -23,6 +23,7 @@ import (
 // method on it. The terminal UI and (later) the advisor's tools are both
 // clients of these methods -- never of two separate implementations.
 type Couch struct {
+	Slots                  SlotCatalog
 	Workspaces             WorkspaceReadiness
 	WorkspaceProgress      io.Writer
 	ContinuationGeneration func(context.Context, ThreadAddress, string, string) (*checkpoint.TargetGeneration, error)
@@ -190,6 +191,10 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 	if err != nil {
 		return ActorRecord{}, nil, err
 	}
+	if resolution.Target.Kind == ThreadTargetSlot {
+		result, e := c.spawnManagedResolution(ctx, resolution)
+		return result.Record, result.Handle, e
+	}
 	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -242,6 +247,10 @@ func (c *Couch) SpawnPrepared(ctx context.Context, args StartArgs, accepted Star
 	if current.Fingerprint != accepted {
 		return ActorRecord{}, nil, ErrStartResolutionChanged
 	}
+	if current.Target.Kind == ThreadTargetSlot {
+		result, e := c.spawnManagedResolution(ctx, current)
+		return result.Record, result.Handle, e
+	}
 	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -250,6 +259,13 @@ func (c *Couch) SpawnPrepared(ctx context.Context, args StartArgs, accepted Star
 }
 
 func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (StartResolution, error) {
+	if c.Slots != nil {
+		return c.resolveManagedStart(ctx, args)
+	}
+	return c.resolveOrdinaryStartResolution(ctx, args)
+}
+
+func (c *Couch) resolveOrdinaryStartResolution(ctx context.Context, args StartArgs) (StartResolution, error) {
 	if args.WorkingDir() == "" {
 		return StartResolution{}, fmt.Errorf("spawn: no path given")
 	}
@@ -265,7 +281,15 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 	if err != nil {
 		return StartResolution{}, err
 	}
-	preference, found, err := c.Threads.GetPathLaunchPreference(repoIdentity, canonicalPath)
+	return c.resolveStartProfile(args, canonicalPath, tree, repoIdentity, string(tree))
+}
+
+func (c *Couch) resolveStartProfile(args StartArgs, canonicalPath string, tree Worktree, repoIdentity, defaultRoot string) (StartResolution, error) {
+	readPreference := c.Threads.GetPathLaunchPreference
+	if c.Slots != nil {
+		readPreference = c.Threads.PreviewPathLaunchPreference
+	}
+	preference, found, err := readPreference(repoIdentity, canonicalPath)
 	if err != nil {
 		return StartResolution{}, fmt.Errorf("read launch preference: %w", err)
 	}
@@ -288,7 +312,7 @@ func (c *Couch) resolveStartResolution(ctx context.Context, args StartArgs) (Sta
 	}
 	var repoDefault *LaunchProfile
 	if c.RepoAgentDefault != nil {
-		value, ok, defaultErr := c.RepoAgentDefault(string(tree), selected.Profile.Agent)
+		value, ok, defaultErr := c.RepoAgentDefault(defaultRoot, selected.Profile.Agent)
 		if defaultErr != nil {
 			return StartResolution{}, fmt.Errorf("read %s repository default: %w", selected.Profile.Agent, defaultErr)
 		}
@@ -425,12 +449,16 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 		// The switcher gesture works from ANOTHER repository, where couch does
 		// start and the switcher lists every scope. That escape existed and was
 		// never stated, which is the only reason the refusal was survivable.
+		recordPath, pathErr := c.Threads.RecordPath(held)
+		if pathErr != nil {
+			return ActorRecord{}, nil, pathErr
+		}
 		return ActorRecord{}, nil, fmt.Errorf(
 			"couch cannot read thread %s in this repository, so it cannot tell whether %s is free\n"+
 				"  inspect it:  couch --show %s\n"+
 				"  retire it:   run couch in another repository, select it, Tab → archive\n"+
 				"  the record:  %s",
-			held.Tag, resolution.CanonicalPath, held.Tag, c.Threads.RecordPath(held))
+			held.Tag, resolution.CanonicalPath, held.Tag, recordPath)
 	}
 	if held, occupied := PathHoldsUsableThread(rows, scope.Key, resolution.CanonicalPath); occupied {
 		// The next steps have to be ones that WORK from where the operator is.
@@ -519,6 +547,14 @@ func (c *Couch) spawnResolved(ctx context.Context, resolution StartResolution, r
 	//
 	// This is a deliberate slice of #149, which makes the tag the space's
 	// durable identity; #146 needs only that re-entry is deterministic.
+	if err := c.prepareTrackedWorkspace(ctx, thread, nonce, false); err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
+	if resolution.Target.Kind == ThreadTargetSlot && resolution.Action == StartCreate {
+		if err := c.revalidateCreatedSlot(ctx, resolution); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		}
+	}
 	profileRaw, err := launcher.BuildCouchLaunchProfile(
 		string(thread.Address.Tag), profile.Profile.Agent, profile.Profile.Argv,
 		string(profile.AgentSource), string(profile.ArgvSource),

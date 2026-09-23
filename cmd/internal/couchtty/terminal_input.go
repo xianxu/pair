@@ -128,8 +128,8 @@ func (c *Console) routeMouseEvent(event terminal.InputEvent) {
 			return
 		}
 		if panel {
-			if thread, ok := (RenderedMenu{Extents: extents}).PointToActor(hit.Y-1, hit.X-1); ok {
-				c.switchToThread(thread)
+			if key, thread, ok := (RenderedMenu{Extents: extents}).PointToRow(hit.Y-1, hit.X-1); ok {
+				c.reduceMenu(MenuEvent{Kind: MenuEventMouseSwitch, Address: thread, RowKey: key})
 			}
 			return
 		}

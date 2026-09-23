@@ -542,6 +542,9 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// same Pair address. A warm reattach rechecks that its session is still
 	// there, which is the equivalent staleness -- and if it died in the window,
 	// there is nothing to attach to.
+	if err := c.prepareTrackedWorkspace(ctx, thread, nonce, detached); err != nil {
+		return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
 	profileRaw := ""
 	if detached {
 		if err := c.confirmStillDetached(ctx, thread, warmSession); err != nil {

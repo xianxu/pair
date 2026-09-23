@@ -38,6 +38,7 @@ type ThreadRevisionError struct {
 // CommitThreadReplacements, which pair#170 M4 deleted -- so copying them was
 // per-call work for no consumer.
 type ThreadSnapshot struct {
+	Slots      []SlotInventoryObservation
 	Generation uint64
 	Records    []ThreadRecord
 	// Unreadable are manifest-listed addresses whose record could not be read
@@ -56,9 +57,10 @@ func (e *ThreadRevisionError) Error() string {
 }
 
 type threadManifest struct {
-	SchemaVersion int             `json:"schema_version"`
-	Generation    uint64          `json:"generation"`
-	Threads       []ThreadAddress `json:"threads"`
+	SlotRepositories []string        `json:"slot_repositories,omitempty"`
+	SchemaVersion    int             `json:"schema_version"`
+	Generation       uint64          `json:"generation"`
+	Threads          []ThreadAddress `json:"threads"`
 	// DeprecatedLegacyCutover and DeprecatedLegacyMigrationVersion are
 	// TOMBSTONES, not fields. The one-time import of the old tree-keyed
 	// registry went with pair#170 M4, but these keys are in the operator's
@@ -80,6 +82,9 @@ type threadManifest struct {
 
 // pair:m5-concept integration
 type ThreadStore struct {
+	readOnly    bool
+	layout      StoreLayout
+	slot        *SlotIdentity
 	namespace   CouchNamespace
 	root        string
 	hooks       threadStoreHooks
@@ -121,20 +126,33 @@ func (s *ThreadStore) manifestPath() string { return filepath.Join(s.root, "mani
 // refuses and no switcher gesture is reachable anywhere. Naming the file is the
 // only honest next step left, and a refusal with no next step at all is what
 // this whole class of finding is about.
-func (s *ThreadStore) RecordPath(address ThreadAddress) string {
-	return s.recordPath(address)
+func (s *ThreadStore) RecordPath(address ThreadAddress) (string, error) {
+	backend, err := s.storeForAddress(address)
+	if err != nil {
+		return "", err
+	}
+	return backend.recordPath(address), nil
 }
 
 func (s *ThreadStore) recordPath(address ThreadAddress) string {
+	if s.layout.Local {
+		return filepath.Join(s.root, "thread.json")
+	}
 	return filepath.Join(s.root, "records", address.RepoScope, string(address.Tag)+".json")
 }
 
 func (s *ThreadStore) pathLaunchPreferencePath(repoIdentity, physicalPath string) string {
+	if s.layout.Local {
+		return filepath.Join(s.root, "preferences.json")
+	}
 	digest := sha256.Sum256([]byte(repoIdentity + "\x00" + physicalPath))
 	return filepath.Join(s.root, "path-preferences", fmt.Sprintf("%x.json", digest[:]))
 }
 
 func (s *ThreadStore) withLock(fn func() error) (err error) {
+	if s != nil && s.readOnly {
+		return s.withPreviewLock(fn)
+	}
 	if s != nil && s.coordinator != nil {
 		return s.coordinator.WithLock(context.Background(), func(l *storagegc.Locked) error {
 			if err := l.RegisterStore(s.namespace.Dir()); err != nil {
@@ -154,6 +172,11 @@ func (s *ThreadStore) withStoreLock(fn func() error) error {
 // must never remain held while waiting for an independently busy Couch store.
 // Ordinary writers pass nil and retain their blocking lock semantics.
 func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error) (err error) {
+	if s != nil {
+		if err := s.validateBackendPath(); err != nil {
+			return err
+		}
+	}
 	if s == nil || s.namespace.Dir() == "" {
 		return errors.New("thread store has no namespace")
 	}
@@ -186,12 +209,22 @@ func (s *ThreadStore) withStoreLockChecked(fn func() error, check func() error) 
 func (s *ThreadStore) RecoverStoreJournal() error { return s.withLock(func() error { return nil }) }
 
 func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
+	if err := s.validateLocalOrigin(record); err != nil {
+		return ThreadRecord{}, err
+	}
 	record = cloneThreadRecord(record)
 	if err := validateThreadAddress(record.Address); err != nil {
 		return ThreadRecord{}, err
 	}
+	backend, err := s.storeForPath(record.StartingPath)
+	if err != nil {
+		return ThreadRecord{}, err
+	}
+	if backend != s {
+		return backend.CreateThread(record)
+	}
 	var created ThreadRecord
-	err := s.withLock(func() error {
+	err = s.withLock(func() error {
 		manifest, manifestRaw, manifestExists, err := s.loadManifestLocked()
 		if err != nil {
 			return err
@@ -210,7 +243,6 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 		}
 		recordRaw = append(recordRaw, '\n')
 		nextManifest := manifest
-		nextManifest.SchemaVersion = 1
 		nextManifest.Generation++
 		nextManifest.Threads = append(nextManifest.Threads, record.Address)
 		sortThreadAddresses(nextManifest.Threads)
@@ -243,6 +275,13 @@ func (s *ThreadStore) GetThread(address ThreadAddress) (ThreadRecord, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, err
 	}
+	backend, routeErr := s.storeForAddress(address)
+	if routeErr != nil {
+		return ThreadRecord{}, routeErr
+	}
+	if backend != s {
+		return backend.GetThread(address)
+	}
 	var result ThreadRecord
 	err := s.withLock(func() error {
 		record, err := s.readThreadLocked(address)
@@ -266,6 +305,13 @@ func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string)
 	}
 	if !filepath.IsAbs(physicalPath) {
 		return PathLaunchPreference{}, false, errors.New("path launch preference path must be absolute")
+	}
+	backend, routeErr := s.storeForPath(physicalPath)
+	if routeErr != nil {
+		return PathLaunchPreference{}, false, routeErr
+	}
+	if backend != s {
+		return backend.GetPathLaunchPreference(repoIdentity, physicalPath)
 	}
 	var result PathLaunchPreference
 	var found bool
@@ -296,6 +342,13 @@ func (s *ThreadStore) updateExistingThread(address ThreadAddress, expectedRevisi
 	}
 	if mutate == nil {
 		return ThreadRecord{}, errors.New("thread update has nil mutation")
+	}
+	backend, routeErr := s.storeForAddress(address)
+	if routeErr != nil {
+		return ThreadRecord{}, routeErr
+	}
+	if backend != s {
+		return backend.updateExistingThread(address, expectedRevision, mutate)
 	}
 	var result ThreadRecord
 	err := s.withLock(func() error {
@@ -661,6 +714,9 @@ func (s *ThreadStore) AbandonPark(address ThreadAddress, expectedRevision uint64
 }
 
 func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
+	if missing, err := s.localBackendMissing(); err != nil || missing {
+		return ThreadSnapshot{}, err
+	}
 	var snapshot ThreadSnapshot
 	err := s.withLock(func() error {
 		manifest, _, _, err := s.loadManifestLocked()
@@ -690,6 +746,9 @@ func (s *ThreadStore) Snapshot() (ThreadSnapshot, error) {
 		}
 		return nil
 	})
+	if err == nil && !s.layout.Local {
+		return s.appendSlotSnapshots(snapshot)
+	}
 	return snapshot, err
 }
 
@@ -719,6 +778,13 @@ func (s *ThreadStore) AdvanceStart(address ThreadAddress, expectedRevision uint6
 func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevision uint64, event StartEvent) (ThreadRecord, error) {
 	if err := validateThreadAddress(address); err != nil {
 		return ThreadRecord{}, err
+	}
+	backend, routeErr := s.storeForAddress(address)
+	if routeErr != nil {
+		return ThreadRecord{}, routeErr
+	}
+	if backend != s {
+		return backend.advanceSuccessfulStart(address, expectedRevision, event)
 	}
 	var result ThreadRecord
 	err := s.withLock(func() error {
@@ -942,6 +1008,13 @@ func (s *ThreadStore) deleteThreadIf(address ThreadAddress, accept func(ThreadRe
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
+	backend, routeErr := s.storeForAddress(address)
+	if routeErr != nil {
+		return routeErr
+	}
+	if backend != s {
+		return backend.deleteThreadIf(address, accept)
+	}
 	return s.withLock(func() error {
 		manifest, manifestRaw, _, err := s.loadManifestLocked()
 		if err != nil {
@@ -1006,10 +1079,17 @@ func (s *ThreadStore) decodeThreadRaw(address ThreadAddress, raw []byte) (Thread
 	if err != nil {
 		return ThreadRecord{}, err
 	}
-	return fromPersistedThreadRecord(record), nil
+	result := fromPersistedThreadRecord(record)
+	if err := s.validateLocalOrigin(result); err != nil {
+		return ThreadRecord{}, err
+	}
+	return result, nil
 }
 
 func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error) {
+	if s.layout.Local {
+		return s.localMembership()
+	}
 	raw, exists, err := readOptionalFile(s.manifestPath())
 	if err != nil {
 		return threadManifest{}, nil, false, err
@@ -1021,8 +1101,18 @@ func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error)
 	if err := strictThreadStoreJSON(raw, &manifest); err != nil {
 		return threadManifest{}, nil, true, err
 	}
-	if manifest.SchemaVersion != 1 || manifest.Threads == nil {
+	if (manifest.SchemaVersion != 1 && manifest.SchemaVersion != 2) || manifest.Threads == nil {
 		return threadManifest{}, nil, true, errors.New("invalid thread store manifest")
+	}
+	if manifest.SchemaVersion == 1 && len(manifest.SlotRepositories) != 0 {
+		return threadManifest{}, nil, true, errors.New("slot repository enrollment requires manifest schema 2")
+	}
+	roots := map[string]bool{}
+	for _, root := range manifest.SlotRepositories {
+		if !workspaceAbsolute(root) || roots[root] {
+			return threadManifest{}, nil, true, errors.New("invalid or duplicate slot repository root")
+		}
+		roots[root] = true
 	}
 	seen := map[ThreadAddress]bool{}
 	for _, address := range manifest.Threads {
@@ -1069,6 +1159,10 @@ func (s *ThreadStore) commitJournalLocked(journal storeJournal) error {
 }
 
 func (s *ThreadStore) commitJournalLockedChecked(journal storeJournal, check func() error) error {
+	if s.readOnly {
+		return errors.New("cannot write through a preview store")
+	}
+	journal.Entries = s.layout.journalEntries(journal.Entries)
 	if err := checkStoreContext(check); err != nil {
 		return err
 	}
@@ -1146,6 +1240,13 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
+	backend, routeErr := s.storeForAddress(address)
+	if routeErr != nil {
+		return routeErr
+	}
+	if backend != s {
+		return backend.archiveThread(address, expectedRevision)
+	}
 	return s.withLock(func() error {
 		manifest, manifestRaw, _, err := s.loadManifestLocked()
 		if err != nil {
@@ -1169,6 +1270,9 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		// would already have happened. Here only the record guard runs, and for
 		// a direct caller of the store it is the whole of the protection.
 		record, decodeErr := s.decodeThreadRaw(address, raw)
+		if s.layout.Local && decodeErr != nil {
+			return decodeErr
+		}
 		if expectedRevision != nil {
 			if decodeErr != nil && *expectedRevision != 0 {
 				return decodeErr
@@ -1220,6 +1324,9 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 // ArchivedThreads lists what has been retired, without loading any of it into
 // the working set. It is how the operator inspects a decision they can undo.
 func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
+	if missing, err := s.localBackendMissing(); err != nil || missing {
+		return nil, err
+	}
 	root := filepath.Join(s.root, "archive")
 	var records []ThreadRecord
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -1254,6 +1361,40 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	if !s.layout.Local {
+		roots, err := s.slotRepositoryRoots()
+		if err != nil {
+			return nil, err
+		}
+		backends, err := s.discoveredBackendsFromRoots(roots)
+		if err != nil {
+			return nil, err
+		}
+		kept := records[:0]
+		for _, record := range records {
+			if !pathInSlotRepositories(record.StartingPath, roots) {
+				kept = append(kept, record)
+			}
+		}
+		records = kept
+		seen := make(map[ThreadAddress]bool)
+		for _, record := range records {
+			seen[record.Address] = true
+		}
+		for _, backend := range backends {
+			archived, err := backend.ArchivedThreads()
+			if err != nil {
+				return nil, err
+			}
+			for _, record := range archived {
+				if seen[record.Address] {
+					return nil, fmt.Errorf("duplicate archived conversation %+v", record.Address)
+				}
+				seen[record.Address] = true
+			}
+			records = append(records, archived...)
+		}
 	}
 	sort.Slice(records, func(i, j int) bool {
 		if records[i].Address.RepoScope != records[j].Address.RepoScope {

@@ -356,6 +356,10 @@ func (c *Couch) SwitchAgent(ctx context.Context, request SwitchAgentRequest) (Sw
 		result.Outcome = SwitchStartFailed
 		return result, fmt.Errorf("switch-agent: source parked but target claim failed; inspect the thread before retrying: %w", err)
 	}
+	if err := c.prepareTrackedWorkspace(ctx, thread, nonce, false); err != nil {
+		result.Outcome = SwitchStartFailed
+		return result, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+	}
 	record, handle, err := c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx, Thread: thread, Nonce: nonce, Args: StartArgs{Worktree: Worktree(thread.StartingPath), Cwd: thread.WorkingPath, Stack: request.Agent, ExtraArgs: cloneArgv(request.Argv)},
 		StartedAt: startedAt, ProfileRaw: profileRaw, Fresh: true, Orientation: &orient,

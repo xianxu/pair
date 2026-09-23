@@ -56,6 +56,23 @@ rounds:
           family: function-level-test-strategy
           round: 3
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-23T15:29:22-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-4
+          disposition: addressed
+          note: The plan names ThreadStore.ArchivedThreads and each concrete CouchReferences consumer with an individual adversarial test strategy.
+          round: 4
+      findings:
+        - id: PQ-5
+          severity: Important
+          title: 'This is the 3rd finding in family `local-authority-consumer-enumeration`: enumerate every direct ThreadStore consumer, not only lifecycle delegates'
+          detail: Earlier rounds established the rule that local authority requires an exhaustive consumer sweep, but the plan still says only “audit all ThreadStore receiver methods for direct IO” and does not name direct retention/metadata consumers such as ApplyThreadMetadata, RetentionSnapshot, OnboardArchiveGrace, DetachArchive, and ForgetArchiveReceipt. State the complete direct-IO enumeration, assign each to the routed local backend, and give each risky function one adversarial production-boundary guard; otherwise a local slot can still be read or mutated through an unlisted path.
+          family: local-authority-consumer-enumeration
+          round: 4
+      blocked: false
+content_hash: 2b10b9e4d3b7fc7db695b6de7931b49559cc5cfa367228dbaf79b35564c0146f
 ---
 
 # Gate ledger — pair#306 (plan-quality)
@@ -95,6 +112,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-4** [Important] `function-level-test-strategy` Name every GC consumer function and give each its own test strategy
   The strategy names “Snapshot / ArchivedThreads / CouchReferences” rather than the concrete functions CouchReferences.Snapshot, Detach, Forget, Onboard, Recover, and ThreadStore.ArchivedThreads. Under ARCH-PURPOSE, name each production function and provide one adversarial-input/mechanical-guard line for each so the five GC routing consumers cannot be silently omitted.
 
+## Round 4 — 2026-09-23T15:29:22-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-4 — addressed — The plan names ThreadStore.ArchivedThreads and each concrete CouchReferences consumer with an individual adversarial test strategy.
+
+### Raised
+
+- **PQ-5** [Important] `local-authority-consumer-enumeration` This is the 3rd finding in family `local-authority-consumer-enumeration`: enumerate every direct ThreadStore consumer, not only lifecycle delegates
+  Earlier rounds established the rule that local authority requires an exhaustive consumer sweep, but the plan still says only “audit all ThreadStore receiver methods for direct IO” and does not name direct retention/metadata consumers such as ApplyThreadMetadata, RetentionSnapshot, OnboardArchiveGrace, DetachArchive, and ForgetArchiveReceipt. State the complete direct-IO enumeration, assign each to the routed local backend, and give each risky function one adversarial production-boundary guard; otherwise a local slot can still be read or mutated through an unlisted path.
+
 ## Open findings
 
-- **PQ-4** [Important] `function-level-test-strategy` Name every GC consumer function and give each its own test strategy
+- **PQ-5** [Important] `local-authority-consumer-enumeration` This is the 3rd finding in family `local-authority-consumer-enumeration`: enumerate every direct ThreadStore consumer, not only lifecycle delegates

@@ -111,6 +111,7 @@ func (r OSRuntime) NewCouchWith(runner couchcore.Runner, namespace couchcore.Cou
 		return nil, err
 	}
 	c.Workspaces = couchcore.NewWorkspaceProvisioner(couchcore.OSProvisionIO{})
+	c.Slots = couchcore.NewOSSlotCatalog(couchcore.OSProvisionIO{})
 	c.RootAgent = r.Getenv("PAIR_AGENT")
 	c.ContinuationSource = (couchcore.OSContinuationSourceReader{DataDir: dataDir}).Read
 	renderer, _ := exec.LookPath("pair")
@@ -373,7 +374,7 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 }
 
 func dispatchInteractiveStart(c *couchcore.Couch, args map[string]string) (couchcore.StartResult, error) {
-	return c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: args["path"], Stack: args["agent"]})
+	return c.StartInteractive(context.Background(), couchcore.StartArgs{Cwd: args["path"], Stack: args["agent"], Action: couchcore.StartAction(args["action"])})
 }
 
 func operationUsesCurrentRepoScope(name string) bool {
@@ -388,7 +389,7 @@ func operationUsesCurrentRepoScope(name string) bool {
 // operationOwnsLive is the pure entrypoint policy. Both ways into Couch must
 // acquire the same singleton before they can create a child or take a terminal.
 func operationOwnsLive(name string) bool {
-	return name == "start" || name == "resume" || name == "retry-continuation" || name == "recover-thread" || name == "recover-checkpoint" || name == "archive"
+	return name == "open-slot" || name == "fresh-slot" || name == "start" || name == "resume" || name == "retry-continuation" || name == "recover-thread" || name == "recover-checkpoint" || name == "archive"
 }
 
 // WantsConsole is the console DECISION, separated from building one.

@@ -96,7 +96,7 @@ func TestContinuationZellijSeedTransportLive(t *testing.T) {
 		}
 		args := []string{"--session", session, "action", "new-pane", "--", "env",
 			"PAIR_CONTINUATION_LIVE_HELPER=1", orientation.Env + "=" + raw,
-			"PAIR_CONTINUATION_LIVE_SEED=" + env.Couch.continuationPath(source.Address),
+			"PAIR_CONTINUATION_LIVE_SEED=" + mustContinuationPath(t, env.Couch, source.Address),
 			"PAIR_CONTINUATION_LIVE_READY=" + readyPath, "PAIR_CONTINUATION_LIVE_CAPTURE=" + captured,
 			"PAIR_CONTINUATION_LIVE_RELEASE=" + release,
 			executable, "-test.run=^TestContinuationZellijAgentStandIn$"}

@@ -7,12 +7,21 @@ package couchcore
 // Spawn takes a peer repo, not an issue: what the agent works on is decided
 // inside the session, and an issue crystallises mid-thread rather than being a
 // precondition. Issue is optional metadata on the tree.
+type StartAction string
+
+const (
+	StartOpen   StartAction = "open"
+	StartCreate StartAction = "create"
+	StartFresh  StartAction = "fresh"
+)
+
 type StartArgs struct {
-	Worktree  Worktree `json:"worktree"`
-	Cwd       string   `json:"cwd,omitempty"`
-	Stack     string   `json:"stack,omitempty"`
-	Issue     string   `json:"issue,omitempty"`
-	ExtraArgs []string `json:"extra_args,omitempty"`
+	Action    StartAction `json:"action,omitempty"`
+	Worktree  Worktree    `json:"worktree"`
+	Cwd       string      `json:"cwd,omitempty"`
+	Stack     string      `json:"stack,omitempty"`
+	Issue     string      `json:"issue,omitempty"`
+	ExtraArgs []string    `json:"extra_args,omitempty"`
 	// SameTree is an inert legacy serialization field retained until M5 can
 	// migrate old registry snapshots. New decisions must never read it.
 	SameTree bool `json:"same_tree,omitempty"`

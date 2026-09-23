@@ -184,6 +184,9 @@ func (c *Couch) StartInteractive(ctx context.Context, args StartArgs) (StartResu
 	if err != nil {
 		return StartResult{}, err
 	}
+	if resolution.Target.Kind == ThreadTargetSlot {
+		return c.spawnManagedResolution(ctx, resolution)
+	}
 	scope, err := launcher.ResolveRepoScope(string(resolution.Worktree))
 	if err != nil {
 		return StartResult{}, err

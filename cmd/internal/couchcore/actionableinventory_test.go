@@ -39,6 +39,10 @@ func TestProjectActionableThreadsRequiresExactLifecycleProof(t *testing.T) {
 		{Address: parked.Address, StartingPath: "/repo", WorkingPath: "/repo", Agent: "claude", State: ThreadParked, LastActiveAt: parked.LastActiveAt, Layout: Layout2},
 		{Address: live.Address, StartingPath: "/repo", WorkingPath: "/repo", State: ThreadLive, LastActiveAt: live.LastActiveAt, Layout: Layout2},
 	}
+	for i := range want {
+		want[i].Target = ThreadTarget{Kind: ThreadTargetOrdinary, Address: want[i].Address}
+		want[i].RowKey = ThreadRowKey{Kind: ThreadTargetOrdinary, Address: want[i].Address}
+	}
 	if !reflect.DeepEqual(rows, want) {
 		t.Fatalf("actionable rows = %+v, want %+v", rows, want)
 	}

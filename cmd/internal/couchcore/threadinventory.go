@@ -2,13 +2,14 @@ package couchcore
 
 import (
 	"context"
-	"sort"
 )
 
 // ThreadSummary is the diagnostic CLI/advisor row. It preserves the composite
 // address and every incarnation state; ordinary switchers use
 // ActionableThreadSummary so undecodable lifecycle states remain invisible.
 type ThreadSummary struct {
+	Target           ThreadTarget        `json:"target"`
+	RowKey           ThreadRowKey        `json:"row_key"`
 	Continuation     *ContinuationStatus `json:"continuation,omitempty"`
 	Address          ThreadAddress       `json:"address"`
 	StartingPath     string              `json:"starting_path"`
@@ -26,6 +27,9 @@ type ThreadSummary struct {
 }
 
 func (s ThreadSummary) Label() string {
+	if s.Target.Kind == ThreadTargetSlot && s.Name == "" {
+		return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
+	}
 	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
 }
 
@@ -48,35 +52,22 @@ func (s ThreadSummary) Live() bool {
 // BuildThreadInventory is the diagnostic projection: every record, with its
 // lifecycle detail, classified by the one shared rule.
 func BuildThreadInventory(input ThreadProjectionInput) []ThreadSummary {
-	records, evidence := input.Records, input.Evidence
-	rows := make([]ThreadSummary, 0, len(records))
-	for _, address := range input.Unreadable {
+	records := make(map[ThreadAddress]ThreadRecord, len(input.Records))
+	for _, record := range input.Records {
+		records[record.Address] = record
+	}
+	projected := ProjectActionableThreads(input)
+	rows := make([]ThreadSummary, 0, len(projected))
+	for _, projection := range projected {
+		record := cloneThreadRecord(records[projection.Address])
 		rows = append(rows, ThreadSummary{
-			Address: address, State: ThreadUnusable, Reason: ReasonUnreadable,
+			Target: projection.Target, RowKey: projection.RowKey,
+			Address: projection.Address, Continuation: projection.Continuation,
+			StartingPath: projection.StartingPath, WorkingPath: projection.WorkingPath,
+			Name: projection.Name, Description: projection.Description, PublishedSummary: projection.PublishedSummary,
+			Incarnations: record.Incarnations, State: projection.State, Reason: projection.Reason,
 		})
 	}
-	for _, record := range records {
-		cloned := cloneThreadRecord(record)
-		state, reason := ClassifyThread(cloned, evidence[cloned.Address])
-		rows = append(rows, ThreadSummary{
-			Address:          cloned.Address,
-			Continuation:     continuationStatus(cloned),
-			StartingPath:     cloned.StartingPath,
-			WorkingPath:      cloned.WorkingPath,
-			Name:             cloned.Name,
-			Description:      cloned.Description,
-			PublishedSummary: cloned.PublishedSummary,
-			Incarnations:     cloned.Incarnations,
-			State:            state,
-			Reason:           reason,
-		})
-	}
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].Address.RepoScope != rows[j].Address.RepoScope {
-			return rows[i].Address.RepoScope < rows[j].Address.RepoScope
-		}
-		return rows[i].Address.Tag < rows[j].Address.Tag
-	})
 	return rows
 }
 

@@ -402,7 +402,7 @@ Messages on the reserved status row retire themselves: a momentary refusal
 actor's exit stands until something replaces it -- one answers the keystroke you
 just pressed, the other explains why a pane disappeared.
 
-A TUI startup that creates a new root allocates a distinct opaque durable
+🤖~A TUI startup that creates a new root allocates a distinct opaque durable
 thread; automatic resume reuses the thread already there instead. **Couch keeps
 one thread per repository path**, and refuses a start at a path that already
 holds a live, detached or parked one -- several threads at one path without
@@ -415,7 +415,19 @@ the only next step left. Two threads in one TREE at different subdirectories
 remain legal; only the exact path is one-at-a-time.
 Capacity limits used to come from Ariadne's fleet policy (`sdlc fleet policy`);
 that was a defence of the multi-owner case and went with the couch-lite rescope
-(Pair #170), along with its `provision-worktree` refusal.
+(Pair #170), along with its `provision-worktree` refusal.~{The first thread for a repository uses its primary checkout (`:0`). Starting
+another creates a durable numbered slot (`:1`, `:2`, …), under
+`../worktree/<repo>-slotN/<repo>`. Within that repo you can address a slot as
+`:N`; the qualified form is `<repo>:N`. Resume parked threads before adding
+another slot.
+
+Each numbered slot keeps its Couch metadata in its environment's `.couch/`
+directory. Opening it resumes its conversation; **Start fresh** replaces the
+conversation in the same slot after confirming its managed sessions are stopped.
+It preserves checkout changes, saved launch preferences and previous conversation
+evidence. Damaged conversation metadata does not require archiving or deleting
+the slot. Cold launches check workspace readiness and repeat incomplete setup;
+a warm reattachment does not run setup.}
 
 Launching Couch allocates a pty for the session and **reserves the bottom row of
 your screen** for a status line. The path argument is optional and defaults to

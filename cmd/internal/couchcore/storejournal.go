@@ -211,6 +211,9 @@ func (s *ThreadStore) writeStoreAtomicLocked(path string, raw []byte) error {
 }
 
 func (s *ThreadStore) writeStoreAtomicLockedChecked(path string, raw []byte, check func() error) (err error) {
+	if s.readOnly {
+		return errors.New("cannot write through a preview store")
+	}
 	if err := checkStoreContext(check); err != nil {
 		return err
 	}

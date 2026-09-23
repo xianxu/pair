@@ -60,6 +60,7 @@ type RenderedMenu struct {
 // a click maps to an ACTOR, never to a line. Derived from the rootLine
 // actorStart boundary the scroll window already uses, rather than recomputed.
 type ActorExtent struct {
+	RowKey couchcore.ThreadRowKey
 	Thread couchcore.ThreadAddress
 	Start  int
 	End    int
@@ -74,6 +75,15 @@ type ActorExtent struct {
 // actor's rows belongs to it. It is in the signature because the hit-test is
 // point-to-actor by contract, and a caller passing only a row would have to be
 // changed the day a row grows a second target.
+func (r RenderedMenu) PointToRow(row, column int) (couchcore.ThreadRowKey, couchcore.ThreadAddress, bool) {
+	for _, extent := range r.Extents {
+		if row >= extent.Start && row < extent.End {
+			return extent.RowKey, extent.Thread, true
+		}
+	}
+	return couchcore.ThreadRowKey{}, couchcore.ThreadAddress{}, false
+}
+
 func (r RenderedMenu) PointToActor(row, column int) (couchcore.ThreadAddress, bool) {
 	for _, extent := range r.Extents {
 		if row >= extent.Start && row < extent.End {
@@ -283,7 +293,7 @@ func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 		// A global frame: it names couch, not a thread.
 		return "threads › leave couch"
 	}
-	thread, ok := menuThread(state, frame.Thread)
+	thread, ok := menuThreadTarget(state, frame.RowKey, frame.Thread)
 	if !ok {
 		return "threads"
 	}
@@ -311,7 +321,7 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 	case MenuFrameRoot:
 		return renderRootMenuFrame(state, frame, width, height, now, color256)
 	case MenuFrameActions:
-		thread, _ := menuThread(state, frame.Thread)
+		thread, _ := menuThreadTarget(state, frame.RowKey, frame.Thread)
 		details := []string{}
 		if r := thread.Recovery; r != nil {
 			if r.CheckpointPath != "" {
@@ -334,7 +344,7 @@ func renderMenuFrame(state MenuState, frame MenuFrame, width, height int, now ti
 		// The title argument is vestigial at every call site: RenderMenuView
 		// overwrites line 0 with the breadcrumb. What the operator reads is the
 		// ITEM, which is why the item names the action's cost.
-		thread, _ := menuThread(state, frame.Thread)
+		thread, _ := menuThreadTarget(state, frame.RowKey, frame.Thread)
 		title := "park " + thread.Label() + "?"
 		if frame.Action == "archive" {
 			title = "archive " + thread.Label() + "?"
@@ -489,11 +499,12 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		selected   bool
 		actorStart bool
 		thread     couchcore.ThreadAddress
+		key        couchcore.ThreadRowKey
 	}
 	var rows []rootLine
 	selectedStart, selectedEnd := 0, 0
 	for _, thread := range visible {
-		selectedRow := thread.Address == frame.SelectedAddress
+		selectedRow := (frame.SelectedKey.Kind == couchcore.ThreadTargetSlot && menuRowKey(thread) == frame.SelectedKey) || (frame.SelectedKey.Kind != couchcore.ThreadTargetSlot && thread.Address == frame.SelectedAddress)
 		marker := "  "
 		if selectedRow {
 			marker = "▸ "
@@ -509,7 +520,11 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if prefixWidth < 0 {
 			prefixWidth = 0
 		}
-		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, labels[thread.Address], thread.WorkingPath), prefixWidth) + suffix
+		label := labels[thread.Address]
+		if thread.Target.Kind == couchcore.ThreadTargetSlot {
+			label = thread.Label()
+		}
+		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, label, thread.WorkingPath), prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if owned && view.Pending() && color256 {
@@ -522,10 +537,10 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if selectedRow {
 			selectedStart = len(rows)
 		}
-		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, thread: thread.Address})
+		rows = append(rows, rootLine{text: plain, selected: selectedRow, actorStart: true, thread: thread.Address, key: menuRowKey(thread)})
 		for _, message := range state.Attention[thread.Address] {
 			if message.Text != "" {
-				rows = append(rows, rootLine{text: clipMenuLine("    "+message.Text, width), thread: thread.Address})
+				rows = append(rows, rootLine{text: clipMenuLine("    "+message.Text, width), thread: thread.Address, key: menuRowKey(thread)})
 			}
 		}
 		if selectedRow {
@@ -547,17 +562,17 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			row.text = selectedMenuLine(string(ansi.Strip([]byte(row.text))), true, width)
 		}
 		lines = append(lines, row.text)
-		if row.thread == (couchcore.ThreadAddress{}) {
+		if row.thread == (couchcore.ThreadAddress{}) && row.key == (couchcore.ThreadRowKey{}) {
 			continue
 		}
 		// Extend the actor's run rather than starting a new one: its attention
 		// lines carry the same thread, which is what makes the extent cover
 		// every line the actor drew.
-		if n := len(extents); n > 0 && extents[n-1].Thread == row.thread {
+		if n := len(extents); n > 0 && extents[n-1].RowKey == row.key {
 			extents[n-1].End = index + 1
 			continue
 		}
-		extents = append(extents, ActorExtent{Thread: row.thread, Start: index, End: index + 1})
+		extents = append(extents, ActorExtent{Thread: row.thread, RowKey: row.key, Start: index, End: index + 1})
 	}
 	if frame.Filter != "" {
 		lines = append(lines, clipMenuLine("filter: "+frame.Filter, width))

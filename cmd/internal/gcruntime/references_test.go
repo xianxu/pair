@@ -2,6 +2,7 @@ package gcruntime
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/storagegc"
@@ -101,6 +102,11 @@ func TestCouchReferencesOnboardOnlySelectedLegacyArchives(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := store.Snapshot(); err != nil {
+		t.Fatal(err)
+	}
+	// A legacy initialized namespace still has explicit membership. Missing
+	// manifest evidence now blocks GC rather than implying an empty working set.
+	if err := os.WriteFile(filepath.Join(ns.Dir(), "threadstore", "manifest.json"), []byte(`{"schema_version":1,"generation":1,"threads":[]}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	scope := "816fc349d3faebf8"
@@ -277,5 +283,73 @@ func TestApplyRetainsAndCollectsOwnersWithoutPairNamespace(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCouchReferencesLocalArchiveLocatorRoundTrip(t *testing.T) {
+	c, err := storagegc.NewCoordinator(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ns, err := couchcore.ResolveCouchNamespace(t.TempDir(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := couchcore.NewCoordinatedThreadStore(ns, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fleet, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary := filepath.Join(fleet, "repo")
+	env := filepath.Join(fleet, "worktree", "repo-slot1")
+	host := filepath.Join(env, "repo")
+	for _, p := range []string{primary, host, filepath.Join(ns.Dir(), "threadstore")} {
+		if err := os.MkdirAll(p, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	raw, err := json.Marshal(map[string]any{"schema_version": 2, "generation": 1, "threads": []any{}, "slot_repositories": []string{primary}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ns.Dir(), "threadstore", "manifest.json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	c.Now = func() time.Time { return now }
+	address := couchcore.ThreadAddress{RepoScope: "816fc349d3faebf8", Tag: "couch-0000000000000001"}
+	record := couchcore.ThreadRecord{SchemaVersion: couchcore.ThreadSchemaVersion, Address: address, StartingPath: host, WorkingPath: host, CreatedAt: now, Revision: 1, LastActiveAt: now, LatestLaunchProfile: &couchcore.LaunchProfile{Agent: "claude", Argv: []string{}}}
+	if _, err := store.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ArchiveThread(address); err != nil {
+		t.Fatal(err)
+	}
+	record.Address.Tag = "couch-0000000000000002"
+	if _, err := store.CreateThread(record); err != nil {
+		t.Fatal(err)
+	}
+	adapter := CouchReferences{c}
+	if err := c.WithLock(context.Background(), func(l *storagegc.Locked) error {
+		refs, err := adapter.Snapshot(context.Background(), l, []string{ns.Dir()})
+		if err != nil {
+			return err
+		}
+		if len(refs.Visible) != 1 || len(refs.Archives) != 1 || refs.Archives[0].SlotEnvironment != env || refs.Archives[0].Store != ns.Dir() {
+			t.Fatalf("wrong local references %+v", refs)
+		}
+		ref := refs.Archives[0]
+		if err := adapter.Detach(l, "local-round-trip", ref); err != nil {
+			return err
+		}
+		return adapter.Forget(l, "local-round-trip", ref)
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(env, ".couch", "archive", address.RepoScope, string(address.Tag)+".json")); !os.IsNotExist(err) {
+		t.Fatal("local archive survived adapter detach")
 	}
 }

@@ -166,6 +166,8 @@ type ThreadEvidence struct {
 // ActionableThreadSummary contains only fields the ordinary switcher needs.
 // It deliberately excludes diagnostic lifecycle state.
 type ActionableThreadSummary struct {
+	Target           ThreadTarget        `json:"target"`
+	RowKey           ThreadRowKey        `json:"row_key"`
 	Recovery         *RecoveryDecision   `json:"recovery,omitempty"`
 	Continuation     *ContinuationStatus `json:"continuation,omitempty"`
 	Address          ThreadAddress       `json:"address"`
@@ -207,6 +209,9 @@ func (s ActionableThreadSummary) Resumable() bool {
 }
 
 func (s ActionableThreadSummary) Label() string {
+	if s.Target.Kind == ThreadTargetSlot && s.Name == "" {
+		return (WorkspaceReference{Repo: s.Target.Slot.Repo, Number: s.Target.Slot.Number}).String()
+	}
 	return threadLabel(s.Name, s.WorkingPath, s.Address.Tag)
 }
 
@@ -245,6 +250,7 @@ func (s ActionableThreadSummary) DisplaySummary() string {
 // every construction site, where a trailing variadic was invisible by
 // construction. `FromSnapshot` is the form that cannot forget.
 type ThreadProjectionInput struct {
+	Slots      []SlotInventoryObservation
 	Records    []ThreadRecord
 	Evidence   map[ThreadAddress]ThreadEvidence
 	Unreadable []ThreadAddress
@@ -254,7 +260,7 @@ type ThreadProjectionInput struct {
 // the records and the addresses that could not become records stay together.
 func FromSnapshot(snapshot ThreadSnapshot, evidence map[ThreadAddress]ThreadEvidence) ThreadProjectionInput {
 	return ThreadProjectionInput{
-		Records: snapshot.Records, Evidence: evidence, Unreadable: snapshot.Unreadable,
+		Records: snapshot.Records, Evidence: evidence, Unreadable: snapshot.Unreadable, Slots: snapshot.Slots,
 	}
 }
 
@@ -312,7 +318,7 @@ func ProjectActionableThreads(input ThreadProjectionInput) []ActionableThreadSum
 		}
 		return rows[i].Address.Tag < rows[j].Address.Tag
 	})
-	return rows
+	return projectSlotRows(rows, input.Slots)
 }
 
 // launchProfileAgent is the row's agent, or "" when the record names no

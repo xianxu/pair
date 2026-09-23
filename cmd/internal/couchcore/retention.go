@@ -21,10 +21,11 @@ import (
 // ArchiveRetention binds the grace clock to the exact archived record bytes.
 // ClockError means that archive must be retained, never aged from file mtime.
 type ArchiveRetention struct {
-	Address    ThreadAddress
-	ArchivedAt time.Time
-	RecordHash string
-	ClockError string
+	SlotEnvironment string
+	Address         ThreadAddress
+	ArchivedAt      time.Time
+	RecordHash      string
+	ClockError      string
 }
 type archiveGrace struct {
 	Version    int           `json:"version"`
@@ -70,6 +71,9 @@ func (s *ThreadStore) archiveGraceBytes(address ThreadAddress, raw []byte) ([]by
 
 func (s *ThreadStore) readArchiveGraceLocked(address ThreadAddress) (ArchiveRetention, error) {
 	result := ArchiveRetention{Address: address}
+	if s.slot != nil {
+		result.SlotEnvironment = s.slot.EnvironmentRoot
+	}
 	raw, err := s.readRetentionFile(s.archivePath(address))
 	if err != nil {
 		return result, err
@@ -92,11 +96,15 @@ func (s *ThreadStore) readArchiveGraceLocked(address ThreadAddress) (ArchiveRete
 
 // readRetentionFile rejects symlinks and unexpected types in metadata paths.
 func (s *ThreadStore) readRetentionFile(path string) ([]byte, error) {
-	rel, err := filepath.Rel(s.namespace.Dir(), path)
+	base := s.namespace.Dir()
+	if s.layout.Local {
+		base = s.slot.EnvironmentRoot
+	}
+	rel, err := filepath.Rel(base, path)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return nil, errors.New("metadata outside store")
 	}
-	cursor := s.namespace.Dir()
+	cursor := base
 	parts := strings.Split(rel, string(filepath.Separator))
 	for i, part := range parts {
 		cursor = filepath.Join(cursor, part)
@@ -120,7 +128,7 @@ func (s *ThreadStore) readRetentionFile(path string) ([]byte, error) {
 
 // RetentionSnapshot never recovers or initializes a store. A pending journal is
 // blocking evidence for preview; mutating callers recover before trying again.
-func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (snapshot StoreRetentionSnapshot, err error) {
+func (s *ThreadStore) retentionSnapshotBackend(held *storagegc.Locked) (snapshot StoreRetentionSnapshot, err error) {
 	if s.coordinator == nil || !held.Holds(s.coordinator.Root) {
 		return snapshot, errors.New("retention snapshot requires this root's live lock")
 	}
@@ -128,7 +136,13 @@ func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (snapshot StoreR
 		return snapshot, err
 	}
 	// An unused registered namespace contains no working set and needs no writes.
+	if err := s.validateBackendPath(); err != nil {
+		return snapshot, err
+	}
 	if _, err := os.Lstat(s.root); errors.Is(err, os.ErrNotExist) {
+		if s.layout.Local {
+			return snapshot, errors.New("missing slot Couch metadata")
+		}
 		return snapshot, nil
 	} else if err != nil {
 		return snapshot, err
@@ -146,12 +160,17 @@ func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (snapshot StoreR
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return snapshot, err
 	}
-	if _, err := s.readRetentionFile(s.manifestPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return snapshot, err
+	if !s.layout.Local {
+		if _, err := s.readRetentionFile(s.manifestPath()); err != nil {
+			return snapshot, err
+		}
 	}
-	manifest, _, _, err := s.loadManifestLocked()
+	manifest, _, exists, err := s.loadManifestLocked()
 	if err != nil {
 		return snapshot, err
+	}
+	if !exists {
+		return snapshot, errors.New("missing current store membership")
 	}
 	snapshot.Visible = append([]ThreadAddress(nil), manifest.Threads...)
 	archiveRoot := filepath.Join(s.root, "archive")
@@ -200,6 +219,15 @@ func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (snapshot StoreR
 // RestoreThread restores exact archived bytes, including unreadable records.
 // Manifest publication precedes removal of archive grace in the same journal.
 func (s *ThreadStore) RestoreThread(address ThreadAddress) error {
+	if !s.layout.Local {
+		backend, err := s.storeForAddress(address)
+		if err != nil {
+			return err
+		}
+		if backend != s {
+			return backend.RestoreThread(address)
+		}
+	}
 	if err := validateThreadAddress(address); err != nil {
 		return err
 	}
@@ -321,11 +349,16 @@ func (c *Couch) beginResumeRetention(ctx context.Context, address ThreadAddress,
 // OnboardArchiveGrace grants legacy archives a full grace interval starting at
 // apply. Only selected addresses are considered; nil selects nothing. Existing
 // grace (including malformed evidence) is never repaired or renewed here.
-func (s *ThreadStore) OnboardArchiveGrace(ctx context.Context, held *storagegc.Locked, addresses []ThreadAddress) error {
+func (s *ThreadStore) onboardArchiveGraceBackend(ctx context.Context, held *storagegc.Locked, addresses []ThreadAddress) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
 	return s.withRetentionWrite(held, func() error {
+		if s.layout.Local {
+			if err := s.requireLocalRetentionCurrent(); err != nil {
+				return err
+			}
+		}
 		manifest, _, _, err := s.loadManifestLocked()
 		if err != nil {
 			return err
@@ -398,7 +431,31 @@ func RecoverStoreRetention(ctx context.Context, namespace CouchNamespace, c *sto
 	}
 	store := NewThreadStore(namespace)
 	store.coordinator = c
-	return store.withRetentionWrite(held, ctx.Err)
+	if !held.Writable(c.Root) {
+		return errors.New("archive recovery requires writable lock")
+	}
+	// Recover the global root first so its enrollment publication is settled.
+	if _, err := os.Lstat(store.root); errors.Is(err, os.ErrNotExist) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	if err := store.withRetentionWrite(held, ctx.Err); err != nil {
+		return err
+	}
+	backends, err := store.retentionBackends(held)
+	if err != nil {
+		return err
+	}
+	for _, backend := range backends[1:] {
+		if _, err := os.Lstat(backend.root); err != nil {
+			return err
+		}
+		if err := backend.withRetentionWrite(held, func() error { return backend.requireLocalRetentionCurrent() }); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Busy nested stores yield through the same maintenance scheduling contract as
@@ -408,4 +465,153 @@ func retentionLockError(err error) error {
 		return fmt.Errorf("Couch store busy: %w", storagegc.ErrCoordinatorBusy)
 	}
 	return err
+}
+
+// retentionBackends discovers disk locations afresh under root coordination.
+// It releases the global store lock before acquiring any local store lock.
+func (s *ThreadStore) retentionBackends(held *storagegc.Locked) (backends []*ThreadStore, err error) {
+	if s.coordinator == nil || !held.Holds(s.coordinator.Root) {
+		return nil, errors.New("retention discovery requires this root's live lock")
+	}
+	if err := held.CheckContext(); err != nil {
+		return nil, err
+	}
+	if s.layout.Local {
+		return []*ThreadStore{s}, nil
+	}
+	if _, err := os.Lstat(s.root); errors.Is(err, os.ErrNotExist) {
+		return []*ThreadStore{s}, nil
+	} else if err != nil {
+		return nil, err
+	}
+	var roots []string
+	err = func() (err error) {
+		lock, err := s.retentionReadLock()
+		if err != nil {
+			return retentionLockError(err)
+		}
+		defer func() { err = errors.Join(err, lock.Close()) }()
+		if _, err := os.Lstat(s.journalPath()); err == nil {
+			return errors.New("thread store recovery pending")
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if _, err := s.readRetentionFile(s.manifestPath()); err != nil {
+			return err
+		}
+		manifest, _, exists, err := s.loadManifestLocked()
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return errors.New("missing initialized store manifest")
+		}
+		roots = append([]string(nil), manifest.SlotRepositories...)
+		return nil
+	}()
+	if err != nil {
+		return nil, err
+	}
+	locals, err := s.discoveredBackendsFromRoots(roots)
+	if err != nil {
+		return nil, err
+	}
+	return append([]*ThreadStore{s}, locals...), nil
+}
+
+func (s *ThreadStore) RetentionSnapshot(held *storagegc.Locked) (StoreRetentionSnapshot, error) {
+	backends, err := s.retentionBackends(held)
+	if err != nil {
+		return StoreRetentionSnapshot{}, err
+	}
+	var snapshot StoreRetentionSnapshot
+	seen := map[ThreadAddress]bool{}
+	for _, backend := range backends {
+		part, err := backend.retentionSnapshotBackend(held)
+		if err != nil {
+			return StoreRetentionSnapshot{}, err
+		}
+		for _, address := range part.Visible {
+			if seen[address] {
+				return StoreRetentionSnapshot{}, fmt.Errorf("duplicate retained current address %+v", address)
+			}
+			seen[address] = true
+		}
+		snapshot.Visible = append(snapshot.Visible, part.Visible...)
+		snapshot.Archives = append(snapshot.Archives, part.Archives...)
+	}
+	return snapshot, nil
+}
+
+func (s *ThreadStore) requireLocalRetentionCurrent() error {
+	if !s.layout.Local {
+		return nil
+	}
+	_, _, exists, err := s.loadManifestLocked()
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("missing slot current record blocks retention")
+	}
+	return nil
+}
+
+func (s *ThreadStore) OnboardArchiveGrace(ctx context.Context, held *storagegc.Locked, addresses []ThreadAddress) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	backends, err := s.retentionBackends(held)
+	if err != nil {
+		return err
+	}
+	for _, backend := range backends {
+		if _, err := os.Lstat(backend.root); errors.Is(err, os.ErrNotExist) && !backend.layout.Local {
+			continue
+		} else if err != nil {
+			return err
+		}
+		if err := backend.onboardArchiveGraceBackend(ctx, held, addresses); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *ThreadStore) retentionArchiveBackend(held *storagegc.Locked, request ArchiveDetachRequest) (*ThreadStore, error) {
+	if err := request.validate(); err != nil {
+		return nil, err
+	}
+	backends, err := s.retentionBackends(held)
+	if err != nil {
+		return nil, err
+	}
+	var selected *ThreadStore
+	for _, backend := range backends {
+		matches := request.SlotEnvironment == "" && !backend.layout.Local || backend.slot != nil && backend.slot.EnvironmentRoot == request.SlotEnvironment
+		if matches {
+			selected = backend
+		}
+		if backend.layout.Local {
+			if err := backend.validateBackendPath(); err != nil {
+				return nil, err
+			}
+			if _, err := os.Lstat(backend.root); err != nil {
+				return nil, err
+			}
+			// Apply may finish an interrupted detach before validating the current set.
+			if matches {
+				if err := backend.withRetentionWrite(held, backend.requireLocalRetentionCurrent); err != nil {
+					return nil, err
+				}
+			}
+			if _, err := backend.retentionSnapshotBackend(held); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if selected == nil {
+		return nil, errors.New("archive locator is not an enrolled slot")
+	}
+	return selected, nil
 }
