@@ -5,8 +5,9 @@ deps: [ariadne#242, ariadne#243]
 github_issue:
 created: 2026-09-22
 updated: 2026-09-23
-estimate_hours:
+estimate_hours: 6.95
 started: 2026-09-23T10:54:57-07:00
+flow: {kind: full, provenance: operator}
 ---
 
 # Slots v2: provision durable numbered workspaces
@@ -145,6 +146,61 @@ This remains larger than the quick-flow shell.
 
 - Exact paths are `/workspace/worktree/<repo>-slotN/<repo>` with separate sibling dependency clones for :1 and :2; dependency origin/main initialization follows the dependency contract; host initialization uses fetched configured-remote main.
 - Repeated provision/resume and interrupted setup preserve both main-worktree and dependency-clone work, without creating extra dependency threads or changing shared-tool supply.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only. Calibration is marked stale by estimate-source;
+figures are provisional ship wall-clock hours, not a deadline.
+
+The first estimate lumped independently risky host/procedure concerns into single
+modules. Estimate-quality requested finer decomposition and explicit integration
+verification time. The revised breakdown uses the same calibrated table values:
+
+| Concern | Primitive | Base design → adjusted | Base impl → v3.1 |
+| --- | --- | ---: | ---: |
+| Identity/request/selection parsing | greenfield-go-module | 1 × library .5 × spec .2 = .10 | .6 × .4 = .24 |
+| Fetch/remote capture and selection | greenfield-go-module | 2 × spec .2 = .40 | .8 × .4 = .32 |
+| Host branch/worktree creation | greenfield-go-module | 2 × spec .2 = .40 | .8 × .4 = .32 |
+| Interrupted host reconciliation | greenfield-go-module | 2 × spec .2 = .40 | .8 × .4 = .32 |
+| Bounded subprocess execution | greenfield-go-module | 1 × library .5 × spec .2 = .10 | .8 × .4 = .32 |
+| Inherited creation lease | greenfield-go-module | 1 × library .5 × spec .2 = .10 | .8 × .4 = .32 |
+| Intent/marker storage | greenfield-go-module | 1 × library .5 × spec .2 = .10 | .8 × .4 = .32 |
+| Weave readiness orchestration | api-integration | 2 × spec .2 = .40 | 1.5 × .4 = .60 |
+| Typed dispatcher integration | smaller-go-module | .2 × spec .2 = .04 | .5 × .4 = .20 |
+| CLI runtime/progress/JSON integration | smaller-go-module | .2 × spec .2 = .04 | .5 × .4 = .20 |
+| Independent live SDLC/Weave conformance | api-integration | 1 × spec .2 = .20 | 1.5 × .4 = .60 |
+| Full/race suites, builds and isolated smoke | real-api-discovery | 0 | .6 × .4 = .24 |
+| Atlas documentation | atlas-docs | .1 × spec .2 = .02 | .2 × .4 = .08 |
+| One issue-close review | milestone-review | .1 × spec .2 = .02 | .5 × .4 = .20 |
+
+Library check: existing strictjson/atomic-file helpers, os/exec and unix shorten
+transport/storage/process design. No library supplies host ownership policy.
+Colocated tests belong to their modules; live conformance is separate executable
+integration against actual Ariadne binaries, not another unit-test allowance.
+Familiarity 1.0 for this Go/Git code; thorough plan gives 15% design buffer.
+Total = 2.32 × 1.15 + 4.28 = 6.948, rounded to 6.95 hours.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.10 impl=0.24
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.40 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: greenfield-go-module design=0.10 impl=0.32
+item: api-integration design=0.40 impl=0.60
+item: smaller-go-module design=0.04 impl=0.20
+item: smaller-go-module design=0.04 impl=0.20
+item: api-integration design=0.20 impl=0.60
+item: real-api-discovery design=0.00 impl=0.24
+item: atlas-docs design=0.02 impl=0.08
+item: milestone-review design=0.02 impl=0.20
+design-buffer: 0.15
+total: 6.95
+```
 
 ## Plan
 
