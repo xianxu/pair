@@ -28,6 +28,17 @@ This section takes precedence over earlier conflicting layout or policy text.
 
 Primary and numbered slots support the same development workflow, including edits and normal SDLC operations in sibling dependency repositories. A numbered thread starts in `/workspace/worktree/<repo>-slotN/<repo>`; dependency access is through that thread, without automatic dependency threads or numbered addresses. Existing parked-thread admission and occupancy apply to actual Couch threads of the main repo; merely cloning an Ariadne dependency does not create an Ariadne thread or admission blocker. Park/resume and replacement preserve dependency checkouts and their local work as well as the main checkout.
 
+### Readiness on open/resume — 2026-09-23
+
+Before launching in a numbered workspace or cold-resuming its parked thread,
+call #305's repeatable readiness operation. It validates workspace identity,
+reuses completed Git setup, and runs weave compile if success is unconfirmed.
+No --retry flag or special recovery action: opening/resuming again repeats the
+same operation. Surface errors and stop that invocation; do not loop silently.
+Warm reattachment to a still-running agent only reconnects and does not compile.
+Primary :0 retains existing setup behavior. Preserve normal thread/session
+ownership and resume-binding checks; dirty files and issue branches are valid.
+
 ## Done when
 
 - Primary and two slots can run concurrently; each is independently addressable and follows existing lifecycle behavior.
@@ -37,6 +48,9 @@ Primary and numbered slots support the same development workflow, including edit
 - Stateful startup tests cover admission races and existing failure/recovery states without duplicate live ownership.
 
 - Nested dependency clones do not create threads or parked-admission blockers; parent-thread park/resume and replacement preserve their dirty files, branches and local commits.
+
+- Numbered-slot open/cold resume invokes readiness; missing setup is recovered
+  by the same action without a retry flag. Warm reattach never compiles.
 
 ## Plan
 
@@ -57,3 +71,9 @@ Created from the agreed workspace/UI contract and the request for a clean task b
 ### 2026-09-23 — Thread ownership remains with the environment main checkout
 
 Reason: operator agreed nested environments, ordinary remote dependency clones and existing per-repository publication. Delta: added the authoritative scope clarification and acceptance criteria above; original task context remains as provenance. No implementation or lifecycle-status change is claimed by this revision.
+
+### 2026-09-23 — readiness on ordinary open/resume
+
+Reason: operator agreed setup recovery belongs to the normal slot-opening action.
+Delta: require #305 readiness before launch/cold resume, with repeatable missing
+setup recovery; warm reattachment and primary setup behavior stay unchanged.
