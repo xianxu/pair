@@ -37,7 +37,9 @@ Existing dependency clones retain selected revisions, dirty files and local comm
 existing operation/dispatch system. Its explicit inputs identify a primary repo
 path and positive slot number. It prepares a working directory and returns its
 verified address/path/readiness; it does not launch an agent. Keep initial use
-on an internal operation surface. #306 will call the same operation when its
+on an internal operation surface through `DirectStoreExecutor`, avoiding the
+unavailable CLI live-owner route and an unnecessary singleton supervisor lease.
+#306 will call the same operation when its
 new-thread flow allocates a slot and will enforce repo-wide parked admission.
 No fetch, directory creation, or composition runs during start-form preview.
 
@@ -159,6 +161,16 @@ edits, then published the claim with `sdlc issue sync --issue 305 --push`.
 Rebuilt the existing Ariadne supplier's sdlc/weave binaries (no supplier change);
 `sdlc workspace --json` now reports schema_version 2. Proposed the provisioning
 boundary above for review; no implementation has started.
+
+### 2026-09-23 — proposed spec reviewed
+
+Fresh-context review approved the proposed scope and ownership split. The detailed
+plan must make readiness invalidation concrete when host/dependency checkouts
+are removed or replaced, without rejecting normal branch changes or dirty work.
+It must also specify the caller-held occupancy/allocation exclusion spanning
+number selection and provisioning for #306. Startup exploration confirmed the
+internal DirectStoreExecutor route; PrepareStart remains free of setup effects.
+Issue schema and diff whitespace checks passed. Awaiting operator design review.
 
 ## Revisions
 
