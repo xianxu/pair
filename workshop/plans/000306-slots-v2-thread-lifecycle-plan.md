@@ -1,316 +1,266 @@
-# Slots v2 thread lifecycle implementation plan
+# Slots v2: local state and durable recovery plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to
-> select execution/delegation; use superpowers-executing-plans for session-warm
-> integration work. Follow TDD and the checkboxes below.
+> **For agentic workers:** Consult AGENTS.md Section 3 for delegation. Apply
+> superpowers-writing-plans to finalize integration details before change-code;
+> execute approved tasks with TDD and the existing SDLC gates.
 
-**Goal:** Run independently addressable primary and numbered workspace threads,
-with repository-wide parked admission and repeatable setup on cold launches.
+**Goal:** Make numbered slots durable directory-backed Couch threads whose local
+state supports resume or start fresh without retiring the slot.
 
-**Architecture:** Keep Pair's opaque thread address and lifecycle. Persist stable
-workspace association, derive admission from the existing classifier, and reserve
-with the existing start claim in one checked store transaction. Run #305 readiness
-outside the store lock and revalidate before releasing the launch helper.
+**Architecture:** Discover numbered slots from verified environment directories.
+Store their Couch-owned state under `pair-slotN/.couch/`; global listings are
+rebuildable indexes. Share existing lifecycle/process protection with ordinary
+Couch threads while giving managed slots local storage and recovery behavior.
 
-**Tech Stack:** Go, existing journaled ThreadStore, SDLC workspace JSON v2, Git,
-WorkspaceReadiness, Pair blocked helper, stateful test doubles and real temp repos.
+**Tech Stack:** Go, existing threadrecord validation and lifecycle transitions,
+atomic/journaled storage, SDLC workspace v2, Git, #305 WorkspaceReadiness.
 
-**Status:** Spec and plan reviews approved; awaiting operator approval before
-change-code/implementation.
+**Status:** Operator-approved direction; revised planning work, not an executable
+implementation approval. The earlier global-store plan and its reviews are
+superseded. Storage/migration details below must be resolved and reviewed before
+change-code. No code changes or estimate are claimed.
 **Issue:** `workshop/issues/000306-slots-v2-thread-lifecycle.md`.
-**Flow:** Full: expected change exceeds the 100-line quick-flow code limit.
-One atomic delivery and one close review, no milestone labels. Estimate follows
-plan-quality approval. Work in the primary checkout on an in-place branch.
+**Flow:** Full; in-place branch when entering implementation. Estimate follows
+plan-quality review. Preserve unrelated local work.
 
-## Chunk 1: identity, admission and launch integration
+## Chunk 1 — authoritative model
 
-## Scope and alternatives
+### Three lifetimes
 
-1. **Recommended:** extend ThreadStartClaim and the existing store journal. This
-   provides crash recovery and collision control without another reservation owner.
-2. Hold the store lock through Weave: fewer steps, but it would block park/resume,
-   inventory and unrelated repositories for up to 20 minutes. Reject.
-3. Add a reservation table/file and expiry: duplicates existing claim ownership,
-   reconciliation and cleanup. Reject.
+- **Slot:** the verified numbered environment and its durable Couch identity.
+  Exists even with no running agent, a failed setup, or missing Couch metadata.
+- **Conversation:** current or retained agent conversation within the slot.
+  Resume preserves it; explicit start fresh selects a new conversation handle.
+- **Process:** the running Pair/agent incarnation. Existing start, park and resume
+  protections govern its creation and recovery.
 
-New creation uses the existing start operation/form. Paths select their workspace
-when vacant, otherwise an available numbered host in the same repository. Explicit
-`repo:N`/`:N` requests pin a workspace. Preview must display and bind the selected
-address/path; changed selection requires a new preview, never silent renumbering.
-Opening an existing workspace selects its unique usable thread; ambiguous legacy
-rows require explicit tag activation. Opening an empty workspace uses normal fresh
-admission. Existing live switching is unaffected by a parked sibling.
+One slot is one durable thread by construction. Remove the proposed second step
+of allocating independent threads into supposedly free slot directories. A missing
+global row does not mean a slot is vacant. Conversation handles may change while
+slot identity and preferences remain. Native artifacts keep their existing opaque
+scope/tag addresses; slot addresses such as :1 identify the durable directory.
 
-Group rendering is #307; preferences UI/inheritance changes are #308. This task
-exposes workspace identity/address in summaries and reference matching, and shows
-the selected destination in the start preview. Existing path preferences remain
-keyed to the actual target path. No preferred-model configuration is added.
+### Storage boundary
 
-## Core concepts
+```text
+worktree/pair-slot1/
+  .couch/
+    thread.json
+    preferences.json
+    continuation.md       # when a retained continuation needs materialization
+  pair/
+  ariadne/
+```
 
-All new paths below are relative to `cmd/internal/` unless otherwise stated.
-Tables name intended symbols; reconcile them against delivered code before close.
+File names above are the proposed minimal layout; validate them against the
+existing transaction/retention integration before implementation.
 
-### Pure entities
+| Local state | Purpose and lifetime |
+| --- | --- |
+| thread.json | Stable Couch slot identity, current conversation reference, presentation metadata, timestamps/layout, existing launch/park/continuation recovery facts |
+| preferences.json | Agent and supported arguments, independent of the current conversation; survives start fresh |
+| continuation.md | Couch-owned checkpoint/orientation material; follows the retained continuation's existing cleanup rules |
+| Transaction journal/lock if required | Reuse current atomicity/recovery semantics at the local storage boundary; no new domain state or setup phase |
+| Retained conversation/recovery evidence | Preserve superseded handles and damaged records before replacement; storage layout and bounded retention must be specified before implementation |
 
-| Name | Lives in | Status |
+Derive slot number, host path and repo membership from convention plus Git proof.
+Do not duplicate those as an editable authoritative inventory. Missing local state
+is not sufficient evidence to manufacture a new conversation: first inspect
+existing native bindings and processes. Malformed, unsupported-version and
+inaccessible data have distinct recovery outcomes; preserve rather than overwrite
+uninterpretable state. Absolute stored paths are checked against the current
+verified directory before use.
+
+Keep global: Couch supervisor ownership and current separate-store behavior;
+primary/arbitrary-path thread stores; only rebuildable listings of managed slots.
+A persistent repo-root discovery list may still be needed so Couch can find repos
+from any cwd. It contains locations, not slot lifecycle truth. Rebuilding means
+re-enumerating known roots (or an explicitly supplied repo), not scanning the whole
+machine or pretending deleted root-discovery information is recoverable magically.
+
+Keep existing stores: native transcripts and Pair's bindings/drafts/scrollback/
+terminal sidecars. Local records reference them; this version is not a portable
+whole-session bundle. Keep #305's Git creation lock/intent and setup-success marker
+at their existing homes, with no second success marker in `.couch/`.
+
+### Open versus create
+
+**Create another slot:** check repo-wide parked work; choose an unused number;
+use #305's existing guarded creation/readiness operation; initialize local Couch
+state and launch. A concurrent collision refuses/reopens the same slot according
+to observed evidence, never silently increments the number after acceptance.
+Do not allocate over incomplete known slots to escape failed setup.
+
+**Open :N:** discover that slot, finish provable setup, then attach/resume or offer
+start fresh. Opening does not allocate a new durable slot/thread. `.couch` missing
+after successful provisioning is a normal initialization/recovery case. Failure
+does not remove the directory or reset its active branch to remote main.
+
+**Start fresh here:** explicit operator choice within an existing slot. Confirm
+there is no competing live owner, retain old conversation/recovery evidence, then
+launch using the slot preferences. Fresh creation failures leave the previous
+history available. The action needs no archive gesture and remains available when
+another slot is parked because it adds no slot. A recoverable parked conversation
+is not silently discarded to clear the repo's parked-work blocker.
+
+Primary :0 remains in the existing open-world store and participates in repo-wide
+parked checks. Ordinary worktrees/dependency clones do not acquire numbered slot
+identities or automatic threads. Existing tag-based references stay usable.
+
+### Recovery outcomes
+
+| Observation | Ordinary open/action |
+| --- | --- |
+| Existing live/detached agent | Switch/reattach using existing ownership checks; no compile on warm attachment |
+| Stopped, recoverable conversation | Run readiness if cold, revalidate binding, resume |
+| Incomplete Git/setup | Repeat #305 readiness for the same number; no retry flag |
+| Interrupted agent start/park | Reuse existing reconciliation; distinguish confirmed dead from unknown |
+| Missing Couch state | Recover verified identity/binding/preferences where possible; otherwise initialize with explicit fresh-conversation choice after absence proof |
+| Corrupt state or lost/ambiguous conversation | Preserve evidence; offer usable same-slot recovery/start-fresh path, without archiving the slot |
+| Unknown live ownership | Explain and resolve ownership first; fresh action cannot bypass it |
+| Permissions, unavailable tool/service, conflicting Git state | Show concrete failure on this slot; preserve files and retry through ordinary open after resolution |
+| Unsupported future record version | Report version mismatch and preserve it; use a compatible binary or deliberate recovery, never automatic downgrade overwrite |
+
+Directory existence guarantees a stable place to recover, not guaranteed launch
+success despite environmental failures. Origin/main is only a creation baseline.
+No resume/recovery path resets files, commits, branches or private dependencies.
+
+## Core concepts and existing seams
+
+This table identifies real existing reuse points and the required responsibilities.
+It intentionally does not promise speculative new class names. Final engineering
+planning must name the concrete functions and signatures after storage exploration.
+
+| Concept / existing symbol | Current home | Planned disposition |
 | --- | --- | --- |
-| WorkspaceBinding | threadrecord/workspace.go | new |
-| WorkspaceReference / ParseWorkspaceReference | couchcore/workspaceref.go | new |
-| WorkspaceAdmission / DecideWorkspaceAdmission | couchcore/workspaceadmission.go | new |
-| WorkspaceCandidate / SelectWorkspaceNumber | couchcore/provision_select.go | modified |
-| StartResolution / StartResolutionFingerprint | couchcore/startresolution.go | modified |
-| ThreadRecord / ThreadSummary / ActionableThreadSummary | couchcore/thread.go, threadinventory.go, actionableinventory.go | modified |
-| ThreadReferenceFields / MatchThreadReferenceFields | couchcore/threadmetadata.go | modified |
+| WorkspaceIdentity / ParseWorkspaceIdentity | cmd/internal/couchcore/workspace_identity.go | Reuse verified numbered membership; distinguish dependency/ordinary worktree |
+| WorkspaceProvisioner.Ensure / WorkspaceReadiness | cmd/internal/couchcore/provision.go, provision_dispatch.go | Reuse repeatable setup; leave Git metadata ownership intact |
+| ThreadRecord / threadrecord.Record | cmd/internal/couchcore/thread.go; cmd/internal/threadrecord/record.go | Separate durable slot identity from current conversation handle; retain validators and lifecycle facts |
+| PathLaunchPreference | cmd/internal/couchcore/launchprofile.go | Local home for numbered preferences; #308 owns preference UX/inheritance |
+| ThreadStore | cmd/internal/couchcore/threadstore.go, storejournal.go | Introduce local authoritative storage without duplicating lifecycle logic; preserve atomic record/preference updates |
+| AdvanceStartTransaction / CommitStartClaim | cmd/internal/couchcore/starttransaction.go, threadstore.go | Reuse existing concurrent-start protection and interrupted-start recovery |
+| ClassifyThread / DecideResume | cmd/internal/couchcore/actionableinventory.go, resume.go | Retain process/conversation evidence; slot presence must remain visible when resume is unavailable |
+| launchTrackedThread | cmd/internal/couchcore/launch_existing.go | Shared cold readiness hook before final conversation proof; warm bypass |
+| storagegc store registry and references | cmd/internal/storagegc/stores.go, collector.go | Recognize local current/history references before global records retire |
 
-WorkspaceBinding contains physical common Git directory, primary root, worktree
-root and nullable slot number. Slot zero is primary; absence is an ordinary
-unaddressed worktree/dependency checkout. No branch, HEAD, setup phase or copied
-Weave dependency list is stored. One binding per thread, many threads over time
-per workspace, many workspaces per repository. Park and continuation retain it;
-archive retains it with the record. Expose it by alias/conversion rather than
-maintaining multiple structural validators. Old records omit it; strict decoding
-accepts absence and rejects malformed bindings. Old binaries cannot read the new
-field, matching existing forward-only optional-field compatibility.
+Pure decisions: slot discovery classification, open-versus-create intent,
+recoverable-conversation versus explicit-fresh outcome, parked creation policy.
+Integration: Git/SDLC observation, local record/index IO, native session evidence,
+existing launch effects. Use the existing stateful fakes and real temp stores/Git.
+Do not implement another lifecycle state machine merely to rename existing states.
 
-References are `repo`, `repo:0`, `repo:N`, and `:N` with caller repo context.
-Numbers are canonical nonnegative decimal, bounded by platform int; malformed,
-negative, overflowing and leading-zero forms refuse. Opaque tags retain exact
-precedence. Colon syntax is parsed before fuzzy name/path matching. Qualified
-names resolve within the caller's fleet; multiple same-name repo candidates refuse.
-Actual paths remain usable. Hidden Pair scopes stay hashes of worktree root, never
-changed to common-Git identity; native bindings and artifacts must keep their keys.
+## Chunk 2 — revised work breakdown
 
-Admission takes a typed candidate and classified rows plus raw transaction state.
-It returns admitted destination or a structured refusal with exact blocking tags,
-workspace addresses and available activation/inspection actions. Selection is
-pure: use the requested workspace if free; for automatic overflow use existing
-SelectWorkspaceNumber (lowest known free host, otherwise lowest unused number).
-A host without setup success is still reusable if Git identity is valid. Unknown
-or partial hosts refuse automatic allocation; explicitly opening that number calls
-Ensure to recover only what it can prove. Never skip :1's partial setup to make :2.
+### 1. Finalize storage and migration integration before implementation
 
-StartResolution carries the original request and selected workspace/path separately.
-Fingerprint covers target binding/path, original selection mode, profile and existing
-preference/default inputs. CommitArgs reproduces the original request, not a guessed
-path that does not exist yet. An empty future host reads saved target preferences
-and primary defaults for preview; after Ensure, re-resolve target defaults/profile.
-If composition changes the accepted result, keep prepared directory, release claim,
-and ask for a fresh preview rather than launch with different parameters.
+- [ ] Trace ThreadStore callers, Pair record readers, scope/tag assumptions and GC
+  references. Choose the smallest storage seam preserving the existing pure
+  lifecycle transitions, revision checks and atomic record/preference writes.
+- [ ] Specify local initialization, schema validation, evidence retention layout,
+  index rebuilding and repo-root discovery. Specify which independent existing
+  evidence can recover a conversation when thread.json is damaged; do not add
+  another authoritative slot registry merely to recover the first one.
+- [ ] Specify migration of existing numbered records without changing native
+  conversation handles. Disambiguate legacy multiple-record cases explicitly.
+  Select one authority at every step; use repeatable local publication and an
+  explicit cutover rule, not concurrent writes to global and local copies.
+- [ ] Make all readers/retention consumers honor that cutover before retiring the
+  global copy. A failed/interrupted migration preserves the previous authority;
+  an index can lag without losing the locally owned slot. Test each boundary.
+- [ ] Define repo parked-check/create ordering under the existing owner/creation
+  mechanisms. Do not add repository ownership, cross-instance coordination,
+  whole-store snapshot CAS, or separate workspace reservation machinery.
+- [ ] Write the concrete integration signatures/files/test cases, run fresh plan
+  review and operator review, then full `sdlc change-code --issue 306` gates.
 
-### Integration points
+### 2. Implement authoritative local records and derived discovery
 
-| Name | Lives in | Status | Wraps |
-| --- | --- | --- | --- |
-| WorkspaceCatalog / OSWorkspaceCatalog | couchcore/workspacecatalog.go | new | SDLC identity, registered worktrees, physical paths |
-| SnapshotForAdmission / CreateAdmittedStart | couchcore/workspaceclaim.go | new | existing ThreadStore lock/journal + snapshot validation |
-| AllocateThreadTag | couchcore/threadtag.go | modified | artifact collision claim + admitted store create |
-| prepareTrackedWorkspace | couchcore/workspacelaunch.go | new | WorkspaceReadiness and final cold-start validation |
-| FakeWorkspaceCatalog | couchcore/workspacecatalog_fake.go | new | mutable repository/workspace observations |
-| FakeWorkspaceReadiness | couchcore/workspacelaunch_test.go | new | controlled setup outcome/order and marker state |
-| PrepareStart / spawnResolved / StartInteractive | couchcore/couch.go, startup.go | modified | all fresh-start routes |
-| launchTrackedThread / ResumeContextWith | couchcore/launch_existing.go, resume.go | modified | cold readiness and final binding proof |
+- [ ] TDD: discover verified :1/:2 with no global rows; missing local metadata
+  still yields visible existing slots. Reject foreign/conflicting conventional
+  directories; nested dependency clones yield no extra slot rows.
+- [ ] Implement local record/preferences/continuation persistence and shared store
+  seam. Migrate numbered records with their conversation handles unchanged.
+- [ ] Test interruption/corruption at each migration/cutover step; verify global
+  index deletion/rebuild and duplicate index entries do not duplicate slots.
+- [ ] Exercise GC with references held only in local current/history records:
+  those artifacts must remain protected. Define end/retention for every new file.
 
-Catalog reads reuse ProvisionIO's bounded process seam and ParseWorkspaceIdentity.
-Expose/reuse the provisioner's identity reader instead of another SDLC JSON parser.
-Enumerate registered worktrees with Git's machine-readable format; derive hidden
-scope keys for every registered path, including non-numbered worktrees. Inspect
-conventional slot directories for partial collisions; do not scan their dependency
-contents or create threads. A disappeared registered host or contradictory path
-is uncertainty, not a free slot. Brain/ordinary unaddressed roots retain existing
-exact-workspace starts and receive no automatic numbered provisioning.
+### 3. Implement shared open/resume/start-fresh behavior
 
-Legacy association is observed from physical StartingPath/WorkingPath and registered
-scope keys, not from display names or the latest incarnation. Missing/unreadable
-records in a known repo scope block that repo; scopes that cannot be associated
-must not be guessed into another repo. Preserve current same-scope refusal. Persist
-verified binding lazily during that record's next claim, keeping tag/scope intact.
-Existing multiple threads in one workspace remain visible/activatable by tag;
-fresh creation refuses that workspace until its occupancy is unambiguous.
+- [ ] TDD at real operation boundaries: open live, detached, parked, uninitialized,
+  incomplete, failed-conversation and damaged-record slots; visible recovery actions
+  must work. No archive prerequisite for any confirmed-stopped recovery case.
+- [ ] Keep existing duplicate-start claims/CAS and stopped-process reconciliation;
+  prove competing resume/fresh requests cannot launch two agents in one slot.
+- [ ] Add cold readiness before final native/continuation binding validation for
+  new, resumed and replacement conversations; warm attach skips compilation.
+- [ ] Preserve and retain old conversation evidence on explicit start fresh;
+  missing/ambiguous binding alone never proves no live agent remains.
+- [ ] Make create-another obey parked :0/:N checks; opening/repairing existing slots
+  stays available. Show all parked blockers; another repo remains independent.
+- [ ] Wire exact slot references and actual paths through CLI/start form/switcher
+  actions; keep grouping layout in #307. Rework #305's advisory selector so it no
+  longer treats an existing slot as a free container for a different durable thread;
+  remove it if the new allocation path does not need it, rather than retain dead code.
 
-The catalog fake models repo membership, host existence, partial/conflicting paths,
-identity errors and rebinding. Readiness fake models setup success/failure and a
-controllable pause; it changes durable marker state and counts effects. Reuse
-FakeRunner, FakeProcOps, FakeThreadArtifactCollisionChecker, real temporary
-ThreadStore and ProvisionFixture rather than new process/session facades.
+### 4. Acceptance, docs and publication
 
-## Admission and transaction sequence
+- [ ] Run primary/:1/:2 through create, park/resume, continuation and start fresh
+  using stateful production-boundary tests. Snapshot dirty/untracked files, active
+  branches and unpublished commits in host and private dependencies before/after.
+- [ ] Verify closed-set slot discovery plus open-world primary compatibility,
+  exact references, readiness retry, and unchanged supervisor/separate-store behavior.
+- [ ] Run focused suites and deterministic race tests; full `go test ./... -count=1`,
+  changed-package vet, `make runtimebundle-generate`, `make pair bin/couch`.
+- [ ] Run isolated real SDLC/Weave conformance using #305's fixture; fake the agent
+  launcher. Repeat when consumed contracts change and in #309 acceptance.
+- [ ] Update README/atlas/project and downstream #307/#308/#309 acceptance contracts;
+  document metadata recovery and retained conversation behavior before close.
+- [ ] Checkpoint observed evidence. `sdlc close` owns the mandatory boundary review;
+  fix blockers, then commit close records, `sdlc pr` and `sdlc merge --yes`.
 
-| Observation/event | Fresh creation | Existing-thread action |
-| --- | --- | --- |
-| Live/detached thread | occupies its workspace; another slot may be selected | switch/warm attach permitted |
-| Any parked row in same common Git repo | refuse, list every blocker | explicit resume/continuation permitted |
-| Start claim or raw reservation | occupies its workspace; same target refuses | existing claim/CAS guards apply |
-| Open park/continuation transaction | refuse competing creation requiring uncertain state | existing recovery rules apply |
-| Unknown ownership / unreadable relevant record | refuse with inspection path | existing authority decides recovery |
-| Positively absent and unresumable debris | existing cleanup permits reuse | archive remains explicit |
-| Record set changes before admission commit | refuse stale observation before setup | same-address revision check |
-| Setup fails/cancels before helper | roll back only this claim; leave files | retain conversation/park/profile |
-| Park appears while fresh setup runs | final admission refuses before helper release | resume itself stays allowed |
-| Supervisor dies during setup | existing dead-owner reconciliation clears claim | existing record survives |
-| Helper release/registration outcome uncertain | existing post-ack reconciliation; no new launch | same |
+## Constraints and simplifications
 
-1. Resolve request and preview. Gather relevant store snapshot and lifecycle
-   evidence outside locks. Widen startupAsks to prove all threads in the candidate
-   repo plus existing layout-conflict consumers; reuse ClassifyThread.
-2. Generate opaque tag and acquire its existing artifact claim. Under ThreadStore's
-   existing lock re-read the observed manifest/records, compare exact bytes (not
-   only Generation: ordinary record writes only increment Revision), apply the
-   pure admission decision, and journal the new record already carrying its
-   ThreadStartClaim. No invisible Reservation-only intermediate row. Release
-   artifact claim on refusal. Existing-thread claim keeps current CAS/shape guards.
-3. Release the store lock. Run numbered readiness with PrimaryRoot and Slot; keep
-   the durable start claim visible as busy. No process lock or store lock spans
-   Weave. Primary and unaddressed worktrees skip readiness.
-4. Resolve target identity/profile again. For fresh creation re-gather repo evidence,
-   excluding only this exact nonce; under the store lock verify the new snapshot
-   and that its claim is still owned, then authorize launch. This is the final
-   admission linearization point: later parks are ordered after this start.
-   On drift/refusal release this claim; no automatic selection/setup loop.
-5. After slow setup, recheck the exact cold native binding or retained continuation
-   authority and worktree identity before child effects. Refactor the current
-   ResumeContextWith pre-launch check into the shared preparation boundary so
-   compile never sits after the final proof. Warm session proof remains unchanged.
-6. Use existing launchTrackedThread/blocked-helper/StartHelperRecorded/registration
-   transitions and cleanup. Only confirmed registration clears park evidence.
+Reuse #305's command/output limits and cancellation; keep setup outside store
+critical sections and registration timeouts. Discovery is scoped to known repo
+roots and numbered environments, not the whole filesystem. Old records, unfamiliar
+schema and ownership probes are external evidence; unknown never grants permission
+to launch or overwrite. No new credentials or production-path test fixtures.
 
-Atomic admission covers Spawn, SpawnPrepared and StartInteractive; no production
-path can directly allocate-and-launch around CreateAdmittedStart. Same-address
-resume/continuation/switch-agent keep their own lifecycle permission and occupy
-the same workspace. Store locks are short filesystem transactions; no additional
-background task, expiry timestamp, capability file or scheduler is introduced.
+Removed from the earlier proposal: free-existing-workspace selection, durable
+workspace occupancy enumeration, store-wide admission snapshot/byte-CAS, separate
+slot-thread allocation and archive-before-replacement. Existing process claims,
+atomic persistence and cautious ownership probes remain necessary. Local storage
+adds reader/migration/GC integration work; fewer domain states do not make this a
+prompt-only change or eliminate real IO failures.
 
-## Constraints, trust and residue
-
-Interactive workload: a workstation with tens of workspaces and up to roughly
-100 active/history-visible thread rows (design assumption). Catalog work is O(repo
-worktrees + relevant records), not one subprocess per historical incarnation.
-Use one repo discovery per operation and a shared session inventory; no polling.
-Local probes retain 5s limits, fetch 120s, Weave 20min, and existing 10s helper /
-15s registration budgets. Setup time is outside registration's clock. Snapshot
-contention returns an actionable retry, never unbounded waiting/retry churn.
-Cancellation joins owned setup processes and invokes existing start rollback.
-Other repos remain operable while Weave runs; tests pause one setup to prove this.
-
-Parse SDLC/Git/record inputs at the boundary, validate physical association, and
-fail closed on changed identities. No path based on a display name alone grants
-launch authority. No new credentials or network services; transport inherits #305.
-All tests use temp stores/data roots and synthetic/local origins. Never launch
-agents against the operator's actual checkouts for automated acceptance.
-
-The optional binding is bounded metadata in existing records; existing archive
-and storage-GC policies own its end. Start claim lifetime/recovery is unchanged.
-Snapshot bytes and admission values die with each operation. Numbered directories
-remain operator-owned persistent workspaces under #305's explicit removal policy.
-No metadata is written into sibling dependencies by this task.
-
-Architecture: ARCH-DRY reuses lifecycle/claims/identity parsing; ARCH-PURE owns
-selection and admission in deterministic functions; ARCH-PURPOSE sweeps every
-launch route; ARCH-MOCK supplies stateful catalog/setup doubles and live contract
-checks; ARCH-CONSTRAINTS bounds setup and snapshot contention; ARCH-SECURE validates
-external identity and strict persisted schema; ARCH-ORDER tests competing events
-at observed/claimed/setup/final-admitted/helper/registered boundaries; ARCH-FUNERAL
-adds no durable artifact family.
-
-## Tasks and verification
-
-### Task 1 — stable workspace identity and address resolution
-
-Files: create the workspace binding/reference/catalog files above and colocated
-tests; modify threadrecord/record.go, couchcore/thread.go, threadinventory.go,
-actionableinventory.go, threadmetadata.go, startresolution.go and their tests.
-
-- [ ] Add failing parser/roundtrip/reference tests: :0/:1/repo:N, ambiguous repo
-  names, bad numbers, subdirectories/symlinks, strict record decoding, absent legacy
-  binding, dependencies lacking numbered identity, and retained opaque scope/tag.
-- [ ] Implement the pure types and catalog seam. Prove legacy parked membership
-  without incarnations and missing-path conservatism against temp Git worktrees.
-- [ ] Make start preview bind original request and chosen target; verify no setup
-  effects during preview and stale selection/profile refusal on commit.
-- [ ] Run focused tests, reconcile symbol names, and commit this coherent layer.
-
-### Task 2 — atomic fresh admission using existing start claims
-
-Files: new couchcore/workspaceadmission.go, workspaceclaim.go and colocated tests;
-modify couch.go, threadtag.go, threadstore.go and startup.go/startup_proof_test.go.
-Extract only admission/snapshot helpers from large files; no unrelated refactor.
-
-- [ ] Write failing production-boundary tests for parked :0/:1/:2, every parked
-  producer, multiple blockers, other repo independence and subdirectory occupancy.
-- [ ] Write deterministic interleavings using pause channels: two starts choose
-  the same target, park between evidence/claim, raw reservation, unreadable record,
-  and record-only Revision mutation without Generation change.
-- [ ] Implement checked snapshot plus admitted create as one journal transaction;
-  make all fresh-start routes consume it. Losing requests leave no artifact claim,
-  invisible row, provision call or child. Remove obsolete path-only admission.
-- [ ] Update narrowed/full startup-proof equivalence oracle for repository readers.
-  Run focused tests/race, inspect diff, and commit.
-
-### Task 3 — readiness across cold lifecycle and exact workspace opening
-
-Files: new couchcore/workspacelaunch.go and tests; modify launch_existing.go,
-resume.go, continuation.go, switchagent.go, startup.go, operationdispatch.go,
-ops.go, couchcmd/run.go and couchtty/menu.go/menu_render.go where wiring requires.
-
-- [ ] Add failing boundary tests for readiness before fresh/cold/fresh-existing
-  launches, warm/primary bypass, cancellation, failed readiness retry, and binding
-  replacement during compile. Readiness must occur while the owned claim is busy.
-- [ ] Add blocked-setup tests: competing same-slot creation refuses, another repo
-  progresses, park during setup blocks fresh child release, a park after final
-  admission does not retroactively cancel the admitted launch, dead-owner recovery
-  preserves files and releases only the abandoned claim.
-- [ ] Implement shared preparation before final binding/continuation proof; retain
-  existing helper acknowledgment/registration semantics and error diagnostics.
-- [ ] Wire precise addresses and preview destination into existing operations/form.
-  Opening an exact workspace resumes its unique thread; multiple legacy matches
-  give tag-based activation guidance. No arbitrary parked-row auto-selection.
-- [ ] Test Spawn, SpawnPrepared, StartInteractive and operation/TUI dispatch—not
-  only helper functions—then remove SelectWorkspaceNumber's #306 dead-code waiver.
-- [ ] Run targeted lifecycle suites and race tests; commit.
-
-### Task 4 — lifecycle acceptance, docs and publication
-
-Files: new couchcore/workspace_lifecycle_test.go and workspace_conformance_test.go;
-update atlas/workspace-provisioning.md, atlas/couch.md, atlas/index.md, README.md,
-this issue/plan, workshop/projects/couch-slots-v2.md and affected inventory fixtures.
-
-- [ ] In isolated temp Git environments run primary + :1 + :2 concurrently through
-  stateful production startup, independent park/resume, continuation, archive and
-  explicit same-workspace replacement. Assert distinct native bindings/opaque tags.
-- [ ] Before/after lifecycle operations compare host and private dependency dirty,
-  untracked files, branch refs and local commit SHAs. No Git reset/switch/remove is
-  a lifecycle effect; dependency discovery creates no extra thread rows/blockers.
-- [ ] Live conformance: use real installed SDLC/Weave with isolated local Git
-  transport via ProvisionFixture; fake the agent launcher. Run whenever consumed
-  identity/setup contracts change and in #309. Document one optional real Couch
-  operator smoke of :0/:1/:2 addressing/park/refusal/resume for #309.
-- [ ] Run `go test ./cmd/internal/threadrecord ./cmd/internal/couchcore
-  ./cmd/internal/couchtty ./cmd/internal/couchcmd -count=1` (all pass), targeted
-  race tests on new concurrent sequences, and `go vet` on changed packages.
-- [ ] Run `make runtimebundle-generate`, `go test ./... -count=1`, then
-  `make pair bin/couch`. Run opt-in real SDLC/Weave conformance and isolated built
-  CLI reference/diagnostic smoke. All commands must exit zero.
-- [ ] Update operator help/README/atlas for new addresses, parked diagnostics,
-  existing-workspace replacement and cold readiness. Sweep obsolete one-thread-
-  per-path prose; preserve #307 grouping and #308 preference scope.
-- [ ] Record verification and checkpoint issue/plan; `sdlc close --issue 306
-  --verified '<observed evidence>'` owns the fresh review. Fix blocking findings.
-- [ ] Commit close records with review trailers, `sdlc pr`, `sdlc merge --yes`;
-  update project completion and restore unrelated edits. No extra review outside
-  the SDLC boundary. Final delivery reports actual tests and any unrun live smoke.
+ARCH-DRY: share lifecycle transitions and provisioning. ARCH-PURE: decisions consume
+observed facts. ARCH-PURPOSE: local authority includes every reader and GC consumer.
+ARCH-MOCK: stateful storage/session/setup fakes plus real Git/SDLC conformance.
+ARCH-CONSTRAINTS: bounded probes/setup and scoped discovery. ARCH-SECURE: validate
+Git membership, records and current ownership. ARCH-ORDER: exercise interrupted
+migration and existing process claims. ARCH-FUNERAL: bounded retained evidence and
+explicit slot removal; no automatic workspace deletion on conversation retirement.
 
 ## Revisions
 
-### 2026-09-23 — initial implementation proposal
+### 2026-09-23 — initial global-store proposal (superseded)
 
-Derived from #306's agreed scope and live code exploration after #305 merged.
-Reuse the existing claim and journal; make workspace association durable and
-apply repo-wide policy at fresh creation. Pending spec/plan review and operator
-approval; no code or estimate has been produced.
+The initial plan added stable workspace bindings, free-workspace selection and
+atomic repo admission via whole-store snapshots and ThreadStartClaim. Its spec and
+plan reviews passed before operator discussion exposed the wrong lifetime model.
+Those approvals do not apply to this revision; original content remains in Git.
 
-### 2026-09-23 — spec and plan review approved
+### 2026-09-23 — authoritative .couch and durable slot recovery
 
-Fresh-context spec review and subsequent plan review found no blocking issues.
-Added the complementary ordering test: a park after final admission does not
-retroactively cancel the admitted start. Awaiting operator design approval under
-AGENTS.md §2 and the brainstorming/writing-plans skills.
+Reason: operator treats numbered directories as a closed set of durable threads
+and requires resume or start fresh without archiving the slot. Delta: local Couch
+authority, rebuildable global listings and shared lifecycle execution. Preserve
+existing supervisor behavior, primary storage, native/Pair sidecars and #305 Git
+metadata. Replace free-container allocation and state machinery with existing-slot
+recovery; add explicit migration, reader and retention integration work. This
+revision captures the agreed design and next planning tasks, not implementation.
+
+Documentation review: fresh-context review approved this project/spec/plan revision
+without blockers. This confirms consistency with the agreed direction; it does not
+replace the unfinished storage/migration design or its implementation approval.
