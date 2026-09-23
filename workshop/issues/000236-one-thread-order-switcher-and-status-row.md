@@ -4,7 +4,7 @@ status: open
 deps: []
 github_issue:
 created: 2026-09-12
-updated: 2026-09-12
+updated: 2026-09-21
 estimate_hours:
 ---
 
@@ -134,3 +134,21 @@ is arrival, not order, and stays).
   style), project `couch-slots` (defines slots and the occupancy rule the
   within-group order assumes — **not committed**; listed in its scope so the
   two stay consistent, not because this waits on it).
+
+## Revisions
+
+### 2026-09-21 — group identity comes from the couch contract
+
+The grouping remains repo-first for the operator: primary `pair`, then durable
+secondary slots `pair :1`, `pair :2` in numeric order. The filesystem spelling
+(`worktree/pair-1` versus `worktree/pair-slot1`) is an implementation contract
+owned by couch and must not leak into ordering or labels. The ordering model
+should consume the normalized `(repo, slot-number)` identity produced by the
+shared label/identity derivation, with primary represented as slot zero. This
+keeps the status-row projection and switcher stable if the on-disk spelling is
+chosen later (ARCH-DRY).
+
+Agent profiles do not create a second ordering axis. Primary `pair` (`:0`),
+design `pair :1`, and implementation `pair :2` remain ordered by slot number;
+the effective harness/model is metadata on each row. An explicit profile
+override must not move a thread or make it appear to be a different workspace.
