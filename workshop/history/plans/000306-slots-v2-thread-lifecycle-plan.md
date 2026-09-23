@@ -17,8 +17,8 @@ atomic/journaled storage, SDLC workspace v2, Git, #305 WorkspaceReadiness.
 
 **Status:** Operator-approved direction; concrete engineering plan passed fresh
 review after corrections. Operator approved execution on 2026-09-23. Earlier
-global-store reviews are superseded; change-code and verification passed. Close returned SHIP on 2026-09-23; PR publication pending.
-**Issue:** `workshop/issues/000306-slots-v2-thread-lifecycle.md`.
+global-store reviews are superseded; change-code and verification passed. Close returned SHIP on 2026-09-23; PR #156 merged and SDLC archived the completed issue.
+**Issue:** `workshop/history/issues/000306-slots-v2-thread-lifecycle.md`.
 **Flow:** Full; in-place branch when entering implementation. Estimate follows
 plan-quality review. Preserve unrelated local work.
 
@@ -531,7 +531,7 @@ couchcmd/run.go, couchcmd/continuation.go and corresponding CLI/menu wiring/test
   checks when provisioning/identity dependencies change and in #309 acceptance.
 - [x] Update README, atlas/couch.md, atlas/workspace-provisioning.md, atlas/index.md,
   project and #307–309 consumer specs. No grouped tab layout or preference UX in #306.
-- [ ] Reconcile concept tables and acceptance evidence; `sdlc close --issue 306
+- [x] Reconcile concept tables and acceptance evidence; `sdlc close --issue 306
   --verified '<observed evidence>'` owns the one fresh-context boundary review.
   Fix blockers, commit review trailers, `sdlc pr`, `sdlc merge --yes`, preserve
   unrelated local files. One close boundary; no artificial milestone tags.
@@ -741,3 +741,9 @@ The boundary review disposed BR-1, BR-2 and BR-3 as addressed and reported no
 remaining findings. SDLC recorded codecomplete and measured 4.52h. The previous
 plan-quality deferred consumer finding is now disposed by BR-1 in the boundary
 ledger. Publication remains the final task; no further runtime edits are pending.
+
+### 2026-09-23 — publication complete
+
+PR #156 merged (f26ab212); SDLC published done status, archived issue/plan/review
+artifacts and returned the in-place checkout to main. All tasks are complete.
+Unrelated local files were preserved.

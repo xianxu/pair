@@ -514,13 +514,13 @@ the host without fetching or composing. Thread admission and launch remain with 
 <a id="pair-306"></a>
 ### pair#306 — Durable slots with local Couch state
 
-**status:** codecomplete — SHIP review passed; publication pending
+**status:** done — [PR #156](https://github.com/xianxu/pair/pull/156) merged
 **actual:** 4.52h
 **closed:** 2026-09-23 (local acceptance)
 **started:** 2026-09-23
 
-The [issue](../issues/000306-slots-v2-thread-lifecycle.md) and
-[revised plan](../plans/000306-slots-v2-thread-lifecycle-plan.md) make
+The [issue](../history/issues/000306-slots-v2-thread-lifecycle.md) and
+[revised plan](../history/plans/000306-slots-v2-thread-lifecycle-plan.md) make
 `pair-slotN/.couch/` authoritative and global slot listings rebuildable. Existing
 slots offer resume or start fresh without an archive prerequisite. Shared lifecycle
 code and current supervisor locking remain; new reservation systems and repository
@@ -814,3 +814,10 @@ Full repository tests, targeted race tests, builds, vet and installed SDLC/Weave
 conformance passed. SDLC measured 4.52h. Local `.couch` authority, recovery/fresh,
 parked admission and canonical slot addressing are accepted; grouped presentation
 and preference UX remain #307/#308. PR publication follows.
+
+### 2026-09-23 — #306 published and archived
+
+[Pair PR #156](https://github.com/xianxu/pair/pull/156) merged as f26ab212.
+SDLC marked #306 done, archived its issue/plan/review records, and returned the
+checkout to main. Updated the portfolio links and publication status. #307 can
+now consume stable slot identities for grouped switcher/tab presentation.
