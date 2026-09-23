@@ -246,7 +246,7 @@ no earlier slot issue is reused or a dependency. Issue bodies contain the detail
 scope, completion criteria, verification expectations, and blocking references.
 No implementation has started and no estimates or deadline are committed.
 
-- [ ] Resolve repository and workspace identity [ariadne#242]
+- [x] Resolve repository and workspace identity [ariadne#242]
 - [ ] Resolve dependency and shared-tool bindings [ariadne#243]
 - [ ] Make concurrent issue workflows safe [ariadne#244]
 - [ ] Support branching from a workspace and explicit refresh [ariadne#245]
