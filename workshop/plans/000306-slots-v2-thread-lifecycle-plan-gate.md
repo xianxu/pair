@@ -40,6 +40,22 @@ rounds:
           family: local-authority-consumer-enumeration
           round: 2
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-23T15:27:38-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-3
+          disposition: addressed
+          note: The revised plan states the universal routing rule, enumerates the park/start/incarnation/continuation/recovery families, and adds a production-boundary local-versus-global authority test.
+          round: 3
+      findings:
+        - id: PQ-4
+          severity: Important
+          title: Name every GC consumer function and give each its own test strategy
+          detail: The strategy names “Snapshot / ArchivedThreads / CouchReferences” rather than the concrete functions CouchReferences.Snapshot, Detach, Forget, Onboard, Recover, and ThreadStore.ArchivedThreads. Under ARCH-PURPOSE, name each production function and provide one adversarial-input/mechanical-guard line for each so the five GC routing consumers cannot be silently omitted.
+          family: function-level-test-strategy
+          round: 3
+      blocked: true
 ---
 
 # Gate ledger — pair#306 (plan-quality)
@@ -68,6 +84,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-3** [Important] `local-authority-consumer-enumeration` This is the 2nd finding in family `local-authority-consumer-enumeration`: enumerate every lifecycle mutation routed to local slot authority
   The plan lists AllocateThreadTag, CreateThread, reads, selected update/archive/continuation methods, and GC consumers, but omits the park/start mutation family including BeginPark, AdvancePark, AppendParkAttempt, FinalizePark, CommitStartClaim, and the incarnation/recovery transitions visible in cmd/internal/couchcore/threadstore.go:345-495 and 549-643. State the rule that every ThreadStore operation reachable from numbered-slot open, park, resume, fresh, continuation, and recovery must resolve through the slot backend, enumerate those consumers in the plan, and add one production-boundary test proving a numbered slot's park/resume/start transitions never mutate or read the global store.
 
+## Round 3 — 2026-09-23T15:27:38-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-3 — addressed — The revised plan states the universal routing rule, enumerates the park/start/incarnation/continuation/recovery families, and adds a production-boundary local-versus-global authority test.
+
+### Raised
+
+- **PQ-4** [Important] `function-level-test-strategy` Name every GC consumer function and give each its own test strategy
+  The strategy names “Snapshot / ArchivedThreads / CouchReferences” rather than the concrete functions CouchReferences.Snapshot, Detach, Forget, Onboard, Recover, and ThreadStore.ArchivedThreads. Under ARCH-PURPOSE, name each production function and provide one adversarial-input/mechanical-guard line for each so the five GC routing consumers cannot be silently omitted.
+
 ## Open findings
 
-- **PQ-3** [Important] `local-authority-consumer-enumeration` This is the 2nd finding in family `local-authority-consumer-enumeration`: enumerate every lifecycle mutation routed to local slot authority
+- **PQ-4** [Important] `function-level-test-strategy` Name every GC consumer function and give each its own test strategy

@@ -470,7 +470,13 @@ existing explicit filesystem maintenance model without adding a lifecycle API.
 - StoreLayout / storeForAddress / storeForPath: real temporary stores with corrupt bytes and mismatched addresses; public lifecycle calls must mutate only the selected backend and never fall back.
 - EnrollSlotRepository: inject failure at each journal publication boundary and vary source bytes between retries; assert exactly one authority and reference preservation, including old-reader refusal before removal.
 - OSSlotCatalog: stateful discovery fixture plus real Git conformance; adversarial path replacement and excessive candidate counts must refuse without side effects, subprocess counters pin the read-only fast path.
-- Snapshot / ArchivedThreads / CouchReferences: exercise all five GC entry points against local-only owners with interleaved publication and receipt replay; assert retained owners cannot be collected and preview writes nothing.
+- ThreadStore.Snapshot: corrupt local current records must produce attention/error evidence without falling back to stale global records.
+- ThreadStore.ArchivedThreads: local-only archived addresses and duplicate identities must be aggregated or explicitly refused, never silently dropped.
+- CouchReferences.Snapshot: local-only owners remain retained through interleaved publication; preview performs zero writes and corrupt ownership blocks GC.
+- CouchReferences.Recover: fault-injected pending local/global journals recover before apply inventory; a failed recovery prevents collection.
+- CouchReferences.Onboard: old local archives without grace are onboarded in the selected backing store; unrelated global records stay byte-identical.
+- CouchReferences.Detach: stale hash/time requests and interleaved archive replacement cannot remove newer local history; matching replay is idempotent.
+- CouchReferences.Forget: receipt cleanup resolves the original local backing store, tolerates an already-forgotten receipt and refuses mismatched ownership without touching other stores.
 - ObserveSlotSessions / RecoverSlot / StartFreshSlot: stateful session evidence plus real store journals; failed scans are unknown, and pause-channel interleavings of resume/fresh prove one claim and preserved old evidence.
 - prepareTrackedWorkspace / spawnResolved / launchTrackedThread: controlled readiness barriers and fake process handshake; cancellation, park and identity changes must prevent forbidden helper release, while a later ordinary open recovers.
 - spawnResolved / FinalizePark: use pause channels at final admission observation and park publication, plus the real operation queue. If park commits before the final observation, new-slot launch refuses with the parked address and no helper release; if launch is admitted first, a later park does not retroactively revoke it but blocks the next create. Existing-slot recovery remains allowed in either ordering; the existing claim guard permits only one live owner. No sleep-based race test or new atomic cross-store reservation is implied.
@@ -620,3 +626,8 @@ The reviewer treated the primitive list as an exhaustive public-method list.
 Clarified the universal routing rule and the existing park/start/incarnation/
 continuation delegation families. Production transition tests must prove local
 record authority; do not duplicate routing in methods already using shared IO.
+
+### 2026-09-23 — PQ-4 GC verification names
+
+Split the aggregate retention strategy into one adversarial guard per concrete GC
+consumer and ThreadStore inventory method; no architectural or scope change.
