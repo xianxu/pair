@@ -4,7 +4,7 @@ status: open
 deps: [pair#306]
 github_issue:
 created: 2026-09-22
-updated: 2026-09-22
+updated: 2026-09-23
 estimate_hours:
 ---
 
@@ -22,6 +22,12 @@ Group primary and slots together in both switcher and tab bar using one ordering
 
 Preserve existing lifecycle/state, focus, notification, and navigation behavior. Define rendering when the primary has no visible thread, when slots are parked, and when width is constrained: group context must remain understandable. Keep full address available where shorthand would be ambiguous. ARCH-DRY: switcher and bar consume the same grouped order; no unrelated visual redesign.
 
+### Agreed scope — 2026-09-23
+
+This section takes precedence over earlier conflicting layout or policy text.
+
+Update the agreed switcher examples to `pair /workspace/pair`, indented `pair:1 /workspace/worktree/pair-slot1/pair`, and `pair:2 /workspace/worktree/pair-slot2/pair`. Tab labels remain `pair :1 :2 brain ariadne ...`. Show the actual main checkout path, not only its enclosing environment directory. Primary repositories retain their own direct Couch entries; ordinary dependency clones inside numbered environments do not automatically appear as additional repos/slots in the switcher or tab bar. Operators access those dependencies through the parent thread; no new dependency-management UI is required.
+
 ## Done when
 
 - Switcher shows grouped full labels and actual checkout paths with slot indentation; tab bar shows repo followed by :N labels.
@@ -29,6 +35,8 @@ Preserve existing lifecycle/state, focus, notification, and navigation behavior.
 - Keyboard/click selection activates the correct workspace after refresh/reordering; no selection relies on label parsing.
 - Tests cover absent primary, parked members, multiple repos, narrow widths, and existing notification/focus states.
 - Operator help and screenshots or rendered fixtures show the agreed examples.
+
+- Rendered and activation fixtures use nested main-checkout paths and exclude incidental dependency clones from automatic thread/slot listings.
 
 ## Plan
 
@@ -43,3 +51,9 @@ Task outline only; settle implementation design through start-plan before change
 ### 2026-09-22 — fresh v2 task
 
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
+
+## Revisions
+
+### 2026-09-23 — Show nested main paths without inventing dependency slots
+
+Reason: operator agreed nested environments, ordinary remote dependency clones and existing per-repository publication. Delta: added the authoritative scope clarification and acceptance criteria above; original task context remains as provenance. No implementation or lifecycle-status change is claimed by this revision.
