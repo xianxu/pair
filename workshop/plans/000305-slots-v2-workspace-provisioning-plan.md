@@ -137,7 +137,7 @@ the marker baseline.
 For an absent host, select remote: explicit --remote; otherwise main's configured
 remote when its merge target is refs/heads/main; otherwise the sole configured
 remote. Reject ambiguity, local-dot tracking, invalid or missing sources.
-Fetch main into its usual tracking ref using `git fetch --porcelain --no-tags
+Fetch main into its usual tracking ref using `git fetch --verbose --porcelain --no-tags
 --no-recurse-submodules --no-write-fetch-head --refmap= <remote>
 +refs/heads/main:refs/remotes/<remote>/main`. Parse the new full OID from the one
 matching porcelain row with ParseFetchBaseline; reject failed/ambiguous output.
@@ -227,6 +227,25 @@ No growing journal or additional ref/nonce cleanup protocol is required.
 
 These branches are explicit NextHostAction cases tested with injected observations.
 Git and filesystem evidence determine progress; there is no persisted state machine.
+
+### Interrupting events (invocation-local ordering)
+
+These are ordered branches of Ensure/NextHostAction, not stored setup phases.
+
+| Observation + event | Result and ownership |
+| --- | --- |
+| Creating Git host + cancellation | Cancel/join owned Git group, close lease; retain intent, return error. Next call inspects actual Git and completes only provable steps. |
+| Creating Git host + caller death | Direct Git child retains lease until exit; second caller gets busy. After exit, next invocation reconciles intent/Git. |
+| Host exists, setup unconfirmed + second request | Both can reach Weave; Weave lock refuses overlap. A later serial compile is safe. No queue or thread launch occurs. |
+| Weave running + cancellation | Cancel/join direct Weave process group; return error without marker even if exit races cancellation. Surviving Weave-owned groups retain Weave lock; next call can get busy. |
+| Compile completed + canceled context | Do not publish; require successful non-canceled invocation for publication. |
+| Compile completed + caller death before marker | No marker; next call compiles again. No background completion handler can publish. |
+| Compile completed + concurrent marker publication | Reacquire creation lease; first valid marker wins, later caller returns its result. Busy lease returns error. |
+
+Barrier tests in Ensure and subprocess fixtures reproduce each interruption at
+its effect boundary. Marker writes and cleanup share the same lease. A successful
+atomic marker rename followed by cancellation may leave success recorded; the
+next invocation observes that completed effect and reuses it.
 
 ## Bounds and safety
 
@@ -407,3 +426,22 @@ tracking ref; no private refs. PQ-2: clarify readiness grants no thread authorit
 adding a reverse dependency would create a cycle. PQ-3: replace test case prose
 with named function strategies. PQ-4–6: clarify workload budgets, retention owner
 and exclusions. Product behavior and approved simplification are unchanged.
+
+Fetch probe: --verbose is required with --porcelain to emit the up-to-date row;
+a temporary real-Git fixture confirmed the full new OID is present in that case.
+
+### 2026-09-23 — clarify gate scope and interruption ordering
+
+PQ-2 is disputed: please withdraw the requested reverse dependency. #306 already
+depends on #305, and no code, token, API or reservation from #306 is consumed here.
+The executable #305 boundary is Ensure(ctx, ProvisionRequest{Path, Slot, Remote});
+it returns ProvisionResult or error and has zero thread effects. Two callers of
+Ensure for the same slot are supported without any thread reservation. Tests
+exercise this directly. SelectWorkspaceNumber is a pure advisory helper only.
+The future caller's thread reservation has no handoff into this API. Requiring
+#306 first creates a dependency cycle and defeats the agreed independent task
+split; documentation of that caller's obligations does not make it a prerequisite.
+
+PQ-7: added explicit interruption/event branches with ownership, busy/cancel
+policy, publication rules and deterministic test seams, retaining linear Ensure
+and no persisted setup-phase machinery as the operator requested.

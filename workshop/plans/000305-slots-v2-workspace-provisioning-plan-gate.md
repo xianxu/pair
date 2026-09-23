@@ -44,6 +44,42 @@ rounds:
           family: explicit-non-goals
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-23T12:22:48-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: Fetch output is parsed as the immutable captured baseline; later tracking-ref changes cannot alter it (plan:164-170).
+          round: 2
+        - id: PQ-2
+          disposition: not-addressed
+          note: 'The plan describes #306''s reservation concept, but the issue metadata still lacks pair#306 as a dependency and does not define an executable token/owner/lifetime handoff spanning selection through provisioning (issue:3-4; plan:42-50).'
+          round: 2
+        - id: PQ-3
+          disposition: addressed
+          note: Tests now name functions and pair adversarial input classes with mechanical guards rather than enumerating prose cases (plan:260-310).
+          round: 2
+        - id: PQ-4
+          disposition: addressed
+          note: Runtime limits are identified as initial policy ceilings with injected test values, and subprocess concurrency is clarified as sequential commands with bounded process ownership (plan:231-243).
+          round: 2
+        - id: PQ-5
+          disposition: addressed
+          note: Retention names the operator as owner, gives discovery/removal paths, and states that worktrees and clones persist until explicit removal (plan:355-363).
+          round: 2
+        - id: PQ-6
+          disposition: addressed
+          note: The plan has an explicit non-goals section assigning thread admission, grouping, transfer, dependency repair, retry mode, and removal elsewhere (plan:365-368).
+          round: 2
+      findings:
+        - id: PQ-7
+          severity: Important
+          title: Model provisioning's interrupting and concurrent event ordering explicitly
+          detail: 'ARCH-ORDER is not satisfied by the host decision table alone: the plan must name the state/event transitions and policies for process death or cancellation during Git/Weave, a second request observing the same host, late compile completion after cancellation, and marker publication races, including who remains running, who cancels or queues, and how each interleaving is reproduced. The current text only says “reconcile” and “another compile is acceptable” (plan:216-229, 231-241), leaving the legal temporal behavior implicit.'
+          family: external-transition-ordering
+          round: 2
+      blocked: true
 ---
 
 # Gate ledger — pair#305 (plan-quality)
@@ -68,11 +104,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-6** [Minor] `explicit-non-goals` Add an explicit non-goals section
   The plan relies on scattered exclusions rather than stating the deliberate non-goals and why they belong to #306, Ariadne, Weave, or a later workflow.
 
+## Round 2 — 2026-09-23T12:22:48-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- PQ-1 — addressed — Fetch output is parsed as the immutable captured baseline; later tracking-ref changes cannot alter it (plan:164-170).
+- PQ-2 — not-addressed — The plan describes #306's reservation concept, but the issue metadata still lacks pair#306 as a dependency and does not define an executable token/owner/lifetime handoff spanning selection through provisioning (issue:3-4; plan:42-50).
+- PQ-3 — addressed — Tests now name functions and pair adversarial input classes with mechanical guards rather than enumerating prose cases (plan:260-310).
+- PQ-4 — addressed — Runtime limits are identified as initial policy ceilings with injected test values, and subprocess concurrency is clarified as sequential commands with bounded process ownership (plan:231-243).
+- PQ-5 — addressed — Retention names the operator as owner, gives discovery/removal paths, and states that worktrees and clones persist until explicit removal (plan:355-363).
+- PQ-6 — addressed — The plan has an explicit non-goals section assigning thread admission, grouping, transfer, dependency repair, retry mode, and removal elsewhere (plan:365-368).
+
+### Raised
+
+- **PQ-7** [Important] `external-transition-ordering` Model provisioning's interrupting and concurrent event ordering explicitly
+  ARCH-ORDER is not satisfied by the host decision table alone: the plan must name the state/event transitions and policies for process death or cancellation during Git/Weave, a second request observing the same host, late compile completion after cancellation, and marker publication races, including who remains running, who cancels or queues, and how each interleaving is reproduced. The current text only says “reconcile” and “another compile is acceptable” (plan:216-229, 231-241), leaving the legal temporal behavior implicit.
+
 ## Open findings
 
-- **PQ-1** [Important] `baseline-capture-is-atomic` Make remote baseline capture immune to tracking-ref races
 - **PQ-2** [Important] `cross-issue-capability-contract` Define the #306 reservation spanning selection and provisioning
-- **PQ-3** [Important] `test-strategy-function-level` Replace enumerated test cases with function-level adversarial strategies
-- **PQ-4** [Minor] `operating-envelope-basis` Give the runtime budgets a basis and clarify subprocess concurrency
-- **PQ-5** [Minor] `retained-artifact-lifecycle` Define lifecycle ownership for retained worktrees and clones
-- **PQ-6** [Minor] `explicit-non-goals` Add an explicit non-goals section
+- **PQ-7** [Important] `external-transition-ordering` Model provisioning's interrupting and concurrent event ordering explicitly
