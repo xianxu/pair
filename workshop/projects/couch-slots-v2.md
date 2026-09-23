@@ -422,6 +422,20 @@ Stale, interrupted and failed-relock reviews cannot persist authority. Real CLI
 SIGINT/SIGTERM cleanup, full regression tests, vet and nested dependency
 publication/conflict recovery passed (known #210 fixture excluded).
 
+<a id="ariadne-245"></a>
+### ariadne#245 — Branch from a workspace and refresh
+
+**status:** codecomplete — [Ariadne PR130](https://github.com/xianxu/ariadne/pull/130) open; boundary findings fixed
+**actual:** 0.60h
+**started:** 2026-09-23
+**closed:** 2026-09-23
+
+**Implementation event 2026-09-23:** ordinary Git instructions prepare a captured
+issue branch before SDLC checkpoints and refresh a resting slot only explicitly.
+No new commands, metadata files or runtime behavior. Real-Git fixtures verify
+source/resting/dependency preservation and unsafe-case refusal observations;
+related suites pass. Both FIX-THEN-SHIP findings were corrected and verified.
+
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
@@ -579,7 +593,7 @@ preferences and acceptance tasks were aligned without reopening #242.
 
 [ariadne#244]: ../../../ariadne/workshop/history/issues/000244-slots-v2-concurrent-workflows.md
 
-[ariadne#245]: ../../../ariadne/workshop/issues/000245-slots-v2-branch-and-refresh.md
+[ariadne#245]: #ariadne-245
 
 [ariadne#246]: ../../../ariadne/workshop/issues/000246-slots-v2-durable-slot-landing.md
 
@@ -676,3 +690,9 @@ Implemented the simplified publication scope and passed the full workspace/SDLC 
 ### 2026-09-23 — ariadne#244 published
 
 Ariadne PR https://github.com/xianxu/ariadne/pull/129 merged. SDLC marked #244 done, archived its issue/plan/review records and adopted measured actual 6.38h. Claims use fresh remote status; explicit documentation commits publish with three-way conflict handling in every checkout. Planning/close reviewers run unlocked and reject stale or interrupted results before persistence. Full workspace/SDLC tests, vet, real Git races, signal/race checks and nested dependency recovery passed; known #210 fixture remains excluded.
+
+### 2026-09-23 — ariadne#245 implementation accepted
+
+Recorded ordinary-Git branch/refresh guidance and regression coverage, with no
+new runtime mechanism. Close measured 0.60h; quick flow had no estimate. The
+project task is locally accepted; PR130 publication is pending merge.
