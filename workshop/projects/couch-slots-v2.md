@@ -385,7 +385,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Resolve repository and workspace identity [ariadne#242]
 - [x] Resolve dependency and shared-tool bindings [ariadne#243]
 - [x] Make concurrent issue workflows safe [ariadne#244]
-- [ ] Support branching from a workspace and explicit refresh [ariadne#245]
+- [x] Support branching from a workspace and explicit refresh [ariadne#245]
 - [ ] Land without removing or refreshing the workspace [ariadne#246]
 - [x] Provision durable numbered workspaces [pair#305]
 - [ ] Make slots durable with local state and recoverable conversations [pair#306]
