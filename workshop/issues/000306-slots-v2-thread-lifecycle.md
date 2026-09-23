@@ -153,6 +153,15 @@ and ordering the old-reader format fence before global reference removal. The
 durable plan now specifies concrete storage, GC, launch and recovery integration
 and verification boundaries. Awaiting operator plan approval; no runtime edits.
 
+### 2026-09-23 — execution approved; gate refinement
+
+Operator approved the detailed plan. First change-code review became stale after
+a peer project commit moved HEAD, so no gate result was persisted. Its feedback
+was checked against existing start transitions and operationQueue; refined the
+plan with explicit transition authority, operating envelope, artifact cleanup
+ownership and function-level test strategies. No new lifecycle state machinery.
+Rerunning change-code before any runtime edits.
+
 ## Revisions
 
 ### 2026-09-23 — Thread ownership remains with the environment main checkout
