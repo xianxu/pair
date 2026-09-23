@@ -332,7 +332,7 @@ README.md, atlas/couch.md, atlas/index.md, issue and project state.
 - [x] Run `PAIR_LIVE_WORKSPACE=1 go test ./cmd/internal/couchcore -run '^TestProvisionConformance$' -count=1 -v`.
 - [x] Document repeatable readiness, marker semantics, #306 ownership and manual
   recovery for unverifiable partial hosts; link the atlas page.
-- [ ] Run targeted race tests, `make runtimebundle-generate`, `go test ./... -count=1`,
+- [x] Run targeted race tests, `make runtimebundle-generate`, `go test ./... -count=1`,
   and `go vet ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
 - [x] Build `make pair bin/couch`; smoke the CLI against isolated temporary repos/data.
 - [ ] Reconcile evidence and commit; run `sdlc close --issue 305
