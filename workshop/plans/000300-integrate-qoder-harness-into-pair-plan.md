@@ -27,14 +27,13 @@
 |------|----------|--------|
 | `AgentQoder` (enum value) | `cmd/internal/sessioninventory/model.go` | new |
 | `supportedAgents` + qoder row | `cmd/internal/launcher/agent_defaults.go` | modified |
-| Claude-family scanner core (`scanClaudeFamily`, `validateClaudeFamilyDelta`) | `cmd/internal/sessioninventory/scan_claude.go` | modified |
-| `ScanQoder` / `ValidateQoderDelta` | `cmd/internal/sessioninventory/scan_qoder.go` | new |
+| Claude-family record transition (`validateClaudeFamilyDelta`) | `cmd/internal/sessioninventory/scan_claude.go` | modified |
+| `ValidateQoderDelta` | `cmd/internal/sessioninventory/scan_qoder.go` | new |
 | `resumeToken`/`composeResumeArgs` qoder case | `cmd/internal/launcher/agentargs.go` | modified |
 | `extractExplicitResume` qoder case | `cmd/internal/launcher/createlogic.go` | modified |
 | `ValidateFreshAgentArgs`/`freshValueOption` qoder case | `cmd/internal/launcher/fresh_args.go` | modified |
-| `qoder` TTY profile (keymap + recognizer + overlay) | `cmd/internal/wrapcmd/harness_tty.go` | new entry |
 | Qoder composer recognizer | `cmd/internal/wrapcmd/composer_recognizers.go` | new (capture-gated) |
-| `runQoder` + `DefaultModel` qoder row | `cmd/internal/model/model.go` | new / modified |
+| `DefaultModel` qoder row | `cmd/internal/model/model.go` | modified |
 | Prompt-glyph registrations | `nvim/scrollback.lua`, `cmd/internal/wrapcmd/orientation.go`, `cmd/internal/changelogcmd/distill.go` | modified (capture-gated) |
 
 - **`AgentQoder` + `supportedAgents` row** — the §0 registry pair. One string in the launcher slice (couch menus, switch-agent validation, storage-GC, rename/migrate derive from it automatically) and one typed value in the sessioninventory enum (scanners, ledger records, CLI). They join in the same commit — a half-joined registry is the drift the atlas §0 warns about.
@@ -54,11 +53,14 @@
 
 | Name | Lives in | Status | Wraps |
 |------|----------|--------|-------|
+| `scanClaudeFamily` / `scanClaudeFamilyFile` and `ScanQoder` | `cmd/internal/sessioninventory/scan_claude.go`, `scan_qoder.go` | modified / new | `Runtime` native roots, files, and record reads |
+| `qoder` TTY profile registration | `cmd/internal/wrapcmd/harness_tty.go` | new entry | proxy keymap, recognizer, and overlay dispatch |
 | OSRuntime qoder root | `cmd/internal/sessioninventory/runtime_os.go` | new row | `~/.qoder/projects` filesystem |
 | Live TTY capture fixtures | `cmd/internal/wrapcmd/testdata/tty/qoder/1.1.59/` | new | real qoder PTY output |
 | Scanner conformance fixtures | `cmd/internal/sessioninventory/testdata/native/qoder/v1/qoder-projects/` | new | real qoder transcript shapes (sanitized) |
 | `ProviderQoderJSONLV1` contract | `cmd/internal/sessioninventory/provider_contract.go` | new row | reviewed append-only producer contract |
 | Watcher/ledger/CLI membership | `sessionwatch/sessionwatch.go`, `sessionledger/record.go`, `sessioninventory/runcli.go` | modified | agent allowlists |
+| `detectQoderOverlayOpen` | `cmd/internal/wrapcmd/wrap.go` | new | proxy-owned rolling overlay state |
 | Qoder settings (trust) | `~/.qoder/settings.json` | config | qoder permission system (aspect 6, static — no signal) |
 | `runQoder` print invocation | `cmd/internal/model/model.go` | new | `qoder -p` subprocess (slug summarize) |
 
@@ -888,3 +890,7 @@ The gate refused finalization with four open Importants; all are fixed before th
 - **BR-44 (headless-call-leaves-durable-residue):** `runQoder` passes `--no-session-persistence` (argv pinned red-first in `wantArgs`); live conformance re-run measured no new files in the TMPDIR project dir (the 16:00 pre-flag jsonl was not touched).
 - **BR-45 (deferred-work-not-in-executing-task):** Task 17 gained Step 3 (settled-footer capture → `isFooterChrome` extension → no-op Alt+l verification), restated above in place; the M5 checklist now owns the carried #58-class risk instead of a Revisions paragraph only.
 - **Minors:** (E) the Lua parity test's class escape now uses the Vim dialect (`\`, `\]`, `\-`, `\^` — the row is consumed by `vim.fn.search`; the Lua-pattern dialect was wrong for future glyphs) and the missing-file fatal names drift; (F) the allowlist **moved from user scope to `<repo>/.qoder/settings.local.json`** — measured: from the repo cwd `make` resolves `shell.rule_prefix.allow` (local scope applies), from `/tmp` the same command hits `shell.no_match.ask` (repo-bound), and the chained probe `git rev-parse … && mkdir …` hits `shell.no_match.ask` (no prefix-rule leak into compound tails, denied headless); `~/.qoder/settings.json` is back to its pre-M4 content (backups: `/tmp/qoder-settings-backup-1790033243.json`, `-1790034148.json`); (H) `TestHandleChunk_OscScannedBeforeCarryIsBounded` is table-driven over every OSC-reading profile (claude 777 + codex `9;Plan mode prompt:`); both rows mutation-verified red under the restored bound-first order.
+
+### 2026-09-22 — Close review BR-50: correct pure/integration classification
+
+The close review found the Core concepts table classified scanner IO and a subprocess as PURE. The classification now follows the function boundary (ARCH-PURE): `validateClaudeFamilyDelta` and `ValidateQoderDelta` are deterministic transitions over supplied records; `scanClaudeFamily`, `scanClaudeFamilyFile`, and `ScanQoder` read native roots and records through `Runtime` and are INTEGRATION. `DefaultModel` is a pure model-name choice; `runQoder` launches `qoder -p` and remains only in Integration points. The Qoder TTY profile registration and `detectQoderOverlayOpen` are also listed as INTEGRATION because they connect the pure snapshot recognizer to the proxy and its mutable overlay carry. Other Pure table rows were checked for external reads, process launches, and retained state; no further IO entry point remains there. This corrects plan taxonomy only; implementation and test behavior are unchanged.

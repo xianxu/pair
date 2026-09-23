@@ -1,5 +1,14 @@
 # Lessons
 
+## Classify each function at its effect boundary (#300 close review)
+
+A Core concepts row grouped `scanClaudeFamily` with its record transition and
+`runQoder` with `DefaultModel`, then called both groups PURE. The scanner reads
+through `Runtime`; the model runner launches a subprocess. Before a boundary
+review, split mixed rows into deterministic decisions and IO/stateful adapters.
+Check every PURE row for external reads, subprocesses, and retained mutable
+state, then name those entry points under INTEGRATION (ARCH-PURE).
+
 ## Retiring an action also retires descriptions of its retry path (#291 review)
 
 The boundary review found two present-tense `submit/compose` descriptions after

@@ -593,6 +593,47 @@ rounds:
       boundary: M4
       recipe: milestone-review
       blocked: false
+    - "n": 13
+      timestamp: "2026-09-22T20:59:09-07:00"
+      agent: codex
+      dispose:
+        - id: BR-15
+          disposition: addressed
+          note: resumeform.Forms drives the consumers; table-ranging tests cover glued and valueless forms.
+          round: 13
+        - id: BR-16
+          disposition: addressed
+          note: TestAgentInventoryParityWithSessionTables now probes sessionledger.ParseLedger.
+          round: 13
+        - id: BR-25
+          disposition: addressed
+          note: The parity and fail-closed tests and implementation are committed in the pinned range.
+          round: 13
+        - id: BR-26
+          disposition: addressed
+          note: TestAdvanceTargetValidationPerAgent now ranges SupportedAgents().
+          round: 13
+        - id: BR-27
+          disposition: addressed
+          note: Both default arms use artifactDiagnostic; unknown-agent tests exercise both paths.
+          round: 13
+        - id: BR-41
+          disposition: addressed
+          note: The shared pump scans before trimming; the Claude and Codex long-chunk rows exercise it.
+          round: 13
+        - id: BR-49
+          disposition: addressed
+          note: The requested out-of-scope follow-up was committed as pair#304; Claude and Muse behavior remains for that issue.
+          round: 13
+      findings:
+        - id: BR-50
+          severity: Critical
+          title: Core concepts labels scanner IO and runQoder as PURE (ARCH-PURE)
+          detail: 'The plan''s PURE table lists scanClaudeFamily, ScanQoder, and runQoder, although the scanners consume Runtime and runQoder launches a subprocess. Reclassify these entry points as INTEGRATION and record the correction in ## Revisions.'
+          family: pure-integration-classification-drift
+          round: 13
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#300 (boundary-review)
@@ -831,12 +872,23 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-49** [Minor] `headless-call-leaves-durable-residue` runClaude and runMuse still persist a transcript per headless call, the class BR-44 fixed only for qoder
   This is the 3rd finding in family `headless-call-leaves-durable-residue`. The rule: every headless runner in model.go must pass its agent's no-persistence flag or carry a comment naming why it cannot, pinned by one table test over the agents Run dispatches. `claude --help` lists `--no-session-persistence` and `muse exec --help` lists `--no-session-log`; `codex exec` already passes `--ephemeral`. `~/.claude/projects` holds residue project dirs from `-private-tmp` cwds. The gap predates this diff and is outside qoder's scope, so it does not block M4. Log it as a follow-up issue rather than widening #300.
 
+## Round 13 — 2026-09-22T20:59:09-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-15 — addressed — resumeform.Forms drives the consumers; table-ranging tests cover glued and valueless forms.
+- BR-16 — addressed — TestAgentInventoryParityWithSessionTables now probes sessionledger.ParseLedger.
+- BR-25 — addressed — The parity and fail-closed tests and implementation are committed in the pinned range.
+- BR-26 — addressed — TestAdvanceTargetValidationPerAgent now ranges SupportedAgents().
+- BR-27 — addressed — Both default arms use artifactDiagnostic; unknown-agent tests exercise both paths.
+- BR-41 — addressed — The shared pump scans before trimming; the Claude and Codex long-chunk rows exercise it.
+- BR-49 — addressed — The requested out-of-scope follow-up was committed as pair#304; Claude and Muse behavior remains for that issue.
+
+### Raised
+
+- **BR-50** [Critical] `pure-integration-classification-drift` Core concepts labels scanner IO and runQoder as PURE (ARCH-PURE)
+  The plan's PURE table lists scanClaudeFamily, ScanQoder, and runQoder, although the scanners consume Runtime and runQoder launches a subprocess. Reclassify these entry points as INTEGRATION and record the correction in ## Revisions.
+
 ## Open findings
 
-- **BR-15** [Minor] `resume-form-recognized-but-not-stripped` Resume-form set is hand-restated at four sites; glued `-r<id>` and valueless `--resume` still diverge between extract, strip and validate
-- **BR-16** [Minor] `agent-dispatch-registration-gap` Parity test covers 3 of the session-side agent dispatch sites; sessionledger.isSupportedAgent is named in the gap message but never probed
-- **BR-25** [Minor] `unbacked-existing-behavior-claim` Issue Log line 184 (this window) records BR-18/BR-24 as delivered; no commit contains them and the working-tree version only partly delivers them
-- **BR-26** [Minor] `hand-restated-registry` TestAdvanceTargetValidationPerAgent hardcodes its four-agent list instead of ranging SupportedAgents()
-- **BR-27** [Minor] `agent-dispatch-registration-gap` The two fail-closed default arms have different shapes and neither uses the artifactDiagnostic helper
-- **BR-41** [Minor] `detector-carry-bounded-before-scan` Shared chunk pump trims rolling to 512 bytes before checkOverlayOpen, so Claude/Codex OSC detectors miss an OSC followed by 512+ bytes in one chunk
-- **BR-49** [Minor] `headless-call-leaves-durable-residue` runClaude and runMuse still persist a transcript per headless call, the class BR-44 fixed only for qoder
+- **BR-50** [Critical] `pure-integration-classification-drift` Core concepts labels scanner IO and runQoder as PURE (ARCH-PURE)
