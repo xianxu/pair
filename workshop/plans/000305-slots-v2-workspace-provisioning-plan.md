@@ -35,7 +35,15 @@ Errors end the invocation visibly; there is no background or unbounded retry loo
 parked thread, before agent launch. Warm reattachment to a still-running agent
 only reconnects; it does not run setup. Primary :0 behavior remains unchanged.
 The operation creates no agent/thread. #306 supplies automatic number selection,
-parked admission and the reservation through thread launch. Existing start-form
+parked admission and thread reservation through launch. #305 accepts a concrete
+slot number and has no thread effects, so it requires no reservation capability.
+Its completion grants workspace readiness only, never permission to launch.
+#306 must reserve the selected workspace in its authoritative thread lifecycle
+before calling provisioning, keep that reservation through launch, and release
+it on failure; a competing thread launch must refuse while it is held. Its
+reservation representation is designed in #306, which depends on #305, not the
+reverse. The standalone provisioning operation is safe without that reservation:
+it can prepare/reuse the same workspace but cannot create a duplicate thread. Existing start-form
 preview remains read-only; existing primary startup does not invoke provisioning.
 
 The host path is `<fleet>/worktree/<repo>-slotN/<repo>`, resting on main-slotN.
@@ -129,12 +137,15 @@ the marker baseline.
 For an absent host, select remote: explicit --remote; otherwise main's configured
 remote when its merge target is refs/heads/main; otherwise the sole configured
 remote. Reject ambiguity, local-dot tracking, invalid or missing sources.
-Fetch main into its usual tracking ref, read its commit, and write CreationIntent
-before branch/worktree creation. The repository-wide creation lock excludes the
-other Couch fetch/read sequences, so private fetch refs and cleanup are unnecessary.
-The chosen baseline is the tracking SHA observed after fetch. External user Git
-commands remain outside Couch's lock; record and consistently use that observed
-SHA, never reread it as the creation start point. No implicit local-main update.
+Fetch main into its usual tracking ref using `git fetch --porcelain --no-tags
+--no-recurse-submodules --no-write-fetch-head --refmap= <remote>
++refs/heads/main:refs/remotes/<remote>/main`. Parse the new full OID from the one
+matching porcelain row with ParseFetchBaseline; reject failed/ambiguous output.
+Use this command's output, never a subsequent tracking-ref read, as the captured
+baseline. Even an external fetch between completion and recording cannot change
+that value. Persist CreationIntent before branch/worktree creation. Git lacking
+--porcelain fails visibly; do not fall back to a racy capture. No private refs or
+local-main updates are needed.
 
 CreationIntent is `<common>/couch-workspaces/<N>/creation.json`, bounded 16 KiB.
 If it exists, the same invocation uses its recorded SHA without fetching again.
@@ -221,7 +232,7 @@ Git and filesystem evidence determine progress; there is no persisted state mach
 
 - Local probe: 5 seconds; fetch: 120 seconds; Weave: 20 minutes. These are initial
   engineering defaults, injectable in tests. Timeout preserves work and exposes retry.
-- One synchronous subprocess per invocation. Run outside the UI event loop.
+- One subprocess at a time per invocation (several sequential commands). Run outside the UI event loop.
   Requests use context cancellation; CLI SIGINT/SIGTERM gets a scoped context.
 - Direct Git children inherit the creation lease. Close-only flock lifetime
   survives caller death. Weave independently manages its inherited setup lease.
@@ -242,82 +253,91 @@ Git and filesystem evidence determine progress; there is no persisted state mach
 
 ## Tests and execution tasks
 
+Each task follows failing test → minimum implementation → passing test → commit.
+Use deterministic barriers for concurrent outcomes, stateful fakes for command
+outcomes and real temporary Git repositories for actual ref/worktree behavior.
+
 ### Task 1 — checked inputs and host decisions
 
-Create `workspace_identity.go`, `provision_host.go`, `provision_select.go` and
-colocated tests. Put request/result structs in `provision.go`, record structs
-in `provision_store.go`.
+Create workspace_identity.go, provision_host.go, provision_select.go and colocated
+tests. Put request/result structs in provision.go, records in provision_store.go.
 
-- [ ] Write failing tests for v2 transport/nullability/unknown versions/duplicate
-  keys/trailing data, slot grammar, identity mismatch and the decision table.
-- [ ] Test lowest-ready reuse, numeric order, occupied/unknown/partial exclusions
-  and selection races requiring caller revalidation.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'Test(WorkspaceIdentity|ProvisionRequest|ProvisionHost|SelectWorkspaceNumber)' -count=1`;
-  implement pure parsers/decisions, rerun green and commit.
+- [ ] ParseWorkspaceIdentity / ParseProvisionRequest: malformed transport/grammar
+  → strict decode, required-field checks and fuzzed boundary input.
+- [ ] NextHostAction: incomplete/conflicting observations → total decision table
+  with safe refusal and repeat-invocation properties.
+- [ ] SelectWorkspaceNumber: unsorted/occupied/partial observations → pure minimum
+  selection; output never implies a thread reservation.
+- [ ] Run `go test ./cmd/internal/couchcore -run 'Test(WorkspaceIdentity|ProvisionRequest|ProvisionHost|SelectWorkspaceNumber)' -count=1`.
 
 ### Task 2 — host creation and small durable records
 
-Create `provision_io.go`, `provision_store.go`, `provision_lock_unix.go`,
-`provision_fake_test.go`, `provision_git_test.go`, `provision_subprocess_test.go`.
-The fake models refs/upstreams, Git membership, files, locks and command outcomes
-across calls, including a successful effect with a lost acknowledgment. It does
-not simulate dependency internals. Real Git fixtures check the consumed commands.
+Create provision_io.go, provision_store.go, provision_lock_unix.go,
+provision_fake_test.go, provision_git_test.go, provision_subprocess_test.go.
 
-- [ ] Write failing tests for new :1/:2, different local/remote HEAD, primary
-  dirty/untracked work, missing/ambiguous/non-origin remotes, spaces/hyphens,
-  collisions, branch creation acknowledgment loss and partial upstream writes.
-- [ ] Verify same-repo requests serialize fetch/capture/creation and preserve the
-  captured SHA across interruption, while different repo requests stay independent.
-- [ ] Test inherited Git lease after caller death, strict/atomic records and
-  marker placement in actual per-worktree Git directories.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'TestProvision(Host|Git|Store|Lease)' -count=1`;
-  implement host routine/records/lease, rerun green and commit.
+- [ ] WorkspaceProvisioner.ensureHost: interrupted Git effects and foreign
+  collisions → reconcile owned evidence in stateful fake + real Git fixture;
+  verify repeated calls preserve user refs/files.
+- [ ] ParseFetchBaseline: malformed/ambiguous fetch output and later tracking-ref
+  changes → strict porcelain parsing + real Git with deterministic intervening fetch.
+- [ ] ProvisionStore read/write: malformed, oversized, aliased or interrupted
+  records → strict bounded IO and atomic publication; barriers guard cleanup races.
+- [ ] AcquireHostCreationLease / OSProvisionIO.Run: contention, caller death and
+  hanging children → subprocess fixtures prove inherited exclusion and bounded wait.
+- [ ] Run `go test ./cmd/internal/couchcore -run 'TestProvision(Host|Git|Store|Lease)|TestParseFetchBaseline' -count=1`.
 
-### Task 3 — Weave retry and production operation
+### Task 3 — Weave readiness and production operation
 
-Implement `WorkspaceProvisioner` in `provision.go`. Modify couch.go, ops.go,
+Implement WorkspaceProvisioner.Ensure in provision.go. Modify couch.go, ops.go,
 operationdispatch.go, couchcmd/run.go. Add couchcmd/provision_test.go and update
-operation/CLI/readme contracts.
+operation/CLI contracts. Inject production IO in OSRuntime.NewCouchWith.
 
-- [ ] Write failing tests: missing marker runs Weave; exit 0 writes success;
-  failure does not; lost publication repeats compile; valid success skips it;
-  malformed/mismatched markers refuse; host branch/dirty changes are preserved.
-- [ ] Use a deterministic barrier to overlap marker publication and temporary
-  cleanup; verify the shared lock protects active writes. Test externally created
-  hosts capture main-slotN as baseline without changing current HEAD/files.
-- [ ] Test identical invocations recover missing success after failure/interruption
-  without a retry flag, preserve owned Git progress and skip confirmed setup.
-- [ ] Model Weave busy/success/failure through the process seam. Test serial
-  duplicate retries as acceptable and no duplicate host creation or thread launch.
-- [ ] Wire PresentationInternal + ExecuteDirectStore + EffectProcess + a new
-  workspace result family. Args: path, --slot=N, optional --remote=R.
-- [ ] Inject WorkspaceProvisioner in OSRuntime.NewCouchWith; route progress to
-  stderr and result JSON to stdout. Tests explicitly inject the fake, never an
-  ambient real process/filesystem fallback. Keep PrepareStart unchanged.
-- [ ] Test internal CLI -> dispatcher -> provisioner, cancellation, nonzero
-  failure, no supervisor acquisition and no AllocateThreadTag/agent launch.
-- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`;
-  fix regressions and commit.
+- [ ] WorkspaceProvisioner.Ensure: lost acknowledgments and repeated invocations
+  → stateful fixture models success/busy/failure; confirmed setup skips Weave,
+  unconfirmed setup repeats it without a mode flag or dependency simulation.
+- [ ] DirectStoreExecutor / RunWithRuntime: malformed calls and setup failures
+  → exercise CLI through the real dispatcher with injected IO; assert progress on
+  stderr, JSON result on stdout and no supervisor/thread/agent creation.
+- [ ] Register PresentationInternal + ExecuteDirectStore + EffectProcess + new
+  workspace result family; args path, --slot=N, optional --remote=R.
+- [ ] Run `go test ./cmd/internal/couchcore ./cmd/internal/couchcmd -count=1`.
 
 ### Task 4 — conformance, documentation and one close boundary
 
-Add `provision_conformance_test.go`, atlas/workspace-provisioning.md; update
+Add provision_conformance_test.go, atlas/workspace-provisioning.md; update
 README.md, atlas/couch.md, atlas/index.md, issue and project state.
 
-- [ ] Opt-in `PAIR_LIVE_WORKSPACE=1` test runs actual SDLC v2 + Weave on isolated
-  minimal Git fixtures without packages/tools/generators. Exercise real marker
-  publication, missing-marker repeat and ready reuse; host remotes can be local
-  test bare repos, and the minimal Weave fixture has no local-source dependencies.
+- [ ] TestProvisionConformance: actual SDLC v2 + Weave against isolated Git
+  fixtures → verify initial setup, repeat readiness and preservation of host and
+  dependency work. Minimal manifests omit package/tool/generator effects.
 - [ ] Run `PAIR_LIVE_WORKSPACE=1 go test ./cmd/internal/couchcore -run '^TestProvisionConformance$' -count=1 -v`.
-- [ ] Document internal invocation, retry, setup-success meaning, #306 ownership
-  and manual recovery for unverifiable partial hosts. Link the atlas page.
+- [ ] Document repeatable readiness, marker semantics, #306 ownership and manual
+  recovery for unverifiable partial hosts; link the atlas page.
 - [ ] Run targeted race tests, `make runtimebundle-generate`, `go test ./... -count=1`,
   and `go vet ./cmd/internal/couchcore ./cmd/internal/couchcmd`.
-- [ ] Build `make pair couch`; exercise CLI against temporary repos and isolated
-  Couch/Pair data roots. Verify refs/files and no setup on ready reuse.
-- [ ] Reconcile checkboxes/evidence and commit; run `sdlc close --issue 305
-  --verified '<observed evidence>'` once. Its review owns the boundary.
-- [ ] After successful close, use `sdlc pr` and `sdlc merge` for publication.
+- [ ] Build `make pair couch`; smoke the CLI against isolated temporary repos/data.
+- [ ] Reconcile evidence and commit; run `sdlc close --issue 305
+  --verified '<observed evidence>'` once, then sdlc pr / sdlc merge.
+
+## Operating envelope and exclusions
+
+This is an interactive local-workstation operation. Five-second probes detect a
+stalled local Git/SDLC command; 120-second fetch and 20-minute setup allow network
+and build work while bounding a stuck invocation. These are policy ceilings,
+not measured latency promises. The 1 MiB structured-output cap is ample for one
+identity/ref response; the 64 KiB diagnostic tail bounds verbose build failures.
+Tests inject shorter limits. There is no background scheduler.
+
+The operator owns retained workspaces and their disk cost. Git worktree list
+shows hosts now; #307 adds grouped discovery. Removal is deliberate ordinary Git
+worktree removal followed by operator inspection/removal of sibling clones.
+Couch never guesses whether an abandoned directory's work is disposable. Slot
+count increases retained disk consumption, not per-launch metadata history.
+
+Non-goals: thread launch/admission/reservations (#306), UI grouping (#307),
+automatic refresh/branch transfer (explicit Ariadne workflow), dependency inventory
+or repair (Weave), a retry mode (same operation repeats), and automatic removal
+(operator owns retained user work).
 
 ## Architecture and approval
 
@@ -378,3 +398,12 @@ Delta: removed --retry; every call reuses verified completion and reapplies safe
 unconfirmed steps. #306 invokes readiness before numbered-workspace launch/cold
 resume; warm reattachment skips setup. Failure returns visibly; the next ordinary
 invocation recovers without a separate mode. Existing collision safeguards remain.
+
+### 2026-09-23 — implementation gate refinements
+
+PQ-1: capture the fetch command's porcelain OID instead of rereading a mutable
+tracking ref; no private refs. PQ-2: clarify readiness grants no thread authority;
+#306 owns reservations before calling this independently usable operation, so
+adding a reverse dependency would create a cycle. PQ-3: replace test case prose
+with named function strategies. PQ-4–6: clarify workload budgets, retention owner
+and exclusions. Product behavior and approved simplification are unchanged.
