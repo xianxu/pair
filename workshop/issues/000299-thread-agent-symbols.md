@@ -72,3 +72,22 @@ The symbol is a suffix on the displayed repository/thread label, not a
 replacement for the agent name. Examples: `brainⓞ` for a Codex thread and
 `parley.nvimⓠ` for a Qoder thread. The suffix reflects the agent currently
 owning that thread.
+
+### 2026-09-21 — color ownership; defer inline model strength
+
+Extend the badge with a stable per-agent color, applying the color to the
+symbol rather than changing the label grammar. Keep the agent name available
+for accessibility and unknown-agent fallback. Color answers “which agent is
+this?” at a glance without adding another character.
+
+Model strength is a distinct, optional dimension introduced by couch slots.
+Possible punctuation (`ⓞ` fast, `ⓞ:` balanced, `ⓞ!` top) is compact but quickly
+becomes hard to scan when combined with slot labels, for example
+`brainⓞ. :1! :2:`. Do not commit to that inline encoding yet. First expose the
+effective harness/model in secondary metadata such as a detail view, tooltip,
+or legend; promote it into the primary row only if real usage shows that the
+extra information is worth the density.
+
+The agent badge and model-strength presentation must remain separate
+derivations: changing a model profile must not change thread identity, sorting,
+or the canonical agent symbol.
