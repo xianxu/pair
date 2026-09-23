@@ -1,11 +1,12 @@
 ---
 id: 000307
-status: open
+status: working
 deps: [pair#306]
 github_issue:
 created: 2026-09-22
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T16:46:34-07:00
 ---
 
 # Slots v2: group switcher and tab bar
@@ -28,6 +29,14 @@ This section takes precedence over earlier conflicting layout or policy text.
 
 Update the agreed switcher examples to `pair /workspace/pair`, indented `pair:1 /workspace/worktree/pair-slot1/pair`, and `pair:2 /workspace/worktree/pair-slot2/pair`. Tab labels remain `pair :1 :2 brain ariadne ...`. Show the actual main checkout path, not only its enclosing environment directory. Primary repositories retain their own direct Couch entries; ordinary dependency clones inside numbered environments do not automatically appear as additional repos/slots in the switcher or tab bar. Operators access those dependencies through the parent thread; no new dependency-management UI is required.
 
+### Proposed display details — 2026-09-23
+
+Shared pure UI projection groups by primary checkout identity, sorts repo groups alphabetically with deterministic path tie-breaks, and sorts slot numbers numerically. Grouped rows retain canonical workspace labels; custom names remain supplementary and searchable. Different checkouts with the same repo name remain distinct and get path qualifiers.
+
+Switcher shows all existing actionable members, including parked and addressless recovery slots, with full labels and slot indentation. Tabs retain attached/pending membership; parked slots do not gain tabs. Without a primary tab the first visible slot is `pair:1`, followed by `:2`. Missing primary creates no synthetic action. Existing left-to-right clipping remains; full switcher labels preserve context after filtering or scrolling.
+
+Both consumers use the same projection; selection remains keyed by `ThreadRowKey`, terminal actions by native address. Reattachment schedule, notifications, focus and storage are unchanged. The detailed plan records consumer integration and sequence tests. These display details are proposed for operator review, not yet approved.
+
 ## Done when
 
 - Switcher shows grouped full labels and actual checkout paths with slot indentation; tab bar shows repo followed by :N labels.
@@ -40,7 +49,7 @@ Update the agreed switcher examples to `pair /workspace/pair`, indented `pair:1 
 
 ## Plan
 
-Task outline only; settle implementation design through start-plan before change-code.
+Detailed proposed plan: [Grouped Thread Display](../plans/000307-grouped-thread-display-plan.md). Awaiting operator approval before change-code. The original outline below remains the issue-level acceptance checklist.
 
 - [ ] Specify shared group ordering and absent-primary/narrow-width presentation.
 - [ ] Wire both UI projections and selection/navigation to the shared order.
@@ -51,6 +60,10 @@ Task outline only; settle implementation design through start-plan before change
 ### 2026-09-22 — fresh v2 task
 
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
+
+### 2026-09-23 — #307 claimed and implementation mapped
+
+Ran claim and start-plan after #306 merged. Switcher currently retains inventory order; status tabs use attachment order followed by placeholders. Mapped both consumer paths and confirmed keyboard selection already uses stable slot row keys. Prepared a single-boundary implementation plan using a pure shared UI projection (ARCH-DRY/ARCH-PURE); no runtime code changed. Plan approval is pending.
 
 ## Revisions
 
@@ -66,3 +79,7 @@ host-path row identity across refresh and fresh conversation. Addressless recove
 rows remain selectable through `open-slot`/`fresh-slot`. Native scope/tag remains
 the process/terminal lookup key. #306 supplies these functional rows, while this
 issue still owns shared ordering, indentation and grouped tab labels.
+
+### 2026-09-23 — proposed shared presentation design
+
+Reason: #306 interfaces are now available and #307 is next. Delta: added explicit proposed group ordering, naming, absent-primary, parked-tab membership and width rules, plus a durable implementation plan; retained the original outline and prior scope decisions. No new lifecycle states or persistence are proposed.
