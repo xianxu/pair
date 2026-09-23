@@ -21,19 +21,20 @@ the original project's issue list is not automatically the v2 commitment.
 
 ### Current host starting-point contract — 2026-09-23
 
-New slots start from relevant committed local work in the source workspace
-(default :0, or an explicitly selected :N). The operator/agent commits relevant
-edits before preparation; Couch records the source address and exact commit and
-creates main-slotN at that SHA. The transferred snapshot includes its committed
-ancestry. The source must meet the agreed clean-source readiness checks.
-Remote/main remains the tracking upstream and does not determine the starting
-SHA. Source movement after acceptance cannot silently change what is provisioned;
-retries retain the reserved SHA. Existing slots keep their current state.
+New host slots start from fetched configured-remote main. Couch captures that
+commit, creates main-slotN there, and sets the corresponding remote/main upstream.
+Provisioning leaves primary local commits and dirty files untouched and makes no
+judgment about which edits to commit or transfer. Interrupted creation retains
+the captured baseline; existing slots preserve their current state.
 
-This supersedes the earlier requirement to initialize the host from fetched
-remote main. It applies to the main worktree of the numbered environment;
-private dependency clones retain the origin/main initialization contract below.
-#305 owns provisioning and #309 verifies the inherited local work in the trial.
+Once a slot is running, the operator and agent can deliberately bring local work
+over: prepare relevant source commits, then create an issue branch from another
+workspace's current committed snapshot. That separate workflow follows the
+agreed source/destination readiness rules and leaves resting branches unchanged.
+#305 owns deterministic provisioning; ariadne#245 owns branch-from-workspace
+behavior; #309 verifies both actions separately. Private dependency clones retain
+the origin/main initialization contract below. This supersedes the local-source
+host initialization proposal recorded in the revisions.
 
 ### Current layout and dependency contract — 2026-09-23
 
@@ -557,3 +558,11 @@ Reason: operator explicitly requested carrying relevant committed local changes
 into new slots. Delta: host main-slotN starts at the accepted source-workspace
 SHA, with remote/main tracking configured separately. Updated #305 and #309;
 private dependency initialization and explicit refresh retain their contracts.
+
+### 2026-09-23 — restore remote-main host initialization
+
+Reason: operator confirmed that deciding which local work to commit belongs to
+the agent/operator after slot startup. Delta: restored fetched remote/main as
+the new host baseline in #305 and #309, removed local-source preparation from
+provisioning, and retained explicit later issue-branch transfer via ariadne#245.
+This supersedes the preceding local-commit initialization revision.
