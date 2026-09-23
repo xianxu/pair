@@ -5,8 +5,9 @@ deps: [pair#305]
 github_issue:
 created: 2026-09-22
 updated: 2026-09-23
-estimate_hours:
+estimate_hours: 14.37
 started: 2026-09-23T13:12:13-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Slots v2: multiple threads and parked admission
@@ -104,6 +105,106 @@ Execute the durable plan after operator approval and the full change-code gate.
 - [ ] Finalize local storage/migration and recovery integration against the revised durable-slot model.
 - [ ] Implement shared startup/lifecycle wiring with stateful tests at actual launch boundaries.
 - [ ] Verify local authority/index rebuilding, dirty-work preservation, resume/start-fresh recovery, and primary compatibility.
+
+## Estimate
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md`
+against `baseline-v3.1.md`. Method A only.* Source calibration is marked stale;
+this is a provisional ship-wall-clock estimate.
+
+Derived after plan-quality acceptance. Estimate review found that the first
+breakdown grouped distinct integrations too coarsely. The revised decomposition
+below separates the actual implementation boundaries, especially all five GC
+consumers, fixture construction, and the three UI flows; the total is their sum.
+Tests belong to their owning component; integrated acceptance fixture construction
+and installed external conformance are distinct work. Scope includes docs and ship.
+
+Existing Go journals, lifecycle transitions and provisioning are reused; no external
+library implements the repo-specific local authority migration, so there is no
+extra library-availability discount. Thorough-plan design discount is ×0.2, except
+initial issue/spec dialogue. Familiarity is 1.0. Each greenfield row starts with
+v2 design 1.0 and impl 0.8; smaller-module rows with 0.3/0.5; consumer refactors
+with 0.5/0.5; UI flows with 1.0/1.0; docs with 0.2/0.2; close with 0.2/0.5.
+The implementation column applies v3.1's ×0.4 once. Real-API rows use 0/0.4.
+The initial dialogue row uses 1.0/0.2 without spec discount. Design buffer is 15%.
+
+| Boundary (same order as estimate rows) | Primitive | Design | Impl |
+| --- | --- | --- | --- |
+| issue/spec dialogue | issue-spec | 1.00 | 0.08 |
+| slot identity and observation decisions | greenfield-go-module | 0.20 | 0.32 |
+| workspace references and allocation | greenfield-go-module | 0.20 | 0.32 |
+| stable thread targets | greenfield-go-module | 0.20 | 0.32 |
+| filesystem/Git slot catalog | greenfield-go-module | 0.20 | 0.32 |
+| stateful catalog fixture and conformance | greenfield-go-module | 0.20 | 0.32 |
+| local layout adapter | greenfield-go-module | 0.20 | 0.32 |
+| backend routing and index rebuild | greenfield-go-module | 0.20 | 0.32 |
+| repository enrollment migration | greenfield-go-module | 0.20 | 0.32 |
+| native session evidence collection | greenfield-go-module | 0.20 | 0.32 |
+| same-slot reconstruction | greenfield-go-module | 0.20 | 0.32 |
+| atomic fresh replacement | greenfield-go-module | 0.20 | 0.32 |
+| cold-launch readiness orchestration | greenfield-go-module | 0.20 | 0.32 |
+| retained-evidence recovery backup handling | greenfield-go-module | 0.20 | 0.32 |
+| integrated multi-slot acceptance fixture | greenfield-go-module | 0.20 | 0.32 |
+| GC Snapshot reference inventory | smaller-go-module | 0.06 | 0.20 |
+| GC Recover journals | smaller-go-module | 0.06 | 0.20 |
+| GC Onboard archive grace | smaller-go-module | 0.06 | 0.20 |
+| GC Detach exact archived owner | smaller-go-module | 0.06 | 0.20 |
+| GC Forget receipt routing | smaller-go-module | 0.06 | 0.20 |
+| ThreadStore mutation and metadata consumers | cross-cutting-refactor | 0.10 | 0.20 |
+| continuation and launch preference consumers | cross-cutting-refactor | 0.10 | 0.20 |
+| CLI startup/reference dispatch | cross-cutting-refactor | 0.10 | 0.20 |
+| startup evidence and parked admission consumers | cross-cutting-refactor | 0.10 | 0.20 |
+| stable inventory row selection | tui-screen | 0.20 | 0.40 |
+| slot start/preview submission | tui-screen | 0.20 | 0.40 |
+| same-slot recovery actions | tui-screen | 0.20 | 0.40 |
+| README operator workflow | atlas-docs | 0.04 | 0.08 |
+| atlas maps/index | atlas-docs | 0.04 | 0.08 |
+| project and downstream issue contracts | atlas-docs | 0.04 | 0.08 |
+| one close/publication boundary | milestone-review | 0.04 | 0.20 |
+| installed SDLC identity conformance | real-api-discovery | 0.00 | 0.16 |
+| installed Weave setup conformance | real-api-discovery | 0.00 | 0.16 |
+
+Design 5.26 × 1.15 + implementation 8.32 = **14.37 hours**.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=1.00 impl=0.08
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: greenfield-go-module design=0.20 impl=0.32
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: smaller-go-module design=0.06 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: cross-cutting-refactor design=0.10 impl=0.20
+item: tui-screen design=0.20 impl=0.40
+item: tui-screen design=0.20 impl=0.40
+item: tui-screen design=0.20 impl=0.40
+item: atlas-docs design=0.04 impl=0.08
+item: atlas-docs design=0.04 impl=0.08
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.20
+item: real-api-discovery design=0.00 impl=0.16
+item: real-api-discovery design=0.00 impl=0.16
+design-buffer: 0.15
+total: 14.37
+```
 
 ## Log
 
