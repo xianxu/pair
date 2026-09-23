@@ -4,7 +4,7 @@ status: open
 deps: []
 github_issue:
 created: 2026-09-06
-updated: 2026-09-06
+updated: 2026-09-21
 estimate_hours:
 ---
 
@@ -151,3 +151,26 @@ criterion.
 Nothing in the change needs new data — `StartArgs.Cwd` already distinguishes
 "operator named a subdirectory" from "started at the tree root", which is
 exactly the condition the requested format turns on.
+
+## Revisions
+
+### 2026-09-21 — slot labels have a canonical source
+
+The couch-slots direction now fixes the operator-facing identity separately
+from the display treatment: the working directory and branch are provisioned by
+couch, while this issue owns the shared display derivation. A slot should read
+as the same repo group everywhere — `pair :1` / `pair :2` — even when the
+underlying path is `worktree/pair-1` (or its explicit `pair-slot1` spelling).
+
+The derivation must identify the primary repo from Git's common directory, not
+from `filepath.Base` of the slot worktree. Slot number is parsed from the
+canonical couch contract, not guessed from an arbitrary final path segment.
+Keep the display spelling independent of the eventual compact-vs-explicit
+filesystem choice, so changing that choice cannot split the switcher and status
+row again (ARCH-DRY).
+
+The same display identity will eventually need to carry the effective agent
+profile without replacing the stable slot label: `pair` / `pair :1` identifies
+the workspace, while a secondary marker can say `design · <harness>/<model>`.
+Keep these as separate derivations so changing a model does not change thread
+identity or reorder the group.
