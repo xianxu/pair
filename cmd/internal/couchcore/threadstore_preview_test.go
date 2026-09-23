@@ -3,6 +3,7 @@ package couchcore
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -37,5 +38,23 @@ func TestThreadStorePreviewDoesNotRecoverJournal(t *testing.T) {
 	after, err := os.ReadFile(s.journalPath())
 	if err != nil || string(before) != string(after) {
 		t.Fatalf("preview recovered journal: %v", err)
+	}
+}
+
+func TestSlotPreferenceRefusesSymlinkedPayload(t *testing.T) {
+	s := testLocalThreadStore(t)
+	if err := os.MkdirAll(s.root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	external := s.root + "-external-preferences"
+	if err := os.WriteFile(external, []byte(`{}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(external, s.pathLaunchPreferencePath(s.slot.RepoIdentity, s.slot.WorktreeRoot)); err != nil {
+		t.Fatal(err)
+	}
+	_, _, err := s.GetPathLaunchPreference(s.slot.RepoIdentity, s.slot.WorktreeRoot)
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("unsafe preference read: %v", err)
 	}
 }

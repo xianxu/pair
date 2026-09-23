@@ -1,7 +1,9 @@
 package couchcore
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -42,7 +44,7 @@ func TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange(t *testi
 }
 
 func TestSlotFreshTransactionPreservesCorruptBytesAndRejectsFuture(t *testing.T) {
-	for _, raw := range []string{"broken", `{"schema_version":999}`} {
+	for _, raw := range []string{"broken", `{}`, `{"schema_version":0}`, `{"schema_version":999}`} {
 		t.Run(raw, func(t *testing.T) {
 			s := testLocalThreadStore(t)
 			if err := os.MkdirAll(s.root, 0700); err != nil {
@@ -59,7 +61,7 @@ func TestSlotFreshTransactionPreservesCorruptBytesAndRejectsFuture(t *testing.T)
 			next.StartingPath = s.slot.WorktreeRoot
 			next.WorkingPath = next.StartingPath
 			err = s.replaceSlotCurrent(observed, next)
-			if raw != "broken" {
+			if raw == `{"schema_version":999}` {
 				if err == nil {
 					t.Fatal("overwrote unsupported version")
 				}
@@ -133,6 +135,11 @@ func TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	saved := PathLaunchPreference{SchemaVersion: 1, RepoIdentity: local.slot.RepoIdentity, PhysicalPath: old.StartingPath, LastAgent: "claude", ArgvByAgent: map[string][]string{"claude": {"--verbose"}, "codex": {"--no-alt-screen"}}, Revision: 1}
+	preferenceRaw, _ := json.Marshal(saved)
+	if err := os.WriteFile(filepath.Join(local.root, "preferences.json"), preferenceRaw, 0600); err != nil {
+		t.Fatal(err)
+	}
 	result, err := env.Couch.StartFreshSlot(context.Background(), old.StartingPath, "claude")
 	if err != nil {
 		t.Fatal(err)
@@ -140,6 +147,10 @@ func TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences(t *testing.T) {
 	next, err := local.GetThread(result.Record.Thread)
 	if err != nil {
 		t.Fatal(err)
+	}
+	preference, found, err := local.GetPathLaunchPreference(local.slot.RepoIdentity, local.slot.WorktreeRoot)
+	if err != nil || !found || len(preference.ArgvByAgent["codex"]) != 1 || preference.ArgvByAgent["codex"][0] != "--no-alt-screen" || len(result.Record.Args.ExtraArgs) != 1 || result.Record.Args.ExtraArgs[0] != "--verbose" {
+		t.Fatalf("preferences lost %+v %v", preference, err)
 	}
 	if next.Address == old.Address || next.Name != old.Name || next.Description != old.Description || next.PublishedSummary != "" {
 		t.Fatalf("fresh identity %+v", next)
@@ -398,5 +409,103 @@ func TestSlotNativeScopeScannerIncludesClaimsAndHistory(t *testing.T) {
 	}
 	if _, err := source.SlotSessionCandidates(context.Background(), scope); err == nil {
 		t.Fatal("unreadable binding index treated as empty")
+	}
+}
+
+func TestSlotFreshPreservesExistingArchiveWhenRecoveredCurrentRetires(t *testing.T) {
+	s := testLocalThreadStore(t)
+	old := validThreadRecord(t)
+	old.StartingPath = s.slot.WorktreeRoot
+	old.WorkingPath = old.StartingPath
+	old, err := s.CreateThread(old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := []byte("retained earlier archive bytes")
+	if err := writeAtomicBytes(s.archivePath(old.Address), previous); err != nil {
+		t.Fatal(err)
+	}
+	observed, err := s.observeSlotCurrent()
+	if err != nil {
+		t.Fatal(err)
+	}
+	next := old
+	next.Address.Tag = "couch-1111111111111111"
+	if err := s.replaceSlotCurrent(observed, next); err != nil {
+		t.Fatal(err)
+	}
+	files, err := os.ReadDir(filepath.Join(s.root, "recovery"))
+	if err != nil || len(files) != 1 {
+		t.Fatalf("previous archive evidence %v %v", files, err)
+	}
+	got, err := os.ReadFile(filepath.Join(s.root, "recovery", files[0].Name()))
+	if err != nil || string(got) != string(previous) {
+		t.Fatal("earlier archive lost")
+	}
+}
+
+func TestSlotFreshRefusesUnreadableDurableRegistry(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	if err := os.WriteFile(env.Couch.Store.registryPath(), []byte("unreadable registry"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.StartFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude"); err == nil {
+		t.Fatal("fresh ignored unreadable hosted registry")
+	}
+	if len(env.Runner.Ops) != 0 {
+		t.Fatal("registry uncertainty spawned child")
+	}
+}
+
+func TestSlotFreshRetainsProcessEvidenceFromDamagedRecord(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	record := validThreadRecord(t)
+	record.Address.RepoScope = scope.Key
+	record.StartingPath = local.slot.WorktreeRoot
+	record.WorkingPath = record.StartingPath
+	record, err := local.CreateThread(record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner, _ := env.Proc.Current()
+	profile := LaunchProfile{Agent: "claude", Argv: []string{}}
+	if _, err := local.CommitStartClaim(record.Address, record.Revision, local.slot.RepoIdentity, env.Now, StartEvent{Kind: StartClaimed, Nonce: "still-preparing", Owner: SupervisorOwner{PID: owner.PID, Identity: owner.Identity}, Profile: &profile}); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(local.root, "thread.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append([]byte(`{"unknown":true,`), raw[1:]...)
+	if err := os.WriteFile(filepath.Join(local.root, "thread.json"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.StartFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude"); err == nil {
+		t.Fatal("damaged record hid live starting owner")
+	}
+	if len(env.Runner.Ops) != 0 {
+		t.Fatal("damaged record spawned second agent")
+	}
+}
+
+func TestSlotFreshSkipsLocalConversationTagWithoutNativeMarker(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	old := validThreadRecord(t)
+	old.Address = ThreadAddress{RepoScope: scope.Key, Tag: "couch-0000000000000000"}
+	old.StartingPath = local.slot.WorktreeRoot
+	old.WorkingPath = old.StartingPath
+	if _, err := local.CreateThread(old); err != nil {
+		t.Fatal(err)
+	}
+	entropy := append(make([]byte, 16), bytes.Repeat([]byte{1}, 8)...)
+	env.Couch.Entropy = bytes.NewReader(entropy)
+	result, err := env.Couch.StartFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Record.Thread == old.Address {
+		t.Fatal("fresh reused prior native conversation address")
 	}
 }

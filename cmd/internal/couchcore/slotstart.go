@@ -152,6 +152,9 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 			return StartResult{}, ErrStartResolutionChanged
 		}
 	}
+	if err := c.Threads.EnrollSlotRepository(ctx, repository); err != nil {
+		return StartResult{}, err
+	}
 	if err := c.checkSlotCreation(ctx, repository); err != nil {
 		return StartResult{}, err
 	}
@@ -216,4 +219,18 @@ func (c *Couch) revalidateCreatedSlot(ctx context.Context, accepted StartResolut
 		return err
 	}
 	return c.checkSlotCreation(ctx, repository)
+}
+
+func (c *Couch) enrollPrimaryResolution(ctx context.Context, resolution StartResolution) error {
+	if c.Slots == nil || resolution.Action == "" || resolution.Target.Kind == ThreadTargetSlot {
+		return nil
+	}
+	repository, err := c.Slots.Discover(ctx, string(resolution.Worktree))
+	if err != nil {
+		return err
+	}
+	if repository.Identity.RepoIdentity != resolution.RepoIdentity {
+		return ErrStartResolutionChanged
+	}
+	return c.Threads.EnrollSlotRepository(ctx, repository)
 }

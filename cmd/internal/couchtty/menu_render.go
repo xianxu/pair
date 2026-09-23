@@ -66,7 +66,7 @@ type ActorExtent struct {
 	End    int
 }
 
-// PointToActor maps a ZERO-BASED drawn row to the actor covering it. Total: the
+// PointToRow maps a ZERO-BASED drawn row to the thread covering it. Total: the
 // breadcrumb, the notice, a gap and anything past the last actor are nobody.
 //
 // The caller converts from the report's 1-based Y.

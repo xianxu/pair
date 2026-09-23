@@ -24,12 +24,15 @@ func (s *ThreadStore) PreviewPathLaunchPreference(repoIdentity, path string) (Pa
 	return view.GetPathLaunchPreference(repoIdentity, path)
 }
 func (s *ThreadStore) withPreviewLock(fn func() error) (err error) {
-	if err := s.validateBackendPath(); err != nil {
+	if err := provisionSafePath(s.root); err != nil {
 		return err
 	}
 	if _, err := os.Lstat(s.root); errors.Is(err, os.ErrNotExist) {
 		return nil
 	} else if err != nil {
+		return err
+	}
+	if err := s.validateBackendPath(); err != nil {
 		return err
 	}
 	lock, err := s.retentionReadLock()

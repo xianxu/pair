@@ -195,6 +195,9 @@ func (c *Couch) Spawn(args StartArgs) (ActorRecord, Handle, error) {
 		result, e := c.spawnManagedResolution(ctx, resolution)
 		return result.Record, result.Handle, e
 	}
+	if err := c.enrollPrimaryResolution(ctx, resolution); err != nil {
+		return ActorRecord{}, nil, err
+	}
 	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
 	if err != nil {
 		return ActorRecord{}, nil, err
@@ -250,6 +253,9 @@ func (c *Couch) SpawnPrepared(ctx context.Context, args StartArgs, accepted Star
 	if current.Target.Kind == ThreadTargetSlot {
 		result, e := c.spawnManagedResolution(ctx, current)
 		return result.Record, result.Handle, e
+	}
+	if err := c.enrollPrimaryResolution(ctx, current); err != nil {
+		return ActorRecord{}, nil, err
 	}
 	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
 	if err != nil {

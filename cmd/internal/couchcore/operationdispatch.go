@@ -396,6 +396,19 @@ func CouchLiveOwnerExecutor(c *Couch) OperationExecutor {
 				return nil, fmt.Errorf("leave: invalid mode %q (want detach or park)", a["mode"])
 			}
 		case "resume":
+			if a["tag"] == "" && a["warm-only"] != "true" && c.Slots != nil {
+				ref, recognized, err := ParseWorkspaceReference(a["ref"])
+				if err != nil {
+					return nil, err
+				}
+				if recognized && ref.Number > 0 {
+					path, _, err := c.WorkspaceReferencePath(ctx, a["ref"])
+					if err != nil {
+						return nil, err
+					}
+					return c.OpenSlot(ctx, path, "")
+				}
+			}
 			address, err := resolveOperationThread(c, a)
 			if err != nil {
 				return nil, err

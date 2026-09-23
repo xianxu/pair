@@ -2,6 +2,7 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -75,8 +76,7 @@ func (c ScopedThreadArtifactCollisionChecker) SlotSessionCandidates(ctx context.
 		names = append(names, entry.Name())
 		// Pair's no-replace address marker anchors owners before any session or
 		// history artifact exists. Validate the recognized filename by its owner.
-		if strings.HasPrefix(entry.Name(), "thread-claim-") && strings.HasSuffix(entry.Name(), ".json") {
-			tag := strings.TrimSuffix(strings.TrimPrefix(entry.Name(), "thread-claim-"), ".json")
+		if tag, matched := artifactpath.TagFromThreadClaim(entry.Name()); matched {
 			address := ThreadAddress{RepoScope: scope, Tag: ThreadTag(tag)}
 			if err := validateThreadAddress(address); err != nil {
 				return nil, err
@@ -212,11 +212,37 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 					candidate.Processes = append(candidate.Processes, ProcessIdentity{PID: inc.Start.OwnerPID, Identity: inc.Start.OwnerIdentity})
 				}
 			}
+			// A retained handoff can name a live source or target after the
+			// ordinary incarnation list was retired. Phase alone cannot prove
+			// either process stopped; include their exact identities in the
+			// same absence proof used for every other slot owner.
+			if request := record.Continuation; request != nil {
+				if helper := request.Source.Helper; helper.PID > 0 {
+					candidate.Processes = append(candidate.Processes, ProcessIdentity{PID: helper.PID, Identity: helper.Identity})
+				}
+				if target := request.Target; target != nil {
+					candidate.Processes = append(candidate.Processes, ProcessIdentity{PID: target.Process.PID, Identity: target.Process.Identity})
+				}
+			}
 			return nil
 		}
 		if current.Record != nil {
 			if err := addRecord(*current.Record); err != nil {
 				return err
+			}
+		} else if current.Exists {
+			// Readable fragments of damaged JSON may still name an active
+			// owner. They can veto replacement, but never authorize resume.
+			var partial ThreadRecord
+			if json.Unmarshal(current.Raw, &partial) == nil {
+				if validateThreadAddress(partial.Address) == nil {
+					if err := addRecord(partial); err != nil {
+						return err
+					}
+					candidates[partial.Address].Record = nil
+				} else if len(partial.Incarnations) != 0 || partial.Continuation != nil {
+					return errors.New("damaged slot record has unresolved process ownership; inspect before recovery")
+				}
 			}
 		}
 		root := filepath.Join(local.root, "archive")
@@ -269,7 +295,12 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 	if err != nil {
 		return out, err
 	}
-	for _, actor := range c.reg.Records() {
+	durable, _, err := c.Store.Load()
+	if err != nil {
+		return out, fmt.Errorf("slot hosted registry could not be read: %w", err)
+	}
+	actors := append(c.reg.Records(), durable.Records()...)
+	for _, actor := range actors {
 		if actor.Args.WorkingDir() != slot.WorktreeRoot && actor.Thread.RepoScope != scope.Key {
 			continue
 		}
@@ -314,7 +345,7 @@ func (c *Couch) ObserveSlotSessions(ctx context.Context, slot SlotIdentity) (Slo
 				out.Absent = false
 			}
 		}
-		if candidate.Record == nil && candidate.Presence == SessionAbsent {
+		if candidate.Record == nil && len(candidate.Processes) == 0 && candidate.Presence == SessionAbsent {
 			registered, err := c.Artifacts.Registration(address)
 			if err != nil {
 				return out, err

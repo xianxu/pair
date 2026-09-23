@@ -176,6 +176,16 @@ func TagFromHistorySidecar(name string) (string, bool) {
 	return "", false
 }
 
+// TagFromThreadClaim recognizes the claim filename family. A recognized tag
+// is deliberately not accepted here: the caller must validate it, so malformed
+// claim evidence cannot disappear from an ownership scan as an unrelated file.
+func TagFromThreadClaim(name string) (string, bool) {
+	if filepath.Base(name) != name || !strings.HasPrefix(name, "thread-claim-") || !strings.HasSuffix(name, ".json") {
+		return "", false
+	}
+	return strings.TrimSuffix(strings.TrimPrefix(name, "thread-claim-"), ".json"), true
+}
+
 // IsLedgerHistorySidecar distinguishes the ledger member of the history
 // vocabulary without making scanners repeat its filename prefix.
 func IsLedgerHistorySidecar(name string) bool {

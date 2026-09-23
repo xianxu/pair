@@ -97,7 +97,10 @@ func TestSlotFreshContinuationProtectsLiveAndUnknownOwners(t *testing.T) {
 }
 
 func TestSlotFreshRetainsStoppedContinuationWithoutArchiveGesture(t *testing.T) {
-	for _, phase := range []checkpoint.Phase{checkpoint.Pending, checkpoint.Failed} {
+	for _, phase := range checkpoint.AllPhases() {
+		if phase != checkpoint.Pending && phase != checkpoint.Failed {
+			continue
+		}
 		t.Run(string(phase), func(t *testing.T) {
 			env, local, record := slotContinuationFixture(t, phase, false)
 			result, err := dispatchSlotContinuation(env, "fresh-slot", record.StartingPath)

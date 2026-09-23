@@ -229,7 +229,7 @@ func (s *ThreadStore) CreateThread(record ThreadRecord) (ThreadRecord, error) {
 		if err != nil {
 			return err
 		}
-		if _, exists, err := readOptionalFile(s.recordPath(record.Address)); err != nil {
+		if _, exists, err := s.readOptionalPayload(s.recordPath(record.Address)); err != nil {
 			return err
 		} else if exists || manifestContains(manifest, record.Address) {
 			return &ThreadExistsError{Address: record.Address}
@@ -316,7 +316,7 @@ func (s *ThreadStore) GetPathLaunchPreference(repoIdentity, physicalPath string)
 	var result PathLaunchPreference
 	var found bool
 	err := s.withLock(func() error {
-		raw, exists, err := readOptionalFile(s.pathLaunchPreferencePath(repoIdentity, physicalPath))
+		raw, exists, err := s.readOptionalPayload(s.pathLaunchPreferencePath(repoIdentity, physicalPath))
 		if err != nil || !exists {
 			return err
 		}
@@ -838,7 +838,7 @@ func (s *ThreadStore) advanceSuccessfulStart(address ThreadAddress, expectedRevi
 		repoIdentity := incarnation.RepoIdentity
 		physicalPath := current.StartingPath
 		preferencePath := s.pathLaunchPreferencePath(repoIdentity, physicalPath)
-		preferenceRaw, preferenceExists, err := readOptionalFile(preferencePath)
+		preferenceRaw, preferenceExists, err := s.readOptionalPayload(preferencePath)
 		if err != nil {
 			return err
 		}
@@ -1020,7 +1020,7 @@ func (s *ThreadStore) deleteThreadIf(address ThreadAddress, accept func(ThreadRe
 		if err != nil {
 			return err
 		}
-		raw, exists, err := readOptionalFile(s.recordPath(address))
+		raw, exists, err := s.readOptionalPayload(s.recordPath(address))
 		if err != nil {
 			return err
 		}
@@ -1090,7 +1090,7 @@ func (s *ThreadStore) loadManifestLocked() (threadManifest, []byte, bool, error)
 	if s.layout.Local {
 		return s.localMembership()
 	}
-	raw, exists, err := readOptionalFile(s.manifestPath())
+	raw, exists, err := s.readOptionalPayload(s.manifestPath())
 	if err != nil {
 		return threadManifest{}, nil, false, err
 	}
@@ -1252,7 +1252,7 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		if err != nil {
 			return err
 		}
-		raw, exists, err := readOptionalFile(s.recordPath(address))
+		raw, exists, err := s.readOptionalPayload(s.recordPath(address))
 		if err != nil {
 			return err
 		}
@@ -1312,7 +1312,7 @@ func (s *ThreadStore) archiveThread(address ThreadAddress, expectedRevision *uin
 		}
 		// Snapshot bytes are already preserved by the first journal entry.
 		// Removing the sole derived file is part of the same recoverable commit.
-		if snapshot, exists, err := readOptionalFile(s.continuationPath(address)); err != nil {
+		if snapshot, exists, err := s.readOptionalPayload(s.continuationPath(address)); err != nil {
 			return err
 		} else if exists {
 			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, s.continuationPath(address)), Expected: &snapshot})
@@ -1329,35 +1329,54 @@ func (s *ThreadStore) ArchivedThreads() ([]ThreadRecord, error) {
 	}
 	root := filepath.Join(s.root, "archive")
 	var records []ThreadRecord
-	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
+	err := s.withLock(func() error {
+		return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					return nil
+				}
+				return err
+			}
+			if entry.Type()&os.ModeSymlink != 0 {
+				return errors.New("symlink in archive listing")
+			}
+			if entry.IsDir() {
 				return nil
 			}
-			return err
-		}
-		if entry.IsDir() || filepath.Ext(path) != ".json" {
+			if s.layout.Local {
+				relative, err := filepath.Rel(root, path)
+				if err != nil {
+					return err
+				}
+				if len(strings.Split(relative, string(filepath.Separator))) != 2 || filepath.Ext(path) != ".json" {
+					return fmt.Errorf("unknown slot archive entry %s", relative)
+				}
+			} else if filepath.Ext(path) != ".json" {
+				return nil
+			}
+			raw, readErr := s.readRetentionFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			address := ThreadAddress{
+				RepoScope: filepath.Base(filepath.Dir(path)),
+				Tag:       ThreadTag(strings.TrimSuffix(filepath.Base(path), ".json")),
+			}
+			if err := validateThreadAddress(address); err != nil {
+				return err
+			}
+			record, decodeErr := s.decodeThreadRaw(address, raw)
+			if decodeErr != nil {
+				// Its address is what could be read, so its address is what is
+				// listed. The previous comment said such a record "is still
+				// evidence the operator may want" and then dropped it, which is
+				// the invisible degradation this issue exists to remove.
+				records = append(records, ThreadRecord{Address: address})
+				return nil
+			}
+			records = append(records, record)
 			return nil
-		}
-		raw, readErr := os.ReadFile(path)
-		if readErr != nil {
-			return readErr
-		}
-		address := ThreadAddress{
-			RepoScope: filepath.Base(filepath.Dir(path)),
-			Tag:       ThreadTag(strings.TrimSuffix(filepath.Base(path), ".json")),
-		}
-		record, decodeErr := s.decodeThreadRaw(address, raw)
-		if decodeErr != nil {
-			// Its address is what could be read, so its address is what is
-			// listed. The previous comment said such a record "is still
-			// evidence the operator may want" and then dropped it, which is
-			// the invisible degradation this issue exists to remove.
-			records = append(records, ThreadRecord{Address: address})
-			return nil
-		}
-		records = append(records, record)
-		return nil
+		})
 	})
 	if err != nil {
 		return nil, err

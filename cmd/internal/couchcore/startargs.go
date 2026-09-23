@@ -1,12 +1,5 @@
 package couchcore
 
-// StartArgs is the structured record of how to bring an actor up. It is
-// persisted, so a revival reproduces the launch without the operator
-// restating it.
-//
-// Spawn takes a peer repo, not an issue: what the agent works on is decided
-// inside the session, and an issue crystallises mid-thread rather than being a
-// precondition. Issue is optional metadata on the tree.
 type StartAction string
 
 const (
@@ -15,6 +8,13 @@ const (
 	StartFresh  StartAction = "fresh"
 )
 
+// StartArgs is the structured record of how to bring an actor up. It is
+// persisted, so a revival reproduces the launch without the operator
+// restating it.
+//
+// Spawn takes a peer repo, not an issue: what the agent works on is decided
+// inside the session, and an issue crystallises mid-thread rather than being a
+// precondition. Issue is optional metadata on the tree.
 type StartArgs struct {
 	Action    StartAction `json:"action,omitempty"`
 	Worktree  Worktree    `json:"worktree"`

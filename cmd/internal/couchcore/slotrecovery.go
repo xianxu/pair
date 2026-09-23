@@ -109,8 +109,21 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 			if err := provisionSafePath(path); err != nil {
 				return err
 			}
-			if _, err := os.Lstat(path); err == nil {
-				return errors.New("retained archive already owns previous conversation; inspect before fresh")
+			var archiveBefore, graceBefore *[]byte
+			if prior, err := s.readRetentionFile(path); err == nil {
+				archiveBefore = &prior
+				backup, err := s.slotRecoveryBackupLocked(prior)
+				if err != nil {
+					return err
+				}
+				if backup != nil {
+					entries = append(entries, *backup)
+				}
+			} else if !errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			if prior, err := s.readRetentionFile(s.archiveGracePath(old.Record.Address)); err == nil {
+				graceBefore = &prior
 			} else if !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
@@ -118,7 +131,7 @@ func (s *ThreadStore) replaceSlotCurrent(old slotCurrentObservation, next Thread
 			if err != nil {
 				return err
 			}
-			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), After: &old.Raw}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), After: &grace})
+			entries = append(entries, storeJournalEntry{Path: relativeStorePath(s.root, path), Expected: archiveBefore, After: &old.Raw}, storeJournalEntry{Path: relativeStorePath(s.root, s.archiveGracePath(old.Record.Address)), Expected: graceBefore, After: &grace})
 		} else if old.Exists {
 			entry, err := s.slotRecoveryBackupLocked(old.Raw)
 			if err != nil {
@@ -188,28 +201,57 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 	if ctx == nil || c == nil || c.Slots == nil || c.Threads == nil {
 		return nil, SlotIdentity{}, errors.New("slot services unavailable")
 	}
-	identity, err := c.slotWorkspace(ctx, path)
-	if err != nil {
-		return nil, SlotIdentity{}, err
-	}
-	slot, err := SlotIdentityFromWorkspace(identity)
-	if err != nil {
-		return nil, slot, err
+	identity, resolveErr := c.slotWorkspace(ctx, path)
+	var slot SlotIdentity
+	var err error
+	if resolveErr == nil {
+		slot, err = SlotIdentityFromWorkspace(identity)
+		if err != nil {
+			return nil, slot, err
+		}
+	} else {
+		var ok bool
+		slot, ok = conventionalSlotFromPath(path)
+		if !ok {
+			return nil, slot, resolveErr
+		}
 	}
 	repository, err := c.Slots.Discover(ctx, slot.PrimaryRoot)
 	if err != nil {
 		return nil, slot, err
 	}
-	verified := false
-	for _, candidate := range repository.Slots {
-		if candidate.Identity == slot && candidate.Verified && candidate.Err == nil {
-			verified = true
-			break
+	find := func(repo SlotRepository) (SlotCandidate, bool) {
+		for _, candidate := range repo.Slots {
+			if candidate.Identity.WorktreeRoot == slot.WorktreeRoot && candidate.Identity.Number == slot.Number {
+				return candidate, true
+			}
 		}
+		return SlotCandidate{}, false
 	}
-	if !verified {
+	candidate, found := find(repository)
+	if !found {
+		return nil, slot, errors.New("slot directory is not an existing conventional candidate")
+	}
+	if !candidate.Verified || candidate.Err != nil {
+		if c.Workspaces == nil {
+			return nil, slot, errors.New("incomplete slot needs workspace readiness")
+		}
+		if _, err := c.Workspaces.Ensure(ctx, ProvisionRequest{Path: slot.PrimaryRoot, Slot: slot.Number, Progress: c.WorkspaceProgress}); err != nil {
+			return nil, slot, err
+		}
+		repository, err = c.Slots.Discover(ctx, slot.PrimaryRoot)
+		if err != nil {
+			return nil, slot, err
+		}
+		candidate, found = find(repository)
+	}
+	if !found || !candidate.Verified || candidate.Err != nil {
 		return nil, slot, errors.New("slot host is not verified; inspect workspace before opening")
 	}
+	if resolveErr == nil && candidate.Identity != slot {
+		return nil, slot, errors.New("slot identity changed during discovery")
+	}
+	slot = candidate.Identity
 	if err := c.Threads.EnrollSlotRepository(ctx, repository); err != nil {
 		return nil, slot, err
 	}
@@ -253,12 +295,19 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 	if err != nil {
 		return StartResult{}, err
 	}
+	used := map[ThreadAddress]bool{}
+	for _, candidate := range observation.Candidates {
+		used[candidate.Address] = true
+	}
 	for attempt := 0; attempt < threadTagAttempts; attempt++ {
 		var random [8]byte
 		if _, err := io.ReadFull(c.Entropy, random[:]); err != nil {
 			return StartResult{}, err
 		}
 		record := ThreadRecord{SchemaVersion: ThreadSchemaVersion, Address: ThreadAddress{RepoScope: scope.Key, Tag: ThreadTag("couch-" + hex.EncodeToString(random[:]))}, StartingPath: slot.WorktreeRoot, WorkingPath: slot.WorktreeRoot, CreatedAt: c.Clock.Now(), Revision: 1}
+		if used[record.Address] {
+			continue
+		}
 		if old.Record != nil {
 			record.Name = old.Record.Name
 			record.Description = old.Record.Description
@@ -484,4 +533,24 @@ func (c *Couch) verifyOtherSlotOwnersAbsent(ctx context.Context, slot SlotIdenti
 		}
 	}
 	return ctx.Err()
+}
+
+// conventionalSlotFromPath recognizes only an absolute conventional host path.
+// It supplies a discovery location, never proof that the host belongs to Git.
+func conventionalSlotFromPath(path string) (SlotIdentity, bool) {
+	if !workspaceAbsolute(path) {
+		return SlotIdentity{}, false
+	}
+	environment := filepath.Dir(path)
+	container := filepath.Dir(environment)
+	if filepath.Base(container) != "worktree" {
+		return SlotIdentity{}, false
+	}
+	primary := filepath.Join(filepath.Dir(container), filepath.Base(path))
+	number, ok := slotDirectoryNumber(primary, filepath.Base(environment))
+	if !ok {
+		return SlotIdentity{}, false
+	}
+	slot := conventionalSlot(primary, number)
+	return slot, slot.WorktreeRoot == path && slot.Validate() == nil
 }

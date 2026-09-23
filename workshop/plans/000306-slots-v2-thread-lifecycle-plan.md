@@ -640,3 +640,21 @@ listed stale global slot copies. Preserve local bytes when enrollment has no
 legacy migration source, keep conflict refusal when sources exist, and filter
 stale archive copies after enrollment. Focused migration, routing and read-only
 preview tests pass. ARCH-SSOT keeps the local backend authoritative.
+
+### 2026-09-23 — reconcile implementation symbols and recovery evidence
+
+Reason: keep the prospective concept table navigable in the implementation.
+Delta: `SlotCandidate` (slotcatalog.go), `SlotInventoryObservation`
+(slotinventory.go), `slotCurrentObservation` (slotrecovery.go), and
+`SlotSessionObservation` (slotsessions.go) carry the discovery, persisted and
+external evidence separately. `OpenSlot` is the implemented name of `RecoverSlot`;
+its existing lifecycle/resume decisions replace the proposed `DecideSlotOpen`
+wrapper. No new slot status enum was needed. `resolveManagedStart` and
+`spawnManagedResolution` in slotstart.go own accepted create/open/fresh routing.
+
+The direct-consumer audit found ArchivedThreads bypassing journal recovery;
+its per-backend scan now shares the lock/replay boundary before aggregation.
+Continuation source/target processes participate in fresh's existing absence
+proof, so stopped failed requests can be replaced while live/unknown owners refuse.
+A real-Git two-slot acceptance fixture caught absent-target preference preview;
+read-only preview now accepts a safely absent backend without creating it.

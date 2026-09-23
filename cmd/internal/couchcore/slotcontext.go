@@ -57,7 +57,18 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 	if explicit {
 		id, err = c.slotWorkspace(ctx, ".")
 		if err != nil {
-			return nil, id, err
+			if ref.Repo == "" {
+				return nil, id, err
+			}
+			primary, e := c.enrolledPrimary(ref.Repo)
+			if e != nil {
+				return nil, id, e
+			}
+			repository, e := c.Slots.Discover(ctx, primary)
+			if e != nil {
+				return nil, id, e
+			}
+			id = repository.Identity
 		}
 		if ref.Repo == "" && id.Kind == "dependency" {
 			return nil, id, fmt.Errorf("bare workspace references are ambiguous from a dependency; use repo:N")
@@ -83,11 +94,27 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 		return nil, id, fmt.Errorf("slot %s does not exist; create another slot explicitly", ref.String())
 	}
 	id, err = c.slotWorkspace(ctx, path)
+	if err != nil {
+		if conventional, ok := conventionalSlotFromPath(NormalizePath(path)); ok {
+			repository, e := c.Slots.Discover(ctx, conventional.PrimaryRoot)
+			if e != nil {
+				return nil, id, e
+			}
+			for _, candidate := range repository.Slots {
+				if candidate.Identity.WorktreeRoot == conventional.WorktreeRoot {
+					target := ThreadTarget{Kind: ThreadTargetSlot, Slot: candidate.Identity}
+					return &target, repository.Identity, nil
+				}
+			}
+		}
+	}
 	if err != nil && workspaceRepoName(input) && input != "." {
 		contextID, contextErr := c.slotWorkspace(ctx, ".")
 		if contextErr == nil {
 			path = filepath.Join(contextID.FleetRoot, input)
 			id, err = c.slotWorkspace(ctx, path)
+		} else if primary, e := c.enrolledPrimary(input); e == nil {
+			id, err = c.slotWorkspace(ctx, primary)
 		}
 	}
 	if err != nil {
@@ -102,4 +129,56 @@ func (c *Couch) resolveSlotInput(ctx context.Context, input string) (*ThreadTarg
 		return &target, id, nil
 	}
 	return nil, id, nil
+}
+
+// enrolledPrimary resolves a human repository name from retained locations only.
+// No lifecycle facts or directory-wide machine scan are involved.
+func (c *Couch) enrolledPrimary(repo string) (string, error) {
+	if c.Threads == nil {
+		return "", fmt.Errorf("no enrolled repository named %q", repo)
+	}
+	view := *c.Threads
+	view.readOnly = true
+	var roots []string
+	err := view.withPreviewLock(func() error {
+		manifest, _, _, err := view.loadManifestLocked()
+		roots = append(roots, manifest.SlotRepositories...)
+		return err
+	})
+	if err != nil {
+		return "", err
+	}
+	found := ""
+	for _, root := range roots {
+		if filepath.Base(root) == repo {
+			if found != "" && found != root {
+				return "", fmt.Errorf("repository %q is ambiguous; use an absolute path", repo)
+			}
+			found = root
+		}
+	}
+	if found == "" {
+		return "", fmt.Errorf("no enrolled repository named %q; open its absolute path first", repo)
+	}
+	return found, nil
+}
+
+// WorkspaceReferencePath resolves canonical references to physical workspace
+// identity. Opaque thread tags remain the native reference resolver's concern.
+func (c *Couch) WorkspaceReferencePath(ctx context.Context, ref string) (string, bool, error) {
+	_, recognized, err := ParseWorkspaceReference(ref)
+	if err != nil || !recognized {
+		return "", recognized, err
+	}
+	if c.Slots == nil {
+		return "", false, nil
+	}
+	target, identity, err := c.resolveSlotInput(ctx, ref)
+	if err != nil {
+		return "", true, err
+	}
+	if target != nil {
+		return target.Slot.WorktreeRoot, true, nil
+	}
+	return identity.PrimaryRoot, true, nil
 }

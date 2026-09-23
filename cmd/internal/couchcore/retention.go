@@ -126,7 +126,7 @@ func (s *ThreadStore) readRetentionFile(path string) ([]byte, error) {
 	return os.ReadFile(path)
 }
 
-// RetentionSnapshot never recovers or initializes a store. A pending journal is
+// retentionSnapshotBackend never recovers or initializes a store. A pending journal is
 // blocking evidence for preview; mutating callers recover before trying again.
 func (s *ThreadStore) retentionSnapshotBackend(held *storagegc.Locked) (snapshot StoreRetentionSnapshot, err error) {
 	if s.coordinator == nil || !held.Holds(s.coordinator.Root) {
@@ -346,7 +346,7 @@ func (c *Couch) beginResumeRetention(ctx context.Context, address ThreadAddress,
 	}, nil
 }
 
-// OnboardArchiveGrace grants legacy archives a full grace interval starting at
+// onboardArchiveGraceBackend grants legacy archives a full grace interval starting at
 // apply. Only selected addresses are considered; nil selects nothing. Existing
 // grace (including malformed evidence) is never repaired or renewed here.
 func (s *ThreadStore) onboardArchiveGraceBackend(ctx context.Context, held *storagegc.Locked, addresses []ThreadAddress) error {

@@ -110,3 +110,16 @@ func (s *ThreadStore) localBackendMissing() (bool, error) {
 	}
 	return false, err
 }
+
+// readOptionalPayload retains ordinary-store compatibility while local metadata
+// uses the same physical-path and size checks as discovery and retention.
+func (s *ThreadStore) readOptionalPayload(path string) ([]byte, bool, error) {
+	if !s.layout.Local {
+		return readOptionalFile(path)
+	}
+	raw, err := s.readRetentionFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, false, nil
+	}
+	return raw, err == nil, err
+}
