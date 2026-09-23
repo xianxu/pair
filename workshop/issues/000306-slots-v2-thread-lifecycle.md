@@ -1,6 +1,6 @@
 ---
 id: 000306
-status: working
+status: codecomplete
 deps: [pair#305]
 github_issue:
 created: 2026-09-22
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours: 14.37
 started: 2026-09-23T13:12:13-07:00
 flow: {kind: full, provenance: inferred}
+actual_hours: 4.52
 ---
 
 # Slots v2: multiple threads and parked admission
@@ -213,6 +214,7 @@ total: 14.37
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
 
 ### 2026-09-23 — claim and design
+- 2026-09-23: closed — Post-review go test ./... -count=1 passed; local-reader/migration/archive/slot acceptance race tests passed; affected-package vet and make pair bin/couch passed. BR-1 exhaustive direct-reader/GC enumeration added; BR-2 all local current, journal replay, restore and continuation IO uses guarded no-follow reads with pre-publication size limits, regressions preserve outside targets; BR-3 README finalized. Earlier installed SDLC/Weave conformance passed; dependency interfaces unchanged by review fixes. Logs /tmp/pair306-postreview-full.log, /tmp/pair306-postreview-race.log, /tmp/pair306-postreview-vet.log.; review verdict: SHIP
 
 Claimed #306 after #305 merged. Mapped all fresh starts to spawnResolved and all
 child creation to launchTrackedThread. Found path-only occupancy, non-atomic

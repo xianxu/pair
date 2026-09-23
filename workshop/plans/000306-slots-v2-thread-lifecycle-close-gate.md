@@ -36,6 +36,24 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-23T16:38:43-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The plan now enumerates direct lifecycle, metadata, inventory, archive, continuation, and all five GC consumers; the implementation routes them through shared backend resolvers.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: All local current-record reads use readPayload/readOptionalPayload/readRetentionFile, and threadstore_reader_test.go proves exported reads and mutations reject symlinks without changing the target.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: README.md:405-417 now contains clean numbered-slot documentation with no unresolved edit marker.
+          round: 3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#306 (boundary-review)
@@ -60,8 +78,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `unresolved-human-markers` README ships unresolved edit markers
   README.md:405 contains an unresolved 🤖 deletion/replacement marker, leaving the user-facing numbered-slot documentation malformed.
 
+## Round 3 — 2026-09-23T16:38:43-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The plan now enumerates direct lifecycle, metadata, inventory, archive, continuation, and all five GC consumers; the implementation routes them through shared backend resolvers.
+- BR-2 — addressed — All local current-record reads use readPayload/readOptionalPayload/readRetentionFile, and threadstore_reader_test.go proves exported reads and mutations reject symlinks without changing the target.
+- BR-3 — addressed — README.md:405-417 now contains clean numbered-slot documentation with no unresolved edit marker.
+
 ## Open findings
 
-- **BR-1** [Important] `local-authority-consumer-enumeration` This is the 3rd finding in family `local-authority-consumer-enumeration`: enumerate every direct ThreadStore consumer, not only lifecycle delegates
-- **BR-2** [Critical] `local-metadata-boundary-validation` Local lifecycle readers bypass symlink and metadata-boundary validation
-- **BR-3** [Important] `unresolved-human-markers` README ships unresolved edit markers
+(none — every finding has been disposed)

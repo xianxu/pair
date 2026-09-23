@@ -388,7 +388,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Support branching from a workspace and explicit refresh [ariadne#245]
 - [ ] Land without removing or refreshing the workspace [ariadne#246]
 - [x] Provision durable numbered workspaces [pair#305]
-- [ ] Make slots durable with local state and recoverable conversations [pair#306]
+- [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [ ] Group slots in the switcher and tab bar [pair#307]
 - [ ] Persist independent workspace preferences [pair#308]
 - [ ] Run the three-workspace acceptance trial [pair#309]
@@ -514,7 +514,9 @@ the host without fetching or composing. Thread admission and launch remain with 
 <a id="pair-306"></a>
 ### pair#306 — Durable slots with local Couch state
 
-**status:** working — implementation and integration tests in progress
+**status:** codecomplete — SHIP review passed; publication pending
+**actual:** 4.52h
+**closed:** 2026-09-23 (local acceptance)
 **started:** 2026-09-23
 
 The [issue](../issues/000306-slots-v2-thread-lifecycle.md) and
@@ -804,3 +806,11 @@ enrollment, GC routing and stable slot rows now have focused passing tests.
 Launch/recovery integration is in progress. Explicit re-enrollment preserves
 existing local state when no legacy source exists; stale global archive copies
 are excluded from the authoritative listing. Integrated verification remains open.
+
+### 2026-09-23 — #306 accepted for publication
+
+Close returned SHIP with no remaining findings after guarded local-reader fixes.
+Full repository tests, targeted race tests, builds, vet and installed SDLC/Weave
+conformance passed. SDLC measured 4.52h. Local `.couch` authority, recovery/fresh,
+parked admission and canonical slot addressing are accepted; grouped presentation
+and preference UX remain #307/#308. PR publication follows.

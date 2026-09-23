@@ -17,7 +17,7 @@ atomic/journaled storage, SDLC workspace v2, Git, #305 WorkspaceReadiness.
 
 **Status:** Operator-approved direction; concrete engineering plan passed fresh
 review after corrections. Operator approved execution on 2026-09-23. Earlier
-global-store reviews are superseded; change-code passed; implementation and verification passed, close review pending.
+global-store reviews are superseded; change-code and verification passed. Close returned SHIP on 2026-09-23; PR publication pending.
 **Issue:** `workshop/issues/000306-slots-v2-thread-lifecycle.md`.
 **Flow:** Full; in-place branch when entering implementation. Estimate follows
 plan-quality review. Preserve unrelated local work.
@@ -734,3 +734,10 @@ Delta: finalized the agent-authored numbered-slot prose under the approved
 implementation/documentation scope; no operator-authored pending edits were
 changed. README/atlas/presentation checks pass. The only remaining robot glyphs
 in README describe existing annotation controls and are not edit markers.
+
+### 2026-09-23 — SHIP after review fixes
+
+The boundary review disposed BR-1, BR-2 and BR-3 as addressed and reported no
+remaining findings. SDLC recorded codecomplete and measured 4.52h. The previous
+plan-quality deferred consumer finding is now disposed by BR-1 in the boundary
+ledger. Publication remains the final task; no further runtime edits are pending.

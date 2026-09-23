@@ -77,3 +77,85 @@ findings:
     detail: |
       README.md:405 contains an unresolved 🤖 deletion/replacement marker, leaving the user-facing numbered-slot documentation malformed.
 ```
+
+---
+
+## Re-review — 2026-09-23T16:38:43-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 306 — Slots v2: multiple threads and parked admission |
+| repo | pair |
+| issue file | workshop/issues/000306-slots-v2-thread-lifecycle.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | adc166bec16ac73af7559ce9ee728147da7c7b7a..e7fe8364bccfc619c126cd95203de6ad4225084c |
+| command | sdlc close --issue 306 |
+| reviewer | codex |
+| timestamp | 2026-09-23T16:38:43-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+The pinned range and required stat/name-status inspections succeeded. No new Critical, Important, or Minor findings were identified. Prior findings are addressed with concrete code, regression tests, and corrected README text.
+
+1. Strengths
+
+- Local metadata reads use descriptor-relative no-follow validation (`threadstore_layout.go:152`).
+- Symlink regressions cover get, mutation, snapshot, start, park, journal replay, and forbidden target mutation (`threadstore_reader_test.go:13`).
+- ThreadStore consumers and all five GC routes are explicitly enumerated and routed.
+- Atlas and README document numbered slots, local authority, readiness, recovery, and lifecycle behavior.
+- Targeted lifecycle, recovery, readiness, acceptance, and symlink tests pass.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+`go test` targeted slot, recovery, readiness, acceptance, and symlink tests passed. A broader package run was interrupted after 104 seconds without producing a result; no failure was observed before interruption.
+
+6. Architectural notes
+
+- ARCH-DRY: pass — shared lifecycle and guarded-reader paths are reused.
+- ARCH-PURE: pass — slot decisions are separated from filesystem/process seams.
+- ARCH-PURPOSE: pass — direct ThreadStore and GC consumers are covered.
+- ARCH-MOCK: pass — stateful catalog/process/storage fakes are present.
+- ARCH-CONSTRAINTS: pass — discovery, metadata, journal, and recovery bounds are enforced.
+- ARCH-SECURE: pass — local persisted metadata rejects symlinks, non-regular files, and oversized inputs.
+- ARCH-ORDER: pass — claims, journals, ownership observations, and recovery ordering are tested.
+- ARCH-FUNERAL: pass — archives and recovery evidence have bounded retention/removal behavior.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The plan now enumerates direct lifecycle, metadata, inventory, archive, continuation, and all five GC consumers; the implementation routes them through shared backend resolvers.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      All local current-record reads use readPayload/readOptionalPayload/readRetentionFile, and threadstore_reader_test.go proves exported reads and mutations reject symlinks without changing the target.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:405-417 now contains clean numbered-slot documentation with no unresolved edit marker.
+findings:
+```
