@@ -107,3 +107,12 @@ setup contract changes, and during pair#309 acceptance. Ensure rejects corrupt
 or conflicting observations before consulting NextHostAction. The creation lock
 is nonblocking, including after compile: contention can require another readiness
 call and repeat compile if no success marker was published.
+
+## Console output ownership
+
+Couch's CLI streams provisioning diagnostics to stderr only when no terminal
+console is active. A console-bound Couch uses a discard progress writer for both
+initial setup and later menu operations; its renderer owns the screen and existing
+operation notices show progress. `OSProvisionIO` still retains the bounded command
+diagnostic tail and includes it in setup failures. Raw Homebrew/weave output must
+never paint over the switcher. (`pair#312`)

@@ -36,9 +36,9 @@ and UI status/error paths. No new log files, state, timers or goroutines.
 
 ## Plan
 
-- [ ] Reproduce raw output through the production console dispatcher and OSProvisionIO using a short shell command; retain the existing CLI progress test as the non-console oracle.
-- [ ] Route console progress to io.Discard while keeping stderr for non-console callers; run regression and affected package tests/race checks.
-- [ ] Update atlas/project smoke-test evidence, build Couch, pass SDLC close review and publish.
+- [x] Reproduce raw output through the production console dispatcher and OSProvisionIO using a short shell command; retain the existing CLI progress test as the non-console oracle.
+- [x] Route console progress to io.Discard while keeping stderr for non-console callers; run regression and affected package tests/race checks.
+- [x] Update atlas/project smoke-test evidence, build Couch, pass SDLC close review and publish.
 
 
 ## Log
@@ -48,3 +48,13 @@ and UI status/error paths. No new log files, state, timers or goroutines.
 Root cause traced from `runTypedOperationWithConsole` assigning stderr, through
 `Couch.WorkspaceProgress`, to `OSProvisionIO` forwarding both setup streams.
 The screenshot is operator live evidence; regression uses an isolated subprocess.
+
+### 2026-09-23 — fix verified
+
+Regression failed before the fix with literal screen-clear bytes and both setup
+streams on stderr. After routing console progress to io.Discard, the complete
+couchcmd suite passed (19.963s), affected CLI/provision subprocess race tests
+passed (3.108s/7.558s), and `make pair bin/couch` plus `git diff --check` passed.
+The failure case retains its diagnostic tail, and the existing non-console CLI
+test still proves streamed stderr with clean JSON stdout. No live thread was
+restarted or parked. Acceptance review and publication follow.

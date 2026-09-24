@@ -501,7 +501,7 @@ and review records were archived. Ariadne main is synced with origin/main.
 <a id="ariadne-246"></a>
 ### ariadne#246 — Land while retaining the workspace
 
-**status:** codecomplete — [Ariadne PR131](https://github.com/xianxu/ariadne/pull/131) open; SHIP review, no open findings
+**status:** done — [Ariadne PR131](https://github.com/xianxu/ariadne/pull/131) merged; SHIP review, no open findings
 **actual:** 3.63h
 **closed:** 2026-09-23 (local acceptance)
 **est:** 3.83h
@@ -914,3 +914,19 @@ Merged [PR #158](https://github.com/xianxu/pair/pull/158) through SDLC (merge
 `60a8da5d`), archived the accepted issue/review records, and fast-forwarded the
 primary checkout to published main. Updated the portfolio status and archive link.
 #309 remains the project-wide acceptance trial.
+
+### 2026-09-23 — ariadne#246 published
+
+PR131 merged as `14ae8709`; remote archive commit `e465964` moved the completed
+issue, plan and review records to history. Live landing returned ariadne:0 to
+its unchanged resting commit `9977b163`, removed only the completed issue branch,
+and retained the workspace and unrelated files. Refresh remains explicit.
+
+### 2026-09-23 — first live slot smoke exposed output leakage
+
+Operator created pair:1 and observed Homebrew/weave output painting over the
+switcher. [pair#312](../issues/000312-couch-provision-output.md) isolates raw setup
+progress from the console while preserving CLI streaming and failure diagnostics.
+This is a smoke-test finding; #309's full integration trial remains open. The
+persistent `.weave-setup.lock` file was confirmed to be intentional OS-lock storage,
+not evidence that setup is still active.
