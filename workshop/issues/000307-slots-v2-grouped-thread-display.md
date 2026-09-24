@@ -5,8 +5,9 @@ deps: [pair#306]
 github_issue:
 created: 2026-09-22
 updated: 2026-09-23
-estimate_hours:
+estimate_hours: 3.36
 started: 2026-09-23T16:46:34-07:00
+flow: {kind: full, provenance: operator}
 ---
 
 # Slots v2: group switcher and tab bar
@@ -46,6 +47,25 @@ Both consumers use the same projection; selection remains keyed by `ThreadRowKey
 - Operator help and screenshots or rendered fixtures show the agreed examples.
 
 - Rendered and activation fixtures use nested main-checkout paths and exclude incidental dependency clones from automatic thread/slot listings.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration source is stale (ledger newer), so provisional. One issue/design unit, one pure projection extending the existing module, two existing TUI consumers, two acceptance harness extensions, docs and one close review. The three smaller-go-module rows are, in order: pure projection; deterministic golden fixture generation/comparison; disposable multi-workspace activation harness and full/race/performance/build verification. Tests specific to each UI belong to its tui-screen row; acceptance rows cover cross-consumer evidence. Atlas-docs covers README/atlas/project only. Existing Go sorting, repo-scope, rowtext and console harness provide the needed libraries; no novel external API. TUI design uses 0.2 spec discount on 1.5h per consumer; projection and acceptance harness units use the smaller-go-module range (0.2 × 0.3h design and 0.4 × 0.5h implementation). Implementation uses v3.1's 40% scale; familiarity 1.0. Thorough approved plan uses 15% design buffer.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec design=0.5 impl=0.04
+item: smaller-go-module design=0.06 impl=0.2
+item: tui-screen design=0.3 impl=0.4
+item: tui-screen design=0.3 impl=0.4
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: atlas-docs design=0.05 impl=0.08
+item: milestone-review design=0.1 impl=0.2
+design-buffer: 0.15
+total: 3.36
+```
 
 ## Plan
 
