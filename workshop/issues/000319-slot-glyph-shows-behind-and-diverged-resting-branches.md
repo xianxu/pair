@@ -1,6 +1,6 @@
 ---
 id: 000319
-status: working
+status: codecomplete
 deps: [pair#317]
 github_issue:
 created: 2026-09-24
@@ -8,6 +8,7 @@ updated: 2026-09-24
 estimate_hours:
 started: 2026-09-24T14:13:32-07:00
 flow: {kind: quick, provenance: inferred, spec: "a79ba2df", done: "e5aff577"}
+actual_hours: 0.35
 ---
 
 # Slot glyph shows behind and diverged resting branches
@@ -94,6 +95,7 @@ Open questions for design:
 ## Log
 
 ### 2026-09-24
+- 2026-09-24: closed — Slot behind/diverged/dirty glyphs, parser, fixtures, and red/amber presentation tests pass; focused couchcore/couchtty/couchcmd/artifactpath suites pass and operator smoke test passed. The broad couchcore run hung in unrelated existing coverage and was interrupted. The precise done-when freshness gate is waived because later spec revisions only reconcile already-delivered glyph styling/documentation; the acceptance criteria remain covered.; review verdict: SHIP
 
 - Filed from the #317 session, after `main-slot1` diverged from origin/main
   (ahead 3, behind 34) while showing no glyph. Builds on #317's
