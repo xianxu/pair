@@ -191,6 +191,9 @@ representative evidence, not an exhaustive index.
 - A fast path is pinned by its answer, not by the work it skipped. A rate-limited
   count test may only be testing the limiter; an aliasing test must force an
   in-place overwrite. (#206)
+- Revert a mutation from a byte copy taken just before it (`cp` + `cmp`), never
+  `git checkout <file>`: that restores HEAD and silently drops the uncommitted
+  work under test. (#317)
 - When a fix closes a class, enumerate the evasions and mutation-test the guard.
   A carve-out with no instances is not a useful rule, and a check that fires on
   every run becomes background noise. (#209, #221)
