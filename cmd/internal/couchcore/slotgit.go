@@ -28,6 +28,9 @@ const slotGlyphBranch = ""
 // upstream. Presentation draws it in the alert colour (pair#319).
 const SlotGlyphDiverged = "±"
 
+// SlotGlyphDirty marks a dirty working tree on any branch.
+const SlotGlyphDirty = "*"
+
 // RestingBranch is the branch a checkout rests on: main for :0, main-slotN for
 // slot N. sdlc workspace asserts the same convention, which validate() checks
 // through this helper.
@@ -38,16 +41,24 @@ func RestingBranch(n int) string {
 	return "main-slot" + strconv.Itoa(n)
 }
 
-// SlotGlyph applies the precedence: off the resting branch (issue work) beats a
-// dirty tree, which beats divergence from the upstream: both ways (±), then
-// ahead only (+, unpublished), then behind only (-, needs a pull). Without an
-// upstream there is no evidence either way, so nothing is shown.
+// SlotGlyph is two independent parts (pair#319). The branch part says where the
+// checkout is: off its resting branch (issue work), or on it and diverged from
+// its upstream both ways (±), ahead only (+, unpublished) or behind only (-,
+// needs a pull). Without an upstream there is no divergence evidence, and an
+// issue branch against its upstream is not compared. The dirty part (*) follows
+// on any branch, because many operations are only safe on a clean tree.
 func SlotGlyph(s SlotGitStatus, resting string) string {
+	glyph := slotBranchGlyph(s, resting)
+	if s.Dirty {
+		glyph += SlotGlyphDirty
+	}
+	return glyph
+}
+
+func slotBranchGlyph(s SlotGitStatus, resting string) string {
 	switch {
 	case s.Detached || s.Branch != resting:
 		return slotGlyphBranch
-	case s.Dirty:
-		return "*"
 	case !s.HasUpstream:
 		return ""
 	case s.Ahead > 0 && s.Behind > 0:

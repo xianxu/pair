@@ -591,15 +591,23 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	return lines, extents
 }
 
-// colorMenuGlyph draws the slot glyph in its alert colour when the clip kept it
-// whole, then restores the row's own style for the rest of the line. The
+// colorMenuGlyph draws each slot glyph character in its own colour when the clip
+// kept the glyph whole, restoring the row's style after each coloured one. The
 // selected row is re-rendered plain by selectedMenuLine, so it never gets here.
 func colorMenuGlyph(line, head, glyph, outer string) string {
-	sgr := slotGlyphSGR(glyph)
-	if sgr == "" || !strings.HasPrefix(line, head+glyph) {
+	if glyph == "" || !strings.HasPrefix(line, head+glyph) {
 		return line
 	}
-	return head + sgr + glyph + "\x1b[0m" + outer + line[len(head)+len(glyph):]
+	var b strings.Builder
+	b.WriteString(head)
+	for _, r := range glyph {
+		if sgr := slotGlyphSGR(r); sgr != "" {
+			b.WriteString(sgr + string(r) + "\x1b[0m" + outer)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String() + line[len(head)+len(glyph):]
 }
 
 func renderItemMenuFrame(title string, items []string, selected, filter string, width, height int) []string {
