@@ -1,6 +1,6 @@
 ---
 id: 000308
-status: working
+status: codecomplete
 deps: [pair#306]
 github_issue:
 created: 2026-09-22
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T17:46:01-07:00
 flow: {kind: quick, provenance: inferred, spec: "23c5773a", done: "3a662ba1"}
+actual_hours: 0.50
 ---
 
 # Slots v2: independent workspace preferences
@@ -89,6 +90,8 @@ Single acceptance boundary; expected production change fits the quick-flow shell
 
 ## Log
 
+
+- 2026-09-23: closed — Final go test ./... -count=1 passed (couchcore 248.509s); affected couchcore/couchtty/launcher race regressions passed; make pair bin/couch, affected go vet and git diff --check passed. Real temporary three-workspace trial verifies independent agents/argv across restart, durable park/public resume, switch and fresh, with sibling preferences unchanged and no dependency-clone records. TDD reproduced and fixed fallback-root inconsistency, invalid-fresh metadata mutation and ordinary Couch repo-default overwrite; live/parked menu routing verified.; review verdict: SHIP
 ### 2026-09-22 — fresh v2 task
 
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
@@ -159,3 +162,11 @@ existing preference editor dispatches the exact slot address and explicit empty
 argv. The isolation trial uses real temporary Git/filesystem stores with stateful
 process/session fakes; it does not launch operator agents. Implementation is
 committed; SDLC close review and publication follow.
+
+### 2026-09-23 — accepted for publication
+
+Close returned SHIP with no findings, measured actual 0.50h. The reviewer reran
+changed-path tests and diff checks successfully. Its broad rerun was interrupted
+and is inconclusive; the implementation session's completed full-suite pass is
+recorded above (couchcore 248.509s, couchtty 9.307s, launcher 14.330s). No code
+changed after acceptance.

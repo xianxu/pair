@@ -390,7 +390,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Provision durable numbered workspaces [pair#305]
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
-- [ ] Persist independent workspace preferences [pair#308]
+- [x] Persist independent workspace preferences [pair#308]
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
 Sequence: workspace identity comes first. Dependency setup, concurrent workflow
@@ -564,7 +564,9 @@ passed; the optional timing harness has a documented baseline correlation failur
 <a id="pair-308"></a>
 ### pair#308 — Independent workspace preferences
 
-**status:** working — full-suite/race/build verification passed; SDLC close review pending
+**status:** codecomplete — SHIP review, publication pending
+**actual:** 0.50h
+**closed:** 2026-09-23 (local acceptance)
 **started:** 2026-09-23
 
 The [issue](../issues/000308-slots-v2-workspace-preferences.md) reuses the existing
@@ -897,3 +899,11 @@ preferences are reused. Implementation aligns fresh/switch defaults with creatio
 prevents Couch parameters from overwriting repository defaults, and validates fresh
 parameters before replacing current metadata. Restart/isolation verification is
 underway; no model preference field or picker is introduced.
+
+### 2026-09-23 — #308 accepted for publication
+
+SDLC close returned SHIP with no findings; measured actual is 0.50h on the quick
+flow. Full-suite verification passed in the implementation session, along with
+affected race tests, build and vet. The independent reviewer confirmed targeted
+regressions; its separate broad rerun was interrupted and recorded as inconclusive.
+Publication follows.
