@@ -74,7 +74,7 @@ conversation's session id. Verify separately.
 - [x] `ActivePoll`/`ActiveWindow` options + defaults in `applyWatcherDefaults`
 - [x] Loop: track Pair-log ModTime → `lastSend`; sliced wait that wakes on change
 - [x] Fake-clock regression test: send after startup window → binds within ActivePoll
-- [ ] `make test`; live smoke via operator
+- [x] `make test`; live smoke via operator
 
 ## Log
 
@@ -102,3 +102,5 @@ conversation's session id. Verify separately.
   workbench-route-nvim / submission-transaction under load avg ~7.6; both pass
   in isolation.
 
+
+- Operator confirmed the #316 live smoke test passed on 2026-09-23. This completes the manual verification item alongside the automated verification recorded above.
