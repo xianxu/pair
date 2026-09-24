@@ -14,7 +14,7 @@ import (
 )
 
 func TestGroupedRenderedFixtures(t *testing.T) {
-	for _, scenario := range []string{"normal", "absent_primary", "parked", "filtered", "narrow", "glyph_branch", "glyph_dirty", "glyph_ahead", "glyph_clean", "glyph_narrow"} {
+	for _, scenario := range []string{"normal", "absent_primary", "parked", "filtered", "narrow", "glyph_branch", "glyph_dirty", "glyph_ahead", "glyph_clean", "glyph_behind", "glyph_diverged", "glyph_narrow"} {
 		t.Run(scenario, func(t *testing.T) {
 			primary, one, two := groupedRow("/workspace/pair", 0, "primary"), groupedRow("/workspace/pair", 1, "one"), groupedRow("/workspace/pair", 2, "two")
 			rows := []couchcore.ActionableThreadSummary{two, primary, one}
@@ -114,6 +114,9 @@ func groupedGlyphScenarios(primary, one, two couchcore.ActionableThreadSummary) 
 		"glyph_dirty":  with(couchcore.SlotGitStatus{Branch: "main-slot1", Dirty: true, HasUpstream: true, Ahead: 2}),
 		"glyph_ahead":  with(couchcore.SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Ahead: 2}),
 		"glyph_clean":  with(clean("main-slot1")),
+		// pair#319: behind-only and diverged resting branches.
+		"glyph_behind":   with(couchcore.SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Behind: 5}),
+		"glyph_diverged": with(couchcore.SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Ahead: 3, Behind: 34}),
 		"glyph_narrow": {
 			primary.StartingPath: {Branch: "main", HasUpstream: true, Ahead: 1},
 			one.StartingPath:     {Detached: true},

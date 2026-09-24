@@ -438,11 +438,14 @@ the switcher and the tabs (`pair:1`, `:2*`):
 |---|---|
 | `` | not on its resting branch (`main` / `main-slotN`), so it has issue work |
 | `*` | on its resting branch, working tree dirty |
+| `±` | on its resting branch and clean, but diverged: commits on both sides of its upstream |
 | `+` | on its resting branch and clean, with commits not on its upstream |
+| `-` | on its resting branch and clean, behind its upstream (pull before working there) |
 
 Couch refreshes these in the background about every 10 seconds, and whenever
 you open the switcher or change tabs. A glyph can lag briefly, but it never
-slows a keypress. The branch glyph needs a Nerd Font. Dependency
+slows a keypress. Couch never fetches, so "behind" is only as fresh as that
+checkout's last `git fetch`. The branch glyph needs a Nerd Font. Dependency
 clones inside a slot do not get entries of their own.
 
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`

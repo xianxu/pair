@@ -15,7 +15,11 @@ func TestSlotGlyphPrecedence(t *testing.T) {
 		{"off resting beats dirty", SlotGitStatus{Branch: "000317-x", Dirty: true, HasUpstream: true, Ahead: 2}, slotGlyphBranch},
 		{"dirty beats ahead", SlotGitStatus{Branch: "main-slot1", Dirty: true, HasUpstream: true, Ahead: 2}, "*"},
 		{"ahead", SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Ahead: 1}, "+"},
-		{"no upstream is no evidence", SlotGitStatus{Branch: "main-slot1", Ahead: 3}, ""},
+		{"behind", SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Behind: 4}, "-"},
+		{"diverged", SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Ahead: 3, Behind: 34}, "±"},
+		{"dirty hides divergence", SlotGitStatus{Branch: "main-slot1", Dirty: true, HasUpstream: true, Ahead: 3, Behind: 34}, "*"},
+		{"off resting hides divergence", SlotGitStatus{Branch: "000319-x", HasUpstream: true, Ahead: 3, Behind: 34}, slotGlyphBranch},
+		{"no upstream is no evidence", SlotGitStatus{Branch: "main-slot1", Ahead: 3, Behind: 2}, ""},
 		{"clean", SlotGitStatus{Branch: "main-slot1", HasUpstream: true}, ""},
 	} {
 		if got := SlotGlyph(tc.s, "main-slot1"); got != tc.want {
@@ -41,8 +45,10 @@ func TestParseSlotGitStatus(t *testing.T) {
 		out  string
 		want SlotGitStatus
 	}{
-		{"clean with upstream", head + upstream + "# branch.ab +0 -4", SlotGitStatus{Branch: "main-slot1", HasUpstream: true}},
+		{"clean with upstream", head + upstream + "# branch.ab +0 -0", SlotGitStatus{Branch: "main-slot1", HasUpstream: true}},
+		{"behind", head + upstream + "# branch.ab +0 -4", SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Behind: 4}},
 		{"ahead", head + upstream + "# branch.ab +3 -0", SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Ahead: 3}},
+		{"diverged", head + upstream + "# branch.ab +3 -34", SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Ahead: 3, Behind: 34}},
 		{"no upstream", head, SlotGitStatus{Branch: "main-slot1"}},
 		{"detached", "# branch.oid ad5c735d925a3095c5632d9a99603d33e490e19a\n# branch.head (detached)", SlotGitStatus{Detached: true}},
 		{"ordinary change", head + "1 .M N... 100644 100644 100644 a b f.go", SlotGitStatus{Branch: "main-slot1", Dirty: true}},

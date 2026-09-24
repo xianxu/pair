@@ -16,6 +16,9 @@ type SlotGitStatus struct {
 	Dirty       bool
 	HasUpstream bool
 	Ahead       int
+	// Behind is as fresh as the checkout's last fetch: the probe reads the
+	// local remote-tracking ref and never touches the network.
+	Behind int
 }
 
 // slotGlyphBranch is the Powerline branch symbol (U+E0A0, Nerd Font).
@@ -32,16 +35,23 @@ func RestingBranch(n int) string {
 }
 
 // SlotGlyph applies the precedence: off the resting branch (issue work) beats a
-// dirty tree, which beats commits not yet on the upstream. Without an upstream
-// there is no evidence of unpublished work, so nothing is shown.
+// dirty tree, which beats divergence from the upstream: both ways (±), then
+// ahead only (+, unpublished), then behind only (-, needs a pull). Without an
+// upstream there is no evidence either way, so nothing is shown.
 func SlotGlyph(s SlotGitStatus, resting string) string {
 	switch {
 	case s.Detached || s.Branch != resting:
 		return slotGlyphBranch
 	case s.Dirty:
 		return "*"
-	case s.HasUpstream && s.Ahead > 0:
+	case !s.HasUpstream:
+		return ""
+	case s.Ahead > 0 && s.Behind > 0:
+		return "±"
+	case s.Ahead > 0:
 		return "+"
+	case s.Behind > 0:
+		return "-"
 	}
 	return ""
 }
@@ -90,12 +100,12 @@ func ParseSlotGitStatus(out string) (SlotGitStatus, error) {
 				return SlotGitStatus{}, fmt.Errorf("malformed branch.ab %q", line)
 			}
 			ahead, aheadErr := strconv.ParseUint(fields[0][1:], 10, strconv.IntSize-1)
-			_, behindErr := strconv.ParseUint(fields[1][1:], 10, strconv.IntSize-1)
+			behind, behindErr := strconv.ParseUint(fields[1][1:], 10, strconv.IntSize-1)
 			if aheadErr != nil || behindErr != nil {
 				return SlotGitStatus{}, fmt.Errorf("malformed branch.ab %q", line)
 			}
 			sawAB = true
-			s.Ahead = int(ahead)
+			s.Ahead, s.Behind = int(ahead), int(behind)
 		case line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "! "):
 		case len(line) > 2 && strings.IndexByte("12u?", line[0]) >= 0 && line[1] == ' ':
 			s.Dirty = true

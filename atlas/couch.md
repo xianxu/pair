@@ -74,9 +74,11 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 
 Each checkout in a slot group, `:0` included, carries one glyph after its label
 in both the switcher and the tabs: `` (U+E0A0) off its resting branch
-(`main` / `main-slotN`, from `couchcore.RestingBranch`), `*` dirty, `+` commits
-ahead of the branch's upstream, none otherwise, in that precedence
-(`couchcore.SlotGlyph`). `PresentThreads` derives `ThreadPresentation.Glyph`
+(`main` / `main-slotN`, from `couchcore.RestingBranch`), `*` dirty, then
+divergence from the branch's upstream: `±` both ahead and behind, `+` ahead
+only, `-` behind only (#319); none otherwise, in that precedence
+(`couchcore.SlotGlyph`). Behind reads the local remote-tracking ref; the probe
+never fetches. `PresentThreads` derives `ThreadPresentation.Glyph`
 once from `MenuState.SlotGit`, so the two views cannot disagree.
 
 The data is one `git --no-optional-locks status --porcelain=v2 --branch` per
