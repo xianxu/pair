@@ -1,6 +1,7 @@
 package couchtty
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
@@ -19,7 +20,11 @@ import (
 
 // StatusActor is one chip on the row.
 type StatusActor struct {
-	Label string
+	// GroupKey identifies the primary checkout; SlotNumber is zero for ordinary
+	// tabs. The renderer shortens only after drawing this group's first member.
+	GroupKey   string
+	SlotNumber int
+	Label      string
 	// Thread is who a click on this chip lands on. The THREAD address, not the
 	// pane handle or the actor id: the declared `switch` operation is addressed
 	// by thread, so carrying anything else here would mean translating at the
@@ -124,8 +129,13 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		used += textwidth.Width(clipped)
 	}
 	var chips []ChipSpan
+	previousGroup := ""
 	for _, a := range m.Actors {
 		label := rowtext.Sanitize(a.Label)
+		if a.GroupKey != "" && a.GroupKey == previousGroup && a.SlotNumber > 0 {
+			label = ":" + strconv.Itoa(a.SlotNumber)
+		}
+		previousGroup = a.GroupKey
 		if a.Placeholder && a.Loading {
 			label += " " + spinnerGlyph(m.Spinner)
 		}

@@ -1,0 +1,6 @@
+threads
+
+    pair:2  /workspace/worktree/pair-slot2/pair  live
+filter: :2
+TAB BAR
+pair  [:1]  :2

@@ -73,7 +73,7 @@ Detailed proposed plan: [Grouped Thread Display](../plans/000307-slots-v2-groupe
 
 - [x] Specify shared group ordering and absent-primary/narrow-width presentation.
 - [x] Wire both UI projections and selection/navigation to the shared order.
-- [ ] Verify rendered examples plus real activation routing.
+- [x] Verify rendered examples plus real activation routing.
 
 ## Log
 
@@ -115,3 +115,9 @@ Operator approved the detailed plan. PQ-1 is addressed by the plan's explicit kn
 ### 2026-09-23 — grouping integrated
 
 Shared pure projection, switcher inventory ordering/rendering and grouped tab assembly implemented. Regression tests first reproduced unsorted switcher rows, hidden canonical slot names and attach-ordered tabs; the targeted tests now pass. Full couchtty suite passes (7.040s), including its unchanged allocation budget. Native tab clicks are exercised through Run and activate the intended pane. Rendered fixtures cover normal, absent primary, parked, filtered and narrow views. Broader verification and close review remain.
+
+### 2026-09-23 — acceptance verification
+
+Full repository suite passed (`/tmp/pair307-full.log`, couchcore 248.017s). The subsequent accepted-inventory chrome repaint fix is covered by the full affected UI suite (7.033s), build/vet and a three-workspace temporary-directory activation trial (five repetitions under race). Normal/absent-primary/parked/filtered/narrow golden fixtures use production renderers. `make pair bin/couch`, affected-package vet and diff whitespace checks passed. The unchanged allocation tests pass; 1,000-row projection benchmark measured 1.559ms/op. Optional target-machine timing integration times out on both the working code and an unmodified HEAD snapshot at raw-frame correlation; recorded as a pre-existing harness limitation, with no latency-pass claim. Final UI race result and boundary review follow.
+
+Final affected-package race verification: `go test -race ./cmd/internal/couchtty -count=1` passed in 20.852s (`/tmp/pair307-race-verified.log`).

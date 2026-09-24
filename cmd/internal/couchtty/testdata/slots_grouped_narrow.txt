@@ -1,0 +1,8 @@
+threads
+
+▸ pair  /workspace/pair  live
+    pair:1  /workspace/worktree/pa  live
+    review ready
+    pair:2  /workspace/worktree/pa  live
+TAB BAR
+pair  [:1]  :2

@@ -20,6 +20,20 @@ rounds:
           family: test-strategy-compression
           round: 1
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-23T16:59:11-07:00"
+      agent: codex
+      dispose:
+        - id: PQ-1
+          disposition: addressed
+          note: The plan now defines known-root and unknown-root display paths, group keys, qualifiers, collision behavior, and deterministic legacy fallback.
+          round: 2
+        - id: PQ-2
+          disposition: not-addressed
+          note: The plan adds a strategy summary, but Tasks 1–3 still enumerate concrete test cases in prose instead of naming one adversarial strategy per risky function.
+          round: 2
+      blocked: false
+content_hash: 182b15d2e2da187953cd1d6f4009994f700d98ca6180276a0002ca7bf3e421fb
 ---
 
 # Gate ledger — pair#307 (plan-quality)
@@ -36,7 +50,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **PQ-2** [Minor] `test-strategy-compression` Replace enumerated test-case prose with one adversarial strategy per risky function
   Task 1, Task 2, and Task 3 enumerate many concrete cases in prose. Name the risky functions and give one strategy line each describing the malformed, permuted, stale, or width-constrained input class and mechanical oracle; let the executable tests contain the individual cases.
 
+## Round 2 — 2026-09-23T16:59:11-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — The plan now defines known-root and unknown-root display paths, group keys, qualifiers, collision behavior, and deterministic legacy fallback.
+- PQ-2 — not-addressed — The plan adds a strategy summary, but Tasks 1–3 still enumerate concrete test cases in prose instead of naming one adversarial strategy per risky function.
+
 ## Open findings
 
-- **PQ-1** [Important] `checkout-root-identity` Define the executable fallback for ordinary checkout roots and full paths
 - **PQ-2** [Minor] `test-strategy-compression` Replace enumerated test-case prose with one adversarial strategy per risky function

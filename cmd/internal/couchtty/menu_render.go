@@ -477,9 +477,11 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 	// Labels are disambiguated against the WHOLE inventory, not the filtered
 	// view: a name that is unique only because the filter hid its twin would
 	// change as the operator types.
-	labels := couchcore.LabelsFor(menuRows(state),
-		func(t couchcore.ActionableThreadSummary) couchcore.ThreadAddress { return t.Address },
-		func(t couchcore.ActionableThreadSummary) string { return t.Label() })
+	presentations := PresentThreads(menuRows(state))
+	labels := make(map[couchcore.ThreadRowKey]ThreadPresentation, len(presentations))
+	for _, entry := range presentations {
+		labels[menuRowKey(entry.Row)] = entry
+	}
 	lines := []string{"threads", ""}
 	rowBudget := height - len(lines)
 	if frame.Filter != "" {
@@ -520,11 +522,12 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if prefixWidth < 0 {
 			prefixWidth = 0
 		}
-		label := labels[thread.Address]
-		if thread.Target.Kind == couchcore.ThreadTargetSlot {
-			label = thread.Label()
+		entry := labels[menuRowKey(thread)]
+		detail := entry.Path
+		if thread.Name != "" && entry.Label != thread.Label() {
+			detail += "  (" + thread.Name + ")"
 		}
-		plain := clipMenuLine(fmt.Sprintf("%s%s  %s", marker, label, thread.WorkingPath), prefixWidth) + suffix
+		plain := clipMenuLine(marker+strings.Repeat(" ", entry.Indent)+entry.Label+"  "+detail, prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if owned && view.Pending() && color256 {

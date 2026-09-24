@@ -195,6 +195,10 @@ representative evidence, not an exhaustive index.
   A carve-out with no instances is not a useful rule, and a check that fires on
   every run becomes background noise. (#209, #221)
 
+- When chrome starts consuming inventory metadata, test publication while an idle
+  child keeps focus: updating the model or repainting only the panel leaves tabs
+  stale. Await both operation completion and painted geometry between clicks. (#307)
+
 ## Working rule
 
 When in doubt, draw the boundary first: who owns the state, what evidence can

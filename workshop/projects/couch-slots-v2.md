@@ -821,3 +821,7 @@ and preference UX remain #307/#308. PR publication follows.
 SDLC marked #306 done, archived its issue/plan/review records, and returned the
 checkout to main. Updated the portfolio links and publication status. #307 can
 now consume stable slot identities for grouped switcher/tab presentation.
+
+### 2026-09-23 — #307 grouped display implemented, verification underway
+
+Operator approved shared repository grouping for switcher and tab bar. Both now derive from the same pure projection, with numeric slots, stable row selection and full context when the primary is absent. Parked members stay in the switcher; pending tabs retain their group position. Rendered fixtures and operator documentation are in place. Full verification and SDLC close review are next; this is not a completion claim.

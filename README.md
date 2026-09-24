@@ -408,6 +408,23 @@ another creates a durable numbered slot (`:1`, `:2`, …), under
 `:N`; the qualified form is `<repo>:N`. Resume parked threads before adding
 another slot.
 
+The switcher groups repositories alphabetically, with the primary first and
+numbered slots in numeric order (`:2` before `:10`). It shows full workspace
+names and actual checkout paths:
+
+```text
+pair      /workspace/pair
+  pair:1  /workspace/worktree/pair-slot1/pair
+  pair:2  /workspace/worktree/pair-slot2/pair
+```
+
+Tabs use the same group order: `pair :1 :2`. If the primary has no tab, the
+first slot shows the repo name: `pair:1 :2`. Parked slots stay in the switcher;
+tabs show attached threads and pending reattachments. Narrow terminals clip the
+right end of the bar, keeping each visible slot after its repo context. Custom
+names remain searchable and appear beside grouped workspace rows. Dependency
+clones inside a slot do not get entries of their own.
+
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
 conversation in the same slot after confirming its managed sessions are stopped.
