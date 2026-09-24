@@ -1,6 +1,6 @@
 ---
 id: 000322
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-24
@@ -8,6 +8,7 @@ updated: 2026-09-24
 estimate_hours:
 started: 2026-09-24T15:54:11-07:00
 flow: {kind: quick, provenance: inferred, spec: "141a9987", done: "cdbf434a"}
+actual_hours: 0.30
 ---
 
 # Raise terminal write deadline to five seconds
@@ -37,6 +38,7 @@ remains the authority for delivery (ARCH-DRY).
 ## Log
 
 ### 2026-09-24
+- 2026-09-24: closed — Shared terminal WriteTimeout is 5s; the focused contract test failed at 2s and passes at 5s, and go test ./cmd/internal/terminal -count=1 passes. Both queued input transport and presenter call sites continue deriving from the shared constant. --no-atlas is intentional: this changes an existing timeout budget and introduces no new architectural surface.; review verdict: SHIP
 
 - TDD: the new timeout contract test failed at the old 2s value, then passed
   after changing the shared `WriteTimeout` constant to 5s. `go test
