@@ -527,15 +527,23 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if thread.Name != "" && entry.Label != thread.Label() {
 			detail += "  (" + thread.Name + ")"
 		}
-		plain := clipMenuLine(marker+strings.Repeat(" ", entry.Indent)+entry.Label+entry.Glyph+"  "+detail, prefixWidth) + suffix
+		head := marker + strings.Repeat(" ", entry.Indent) + entry.Label
+		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if owned && view.Pending() && color256 {
 			// Greyed with the status bar's placeholder grey, so "not ready yet"
 			// looks the same in both places. Never selected: the cursor skips it.
 			plain = placeholderSGR + plain + "\x1b[0m"
-		} else if !thread.Live() && color256 {
-			plain = ageColor(AgeBandFor(now, thread.LastActiveAt)) + plain + "\x1b[0m"
+		} else if color256 {
+			outer := ""
+			if !thread.Live() {
+				outer = ageColor(AgeBandFor(now, thread.LastActiveAt))
+			}
+			plain = colorMenuGlyph(plain, head, entry.Glyph, outer)
+			if outer != "" {
+				plain = outer + plain + "\x1b[0m"
+			}
 		}
 		if selectedRow {
 			selectedStart = len(rows)
@@ -581,6 +589,17 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		lines = append(lines, clipMenuLine("filter: "+frame.Filter, width))
 	}
 	return lines, extents
+}
+
+// colorMenuGlyph draws the slot glyph in its alert colour when the clip kept it
+// whole, then restores the row's own style for the rest of the line. The
+// selected row is re-rendered plain by selectedMenuLine, so it never gets here.
+func colorMenuGlyph(line, head, glyph, outer string) string {
+	sgr := slotGlyphSGR(glyph)
+	if sgr == "" || !strings.HasPrefix(line, head+glyph) {
+		return line
+	}
+	return head + sgr + glyph + "\x1b[0m" + outer + line[len(head)+len(glyph):]
 }
 
 func renderItemMenuFrame(title string, items []string, selected, filter string, width, height int) []string {

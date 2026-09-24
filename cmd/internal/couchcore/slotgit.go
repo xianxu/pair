@@ -24,6 +24,10 @@ type SlotGitStatus struct {
 // slotGlyphBranch is the Powerline branch symbol (U+E0A0, Nerd Font).
 const slotGlyphBranch = ""
 
+// SlotGlyphDiverged marks a resting branch with commits on both sides of its
+// upstream. Presentation draws it in the alert colour (pair#319).
+const SlotGlyphDiverged = "±"
+
 // RestingBranch is the branch a checkout rests on: main for :0, main-slotN for
 // slot N. sdlc workspace asserts the same convention, which validate() checks
 // through this helper.
@@ -47,7 +51,7 @@ func SlotGlyph(s SlotGitStatus, resting string) string {
 	case !s.HasUpstream:
 		return ""
 	case s.Ahead > 0 && s.Behind > 0:
-		return "±"
+		return SlotGlyphDiverged
 	case s.Ahead > 0:
 		return "+"
 	case s.Behind > 0:

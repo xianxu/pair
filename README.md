@@ -438,7 +438,7 @@ the switcher and the tabs (`pair:1`, `:2*`):
 |---|---|
 | `` | not on its resting branch (`main` / `main-slotN`), so it has issue work |
 | `*` | on its resting branch, working tree dirty |
-| `±` | on its resting branch and clean, but diverged: commits on both sides of its upstream |
+| `±` | on its resting branch and clean, but diverged: commits on both sides of its upstream (drawn in red) |
 | `+` | on its resting branch and clean, with commits not on its upstream |
 | `-` | on its resting branch and clean, behind its upstream (pull before working there) |
 

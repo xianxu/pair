@@ -78,7 +78,8 @@ in both the switcher and the tabs: `` (U+E0A0) off its resting branch
 divergence from the branch's upstream: `±` both ahead and behind, `+` ahead
 only, `-` behind only (#319); none otherwise, in that precedence
 (`couchcore.SlotGlyph`). Behind reads the local remote-tracking ref; the probe
-never fetches. `PresentThreads` derives `ThreadPresentation.Glyph`
+never fetches. `±` is drawn red in both views (`slotGlyphSGR` in `reserve.go`,
+the one styling decision; the switcher's selected row stays plain). `PresentThreads` derives `ThreadPresentation.Glyph`
 once from `MenuState.SlotGit`, so the two views cannot disagree.
 
 The data is one `git --no-optional-locks status --porcelain=v2 --branch` per

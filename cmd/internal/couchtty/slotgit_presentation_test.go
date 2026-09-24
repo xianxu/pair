@@ -2,9 +2,13 @@ package couchtty
 
 import (
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
 func TestPresentThreadsSlotGlyphScope(t *testing.T) {
@@ -67,5 +71,48 @@ func TestReduceMenuSlotGitKeepsLastValueOnFailure(t *testing.T) {
 	}
 	if !before["/a"].Dirty || len(before) != 3 {
 		t.Fatal("reducer mutated the prior state's map")
+	}
+}
+
+// pair#319: a diverged resting branch (±) is drawn in the alert colour in both
+// views; other glyphs keep their row's style, and the plain text is unchanged.
+func TestDivergedGlyphIsRedInBothViews(t *testing.T) {
+	for _, tc := range []struct {
+		glyph string
+		red   bool
+	}{{"±", true}, {"+", false}, {"-", false}, {"*", false}} {
+		row := RenderStatusRow(80, StatusModel{Actors: []StatusActor{
+			{GroupKey: "g", Label: "pair", Thread: couchcore.ThreadAddress{Tag: "a"}},
+			{GroupKey: "g", SlotNumber: 1, Label: "pair:1", Glyph: tc.glyph, Active: true, Thread: couchcore.ThreadAddress{Tag: "b"}},
+		}})
+		if got := string(ansi.Strip([]byte(row.Body))); got != "pair  [:1"+tc.glyph+"]" {
+			t.Fatalf("%s: plain tab bar = %q", tc.glyph, got)
+		}
+		if strings.Contains(row.Body, slotAlertSGR+tc.glyph) != tc.red {
+			t.Fatalf("%s: tab bar red = %v in %q", tc.glyph, !tc.red, row.Body)
+		}
+		if n := len(row.Chips); n != 2 || row.Chips[1].End-row.Chips[1].Start != textwidth.Width("[:1"+tc.glyph+"]") {
+			t.Fatalf("%s: chip spans = %+v", tc.glyph, row.Chips)
+		}
+	}
+
+	primary, one := groupedRow("/workspace/pair", 0, "primary"), groupedRow("/workspace/pair", 1, "one")
+	state := NewMenuState([]couchcore.ActionableThreadSummary{primary, one}, primary.Address)
+	state.SlotGit = map[string]couchcore.SlotGitStatus{
+		primary.StartingPath: {Branch: "main", HasUpstream: true, Ahead: 1, Behind: 2},
+		one.StartingPath:     {Branch: "main-slot1", HasUpstream: true, Ahead: 1, Behind: 2},
+	}
+	menu := RenderMenu(state, 100, 16, time.Unix(1800000000, 0), true)
+	var slotLine string
+	for _, line := range strings.Split(menu, "\n") {
+		if strings.Contains(string(ansi.Strip([]byte(line))), "pair:1±") {
+			slotLine = line
+		}
+	}
+	if !strings.Contains(slotLine, slotAlertSGR+"±") {
+		t.Fatalf("switcher row lacks the red ±: %q", slotLine)
+	}
+	if plain := RenderMenu(state, 100, 16, time.Unix(1800000000, 0), false); strings.Contains(plain, slotAlertSGR) {
+		t.Fatal("switcher coloured the glyph without 256-colour support")
 	}
 }
