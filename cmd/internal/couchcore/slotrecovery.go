@@ -327,13 +327,14 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 		if err := ctx.Err(); err != nil {
 			return StartResult{}, errors.Join(err, claim.Release())
 		}
+		raw, err := launcher.BuildCouchFreshLaunchProfile(string(record.Address.Tag), profile.Profile.Agent, profile.Profile.Argv, string(profile.AgentSource), string(profile.ArgvSource))
+		if err != nil {
+			return StartResult{}, errors.Join(err, claim.Release())
+		}
 		if err := local.replaceSlotCurrent(old, record); err != nil {
 			return StartResult{}, local.releaseRefusedSlotClaim(record.Address, claim, err)
 		}
-		raw, err := launcher.BuildCouchFreshLaunchProfile(string(record.Address.Tag), profile.Profile.Agent, profile.Profile.Argv, string(profile.AgentSource), string(profile.ArgvSource))
-		if err == nil {
-			err = c.prepareTrackedWorkspace(ctx, record, nonce, false)
-		}
+		err = c.prepareTrackedWorkspace(ctx, record, nonce, false)
 		if err == nil {
 			err = c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address)
 		}
@@ -368,7 +369,7 @@ func (c *Couch) slotLaunchProfile(local *ThreadStore, slot SlotIdentity, agent s
 		return selected, errors.New("unsupported slot launch agent")
 	}
 	if c.RepoAgentDefault != nil {
-		value, ok, err := c.RepoAgentDefault(slot.WorktreeRoot, selected.Profile.Agent)
+		value, ok, err := c.repoLaunchDefault(slot.WorktreeRoot, slot.PrimaryRoot, selected.Profile.Agent)
 		if err != nil {
 			return selected, err
 		}

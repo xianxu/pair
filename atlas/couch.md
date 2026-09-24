@@ -1363,16 +1363,26 @@ its Pair-owned repository default. Agent choices derive from
 `launcher.AgentInventory`, so Couch has no harness enum and can never apply one
 agent's argv to another.
 
-Path preferences are strict revisioned records below
+Primary and ordinary-path preferences are strict revisioned records below
 `threadstore/path-preferences/`, addressed by a digest of normalized repository
 identity plus canonical physical path while retaining both values in the
-record for validation. The resolved profile travels to Pair as a strict
+record for validation. Numbered workspaces route that same API to their
+`<environment>/.couch/preferences.json`, keyed to the nested main checkout;
+sibling dependency clones are not enrolled as threads. `repoLaunchDefault`
+resolves numbered workspaces' missing per-agent values from the primary checkout
+across create, fresh and Switch agent. It retains the explicitly known primary
+root during first creation before enrollment. First-use agent selection remains
+the current Couch agent, not a copy of :0's preference; registered launches then
+establish independent per-workspace values. Resume consumes its incarnation's
+exact recorded profile, while fresh replacement preserves per-agent history and
+validates parameters before replacing the current record. The resolved profile travels to Pair as a strict
 tag-bound `PAIR_COUCH_LAUNCH_PROFILE`. `PAIR_USE_REPO_DEFAULT=1` accompanies it
 only for matching repo-default provenance; path provenance supplies one
 authoritative empty value. `ExecRunner` overlays supplied child keys after
 removing inherited duplicates, so stale launch policy cannot cross the process
 boundary. Pair consumes both keys before launch and does not persist
-Couch-resolved argv back as a new repository default.
+Couch-resolved argv back as a new repository default (`AgentArgsFromCouch` guards
+ordinary launches as well as fresh/resume paths).
 
 The pending start claim carries the exact profile across Couch failure, but it
 does not count as history. Established registration promotes that profile onto

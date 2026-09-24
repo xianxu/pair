@@ -197,7 +197,7 @@ func (c *Couch) PrepareAgentSwitch(ctx context.Context, address ThreadAddress, a
 		input.Path = &preference
 	}
 	if c.RepoAgentDefault != nil {
-		profile, exists, err := c.RepoAgentDefault(record.StartingPath, agent)
+		profile, exists, err := c.repoLaunchDefault(record.StartingPath, record.StartingPath, agent)
 		if err != nil {
 			return PreparedAgentSwitch{}, err
 		}

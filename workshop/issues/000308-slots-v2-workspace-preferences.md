@@ -71,7 +71,7 @@ preference file per workspace remains overwritten through the existing journal.
 
 - :0, :1, and :2 retain independently selected agents and supported launch parameters across park/resume and process restart.
 - Changing one workspace’s preferences does not mutate another workspace or repo defaults.
-- Existing primary preferences migrate/read compatibly; new-slot inheritance and replacement behavior are documented and tested.
+- Existing primary preferences migrate/read compatibly; a new slot uses the current Couch agent and primary-repository defaults, then retains its own successful settings across replacement. This behavior is documented and tested.
 - Invalid settings use the existing actionable validation path; no preferred-model customization is introduced.
 
 - Nested path resolution retains stable main-workspace preference keys; acquiring sibling dependency clones creates no extra preference or launch records.
@@ -80,11 +80,11 @@ preference file per workspace remains overwritten through the existing journal.
 
 Single acceptance boundary; expected production change fits the quick-flow shell.
 
-- [ ] Approve the first-use inheritance contract above. Add regressions showing new-slot, fresh and switch-agent agree on primary-repository fallback while saved per-agent and explicit empty arguments win. Reuse `slotRecoveryOperationFixture`, managed-slot fixtures and switch-agent stateful fakes in `cmd/internal/couchcore/`; run the new tests red before changing behavior.
-- [ ] Centralize default-root selection using existing ThreadStore path routing in `cmd/internal/couchcore/threadstore_location.go`; consume it in `couch.go`, `slotrecovery.go`, and `switchagent.go` without changing preference keys, lifecycle states or schemas. Preserve errors and ordinary-path behavior. Re-run focused tests green.
-- [ ] Add a regression through `RunLaunch` in `cmd/internal/launcher/createflow_test.go` proving a Couch-supplied ordinary launch preserves repository defaults (including an empty profile), while direct Pair explicit arguments still persist after readiness. Fix the persistence guard in `createflow.go` using existing `AgentArgsFromCouch` provenance; run the tests red then green.
-- [ ] In `slotrecovery.go`, validate/build the fresh profile before `replaceSlotCurrent`. Add a regression in `slotrecovery_test.go` for remembered forbidden resume selectors proving rejection preserves current metadata, history and preferences, with no child launched.
-- [ ] Exercise :0/:1/:2 using temporary nested workspace stores and existing stateful fakes: choose distinct agents/argv through launch/switch APIs, park/resume, reopen Couch/store, start fresh, and verify exact profiles and byte-preserved other-workspace/default records. Verify subdirectory/address normalization and no sibling-clone preference records. Include stale preview, failed registration and invalid parameters; reuse existing tests where they exercise the same production boundary. Add menu coverage only where existing switch/start tests miss slot identity routing.
+- [x] Approve the first-use inheritance contract above. Add regressions showing new-slot, fresh and switch-agent agree on primary-repository fallback while saved per-agent and explicit empty arguments win. Reuse `slotRecoveryOperationFixture`, managed-slot fixtures and switch-agent stateful fakes in `cmd/internal/couchcore/`; run the new tests red before changing behavior.
+- [x] Centralize default-root selection using existing ThreadStore path routing in `cmd/internal/couchcore/threadstore_location.go`; consume it in `couch.go`, `slotrecovery.go`, and `switchagent.go` without changing preference keys, lifecycle states or schemas. Preserve errors and ordinary-path behavior. Re-run focused tests green.
+- [x] Add a regression through `RunLaunch` in `cmd/internal/launcher/createflow_test.go` proving a Couch-supplied ordinary launch preserves repository defaults (including an empty profile), while direct Pair explicit arguments still persist after readiness. Fix the persistence guard in `createflow.go` using existing `AgentArgsFromCouch` provenance; run the tests red then green.
+- [x] In `slotrecovery.go`, validate/build the fresh profile before `replaceSlotCurrent`. Add a regression in `slotrecovery_test.go` for remembered forbidden resume selectors proving rejection preserves current metadata, history and preferences, with no child launched.
+- [x] Exercise :0/:1/:2 using temporary nested workspace stores and existing stateful fakes: choose distinct agents/argv through launch/switch APIs, park/resume, reopen Couch/store, start fresh, and verify exact profiles and byte-preserved other-workspace/default records. Verify subdirectory/address normalization and no sibling-clone preference records. Include stale preview, failed registration and invalid parameters; reuse existing tests where they exercise the same production boundary. Add menu coverage only where existing switch/start tests miss slot identity routing.
 - [ ] Document first-use fallback, independent settings and fresh/resume behavior in `README.md` and `atlas/couch.md`; update the project. Run `go test ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/launcher -count=1`, affected race tests, `go test ./... -count=1`, `make pair bin/couch`, and `git diff --check`. Commit and pass `sdlc close --issue 308 --verified '<evidence>'`, then `sdlc pr` and `sdlc merge`.
 
 ## Log
@@ -139,3 +139,13 @@ rewriting repo defaults for both empty and nonempty argv; provenance now exclude
 those writes while direct Pair defaults remain supported. The helper performs
 read-only path routing so start previews do not initialize or recover stores.
 Full-suite, race and three-workspace acceptance verification are underway.
+
+The Done-when inheritance criterion now states the operator-confirmed default
+explicitly, matching the approved Spec without expanding scope.
+
+Focused acceptance and the final affected race suite passed (couchcore 25.931s,
+couchtty 1.948s, launcher 1.327s); `make pair bin/couch`, affected `go vet`, and
+`git diff --check` passed. An earlier full-suite run compiled an in-progress
+acceptance fixture and failed there; the final complete run is underway after
+fixing fake session publication and hosted-process cleanup. No runtime workaround
+was required.

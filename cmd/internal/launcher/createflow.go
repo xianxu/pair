@@ -619,7 +619,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 			fmt.Fprintf(stderr, "pair: %v\n", err)
 			return launchStep{code: 1}, nil
 		}
-	} else if opts.Args.AgentArgsExplicit && !opts.Args.ResumeRequired && opts.ContinueCheckpoint.Version == 0 {
+	} else if opts.Args.AgentArgsExplicit && !opts.Args.AgentArgsFromCouch && !opts.Args.ResumeRequired && opts.ContinueCheckpoint.Version == 0 {
 		defaultReady = startAgentDefaultPersistence(rt, chosenTag, agent, session, opts.Args.AgentArgs, 5*time.Second)
 	} else {
 		rt.SetEnv("PAIR_LAUNCH_NONCE", "")
