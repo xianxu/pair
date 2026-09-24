@@ -49,13 +49,30 @@ or the handling of clicks outside the strip.
 
 ## Plan
 
-- [ ] Trace the existing tab-strip render spans, mouse routing, and tab-switch
-      operation; identify the smallest shared integration point.
-- [ ] Route clicks on visible tab spans to the existing tab-switch operation,
-      preserving pass-through/no-op behavior for all other coordinates.
-- [ ] Add regression coverage for inactive/active tabs, clipped and wide-glyph
-      spans, rename/empty space, and child mouse-mode preservation.
-- [ ] Run focused and full relevant verification, then record the evidence.
+Mirror couch's status row exactly (ARCH-DRY: one mouse-ownership model, two
+consumers):
+
+- [ ] Parent mode: `newTerminalMux` builds its presenter with the same
+      any-motion policy couch uses (`terminal.CouchAnyMotion`), so clicks
+      reach `pair term` in a plain shell tab. The child still receives only
+      what its own tracking mode requests (`Presenter.mouseInput`, unchanged).
+- [ ] Pure hit test: `RenderedStrip.ColumnToTab(col) (int, bool)` over the
+      spans the clipping pass emitted — the twin of couch's
+      `RenderedStatusRow.ColumnToActor` (ARCH-PURE). Unit tests: each chip,
+      separators, empty tail, wide glyphs, clipped/dropped tabs.
+- [ ] Mux keeps the last drawn strip's spans (`chromeForGeometryLocked`
+      records them; a notice replaces the row, so it clears them).
+      `clickStrip(x, y) bool` selects via the existing `selectLocked` +
+      `renamePane` path that `switchRelative` uses; active tab is a no-op.
+- [ ] Route: in `pumpStdinContext`, a left-button press on the strip row is
+      offered to `clickStrip` before `writeEvents` — couch's
+      `routeMouseEvent` shape. Anything it does not consume falls through to
+      the presenter, which already owns strip-row presses as a parent gesture
+      (no second tracker, no child leak). Rename sessions already drop mouse.
+- [ ] Production-boundary tests through `pumpStdinWithTimer` with a fake mux;
+      presenter tests unchanged (child tracking preserved).
+- [ ] Live smoke in a pair session: click tabs in a shell tab and while nvim
+      holds `?1002`; wheel scroll in a shell; note what drag-select does.
 
 ## Log
 
@@ -89,3 +106,20 @@ pane at all — the strip is unclickable exactly in the common case. Delivering
 the Spec requires the parent to request tracking itself, which changes what
 zellij does with drag-select in a shell tab. That is the #200 territory; needs
 an operator decision before planning further.
+
+Operator decision (2026-09-23): make the strip clickable in shell tabs and keep
+it consistent with couch's tab bar. Couch's presenter always requests any-motion
+(`CouchAnyMotion`, atlas "Mouse ownership (#255)") and intercepts status-row
+presses via `ColumnToActor` spans; `pair term` adopts the same policy and shape.
+Cost to verify live: zellij's own drag-select in a shell tab (same trade couch
+already makes on the host terminal); wheel already falls back to zellij
+`scroll-up/down` when the child holds no tracking.
+
+## Revisions
+
+### 2026-09-23T22:30 — parent mouse policy
+Reason: the Spec's "reuse existing mouse arbitration" cannot deliver clicks in a
+shell tab, because `ChildRequested` never enables parent reporting there.
+Delta: parent policy changes from `ChildRequested` to couch's any-motion
+policy; child-facing tracking and the presenter's arbitration are unchanged.
+
