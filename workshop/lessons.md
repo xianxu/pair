@@ -226,3 +226,5 @@ proof; record the surprising case so the next change starts from evidence.
 - Select launch behavior by conversation identity: a new ID uses ordinary creation even inside an existing durable slot. Reuse the composed ordinary-launch test before extending the same-ID replacement protocol. (#315)
 
 - When reviewing an integrated branch, distinguish pre-existing published changes from the PR delta against fetched remote main. Mark earlier review windows as historical when a later review supersedes them.
+
+- A selection no-op must avoid selection side effects, not merely retain the same active index. Test parent output and external operations for already-selected targets.

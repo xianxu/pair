@@ -80,6 +80,18 @@ type RenderedStrip struct {
 	Spans []TabSpan
 }
 
+// ColumnToTab maps a clicked display column to the tab drawn there (#311), the
+// twin of couch's RenderedStatusRow.ColumnToActor: separators, empty space and
+// tabs the width dropped map to none.
+func (r RenderedStrip) ColumnToTab(column int) (int, bool) {
+	for _, span := range r.Spans {
+		if column >= span.Start && column < span.End {
+			return span.Index, true
+		}
+	}
+	return 0, false
+}
+
 // RenderStrip draws the tab strip for a pane `width` columns wide.
 func RenderStrip(width int, m StripModel) RenderedStrip {
 	if width <= 0 || len(m.Tabs) == 0 {

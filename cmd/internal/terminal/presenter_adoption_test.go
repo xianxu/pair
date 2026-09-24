@@ -10,7 +10,7 @@ import (
 )
 
 func TestPresenterEOFSettlesPendingCancellation(t *testing.T) {
-	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	p, _, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})

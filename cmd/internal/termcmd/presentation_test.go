@@ -419,3 +419,72 @@ func TestPresentationCloseActiveRetiresBeforeEndpointDisposal(t *testing.T) {
 		t.Fatalf("subsequent switch failed: %v", m.failure)
 	}
 }
+
+// #311: the strip is clickable in a plain shell tab, so the parent asks for
+// mouse reports itself -- couch's any-motion policy -- whatever the child holds.
+func TestPresentationParentRequestsMouseForAPlainChild(t *testing.T) {
+	m, parent := presentationFixture(t)
+	addPresentationTab(t, m, 1, "")
+	if err := m.presenter.Flush(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(parent.Bytes()), "\x1b[?1003h") {
+		t.Fatalf("parent did not request mouse reports for a plain child: %q", parent.Bytes())
+	}
+}
+
+func TestPresentationClickingStripChipSelectsThatTab(t *testing.T) {
+	m, _ := presentationFixture(t)
+	m.rows, m.cols = 5, 40
+	a := addPresentationTab(t, m, 1, "")
+	addPresentationTab(t, m, 2, "")
+	c := addPresentationTab(t, m, 3, "")
+	strip := 4 // bottom row; body "tab tab [tab]"
+
+	if m.clickStrip(1, 2) {
+		t.Fatal("a click on the child's rows was consumed by the strip")
+	}
+	if !m.clickStrip(3, strip) || m.active != 2 {
+		t.Fatalf("separator click: active=%d, want unchanged 2", m.active)
+	}
+	if !m.clickStrip(10, strip) || m.active != 2 || m.rename != nil {
+		t.Fatalf("active-chip click: active=%d rename=%v, want harmless", m.active, m.rename)
+	}
+	if !m.clickStrip(30, strip) || m.active != 2 {
+		t.Fatalf("empty-space click: active=%d, want unchanged 2", m.active)
+	}
+	if !m.clickStrip(1, strip) || m.active != 0 {
+		t.Fatalf("first-chip click: active=%d, want 0", m.active)
+	}
+	if m.presenter.View().Admitted != a.Endpoint().ID() {
+		t.Fatal("presenter did not select the clicked tab's endpoint")
+	}
+	if !m.clickStrip(11, strip) || m.presenter.View().Admitted != c.Endpoint().ID() {
+		t.Fatal("clicking the third chip did not select it")
+	}
+}
+
+func TestPresentationActiveStripClickHasNoSelectionEffects(t *testing.T) {
+	for _, count := range []int{1, 3} {
+		m, parent := presentationFixture(t)
+		m.rows, m.cols = 5, 40
+		var child *ptychild.Child
+		for id := 1; id <= count; id++ {
+			child = addPresentationTab(t, m, id, "")
+		}
+		flushPresentation(t, m, child)
+		before := append([]byte(nil), parent.Bytes()...)
+		ops := len(m.rt.(*fakeRuntime).ops)
+		span := m.stripSpans[len(m.stripSpans)-1]
+		if !m.clickStrip(span.Start, 4) {
+			t.Fatal("active chip was not consumed")
+		}
+		flushPresentation(t, m, child)
+		if !bytes.Equal(before, parent.Bytes()) {
+			t.Fatal("active chip repainted the parent")
+		}
+		if len(m.rt.(*fakeRuntime).ops) != ops {
+			t.Fatal("active chip retitled the pane")
+		}
+	}
+}

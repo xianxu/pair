@@ -15,7 +15,10 @@ import (
 type ParentMousePolicy uint8
 
 const (
-	CouchAnyMotion ParentMousePolicy = iota
+	// AnyMotion always requests any-motion reports: the parent owns clickable
+	// chrome (couch's status row, pair term's tab strip, #311) and forwards to
+	// the child only what the child's own tracking mode asks for.
+	AnyMotion ParentMousePolicy = iota
 	ChildRequested
 )
 
@@ -280,7 +283,7 @@ func parentReleaseControls(keyboardOwned bool) []byte {
 type parentModes struct{ tracking int }
 
 func desiredParentModes(policy ParentMousePolicy, child Modes) parentModes {
-	if policy == CouchAnyMotion {
+	if policy == AnyMotion {
 		return parentModes{1003}
 	}
 	return parentModes{child.Tracking}

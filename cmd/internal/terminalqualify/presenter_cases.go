@@ -34,7 +34,7 @@ func selectQualification(ctx context.Context, p *terminal.Presenter, e *terminal
 
 func observePresenterHidden(ctx context.Context) (Observation, error) {
 	parent := ttyio.NewFake()
-	p := terminal.NewPresenter(parent, terminal.CouchAnyMotion)
+	p := terminal.NewPresenter(parent, terminal.AnyMotion)
 	defer p.Release(ctx)
 	a, aw, err := scenarioEndpoint("a")
 	if err != nil {
@@ -117,7 +117,7 @@ func observePresenterFailure(ctx context.Context) (Observation, error) {
 
 func observePresenterDrag(ctx context.Context) (Observation, error) {
 	parent := ttyio.NewFake()
-	p := terminal.NewPresenter(parent, terminal.CouchAnyMotion)
+	p := terminal.NewPresenter(parent, terminal.AnyMotion)
 	defer p.Release(ctx)
 	a, aw, err := scenarioEndpoint("a")
 	if err != nil {
@@ -170,7 +170,7 @@ func observePresenterDrag(ctx context.Context) (Observation, error) {
 
 func observePresenterAdmission(ctx context.Context) (Observation, error) {
 	parent := ttyio.NewFake()
-	p := terminal.NewPresenter(parent, terminal.CouchAnyMotion)
+	p := terminal.NewPresenter(parent, terminal.AnyMotion)
 	defer p.Release(ctx)
 	e, input, err := scenarioEndpoint("a")
 	if err != nil {
@@ -230,7 +230,7 @@ func observePresenterAdmission(ctx context.Context) (Observation, error) {
 
 func observePresenterRelease(ctx context.Context) (Observation, error) {
 	parent := ttyio.NewFake()
-	p := terminal.NewPresenter(parent, terminal.CouchAnyMotion)
+	p := terminal.NewPresenter(parent, terminal.AnyMotion)
 	defer p.Release(ctx)
 	e, _, err := scenarioEndpoint("a")
 	if err != nil {
