@@ -31,9 +31,13 @@ remains the authority for delivery (ARCH-DRY).
 
 ## Plan
 
-- [ ] Add the focused timeout contract test, then change the shared constant.
-- [ ] Run terminal tests and record the result.
+- [x] Add the focused timeout contract test, then change the shared constant.
+- [x] Run terminal tests and record the result.
 
 ## Log
 
 ### 2026-09-24
+
+- TDD: the new timeout contract test failed at the old 2s value, then passed
+  after changing the shared `WriteTimeout` constant to 5s. `go test
+  ./cmd/internal/terminal -count=1` passes.
