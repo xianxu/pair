@@ -77,6 +77,12 @@ Open questions for design:
 - 2026-09-24 — open questions resolved at start-plan: one glyph per slot
   (dirty hides divergence, as proposed; a combined `*±` stays out of scope);
   `±` (U+00B1) measures one column in `textwidth` (not in its wide ranges).
+- 2026-09-24 — operator: draw `±` in red to call attention. Delta:
+  `couchcore.SlotGlyphDiverged` names the glyph; `couchtty.slotGlyphSGR` is the
+  single styling decision; the tab bar draws the glyph as its own clipped
+  segment, the switcher colours it on non-selected rows when 256-colour is on
+  (the selected row is re-rendered plain by `selectedMenuLine`). Done-when adds:
+  a test that `±` is red in both views and `+`/`-`/`*` are not.
 
 ## Log
 
@@ -92,4 +98,12 @@ Open questions for design:
 - Mutation checks (restored by `cp`, `cmp`-verified): drop the `±` case →
   precedence + fixture fail; parser drops `Behind` → parse test fails; drop the
   `-` case → precedence + fixture fail.
+- Red `±` (operator request): `TestDivergedGlyphIsRedInBothViews`. Mutations
+  caught: `slotGlyphSGR` returns "" → both views fail; tab bar ignores the glyph
+  style → fails; switcher skips `colorMenuGlyph` → fails. Goldens byte-unchanged
+  (they strip ANSI).
+- `make test` fails in `test-lua` (`tests/workbench-route-nvim-test.sh`) only in
+  this slot: the same commit passes `make test-lua` in a clean detached worktree,
+  as does origin/main with and without this slot's stale `bin/pair`. Cause lies
+  in slot1's git-ignored local state, not #319.
 
