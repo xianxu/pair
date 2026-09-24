@@ -7,6 +7,7 @@ created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T19:48:21-07:00
+flow: {kind: quick, provenance: inferred, spec: "bf9e0541", done: "e86e2b55"}
 ---
 
 # Add a slot from the repository thread action menu
