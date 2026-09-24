@@ -1,27 +1,49 @@
 ---
 id: 000318
-status: open
+status: working
 deps: [ariadne#248]
 github_issue:
 created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T23:42:37-07:00
 ---
 
 # Declare Pair post-move build
 
 ## Problem
 
+The shared Ariadne procedure for moving an issue branch between slots asks
+each repository to declare the build needed after the move. Pair's `:0` runs
+from `bin/pair`, but its local agent instructions do not name that step. An
+agent can switch branches and then test the old binary.
+
 ## Spec
+
+In Pair's authored `AGENTS.local.md`, declare that after an issue branch moves
+to `pair:0`, the agent runs `make build` there and checks the selected branch
+HEAD remains the one built. Already-running sessions retain the old binary;
+relaunch or start a fresh thread to test it. Point to the shared slot-move
+procedure from ariadne#248. This is a Pair-only instruction; it does not change
+the existing build target or generic bootstrap (ARCH-DRY).
 
 ## Done when
 
--
+- [ ] `AGENTS.local.md` names the post-move `make build` in `:0`, the HEAD check,
+  and the fresh-session requirement.
+- [ ] The declaration is present in Pair's composed agent instructions after
+  Weave compilation, with the operator's active `:0` work left untouched.
 
 ## Plan
 
-- [ ]
+- [ ] Edit the Pair-local fragment in this isolated worktree.
+- [ ] Verify the authored fragment and composed output in a disposable fixture;
+  review and publish through Pair's issue workflow.
 
 ## Log
 
 ### 2026-09-23
+
+Created as the Pair-owned portion of ariadne#248. The primary Pair checkout is
+on an unrelated issue branch with operator scratch files; this worktree starts
+from remote main and leaves that checkout unchanged.
