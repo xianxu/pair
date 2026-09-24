@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go, existing Couch reducers/renderers, ANSI terminal fixtures and console test harness.
 
-**Status:** Operator approved; implementation complete, accepted by SDLC with SHIP; publication pending.
+**Status:** Complete; accepted by SDLC with SHIP and merged in [PR #157](https://github.com/xianxu/pair/pull/157).
 
 ## Design
 
@@ -115,7 +115,7 @@ Extract substantive presentation assembly into `cmd/internal/couchtty/console_pr
 - [x] Run `go test ./cmd/internal/couchtty ./cmd/internal/artifactpath -count=1`, then `go test -race ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`, and `git diff --check`; expect all to pass. Run the existing menu performance tests and the new presentation benchmark, investigating any regression against the established budget.
 - [x] Build via `make pair bin/couch`; verify the fixtures and a disposable console harness exercise click/Enter routing to all three nested host paths without listing their dependency clones. Do not launch or park the operator's live threads to smoke-test.
 - [x] Update atlas and project progress, record verification in the issue, commit the finished work, then use `sdlc close --issue 307 --verified '<actual evidence>'`. The binary owns the fresh boundary review; fix blocking findings and rerun affected checks. One atomic close boundary, no Mx tags.
-- [ ] Follow `sdlc pr` and `sdlc merge` gates for integration, and update the project with the resulting actual/closed/PR evidence.
+- [x] Follow `sdlc pr` and `sdlc merge` gates for integration, and update the project with the resulting actual/closed/PR evidence.
 
 ## Revisions
 
@@ -158,3 +158,7 @@ Reason: the first close review found that validating SlotIdentity alone permits 
 ### 2026-09-23 — accepted for publication
 
 The second close completed with SHIP and no new findings. Its independent focused, race and full-suite runs passed. The complete-target finding is resolved; measured actual is 1.01h. Prior advisory test-plan verbosity remains nonblocking. Publication is the remaining step.
+
+### 2026-09-23 — publication complete
+
+SDLC merged PR #157 (`997552a8`), archived the accepted artifacts (`1fdb02ab`), and returned the checkout to main. Completed the publication checkbox and updated project archive links and final status.

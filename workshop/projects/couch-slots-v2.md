@@ -546,13 +546,13 @@ has operator approval and passed the change-code gate (estimate 14.37h).
 <a id="pair-307"></a>
 ### pair#307 — Grouped switcher and tab bar
 
-**status:** codecomplete — SHIP close review, publication pending
+**status:** done — merged in [PR #157](https://github.com/xianxu/pair/pull/157)
 **est:** 3.36h
 **actual:** 1.01h
-**closed:** 2026-09-23 (local acceptance)
+**closed:** 2026-09-23
 
-The [issue](../issues/000307-slots-v2-grouped-thread-display.md) and
-[plan](../plans/000307-slots-v2-grouped-thread-display-plan.md) deliver one shared
+The [issue](../history/issues/000307-slots-v2-grouped-thread-display.md) and
+[plan](../history/plans/000307-slots-v2-grouped-thread-display-plan.md) deliver one shared
 repository/slot presentation, numeric order, stable selection, grouped tabs and
 full labels when the primary is absent. Rendered fixtures and the three-workspace
 activation trial cover the nested host paths. Full-suite and race verification
@@ -859,3 +859,7 @@ Operator approved shared repository grouping for switcher and tab bar. Both now 
 ### 2026-09-23 — #307 accepted for publication
 
 SDLC close returned SHIP after complete-target validation was corrected. Measured actual is 1.01h against the provisional 3.36h estimate. The independent reviewer reran focused, race and full-suite checks successfully. Both grouped surfaces, docs and rendered fixtures are complete; publication follows.
+
+### 2026-09-23 — #307 published
+
+Merged [PR #157](https://github.com/xianxu/pair/pull/157) through SDLC (merge `997552a8`), archived the accepted issue and plan, and returned the checkout to main. Updated portfolio status and archive links; #308 remains the next preference UX task.
