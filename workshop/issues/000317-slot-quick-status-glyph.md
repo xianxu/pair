@@ -59,6 +59,7 @@ Open questions for design:
 
 ## Done when
 
+- Primary :0 and numbered slots use the shared Nerd Font branch glyph; on the resting branch, ahead is measured against its configured upstream (no upstream means no ahead glyph). One bounded porcelain-v2 status read supplies the facts.
 - The switcher and tab bar show the glyph by the precedence above, from one
   derivation; golden testdata covers each of the four states and a narrow
   layout.
@@ -74,7 +75,8 @@ Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
 - [x] Pure core: `SlotGitStatus`, `ParseSlotGitStatus`, `SlotGlyph`, `RestingBranch` (couchcore/slotgit.go), table-tested; `validate()` uses `RestingBranch`
 - [x] One derivation: `PresentThreads(rows, MenuState.SlotGit)` sets `Glyph`; switcher + tab bar render it; glyph goldens (four states + narrow)
 - [x] Background refresh: single-flight `RefreshSchedule` owner on Console.Run (10s ticker + switcher open + switch + inventory landed); stateful fake probe proves no render blocking, failure keeps last value, shutdown joins
-- [ ] Atlas/README, `make install`, operator live smoke, close
+- [x] Atlas/README and build verified; operator live smoke passed
+- [ ] Close and publish
 
 ## Revisions
 
@@ -112,3 +114,20 @@ Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
 - Process slip: a mutation was reverted with `git checkout <file>`, which also
   discarded uncommitted edits; restored from the pre-mutation copy. Lesson added.
 
+
+### 2026-09-24 — landing verification
+
+Operator confirmed glyphs appeared in live smoke testing and requested landing.
+Published origin/main merged cleanly before verification. Focused glyph/parser/
+refresh race tests pass for couchtty and couchcore; make build passes. Initial
+headless checks failed without diagnostic output; after removing inherited
+PAIR_/COUCH_ environment variables, the continuing make -k test run passed all
+shell/editor targets and reached the full Go suite. Final result follows.
+
+### 2026-09-24 — acceptance wording aligned
+
+Reason: the implemented and previously approved data-source revision should be
+explicit in Done when. Delta: record :0 parity, the configured-upstream rule,
+the Nerd Font decision and the single porcelain-v2 read. No scope change.
+
+Final verification: clean-environment `make -k test` exited 0, including the full Go suite and shell/editor checks; `make build` and focused couchtty/couchcore race tests exited 0.
