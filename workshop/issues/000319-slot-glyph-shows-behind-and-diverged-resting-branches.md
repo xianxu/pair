@@ -83,6 +83,13 @@ Open questions for design:
   segment, the switcher colours it on non-selected rows when 256-colour is on
   (the selected row is re-rendered plain by `selectedMenuLine`). Done-when adds:
   a test that `±` is red in both views and `+`/`-`/`*` are not.
+- 2026-09-24 — operator: a dirty tree must show on an issue branch too, since
+  many operations are only safe on a clean tree; `*` in amber (red rejected:
+  untracked scratch files keep :0 dirty most of the time, and an always-on red
+  would dull the `±` alert). Delta: `SlotGlyph` is two independent parts,
+  branch/divergence then `*` (so `*`, `±*`, `+*`); the precedence table
+  becomes a truth table; `slotGlyphSGR` styles per glyph character (`±` red,
+  `*` amber). Supersedes "dirty hides divergence" above.
 
 ## Log
 
@@ -106,4 +113,10 @@ Open questions for design:
   this slot: the same commit passes `make test-lua` in a clean detached worktree,
   as does origin/main with and without this slot's stale `bin/pair`. Cause lies
   in slot1's git-ignored local state, not #319.
+- Two-part glyph + amber `*` (b995f1b3): goldens `glyph_branch` (now
+  `pair:1*`) and `glyph_dirty` (now `pair:1+*`) regenerated and read; the rest
+  unchanged. Mutations caught: drop amber, drop red, tab bar ignores per-glyph
+  style, switcher skips `colorMenuGlyph`. couchtty/couchcore/couchcmd/
+  artifactpath green unsandboxed with a clean env. Docs landed in a follow-up
+  commit because an unchained edit script failed after the code commit ran.
 
