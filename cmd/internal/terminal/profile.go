@@ -20,7 +20,7 @@ const (
 	MaxInputBytes    = 1 << 20
 	MaxPasteBytes    = 1 << 20
 	MaxPendingEvents = 128
-	WriteTimeout     = 2 * time.Second
+	WriteTimeout     = 5 * time.Second
 	FrameInterval    = 16 * time.Millisecond
 	SyncTimeout      = 150 * time.Millisecond
 )
