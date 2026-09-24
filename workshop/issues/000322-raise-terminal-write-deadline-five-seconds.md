@@ -7,6 +7,7 @@ created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
 started: 2026-09-24T15:54:11-07:00
+flow: {kind: quick, provenance: inferred, spec: "141a9987", done: "cdbf434a"}
 ---
 
 # Raise terminal write deadline to five seconds
