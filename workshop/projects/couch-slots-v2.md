@@ -564,7 +564,7 @@ passed; the optional timing harness has a documented baseline correlation failur
 <a id="pair-308"></a>
 ### pair#308 — Independent workspace preferences
 
-**status:** working — implementation and focused/race checks complete; full-suite verification pending
+**status:** working — full-suite/race/build verification passed; SDLC close review pending
 **started:** 2026-09-23
 
 The [issue](../issues/000308-slots-v2-workspace-preferences.md) reuses the existing

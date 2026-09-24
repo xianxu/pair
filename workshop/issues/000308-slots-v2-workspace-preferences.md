@@ -85,7 +85,7 @@ Single acceptance boundary; expected production change fits the quick-flow shell
 - [x] Add a regression through `RunLaunch` in `cmd/internal/launcher/createflow_test.go` proving a Couch-supplied ordinary launch preserves repository defaults (including an empty profile), while direct Pair explicit arguments still persist after readiness. Fix the persistence guard in `createflow.go` using existing `AgentArgsFromCouch` provenance; run the tests red then green.
 - [x] In `slotrecovery.go`, validate/build the fresh profile before `replaceSlotCurrent`. Add a regression in `slotrecovery_test.go` for remembered forbidden resume selectors proving rejection preserves current metadata, history and preferences, with no child launched.
 - [x] Exercise :0/:1/:2 using temporary nested workspace stores and existing stateful fakes: choose distinct agents/argv through launch/switch APIs, park/resume, reopen Couch/store, start fresh, and verify exact profiles and byte-preserved other-workspace/default records. Verify subdirectory/address normalization and no sibling-clone preference records. Include stale preview, failed registration and invalid parameters; reuse existing tests where they exercise the same production boundary. Add menu coverage only where existing switch/start tests miss slot identity routing.
-- [ ] Document first-use fallback, independent settings and fresh/resume behavior in `README.md` and `atlas/couch.md`; update the project. Run `go test ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/launcher -count=1`, affected race tests, `go test ./... -count=1`, `make pair bin/couch`, and `git diff --check`. Commit and pass `sdlc close --issue 308 --verified '<evidence>'`, then `sdlc pr` and `sdlc merge`.
+- [x] Document first-use fallback, independent settings and fresh/resume behavior in `README.md` and `atlas/couch.md`; update the project. Run `go test ./cmd/internal/couchcore ./cmd/internal/couchtty ./cmd/internal/launcher -count=1`, affected race tests, `go test ./... -count=1`, `make pair bin/couch`, and `git diff --check`. Commit and pass `sdlc close --issue 308 --verified '<evidence>'`, then `sdlc pr` and `sdlc merge`.
 
 ## Log
 
@@ -149,3 +149,13 @@ couchtty 1.948s, launcher 1.327s); `make pair bin/couch`, affected `go vet`, and
 acceptance fixture and failed there; the final complete run is underway after
 fixing fake session publication and hosted-process cleanup. No runtime workaround
 was required.
+
+### 2026-09-23 — verification complete
+
+Final `go test ./... -count=1` passed after the acceptance fixture was finalized
+(`/tmp/pair308-full-final.log`). The affected race suite passed; build, vet and
+diff checks passed as recorded above. The live/parked slot menu test proves the
+existing preference editor dispatches the exact slot address and explicit empty
+argv. The isolation trial uses real temporary Git/filesystem stores with stateful
+process/session fakes; it does not launch operator agents. Implementation is
+committed; SDLC close review and publication follow.
