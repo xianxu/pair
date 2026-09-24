@@ -68,7 +68,24 @@ Open questions for design:
 
 ## Plan
 
-- [ ]
+Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
+
+- [ ] Pure core: `SlotGitStatus`, `ParseSlotGitStatus`, `SlotGlyph`, `RestingBranch` (couchcore/slotgit.go), table-tested; `validate()` uses `RestingBranch`
+- [ ] One derivation: `PresentThreads(rows, MenuState.SlotGit)` sets `Glyph`; switcher + tab bar render it; glyph goldens (four states + narrow)
+- [ ] Background refresh: single-flight `RefreshSchedule` owner on Console.Run (10s ticker + switcher open + switch + inventory landed); stateful fake probe proves no render blocking, failure keeps last value, shutdown joins
+- [ ] Atlas/README, `make install`, operator live smoke, close
+
+## Revisions
+
+- 2026-09-23 — data source. The Spec assumed `branch`/`resting_branch` reach
+  presentation via `WorkspaceIdentity`; they don't (sdlc workspace runs only on
+  explicit operations, uncached). Delta: one
+  `git --no-optional-locks status --porcelain=v2 --branch` per checkout supplies
+  branch, upstream ahead and dirtiness in one read; resting branch comes from
+  `couchcore.RestingBranch(n)`, the same helper `WorkspaceIdentity.validate()`
+  uses. Open questions resolved: `:0` same rules; Nerd Font glyph, no ASCII
+  fallback (one constant); `+` counts the checked-out resting branch against its
+  configured upstream, none shown without an upstream.
 
 ## Log
 
