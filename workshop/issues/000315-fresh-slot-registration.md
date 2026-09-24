@@ -68,7 +68,7 @@ helper identity -> acknowledge -> ordinary registration -> promote/persist profi
 - StartFreshSlot / launchTrackedThread / RunLaunch: TestSpawnComposesProductionPairRegistrationBoundary fresh-slot subtest uses real LaunchNative plus real claim files. Nil FreshRegistration and ordinary-profile assertions fail if the special path returns; reservation and final promotion assertions pin the production boundary.
 - ValidateFreshAgentArgs: TestSlotFreshInvalidPreferencePreservesCurrent supplies restoration arguments and asserts rejection before claims/archive/current mutation.
 - Slot current replacement: TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange and TestSlotFreshRefusesMutationDuringObservation use stale observations and verify current/history survive.
-- Owner admission: TestOpenSlotRefusesMissingCurrentAndFreshRefusesLiveOrUnknown (use actual existing test name in code) and TestSlotFreshRechecksOldOwnershipAfterReadiness prove active/unknown ownership prevents spawn.
+- Owner admission: TestSlotOpenDoesNotFreshOnLostRecordAndFreshRefusesUncertainty and TestSlotFreshRechecksOldOwnershipAfterReadiness prove active/unknown ownership prevents spawn.
 - Launch failure: TestSlotFreshFailedLaunchRetainsDamagedEvidence and TestSlotFreshRetryAfterFailedLaunchWithLiveSupervisor preserve evidence and retry; TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback, TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback and TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter defend shared cleanup.
 - Preferences: TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences plus TestSlotPreferencesIndependentAcrossRestartResumeAndFresh pin slot isolation and successful profile persistence.
 
@@ -84,6 +84,15 @@ The final production diff against 54aeb96d is confined to StartFreshSlot's profi
 launch mode and preflight argument validation. Same-ID fresh/resume/checkpoint
 code and tests match that baseline byte-for-byte. Scan atlas/couch.md and cmd/
 for removed registration/nonce names; preserve historical issue revision entries.
+
+### Existing operating envelope and trust boundary
+
+- ARCH-CONSTRAINTS: one foreground start; existing allocation bound is 8 tag attempts, blocked helper acknowledgement 10s, registration 15s with 10ms polling and caller cancellation. No new loop, queue, worker or retry state. Workspace preparation keeps its existing context/marker contract. Timeout follows existing StartSpawn ownership cleanup above.
+- ARCH-SECURE: the only inputs remain local slot identity, saved preferences and a Couch-generated trusted profile. Existing strictjson decoding rejects truncated/malformed JSON, duplicate/unknown fields and trailing data; profile validation binds schema, tag, supported agent and argument provenance before Pair writes its claim. Claim creation remains exclusive: an existing marker is a collision, never adopted as a fresh address. Existing registration verifies schema/scope/tag/state; absent is pending, unreadable/unsupported evidence is an error. Old conversation records are still read by the existing bounded slot store; unsupported versions refuse. No new data format or migration is introduced.
+- Guards for these unchanged readers: TestApplyCouchLaunchProfileRejectsWrongTagAndUnknownAgent, TestClaimNewThreadAddressFailsClosedOnMalformedSessionIndex, TestRegisterExistingCouchThreadRejectsUntrustedMarkerWithoutMutation and the strictjson package tests. Run these alongside the composed ordinary/slot test. Legacy same-ID profile/claim tests must remain byte-identical to 54aeb96d.
+- ARCH-DRY/PURPOSE: fresh-slot UI and recovery both call StartFreshSlot, which now joins the ordinary creation path; no separate registration implementation remains.
+- ARCH-PURE/MOCK: existing ValidateFreshAgentArgs owns pure argument policy; real LaunchNative and real claim storage are tested together with the existing stateful Zellij stand-in. No new IO abstraction.
+- ARCH-ORDER/FUNERAL: use existing StartClaimed/helper/ack/registration transitions and failure table above. New conversation claims keep the existing archive/release lifecycle; no additional persistent artifact or state field. Existing slot directory lifecycle is unaffected.
 
 ## Log
 
@@ -145,3 +154,10 @@ Specified existing event ordering, failure ownership and retry behavior without
 adding states. Named each risky seam's adversarial inputs and mechanical tests.
 Pinned removal to two owned commits and their exact parent, with a zero-diff
 acceptance check for untouched same-ID launch machinery.
+
+### 2026-09-23 — resolve strategy symbols and inherited boundaries (PQ-6/PQ-7)
+
+Corrected owner-admission strategy to the existing executable test symbol and
+specified existing timeout/retry and strict input contracts, their tests and
+all architecture lenses. These are inherited constraints, not additional states
+or implementation scope. Test-name resolution is checked against current source.
