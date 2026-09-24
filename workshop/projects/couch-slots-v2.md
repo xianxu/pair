@@ -925,8 +925,17 @@ and retained the workspace and unrelated files. Refresh remains explicit.
 ### 2026-09-23 — first live slot smoke exposed output leakage
 
 Operator created pair:1 and observed Homebrew/weave output painting over the
-switcher. [pair#312](../issues/000312-couch-provision-output.md) isolates raw setup
+switcher. [pair#312](../history/issues/000312-couch-provision-output.md) isolates raw setup
 progress from the console while preserving CLI streaming and failure diagnostics.
 This is a smoke-test finding; #309's full integration trial remains open. The
 persistent `.weave-setup.lock` file was confirmed to be intentional OS-lock storage,
 not evidence that setup is still active.
+
+### 2026-09-23 — setup-output smoke fix published
+
+[pair#312](../history/issues/000312-couch-provision-output.md) passed SHIP review
+and merged in [PR #159](https://github.com/xianxu/pair/pull/159), actual 0.11h.
+Console provisioning no longer streams raw setup output over the UI. CLI progress
+and bounded failure diagnostics remain available. Couch was rebuilt; the running
+operator session needs a restart to load the fix. Live retest remains operator
+acceptance evidence, separate from the passing automated regression.
