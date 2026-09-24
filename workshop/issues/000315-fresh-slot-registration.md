@@ -1,6 +1,6 @@
 ---
 id: 000315
-status: codecomplete
+status: working
 deps: []
 github_issue:
 created: 2026-09-23
@@ -23,16 +23,16 @@ Fresh Couch registration accepts an exact owned reserved or established claim, e
 
 ## Done when
 
-- New fresh-slot reservations reach the launcher handoff and become established.
-- Established-address fresh launches still work; resume and checkpoint replacement reject reserved claims without mutation. Missing, malformed, mismatched and unowned fresh reservations never launch or establish.
-- Plain fresh-slot startup forwards the same launch nonce Couch waits for; real readiness reader accepts that nonce and rejects stale evidence.
-- Regression tests exercise production claim storage and the trusted-profile/readiness boundaries.
+- A fresh slot allocates a new conversation ID and uses ordinary Pair creation/registration, without an established-conversation prerequisite or special readiness nonce.
+- Remove the #315-only RegisterFreshCouchThread operation, launch_nonce profile field and nonce forwarding; same-ID resume/switch/continuation behavior stays unchanged.
+- Reject restoration arguments before replacing current metadata; retain live-owner refusal, conversation history, preferences and workspace files.
+- A composed fresh-slot regression runs the real launcher and real claim storage through the same harness as ordinary creation.
 
 ## Plan
 
-- [x] Reproduce reserved fresh failure in a launcher integration test.
-- [x] Add fresh registration and verify new/existing/invalid/resume behavior.
-- [x] Build for smoke testing and record verification evidence.
+- [ ] Extend the ordinary-launch integration test to reproduce fresh-slot dependence on special registration.
+- [ ] Route fresh slot through ordinary new-conversation launch; remove the superseded handshake additions and retain early argument validation.
+- [ ] Verify composed launch, existing lifecycle regressions, suites and build; update docs and publish.
 
 ## Log
 
@@ -67,3 +67,15 @@ Initial full Couch core suite passed (237.467s), but live retry exposed the miss
 ### 2026-09-23 — final verification and recovery
 
 Final suites passed: launcher 19.127s, couchcore 353.928s, couchcmd 46.399s; targeted race launcher 1.686s and core 15.935s. Boundary review SHIP, no findings. Operator authorized stopping the unused failed-start session: exact index mapped tag couch-9860e667eaa561bb to 📁pair-couch-2; zellij kill-session succeeded and server/wrapper/editor/Claude PIDs were all absent afterward. Couch restart and fresh-slot live retry remain operator smoke steps.
+
+### 2026-09-23 — operator-approved simplification supersedes handshake repairs
+
+The user requested fewer states and combinations. The preceding fresh-registration
+and explicit nonce extensions are superseded: StartFreshSlot mints a brand-new
+address, so use BuildCouchLaunchProfile and ordinary StartSpawn registration.
+ValidateFreshAgentArgs moves before ownership/claim/metadata work. Remove the
+new registration runtime method and launch_nonce transport; restore the existing
+same-ID replacement protocol. Retain slot directory ownership, atomic current
+replacement/history and saved preferences. ARCH-DRY/PURPOSE: reuse the existing
+new-conversation lifecycle instead of expanding the same-ID replacement state
+space. Reuse the production launcher integration harness for both entry points.
