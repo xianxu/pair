@@ -28,6 +28,8 @@ type Options struct {
 	Timeout         time.Duration
 	Poll            time.Duration
 	SlowPoll        time.Duration
+	ActivePoll      time.Duration // cadence while a Pair send awaits its round (#316)
+	ActiveWindow    time.Duration // how long after a send ActivePoll applies
 	PIDNotBefore    time.Time
 	FollowLifecycle bool
 	AppendLifecycle func(string, LifecycleRecord) error
@@ -67,6 +69,10 @@ func Run(opts Options, rt Runtime) error {
 	}
 	applyWatcherDefaults(&opts)
 	watchStart := rt.Now()
+	// The log's state at start is the baseline: earlier launches' sends are not
+	// this launch's, so only a later change counts as a send.
+	logSeen, _ := rt.ModTime(paths.Log())
+	var lastSend time.Time
 	rootPID, rootIdentity := waitForPairProcess(paths.AgentPID(), opts, watchStart, rt)
 	corroborationPID := rootPID
 	if rootIdentity == "" {
@@ -193,12 +199,39 @@ func Run(opts Options, rt Runtime) error {
 			rt.Log(adapt.Fail, "no completed native round within startup deadline (agent="+opts.Agent+")")
 			return nil
 		}
-		poll := opts.Poll
-		if !rt.Now().Before(deadline) {
-			poll = opts.SlowPoll
+		if mod, err := rt.ModTime(paths.Log()); err == nil && !mod.Equal(logSeen) {
+			logSeen, lastSend = mod, rt.Now()
 		}
-		rt.Sleep(poll)
+		waitForScan(rt, paths.Log(), logSeen, scanDelay(rt.Now(), watchStart, lastSend, opts), opts.ActivePoll)
 	}
+}
+
+// scanDelay is the watcher's cadence. A proof needs a Pair send and then the
+// agent finishing that round, both at arbitrary times after launch, so the fast
+// cadence follows the latest send rather than the launch alone (#316). SlowPoll
+// remains the #143 backstop for a thread nobody has written to.
+func scanDelay(now, watchStart, lastSend time.Time, opts Options) time.Duration {
+	if now.Before(watchStart.Add(opts.Timeout)) {
+		return opts.Poll
+	}
+	if !lastSend.IsZero() && now.Before(lastSend.Add(opts.ActiveWindow)) {
+		return opts.ActivePoll
+	}
+	return opts.SlowPoll
+}
+
+// waitForScan sleeps delay in slice-sized steps and returns early once the Pair
+// log differs from seen: a send during a slow wait is exactly the event a proof
+// waits on, so it must not sit out the rest of that wait.
+func waitForScan(rt Runtime, logPath string, seen time.Time, delay, slice time.Duration) {
+	for delay > slice {
+		rt.Sleep(slice)
+		delay -= slice
+		if mod, err := rt.ModTime(logPath); err == nil && !mod.Equal(seen) {
+			return
+		}
+	}
+	rt.Sleep(delay)
 }
 
 func validateBoundLifecycleTarget(rt Runtime, nativeRuntime sessioninventory.Runtime, catalogPath string, agent sessioninventory.Agent, proof sessionledger.AuthorizationProof) (sessioninventory.TargetValidation, error) {
@@ -311,6 +344,12 @@ func applyWatcherDefaults(opts *Options) {
 	}
 	if opts.SlowPoll <= 0 {
 		opts.SlowPoll = 60 * time.Second
+	}
+	if opts.ActivePoll <= 0 {
+		opts.ActivePoll = time.Second
+	}
+	if opts.ActiveWindow <= 0 {
+		opts.ActiveWindow = 30 * time.Minute
 	}
 }
 
