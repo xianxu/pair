@@ -64,24 +64,38 @@ func ProbeSlotGit(ctx context.Context, git GitRunner, dir string) (SlotGitStatus
 // line is an error, and unknown `#` headers are future extensions to ignore.
 func ParseSlotGitStatus(out string) (SlotGitStatus, error) {
 	var s SlotGitStatus
-	sawHead := false
+	sawHead, sawAB := false, false
 	for _, line := range strings.Split(out, "\n") {
 		switch {
-		case strings.HasPrefix(line, "# branch.head "):
+		case line == "# branch.head" || strings.HasPrefix(line, "# branch.head "):
+			head := strings.TrimPrefix(line, "# branch.head ")
+			if sawHead || head == "" || strings.ContainsAny(head, " \t\r") {
+				return SlotGitStatus{}, fmt.Errorf("malformed branch.head %q", line)
+			}
 			sawHead = true
-			if head := strings.TrimPrefix(line, "# branch.head "); head == "(detached)" {
+			if head == "(detached)" {
 				s.Detached = true
 			} else {
 				s.Branch = head
 			}
-		case strings.HasPrefix(line, "# branch.upstream "):
+		case line == "# branch.upstream" || strings.HasPrefix(line, "# branch.upstream "):
+			upstream := strings.TrimPrefix(line, "# branch.upstream ")
+			if s.HasUpstream || upstream == "" || strings.ContainsAny(upstream, " \t\r") {
+				return SlotGitStatus{}, fmt.Errorf("malformed branch.upstream %q", line)
+			}
 			s.HasUpstream = true
-		case strings.HasPrefix(line, "# branch.ab "):
-			var ahead, behind int
-			if n, err := fmt.Sscanf(strings.TrimPrefix(line, "# branch.ab "), "+%d -%d", &ahead, &behind); err != nil || n != 2 || ahead < 0 {
+		case line == "# branch.ab" || strings.HasPrefix(line, "# branch.ab "):
+			fields := strings.Split(strings.TrimPrefix(line, "# branch.ab "), " ")
+			if sawAB || len(fields) != 2 || !strings.HasPrefix(fields[0], "+") || !strings.HasPrefix(fields[1], "-") {
 				return SlotGitStatus{}, fmt.Errorf("malformed branch.ab %q", line)
 			}
-			s.Ahead = ahead
+			ahead, aheadErr := strconv.ParseUint(fields[0][1:], 10, strconv.IntSize-1)
+			_, behindErr := strconv.ParseUint(fields[1][1:], 10, strconv.IntSize-1)
+			if aheadErr != nil || behindErr != nil {
+				return SlotGitStatus{}, fmt.Errorf("malformed branch.ab %q", line)
+			}
+			sawAB = true
+			s.Ahead = int(ahead)
 		case line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "! "):
 		case len(line) > 2 && strings.IndexByte("12u?", line[0]) >= 0 && line[1] == ' ':
 			s.Dirty = true

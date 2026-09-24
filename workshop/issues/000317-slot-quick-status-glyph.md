@@ -130,3 +130,13 @@ explicit in Done when. Delta: record :0 parity, the configured-upstream rule,
 the Nerd Font decision and the single porcelain-v2 read. No scope change.
 
 Final verification: clean-environment `make -k test` exited 0, including the full Go suite and shell/editor checks; `make build` and focused couchtty/couchcore race tests exited 0.
+
+### 2026-09-24 — review parser correction
+
+BR-1: reject empty/duplicate branch.head and upstream headers, duplicate branch.ab,
+trailing tokens, signed or malformed counts and overflow. ParseUint validates the
+complete decimal fields. Added regression cases failed before the fix and now pass.
+Focused couchcore/couchtty glyph tests pass under race (3.787s/4.715s); make build
+passes. The preceding full make -k test and independent reviewer full Go suite
+passed. ARCH-SECURE: malformed observations remain probe failures, retaining the
+last display value through the existing reducer. No new lifecycle state.

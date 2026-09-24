@@ -231,3 +231,5 @@ proof; record the surprising case so the next change starts from evidence.
 - When reviewing an integrated branch, distinguish pre-existing published changes from the PR delta against fetched remote main. Mark earlier review windows as historical when a later review supersedes them.
 
 - A selection no-op must avoid selection side effects, not merely retain the same active index. Test parent output and external operations for already-selected targets.
+
+- For external numeric fields, parse the entire token and reject duplicates or missing values; formatted scanning can silently accept trailing text and extra signs.
