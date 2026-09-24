@@ -59,7 +59,7 @@ Architectural notes for upcoming work:
 
 Plan revision recommendations:
 
-None; the design still matches the implementation. Mark the completed task checkboxes in the durable plan before close. 
+None; the design still matches the implementation. Mark the completed task checkboxes in the durable plan before close.
 
 ```findings
 findings:
@@ -140,3 +140,90 @@ None.
 7. Plan revision recommendations
 
 None; the plan’s implementation scope matches the code. Correct the README and atlas legend within the existing documentation task.
+
+---
+
+## Re-review — 2026-09-24T13:24:24-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 317 — Slot quick-status glyph in Couch tab bar and switcher |
+| repo | pair |
+| issue file | workshop/issues/000317-slot-quick-status-glyph.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 1298e1b72fcfb6ff817ce330d08604b435ec34e7..6d175ec8d74456a26398ee0db9d99e086f776d8b |
+| command | sdlc close --issue 317 |
+| reviewer | codex |
+| timestamp | 2026-09-24T13:24:24-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation fulfills the issue: shared glyph derivation, bounded background refresh, stateful probe tests, parser hardening, documentation, and atlas updates are present. Only a non-blocking trailing-whitespace issue remains in a review artifact.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      ParseSlotGitStatus now strictly validates empty, duplicate, trailing, signed, and overflowed fields; regression cases are present in cmd/internal/couchcore/slotgit_test.go and focused tests pass.
+findings:
+  - id: new
+    severity: Minor
+    family: review-artifact-hygiene
+    title: |
+      Boundary review artifact contains trailing whitespace
+    detail: |
+      workshop/plans/000317-slot-quick-status-glyph-close-review.md:62 fails git diff --check due to trailing whitespace.
+```
+
+Summary: The pinned range is valid and the required inspections succeeded. Focused couchcore and couchtty tests pass; no Critical or Important findings remain.
+
+1. Strengths
+
+- `SlotGlyph` is pure and table-tested.
+- `PresentThreads` derives one glyph consumed by both UI views.
+- Refresh work is outside `c.mu`, cancellable, single-flight, and retains prior values on failure.
+- Stateful fakes cover blocking, failure, triggers, and shutdown.
+- README, atlas, trace terminology, and artifact manifests were updated.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+- Remove trailing whitespace from `workshop/plans/000317-slot-quick-status-glyph-close-review.md:62`.
+
+5. Test coverage notes
+
+- Focused couchcore tests passed.
+- Focused couchtty glyph/refresh/fixture tests passed.
+- Couchtty compile-only test passed.
+- `git diff --check` found only the review-artifact whitespace issue.
+- Broader package/race runs were not independently completed in this review due to prolonged no-output execution.
+
+6. Architectural notes
+
+- ARCH-DRY: pass — one presentation derivation feeds both views.
+- ARCH-PURE: pass — parsing, precedence, reduction, and path selection are pure; Git access is injected.
+- ARCH-PURPOSE: pass — `:0`, numbered slots, both views, refresh behavior, and docs are covered.
+- ARCH-MOCK: pass — stateful fake uses the production probe seam.
+- ARCH-CONSTRAINTS: pass — rendering avoids Git I/O; probes are sequential and individually time-bounded.
+- ARCH-SECURE: pass — malformed porcelain is rejected and failures retain prior evidence.
+- ARCH-ORDER: pass — refresh scheduling and reducer transitions make ordering explicit.
+- ARCH-FUNERAL: pass — state is in-memory and worker/ticker lifetimes are bounded.
+
+7. Plan revision recommendations
+
+None; the plan matches the delivered implementation.

@@ -1,13 +1,14 @@
 ---
 id: 000317
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
-updated: 2026-09-23
+updated: 2026-09-24
 estimate_hours:
 started: 2026-09-23T23:22:18-07:00
-flow: {kind: quick, provenance: inferred, spec: "11433814", done: "fa95a3c0"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 1.91
 ---
 
 # Slot quick-status glyph in Couch tab bar and switcher
@@ -98,6 +99,8 @@ Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
   needs a quick view of which slots are free), couch-slots-v2 project.
 
 ### 2026-09-24
+- 2026-09-24: closed — BR-1 parser fix verified by regression/race tests and explicitly accepted in previous reviewer prose; please include structured findings dispose for BR-1. Previous review only remaining finding (empty glyph legends) corrected in README/atlas/issue. No production changes since passing parser tests. Full make -k test, prior reviewer full Go, build and operator smoke passed.; review verdict: SHIP
+- 2026-09-24: flow upgraded quick → full — 350 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Implemented per plan. Triggers deviate slightly (logged in atlas): the switcher
   opening reaches the slot-git pass through the landed inventory
@@ -147,3 +150,5 @@ Second review confirmed BR-1 is addressed in prose, but omitted the structured
 findings disposition required by SDLC. Its only new finding is corrected: the
 README, atlas and issue legend now show the literal branch glyph `` (U+E0A0).
 No production code changed after the verified parser correction.
+
+Final close review: SHIP, BR-1 disposed; minor generated-review trailing whitespace removed before publication.

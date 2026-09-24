@@ -21,6 +21,23 @@ rounds:
       recipe: milestone-review
       blocked: true
       protocol_error: no valid findings block
+    - "n": 3
+      timestamp: "2026-09-24T13:24:25-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: ParseSlotGitStatus now strictly validates empty, duplicate, trailing, signed, and overflowed fields; regression cases are present in cmd/internal/couchcore/slotgit_test.go and focused tests pass.
+          round: 3
+      findings:
+        - id: BR-2
+          severity: Minor
+          title: Boundary review artifact contains trailing whitespace
+          detail: workshop/plans/000317-slot-quick-status-glyph-close-review.md:62 fails git diff --check due to trailing whitespace.
+          family: review-artifact-hygiene
+          round: 3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#317 (boundary-review)
@@ -39,6 +56,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 **Protocol error:** no valid findings block — this round contributed no findings.
 
+## Round 3 — 2026-09-24T13:24:25-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — ParseSlotGitStatus now strictly validates empty, duplicate, trailing, signed, and overflowed fields; regression cases are present in cmd/internal/couchcore/slotgit_test.go and focused tests pass.
+
+### Raised
+
+- **BR-2** [Minor] `review-artifact-hygiene` Boundary review artifact contains trailing whitespace
+  workshop/plans/000317-slot-quick-status-glyph-close-review.md:62 fails git diff --check due to trailing whitespace.
+
 ## Open findings
 
-- **BR-1** [Important] `porcelain-grammar-validation` ParseSlotGitStatus accepts malformed porcelain fields
+- **BR-2** [Minor] `review-artifact-hygiene` Boundary review artifact contains trailing whitespace
