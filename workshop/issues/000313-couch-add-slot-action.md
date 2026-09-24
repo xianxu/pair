@@ -113,3 +113,5 @@ original #313 no-new-operation constraint now also holds across final production
 delivery. Historical handshake repair notes above are superseded by #315's latest
 specification. Main review baseline now incorporates published upstream changes
 while retaining local planning, excluding the unrelated gateway change.
+
+- 2026-09-23: Review follow-up — combined delivery will obtain a clean #315 close verdict before closing #313; the initial #315 review is explicitly marked superseded. No code change is required.

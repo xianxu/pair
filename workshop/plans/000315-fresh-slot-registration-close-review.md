@@ -1,5 +1,7 @@
 # Boundary Review — pair#315 (whole-issue close)
 
+> Historical review record: the initial SHIP below applies only to the superseded implementation at `0879c270`. Its `RegisterFreshCouchThread` and nonce transport were removed by `5ff2416d`. The current implementation uses ordinary new-conversation creation. Later reviews below supersede the initial verdict; this document preserves review history, not a current feature specification.
+
 | field | value |
 |-------|-------|
 | issue | 315 — Allow fresh slot launches to establish their reserved conversation |
@@ -63,3 +65,88 @@ None.
 ```findings
 findings: []
 ```
+
+---
+
+## Re-review — 2026-09-23T21:26:42-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 315 — Allow fresh slot launches to establish their reserved conversation |
+| repo | pair |
+| issue file | workshop/issues/000315-fresh-slot-registration.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5dea65f9ba06e482a5c47571d0aae85677ad5a1d..5ff2416d70be27e3798d69322a6b19c21ddef816 |
+| command | sdlc close --issue 315 |
+| reviewer | codex |
+| timestamp | 2026-09-23T21:26:42-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation satisfies the active #315 Spec and Plan, and targeted production-boundary tests pass. However, the repository retains a stale boundary-review artifact describing the superseded nonce/registration design, which conflicts with the final implementation and tracker state.
+
+1. Strengths
+
+- Fresh slots use ordinary Pair registration through `StartFreshSlot`.
+- Argument validation occurs before claim or metadata replacement.
+- Real launcher/claim-storage regression passes.
+- README and `atlas/couch.md` document the final behavior.
+- Baseline restoration check is empty.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+- `workshop/plans/000315-fresh-slot-registration-close-review.md:27` documents the superseded `RegisterFreshCouchThread` and nonce design, while the active issue explicitly removes both. Replace or clearly archive/mark this stale review artifact before closing so tracker evidence does not claim behavior the code no longer implements.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- `TestSpawnComposesProductionPairRegistrationBoundary`
+- Fresh-slot metadata/preference/ownership guards
+- `TestAddSlot*`
+- `git diff --check`
+
+6. Architectural notes
+
+- ARCH-DRY: Pass — fresh slots reuse ordinary creation.
+- ARCH-PURE: Pass — validation remains separated from launch IO.
+- ARCH-PURPOSE: Pass — the fresh-slot path no longer requires established claims or special nonce readiness.
+- ARCH-MOCK: Pass — the composed test uses real claim storage and launcher boundaries.
+- ARCH-CONSTRAINTS: Pass — existing bounded startup and registration behavior is reused.
+- ARCH-SECURE: Pass — existing profile and claim validation remain authoritative.
+- ARCH-ORDER: Pass — existing start/claim/replace/registration transitions are reused.
+- ARCH-FUNERAL: Pass — no new durable artifact family is introduced.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+findings:
+  - id: new
+    severity: Important
+    family: stale-boundary-review-artifact
+    title: |
+      Close-review artifact describes superseded nonce registration behavior
+    detail: |
+      workshop/plans/000315-fresh-slot-registration-close-review.md:27 claims RegisterFreshCouchThread and fresh nonce transport are delivered, contradicting the active Spec, Plan, and implementation that remove them. Replace or explicitly archive/mark the artifact before closing.
+```
+
+## Revisions
+
+- 2026-09-23: Address BR-1 by explicitly marking the initial review as historical and superseded. The final implementation removes both special registration and nonce transport; current behavior is specified by the active issue and atlas. Review text is retained verbatim as historical evidence.
