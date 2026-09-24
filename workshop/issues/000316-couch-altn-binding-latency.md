@@ -70,10 +70,10 @@ conversation's session id. Verify separately.
 
 ## Plan
 
-- [ ] Pure `scanDelay(now, watchStart, lastSend, opts)` + table tests
-- [ ] `ActivePoll`/`ActiveWindow` options + defaults in `applyWatcherDefaults`
-- [ ] Loop: track Pair-log ModTime → `lastSend`; sliced wait that wakes on change
-- [ ] Fake-clock regression test: send after startup window → binds within ActivePoll
+- [x] Pure `scanDelay(now, watchStart, lastSend, opts)` + table tests
+- [x] `ActivePoll`/`ActiveWindow` options + defaults in `applyWatcherDefaults`
+- [x] Loop: track Pair-log ModTime → `lastSend`; sliced wait that wakes on change
+- [x] Fake-clock regression test: send after startup window → binds within ActivePoll
 - [ ] `make test`; live smoke via operator
 
 ## Log
@@ -86,3 +86,19 @@ conversation's session id. Verify separately.
   only reads the resulting ledger `binding` row (`QuerySessionContext`).
 - Timing evidence: ledger + config mtimes both 21:49:04, agent pid file born
   21:47:03 → matches the 60 s + 60 s cadence exactly.
+- 855e65b3: `scanDelay` (pure) + `waitForScan` (sliced, wakes on a Pair-log
+  ModTime change) in `sessionwatch/run.go`; baseline mtime taken at
+  `watchStart`, so a send during the PID wait still counts. ARCH-PURE: policy is
+  table-tested, and the glue reuses the existing `Runtime.ModTime`, so no new seam.
+- Mutation check: against the old cadence the regression test fails with
+  "bound 54.5s after the round completed", which matches the ~60 s seen live.
+  The first draft injected the send from the sleep hook (on the poll grid) and
+  PASSED against the old code; it was fixed by stamping the event at `sendAt`
+  (lesson added).
+- Verification: `go test ./... -count=1` green (74 pkgs); `make -k test` rc=0 with
+  the five-var + COUCH_* scrub, sandbox off, TMPDIR=/private/tmp/p316. The
+  scratchpad TMPDIR is too long for nvim sockets, and /tmp (a symlink) trips
+  test-changelog. Earlier full runs flaked once each in
+  workbench-route-nvim / submission-transaction under load avg ~7.6; both pass
+  in isolation.
+
