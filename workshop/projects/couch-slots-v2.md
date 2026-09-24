@@ -391,7 +391,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
 - [x] Persist independent workspace preferences [pair#308]
-- [ ] Refresh private dependencies before slot issue claims [ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
+- [x] Refresh private dependencies before slot issue claims [ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
 Sequence: workspace identity comes first. Dependency setup, concurrent workflow
