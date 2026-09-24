@@ -56,17 +56,20 @@ type terminalMux struct {
 	active, nextID int
 	rows, cols     uint16
 	rename         *activeRename
-	notice         string
-	failure        error
-	closing        bool
-	done           chan struct{}
-	doneOnce       sync.Once
-	closeOnce      sync.Once
-	workers        sync.WaitGroup
+	// stripSpans are the chips of the strip last drawn, for click hit-testing
+	// (#311). Nil while a notice owns the row.
+	stripSpans []TabSpan
+	notice     string
+	failure    error
+	closing    bool
+	done       chan struct{}
+	doneOnce   sync.Once
+	closeOnce  sync.Once
+	workers    sync.WaitGroup
 }
 
 func newTerminalMux(shell string, args []string, parent ttyio.Writer, rt Runtime) *terminalMux {
-	return &terminalMux{shellName: shell, shellArgs: args, presenter: terminal.NewPresenter(parent, terminal.ChildRequested), rt: rt, paneID: os.Getenv("ZELLIJ_PANE_ID"), active: -1, rows: 24, cols: 80, done: make(chan struct{})}
+	return &terminalMux{shellName: shell, shellArgs: args, presenter: terminal.NewPresenter(parent, terminal.AnyMotion), rt: rt, paneID: os.Getenv("ZELLIJ_PANE_ID"), active: -1, rows: 24, cols: 80, done: make(chan struct{})}
 }
 func (m *terminalMux) stopLocked(err error) {
 	m.failure = errors.Join(m.failure, err)
@@ -88,9 +91,11 @@ func (m *terminalMux) chromeForGeometryLocked(active int, rows, cols uint16) ([]
 	}
 	model := m.stripModelLocked()
 	model.Active = active
-	text := RenderStrip(int(cols), model).Body
+	strip := RenderStrip(int(cols), model)
+	text := strip.Body
+	m.stripSpans = strip.Spans
 	if m.notice != "" {
-		text = m.notice
+		text, m.stripSpans = m.notice, nil
 	}
 	return terminal.StyledRows(text, int(cols), 1)
 }
@@ -224,12 +229,38 @@ func (m *terminalMux) writeEvents(events []terminal.InputEvent) {
 	}
 }
 func (m *terminalMux) switchRelative(delta int) {
+	m.switchTab(func() (int, bool) { return (m.active + delta + len(m.tabs)) % len(m.tabs), true })
+}
+
+// clickStrip handles a left press at (x, y), reporting whether the strip row
+// owns it (#311). Like couch's status row, the whole row is consumed: a press
+// that lands on no chip does nothing rather than reaching the child.
+func (m *terminalMux) clickStrip(x, y int) bool {
+	onStrip := false
+	m.switchTab(func() (int, bool) {
+		if m.rows < 2 || y != int(m.rows)-1 {
+			return 0, false
+		}
+		onStrip = true
+		return RenderedStrip{Spans: m.stripSpans}.ColumnToTab(x)
+	})
+	return onStrip
+}
+
+// switchTab selects the tab pick chooses -- evaluated under the lock, against
+// the tabs as they are now -- and retitles the pane. The one tab-switch path
+// for Alt+Left/Right and strip clicks.
+func (m *terminalMux) switchTab(pick func() (int, bool)) {
 	m.mu.Lock()
 	if len(m.tabs) == 0 || m.closing {
 		m.mu.Unlock()
 		return
 	}
-	index := (m.active + delta + len(m.tabs)) % len(m.tabs)
+	index, ok := pick()
+	if !ok || index < 0 || index >= len(m.tabs) {
+		m.mu.Unlock()
+		return
+	}
 	err := m.selectLocked(index)
 	if err != nil {
 		m.stopLocked(err)

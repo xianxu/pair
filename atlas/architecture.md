@@ -517,6 +517,15 @@ The shared decoder preserves complete semantic keys across read boundaries,
 resolves only a lone Escape on its ambiguity deadline, and keeps pasted shortcuts
 literal. An incomplete control frame is never forwarded as an arbitrary suffix.
 
+**Clickable strip (#311).** Both presenters use the `terminal.AnyMotion` parent
+mouse policy, so the parent owns its chrome row while the child still receives
+only what its own tracking mode requests. A left press on the strip row goes to
+`terminalMux.clickStrip`, which hit-tests `RenderedStrip.ColumnToTab` over the
+spans the last paint recorded (couch's `ColumnToActor` shape) and switches
+through the same `switchTab` path as Alt+Left/Right. The whole row is consumed;
+release, motion and other buttons keep the presenter's gesture ownership. With
+no child tracking, wheel falls back to zellij `scroll-up`/`scroll-down`.
+
 `ptychild.Child` owns the process/PTY, endpoint, bounded diagnostic capture and
 bounded acknowledged output delivery. `Exited` follows final output delivery;
 input EOF is separately observable. `hostty.OSHost` acquires nonblocking terminal

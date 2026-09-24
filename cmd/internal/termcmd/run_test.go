@@ -754,6 +754,17 @@ type fakeMux struct {
 	beginRenameErr  error
 	finishRenameErr error
 	renameFinished  chan RenameOutcome
+	// stripY, when hasStrip, is the row clickStrip consumes (#311).
+	hasStrip bool
+	stripY   int
+}
+
+func (f *fakeMux) clickStrip(x, y int) bool {
+	if !f.hasStrip || y != f.stripY {
+		return false
+	}
+	f.ops = append(f.ops, fmt.Sprintf("strip-click:%d,%d", x, y))
+	return true
 }
 
 func (f *fakeMux) writeEvents(events []terminal.InputEvent) {
@@ -1093,4 +1104,27 @@ type fakeRuntime struct {
 
 type stdoutWriter struct {
 	*bytes.Buffer
+}
+
+// #311: only a left press is offered to the strip, as couch offers only a left
+// press to its status row; release, motion and other buttons still reach the
+// presenter, which owns the gesture.
+func TestPumpStdinOffersLeftPressToStrip(t *testing.T) {
+	for _, tt := range []struct {
+		name, input, want string
+	}{
+		{"left press on strip", "\x1b[<0;3;5M", "strip-click:2,4"},
+		{"left press on child rows", "\x1b[<0;3;2M", "write:\x1b[<0;3;2M"},
+		{"release on strip", "\x1b[<0;3;5m", "write:\x1b[<0;3;5m"},
+		{"right press on strip", "\x1b[<2;3;5M", "write:\x1b[<2;3;5M"},
+		{"drag onto strip", "\x1b[<32;3;5M", "write:\x1b[<32;3;5M"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			mux := &fakeMux{hasStrip: true, stripY: 4}
+			pumpStdinWithTimer(&splitReader{chunks: [][]byte{[]byte(tt.input)}}, mux, &fakeRuntime{}, io.Discard, beforeDeadline())
+			if got := strings.Join(mux.ops, ","); got != tt.want {
+				t.Fatalf("ops = %q, want %q", got, tt.want)
+			}
+		})
+	}
 }
