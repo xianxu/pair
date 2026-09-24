@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/couchtty"
 )
 
 type readinessFixture struct {
@@ -158,5 +159,45 @@ func TestProvisionCLICancellation(t *testing.T) {
 	}
 	if !strings.Contains(diagnostics.String(), "context canceled") {
 		t.Fatalf("stderr=%s", &diagnostics)
+	}
+}
+
+// Exercise the CLI wiring retained by subsequent menu operations, then the
+// real command runner used for weave/Homebrew setup. A console owns all output.
+func TestConsoleProvisionOutputDoesNotBypassRenderer(t *testing.T) {
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("failure=%v", fail), func(t *testing.T) {
+			rt := newRT(t, "/repo")
+			var stdout, stderr bytes.Buffer
+			finished := false
+			finish := func(console *couchtty.Console, c *couchcore.Couch, _ couchcore.StartResult, _ io.Writer) int {
+				finished = true
+				if console == nil {
+					t.Fatal("missing console")
+				}
+				command := "printf '\033[2Jbrew update\n'; printf 'weave build diagnostics\n' >&2"
+				if fail {
+					command += "; exit 7"
+				}
+				_, err := (couchcore.OSProvisionIO{}).Run(context.Background(), couchcore.ProvisionCommand{
+					Program: "sh", Args: []string{"-c", command}, Progress: c.WorkspaceProgress, StreamOutput: true,
+				})
+				if fail && (err == nil || !strings.Contains(err.Error(), "weave build diagnostics")) {
+					t.Fatalf("lost failure diagnostic: %v", err)
+				}
+				if !fail && err != nil {
+					t.Fatal(err)
+				}
+				return 0
+			}
+			op, _ := Resolve("start")
+			code := runTypedOperationWithConsole(op, map[string]string{}, map[string]string{"path": "/repo"}, true, "", nil, nil, strings.NewReader(""), &stdout, &stderr, rt, finish)
+			if code != 0 || !finished {
+				t.Fatalf("console not reached: code %d, stderr %s", code, &stderr)
+			}
+			if stdout.Len() != 0 || stderr.Len() != 0 {
+				t.Fatalf("setup bypassed renderer: stdout=%q stderr=%q", stdout.String(), stderr.String())
+			}
+		})
 	}
 }

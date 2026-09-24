@@ -339,6 +339,12 @@ func runTypedOperationWithConsole(op couchcore.Operation, parsed, prepareArgs ma
 		}
 	}
 	c.WorkspaceProgress = stderr
+	if console != nil {
+		// Provisioning outlives initial attach and also runs from menu actions.
+		// Only the console renderer may write to the terminal it owns. The
+		// command runner still captures diagnostics for operation failures.
+		c.WorkspaceProgress = io.Discard
+	}
 	// The one place the CLI's layout choice reaches the domain. Set here rather
 	// than through NewCouchWith so the Runtime interface -- and every fake
 	// implementing it -- stays unchanged. An empty layout is a non-launch form,
