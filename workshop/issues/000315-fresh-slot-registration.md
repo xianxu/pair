@@ -47,6 +47,44 @@ operations or durable artifacts (ARCH-DRY/PURPOSE/FUNERAL).
 - [ ] Run the composed test, slot recovery/preference tests, launcher suite and affected race tests; build pair and couch and inspect diff. Retain existing same-ID fresh/resume/continuation tests without weakening their assertions.
 - [ ] Rewrite atlas/couch.md's #315 section to document ordinary new-ID launch; scan production/docs for retired RegisterFreshCouchThread/LaunchNonce/launch_nonce symbols. Append project scope revision and final test evidence, close, publish; operator restarts Couch for a live fresh-slot trial.
 
+### Existing failure behavior reused (no new states)
+
+Order: validate arguments/owner -> allocate new claim -> atomic current replacement
+(archive old) -> ensure workspace -> recheck owner -> blocked helper -> persist
+helper identity -> acknowledge -> ordinary registration -> promote/persist profile.
+
+| Failure point | Existing behavior retained |
+|---|---|
+| Invalid arguments or live/unresolved owner | Return before claim or current replacement; old metadata/preferences untouched. |
+| Claim collision/error | Retry collision within existing bound or return; old current stays. |
+| Current replacement/concurrent mutation | CAS refuses and releases only this new claim; retain newer current. |
+| Workspace/helper launch before ack | rollbackTrackedStart removes only the failed new record/claim; archived old conversation and slot files remain. |
+| Ack failure | failTrackedPreAckStart cancels and proves helper stopped before rollback; uncertain delivery uses post-ack cleanup. |
+| Registration error/timeout or post-ack failure | Existing StartSpawn cleanup quiesces its exact new session/helper, reconciles its durable record against registration evidence and retains uncertain ownership. Never remove slot files or unrelated sessions. |
+| Retry after proved stopped failure | Existing StartFreshSlot owner observation permits another new address; no special retry flag or new state. |
+
+### Test strategy by seam
+
+- StartFreshSlot / launchTrackedThread / RunLaunch: TestSpawnComposesProductionPairRegistrationBoundary fresh-slot subtest uses real LaunchNative plus real claim files. Nil FreshRegistration and ordinary-profile assertions fail if the special path returns; reservation and final promotion assertions pin the production boundary.
+- ValidateFreshAgentArgs: TestSlotFreshInvalidPreferencePreservesCurrent supplies restoration arguments and asserts rejection before claims/archive/current mutation.
+- Slot current replacement: TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange and TestSlotFreshRefusesMutationDuringObservation use stale observations and verify current/history survive.
+- Owner admission: TestOpenSlotRefusesMissingCurrentAndFreshRefusesLiveOrUnknown (use actual existing test name in code) and TestSlotFreshRechecksOldOwnershipAfterReadiness prove active/unknown ownership prevents spawn.
+- Launch failure: TestSlotFreshFailedLaunchRetainsDamagedEvidence and TestSlotFreshRetryAfterFailedLaunchWithLiveSupervisor preserve evidence and retry; TestSpawnAcknowledgementFailureCancelsHelperBeforeRollback, TestSpawnPossiblyDeliveredAcknowledgementQuiescesBeforeRollback and TestSpawnPostAcknowledgementFailuresNeverLeaveWorkspaceWriter defend shared cleanup.
+- Preferences: TestStartFreshSlotReplacesStoppedCurrentAndKeepsPreferences plus TestSlotPreferencesIndependentAcrossRestartResumeAndFresh pin slot isolation and successful profile persistence.
+
+### Mechanical removal boundary
+
+Only undo implementation hunks introduced by commits c58e7944 and 0879c270.
+For their production/test files use parent 54aeb96d as the exact baseline;
+`git diff 54aeb96d -- cmd/internal/launcher cmd/internal/couchcore/launch_existing.go`
+must be empty after restoration. These files have no intervening foreign edits.
+Do not touch #313 couchtty files or the new parameterized couch_test.go.
+Delete only #315-created fresh_slot_claim_test.go and slot_fresh_nonce_test.go.
+The final production diff against 54aeb96d is confined to StartFreshSlot's profile,
+launch mode and preflight argument validation. Same-ID fresh/resume/checkpoint
+code and tests match that baseline byte-for-byte. Scan atlas/couch.md and cmd/
+for removed registration/nonce names; preserve historical issue revision entries.
+
 ## Log
 
 ### 2026-09-23
@@ -100,3 +138,10 @@ spec remains preserved by the preceding revision entries and Git history.
 Named production functions, test guards, deletion targets and atlas/project
 updates explicitly. The normal-versus-slot composed test fails on the old
 FreshRequired profile, confirming it detects the wrong path before implementation.
+
+### 2026-09-23 — explicit reused failure contract (PQ-2/PQ-4/PQ-5)
+
+Specified existing event ordering, failure ownership and retry behavior without
+adding states. Named each risky seam's adversarial inputs and mechanical tests.
+Pinned removal to two owned commits and their exact parent, with a zero-diff
+acceptance check for untouched same-ID launch machinery.
