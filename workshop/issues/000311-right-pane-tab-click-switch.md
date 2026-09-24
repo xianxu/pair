@@ -35,7 +35,9 @@ or the handling of clicks outside the strip.
 
 ## Done when
 
-- Clicking each visible inactive tab switches the right pane to that tab.
+- Clicking each visible inactive tab switches the right pane to that tab,
+  including plain shell tabs: the parent uses the shared AnyMotion policy,
+  while child-facing tracking remains governed by the existing presenter.
 - Clicking the active tab is harmless and does not start rename mode or alter
   the tab order.
 - Clicks on clipped-away tabs, separators, the rename field, and empty strip
@@ -152,3 +154,7 @@ policy; child-facing tracking and the presenter's arbitration are unchanged.
 ### 2026-09-23 — operator acceptance
 
 Operator confirmed the #311 smoke test passed after rebasing onto refreshed main, and requested close and publication. The implementation patch was unchanged by the rebase; duplicate published documentation commits were dropped.
+
+### 2026-09-23 — acceptance wording aligned at close
+
+Reason: close detected the previously approved parent-policy revision without a corresponding Done when update. Delta: explicitly require shell-tab clicks through shared AnyMotion while preserving child-facing tracking. The implementation and operator smoke already cover this behavior; no scope or code change.
