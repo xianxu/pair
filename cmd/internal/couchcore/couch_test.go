@@ -349,6 +349,17 @@ func TestSpawnPersistsHelperIdentityBeforeAcknowledgingExec(t *testing.T) {
 }
 
 func TestSpawnComposesProductionPairRegistrationBoundary(t *testing.T) {
+	for _, freshSlot := range []bool{false, true} {
+		name := "ordinary"
+		if freshSlot {
+			name = "fresh-slot"
+		}
+		t.Run(name, func(t *testing.T) { testComposedPairRegistrationBoundary(t, freshSlot) })
+	}
+}
+
+func testComposedPairRegistrationBoundary(t *testing.T, freshSlot bool) {
+	t.Helper()
 	testPackageDir, err := os.Getwd()
 	if err != nil {
 		t.Fatal(err)
@@ -361,7 +372,21 @@ func TestSpawnComposesProductionPairRegistrationBoundary(t *testing.T) {
 	if physical, err := filepath.EvalSymlinks(repo); err == nil {
 		repo = physical
 	}
+	var slot SlotIdentity
+	if freshSlot {
+		slot = conventionalSlot(filepath.Join(repo, "pair"), 1)
+		if err := os.MkdirAll(slot.PrimaryRoot, 0700); err != nil {
+			t.Fatal(err)
+		}
+		repo = slot.WorktreeRoot
+		if err := os.MkdirAll(repo, 0700); err != nil {
+			t.Fatal(err)
+		}
+	}
 	home := t.TempDir()
+	if physical, err := filepath.EvalSymlinks(home); err == nil {
+		home = physical
+	}
 	pairData := launcher.ResolveDataDir(home, "")
 	binDir := t.TempDir()
 	ready := filepath.Join(t.TempDir(), "zellij-ready")
@@ -404,13 +429,17 @@ exit 0
 	if err != nil {
 		t.Fatal(err)
 	}
-	address := ThreadAddress{RepoScope: scope.Key, Tag: "couch-0102030405060708"}
+	var address ThreadAddress
 	checker := NewScopedThreadArtifactCollisionChecker(pairData)
+	commonDir := ".git"
+	if freshSlot {
+		commonDir = slot.RepoIdentity
+	}
 	couch, err := New(
 		ns, runner, NewFakePathOps(nil),
 		NewFakeGit(map[GitCall]string{
 			{Dir: repo, Args: "rev-parse --show-toplevel"}:  repo,
-			{Dir: repo, Args: "rev-parse --git-common-dir"}: ".git",
+			{Dir: repo, Args: "rev-parse --git-common-dir"}: commonDir,
 		}),
 		proc, NewStore(ns.Dir()), FixedClock{T: time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)},
 		NewFixedIDGen("composed"), newIncrementingEntropy(), checker,
@@ -418,6 +447,23 @@ exit 0
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	if freshSlot {
+		zero, primaryAddress, resting := 0, "pair:0", "main"
+		primary := WorkspaceIdentity{SchemaVersion: 2, Repo: slot.Repo, RepoIdentity: slot.RepoIdentity,
+			PrimaryRoot: slot.PrimaryRoot, FleetRoot: filepath.Dir(slot.PrimaryRoot),
+			EnvironmentRoot: filepath.Dir(slot.PrimaryRoot), WorktreeRoot: slot.PrimaryRoot,
+			Kind: "primary", Address: &primaryAddress, Slot: &zero, RestingBranch: &resting}
+		couch.Slots = &SlotCatalogFake{Repositories: map[string]SlotRepository{
+			slot.PrimaryRoot: {Identity: primary, Slots: []SlotCandidate{{Identity: slot, Verified: true}}},
+		}}
+		local := newSlotThreadStore(ns, slot)
+		couch.Workspaces = slotReadinessFunc(func(context.Context, ProvisionRequest) (ProvisionResult, error) {
+			return slotReadyResult(local), nil
+		})
+	}
+	// Neither ordinary new-address launch may depend on fresh readiness.
+	couch.FreshRegistration = nil
 
 	type pairMutationReport struct {
 		beforeNamespace map[string]string
@@ -432,6 +478,14 @@ exit 0
 	defer cancelWait()
 	runner.BeforeAcknowledge = func(id string) error {
 		child := runner.Child(id)
+		address = ThreadAddress{RepoScope: environmentValue(child.Env, "COUCH_THREAD_SCOPE"), Tag: ThreadTag(environmentValue(child.Env, "COUCH_THREAD_TAG"))}
+		profile, _, err := launcher.ApplyCouchLaunchProfile(launcher.LaunchArgs{ForcedTag: string(address.Tag)}, environmentValue(child.Env, launcher.CouchLaunchProfileEnv))
+		if err != nil {
+			return err
+		}
+		if profile.FreshRequired || profile.ResumeRequired || profile.Orientation != nil || environmentValue(child.Env, "COUCH_THREAD_RESUME") != "" {
+			return fmt.Errorf("new address received existing-conversation profile: %+v", profile)
+		}
 		thread, err := couch.Threads.GetThread(address)
 		if err != nil {
 			return err
@@ -479,8 +533,13 @@ exit 0
 	spawnDone := make(chan struct{})
 	go func() {
 		defer close(spawnDone)
-		record, handle, err := couch.Spawn(StartArgs{Cwd: repo})
-		spawned <- spawnResult{record: record, handle: handle, err: err}
+		if freshSlot {
+			result, err := couch.StartFreshSlot(context.Background(), repo, "claude")
+			spawned <- spawnResult{record: result.Record, handle: result.Handle, err: err}
+		} else {
+			record, handle, err := couch.Spawn(StartArgs{Cwd: repo})
+			spawned <- spawnResult{record: record, handle: handle, err: err}
+		}
 	}()
 	t.Cleanup(func() {
 		// This cleanup owns the composed goroutine on every path, including a
@@ -499,6 +558,9 @@ exit 0
 	var preAck ThreadRecord
 	select {
 	case preAck = <-reserved:
+	case <-spawnDone:
+		result := <-spawned
+		t.Fatalf("launch before acknowledgement: %v", result.err)
 	case <-waitCtx.Done():
 		t.Fatalf("wait for reserved pre-ack state: %v", waitCtx.Err())
 	}

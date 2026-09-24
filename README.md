@@ -406,7 +406,10 @@ The first thread for a repository uses its primary checkout (`:0`). Starting
 another creates a durable numbered slot (`:1`, `:2`, …), under
 `../worktree/<repo>-slotN/<repo>`. Within that repo you can address a slot as
 `:N`; the qualified form is `<repo>:N`. Resume parked threads before adding
-another slot.
+another slot. To add one without typing a path, open an existing thread's
+action menu and choose **Add slot**. The launch form opens with its repository
+filled in and the agent selected; press Enter to use the defaults, or choose an
+agent first. The action also works from numbered slot rows.
 
 The switcher groups repositories alphabetically, with the primary first and
 numbered slots in numeric order (`:2` before `:10`). It shows full workspace

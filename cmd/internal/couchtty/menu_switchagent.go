@@ -200,6 +200,9 @@ func renderSwitchAgentMenu(frame MenuFrame, width, height int) []string {
 
 func menuActionsFor(state MenuState, thread couchcore.ActionableThreadSummary) []string {
 	items := menuActionItems(thread)
+	if menuRepositoryRoot(thread) != "" {
+		items = append(items, "add-slot")
+	}
 	if _, ok := state.Orientation[thread.Address]; ok {
 		items = append(items, "copy-orientation")
 	}
@@ -225,4 +228,14 @@ func moveSwitchFocus(frame *MenuFrame, delta int) {
 		}
 	}
 	frame.SelectedItem = items[(index+delta+len(items))%len(items)]
+}
+
+// menuRepositoryRoot shares the switcher's scope-matched root derivation,
+// never its human label or fallback working-path display.
+func menuRepositoryRoot(thread couchcore.ActionableThreadSummary) string {
+	thread = presentationRow(thread)
+	if thread.Target.Kind == couchcore.ThreadTargetSlot {
+		return thread.Target.Slot.PrimaryRoot
+	}
+	return presentationRoot(thread.StartingPath, thread.Address.RepoScope)
 }
