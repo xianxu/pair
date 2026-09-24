@@ -1,6 +1,6 @@
 ---
 id: 000318
-status: working
+status: codecomplete
 deps: [ariadne#248]
 github_issue:
 created: 2026-09-23
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T23:42:37-07:00
 flow: {kind: quick, provenance: inferred, spec: "00b0737e", done: "607f2845"}
+actual_hours: N/A
 ---
 
 # Declare Pair post-move build
@@ -44,6 +45,7 @@ the existing build target or generic bootstrap (ARCH-DRY).
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — Isolated-worktree telemetry unavailable for focused-hours measurement; weave compile composed Pair AGENTS.md with make build, HEAD check and fresh-session instruction alongside ariadne#248 move guide; real Pair primary remained untouched.; review verdict: FIX-THEN-SHIP
 
 Created as the Pair-owned portion of ariadne#248. The primary Pair checkout is
 on an unrelated issue branch with operator scratch files; this worktree starts
@@ -54,3 +56,21 @@ this disposable worktree with a peer clone of ariadne#248. Generated `AGENTS.md`
 contains both the exported phrase-to-procedure link and Pair's post-move build,
 HEAD check and fresh-session instruction. `git status` in Pair's primary
 checkout remained on its unrelated issue branch with its original scratch files.
+
+The close review noted #317 and project commits in its historical window
+`c3acba71..defbbac5`. They were already published on `origin/main` before this
+branch's PR: `git diff --stat origin/main...HEAD` contains only this issue's
+`AGENTS.local.md` and issue record. Those commits belong to their own work;
+pair#318 does not claim them.
+
+## Revisions
+
+### 2026-09-23 — separate the reviewed Pair delta from inherited history
+
+**Reason:** concurrent #317/project commits landed between the close review's
+historical base and this issue branch, making the pinned window wider than the
+actual PR delta.
+
+**Delta:** retain the authored Pair declaration and document its two-file PR
+delta against current `origin/main`; no unrelated files are changed or claimed
+by pair#318.
