@@ -1957,3 +1957,13 @@ reported rather than hidden behind a raw-output scanner's belief. These are loca
 state and write-result observations, not terminal queries or proof of pixels.
 The existing opt-in 0600 append sink closes at Console teardown and records no
 child body or keystrokes. The operator removes the temporary trace after diagnosis.
+
+### Fresh slot conversation registration (#315)
+
+Couch reserves a new Pair conversation address before a slot fresh launch.
+The launcher uses `RegisterFreshCouchThread` for an exact Couch-owned fresh
+launch without a checkpoint: reserved claims become established, and exact
+established claims remain valid for same-address agent switching. Missing or
+invalid claims refuse. Resume and checkpoint replacement retain read-only,
+established-only registration. `fresh_slot_claim_test.go` exercises this boundary
+with real claim files behind the launcher runtime seam.

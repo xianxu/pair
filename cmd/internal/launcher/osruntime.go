@@ -1132,3 +1132,7 @@ func procPPID(pid int) int {
 	}
 	return ppid
 }
+
+func (r OSRuntime) RegisterFreshCouchThread(scope RepoScope, tag string) error {
+	return RegisterFreshCouchThread(r.GlobalDataDir, scope, tag)
+}

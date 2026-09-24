@@ -138,6 +138,31 @@ func EnsureThreadAddressForPair(globalDataDir string, scope RepoScope, tag strin
 	return ErrThreadAddressClaimed
 }
 
+// RegisterFreshCouchThread admits a fresh conversation at either a newly
+// reserved Couch address or its exact established address. Missing or invalid
+// markers are never adopted. Resume and checkpoint replacement stay read-only.
+func RegisterFreshCouchThread(globalDataDir string, scope RepoScope, tag string) error {
+	paths := NewScopedPaths(globalDataDir, scope, tag)
+	if err := paths.Validate(); err != nil {
+		return err
+	}
+	record, err := readThreadAddressClaim(paths.ThreadClaim())
+	if err != nil {
+		return fmt.Errorf("read fresh Couch thread registration: %w", err)
+	}
+	if record.Schema != 1 || record.Scope != scope.Key || record.Tag != tag {
+		return ErrThreadAddressClaimed
+	}
+	switch record.State {
+	case "reserved":
+		return establishReservedThreadAddress(paths, scope, tag)
+	case "established":
+		return nil
+	default:
+		return ErrThreadAddressClaimed
+	}
+}
+
 // RegisterExistingCouchThread validates that a Couch resume targets the exact
 // durable Pair address already established by its original launch. Unlike the
 // create-flow claim, registration is read-only: it never creates, adopts,

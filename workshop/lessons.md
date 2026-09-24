@@ -213,3 +213,5 @@ When in doubt, draw the boundary first: who owns the state, what evidence can
 prove it, which production path delivers it, and what test fails when that path
 is removed. Prefer the smallest explicit authority and the strongest observable
 proof; record the surprising case so the next change starts from evidence.
+
+- A fresh conversation may carry a newly reserved address or an established one. Test real claim storage through the launcher; permissive runtime fakes concealed an established-only check that rejected every new slot fresh launch. (#315)
