@@ -7,6 +7,7 @@ created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T19:34:09-07:00
+flow: {kind: quick, provenance: inferred, spec: "7e70af2f", done: "2460ade9"}
 ---
 
 # Keep workspace setup output out of the Couch terminal UI
