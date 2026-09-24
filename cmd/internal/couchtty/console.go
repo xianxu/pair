@@ -1055,40 +1055,6 @@ func (c *Console) applyLayout() {
 	}
 }
 
-// statusModelLocked builds the status row's model: the attached chips, then a
-// placeholder for each thread the reattach pass has not attached yet
-// (pair#206). Callers hold c.mu. Separate from paintNow so the model -- which is
-// where a placeholder either appears or silently does not -- is testable without
-// rendering to a terminal.
-func (c *Console) statusModelLocked() StatusModel {
-	model := StatusModel{Notice: c.feed.Row().Body}
-	for _, id := range c.order {
-		p := c.panes[id]
-		model.Actors = append(model.Actors, StatusActor{
-			Label:  p.label,
-			Thread: p.thread,
-			Active: id == c.active,
-			Bell:   len(c.attention.Projection(p.thread)) > 0,
-		})
-	}
-	// Placeholders for threads the reattach pass has not attached yet, after
-	// the attached chips and in pass order (pair#206), so a thread that attaches
-	// takes the column its placeholder held. The label is the one its chip will
-	// carry -- the repository of the thread's starting path -- so it does not
-	// change when the thread arrives.
-	model.Spinner = c.statusSpinner
-	for _, pending := range pendingPlaceholders(c.menu.Reattach) {
-		label := string(pending.Address.Tag)
-		if row, ok := menuThread(c.menu, pending.Address); ok {
-			label = couchcore.Worktree(row.StartingPath).Repo()
-		}
-		model.Actors = append(model.Actors, StatusActor{
-			Label: label, Thread: pending.Address, Placeholder: true, Loading: pending.Loading,
-		})
-	}
-	return model
-}
-
 // repaint draws the status row when it is SAFE to do so, and defers when it is
 // not.
 //

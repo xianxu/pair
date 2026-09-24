@@ -284,7 +284,7 @@ type MenuEffect struct {
 }
 
 func NewMenuState(inventory []couchcore.ActionableThreadSummary, active couchcore.ThreadAddress) MenuState {
-	owned := append([]couchcore.ActionableThreadSummary(nil), inventory...)
+	owned := orderedMenuInventory(inventory)
 	root := MenuFrame{Instance: 1, Kind: MenuFrameRoot}
 	if len(owned) > 0 {
 		selectMenuRow(&root, owned[0])

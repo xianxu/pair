@@ -389,7 +389,7 @@ No implementation has started and no estimates or deadline are committed.
 - [ ] Land without removing or refreshing the workspace [ariadne#246]
 - [x] Provision durable numbered workspaces [pair#305]
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
-- [ ] Group slots in the switcher and tab bar [pair#307]
+- [x] Group slots in the switcher and tab bar [pair#307]
 - [ ] Persist independent workspace preferences [pair#308]
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
@@ -498,6 +498,21 @@ related suites pass. Both FIX-THEN-SHIP findings were corrected and verified.
 [issue](../../../ariadne/workshop/history/issues/000245-slots-v2-branch-and-refresh.md)
 and review records were archived. Ariadne main is synced with origin/main.
 
+<a id="ariadne-246"></a>
+### ariadne#246 — Land while retaining the workspace
+
+**status:** working — implementation verified; SDLC close review pending
+**est:** 3.83h
+**started:** 2026-09-23
+
+Primary and numbered workspaces land through their configured remote/main,
+archive only PR-owned records remotely, and return to unchanged resting refs.
+Exact GitHub integration and archive provenance authorize retry and local branch
+cleanup. Independent dependency clones keep their normal flow; the stateful
+Ariadne-first/parent-second fixture verifies no recursive publication or cleanup.
+Full relevant tests (known #210 fixture excluded), vet, build, live read-only
+GitHub conformance and destructive-guard mutation checks passed.
+
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
@@ -527,6 +542,21 @@ code and current supervisor locking remain; new reservation systems and reposito
 ownership coordination are excluded. Fresh review approved the concrete local
 storage, migration, retention and recovery plan after corrections. Implementation
 has operator approval and passed the change-code gate (estimate 14.37h).
+
+<a id="pair-307"></a>
+### pair#307 — Grouped switcher and tab bar
+
+**status:** codecomplete — SHIP close review, publication pending
+**est:** 3.36h
+**actual:** 1.01h
+**closed:** 2026-09-23 (local acceptance)
+
+The [issue](../issues/000307-slots-v2-grouped-thread-display.md) and
+[plan](../plans/000307-slots-v2-grouped-thread-display-plan.md) deliver one shared
+repository/slot presentation, numeric order, stable selection, grouped tabs and
+full labels when the primary is absent. Rendered fixtures and the three-workspace
+activation trial cover the nested host paths. Full-suite and race verification
+passed; the optional timing harness has a documented baseline correlation failure.
 
 ## Log
 
@@ -674,13 +704,13 @@ preferences and acceptance tasks were aligned without reopening #242.
 
 [ariadne#245]: #ariadne-245
 
-[ariadne#246]: ../../../ariadne/workshop/issues/000246-slots-v2-durable-slot-landing.md
+[ariadne#246]: #ariadne-246
 
 [pair#305]: ../history/issues/000305-slots-v2-workspace-provisioning.md
 
 [pair#306]: #pair-306
 
-[pair#307]: ../issues/000307-slots-v2-grouped-thread-display.md
+[pair#307]: #pair-307
 
 [pair#308]: ../issues/000308-slots-v2-workspace-preferences.md
 
@@ -821,3 +851,11 @@ and preference UX remain #307/#308. PR publication follows.
 SDLC marked #306 done, archived its issue/plan/review records, and returned the
 checkout to main. Updated the portfolio links and publication status. #307 can
 now consume stable slot identities for grouped switcher/tab presentation.
+
+### 2026-09-23 — #307 grouped display implemented, verification underway
+
+Operator approved shared repository grouping for switcher and tab bar. Both now derive from the same pure projection, with numeric slots, stable row selection and full context when the primary is absent. Parked members stay in the switcher; pending tabs retain their group position. Rendered fixtures and operator documentation are in place. Full verification and SDLC close review are next; this is not a completion claim.
+
+### 2026-09-23 — #307 accepted for publication
+
+SDLC close returned SHIP after complete-target validation was corrected. Measured actual is 1.01h against the provisional 3.36h estimate. The independent reviewer reran focused, race and full-suite checks successfully. Both grouped surfaces, docs and rendered fixtures are complete; publication follows.

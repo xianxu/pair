@@ -43,6 +43,27 @@ retention adapters. Slot row keys use host paths; process/terminal maps retain
 native addresses. Creation admission and launch recovery are described in
 [workspace provisioning](workspace-provisioning.md).
 
+### Grouped workspace display (#307)
+
+`couchtty.PresentThreads` derives repository grouping, numeric slot order, full
+labels and display paths from the existing row targets and repo scopes. A slot
+maps to its primary checkout scope; an ordinary starting subdirectory can recover
+its checkout root by matching ancestor scopes without filesystem IO. Unknown
+legacy roots retain recorded path context. Same-name checkout groups stay distinct.
+
+The menu installs this order at inventory ingestion, then overlays reattachment
+state through its existing viewed lookups. Rendering uses stable row keys, including
+addressless recovery slots. `Console.statusModelLocked` joins attached/pending
+members through the same projection and keeps a pane fallback while inventory
+catches up; attachment order still serves internal process bookkeeping.
+`RenderStatusRow` shortens slot labels only after the visible group's anchor and
+creates click spans in the same pass that clips text. Parked slots stay in the
+switcher, and a missing primary tab gives the first slot a full `repo:N` label.
+
+Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
+`menu_reattach.go`, `menu_render.go`, and `reserve.go`. Rendered examples are in
+`couchtty/testdata/slots_grouped_*.txt`.
+
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not a metadata or display authority. The one-time journal import
 of its actors into ThreadStore went with `pair#170` M4: every store that needed

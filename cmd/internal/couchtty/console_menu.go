@@ -152,6 +152,10 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	c.mu.Unlock()
 	if panelFocused {
 		c.showMenu()
+	} else if result.err == nil {
+		// Inventory now supplies tab grouping as well as switcher rows. Publish
+		// accepted metadata even when the operator stays in a quiet child.
+		c.repaint()
 	}
 }
 
