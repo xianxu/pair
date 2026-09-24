@@ -386,7 +386,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Resolve dependency and shared-tool bindings [ariadne#243]
 - [x] Make concurrent issue workflows safe [ariadne#244]
 - [x] Support branching from a workspace and explicit refresh [ariadne#245]
-- [ ] Land without removing or refreshing the workspace [ariadne#246]
+- [x] Land without removing or refreshing the workspace [ariadne#246]
 - [x] Provision durable numbered workspaces [pair#305]
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
@@ -501,7 +501,9 @@ and review records were archived. Ariadne main is synced with origin/main.
 <a id="ariadne-246"></a>
 ### ariadne#246 — Land while retaining the workspace
 
-**status:** working — implementation verified; SDLC close review pending
+**status:** codecomplete — [Ariadne PR131](https://github.com/xianxu/ariadne/pull/131) open; SHIP review, no open findings
+**actual:** 3.63h
+**closed:** 2026-09-23 (local acceptance)
 **est:** 3.83h
 **started:** 2026-09-23
 
@@ -863,3 +865,12 @@ SDLC close returned SHIP after complete-target validation was corrected. Measure
 ### 2026-09-23 — #307 published
 
 Merged [PR #157](https://github.com/xianxu/pair/pull/157) through SDLC (merge `997552a8`), archived the accepted issue and plan, and returned the checkout to main. Updated portfolio status and archive links; #308 remains the next preference UX task.
+
+### 2026-09-23 — ariadne#246 accepted for publication
+
+Durable landing passed close review after preserving new staged and unstaged work
+during resting-branch cleanup recovery. Measured actual is 3.63h against 3.83h
+estimated. PR131 is open and unmerged; primary and numbered workspaces retain
+their baselines, directories and dependencies. Full relevant tests (known #210
+fixture excluded), final focused regressions, independent review tests, vet and
+build passed. Coordinated repositories still publish dependency first, separately.
