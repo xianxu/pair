@@ -67,9 +67,9 @@ Open questions for design:
 
 ## Plan
 
-- [ ] `couchcore/slotgit.go`: `SlotGitStatus.Behind` from `branch.ab`; `SlotGlyph` precedence `` > `*` > `±` > `+` > `-`; table tests (TDD)
-- [ ] Goldens: add `glyph_behind` and `glyph_diverged` scenarios to `TestGroupedRenderedFixtures`; eyeball switcher/tab agreement
-- [ ] README glyph table + `atlas/couch.md` (#317 section): new glyphs + fetch-staleness caveat
+- [x] `couchcore/slotgit.go`: `SlotGitStatus.Behind` from `branch.ab`; `SlotGlyph` precedence `` > `*` > `±` > `+` > `-`; table tests (TDD)
+- [x] Goldens: add `glyph_behind` and `glyph_diverged` scenarios to `TestGroupedRenderedFixtures`; eyeball switcher/tab agreement
+- [x] README glyph table + `atlas/couch.md` (#317 section): new glyphs + fetch-staleness caveat
 - [ ] Mutation-check the new precedence cases; `make test` (unsandboxed); operator live check
 
 ## Revisions
@@ -85,3 +85,11 @@ Open questions for design:
 - Filed from the #317 session, after `main-slot1` diverged from origin/main
   (ahead 3, behind 34) while showing no glyph. Builds on #317's
   `couchcore/slotgit.go`; small, likely quick-flow.
+- Implemented (fd1bb165). `SlotGitStatus.Behind` from `branch.ab`;
+  `SlotGlyph` checks `HasUpstream` once, then `±` > `+` > `-`. New goldens
+  `glyph_behind` / `glyph_diverged`; the other ten fixtures are byte-unchanged.
+  No in-app legend lists the glyphs (README + atlas only), so no help text moved.
+- Mutation checks (restored by `cp`, `cmp`-verified): drop the `±` case →
+  precedence + fixture fail; parser drops `Behind` → parse test fails; drop the
+  `-` case → precedence + fixture fail.
+
