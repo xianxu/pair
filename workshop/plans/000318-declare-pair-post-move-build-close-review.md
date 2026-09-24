@@ -56,3 +56,66 @@ This is documentation-only behavior. The authored fragment and current generated
 7. Plan revision recommendations
 
 - Add a `## Revisions` entry only if the unrelated issue-317/project changes are intentionally part of this boundary; otherwise remove them from the issue-318 range.
+
+---
+
+## Re-review — 2026-09-24T00:22:36-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 318 — Declare Pair post-move build |
+| repo | pair |
+| issue file | workshop/issues/000318-declare-pair-post-move-build.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 06176a185d27d1e8246723b4905455aa175adf62..55328c0707919e6eb860539ca2cbc0a609adb208 |
+| command | sdlc close --issue 318 |
+| reviewer | codex |
+| timestamp | 2026-09-24T00:22:36-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The Pair-local instruction fulfills the issue specification, is correctly composed into `AGENTS.md`, and references an existing slot-move procedure. No blocking findings.
+
+1. Strengths
+
+- `AGENTS.local.md:8-11` names `make build`, HEAD verification, fresh-session behavior, and the shared procedure.
+- Composed output appears in `AGENTS.md:119-122`.
+- Link target exists and documents the same build/session requirements.
+- `git diff --check` passes; scope is limited to the intended Pair instruction and review artifacts.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Documentation-only change. Authored and composed instructions were inspected; no runtime test is required.
+
+6. Architectural notes for upcoming work
+
+- ARCH-DRY: pass — reuses the shared slot-move procedure.
+- ARCH-PURE: pass — no executable behavior or IO logic added.
+- ARCH-PURPOSE: pass — both Done-when clauses are evidenced.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+{}
+```

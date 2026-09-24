@@ -4,7 +4,7 @@ status: codecomplete
 deps: [ariadne#248]
 github_issue:
 created: 2026-09-23
-updated: 2026-09-23
+updated: 2026-09-24
 estimate_hours:
 started: 2026-09-23T23:42:37-07:00
 flow: {kind: quick, provenance: inferred, spec: "00b0737e", done: "607f2845"}
@@ -44,6 +44,8 @@ the existing build target or generic bootstrap (ARCH-DRY).
 
 ## Log
 
+
+- 2026-09-24: closed — Remote Pair tracker history joined without changing reviewed AGENTS.local declaration; weave-composed instruction and unchanged primary Pair checkout remain verified; isolated worktree lacks focused-hours telemetry.; review verdict: SHIP
 ### 2026-09-23
 - 2026-09-23: closed — Isolated-worktree telemetry unavailable for focused-hours measurement; weave compile composed Pair AGENTS.md with make build, HEAD check and fresh-session instruction alongside ariadne#248 move guide; real Pair primary remained untouched.; review verdict: FIX-THEN-SHIP
 
