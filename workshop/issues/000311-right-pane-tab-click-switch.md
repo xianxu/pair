@@ -71,7 +71,7 @@ consumers):
       (no second tracker, no child leak). Rename sessions already drop mouse.
 - [x] Production-boundary tests through `pumpStdinWithTimer` with a fake mux;
       presenter tests unchanged (child tracking preserved).
-- [ ] Live smoke in a pair session: click tabs in a shell tab and while nvim
+- [x] Live smoke in a pair session: click tabs in a shell tab and while nvim
       holds `?1002`; wheel scroll in a shell; note what drag-select does.
 
 ## Log
@@ -138,7 +138,7 @@ four #151/#155 contract tests that `git show` pinned objects (exit 128 — no
 output, rotating per run; `submission-transaction` fails 5/5 here yet passes
 3/3 from archives of both a98a86f1~1 and a98a86f1 and passes under `bash -x`
 — a checkout-local, timing-sensitive environment issue, not this Go-only diff.
-Pending: operator live smoke (plan's last step).
+At that checkpoint, operator live smoke remained pending (confirmed below).
 
 ## Revisions
 
@@ -148,3 +148,7 @@ shell tab, because `ChildRequested` never enables parent reporting there.
 Delta: parent policy changes from `ChildRequested` to couch's any-motion
 policy; child-facing tracking and the presenter's arbitration are unchanged.
 
+
+### 2026-09-23 — operator acceptance
+
+Operator confirmed the #311 smoke test passed after rebasing onto refreshed main, and requested close and publication. The implementation patch was unchanged by the rebase; duplicate published documentation commits were dropped.
