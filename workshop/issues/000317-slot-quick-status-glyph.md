@@ -25,7 +25,7 @@ Show one quick-status glyph per slot, taking the first rule that matches:
 
 | glyph | meaning |
 |---|---|
-| `` (U+E0A0, Powerline branch) | slot is **not** on its resting branch, so it has issue work |
+| `` (U+E0A0, Powerline branch) | slot is **not** on its resting branch, so it has issue work |
 | `*` | on its resting branch, but the working tree is dirty |
 | `+` | on its resting branch and clean, with commits not on origin/main |
 | none | on its resting branch, clean, nothing unpublished |
@@ -55,7 +55,7 @@ Open questions for design:
 - Is a Nerd Font glyph acceptable everywhere Couch runs, or is an ASCII
   fallback needed (e.g. `^`)? The operator's terminal renders it today.
 - "Not on origin/main": count only the resting branch, or any local branch?
-  Proposed: resting branch only, since an off-resting slot already shows ``.
+  Proposed: resting branch only, since an off-resting slot already shows ``.
 
 ## Done when
 
@@ -140,3 +140,10 @@ Focused couchcore/couchtty glyph tests pass under race (3.787s/4.715s); make bui
 passes. The preceding full make -k test and independent reviewer full Go suite
 passed. ARCH-SECURE: malformed observations remain probe failures, retaining the
 last display value through the existing reducer. No new lifecycle state.
+
+### 2026-09-24 — final documentation correction
+
+Second review confirmed BR-1 is addressed in prose, but omitted the structured
+findings disposition required by SDLC. Its only new finding is corrected: the
+README, atlas and issue legend now show the literal branch glyph `` (U+E0A0).
+No production code changed after the verified parser correction.

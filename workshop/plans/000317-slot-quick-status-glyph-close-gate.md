@@ -15,6 +15,12 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-24T13:15:22-07:00"
+      agent: codex
+      recipe: milestone-review
+      blocked: true
+      protocol_error: no valid findings block
 ---
 
 # Gate ledger — pair#317 (boundary-review)
@@ -28,6 +34,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - **BR-1** [Important] `porcelain-grammar-validation` ParseSlotGitStatus accepts malformed porcelain fields
   cmd/internal/couchcore/slotgit.go:70-84 accepts trailing branch.ab tokens and an empty branch.head despite documenting a closed grammar; reject malformed external output and add regression tests that fail without the fix. ARCH-SECURE.
+
+## Round 2 — 2026-09-24T13:15:22-07:00 (codex) — BLOCKED
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

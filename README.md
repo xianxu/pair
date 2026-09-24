@@ -436,7 +436,7 @@ the switcher and the tabs (`pair:1`, `:2*`):
 
 | glyph | meaning |
 |---|---|
-| `` | not on its resting branch (`main` / `main-slotN`), so it has issue work |
+| `` | not on its resting branch (`main` / `main-slotN`), so it has issue work |
 | `*` | on its resting branch, working tree dirty |
 | `+` | on its resting branch and clean, with commits not on its upstream |
 

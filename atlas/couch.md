@@ -73,7 +73,7 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 ### Slot quick-status glyph (#317)
 
 Each checkout in a slot group, `:0` included, carries one glyph after its label
-in both the switcher and the tabs: `` (U+E0A0) off its resting branch
+in both the switcher and the tabs: `` (U+E0A0) off its resting branch
 (`main` / `main-slotN`, from `couchcore.RestingBranch`), `*` dirty, `+` commits
 ahead of the branch's upstream, none otherwise, in that precedence
 (`couchcore.SlotGlyph`). `PresentThreads` derives `ThreadPresentation.Glyph`
