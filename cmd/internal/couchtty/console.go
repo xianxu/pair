@@ -121,12 +121,18 @@ type Console struct {
 	// started reports that Run owns the terminal, so a notice may paint itself.
 	// Its own field rather than something inferred from another: "is it safe to
 	// write to the operator's screen yet" is its own question.
-	started            bool
-	exited             chan childExit
-	operationQueue     *operationQueue
-	refreshRequests    chan struct{}
-	refreshResults     chan menuRefreshResult
-	refreshSchedule    RefreshSchedule
+	started         bool
+	exited          chan childExit
+	operationQueue  *operationQueue
+	refreshRequests chan struct{}
+	refreshResults  chan menuRefreshResult
+	refreshSchedule RefreshSchedule
+	// Slot quick-status glyph refresh (pair#317); see console_slotgit.go.
+	slotGitProbe       SlotGitProbe
+	slotGitRequests    chan struct{}
+	slotGitResults     chan slotGitResult
+	slotGitSchedule    RefreshSchedule
+	slotGitInterval    time.Duration
 	orientationResults chan orientationWatchResult
 	orientationWatches map[couchcore.ThreadAddress]orientationWatch
 	// orientationFrom records which producer wrote each menu.Orientation entry;
@@ -176,6 +182,9 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		operationQueue:      newOperationQueue(16),
 		refreshRequests:     make(chan struct{}, 1),
 		refreshResults:      make(chan menuRefreshResult, 1),
+		slotGitRequests:     make(chan struct{}, 1),
+		slotGitResults:      make(chan slotGitResult, 1),
+		slotGitInterval:     defaultSlotGitInterval,
 		orientationResults:  make(chan orientationWatchResult, 8),
 		continuationResults: make(chan continuationScanResult, 1),
 		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
@@ -530,6 +539,8 @@ func (c *Console) switchTo(id string, force bool, how arrival) (stayed bool) {
 	}
 	stayed, err := c.selectActor(id, force, how)
 	c.terminalError(err)
+	// Arriving at a slot is when its glyph is read; refresh off the render path.
+	c.requestSlotGit()
 	return stayed
 }
 
@@ -578,6 +589,8 @@ func (c *Console) Run() (code int) {
 	go func() { defer c.workers.Done(); c.pumpStdin() }()
 	go func() { defer c.workers.Done(); c.watchResize() }()
 	go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
+	slotGitTicker := time.NewTicker(c.slotGitInterval)
+	defer slotGitTicker.Stop()
 	var terminated <-chan os.Signal
 	if h, ok := c.host.(hostty.TerminationHost); ok {
 		terminated = h.Terminated()
@@ -798,6 +811,12 @@ func (c *Console) Run() (code int) {
 			c.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshRequested})
 		case result := <-c.refreshResults:
 			c.finishMenuRefresh(result)
+		case <-slotGitTicker.C:
+			c.advanceSlotGit(RefreshScheduleEvent{Kind: RefreshRequested})
+		case <-c.slotGitRequests:
+			c.advanceSlotGit(RefreshScheduleEvent{Kind: RefreshRequested})
+		case result := <-c.slotGitResults:
+			c.finishSlotGit(result)
 		case result := <-c.orientationResults:
 			c.finishOrientation(result)
 		case result := <-c.continuationResults:

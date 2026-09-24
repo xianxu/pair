@@ -55,12 +55,12 @@ func (c *Console) statusModelLocked() StatusModel {
 			rows[index].Name = couchcore.Worktree(rows[index].StartingPath).Repo()
 		}
 	}
-	for _, entry := range PresentThreads(rows) {
+	for _, entry := range PresentThreads(rows, c.menu.SlotGit) {
 		actor, found := members[entry.Row.Address]
 		if !found {
 			continue
 		}
-		actor.Label, actor.GroupKey, actor.SlotNumber = entry.Label, entry.GroupKey, entry.SlotNumber
+		actor.Label, actor.GroupKey, actor.SlotNumber, actor.Glyph = entry.Label, entry.GroupKey, entry.SlotNumber, entry.Glyph
 		model.Actors = append(model.Actors, actor)
 	}
 	return model

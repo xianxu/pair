@@ -147,6 +147,11 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	// above, before dispatch, so the seeding precedes the first attempt's start.
 	c.dispatchMenuEffects(effects)
 	c.advanceMenuRefresh(RefreshScheduleEvent{Kind: RefreshFinished, Generation: result.generation})
+	// A landed inventory can add or remove slot checkouts; the switcher opening
+	// (onHotkey) reaches the slot git refresh through here too (pair#317).
+	if result.err == nil {
+		c.requestSlotGit()
+	}
 	c.mu.Lock()
 	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()

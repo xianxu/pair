@@ -21,6 +21,9 @@ type ThreadPresentation struct {
 	Path       string
 	Indent     int
 	SlotNumber int
+	// Glyph is the slot quick-status glyph (pair#317), derived here once so the
+	// switcher and the tab bar cannot disagree. Empty without an observation.
+	Glyph string
 }
 
 type threadPresentationGroup struct {
@@ -32,7 +35,8 @@ type threadPresentationGroup struct {
 // PresentThreads groups and orders inventory rows without filesystem discovery or
 // synthetic headers. Root recovery is best-effort: immutable starting paths and
 // their lexical ancestors can prove a scope match without consulting current cwd.
-func PresentThreads(rows []couchcore.ActionableThreadSummary) []ThreadPresentation {
+// git holds the last slot git observations by checkout path; nil shows no glyphs.
+func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]couchcore.SlotGitStatus) []ThreadPresentation {
 	groups := make(map[string]*threadPresentationGroup)
 	for _, row := range rows {
 		row = presentationRow(row)
@@ -47,6 +51,7 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary) []ThreadPresentati
 			p.SlotNumber = slot.Number
 			p.Indent = 2
 			p.Path = slot.WorktreeRoot
+			p.Glyph = slotGlyphAt(git, p.Path, slot.Number)
 		} else {
 			if p.GroupKey == "" {
 				p.GroupKey = "native:" + fmt.Sprintf("%q", row.Address)
@@ -102,6 +107,11 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary) []ThreadPresentati
 				if p.Path == "" {
 					p.Path = "(path unavailable)"
 				}
+				// The primary checkout is :0 of a slot group; an ordinary repo
+				// without slots has no resting branch and so no glyph.
+				if g.hasSlots && p.Path == g.root {
+					p.Glyph = slotGlyphAt(git, p.Path, 0)
+				}
 				ordinary = append(ordinary, couchcore.LabelRow{Address: p.Row.Address, Label: p.Label})
 			}
 		}
@@ -137,6 +147,14 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary) []ThreadPresentati
 		out = append(out, g.rows...)
 	}
 	return out
+}
+
+func slotGlyphAt(git map[string]couchcore.SlotGitStatus, path string, slot int) string {
+	status, ok := git[path]
+	if !ok {
+		return ""
+	}
+	return couchcore.SlotGlyph(status, couchcore.RestingBranch(slot))
 }
 
 func presentationRoot(start, scopeKey string) string {

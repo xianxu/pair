@@ -33,7 +33,7 @@ func TestPresentThreadsGroupingAndPermutation(t *testing.T) {
 	primary.Name = "renamed"
 	rows := []couchcore.ActionableThreadSummary{presentationSlot("/src/pair", 10), presentationOrdinary("/src/zebra", "z"), presentationSlot("/src/pair", 2), primary}
 	saved := append([]couchcore.ActionableThreadSummary(nil), rows...)
-	got := PresentThreads(rows)
+	got := PresentThreads(rows, nil)
 	if !reflect.DeepEqual(saved, rows) {
 		t.Fatal("mutated input")
 	}
@@ -42,12 +42,12 @@ func TestPresentThreadsGroupingAndPermutation(t *testing.T) {
 	}
 	for i := 0; i < 30; i++ {
 		rand.New(rand.NewSource(int64(i))).Shuffle(len(rows), func(i, j int) { rows[i], rows[j] = rows[j], rows[i] })
-		if !reflect.DeepEqual(got, PresentThreads(rows)) {
+		if !reflect.DeepEqual(got, PresentThreads(rows, nil)) {
 			t.Fatal("input order affected projection")
 		}
 	}
 	rows[0].Name = "arbitrary rename"
-	if p := PresentThreads(rows); p[0].GroupKey != got[0].GroupKey {
+	if p := PresentThreads(rows, nil); p[0].GroupKey != got[0].GroupKey {
 		t.Fatal("rename affected order")
 	}
 }
@@ -69,7 +69,7 @@ func TestPresentThreadsRootRecoveryAndFallback(t *testing.T) {
 		row         couchcore.ActionableThreadSummary
 		path, label string
 	}{{known, "/src/repo", "custom"}, {unknown, "/fallback", "fallback"}, {missing, "(path unavailable)", "missing"}, {invalid, "/invalid", "invalid"}} {
-		got := PresentThreads([]couchcore.ActionableThreadSummary{tc.row})[0]
+		got := PresentThreads([]couchcore.ActionableThreadSummary{tc.row}, nil)[0]
 		if got.Path != tc.path || got.Label != tc.label || got.SlotNumber != 0 {
 			t.Fatalf("got %+v; want %s %s", got, tc.path, tc.label)
 		}
@@ -77,7 +77,7 @@ func TestPresentThreadsRootRecoveryAndFallback(t *testing.T) {
 }
 func TestPresentThreadsCollisions(t *testing.T) {
 	rows := []couchcore.ActionableThreadSummary{presentationOrdinary("/a/repo", "native-11111111"), presentationOrdinary("/a/repo", "native-22222222"), presentationSlot("/a/repo", 2), presentationSlot("/b/repo", 2)}
-	got := PresentThreads(rows)
+	got := PresentThreads(rows, nil)
 	labels := map[string]bool{}
 	for _, p := range got {
 		labels[p.Label] = true
@@ -94,7 +94,7 @@ func TestPresentThreadsCollisions(t *testing.T) {
 	for i := range ordinary {
 		ordinary[i].Name = "same"
 	}
-	for _, p := range PresentThreads(ordinary) {
+	for _, p := range PresentThreads(ordinary, nil) {
 		if !strings.Contains(p.Label, "·") {
 			t.Fatalf("ordinary collision lost tag: %+v", p)
 		}
@@ -102,7 +102,7 @@ func TestPresentThreadsCollisions(t *testing.T) {
 }
 func TestPresentThreadsAddresslessSlotsAndUnknownScopes(t *testing.T) {
 	rows := []couchcore.ActionableThreadSummary{presentationSlot("/a/repo", 10), presentationSlot("/a/repo", 2)}
-	got := PresentThreads(rows)
+	got := PresentThreads(rows, nil)
 	if len(got) != 2 || got[0].SlotNumber != 2 || got[1].SlotNumber != 10 {
 		t.Fatalf("addressless rows lost: %+v", got)
 	}
@@ -110,7 +110,7 @@ func TestPresentThreadsAddresslessSlotsAndUnknownScopes(t *testing.T) {
 	b := presentationOrdinary("/b", "b")
 	a.Address.RepoScope = ""
 	b.Address.RepoScope = ""
-	got = PresentThreads([]couchcore.ActionableThreadSummary{a, b})
+	got = PresentThreads([]couchcore.ActionableThreadSummary{a, b}, nil)
 	if got[0].GroupKey == got[1].GroupKey {
 		t.Fatal("empty scopes merged")
 	}
@@ -122,7 +122,7 @@ func BenchmarkPresentThreads1000(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		PresentThreads(rows)
+		PresentThreads(rows, nil)
 	}
 }
 
@@ -134,12 +134,12 @@ func TestPresentThreadsStableGroupOrderAndKnownRoot(t *testing.T) {
 	unknown.WorkingPath = "/misleading/zebra"
 	other := presentationOrdinary("/src/beta", "c")
 	rows := []couchcore.ActionableThreadSummary{unknown, other, known}
-	before := PresentThreads(rows)
+	before := PresentThreads(rows, nil)
 	for i := range rows {
 		rows[i].Name = fmt.Sprintf("renamed-%d", i)
 		rows[i].WorkingPath = fmt.Sprintf("/elsewhere/%d", i)
 	}
-	after := PresentThreads(rows)
+	after := PresentThreads(rows, nil)
 	for i := range before {
 		if before[i].Row.Address != after[i].Row.Address {
 			t.Fatalf("mutable fields reordered rows: %+v", after)
@@ -150,7 +150,7 @@ func TestPresentThreadsStableGroupOrderAndKnownRoot(t *testing.T) {
 	}
 	for i := 0; i < 20; i++ {
 		rand.New(rand.NewSource(int64(i))).Shuffle(len(rows), func(i, j int) { rows[i], rows[j] = rows[j], rows[i] })
-		if !reflect.DeepEqual(after, PresentThreads(rows)) {
+		if !reflect.DeepEqual(after, PresentThreads(rows, nil)) {
 			t.Fatal("mixed known/unknown root depends on arrival order")
 		}
 	}
@@ -159,7 +159,7 @@ func TestPresentThreadsStableGroupOrderAndKnownRoot(t *testing.T) {
 func TestPresentThreadsSlotCustomNameKeepsCanonicalLabel(t *testing.T) {
 	row := presentationSlot("/src/repo", 2)
 	row.Name = "task nickname"
-	got := PresentThreads([]couchcore.ActionableThreadSummary{row})
+	got := PresentThreads([]couchcore.ActionableThreadSummary{row}, nil)
 	if got[0].Label != "repo:2" || got[0].Row.Name != "task nickname" {
 		t.Fatalf("custom slot name displaced canonical label: %+v", got)
 	}

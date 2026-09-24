@@ -115,11 +115,11 @@ func (id WorkspaceIdentity) validate() error {
 			return fmt.Errorf("inconsistent workspace address")
 		}
 		if id.Kind == "primary" {
-			if n != 0 || host != nil || id.WorktreeRoot != id.PrimaryRoot || *id.RestingBranch != "main" {
+			if n != 0 || host != nil || id.WorktreeRoot != id.PrimaryRoot || *id.RestingBranch != RestingBranch(0) {
 				return fmt.Errorf("inconsistent primary")
 			}
 		} else {
-			rest := "main-slot" + strconv.Itoa(n)
+			rest := RestingBranch(n)
 			if n <= 0 || host == nil || host.Slot != n || host.Repo != id.Repo || host.RepoIdentity != id.RepoIdentity || host.PrimaryRoot != id.PrimaryRoot || host.WorktreeRoot != id.WorktreeRoot || *id.RestingBranch != rest || id.Head == nil {
 				return fmt.Errorf("inconsistent slot")
 			}

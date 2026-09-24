@@ -70,6 +70,24 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 `menu_reattach.go`, `menu_render.go`, and `reserve.go`. Rendered examples are in
 `couchtty/testdata/slots_grouped_*.txt`.
 
+### Slot quick-status glyph (#317)
+
+Each checkout in a slot group, `:0` included, carries one glyph after its label
+in both the switcher and the tabs: `` (U+E0A0) off its resting branch
+(`main` / `main-slotN`, from `couchcore.RestingBranch`), `*` dirty, `+` commits
+ahead of the branch's upstream, none otherwise, in that precedence
+(`couchcore.SlotGlyph`). `PresentThreads` derives `ThreadPresentation.Glyph`
+once from `MenuState.SlotGit`, so the two views cannot disagree.
+
+The data is one `git --no-optional-locks status --porcelain=v2 --branch` per
+checkout (`couchcore.ProbeSlotGit` / `ParseSlotGitStatus`). `Console.Run` owns a
+single-flight refresh (`console_slotgit.go`, reusing `RefreshSchedule`): a 10s
+ticker, every landed inventory (so opening the switcher), and every switch
+request a pass. A worker probes the inventory's slot checkouts one at a time,
+3s each, outside `c.mu`; `MenuEventSlotGit` rebuilds the map over the probe set,
+keeping the last value for a failed probe. Render and keystroke paths only read
+the map. A glyph can be stale; a git failure never reaches chrome.
+
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not a metadata or display authority. The one-time journal import
 of its actors into ThreadStore went with `pair#170` M4: every store that needed
@@ -1308,6 +1326,8 @@ The events:
 - `first-frame`;
 - `inventory`, with `rows=N` or `error`;
 - `pass-seeded`, with `pending=N`;
+- `slot-git` (`pair#317`), with `ok=N failed=M` for one slot quick-status pass
+  that probed at least one checkout;
 - `reattach-start`, with `attempt=N`;
 - `reattach-done`, with `ok`, a resume diagnostic code, or `error`;
 - `no-destination` (`pair#265`), with the abandoned operation and the

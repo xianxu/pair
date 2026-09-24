@@ -183,6 +183,9 @@ type MenuState struct {
 	FrameSequence      uint64
 	SpinnerPhase       uint8
 	Notice             MenuNotice
+	// SlotGit is the last slot git observation per checkout path (pair#317),
+	// rebuilt over each refresh's probe set. Display evidence only.
+	SlotGit map[string]couchcore.SlotGitStatus
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
@@ -239,6 +242,8 @@ const (
 	// MenuEventReattachArm arms the background reattach pass with the startup
 	// root it must never reattach (pair#206).
 	MenuEventReattachArm
+	// MenuEventSlotGit lands one slot git refresh pass (pair#317).
+	MenuEventSlotGit
 )
 
 type MenuEvent struct {
@@ -268,6 +273,10 @@ type MenuEvent struct {
 	// Diagnostic is ResumeDiagnosticOf(err) for an operation result, so the pass
 	// tells a skip from a failure by code rather than by matching error text.
 	Diagnostic couchcore.ResumeDiagnosticCode
+	// SlotGit and SlotGitFailed are one slot git pass: the paths it observed and
+	// the paths whose probe failed. Together they are the pass's probe set.
+	SlotGit       map[string]couchcore.SlotGitStatus
+	SlotGitFailed map[string]bool
 }
 
 // MenuEffect is an operation request for the thin Console shell.
@@ -378,6 +387,10 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		if menuProgressMatches(next.Notice, event) {
 			next.SpinnerPhase = (next.SpinnerPhase + 1) % 4
 		}
+		return next, nil
+	}
+	if event.Kind == MenuEventSlotGit {
+		next.SlotGit = mergeSlotGit(next.SlotGit, event.SlotGit, event.SlotGitFailed)
 		return next, nil
 	}
 	if event.Kind == MenuEventOperationResult && event.Background {
@@ -2013,6 +2026,22 @@ func hierarchyNavigationKey(key PanelKey, forward PanelKeyKind) PanelKey {
 	return key
 }
 
+// mergeSlotGit rebuilds the observations over one pass's probe set: a fresh
+// observation replaces, a failed probe keeps the last value (a stale glyph beats
+// an error in chrome), and a path the pass no longer probes is dropped.
+func mergeSlotGit(prev, observed map[string]couchcore.SlotGitStatus, failed map[string]bool) map[string]couchcore.SlotGitStatus {
+	next := make(map[string]couchcore.SlotGitStatus, len(observed)+len(failed))
+	for path, status := range observed {
+		next[path] = status
+	}
+	for path := range failed {
+		if status, ok := prev[path]; ok {
+			next[path] = status
+		}
+	}
+	return next
+}
+
 func cloneMenuState(state MenuState) MenuState {
 	next := state
 	if state.Orientation != nil {
@@ -2028,6 +2057,12 @@ func cloneMenuState(state MenuState) MenuState {
 	}
 	next.Agents = append([]string(nil), state.Agents...)
 	next.Reattach = cloneReattachPass(state.Reattach)
+	if state.SlotGit != nil {
+		next.SlotGit = make(map[string]couchcore.SlotGitStatus, len(state.SlotGit))
+		for path, status := range state.SlotGit {
+			next.SlotGit[path] = status
+		}
+	}
 	if state.Attention != nil {
 		next.Attention = make(map[couchcore.ThreadAddress][]AttentionMessage, len(state.Attention))
 		for address, messages := range state.Attention {

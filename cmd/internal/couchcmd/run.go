@@ -614,6 +614,11 @@ func wireResolver(console *couchtty.Console, c *couchcore.Couch) {
 			return rows, nil
 		}
 	})
+	if c.Git != nil {
+		console.SetSlotGitProbe(func(ctx context.Context, dir string) (couchcore.SlotGitStatus, error) {
+			return couchcore.ProbeSlotGit(ctx, c.Git, dir)
+		})
+	}
 	console.SetForget(c.Forget)
 
 	// The switcher's actions run through the SAME declared table the CLI
