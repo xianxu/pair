@@ -1,11 +1,12 @@
 ---
 id: 000318
-status: open
+status: working
 deps: [ariadne#248]
 github_issue:
 created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T23:42:37-07:00
 ---
 
 # Declare Pair post-move build
