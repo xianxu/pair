@@ -1,6 +1,6 @@
 ---
 id: 000307
-status: working
+status: codecomplete
 deps: [pair#306]
 github_issue:
 created: 2026-09-22
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours: 3.36
 started: 2026-09-23T16:46:34-07:00
 flow: {kind: full, provenance: operator}
+actual_hours: 1.01
 ---
 
 # Slots v2: group switcher and tab bar
@@ -82,6 +83,7 @@ Detailed proposed plan: [Grouped Thread Display](../plans/000307-slots-v2-groupe
 Created from the agreed workspace/UI contract and the request for a clean task breakdown. Implementation has not started; estimates follow design approval.
 
 ### 2026-09-23 — #307 claimed and implementation mapped
+- 2026-09-23: closed — Full repository suite passed before localized review fix; final affected packages pass (couchtty 6.967s, artifactpath 3.128s), full UI race passes (19.996s), complete-target malformed variants pass native-only Enter/click routing including addressless refusal; three-workspace Run-loop click trial passes, rendered fixtures and allocation bounds pass, make pair bin/couch and vet pass. First review typed-target-validation finding fixed across explicit malformed kinds and native mismatch; first close was stale due concurrent Ariadne project progress, preserved in current HEAD. Optional M2 timing harness fails identically at raw-frame correlation on unchanged baseline; no latency-pass claim. Evidence /tmp/pair307-review-fix-{ui2,race2}.log, /tmp/pair307-full.log, /tmp/pair307-baseline-performance.log.; review verdict: SHIP
 
 Ran claim and start-plan after #306 merged. Switcher currently retains inventory order; status tabs use attachment order followed by placeholders. Mapped both consumer paths and confirmed keyboard selection already uses stable slot row keys. Prepared a single-boundary implementation plan using a pure shared UI projection (ARCH-DRY/ARCH-PURE); no runtime code changed. Plan approval is pending.
 

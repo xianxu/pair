@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go, existing Couch reducers/renderers, ANSI terminal fixtures and console test harness.
 
-**Status:** Operator approved; implementation complete, acceptance verification recorded below; close review pending.
+**Status:** Operator approved; implementation complete, accepted by SDLC with SHIP; publication pending.
 
 ## Design
 
@@ -112,9 +112,9 @@ Extract substantive presentation assembly into `cmd/internal/couchtty/console_pr
 **Files:** update `README.md`, `atlas/couch.md`, this issue and `workshop/projects/couch-slots-v2.md`; add rendered golden fixtures under `cmd/internal/couchtty/testdata/` with names prefixed `slots_grouped_`.
 
 - [x] Add deterministic rendered fixtures generated through production switcher/tab renderers: normal, absent-primary, parked, filtered, and narrow-width views. Fix fixture timestamps. Document `:0`, full switcher names, shorthand tabs, group ordering and parked-tab membership in operator help/README.
-- [ ] Run `go test ./cmd/internal/couchtty ./cmd/internal/artifactpath -count=1`, then `go test -race ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`, and `git diff --check`; expect all to pass. Run the existing menu performance tests and the new presentation benchmark, investigating any regression against the established budget.
+- [x] Run `go test ./cmd/internal/couchtty ./cmd/internal/artifactpath -count=1`, then `go test -race ./cmd/internal/couchtty -count=1`, `go test ./... -count=1`, and `git diff --check`; expect all to pass. Run the existing menu performance tests and the new presentation benchmark, investigating any regression against the established budget.
 - [x] Build via `make pair bin/couch`; verify the fixtures and a disposable console harness exercise click/Enter routing to all three nested host paths without listing their dependency clones. Do not launch or park the operator's live threads to smoke-test.
-- [ ] Update atlas and project progress, record verification in the issue, commit the finished work, then use `sdlc close --issue 307 --verified '<actual evidence>'`. The binary owns the fresh boundary review; fix blocking findings and rerun affected checks. One atomic close boundary, no Mx tags.
+- [x] Update atlas and project progress, record verification in the issue, commit the finished work, then use `sdlc close --issue 307 --verified '<actual evidence>'`. The binary owns the fresh boundary review; fix blocking findings and rerun affected checks. One atomic close boundary, no Mx tags.
 - [ ] Follow `sdlc pr` and `sdlc merge` gates for integration, and update the project with the resulting actual/closed/PR evidence.
 
 ## Revisions
@@ -154,3 +154,7 @@ The optional `PAIR_MENU_PERF_TARGET=m2-max` integration timing test times out wh
 ### 2026-09-23 — complete typed-target validation after boundary review
 
 Reason: the first close review found that validating SlotIdentity alone permits an enclosing target that contradictorily carries a native address. Delta: presentationRow validates the full ThreadTarget before a snapshot enters display/selection. Explicit malformed targets, including unknown kinds and ordinary targets with slot payloads, normalize to the row's native address and native row key; invalid addressless fallbacks become unreadable/non-actionable. Valid targets and targetless legacy rows retain their contracts. Regression tests prove native Enter/click routing and no slot-path dispatch. The first close was not finalized because Ariadne concurrently updated this shared project's #246 progress; that update is preserved.
+
+### 2026-09-23 — accepted for publication
+
+The second close completed with SHIP and no new findings. Its independent focused, race and full-suite runs passed. The complete-target finding is resolved; measured actual is 1.01h. Prior advisory test-plan verbosity remains nonblocking. Publication is the remaining step.
