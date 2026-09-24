@@ -1,6 +1,6 @@
 ---
 id: 000316
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T21:53:28-07:00
 flow: {kind: quick, provenance: inferred, spec: "ca6d9b71", done: "6d56dec0"}
+actual_hours: 3.67
 ---
 
 # Couch Alt+n refuses a fresh thread for up to 60s after its first round
@@ -79,6 +80,7 @@ conversation's session id. Verify separately.
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — Recorded automated verification: go test ./... -count=1 passed all 74 packages; make -k test passed with documented environment cleanup. Operator confirmed live Alt+n smoke test passed. All acceptance checkboxes complete.; review verdict: SHIP
 
 - Proof = the Pair-log send text's normalized sha256 matches a transcript
   operator turn, followed by agent progress and corroborated by the live agent
