@@ -391,7 +391,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
 - [x] Persist independent workspace preferences [pair#308]
-- [x] Explicitly refresh repositories and dependencies with Weave [ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
+- [x] Explicitly refresh repositories and dependencies with Weave [ariadne#247](../../../ariadne/workshop/history/issues/000247-slot-claim-dependency-refresh.md)
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
 Sequence: workspace identity comes first. Dependency setup, concurrent workflow
@@ -519,7 +519,7 @@ GitHub conformance and destructive-guard mutation checks passed.
 <a id="ariadne-247"></a>
 ### ariadne#247 — Explicit Weave refresh
 
-**status:** codecomplete — [Ariadne PR132](https://github.com/xianxu/ariadne/pull/132); SHIP review, no findings
+**status:** done — [Ariadne PR132](https://github.com/xianxu/ariadne/pull/132) merged; SHIP review, no findings
 **actual:** 1.47h
 **closed:** 2026-09-23 (local acceptance)
 **est:** 4.24h
@@ -988,7 +988,7 @@ ordinary/fresh-slot launcher integration test passes; final checks follow.
 
 Reason: numbered environments hide their private dependency clones behind the
 host thread, making stale dependencies easy to overlook. Delta: added
-[ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
+[ariadne#247](../../../ariadne/workshop/history/issues/000247-slot-claim-dependency-refresh.md)
 to the breakdown. SDLC claim preparation in :N refreshes declared clean private
 dependencies by fetch/fast-forward, then runs Weave compilation when needed,
 before completing the reservation. Unsafe Git state or setup failure stops with
@@ -1005,3 +1005,10 @@ checklist label. The operator chose a separate Weave command for :0 and numbered
 slots: all-repository preflight, captured targets, fast-forward default and opt-in
 rebase. Claim remains unchanged. Implementation passed SHIP review and is open in
 Ariadne PR132; merge and the project-wide acceptance trial remain outstanding.
+
+### 2026-09-23 — ariadne#247 shipped
+
+PR132 merged as `d843534e`; archive commit `d2a18d3` records the completed issue,
+plan and reviews on Ariadne origin/main. Landing returned ariadne:0 to its
+unchanged resting main and retained the locally built Weave binary. Explicit
+refresh is now shipped; the project-wide acceptance trial remains separate.
