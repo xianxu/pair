@@ -1,11 +1,12 @@
 ---
 id: 000319
-status: open
+status: working
 deps: [pair#317]
 github_issue:
 created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
+started: 2026-09-24T14:13:32-07:00
 ---
 
 # Slot glyph shows behind and diverged resting branches
