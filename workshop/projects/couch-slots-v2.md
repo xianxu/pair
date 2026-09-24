@@ -391,7 +391,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
 - [x] Persist independent workspace preferences [pair#308]
-- [ ] Refresh private dependencies before slot issue claims [ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
+- [x] Explicitly refresh repositories and dependencies with Weave [ariadne#247](../../../ariadne/workshop/history/issues/000247-slot-claim-dependency-refresh.md)
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
 Sequence: workspace identity comes first. Dependency setup, concurrent workflow
@@ -515,6 +515,22 @@ cleanup. Independent dependency clones keep their normal flow; the stateful
 Ariadne-first/parent-second fixture verifies no recursive publication or cleanup.
 Full relevant tests (known #210 fixture excluded), vet, build, live read-only
 GitHub conformance and destructive-guard mutation checks passed.
+
+<a id="ariadne-247"></a>
+### ariadne#247 — Explicit Weave refresh
+
+**status:** done — [Ariadne PR132](https://github.com/xianxu/ariadne/pull/132) merged; SHIP review, no findings
+**actual:** 1.47h
+**closed:** 2026-09-23 (local acceptance)
+**est:** 4.24h
+**started:** 2026-09-23
+
+`weave refresh [--rebase]` checks the host and declared substrate checkouts,
+captures origin/main commits, updates current branches, then compiles under one
+setup lease. Default mode requires fast-forward eligibility everywhere; explicit
+rebase permits local commits. Missing checkouts or changed declarations need
+separate reconciliation. Completed updates remain after later failure, and retry
+always compiles. Weave/workspace/layergraph, race, vet and local binary checks pass.
 
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
@@ -972,7 +988,7 @@ ordinary/fresh-slot launcher integration test passes; final checks follow.
 
 Reason: numbered environments hide their private dependency clones behind the
 host thread, making stale dependencies easy to overlook. Delta: added
-[ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
+[ariadne#247](../../../ariadne/workshop/history/issues/000247-slot-claim-dependency-refresh.md)
 to the breakdown. SDLC claim preparation in :N refreshes declared clean private
 dependencies by fetch/fast-forward, then runs Weave compilation when needed,
 before completing the reservation. Unsafe Git state or setup failure stops with
@@ -981,3 +997,18 @@ remain operator-managed and refreshing the host branch remains explicit. This
 supersedes dependency preservation at this specific issue-start checkpoint;
 ordinary setup, resume and landing keep their existing preservation contract.
 No additional Couch state, dependency inventory or retry mode is requested.
+
+### 2026-09-23 — ariadne#247 accepted: refresh is explicit
+
+Supersedes the original private-dependency refresh at claim proposal and its old
+checklist label. The operator chose a separate Weave command for :0 and numbered
+slots: all-repository preflight, captured targets, fast-forward default and opt-in
+rebase. Claim remains unchanged. Implementation passed SHIP review and is open in
+Ariadne PR132; merge and the project-wide acceptance trial remain outstanding.
+
+### 2026-09-23 — ariadne#247 shipped
+
+PR132 merged as `d843534e`; archive commit `d2a18d3` records the completed issue,
+plan and reviews on Ariadne origin/main. Landing returned ariadne:0 to its
+unchanged resting main and retained the locally built Weave binary. Explicit
+refresh is now shipped; the project-wide acceptance trial remains separate.

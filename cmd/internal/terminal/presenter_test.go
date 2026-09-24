@@ -28,7 +28,7 @@ func selectPresenter(t *testing.T, p *Presenter, e *Endpoint) {
 	}
 }
 func TestPresenterUnwrittenReleaseDoesNotTouchParent(t *testing.T) {
-	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
 	if err := p.Register(context.Background(), e); err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestPresenterResizeRejectsInvalidGeometryWithoutMutation(t *testing.T) {
 	for _, layout := range []bool{false, true} {
 		for _, g := range []Geometry{{-1, 5}, {8, -1}, {0, 5}, {8, 0}, {MaxCells + 1, 5}, {8, MaxCells}, {8, 1}} {
 			t.Run(fmt.Sprintf("layout=%v/%dx%d", layout, g.Cols, g.Rows), func(t *testing.T) {
-				p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+				p, parent, e, _ := presenterFixture(t, AnyMotion)
 				selectPresenter(t, p, e)
 				before, calls := p.View(), parent.Calls()
 				applied := false
@@ -65,7 +65,7 @@ func TestPresenterResizeRejectsInvalidGeometryWithoutMutation(t *testing.T) {
 	}
 }
 func TestPresenterAdmissionWaitsForCompletePaint(t *testing.T) {
-	p, parent, e, input := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, input := presenterFixture(t, AnyMotion)
 	block := make(chan struct{})
 	parent.Enqueue(ttyio.WriteStep{Block: block})
 	selected := make(chan error, 1)
@@ -113,7 +113,7 @@ func TestPresenterPartialFailureClosesAdmission(t *testing.T) {
 	}
 }
 func TestPresenterReleaseCancelsBlockedWriteAndJoins(t *testing.T) {
-	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
 	parent.Enqueue(ttyio.WriteStep{Block: make(chan struct{})})
 	done := make(chan error, 1)
 	go func() { done <- p.Select(context.Background(), e, Geometry{8, 5}, make([]Cell, 8)) }()
@@ -138,12 +138,12 @@ func TestPresenterReleaseCancelsBlockedWriteAndJoins(t *testing.T) {
 	}
 }
 func TestPresenterMousePolicyAndDragCancellation(t *testing.T) {
-	for _, policy := range []ParentMousePolicy{CouchAnyMotion, ChildRequested} {
+	for _, policy := range []ParentMousePolicy{AnyMotion, ChildRequested} {
 		t.Run(string(rune('0'+policy)), func(t *testing.T) {
 			p, parent, a, aw := presenterFixture(t, policy)
 			a.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 			selectPresenter(t, p, a)
-			if policy == CouchAnyMotion && !strings.Contains(string(parent.Bytes()), "\x1b[?1003h") {
+			if policy == AnyMotion && !strings.Contains(string(parent.Bytes()), "\x1b[?1003h") {
 				t.Fatal("Couch parent lacks allmotion")
 			}
 			if err := p.Input(context.Background(), uv.MouseClickEvent{X: 2, Y: 1, Button: uv.MouseLeft}); err != nil {
@@ -170,7 +170,7 @@ func TestPresenterMousePolicyAndDragCancellation(t *testing.T) {
 	}
 }
 func TestPresenterEffectsOnceAndNeverReplayed(t *testing.T) {
-	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
 	selectPresenter(t, p, e)
 	hidden, _ := newEndpointTest(t, "hidden")
 	if err := p.Register(context.Background(), hidden); err != nil {
@@ -294,7 +294,7 @@ func TestPresenterRejectsControlInjectionAndStaleFrames(t *testing.T) {
 }
 
 func TestPresenterPaintsDoNotResetMouseDuringDrag(t *testing.T) {
-	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	if err := p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft}); err != nil {
@@ -312,7 +312,7 @@ func TestPresenterPaintsDoNotResetMouseDuringDrag(t *testing.T) {
 	}
 }
 func TestPresenterReleaseInPanelClearsSuppression(t *testing.T) {
-	p, _, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, _, e, _ := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -356,7 +356,7 @@ func TestPresenterRetiresOriginsAndRefusesLateEffects(t *testing.T) {
 	}
 }
 func TestPresenterFailureCancelsDragToOldEndpoint(t *testing.T) {
-	p, parent, e, input := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	if err := p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft}); err != nil {
@@ -588,7 +588,7 @@ func TestPresenterQueuedEffectsDoNotWriteAfterPaintFailure(t *testing.T) {
 }
 
 func TestPresenterChromeUpdatePreservesDragAndOwnsCells(t *testing.T) {
-	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	p, _, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	if err := p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft}); err != nil {
@@ -627,7 +627,7 @@ func TestPresenterChromeUpdatePreservesDragAndOwnsCells(t *testing.T) {
 func TestPresenterParentAndOrphanGesturesNeverReachChild(t *testing.T) {
 	for _, origin := range []string{"chrome", "panel", "orphan-motion", "orphan-release"} {
 		t.Run(origin, func(t *testing.T) {
-			p, _, e, input := presenterFixture(t, CouchAnyMotion)
+			p, _, e, input := presenterFixture(t, AnyMotion)
 			e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 			selectPresenter(t, p, e)
 			switch origin {
@@ -669,7 +669,7 @@ func TestPresenterParentAndOrphanGesturesNeverReachChild(t *testing.T) {
 	}
 }
 func TestPresenterMouseModeChangeEndsCapturedGesture(t *testing.T) {
-	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	p, _, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -689,7 +689,7 @@ func TestPresenterMouseModeChangeEndsCapturedGesture(t *testing.T) {
 func TestPresenterModeEpochAndButtonOwnership(t *testing.T) {
 	for _, change := range []string{"\x1b[?1002l\x1b[?1002h", "\x1b[?1006l\x1b[?1006h", "\x1bc\x1b[?1002h\x1b[?1006h"} {
 		t.Run(fmt.Sprintf("%x", change), func(t *testing.T) {
-			p, _, e, input := presenterFixture(t, CouchAnyMotion)
+			p, _, e, input := presenterFixture(t, AnyMotion)
 			e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 			selectPresenter(t, p, e)
 			p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -705,7 +705,7 @@ func TestPresenterModeEpochAndButtonOwnership(t *testing.T) {
 			}
 		})
 	}
-	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	p, _, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1003h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseMotionEvent{X: 1, Y: 1, Button: uv.MouseNone})
@@ -726,7 +726,7 @@ func TestPresenterModeEpochAndButtonOwnership(t *testing.T) {
 }
 
 func TestPresenterFailedResizeDoesNotReviveCanceledGesture(t *testing.T) {
-	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	p, _, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -756,7 +756,7 @@ func TestPresenterFailedResizeDoesNotReviveCanceledGesture(t *testing.T) {
 	}
 }
 func TestPresenterInterruptedCancellationDoesNotEnqueueAgain(t *testing.T) {
-	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	p, _, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -781,7 +781,7 @@ func TestPresenterInterruptedCancellationDoesNotEnqueueAgain(t *testing.T) {
 func TestPresenterCancellationCallersResumeOnePendingDelivery(t *testing.T) {
 	for _, caller := range []string{"release", "failure", "selection", "panel", "reconciliation", "resize"} {
 		t.Run(caller, func(t *testing.T) {
-			p, parent, e, input := presenterFixture(t, CouchAnyMotion)
+			p, parent, e, input := presenterFixture(t, AnyMotion)
 			e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 			selectPresenter(t, p, e)
 			p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -845,7 +845,7 @@ func TestPresenterCancellationCallersResumeOnePendingDelivery(t *testing.T) {
 }
 
 func TestPresenterFailedChildCancellationStillReleasesParent(t *testing.T) {
-	p, parent, e, input := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -878,7 +878,7 @@ func TestPresenterFailedChildCancellationStillReleasesParent(t *testing.T) {
 }
 
 func TestPresenterCanceledSelectionJoinsExistingReleaseWithoutRetry(t *testing.T) {
-	p, _, e, input := presenterFixture(t, CouchAnyMotion)
+	p, _, e, input := presenterFixture(t, AnyMotion)
 	e.Feed([]byte("\x1b[?1002h\x1b[?1006h"), time.Now())
 	selectPresenter(t, p, e)
 	p.Input(context.Background(), uv.MouseClickEvent{X: 1, Y: 1, Button: uv.MouseLeft})
@@ -936,7 +936,7 @@ func TestPresenterRefusalsWithoutADestinationAreClassifiable(t *testing.T) {
 		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p := NewPresenter(ttyio.NewFake(), CouchAnyMotion)
+			p := NewPresenter(ttyio.NewFake(), AnyMotion)
 			t.Cleanup(func() { p.Release(context.Background()) })
 			err := tc.call(p)
 			if !errors.Is(err, ErrNoDestination) {
@@ -1115,7 +1115,7 @@ func TestChildCursorStyleReachesParentVerbatim(t *testing.T) {
 		{"4", "\x1b[4 q", "4"}, {"5", "\x1b[5 q", "5"}, {"6", "\x1b[6 q", "6"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+			p, parent, e, _ := presenterFixture(t, AnyMotion)
 			if _, err := e.Feed([]byte(tc.child), time.Now()); err != nil {
 				t.Fatal(err)
 			}

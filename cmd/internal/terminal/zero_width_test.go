@@ -24,7 +24,7 @@ func TestZeroWidthOutputKeepsPresentationAndInputUsable(t *testing.T) {
 						t.Fatal(err)
 					}
 					defer endpoint.Close()
-					presenter := NewPresenter(parent, CouchAnyMotion)
+					presenter := NewPresenter(parent, AnyMotion)
 					defer presenter.Release(context.Background())
 					if err := presenter.Select(context.Background(), endpoint, Geometry{8, 5}, make([]Cell, 8)); err != nil {
 						t.Fatal(err)

@@ -170,7 +170,7 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 	lifetime, cancelLifetime := context.WithCancel(context.Background())
 	c := &Console{
 		host:                host,
-		presenter:           terminal.NewPresenter(host, terminal.CouchAnyMotion),
+		presenter:           terminal.NewPresenter(host, terminal.AnyMotion),
 		terminalCommands:    make(chan terminalCommand, 16),
 		stdin:               stdin,
 		panes:               map[string]*pane{},

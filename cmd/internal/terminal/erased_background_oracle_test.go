@@ -27,7 +27,7 @@ func TestPresenterErasedBackgroundViewportAndAltOracle(t *testing.T) {
 		{"normal-rgb", "", "\x1b[48;2;16;32;48m", 0x102030, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+			p, parent, e, _ := presenterFixture(t, AnyMotion)
 			source := tc.prefix + tc.color + "\x1b[2K\x1b[0m\x1b[4GX"
 			e.Feed([]byte(source), time.Now())
 			selectPresenter(t, p, e)
@@ -51,7 +51,7 @@ func TestPresenterErasedBackgroundViewportAndAltOracle(t *testing.T) {
 }
 
 func TestPresenterErasedBackgroundHistoryAppendAndRebuildOracle(t *testing.T) {
-	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
 	source := "\x1b[41m\x1b[2K\x1b[0m\x1b[4GX"
 	e.Feed([]byte(source), time.Now())
 	selectPresenter(t, p, e)
@@ -84,7 +84,7 @@ func TestPresenterErasedBackgroundHistoryAppendAndRebuildOracle(t *testing.T) {
 }
 
 func TestPresenterErasedOnlyHistoryRowOracle(t *testing.T) {
-	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
 	source := "\x1b[48;2;16;32;48m\x1b[2K\x1b[0m\r\nB\r\nC\r\nD\r\nE"
 	e.Feed([]byte(source), time.Now())
 	selectPresenter(t, p, e)
@@ -102,7 +102,7 @@ func TestPresenterErasedOnlyHistoryRowOracle(t *testing.T) {
 }
 
 func TestPresenterErasedBackgroundAltReturnOracle(t *testing.T) {
-	p, parent, e, _ := presenterFixture(t, CouchAnyMotion)
+	p, parent, e, _ := presenterFixture(t, AnyMotion)
 	normal := "\x1b[41m\x1b[2K\x1b[0m\x1b[4GX"
 	alt := "\x1b[?1049h\x1b[44m\x1b[2K\x1b[0m\x1b[3GY"
 	e.Feed([]byte(normal), time.Now())
