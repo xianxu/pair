@@ -30,13 +30,13 @@ This section takes precedence over earlier conflicting layout or policy text.
 
 Keep preferences keyed to the durable main workspace address despite its nested checkout path `/workspace/worktree/<repo>-slotN/<repo>`. Ordinary dependency clones accessed through that thread do not receive additional Couch preference records, inherited agent launches, or numbered identities. Primary and numbered slots retain the same supported preference capabilities.
 
-### Proposed implementation contract — 2026-09-23
+### Approved implementation contract — 2026-09-23
 
 Reuse the existing start form and Switch agent parameter editor. First use selects
 an explicit agent if supplied, otherwise the current Couch root agent (falling
 back to claude); parameters come from that agent's primary-repository defaults.
 This preserves the current new-slot behavior. Copying :0's personal preferences
-is an alternative awaiting operator input, not implied by repository defaults.
+is excluded by the operator's confirmed first-use choice.
 
 After successful registration, the workspace remembers its selected agent and
 exact per-agent argv, including explicitly empty argv. Existing local values win;
@@ -127,3 +127,15 @@ Fresh-context review approved the proposed contract and quick-flow sizing with n
 important gaps. Implementation must retain the explicitly known primary default
 root for first creation before enrollment, and retain ordinary-path defaults.
 Operator approval of the proposed contract remains pending.
+
+### 2026-09-23 — approved contract and implementation
+
+Operator selected current Couch agent plus repository defaults; proceeded with
+the reviewed quick-flow plan and passed change-code. TDD reproduced different
+fresh/switch default roots and invalid fresh parameters replacing current metadata;
+focused regressions passed after sharing primary-root lookup and moving validation
+before replacement. The launcher regression reproduced ordinary Couch launches
+rewriting repo defaults for both empty and nonempty argv; provenance now excludes
+those writes while direct Pair defaults remain supported. The helper performs
+read-only path routing so start previews do not initialize or recover stores.
+Full-suite, race and three-workspace acceptance verification are underway.
