@@ -390,7 +390,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Provision durable numbered workspaces [pair#305]
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
-- [ ] Persist independent workspace preferences [pair#308]
+- [x] Persist independent workspace preferences [pair#308]
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
 Sequence: workspace identity comes first. Dependency setup, concurrent workflow
@@ -560,6 +560,22 @@ full labels when the primary is absent. Rendered fixtures and the three-workspac
 activation trial cover the nested host paths. Full-suite and race verification
 passed; the optional timing harness has a documented baseline correlation failure.
 
+
+<a id="pair-308"></a>
+### pair#308 — Independent workspace preferences
+
+**status:** codecomplete — SHIP review, publication pending
+**actual:** 0.50h
+**closed:** 2026-09-23 (local acceptance)
+**started:** 2026-09-23
+
+The [issue](../issues/000308-slots-v2-workspace-preferences.md) reuses the existing
+preference store and agent/parameter editor. First use follows the current Couch
+agent and primary-repository defaults; registered settings remain independent per
+workspace. Fresh/switch fallback is consistent, Couch launches preserve repository
+defaults, and invalid fresh parameters preserve conversation metadata. The temporary
+three-workspace trial covers restart, resume, switch, fresh and dependency isolation.
+
 ## Log
 
 ### 2026-09-22 — fresh definition requested
@@ -714,7 +730,7 @@ preferences and acceptance tasks were aligned without reopening #242.
 
 [pair#307]: #pair-307
 
-[pair#308]: ../issues/000308-slots-v2-workspace-preferences.md
+[pair#308]: #pair-308
 
 [pair#309]: ../issues/000309-slots-v2-three-workspace-trial.md
 
@@ -874,3 +890,20 @@ estimated. PR131 is open and unmerged; primary and numbered workspaces retain
 their baselines, directories and dependencies. Full relevant tests (known #210
 fixture excluded), final focused regressions, independent review tests, vet and
 build passed. Coordinated repositories still publish dependency first, separately.
+
+### 2026-09-23 — #308 independent preferences in verification
+
+Operator confirmed first-use inheritance from the current Couch agent and the
+primary repository's per-agent defaults. Existing Switch agent UI and slot-local
+preferences are reused. Implementation aligns fresh/switch defaults with creation,
+prevents Couch parameters from overwriting repository defaults, and validates fresh
+parameters before replacing current metadata. Restart/isolation verification is
+underway; no model preference field or picker is introduced.
+
+### 2026-09-23 — #308 accepted for publication
+
+SDLC close returned SHIP with no findings; measured actual is 0.50h on the quick
+flow. Full-suite verification passed in the implementation session, along with
+affected race tests, build and vet. The independent reviewer confirmed targeted
+regressions; its separate broad rerun was interrupted and recorded as inconclusive.
+Publication follows.

@@ -232,3 +232,34 @@ func TestSwitchAgentParameterCursorUsesRunesAndRenderedCells(t *testing.T) {
 		t.Fatalf("start boundary editing failed: %+v", state.CurrentFrame())
 	}
 }
+
+func TestSlotSwitchAgentTargetsSelectedWorkspace(t *testing.T) {
+	for _, lifecycle := range []couchcore.ActionableThreadState{couchcore.ThreadLive, couchcore.ThreadParked} {
+		t.Run(string(lifecycle), func(t *testing.T) {
+			row := groupedRow("/workspace/pair", 2, "slot-two")
+			row.State = lifecycle
+			state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+			if !slices.Contains(menuActionItems(row), "switch-agent") {
+				t.Fatal("slot missing preference editor")
+			}
+			state, _ = reduceKey(state, PanelKey{Kind: KeyTab})
+			state.Frames[len(state.Frames)-1].SelectedItem = "switch-agent"
+			state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+			if state.CurrentFrame().Thread != row.Address {
+				t.Fatalf("wrong workspace %+v", state.CurrentFrame())
+			}
+			state, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+			if len(effects) != 1 || effects[0].Preview == nil || effects[0].Preview.SwitchAddress != row.Address {
+				t.Fatalf("wrong preference preview %+v", effects)
+			}
+			prepared := couchcore.PreparedAgentSwitch{Address: row.Address, SourceAgent: "codex", Profile: couchcore.LaunchProfile{Agent: state.CurrentFrame().Agent, Argv: []string{}}, Fingerprint: "slot-two-preferences"}
+			state, _ = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &prepared})
+			state, _ = reduceKey(state, PanelKey{Kind: KeyEnter})
+			state, effects = reduceKey(state, PanelKey{Kind: KeyEnter})
+			state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: effects[0].Preview.Generation, SwitchPrepared: &prepared})
+			if len(effects) != 1 || effects[0].Args["tag"] != string(row.Address.Tag) || effects[0].Args["repo-scope"] != row.Address.RepoScope || effects[0].Args["argv"] != "[]" {
+				t.Fatalf("wrong slot dispatch %+v", effects)
+			}
+		})
+	}
+}

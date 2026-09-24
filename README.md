@@ -446,6 +446,18 @@ that path, never another agent's; otherwise it uses that agent's repository
 default. Thus switching Claude → Codex → Claude restores each harness's own
 arguments.
 
+For numbered slots, repository defaults come from the primary checkout. A new
+slot starts with the current Couch agent and that agent's repository defaults;
+it does not copy `:0`'s personal settings. Use **Switch agent** in a thread's
+menu to select an agent and edit its parameters (selecting the current agent
+starts a fresh context too). Successful launch saves those settings only for
+that workspace. Explicitly empty parameters remain empty. Resume uses the
+conversation's recorded profile; Start fresh retains the slot's saved per-agent
+preferences. These settings survive Couch restart and conversation replacement.
+Numbered settings live in `<environment>/.couch/preferences.json`; primary
+settings retain their existing global storage. Couch launches never update
+repository defaults. There is no separate preferred-model setting.
+
 Couch sends the exact resolved vector to Pair in a tag-bound one-shot profile,
 so Pair does not reopen its tag-specific saved-config picker. It sets
 `PAIR_USE_REPO_DEFAULT=1` only when repository-default provenance won and sends

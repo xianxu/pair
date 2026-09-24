@@ -1366,6 +1366,40 @@ func TestRunLaunchLayoutOnlyNewPickUsesRepoAgentDefault(t *testing.T) {
 	}
 }
 
+func TestRunLaunchCouchArgsPreserveRepoAgentDefault(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{name: "nonempty", args: []string{"--model", "gpt-5"}, want: "--model gpt-5 --no-alt-screen"},
+		{name: "explicitly empty", args: []string{}, want: "--no-alt-screen"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rt := newFakeRuntime()
+			raw, err := BuildAgentDefault("codex", []string{"--model", "saved-model"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rt.files["/data/agent-default-codex.json"] = raw
+			opts := baseOpts(LaunchArgs{
+				Agent: "codex", ForcedTag: "cx",
+				AgentArgs: tc.args, AgentArgsExplicit: true, AgentArgsFromCouch: true,
+			})
+			code, err := run(t, opts, rt)
+			if err != nil || code != 0 {
+				t.Fatalf("code=%d err=%v", code, err)
+			}
+			if rt.launchCount != 1 || launchArgsText(t, rt.env) != tc.want {
+				t.Fatalf("launch count=%d args=%q, want one launch with %q", rt.launchCount, launchArgsText(t, rt.env), tc.want)
+			}
+			if got := rt.files["/data/agent-default-codex.json"]; got != raw {
+				t.Fatalf("Couch launch changed repository default: got %s, want %s", got, raw)
+			}
+		})
+	}
+}
+
 func TestRunLaunchExplicitArgsPersistRepoAgentDefaultAfterReadiness(t *testing.T) {
 	rt := newFakeRuntime()
 	opts := baseOpts(LaunchArgs{

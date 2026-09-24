@@ -203,6 +203,10 @@ representative evidence, not an exhaustive index.
   in a contradictory target is still invalid. Normalize fallback identity once
   at ingestion so rendering, selection and dispatch cannot disagree. (#307)
 
+- A resolved argument vector is explicit input to a child, but that does not
+  authorize the child to publish it as a repository default. Carry provenance
+  through ordinary launch paths as well as special fresh/resume paths. (#308)
+
 ## Working rule
 
 When in doubt, draw the boundary first: who owns the state, what evidence can
