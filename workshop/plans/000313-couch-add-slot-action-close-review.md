@@ -301,3 +301,77 @@ findings:
     detail: |
       workshop/plans/000315-fresh-slot-registration-close-review.md:27 still claims RegisterFreshCouchThread and nonce transport, while the active #315 contract removes them; its later re-review records REWORK with no subsequent clean disposition in this range. Reconcile the artifact and obtain clean review evidence before closing #313.
 ```
+
+---
+
+## Re-review — 2026-09-23T21:39:56-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 313 — Add a slot from the repository thread action menu |
+| repo | pair |
+| issue file | workshop/issues/000313-couch-add-slot-action.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5dea65f9ba06e482a5c47571d0aae85677ad5a1d..fa55fffc50cc43ec01ede58ffae07914a3322bc7 |
+| command | sdlc close --issue 313 |
+| reviewer | codex |
+| timestamp | 2026-09-23T21:39:56-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range fulfills #313 and the combined #315 contract. Exact-root targeting, malformed/unknown identity rejection, preview/fingerprint submission, cancellation, ordinary fresh-slot creation, documentation, and prior review evidence are all validated. No new blocking findings remain.
+
+1. Strengths
+
+- `menuRepositoryRoot` reuses validated slot and scope-matched root derivation.
+- Add-slot tests cover exact paths, numbered rows, cancellation, late previews, refusals, and fingerprint-bound creation.
+- Fresh-slot production-boundary tests use real launcher and claim storage.
+- README and `atlas/couch.md` document both user-facing behaviors.
+- Focused tests and race tests passed.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed focused and race tests for `couchtty`, `couchcore`, and launcher validation. `git diff --check` passed. The required gateway paths have no diff.
+
+6. Architectural notes
+
+- ARCH-DRY: Pass — existing root, form, preview, and ordinary-launch helpers are reused.
+- ARCH-PURE: Pass — reducer logic remains separated from IO.
+- ARCH-PURPOSE: Pass — all specified primary, numbered, malformed, and fresh-slot behaviors are delivered.
+- ARCH-MOCK: Pass — production boundaries use real claim storage and shared launcher seams.
+- ARCH-CONSTRAINTS: Pass — no new workers, schema, storage, or unbounded work.
+- ARCH-SECURE: Pass — unknown and contradictory identities fail closed; accepted fingerprints bind submission.
+- ARCH-ORDER: Pass — preview, cancellation, acceptance, and launch transitions preserve existing sequencing.
+- ARCH-FUNERAL: Pass — no new durable artifact family is introduced.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      The #315 close-review artifact now labels the nonce/registration review as historical and superseded, and includes a later clean SHIP re-review for the ordinary-registration implementation.
+findings: []
+```

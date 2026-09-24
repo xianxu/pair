@@ -1,13 +1,14 @@
 ---
 id: 000313
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T19:48:21-07:00
-flow: {kind: quick, provenance: inferred, spec: "bf9e0541", done: "e86e2b55"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.86
 ---
 
 # Add a slot from the repository thread action menu
@@ -49,6 +50,8 @@ No new operation schema, storage, filesystem probes or concurrent workers.
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — Full couchtty and race tests passed; real-launcher fresh-slot regression and affected core tests passed. #315 now has clean SHIP review for ordinary creation and is codecomplete. Superseded review is explicitly historical. No production change since verification.; review verdict: SHIP
+- 2026-09-23: flow upgraded quick → full — an earlier round of this close already ran the full review
 
 Root lookup and launch form are already implemented; this issue connects them through the thread action menu.
 

@@ -59,6 +59,16 @@ rounds:
           round: 4
       recipe: milestone-review
       blocked: false
+    - "n": 5
+      timestamp: "2026-09-23T21:39:56-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: 'The #315 close-review artifact now labels the nonce/registration review as historical and superseded, and includes a later clean SHIP re-review for the ordinary-registration implementation.'
+          round: 5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#313 (boundary-review)
@@ -100,6 +110,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `stale-boundary-review-artifact` Combined delivery retains unresolved and superseded #315 review evidence
   workshop/plans/000315-fresh-slot-registration-close-review.md:27 still claims RegisterFreshCouchThread and nonce transport, while the active #315 contract removes them; its later re-review records REWORK with no subsequent clean disposition in this range. Reconcile the artifact and obtain clean review evidence before closing #313.
 
+## Round 5 — 2026-09-23T21:39:56-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — The #315 close-review artifact now labels the nonce/registration review as historical and superseded, and includes a later clean SHIP re-review for the ordinary-registration implementation.
+
 ## Open findings
 
-- **BR-3** [Important] `stale-boundary-review-artifact` Combined delivery retains unresolved and superseded #315 review evidence
+(none — every finding has been disposed)
