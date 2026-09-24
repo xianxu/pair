@@ -121,3 +121,9 @@ Shared pure projection, switcher inventory ordering/rendering and grouped tab as
 Full repository suite passed (`/tmp/pair307-full.log`, couchcore 248.017s). The subsequent accepted-inventory chrome repaint fix is covered by the full affected UI suite (7.033s), build/vet and a three-workspace temporary-directory activation trial (five repetitions under race). Normal/absent-primary/parked/filtered/narrow golden fixtures use production renderers. `make pair bin/couch`, affected-package vet and diff whitespace checks passed. The unchanged allocation tests pass; 1,000-row projection benchmark measured 1.559ms/op. Optional target-machine timing integration times out on both the working code and an unmodified HEAD snapshot at raw-frame correlation; recorded as a pre-existing harness limitation, with no latency-pass claim. Final UI race result and boundary review follow.
 
 Final affected-package race verification: `go test -race ./cmd/internal/couchtty -count=1` passed in 20.852s (`/tmp/pair307-race-verified.log`).
+
+### 2026-09-23 — first close feedback fixed
+
+The boundary reviewer identified incomplete enclosing-target validation. Added a red regression across malformed typed-target variants, then centralized full-target normalization at projection/ingestion: native identity owns fallback selection and Enter/click routing; malformed addressless targets cannot dispatch. Targetless legacy snapshots remain compatible. The first close also refused finalization because Ariadne updated the shared project while review ran; no stale verdict was accepted, and the peer progress entry is retained. Affected normal/race tests and rebuilt binaries are checked before the next close.
+
+Post-review verification: affected packages passed (couchtty 6.967s; artifactpath 3.128s), full UI race passed (19.996s), rebuilt pair/couch and vet/diff checks passed.

@@ -498,6 +498,21 @@ related suites pass. Both FIX-THEN-SHIP findings were corrected and verified.
 [issue](../../../ariadne/workshop/history/issues/000245-slots-v2-branch-and-refresh.md)
 and review records were archived. Ariadne main is synced with origin/main.
 
+<a id="ariadne-246"></a>
+### ariadne#246 — Land while retaining the workspace
+
+**status:** working — implementation verified; SDLC close review pending
+**est:** 3.83h
+**started:** 2026-09-23
+
+Primary and numbered workspaces land through their configured remote/main,
+archive only PR-owned records remotely, and return to unchanged resting refs.
+Exact GitHub integration and archive provenance authorize retry and local branch
+cleanup. Independent dependency clones keep their normal flow; the stateful
+Ariadne-first/parent-second fixture verifies no recursive publication or cleanup.
+Full relevant tests (known #210 fixture excluded), vet, build, live read-only
+GitHub conformance and destructive-guard mutation checks passed.
+
 <a id="pair-305"></a>
 ### pair#305 — Provision durable numbered workspaces
 
@@ -674,7 +689,7 @@ preferences and acceptance tasks were aligned without reopening #242.
 
 [ariadne#245]: #ariadne-245
 
-[ariadne#246]: ../../../ariadne/workshop/issues/000246-slots-v2-durable-slot-landing.md
+[ariadne#246]: #ariadne-246
 
 [pair#305]: ../history/issues/000305-slots-v2-workspace-provisioning.md
 

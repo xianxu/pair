@@ -110,3 +110,52 @@ func TestGroupedMenuCustomNameStillShowsWorkspaceAndFilters(t *testing.T) {
 		t.Fatalf("parked activation: %+v", effects)
 	}
 }
+
+func TestGroupedMalformedTargetUsesOnlyNativeRouting(t *testing.T) {
+	for _, kind := range []string{"dual", "bad-slot", "ordinary-with-slot", "native-mismatch", "unknown"} {
+		t.Run(kind, func(t *testing.T) {
+			row := groupedRow("/workspace/pair", 1, "native")
+			row.State = couchcore.ThreadParked
+			switch kind {
+			case "dual":
+				row.Target.Address = row.Address
+			case "bad-slot":
+				row.Target.Slot.Number = -1
+			case "ordinary-with-slot":
+				row.Target.Kind = couchcore.ThreadTargetOrdinary
+				row.Target.Address = row.Address
+			case "native-mismatch":
+				row.Target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary, Address: menuAddress("different")}
+			case "unknown":
+				row.Target.Kind = "invalid"
+			}
+			state := NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+			visible := VisibleMenuThreads(state)
+			if len(visible) != 1 || visible[0].Target.Kind != couchcore.ThreadTargetOrdinary || visible[0].Target.Validate() != nil {
+				t.Fatalf("malformed target survived ingestion: %+v", visible)
+			}
+			if visible[0].RowKey.Kind != couchcore.ThreadTargetOrdinary || visible[0].RowKey.Address != row.Address {
+				t.Fatalf("slot key survived fallback: %+v", visible[0].RowKey)
+			}
+			view := RenderMenuView(state, 120, 15, time.Unix(1, 0), false)
+			if strings.Contains(view.Body, "pair:1") {
+				t.Fatalf("malformed slot displayed: %s", view.Body)
+			}
+			_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+			if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["tag"] != "native" || effects[0].Args["path"] != "" {
+				t.Fatalf("unsafe fallback dispatch: %+v", effects)
+			}
+			_, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventMouseSwitch, RowKey: visible[0].RowKey, Address: row.Address})
+			if len(effects) != 1 || effects[0].Operation != "resume" || effects[0].Args["tag"] != "native" {
+				t.Fatalf("unsafe fallback click: %+v", effects)
+			}
+		})
+	}
+	row := groupedRow("/workspace/pair", 1, "")
+	row.Target.Address = menuAddress("contradictory")
+	state := NewMenuState([]couchcore.ActionableThreadSummary{row}, couchcore.ThreadAddress{})
+	_, effects := reduceKey(state, PanelKey{Kind: KeyEnter})
+	if len(effects) != 0 {
+		t.Fatalf("malformed addressless target dispatched: %+v", effects)
+	}
+}

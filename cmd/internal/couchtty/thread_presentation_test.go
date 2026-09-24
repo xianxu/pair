@@ -68,7 +68,7 @@ func TestPresentThreadsRootRecoveryAndFallback(t *testing.T) {
 	for _, tc := range []struct {
 		row         couchcore.ActionableThreadSummary
 		path, label string
-	}{{known, "/src/repo", "custom"}, {unknown, "/fallback", "fallback"}, {missing, "(path unavailable)", "missing"}, {invalid, "/invalid", invalid.Label()}} {
+	}{{known, "/src/repo", "custom"}, {unknown, "/fallback", "fallback"}, {missing, "(path unavailable)", "missing"}, {invalid, "/invalid", "invalid"}} {
 		got := PresentThreads([]couchcore.ActionableThreadSummary{tc.row})[0]
 		if got.Path != tc.path || got.Label != tc.label || got.SlotNumber != 0 {
 			t.Fatalf("got %+v; want %s %s", got, tc.path, tc.label)

@@ -42,6 +42,7 @@
 | Name | Lives in | Status |
 |------|----------|--------|
 | `ThreadPresentation` | `cmd/internal/couchtty/thread_presentation.go` | new |
+| `presentationRow` | `cmd/internal/couchtty/thread_presentation.go` | new |
 | `PresentThreads` | `cmd/internal/couchtty/thread_presentation.go` | new |
 | `orderedMenuInventory` | `cmd/internal/couchtty/menu_reattach.go` | new |
 | `NewMenuState` | `cmd/internal/couchtty/menu.go` | modified |
@@ -50,7 +51,7 @@
 | `StatusActor` | `cmd/internal/couchtty/reserve.go` | modified |
 | `RenderStatusRow` | `cmd/internal/couchtty/reserve.go` | modified |
 
-`ThreadPresentation` holds the unchanged source row plus group key, full workspace label, display path, and indentation. `PresentThreads(rows)` returns one deterministically sorted copy. Group metadata and labels derive from typed identities and the existing pure repo-scope derivation; it does not mutate rows or perform IO. Map presentation entries by `menuRowKey`, including addressless recovery slots; never key them solely by zero native address. One group owns many entries. This removes competing per-surface sorting (ARCH-DRY). It is ephemeral and has no persisted cache.
+`ThreadPresentation` holds a source-row copy (valid targets preserved; malformed typed targets normalized to native routing) plus group key, full workspace label, display path, and indentation. `PresentThreads(rows)` returns one deterministically sorted copy. Group metadata and labels derive from typed identities and the existing pure repo-scope derivation; it does not mutate rows or perform IO. Map presentation entries by `menuRowKey`, including addressless recovery slots; never key them solely by zero native address. One group owns many entries. This removes competing per-surface sorting (ARCH-DRY). It is ephemeral and has no persisted cache.
 
 `orderedMenuInventory` orders snapshots through this projection at `NewMenuState`/`replaceMenuInventory`; `menuRows` retains its existing pass overlay without sorting on each lookup. All switcher navigation, filtering, reconciliation and rendering keep using viewed lookups; no alternate direct reads of `MenuState.Inventory` are introduced.
 
@@ -149,3 +150,7 @@ Reason: a production-console test reached updated grouped inventory while the pa
 One coherent implementation commit contains Tasks 1–3 and acceptance fixtures because the shared projection and both consumers were verified together. The listed per-task commit subjects describe the intended checkpoints, not separate historical commits. Full `go test ./... -count=1` passed (couchcore 248.017s; full log `/tmp/pair307-full.log`); after the inventory-publication fix, the affected UI suite passed again (7.033s), build and vet passed, and the three-workspace click trial passed five repetitions under race. The final full UI race rerun is recorded in the issue.
 
 The optional `PAIR_MENU_PERF_TARGET=m2-max` integration timing test times out while matching correlated raw output on both current code and an unmodified HEAD snapshot (`/tmp/pair307-baseline-performance.log`). This is an existing timing-harness limitation, not evidence of a regression or a passed latency gate. The unchanged allocation bounds pass; `BenchmarkPresentThreads1000` measured 1.559ms/op with concurrent verification load. No performance threshold was relaxed.
+
+### 2026-09-23 — complete typed-target validation after boundary review
+
+Reason: the first close review found that validating SlotIdentity alone permits an enclosing target that contradictorily carries a native address. Delta: presentationRow validates the full ThreadTarget before a snapshot enters display/selection. Explicit malformed targets, including unknown kinds and ordinary targets with slot payloads, normalize to the row's native address and native row key; invalid addressless fallbacks become unreadable/non-actionable. Valid targets and targetless legacy rows retain their contracts. Regression tests prove native Enter/click routing and no slot-path dispatch. The first close was not finalized because Ariadne concurrently updated this shared project's #246 progress; that update is preserved.

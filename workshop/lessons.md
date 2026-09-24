@@ -199,6 +199,10 @@ representative evidence, not an exhaustive index.
   child keeps focus: updating the model or repainting only the panel leaves tabs
   stale. Await both operation completion and painted geometry between clicks. (#307)
 
+- Validate the enclosing tagged target before its payload: a valid slot nested
+  in a contradictory target is still invalid. Normalize fallback identity once
+  at ingestion so rendering, selection and dispatch cannot disagree. (#307)
+
 ## Working rule
 
 When in doubt, draw the boundary first: who owns the state, what evidence can

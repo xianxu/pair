@@ -12,7 +12,8 @@ import (
 )
 
 // ThreadPresentation is a display-only projection of one actionable inventory row.
-// Row retains the original target and identity used by selection and dispatch.
+// Row retains valid targets; malformed targets fall back to the row's native
+// address before either display or selection can consume them.
 type ThreadPresentation struct {
 	Row        couchcore.ActionableThreadSummary
 	GroupKey   string
@@ -34,9 +35,10 @@ type threadPresentationGroup struct {
 func PresentThreads(rows []couchcore.ActionableThreadSummary) []ThreadPresentation {
 	groups := make(map[string]*threadPresentationGroup)
 	for _, row := range rows {
+		row = presentationRow(row)
 		p := ThreadPresentation{Row: row, GroupKey: row.Address.RepoScope}
 		root := ""
-		validSlot := row.Target.Kind == couchcore.ThreadTargetSlot && row.Target.Slot.Validate() == nil
+		validSlot := row.Target.Kind == couchcore.ThreadTargetSlot
 		if validSlot {
 			slot := row.Target.Slot
 			scope, _ := launcher.ResolveRepoScope(slot.PrimaryRoot)
@@ -173,4 +175,27 @@ func presentationLess(a, b couchcore.ActionableThreadSummary) bool {
 		return ak.SlotPath < bk.SlotPath
 	}
 	return a.Target.Slot.WorktreeRoot < b.Target.Slot.WorktreeRoot
+}
+
+// presentationRow validates the enclosing sum type, not just its slot payload.
+// Normalize once at projection/ingestion so rendering and every reducer action
+// agree about fallback identity. The source snapshot is never mutated.
+func presentationRow(row couchcore.ActionableThreadSummary) couchcore.ActionableThreadSummary {
+	target := row.Target
+	// Legacy summaries have no typed target and already route by native address.
+	if target == (couchcore.ThreadTarget{}) {
+		return row
+	}
+	if target.Validate() == nil && (target.Kind != couchcore.ThreadTargetOrdinary || target.Address == row.Address) {
+		return row
+	}
+	target = couchcore.ThreadTarget{Kind: couchcore.ThreadTargetOrdinary, Address: row.Address}
+	key, err := target.RowKey()
+	if err != nil {
+		row.State, row.Reason = couchcore.ThreadUnusable, couchcore.ReasonUnreadable
+		row.Recovery = nil
+		key = couchcore.ThreadRowKey{Kind: couchcore.ThreadTargetOrdinary, Address: row.Address}
+	}
+	row.Target, row.RowKey = target, key
+	return row
 }
