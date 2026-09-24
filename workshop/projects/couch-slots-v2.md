@@ -957,3 +957,12 @@ the nonce Couch awaited. Real claim/launcher/readiness regression tests, full
 launcher/core/CLI suites and targeted race tests pass. #315 boundary review SHIP;
 local binaries rebuilt. The failed empty session was stopped with operator
 approval; restart Couch and retry fresh-slot for final live confirmation.
+
+### 2026-09-23 — simplify fresh-slot launch (#315 revision)
+
+The operator requested fewer states and edge-case combinations. Supersedes the
+preceding handshake extensions: a fresh slot's new conversation ID now uses
+ordinary Pair creation/registration/cleanup. Removed the additional registration
+operation and nonce transport. Only StartFreshSlot routing and early restoration
+argument validation differ in production from the pre-fix code. The shared
+ordinary/fresh-slot launcher integration test passes; final checks follow.

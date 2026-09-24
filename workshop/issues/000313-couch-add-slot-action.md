@@ -36,7 +36,7 @@ No new operation schema, storage, filesystem probes or concurrent workers.
 - Add slot is available from a known repository's primary or numbered row and targets its primary repository without path typing.
 - Existing start form supports agent choice, cancellation and fingerprint-bound creation; repository parked refusal remains enforced.
 - Unknown/malformed identity cannot cause a guessed slot target, and same-named repositories use exact paths.
-- Combined delivery also includes the separately owned #315 repairs: fresh reserved claims establish and exact fresh readiness nonces propagate, preserving established-only resume/checkpoint behavior; #315 acceptance and review evidence remain in its own issue.
+- Combined delivery also includes the separately owned #315 repairs: fresh slots use ordinary new-conversation registration and cleanup, preserving established-only resume/checkpoint behavior; #315 acceptance and review evidence remain in its own issue.
 
 
 ## Plan
@@ -103,3 +103,13 @@ for this combined publication; neither issue is left as an undeclared side
 change. The acceptance criteria above now explicitly include this integration.
 Upstream gateway commit `aff72f82` remains outside this delivery's changes
 against origin/main; it is not being modified or reverted here.
+
+### 2026-09-23 — combined delivery simplified
+
+Operator requested ordinary new-conversation launch for fresh slots. #315 removes
+its superseded registration/nonce additions and fixes only StartFreshSlot routing
+plus early argument validation. The active combined acceptance line is updated;
+original #313 no-new-operation constraint now also holds across final production
+delivery. Historical handshake repair notes above are superseded by #315's latest
+specification. Main review baseline now incorporates published upstream changes
+while retaining local planning, excluding the unrelated gateway change.

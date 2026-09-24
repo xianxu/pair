@@ -1958,18 +1958,14 @@ state and write-result observations, not terminal queries or proof of pixels.
 The existing opt-in 0600 append sink closes at Console teardown and records no
 child body or keystrokes. The operator removes the temporary trace after diagnosis.
 
-### Fresh slot conversation registration (#315)
+### Fresh slot conversation launch (#315)
 
-Couch reserves a new Pair conversation address before a slot fresh launch.
-The launcher uses `RegisterFreshCouchThread` for an exact Couch-owned fresh
-launch without a checkpoint: reserved claims become established, and exact
-established claims remain valid for same-address agent switching. Missing or
-invalid claims refuse. Resume and checkpoint replacement retain read-only,
-established-only registration. `fresh_slot_claim_test.go` exercises this boundary
-with real claim files behind the launcher runtime seam.
+`StartFreshSlot` allocates a new conversation address and uses the same launch
+profile, Pair registration and failure cleanup as ordinary creation. It validates
+saved arguments before claiming an address or replacing the current record.
+History and preferences stay with the slot; existing live-owner checks still
+apply. Same-address agent switching and continuation keep their existing flows.
 
-Every fresh Couch launch also carries its transaction `launch_nonce` in the
-trusted launch profile. Pair writes that exact nonce into agent readiness even
-when no orientation prompt exists. A supplied orientation must match the nonce;
-resume/ordinary profiles cannot carry it. The slot sender test uses the real
-readiness reader so a mismatched producer nonce cannot appear registered.
+`TestSpawnComposesProductionPairRegistrationBoundary` runs ordinary and fresh-slot
+creation through the real Pair launcher and claim files, with the special fresh
+readiness observer unset. The slot needs no additional launch protocol.

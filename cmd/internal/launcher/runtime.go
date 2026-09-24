@@ -162,7 +162,6 @@ type SessionNameStoreOps interface {
 }
 
 type ThreadAddressClaimOps interface {
-	RegisterFreshCouchThread(scope RepoScope, tag string) error
 	EnsureThreadAddress(scope RepoScope, tag string, couchOwned bool) error
 	RegisterExistingCouchThread(scope RepoScope, tag string) error
 }

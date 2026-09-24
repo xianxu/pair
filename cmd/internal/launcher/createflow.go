@@ -511,9 +511,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 	couchOwned := env.CouchThreadScope == scope.Key && env.CouchThreadTag == chosenTag
 	var addressErr error
-	if opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 && couchOwned {
-		addressErr = rt.RegisterFreshCouchThread(scope, chosenTag)
-	} else if opts.Args.ResumeRequired || opts.Args.FreshRequired {
+	if opts.Args.ResumeRequired || opts.Args.FreshRequired {
 		addressErr = rt.RegisterExistingCouchThread(scope, chosenTag)
 	} else {
 		addressErr = rt.EnsureThreadAddress(scope, chosenTag, couchOwned)
@@ -613,8 +611,8 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	var defaultReady <-chan error
 	if opts.Args.FreshRequired {
-		nonce := opts.Args.LaunchNonce
-		if nonce == "" && opts.Args.Orientation != nil {
+		nonce := ""
+		if opts.Args.Orientation != nil {
 			nonce = opts.Args.Orientation.Attempt
 		}
 		if _, err := prepareLaunchReadinessWithNonce(rt, chosenTag, agent, session, nonce); err != nil {

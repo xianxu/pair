@@ -42,7 +42,6 @@ func RequireNativeResumeBinding(required, actual string, status sessioninventory
 }
 
 type TrustedLaunchProfile struct {
-	LaunchNonce       string               `json:"launch_nonce,omitempty"`
 	Orientation       *orientation.Request `json:"orientation,omitempty"`
 	SchemaVersion     int                  `json:"schema_version"`
 	Tag               string               `json:"tag"`
@@ -105,15 +104,6 @@ func BuildCouchFreshLaunchProfile(tag, agent string, argv []string, agentSource,
 }
 
 func ValidateTrustedLaunchProfile(profile TrustedLaunchProfile) error {
-	if profile.LaunchNonce != "" {
-		if !profile.FreshRequired {
-			return fmt.Errorf("launch nonce requires a fresh launch")
-		}
-		if profile.Orientation != nil && profile.Orientation.Attempt != profile.LaunchNonce {
-			return fmt.Errorf("orientation attempt disagrees with launch nonce")
-		}
-	}
-
 	if profile.Orientation != nil {
 		if !profile.FreshRequired || !profile.Orientation.Matches(profile.Tag, profile.Agent, profile.Orientation.Attempt) {
 			return fmt.Errorf("orientation requires a matching fresh launch")
@@ -186,7 +176,6 @@ func ApplyCouchLaunchProfile(args LaunchArgs, raw string) (LaunchArgs, string, e
 	}
 	args.AgentArgsExplicit = true
 	args.AgentArgsFromCouch = true
-	args.LaunchNonce = profile.LaunchNonce
 	args.Orientation = profile.Orientation
 	args.FreshRequired = profile.FreshRequired
 	args.ResumeRequired = profile.ResumeRequired

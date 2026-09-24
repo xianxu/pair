@@ -41,11 +41,11 @@ operations or durable artifacts (ARCH-DRY/PURPOSE/FUNERAL).
 
 ## Plan
 
-- [ ] Parameterize TestSpawnComposesProductionPairRegistrationBoundary in couch_test.go for ordinary and fresh-slot starts. Run real LaunchNative and claim storage; leave FreshRegistration nil and assert neither FreshRequired nor ResumeRequired in the emitted profile. Verify reserved-to-established promotion and final saved launch profile.
-- [ ] In slotrecovery.go StartFreshSlot call ValidateFreshAgentArgs immediately after slotLaunchProfile, before claims/current replacement; use BuildCouchLaunchProfile and omit Fresh:true. Keep TestSlotFreshInvalidPreferencePreservesCurrent and live/unresolved-owner/concurrent-mutation tests as guards.
-- [ ] Restore #315-only edits in launcher/runtime.go, osruntime.go, thread_claim.go, args.go, launch_args_policy.go, createflow.go and couchcore/launch_existing.go to their pre-fix contracts. Remove new runtime test methods, fresh_slot_claim_test.go, slot_fresh_nonce_test.go and added nonce tests; the composed test now guards the actual slot path.
-- [ ] Run the composed test, slot recovery/preference tests, launcher suite and affected race tests; build pair and couch and inspect diff. Retain existing same-ID fresh/resume/continuation tests without weakening their assertions.
-- [ ] Rewrite atlas/couch.md's #315 section to document ordinary new-ID launch; scan production/docs for retired RegisterFreshCouchThread/LaunchNonce/launch_nonce symbols. Append project scope revision and final test evidence, close, publish; operator restarts Couch for a live fresh-slot trial.
+- [x] Parameterize TestSpawnComposesProductionPairRegistrationBoundary in couch_test.go for ordinary and fresh-slot starts. Run real LaunchNative and claim storage; leave FreshRegistration nil and assert neither FreshRequired nor ResumeRequired in the emitted profile. Verify reserved-to-established promotion and final saved launch profile.
+- [x] In slotrecovery.go StartFreshSlot call ValidateFreshAgentArgs immediately after slotLaunchProfile, before claims/current replacement; use BuildCouchLaunchProfile and omit Fresh:true. Keep TestSlotFreshInvalidPreferencePreservesCurrent and live/unresolved-owner/concurrent-mutation tests as guards.
+- [x] Restore #315-only edits in launcher/runtime.go, osruntime.go, thread_claim.go, args.go, launch_args_policy.go, createflow.go and couchcore/launch_existing.go to their pre-fix contracts. Remove new runtime test methods, fresh_slot_claim_test.go, slot_fresh_nonce_test.go and added nonce tests; the composed test now guards the actual slot path.
+- [x] Run the composed test, slot recovery/preference tests, launcher suite and affected race tests; build pair and couch and inspect diff. Retain existing same-ID fresh/resume/continuation tests without weakening their assertions.
+- [x] Rewrite atlas/couch.md's #315 section to document ordinary new-ID launch; scan production/docs for retired RegisterFreshCouchThread/LaunchNonce/launch_nonce symbols. Append project scope revision and final test evidence, close, publish; operator restarts Couch for a live fresh-slot trial.
 
 ### Existing failure behavior reused (no new states)
 
@@ -192,3 +192,15 @@ The suggested contradiction is not part of the design: preserve the existing
 Only StartFreshSlot stops passing Fresh:true. launch_existing.go is revert-only
 (removing the #315 nonce transport), so its zero-diff-to-54aeb96d check is correct.
 No new ordinary-registration branch is needed in that file.
+
+### 2026-09-23 — simplified implementation verified
+
+The composed ordinary/fresh-slot test failed on FreshRequired before the change,
+then passed (2.833s). Focused core slot/preference/ordinary cleanup suite passed
+46.350s; affected race suite passed 8.929s; launcher suite passed 14.063s and
+strictjson passed. make pair bin/couch and git diff --check passed. Exact baseline
+check is empty for cmd/internal/launcher and launch_existing.go. Final production
+diff versus 54aeb96d is StartFreshSlot only: 5 added / 2 removed lines; composed
+test adds 66 / removes 4. Retired registration/nonce names are absent from current
+production/atlas contract. Both binaries rebuilt; restart Couch for live trial.
+SDLC close and publication follow this evidence commit.

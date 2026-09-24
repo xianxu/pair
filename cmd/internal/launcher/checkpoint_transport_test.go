@@ -308,7 +308,3 @@ func TestCheckpointStandaloneDraftFailureStopsLaunch(t *testing.T) {
 		t.Fatalf("draft failure launched: %d %d", code, rt.launchCount)
 	}
 }
-
-func (r checkpointClaimRuntime) RegisterFreshCouchThread(scope RepoScope, tag string) error {
-	return RegisterFreshCouchThread(r.global, scope, tag)
-}

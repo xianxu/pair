@@ -1988,7 +1988,3 @@ func (f *fakeRuntime) ReadCheckpoint(path string) (checkpoint.Checkpoint, error)
 	}
 	return checkpoint.New(path, raw)
 }
-
-func (f *fakeRuntime) RegisterFreshCouchThread(scope RepoScope, tag string) error {
-	return f.RegisterExistingCouchThread(scope, tag)
-}
