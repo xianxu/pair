@@ -35,6 +35,13 @@ func TestInputWriterOrdersWholePacketsAndPartialWrites(t *testing.T) {
 		t.Fatalf("interleaved %q", got)
 	}
 }
+
+func TestWriteTimeoutAllowsFiveSecondsForTerminalIO(t *testing.T) {
+	if WriteTimeout != 5*time.Second {
+		t.Fatalf("WriteTimeout = %s, want 5s", WriteTimeout)
+	}
+}
+
 func TestInputWriterFailureKeepsAcceptedPrefixAndStops(t *testing.T) {
 	fake := ttyio.NewFake()
 	fake.Enqueue(ttyio.WriteStep{Limit: 2, Err: io.ErrUnexpectedEOF})
