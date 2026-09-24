@@ -431,16 +431,17 @@ tabs show attached threads and pending reattachments. Narrow terminals clip the
 right end of the bar, keeping each visible slot after its repo context. Custom
 names remain searchable and appear beside grouped workspace rows.
 
-Each checkout in a slot group shows a quick-status glyph after its name, in both
-the switcher and the tabs (`pair:1`, `:2*`):
+Each checkout in a slot group shows quick-status glyphs after its name, in both
+the switcher and the tabs (`pair:1*`, `:2±`, `pair+*`). The first glyph says
+where the checkout is; a `*` follows whenever its working tree is dirty:
 
 | glyph | meaning |
 |---|---|
 | `` | not on its resting branch (`main` / `main-slotN`), so it has issue work |
-| `*` | on its resting branch, working tree dirty |
-| `±` | on its resting branch and clean, but diverged: commits on both sides of its upstream (drawn in red) |
-| `+` | on its resting branch and clean, with commits not on its upstream |
-| `-` | on its resting branch and clean, behind its upstream (pull before working there) |
+| `±` | on its resting branch, diverged: commits on both sides of its upstream (red) |
+| `+` | on its resting branch, with commits not on its upstream |
+| `-` | on its resting branch, behind its upstream (pull before working there) |
+| `*` | working tree dirty, on any branch (amber) |
 
 Couch refreshes these in the background about every 10 seconds, and whenever
 you open the switcher or change tabs. A glyph can lag briefly, but it never

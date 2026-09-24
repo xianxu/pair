@@ -72,14 +72,16 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 
 ### Slot quick-status glyph (#317)
 
-Each checkout in a slot group, `:0` included, carries one glyph after its label
-in both the switcher and the tabs: `` (U+E0A0) off its resting branch
-(`main` / `main-slotN`, from `couchcore.RestingBranch`), `*` dirty, then
-divergence from the branch's upstream: `±` both ahead and behind, `+` ahead
-only, `-` behind only (#319); none otherwise, in that precedence
-(`couchcore.SlotGlyph`). Behind reads the local remote-tracking ref; the probe
-never fetches. `±` is drawn red in both views (`slotGlyphSGR` in `reserve.go`,
-the one styling decision; the switcher's selected row stays plain). `PresentThreads` derives `ThreadPresentation.Glyph`
+Each checkout in a slot group, `:0` included, carries a glyph after its label in
+both the switcher and the tabs, built from two independent parts
+(`couchcore.SlotGlyph`, #319). The branch part is `` (U+E0A0) off its resting
+branch (`main` / `main-slotN`, from `couchcore.RestingBranch`), or, on it,
+divergence from its upstream: `±` both ways, `+` ahead only, `-` behind only.
+The dirty part `*` follows on any branch. Behind reads the local
+remote-tracking ref; the probe never fetches. Colour is decided per glyph
+character by `slotGlyphSGR` (`reserve.go`), shared by both views: `±` red, `*`
+amber, the rest in the row's style; the switcher's selected row stays plain.
+`PresentThreads` derives `ThreadPresentation.Glyph`
 once from `MenuState.SlotGit`, so the two views cannot disagree.
 
 The data is one `git --no-optional-locks status --porcelain=v2 --branch` per
