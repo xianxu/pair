@@ -36,6 +36,7 @@ No new operation schema, storage, filesystem probes or concurrent workers.
 - Add slot is available from a known repository's primary or numbered row and targets its primary repository without path typing.
 - Existing start form supports agent choice, cancellation and fingerprint-bound creation; repository parked refusal remains enforced.
 - Unknown/malformed identity cannot cause a guessed slot target, and same-named repositories use exact paths.
+- Combined delivery also includes the separately owned #315 repairs: fresh reserved claims establish and exact fresh readiness nonces propagate, preserving established-only resume/checkpoint behavior; #315 acceptance and review evidence remain in its own issue.
 
 
 ## Plan
@@ -79,3 +80,26 @@ upstream work. Fresh-slot runtime smoke failures were repaired separately in
 #315 (real claim registration and exact nonce handoff), whose complete-window
 review returned SHIP without findings. Add slot itself retains the originally
 verified action/form behavior; rerun its boundary review for publication.
+
+## Revisions
+
+### 2026-09-23 — formal combined-delivery scope (BR-1)
+
+The operator reported pair:2 startup failures while #313 was awaiting publication.
+The resulting #315 is deliberately a separate bugfix issue, implemented on the
+same delivery branch. Revise this boundary's delivery scope to include #315's
+already reviewed startup fixes alongside the #313 menu action. The original
+"no new operation schema, storage" constraint applies to the Add slot action;
+it does not prohibit the separately specified trusted-profile `launch_nonce`
+and registration repair in #315. This supersedes the original whole-boundary
+interpretation without changing the menu design.
+
+The expanded delivery has two independently specified acceptance contracts:
+#313 exact-root menu/preview behavior and #315 reserved-claim plus nonce
+registration behavior. #315 was separately reviewed SHIP at
+`c6a91fe2..0879c270` (see its close-review artifact), and its final complete
+launcher/core/CLI suites and targeted race suites passed. Review both contracts
+for this combined publication; neither issue is left as an undeclared side
+change. The acceptance criteria above now explicitly include this integration.
+Upstream gateway commit `aff72f82` remains outside this delivery's changes
+against origin/main; it is not being modified or reverted here.
