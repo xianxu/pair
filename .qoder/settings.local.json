@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo \"=== ANSI 256-Color Palette Demo ===\"\necho \"\"\necho \"--- Standard 16 colors \\(0-15\\) ---\"\nfor i in $\\(seq 0 15\\); do\n  printf \"\\\\033[48;5;${i}m %3d \\\\033[0m\" \"$i\"\n  [ $\\(\\(\\($i + 1\\) % 8\\)\\) -eq 0 ] && echo \"\"\ndone\necho \"\"\necho \"\"\necho \"--- 216 color cube \\(16-231, sample\\) ---\"\nfor i in $\\(seq 16 231\\); do\n  printf \"\\\\033[48;5;${i}m  \\\\033[0m\"\n  [ $\\(\\(\\($i - 15\\) % 36\\)\\) -eq 0 ] && echo \"\"\ndone\necho \"\"\necho \"\"\necho \"--- Grayscale ramp \\(232-255\\) ---\"\nfor i in $\\(seq 232 255\\); do\n  printf \"\\\\033[48;5;${i}m %3d \\\\033[0m\" \"$i\"\ndone\necho \"\"\necho \"\"\necho \"--- Foreground text on dark bg ---\"\nfor i in 46 82 118 154 190 226 220 214 208 202 196; do\n  printf \"\\\\033[38;5;${i}m Color ${i} \\\\033[0m\"\ndone\necho \"\")",
+      "Bash(git:*)",
+      "Bash(make:*)",
+      "Bash(sdlc:*)",
+      "Bash(lsof:*)",
+      "Bash(zellij:*)"
+    ]
+  }
+}
