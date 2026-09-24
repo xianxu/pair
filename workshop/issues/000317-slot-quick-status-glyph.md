@@ -71,9 +71,9 @@ Open questions for design:
 
 Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
 
-- [ ] Pure core: `SlotGitStatus`, `ParseSlotGitStatus`, `SlotGlyph`, `RestingBranch` (couchcore/slotgit.go), table-tested; `validate()` uses `RestingBranch`
-- [ ] One derivation: `PresentThreads(rows, MenuState.SlotGit)` sets `Glyph`; switcher + tab bar render it; glyph goldens (four states + narrow)
-- [ ] Background refresh: single-flight `RefreshSchedule` owner on Console.Run (10s ticker + switcher open + switch + inventory landed); stateful fake probe proves no render blocking, failure keeps last value, shutdown joins
+- [x] Pure core: `SlotGitStatus`, `ParseSlotGitStatus`, `SlotGlyph`, `RestingBranch` (couchcore/slotgit.go), table-tested; `validate()` uses `RestingBranch`
+- [x] One derivation: `PresentThreads(rows, MenuState.SlotGit)` sets `Glyph`; switcher + tab bar render it; glyph goldens (four states + narrow)
+- [x] Background refresh: single-flight `RefreshSchedule` owner on Console.Run (10s ticker + switcher open + switch + inventory landed); stateful fake probe proves no render blocking, failure keeps last value, shutdown joins
 - [ ] Atlas/README, `make install`, operator live smoke, close
 
 ## Revisions
@@ -95,3 +95,20 @@ Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
 - Filed from the #316 session. Related: pair#307 (grouped slot display),
   #197/#236 (single-derivation labels), ariadne#248 ("move this branch to :N"
   needs a quick view of which slots are free), couch-slots-v2 project.
+
+### 2026-09-24
+
+- Implemented per plan. Triggers deviate slightly (logged in atlas): the switcher
+  opening reaches the slot-git pass through the landed inventory
+  (`finishMenuRefresh` → `requestSlotGit`), not a separate `onHotkey` hook; the
+  switch trigger lives in `switchTo`. No probe installed ⇒ no pass (else empty
+  passes polluted `COUCH_TRACE`, caught by `TestTheConsoleTracesStartup…`).
+- Probe set reads `menuRows(c.menu)`, per the inventory-lookup guard test.
+- Mutation checks (each restored byte-identically, `cmp`-verified): tab-bar
+  `label += a.Glyph` removed → glyph fixtures fail; `:0` glyph branch removed →
+  fixture + scope test fail; probe run under `c.mu` → render test hangs (timeout
+  FAIL); failed probe overwrites → reducer + console failure tests fail; each
+  of inventory / switch / ticker triggers removed → its trigger test fails.
+- Process slip: a mutation was reverted with `git checkout <file>`, which also
+  discarded uncommitted edits; restored from the pre-mutation copy. Lesson added.
+
