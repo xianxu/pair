@@ -119,3 +119,10 @@ until changed. No implementation has begun.
 
 Read-only mapping also identified fresh-argument validation after current-record
 replacement. Added a test and ordered validation before mutation to the plan.
+
+### 2026-09-23 — proposal review
+
+Fresh-context review approved the proposed contract and quick-flow sizing with no
+important gaps. Implementation must retain the explicitly known primary default
+root for first creation before enrollment, and retain ordinary-path defaults.
+Operator approval of the proposed contract remains pending.
