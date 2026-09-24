@@ -1,11 +1,12 @@
 ---
 id: 000317
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T23:22:18-07:00
 ---
 
 # Slot quick-status glyph in Couch tab bar and switcher
