@@ -150,3 +150,81 @@ findings:
 ## Revisions
 
 - 2026-09-23: Address BR-1 by explicitly marking the initial review as historical and superseded. The final implementation removes both special registration and nonce transport; current behavior is specified by the active issue and atlas. Review text is retained verbatim as historical evidence.
+
+---
+
+## Re-review — 2026-09-23T21:35:34-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 315 — Allow fresh slot launches to establish their reserved conversation |
+| repo | pair |
+| issue file | workshop/issues/000315-fresh-slot-registration.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 5dea65f9ba06e482a5c47571d0aae85677ad5a1d..2dc57b7762bfc8a6eacaa7d5ee3e42f58a3c45e6 |
+| command | sdlc close --issue 315 |
+| reviewer | codex |
+| timestamp | 2026-09-23T21:35:34-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the active Spec and Plan. Prior finding BR-1 is addressed, production-boundary tests pass, documentation is updated, and no new blocking findings remain.
+
+1. Strengths
+
+- Fresh slots use ordinary Pair registration via `StartFreshSlot`.
+- Argument validation precedes claim and metadata replacement.
+- Real launcher/claim-storage regression covers ordinary and fresh-slot paths.
+- Add-slot UI behavior has focused coverage, including malformed and cancelled flows.
+- README and atlas documentation reflect the delivered behavior.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+Passed:
+
+- Full `couchcore`, `couchtty`, and `launcher` suites.
+- Focused fresh-slot and add-slot tests.
+- `git diff --check`.
+
+6. Architectural notes
+
+- ARCH-DRY: Pass — ordinary creation is reused.
+- ARCH-PURE: Pass — validation remains separated from launch IO.
+- ARCH-PURPOSE: Pass — fresh slots no longer require established claims or nonce readiness.
+- ARCH-MOCK: Pass — production launcher and real claim storage are exercised.
+- ARCH-CONSTRAINTS: Pass — existing bounded startup behavior is retained.
+- ARCH-SECURE: Pass — existing strict profile and claim validation remain authoritative.
+- ARCH-ORDER: Pass — existing transaction and cleanup ordering is reused.
+- ARCH-FUNERAL: Pass — no new durable artifact family is introduced.
+
+7. Plan revision recommendations
+
+None.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The close-review artifact now explicitly marks the nonce/registration review as historical and superseded by the ordinary new-conversation design.
+findings: []
+```

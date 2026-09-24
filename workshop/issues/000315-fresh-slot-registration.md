@@ -1,6 +1,6 @@
 ---
 id: 000315
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
@@ -8,7 +8,7 @@ updated: 2026-09-23
 estimate_hours: 0.43
 started: 2026-09-23T20:26:43-07:00
 flow: {kind: full, provenance: inferred}
-actual_hours: 0.48
+actual_hours: 1.90
 ---
 
 # Allow fresh slot launches to establish their reserved conversation
@@ -97,6 +97,7 @@ for removed registration/nonce names; preserve historical issue revision entries
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — Production boundary regression, slot/preference/cleanup suite, affected race tests, launcher suite and build passed. Only review documentation changed since verification; historical nonce review explicitly marked superseded. Shared launcher remains identical to pre-315 baseline.; review verdict: SHIP
 - 2026-09-23: closed — New-claim and missing-nonce regressions both failed before fixes and passed after. Launcher suite 19.127s; targeted launcher/core race suites 1.686s/15.935s; make pair bin/couch and diff check passed. Real claim files and readiness reader exercised. First full core suite passed 237.467s; final core/CLI rerun underway. Upstream bootstrap gateway aff72f82 unchanged by this task.; review verdict: SHIP
 - 2026-09-23: flow upgraded quick → full — 207 added lines in code files (limit 100)
 

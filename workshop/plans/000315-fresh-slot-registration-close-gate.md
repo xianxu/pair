@@ -20,6 +20,16 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-23T21:35:34-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The close-review artifact now explicitly marks the nonce/registration review as historical and superseded by the ordinary new-conversation design.
+          round: 3
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#315 (boundary-review)
@@ -36,6 +46,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `stale-boundary-review-artifact` Close-review artifact describes superseded nonce registration behavior
   workshop/plans/000315-fresh-slot-registration-close-review.md:27 claims RegisterFreshCouchThread and fresh nonce transport are delivered, contradicting the active Spec, Plan, and implementation that remove them. Replace or explicitly archive/mark the artifact before closing.
 
+## Round 3 — 2026-09-23T21:35:34-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — The close-review artifact now explicitly marks the nonce/registration review as historical and superseded by the ordinary new-conversation design.
+
 ## Open findings
 
-- **BR-1** [Important] `stale-boundary-review-artifact` Close-review artifact describes superseded nonce registration behavior
+(none — every finding has been disposed)
