@@ -65,3 +65,27 @@ Filed from the operator request to switch right-pane tabs by clicking their
 visible tab labels. Existing context: `#199` owns the strip, historical `#200`
 was punted while resolving mouse arbitration, and `#258` covers keyboard/global
 tab chords rather than pointer interaction.
+
+### 2026-09-23
+
+Resumed in slot 2 (the original claim's session is unknown; no code existed).
+Trace:
+
+- Strip: `termcmd.RenderStrip` already emits display-column `TabSpan`s from the
+  clipping pass; `chromeForGeometryLocked` discards them (`.Body` only).
+- Routing: `pumpStdinContext` sends every non-wheel mouse event to
+  `mux.writeEvents` → `Presenter.mouseInput`. A press on the strip row
+  (`Y >= childRows`) is already a `ParentPressMouse` gesture — owned by the
+  parent, never forwarded to the child, release swallowed. So the hook is
+  "consume a left press on a span before the presenter" — the exact shape of
+  couch's `routeMouseEvent` → `RenderedStatusRow.ColumnToActor` (ARCH-DRY).
+- Switch op: `selectLocked(index)` (+ `renamePane`) is what `switchRelative` uses.
+- Rename: the pump drops all non-key events while a rename session is open.
+
+**Blocker:** `pair term` builds its presenter with `terminal.ChildRequested`, so
+the parent enables mouse reporting ONLY while the active child holds tracking
+(`desiredParentModes`). With a plain shell, zellij never forwards clicks to the
+pane at all — the strip is unclickable exactly in the common case. Delivering
+the Spec requires the parent to request tracking itself, which changes what
+zellij does with drag-select in a shell tab. That is the #200 territory; needs
+an operator decision before planning further.
