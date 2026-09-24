@@ -1,6 +1,6 @@
 ---
 id: 000312
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T19:34:09-07:00
 flow: {kind: quick, provenance: inferred, spec: "7e70af2f", done: "2460ade9"}
+actual_hours: 0.11
 ---
 
 # Keep workspace setup output out of the Couch terminal UI
@@ -44,6 +45,7 @@ and UI status/error paths. No new log files, state, timers or goroutines.
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — Reproduced raw setup stdout/stderr and screen-clear bytes bypassing the console before fix. Complete couchcmd suite passed; affected CLI/provision subprocess race tests passed; make pair bin/couch and git diff --check passed. Regression proves successful setup emits no raw terminal output, failures retain diagnostic context, and non-console CLI keeps stderr progress with clean JSON stdout.; review verdict: SHIP
 
 Root cause traced from `runTypedOperationWithConsole` assigning stderr, through
 `Couch.WorkspaceProgress`, to `OSProvisionIO` forwarding both setup streams.
@@ -58,3 +60,11 @@ passed (3.108s/7.558s), and `make pair bin/couch` plus `git diff --check` passed
 The failure case retains its diagnostic tail, and the existing non-console CLI
 test still proves streamed stderr with clean JSON stdout. No live thread was
 restarted or parked. Acceptance review and publication follow.
+
+### 2026-09-23 — accepted
+
+SDLC close returned SHIP with no findings; measured actual 0.11h. Reviewer
+confirmed focused provisioning/race tests and the complete couchcmd suite.
+Its broader couchcore runs were interrupted and remain inconclusive; no full-core
+pass is claimed for this fix. Existing terminal-output ownership guidance in
+workshop/lessons.md applies; no duplicate rule added.
