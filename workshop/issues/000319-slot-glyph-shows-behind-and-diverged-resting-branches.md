@@ -7,6 +7,7 @@ created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
 started: 2026-09-24T14:13:32-07:00
+flow: {kind: quick, provenance: inferred, spec: "a79ba2df", done: "e5aff577"}
 ---
 
 # Slot glyph shows behind and diverged resting branches
@@ -66,7 +67,16 @@ Open questions for design:
 
 ## Plan
 
-- [ ]
+- [ ] `couchcore/slotgit.go`: `SlotGitStatus.Behind` from `branch.ab`; `SlotGlyph` precedence `` > `*` > `±` > `+` > `-`; table tests (TDD)
+- [ ] Goldens: add `glyph_behind` and `glyph_diverged` scenarios to `TestGroupedRenderedFixtures`; eyeball switcher/tab agreement
+- [ ] README glyph table + `atlas/couch.md` (#317 section): new glyphs + fetch-staleness caveat
+- [ ] Mutation-check the new precedence cases; `make test` (unsandboxed); operator live check
+
+## Revisions
+
+- 2026-09-24 — open questions resolved at start-plan: one glyph per slot
+  (dirty hides divergence, as proposed; a combined `*±` stays out of scope);
+  `±` (U+00B1) measures one column in `textwidth` (not in its wide ranges).
 
 ## Log
 
