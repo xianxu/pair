@@ -564,12 +564,12 @@ passed; the optional timing harness has a documented baseline correlation failur
 <a id="pair-308"></a>
 ### pair#308 — Independent workspace preferences
 
-**status:** codecomplete — SHIP review, publication pending
+**status:** done — merged in [PR #158](https://github.com/xianxu/pair/pull/158)
 **actual:** 0.50h
 **closed:** 2026-09-23 (local acceptance)
 **started:** 2026-09-23
 
-The [issue](../issues/000308-slots-v2-workspace-preferences.md) reuses the existing
+The [issue](../history/issues/000308-slots-v2-workspace-preferences.md) reuses the existing
 preference store and agent/parameter editor. First use follows the current Couch
 agent and primary-repository defaults; registered settings remain independent per
 workspace. Fresh/switch fallback is consistent, Couch launches preserve repository
@@ -907,3 +907,10 @@ flow. Full-suite verification passed in the implementation session, along with
 affected race tests, build and vet. The independent reviewer confirmed targeted
 regressions; its separate broad rerun was interrupted and recorded as inconclusive.
 Publication follows.
+
+### 2026-09-23 — #308 published
+
+Merged [PR #158](https://github.com/xianxu/pair/pull/158) through SDLC (merge
+`60a8da5d`), archived the accepted issue/review records, and fast-forwarded the
+primary checkout to published main. Updated the portfolio status and archive link.
+#309 remains the project-wide acceptance trial.
