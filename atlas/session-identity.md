@@ -56,7 +56,10 @@ A unique exact operator turn followed by assistant/tool/error progress proposes
 the root; the watcher persists catalog state before appending a proof-bearing
 binding while the launch ordinal is still current. Repeated matches remain
 ambiguous and no timestamp, traversal order, first/newest file, or native parent
-edge breaks the tie. A proofless legacy binding stays unavailable to automatic
+edge breaks the tie. Cadence follows the causal prerequisite, not the launch
+alone (#316): fast polls for the startup window, then `ActivePoll` (1 s) for 30
+min after each observed Pair-log send, else `SlowPoll`, and a send ends a slow
+wait early, so a completed first round binds within about a second. A proofless legacy binding stays unavailable to automatic
 consumers until one keyed background migration validates its named root; an
 explicit resume may do that one-root validation synchronously. The watcher owns
 durable background proof publication, and ledger projection selects the newest

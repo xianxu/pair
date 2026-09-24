@@ -207,6 +207,11 @@ representative evidence, not an exhaustive index.
   authorize the child to publish it as a repository default. Carry provenance
   through ordinary launch paths as well as special fresh/resume paths. (#308)
 
+- A fake clock whose `Sleep` is atomic hides latency when the test injects its
+  event from the wake-up hook: the event lands on the poll grid, and a blind 60 s
+  sleep looks instant. Stamp the event at its true time, off the grid, and
+  mutation-check the test against the old cadence. (#316)
+
 ## Working rule
 
 When in doubt, draw the boundary first: who owns the state, what evidence can
