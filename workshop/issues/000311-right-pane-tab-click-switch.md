@@ -52,24 +52,24 @@ or the handling of clicks outside the strip.
 Mirror couch's status row exactly (ARCH-DRY: one mouse-ownership model, two
 consumers):
 
-- [ ] Parent mode: `newTerminalMux` builds its presenter with the same
+- [x] Parent mode: `newTerminalMux` builds its presenter with the same
       any-motion policy couch uses (`terminal.CouchAnyMotion`), so clicks
       reach `pair term` in a plain shell tab. The child still receives only
       what its own tracking mode requests (`Presenter.mouseInput`, unchanged).
-- [ ] Pure hit test: `RenderedStrip.ColumnToTab(col) (int, bool)` over the
+- [x] Pure hit test: `RenderedStrip.ColumnToTab(col) (int, bool)` over the
       spans the clipping pass emitted — the twin of couch's
       `RenderedStatusRow.ColumnToActor` (ARCH-PURE). Unit tests: each chip,
       separators, empty tail, wide glyphs, clipped/dropped tabs.
-- [ ] Mux keeps the last drawn strip's spans (`chromeForGeometryLocked`
+- [x] Mux keeps the last drawn strip's spans (`chromeForGeometryLocked`
       records them; a notice replaces the row, so it clears them).
       `clickStrip(x, y) bool` selects via the existing `selectLocked` +
       `renamePane` path that `switchRelative` uses; active tab is a no-op.
-- [ ] Route: in `pumpStdinContext`, a left-button press on the strip row is
+- [x] Route: in `pumpStdinContext`, a left-button press on the strip row is
       offered to `clickStrip` before `writeEvents` — couch's
       `routeMouseEvent` shape. Anything it does not consume falls through to
       the presenter, which already owns strip-row presses as a parent gesture
       (no second tracker, no child leak). Rename sessions already drop mouse.
-- [ ] Production-boundary tests through `pumpStdinWithTimer` with a fake mux;
+- [x] Production-boundary tests through `pumpStdinWithTimer` with a fake mux;
       presenter tests unchanged (child tracking preserved).
 - [ ] Live smoke in a pair session: click tabs in a shell tab and while nvim
       holds `?1002`; wheel scroll in a shell; note what drag-select does.
@@ -114,6 +114,31 @@ presses via `ColumnToActor` spans; `pair term` adopts the same policy and shape.
 Cost to verify live: zellij's own drag-select in a shell tab (same trade couch
 already makes on the host terminal); wheel already falls back to zellij
 `scroll-up/down` when the child holds no tracking.
+
+Implemented: `AnyMotion` (renamed from `CouchAnyMotion` — it is no longer
+couch-only) in `newTerminalMux`; `RenderedStrip.ColumnToTab`; mux records
+`stripSpans` in `chromeForGeometryLocked` (nil under a notice); `clickStrip`
+and `switchRelative` share one `switchTab(pick)` path whose pick runs under the
+mux lock and bounds-checks, so a stale span can never `selectLocked` a missing
+tab into `stopLocked` (ARCH-DRY, ARCH-PURE). Reuse/ownership rule: the strip
+adds no mouse-mode tracker — the presenter's gesture state stays the only one;
+the pump only intercepts a left press, exactly as couch's `routeMouseEvent`.
+`ChildRequested` now has no production caller (tests only); left in place.
+Tests: `TestColumnToTab*` (wide glyph, clipped), `TestPresentationClickingStrip
+ChipSelectsThatTab` (real mux, fake children), `TestPresentationParentRequests
+MouseForAPlainChild`, `TestPumpStdinOffersLeftPressToStrip`. termcmd, terminal,
+couchtty, terminalqualify green (unsandboxed for pty tests).
+
+Verification (2026-09-23): `go test ./...` in this checkout green (74 pkgs,
+retention env scrubbed, TMPDIR=scratchpad). Full `make test` from a `git
+archive` of a98a86f1 passes every shell/lua target; its only Go failures are
+four #151/#155 contract tests that `git show` pinned objects (exit 128 — no
+.git in an archive). In THIS worktree the nvim headless targets
+(`test-lua`/`test-queue`/`test-submission-transaction`) fail rc=1 with empty
+output, rotating per run; `submission-transaction` fails 5/5 here yet passes
+3/3 from archives of both a98a86f1~1 and a98a86f1 and passes under `bash -x`
+— a checkout-local, timing-sensitive environment issue, not this Go-only diff.
+Pending: operator live smoke (plan's last step).
 
 ## Revisions
 
