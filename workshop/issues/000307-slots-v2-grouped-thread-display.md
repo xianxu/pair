@@ -71,8 +71,8 @@ total: 3.36
 
 Detailed proposed plan: [Grouped Thread Display](../plans/000307-slots-v2-grouped-thread-display-plan.md). Operator approved on 2026-09-23; change-code gates in progress. The original outline below remains the issue-level acceptance checklist.
 
-- [ ] Specify shared group ordering and absent-primary/narrow-width presentation.
-- [ ] Wire both UI projections and selection/navigation to the shared order.
+- [x] Specify shared group ordering and absent-primary/narrow-width presentation.
+- [x] Wire both UI projections and selection/navigation to the shared order.
 - [ ] Verify rendered examples plus real activation routing.
 
 ## Log
@@ -111,3 +111,7 @@ Reason: ordinary StartingPath can name a subdirectory, not a checkout root. Delt
 ### 2026-09-23 — operator approval and gate clarification
 
 Operator approved the detailed plan. PQ-1 is addressed by the plan's explicit known-root/legacy display-path and qualifier contract; source rows and operation identities remain unchanged. Renamed the plan to the exact issue stem for gate discovery. Implementation has not begun.
+
+### 2026-09-23 — grouping integrated
+
+Shared pure projection, switcher inventory ordering/rendering and grouped tab assembly implemented. Regression tests first reproduced unsorted switcher rows, hidden canonical slot names and attach-ordered tabs; the targeted tests now pass. Full couchtty suite passes (7.040s), including its unchanged allocation budget. Native tab clicks are exercised through Run and activate the intended pane. Rendered fixtures cover normal, absent primary, parked, filtered and narrow views. Broader verification and close review remain.
