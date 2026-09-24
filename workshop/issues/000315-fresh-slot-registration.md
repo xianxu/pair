@@ -5,7 +5,7 @@ deps: []
 github_issue:
 created: 2026-09-23
 updated: 2026-09-23
-estimate_hours:
+estimate_hours: 0.43
 started: 2026-09-23T20:26:43-07:00
 flow: {kind: full, provenance: inferred}
 actual_hours: 0.48
@@ -161,3 +161,34 @@ Corrected owner-admission strategy to the existing executable test symbol and
 specified existing timeout/retry and strict input contracts, their tests and
 all architecture lenses. These are inherited constraints, not additional states
 or implementation scope. Test-name resolution is checked against current source.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against
+`baseline-v3.1.md`. Method A only; calibration is marked stale by estimate-source.
+Current approved simplification is familiar existing-code work. Existing launcher
+and integration harness supply all mechanisms; no library/API discovery needed.
+Cross-cutting refactor uses design 0.2 x 0.2 spec discount = 0.04, impl 0.5 x 0.4
+v3.1 scale = 0.20 (routing, restoration and regression harness together). Docs use
+design 0.05 x 0.2 = 0.01, impl 0.1 x 0.4 = 0.04. One review boundary uses design
+0, impl 0.3 x 0.4 = 0.12. Familiarity 1.0; short in-issue plan uses 30% design
+buffer: (0.04 + 0.01) x 1.3 + 0.20 + 0.04 + 0.12 = 0.425, rounded 0.43 hours.
+This estimates the revised deliverable, not a back-fit to elapsed time.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: cross-cutting-refactor design=0.04 impl=0.20
+item: atlas-docs design=0.01 impl=0.04
+item: milestone-review design=0 impl=0.12
+design-buffer: 0.30
+total: 0.43
+```
+
+### 2026-09-23 — response to nonblocking PQ-8
+
+The suggested contradiction is not part of the design: preserve the existing
+`if in.Fresh` registration branch in launch_existing.go for same-ID replacements.
+Only StartFreshSlot stops passing Fresh:true. launch_existing.go is revert-only
+(removing the #315 nonce transport), so its zero-diff-to-54aeb96d check is correct.
+No new ordinary-registration branch is needed in that file.
