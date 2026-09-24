@@ -939,3 +939,12 @@ Console provisioning no longer streams raw setup output over the UI. CLI progres
 and bounded failure diagnostics remain available. Couch was rebuilt; the running
 operator session needs a restart to load the fix. Live retest remains operator
 acceptance evidence, separate from the passing automated regression.
+
+### 2026-09-23 — Add slot from an existing thread
+
+Operator smoke testing found retyping `../pair` cumbersome. [pair#313](../issues/000313-couch-add-slot-action.md)
+adds an Add slot action on known repository rows, opening the existing launch
+form with the exact primary path and agent focus. Creation/admission and defaults
+reuse the existing flow. Ordinary Git repos should share this UX; skipping
+Weave setup when a repo is not configured for it remains a separate compatibility
+gap in the current provisioner, noted during the discussion.

@@ -40,9 +40,9 @@ No new operation schema, storage, filesystem probes or concurrent workers.
 
 ## Plan
 
-- [ ] Add failing reducer tests for primary/subdirectory and numbered rows, exact-path disambiguation, cancellation, accepted StartCreate submission and errors.
-- [ ] Add the action and reuse existing form/preview helpers; retain prior action ordering and avoid adding the action when root identity is unavailable.
-- [ ] Run couchtty suite/race and relevant core creation-refusal tests; update README/atlas/project, build, close and publish.
+- [x] Add failing reducer tests for primary/subdirectory and numbered rows, exact-path disambiguation, cancellation, accepted StartCreate submission and errors.
+- [x] Add the action and reuse existing form/preview helpers; retain prior action ordering and avoid adding the action when root identity is unavailable.
+- [x] Run couchtty suite/race and relevant core creation-refusal tests; update README/atlas/project, build, close and publish.
 
 
 ## Log
@@ -50,3 +50,22 @@ No new operation schema, storage, filesystem probes or concurrent workers.
 ### 2026-09-23
 
 Root lookup and launch form are already implemented; this issue connects them through the thread action menu.
+
+### 2026-09-23 — implemented and verified
+
+Fresh-context spec review approved the shared-form design. New tests failed for
+missing Add slot before implementation. Full couchtty passed (6.804s), full UI
+race suite passed (19.787s), relevant core create/admission tests passed (8.668s),
+and `make pair bin/couch` passed. Exact-root targeting, default agent resolution,
+accepted fingerprints, cancellation/late previews, errors and unknown identity
+are covered. No new schema or admission policy was added. Close/publication follow.
+
+### 2026-09-23 — smoke-test steering
+
+Filed #314 at the operator's request for optional Ariadne integration; no code
+for that task was implemented. Investigated failed pair:2: host/dependency clone
+existed but no setup-success marker or conversation. Explicit idempotent CLI
+provisioning succeeded (disposition prepared) and wrote the marker, preserving
+baseline `7e229bc95b52476929c55f7af2fa3e0c3bc83233`. No agent was launched. Original
+failure cause remains unknown pending operator error evidence; captured retry
+logs are `/tmp/pair-slot2-provision-diagnostics.log` and result JSON alongside it.

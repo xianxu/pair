@@ -725,6 +725,15 @@ func reduceActionKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 		case "copy-orientation":
 			request := state.Orientation[thread.Address]
 			return state, []MenuEffect{{CopyOrientation: &request}}
+		case "add-slot":
+			root := menuRepositoryRoot(thread)
+			state, _ = openStartForm(state)
+			if state.CurrentFrame().Kind != MenuFrameStart {
+				return state, nil
+			}
+			form := &state.Frames[len(state.Frames)-1]
+			form.Path, form.FormField = root, MenuFieldAgent
+			return requestStartPreview(state)
 		case "switch-agent":
 			return openSwitchAgent(state, thread.Address)
 		case "name", "describe", "recover-checkpoint":
@@ -1443,6 +1452,9 @@ func filterMenuItems(items []string, query string) []string {
 }
 
 func menuItemLabel(item string) string {
+	if item == "add-slot" {
+		return "Add slot"
+	}
 	if item == "recover-thread" {
 		return "Recover session or retained checkpoint"
 	}

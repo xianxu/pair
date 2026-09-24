@@ -24,6 +24,12 @@ to the global namespace.
 
 ### Durable numbered slots (#306)
 
+The thread action menu's **Add slot** entry (#313) opens the existing start form
+with the exact primary repository path prefilled and agent focus. `menuRepositoryRoot`
+uses the validated slot primary root or scope-matched ordinary root; unknown
+roots do not offer the shortcut. The same StartCreate preview/fingerprint and
+repository admission checks apply as when entering a path manually.
+
 Directory/Git identity supplies the durable slot; native scope/tag identifies its
 current conversation. Slot rows stay selectable when current metadata is missing
 or damaged. Explicit fresh conversation replaces the current reference and retains
