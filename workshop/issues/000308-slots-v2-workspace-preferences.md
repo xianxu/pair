@@ -1,11 +1,12 @@
 ---
 id: 000308
-status: open
+status: working
 deps: [pair#306]
 github_issue:
 created: 2026-09-22
 updated: 2026-09-23
 estimate_hours:
+started: 2026-09-23T17:46:01-07:00
 ---
 
 # Slots v2: independent workspace preferences
