@@ -34,16 +34,21 @@ rounds:
           round: 2
       blocked: false
     - "n": 3
+<<<<<<< Updated upstream:workshop/history/plans/000255-lifecycle-state-ownership-plan-gate.md
       timestamp: "2026-09-15T12:03:20-07:00"
       agent: codex
       blocked: false
       protocol_error: no valid findings block
     - "n": 4
       timestamp: "2026-09-15T12:10:05-07:00"
+=======
+      timestamp: "2026-09-15T09:55:03-07:00"
+>>>>>>> Stashed changes:workshop/plans/000255-lifecycle-state-ownership-plan-gate.md
       agent: codex
       dispose:
         - id: PQ-1
           disposition: addressed
+<<<<<<< Updated upstream:workshop/history/plans/000255-lifecycle-state-ownership-plan-gate.md
           note: Named function-level adversarial strategies and mechanical guards remain in the qualification plan.
           round: 4
         - id: PQ-2
@@ -65,6 +70,16 @@ rounds:
           round: 5
       blocked: false
 content_hash: 89dec26bb5cb0679b17a71eaa857752e24e08791b103d8cf115a7b043a07fb6e
+=======
+          note: Named function-level adversarial strategies and mechanical guards replace repeated case inventories.
+          round: 3
+        - id: PQ-2
+          disposition: addressed
+          note: The corrected FakeHost capability claim matches the buffered shared fake and controlled mouseTraceHost implementation.
+          round: 3
+      blocked: false
+content_hash: 14b3f3c3e09533632778096154125a6c908395b15a629c1c4fa6c79205b2598c
+>>>>>>> Stashed changes:workshop/plans/000255-lifecycle-state-ownership-plan-gate.md
 ---
 
 # Gate ledger — 000255-lifecycle-state-ownership#255 (plan-quality)
@@ -88,6 +103,7 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards replace repeated case inventories; exact cases move into executable fixtures.
 - PQ-2 — addressed — The plan correctly attributes partial/error writes to mouseTraceHost and identifies extraction or extension for shared presentation tests.
 
+<<<<<<< Updated upstream:workshop/history/plans/000255-lifecycle-state-ownership-plan-gate.md
 ## Round 3 — 2026-09-15T12:03:20-07:00 (codex) — passed
 
 **Protocol error:** no valid findings block — this round contributed no findings.
@@ -105,6 +121,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards remain in the qualification plan.
 - PQ-2 — addressed — The plan correctly distinguishes buffered FakeHost writes from controlled partial/error transport behavior.
+=======
+## Round 3 — 2026-09-15T09:55:03-07:00 (codex) — passed
+
+### Disposed
+
+- PQ-1 — addressed — Named function-level adversarial strategies and mechanical guards replace repeated case inventories.
+- PQ-2 — addressed — The corrected FakeHost capability claim matches the buffered shared fake and controlled mouseTraceHost implementation.
+>>>>>>> Stashed changes:workshop/plans/000255-lifecycle-state-ownership-plan-gate.md
 
 ## Open findings
 

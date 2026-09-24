@@ -362,6 +362,8 @@ type ptyWriter interface {
 	finishRename(int, RenameOutcome) error
 	previousTab()
 	nextTab()
+	// clickStrip consumes a left press on the tab strip row (#311).
+	clickStrip(x, y int) bool
 	appMouseMode() bool
 	// activeChildOwnsScreen reports whether the active tab's child is a
 	// full-screen app, so the pump forwards role-scoped chords to it (#227).
@@ -541,6 +543,14 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 					_ = rt.RunZellijAction("scroll-down")
 				}
 				continue
+			}
+			// Couch's status-row shape (#311): a left press on the strip is the
+			// parent's; everything else keeps the presenter's gesture ownership.
+			if click, ok := event.Event.(uv.MouseClickEvent); ok && click.Button == uv.MouseLeft {
+				flushPending()
+				if mux.clickStrip(click.X, click.Y) {
+					continue
+				}
 			}
 			if _, mouse := event.Event.(uv.MouseEvent); mouse {
 				flushPending()

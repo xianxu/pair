@@ -301,3 +301,47 @@ func TestARenameWhoseTabExitedStaysOnTheRow(t *testing.T) {
 		t.Fatalf("RenderStrip(14) = %q, dropped the field being typed into", got)
 	}
 }
+
+// A click maps to a tab through the spans the clipping pass drew (#311) -- the
+// twin of couch's ColumnToActor. Wide glyphs pin display columns, not runes.
+func TestColumnToTabUsesDrawnSpans(t *testing.T) {
+	r := RenderStrip(40, StripModel{
+		Tabs:   []TabChip{{Name: "日本語"}, {Name: "build"}, {Name: "x"}},
+		Active: 1,
+	})
+	// "日本語 [build] x": 0-5, sep 6, 7-13, sep 14, 15.
+	want := map[int]int{0: 0, 5: 0, 7: 1, 13: 1, 15: 2}
+	for col := -1; col < 40; col++ {
+		got, ok := r.ColumnToTab(col)
+		wantIndex, wantOK := want[col]
+		if col == 3 { // interior of the wide run
+			wantIndex, wantOK = 0, true
+		}
+		if wantOK && (!ok || got != wantIndex) {
+			t.Fatalf("column %d = (%d,%v), want tab %d", col, got, ok, wantIndex)
+		}
+		if !wantOK && (col == 6 || col == 14 || col >= 16 || col < 0) && ok {
+			t.Fatalf("column %d mapped to tab %d; separators and empty space map to none", col, got)
+		}
+	}
+}
+
+func TestColumnToTabNeverSelectsAClippedAwayTab(t *testing.T) {
+	m := StripModel{Tabs: []TabChip{{Name: "alpha"}, {Name: "bravo"}, {Name: "charlie"}}, Active: 2}
+	r := RenderStrip(12, m)
+	drawn := map[int]bool{}
+	for _, s := range r.Spans {
+		drawn[s.Index] = true
+		if got, ok := r.ColumnToTab(s.Start); !ok || got != s.Index {
+			t.Fatalf("span %+v start maps to (%d,%v)", s, got, ok)
+		}
+	}
+	if len(drawn) == len(m.Tabs) {
+		t.Fatalf("width 12 should clip a tab away: %q", r.Body)
+	}
+	for col := 0; col < 12; col++ {
+		if got, ok := r.ColumnToTab(col); ok && !drawn[got] {
+			t.Fatalf("column %d selected undrawn tab %d in %q", col, got, r.Body)
+		}
+	}
+}

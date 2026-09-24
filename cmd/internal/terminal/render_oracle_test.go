@@ -192,7 +192,7 @@ func TestRendererIndependentInterruptedPresentationRelease(t *testing.T) {
 		if _, err := e.Feed([]byte("\x1b[31;44;1;3;4m\x1b]8;id=test;https://example.com\x1b\\LINK\x1b[6 q\x1b[?25l"), time.Now()); err != nil {
 			t.Fatal(err)
 		}
-		p := NewPresenter(parent, CouchAnyMotion)
+		p := NewPresenter(parent, AnyMotion)
 		boom := errors.New("interrupted presentation")
 		if prefix >= 0 {
 			parent.Enqueue(ttyio.WriteStep{Limit: prefix, ZeroProgress: prefix == 0, Err: boom})
