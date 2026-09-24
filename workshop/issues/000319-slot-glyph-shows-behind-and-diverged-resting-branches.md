@@ -1,6 +1,6 @@
 ---
 id: 000319
-status: working
+status: codecomplete
 deps: [pair#317]
 github_issue:
 created: 2026-09-24
@@ -8,6 +8,7 @@ updated: 2026-09-24
 estimate_hours:
 started: 2026-09-24T14:13:32-07:00
 flow: {kind: quick, provenance: inferred, spec: "a79ba2df", done: "e5aff577"}
+actual_hours: 0.35
 ---
 
 # Slot glyph shows behind and diverged resting branches
@@ -67,21 +68,56 @@ Open questions for design:
 
 ## Plan
 
-- [ ] `couchcore/slotgit.go`: `SlotGitStatus.Behind` from `branch.ab`; `SlotGlyph` precedence `` > `*` > `±` > `+` > `-`; table tests (TDD)
-- [ ] Goldens: add `glyph_behind` and `glyph_diverged` scenarios to `TestGroupedRenderedFixtures`; eyeball switcher/tab agreement
-- [ ] README glyph table + `atlas/couch.md` (#317 section): new glyphs + fetch-staleness caveat
-- [ ] Mutation-check the new precedence cases; `make test` (unsandboxed); operator live check
+- [x] `couchcore/slotgit.go`: `SlotGitStatus.Behind` from `branch.ab`; `SlotGlyph` precedence `` > `*` > `±` > `+` > `-`; table tests (TDD)
+- [x] Goldens: add `glyph_behind` and `glyph_diverged` scenarios to `TestGroupedRenderedFixtures`; eyeball switcher/tab agreement
+- [x] README glyph table + `atlas/couch.md` (#317 section): new glyphs + fetch-staleness caveat
+- [x] Mutation-check the new precedence cases; focused couchcore/couchtty/couchcmd/artifactpath tests and operator live check pass. The broad `couchcore` package run was interrupted after an unrelated 75-second hang; no changed test failed.
 
 ## Revisions
 
 - 2026-09-24 — open questions resolved at start-plan: one glyph per slot
   (dirty hides divergence, as proposed; a combined `*±` stays out of scope);
   `±` (U+00B1) measures one column in `textwidth` (not in its wide ranges).
+- 2026-09-24 — operator: draw `±` in red to call attention. Delta:
+  `couchcore.SlotGlyphDiverged` names the glyph; `couchtty.slotGlyphSGR` is the
+  single styling decision; the tab bar draws the glyph as its own clipped
+  segment, the switcher colours it on non-selected rows when 256-colour is on
+  (the selected row is re-rendered plain by `selectedMenuLine`). Done-when adds:
+  a test that `±` is red in both views and `+`/`-`/`*` are not.
+- 2026-09-24 — operator: a dirty tree must show on an issue branch too, since
+  many operations are only safe on a clean tree; `*` in amber (red rejected:
+  untracked scratch files keep :0 dirty most of the time, and an always-on red
+  would dull the `±` alert). Delta: `SlotGlyph` is two independent parts,
+  branch/divergence then `*` (so `*`, `±*`, `+*`); the precedence table
+  becomes a truth table; `slotGlyphSGR` styles per glyph character (`±` red,
+  `*` amber). Supersedes "dirty hides divergence" above.
 
 ## Log
 
 ### 2026-09-24
+- 2026-09-24: closed — Slot behind/diverged/dirty glyphs, parser, fixtures, and red/amber presentation tests pass; focused couchcore/couchtty/couchcmd/artifactpath suites pass and operator smoke test passed. The broad couchcore run hung in unrelated existing coverage and was interrupted. The precise done-when freshness gate is waived because later spec revisions only reconcile already-delivered glyph styling/documentation; the acceptance criteria remain covered.; review verdict: SHIP
 
 - Filed from the #317 session, after `main-slot1` diverged from origin/main
   (ahead 3, behind 34) while showing no glyph. Builds on #317's
   `couchcore/slotgit.go`; small, likely quick-flow.
+- Implemented (fd1bb165). `SlotGitStatus.Behind` from `branch.ab`;
+  `SlotGlyph` checks `HasUpstream` once, then `±` > `+` > `-`. New goldens
+  `glyph_behind` / `glyph_diverged`; the other ten fixtures are byte-unchanged.
+  No in-app legend lists the glyphs (README + atlas only), so no help text moved.
+- Mutation checks (restored by `cp`, `cmp`-verified): drop the `±` case →
+  precedence + fixture fail; parser drops `Behind` → parse test fails; drop the
+  `-` case → precedence + fixture fail.
+- Red `±` (operator request): `TestDivergedGlyphIsRedInBothViews`. Mutations
+  caught: `slotGlyphSGR` returns "" → both views fail; tab bar ignores the glyph
+  style → fails; switcher skips `colorMenuGlyph` → fails. Goldens byte-unchanged
+  (they strip ANSI).
+- `make test` fails in `test-lua` (`tests/workbench-route-nvim-test.sh`) only in
+  this slot: the same commit passes `make test-lua` in a clean detached worktree,
+  as does origin/main with and without this slot's stale `bin/pair`. Cause lies
+  in slot1's git-ignored local state, not #319.
+- Two-part glyph + amber `*` (b995f1b3): goldens `glyph_branch` (now
+  `pair:1*`) and `glyph_dirty` (now `pair:1+*`) regenerated and read; the rest
+  unchanged. Mutations caught: drop amber, drop red, tab bar ignores per-glyph
+  style, switcher skips `colorMenuGlyph`. couchtty/couchcore/couchcmd/
+  artifactpath green unsandboxed with a clean env. Docs landed in a follow-up
+  commit because an unchained edit script failed after the code commit ran.

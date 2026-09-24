@@ -527,15 +527,23 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		if thread.Name != "" && entry.Label != thread.Label() {
 			detail += "  (" + thread.Name + ")"
 		}
-		plain := clipMenuLine(marker+strings.Repeat(" ", entry.Indent)+entry.Label+entry.Glyph+"  "+detail, prefixWidth) + suffix
+		head := marker + strings.Repeat(" ", entry.Indent) + entry.Label
+		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if owned && view.Pending() && color256 {
 			// Greyed with the status bar's placeholder grey, so "not ready yet"
 			// looks the same in both places. Never selected: the cursor skips it.
 			plain = placeholderSGR + plain + "\x1b[0m"
-		} else if !thread.Live() && color256 {
-			plain = ageColor(AgeBandFor(now, thread.LastActiveAt)) + plain + "\x1b[0m"
+		} else if color256 {
+			outer := ""
+			if !thread.Live() {
+				outer = ageColor(AgeBandFor(now, thread.LastActiveAt))
+			}
+			plain = colorMenuGlyph(plain, head, entry.Glyph, outer)
+			if outer != "" {
+				plain = outer + plain + "\x1b[0m"
+			}
 		}
 		if selectedRow {
 			selectedStart = len(rows)
@@ -581,6 +589,25 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		lines = append(lines, clipMenuLine("filter: "+frame.Filter, width))
 	}
 	return lines, extents
+}
+
+// colorMenuGlyph draws each slot glyph character in its own colour when the clip
+// kept the glyph whole, restoring the row's style after each coloured one. The
+// selected row is re-rendered plain by selectedMenuLine, so it never gets here.
+func colorMenuGlyph(line, head, glyph, outer string) string {
+	if glyph == "" || !strings.HasPrefix(line, head+glyph) {
+		return line
+	}
+	var b strings.Builder
+	b.WriteString(head)
+	for _, r := range glyph {
+		if sgr := slotGlyphSGR(r); sgr != "" {
+			b.WriteString(sgr + string(r) + "\x1b[0m" + outer)
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String() + line[len(head)+len(glyph):]
 }
 
 func renderItemMenuFrame(title string, items []string, selected, filter string, width, height int) []string {

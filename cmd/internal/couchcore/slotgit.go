@@ -16,10 +16,20 @@ type SlotGitStatus struct {
 	Dirty       bool
 	HasUpstream bool
 	Ahead       int
+	// Behind is as fresh as the checkout's last fetch: the probe reads the
+	// local remote-tracking ref and never touches the network.
+	Behind int
 }
 
 // slotGlyphBranch is the Powerline branch symbol (U+E0A0, Nerd Font).
 const slotGlyphBranch = ""
+
+// SlotGlyphDiverged marks a resting branch with commits on both sides of its
+// upstream. Presentation draws it in the alert colour (pair#319).
+const SlotGlyphDiverged = "±"
+
+// SlotGlyphDirty marks a dirty working tree on any branch.
+const SlotGlyphDirty = "*"
 
 // RestingBranch is the branch a checkout rests on: main for :0, main-slotN for
 // slot N. sdlc workspace asserts the same convention, which validate() checks
@@ -31,17 +41,32 @@ func RestingBranch(n int) string {
 	return "main-slot" + strconv.Itoa(n)
 }
 
-// SlotGlyph applies the precedence: off the resting branch (issue work) beats a
-// dirty tree, which beats commits not yet on the upstream. Without an upstream
-// there is no evidence of unpublished work, so nothing is shown.
+// SlotGlyph is two independent parts (pair#319). The branch part says where the
+// checkout is: off its resting branch (issue work), or on it and diverged from
+// its upstream both ways (±), ahead only (+, unpublished) or behind only (-,
+// needs a pull). Without an upstream there is no divergence evidence, and an
+// issue branch against its upstream is not compared. The dirty part (*) follows
+// on any branch, because many operations are only safe on a clean tree.
 func SlotGlyph(s SlotGitStatus, resting string) string {
+	glyph := slotBranchGlyph(s, resting)
+	if s.Dirty {
+		glyph += SlotGlyphDirty
+	}
+	return glyph
+}
+
+func slotBranchGlyph(s SlotGitStatus, resting string) string {
 	switch {
 	case s.Detached || s.Branch != resting:
 		return slotGlyphBranch
-	case s.Dirty:
-		return "*"
-	case s.HasUpstream && s.Ahead > 0:
+	case !s.HasUpstream:
+		return ""
+	case s.Ahead > 0 && s.Behind > 0:
+		return SlotGlyphDiverged
+	case s.Ahead > 0:
 		return "+"
+	case s.Behind > 0:
+		return "-"
 	}
 	return ""
 }
@@ -90,12 +115,12 @@ func ParseSlotGitStatus(out string) (SlotGitStatus, error) {
 				return SlotGitStatus{}, fmt.Errorf("malformed branch.ab %q", line)
 			}
 			ahead, aheadErr := strconv.ParseUint(fields[0][1:], 10, strconv.IntSize-1)
-			_, behindErr := strconv.ParseUint(fields[1][1:], 10, strconv.IntSize-1)
+			behind, behindErr := strconv.ParseUint(fields[1][1:], 10, strconv.IntSize-1)
 			if aheadErr != nil || behindErr != nil {
 				return SlotGitStatus{}, fmt.Errorf("malformed branch.ab %q", line)
 			}
 			sawAB = true
-			s.Ahead = int(ahead)
+			s.Ahead, s.Behind = int(ahead), int(behind)
 		case line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "! "):
 		case len(line) > 2 && strings.IndexByte("12u?", line[0]) >= 0 && line[1] == ' ':
 			s.Dirty = true

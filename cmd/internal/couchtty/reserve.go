@@ -58,7 +58,24 @@ type StatusModel struct {
 const (
 	attentionSGR   = "\x1b[38;5;220m"
 	placeholderSGR = "\x1b[38;5;240m"
+	// slotAlertSGR draws a slot glyph that needs the operator before work
+	// starts there: a diverged resting branch (pair#319).
+	slotAlertSGR = "\x1b[38;5;196m"
 )
+
+// slotGlyphSGR is the one styling decision for slot glyphs, shared by the tab
+// bar and the switcher, per glyph character: a diverged resting branch (±)
+// alerts in red, a dirty tree (*) asks for attention in amber, and every other
+// glyph keeps its row's style (empty).
+func slotGlyphSGR(glyph rune) string {
+	switch string(glyph) {
+	case couchcore.SlotGlyphDiverged:
+		return slotAlertSGR
+	case couchcore.SlotGlyphDirty:
+		return attentionSGR
+	}
+	return ""
+}
 
 // ChipSpan is the column range one actor occupies on the drawn row, and the
 // actor a click there lands on. Half-open: [Start, End).
@@ -137,13 +154,15 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if a.GroupKey != "" && a.GroupKey == previousGroup && a.SlotNumber > 0 {
 			label = ":" + strconv.Itoa(a.SlotNumber)
 		}
-		label += a.Glyph
 		previousGroup = a.GroupKey
+		// The glyph is its own segment so it can carry its own colour; clipping
+		// still runs through the one appendText, segment by segment.
+		tail := ""
 		if a.Placeholder && a.Loading {
-			label += " " + spinnerGlyph(m.Spinner)
+			tail = " " + spinnerGlyph(m.Spinner)
 		}
 		if a.Active {
-			label = "[" + label + "]"
+			label, tail = "["+label, tail+"]"
 		}
 		if used > 0 {
 			appendText("  ", "")
@@ -160,6 +179,14 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 			style = attentionSGR
 		}
 		appendText(label, style)
+		for _, r := range a.Glyph {
+			glyphStyle := style
+			if own := slotGlyphSGR(r); own != "" && !a.Placeholder {
+				glyphStyle = own
+			}
+			appendText(string(r), glyphStyle)
+		}
+		appendText(tail, style)
 		if used > start && !a.Placeholder && a.Thread != (couchcore.ThreadAddress{}) {
 			chips = append(chips, ChipSpan{Thread: a.Thread, Start: start, End: used})
 		}
