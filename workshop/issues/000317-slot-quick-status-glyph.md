@@ -7,6 +7,7 @@ created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T23:22:18-07:00
+flow: {kind: quick, provenance: inferred, spec: "11433814", done: "fa95a3c0"}
 ---
 
 # Slot quick-status glyph in Couch tab bar and switcher
