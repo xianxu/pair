@@ -24,7 +24,8 @@ Fresh Couch registration accepts an exact owned reserved or established claim, e
 
 - New fresh-slot reservations reach the launcher handoff and become established.
 - Established-address fresh launches still work; resume and checkpoint replacement reject reserved claims without mutation. Missing, malformed, mismatched and unowned fresh reservations never launch or establish.
-- Regression tests exercise production claim storage through the launcher.
+- Plain fresh-slot startup forwards the same launch nonce Couch waits for; real readiness reader accepts that nonce and rejects stale evidence.
+- Regression tests exercise production claim storage and the trusted-profile/readiness boundaries.
 
 ## Plan
 
@@ -51,3 +52,7 @@ New real-filesystem launcher regression failed on the reserved case before imple
 ### 2026-09-23 — review window provenance
 
 The branch carries prior Add slot work (#313). Bootstrap/CI gateway changes in the broad boundary window came from `aff72f82` (build: adopt ariadne#239 seeded gateway files), already an ancestor of origin/main; this issue does not change those files against origin/main. Review #315 on its launcher registration change and real-claim regression. Preserve unrelated upstream work.
+
+### 2026-09-23 — live retry exposed second handshake mismatch
+
+Claim registration succeeded and Claude started, but Couch timed out because its transaction nonce was not sent in a plain fresh profile. Pair only reused Orientation.Attempt; without orientation it minted an unrelated nonce. Stop publication and extend this issue: carry an explicit LaunchNonce in trusted profile/LaunchArgs, inject for every Couch fresh launch, and require agreement with orientation when both exist. Ordinary/resume profiles reject an explicit fresh nonce. Preserve fallback for existing orientation-only profiles. Test sender/profile/launcher/real-ready reader, then rebuild both binaries. Existing live pair:2 should be recovered, not replaced just to test.
