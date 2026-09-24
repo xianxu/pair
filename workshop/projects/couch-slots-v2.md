@@ -948,3 +948,12 @@ form with the exact primary path and agent focus. Creation/admission and default
 reuse the existing flow. Ordinary Git repos should share this UX; skipping
 Weave setup when a repo is not configured for it remains a separate compatibility
 gap in the current provisioner, noted during the discussion.
+
+### 2026-09-23 — fresh-slot smoke-test repairs (#315)
+
+Fixed two startup handshake defects exposed by pair:2: a fresh reservation was
+incorrectly validated as already established, and a plain fresh launch omitted
+the nonce Couch awaited. Real claim/launcher/readiness regression tests, full
+launcher/core/CLI suites and targeted race tests pass. #315 boundary review SHIP;
+local binaries rebuilt. The failed empty session was stopped with operator
+approval; restart Couch and retry fresh-slot for final live confirmation.

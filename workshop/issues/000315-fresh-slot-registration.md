@@ -1,13 +1,14 @@
 ---
 id: 000315
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T20:26:43-07:00
-flow: {kind: quick, provenance: inferred, spec: "4203fd59", done: "cc5e4c9e"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 0.48
 ---
 
 # Allow fresh slot launches to establish their reserved conversation
@@ -36,6 +37,8 @@ Fresh Couch registration accepts an exact owned reserved or established claim, e
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — New-claim and missing-nonce regressions both failed before fixes and passed after. Launcher suite 19.127s; targeted launcher/core race suites 1.686s/15.935s; make pair bin/couch and diff check passed. Real claim files and readiness reader exercised. First full core suite passed 237.467s; final core/CLI rerun underway. Upstream bootstrap gateway aff72f82 unchanged by this task.; review verdict: SHIP
+- 2026-09-23: flow upgraded quick → full — 207 added lines in code files (limit 100)
 
 Read-only diagnosis plus isolated real-binary probe reproduced: existing Couch thread registration does not match requested established address. Live tag couch-d41b8dc708afd578 has a reserved claim and exited helper. Original setup error is separate.
 
@@ -60,3 +63,7 @@ Claim registration succeeded and Claude started, but Couch timed out because its
 ### 2026-09-23 — full handshake fix
 
 Initial full Couch core suite passed (237.467s), but live retry exposed the missing nonce transport. New sender and launcher tests both failed before the nonce change, then passed through profile decoding and the real readiness reader. Added nonce/Orientation disagreement and non-fresh rejection checks. Both binaries rebuilt. Running Couch must restart for the sender change. Current live Claude session remains untouched pending operator recovery choice.
+
+### 2026-09-23 — final verification and recovery
+
+Final suites passed: launcher 19.127s, couchcore 353.928s, couchcmd 46.399s; targeted race launcher 1.686s and core 15.935s. Boundary review SHIP, no findings. Operator authorized stopping the unused failed-start session: exact index mapped tag couch-9860e667eaa561bb to 📁pair-couch-2; zellij kill-session succeeded and server/wrapper/editor/Claude PIDs were all absent afterward. Couch restart and fresh-slot live retry remain operator smoke steps.
