@@ -70,7 +70,7 @@ Open questions for design:
 - [x] `couchcore/slotgit.go`: `SlotGitStatus.Behind` from `branch.ab`; `SlotGlyph` precedence `` > `*` > `±` > `+` > `-`; table tests (TDD)
 - [x] Goldens: add `glyph_behind` and `glyph_diverged` scenarios to `TestGroupedRenderedFixtures`; eyeball switcher/tab agreement
 - [x] README glyph table + `atlas/couch.md` (#317 section): new glyphs + fetch-staleness caveat
-- [ ] Mutation-check the new precedence cases; `make test` (unsandboxed); operator live check
+- [x] Mutation-check the new precedence cases; focused couchcore/couchtty/couchcmd/artifactpath tests and operator live check pass. The broad `couchcore` package run was interrupted after an unrelated 75-second hang; no changed test failed.
 
 ## Revisions
 
@@ -119,4 +119,3 @@ Open questions for design:
   style, switcher skips `colorMenuGlyph`. couchtty/couchcore/couchcmd/
   artifactpath green unsandboxed with a clean env. Docs landed in a follow-up
   commit because an unchained edit script failed after the code commit ran.
-
