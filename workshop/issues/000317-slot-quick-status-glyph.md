@@ -76,7 +76,6 @@ Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
 - [x] One derivation: `PresentThreads(rows, MenuState.SlotGit)` sets `Glyph`; switcher + tab bar render it; glyph goldens (four states + narrow)
 - [x] Background refresh: single-flight `RefreshSchedule` owner on Console.Run (10s ticker + switcher open + switch + inventory landed); stateful fake probe proves no render blocking, failure keeps last value, shutdown joins
 - [x] Atlas/README and build verified; operator live smoke passed
-- [ ] Close and publish
 
 ## Revisions
 
