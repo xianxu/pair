@@ -24,6 +24,12 @@ to the global namespace.
 
 ### Durable numbered slots (#306)
 
+The thread action menu's **Add slot** entry (#313) opens the existing start form
+with the exact primary repository path prefilled and agent focus. `menuRepositoryRoot`
+uses the validated slot primary root or scope-matched ordinary root; unknown
+roots do not offer the shortcut. The same StartCreate preview/fingerprint and
+repository admission checks apply as when entering a path manually.
+
 Directory/Git identity supplies the durable slot; native scope/tag identifies its
 current conversation. Slot rows stay selectable when current metadata is missing
 or damaged. Explicit fresh conversation replaces the current reference and retains
@@ -1951,3 +1957,15 @@ reported rather than hidden behind a raw-output scanner's belief. These are loca
 state and write-result observations, not terminal queries or proof of pixels.
 The existing opt-in 0600 append sink closes at Console teardown and records no
 child body or keystrokes. The operator removes the temporary trace after diagnosis.
+
+### Fresh slot conversation launch (#315)
+
+`StartFreshSlot` allocates a new conversation address and uses the same launch
+profile, Pair registration and failure cleanup as ordinary creation. It validates
+saved arguments before claiming an address or replacing the current record.
+History and preferences stay with the slot; existing live-owner checks still
+apply. Same-address agent switching and continuation keep their existing flows.
+
+`TestSpawnComposesProductionPairRegistrationBoundary` runs ordinary and fresh-slot
+creation through the real Pair launcher and claim files, with the special fresh
+readiness observer unset. The slot needs no additional launch protocol.

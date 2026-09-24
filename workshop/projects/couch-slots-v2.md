@@ -391,6 +391,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
 - [x] Persist independent workspace preferences [pair#308]
+- [ ] Refresh private dependencies before slot issue claims [ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
 Sequence: workspace identity comes first. Dependency setup, concurrent workflow
@@ -939,3 +940,44 @@ Console provisioning no longer streams raw setup output over the UI. CLI progres
 and bounded failure diagnostics remain available. Couch was rebuilt; the running
 operator session needs a restart to load the fix. Live retest remains operator
 acceptance evidence, separate from the passing automated regression.
+
+### 2026-09-23 — Add slot from an existing thread
+
+Operator smoke testing found retyping `../pair` cumbersome. [pair#313](../issues/000313-couch-add-slot-action.md)
+adds an Add slot action on known repository rows, opening the existing launch
+form with the exact primary path and agent focus. Creation/admission and defaults
+reuse the existing flow. Ordinary Git repos should share this UX; skipping
+Weave setup when a repo is not configured for it remains a separate compatibility
+gap in the current provisioner, noted during the discussion.
+
+### 2026-09-23 — fresh-slot smoke-test repairs (#315)
+
+Fixed two startup handshake defects exposed by pair:2: a fresh reservation was
+incorrectly validated as already established, and a plain fresh launch omitted
+the nonce Couch awaited. Real claim/launcher/readiness regression tests, full
+launcher/core/CLI suites and targeted race tests pass. #315 boundary review SHIP;
+local binaries rebuilt. The failed empty session was stopped with operator
+approval; restart Couch and retry fresh-slot for final live confirmation.
+
+### 2026-09-23 — simplify fresh-slot launch (#315 revision)
+
+The operator requested fewer states and edge-case combinations. Supersedes the
+preceding handshake extensions: a fresh slot's new conversation ID now uses
+ordinary Pair creation/registration/cleanup. Removed the additional registration
+operation and nonce transport. Only StartFreshSlot routing and early restoration
+argument validation differ in production from the pre-fix code. The shared
+ordinary/fresh-slot launcher integration test passes; final checks follow.
+
+### 2026-09-23 — refresh private dependencies before claiming an issue
+
+Reason: numbered environments hide their private dependency clones behind the
+host thread, making stale dependencies easy to overlook. Delta: added
+[ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
+to the breakdown. SDLC claim preparation in :N refreshes declared clean private
+dependencies by fetch/fast-forward, then runs Weave compilation when needed,
+before completing the reservation. Unsafe Git state or setup failure stops with
+preserved work and actionable recovery; ordinary retries must converge. :0 peers
+remain operator-managed and refreshing the host branch remains explicit. This
+supersedes dependency preservation at this specific issue-start checkpoint;
+ordinary setup, resume and landing keep their existing preservation contract.
+No additional Couch state, dependency inventory or retry mode is requested.

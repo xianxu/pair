@@ -283,6 +283,9 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 	if err != nil {
 		return StartResult{}, err
 	}
+	if err := launcher.ValidateFreshAgentArgs(profile.Profile.Agent, profile.Profile.Argv); err != nil {
+		return StartResult{}, err
+	}
 	owner, err := c.Proc.Current()
 	if err != nil {
 		return StartResult{}, err
@@ -327,7 +330,7 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 		if err := ctx.Err(); err != nil {
 			return StartResult{}, errors.Join(err, claim.Release())
 		}
-		raw, err := launcher.BuildCouchFreshLaunchProfile(string(record.Address.Tag), profile.Profile.Agent, profile.Profile.Argv, string(profile.AgentSource), string(profile.ArgvSource))
+		raw, err := launcher.BuildCouchLaunchProfile(string(record.Address.Tag), profile.Profile.Agent, profile.Profile.Argv, string(profile.AgentSource), string(profile.ArgvSource))
 		if err != nil {
 			return StartResult{}, errors.Join(err, claim.Release())
 		}
@@ -341,7 +344,7 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 		if err != nil {
 			return StartResult{}, errors.Join(err, c.rollbackTrackedStart(record, nonce))
 		}
-		actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: slot.WorktreeRoot, Stack: profile.Profile.Agent, ExtraArgs: cloneArgv(profile.Profile.Argv)}, StartedAt: c.Clock.Now(), ProfileRaw: raw, Fresh: true, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault})
+		actor, handle, err := c.launchTrackedThread(trackedThreadLaunch{Context: ctx, Thread: record, Nonce: nonce, Args: StartArgs{Worktree: Worktree(slot.WorktreeRoot), Cwd: slot.WorktreeRoot, Stack: profile.Profile.Agent, ExtraArgs: cloneArgv(profile.Profile.Argv)}, StartedAt: c.Clock.Now(), ProfileRaw: raw, UseRepoDefault: profile.ArgvSource == ArgvSourceRepoDefault})
 		return StartResult{Record: actor, Handle: handle}, err
 	}
 	return StartResult{}, errors.New("fresh slot exhausted native address collision attempts")

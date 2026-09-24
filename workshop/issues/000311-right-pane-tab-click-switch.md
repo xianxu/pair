@@ -7,6 +7,7 @@ created: 2026-09-23
 updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T13:07:35-07:00
+flow: {kind: quick, provenance: inferred, spec: "73a4f0a4", done: "de0c83b9"}
 ---
 
 # Click right-pane tab to switch tabs
