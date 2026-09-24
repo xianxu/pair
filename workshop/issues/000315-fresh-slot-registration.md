@@ -19,7 +19,18 @@ pair:2 fresh-slot times out because Pair rejects the newly reserved conversation
 
 ## Spec
 
-Fresh Couch registration accepts an exact owned reserved or established claim, establishing only reserved claims. Resume keeps its existing read-only established-only validation. Missing, malformed and mismatched claims are refused without adoption. Route the fresh launcher through this explicit operation and test the real filesystem boundary behind its runtime seam (ARCH-PURPOSE, ARCH-MOCK).
+StartFreshSlot allocates a new conversation ID. After resolving saved preferences,
+validate fresh arguments before any claim or metadata replacement. Build the
+ordinary Couch launch profile and call launchTrackedThread without Fresh or
+Resume. Pair uses its existing EnsureThreadAddress reserved-to-established
+transition and Couch's awaitThreadRegistration, as ordinary creation does.
+
+Remove the superseded #315 RegisterFreshCouchThread runtime method, LaunchNonce
+fields/validation/transport, and their dedicated tests. Restore pre-#315 same-ID
+replacement behavior; switch-agent and checkpoint flows retain their existing
+orientation/readiness protocol. Keep slot live-owner refusal, atomic replacement,
+archival, preferences and directories. This introduces no new lifecycle states,
+operations or durable artifacts (ARCH-DRY/PURPOSE/FUNERAL).
 
 ## Done when
 
@@ -30,9 +41,11 @@ Fresh Couch registration accepts an exact owned reserved or established claim, e
 
 ## Plan
 
-- [ ] Extend the ordinary-launch integration test to reproduce fresh-slot dependence on special registration.
-- [ ] Route fresh slot through ordinary new-conversation launch; remove the superseded handshake additions and retain early argument validation.
-- [ ] Verify composed launch, existing lifecycle regressions, suites and build; update docs and publish.
+- [ ] Parameterize TestSpawnComposesProductionPairRegistrationBoundary in couch_test.go for ordinary and fresh-slot starts. Run real LaunchNative and claim storage; leave FreshRegistration nil and assert neither FreshRequired nor ResumeRequired in the emitted profile. Verify reserved-to-established promotion and final saved launch profile.
+- [ ] In slotrecovery.go StartFreshSlot call ValidateFreshAgentArgs immediately after slotLaunchProfile, before claims/current replacement; use BuildCouchLaunchProfile and omit Fresh:true. Keep TestSlotFreshInvalidPreferencePreservesCurrent and live/unresolved-owner/concurrent-mutation tests as guards.
+- [ ] Restore #315-only edits in launcher/runtime.go, osruntime.go, thread_claim.go, args.go, launch_args_policy.go, createflow.go and couchcore/launch_existing.go to their pre-fix contracts. Remove new runtime test methods, fresh_slot_claim_test.go, slot_fresh_nonce_test.go and added nonce tests; the composed test now guards the actual slot path.
+- [ ] Run the composed test, slot recovery/preference tests, launcher suite and affected race tests; build pair and couch and inspect diff. Retain existing same-ID fresh/resume/continuation tests without weakening their assertions.
+- [ ] Rewrite atlas/couch.md's #315 section to document ordinary new-ID launch; scan production/docs for retired RegisterFreshCouchThread/LaunchNonce/launch_nonce symbols. Append project scope revision and final test evidence, close, publish; operator restarts Couch for a live fresh-slot trial.
 
 ## Log
 
@@ -79,3 +92,11 @@ same-ID replacement protocol. Retain slot directory ownership, atomic current
 replacement/history and saved preferences. ARCH-DRY/PURPOSE: reuse the existing
 new-conversation lifecycle instead of expanding the same-ID replacement state
 space. Reuse the production launcher integration harness for both entry points.
+
+### 2026-09-23 — plan review reconciliation (PQ-1/PQ-2/PQ-3)
+
+Updated active Spec and Plan to the approved simplification; earlier handshake
+spec remains preserved by the preceding revision entries and Git history.
+Named production functions, test guards, deletion targets and atlas/project
+updates explicitly. The normal-versus-slot composed test fails on the old
+FreshRequired profile, confirming it detects the wrong path before implementation.
