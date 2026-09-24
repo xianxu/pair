@@ -21,6 +21,20 @@ rounds:
           round: 1
       recipe: small-diff-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-23T23:55:05-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: '`TestPresentationActiveStripClickHasNoSelectionEffects` verifies active clicks cause no repaint or pane retitle; `clickStrip` rejects the active index before selection.'
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: README.md now documents clickable labels, shell-tab reporting, active/separator/empty-space behavior, and child routing.
+          round: 2
+      recipe: small-diff-review
+      blocked: false
 ---
 
 # Gate ledger — pair#311 (boundary-review)
@@ -37,7 +51,13 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Important] `user-facing-behavior-docs` README does not document clickable right-terminal tabs
   The Layout 3 README text describes the tab strip and keyboard shortcuts (`README.md:13-28, 127-133`) but not that visible chips are clickable, including shell-tab mouse behavior. Add the user-facing interaction and pass-through/empty-space behavior.
 
+## Round 2 — 2026-09-23T23:55:05-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — `TestPresentationActiveStripClickHasNoSelectionEffects` verifies active clicks cause no repaint or pane retitle; `clickStrip` rejects the active index before selection.
+- BR-2 — addressed — README.md now documents clickable labels, shell-tab reporting, active/separator/empty-space behavior, and child routing.
+
 ## Open findings
 
-- **BR-1** [Critical] `active-click-must-be-noop` Active-tab clicks still perform a full selection
-- **BR-2** [Important] `user-facing-behavior-docs` README does not document clickable right-terminal tabs
+(none — every finding has been disposed)

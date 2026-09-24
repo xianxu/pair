@@ -76,3 +76,78 @@ None.
 7. Plan revision recommendations
 
 None required; the plan already states that active-tab clicks must be no-ops.
+
+---
+
+## Re-review — 2026-09-23T23:55:05-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 311 — Click right-pane tab to switch tabs |
+| repo | pair |
+| issue file | workshop/issues/000311-right-pane-tab-click-switch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 92df14c8c96dcbbac4f36080f4569710fba81800..8aaa68e36894479f047a127e20d97222c3e6135f |
+| command | sdlc close --issue 311 |
+| reviewer | codex |
+| timestamp | 2026-09-23T23:55:05-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The implementation satisfies the issue and both prior findings are addressed. Focused tests and race tests pass; no new correctness or architectural findings were identified.
+
+1. Strengths
+
+- Renderer-emitted display-column spans drive hit testing.
+- Active-tab clicks are consumed without selection or retitling.
+- Shared `switchTab` avoids duplicated switching logic.
+- AnyMotion parent policy preserves plain-shell clicks while retaining child tracking.
+- README and atlas document the new behavior.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+None.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+- Focused packages pass.
+- `go test -race ./cmd/internal/termcmd` passes.
+- `git diff --check` passes.
+- Repository-wide tests were interrupted after a long-running `couchcore` package; no failure was observed in the changed packages.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      `TestPresentationActiveStripClickHasNoSelectionEffects` verifies active clicks cause no repaint or pane retitle; `clickStrip` rejects the active index before selection.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md now documents clickable labels, shell-tab reporting, active/separator/empty-space behavior, and child routing.
+```
+
+6. Architectural notes
+
+- ARCH-DRY: pass — shared `AnyMotion`, `switchTab`, and renderer-owned spans.
+- ARCH-PURE: pass — `ColumnToTab` is pure; routing and presentation remain boundary concerns.
+- ARCH-PURPOSE: pass — visible inactive tabs, shell tabs, clipping, wide glyphs, and no-op cases are covered.
+
+7. Plan revision recommendations
+
+Add a `## Revisions` entry clarifying that the parent policy is `terminal.AnyMotion` (renamed from `CouchAnyMotion`) and that the shared selection path applies only to inactive-tab clicks; active clicks are intentionally consumed no-ops.

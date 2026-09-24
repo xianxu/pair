@@ -1,6 +1,6 @@
 ---
 id: 000311
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
@@ -8,6 +8,7 @@ updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T13:07:35-07:00
 flow: {kind: quick, provenance: inferred, spec: "73a4f0a4", done: "de0c83b9"}
+actual_hours: 0.32
 ---
 
 # Click right-pane tab to switch tabs
@@ -79,6 +80,7 @@ consumers):
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — Operator smoke passed; review BR-1 regression failed before fix and passes after active-click guard. termcmd, terminal, couchtty and terminalqualify pass; termcmd race passes 2.481s. BR-2 README updated. Earlier full-suite evidence and environment caveat recorded in issue.; review verdict: SHIP
 
 Filed from the operator request to switch right-pane tabs by clicking their
 visible tab labels. Existing context: `#199` owns the strip, historical `#200`
@@ -168,3 +170,11 @@ parent output and runtime operations; it failed on the original retitling and
 passes with the fix. BR-2: README documents clickable labels, shell-tab reporting,
 active/empty/separator behavior and existing child routing. termcmd, terminal,
 couchtty and terminalqualify pass; termcmd race passes (2.481s).
+
+### 2026-09-23 — final review clarification
+
+The shared parent policy is named `terminal.AnyMotion`, renamed from
+`CouchAnyMotion` now that both consumers use it. Only inactive-chip clicks enter
+the shared selection path; active-chip clicks are consumed without selection or
+retitling. Final review returned SHIP with both findings addressed. `make pair`
+also passed after the fix.
