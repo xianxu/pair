@@ -429,7 +429,20 @@ Tabs use the same group order: `pair :1 :2`. If the primary has no tab, the
 first slot shows the repo name: `pair:1 :2`. Parked slots stay in the switcher;
 tabs show attached threads and pending reattachments. Narrow terminals clip the
 right end of the bar, keeping each visible slot after its repo context. Custom
-names remain searchable and appear beside grouped workspace rows. Dependency
+names remain searchable and appear beside grouped workspace rows.
+
+Each checkout in a slot group shows a quick-status glyph after its name, in both
+the switcher and the tabs (`pair:1`, `:2*`):
+
+| glyph | meaning |
+|---|---|
+| `` | not on its resting branch (`main` / `main-slotN`), so it has issue work |
+| `*` | on its resting branch, working tree dirty |
+| `+` | on its resting branch and clean, with commits not on its upstream |
+
+Couch refreshes these in the background about every 10 seconds, and whenever
+you open the switcher or change tabs. A glyph can lag briefly, but it never
+slows a keypress. The branch glyph needs a Nerd Font. Dependency
 clones inside a slot do not get entries of their own.
 
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`

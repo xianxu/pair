@@ -14,7 +14,7 @@ import (
 )
 
 func TestGroupedRenderedFixtures(t *testing.T) {
-	for _, scenario := range []string{"normal", "absent_primary", "parked", "filtered", "narrow"} {
+	for _, scenario := range []string{"normal", "absent_primary", "parked", "filtered", "narrow", "glyph_branch", "glyph_dirty", "glyph_ahead", "glyph_clean", "glyph_narrow"} {
 		t.Run(scenario, func(t *testing.T) {
 			primary, one, two := groupedRow("/workspace/pair", 0, "primary"), groupedRow("/workspace/pair", 1, "one"), groupedRow("/workspace/pair", 2, "two")
 			rows := []couchcore.ActionableThreadSummary{two, primary, one}
@@ -30,8 +30,11 @@ func TestGroupedRenderedFixtures(t *testing.T) {
 			}
 			state.Attention = map[couchcore.ThreadAddress][]AttentionMessage{one.Address: {{Sequence: 1, Text: "review ready"}}}
 			width := 100
-			if scenario == "narrow" {
+			if scenario == "narrow" || scenario == "glyph_narrow" {
 				width = 40
+			}
+			if glyphs, ok := groupedGlyphScenarios(primary, one, two)[scenario]; ok {
+				state.SlotGit = glyphs
 			}
 			con := New(hostty.NewFakeHost(ptychild.Size{Rows: 16, Cols: uint16(width)}), strings.NewReader(""))
 			con.menu = state
@@ -93,5 +96,28 @@ func TestGroupedStatusPlaceholderKeepsGroupPosition(t *testing.T) {
 	after := con.statusModelLocked()
 	if len(after.Actors) != 3 || after.Actors[1].Thread != one.Address || after.Actors[1].Placeholder {
 		t.Fatalf("attached order: %+v", after.Actors)
+	}
+}
+
+// groupedGlyphScenarios pins each slot quick-status state (pair#317) in both the
+// switcher and the tab bar. Every scenario observes all three checkouts so a
+// glyph that lands on the wrong row cannot hide behind a missing observation.
+func groupedGlyphScenarios(primary, one, two couchcore.ActionableThreadSummary) map[string]map[string]couchcore.SlotGitStatus {
+	clean := func(branch string) couchcore.SlotGitStatus {
+		return couchcore.SlotGitStatus{Branch: branch, HasUpstream: true}
+	}
+	with := func(slot1 couchcore.SlotGitStatus) map[string]couchcore.SlotGitStatus {
+		return map[string]couchcore.SlotGitStatus{primary.StartingPath: clean("main"), one.StartingPath: slot1, two.StartingPath: clean("main-slot2")}
+	}
+	return map[string]map[string]couchcore.SlotGitStatus{
+		"glyph_branch": with(couchcore.SlotGitStatus{Branch: "000317-slot-quick-status-glyph", Dirty: true, HasUpstream: true}),
+		"glyph_dirty":  with(couchcore.SlotGitStatus{Branch: "main-slot1", Dirty: true, HasUpstream: true, Ahead: 2}),
+		"glyph_ahead":  with(couchcore.SlotGitStatus{Branch: "main-slot1", HasUpstream: true, Ahead: 2}),
+		"glyph_clean":  with(clean("main-slot1")),
+		"glyph_narrow": {
+			primary.StartingPath: {Branch: "main", HasUpstream: true, Ahead: 1},
+			one.StartingPath:     {Detached: true},
+			two.StartingPath:     {Branch: "main-slot2", Dirty: true},
+		},
 	}
 }

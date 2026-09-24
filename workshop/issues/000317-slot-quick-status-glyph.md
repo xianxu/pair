@@ -1,13 +1,14 @@
 ---
 id: 000317
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-23
-updated: 2026-09-23
+updated: 2026-09-24
 estimate_hours:
 started: 2026-09-23T23:22:18-07:00
-flow: {kind: quick, provenance: inferred, spec: "11433814", done: "fa95a3c0"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 1.91
 ---
 
 # Slot quick-status glyph in Couch tab bar and switcher
@@ -25,7 +26,7 @@ Show one quick-status glyph per slot, taking the first rule that matches:
 
 | glyph | meaning |
 |---|---|
-| `` (U+E0A0, Powerline branch) | slot is **not** on its resting branch, so it has issue work |
+| `` (U+E0A0, Powerline branch) | slot is **not** on its resting branch, so it has issue work |
 | `*` | on its resting branch, but the working tree is dirty |
 | `+` | on its resting branch and clean, with commits not on origin/main |
 | none | on its resting branch, clean, nothing unpublished |
@@ -55,10 +56,11 @@ Open questions for design:
 - Is a Nerd Font glyph acceptable everywhere Couch runs, or is an ASCII
   fallback needed (e.g. `^`)? The operator's terminal renders it today.
 - "Not on origin/main": count only the resting branch, or any local branch?
-  Proposed: resting branch only, since an off-resting slot already shows ``.
+  Proposed: resting branch only, since an off-resting slot already shows ``.
 
 ## Done when
 
+- Primary :0 and numbered slots use the shared Nerd Font branch glyph; on the resting branch, ahead is measured against its configured upstream (no upstream means no ahead glyph). One bounded porcelain-v2 status read supplies the facts.
 - The switcher and tab bar show the glyph by the precedence above, from one
   derivation; golden testdata covers each of the four states and a narrow
   layout.
@@ -71,10 +73,10 @@ Open questions for design:
 
 Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
 
-- [ ] Pure core: `SlotGitStatus`, `ParseSlotGitStatus`, `SlotGlyph`, `RestingBranch` (couchcore/slotgit.go), table-tested; `validate()` uses `RestingBranch`
-- [ ] One derivation: `PresentThreads(rows, MenuState.SlotGit)` sets `Glyph`; switcher + tab bar render it; glyph goldens (four states + narrow)
-- [ ] Background refresh: single-flight `RefreshSchedule` owner on Console.Run (10s ticker + switcher open + switch + inventory landed); stateful fake probe proves no render blocking, failure keeps last value, shutdown joins
-- [ ] Atlas/README, `make install`, operator live smoke, close
+- [x] Pure core: `SlotGitStatus`, `ParseSlotGitStatus`, `SlotGlyph`, `RestingBranch` (couchcore/slotgit.go), table-tested; `validate()` uses `RestingBranch`
+- [x] One derivation: `PresentThreads(rows, MenuState.SlotGit)` sets `Glyph`; switcher + tab bar render it; glyph goldens (four states + narrow)
+- [x] Background refresh: single-flight `RefreshSchedule` owner on Console.Run (10s ticker + switcher open + switch + inventory landed); stateful fake probe proves no render blocking, failure keeps last value, shutdown joins
+- [x] Atlas/README and build verified; operator live smoke passed
 
 ## Revisions
 
@@ -95,3 +97,58 @@ Durable plan: `workshop/plans/000317-slot-quick-status-glyph-plan.md`.
 - Filed from the #316 session. Related: pair#307 (grouped slot display),
   #197/#236 (single-derivation labels), ariadne#248 ("move this branch to :N"
   needs a quick view of which slots are free), couch-slots-v2 project.
+
+### 2026-09-24
+- 2026-09-24: closed — BR-1 parser fix verified by regression/race tests and explicitly accepted in previous reviewer prose; please include structured findings dispose for BR-1. Previous review only remaining finding (empty glyph legends) corrected in README/atlas/issue. No production changes since passing parser tests. Full make -k test, prior reviewer full Go, build and operator smoke passed.; review verdict: SHIP
+- 2026-09-24: flow upgraded quick → full — 350 added lines in code files (limit 100); an earlier round of this close already ran the full review
+
+- Implemented per plan. Triggers deviate slightly (logged in atlas): the switcher
+  opening reaches the slot-git pass through the landed inventory
+  (`finishMenuRefresh` → `requestSlotGit`), not a separate `onHotkey` hook; the
+  switch trigger lives in `switchTo`. No probe installed ⇒ no pass (else empty
+  passes polluted `COUCH_TRACE`, caught by `TestTheConsoleTracesStartup…`).
+- Probe set reads `menuRows(c.menu)`, per the inventory-lookup guard test.
+- Mutation checks (each restored byte-identically, `cmp`-verified): tab-bar
+  `label += a.Glyph` removed → glyph fixtures fail; `:0` glyph branch removed →
+  fixture + scope test fail; probe run under `c.mu` → render test hangs (timeout
+  FAIL); failed probe overwrites → reducer + console failure tests fail; each
+  of inventory / switch / ticker triggers removed → its trigger test fails.
+- Process slip: a mutation was reverted with `git checkout <file>`, which also
+  discarded uncommitted edits; restored from the pre-mutation copy. Lesson added.
+
+
+### 2026-09-24 — landing verification
+
+Operator confirmed glyphs appeared in live smoke testing and requested landing.
+Published origin/main merged cleanly before verification. Focused glyph/parser/
+refresh race tests pass for couchtty and couchcore; make build passes. Initial
+headless checks failed without diagnostic output; after removing inherited
+PAIR_/COUCH_ environment variables, the continuing make -k test run passed all
+shell/editor targets and reached the full Go suite. Final result follows.
+
+### 2026-09-24 — acceptance wording aligned
+
+Reason: the implemented and previously approved data-source revision should be
+explicit in Done when. Delta: record :0 parity, the configured-upstream rule,
+the Nerd Font decision and the single porcelain-v2 read. No scope change.
+
+Final verification: clean-environment `make -k test` exited 0, including the full Go suite and shell/editor checks; `make build` and focused couchtty/couchcore race tests exited 0.
+
+### 2026-09-24 — review parser correction
+
+BR-1: reject empty/duplicate branch.head and upstream headers, duplicate branch.ab,
+trailing tokens, signed or malformed counts and overflow. ParseUint validates the
+complete decimal fields. Added regression cases failed before the fix and now pass.
+Focused couchcore/couchtty glyph tests pass under race (3.787s/4.715s); make build
+passes. The preceding full make -k test and independent reviewer full Go suite
+passed. ARCH-SECURE: malformed observations remain probe failures, retaining the
+last display value through the existing reducer. No new lifecycle state.
+
+### 2026-09-24 — final documentation correction
+
+Second review confirmed BR-1 is addressed in prose, but omitted the structured
+findings disposition required by SDLC. Its only new finding is corrected: the
+README, atlas and issue legend now show the literal branch glyph `` (U+E0A0).
+No production code changed after the verified parser correction.
+
+Final close review: SHIP, BR-1 disposed; minor generated-review trailing whitespace removed before publication.

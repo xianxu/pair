@@ -191,6 +191,9 @@ representative evidence, not an exhaustive index.
 - A fast path is pinned by its answer, not by the work it skipped. A rate-limited
   count test may only be testing the limiter; an aliasing test must force an
   in-place overwrite. (#206)
+- Revert a mutation from a byte copy taken just before it (`cp` + `cmp`), never
+  `git checkout <file>`: that restores HEAD and silently drops the uncommitted
+  work under test. (#317)
 - When a fix closes a class, enumerate the evasions and mutation-test the guard.
   A carve-out with no instances is not a useful rule, and a check that fires on
   every run becomes background noise. (#209, #221)
@@ -228,3 +231,5 @@ proof; record the surprising case so the next change starts from evidence.
 - When reviewing an integrated branch, distinguish pre-existing published changes from the PR delta against fetched remote main. Mark earlier review windows as historical when a later review supersedes them.
 
 - A selection no-op must avoid selection side effects, not merely retain the same active index. Test parent output and external operations for already-selected targets.
+
+- For external numeric fields, parse the entire token and reject duplicates or missing values; formatted scanning can silently accept trailing text and extra signs.

@@ -370,7 +370,7 @@ func replaceMenuInventory(state MenuState, inventory []couchcore.ActionableThrea
 // orderedMenuInventory derives order when a snapshot enters the reducer. Viewed
 // lookups can then overlay pass state without sorting again on each keystroke.
 func orderedMenuInventory(inventory []couchcore.ActionableThreadSummary) []couchcore.ActionableThreadSummary {
-	entries := PresentThreads(inventory)
+	entries := PresentThreads(inventory, nil)
 	rows := make([]couchcore.ActionableThreadSummary, len(entries))
 	for i, entry := range entries {
 		rows[i] = entry.Row

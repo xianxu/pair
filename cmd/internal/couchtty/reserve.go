@@ -25,6 +25,8 @@ type StatusActor struct {
 	GroupKey   string
 	SlotNumber int
 	Label      string
+	// Glyph is the slot quick-status glyph PresentThreads derived (pair#317).
+	Glyph string
 	// Thread is who a click on this chip lands on. The THREAD address, not the
 	// pane handle or the actor id: the declared `switch` operation is addressed
 	// by thread, so carrying anything else here would mean translating at the
@@ -135,6 +137,7 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		if a.GroupKey != "" && a.GroupKey == previousGroup && a.SlotNumber > 0 {
 			label = ":" + strconv.Itoa(a.SlotNumber)
 		}
+		label += a.Glyph
 		previousGroup = a.GroupKey
 		if a.Placeholder && a.Loading {
 			label += " " + spinnerGlyph(m.Spinner)

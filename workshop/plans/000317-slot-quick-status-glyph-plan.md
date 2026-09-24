@@ -1,6 +1,6 @@
 # Slot quick-status glyph Implementation Plan
 
-> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Show one quick-status glyph per slot (`` off-resting, `*` dirty, `+` unpublished, none) in the Couch switcher rows and tab bar, from one derivation, refreshed off the render path.
 
@@ -70,9 +70,9 @@
 
 **Files:** Create `cmd/internal/couchcore/slotgit.go` and `slotgit_test.go`; Modify `cmd/internal/couchcore/workspace_identity.go` (validate: `"main"` / `"main-slot"+n` → `RestingBranch`).
 
-- [ ] Write table tests: `TestSlotGlyphPrecedence` covers detached, off-resting+dirty (branch wins), resting+dirty+ahead (`*` wins), resting+clean+ahead, resting+clean+no-upstream+ahead=0, and resting clean → `""`. `TestParseSlotGitStatus` covers clean-with-upstream, `+3 -0`, no upstream, `(detached)`, each entry kind `1`/`2`/`u`/`?`, and missing `branch.head` plus malformed `branch.ab` as errors. `TestRestingBranch` covers 0 and 3. `TestProbeSlotGitRunsInDirWithNoOptionalLocks` uses `FakeGit` keyed on `{Dir, "--no-optional-locks status --porcelain=v2 --branch"}` and also checks that a cancelled ctx returns an error.
-- [ ] Run `go test ./cmd/internal/couchcore -run 'SlotGit|SlotGlyph|RestingBranch'` and expect a compile FAIL.
-- [ ] Implement `slotgit.go`:
+- [x] Write table tests: `TestSlotGlyphPrecedence` covers detached, off-resting+dirty (branch wins), resting+dirty+ahead (`*` wins), resting+clean+ahead, resting+clean+no-upstream+ahead=0, and resting clean → `""`. `TestParseSlotGitStatus` covers clean-with-upstream, `+3 -0`, no upstream, `(detached)`, each entry kind `1`/`2`/`u`/`?`, and missing `branch.head` plus malformed `branch.ab` as errors. `TestRestingBranch` covers 0 and 3. `TestProbeSlotGitRunsInDirWithNoOptionalLocks` uses `FakeGit` keyed on `{Dir, "--no-optional-locks status --porcelain=v2 --branch"}` and also checks that a cancelled ctx returns an error.
+- [x] Run `go test ./cmd/internal/couchcore -run 'SlotGit|SlotGlyph|RestingBranch'` and expect a compile FAIL.
+- [x] Implement `slotgit.go`:
 
 ```go
 package couchcore
@@ -156,43 +156,47 @@ func ParseSlotGitStatus(out string) (SlotGitStatus, error) {
 }
 ```
 
-- [ ] In `validate()`, replace the literals `"main"` (primary check) and `rest := "main-slot" + strconv.Itoa(n)` with `RestingBranch(0)` / `RestingBranch(n)`.
-- [ ] Run `go test ./cmd/internal/couchcore` and expect PASS (existing workspace-identity tests guard the validate refactor).
-- [ ] Commit `#317: couchcore: slot git status parse + glyph precedence`.
+- [x] In `validate()`, replace the literals `"main"` (primary check) and `rest := "main-slot" + strconv.Itoa(n)` with `RestingBranch(0)` / `RestingBranch(n)`.
+- [x] Run `go test ./cmd/internal/couchcore` and expect PASS (existing workspace-identity tests guard the validate refactor).
+- [x] Commit `#317: couchcore: slot git status parse + glyph precedence`.
 
 ### Task 2: one derivation, two views
 
 **Files:** Modify `couchtty/thread_presentation.go`, `couchtty/menu.go` (`MenuState.SlotGit`, `MenuEventSlotGit`, the reducer case, and `cloneMenuState` copying the map), `couchtty/menu_render.go`, `couchtty/reserve.go`, `couchtty/console_presentation.go`, `couchtty/menu_reattach.go` (`orderedMenuInventory` passes `nil`), and every test call of `PresentThreads`. Test: `couchtty/grouped_fixture_test.go`, `couchtty/thread_presentation_test.go`.
 
-- [ ] Extend `TestGroupedRenderedFixtures` with scenarios `glyph_branch`, `glyph_dirty`, `glyph_ahead`, `glyph_clean` and `glyph_narrow` (width 40). Each sets `state.SlotGit` so that `:0` (`/workspace/pair`, Branch `main`), `:1` and `:2` show the scenario's state on `:1`, and the others are distinct where it helps. Example for `glyph_branch`: `:1` Branch `000317-x`, `:2` Branch `main-slot2` Dirty, `:0` main clean ahead 2. Add a unit test in `thread_presentation_test.go`: a row with no map entry has `Glyph == ""`, an ordinary non-slot repo row gets no glyph even with a map entry at its path, and every ordinary row at the primary root of a slot group gets the `:0` glyph.
-- [ ] Run `go test ./cmd/internal/couchtty -run 'Grouped|PresentThreads'` and expect FAIL (compile error or missing fixtures).
-- [ ] Implement:
+- [x] Extend `TestGroupedRenderedFixtures` with scenarios `glyph_branch`, `glyph_dirty`, `glyph_ahead`, `glyph_clean` and `glyph_narrow` (width 40). Each sets `state.SlotGit` so that `:0` (`/workspace/pair`, Branch `main`), `:1` and `:2` show the scenario's state on `:1`, and the others are distinct where it helps. Example for `glyph_branch`: `:1` Branch `000317-x`, `:2` Branch `main-slot2` Dirty, `:0` main clean ahead 2. Add a unit test in `thread_presentation_test.go`: a row with no map entry has `Glyph == ""`, an ordinary non-slot repo row gets no glyph even with a map entry at its path, and every ordinary row at the primary root of a slot group gets the `:0` glyph.
+- [x] Run `go test ./cmd/internal/couchtty -run 'Grouped|PresentThreads'` and expect FAIL (compile error or missing fixtures).
+- [x] Implement:
   - `ThreadPresentation.Glyph string`. `PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]couchcore.SlotGitStatus)`: in the first loop, for a valid slot row, `if s, ok := git[p.Path]; ok { p.Glyph = couchcore.SlotGlyph(s, couchcore.RestingBranch(slot.Number)) }`. In the second loop, after `p.Path` is resolved for an ordinary row with `g.hasSlots && p.Path == g.root`, do the same with `RestingBranch(0)`.
   - `menuRender`: `entry.Label+entry.Glyph+"  "+detail`, and `PresentThreads(menuRows(state), state.SlotGit)`.
   - `StatusActor.Glyph string`. In `RenderStatusRow`, after the `:N` substitution, `label += a.Glyph` before the spinner and brackets. In `statusModelLocked`, pass `c.menu.SlotGit` and copy `entry.Glyph`. The glyph is plain text; its width is counted by `appendText` via `textwidth`.
   - `MenuEventSlotGit` carries `SlotGit map[string]couchcore.SlotGitStatus` and `SlotGitFailed map[string]bool`. The reducer applies the Integration-points failure semantics over the key set `SlotGit ∪ SlotGitFailed`: it keeps the previous value for a failed path and drops the rest.
-- [ ] Run `PAIR_UPDATE_GROUPED_FIXTURES=1 go test ./cmd/internal/couchtty -run TestGroupedRenderedFixtures`, then **read each new `testdata/slots_grouped_glyph_*.txt`** and confirm by eye that the switcher and tab bar carry the same glyph per slot and that the narrow layout clips sensibly. Confirm the existing five fixtures are byte-unchanged (`git diff --stat testdata/`).
-- [ ] Add a reducer test: prior `{a: dirty, b: clean, gone: x}`; the event has success `{a: clean}` and failed `{b}`; the result is `{a: clean, b: clean(prior)}`, `gone` is dropped, and a failed path with no prior entry stays absent.
-- [ ] Mutation check: delete the `label += a.Glyph` line and confirm a glyph fixture fails; restore. Delete the ordinary-row glyph branch and confirm the `:0` assertion fails; restore.
-- [ ] Run `go test ./cmd/internal/couchtty` and expect PASS. Commit `#317: couchtty: derive slot glyph once, render in switcher and tab bar`.
+- [x] Run `PAIR_UPDATE_GROUPED_FIXTURES=1 go test ./cmd/internal/couchtty -run TestGroupedRenderedFixtures`, then **read each new `testdata/slots_grouped_glyph_*.txt`** and confirm by eye that the switcher and tab bar carry the same glyph per slot and that the narrow layout clips sensibly. Confirm the existing five fixtures are byte-unchanged (`git diff --stat testdata/`).
+- [x] Add a reducer test: prior `{a: dirty, b: clean, gone: x}`; the event has success `{a: clean}` and failed `{b}`; the result is `{a: clean, b: clean(prior)}`, `gone` is dropped, and a failed path with no prior entry stays absent.
+- [x] Mutation check: delete the `label += a.Glyph` line and confirm a glyph fixture fails; restore. Delete the ordinary-row glyph branch and confirm the `:0` assertion fails; restore.
+- [x] Run `go test ./cmd/internal/couchtty` and expect PASS. Commit `#317: couchtty: derive slot glyph once, render in switcher and tab bar`.
 
 ### Task 3: background refresh owner + wiring
 
 **Files:** Create `couchtty/console_slotgit.go` and `couchtty/console_slotgit_test.go`; Modify `couchtty/console.go` (fields, channel init next to `refreshResults`, ticker + select cases in `Run`, and trigger calls in `onHotkey` and `onSwitch`), `couchtty/console_menu.go` (`finishMenuRefresh` → `c.requestSlotGit()`), and `couchcmd/run.go` (`wireResolver`: `console.SetSlotGitProbe(func(ctx context.Context, dir string) (couchcore.SlotGitStatus, error) { return couchcore.ProbeSlotGit(ctx, c.Git, dir) })`).
 
-- [ ] Write `console_slotgit_test.go` with the stateful `fakeSlotGitProbe` (scripted per dir, gate channel, call log, mutex) and a running console (follow the `Run` harness in `console_run_menu_test.go`) with the grouped inventory from `groupedRow`:
+- [x] Write `console_slotgit_test.go` with the stateful `fakeSlotGitProbe` (scripted per dir, gate channel, call log, mutex) and a running console (follow the `Run` harness in `console_run_menu_test.go`) with the grouped inventory from `groupedRow`:
   1. `TestSlotGitRenderNeverBlocksOnSlowProbe`: close the gate only after asserting that, while a probe is blocked (the fake reports it entered), `con.statusModelLocked()` under `c.mu` and `RenderMenu(con.menuSnapshot(), …)` both return within 100ms. Then release, and wait for the tab bar written to the fake host to contain `:1` + the glyph.
   2. `TestSlotGitFailureKeepsLastGlyph`: first pass succeeds (dirty `*`); second pass for the same dir returns an error; `c.menu.SlotGit[path]` is still dirty and no error text appears in the rendered status row.
   3. `TestSlotGitTriggers`: with a long ticker interval (make `slotGitInterval` a Console field set in the test), `onHotkey` and a switch each cause a new probe call, and overlapping requests while one pass runs collapse into one follow-up (reusing `RefreshSchedule`).
   4. `TestSlotGitStopsWithConsole`: stopping the console while a probe is gated returns (the probe ctx is cancelled and the worker joins); the fake records ctx cancellation.
   5. `TestSlotGitProbePaths` (pure): slot worktree roots + primary roots, deduplicated and sorted, invalid slot targets excluded.
-- [ ] Run and expect FAIL.
-- [ ] Implement `console_slotgit.go` (`SlotGitProbe` type, `SetSlotGitProbe`, `requestSlotGit`, `advanceSlotGit`, `finishSlotGit`, `slotGitProbePaths`), mirroring `advanceMenuRefresh`/`finishMenuRefresh`. With a nil probe, finish the generation immediately and do nothing. Trace `slotgit` passes via `c.traceEvent` with `ok=N failed=M`.
-- [ ] Mutation checks: (a) make `advanceSlotGit` call the probe synchronously under `c.mu` and confirm test 1 fails; (b) have the reducer overwrite failed paths with zero values and confirm test 2 fails; (c) remove the `onHotkey` trigger and confirm test 3 fails. Restore each.
-- [ ] `TMPDIR=<scratchpad> make test` must be fully green (memory: full make test before close). Commit `#317: couch: background slot git refresh`.
+- [x] Run and expect FAIL.
+- [x] Implement `console_slotgit.go` (`SlotGitProbe` type, `SetSlotGitProbe`, `requestSlotGit`, `advanceSlotGit`, `finishSlotGit`, `slotGitProbePaths`), mirroring `advanceMenuRefresh`/`finishMenuRefresh`. With a nil probe, finish the generation immediately and do nothing. Trace `slotgit` passes via `c.traceEvent` with `ok=N failed=M`.
+- [x] Mutation checks: (a) make `advanceSlotGit` call the probe synchronously under `c.mu` and confirm test 1 fails; (b) have the reducer overwrite failed paths with zero values and confirm test 2 fails; (c) remove the `onHotkey` trigger and confirm test 3 fails. Restore each.
+- [x] `TMPDIR=<scratchpad> make test` must be fully green (memory: full make test before close). Commit `#317: couch: background slot git refresh`.
 
 ### Task 4: docs + live check
 
-- [ ] `atlas/couch.md`: describe the slot glyph legend, the refresh owner and the cost envelope, and cross-link #317. Update the README's couch section if it describes the tab bar or switcher row format (grep `pair:1` / `tab bar`).
-- [ ] `make install`, then ask the operator to smoke test (memory: dogfood live). Move a branch into :1, dirty :2, and commit unpublished work on :0's `main`; the glyphs should update within ~10s or immediately on opening the switcher.
-- [ ] `sdlc close --issue 317 --verified '…'`.
+- [x] `atlas/couch.md`: describe the slot glyph legend, the refresh owner and the cost envelope, and cross-link #317. Update the README's couch section if it describes the tab bar or switcher row format (grep `pair:1` / `tab bar`).
+- [x] `make install`, then ask the operator to smoke test (memory: dogfood live). Move a branch into :1, dirty :2, and commit unpublished work on :0's `main`; the glyphs should update within ~10s or immediately on opening the switcher.
+- `sdlc close --issue 317 --verified '…'`.
+
+## Revisions
+
+- 2026-09-24: Implementation tasks verified and checked off. Final validation used make build and live operator smoke rather than repeating installation; full make -k test passed with inherited session variables removed. BR-1 tightens full-field parsing with failing-then-passing malformed-header regressions; the state and display design is unchanged. Close/publication is the remaining workflow action.

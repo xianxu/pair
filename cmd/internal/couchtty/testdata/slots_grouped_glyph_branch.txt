@@ -1,0 +1,8 @@
+threads
+
+▸ pair  /workspace/pair  live
+    pair:1  /workspace/worktree/pair-slot1/pair  live
+    review ready
+    pair:2  /workspace/worktree/pair-slot2/pair  live
+TAB BAR
+pair  [:1]  :2
