@@ -56,3 +56,7 @@ The branch carries prior Add slot work (#313). Bootstrap/CI gateway changes in t
 ### 2026-09-23 — live retry exposed second handshake mismatch
 
 Claim registration succeeded and Claude started, but Couch timed out because its transaction nonce was not sent in a plain fresh profile. Pair only reused Orientation.Attempt; without orientation it minted an unrelated nonce. Stop publication and extend this issue: carry an explicit LaunchNonce in trusted profile/LaunchArgs, inject for every Couch fresh launch, and require agreement with orientation when both exist. Ordinary/resume profiles reject an explicit fresh nonce. Preserve fallback for existing orientation-only profiles. Test sender/profile/launcher/real-ready reader, then rebuild both binaries. Existing live pair:2 should be recovered, not replaced just to test.
+
+### 2026-09-23 — full handshake fix
+
+Initial full Couch core suite passed (237.467s), but live retry exposed the missing nonce transport. New sender and launcher tests both failed before the nonce change, then passed through profile decoding and the real readiness reader. Added nonce/Orientation disagreement and non-fresh rejection checks. Both binaries rebuilt. Running Couch must restart for the sender change. Current live Claude session remains untouched pending operator recovery choice.

@@ -613,8 +613,8 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 
 	var defaultReady <-chan error
 	if opts.Args.FreshRequired {
-		nonce := ""
-		if opts.Args.Orientation != nil {
+		nonce := opts.Args.LaunchNonce
+		if nonce == "" && opts.Args.Orientation != nil {
 			nonce = opts.Args.Orientation.Attempt
 		}
 		if _, err := prepareLaunchReadinessWithNonce(rt, chosenTag, agent, session, nonce); err != nil {

@@ -73,23 +73,27 @@ func (c *Couch) launchTrackedThread(in trackedThreadLaunch) (ActorRecord, Handle
 	if in.Resume || in.Fresh {
 		env = append(env, "COUCH_THREAD_RESUME=1")
 	}
-	if in.Orientation != nil {
-		err := in.Orientation.Validate()
-		var raw []byte
-		if err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
-		}
+	if in.Fresh || in.Orientation != nil {
 		var profile launcher.TrustedLaunchProfile
 		if err := json.Unmarshal([]byte(in.ProfileRaw), &profile); err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
 		}
-		profile.Orientation = in.Orientation
-		raw, err = json.Marshal(profile)
+		if in.Fresh {
+			profile.LaunchNonce = in.Nonce
+		}
+		if in.Orientation != nil {
+			profile.Orientation = in.Orientation
+		}
+		if err := launcher.ValidateTrustedLaunchProfile(profile); err != nil {
+			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
+		}
+		raw, err := json.Marshal(profile)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, in.Nonce))
 		}
 		in.ProfileRaw = string(raw)
 	}
+
 	if !in.Warm {
 		env = append(env,
 			launcher.CouchLaunchProfileEnv+"="+strings.TrimSpace(in.ProfileRaw),

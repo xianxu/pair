@@ -8,6 +8,7 @@ import (
 
 // LaunchArgs is the pure parse result for the guarded pair-go launch prototype.
 type LaunchArgs struct {
+	LaunchNonce       string // Trusted Couch fresh registration identity; never parsed from CLI.
 	Command           string // "" = launch; "list" (#99 M5a); "rename"/"continue" (#99 M5b)
 	Agent             string
 	AgentExplicit     bool

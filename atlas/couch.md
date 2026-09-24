@@ -1967,3 +1967,9 @@ established claims remain valid for same-address agent switching. Missing or
 invalid claims refuse. Resume and checkpoint replacement retain read-only,
 established-only registration. `fresh_slot_claim_test.go` exercises this boundary
 with real claim files behind the launcher runtime seam.
+
+Every fresh Couch launch also carries its transaction `launch_nonce` in the
+trusted launch profile. Pair writes that exact nonce into agent readiness even
+when no orientation prompt exists. A supplied orientation must match the nonce;
+resume/ordinary profiles cannot carry it. The slot sender test uses the real
+readiness reader so a mismatched producer nonce cannot appear registered.
