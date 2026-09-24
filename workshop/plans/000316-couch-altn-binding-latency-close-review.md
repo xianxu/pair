@@ -1,5 +1,7 @@
 # Boundary Review — pair#316 (whole-issue close)
 
+> Review history: the initial SHIP applies to the original branch window only. The re-review below supersedes it for the integrated branch (`6bc2340e..14c10186`); its FIX-THEN-SHIP documentation dispositions are recorded in the issue Log. Earlier verdicts remain historical evidence.
+
 | field | value |
 |-------|-------|
 | issue | 316 — Couch Alt+n refuses a fresh thread for up to 60s after its first round |
@@ -60,3 +62,64 @@ None.
 ```findings
 # No prior or new findings.
 ```
+
+---
+
+## Re-review — 2026-09-23T23:17:47-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 316 — Couch Alt+n refuses a fresh thread for up to 60s after its first round |
+| repo | pair |
+| issue file | workshop/issues/000316-couch-altn-binding-latency.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 6bc2340e2ab5afa9a205dc24f7b2883819f7e935..14c1018627788a6e5fb4d2d10aea797ca988671f |
+| command | sdlc close --issue 316 |
+| reviewer | codex |
+| timestamp | 2026-09-23T23:17:47-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The sessionwatch change fulfills the latency purpose, separates cadence policy cleanly, and has passing focused and race tests. Before closing, remove unrelated project-scope changes and regenerate the stale boundary-review artifact against the pinned window.
+
+1. Strengths
+
+- `scanDelay` is pure and table-tested.
+- Regression test uses an off-grid send timestamp.
+- Slow waits wake on Pair-log changes.
+- Atlas documentation covers the new cadence behavior.
+- `go test` and `go test -race` pass for `sessionwatch`.
+
+2. Critical findings
+
+None.
+
+3. Important findings
+
+- `workshop/projects/couch-slots-v2.md:394,967-978` adds unrelated ariadne#247 dependency-refresh scope to the #316 window. Remove it or document why #316 owns this project change. Family enumeration: these are the only instances of unrelated project-scope additions in this window.
+- `workshop/plans/000316-couch-altn-binding-latency-close-review.md:10-23` records a different review window (`aff72f..60add0f`) and an earlier SHIP verdict, not the pinned `6bc2340..14c10186` range. Regenerate the review artifact after this review. Family enumeration: this is the only stale boundary-review artifact in the window.
+
+4. Minor findings
+
+None.
+
+5. Test coverage notes
+
+`go test ./cmd/internal/sessionwatch -count=1` and `go test -race ./cmd/internal/sessionwatch -count=1` pass. The full-suite result is recorded in the issue but was not independently rerun during this read-only review.
+
+6. Architectural notes
+
+- ARCH-DRY: Pass — cadence logic is centralized.
+- ARCH-PURE: Pass — policy is pure and IO remains in the runtime seam.
+- ARCH-PURPOSE: Pass — startup, no-send, active-send, and slow-wait wake-up behavior are addressed.
+
+7. Plan revision recommendations
+
+None; the implementation plan matches the code.

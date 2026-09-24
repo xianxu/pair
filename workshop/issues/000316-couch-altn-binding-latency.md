@@ -8,7 +8,7 @@ updated: 2026-09-23
 estimate_hours:
 started: 2026-09-23T21:53:28-07:00
 flow: {kind: quick, provenance: inferred, spec: "ca6d9b71", done: "6d56dec0"}
-actual_hours: 3.67
+actual_hours: 0.22
 ---
 
 # Couch Alt+n refuses a fresh thread for up to 60s after its first round
@@ -80,6 +80,7 @@ conversation's session id. Verify separately.
 ## Log
 
 ### 2026-09-23
+- 2026-09-23: closed — Previous SHIP review and operator smoke pass remain applicable to #316; integration adds already-published origin/main commits and resolves only the blank issue reservation. Re-review requested by publish gate after integrating trunk. Original full suite and affected-package review tests passed.; review verdict: FIX-THEN-SHIP
 - 2026-09-23: closed — Recorded automated verification: go test ./... -count=1 passed all 74 packages; make -k test passed with documented environment cleanup. Operator confirmed live Alt+n smoke test passed. All acceptance checkboxes complete.; review verdict: SHIP
 
 - Proof = the Pair-log send text's normalized sha256 matches a transcript
@@ -106,3 +107,15 @@ conversation's session id. Verify separately.
 
 
 - Operator confirmed the #316 live smoke test passed on 2026-09-23. This completes the manual verification item alongside the automated verification recorded above.
+
+### 2026-09-23 — integrated-branch review dispositions
+
+- FIX-THEN-SHIP: focused sessionwatch tests and race tests passed independently;
+  no production-code findings. The close tool appended the current-window review;
+  the sidecar now explicitly identifies its initial verdict as historical.
+- Project-scope finding: ariadne#247 was separately requested and published as
+  origin/main commit `9281a717` before this integration. #316 does not own that
+  scope. `git diff origin/main HEAD -- workshop/projects/couch-slots-v2.md` is
+  empty. Preserve the already-published project entry rather than reverting it
+  in this PR. It appeared in review only because local-main's merge base lagged
+  the fetched upstream history.
