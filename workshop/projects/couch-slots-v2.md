@@ -391,6 +391,7 @@ No implementation has started and no estimates or deadline are committed.
 - [x] Make slots durable with local state and recoverable conversations [pair#306]
 - [x] Group slots in the switcher and tab bar [pair#307]
 - [x] Persist independent workspace preferences [pair#308]
+- [ ] Refresh private dependencies before slot issue claims [ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
 - [ ] Run the three-workspace acceptance trial [pair#309]
 
 Sequence: workspace identity comes first. Dependency setup, concurrent workflow
@@ -966,3 +967,17 @@ ordinary Pair creation/registration/cleanup. Removed the additional registration
 operation and nonce transport. Only StartFreshSlot routing and early restoration
 argument validation differ in production from the pre-fix code. The shared
 ordinary/fresh-slot launcher integration test passes; final checks follow.
+
+### 2026-09-23 — refresh private dependencies before claiming an issue
+
+Reason: numbered environments hide their private dependency clones behind the
+host thread, making stale dependencies easy to overlook. Delta: added
+[ariadne#247](../../../ariadne/workshop/issues/000247-slot-claim-dependency-refresh.md)
+to the breakdown. SDLC claim preparation in :N refreshes declared clean private
+dependencies by fetch/fast-forward, then runs Weave compilation when needed,
+before completing the reservation. Unsafe Git state or setup failure stops with
+preserved work and actionable recovery; ordinary retries must converge. :0 peers
+remain operator-managed and refreshing the host branch remains explicit. This
+supersedes dependency preservation at this specific issue-start checkpoint;
+ordinary setup, resume and landing keep their existing preservation contract.
+No additional Couch state, dependency inventory or retry mode is requested.
