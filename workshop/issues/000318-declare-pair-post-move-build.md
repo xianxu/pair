@@ -30,15 +30,15 @@ the existing build target or generic bootstrap (ARCH-DRY).
 
 ## Done when
 
-- [ ] `AGENTS.local.md` names the post-move `make build` in `:0`, the HEAD check,
+- [x] `AGENTS.local.md` names the post-move `make build` in `:0`, the HEAD check,
   and the fresh-session requirement.
-- [ ] The declaration is present in Pair's composed agent instructions after
+- [x] The declaration is present in Pair's composed agent instructions after
   Weave compilation, with the operator's active `:0` work left untouched.
 
 ## Plan
 
-- [ ] Edit the Pair-local fragment in this isolated worktree.
-- [ ] Verify the authored fragment and composed output in a disposable fixture;
+- [x] Edit the Pair-local fragment in this isolated worktree.
+- [x] Verify the authored fragment and composed output in a disposable fixture;
   review and publish through Pair's issue workflow.
 
 ## Log
@@ -48,3 +48,9 @@ the existing build target or generic bootstrap (ARCH-DRY).
 Created as the Pair-owned portion of ariadne#248. The primary Pair checkout is
 on an unrelated issue branch with operator scratch files; this worktree starts
 from remote main and leaves that checkout unchanged.
+
+The authored fragment was composed through the real `weave compile` pipeline in
+this disposable worktree with a peer clone of ariadne#248. Generated `AGENTS.md`
+contains both the exported phrase-to-procedure link and Pair's post-move build,
+HEAD check and fresh-session instruction. `git status` in Pair's primary
+checkout remained on its unrelated issue branch with its original scratch files.
