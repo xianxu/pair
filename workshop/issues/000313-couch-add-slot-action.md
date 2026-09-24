@@ -69,3 +69,13 @@ provisioning succeeded (disposition prepared) and wrote the marker, preserving
 baseline `7e229bc95b52476929c55f7af2fa3e0c3bc83233`. No agent was launched. Original
 failure cause remains unknown pending operator error evidence; captured retry
 logs are `/tmp/pair-slot2-provision-diagnostics.log` and result JSON alongside it.
+
+### 2026-09-23 — review scope clarification
+
+The prior review flagged bootstrap/CI gateway changes. Provenance check shows
+`aff72f82` (build: adopt ariadne#239 seeded gateway files) already on origin/main;
+#313 has no bootstrap/CI diff against origin/main. Preserve this unrelated
+upstream work. Fresh-slot runtime smoke failures were repaired separately in
+#315 (real claim registration and exact nonce handoff), whose complete-window
+review returned SHIP without findings. Add slot itself retains the originally
+verified action/form behavior; rerun its boundary review for publication.
