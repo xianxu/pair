@@ -158,3 +158,13 @@ Operator confirmed the #311 smoke test passed after rebasing onto refreshed main
 ### 2026-09-23 — acceptance wording aligned at close
 
 Reason: close detected the previously approved parent-policy revision without a corresponding Done when update. Delta: explicitly require shell-tab clicks through shared AnyMotion while preserving child-facing tracking. The implementation and operator smoke already cover this behavior; no scope or code change.
+
+### 2026-09-23 — close review fixes
+
+BR-1: active-chip clicks now return no selection candidate while consuming the
+strip press. This avoids Presenter.Select and pane retitling without changing
+keyboard switching. Regression covers single-tab and multi-tab active clicks,
+parent output and runtime operations; it failed on the original retitling and
+passes with the fix. BR-2: README documents clickable labels, shell-tab reporting,
+active/empty/separator behavior and existing child routing. termcmd, terminal,
+couchtty and terminalqualify pass; termcmd race passes (2.481s).

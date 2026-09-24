@@ -463,3 +463,28 @@ func TestPresentationClickingStripChipSelectsThatTab(t *testing.T) {
 		t.Fatal("clicking the third chip did not select it")
 	}
 }
+
+func TestPresentationActiveStripClickHasNoSelectionEffects(t *testing.T) {
+	for _, count := range []int{1, 3} {
+		m, parent := presentationFixture(t)
+		m.rows, m.cols = 5, 40
+		var child *ptychild.Child
+		for id := 1; id <= count; id++ {
+			child = addPresentationTab(t, m, id, "")
+		}
+		flushPresentation(t, m, child)
+		before := append([]byte(nil), parent.Bytes()...)
+		ops := len(m.rt.(*fakeRuntime).ops)
+		span := m.stripSpans[len(m.stripSpans)-1]
+		if !m.clickStrip(span.Start, 4) {
+			t.Fatal("active chip was not consumed")
+		}
+		flushPresentation(t, m, child)
+		if !bytes.Equal(before, parent.Bytes()) {
+			t.Fatal("active chip repainted the parent")
+		}
+		if len(m.rt.(*fakeRuntime).ops) != ops {
+			t.Fatal("active chip retitled the pane")
+		}
+	}
+}

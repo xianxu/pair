@@ -242,7 +242,8 @@ func (m *terminalMux) clickStrip(x, y int) bool {
 			return 0, false
 		}
 		onStrip = true
-		return RenderedStrip{Spans: m.stripSpans}.ColumnToTab(x)
+		index, ok := (RenderedStrip{Spans: m.stripSpans}).ColumnToTab(x)
+		return index, ok && index != m.active
 	})
 	return onStrip
 }
