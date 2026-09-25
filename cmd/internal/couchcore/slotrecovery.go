@@ -261,10 +261,10 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 }
 
 func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartResult, error) {
-	return c.startFreshSlot(ctx, path, agent, false)
+	return c.startFreshSlot(ctx, path, agent, false, nil)
 }
 
-func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool) (StartResult, error) {
+func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -276,7 +276,7 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 	if old.Unsupported {
 		return StartResult{}, old.Err
 	}
-	if requireEmpty && old.Record != nil {
+	if requireEmpty && old.Exists {
 		return StartResult{}, ErrStartResolutionChanged
 	}
 	observation, err := c.ObserveSlotSessions(ctx, slot)
@@ -347,6 +347,9 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 		err = c.prepareTrackedWorkspace(ctx, record, nonce, false)
 		if err == nil {
 			err = c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address)
+		}
+		if err == nil && accepted != nil {
+			err = c.revalidateCreatedSlot(ctx, *accepted)
 		}
 		if err != nil {
 			return StartResult{}, errors.Join(err, c.rollbackTrackedStart(record, nonce))

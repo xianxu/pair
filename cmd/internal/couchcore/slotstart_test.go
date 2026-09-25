@@ -30,6 +30,18 @@ func TestStartResolutionPreservesSlotIntent(t *testing.T) {
 		t.Fatalf("action not bound: %v", err)
 	}
 }
+
+func TestSortReuseNoticesOrdersMixedKindsBySlotNumber(t *testing.T) {
+	notices := []StartReuseNotice{
+		{Kind: StartReuseNoticeLost, Label: "repo:10", Slot: 10},
+		{Kind: StartReuseNoticeParked, Label: "repo:2", Slot: 2},
+		{Kind: StartReuseNoticeLost, Label: "repo:1", Slot: 1},
+	}
+	sortReuseNotices(notices)
+	if notices[0].Slot != 1 || notices[1].Slot != 2 || notices[2].Slot != 10 {
+		t.Fatalf("notice order = %+v", notices)
+	}
+}
 func TestSlotContextReferencesRejectDependencyAndSelectExactNumber(t *testing.T) {
 	f := newProvisionFixture(t)
 	primary, err := NewWorkspaceProvisioner(f).identity(context.Background(), f.Primary)
@@ -144,6 +156,29 @@ func TestManagedCreateRefusesProfileDriftDuringSetup(t *testing.T) {
 		if record.WorkingPath == f.host(1) && len(record.Incarnations) > 0 {
 			t.Fatalf("claim leaked %+v", record)
 		}
+	}
+}
+
+func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
+	env, f := managedStartFixture(t)
+	version := "before"
+	env.Couch.RepoAgentDefault = func(string, string) (LaunchProfile, bool, error) {
+		return LaunchProfile{Agent: "claude", Argv: []string{"--model", version}}, true, nil
+	}
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	created, _ := env.spawn(t, args)
+	env.Proc.Kill(created.PID)
+	if err := env.Couch.Threads.ArchiveThread(created.Thread); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil || !prepared.Resolution.ReuseSlot {
+		t.Fatalf("reuse preview = %+v, %v", prepared, err)
+	}
+	env.Couch.Workspaces = startReadinessHook{inner: env.Couch.Workspaces, after: func() { version = "after" }}
+	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
+	if !errors.Is(err, ErrStartResolutionChanged) {
+		t.Fatalf("changed reuse profile launched: %v", err)
 	}
 }
 
@@ -448,6 +483,42 @@ func TestManagedCreateReusesArchivedSlotBeforeAllocating(t *testing.T) {
 	}
 	if _, err := os.Stat(f.host(3)); !os.IsNotExist(err) {
 		t.Fatalf("allocated :3 despite the hole: %v", err)
+	}
+}
+
+func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	first, _ := env.spawn(t, args)
+	second, _ := env.spawn(t, args)
+	env.Proc.Kill(first.PID)
+	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+		t.Fatal(err)
+	}
+	repository, err := env.Couch.Slots.Discover(context.Background(), f.Primary)
+	if err != nil || len(repository.Slots) < 2 {
+		t.Fatalf("repository slots = %+v, %v", repository.Slots, err)
+	}
+	local := newSlotThreadStore(env.Couch.Namespace, repository.Slots[1].Identity)
+	old, err := local.observeSlotCurrent()
+	if err != nil || old.Record == nil {
+		t.Fatalf("slot current = %+v, %v", old, err)
+	}
+	identity := ParkIdentity{Nonce: "park-slot2-012345", Address: old.Record.Address, PID: second.PID, ProcessIdentity: second.Identity}
+	begun, err := local.BeginPark(old.Record.Address, old.Record.Revision, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := local.FinalizePark(old.Record.Address, begun.Revision, identity, 1, env.Now); err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetNativeBinding(old.Record.Address, "claude", sessioninventory.BindingEstablished, "native-slot2-park")
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil || prepared.Resolution.Target.Slot.Number != 1 {
+		t.Fatalf("hole preview = %+v, %v", prepared.Resolution.Target, err)
+	}
+	if len(prepared.Resolution.ReuseNotices) != 1 || prepared.Resolution.ReuseNotices[0].Slot != 2 || prepared.Resolution.ReuseNotices[0].Kind != StartReuseNoticeParked {
+		t.Fatalf("parked sibling notice = %+v", prepared.Resolution.ReuseNotices)
 	}
 }
 

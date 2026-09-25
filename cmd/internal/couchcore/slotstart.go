@@ -170,13 +170,17 @@ func (c *Couch) reuseNoticesInRepository(ctx context.Context, repository SlotRep
 			notices = append(notices, StartReuseNotice{Kind: StartReuseNoticeLost, Label: row.Label(), Slot: row.Target.Slot.Number})
 		}
 	}
+	sortReuseNotices(notices)
+	return notices, nil
+}
+
+func sortReuseNotices(notices []StartReuseNotice) {
 	sort.SliceStable(notices, func(i, j int) bool {
 		if notices[i].Slot != notices[j].Slot {
 			return notices[i].Slot < notices[j].Slot
 		}
 		return notices[i].Kind < notices[j].Kind
 	})
-	return notices, nil
 }
 
 func rowSlotNumber(row ActionableThreadSummary) int {
@@ -213,7 +217,7 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 		return c.OpenSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
 	case StartCreate:
 		if resolution.ReuseSlot {
-			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true)
+			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true, &resolution)
 		}
 	default:
 		return StartResult{}, fmt.Errorf("invalid slot start action %q", resolution.Action)
@@ -286,6 +290,7 @@ func (c *Couch) revalidateCreatedSlot(ctx context.Context, accepted StartResolut
 		return err
 	}
 	current.Action, current.OriginalInput, current.Target = accepted.Action, accepted.OriginalInput, accepted.Target
+	current.ReuseSlot = accepted.ReuseSlot
 	if fingerprintStartResolution(current) != accepted.Fingerprint {
 		return ErrStartResolutionChanged
 	}
