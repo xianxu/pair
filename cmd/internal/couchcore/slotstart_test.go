@@ -366,3 +366,34 @@ func TestManagedLaunchThenParkBlocksNextCreateButAllowsExistingOpen(t *testing.T
 		t.Fatalf("existing open blocked: %+v %v", opened, err)
 	}
 }
+
+// #331: numbered slots existing, or a live thread in one of them, do not make
+// :0 occupied. Once the primary's own thread is archived, a create on the
+// primary path starts there again instead of allocating another slot.
+func TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived(t *testing.T) {
+	f := newProvisionFixture(t)
+	env := newTestEnv(t, f.Primary)
+	env.Couch.Git = ExecGit{}
+	env.Couch.Path = OSPathOps{}
+	primary, _ := env.spawn(t, StartArgs{Cwd: f.Primary})
+	env.Couch.Slots = NewOSSlotCatalog(f)
+	env.Couch.Workspaces = NewWorkspaceProvisioner(f)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	slot, _ := env.spawn(t, args)
+	if slot.Thread == primary.Thread {
+		t.Fatal("second create reused the occupied primary")
+	}
+	if err := env.Couch.Threads.ArchiveThread(primary.Thread); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Resolution.Target.Kind == ThreadTargetSlot || prepared.Resolution.CanonicalPath != f.Primary {
+		t.Fatalf("free primary resolved to %+v, want :0", prepared.Resolution.Target)
+	}
+	if _, err := os.Stat(f.host(2)); !os.IsNotExist(err) {
+		t.Fatalf("preview allocated another slot: %v", err)
+	}
+}

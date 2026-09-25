@@ -42,10 +42,17 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		if e != nil {
 			return StartResolution{}, e
 		}
-		occupied := len(repository.Slots) > 0
+		// Create starts on :0 while :0 holds no thread (#331). Numbered slots,
+		// and threads living in them, say nothing about :0: once the primary's
+		// thread is archived, the primary is free again.
+		primaryScope, e := launcher.ResolveRepoScope(primary)
+		if e != nil {
+			return StartResolution{}, e
+		}
+		occupied := false
 		scopes := slotRepositoryScopes(repository)
 		for _, record := range snapshot.Records {
-			if scopes[record.Address.RepoScope] {
+			if record.Address.RepoScope == primaryScope.Key {
 				occupied = true
 			}
 		}
