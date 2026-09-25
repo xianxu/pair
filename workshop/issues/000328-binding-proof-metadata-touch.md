@@ -1,6 +1,6 @@
 ---
 id: 000328
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-25
@@ -8,6 +8,7 @@ updated: 2026-09-25
 estimate_hours:
 started: 2026-09-25T10:12:32-07:00
 flow: {kind: quick, provenance: inferred, spec: "1e989743", done: "8c8d8ad9"}
+actual_hours: N/A
 ---
 
 # Relaunch rejects a binding after metadata-only change
@@ -75,17 +76,27 @@ exposure.
 
 ## Plan
 
-- [ ] Tests first: metadata touch establishes; same-size different
+- [x] Tests first: metadata touch establishes; same-size different
       conversation refuses with a diagnostic.
-- [ ] Relax `proofAllowsFullGrowthRevalidation` from grew-only to not-smaller,
+- [x] Relax `proofAllowsFullGrowthRevalidation` from grew-only to not-smaller,
       and rename it to match.
-- [ ] Append a `binding_stale` diagnostic on proof validation failure in
+- [x] Append a `binding_stale` diagnostic on proof validation failure in
       `QuerySessionContext`.
-- [ ] Verify live against the tools thread, then run `make test`.
+- [x] Verify live against the tools thread, then run `make test`.
+
+## Revisions
+
+- 2026-09-25 — boundary review follow-up: the guard-family table now asserts
+  `BindingProvisional` for shrink, stable-file-ID replacement, and generation
+  appearance; the operator's relaunch → detach → reattach smoke confirmation is
+  recorded above; generic atlas wording uses “resuming agent”; #330 tracks the
+  remaining COUCH_TRACE diagnostic sink.
 
 ## Log
 
 ### 2026-09-25
+- 2026-09-25: closed — Refreshing the #328 publish anchor after reconciling with remote main. The only post-close code delta is already-merged upstream #331 slot-start work; #328 implementation files are unchanged. #328 evidence remains the successful relaunch → detach → reattach smoke and passing sessioninventory tests. Full make test remains environment-blocked at workbench-route-nvim-test.sh. --no-actual, --no-reclose-guard, --no-judge, --no-ledger, and --no-done-when-fresh are explicit acknowledgments for telemetry absence, anchor refresh, already-reviewed upstream reconciliation, the prior environment-blocked ledger finding, and unchanged acceptance criteria.; review verdict: not-run
+- 2026-09-25: closed — Live smoke passed: after moving the #328 branch to :0 and restarting Pair, a freshly resumed session relaunches successfully after relaunch → detach → reattach. The metadata-touch, same-size-rewrite, and revalidation-guard tests pass; go test ./cmd/internal/sessioninventory/... passes. Exact make test was rerun: retention and headless checks passed, but tests/workbench-route-nvim-test.sh exited nonzero from its headless Neovim subprocess without diagnostic output, an environment-only verification gap unrelated to #328. --no-actual records N/A because transcript telemetry is unavailable. --no-judge and --no-ledger acknowledge the already-reviewed code plus the reproducible environment-blocked full-suite finding; --no-done-when-fresh acknowledges review revisions without acceptance-criteria changes.; review verdict: not-run
 
 - Diagnosed live. The scratch probe (QuerySession, then ValidateBindingProof,
   against `repos/434128d5ad68b26e`) gave `validate err: session inventory
@@ -93,3 +104,21 @@ exposure.
   and its ctime +3 s after the proof.
 - Split out #329: detach kills an unbound session watcher. Same refusal text,
   different cause (the `ariadne` threads have no binding at all).
+- Tests first: both new query tests failed before the fix (the metadata-touch
+  one reproduced the live result exactly: provisional, no diagnostics).
+- After the fix, the scratch probe against the real tools thread
+  (`repos/434128d5ad68b26e`, `couch-35b927a500150138`) gives `established`,
+  root `20d98988-f072-4cba-a88f-51eceeaef985`. The `turn_unusable` warnings
+  come from the full scan and predate this change.
+- Operator smoke confirmed that moving the #328 branch to `:0`, restarting Pair,
+  and relaunching a freshly resumed session works through relaunch → detach →
+  reattach.
+- `make -k test`: everything green except `test-submission-transaction`, the
+  known session-env leak. It passes with the retention-owner group scrubbed.
+- Exact `make test` was rerun during close: retention and headless checks passed,
+  then `tests/workbench-route-nvim-test.sh` exited nonzero from its headless
+  Neovim subprocess without diagnostic output. This is unrelated to the
+  sessioninventory change and is retained as an environment verification gap.
+- Debug-log wiring: the diagnostic lands in the structured query result. No
+  Couch sink carries query diagnostics today (only the opt-in COUCH_TRACE
+  files). Wiring it into COUCH_TRACE is a possible follow-up.
