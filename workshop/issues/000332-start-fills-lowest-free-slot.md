@@ -82,14 +82,27 @@ Design (from code reading + a probe test, 2026-09-25):
   reuse *reduces* slot-directory growth. No new files.
 
 Steps:
-- [ ] Unit tests for the pure selector; integration tests for holes at :0,
+- [x] Unit tests for the pure selector; integration tests for holes at :0,
   :1 (dir exists, thread archived — reused with leftover file), :1 with :2
   parked, no-hole+parked → new slot with notice, unreadable refuses
-- [ ] Implement selector + resolveManagedStart mapping; drop parked blocker
-- [ ] Preview notice in start form (+ render test)
-- [ ] Update #306 parked-blocks tests to the notice behavior; atlas
+- [x] Implement selector + resolveManagedStart mapping; drop parked blocker
+- [x] Preview notice in start form (+ render test)
+- [x] Update #306 parked-blocks tests to the notice behavior; atlas
 - [ ] Full make test; operator smoke test in couch
 
 ## Log
 
 ### 2026-09-25
+
+- Implemented (fadd5927). Probe test confirmed an archived `:1` stays a slot
+  row with empty address (`unusable`/`never-started`) and old code picked `:3`.
+  Occupancy uses snapshot records mapped scope→number (cheap, no session
+  probes); parked labels use the switcher inventory only when adding a slot.
+- Caught before review: resolving a hole-fill to action `fresh` broke the
+  menu's CommitArgs round trip ("fresh action requires an existing numbered
+  slot" on the primary path). Kept action `create` + `ReuseSlot` in the
+  fingerprint; the reuse test now commits via CommitArgs/SpawnPrepared, and
+  removing the reuse routing fails it (mutation-checked).
+- `TestManagedCreateParkAppearingDuringSetup…` and
+  `TestManagedLaunchThenPark…` flipped from "parked blocks" to "launch
+  proceeds / preview names parked". Full `make test` green.
