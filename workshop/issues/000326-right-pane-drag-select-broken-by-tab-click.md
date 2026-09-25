@@ -1,12 +1,13 @@
 ---
 id: 000326
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
 started: 2026-09-24T22:18:43-07:00
+actual_hours: 0.16
 ---
 
 # Right-pane drag selection broken since clickable tabs (#311)
@@ -65,6 +66,7 @@ Candidate directions (pick during design):
 ## Log
 
 ### 2026-09-24
+- 2026-09-24: closed — make test green (full, scrubbed retention env, scratch TMPDIR); TestPresentationLeavesMouseOffForAPlainChild fails under AnyMotion (mutation-checked) and passes under ChildRequested; #311 strip-click tests green; operator smoke-tested via pair-dev and asked to merge; actual 0.16h = sdlc measurement from the first close attempt (window 8d7c86a5..42b919ff) before issue-sync made it unmeasurable; review verdict: SHIP
 
 - Filed from operator report. Suspect commit `1c5ed349` (#311,
   ChildRequested → AnyMotion); follow-up `8aaa68e3` only touched active-chip
@@ -80,6 +82,8 @@ Candidate directions (pick during design):
 - Operator chose the revert (needs selection now): `pair term` back to
   `ChildRequested`; couch keeps `AnyMotion`. `clickStrip` stays — it still
   fires when the child requests tracking.
+- Operator smoke test: ran the rebuilt `pair-dev` from slot1, confirmed drag
+  selection in a right-pane shell, and asked to merge.
 
 ## Revisions
 

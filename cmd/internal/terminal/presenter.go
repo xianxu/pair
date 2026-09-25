@@ -16,9 +16,13 @@ type ParentMousePolicy uint8
 
 const (
 	// AnyMotion always requests any-motion reports: the parent owns clickable
-	// chrome (couch's status row, pair term's tab strip, #311) and forwards to
-	// the child only what the child's own tracking mode asks for.
+	// chrome (couch's status row) and forwards to the child only what the
+	// child's own tracking mode asks for. Only safe when something below
+	// implements selection -- couch's child is zellij.
 	AnyMotion ParentMousePolicy = iota
+	// ChildRequested mirrors the child's tracking, leaving the host its native
+	// selection over a child that asked for none: pair term, whose host is
+	// zellij and whose child is often a plain shell (#326).
 	ChildRequested
 )
 
