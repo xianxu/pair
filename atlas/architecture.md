@@ -517,9 +517,11 @@ The shared decoder preserves complete semantic keys across read boundaries,
 resolves only a lone Escape on its ambiguity deadline, and keeps pasted shortcuts
 literal. An incomplete control frame is never forwarded as an arbitrary suffix.
 
-**Clickable strip (#311).** Both presenters use the `terminal.AnyMotion` parent
-mouse policy, so the parent owns its chrome row while the child still receives
-only what its own tracking mode requests. A left press on the strip row goes to
+**Clickable strip (#311, narrowed by #326).** Couch uses the `terminal.AnyMotion`
+parent mouse policy; `pair term` uses `terminal.ChildRequested`, because
+requesting mouse reports over a plain shell takes drag selection away from
+zellij (the host above it) and nothing below implements one. So the strip is
+clickable only while the active child requests tracking. A left press on the strip row goes to
 `terminalMux.clickStrip`, which hit-tests `RenderedStrip.ColumnToTab` over the
 spans the last paint recorded (couch's `ColumnToActor` shape) and switches
 through the same `switchTab` path as Alt+Left/Right. The whole row is consumed;
