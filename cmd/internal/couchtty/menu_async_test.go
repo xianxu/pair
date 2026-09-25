@@ -214,6 +214,7 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
 		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
 		AgentSource: couchcore.AgentSourcePath, ArgvSource: couchcore.ArgvSourcePath,
+		ParkedInRepo: []string{"repo:1", "repo:2"},
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
 	if len(effects) != 0 {
@@ -222,6 +223,10 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 	rendered := RenderMenu(state, 80, 20, time.Time{}, false)
 	if !strings.Contains(rendered, "agent codex") || !strings.Contains(rendered, "args  path") {
 		t.Fatalf("accepted start provenance not rendered: %q", rendered)
+	}
+	// #332: parked work no longer blocks a new slot; the form names it.
+	if !strings.Contains(rendered, "parked repo:1, repo:2") {
+		t.Fatalf("parked reminder not rendered: %q", rendered)
 	}
 }
 

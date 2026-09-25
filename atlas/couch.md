@@ -28,7 +28,9 @@ The thread action menu's **Add slot** entry (#313) opens the existing start form
 with the exact primary repository path prefilled and agent focus. `menuRepositoryRoot`
 uses the validated slot primary root or scope-matched ordinary root; unknown
 roots do not offer the shortcut. The same StartCreate preview/fingerprint and
-repository admission checks apply as when entering a path manually.
+repository admission checks apply as when entering a path manually, so Add slot
+also fills the lowest free number (`:0` included) before adding one, and the
+form lists the repository's parked threads when it adds one (#332).
 
 Directory/Git identity supplies the durable slot; native scope/tag identifies its
 current conversation. Slot rows stay selectable when current metadata is missing

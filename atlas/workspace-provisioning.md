@@ -72,11 +72,13 @@ candidates require attention instead of being skipped.
 
 `pair#306` connects readiness to ordinary slot open/cold resume and new-slot
 creation. Warm reattachment reconnects a running agent without compilation.
-Primary :0 setup behavior is unchanged. A create on the primary path starts on
-:0 whenever :0's own scope holds no thread -- existing numbered slots and their
-threads do not occupy it, so an archived primary is reused (#331). A parked
-primary or numbered thread blocks adding another slot; opening or starting
-fresh within an existing slot remains available. Preview carries its exact chosen target and has no setup or
+Primary :0 setup behavior is unchanged. A create fills the lowest number, :0
+included, whose checkout holds no thread (`SelectStartSlot`, #331/#332):
+archived threads free their number, and a threadless numbered checkout is
+reused as-is with a fresh conversation (`StartResolution.ReuseSlot`, in the
+fingerprint). Only when every number is taken is a new directory provisioned.
+Parked threads occupy their number but no longer block a new slot; the start
+preview names them (`ParkedInRepo`). An unreadable thread still refuses. Preview carries its exact chosen target and has no setup or
 migration effects; submission refuses changed selection instead of renumbering.
 
 Couch state lives beside the Git host at `<environment>/.couch/`: `thread.json`,

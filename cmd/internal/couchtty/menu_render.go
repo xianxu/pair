@@ -411,6 +411,9 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 	if frame.PreviewResolution.ArgvSource != "" {
 		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewResolution.ArgvSource), width))
 	}
+	if parked := frame.PreviewResolution.ParkedInRepo; len(parked) > 0 {
+		lines = append(lines, clipMenuLine("  parked "+strings.Join(parked, ", "), width))
+	}
 	return lines
 }
 

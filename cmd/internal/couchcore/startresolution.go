@@ -46,6 +46,14 @@ type StartResolution struct {
 	PreferenceRevision uint64                     `json:"preference_revision,omitempty"`
 	DefaultDigest      string                     `json:"default_digest,omitempty"`
 	Fingerprint        StartResolutionFingerprint `json:"fingerprint"`
+	// ReuseSlot says a create fills an existing, threadless numbered slot with
+	// a fresh conversation instead of provisioning a new one (#332). It is in
+	// the fingerprint: a directory appearing after preview is drift.
+	ReuseSlot bool `json:"reuse_slot,omitempty"`
+	// ParkedInRepo labels the repository's parked threads when a start adds a
+	// new slot (#332): a reminder, not a blocker. Left out of the fingerprint
+	// so a park elsewhere does not invalidate an accepted preview.
+	ParkedInRepo []string `json:"parked_in_repo,omitempty"`
 }
 
 func ResolveStartResolution(input StartResolutionInput) (StartResolution, error) {
@@ -98,6 +106,7 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 
 func cloneStartResolution(resolution StartResolution) StartResolution {
 	resolution.Profile = cloneLaunchProfile(resolution.Profile)
+	resolution.ParkedInRepo = append([]string(nil), resolution.ParkedInRepo...)
 	return resolution
 }
 
@@ -121,6 +130,9 @@ func fingerprintStartResolution(resolution StartResolution) StartResolutionFinge
 	writeFingerprintField(digest, resolution.Target.Slot.WorktreeRoot)
 	writeFingerprintField(digest, resolution.Target.Slot.RepoIdentity)
 	writeFingerprintUint(digest, uint64(resolution.Target.Slot.Number))
+	if resolution.ReuseSlot {
+		writeFingerprintField(digest, "reuse-slot")
+	}
 	writeFingerprintField(digest, resolution.CanonicalPath)
 	writeFingerprintField(digest, string(resolution.Worktree))
 	writeFingerprintField(digest, resolution.Issue)

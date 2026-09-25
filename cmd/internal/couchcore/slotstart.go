@@ -33,6 +33,8 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		return c.resolveOrdinaryStartResolution(ctx, args)
 	}
 	primary := id.PrimaryRoot
+	var parked []string
+	reuse := false
 	if action == StartCreate {
 		repository, e := c.Slots.Discover(ctx, primary)
 		if e != nil {
@@ -42,36 +44,35 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		if e != nil {
 			return StartResolution{}, e
 		}
-		// Create starts on :0 while :0 holds no thread (#331). Numbered slots,
-		// and threads living in them, say nothing about :0: once the primary's
-		// thread is archived, the primary is free again.
-		primaryScope, e := launcher.ResolveRepoScope(primary)
-		if e != nil {
-			return StartResolution{}, e
-		}
-		occupied := false
-		scopes := slotRepositoryScopes(repository)
-		for _, record := range snapshot.Records {
-			if record.Address.RepoScope == primaryScope.Key {
-				occupied = true
-			}
-		}
+		// Start fills the lowest number, :0 included, holding no thread (#331,
+		// #332). Archived threads have left the snapshot, so their numbers are
+		// free; a threadless checkout is reused as-is with a fresh conversation.
+		numbers := slotRepositoryNumbers(repository)
 		for _, address := range snapshot.Unreadable {
-			if scopes[address.RepoScope] {
+			if _, ok := numbers[address.RepoScope]; ok {
 				return StartResolution{}, fmt.Errorf("repository has an unreadable conversation; recover it before creating another slot")
 			}
 		}
-		if occupied {
-			allocation, e := SelectNewSlot(repository.Slots)
-			if e != nil {
-				return StartResolution{}, e
+		occupied := map[int]bool{}
+		for _, record := range snapshot.Records {
+			if number, ok := numbers[record.Address.RepoScope]; ok {
+				occupied[number] = true
 			}
+		}
+		allocation, e := SelectStartSlot(repository.Slots, occupied)
+		if e != nil {
+			return StartResolution{}, e
+		}
+		target = nil
+		if allocation.Number != 0 {
 			slot := conventionalSlot(primary, allocation.Number)
 			slot.RepoIdentity = repository.Identity.RepoIdentity
-			selected := ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}
-			target = &selected
-		} else {
-			target = nil
+			target = &ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}
+			if allocation.Exists {
+				reuse = true
+			} else if parked, e = c.parkedInRepository(ctx, repository); e != nil {
+				return StartResolution{}, e
+			}
 		}
 	}
 	path := primary
@@ -88,6 +89,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		return StartResolution{}, err
 	}
 	resolution.OriginalInput, resolution.Action = original, action
+	resolution.ReuseSlot, resolution.ParkedInRepo = reuse, parked
 	if target != nil {
 		resolution.Target = *target
 	} else if action == StartFresh {
@@ -97,41 +99,67 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 	return resolution, nil
 }
 
-func slotRepositoryScopes(repository SlotRepository) map[string]bool {
-	scopes := map[string]bool{}
-	paths := []string{repository.Identity.PrimaryRoot}
-	for _, slot := range repository.Slots {
-		paths = append(paths, slot.Identity.WorktreeRoot)
-	}
-	for _, path := range paths {
-		scope, err := launcher.ResolveRepoScope(path)
-		if err == nil {
-			scopes[scope.Key] = true
+// slotRepositoryNumbers maps each checkout's repo scope to its slot number,
+// the primary as 0, so a thread record names the number it occupies.
+func slotRepositoryNumbers(repository SlotRepository) map[string]int {
+	numbers := map[string]int{}
+	add := func(path string, number int) {
+		if scope, err := launcher.ResolveRepoScope(path); err == nil {
+			numbers[scope.Key] = number
 		}
 	}
-	return scopes
+	add(repository.Identity.PrimaryRoot, 0)
+	for _, slot := range repository.Slots {
+		add(slot.Identity.WorktreeRoot, slot.Identity.Number)
+	}
+	return numbers
 }
-func (c *Couch) checkSlotCreation(ctx context.Context, repository SlotRepository) error {
+
+// repositoryRows are the switcher rows belonging to repository.
+func (c *Couch) repositoryRows(ctx context.Context, repository SlotRepository) ([]ActionableThreadSummary, error) {
 	rows, err := c.ActionableThreadInventoryContext(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	numbers := slotRepositoryNumbers(repository)
+	var mine []ActionableThreadSummary
+	for _, row := range rows {
+		_, scoped := numbers[row.Address.RepoScope]
+		if scoped || (row.Target.Kind == ThreadTargetSlot && row.Target.Slot.RepoIdentity == repository.Identity.RepoIdentity) {
+			mine = append(mine, row)
+		}
+	}
+	return mine, nil
+}
+
+// parkedInRepository labels the repository's parked threads. Since #332 they
+// no longer block a new slot; the start preview names them instead, so parked
+// work stays in view without stopping the operator.
+func (c *Couch) parkedInRepository(ctx context.Context, repository SlotRepository) ([]string, error) {
+	rows, err := c.repositoryRows(ctx, repository)
+	if err != nil {
+		return nil, err
+	}
+	var parked []string
+	for _, row := range rows {
+		if row.State == ThreadParked {
+			parked = append(parked, row.Label())
+		}
+	}
+	return parked, nil
+}
+
+// checkSlotCreation refuses a new slot only while a thread's ownership is
+// unknown; parked work is named in the preview instead (#332).
+func (c *Couch) checkSlotCreation(ctx context.Context, repository SlotRepository) error {
+	rows, err := c.repositoryRows(ctx, repository)
 	if err != nil {
 		return err
 	}
-	scopes := slotRepositoryScopes(repository)
-	blockers := []string{}
 	for _, row := range rows {
-		belongs := scopes[row.Address.RepoScope] || (row.Target.Kind == ThreadTargetSlot && row.Target.Slot.RepoIdentity == repository.Identity.RepoIdentity)
-		if !belongs {
-			continue
-		}
-		if row.State == ThreadParked {
-			blockers = append(blockers, row.Label())
-		}
 		if row.State == ThreadUnusable && (row.Reason == ReasonUnreadable || row.Reason == ReasonUnknown) {
 			return fmt.Errorf("repository ownership needs attention at %s before creating another slot", row.Label())
 		}
-	}
-	if len(blockers) > 0 {
-		return fmt.Errorf("resume or resolve parked work before creating another slot: %s", strings.Join(blockers, ", "))
 	}
 	return nil
 }
@@ -147,6 +175,9 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 	case StartOpen:
 		return c.OpenSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
 	case StartCreate:
+		if resolution.ReuseSlot {
+			return c.StartFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
+		}
 	default:
 		return StartResult{}, fmt.Errorf("invalid slot start action %q", resolution.Action)
 	}

@@ -7,7 +7,6 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -147,7 +146,9 @@ func TestManagedCreateRefusesProfileDriftDuringSetup(t *testing.T) {
 	}
 }
 
-func TestManagedCreateParkAppearingDuringSetupPreservesSlotWithoutLaunch(t *testing.T) {
+// #332: parked work is a reminder, not a blocker, so a park that appears
+// during setup does not stop the accepted launch.
+func TestManagedCreateParkAppearingDuringSetupStillLaunches(t *testing.T) {
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
@@ -171,8 +172,8 @@ func TestManagedCreateParkAppearingDuringSetupPreservesSlotWithoutLaunch(t *test
 		}
 	}}
 	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
-	if err == nil || !strings.Contains(err.Error(), "parked") {
-		t.Fatalf("parked admission: %v", err)
+	if err != nil {
+		t.Fatalf("park during setup blocked the launch: %v", err)
 	}
 	if _, err := os.Stat(f.host(1)); err != nil {
 		t.Fatalf("slot lost: %v", err)
@@ -183,9 +184,10 @@ func TestManagedCreateParkAppearingDuringSetupPreservesSlotWithoutLaunch(t *test
 	}
 	for _, record := range snapshot.Records {
 		if record.WorkingPath == f.host(1) {
-			t.Fatalf("launched new slot despite parked work: %+v", record)
+			return
 		}
 	}
+	t.Fatal("accepted slot launched no thread")
 }
 func TestManagedFirstCreateStaysPrimaryAndKeepsSubdirectory(t *testing.T) {
 	f := newProvisionFixture(t)
@@ -324,7 +326,7 @@ func TestCanonicalThreadReferenceNeverFallsBackToTag(t *testing.T) {
 	}
 }
 
-func TestManagedLaunchThenParkBlocksNextCreateButAllowsExistingOpen(t *testing.T) {
+func TestManagedLaunchThenParkNamesParkedWorkAndAllowsExistingOpen(t *testing.T) {
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	created, _, err := env.Couch.Spawn(args)
@@ -341,11 +343,14 @@ func TestManagedLaunchThenParkBlocksNextCreateButAllowsExistingOpen(t *testing.T
 		t.Fatal(err)
 	}
 	env.Artifacts.SetNativeBinding(record.Address, "claude", sessioninventory.BindingEstablished, "native-after-launch-park")
-	if _, _, err := env.Couch.Spawn(args); err == nil || !strings.Contains(err.Error(), "parked") {
-		t.Fatalf("next create admission: %v", err)
+	// #332: with no free number, parked work no longer blocks a new slot; the
+	// preview names it instead.
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil || prepared.Resolution.Target.Slot.Number != 2 {
+		t.Fatalf("next create with parked work: %+v %v", prepared.Resolution.Target, err)
 	}
-	if _, err := os.Stat(f.host(2)); !os.IsNotExist(err) {
-		t.Fatalf("blocked create provisioned slot: %v", err)
+	if len(prepared.Resolution.ParkedInRepo) != 1 {
+		t.Fatalf("preview parked notice = %q, want the one parked thread", prepared.Resolution.ParkedInRepo)
 	}
 	repository, err := env.Couch.Slots.Discover(context.Background(), f.Primary)
 	if err != nil {
@@ -402,5 +407,45 @@ func TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived(t *testing.T) {
 	}
 	if _, err := os.Stat(f.host(2)); !os.IsNotExist(err) {
 		t.Fatalf("start allocated another slot: %v", err)
+	}
+}
+
+// #332: a numbered slot whose thread was archived is a hole. The next start
+// fills it -- a fresh conversation in the existing checkout, leftover files
+// and all -- instead of allocating a directory past the live ones.
+func TestManagedCreateReusesArchivedSlotBeforeAllocating(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	first, _ := env.spawn(t, args)
+	env.spawn(t, args)
+	env.Proc.Kill(first.PID) // archive follows the agent's exit
+	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+		t.Fatal(err)
+	}
+	leftover := filepath.Join(f.host(1), "leftover.txt")
+	if err := os.WriteFile(leftover, []byte("old work"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Resolution.Target.Slot.Number != 1 || !prepared.Resolution.ReuseSlot {
+		t.Fatalf("hole resolved to :%d reuse=%v, want :1 reused", prepared.Resolution.Target.Slot.Number, prepared.Resolution.ReuseSlot)
+	}
+	// Commit exactly as the menu does, through CommitArgs.
+	commit := prepared.Resolution.CommitArgs()
+	reused, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Cwd: commit["path"], Stack: commit["agent"], Issue: commit["issue"], Action: StartAction(commit["action"])}, StartResolutionFingerprint(commit["fingerprint"]))
+	if err != nil {
+		t.Fatalf("committing the previewed reuse: %v", err)
+	}
+	if reused.Thread == first.Thread || reused.Args.WorkingDir() != f.host(1) {
+		t.Fatalf("start landed at %q (thread %v), want a new thread in :1", reused.Args.WorkingDir(), reused.Thread)
+	}
+	if _, err := os.Stat(leftover); err != nil {
+		t.Fatalf("reuse lost the slot's leftover work: %v", err)
+	}
+	if _, err := os.Stat(f.host(3)); !os.IsNotExist(err) {
+		t.Fatalf("allocated :3 despite the hole: %v", err)
 	}
 }
