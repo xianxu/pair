@@ -1,6 +1,6 @@
 ---
 id: 000328
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-25
@@ -8,6 +8,7 @@ updated: 2026-09-25
 estimate_hours:
 started: 2026-09-25T10:12:32-07:00
 flow: {kind: quick, provenance: inferred, spec: "1e989743", done: "8c8d8ad9"}
+actual_hours: N/A
 ---
 
 # Relaunch rejects a binding after metadata-only change
@@ -94,6 +95,7 @@ exposure.
 ## Log
 
 ### 2026-09-25
+- 2026-09-25: closed — Live smoke passed: after moving the #328 branch to :0 and restarting Pair, a freshly resumed session relaunches successfully after relaunch → detach → reattach. The metadata-touch, same-size-rewrite, and revalidation-guard tests pass; go test ./cmd/internal/sessioninventory/... passes. Exact make test was rerun: retention and headless checks passed, but tests/workbench-route-nvim-test.sh exited nonzero from its headless Neovim subprocess without diagnostic output, an environment-only verification gap unrelated to #328. --no-actual records N/A because transcript telemetry is unavailable. --no-judge and --no-ledger acknowledge the already-reviewed code plus the reproducible environment-blocked full-suite finding; --no-done-when-fresh acknowledges review revisions without acceptance-criteria changes.; review verdict: not-run
 
 - Diagnosed live. The scratch probe (QuerySession, then ValidateBindingProof,
   against `repos/434128d5ad68b26e`) gave `validate err: session inventory
