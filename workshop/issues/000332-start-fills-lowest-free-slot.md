@@ -1,11 +1,12 @@
 ---
 id: 000332
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-25
 updated: 2026-09-25
 estimate_hours:
+started: 2026-09-25T10:42:40-07:00
 ---
 
 # Starting a thread fills the lowest free slot number, :0 included
@@ -55,12 +56,38 @@ Operator decisions (2026-09-25):
 
 ## Plan
 
-- [ ] `sdlc start-plan`; locate the occupancy rule (`slotstart.go`
-  `resolveManagedStart`, `SelectNewSlot`, `checkSlotCreation`) and fold it into
-  one per-number occupancy function
-- [ ] Tests first for the cases above
-- [ ] Preview notice listing parked threads
-- [ ] Atlas; smoke test
+Design (from code reading + a probe test, 2026-09-25):
+
+- Occupancy source = the switcher's own classifier:
+  `ActionableThreadInventoryContext` rows belonging to the repo. Row number =
+  `Target.Slot.Number` for slot rows, `0` for an ordinary row in the primary's
+  scope. A number is *occupied* iff some row with that number carries a thread
+  (non-empty `Address`). The probe showed an archived `:1` stays as a slot row
+  with empty address (`unusable`/`never-started`) — that is a hole.
+  Unreadable/unknown rows still refuse (can't know their number's state).
+- One pure function `lowestFreeSlot(numbers occupied, existing dirs) → (n,
+  exists)` (ARCH-PURE), unit-tested; `resolveManagedStart`'s StartCreate
+  branch maps its answer to an action, replacing #331's `:0`-only check and
+  the "any slot exists ⇒ occupied" rule:
+  - `0` → ordinary primary start (as today when free);
+  - `n` with an existing directory → `StartFresh` on that slot (StartFreshSlot
+    already starts a new conversation in an existing, ownerless slot);
+  - `n` without a directory → `StartCreate` of slot `n` (provision as today).
+- `checkSlotCreation` drops the parked blocker (keeps the unreadable refusal);
+  `StartResolution` gains `ParkedInRepo []string` (labels, omitted from the
+  fingerprint so a park elsewhere doesn't invalidate a preview), rendered in
+  the start form as `  parked: repo:1, repo:2`.
+- ARCH-FUNERAL: creates nothing durable beyond what slot create already made;
+  reuse *reduces* slot-directory growth. No new files.
+
+Steps:
+- [ ] Unit tests for the pure selector; integration tests for holes at :0,
+  :1 (dir exists, thread archived — reused with leftover file), :1 with :2
+  parked, no-hole+parked → new slot with notice, unreadable refuses
+- [ ] Implement selector + resolveManagedStart mapping; drop parked blocker
+- [ ] Preview notice in start form (+ render test)
+- [ ] Update #306 parked-blocks tests to the notice behavior; atlas
+- [ ] Full make test; operator smoke test in couch
 
 ## Log
 
