@@ -1,11 +1,12 @@
 ---
 id: 000323
-status: open
+status: working
 deps: [ariadne#241]
 github_issue:
 created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
+started: 2026-09-24T20:13:00-07:00
 ---
 
 # merge-check fails: bootstrap taps unpublished homebrew-ariadne
