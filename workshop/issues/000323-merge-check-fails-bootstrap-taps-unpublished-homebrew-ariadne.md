@@ -1,7 +1,7 @@
 ---
 id: 000323
 status: working
-deps: [ariadne#241]
+deps: [ariadne#241, ariadne#250]
 github_issue:
 created: 2026-09-24
 updated: 2026-09-24
@@ -56,7 +56,10 @@ yet, see ariadne#241") is worth proposing upstream.
 
 ## Plan
 
-- [ ]
+- [x] Fix in ariadne's seed, not pair: ariadne#250 (seeded merge-check builds weave from source while the tap is unpublished)
+- [ ] Ship ariadne#250 (PR + merge)
+- [ ] Re-seed pair (`weave compile`), commit the refreshed `.github/workflows/merge-check.yml`
+- [ ] Verify: this issue's PR runs `merge-check` green past "Prepare dependencies"
 
 ## Log
 
@@ -66,3 +69,12 @@ yet, see ariadne#241") is worth proposing upstream.
   failing. Diagnosis via `gh run view --log-failed`, `gh api
   repos/xianxu/homebrew-ariadne` (404), and ariadne's
   `workshop/issues/000241-publish-weave-startup.md` (status open).
+- 2026-09-25 — Option 2 as written (pair-local fallback) is ruled out:
+  `bootstrap.sh` and `.github/workflows/merge-check.yml` are manifest `seed`
+  files, which track upstream and are refreshed on drift, so the next
+  `weave compile` would revert a pair edit. The fallback moved to the seed source
+  in ariadne#250 (closed on its branch, review SHIP). Only pair has committed the
+  post-#239 seed so far; parley.nvim, tools, etc. still run the old workflow, which
+  is why only pair's CI is red. They would break on their next re-seed without
+  ariadne#250.
+
