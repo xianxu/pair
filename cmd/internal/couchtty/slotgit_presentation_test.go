@@ -74,12 +74,12 @@ func TestReduceMenuSlotGitKeepsLastValueOnFailure(t *testing.T) {
 	}
 }
 
-// pair#319: in both views ± is red and * amber, other glyphs keep their row's
-// style, and the plain text and click spans are unchanged.
+// pair#319, #321: in both views ± and * share the amber attention colour, other
+// glyphs keep their row's style, and the plain text and click spans are unchanged.
 func TestSlotGlyphColoursInBothViews(t *testing.T) {
 	for _, tc := range []struct {
-		glyph      string
-		red, amber bool
+		glyph           string
+		diverged, dirty bool
 	}{{"±", true, false}, {"±*", true, true}, {"+", false, false}, {"-", false, false}, {"*", false, true}, {"+*", false, true}, {"\ue0a0*", false, true}, {"\ue0a0", false, false}} {
 		row := RenderStatusRow(80, StatusModel{Actors: []StatusActor{
 			{GroupKey: "g", Label: "pair", Thread: couchcore.ThreadAddress{Tag: "a"}},
@@ -88,8 +88,11 @@ func TestSlotGlyphColoursInBothViews(t *testing.T) {
 		if got := string(ansi.Strip([]byte(row.Body))); got != "pair  [:1"+tc.glyph+"]" {
 			t.Fatalf("%s: plain tab bar = %q", tc.glyph, got)
 		}
-		if strings.Contains(row.Body, slotAlertSGR+"±\x1b[0m") != tc.red || strings.Contains(row.Body, attentionSGR+"*\x1b[0m") != tc.amber {
-			t.Fatalf("%s: tab bar colouring wrong (want red=%v amber=%v) in %q", tc.glyph, tc.red, tc.amber, row.Body)
+		if strings.Contains(row.Body, attentionSGR+"±\x1b[0m") != tc.diverged || strings.Contains(row.Body, attentionSGR+"*\x1b[0m") != tc.dirty {
+			t.Fatalf("%s: tab bar colouring wrong (want amber ±=%v *=%v) in %q", tc.glyph, tc.diverged, tc.dirty, row.Body)
+		}
+		if strings.Contains(row.Body, "\x1b[38;5;196m") {
+			t.Fatalf("%s: red survives in %q", tc.glyph, row.Body)
 		}
 		for _, other := range []string{"+", "-", "\ue0a0"} {
 			if strings.Contains(row.Body, "m"+other+"\x1b[0m") {
@@ -114,10 +117,10 @@ func TestSlotGlyphColoursInBothViews(t *testing.T) {
 			slotLine = line
 		}
 	}
-	if !strings.Contains(slotLine, slotAlertSGR+"±\x1b[0m"+attentionSGR+"*\x1b[0m") {
-		t.Fatalf("switcher row lacks the red ±: %q", slotLine)
+	if !strings.Contains(slotLine, attentionSGR+"±\x1b[0m"+attentionSGR+"*\x1b[0m") {
+		t.Fatalf("switcher row lacks the amber ±*: %q", slotLine)
 	}
-	if plain := RenderMenu(state, 100, 16, time.Unix(1800000000, 0), false); strings.Contains(plain, slotAlertSGR) || strings.Contains(plain, attentionSGR) {
+	if plain := RenderMenu(state, 100, 16, time.Unix(1800000000, 0), false); strings.Contains(plain, attentionSGR) {
 		t.Fatal("switcher coloured the glyph without 256-colour support")
 	}
 }
