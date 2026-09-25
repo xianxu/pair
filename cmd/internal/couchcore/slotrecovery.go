@@ -286,9 +286,18 @@ func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireE
 	if !observation.Absent {
 		return StartResult{}, errors.New("slot has a live or unresolved owner; park the running conversation before starting fresh")
 	}
-	profile, err := c.slotLaunchProfile(local, slot, agent)
-	if err != nil {
-		return StartResult{}, err
+	var profile LaunchProfileResolution
+	if accepted != nil {
+		profile = LaunchProfileResolution{
+			Profile:     cloneLaunchProfile(accepted.Profile),
+			AgentSource: accepted.AgentSource,
+			ArgvSource:  accepted.ArgvSource,
+		}
+	} else {
+		profile, err = c.slotLaunchProfile(local, slot, agent)
+		if err != nil {
+			return StartResult{}, err
+		}
 	}
 	if err := launcher.ValidateFreshAgentArgs(profile.Profile.Agent, profile.Profile.Argv); err != nil {
 		return StartResult{}, err
