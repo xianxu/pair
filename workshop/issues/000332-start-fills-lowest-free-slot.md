@@ -102,6 +102,8 @@ Steps:
 - [x] README documents lowest-free reuse and the add-slot reuse guidance.
 - [x] Reused starts preserve the accepted launch profile through workspace
   readiness and refuse drift before launching.
+- [x] Reused-slot launch payloads are sourced from that accepted resolution;
+  later profile reads can only refuse drift, never substitute a profile.
 
 ## Log
 
@@ -137,6 +139,9 @@ Steps:
 - 2026-09-25 — Full package verification caught and fixed reuse fingerprint
   reconstruction dropping `ReuseSlot`; the archived-slot commit path and the
   complete `couchcore`/`couchtty` suites now pass.
+- 2026-09-25 — Final boundary-review fix: reused-slot launches now clone the
+  accepted launch profile instead of resolving a replacement profile after
+  preparation. Focused couchcore/couchtty regressions pass.
 
 ## Revisions
 
@@ -149,3 +154,6 @@ Steps:
   accepted launch resolution through readiness and revalidates it before
   launch; the empty condition is physical current-file absence, not merely a
   nil decoded record.
+- 2026-09-25 — Revisions from the final review: the reused launch now derives
+  its payload and profile provenance from the accepted resolution; later reads
+  are validation-only and cannot substitute launch authority.
