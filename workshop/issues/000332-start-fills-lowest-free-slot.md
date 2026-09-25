@@ -114,3 +114,8 @@ Steps:
 - `TestManagedCreateParkAppearingDuringSetup…` and
   `TestManagedLaunchThenPark…` flipped from "parked blocks" to "launch
   proceeds / preview names parked". Full `make test` green.
+- 2026-09-25 — Add-slot presentation now uses lowercase `add slot`, renders
+  parked reuse suggestions as `consider reuse parked <repo>:<n> with
+  open-slot`, and renders lost-binding slot suggestions as `consider reuse
+  lost <repo>:<n> with fresh-slot`. Focused tests plus full `couchcore` and
+  `couchtty` package tests pass.
