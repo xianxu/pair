@@ -1,12 +1,13 @@
 ---
 id: 000331
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-25
 updated: 2026-09-25
 estimate_hours:
 started: 2026-09-25T10:24:07-07:00
+actual_hours: 0.18
 ---
 
 # Starting a thread on a free primary allocates a new slot when numbered slots exist
@@ -48,7 +49,9 @@ first.
 ## Log
 
 ### 2026-09-25
+- 2026-09-25: closed — TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived fails before fix (preview chose slot 2) and passes after; couchcore slot start/admission tests + full make test green (scrubbed retention env, scratch TMPDIR); atlas workspace-provisioning updated; review verdict: SHIP
 
 - Reproduced in test (preview chose slot 2), fixed in `slotstart.go`, full
   `make test` green. ariadne-slot3 left as is — it is a real slot now; archive
   it from couch if unwanted.
+- Review fixes: regression test now also starts the thread and checks it lands on the primary; atlas rewrapped. Operator widened the policy to hole-filling for every slot number (follow-up issue).

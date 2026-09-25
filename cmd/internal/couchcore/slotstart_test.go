@@ -396,4 +396,11 @@ func TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived(t *testing.T) {
 	if _, err := os.Stat(f.host(2)); !os.IsNotExist(err) {
 		t.Fatalf("preview allocated another slot: %v", err)
 	}
+	restarted, _ := env.spawn(t, args)
+	if restarted.Thread == primary.Thread || restarted.Args.WorkingDir() != f.Primary {
+		t.Fatalf("start on free primary landed at %q (thread %v)", restarted.Args.WorkingDir(), restarted.Thread)
+	}
+	if _, err := os.Stat(f.host(2)); !os.IsNotExist(err) {
+		t.Fatalf("start allocated another slot: %v", err)
+	}
 }
