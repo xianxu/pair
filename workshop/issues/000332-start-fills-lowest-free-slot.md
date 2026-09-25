@@ -1,11 +1,12 @@
 ---
 id: 000332
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-25
 updated: 2026-09-25
 estimate_hours:
+started: 2026-09-25T10:42:40-07:00
 ---
 
 # Starting a thread fills the lowest free slot number, :0 included
