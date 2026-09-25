@@ -142,6 +142,10 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 	}
 	query.Diagnostics = append(query.Diagnostics, diagnostics...)
 	if err != nil {
+		// Status stays provisional for the caller, but the reason is recorded:
+		// without it a failed proof reads as "no turn yet" (pair#328).
+		nativeID := current.Binding.RootNativeID
+		query.Diagnostics = append(query.Diagnostics, diagnosticWithSource(DiagnosticBindingStale, agent, &nativeID, "ledger proof", "binding proof no longer validates: "+err.Error()))
 		return query, nil
 	}
 	if persists && !catalogCoversValidation(catalog, validation) {
@@ -218,14 +222,17 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	}
 	advanced, found, err := AdvanceTargetValidation(inventory.runtime, prior, selected.Eligible)
 	diagnostics = append(diagnostics, found...)
-	if err == nil || !proofAllowsFullGrowthRevalidation(proof, selected.Eligible) {
+	if err == nil || !proofAllowsFullRevalidation(proof, selected.Eligible) {
 		return advanced, diagnostics, err
 	}
 	// Some filesystems expose stable file identity but no true generation
 	// token. A proof-authorized transcript may still grow normally after the
-	// binding is committed. In that exact monotonic-growth case, validate the
-	// one proof-named target from byte zero rather than revoking the established
-	// root or broadening into a corpus scan.
+	// binding is committed, or have only its metadata touched -- a resuming
+	// claude bumps ctime without writing a byte (pair#328). In either case the
+	// file is not smaller, so validate the one proof-named target from byte
+	// zero rather than revoking the established root or broadening into a
+	// corpus scan. The re-read, not the metadata, decides: a same-size rewrite
+	// into another conversation still fails the identity check below.
 	validated, fallbackDiagnostics := ValidateTargetWork(inventory.runtime, agent, selected.Eligible)
 	diagnostics = append(diagnostics, fallbackDiagnostics...)
 	if len(validated) != 1 {
@@ -238,11 +245,11 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	return candidate, diagnostics, nil
 }
 
-func proofAllowsFullGrowthRevalidation(proof sessionledger.AuthorizationProof, current []ArtifactObservation) bool {
+func proofAllowsFullRevalidation(proof sessionledger.AuthorizationProof, current []ArtifactObservation) bool {
 	if len(current) != len(proof.Artifacts) || len(current) == 0 {
 		return false
 	}
-	grew, missingGeneration := false, false
+	missingGeneration := false
 	for _, observation := range current {
 		artifact, ok := proofArtifactByKey(proof, targetArtifactKey(observation.Entry.Artifact))
 		if !ok || string(observation.Entry.StableFileID) != artifact.StableFileID || observation.Entry.Size < artifact.Size {
@@ -256,9 +263,8 @@ func proofAllowsFullGrowthRevalidation(proof sessionledger.AuthorizationProof, c
 		} else if string(observation.Entry.GenerationToken) != artifact.GenerationToken {
 			return false
 		}
-		grew = grew || observation.Entry.Size > artifact.Size
 	}
-	return grew && missingGeneration
+	return missingGeneration
 }
 
 func proofArtifactByKey(proof sessionledger.AuthorizationProof, key string) (sessionledger.ArtifactProof, bool) {
