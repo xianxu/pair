@@ -69,7 +69,7 @@ type terminalMux struct {
 }
 
 func newTerminalMux(shell string, args []string, parent ttyio.Writer, rt Runtime) *terminalMux {
-	return &terminalMux{shellName: shell, shellArgs: args, presenter: terminal.NewPresenter(parent, terminal.AnyMotion), rt: rt, paneID: os.Getenv("ZELLIJ_PANE_ID"), active: -1, rows: 24, cols: 80, done: make(chan struct{})}
+	return &terminalMux{shellName: shell, shellArgs: args, presenter: terminal.NewPresenter(parent, terminal.ChildRequested), rt: rt, paneID: os.Getenv("ZELLIJ_PANE_ID"), active: -1, rows: 24, cols: 80, done: make(chan struct{})}
 }
 func (m *terminalMux) stopLocked(err error) {
 	m.failure = errors.Join(m.failure, err)

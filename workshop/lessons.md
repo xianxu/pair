@@ -233,3 +233,5 @@ proof; record the surprising case so the next change starts from evidence.
 - A selection no-op must avoid selection side effects, not merely retain the same active index. Test parent output and external operations for already-selected targets.
 
 - For external numeric fields, parse the entire token and reject duplicates or missing values; formatted scanning can silently accept trailing text and extra signs.
+
+- Before a parent/wrapper requests terminal mouse reporting, name who implements text selection afterwards. Turning reporting on hands every drag to the wrapper, and if nothing below selects, native selection silently disappears (#311 → #326). The same policy was safe in couch only because its child, zellij, selects.

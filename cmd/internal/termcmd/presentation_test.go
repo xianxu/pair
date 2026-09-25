@@ -420,16 +420,19 @@ func TestPresentationCloseActiveRetiresBeforeEndpointDisposal(t *testing.T) {
 	}
 }
 
-// #311: the strip is clickable in a plain shell tab, so the parent asks for
-// mouse reports itself -- couch's any-motion policy -- whatever the child holds.
-func TestPresentationParentRequestsMouseForAPlainChild(t *testing.T) {
+// #326: a plain shell tab must leave mouse reporting off, so zellij keeps its
+// native drag selection. #311's any-motion policy took selection away; strip
+// clicks now work only while the child itself requests mouse tracking.
+func TestPresentationLeavesMouseOffForAPlainChild(t *testing.T) {
 	m, parent := presentationFixture(t)
 	addPresentationTab(t, m, 1, "")
 	if err := m.presenter.Flush(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(parent.Bytes()), "\x1b[?1003h") {
-		t.Fatalf("parent did not request mouse reports for a plain child: %q", parent.Bytes())
+	for _, mode := range []string{"\x1b[?1000h", "\x1b[?1002h", "\x1b[?1003h"} {
+		if strings.Contains(string(parent.Bytes()), mode) {
+			t.Fatalf("parent requested mouse reports %q for a plain child: %q", mode, parent.Bytes())
+		}
 	}
 }
 

@@ -16,10 +16,11 @@ Launches a `zellij` workbench in one of two layouts:
   Those tabs are drawn on a **tab strip in the pane's bottom row**, which the
   pane reserves for itself — so a shell there sees a terminal one row shorter
   than the pane, and `Alt+r` edits the tab name in place on that row.
-  Click a visible tab label to switch, including when a plain shell is active.
-  Clicking the active tab, separators, or empty strip space does nothing; strip
-  clicks do not reach the child. The pane requests mouse reporting as Couch does;
-  outside the strip, existing child mouse handling and shell wheel scrolling apply.
+  While the active program requests mouse reporting (e.g. Neovim with mouse on),
+  clicking a visible tab label switches to it; the active tab, separators and
+  empty strip space do nothing, and strip clicks do not reach the child. In a
+  plain shell the pane leaves the mouse to zellij, so drag selection works and
+  the strip is not clickable (#326).
   When a **full-screen app** runs there (Neovim, `less`, `htop` — anything on
   the alternate screen), those pane chords pass through to it instead of being
   intercepted, so the app can bind `Alt+t` and the rest (#227). Pair's navigation
