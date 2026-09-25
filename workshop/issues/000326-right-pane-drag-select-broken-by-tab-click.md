@@ -13,16 +13,56 @@ started: 2026-09-24T22:18:43-07:00
 
 ## Problem
 
+Since #311 (clickable right-pane tab strip), mouse drag-to-select text in the
+right pane (`pair term`) no longer works — operator report, 2026-09-24.
+
+Likely cause (from reading the #311 diff, not yet reproduced): `1c5ed349`
+switched `newTerminalMux` from `terminal.ChildRequested` to
+`terminal.AnyMotion` (`cmd/internal/termcmd/presentation.go`). Before, a plain
+shell tab (child tracking 0) meant the parent requested no mouse reports, so
+zellij/the host terminal did native text selection. Now the parent always
+emits `\x1b[?1003h`, so the host forwards every press/drag to `pair term`
+instead of selecting. In `Presenter.mouseInput`
+(`cmd/internal/terminal/presenter.go`), a press over a child with
+`Tracking == 0` becomes `ParentPressMouse`, which is swallowed — and the
+parent has no selection implementation of its own. Net: the drag goes
+nowhere.
+
 ## Spec
+
+Both must hold: a click on a strip chip switches tabs (#311), AND drag
+selection in the child area behaves as it did before #311 when the active
+child has not requested mouse tracking. When the child *has* requested
+tracking (vim, less with mouse, etc.), behavior is unchanged.
+
+Candidate directions (pick during design):
+- Scope parent mouse reporting so the host keeps native selection over the
+  child rows — e.g. go back to `ChildRequested` and find another route for the
+  strip click. Constraint: terminals enable mouse reporting per pane, not per
+  row, so this likely needs a different click source (zellij-level hook?).
+- Implement parent-side selection in the presenter (highlight + OSC 52 copy),
+  as a multiplexer would — larger, and must match host selection feel.
+- Accept Shift+drag as the selection gesture (zellij bypasses app mouse
+  capture on Shift) — only if the operator agrees; check it actually works.
 
 ## Done when
 
--
+- In a plain shell tab in the right pane, click-drag selects text and it can
+  be copied, as before #311.
+- Clicking a strip chip still switches tabs (existing #311 tests stay green).
+- A regression test pins the chosen behavior (policy/gesture level), plus a
+  live smoke test by the operator.
 
 ## Plan
 
-- [ ]
+- [ ] Reproduce live; confirm Shift+drag behavior as a data point
+- [ ] Pick direction with the operator
+- [ ] Implement + tests
 
 ## Log
 
 ### 2026-09-24
+
+- Filed from operator report. Suspect commit `1c5ed349` (#311,
+  ChildRequested → AnyMotion); follow-up `8aaa68e3` only touched active-chip
+  click effects.
