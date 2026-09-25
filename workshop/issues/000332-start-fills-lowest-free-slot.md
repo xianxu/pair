@@ -8,7 +8,7 @@ updated: 2026-09-25
 estimate_hours:
 started: 2026-09-25T10:42:40-07:00
 flow: {kind: full, provenance: inferred}
-actual_hours: 2.56
+actual_hours: 2.20
 ---
 
 # Starting a thread fills the lowest free slot number, :0 included
@@ -109,6 +109,7 @@ Steps:
 ## Log
 
 ### 2026-09-25
+- 2026-09-25: closed — Branch rebased by merging current origin/main to resolve PR #171 conflicts; issue implementation and accepted-profile regression are unchanged, and the post-close delta is the already-reviewed mainline integration. Focused couchcore/couchtty tests and smoke test passed.; review verdict: FIX-THEN-SHIP
 - 2026-09-25: closed — Acceptance criteria unchanged; this issue refresh only records the required A-to-B-to-A regression and its actual launch-payload assertion. Focused couchcore/couchtty regression tests pass, and operator smoke test passed.; review verdict: SHIP
 - 2026-09-25: flow upgraded quick → full — 186 added lines in code files (limit 100); an earlier round of this close already ran the full review
 

@@ -172,6 +172,43 @@ rounds:
           round: 6
       recipe: milestone-review
       blocked: false
+    - "n": 7
+      timestamp: "2026-09-25T14:55:44-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Unreadable repository and slot inventory refuses allocation; focused unreadable-sibling regression passes.
+          round: 7
+        - id: BR-2
+          disposition: addressed
+          note: Reuse requires physical current-record absence and preserves compare-and-replace protection.
+          round: 7
+        - id: BR-3
+          disposition: addressed
+          note: Typed mixed notices are numerically ordered, including multi-digit slots.
+          round: 7
+        - id: BR-4
+          disposition: addressed
+          note: README documents lowest-free reuse, inherited checkout state, and parked/lost guidance.
+          round: 7
+        - id: BR-5
+          disposition: addressed
+          note: The active issue plan and revisions match the implemented selector, reuse, notices, and authority behavior.
+          round: 7
+        - id: BR-6
+          disposition: addressed
+          note: Accepted profile authority is preserved through readiness and launch; the transient A-to-B-to-A regression passes.
+          round: 7
+      findings:
+        - id: BR-7
+          severity: Important
+          title: Atlas retains stale SelectNewSlot allocation semantics
+          detail: atlas/workspace-provisioning.md:69-71 still describes lowest-unused-positive allocation, contradicting SelectStartSlot, :0 reuse, and the current lowest-free rule. This is the 2nd finding in family user-facing-documentation-parity; sweep stale allocation terminology across the atlas.
+          family: user-facing-documentation-parity
+          round: 7
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#332 (boundary-review)
@@ -248,6 +285,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 
 - BR-6 — addressed — Reuse now carries the accepted launch profile through readiness, revalidates drift before launch, and launches from the accepted profile. TestManagedCreateReuseRefusesProfileDriftDuringSetup and TestManagedCreateReuseLaunchesAcceptedTransientProfile provide regression evidence.
 
+## Round 7 — 2026-09-25T14:55:44-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Unreadable repository and slot inventory refuses allocation; focused unreadable-sibling regression passes.
+- BR-2 — addressed — Reuse requires physical current-record absence and preserves compare-and-replace protection.
+- BR-3 — addressed — Typed mixed notices are numerically ordered, including multi-digit slots.
+- BR-4 — addressed — README documents lowest-free reuse, inherited checkout state, and parked/lost guidance.
+- BR-5 — addressed — The active issue plan and revisions match the implemented selector, reuse, notices, and authority behavior.
+- BR-6 — addressed — Accepted profile authority is preserved through readiness and launch; the transient A-to-B-to-A regression passes.
+
+### Raised
+
+- **BR-7** [Important] `user-facing-documentation-parity` Atlas retains stale SelectNewSlot allocation semantics
+  atlas/workspace-provisioning.md:69-71 still describes lowest-unused-positive allocation, contradicting SelectStartSlot, :0 reuse, and the current lowest-free rule. This is the 2nd finding in family user-facing-documentation-parity; sweep stale allocation terminology across the atlas.
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-7** [Important] `user-facing-documentation-parity` Atlas retains stale SelectNewSlot allocation semantics

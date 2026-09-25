@@ -529,3 +529,104 @@ dispose:
     note: |
       Reuse now carries the accepted launch profile through readiness, revalidates drift before launch, and launches from the accepted profile. TestManagedCreateReuseRefusesProfileDriftDuringSetup and TestManagedCreateReuseLaunchesAcceptedTransientProfile provide regression evidence.
 ```
+
+---
+
+## Re-review — 2026-09-25T14:55:44-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 332 — Starting a thread fills the lowest free slot number, :0 included |
+| repo | pair |
+| issue file | workshop/issues/000332-start-fills-lowest-free-slot.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 9becfbc7b832a72e26d5cdb1fc49386c9278a0aa..f42fa9b94f8182efe9c2bb754bbfb0c89f5bd915 |
+| command | sdlc close --issue 332 |
+| reviewer | codex |
+| timestamp | 2026-09-25T14:55:44-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The implementation fulfills the allocation, reuse, authority, ordering, and documentation goals, with focused regressions passing. One atlas paragraph remains stale and contradicts the new lowest-free-slot behavior.
+
+1. Strengths:
+
+- Pure lowest-free selector covers `:0`, holes, occupied slots, and uncertainty.
+- Reuse preserves checkout contents and guards occupied current records.
+- Accepted launch profile remains authoritative through readiness.
+- Mixed reuse notices are typed and numerically ordered.
+- README and atlas updates cover the new user behavior.
+
+2. Critical findings:
+
+None.
+
+3. Important findings:
+
+- `atlas/workspace-provisioning.md:69-71` still says `SelectNewSlot` allocates the lowest unused positive number, contradicting `SelectStartSlot` and the `:0`/reuse contract. This is the 2nd finding in family `user-facing-documentation-parity`; sweep stale allocation terminology and update the paragraph to describe the current rule.
+
+4. Minor findings:
+
+None.
+
+5. Test coverage notes:
+
+Focused `couchcore` and `couchtty` regressions pass. `git diff --check` passes. The combined package test was stopped after producing no result within the bounded wait.
+
+6. Architectural notes:
+
+- ARCH-DRY: pass.
+- ARCH-PURE: pass.
+- ARCH-PURPOSE: pass.
+- ARCH-MOCK: pass.
+- ARCH-CONSTRAINTS: pass.
+- ARCH-SECURE: pass.
+- ARCH-ORDER: pass.
+- ARCH-FUNERAL: pass.
+
+7. Plan revision recommendations:
+
+Append a `## Revisions` entry recording the stale atlas allocation description and its correction.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Unreadable repository and slot inventory refuses allocation; focused unreadable-sibling regression passes.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Reuse requires physical current-record absence and preserves compare-and-replace protection.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Typed mixed notices are numerically ordered, including multi-digit slots.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      README documents lowest-free reuse, inherited checkout state, and parked/lost guidance.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      The active issue plan and revisions match the implemented selector, reuse, notices, and authority behavior.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Accepted profile authority is preserved through readiness and launch; the transient A-to-B-to-A regression passes.
+findings:
+  - id: new
+    severity: Important
+    family: user-facing-documentation-parity
+    title: |
+      Atlas retains stale SelectNewSlot allocation semantics
+    detail: |
+      atlas/workspace-provisioning.md:69-71 still describes lowest-unused-positive allocation, contradicting SelectStartSlot, :0 reuse, and the current lowest-free rule. This is the 2nd finding in family user-facing-documentation-parity; sweep stale allocation terminology across the atlas.
+```
