@@ -97,6 +97,9 @@ Steps:
   couch.
 - [x] Add-slot wording and parked/lost reuse notices have focused render/menu
   coverage.
+- [x] Unreadable slot-current state refuses allocation, hole reuse refuses an
+  occupied current record, and mixed reuse notices retain numeric order.
+- [x] README documents lowest-free reuse and the add-slot reuse guidance.
 
 ## Log
 
