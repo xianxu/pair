@@ -1,11 +1,13 @@
 ---
 id: 000321
-status: open
+status: working
 deps: [pair#319]
 github_issue:
 created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
+started: 2026-09-24T19:55:35-07:00
+flow: {kind: quick, provenance: inferred, spec: "ce106ab5", done: "c8e1406f"}
 ---
 
 # Diverged slot glyph uses amber, not red
@@ -36,7 +38,9 @@ amber as `*`.
 
 ## Plan
 
-- [ ]
+- [ ] Test first: `TestSlotGlyphColoursInBothViews` expects amber `±` in both views
+- [ ] `slotGlyphSGR`: `±` → `attentionSGR`; delete `slotAlertSGR`
+- [ ] README + atlas colour wording; mutation-check; package tests unsandboxed
 
 ## Log
 
