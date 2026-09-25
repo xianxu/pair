@@ -66,3 +66,10 @@ Candidate directions (pick during design):
 - Filed from operator report. Suspect commit `1c5ed349` (#311,
   ChildRequested → AnyMotion); follow-up `8aaa68e3` only touched active-chip
   click effects.
+- Why couch doesn't hit this despite the same `AnyMotion` policy and no
+  selection code of its own: couch's child is a zellij client, which always
+  requests mouse tracking, so `RouteMouseReport` forwards drags down and
+  *zellij* does the selection. In `pair term` the layering is flipped —
+  zellij is the host above, the child is a plain shell with tracking 0, so
+  drags are swallowed and nothing below implements selection. Copying couch
+  therefore doesn't fix it; the selection has to come from somewhere.
