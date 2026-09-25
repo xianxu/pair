@@ -58,9 +58,9 @@ Candidate directions (pick during design):
 
 - [x] Revert `pair term` to `terminal.ChildRequested`; invert the #311 policy test
 - [x] README + atlas describe the narrowed behavior
-- [ ] Operator smoke test
-- [ ] Clickable strip over a plain shell *without* losing selection is left for
-  a follow-up issue (options above; parent-side selection breakdown in Log)
+- [x] Operator smoke test
+- [x] Clickable strip over a plain shell *without* losing selection is left for
+  a follow-up issue (#327) (options above; parent-side selection breakdown in Log)
 
 ## Log
 
