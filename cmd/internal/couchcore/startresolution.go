@@ -54,6 +54,9 @@ type StartResolution struct {
 	// new slot (#332): a reminder, not a blocker. Left out of the fingerprint
 	// so a park elsewhere does not invalidate an accepted preview.
 	ParkedInRepo []string `json:"parked_in_repo,omitempty"`
+	// LostInRepo labels numbered repository slots whose native binding is lost
+	// when a start adds a slot (#332): a reuse reminder, not an automatic action.
+	LostInRepo []string `json:"lost_in_repo,omitempty"`
 }
 
 func ResolveStartResolution(input StartResolutionInput) (StartResolution, error) {
@@ -107,6 +110,7 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 func cloneStartResolution(resolution StartResolution) StartResolution {
 	resolution.Profile = cloneLaunchProfile(resolution.Profile)
 	resolution.ParkedInRepo = append([]string(nil), resolution.ParkedInRepo...)
+	resolution.LostInRepo = append([]string(nil), resolution.LostInRepo...)
 	return resolution
 }
 

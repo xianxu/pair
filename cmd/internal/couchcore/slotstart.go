@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/launcher"
@@ -34,6 +35,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 	}
 	primary := id.PrimaryRoot
 	var parked []string
+	var lost []string
 	reuse := false
 	if action == StartCreate {
 		repository, e := c.Slots.Discover(ctx, primary)
@@ -63,6 +65,12 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		if e != nil {
 			return StartResolution{}, e
 		}
+		if allocation.Number != 0 {
+			parked, lost, e = c.reuseNoticesInRepository(ctx, repository)
+			if e != nil {
+				return StartResolution{}, e
+			}
+		}
 		target = nil
 		if allocation.Number != 0 {
 			slot := conventionalSlot(primary, allocation.Number)
@@ -70,8 +78,6 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 			target = &ThreadTarget{Kind: ThreadTargetSlot, Slot: slot}
 			if allocation.Exists {
 				reuse = true
-			} else if parked, e = c.parkedInRepository(ctx, repository); e != nil {
-				return StartResolution{}, e
 			}
 		}
 	}
@@ -89,7 +95,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		return StartResolution{}, err
 	}
 	resolution.OriginalInput, resolution.Action = original, action
-	resolution.ReuseSlot, resolution.ParkedInRepo = reuse, parked
+	resolution.ReuseSlot, resolution.ParkedInRepo, resolution.LostInRepo = reuse, parked, lost
 	if target != nil {
 		resolution.Target = *target
 	} else if action == StartFresh {
@@ -132,21 +138,34 @@ func (c *Couch) repositoryRows(ctx context.Context, repository SlotRepository) (
 	return mine, nil
 }
 
-// parkedInRepository labels the repository's parked threads. Since #332 they
-// no longer block a new slot; the start preview names them instead, so parked
-// work stays in view without stopping the operator.
-func (c *Couch) parkedInRepository(ctx context.Context, repository SlotRepository) ([]string, error) {
+// reuseNoticesInRepository labels parked threads and lost-binding slots. Since
+// #332 they no longer block a new slot; the start preview names them instead,
+// so existing work stays in view without stopping the operator.
+func (c *Couch) reuseNoticesInRepository(ctx context.Context, repository SlotRepository) (parked, lost []string, err error) {
 	rows, err := c.repositoryRows(ctx, repository)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	var parked []string
+	sort.SliceStable(rows, func(i, j int) bool {
+		left, right := rows[i], rows[j]
+		leftNumber, rightNumber := 0, 0
+		if left.Target.Kind == ThreadTargetSlot {
+			leftNumber = left.Target.Slot.Number
+		}
+		if right.Target.Kind == ThreadTargetSlot {
+			rightNumber = right.Target.Slot.Number
+		}
+		return leftNumber < rightNumber
+	})
 	for _, row := range rows {
 		if row.State == ThreadParked {
 			parked = append(parked, row.Label())
 		}
+		if row.Target.Kind == ThreadTargetSlot && row.State == ThreadUnusable && row.Reason == ReasonBindingLost {
+			lost = append(lost, row.Label())
+		}
 	}
-	return parked, nil
+	return parked, lost, nil
 }
 
 // checkSlotCreation refuses a new slot only while a thread's ownership is

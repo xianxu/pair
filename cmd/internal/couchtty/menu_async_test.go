@@ -215,6 +215,7 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
 		AgentSource: couchcore.AgentSourcePath, ArgvSource: couchcore.ArgvSourcePath,
 		ParkedInRepo: []string{"repo:1", "repo:2"},
+		LostInRepo:   []string{"repo:3"},
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
 	if len(effects) != 0 {
@@ -225,8 +226,17 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 		t.Fatalf("accepted start provenance not rendered: %q", rendered)
 	}
 	// #332: parked work no longer blocks a new slot; the form names it.
-	if !strings.Contains(rendered, "parked repo:1, repo:2") {
+	if !strings.Contains(rendered, "consider reuse parked repo:1 with open-slot") || !strings.Contains(rendered, "consider reuse parked repo:2 with open-slot") {
 		t.Fatalf("parked reminder not rendered: %q", rendered)
+	}
+	if !strings.Contains(rendered, "consider reuse lost repo:3 with fresh-slot") {
+		t.Fatalf("lost-binding reminder not rendered: %q", rendered)
+	}
+}
+
+func TestMenuItemLabelUsesLowercaseAddSlot(t *testing.T) {
+	if got := menuItemLabel("add-slot"); got != "add slot" {
+		t.Fatalf("add-slot label = %q, want %q", got, "add slot")
 	}
 }
 

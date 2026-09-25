@@ -412,7 +412,14 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewResolution.ArgvSource), width))
 	}
 	if parked := frame.PreviewResolution.ParkedInRepo; len(parked) > 0 {
-		lines = append(lines, clipMenuLine("  parked "+strings.Join(parked, ", "), width))
+		for _, label := range parked {
+			lines = append(lines, clipMenuLine("  consider reuse parked "+label+" with open-slot", width))
+		}
+	}
+	if lost := frame.PreviewResolution.LostInRepo; len(lost) > 0 {
+		for _, label := range lost {
+			lines = append(lines, clipMenuLine("  consider reuse lost "+label+" with fresh-slot", width))
+		}
 	}
 	return lines
 }
