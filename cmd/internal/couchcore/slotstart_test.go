@@ -182,6 +182,50 @@ func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
 	}
 }
 
+func TestManagedCreateReuseLaunchesAcceptedTransientProfile(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	reads := 0
+	transient := false
+	env.Couch.RepoAgentDefault = func(_ string, agent string) (LaunchProfile, bool, error) {
+		reads++
+		version := "accepted"
+		if transient && reads == 2 {
+			version = "unaccepted"
+		}
+		return LaunchProfile{Agent: agent, Argv: []string{"--model", version}}, true, nil
+	}
+	created, _ := env.spawn(t, args)
+	env.Proc.Kill(created.PID)
+	if err := env.Couch.Threads.ArchiveThread(created.Thread); err != nil {
+		t.Fatal(err)
+	}
+	args.Stack = "codex"
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads, transient = 0, true
+	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
+	if errors.Is(err, ErrStartResolutionChanged) {
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := env.Runner.Child(env.Runner.order[len(env.Runner.order)-1])
+	raw := environmentValue(child.Env, launcher.CouchLaunchProfileEnv)
+	profile, _, err := launcher.ApplyCouchLaunchProfile(launcher.LaunchArgs{
+		ForcedTag: environmentValue(child.Env, "COUCH_THREAD_TAG"),
+	}, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(profile.AgentArgs, " ") != "--model accepted" {
+		t.Fatalf("launched unaccepted payload %v after %d profile reads", profile.AgentArgs, reads)
+	}
+}
+
 // #332: parked work is a reminder, not a blocker, so a park that appears
 // during setup does not stop the accepted launch.
 func TestManagedCreateParkAppearingDuringSetupStillLaunches(t *testing.T) {
