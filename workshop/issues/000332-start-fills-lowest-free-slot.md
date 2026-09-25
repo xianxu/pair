@@ -43,6 +43,12 @@ Operator decisions (2026-09-25):
   refuses a changed selection instead of renumbering.
 - Consequence: the thread menu's **Add slot** uses the same path, so it fills
   a hole before adding a number.
+- The repository action is rendered as `add slot`.
+- Add-slot previews render actionable reuse notices without changing the
+  selected allocation: `consider reuse parked <repo>:<n> with open-slot` for
+  parked threads, and `consider reuse lost <repo>:<n> with fresh-slot` for
+  lost-binding slot rows. When both kinds exist, show both in slot-number
+  order.
 
 ## Done when
 
@@ -89,6 +95,8 @@ Steps:
 - [x] Preview notice in start form (+ render test)
 - [x] Update #306 parked-blocks tests to the notice behavior; atlas
 - [ ] Full make test; operator smoke test in couch
+- [ ] Add-slot wording and parked/lost reuse notices have focused render/menu
+  coverage.
 
 ## Log
 
