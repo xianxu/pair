@@ -1,14 +1,15 @@
 ---
-id: 000330
-status: open
+id: 000332
+status: working
 deps: []
 github_issue:
 created: 2026-09-25
 updated: 2026-09-25
 estimate_hours:
+started: 2026-09-25T10:42:40-07:00
 ---
 
-# Carry binding_stale diagnostics into COUCH_TRACE
+# Starting a thread fills the lowest free slot number, :0 included
 
 ## Problem
 
