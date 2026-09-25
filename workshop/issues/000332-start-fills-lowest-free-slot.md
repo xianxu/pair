@@ -7,7 +7,7 @@ created: 2026-09-25
 updated: 2026-09-25
 estimate_hours:
 started: 2026-09-25T10:42:40-07:00
-flow: {kind: quick, provenance: inferred, spec: "c9aae212", done: "a9524a2b"}
+flow: {kind: quick, provenance: inferred, spec: "508546a2", done: "a9524a2b"}
 ---
 
 # Starting a thread fills the lowest free slot number, :0 included
@@ -100,6 +100,8 @@ Steps:
 - [x] Unreadable slot-current state refuses allocation, hole reuse refuses an
   occupied current record, and mixed reuse notices retain numeric order.
 - [x] README documents lowest-free reuse and the add-slot reuse guidance.
+- [x] Reused starts preserve the accepted launch profile through workspace
+  readiness and refuse drift before launching.
 
 ## Log
 
