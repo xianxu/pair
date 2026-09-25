@@ -103,7 +103,7 @@ published monotonically through `CatalogStore`, and later unchanged queries
 reuse that parser cursor without rereading body bytes. Catalog loss falls back
 to the durable ledger proof. On a filesystem with no generation token, a proof
 artifact that is the same file and not smaller, but whose metadata moved (for
-example growth, or a resuming claude bumping ctime without writing, #328), is
+example growth, or a resuming agent bumping ctime without writing, #328), is
 re-read from byte zero. The content, not the metadata, decides whether the
 root still validates. A failed proof stays provisional and records a
 `binding_stale` diagnostic. Neovim's review fallback uses the bounded `--owner`

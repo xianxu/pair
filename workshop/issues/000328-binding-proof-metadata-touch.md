@@ -75,13 +75,21 @@ exposure.
 
 ## Plan
 
-- [ ] Tests first: metadata touch establishes; same-size different
+- [x] Tests first: metadata touch establishes; same-size different
       conversation refuses with a diagnostic.
-- [ ] Relax `proofAllowsFullGrowthRevalidation` from grew-only to not-smaller,
+- [x] Relax `proofAllowsFullGrowthRevalidation` from grew-only to not-smaller,
       and rename it to match.
-- [ ] Append a `binding_stale` diagnostic on proof validation failure in
+- [x] Append a `binding_stale` diagnostic on proof validation failure in
       `QuerySessionContext`.
-- [ ] Verify live against the tools thread, then run `make test`.
+- [x] Verify live against the tools thread, then run `make test`.
+
+## Revisions
+
+- 2026-09-25 — boundary review follow-up: the guard-family table now asserts
+  `BindingProvisional` for shrink, stable-file-ID replacement, and generation
+  appearance; the operator's relaunch → detach → reattach smoke confirmation is
+  recorded above; generic atlas wording uses “resuming agent”; #330 tracks the
+  remaining COUCH_TRACE diagnostic sink.
 
 ## Log
 
@@ -93,3 +101,17 @@ exposure.
   and its ctime +3 s after the proof.
 - Split out #329: detach kills an unbound session watcher. Same refusal text,
   different cause (the `ariadne` threads have no binding at all).
+- Tests first: both new query tests failed before the fix (the metadata-touch
+  one reproduced the live result exactly: provisional, no diagnostics).
+- After the fix, the scratch probe against the real tools thread
+  (`repos/434128d5ad68b26e`, `couch-35b927a500150138`) gives `established`,
+  root `20d98988-f072-4cba-a88f-51eceeaef985`. The `turn_unusable` warnings
+  come from the full scan and predate this change.
+- Operator smoke confirmed that moving the #328 branch to `:0`, restarting Pair,
+  and relaunching a freshly resumed session works through relaunch → detach →
+  reattach.
+- `make -k test`: everything green except `test-submission-transaction`, the
+  known session-env leak. It passes with the retention-owner group scrubbed.
+- Debug-log wiring: the diagnostic lands in the structured query result. No
+  Couch sink carries query diagnostics today (only the opt-in COUCH_TRACE
+  files). Wiring it into COUCH_TRACE is a possible follow-up.

@@ -181,8 +181,8 @@ func TestQuerySessionFullRevalidationGuardsRefuse(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if query.Status == sessioninventory.BindingEstablished || query.Root != nil {
-				t.Fatalf("guard let the proof stand: %#v", query)
+			if query.Status != sessioninventory.BindingProvisional || query.Root != nil {
+				t.Fatalf("guard status/root = %s/%#v, want provisional/nil", query.Status, query.Root)
 			}
 			if !hasDiagnostic(query.Diagnostics, sessioninventory.DiagnosticBindingStale) {
 				t.Fatalf("proof failure left no diagnostic: %#v", query.Diagnostics)
