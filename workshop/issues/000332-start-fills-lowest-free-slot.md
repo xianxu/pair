@@ -128,6 +128,13 @@ Steps:
   block allocation, hole reuse requires an empty current record at commit,
   and typed reuse notices preserve numeric order. Added regressions and
   updated the README. Full `couchcore` and `couchtty` package tests pass.
+- 2026-09-25 — Second boundary-review fixes: reuse now revalidates the
+  accepted launch profile after workspace preparation, checks physical
+  current-file absence rather than decoded-record absence, and covers the
+  `:1` hole plus parked `:2` integration case.
+- 2026-09-25 — Full package verification caught and fixed reuse fingerprint
+  reconstruction dropping `ReuseSlot`; the archived-slot commit path and the
+  complete `couchcore`/`couchtty` suites now pass.
 
 ## Revisions
 
@@ -136,3 +143,7 @@ Steps:
   separately stored notices could lose mixed numeric ordering. The design now
   blocks uncertain slot inventory, uses an ordered typed notice list, and
   requires `StartCreate` hole reuse to observe an empty current record.
+- 2026-09-25 — Revisions from the next review: hole reuse also carries the
+  accepted launch resolution through readiness and revalidates it before
+  launch; the empty condition is physical current-file absence, not merely a
+  nil decoded record.
