@@ -142,6 +142,8 @@ Steps:
 - 2026-09-25 — Final boundary-review fix: reused-slot launches now clone the
   accepted launch profile instead of resolving a replacement profile after
   preparation. Focused couchcore/couchtty regressions pass.
+- 2026-09-25 — Added a transient A→B→A regression that inspects the actual
+  launch payload and confirms reused starts cannot launch the transient profile.
 
 ## Revisions
 
@@ -157,3 +159,5 @@ Steps:
 - 2026-09-25 — Revisions from the final review: the reused launch now derives
   its payload and profile provenance from the accepted resolution; later reads
   are validation-only and cannot substitute launch authority.
+- 2026-09-25 — Final review required executable evidence for the transient
+  profile sequence; added `TestManagedCreateReuseLaunchesAcceptedTransientProfile`.
