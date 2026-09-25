@@ -3,12 +3,19 @@ package couchcore
 import "fmt"
 
 // SlotAllocation is a proposed number; the guarded creation boundary must
-// still reject a directory created after the inventory was observed.
-type SlotAllocation struct{ Number int }
+// still reject a directory created after the inventory was observed. Exists
+// says the number already has a checkout to reuse (:0 always does).
+type SlotAllocation struct {
+	Number int
+	Exists bool
+}
 
-// SelectNewSlot consumes a complete repository inventory. Unverified or failed
-// candidates need attention before another slot can be allocated.
-func SelectNewSlot(candidates []SlotCandidate) (SlotAllocation, error) {
+// SelectStartSlot picks where a new thread starts (#332): the lowest number,
+// :0 included, that holds no thread, reusing its checkout when one exists; a
+// new directory only when every number is taken. occupied names the numbers
+// holding a thread (live, parked or otherwise). It consumes a complete
+// repository inventory: unverified or failed candidates need attention first.
+func SelectStartSlot(candidates []SlotCandidate, occupied map[int]bool) (SlotAllocation, error) {
 	used := make(map[int]bool, len(candidates))
 	var repository SlotIdentity
 	for _, candidate := range candidates {
@@ -31,10 +38,10 @@ func SelectNewSlot(candidates []SlotCandidate) (SlotAllocation, error) {
 		}
 		used[slot.Number] = true
 	}
-	// The first missing positive integer is at most len(candidates)+1.
-	for number := 1; ; number++ {
-		if !used[number] {
-			return SlotAllocation{Number: number}, nil
+	// The first free number is at most len(occupied)+len(candidates)+1 away.
+	for number := 0; ; number++ {
+		if !occupied[number] {
+			return SlotAllocation{Number: number, Exists: number == 0 || used[number]}, nil
 		}
 	}
 }

@@ -261,6 +261,10 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 }
 
 func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartResult, error) {
+	return c.startFreshSlot(ctx, path, agent, false, nil)
+}
+
+func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool, accepted *StartResolution) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -272,6 +276,9 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 	if old.Unsupported {
 		return StartResult{}, old.Err
 	}
+	if requireEmpty && old.Exists {
+		return StartResult{}, ErrStartResolutionChanged
+	}
 	observation, err := c.ObserveSlotSessions(ctx, slot)
 	if err != nil {
 		return StartResult{}, err
@@ -279,9 +286,18 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 	if !observation.Absent {
 		return StartResult{}, errors.New("slot has a live or unresolved owner; park the running conversation before starting fresh")
 	}
-	profile, err := c.slotLaunchProfile(local, slot, agent)
-	if err != nil {
-		return StartResult{}, err
+	var profile LaunchProfileResolution
+	if accepted != nil {
+		profile = LaunchProfileResolution{
+			Profile:     cloneLaunchProfile(accepted.Profile),
+			AgentSource: accepted.AgentSource,
+			ArgvSource:  accepted.ArgvSource,
+		}
+	} else {
+		profile, err = c.slotLaunchProfile(local, slot, agent)
+		if err != nil {
+			return StartResult{}, err
+		}
 	}
 	if err := launcher.ValidateFreshAgentArgs(profile.Profile.Agent, profile.Profile.Argv); err != nil {
 		return StartResult{}, err
@@ -340,6 +356,9 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 		err = c.prepareTrackedWorkspace(ctx, record, nonce, false)
 		if err == nil {
 			err = c.verifyOtherSlotOwnersAbsent(ctx, slot, record.Address)
+		}
+		if err == nil && accepted != nil {
+			err = c.revalidateCreatedSlot(ctx, *accepted)
 		}
 		if err != nil {
 			return StartResult{}, errors.Join(err, c.rollbackTrackedStart(record, nonce))

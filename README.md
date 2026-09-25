@@ -408,13 +408,17 @@ actor's exit stands until something replaces it -- one answers the keystroke you
 just pressed, the other explains why a pane disappeared.
 
 The first thread for a repository uses its primary checkout (`:0`). Starting
-another creates a durable numbered slot (`:1`, `:2`, …), under
-`../worktree/<repo>-slotN/<repo>`. Within that repo you can address a slot as
-`:N`; the qualified form is `<repo>:N`. Resume parked threads before adding
-another slot. To add one without typing a path, open an existing thread's
-action menu and choose **Add slot**. The launch form opens with its repository
-filled in and the agent selected; press Enter to use the defaults, or choose an
-agent first. The action also works from numbered slot rows.
+another fills the lowest free number (`:1`, `:2`, …), under
+`../worktree/<repo>-slotN/<repo>`. An existing checkout with no current thread
+is reused as-is, so its leftover files and branch are inherited by the fresh
+conversation; only when every number is occupied is a new slot created. Within
+that repo you can address a slot as `:N`; the qualified form is `<repo>:N`.
+Parked work does not block adding a slot: the launch preview names parked work
+and lost bindings with the matching `open-slot` or `fresh-slot` reuse action.
+To add one without typing a path, open an existing thread's action menu and
+choose **add slot**. The launch form opens with its repository filled in and
+the agent selected; press Enter to use the defaults, or choose an agent first.
+The action also works from numbered slot rows.
 
 The switcher groups repositories alphabetically, with the primary first and
 numbered slots in numeric order (`:2` before `:10`). It shows full workspace

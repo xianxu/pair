@@ -13,6 +13,19 @@ import (
 
 type StartResolutionFingerprint string
 
+type StartReuseNoticeKind string
+
+const (
+	StartReuseNoticeParked StartReuseNoticeKind = "parked"
+	StartReuseNoticeLost   StartReuseNoticeKind = "lost"
+)
+
+type StartReuseNotice struct {
+	Kind  StartReuseNoticeKind `json:"kind"`
+	Label string               `json:"label"`
+	Slot  int                  `json:"slot"`
+}
+
 var ErrStartResolutionChanged = errors.New("start resolution changed")
 
 type StartResolutionInput struct {
@@ -46,6 +59,13 @@ type StartResolution struct {
 	PreferenceRevision uint64                     `json:"preference_revision,omitempty"`
 	DefaultDigest      string                     `json:"default_digest,omitempty"`
 	Fingerprint        StartResolutionFingerprint `json:"fingerprint"`
+	// ReuseSlot says a create fills an existing, threadless numbered slot with
+	// a fresh conversation instead of provisioning a new one (#332). It is in
+	// the fingerprint: a directory appearing after preview is drift.
+	ReuseSlot bool `json:"reuse_slot,omitempty"`
+	// ReuseNotices names existing work that the operator may reuse instead of
+	// adding a slot. They are display-only and left out of the fingerprint.
+	ReuseNotices []StartReuseNotice `json:"reuse_notices,omitempty"`
 }
 
 func ResolveStartResolution(input StartResolutionInput) (StartResolution, error) {
@@ -98,6 +118,7 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 
 func cloneStartResolution(resolution StartResolution) StartResolution {
 	resolution.Profile = cloneLaunchProfile(resolution.Profile)
+	resolution.ReuseNotices = append([]StartReuseNotice(nil), resolution.ReuseNotices...)
 	return resolution
 }
 
@@ -121,6 +142,9 @@ func fingerprintStartResolution(resolution StartResolution) StartResolutionFinge
 	writeFingerprintField(digest, resolution.Target.Slot.WorktreeRoot)
 	writeFingerprintField(digest, resolution.Target.Slot.RepoIdentity)
 	writeFingerprintUint(digest, uint64(resolution.Target.Slot.Number))
+	if resolution.ReuseSlot {
+		writeFingerprintField(digest, "reuse-slot")
+	}
 	writeFingerprintField(digest, resolution.CanonicalPath)
 	writeFingerprintField(digest, string(resolution.Worktree))
 	writeFingerprintField(digest, resolution.Issue)

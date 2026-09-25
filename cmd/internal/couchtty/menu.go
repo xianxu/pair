@@ -1466,7 +1466,7 @@ func filterMenuItems(items []string, query string) []string {
 
 func menuItemLabel(item string) string {
 	if item == "add-slot" {
-		return "Add slot"
+		return "add slot"
 	}
 	if item == "recover-thread" {
 		return "Recover session or retained checkpoint"

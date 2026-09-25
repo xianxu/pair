@@ -30,6 +30,18 @@ func TestStartResolutionPreservesSlotIntent(t *testing.T) {
 		t.Fatalf("action not bound: %v", err)
 	}
 }
+
+func TestSortReuseNoticesOrdersMixedKindsBySlotNumber(t *testing.T) {
+	notices := []StartReuseNotice{
+		{Kind: StartReuseNoticeLost, Label: "repo:10", Slot: 10},
+		{Kind: StartReuseNoticeParked, Label: "repo:2", Slot: 2},
+		{Kind: StartReuseNoticeLost, Label: "repo:1", Slot: 1},
+	}
+	sortReuseNotices(notices)
+	if notices[0].Slot != 1 || notices[1].Slot != 2 || notices[2].Slot != 10 {
+		t.Fatalf("notice order = %+v", notices)
+	}
+}
 func TestSlotContextReferencesRejectDependencyAndSelectExactNumber(t *testing.T) {
 	f := newProvisionFixture(t)
 	primary, err := NewWorkspaceProvisioner(f).identity(context.Background(), f.Primary)
@@ -147,7 +159,76 @@ func TestManagedCreateRefusesProfileDriftDuringSetup(t *testing.T) {
 	}
 }
 
-func TestManagedCreateParkAppearingDuringSetupPreservesSlotWithoutLaunch(t *testing.T) {
+func TestManagedCreateReuseRefusesProfileDriftDuringSetup(t *testing.T) {
+	env, f := managedStartFixture(t)
+	version := "before"
+	env.Couch.RepoAgentDefault = func(string, string) (LaunchProfile, bool, error) {
+		return LaunchProfile{Agent: "claude", Argv: []string{"--model", version}}, true, nil
+	}
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	created, _ := env.spawn(t, args)
+	env.Proc.Kill(created.PID)
+	if err := env.Couch.Threads.ArchiveThread(created.Thread); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil || !prepared.Resolution.ReuseSlot {
+		t.Fatalf("reuse preview = %+v, %v", prepared, err)
+	}
+	env.Couch.Workspaces = startReadinessHook{inner: env.Couch.Workspaces, after: func() { version = "after" }}
+	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
+	if !errors.Is(err, ErrStartResolutionChanged) {
+		t.Fatalf("changed reuse profile launched: %v", err)
+	}
+}
+
+func TestManagedCreateReuseLaunchesAcceptedTransientProfile(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	reads := 0
+	transient := false
+	env.Couch.RepoAgentDefault = func(_ string, agent string) (LaunchProfile, bool, error) {
+		reads++
+		version := "accepted"
+		if transient && reads == 2 {
+			version = "unaccepted"
+		}
+		return LaunchProfile{Agent: agent, Argv: []string{"--model", version}}, true, nil
+	}
+	created, _ := env.spawn(t, args)
+	env.Proc.Kill(created.PID)
+	if err := env.Couch.Threads.ArchiveThread(created.Thread); err != nil {
+		t.Fatal(err)
+	}
+	args.Stack = "codex"
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reads, transient = 0, true
+	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
+	if errors.Is(err, ErrStartResolutionChanged) {
+		return
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := env.Runner.Child(env.Runner.order[len(env.Runner.order)-1])
+	raw := environmentValue(child.Env, launcher.CouchLaunchProfileEnv)
+	profile, _, err := launcher.ApplyCouchLaunchProfile(launcher.LaunchArgs{
+		ForcedTag: environmentValue(child.Env, "COUCH_THREAD_TAG"),
+	}, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(profile.AgentArgs, " ") != "--model accepted" {
+		t.Fatalf("launched unaccepted payload %v after %d profile reads", profile.AgentArgs, reads)
+	}
+}
+
+// #332: parked work is a reminder, not a blocker, so a park that appears
+// during setup does not stop the accepted launch.
+func TestManagedCreateParkAppearingDuringSetupStillLaunches(t *testing.T) {
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	prepared, err := env.Couch.PrepareStart(context.Background(), args)
@@ -171,8 +252,8 @@ func TestManagedCreateParkAppearingDuringSetupPreservesSlotWithoutLaunch(t *test
 		}
 	}}
 	_, _, err = env.Couch.SpawnPrepared(context.Background(), args, prepared.Resolution.Fingerprint)
-	if err == nil || !strings.Contains(err.Error(), "parked") {
-		t.Fatalf("parked admission: %v", err)
+	if err != nil {
+		t.Fatalf("park during setup blocked the launch: %v", err)
 	}
 	if _, err := os.Stat(f.host(1)); err != nil {
 		t.Fatalf("slot lost: %v", err)
@@ -183,9 +264,10 @@ func TestManagedCreateParkAppearingDuringSetupPreservesSlotWithoutLaunch(t *test
 	}
 	for _, record := range snapshot.Records {
 		if record.WorkingPath == f.host(1) {
-			t.Fatalf("launched new slot despite parked work: %+v", record)
+			return
 		}
 	}
+	t.Fatal("accepted slot launched no thread")
 }
 func TestManagedFirstCreateStaysPrimaryAndKeepsSubdirectory(t *testing.T) {
 	f := newProvisionFixture(t)
@@ -324,7 +406,7 @@ func TestCanonicalThreadReferenceNeverFallsBackToTag(t *testing.T) {
 	}
 }
 
-func TestManagedLaunchThenParkBlocksNextCreateButAllowsExistingOpen(t *testing.T) {
+func TestManagedLaunchThenParkNamesParkedWorkAndAllowsExistingOpen(t *testing.T) {
 	env, f := managedStartFixture(t)
 	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
 	created, _, err := env.Couch.Spawn(args)
@@ -341,11 +423,14 @@ func TestManagedLaunchThenParkBlocksNextCreateButAllowsExistingOpen(t *testing.T
 		t.Fatal(err)
 	}
 	env.Artifacts.SetNativeBinding(record.Address, "claude", sessioninventory.BindingEstablished, "native-after-launch-park")
-	if _, _, err := env.Couch.Spawn(args); err == nil || !strings.Contains(err.Error(), "parked") {
-		t.Fatalf("next create admission: %v", err)
+	// #332: with no free number, parked work no longer blocks a new slot; the
+	// preview names it instead.
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil || prepared.Resolution.Target.Slot.Number != 2 {
+		t.Fatalf("next create with parked work: %+v %v", prepared.Resolution.Target, err)
 	}
-	if _, err := os.Stat(f.host(2)); !os.IsNotExist(err) {
-		t.Fatalf("blocked create provisioned slot: %v", err)
+	if len(prepared.Resolution.ReuseNotices) != 1 || prepared.Resolution.ReuseNotices[0].Kind != StartReuseNoticeParked {
+		t.Fatalf("preview reuse notice = %v, want the one parked thread", prepared.Resolution.ReuseNotices)
 	}
 	repository, err := env.Couch.Slots.Discover(context.Background(), f.Primary)
 	if err != nil {
@@ -402,5 +487,102 @@ func TestManagedCreateReturnsToPrimaryOnceItsThreadIsArchived(t *testing.T) {
 	}
 	if _, err := os.Stat(f.host(2)); !os.IsNotExist(err) {
 		t.Fatalf("start allocated another slot: %v", err)
+	}
+}
+
+// #332: a numbered slot whose thread was archived is a hole. The next start
+// fills it -- a fresh conversation in the existing checkout, leftover files
+// and all -- instead of allocating a directory past the live ones.
+func TestManagedCreateReusesArchivedSlotBeforeAllocating(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	first, _ := env.spawn(t, args)
+	env.spawn(t, args)
+	env.Proc.Kill(first.PID) // archive follows the agent's exit
+	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+		t.Fatal(err)
+	}
+	leftover := filepath.Join(f.host(1), "leftover.txt")
+	if err := os.WriteFile(leftover, []byte("old work"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prepared.Resolution.Target.Slot.Number != 1 || !prepared.Resolution.ReuseSlot {
+		t.Fatalf("hole resolved to :%d reuse=%v, want :1 reused", prepared.Resolution.Target.Slot.Number, prepared.Resolution.ReuseSlot)
+	}
+	// Commit exactly as the menu does, through CommitArgs.
+	commit := prepared.Resolution.CommitArgs()
+	reused, _, err := env.Couch.SpawnPrepared(context.Background(), StartArgs{Cwd: commit["path"], Stack: commit["agent"], Issue: commit["issue"], Action: StartAction(commit["action"])}, StartResolutionFingerprint(commit["fingerprint"]))
+	if err != nil {
+		t.Fatalf("committing the previewed reuse: %v", err)
+	}
+	if reused.Thread == first.Thread || reused.Args.WorkingDir() != f.host(1) {
+		t.Fatalf("start landed at %q (thread %v), want a new thread in :1", reused.Args.WorkingDir(), reused.Thread)
+	}
+	if _, err := os.Stat(leftover); err != nil {
+		t.Fatalf("reuse lost the slot's leftover work: %v", err)
+	}
+	if _, err := os.Stat(f.host(3)); !os.IsNotExist(err) {
+		t.Fatalf("allocated :3 despite the hole: %v", err)
+	}
+}
+
+func TestManagedCreateReusesHoleWithParkedSiblingNotice(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	first, _ := env.spawn(t, args)
+	second, _ := env.spawn(t, args)
+	env.Proc.Kill(first.PID)
+	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+		t.Fatal(err)
+	}
+	repository, err := env.Couch.Slots.Discover(context.Background(), f.Primary)
+	if err != nil || len(repository.Slots) < 2 {
+		t.Fatalf("repository slots = %+v, %v", repository.Slots, err)
+	}
+	local := newSlotThreadStore(env.Couch.Namespace, repository.Slots[1].Identity)
+	old, err := local.observeSlotCurrent()
+	if err != nil || old.Record == nil {
+		t.Fatalf("slot current = %+v, %v", old, err)
+	}
+	identity := ParkIdentity{Nonce: "park-slot2-012345", Address: old.Record.Address, PID: second.PID, ProcessIdentity: second.Identity}
+	begun, err := local.BeginPark(old.Record.Address, old.Record.Revision, identity)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := local.FinalizePark(old.Record.Address, begun.Revision, identity, 1, env.Now); err != nil {
+		t.Fatal(err)
+	}
+	env.Artifacts.SetNativeBinding(old.Record.Address, "claude", sessioninventory.BindingEstablished, "native-slot2-park")
+	prepared, err := env.Couch.PrepareStart(context.Background(), args)
+	if err != nil || prepared.Resolution.Target.Slot.Number != 1 {
+		t.Fatalf("hole preview = %+v, %v", prepared.Resolution.Target, err)
+	}
+	if len(prepared.Resolution.ReuseNotices) != 1 || prepared.Resolution.ReuseNotices[0].Slot != 2 || prepared.Resolution.ReuseNotices[0].Kind != StartReuseNoticeParked {
+		t.Fatalf("parked sibling notice = %+v", prepared.Resolution.ReuseNotices)
+	}
+}
+
+func TestManagedCreateRefusesUnreadableSiblingSlot(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	first, _ := env.spawn(t, args)
+	env.spawn(t, args)
+	env.Proc.Kill(first.PID)
+	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+		t.Fatal(err)
+	}
+	currentPath := filepath.Join(filepath.Dir(f.host(2)), ".couch", "thread.json")
+	if err := os.MkdirAll(filepath.Dir(currentPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(currentPath, []byte("broken current metadata"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.PrepareStart(context.Background(), args); err == nil || !strings.Contains(err.Error(), "slot 2") {
+		t.Fatalf("unreadable sibling was accepted: %v", err)
 	}
 }
