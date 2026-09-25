@@ -117,6 +117,80 @@ func TestQuerySessionRevalidatesAndCachesGrowthWithoutGenerationToken(t *testing
 	}
 }
 
+// A resuming agent can touch its transcript's metadata without writing a byte
+// (pair#328: claude bumped ctime three seconds after the relaunch snapshotted
+// its proof). Same bytes are the same conversation, so the binding must stay
+// established rather than read as "no turn yet".
+func TestQuerySessionRevalidatesMetadataOnlyChangeWithoutGenerationToken(t *testing.T) {
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	runtime, transcript, _ := proofBackedCodexFixtureWithGeneration(t, nativeID, nil, "")
+	content := []byte(`{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"` + nativeID + `","parent_thread_id":null,"source":"cli"}}` + "\n")
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: transcript, StableFileID: "dev:1/ino:1", MutationToken: "ctime:2"}, content)
+
+	query, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil || query.Status != sessioninventory.BindingEstablished || query.Root == nil || query.Root.NativeID != nativeID {
+		t.Fatalf("query=%#v err=%v", query, err)
+	}
+}
+
+// The content re-read is what makes the metadata fallback safe: a same-size
+// rewrite into a different conversation must not keep the old binding, and the
+// reason must be recorded for debugging even though the UI refusal is unchanged.
+func TestQuerySessionRefusesSameSizeRewriteToAnotherConversation(t *testing.T) {
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	const otherID = "019d2222-2222-7222-8222-222222222222"
+	runtime, transcript, _ := proofBackedCodexFixtureWithGeneration(t, nativeID, nil, "")
+	rewritten := []byte(`{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"` + otherID + `","parent_thread_id":null,"source":"cli"}}` + "\n")
+	runtime.PutFile(sessioninventory.FileEntry{Artifact: transcript, StableFileID: "dev:1/ino:1", MutationToken: "ctime:2"}, rewritten)
+
+	query, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if query.Status == sessioninventory.BindingEstablished || query.Root != nil {
+		t.Fatalf("rewritten transcript kept its binding: %#v", query)
+	}
+	if !hasDiagnostic(query.Diagnostics, sessioninventory.DiagnosticBindingStale) {
+		t.Fatalf("proof failure left no diagnostic: %#v", query.Diagnostics)
+	}
+}
+
+// The byte-zero fallback runs only on the same, not-smaller file with no
+// generation token. Each guard is a case: without it, a transcript that still
+// opens with the right session_meta would be re-read and established.
+func TestQuerySessionFullRevalidationGuardsRefuse(t *testing.T) {
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	// A valid first line that is shorter than the proof's: truncation that
+	// would still parse as the proof's root.
+	shrunk := []byte(`{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"` + nativeID + `","source":"cli"}}` + "\n")
+	same := []byte(`{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"` + nativeID + `","parent_thread_id":null,"source":"cli"}}` + "\n")
+	for _, tc := range []struct {
+		name    string
+		entry   sessioninventory.FileEntry
+		content []byte
+	}{
+		{"shrunk", sessioninventory.FileEntry{StableFileID: "dev:1/ino:1", MutationToken: "ctime:2"}, shrunk},
+		{"replaced file", sessioninventory.FileEntry{StableFileID: "dev:1/ino:2", MutationToken: "ctime:2"}, same},
+		{"generation appeared", sessioninventory.FileEntry{StableFileID: "dev:1/ino:1", GenerationToken: "gen:1", MutationToken: "ctime:2"}, same},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runtime, transcript, _ := proofBackedCodexFixtureWithGeneration(t, nativeID, nil, "")
+			tc.entry.Artifact = transcript
+			runtime.PutFile(tc.entry, tc.content)
+			query, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if query.Status != sessioninventory.BindingProvisional || query.Root != nil {
+				t.Fatalf("guard status/root = %s/%#v, want provisional/nil", query.Status, query.Root)
+			}
+			if !hasDiagnostic(query.Diagnostics, sessioninventory.DiagnosticBindingStale) {
+				t.Fatalf("proof failure left no diagnostic: %#v", query.Diagnostics)
+			}
+		})
+	}
+}
+
 func TestOwnerCLIUsesBoundedPersistentQuery(t *testing.T) {
 	const nativeID = "019d1111-1111-7111-8111-111111111111"
 	runtime, transcript, _ := proofBackedCodexFixture(t, nativeID, nil)

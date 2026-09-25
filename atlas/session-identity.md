@@ -101,7 +101,12 @@ their parsed input. The selected-
 scope catalog is the shared persistent advancement owner: an accepted suffix is
 published monotonically through `CatalogStore`, and later unchanged queries
 reuse that parser cursor without rereading body bytes. Catalog loss falls back
-to the durable ledger proof. Neovim's review fallback uses the bounded `--owner`
+to the durable ledger proof. On a filesystem with no generation token, a proof
+artifact that is the same file and not smaller, but whose metadata moved (for
+example growth, or a resuming agent bumping ctime without writing, #328), is
+re-read from byte zero. The content, not the metadata, decides whether the
+root still validates. A failed proof stays provisional and records a
+`binding_stale` diagnostic. Neovim's review fallback uses the bounded `--owner`
 projection rather than the diagnostic whole-inventory rendering. Provisional, ambiguous, and unbound
 owners remain explicit absence; only an exact inherited `PAIR_SESSION_ID` can
 precede that projection. Compatibility config retains launch arguments but
