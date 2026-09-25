@@ -228,7 +228,7 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	// Some filesystems expose stable file identity but no true generation
 	// token. A proof-authorized transcript may still grow normally after the
 	// binding is committed, or have only its metadata touched -- a resuming
-	// claude bumps ctime without writing a byte (pair#328). In either case the
+	// agent can bump ctime without writing a byte (pair#328). In either case the
 	// file is not smaller, so validate the one proof-named target from byte
 	// zero rather than revoking the established root or broadening into a
 	// corpus scan. The re-read, not the metadata, decides: a same-size rewrite

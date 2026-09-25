@@ -155,6 +155,42 @@ func TestQuerySessionRefusesSameSizeRewriteToAnotherConversation(t *testing.T) {
 	}
 }
 
+// The byte-zero fallback runs only on the same, not-smaller file with no
+// generation token. Each guard is a case: without it, a transcript that still
+// opens with the right session_meta would be re-read and established.
+func TestQuerySessionFullRevalidationGuardsRefuse(t *testing.T) {
+	const nativeID = "019d1111-1111-7111-8111-111111111111"
+	// A valid first line that is shorter than the proof's: truncation that
+	// would still parse as the proof's root.
+	shrunk := []byte(`{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"` + nativeID + `","source":"cli"}}` + "\n")
+	same := []byte(`{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"` + nativeID + `","parent_thread_id":null,"source":"cli"}}` + "\n")
+	for _, tc := range []struct {
+		name    string
+		entry   sessioninventory.FileEntry
+		content []byte
+	}{
+		{"shrunk", sessioninventory.FileEntry{StableFileID: "dev:1/ino:1", MutationToken: "ctime:2"}, shrunk},
+		{"replaced file", sessioninventory.FileEntry{StableFileID: "dev:1/ino:2", MutationToken: "ctime:2"}, same},
+		{"generation appeared", sessioninventory.FileEntry{StableFileID: "dev:1/ino:1", GenerationToken: "gen:1", MutationToken: "ctime:2"}, same},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			runtime, transcript, _ := proofBackedCodexFixtureWithGeneration(t, nativeID, nil, "")
+			tc.entry.Artifact = transcript
+			runtime.PutFile(tc.entry, tc.content)
+			query, err := sessioninventory.QuerySession(runtime, "scope", "work", sessioninventory.AgentCodex)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if query.Status == sessioninventory.BindingEstablished || query.Root != nil {
+				t.Fatalf("guard let the proof stand: %#v", query)
+			}
+			if !hasDiagnostic(query.Diagnostics, sessioninventory.DiagnosticBindingStale) {
+				t.Fatalf("proof failure left no diagnostic: %#v", query.Diagnostics)
+			}
+		})
+	}
+}
+
 func TestOwnerCLIUsesBoundedPersistentQuery(t *testing.T) {
 	const nativeID = "019d1111-1111-7111-8111-111111111111"
 	runtime, transcript, _ := proofBackedCodexFixture(t, nativeID, nil)
