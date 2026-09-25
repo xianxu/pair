@@ -48,16 +48,19 @@ Candidate directions (pick during design):
 ## Done when
 
 - In a plain shell tab in the right pane, click-drag selects text and it can
-  be copied, as before #311.
-- Clicking a strip chip still switches tabs (existing #311 tests stay green).
-- A regression test pins the chosen behavior (policy/gesture level), plus a
-  live smoke test by the operator.
+  be copied, as before #311 (operator smoke test).
+- `pair term` no longer requests mouse reports for a child without tracking
+  (`TestPresentationLeavesMouseOffForAPlainChild`, mutation-checked).
+- Strip clicks still work while the child requests tracking (existing #311
+  click tests stay green); README + atlas say plain-shell strip clicks are off.
 
 ## Plan
 
-- [ ] Reproduce live; confirm Shift+drag behavior as a data point
-- [ ] Pick direction with the operator
-- [ ] Implement + tests
+- [x] Revert `pair term` to `terminal.ChildRequested`; invert the #311 policy test
+- [x] README + atlas describe the narrowed behavior
+- [ ] Operator smoke test
+- [ ] Clickable strip over a plain shell *without* losing selection is left for
+  a follow-up issue (options above; parent-side selection breakdown in Log)
 
 ## Log
 
@@ -73,3 +76,13 @@ Candidate directions (pick during design):
   zellij is the host above, the child is a plain shell with tracking 0, so
   drags are swallowed and nothing below implements selection. Copying couch
   therefore doesn't fix it; the selection has to come from somewhere.
+
+- Operator chose the revert (needs selection now): `pair term` back to
+  `ChildRequested`; couch keeps `AnyMotion`. `clickStrip` stays — it still
+  fires when the child requests tracking.
+
+## Revisions
+
+- 2026-09-24: scope narrowed from "clickable strip AND selection" to "restore
+  selection by reverting the mouse policy"; clickable strip over a plain shell
+  deferred.
