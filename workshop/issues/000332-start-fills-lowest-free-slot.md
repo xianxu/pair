@@ -1,13 +1,14 @@
 ---
 id: 000332
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-25
 updated: 2026-09-25
 estimate_hours:
 started: 2026-09-25T10:42:40-07:00
-flow: {kind: quick, provenance: inferred, spec: "400bb6e0", done: "a9524a2b"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 2.56
 ---
 
 # Starting a thread fills the lowest free slot number, :0 included
@@ -108,6 +109,8 @@ Steps:
 ## Log
 
 ### 2026-09-25
+- 2026-09-25: closed — Acceptance criteria unchanged; this issue refresh only records the required A-to-B-to-A regression and its actual launch-payload assertion. Focused couchcore/couchtty regression tests pass, and operator smoke test passed.; review verdict: SHIP
+- 2026-09-25: flow upgraded quick → full — 186 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Implemented (fadd5927). Probe test confirmed an archived `:1` stays a slot
   row with empty address (`unusable`/`never-started`) and old code picked `:3`.
