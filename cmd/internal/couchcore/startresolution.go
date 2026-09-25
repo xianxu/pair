@@ -13,6 +13,19 @@ import (
 
 type StartResolutionFingerprint string
 
+type StartReuseNoticeKind string
+
+const (
+	StartReuseNoticeParked StartReuseNoticeKind = "parked"
+	StartReuseNoticeLost   StartReuseNoticeKind = "lost"
+)
+
+type StartReuseNotice struct {
+	Kind  StartReuseNoticeKind `json:"kind"`
+	Label string               `json:"label"`
+	Slot  int                  `json:"slot"`
+}
+
 var ErrStartResolutionChanged = errors.New("start resolution changed")
 
 type StartResolutionInput struct {
@@ -50,13 +63,9 @@ type StartResolution struct {
 	// a fresh conversation instead of provisioning a new one (#332). It is in
 	// the fingerprint: a directory appearing after preview is drift.
 	ReuseSlot bool `json:"reuse_slot,omitempty"`
-	// ParkedInRepo labels the repository's parked threads when a start adds a
-	// new slot (#332): a reminder, not a blocker. Left out of the fingerprint
-	// so a park elsewhere does not invalidate an accepted preview.
-	ParkedInRepo []string `json:"parked_in_repo,omitempty"`
-	// LostInRepo labels numbered repository slots whose native binding is lost
-	// when a start adds a slot (#332): a reuse reminder, not an automatic action.
-	LostInRepo []string `json:"lost_in_repo,omitempty"`
+	// ReuseNotices names existing work that the operator may reuse instead of
+	// adding a slot. They are display-only and left out of the fingerprint.
+	ReuseNotices []StartReuseNotice `json:"reuse_notices,omitempty"`
 }
 
 func ResolveStartResolution(input StartResolutionInput) (StartResolution, error) {
@@ -109,8 +118,7 @@ func ResolveStartResolution(input StartResolutionInput) (StartResolution, error)
 
 func cloneStartResolution(resolution StartResolution) StartResolution {
 	resolution.Profile = cloneLaunchProfile(resolution.Profile)
-	resolution.ParkedInRepo = append([]string(nil), resolution.ParkedInRepo...)
-	resolution.LostInRepo = append([]string(nil), resolution.LostInRepo...)
+	resolution.ReuseNotices = append([]StartReuseNotice(nil), resolution.ReuseNotices...)
 	return resolution
 }
 

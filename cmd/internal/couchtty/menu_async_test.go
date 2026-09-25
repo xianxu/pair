@@ -214,8 +214,11 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 	prepared := couchcore.PreparedStart{Resolution: couchcore.StartResolution{Fingerprint: "accepted",
 		CanonicalPath: "/repo", Profile: couchcore.LaunchProfile{Agent: "codex", Argv: []string{"--search"}},
 		AgentSource: couchcore.AgentSourcePath, ArgvSource: couchcore.ArgvSourcePath,
-		ParkedInRepo: []string{"repo:1", "repo:2"},
-		LostInRepo:   []string{"repo:3"},
+		ReuseNotices: []couchcore.StartReuseNotice{
+			{Kind: couchcore.StartReuseNoticeParked, Label: "repo:1", Slot: 1},
+			{Kind: couchcore.StartReuseNoticeParked, Label: "repo:2", Slot: 2},
+			{Kind: couchcore.StartReuseNoticeLost, Label: "repo:3", Slot: 3},
+		},
 	}}
 	state, effects = ReduceMenu(state, MenuEvent{Kind: MenuEventPreviewResult, Generation: generation, Prepared: &prepared})
 	if len(effects) != 0 {
@@ -231,6 +234,9 @@ func TestReduceMenuStartPreviewPreservesOptionalAgentAndAcceptedProvenance(t *te
 	}
 	if !strings.Contains(rendered, "consider reuse lost repo:3 with fresh-slot") {
 		t.Fatalf("lost-binding reminder not rendered: %q", rendered)
+	}
+	if strings.Index(rendered, "parked repo:1") > strings.Index(rendered, "parked repo:2") || strings.Index(rendered, "parked repo:2") > strings.Index(rendered, "lost repo:3") {
+		t.Fatalf("reuse notices not rendered in slot order: %q", rendered)
 	}
 }
 

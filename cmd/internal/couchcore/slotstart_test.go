@@ -7,6 +7,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -349,8 +350,8 @@ func TestManagedLaunchThenParkNamesParkedWorkAndAllowsExistingOpen(t *testing.T)
 	if err != nil || prepared.Resolution.Target.Slot.Number != 2 {
 		t.Fatalf("next create with parked work: %+v %v", prepared.Resolution.Target, err)
 	}
-	if len(prepared.Resolution.ParkedInRepo) != 1 {
-		t.Fatalf("preview parked notice = %q, want the one parked thread", prepared.Resolution.ParkedInRepo)
+	if len(prepared.Resolution.ReuseNotices) != 1 || prepared.Resolution.ReuseNotices[0].Kind != StartReuseNoticeParked {
+		t.Fatalf("preview reuse notice = %v, want the one parked thread", prepared.Resolution.ReuseNotices)
 	}
 	repository, err := env.Couch.Slots.Discover(context.Background(), f.Primary)
 	if err != nil {
@@ -447,5 +448,26 @@ func TestManagedCreateReusesArchivedSlotBeforeAllocating(t *testing.T) {
 	}
 	if _, err := os.Stat(f.host(3)); !os.IsNotExist(err) {
 		t.Fatalf("allocated :3 despite the hole: %v", err)
+	}
+}
+
+func TestManagedCreateRefusesUnreadableSiblingSlot(t *testing.T) {
+	env, f := managedStartFixture(t)
+	args := StartArgs{Cwd: f.Primary, Action: StartCreate}
+	first, _ := env.spawn(t, args)
+	env.spawn(t, args)
+	env.Proc.Kill(first.PID)
+	if err := env.Couch.Threads.ArchiveThread(first.Thread); err != nil {
+		t.Fatal(err)
+	}
+	currentPath := filepath.Join(filepath.Dir(f.host(2)), ".couch", "thread.json")
+	if err := os.MkdirAll(filepath.Dir(currentPath), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(currentPath, []byte("broken current metadata"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.PrepareStart(context.Background(), args); err == nil || !strings.Contains(err.Error(), "slot 2") {
+		t.Fatalf("unreadable sibling was accepted: %v", err)
 	}
 }

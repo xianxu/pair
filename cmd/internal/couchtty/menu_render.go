@@ -382,6 +382,7 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 	if renderedMenuNotice(state) != "" {
 		fixedRows++
 	}
+	fixedRows += len(frame.PreviewResolution.ReuseNotices)
 	budget := max(height-fixedRows, 0)
 	if budget > len(frame.CompletionCandidates) {
 		budget = len(frame.CompletionCandidates)
@@ -411,15 +412,12 @@ func renderStartMenuFrame(state MenuState, frame MenuFrame, width, height int) [
 	if frame.PreviewResolution.ArgvSource != "" {
 		lines = append(lines, clipMenuLine("  args  "+string(frame.PreviewResolution.ArgvSource), width))
 	}
-	if parked := frame.PreviewResolution.ParkedInRepo; len(parked) > 0 {
-		for _, label := range parked {
-			lines = append(lines, clipMenuLine("  consider reuse parked "+label+" with open-slot", width))
+	for _, notice := range frame.PreviewResolution.ReuseNotices {
+		action := "open-slot"
+		if notice.Kind == couchcore.StartReuseNoticeLost {
+			action = "fresh-slot"
 		}
-	}
-	if lost := frame.PreviewResolution.LostInRepo; len(lost) > 0 {
-		for _, label := range lost {
-			lines = append(lines, clipMenuLine("  consider reuse lost "+label+" with fresh-slot", width))
-		}
+		lines = append(lines, clipMenuLine("  consider reuse "+string(notice.Kind)+" "+notice.Label+" with "+action, width))
 	}
 	return lines
 }

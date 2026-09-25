@@ -43,6 +43,20 @@ func TestSlotFreshTransactionPreservesHistoryAndRefusesConcurrentChange(t *testi
 	}
 }
 
+func TestStartCreateReuseRefusesAnOccupiedCurrent(t *testing.T) {
+	env, local := slotRecoveryOperationFixture(t)
+	scope, _ := launcher.ResolveRepoScope(local.slot.WorktreeRoot)
+	old := validThreadRecord(t)
+	old.Address.RepoScope = scope.Key
+	old.StartingPath, old.WorkingPath = local.slot.WorktreeRoot, local.slot.WorktreeRoot
+	if _, err := local.CreateThread(old); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.Couch.startFreshSlot(context.Background(), local.slot.WorktreeRoot, "claude", true); !errors.Is(err, ErrStartResolutionChanged) {
+		t.Fatalf("occupied reuse error = %v, want resolution drift", err)
+	}
+}
+
 func TestSlotFreshTransactionPreservesCorruptBytesAndRejectsFuture(t *testing.T) {
 	for _, raw := range []string{"broken", `{}`, `{"schema_version":0}`, `{"schema_version":999}`} {
 		t.Run(raw, func(t *testing.T) {

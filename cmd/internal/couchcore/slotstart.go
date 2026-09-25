@@ -34,8 +34,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		return c.resolveOrdinaryStartResolution(ctx, args)
 	}
 	primary := id.PrimaryRoot
-	var parked []string
-	var lost []string
+	var reuseNotices []StartReuseNotice
 	reuse := false
 	if action == StartCreate {
 		repository, e := c.Slots.Discover(ctx, primary)
@@ -55,6 +54,11 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 				return StartResolution{}, fmt.Errorf("repository has an unreadable conversation; recover it before creating another slot")
 			}
 		}
+		for _, slot := range snapshot.Slots {
+			if slot.Err != nil && slot.Identity.RepoIdentity == repository.Identity.RepoIdentity {
+				return StartResolution{}, fmt.Errorf("repository slot %d needs attention before creating another slot: %w", slot.Identity.Number, slot.Err)
+			}
+		}
 		occupied := map[int]bool{}
 		for _, record := range snapshot.Records {
 			if number, ok := numbers[record.Address.RepoScope]; ok {
@@ -66,7 +70,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 			return StartResolution{}, e
 		}
 		if allocation.Number != 0 {
-			parked, lost, e = c.reuseNoticesInRepository(ctx, repository)
+			reuseNotices, e = c.reuseNoticesInRepository(ctx, repository)
 			if e != nil {
 				return StartResolution{}, e
 			}
@@ -95,7 +99,7 @@ func (c *Couch) resolveManagedStart(ctx context.Context, args StartArgs) (StartR
 		return StartResolution{}, err
 	}
 	resolution.OriginalInput, resolution.Action = original, action
-	resolution.ReuseSlot, resolution.ParkedInRepo, resolution.LostInRepo = reuse, parked, lost
+	resolution.ReuseSlot, resolution.ReuseNotices = reuse, reuseNotices
 	if target != nil {
 		resolution.Target = *target
 	} else if action == StartFresh {
@@ -141,10 +145,10 @@ func (c *Couch) repositoryRows(ctx context.Context, repository SlotRepository) (
 // reuseNoticesInRepository labels parked threads and lost-binding slots. Since
 // #332 they no longer block a new slot; the start preview names them instead,
 // so existing work stays in view without stopping the operator.
-func (c *Couch) reuseNoticesInRepository(ctx context.Context, repository SlotRepository) (parked, lost []string, err error) {
+func (c *Couch) reuseNoticesInRepository(ctx context.Context, repository SlotRepository) ([]StartReuseNotice, error) {
 	rows, err := c.repositoryRows(ctx, repository)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
 		left, right := rows[i], rows[j]
@@ -157,15 +161,29 @@ func (c *Couch) reuseNoticesInRepository(ctx context.Context, repository SlotRep
 		}
 		return leftNumber < rightNumber
 	})
+	notices := []StartReuseNotice{}
 	for _, row := range rows {
 		if row.State == ThreadParked {
-			parked = append(parked, row.Label())
+			notices = append(notices, StartReuseNotice{Kind: StartReuseNoticeParked, Label: row.Label(), Slot: rowSlotNumber(row)})
 		}
 		if row.Target.Kind == ThreadTargetSlot && row.State == ThreadUnusable && row.Reason == ReasonBindingLost {
-			lost = append(lost, row.Label())
+			notices = append(notices, StartReuseNotice{Kind: StartReuseNoticeLost, Label: row.Label(), Slot: row.Target.Slot.Number})
 		}
 	}
-	return parked, lost, nil
+	sort.SliceStable(notices, func(i, j int) bool {
+		if notices[i].Slot != notices[j].Slot {
+			return notices[i].Slot < notices[j].Slot
+		}
+		return notices[i].Kind < notices[j].Kind
+	})
+	return notices, nil
+}
+
+func rowSlotNumber(row ActionableThreadSummary) int {
+	if row.Target.Kind == ThreadTargetSlot {
+		return row.Target.Slot.Number
+	}
+	return 0
 }
 
 // checkSlotCreation refuses a new slot only while a thread's ownership is
@@ -195,7 +213,7 @@ func (c *Couch) spawnManagedResolution(ctx context.Context, resolution StartReso
 		return c.OpenSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
 	case StartCreate:
 		if resolution.ReuseSlot {
-			return c.StartFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent)
+			return c.startFreshSlot(ctx, slot.WorktreeRoot, resolution.RequestedAgent, true)
 		}
 	default:
 		return StartResult{}, fmt.Errorf("invalid slot start action %q", resolution.Action)

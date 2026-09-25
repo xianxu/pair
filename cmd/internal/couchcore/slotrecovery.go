@@ -261,6 +261,10 @@ func (c *Couch) selectedSlot(ctx context.Context, path string) (*ThreadStore, Sl
 }
 
 func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartResult, error) {
+	return c.startFreshSlot(ctx, path, agent, false)
+}
+
+func (c *Couch) startFreshSlot(ctx context.Context, path, agent string, requireEmpty bool) (StartResult, error) {
 	local, slot, err := c.selectedSlot(ctx, path)
 	if err != nil {
 		return StartResult{}, err
@@ -271,6 +275,9 @@ func (c *Couch) StartFreshSlot(ctx context.Context, path, agent string) (StartRe
 	}
 	if old.Unsupported {
 		return StartResult{}, old.Err
+	}
+	if requireEmpty && old.Record != nil {
+		return StartResult{}, ErrStartResolutionChanged
 	}
 	observation, err := c.ObserveSlotSessions(ctx, slot)
 	if err != nil {
