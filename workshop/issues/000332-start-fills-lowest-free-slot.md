@@ -65,25 +65,24 @@ Operator decisions (2026-09-25):
 
 Design (from code reading + a probe test, 2026-09-25):
 
-- Occupancy source = the switcher's own classifier:
-  `ActionableThreadInventoryContext` rows belonging to the repo. Row number =
-  `Target.Slot.Number` for slot rows, `0` for an ordinary row in the primary's
-  scope. A number is *occupied* iff some row with that number carries a thread
-  (non-empty `Address`). The probe showed an archived `:1` stays as a slot row
-  with empty address (`unusable`/`never-started`) — that is a hole.
-  Unreadable/unknown rows still refuse (can't know their number's state).
+- Occupancy source = the thread snapshot's records mapped to repository slot
+  scopes. A number is *occupied* iff a record carries that number. The probe
+  showed an archived `:1` stays as a slot row with empty address
+  (`unusable`/`never-started`) — that is a hole. Unreadable thread records and
+  unreadable slot-current records still refuse (can't know their number's
+  state).
 - One pure function `lowestFreeSlot(numbers occupied, existing dirs) → (n,
   exists)` (ARCH-PURE), unit-tested; `resolveManagedStart`'s StartCreate
   branch maps its answer to an action, replacing #331's `:0`-only check and
   the "any slot exists ⇒ occupied" rule:
   - `0` → ordinary primary start (as today when free);
-  - `n` with an existing directory → `StartFresh` on that slot (StartFreshSlot
-    already starts a new conversation in an existing, ownerless slot);
+  - `n` with an existing directory → `StartCreate` + `ReuseSlot` on that slot
+    (the reuse path requires the current slot record to remain empty);
   - `n` without a directory → `StartCreate` of slot `n` (provision as today).
 - `checkSlotCreation` drops the parked blocker (keeps the unreadable refusal);
-  `StartResolution` gains `ParkedInRepo []string` (labels, omitted from the
-  fingerprint so a park elsewhere doesn't invalidate a preview), rendered in
-  the start form as `  parked: repo:1, repo:2`.
+  `StartResolution` gains an ordered typed `ReuseNotices` list (labels and
+  kinds, omitted from the fingerprint so a park elsewhere does not invalidate
+  a preview), rendered as actionable `open-slot`/`fresh-slot` suggestions.
 - ARCH-FUNERAL: creates nothing durable beyond what slot create already made;
   reuse *reduces* slot-directory growth. No new files.
 
@@ -122,3 +121,15 @@ Steps:
   `couchtty` package tests pass.
 - 2026-09-25 — Operator smoke test passed after moving the #332 branch into
   the primary workspace and restoring `ariadne:0`.
+- 2026-09-25 — Boundary-review fixes: unreadable slot-current records now
+  block allocation, hole reuse requires an empty current record at commit,
+  and typed reuse notices preserve numeric order. Added regressions and
+  updated the README. Full `couchcore` and `couchtty` package tests pass.
+
+## Revisions
+
+- 2026-09-25 — Boundary review found that slot-current read errors were not
+  included in admission, hole reuse lacked an empty-current commit guard, and
+  separately stored notices could lose mixed numeric ordering. The design now
+  blocks uncertain slot inventory, uses an ordered typed notice list, and
+  requires `StartCreate` hole reuse to observe an empty current record.
