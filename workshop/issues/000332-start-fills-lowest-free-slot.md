@@ -94,8 +94,9 @@ Steps:
 - [x] Implement selector + resolveManagedStart mapping; drop parked blocker
 - [x] Preview notice in start form (+ render test)
 - [x] Update #306 parked-blocks tests to the notice behavior; atlas
-- [ ] Full make test; operator smoke test in couch
-- [ ] Add-slot wording and parked/lost reuse notices have focused render/menu
+- [x] Full `couchcore` and `couchtty` package tests; operator smoke test in
+  couch.
+- [x] Add-slot wording and parked/lost reuse notices have focused render/menu
   coverage.
 
 ## Log
@@ -119,3 +120,5 @@ Steps:
   open-slot`, and renders lost-binding slot suggestions as `consider reuse
   lost <repo>:<n> with fresh-slot`. Focused tests plus full `couchcore` and
   `couchtty` package tests pass.
+- 2026-09-25 — Operator smoke test passed after moving the #332 branch into
+  the primary workspace and restoring `ariadne:0`.
