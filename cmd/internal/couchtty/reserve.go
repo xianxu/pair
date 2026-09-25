@@ -58,20 +58,15 @@ type StatusModel struct {
 const (
 	attentionSGR   = "\x1b[38;5;220m"
 	placeholderSGR = "\x1b[38;5;240m"
-	// slotAlertSGR draws a slot glyph that needs the operator before work
-	// starts there: a diverged resting branch (pair#319).
-	slotAlertSGR = "\x1b[38;5;196m"
 )
 
 // slotGlyphSGR is the one styling decision for slot glyphs, shared by the tab
-// bar and the switcher, per glyph character: a diverged resting branch (±)
-// alerts in red, a dirty tree (*) asks for attention in amber, and every other
+// bar and the switcher, per glyph character: a diverged resting branch (±) and a
+// dirty tree (*) ask for attention in the one amber (pair#321), and every other
 // glyph keeps its row's style (empty).
 func slotGlyphSGR(glyph rune) string {
 	switch string(glyph) {
-	case couchcore.SlotGlyphDiverged:
-		return slotAlertSGR
-	case couchcore.SlotGlyphDirty:
+	case couchcore.SlotGlyphDiverged, couchcore.SlotGlyphDirty:
 		return attentionSGR
 	}
 	return ""

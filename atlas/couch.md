@@ -79,8 +79,8 @@ branch (`main` / `main-slotN`, from `couchcore.RestingBranch`), or, on it,
 divergence from its upstream: `±` both ways, `+` ahead only, `-` behind only.
 The dirty part `*` follows on any branch. Behind reads the local
 remote-tracking ref; the probe never fetches. Colour is decided per glyph
-character by `slotGlyphSGR` (`reserve.go`), shared by both views: `±` red, `*`
-amber, the rest in the row's style; the switcher's selected row stays plain.
+character by `slotGlyphSGR` (`reserve.go`), shared by both views: `±` and `*` in
+the one attention amber (#321), the rest in the row's style; the switcher's selected row stays plain.
 `PresentThreads` derives `ThreadPresentation.Glyph`
 once from `MenuState.SlotGit`, so the two views cannot disagree.
 

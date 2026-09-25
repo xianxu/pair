@@ -438,7 +438,7 @@ where the checkout is; a `*` follows whenever its working tree is dirty:
 | glyph | meaning |
 |---|---|
 | `` | not on its resting branch (`main` / `main-slotN`), so it has issue work |
-| `±` | on its resting branch, diverged: commits on both sides of its upstream (red) |
+| `±` | on its resting branch, diverged: commits on both sides of its upstream (amber) |
 | `+` | on its resting branch, with commits not on its upstream |
 | `-` | on its resting branch, behind its upstream (pull before working there) |
 | `*` | working tree dirty, on any branch (amber) |
