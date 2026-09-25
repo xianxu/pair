@@ -112,6 +112,10 @@ exposure.
   reattach.
 - `make -k test`: everything green except `test-submission-transaction`, the
   known session-env leak. It passes with the retention-owner group scrubbed.
+- Exact `make test` was rerun during close: retention and headless checks passed,
+  then `tests/workbench-route-nvim-test.sh` exited nonzero from its headless
+  Neovim subprocess without diagnostic output. This is unrelated to the
+  sessioninventory change and is retained as an environment verification gap.
 - Debug-log wiring: the diagnostic lands in the structured query result. No
   Couch sink carries query diagnostics today (only the opt-in COUCH_TRACE
   files). Wiring it into COUCH_TRACE is a possible follow-up.

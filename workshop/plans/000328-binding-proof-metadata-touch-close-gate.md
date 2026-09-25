@@ -62,6 +62,39 @@ rounds:
           round: 2
       recipe: small-diff-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-25T10:39:31-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The guard-family table now asserts BindingProvisional and binding_stale for shrink, stable-file-ID replacement, and generation appearance.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: The pinned issue Log records operator confirmation of the relaunch → detach → reattach smoke flow.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: 'Issue #330 tracks carrying binding_stale diagnostics into COUCH_TRACE.'
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: The query comment now uses “resuming agent”.
+          round: 3
+        - id: BR-5
+          disposition: addressed
+          note: Atlas wording now uses “resuming agent”.
+          round: 3
+      findings:
+        - id: BR-6
+          severity: Important
+          title: Exact make test verification is not green
+          detail: This is the 2nd finding in family done-when-clause-unevidenced. The exact required command fails at nvim/scrollback_test.lua because editor storage protection returns operation not permitted. Re-run successfully in a permitted environment and record the evidence before close.
+          family: done-when-clause-unevidenced
+          round: 3
+      recipe: small-diff-review
+      blocked: true
 ---
 
 # Gate ledger — pair#328 (boundary-review)
@@ -96,8 +129,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Minor] `agent-agnostic-wording` Atlas contract still names one agent in generic revalidation prose
   This is the 2nd finding in family agent-agnostic-wording. The remaining changed instance is atlas/session-identity.md:106, which says “a resuming claude”; change it to “a resuming agent” so the generic inventory contract is not tied to one provider.
 
+## Round 3 — 2026-09-25T10:39:31-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The guard-family table now asserts BindingProvisional and binding_stale for shrink, stable-file-ID replacement, and generation appearance.
+- BR-2 — addressed — The pinned issue Log records operator confirmation of the relaunch → detach → reattach smoke flow.
+- BR-3 — addressed — Issue #330 tracks carrying binding_stale diagnostics into COUCH_TRACE.
+- BR-4 — addressed — The query comment now uses “resuming agent”.
+- BR-5 — addressed — Atlas wording now uses “resuming agent”.
+
+### Raised
+
+- **BR-6** [Important] `done-when-clause-unevidenced` Exact make test verification is not green
+  This is the 2nd finding in family done-when-clause-unevidenced. The exact required command fails at nvim/scrollback_test.lua because editor storage protection returns operation not permitted. Re-run successfully in a permitted environment and record the evidence before close.
+
 ## Open findings
 
-- **BR-1** [Important] `fallback-guard-boundaries-untested` No test pins the not-smaller boundary of proofAllowsFullRevalidation
-- **BR-2** [Important] `done-when-clause-unevidenced` Operator confirmation of alt+n relaunch after detach/reattach not recorded
-- **BR-5** [Minor] `agent-agnostic-wording` Atlas contract still names one agent in generic revalidation prose
+- **BR-6** [Important] `done-when-clause-unevidenced` Exact make test verification is not green

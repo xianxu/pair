@@ -186,3 +186,96 @@ findings:
     detail: |
       This is the 2nd finding in family agent-agnostic-wording. The remaining changed instance is atlas/session-identity.md:106, which says “a resuming claude”; change it to “a resuming agent” so the generic inventory contract is not tied to one provider.
 ```
+
+---
+
+## Re-review — 2026-09-25T10:39:30-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 328 — Relaunch rejects a binding after metadata-only change |
+| repo | pair |
+| issue file | workshop/issues/000328-binding-proof-metadata-touch.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 76a8d0199d0d7a81689aadfe86c4ae9706bca657..844dc32b2f4e8c4aa953f7a800842b9b11556c14 |
+| command | sdlc close --issue 328 |
+| reviewer | codex |
+| timestamp | 2026-09-25T10:39:30-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The implementation is focused and the session-inventory tests pass. Boundary review remains blocked because the required exact `make test` command fails at `nvim/scrollback_test.lua` with `operation not permitted`; this is not attributable to the diff, but the Done-when requirement is not verified.
+
+Strengths:
+
+1. Same-size metadata changes now trigger content revalidation while preserving stable-ID and generation guards.
+2. Same-size rewrites to another conversation are rejected with `binding_stale`.
+3. Guard coverage explicitly checks shrink, file replacement, and generation appearance.
+4. Atlas documentation and the COUCH_TRACE follow-up are present.
+
+Critical findings:
+
+None.
+
+Important findings:
+
+- `nvim/scrollback_test.lua`: exact `make test` is not green; it fails with `pair: cannot protect editor storage: pair retention: operation not permitted`. This is the 2nd finding in family `done-when-clause-unevidenced`; the family instances are the prior live-smoke evidence gap (BR-2) and this full-suite verification gap. Re-run the exact command in a permitted environment and record the result, or document an approved, reproducible exception.
+
+Minor findings:
+
+None.
+
+Test coverage notes:
+
+- `go test ./cmd/internal/sessioninventory/...` passes.
+- `git diff --check` passes.
+- `make test` fails at the scrollback Lua test due to environment permissions.
+
+Architectural notes:
+
+- ARCH-DRY: pass; existing validation and diagnostic helpers are reused.
+- ARCH-PURE: pass; revalidation policy remains separate from runtime I/O.
+- ARCH-PURPOSE: pass for the metadata/content behavior; full Done-when verification remains incomplete.
+
+Plan revision recommendations:
+
+- Add the exact `make test` failure and its environment cause to `## Revisions`/`## Log`, then record a successful rerun before close.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The guard-family table now asserts BindingProvisional and binding_stale for shrink, stable-file-ID replacement, and generation appearance.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      The pinned issue Log records operator confirmation of the relaunch → detach → reattach smoke flow.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      Issue #330 tracks carrying binding_stale diagnostics into COUCH_TRACE.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The query comment now uses “resuming agent”.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Atlas wording now uses “resuming agent”.
+findings:
+  - id: new
+    severity: Important
+    family: done-when-clause-unevidenced
+    title: |
+      Exact make test verification is not green
+    detail: |
+      This is the 2nd finding in family done-when-clause-unevidenced. The exact required command fails at nvim/scrollback_test.lua because editor storage protection returns operation not permitted. Re-run successfully in a permitted environment and record the evidence before close.
+```
