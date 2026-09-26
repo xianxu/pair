@@ -1,11 +1,12 @@
 ---
 id: 000333
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-26
 updated: 2026-09-26
 estimate_hours:
+started: 2026-09-26T16:51:02-07:00
 ---
 
 # Pass Option+n through to right-terminal TUIs
