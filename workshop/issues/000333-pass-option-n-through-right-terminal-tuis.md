@@ -29,22 +29,22 @@ that key from receiving it.
 
 ## Done when
 
-- Right-terminal TUIs receive `Option+n`.
-- Right-terminal shells/non-TUI states retain Pair's existing `Option+n`
+- [x] Right-terminal TUIs receive `Option+n`.
+- [x] Right-terminal shells/non-TUI states retain Pair's existing `Option+n`
   behavior.
-- Other panes retain their existing `Option+n` behavior.
-- Routing regressions cover the TUI passthrough and neighboring retained
+- [x] Other panes retain their existing `Option+n` behavior.
+- [x] Routing regressions cover the TUI passthrough and neighboring retained
   behaviors.
-- User-facing keybinding documentation reflects the focused right-terminal
+- [x] User-facing keybinding documentation reflects the focused right-terminal
   exception.
 
 ## Plan
 
-- [ ] Locate the existing focused-pane and TUI input-routing decision.
-- [ ] Route `Option+n` through only for a focused right-terminal TUI.
-- [ ] Add routing regressions for TUI passthrough and non-TUI/other-pane
+- [x] Locate the existing focused-pane and TUI input-routing decision.
+- [x] Route `Option+n` through only for a focused right-terminal TUI.
+- [x] Add routing regressions for TUI passthrough and non-TUI/other-pane
   behavior.
-- [ ] Update the keybinding documentation.
+- [x] Update the keybinding documentation.
 
 ## Log
 
@@ -53,3 +53,7 @@ that key from receiving it.
 - Approved design: right-terminal TUI programs receive `Option+n`; shell and
   all other pane paths retain their existing Pair behavior. Reuse the existing
   TUI routing boundary and cover it with focused regressions.
+- Implemented the exception in the existing alternate-screen routing path.
+  Added workbenchshortcut and termcmd regressions, updated key help and README,
+  and passed the full `workbenchshortcut`, `termcmd`, and `wrapcmd` package
+  suites.
