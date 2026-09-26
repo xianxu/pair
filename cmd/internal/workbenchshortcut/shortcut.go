@@ -186,7 +186,7 @@ var globalBindings = []GlobalBinding{
 	{Chord: ChordAltX, Action: ActionConfirmQuit, LuaFunction: "PairConfirmQuit", NvimKey: "<M-x>", FocusDraft: true,
 		Help: "full quit — kill the session and drop it from the resurrect list"},
 	{Chord: ChordAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
-		Help:       "reload pair — kill and re-launch the workbench in place",
+		Help:       "reload pair — except pass through to a focused right-terminal TUI",
 		HostedHelp: "does not reload a Couch thread; relaunch it from Couch (Alt+n)"},
 	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
 		Help:       "reload pair (same as Alt+n)",
@@ -430,6 +430,14 @@ func IsDraftChord(chord Chord) bool {
 // fire in every state. ChordUnknown never passes through.
 func RightTerminalChordPassesThrough(chord Chord) bool {
 	return chord != ChordUnknown && !IsGlobalChord(chord) && chord != ChordAltK
+}
+
+// RightTerminalTUIChordPassesThrough reports the small exception to global
+// shortcut ownership: Alt+n is allowed through only when the right terminal
+// has a full-screen TUI, so that TUI programs can bind it without changing
+// Pair's shell and other-pane behavior.
+func RightTerminalTUIChordPassesThrough(chord Chord) bool {
+	return chord == ChordAltN || RightTerminalChordPassesThrough(chord)
 }
 
 func handle(action ShortcutAction) ShortcutDecision {

@@ -701,6 +701,17 @@ func TestRightTerminalChordPassesThrough(t *testing.T) {
 	}
 }
 
+func TestRightTerminalTUIChordPassesThroughAddsOnlyAltN(t *testing.T) {
+	if !RightTerminalTUIChordPassesThrough(ChordAltN) {
+		t.Fatal("Alt+n should pass through to a right-terminal TUI")
+	}
+	for _, chord := range []Chord{ChordCtrlAltN, ChordAltH, ChordAltK, ChordUnknown} {
+		if RightTerminalTUIChordPassesThrough(chord) {
+			t.Fatalf("%v should not pass through to a right-terminal TUI", ChordName(chord))
+		}
+	}
+}
+
 func TestChordAltShiftTDecodesAndNames(t *testing.T) {
 	c, ok := DecodeChord([]byte("\x1b[84;4u"))
 	if !ok || c != ChordAltShiftT {
