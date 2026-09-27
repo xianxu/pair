@@ -65,7 +65,8 @@ type Console struct {
 
 	// focus is what the terminal is pointed at. It is not the same as `active`:
 	// the switcher is a focus with no actor behind it.
-	focus Focus
+	focus                Focus
+	rightTerminalFocused func(context.Context, couchcore.ThreadAddress) (bool, error)
 
 	actionable ActionableThreadProvider
 	menu       MenuState
@@ -1662,9 +1663,27 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	c.mu.Lock()
 	actorFocused := !c.focus.IsPanel()
 	c.mu.Unlock()
-	if actorFocused && c.activeChildOwnsScreen() && pairTUIChordPassesThrough(rawHit) {
-		route(rawHit)
-		return
+	if actorFocused && hit == HitRelaunch {
+		c.mu.Lock()
+		probe := c.rightTerminalFocused
+		var address couchcore.ThreadAddress
+		if p := c.panes[c.active]; p != nil {
+			address = p.thread
+		}
+		c.mu.Unlock()
+		if probe != nil {
+			ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
+			right, err := probe(ctx, address)
+			cancel()
+			if err != nil {
+				c.setNotice("Cannot determine restart-key focus: " + err.Error())
+				return
+			}
+			if right {
+				route(rawHit)
+				return
+			}
+		}
 	}
 	if actorFocused && hit != HitMouse && !hit.actorReserved() {
 		route(rawHit)
@@ -1678,14 +1697,13 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	}
 }
 
-func pairTUIChordPassesThrough(raw []byte) bool {
-	chord, ok := workbenchshortcut.DecodeChord(raw)
-	return ok && workbenchshortcut.RightTerminalTUIChordPassesThrough(chord)
-}
-
-func (c *Console) activeChildOwnsScreen() bool {
-	child := c.activeChild()
-	return child != nil && child.Endpoint().Modes().AltScreen
+// SetRightTerminalFocusProbe supplies inner-pane ownership. The outer child is
+// Zellij, whose alternate screen says nothing about its focused inner pane.
+// Only restart candidates query it; ordinary input never pays for discovery.
+func (c *Console) SetRightTerminalFocusProbe(probe func(context.Context, couchcore.ThreadAddress) (bool, error)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.rightTerminalFocused = probe
 }
 
 // hitHandlers maps every intercepted chord to what the console does about it.

@@ -71,6 +71,7 @@ func newChordFixtureWithChild(t *testing.T, child *ptychild.Child) (*Console, *i
 func TestAltNBytesReachAFullScreenTUI(t *testing.T) {
 	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
 	con, stdin, _ := newChordFixtureWithChild(t, child)
+	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) { return true, nil })
 	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
 	waitFor(t, "the child to enter the alternate screen", func() bool {
 		return child.Endpoint().Modes().AltScreen
@@ -97,9 +98,54 @@ func TestAltNBytesReachAFullScreenTUI(t *testing.T) {
 	}
 }
 
+// Zellij uses the alternate screen even while draft nvim has focus. Its
+// outer screen mode must never authorize forwarding a draft restart inward.
+func TestRelaunchFromDraftInsideAlternateScreenClient(t *testing.T) {
+	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
+	con, stdin, address := newChordFixtureWithChild(t, child)
+	con.SetRightTerminalFocusProbe(func(ctx context.Context, got couchcore.ThreadAddress) (bool, error) {
+		if got != address {
+			t.Errorf("probe address = %v, want %v", got, address)
+		}
+		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > time.Second {
+			t.Error("focus probe must be bounded by one second")
+		}
+		return false, nil
+	})
+	if _, err := stdin.Write(workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0]); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "Couch relaunch confirmation", func() bool {
+		frame := con.menuSnapshot().CurrentFrame()
+		return frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch" && frame.Thread == address
+	})
+	if len(child.Writes()) != 0 {
+		t.Fatalf("draft restart leaked inward: %q", child.Writes())
+	}
+}
+
+func TestUnknownInnerFocusDoesNotForwardOrRelaunch(t *testing.T) {
+	con, stdin, _ := newChordFixtureWithChild(t, ptychild.NewFakeChild([]byte("\x1b[?1049h")))
+	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) {
+		return false, errors.New("ambiguous clients")
+	})
+	if _, err := stdin.Write(workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0]); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "focus failure notice", func() bool {
+		con.mu.Lock()
+		defer con.mu.Unlock()
+		return strings.Contains(con.feed.Row().Body, "ambiguous clients")
+	})
+	if con.menuSnapshot().CurrentFrame().Kind == MenuFrameConfirmation || len(con.activeChild().Writes()) != 0 {
+		t.Fatal("unknown focus must neither relaunch nor forward")
+	}
+}
+
 func TestCtrlAltNBytesReachAFullScreenTUI(t *testing.T) {
 	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
 	con, stdin, _ := newChordFixtureWithChild(t, child)
+	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) { return true, nil })
 	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
 	waitFor(t, "the child to enter the alternate screen", func() bool {
 		return child.Endpoint().Modes().AltScreen
