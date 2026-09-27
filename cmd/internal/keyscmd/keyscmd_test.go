@@ -160,7 +160,7 @@ func TestPresenterAndHostingAreIndependent(t *testing.T) {
 	const (
 		couchRow      = "relaunch the thread shown or highlighted"
 		hostedRow     = "does not reload a Couch thread"
-		standaloneRow = "reload pair — kill and re-launch"
+		standaloneRow = "reload pair from draft; pass through from the right terminal"
 	)
 	for _, tc := range []struct {
 		name      string

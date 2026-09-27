@@ -514,7 +514,7 @@ func pumpStdinContext(ctx context.Context, stdin io.Reader, mux ptyWriter, rt Ru
 			}
 			if chord, ok := inputChord(event); ok {
 				flushPending()
-				if workbenchshortcut.IsDraftChord(chord) || (workbenchshortcut.RightTerminalChordPassesThrough(chord) && mux.activeChildOwnsScreen()) {
+				if workbenchshortcut.IsDraftChord(chord) || (workbenchshortcut.RightTerminalTUIChordPassesThrough(chord) && mux.activeChildOwnsScreen()) {
 					mux.writeEvents([]terminal.InputEvent{event})
 					continue
 				}

@@ -822,8 +822,14 @@ without lifecycle effects.
 `onRelaunchHotkey` targets the thread on screen, and in the switcher the
 highlighted row. Couch replaces the helper with the current binary and keeps the
 conversation. #245 had passed them inward, but Pair's own reload cannot run under
-Couch, so they were a dead key. The agent therefore does not receive them under
-Couch. Pair refuses an in-session restart before writing anything whenever
+Couch, so Couch owns these keys outside the right terminal. The composition root
+wires `rightTerminalFocusProbe`: resolve the exact thread's session, query
+`list-clients`, and match the sole client's pane against Pair's live terminal
+registry. Both restart chords then reach `pair term`, which applies its TUI
+policy. Outer alternate-screen state is not inner focus evidence. The query is
+bounded to one second and runs only for actor-focused restart candidates;
+missing, malformed, multiple-client or failed observations display a notice
+without forwarding or relaunching. The switcher needs no probe. Pair refuses an in-session restart before writing anything whenever
 `launcher.CouchOwnsRestart` holds: the session env names Couch, or Couch presents
 the client. That covers a session Couch presents but did not create, where a
 Couch-launched client would refuse the marker only after quit cleanup had

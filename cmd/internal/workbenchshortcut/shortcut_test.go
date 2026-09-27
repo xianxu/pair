@@ -328,7 +328,6 @@ func TestGlobalDecisionMatrix(t *testing.T) {
 	}{
 		{ChordAltD, ActionConfirmDetach, "PairConfirmDetach", true},
 		{ChordAltX, ActionConfirmQuit, "PairConfirmQuit", true},
-		{ChordAltN, ActionRestartPair, "PairConfirmRestart", true},
 		{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart", true},
 		{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart", true},
 		{ChordAltC, ActionToggleReview, "PairReviewToggle", false},
@@ -697,6 +696,28 @@ func TestRightTerminalChordPassesThrough(t *testing.T) {
 	for _, b := range GlobalBindings() {
 		if b.Scope == ScopeGlobal && RightTerminalChordPassesThrough(b.Chord) {
 			t.Errorf("global %v must not pass through", ChordName(b.Chord))
+		}
+	}
+}
+
+func TestRightTerminalTUIChordPassesThroughOnlyExplicitPairControls(t *testing.T) {
+	for _, chord := range ChordSequences() {
+		decoded, ok := DecodeChord([]byte(chord))
+		if !ok {
+			t.Fatalf("%q did not decode to a chord", chord)
+		}
+		want := decoded != ChordAltShiftEnter && decoded != ChordAltShiftT &&
+			decoded != ChordAltShiftLeft && decoded != ChordAltShiftRight && decoded != ChordAltK
+		if got := RightTerminalTUIChordPassesThrough(decoded); got != want {
+			t.Errorf("%v pass-through = %v, want %v", ChordName(decoded), got, want)
+		}
+	}
+}
+
+func TestAltNIsDraftScoped(t *testing.T) {
+	for _, binding := range GlobalBindings() {
+		if binding.Chord == ChordAltN && binding.Scope != ScopeDraft {
+			t.Fatalf("Alt+n scope = %v, want ScopeDraft", binding.Scope)
 		}
 	}
 }

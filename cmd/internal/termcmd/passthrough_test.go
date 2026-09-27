@@ -67,14 +67,29 @@ func TestFocusLeftNeverPassesThroughToAFullScreenChild(t *testing.T) {
 	}
 }
 
-// A global fires even under a full-screen child.
-func TestGlobalChordFiresUnderAFullScreenChild(t *testing.T) {
+// Explicit Pair controls remain available even under a full-screen child.
+func TestExplicitPairControlFiresUnderAFullScreenChild(t *testing.T) {
 	mux := &fakeMux{ownsScreen: true}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, &fakeRuntime{}, io.Discard) // Alt+n restart (global)
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[84;4u")}}, mux, &fakeRuntime{}, io.Discard) // Alt+Shift+t
 	for _, op := range mux.ops {
 		if strings.HasPrefix(op, "write:") {
-			t.Fatalf("ops = %v: a global must not pass through to the child", mux.ops)
+			t.Fatalf("ops = %v: explicit Pair control must not pass through to the child", mux.ops)
 		}
+	}
+}
+
+func TestAltNReachesAFullScreenRightTerminalTUI(t *testing.T) {
+	const seq = "\x1b[110;3u"
+	mux := &fakeMux{ownsScreen: true}
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, mux, &fakeRuntime{}, io.Discard)
+	if got := strings.Join(mux.ops, ","); got != "write:"+seq {
+		t.Fatalf("fullscreen Alt+n ops = %q, want the raw bytes forwarded to the TUI", got)
+	}
+
+	shell := &fakeMux{ownsScreen: false}
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, shell, &fakeRuntime{}, io.Discard)
+	if got := strings.Join(shell.ops, ","); got != "write:"+seq {
+		t.Fatalf("shell ops = %q, want Alt+n forwarded outside the draft", got)
 	}
 }
 
@@ -90,7 +105,7 @@ func TestEveryChordAgainstBothAltScreenStates(t *testing.T) {
 			t.Fatalf("%q did not decode to a chord", seq)
 		}
 		draftOnly := workbenchshortcut.IsDraftChord(chord)
-		pass := draftOnly || workbenchshortcut.RightTerminalChordPassesThrough(chord)
+		pass := draftOnly || workbenchshortcut.RightTerminalTUIChordPassesThrough(chord)
 
 		t.Run("fullscreen/"+workbenchshortcut.ChordName(chord)+"/"+seq, func(t *testing.T) {
 			mux := &fakeMux{ownsScreen: true, activeName: "work"}

@@ -22,12 +22,16 @@ import (
 // directly -- which is what every other console regression does -- cannot see a
 // chord that is intercepted and then dropped for want of a dispatch arm.
 func newChordFixture(t *testing.T) (*Console, *io.PipeWriter, couchcore.ThreadAddress) {
+	return newChordFixtureWithChild(t, ptychild.NewFakeChild(nil))
+}
+
+func newChordFixtureWithChild(t *testing.T, child *ptychild.Child) (*Console, *io.PipeWriter, couchcore.ThreadAddress) {
 	t.Helper()
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
 	reader, writer := io.Pipe()
 	con := New(host, reader)
 	address := menuAddress("brain")
-	con.attachThreadActor("c1", "brain", address, "/w/brain", "brain", ptychild.NewFakeChild(nil))
+	con.attachThreadActor("c1", "brain", address, "/w/brain", "brain", child)
 	setTestOps(con, func(string, map[string]string) (any, error) { return nil, nil })
 	con.mu.Lock()
 	con.active = "c1"
@@ -62,6 +66,103 @@ func newChordFixture(t *testing.T) (*Console, *io.PipeWriter, couchcore.ThreadAd
 		t.Fatalf("initial console command: %v", err)
 	}
 	return con, writer, address
+}
+
+func TestAltNBytesReachAFullScreenTUI(t *testing.T) {
+	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
+	con, stdin, _ := newChordFixtureWithChild(t, child)
+	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) { return true, nil })
+	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
+	waitFor(t, "the child to enter the alternate screen", func() bool {
+		return child.Endpoint().Modes().AltScreen
+	})
+
+	encoding := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)
+	if len(encoding) == 0 {
+		t.Fatal("alt+n has no encoding to forward")
+	}
+	if _, err := stdin.Write(encoding[0]); err != nil {
+		t.Fatalf("write chord: %v", err)
+	}
+	waitFor(t, "alt+n to reach the full-screen child", func() bool {
+		for _, write := range child.Writes() {
+			if string(write) == "\x1bn" {
+				return true
+			}
+		}
+		return false
+	})
+	frame := con.menuSnapshot().CurrentFrame()
+	if frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch" {
+		t.Fatal("alt+n opened Couch's relaunch confirmation for a full-screen TUI")
+	}
+}
+
+// Zellij uses the alternate screen even while draft nvim has focus. Its
+// outer screen mode must never authorize forwarding a draft restart inward.
+func TestRelaunchFromDraftInsideAlternateScreenClient(t *testing.T) {
+	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
+	con, stdin, address := newChordFixtureWithChild(t, child)
+	con.SetRightTerminalFocusProbe(func(ctx context.Context, got couchcore.ThreadAddress) (bool, error) {
+		if got != address {
+			t.Errorf("probe address = %v, want %v", got, address)
+		}
+		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > time.Second {
+			t.Error("focus probe must be bounded by one second")
+		}
+		return false, nil
+	})
+	if _, err := stdin.Write(workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0]); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "Couch relaunch confirmation", func() bool {
+		frame := con.menuSnapshot().CurrentFrame()
+		return frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch" && frame.Thread == address
+	})
+	if len(child.Writes()) != 0 {
+		t.Fatalf("draft restart leaked inward: %q", child.Writes())
+	}
+}
+
+func TestUnknownInnerFocusDoesNotForwardOrRelaunch(t *testing.T) {
+	con, stdin, _ := newChordFixtureWithChild(t, ptychild.NewFakeChild([]byte("\x1b[?1049h")))
+	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) {
+		return false, errors.New("ambiguous clients")
+	})
+	if _, err := stdin.Write(workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0]); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "focus failure notice", func() bool {
+		con.mu.Lock()
+		defer con.mu.Unlock()
+		return strings.Contains(con.feed.Row().Body, "ambiguous clients")
+	})
+	if con.menuSnapshot().CurrentFrame().Kind == MenuFrameConfirmation || len(con.activeChild().Writes()) != 0 {
+		t.Fatal("unknown focus must neither relaunch nor forward")
+	}
+}
+
+func TestCtrlAltNBytesReachAFullScreenTUI(t *testing.T) {
+	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
+	con, stdin, _ := newChordFixtureWithChild(t, child)
+	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) { return true, nil })
+	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
+	waitFor(t, "the child to enter the alternate screen", func() bool {
+		return child.Endpoint().Modes().AltScreen
+	})
+
+	encoding := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordCtrlAltN)[0]
+	if _, err := stdin.Write(encoding); err != nil {
+		t.Fatalf("write chord: %v", err)
+	}
+	waitFor(t, "ctrl+alt+n to reach the full-screen child", func() bool {
+		for _, write := range child.Writes() {
+			if string(write) == "\x1b\x0e" {
+				return true
+			}
+		}
+		return false
+	})
 }
 
 // The chord shipped once with its bytes intercepted and NO arm in
