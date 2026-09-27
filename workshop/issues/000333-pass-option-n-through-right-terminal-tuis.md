@@ -29,7 +29,8 @@ that key from receiving it.
 
 ## Done when
 
-- [x] Right-terminal TUIs receive `Option+n`.
+- [x] Right-terminal TUIs receive `Option+n` through both Pair and Couch input
+  routing layers.
 - [x] Right-terminal shells/non-TUI states retain Pair's existing `Option+n`
   behavior.
 - [x] Other panes retain their existing `Option+n` behavior.
@@ -45,6 +46,16 @@ that key from receiving it.
 - [x] Add routing regressions for TUI passthrough and non-TUI/other-pane
   behavior.
 - [x] Update the keybinding documentation.
+- [x] Add the Couch interceptor exception for a focused full-screen child.
+
+## Revisions
+
+### 2026-09-26 — Couch routing boundary
+
+The smoke test showed that Couch intercepts `Alt+n` before Pair's terminal
+router. Extend the implementation and regression coverage to Couch's existing
+focused-child interceptor, passing only `Alt+n` through for a full-screen child;
+keep `Ctrl+Alt+n` and shell/non-TUI relaunch behavior unchanged.
 
 ## Log
 
@@ -57,3 +68,10 @@ that key from receiving it.
   Added workbenchshortcut and termcmd regressions, updated key help and README,
   and passed the full `workbenchshortcut`, `termcmd`, and `wrapcmd` package
   suites.
+- Debugging the smoke test found that Couch intercepts `Alt+n` before Pair's
+  `pair term` router. The Couch interceptor is the earlier routing boundary;
+  the fix must pass Alt+n through when its focused child owns the alternate
+  screen, while retaining relaunch for shells/non-TUI children (ARCH-DRY).
+- Added the Couch-layer exception and a real input-loop regression with a fake
+  alternate-screen child. The Couch, Couch command, terminal command, and
+  shortcut package tests pass.
