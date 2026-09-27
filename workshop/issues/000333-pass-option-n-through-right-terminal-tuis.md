@@ -50,6 +50,13 @@ that key from receiving it.
 
 ## Revisions
 
+### 2026-09-26 — Inner-pane focus evidence
+
+Standalone Pair smoke passed. Replace Couch's outer-screen inference with a
+bounded exact-session client query plus live pane registry. Forward right-pane
+restart chords to Pair, retain Couch confirmation for known other panes, and
+show a notice on uncertain focus. Multi-client ambiguity uses the switcher.
+
 ### 2026-09-26 — Couch routing boundary
 
 The smoke test showed that Couch intercepts `Alt+n` before Pair's terminal
@@ -77,6 +84,10 @@ the child is a shell.
   Ambiguous/unavailable focus consumes the candidate with a notice; the
   switcher remains usable for relaunch. No query for ordinary keys (ARCH-ORDER,
   ARCH-DRY). Multi-client focus is explicitly unsupported for this shortcut.
+- Focus regression first reproduced the draft failure. Couch package suites
+  and focused race checks passed. Fresh review found absence in the pane
+  registry was not negative proof; added missing/malformed registry regressions
+  and now require positive draft/agent identification before relaunch fallback.
 
 ### 2026-09-26
 
