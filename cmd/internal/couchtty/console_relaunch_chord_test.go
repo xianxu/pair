@@ -97,6 +97,28 @@ func TestAltNBytesReachAFullScreenTUI(t *testing.T) {
 	}
 }
 
+func TestCtrlAltNBytesReachAFullScreenTUI(t *testing.T) {
+	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
+	con, stdin, _ := newChordFixtureWithChild(t, child)
+	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
+	waitFor(t, "the child to enter the alternate screen", func() bool {
+		return child.Endpoint().Modes().AltScreen
+	})
+
+	encoding := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordCtrlAltN)[0]
+	if _, err := stdin.Write(encoding); err != nil {
+		t.Fatalf("write chord: %v", err)
+	}
+	waitFor(t, "ctrl+alt+n to reach the full-screen child", func() bool {
+		for _, write := range child.Writes() {
+			if string(write) == "\x1b\x0e" {
+				return true
+			}
+		}
+		return false
+	})
+}
+
 // The chord shipped once with its bytes intercepted and NO arm in
 // processInput's switch to receive them, so alt+n was swallowed and silently
 // dropped while every interceptor test stayed green. This is the test that

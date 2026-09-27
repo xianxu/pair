@@ -67,13 +67,13 @@ func TestFocusLeftNeverPassesThroughToAFullScreenChild(t *testing.T) {
 	}
 }
 
-// A global fires even under a full-screen child.
-func TestGlobalChordFiresUnderAFullScreenChild(t *testing.T) {
+// Explicit Pair controls remain available even under a full-screen child.
+func TestExplicitPairControlFiresUnderAFullScreenChild(t *testing.T) {
 	mux := &fakeMux{ownsScreen: true}
-	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[104;3u")}}, mux, &fakeRuntime{}, io.Discard) // Alt+h help (global)
+	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[84;4u")}}, mux, &fakeRuntime{}, io.Discard) // Alt+Shift+t
 	for _, op := range mux.ops {
 		if strings.HasPrefix(op, "write:") {
-			t.Fatalf("ops = %v: a global must not pass through to the child", mux.ops)
+			t.Fatalf("ops = %v: explicit Pair control must not pass through to the child", mux.ops)
 		}
 	}
 }
@@ -88,10 +88,8 @@ func TestAltNReachesAFullScreenRightTerminalTUI(t *testing.T) {
 
 	shell := &fakeMux{ownsScreen: false}
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte(seq)}}, shell, &fakeRuntime{}, io.Discard)
-	for _, op := range shell.ops {
-		if strings.HasPrefix(op, "write:") {
-			t.Fatalf("shell ops = %v: Alt+n must retain Pair handling at a shell", shell.ops)
-		}
+	if got := strings.Join(shell.ops, ","); got != "write:"+seq {
+		t.Fatalf("shell ops = %q, want Alt+n forwarded outside the draft", got)
 	}
 }
 

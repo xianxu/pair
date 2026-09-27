@@ -156,7 +156,7 @@ one-line description can't carry.
 | **Shift+Alt+Backspace** | nvim (normal/insert) | Erase history, draft, and queue for this session to "start anew". |
 | **Alt+d** | non-agent panes | Detach from the current session (re-attach later via `pair`). Under Couch this detaches only the Zellij client; Couch's own detach is in the switcher. |
 | **Alt+x** | non-agent panes | Full quit — kill the session and everything in it. The agent's session id is saved, so it's resumable via `pair resume <tag>`; before discarding the scrollback pair offers to **park** it for a later `pair continue`. |
-| **Alt+n** (or **Ctrl+Alt+n**) | non-agent panes | Reload pair — re-launch with the same tag, agent, args, AND agent session. When the right terminal is focused on a full-screen TUI, **Alt+n passes through to that TUI** instead. Ctrl+Alt+n remains the macOS alias (Option+n is a dead-tilde composer on newer macOS); pressing Alt+n twice also works. **Under Couch, Couch takes Alt+n from every pane and relaunches the thread on screen instead (current binary, same conversation). Pair's own reload refuses in a Couch thread and says so.** |
+| **Alt+n** (or **Ctrl+Alt+n**) | draft nvim / right terminal | Reload pair from draft nvim. When the right terminal is focused, both chords pass through to the program there. (Option+n is a dead-tilde composer on newer macOS.) |
 | **Shift+Alt+N** | non-agent panes | Restart only the coding agent, with a new conversation. Pair, Zellij, the draft, and terminal tabs stay alive. |
 | **Alt+Shift+C** (or **Ctrl+Alt+c**) | non-agent panes | Compact in place: distill this session into a `continuation` doc (folding in the parked draft), then reincarnate the tag with a clean conversation seeded from it. Scrollback is parked first as a recovery net. |
 
@@ -164,10 +164,11 @@ The focused agent receives all workbench shortcuts except **Shift+Alt+T**,
 **Shift+Alt+Left/Right**, and **Alt+Shift+Return**, which create/switch
 right-terminal tabs or toggle right-terminal fullscreen. Under
 Couch, **Ctrl+Space**, **Ctrl+Backspace** (the Mac Delete key), and
-**Ctrl+Return** remain Couch navigation shortcuts, and Couch takes **Alt+n** /
-**Ctrl+Alt+n** to relaunch the thread. Alt+Up/Down, Alt+Left/Right, Alt+j/k,
+**Ctrl+Return** remain Couch navigation shortcuts. In a full-screen displayed
+Pair child, Pair and Couch pass ordinary program chords through consistently;
+only the explicit layout/tab controls remain owned by Pair. Alt+Up/Down, Alt+Left/Right, Alt+j/k,
 help, compact and the other lifecycle chords reach the agent. In the focused
-right terminal, Alt+n reaches a full-screen TUI but retains Pair's reload action
+right terminal, Alt+n and Ctrl+Alt+n reach the focused program
 at a shell or other non-TUI screen. Click another pane to leave it. Existing
 Return and Alt+Backspace input adaptation still applies.
 

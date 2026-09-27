@@ -161,7 +161,7 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 		{name: "split terminal down as a native tiled split", chunks: [][]byte{[]byte("\x1b[68;4u")}, wantRTOps: `quiet new-pane --direction down --name terminal -- sh -c zellij action rename-pane --pane-id "$ZELLIJ_PANE_ID" terminal 2>/dev/null; exec pair term`},
 		{name: "alt d routes detach to draft", chunks: [][]byte{[]byte("\x1b[100;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmDetach(),write --pane-id 2 13"},
 		{name: "alt x routes quit to draft", chunks: [][]byte{[]byte("\x1b[120;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmQuit(),write --pane-id 2 13"},
-		{name: "alt n routes restart to draft", chunks: [][]byte{[]byte("\x1b[110;3u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"},
+		{name: "alt n passes through outside draft", chunks: [][]byte{[]byte("\x1b[110;3u")}, wantMux: "write:\x1b[110;3u"},
 		{name: "ctrl alt n routes restart to draft", chunks: [][]byte{[]byte("\x1b[110;7u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"},
 		{name: "shift alt n routes agent restart to draft", chunks: [][]byte{[]byte("\x1b[78;4u")}, wantRTOps: "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmAgentRestart(),write --pane-id 2 13"},
 		{name: "alt up passes through outside draft", chunks: [][]byte{[]byte("\x1b[1;3A")}, wantMux: "write:\x1b[1;3A"},
@@ -220,15 +220,15 @@ func TestPumpStdinHandlesTerminalTabActions(t *testing.T) {
 	}
 }
 
-func TestPumpStdinReportsFocusFailureWithoutWriting(t *testing.T) {
+func TestPumpStdinDoesNotRouteDraftAltNFromTheRightPane(t *testing.T) {
 	rt := &fakeRuntime{cachedDraft: "2", failFocus: true}
 	mux := &fakeMux{}
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
-	if got := strings.Join(rt.ops, ","); got != "focus-pane-id 2" {
-		t.Fatalf("runtime ops = %q, want focus only", got)
+	if got := strings.Join(rt.ops, ","); got != "" {
+		t.Fatalf("runtime ops = %q, want no draft routing", got)
 	}
-	if len(mux.reported) != 1 || !strings.Contains(mux.reported[0], "focus") {
-		t.Fatalf("reported = %v, want focus error", mux.reported)
+	if got := strings.Join(mux.ops, ","); got != "write:\x1b[110;3u" {
+		t.Fatalf("mux ops = %q, want Alt+n forwarded", got)
 	}
 }
 
@@ -331,7 +331,7 @@ func TestSplitTerminalDownRefusesWithoutRightTerminal(t *testing.T) {
 	}
 }
 
-func TestPumpStdinConsumesGlobalChordWhenDraftMissing(t *testing.T) {
+func TestPumpStdinPassesDraftAltNWhenDraftMissing(t *testing.T) {
 	rt := &fakeRuntime{panesJSON: `[
 		{"id":4,"is_focused":true,"is_fullscreen":false,"is_floating":true,"is_plugin":false,"title":"terminal","terminal_command":"pair term"}
 	]`}
@@ -339,11 +339,11 @@ func TestPumpStdinConsumesGlobalChordWhenDraftMissing(t *testing.T) {
 
 	pumpStdin(&splitReader{chunks: [][]byte{[]byte("\x1b[110;3u")}}, mux, rt, io.Discard)
 
-	if len(mux.ops) != 0 {
-		t.Fatalf("mux ops = %v, want recognized chord consumed", mux.ops)
+	if got := strings.Join(mux.ops, ","); got != "write:\x1b[110;3u" {
+		t.Fatalf("mux ops = %q, want Alt+n forwarded", got)
 	}
-	if len(mux.reported) != 1 || !strings.Contains(mux.reported[0], "draft pane") {
-		t.Fatalf("reported = %v, want missing draft pane error", mux.reported)
+	if len(mux.reported) != 0 {
+		t.Fatalf("reported = %v, want no error", mux.reported)
 	}
 }
 
@@ -694,7 +694,7 @@ func (f *fakeRuntime) ListPanesJSON() ([]byte, error) {
 	return []byte(f.panesJSON), nil
 }
 
-func TestPumpStdinRoutesCachedGlobalWithoutPaneInventory(t *testing.T) {
+func TestPumpStdinPassesDraftAltNWithoutPaneInventory(t *testing.T) {
 	rt := &fakeRuntime{cachedDraft: "2", failList: true}
 	mux := &fakeMux{}
 
@@ -703,12 +703,11 @@ func TestPumpStdinRoutesCachedGlobalWithoutPaneInventory(t *testing.T) {
 	if rt.listCalls != 0 {
 		t.Fatalf("list calls = %d, want 0 for global chord", rt.listCalls)
 	}
-	if len(mux.reported) != 0 {
-		t.Fatalf("reported = %v, want successful cached route", mux.reported)
+	if got := strings.Join(mux.ops, ","); got != "write:\x1b[110;3u" {
+		t.Fatalf("mux ops = %q, want Alt+n forwarded", got)
 	}
-	want := "focus-pane-id 2,write --pane-id 2 28,write --pane-id 2 14,write-chars --pane-id 2 :lua PairConfirmRestart(),write --pane-id 2 13"
-	if got := strings.Join(rt.ops, ","); got != want {
-		t.Fatalf("runtime ops = %q, want %q", got, want)
+	if len(mux.reported) != 0 || len(rt.ops) != 0 {
+		t.Fatalf("reported=%v runtime=%v, want neither", mux.reported, rt.ops)
 	}
 }
 

@@ -328,7 +328,6 @@ func TestGlobalDecisionMatrix(t *testing.T) {
 	}{
 		{ChordAltD, ActionConfirmDetach, "PairConfirmDetach", true},
 		{ChordAltX, ActionConfirmQuit, "PairConfirmQuit", true},
-		{ChordAltN, ActionRestartPair, "PairConfirmRestart", true},
 		{ChordCtrlAltN, ActionRestartPair, "PairConfirmRestart", true},
 		{ChordAltShiftN, ActionRestartAgent, "PairConfirmAgentRestart", true},
 		{ChordAltC, ActionToggleReview, "PairReviewToggle", false},
@@ -701,13 +700,24 @@ func TestRightTerminalChordPassesThrough(t *testing.T) {
 	}
 }
 
-func TestRightTerminalTUIChordPassesThroughAddsOnlyAltN(t *testing.T) {
-	if !RightTerminalTUIChordPassesThrough(ChordAltN) {
-		t.Fatal("Alt+n should pass through to a right-terminal TUI")
+func TestRightTerminalTUIChordPassesThroughOnlyExplicitPairControls(t *testing.T) {
+	for _, chord := range ChordSequences() {
+		decoded, ok := DecodeChord([]byte(chord))
+		if !ok {
+			t.Fatalf("%q did not decode to a chord", chord)
+		}
+		want := decoded != ChordAltShiftEnter && decoded != ChordAltShiftT &&
+			decoded != ChordAltShiftLeft && decoded != ChordAltShiftRight && decoded != ChordAltK
+		if got := RightTerminalTUIChordPassesThrough(decoded); got != want {
+			t.Errorf("%v pass-through = %v, want %v", ChordName(decoded), got, want)
+		}
 	}
-	for _, chord := range []Chord{ChordCtrlAltN, ChordAltH, ChordAltK, ChordUnknown} {
-		if RightTerminalTUIChordPassesThrough(chord) {
-			t.Fatalf("%v should not pass through to a right-terminal TUI", ChordName(chord))
+}
+
+func TestAltNIsDraftScoped(t *testing.T) {
+	for _, binding := range GlobalBindings() {
+		if binding.Chord == ChordAltN && binding.Scope != ScopeDraft {
+			t.Fatalf("Alt+n scope = %v, want ScopeDraft", binding.Scope)
 		}
 	}
 }

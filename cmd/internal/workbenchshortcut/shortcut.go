@@ -163,12 +163,10 @@ type GlobalBinding struct {
 	Help string
 	// HostedHelp replaces Help when Couch launched the session or presents
 	// this client, for a chord whose Pair behavior changes there (#282); empty
-	// means Help holds either way. Pair's Alt+n does not reload under Couch
-	// (launcher.CouchOwnsRestart, pinned by launcher
-	// TestRunRestartRefusesACouchOwnedSessionBeforeMutation). Where Couch
-	// presents the client it takes Alt+n itself and its row replaces this one
-	// (#284), so the hosted row is read where Couch created the session but
-	// does not present it. Keep it short: no hosted row may widen the page
+	// means Help holds either way. Pair's Alt+n is draft-scoped; a right-pane
+	// program receives it. Where Couch presents the client, its own routing may
+	// replace this row (#284), so the hosted row is read where Couch created the
+	// session but does not present it. Keep it short: no hosted row may widen the page
 	// (keyscmd TestNoLayerWidensThePage).
 	HostedHelp string
 }
@@ -185,9 +183,9 @@ var globalBindings = []GlobalBinding{
 		HostedHelp: "detach only this Zellij client, not the Couch thread"},
 	{Chord: ChordAltX, Action: ActionConfirmQuit, LuaFunction: "PairConfirmQuit", NvimKey: "<M-x>", FocusDraft: true,
 		Help: "full quit — kill the session and drop it from the resurrect list"},
-	{Chord: ChordAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
-		Help:       "reload pair — except pass through to a focused right-terminal TUI",
-		HostedHelp: "does not reload a Couch thread; relaunch it from Couch (Alt+n)"},
+	{Chord: ChordAltN, Scope: ScopeDraft, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
+		Help:       "reload pair from draft; pass through from the right terminal",
+		HostedHelp: "draft reload; right-terminal programs receive Alt+n"},
 	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
 		Help:       "reload pair (same as Alt+n)",
 		HostedHelp: "same as Alt+n under Couch"},
@@ -432,12 +430,16 @@ func RightTerminalChordPassesThrough(chord Chord) bool {
 	return chord != ChordUnknown && !IsGlobalChord(chord) && chord != ChordAltK
 }
 
-// RightTerminalTUIChordPassesThrough reports the small exception to global
-// shortcut ownership: Alt+n is allowed through only when the right terminal
-// has a full-screen TUI, so that TUI programs can bind it without changing
-// Pair's shell and other-pane behavior.
+// RightTerminalTUIChordPassesThrough reports which recognized chords a
+// full-screen right-terminal child receives. Pair keeps only the explicit
+// workbench controls needed to operate the surrounding layout; everything else
+// belongs to the TUI, including global-looking draft actions.
 func RightTerminalTUIChordPassesThrough(chord Chord) bool {
-	return chord == ChordAltN || RightTerminalChordPassesThrough(chord)
+	if chord == ChordUnknown || chord == ChordAltShiftEnter || chord == ChordAltShiftT ||
+		chord == ChordAltShiftLeft || chord == ChordAltShiftRight || chord == ChordAltK {
+		return false
+	}
+	return true
 }
 
 func handle(action ShortcutAction) ShortcutDecision {

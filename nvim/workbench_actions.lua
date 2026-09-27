@@ -3,7 +3,7 @@ return {
   ["<S-M-CR>"] = { fn = "", focus = false, direct_command = { "layout", "toggle-focused" } },
   ["<M-d>"] = { fn = "PairConfirmDetach", focus = true },
   ["<M-x>"] = { fn = "PairConfirmQuit", focus = true },
-  ["<M-n>"] = { fn = "PairConfirmRestart", focus = true },
+  ["<M-n>"] = { fn = "PairConfirmRestart", focus = true, scope = 'draft' },
   ["<C-M-n>"] = { fn = "PairConfirmRestart", focus = true },
   ["<M-N>"] = { fn = "PairConfirmAgentRestart", focus = true },
   ["<M-Up>"] = { fn = "PairLayoutBigger", focus = false, scope = 'draft' },
