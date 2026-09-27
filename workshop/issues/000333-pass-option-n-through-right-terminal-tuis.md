@@ -20,8 +20,8 @@ that key from receiving it.
 
 ## Spec
 
-- In the focused right-terminal TUI path, pass `Option+n` through unchanged to
-  the TUI program.
+- In the focused right-terminal path, pass `Option+n` through unchanged to the
+  program, including shell and full-screen TUI programs.
 - Keep current Pair handling for the right terminal's shell/non-TUI state and
   for every other pane.
 - Reuse the existing TUI detection and input-routing boundary; do not add a
@@ -42,7 +42,7 @@ that key from receiving it.
 ## Plan
 
 - [x] Locate the existing focused-pane and TUI input-routing decision.
-- [x] Route `Option+n` through only for a focused right-terminal TUI.
+- [x] Route `Option+n` through whenever the right terminal is focused.
 - [x] Add routing regressions for TUI passthrough and non-TUI/other-pane
   behavior.
 - [x] Update the keybinding documentation.
@@ -56,6 +56,14 @@ The smoke test showed that Couch intercepts `Alt+n` before Pair's terminal
 router. Extend the implementation and regression coverage to Couch's existing
 focused-child interceptor, passing only `Alt+n` through for a full-screen child;
 keep `Ctrl+Alt+n` and shell/non-TUI relaunch behavior unchanged.
+
+### 2026-09-26 — Shared full-screen policy
+
+Pair and Couch must use the same focused-right-terminal rule: a full-screen
+program receives every recognized chord except the explicit layout/tab controls
+(`Alt+Shift+Enter`, `Alt+Shift+t`, `Alt+Shift+Left/Right`, and `Alt+k`).
+`Alt+n` is draft-scoped in Pair and passes through the right terminal even when
+the child is a shell.
 
 ## Log
 
@@ -75,3 +83,5 @@ keep `Ctrl+Alt+n` and shell/non-TUI relaunch behavior unchanged.
 - Added the Couch-layer exception and a real input-loop regression with a fake
   alternate-screen child. The Couch, Couch command, terminal command, and
   shortcut package tests pass.
+- Broadened the policy so Pair and Couch share the same full-screen allowlist;
+  generated draft keymaps now mark `Alt+n` as draft-scoped.
