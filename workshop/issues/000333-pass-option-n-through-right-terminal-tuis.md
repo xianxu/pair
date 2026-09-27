@@ -1,13 +1,14 @@
 ---
 id: 000333
-status: working
+status: codecomplete
 deps: []
 github_issue:
 created: 2026-09-26
 updated: 2026-09-26
 estimate_hours:
 started: 2026-09-26T16:51:02-07:00
-flow: {kind: quick, provenance: inferred, spec: "a7856128", done: "82d008d4"}
+flow: {kind: full, provenance: inferred}
+actual_hours: 2.54
 ---
 
 # Pass Option+n through to right-terminal TUIs
@@ -78,6 +79,8 @@ the child is a shell.
 ## Log
 
 ### 2026-09-26 — Acceptance
+- 2026-09-26: closed — Standalone Pair and Couch operator smoke tests passed; couchcmd/couchtty suites and focused race tests passed; keyscmd/workbenchshortcut suites pass after BR-1 hosted-help correction; make build succeeded.; review verdict: SHIP
+- 2026-09-26: flow upgraded quick → full — 154 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Operator confirmed standalone Pair and then corrected Couch smoke tests pass.
   Ready to close and ship. Both Couch suites and focused race regressions passed;
