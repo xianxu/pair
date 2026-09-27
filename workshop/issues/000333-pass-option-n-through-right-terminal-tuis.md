@@ -22,8 +22,9 @@ that key from receiving it.
 
 - In the focused right-terminal path, pass `Option+n` through unchanged to the
   program, including shell and full-screen TUI programs.
-- Keep current Pair handling for the right terminal's shell/non-TUI state and
-  for every other pane.
+- Full-screen right-terminal TUIs receive all keys except Alt+k and the
+  Alt+Shift+Enter/t/Left/Right workbench controls. Other shell shortcuts retain
+  existing Pair handling; Alt+n is draft-scoped and passes to shells too.
 - Reuse the existing TUI detection and input-routing boundary; do not add a
   second independent classification.
 
@@ -31,9 +32,11 @@ that key from receiving it.
 
 - [x] Right-terminal TUIs receive `Option+n` through both Pair and Couch input
   routing layers.
-- [x] Right-terminal shells/non-TUI states retain Pair's existing `Option+n`
-  behavior.
-- [x] Other panes retain their existing `Option+n` behavior.
+- [x] Right-terminal shells receive Alt+n; full-screen TUIs receive other
+  recognized chords except the five explicit workbench controls above.
+- [x] Couch routes restart chords by confirmed inner-pane focus: right terminals
+  receive them, known other panes open Couch confirmation, uncertain focus
+  displays a notice. The switcher relaunch remains available.
 - [x] Routing regressions cover the TUI passthrough and neighboring retained
   behaviors.
 - [x] User-facing keybinding documentation reflects the focused right-terminal
@@ -73,6 +76,12 @@ program receives every recognized chord except the explicit layout/tab controls
 the child is a shell.
 
 ## Log
+
+### 2026-09-26 — Acceptance
+
+- Operator confirmed standalone Pair and then corrected Couch smoke tests pass.
+  Ready to close and ship. Both Couch suites and focused race regressions passed;
+  rebuilt binaries were used for the final Couch smoke test.
 
 ### 2026-09-26 — Couch inner-focus correction
 
