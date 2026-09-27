@@ -185,7 +185,7 @@ var globalBindings = []GlobalBinding{
 		Help: "full quit — kill the session and drop it from the resurrect list"},
 	{Chord: ChordAltN, Scope: ScopeDraft, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
 		Help:       "reload pair from draft; pass through from the right terminal",
-		HostedHelp: "draft reload; right-terminal programs receive Alt+n"},
+		HostedHelp: "does not reload a Couch thread; right terminal receives Alt+n"},
 	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
 		Help:       "reload pair (same as Alt+n)",
 		HostedHelp: "same as Alt+n under Couch"},
