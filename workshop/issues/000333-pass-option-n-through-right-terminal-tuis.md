@@ -67,6 +67,17 @@ the child is a shell.
 
 ## Log
 
+### 2026-09-26 — Couch inner-focus correction
+
+- Standalone Pair smoke passed, reported by the operator. Couch smoke exposed
+  that the outer alternate screen belongs to Zellij, not the right-pane TUI.
+- Replace that inference with an exact-session, one-second client-focus query
+  for restart candidates, matched against the live terminal pane registry.
+  Right-terminal candidates reach Pair; other panes keep Couch confirmation.
+  Ambiguous/unavailable focus consumes the candidate with a notice; the
+  switcher remains usable for relaunch. No query for ordinary keys (ARCH-ORDER,
+  ARCH-DRY). Multi-client focus is explicitly unsupported for this shortcut.
+
 ### 2026-09-26
 
 - Approved design: right-terminal TUI programs receive `Option+n`; shell and
