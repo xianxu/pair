@@ -22,12 +22,16 @@ import (
 // directly -- which is what every other console regression does -- cannot see a
 // chord that is intercepted and then dropped for want of a dispatch arm.
 func newChordFixture(t *testing.T) (*Console, *io.PipeWriter, couchcore.ThreadAddress) {
+	return newChordFixtureWithChild(t, ptychild.NewFakeChild(nil))
+}
+
+func newChordFixtureWithChild(t *testing.T, child *ptychild.Child) (*Console, *io.PipeWriter, couchcore.ThreadAddress) {
 	t.Helper()
 	host := hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 80})
 	reader, writer := io.Pipe()
 	con := New(host, reader)
 	address := menuAddress("brain")
-	con.attachThreadActor("c1", "brain", address, "/w/brain", "brain", ptychild.NewFakeChild(nil))
+	con.attachThreadActor("c1", "brain", address, "/w/brain", "brain", child)
 	setTestOps(con, func(string, map[string]string) (any, error) { return nil, nil })
 	con.mu.Lock()
 	con.active = "c1"
@@ -62,6 +66,35 @@ func newChordFixture(t *testing.T) (*Console, *io.PipeWriter, couchcore.ThreadAd
 		t.Fatalf("initial console command: %v", err)
 	}
 	return con, writer, address
+}
+
+func TestAltNBytesReachAFullScreenTUI(t *testing.T) {
+	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
+	con, stdin, _ := newChordFixtureWithChild(t, child)
+	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
+	waitFor(t, "the child to enter the alternate screen", func() bool {
+		return child.Endpoint().Modes().AltScreen
+	})
+
+	encoding := workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)
+	if len(encoding) == 0 {
+		t.Fatal("alt+n has no encoding to forward")
+	}
+	if _, err := stdin.Write(encoding[0]); err != nil {
+		t.Fatalf("write chord: %v", err)
+	}
+	waitFor(t, "alt+n to reach the full-screen child", func() bool {
+		for _, write := range child.Writes() {
+			if string(write) == "\x1bn" {
+				return true
+			}
+		}
+		return false
+	})
+	frame := con.menuSnapshot().CurrentFrame()
+	if frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch" {
+		t.Fatal("alt+n opened Couch's relaunch confirmation for a full-screen TUI")
+	}
 }
 
 // The chord shipped once with its bytes intercepted and NO arm in

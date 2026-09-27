@@ -822,8 +822,9 @@ without lifecycle effects.
 `onRelaunchHotkey` targets the thread on screen, and in the switcher the
 highlighted row. Couch replaces the helper with the current binary and keeps the
 conversation. #245 had passed them inward, but Pair's own reload cannot run under
-Couch, so they were a dead key. The agent therefore does not receive them under
-Couch. Pair refuses an in-session restart before writing anything whenever
+Couch, so Couch normally owns the key. When the focused displayed child is a
+full-screen TUI, Couch passes Alt+n through to that child; Ctrl+Alt+n remains a
+Couch relaunch alias. Pair refuses an in-session restart before writing anything whenever
 `launcher.CouchOwnsRestart` holds: the session env names Couch, or Couch presents
 the client. That covers a session Couch presents but did not create, where a
 Couch-launched client would refuse the marker only after quit cleanup had

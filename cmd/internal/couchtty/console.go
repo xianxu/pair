@@ -1662,6 +1662,15 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	c.mu.Lock()
 	actorFocused := !c.focus.IsPanel()
 	c.mu.Unlock()
+	// Couch normally reserves Alt+n from every actor pane so it can relaunch
+	// the displayed Pair process. A full-screen child is different: it is an
+	// interactive TUI, and the child must see the key instead of Couch acting
+	// on it. Keep the exception here, after interception but before the scope
+	// reservation check, so panel focus and shell/non-TUI behavior stay intact.
+	if actorFocused && hit == HitRelaunch && c.activeChildOwnsScreen() {
+		route(rawHit)
+		return
+	}
 	if actorFocused && hit != HitMouse && !hit.actorReserved() {
 		route(rawHit)
 		return
@@ -1672,6 +1681,11 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	} else {
 		c.setNotice(fmt.Sprintf("chord %d is intercepted but has no handler", hit))
 	}
+}
+
+func (c *Console) activeChildOwnsScreen() bool {
+	child := c.activeChild()
+	return child != nil && child.Endpoint().Modes().AltScreen
 }
 
 // hitHandlers maps every intercepted chord to what the console does about it.

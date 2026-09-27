@@ -573,9 +573,10 @@ inside an attached Pair session are unaffected.
 `Alt+n` (or `Ctrl+Alt+n`) **relaunches a thread** from any pane: the thread on
 screen, or in the switcher the highlighted one. A new Pair process runs the
 current binary and resumes the agent conversation, after a confirmation. This is
-how to pick up a rebuilt Pair. Couch takes the key before the thread sees it, so
-under Couch the agent never receives Alt+n. Pair's own reload refuses in a Couch
-thread, visibly, because Couch owns that thread's restarts. Leaving
+how to pick up a rebuilt Pair. Couch normally takes the key before the thread
+sees it, but passes Alt+n through when the focused displayed child is a
+full-screen TUI. Pair's own reload refuses in a Couch thread, visibly, because
+Couch owns that thread's restarts. Leaving
 never depends on there being something live to act on, so an empty switcher is
 never a dead end. `Tab → archive` removes a thread from couch and keeps its record: it is the
 operator's delete, offered when ownership can be reconciled, and undone by
