@@ -72,3 +72,50 @@ so this issue must first establish whether the current report is a regression.
   Preserve that existing dispatch authority (ARCH-DRY, ARCH-PURPOSE); ask the
   operator to confirm the intended target and smoke current behavior before
   closing as already fixed by #279 or proposing another change.
+
+### 2026-09-28 — Verification after resuming investigation
+
+- Full uncached suites passed: `go test ./cmd/internal/couchtty
+  ./cmd/internal/couchkeys ./cmd/internal/terminal
+  ./cmd/internal/workbenchshortcut -count=1`.
+- Focused race checks passed: `go test -race ./cmd/internal/couchtty
+  ./cmd/internal/terminal -run 'Test(Keyboard|NewestPage|PresenterKeyboard)'
+  -count=1`.
+- README's Couch keyboard contract agrees with the existing dispatch: answer
+  the newest paging Couch thread, acknowledge it, and preserve previous-thread
+  navigation. With no pending notification, remain in place and display
+  "nothing is paging". Plain Return is forwarded unchanged; terminals without
+  distinct Ctrl+Return encoding use Ctrl+Space followed by Return.
+- No new runtime change is justified by these results. Pending acceptance:
+  in a freshly started Couch, have a second thread produce a notification,
+  press Ctrl+Return from the first thread, confirm it selects/acknowledges the
+  paging thread, then verify the no-notification notice and ordinary Return.
+  Do not close this issue on automated evidence alone while the operator's
+  originally reported live behavior remains unconfirmed.
+
+### 2026-09-28 — Restart handoff
+
+- Operator requested a durable checkpoint and a stop because repeated sandbox
+  approvals were disruptive; they will restart with the intended Codex flags
+  and say "continue on #260". Do not restart the conversation automatically.
+- Branch: `000260-restore-ctrl-return-tab-jump` in `pair:0`. Issue is already
+  claimed; do not claim again. No implementation or close gate has run, and
+  no runtime code changed for #260. Investigation and test results are above.
+- `make build` initially failed on sandboxed Go-cache access, then completed
+  successfully with permission (including explicit Pair and Couch builds).
+  The interrupted build was polled to exit 0; no build remains running.
+- Resume with `sdlc state`, read this issue, and check working-tree state.
+  Existing evidence identifies #279 (`75cd04a3`) as the already-landed fix.
+  Next obtain live notification-jump smoke evidence with the rebuilt Couch;
+  distinguish a Couch-thread jump from a right-pane shell/TUI tab change.
+  If smoke succeeds, record that #260 was resolved by #279 and run the normal
+  close/review workflow. If it fails, capture terminal/key encoding and trace
+  production dispatch before proposing any new fix. Do not repeat completed
+  investigation merely because the conversation restarted.
+- Side tickets #335 (same-conversation relaunch parameter editor) and #336
+  (slot-shell `home` alias) are fully filed on remote main through
+  `issue move-detail`; their absence in this branch is intentional. Do not
+  recreate them or implement them as part of #260.
+- Relaunch/park-resume uses the thread's saved arguments, not changed path
+  preferences. Switch coding agent can reread preferences but starts a fresh
+  conversation even for Codex to Codex. The operator owns the restart choice.
