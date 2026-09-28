@@ -84,7 +84,24 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
 
 ## Plan
 
-- [ ]
+- [ ] Pin idle/waiting status hints, normal-mode Esc, insert/visual Escape,
+  diagnostic float dismissal, and wrapped marker jumps in headless review tests.
+- [ ] Add compact status hints and buffer-local return/jump bindings, reusing
+  pane-ID discovery for explicit agent focus after hiding the review.
+- [ ] Derive review help from mapping descriptions, cover every review map with
+  a drift test, and document the review exceptions in README and atlas.
+- [ ] Teach Couch's existing focus probe to preserve review Alt+n, test the
+  real role classification and console forwarding, retaining draft/menu relaunch.
+- [ ] Run review and affected Go checks, build pair:0; operator smoke: Alt+c
+  hints, Esc to agent, insert/visual Esc, Alt+n/Alt+Shift+N wrapping, Alt+h.
+
+Design: keep the existing review mappings and marker navigation authoritative
+(ARCH-DRY); add no durable state or processes. The statusline puts exit and
+accept/reject before the truncatable filename. Escape dismisses an internal
+floating window first, otherwise hides the review and focuses the existing agent
+by its absolute pane ID. The existing Couch focus observation gains the review
+role instead of another observer (ARCH-PURPOSE). The approved Spec is the scope;
+this is one atomic implementation/review boundary.
 
 ## Log
 
@@ -98,3 +115,8 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
   (previous marker). Everywhere else it keeps the agent restart.
 - Added: document Alt+a / Alt+r (and the rest of the review keys). The
   operator had forgotten those too.
+
+## Revisions
+
+- 2026-09-28: implementation planning after operator approval; Couch focus
+  ownership needs a review exception for Alt+n to reach the local mapping.
