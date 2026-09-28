@@ -14,8 +14,13 @@ _G.PairTestSessionLogCommit = function() return true end
 
 local dispatches = {}
 local composer = ''
+local failed_submit = false
 _G.PairTestZellijExecutor = function(label, argv)
   local kind = assert(label:match('draft%.send%.(.+)$'))
+  if case == 'retry' and kind == 'submit' and not failed_submit then
+    failed_submit = true
+    return { code = 17 }
+  end
   if kind == 'write-body' then composer = composer .. argv[4] end
   if kind == 'submit' then
     dispatches[#dispatches + 1] = composer
@@ -35,6 +40,55 @@ end
 
 local function send(authored, stripped)
   return _G.submit_operator_text(authored, stripped or authored)
+end
+
+local function wait_for_calls(count)
+  assert(vim.wait(5000, function() return #publishes() >= count end, 20),
+    'publishes never arrived: ' .. vim.inspect(publishes()))
+end
+
+if case == 'missing' or case == 'nonzero' or case == 'slow' or case == 'retry' then
+  if case == 'missing' then
+    -- Change PATH after init, keeping the real jobstart and its ENOENT behavior.
+    vim.env.PATH = assert(os.getenv('PAIR_TEST_EMPTY_PATH'))
+    assert(vim.fn.executable('couch') == 0, 'missing-publisher setup')
+  end
+  if case == 'retry' then
+    assert(not send('! retry description'), 'failed agent submit must fail')
+    assert(failed_submit and #dispatches == 0, 'dispatch failure was injected')
+    vim.wait(300, function() return false end, 20)
+    assert(#publishes() == 0, 'failed dispatch must not publish')
+    assert(send('! retry description'), 'retry must succeed')
+    assert(#dispatches == 1 and dispatches[1] == 'retry description', 'retry dispatches stripped text exactly once')
+    wait_for_calls(1)
+    vim.wait(300, function() return false end, 20)
+    assert(vim.deep_equal(publishes(), {
+      'scope=S1 tag=T1 --internal publish-description --description=retry description',
+    }), 'retry must publish exactly once: ' .. vim.inspect(publishes()))
+  else
+    assert(send('! publisher boundary'), 'publisher failure/blocking must not fail send')
+    assert(#dispatches == 1 and dispatches[1] == 'publisher boundary', 'agent receives stripped text')
+    assert(appended[1] == '! publisher boundary', 'authored text is retained')
+    if case == 'slow' then
+      wait_for_calls(1)
+      assert(vim.fn.filereadable(calls_path .. '.completed') == 0, 'submit returned before publisher completed')
+      assert(vim.fn.filereadable(calls_path .. '.timed-out') == 0, 'submit must not wait for publisher timeout')
+      vim.fn.writefile({}, calls_path .. '.release')
+      assert(vim.wait(5000, function()
+        return vim.fn.filereadable(calls_path .. '.completed') == 1
+      end, 20), 'publisher did not complete after release')
+    elseif case == 'nonzero' then
+      wait_for_calls(1)
+      vim.wait(300, function() return false end, 20)
+    else
+      assert(#publishes() == 0, 'missing executable cannot publish')
+    end
+    assert(send('next prompt'), 'publisher failure must not poison the next send')
+    assert(#dispatches == 2 and dispatches[2] == 'next prompt', 'next prompt dispatches once')
+  end
+  print('bang tag ' .. case .. ': ok')
+  vim.cmd('qa!')
+  return
 end
 
 assert(send('! start working on #337'), 'bang line sends')

@@ -106,6 +106,19 @@ Decisions:
 
 ## Log
 
+### 2026-09-28 — close review fixes
+
+- BR-1: README now covers bang stripping, Couch publication, standalone use,
+  bare/multiline handling, comments, and the deliberate bash-mode tradeoff.
+- BR-2: the real Neovim boundary now covers missing, nonzero, and blocked
+  publishers plus failed dispatch/retry. A release-file handshake proves submit
+  returns before the blocked publisher completes. Fresh `make test-bang-tag
+  test-submission-transaction` passed all six bang cases and the transaction
+  matrix. Removing `pcall`, removing the successful-send guard, and replacing
+  asynchronous launch with a blocking call each made its corresponding test
+  fail; production was restored byte-for-byte. ARCH-PURPOSE: the complete
+  optional-side-effect failure family is tested, not just the happy path.
+
 ### 2026-09-28
 - Operator resolved the open questions: no `!!` escape (bash mode from the draft is unwanted); thread identity comes from the `COUCH_THREAD_SCOPE` / `COUCH_THREAD_TAG` env that couch already injects.
 - Design, from tracing the code:

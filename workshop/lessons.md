@@ -217,6 +217,11 @@ representative evidence, not an exhaustive index.
 
 ## Working rule
 
+- Optional post-send side effects need boundary tests for missing, failing, and
+  blocked executables as well as failed dispatch and retry. Ordinary prompt
+  transaction tests cannot prove that tagged prompts publish only after success.
+  (#337)
+
 When in doubt, draw the boundary first: who owns the state, what evidence can
 prove it, which production path delivers it, and what test fails when that path
 is removed. Prefer the smallest explicit authority and the strongest observable
