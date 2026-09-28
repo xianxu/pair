@@ -785,8 +785,28 @@ end, function()
   local uv = vim.uv or vim.loop
   return vim.fn.sha256(table.concat({ tostring(uv.hrtime()), tostring(vim.fn.getpid()), tostring({}) }, ':'))
 end)
-function _G.submit_operator_text(authored_body, agent_text)
-  return _G.PairSubmission.submit_operator_text(authored_body, agent_text)
+do
+  local bang_tag = dofile((debug.getinfo(1, 'S').source:match('@?(.*/)') or './') .. 'bang_tag.lua')
+
+  -- Inside a couch thread (couch sets both variables on every thread it
+  -- hosts), a `!` line also becomes the thread's description (#337). Detached
+  -- and after the send, so couch being slow or absent never delays or fails
+  -- the prompt. The `--description=` form keeps a tag that starts with `-`
+  -- from reading as a flag.
+  local function publish_couch_description(description)
+    if (vim.env.COUCH_THREAD_SCOPE or '') == '' or (vim.env.COUCH_THREAD_TAG or '') == '' then return end
+    pcall(vim.fn.jobstart,
+      { 'couch', '--internal', 'publish-description', '--description=' .. description },
+      { detach = true })
+  end
+
+  function _G.submit_operator_text(authored_body, agent_text)
+    local tag = bang_tag.parse(agent_text)
+    if tag and tag.agent_text == '' then return false end
+    local ok = _G.PairSubmission.submit_operator_text(authored_body, tag and tag.agent_text or agent_text)
+    if ok and tag and tag.description then publish_couch_description(tag.description) end
+    return ok
+  end
 end
 function _G.send_generated_prompt(body)
   return _G.PairSubmission.send_generated_prompt(body)
