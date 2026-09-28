@@ -56,9 +56,9 @@ func TestCouchWarmSessionLostBeforeLaunchCannotColdCreate(t *testing.T) {
 		t.Fatalf("address check: couchOwned=%v, error=%v", rt.couchOwned, rt.claimErr)
 	}
 	if len(rt.preparedLaunches) != 0 || rt.launchCount != 0 || len(rt.attached) != 0 ||
-		len(rt.watchers) != 0 || len(rt.ledger) != 0 || len(rt.files) != 0 || len(rt.sessionIndex.Entries) != 0 {
-		t.Fatalf("cold launch effects: prepared=%v launches=%d attached=%v watchers=%v ledger=%v files=%v index=%v",
-			rt.preparedLaunches, rt.launchCount, rt.attached, rt.watchers, rt.ledger, rt.files, rt.sessionIndex)
+		len(rt.ledger) != 0 || len(rt.files) != 0 || len(rt.sessionIndex.Entries) != 0 {
+		t.Fatalf("cold launch effects: prepared=%v launches=%d attached=%v ledger=%v files=%v index=%v",
+			rt.preparedLaunches, rt.launchCount, rt.attached, rt.ledger, rt.files, rt.sessionIndex)
 	}
 	after, err := os.ReadFile(paths.ThreadClaim())
 	if err != nil || !bytes.Equal(before, after) {

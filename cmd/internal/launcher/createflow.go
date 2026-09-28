@@ -781,7 +781,9 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		return launchStep{code: 1}, nil
 	}
 	rt.Remove(birthEvidence)
-	rt.SpawnSessionWatcher(agent, chosenTag, scope.Key, env.Cwd, repoRoot, repoName, launchOrdinal, agentArgs)
+	// No session watcher here: pair wrap spawns it beside the agent, from the
+	// PAIR_LAUNCH_ORDINAL / PAIR_SCOPE_KEY above, so a detach that ends this
+	// client's process group cannot strand the launch unbound (#329).
 	rt.SetTerminalTitle(session)
 	rt.RecordOuterTTY(chosenTag, PresentedByCouch(env, chosenTag))
 	rt.CmuxRename(chosenTag, session)

@@ -217,6 +217,13 @@ representative evidence, not an exhaustive index.
 
 ## Working rule
 
+- A lifecycle fix needs a regression through the failing event order and final
+  authorization boundary. A separate process-group assertion and a successful
+  already-bound smoke do not prove detach-before-binding recovery. (#329)
+- In asynchronous acceptance tests, wait for the final contractual outcome,
+  not an intermediate ledger publication; preserve the last failure in the
+  timeout diagnostic. (#329)
+
 - Optional post-send side effects need boundary tests for missing, failing, and
   blocked executables as well as failed dispatch and retry. Ordinary prompt
   transaction tests cannot prove that tagged prompts publish only after success.

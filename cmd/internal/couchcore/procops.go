@@ -63,7 +63,8 @@ type ProcOps interface {
 	//
 	// Couch-launched children deliberately do NOT get their own session
 	// (launcher/osruntime.go suppresses Setsid when COUCH_THREAD_SCOPE is set),
-	// so the session-watcher and title-poller sidecars share the actor's group.
+	// so the title-poller sidecar shares the actor's group. (The session
+	// watcher does not: pair wrap spawns it beside the agent, #329.)
 	// Signalling the pid alone orphans them, which is why detach needs this and
 	// not Signal.
 	SignalGroup(pid int, sig os.Signal) error

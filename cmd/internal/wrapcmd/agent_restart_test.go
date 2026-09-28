@@ -22,7 +22,6 @@ func TestFreshAgentInvocationDropsRestoreAndPreservesWrapperAndUserArgs(t *testi
 		"/data/scroll.raw",
 		[]string{"codex", "--sandbox", "danger-full-access", "resume", "old-session", "--no-alt-screen"},
 		[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope", "PAIR_SESSION_ID=old-session"},
-		time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -129,7 +128,6 @@ func TestFreshPinAgentsMintSessionIDButKeepRecoveryProvisional(t *testing.T) {
 				"/pair/bin/pair", "",
 				[]string{agent, "--model", "opus", "--resume", "old-session"},
 				[]string{"PAIR_DATA_DIR=" + data, "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope"},
-				time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -149,21 +147,30 @@ func TestFreshPinAgentsMintSessionIDButKeepRecoveryProvisional(t *testing.T) {
 	}
 }
 
-func TestFreshAgentInvocationWatcherMatchesAsyncAgentRegistry(t *testing.T) {
+// The fresh path spawns no watcher of its own (#329): the replacement wrap does,
+// from the ordinal this request hands it. A watcher here too would be a second
+// one for the same launch.
+func TestFreshAgentInvocationHandsTheWatcherToTheReplacementWrap(t *testing.T) {
 	bound := time.Date(2026, 8, 19, 9, 31, 0, 456, time.UTC)
 	for _, agent := range launcher.AgentInventory() {
 		t.Run(agent, func(t *testing.T) {
 			request, err := freshAgentInvocation("/pair", "", []string{agent, "--flag"}, []string{
 				"PAIR_DATA_DIR=" + t.TempDir(), "PAIR_TAG=work", "PAIR_SCOPE_KEY=scope", "HOME=/home/me",
-			}, bound)
+			})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(request.watcherArgv) == 0 {
-				t.Fatalf("watcher absent for supported agent: %v", request.watcherArgv)
+			command, err := launcher.DecodeAgentCommand(envValue(request.env, launcher.AgentCommandEnv))
+			if err != nil {
+				t.Fatal(err)
 			}
-			if !containsArgPair(request.watcherArgv, "--pid-not-before", bound.Format(time.RFC3339Nano)) {
-				t.Fatalf("watcher argv = %v, want generation bound", request.watcherArgv)
+			ordinal := envValue(request.env, "PAIR_LAUNCH_ORDINAL")
+			watcher := launchWatcherArgv("/pair", append([]string{agent}, command.Argv...), request.env, bound)
+			if len(watcher) == 0 {
+				t.Fatalf("replacement wrap would spawn no watcher: ordinal=%q", ordinal)
+			}
+			if !containsArgPair(watcher, "--launch-ordinal", ordinal) || !containsArgPair(watcher, "--pid-not-before", bound.Format(time.RFC3339Nano)) {
+				t.Fatalf("watcher argv = %v, want ordinal %s and generation bound", watcher, ordinal)
 			}
 		})
 	}

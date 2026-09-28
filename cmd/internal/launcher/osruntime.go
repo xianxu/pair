@@ -379,14 +379,6 @@ func (OSRuntime) SetTerminalTitle(session string) {
 
 // --- ProcOps ---------------------------------------------------------------
 
-func (r OSRuntime) SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, agentArgs []string) {
-	spawnDetached(sessionWatcherSpawnArgv(runningPairExe(r.PairHome), agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, time.Now(), agentArgs), nil)
-}
-
-func sessionWatcherSpawnArgv(exe, agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, bound time.Time, agentArgs []string) []string {
-	return sessionwatch.CommandArgs(exe, agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, bound, agentArgs)
-}
-
 func (r OSRuntime) SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv) {
 	spawnDetached(titlePollerSpawn(runningPairExe(r.PairHome), tag, agent, session, env))
 }

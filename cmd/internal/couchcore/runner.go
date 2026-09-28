@@ -18,7 +18,7 @@ import (
 //
 // Verified genuinely new: `grep -rn 'type Handle' cmd/` and
 // `grep -rn 'Start(dir' cmd/` both return nothing. launcher.ProcOps is
-// sidecar-named (SpawnSessionWatcher, SpawnTitlePoller, DevRebuild --
+// sidecar-named (SpawnTitlePoller, DevRebuild --
 // runtime.go:82-92); ZellijOps.LaunchSession is blocking and zellij-specific;
 // wrapcmd spawns its child inline and unseamed (wrap.go:2330-2332), which is
 // an absence of a seam rather than a counter-example.

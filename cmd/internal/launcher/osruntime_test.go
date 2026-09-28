@@ -553,16 +553,9 @@ func TestSidecarSpawnArgvSelfExecsPair(t *testing.T) {
 		t.Fatalf("title poller env = %v, want its contract %v -- a dropped env is silent, exactly as pair#183 was", tpEnv, contract.Environ())
 	}
 
-	bound := time.Date(2026, 8, 19, 9, 30, 0, 123, time.UTC)
-	sw := sessionWatcherSpawnArgv(exe, "codex", "work", "scope", "/cwd/sub", "/cwd", "pair", 7, bound, []string{"--no-alt-screen"})
-	want := []string{exe, "session-watch", "codex", "work", "/cwd/sub", "--scope-key", "scope", "--launch-ordinal", "7", "--pid-not-before", bound.Format(time.RFC3339Nano), "--repo-root", "/cwd", "--repo-name", "pair", "--", "--no-alt-screen"}
-	if !reflect.DeepEqual(sw, want) {
-		t.Fatalf("session watcher argv = %v, want %v", sw, want)
-	}
-
 	// Guard the invariant explicitly: no sidecar target is a standalone helper
 	// binary or a .sh shim — it self-execs `pair` with a subcommand.
-	for _, argv := range [][]string{tp, sw} {
+	for _, argv := range [][]string{tp} {
 		if strings.HasSuffix(argv[0], ".sh") || strings.HasSuffix(argv[0], "pair-title") || strings.HasSuffix(argv[0], "pair-session-watch") {
 			t.Fatalf("sidecar spawn target must self-exec pair, not a standalone binary: %q", argv[0])
 		}
