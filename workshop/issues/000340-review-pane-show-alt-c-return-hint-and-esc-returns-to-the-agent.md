@@ -1,12 +1,13 @@
 ---
 id: 000340
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
-card_mirror: '98a0047bea5812c7902ca12adff304f75d76e66c' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '0e09bc509411578aa6f50588394de785a997e1f0' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T15:14:24-07:00
 ---
 
 # Review pane: show Alt+c return hint, and Esc returns to the agent
@@ -33,12 +34,31 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
 - Check where focus lands after hiding the floating pane. If it doesn't land
   on the agent pane, focus it explicitly by pane ID (ID-based, never relative;
   see lessons).
+- **Document the review buffer's own keys.** The operator also forgot the
+  accept/reject keys. They exist (`nvim/review.lua`, buffer-local, normal mode)
+  but appear in neither README's key table nor the Alt+h help page:
+  - `Alt+a` / `Alt+r`: accept / reject the 🤖 suggestion at the cursor
+    (also `<leader>a` / `<leader>r`)
+  - `Alt+Shift+A` / `Alt+Shift+R`: accept / reject every 🤖 suggestion in the
+    paragraph, up to the cursor
+  - `Alt+q`: insert a human comment marker (visual mode: quote the selection)
+  - `Alt+Enter`: finish the human turn
+  - `]m` / `[m`: next / previous marker
+  The full list goes in the Alt+h help (`pair-help`, `cmd/internal/keyscmd`)
+  and README's key table, derived from the keymaps' `desc` fields where
+  practical, so the list can't drift from the mappings. The bottom bar is
+  narrow, so it carries only the most-needed hints: the way out, plus
+  `Alt+a/r accept/reject`. Width budget and wording are to settle at design time.
 - Update help/README/atlas prose for the review mode's keys (lessons: UI text
   is a public contract).
 
 ## Done when
 
-- The review pane's bottom bar shows the return key in the idle and awaiting states.
+- The review pane's bottom bar shows the return key (and the accept/reject
+  hint) in the idle and awaiting states.
+- Alt+h help and README list the review buffer's keys (accept/reject,
+  paragraph accept/reject, comment marker, finish turn, marker jumps). A test
+  fails if a review keymap is added without a help entry.
 - Normal-mode Esc in the review pane hides it and leaves focus on the agent
   pane. Insert-mode Esc still just leaves insert mode. A test covers both,
   and fails if the mapping is reverted.
@@ -54,3 +74,5 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
 
 - Filed from operator feedback (screenshot of the review bar with no exit hint).
   They found Alt+c by guessing.
+- Added: document Alt+a / Alt+r (and the rest of the review keys). The
+  operator had forgotten those too.
