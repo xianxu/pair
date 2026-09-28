@@ -91,7 +91,7 @@ Decisions:
   and without failing the send; stay a no-op outside couch.
 - [x] Add an integration test that uses a fake couch description sink
   (`tests/bang-tag-nvim-test.sh`, `make test-bang-tag`).
-- [ ] Operator live smoke test inside couch.
+- [x] Operator live smoke test inside couch.
 
 ## Log
 
@@ -106,3 +106,5 @@ Decisions:
   - Integration test: a stub `couch` executable on PATH records its argv, so the real `jobstart` command is exercised with no test seam in production code.
 - Implemented: `nvim/bang_tag.lua` (pure parse), wired in `_G.submit_operator_text` inside a `do` block, because `init.lua`'s main chunk is at Lua's 200-local limit (a new top-level local fails to load with "more than 200 local variables"). The real `couch` accepts the argv: with a throwaway store it got as far as the thread lookup.
 - Side quests: main was red from #333. `artifactpath` coverage failed because `couchcmd/shortcut_focus.go` was never classified, and `workbench_route_test` still expected Alt+n unscoped. Fixed both in separate commits. Also recorded #338's revised spec (the switcher remembers the last view) on this branch.
+- Resumed verification: operator confirmed the leading `!` was stripped and the live smoke passed. Fresh `bin/couch --list` and `bin/couch --show pair` processes read the saved published description `ok, continue to test #337` for address `e108517d46ab4575/couch-d3926507aef66e8c`. This proves persistence across reader processes; the running Couch UI was not restarted. The operator could not see the description in the UI; display remains separate work (#173/#338).
+- `make test-lua test-bang-tag test-submission-transaction` passed (exit 0), including Couch/standalone draft submissions and send-transaction failure cases. Full and race suites are running; results follow.
