@@ -1,6 +1,6 @@
 ---
 id: 000337
-status: open
+status: working
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: 37deec5cb5a5912f0ae3bfb443ad8db2655e55b0
         destination: workshop/issues/000337-draft-bang-line-sets-couch-description.md
         main_commit: 3e39a7404849263ecacbe0c606d6a5488c3b0688
+started: 2026-09-28T10:31:09-07:00
 ---
 
 # Draft bang line tags the couch thread description
