@@ -92,11 +92,11 @@ Implementation design:
 
 ## Plan
 
-- [ ] Find where the root rows are built and how liveness and description
+- [x] Find where the root rows are built and how liveness and description
   reach them (`thread_presentation.go`, `menu.go`).
-- [ ] Add a view mode to the root frame. Make the row filter a pure function of
+- [x] Add a view mode to the root frame. Make the row filter a pure function of
   (rows, mode) and give it unit tests.
-- [ ] Add the space toggle in `reduceRootKey`, gated on an empty filter, and
+- [x] Add the space toggle in `reduceRootKey`, gated on an empty filter, and
   the `name ◆ description` render with truncation.
 - [ ] Add reducer and render tests, then ask the operator to run a live smoke
   test.
@@ -117,3 +117,16 @@ Implementation design:
   the initial always-normal entry. #173 is still open, but this view can consume
   existing `ActionableThreadSummary.DisplaySummary()` directly; #337's stored
   tag does not require a new metadata writer or a separate #173 implementation.
+- Spec review approved the existing seams. Implemented root-frame mode,
+  post-search focus membership using the reattach overlay and sanitized
+  `DisplaySummary`, stable full-inventory labels, focus rows and placeholder,
+  and Space key help. README and atlas cover the mode and clarify that direct
+  newest-notification jumps remain independent of focus filtering.
+- TDD: initial reducer/render tests failed on missing focus behavior; the real
+  console input test failed waiting for focus view. After implementation, the
+  full couchtty suite passed, and `go test -race ./cmd/internal/couchtty -run
+  'TestMenuFocus|TestConsoleFocusView' -count=3` passed. The console test covers
+  live description update/removal/restoration plus normal/focus reopen through
+  real key input and switching. README control tests and `make build` passed.
+- Built in pair:0 and requested a fresh-Couch operator smoke. Automated tests
+  are complete; live smoke and the SDLC close review remain pending.

@@ -153,6 +153,15 @@ the 40-column minimum. Generated key traces keep stack depth, UTF-8 ownership,
 and effects bounded
 (ARCH-DRY, ARCH-PURE, ARCH-CONSTRAINTS).
 
+#338 adds normal/focus mode to the root frame. Space toggles it only with an
+empty root filter; returning from a child frame and reopening retain that mode
+for the console lifetime. `visibleMenuRows` applies focus membership after the
+existing inventory overlay and typeahead: `Live()` plus a nonempty sanitized
+`DisplaySummary()`. This keeps keyboard selection, mouse extents, and rendering
+on the same rows. Focus rendering uses the full-inventory labels and presents
+`name ◆ description`, clipped to terminal-cell width. The existing inventory
+refresh supplies new descriptions; no additional storage or polling is added.
+
 Both CLI resolution and in-memory menu filtering derive from
 `ClassifyThreadReferenceFields`/`MatchThreadReferenceFields`: exact opaque tags
 win set-wide over case-insensitive name/path containment, with no store read on
@@ -574,7 +583,8 @@ before the panel sees them but forwards paste content verbatim.
 
 `ctrl+return` **answers the newest page** (`pair#221`). From an actor it lands on
 `attention.NewestActor()` -- the thread `ctrl-space` would have opened the
-switcher on -- with no switcher in between. In code it is `ctrl+backspace`'s
+normal switcher on -- with no switcher in between. Focus-view filtering does
+not constrain this jump. In code it is `ctrl+backspace`'s
 mirror image: `onNewestPageHotkey` computes a target from console-local state and
 calls `switchTo` directly. It does not dispatch the switcher's queued `switch`
 operation, which would add the queue hop, a dependency on the inventory having

@@ -20,6 +20,7 @@ type MenuControl struct {
 
 var menuControls = []MenuControl{
 	{Keys: "typeahead", Action: "filter"},
+	{Keys: "Space", Action: "toggle normal/focus view when filter is empty"},
 	{Keys: "↑↓", Action: "select"},
 	{Keys: "Enter", Action: "switch/resume"},
 	{Keys: "Tab", Action: "actions"},
@@ -60,6 +61,14 @@ const (
 	MenuFrameSwitchAgent
 )
 
+// MenuRootView is the root list mode, retained for the owning console lifetime.
+type MenuRootView uint8
+
+const (
+	MenuViewNormal MenuRootView = iota
+	MenuViewFocus
+)
+
 // MenuFrame owns the navigation state for exactly one menu level.
 type MenuFrame struct {
 	SwitchPrepared *couchcore.PreparedAgentSwitch
@@ -70,6 +79,7 @@ type MenuFrame struct {
 
 	Instance        uint64
 	Kind            MenuFrameKind
+	View            MenuRootView
 	Filter          string
 	SelectedKey     couchcore.ThreadRowKey
 	RowKey          couchcore.ThreadRowKey
@@ -532,6 +542,15 @@ func reduceRootKey(state MenuState, key PanelKey) (MenuState, []MenuEffect) {
 	frame := &state.Frames[len(state.Frames)-1]
 	switch key.Kind {
 	case KeyRune:
+		if key.Rune == ' ' && frame.Filter == "" {
+			if frame.View == MenuViewFocus {
+				frame.View = MenuViewNormal
+			} else {
+				frame.View = MenuViewFocus
+			}
+			reconcileRootSelection(&state, frame.SelectedAddress)
+			return state, nil
+		}
 		if key.Rune != utf8.RuneError && utf8.ValidRune(key.Rune) && utf8.RuneLen(key.Rune) > 0 {
 			candidate := frame.Filter + string(key.Rune)
 			if len(candidate) <= menuFilterLimit {

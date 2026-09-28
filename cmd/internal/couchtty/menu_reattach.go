@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/rowtext"
 )
 
 // The background reattach pass (pair#206).
@@ -349,7 +350,17 @@ func menuThread(state MenuState, address couchcore.ThreadAddress) (couchcore.Act
 
 // visibleMenuRows is the root list after the filter, with the pass's view.
 func visibleMenuRows(state MenuState, frame MenuFrame) []couchcore.ActionableThreadSummary {
-	return visibleRootThreads(menuRows(state), frame)
+	rows := visibleRootThreads(menuRows(state), frame)
+	if frame.View == MenuViewFocus {
+		rows = slices.DeleteFunc(rows, func(row couchcore.ActionableThreadSummary) bool {
+			return !row.Live() || menuFocusSummary(row) == ""
+		})
+	}
+	return rows
+}
+
+func menuFocusSummary(row couchcore.ActionableThreadSummary) string {
+	return strings.TrimSpace(rowtext.Sanitize(row.DisplaySummary()))
 }
 
 // menuRowSelectable: a row the pass has not finished with is not ready, so the

@@ -1357,7 +1357,8 @@ func (c *Console) onPreviousHotkey() {
 }
 
 // onNewestPageHotkey handles ctrl+return: land on the thread ctrl-space would
-// have opened the switcher on, without the switcher.
+// have opened the normal switcher on, without the switcher. Focus-view
+// membership does not restrict this notification jump.
 //
 // onPreviousHotkey's mirror image rather than a switcher gesture: a target
 // computed from console-local state, then straight into switchTo. The menu's
