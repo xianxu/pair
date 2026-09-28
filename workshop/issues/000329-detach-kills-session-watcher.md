@@ -1,12 +1,13 @@
 ---
 id: 000329
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-25
-updated: 2026-09-25
+updated: 2026-09-28
 estimate_hours:
-card_mirror: '14caa91f361591b7320816b73a0a9f07bc91286a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '216f5292ae852f73324b0544ff18d2cc097e6c2e' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T11:21:37-07:00
 ---
 
 # Detach kills an unbound session watcher
@@ -55,6 +56,42 @@ Options (to decide at design time):
   the old agent-pid file reads as stale, the watcher finds no agent and quits
   after its 60 s startup deadline.
 
+### Decision (2026-09-28): run the watcher from `pair wrap`, for every launch
+
+`pair wrap` starts the agent, so it is the one process that holds everything the
+watcher needs, exactly: the launch ordinal (`PAIR_LAUNCH_ORDINAL`), the scope
+(`PAIR_SCOPE_KEY`), the tag, the agent's final argv, and the instant just before
+the agent was spawned — a precise `--pid-not-before`. It already spawns the
+watcher this way, in its own session, for an in-pane fresh conversation. So:
+
+- wrap spawns `pair session-watch` for the current launch right after it writes
+  the agent-pid file, in its own session (`Setsid`). This is the ONE spawn site.
+- The launcher's `SpawnSessionWatcher` is removed, and so is the fresh path's
+  separate `watcherArgv`: the exec'd replacement wrap spawns its own watcher
+  from the new `PAIR_LAUNCH_ORDINAL`. Keeping either would spawn a duplicate.
+- The watcher now lives with the agent, not with the pair client. Detach, a Couch
+  restart, or reattach doesn't touch it.
+
+Why not the other two options:
+- *Resolve on demand* needs the agent argv and a per-launch pid boundary at
+  relaunch time. The ledger's launch row records neither, and Couch would run
+  native inventory + `lsof` synchronously inside alt+n. That makes a second
+  binding writer whose only job is to repair the first one's lifetime.
+- *Restart on attach* has the same gap: attach has no agent argv and no launch
+  start time, so it would have to guess both.
+
+Couch's failed-start cleanup needs no new mechanism. A wrap-spawned watcher is
+outside the actor's process group, like the agent itself, and its end is
+already named (ARCH-FUNERAL): it exits when it binds, when the agent's process
+identity changes, or at its 60 s startup deadline if no agent pid appears. A
+failed start kills the zellij session, and with it the agent, so the watcher
+exits on its next scan.
+
+Limit: threads already stuck are running an old `wrap` binary. Nothing short
+of restarting their agent repairs them. Threads launched after this change
+are the "equivalents" in Done-when.
+
+
 ## Done when
 
 - Regression test: launch, detach before the first turn, reattach, complete a
@@ -64,7 +101,20 @@ Options (to decide at design time):
 
 ## Plan
 
-- [ ]
+- [ ] wrap: after writing the agent-pid file, spawn `session-watch` for the
+      current launch (ordinal/scope/tag from env, agent argv, pid bound taken
+      just before `pty.Start`), via `startWatcherProcess` (own session).
+- [ ] Drop `freshExecRequest.watcherArgv`; the exec'd wrap spawns its own.
+- [ ] Remove launcher `SpawnSessionWatcher` (interface, OSRuntime, fakes, create call).
+- [ ] Sweep comments that say the watcher shares the Couch actor's group
+      (`couchcore/detach.go`, `couchcore/procops.go`, `launcher/osruntime.go`).
+- [ ] Tests: a wrap run with a launch ordinal spawns exactly one watcher with
+      the right ordinal/scope/args, and a bound no later than the pid file's
+      mtime. The real `startWatcherProcess` child gets its own session, so a
+      group kill of the spawner misses it: this is the detach regression.
+      The fresh path spawns no watcher of its own.
+- [ ] `TMPDIR=<scratchpad> make test`; ask the operator for a live smoke
+      (detach before the first turn → reattach → one turn → alt+n).
 
 ## Log
 
