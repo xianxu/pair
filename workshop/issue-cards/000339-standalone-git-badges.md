@@ -1,6 +1,6 @@
 ---
 id: 000339
-status: codecomplete
+status: done
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 9d9f64c04af3fef2aed37fed53549f3486a5f79f
         evidence_commit: 6fcecfb2f01204e2b24b41b30ec19c5876fae8cf
+        landed_commit: 6731e230615b38f02264207aab5f028008cc3610
 ---
 
 # Show Git badges for standalone repositories
