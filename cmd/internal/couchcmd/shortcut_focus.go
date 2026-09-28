@@ -51,48 +51,48 @@ func queryShortcutClients(ctx context.Context, session string) ([]byte, error) {
 	return cmd.Output()
 }
 
-func rightTerminalFocusProbe(artifacts shortcutFocusArtifacts, query func(context.Context, string) ([]byte, error)) func(context.Context, couchcore.ThreadAddress) (bool, error) {
-	return func(ctx context.Context, address couchcore.ThreadAddress) (bool, error) {
+func shortcutFocusProbe(artifacts shortcutFocusArtifacts, query func(context.Context, string) ([]byte, error)) func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+	return func(ctx context.Context, address couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
 		if artifacts == nil {
-			return false, fmt.Errorf("Pair session focus observer unavailable")
+			return workbenchshortcut.PaneRoleOther, fmt.Errorf("Pair session focus observer unavailable")
 		}
 		binding, err := artifacts.PairSessionContext(ctx, address)
 		if err != nil {
-			return false, err
+			return workbenchshortcut.PaneRoleOther, err
 		}
 		if !binding.Present || binding.Name == "" {
-			return false, fmt.Errorf("Pair session binding unavailable")
+			return workbenchshortcut.PaneRoleOther, fmt.Errorf("Pair session binding unavailable")
 		}
 		raw, err := query(ctx, binding.Name)
 		if err != nil {
-			return false, err
+			return workbenchshortcut.PaneRoleOther, err
 		}
 		id, err := focusedClientPane(raw)
 		if err != nil {
-			return false, err
+			return workbenchshortcut.PaneRoleOther, err
 		}
 		if id == "" { // A positively identified plugin cannot be a right terminal.
-			return false, ctx.Err()
+			return workbenchshortcut.PaneRoleOther, ctx.Err()
 		}
 		paths, err := artifactpath.Resolve(artifactpath.Address{DataDir: artifacts.PairLifecycleDataDir(), RepoScope: address.RepoScope, Tag: string(address.Tag)})
 		if err != nil {
-			return false, err
+			return workbenchshortcut.PaneRoleOther, err
 		}
 		ids, err := (workbenchshortcut.TerminalPaneRegistry{DataDir: paths.ScopeDir(), Tag: string(address.Tag)}).LiveIDs(func(pid int) bool { return procutil.Alive(strconv.Itoa(pid)) })
 		if err != nil {
-			return false, err
+			return workbenchshortcut.PaneRoleOther, err
 		}
 		if workbenchshortcut.Registered(ids, id) {
-			return true, ctx.Err()
+			return workbenchshortcut.PaneRoleRightTerminal, ctx.Err()
 		}
 		// Absence from a best-effort registry is not proof of another role:
 		// registration can fail, and LiveIDs skips malformed/dead entries.
 		line := strings.Split(strings.TrimSpace(string(raw)), "\n")[1]
 		fields := strings.Fields(line)
 		role := workbenchshortcut.RoleForPane(zellijpane.Pane{TerminalCommand: strings.Join(fields[2:], " ")})
-		if role == workbenchshortcut.PaneRoleLeftDraft || role == workbenchshortcut.PaneRoleLeftAgent {
-			return false, ctx.Err()
+		if role == workbenchshortcut.PaneRoleLeftDraft || role == workbenchshortcut.PaneRoleLeftAgent || role == workbenchshortcut.PaneRoleReview {
+			return role, ctx.Err()
 		}
-		return false, fmt.Errorf("focused pane has no confirmed Pair role; use Couch's switcher to relaunch")
+		return workbenchshortcut.PaneRoleOther, fmt.Errorf("focused pane has no confirmed Pair role; use Couch's switcher to relaunch")
 	}
 }

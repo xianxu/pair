@@ -16,7 +16,7 @@ RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; : > "$ZLOG"
 # canned panes: agent (id 7, tiled, "claude"), draft (id 3), review (id 9, floating, focused)
 cat > "$RT/panes.json" <<'JSON'
 {"tab_one":{"panes":[
-  {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude"},
+  {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
   {"id":3,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft"},
   {"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}
 ]}}

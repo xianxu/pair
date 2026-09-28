@@ -54,10 +54,10 @@ func TestPaneRole(t *testing.T) {
 			want: PaneRoleRightTerminal,
 		},
 		{
-			name: "floating review is other",
+			name: "floating review",
 			pane: zellijpane.Pane{ID: "4", IsFocused: true, IsFloating: true,
 				TerminalCommand: "nvim -u /pair/nvim/review.lua /tmp/review.md"},
-			want: PaneRoleOther,
+			want: PaneRoleReview,
 		},
 		{
 			name: "plugin is other",
@@ -467,8 +467,8 @@ func TestRoleForPaneWithRegisteredTerminals(t *testing.T) {
 	}
 	review := zellijpane.Pane{ID: "9", IsFocused: true, Title: "review",
 		TerminalCommand: "nvim -u /pair/nvim/review.lua /tmp/review.md"}
-	if got := RoleForPaneWith(review, []string{"4"}); got != PaneRoleOther {
-		t.Fatalf("RoleForPaneWith(review) = %v, want Other", got)
+	if got := RoleForPaneWith(review, []string{"4"}); got != PaneRoleReview {
+		t.Fatalf("RoleForPaneWith(review) = %v, want Review", got)
 	}
 }
 

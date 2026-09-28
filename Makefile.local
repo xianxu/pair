@@ -224,6 +224,7 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-projection-test.sh
 	bash tests/review-poke-test.sh
 	bash tests/review-window-test.sh
+	bash tests/review-controls-test.sh
 	bash tests/review-toggle-test.sh
 	bash tests/pair-review-target-test.sh
 	bash tests/review-readiness-cli-test.sh

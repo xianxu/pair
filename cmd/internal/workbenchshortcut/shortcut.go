@@ -24,6 +24,7 @@ const (
 	PaneRoleLeftAgent
 	PaneRoleLeftDraft
 	PaneRoleRightTerminal
+	PaneRoleReview
 )
 
 type Chord int
@@ -184,13 +185,13 @@ var globalBindings = []GlobalBinding{
 	{Chord: ChordAltX, Action: ActionConfirmQuit, LuaFunction: "PairConfirmQuit", NvimKey: "<M-x>", FocusDraft: true,
 		Help: "full quit — kill the session and drop it from the resurrect list"},
 	{Chord: ChordAltN, Scope: ScopeDraft, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<M-n>", FocusDraft: true,
-		Help:       "reload pair from draft; pass through from the right terminal",
-		HostedHelp: "does not reload a Couch thread; right terminal receives Alt+n"},
+		Help:       "reload pair from draft; review: next marker; terminal: pass through",
+		HostedHelp: "does not reload a Couch thread; review: next marker"},
 	{Chord: ChordCtrlAltN, Action: ActionRestartPair, LuaFunction: "PairConfirmRestart", NvimKey: "<C-M-n>", FocusDraft: true,
 		Help:       "reload pair (same as Alt+n)",
-		HostedHelp: "same as Alt+n under Couch"},
+		HostedHelp: "does not reload a Couch thread"},
 	{Chord: ChordAltShiftN, Action: ActionRestartAgent, LuaFunction: "PairConfirmAgentRestart", NvimKey: "<M-N>", FocusDraft: true,
-		Help: "restart only the agent conversation, keeping the workbench"},
+		Help: "restart agent conversation; review normal mode: previous marker"},
 	{Chord: ChordAltUp, Scope: ScopeDraft, Action: ActionGrowDraft, LuaFunction: "PairLayoutBigger", NvimKey: "<M-Up>", FocusDraft: false,
 		Help: "grow the draft pane along the height ladder"},
 	{Chord: ChordAltDown, Scope: ScopeDraft, Action: ActionShrinkDraft, LuaFunction: "PairLayoutSmaller", NvimKey: "<M-Down>", FocusDraft: false,
@@ -265,6 +266,8 @@ func RoleForPane(p zellijpane.Pane) PaneRole {
 	switch {
 	case strings.Contains(cmd, "pair wrap"):
 		return PaneRoleLeftAgent
+	case strings.Contains(cmd, "nvim") && strings.Contains(cmd, "/nvim/review.lua"):
+		return PaneRoleReview
 	case strings.Contains(cmd, "nvim") && strings.Contains(cmd, "/nvim/init.lua"):
 		return PaneRoleLeftDraft
 	case strings.Contains(cmd, "pair term"), TitleIdentifiesRightTerminal(title):

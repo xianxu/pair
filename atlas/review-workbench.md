@@ -130,7 +130,7 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   agent-applied highlight, it clears that highlight + matching diagnosis as an
   acceptance gesture. It inserts human comment markers (`Alt+q` bare marker or visual
   quote), exposes `:PairReviewShip` as an agent-owned ship request, plus marker
-  navigation (`]m`/`[m`), sets review-local clipboard/cursor/search defaults
+  navigation (`Alt+n`/`Alt+Shift+N`, with `]m`/`[m` fallbacks), sets review-local clipboard/cursor/search defaults
   (`unnamedplus`, blinking cursor, `ignorecase`+`smartcase` so `/foo` matches
   case-insensitively but `/Foo` stays case-sensitive — #101), writes the
   open-state file (line 1 = pane nvim `pid` for
@@ -139,7 +139,12 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   fires from inside the focused floating review pane). Pane-open no longer sends a
   separate "review workbench open" poke; the prep and human-finished pokes carry the
   workbench protocol context. The command line is hidden until `:` commands, and the
-  pane statusline is compact: idle shows `🪄 <Mode> • <file>[+] Lx/y`; after a send
+  pane statusline shows mode, `Alt+c/Esc agent · Alt+a/r accept/reject`,
+  filename and line position in both idle and awaiting states. Normal-mode Esc
+  dismisses an internal diagnostic float first, otherwise hides the review and
+  focuses the agent by pane ID; insert/visual Esc keeps its Vim behavior. Alt+c
+  returns directly from normal/insert mode. Alt+h derives review help from the
+  mapping descriptions, with a drift test covering every local mapping. After a send
   it stays focused in the review pane and shows a 100ms braille spinner plus elapsed
   time until the agent handoff lands.
 - `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
@@ -275,3 +280,8 @@ docflow rounds.
   `toggle` (mode-aware branch, explicit show/hide, no toggle-floating-panes),
   `review-readiness-cli` (quoted git facts stay valid JSON), `resume`, and the
   agent-owns-git loop.
+
+Review marker navigation is buffer-local and normal-mode only. Couch's existing
+client-focus probe recognizes the review role and forwards Alt+n unchanged;
+Ctrl+Alt+n still relaunches from review, and draft/switcher relaunch is unchanged.
+Alt+Shift+N overrides agent restart only in the review buffer's normal mode.

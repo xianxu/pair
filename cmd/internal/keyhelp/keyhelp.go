@@ -30,10 +30,13 @@ const (
 	ContextWorkbench                // Pair-owned panes except the agent
 	ContextHost                     // a host (Couch) takes it from every Pair pane (#282)
 	ContextHostMenu                 // a host's own menu (Couch's switcher)
+	ContextReview                   // review buffer, with its own local mappings
 )
 
 func (c Context) String() string {
 	switch c {
+	case ContextReview:
+		return "review"
 	case ContextDraft:
 		return "draft"
 	case ContextTerminal:

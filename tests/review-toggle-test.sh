@@ -80,7 +80,8 @@ if [ "${1:-}" = session-inventory ]; then
   fi
   exit 0
 fi
-exit 1
+# Only inventory is faked; editor retention and other services use the real CLI.
+exec "$PAIR_HOME/bin/pair" "$@"
 EOF
 chmod +x "$RT/bin/pair"
 

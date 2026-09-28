@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"slices"
@@ -71,7 +72,9 @@ func newChordFixtureWithChild(t *testing.T, child *ptychild.Child) (*Console, *i
 func TestAltNBytesReachAFullScreenTUI(t *testing.T) {
 	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
 	con, stdin, _ := newChordFixtureWithChild(t, child)
-	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) { return true, nil })
+	con.SetShortcutFocusProbe(func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+		return workbenchshortcut.PaneRoleRightTerminal, nil
+	})
 	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
 	waitFor(t, "the child to enter the alternate screen", func() bool {
 		return child.Endpoint().Modes().AltScreen
@@ -103,14 +106,14 @@ func TestAltNBytesReachAFullScreenTUI(t *testing.T) {
 func TestRelaunchFromDraftInsideAlternateScreenClient(t *testing.T) {
 	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
 	con, stdin, address := newChordFixtureWithChild(t, child)
-	con.SetRightTerminalFocusProbe(func(ctx context.Context, got couchcore.ThreadAddress) (bool, error) {
+	con.SetShortcutFocusProbe(func(ctx context.Context, got couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
 		if got != address {
 			t.Errorf("probe address = %v, want %v", got, address)
 		}
 		if deadline, ok := ctx.Deadline(); !ok || time.Until(deadline) > time.Second {
 			t.Error("focus probe must be bounded by one second")
 		}
-		return false, nil
+		return workbenchshortcut.PaneRoleLeftDraft, nil
 	})
 	if _, err := stdin.Write(workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0]); err != nil {
 		t.Fatal(err)
@@ -126,8 +129,8 @@ func TestRelaunchFromDraftInsideAlternateScreenClient(t *testing.T) {
 
 func TestUnknownInnerFocusDoesNotForwardOrRelaunch(t *testing.T) {
 	con, stdin, _ := newChordFixtureWithChild(t, ptychild.NewFakeChild([]byte("\x1b[?1049h")))
-	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) {
-		return false, errors.New("ambiguous clients")
+	con.SetShortcutFocusProbe(func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+		return workbenchshortcut.PaneRoleOther, errors.New("ambiguous clients")
 	})
 	if _, err := stdin.Write(workbenchshortcut.ChordEncodings(workbenchshortcut.ChordAltN)[0]); err != nil {
 		t.Fatal(err)
@@ -145,7 +148,9 @@ func TestUnknownInnerFocusDoesNotForwardOrRelaunch(t *testing.T) {
 func TestCtrlAltNBytesReachAFullScreenTUI(t *testing.T) {
 	child := ptychild.NewFakeChild([]byte("\x1b[?1049h"))
 	con, stdin, _ := newChordFixtureWithChild(t, child)
-	con.SetRightTerminalFocusProbe(func(context.Context, couchcore.ThreadAddress) (bool, error) { return true, nil })
+	con.SetShortcutFocusProbe(func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+		return workbenchshortcut.PaneRoleRightTerminal, nil
+	})
 	waitFor(t, "the console to start", func() bool { return con.menuSnapshot().Inventory != nil })
 	waitFor(t, "the child to enter the alternate screen", func() bool {
 		return child.Endpoint().Modes().AltScreen
@@ -651,5 +656,42 @@ func TestCandidateAdmissionReadsFocusAfterRoutingPrefix(t *testing.T) {
 	})
 	if !bytes.Equal(bytes.Join(delivered, nil), raw) {
 		t.Fatalf("prefix focus change ignored: %q", delivered)
+	}
+}
+
+func TestReviewMarkerChordPreservesBytesAndExplicitRelaunch(t *testing.T) {
+	for _, chord := range []workbenchshortcut.Chord{workbenchshortcut.ChordAltN, workbenchshortcut.ChordAltShiftN, workbenchshortcut.ChordCtrlAltN} {
+		for i, encoding := range workbenchshortcut.ChordEncodings(chord) {
+			t.Run(fmt.Sprintf("%d/%d", chord, i), func(t *testing.T) {
+				child := ptychild.NewFakeChild(nil)
+				con, stdin, address := newChordFixtureWithChild(t, child)
+				con.SetShortcutFocusProbe(func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error) {
+					return workbenchshortcut.PaneRoleReview, nil
+				})
+				if _, err := stdin.Write(encoding); err != nil {
+					t.Fatal(err)
+				}
+				if chord == workbenchshortcut.ChordCtrlAltN {
+					waitFor(t, "review explicit relaunch", func() bool {
+						frame := con.menuSnapshot().CurrentFrame()
+						return frame.Kind == MenuFrameConfirmation && frame.Action == "relaunch" && frame.Thread == address
+					})
+					if len(child.Writes()) != 0 {
+						t.Fatalf("explicit relaunch forwarded: %q", child.Writes())
+					}
+				} else {
+					waitFor(t, "review marker bytes", func() bool {
+						want := []byte("\x1bn")
+						if chord == workbenchshortcut.ChordAltShiftN {
+							want = []byte("\x1bN")
+						}
+						return bytes.Equal(bytes.Join(child.Writes(), nil), want)
+					})
+					if con.menuSnapshot().CurrentFrame().Kind == MenuFrameConfirmation {
+						t.Fatal("marker navigation opened relaunch")
+					}
+				}
+			})
+		}
 	}
 }

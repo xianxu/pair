@@ -65,8 +65,8 @@ type Console struct {
 
 	// focus is what the terminal is pointed at. It is not the same as `active`:
 	// the switcher is a focus with no actor behind it.
-	focus                Focus
-	rightTerminalFocused func(context.Context, couchcore.ThreadAddress) (bool, error)
+	focus           Focus
+	shortcutFocused func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error)
 
 	actionable ActionableThreadProvider
 	menu       MenuState
@@ -1665,7 +1665,7 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	c.mu.Unlock()
 	if actorFocused && hit == HitRelaunch {
 		c.mu.Lock()
-		probe := c.rightTerminalFocused
+		probe := c.shortcutFocused
 		var address couchcore.ThreadAddress
 		if p := c.panes[c.active]; p != nil {
 			address = p.thread
@@ -1673,13 +1673,14 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 		c.mu.Unlock()
 		if probe != nil {
 			ctx, cancel := context.WithTimeout(c.lifetime, time.Second)
-			right, err := probe(ctx, address)
+			role, err := probe(ctx, address)
 			cancel()
 			if err != nil {
 				c.setNotice("Cannot determine restart-key focus: " + err.Error())
 				return
 			}
-			if right {
+			chord, _ := workbenchshortcut.DecodeChord(rawHit)
+			if role == workbenchshortcut.PaneRoleRightTerminal || role == workbenchshortcut.PaneRoleReview && chord == workbenchshortcut.ChordAltN {
 				route(rawHit)
 				return
 			}
@@ -1697,13 +1698,13 @@ func (c *Console) dispatchInputCandidate(before []byte, hit InterceptorHit, rawH
 	}
 }
 
-// SetRightTerminalFocusProbe supplies inner-pane ownership. The outer child is
+// SetShortcutFocusProbe supplies inner-pane ownership. The outer child is
 // Zellij, whose alternate screen says nothing about its focused inner pane.
 // Only restart candidates query it; ordinary input never pays for discovery.
-func (c *Console) SetRightTerminalFocusProbe(probe func(context.Context, couchcore.ThreadAddress) (bool, error)) {
+func (c *Console) SetShortcutFocusProbe(probe func(context.Context, couchcore.ThreadAddress) (workbenchshortcut.PaneRole, error)) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.rightTerminalFocused = probe
+	c.shortcutFocused = probe
 }
 
 // hitHandlers maps every intercepted chord to what the console does about it.

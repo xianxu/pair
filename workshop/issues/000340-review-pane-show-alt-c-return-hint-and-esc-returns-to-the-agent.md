@@ -85,13 +85,13 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
 
 ## Plan
 
-- [ ] Pin idle/waiting status hints, normal-mode Esc, insert/visual Escape,
+- [x] Pin idle/waiting status hints, normal-mode Esc, insert/visual Escape,
   diagnostic float dismissal, and wrapped marker jumps in headless review tests.
-- [ ] Add compact status hints and buffer-local return/jump bindings, reusing
+- [x] Add compact status hints and buffer-local return/jump bindings, reusing
   pane-ID discovery for explicit agent focus after hiding the review.
-- [ ] Derive review help from mapping descriptions, cover every review map with
+- [x] Derive review help from mapping descriptions, cover every review map with
   a drift test, and document the review exceptions in README and atlas.
-- [ ] Teach Couch's existing focus probe to preserve review Alt+n, test the
+- [x] Teach Couch's existing focus probe to preserve review Alt+n, test the
   real role classification and console forwarding, retaining draft/menu relaunch.
 - [ ] Run review and affected Go checks, build pair:0; operator smoke: Alt+c
   hints, Esc to agent, insert/visual Esc, Alt+n/Alt+Shift+N wrapping, Alt+h.
@@ -117,7 +117,31 @@ this is one atomic implementation/review boundary.
 - Added: document Alt+a / Alt+r (and the rest of the review keys). The
   operator had forgotten those too.
 
+### 2026-09-28 — implementation
+
+- Added idle/awaiting return and accept/reject hints; normal Esc dismisses a
+  diagnostic float first, otherwise returns by agent pane ID. Insert/visual Esc
+  remains native. Alt+n/Alt+Shift+N wrap through markers in review normal mode.
+- Review help derives from map descriptions with drift coverage; Couch's existing
+  focus observation now distinguishes review and preserves Alt+n there. Ctrl+Alt+n
+  still relaunches from review, and draft/agent/switcher keep their behavior.
+- Fresh-eyes review caught ambiguous non-draft-title agent discovery. A reordered
+  right-terminal fixture reproduced it; positive command identity fixed both
+  return and poke. No other Important/Critical findings in the ad-hoc review.
+- Updated an existing review-toggle fake to delegate retention calls to the real
+  binary; otherwise draft initialization failed before the toggle test ran.
+- Focused controls tests demonstrated missing hints and focused-popup Escape
+  failures before implementation. Full affected Go packages passed with race
+  detection; generated help and embedded-source drift tests passed.
+- `make test-review` passed all review suites; `make build` plus `make pair`
+  rebuilt Couch and Pair with the current embedded sources. Operator smoke pending.
+
 ## Revisions
 
 - 2026-09-28: implementation planning after operator approval; Couch focus
   ownership needs a review exception for Alt+n to reach the local mapping.
+
+- 2026-09-28: routing/help integration exceeds the small-diff code envelope;
+  expanded implementation record: [plan](../plans/000340-review-controls-plan.md).
+  Operator's implementation authorization covers the existing Spec unchanged;
+  close must use the full review if the measured diff remains outside the shell.
