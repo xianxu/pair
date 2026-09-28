@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-01
 updated: 2026-09-02
 estimate_hours:
+card_mirror: 'ea6087318a7a7e8bc57b39d0b2d2c37d4bfebbd9' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Clear a text input with cmd+delete

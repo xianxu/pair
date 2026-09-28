@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-09
 updated: 2026-09-09
 estimate_hours:
+card_mirror: '698b85416654c424bd6370e224d72773858fbfd0' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Collapse NotificationLifecycle's boolean constellation into a tagged turn state

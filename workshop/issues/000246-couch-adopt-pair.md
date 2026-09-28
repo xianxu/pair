@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-13
 updated: 2026-09-13
 estimate_hours:
+card_mirror: 'e8193598610bbe79bc244ccafd564475f59b24e8' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Adopt a stopped standalone Pair session into Couch

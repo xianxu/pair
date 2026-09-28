@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+card_mirror: 'e948685ab25746a94c987a8a934fedf631690b40' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Fix draft Alt+N restart confirmation

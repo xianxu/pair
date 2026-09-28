@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-11
 updated: 2026-09-11
 estimate_hours:
+card_mirror: '974c4bed1ad0dc070af4a8064adbf92b7c3dc28e' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # <M-x> quit does nothing under kitty: its macOS default keeps Option as a composing key (macos_option_as_alt no), so Alt+x arrives as ≈

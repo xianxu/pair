@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-02
 updated: 2026-09-02
 estimate_hours:
+card_mirror: 'd4559f6d134b143e7da7242995acbe4ee266e4d6' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Disposition six production symbols reachable only from tests

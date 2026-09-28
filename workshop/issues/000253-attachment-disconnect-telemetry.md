@@ -7,6 +7,7 @@ created: 2026-09-14
 updated: 2026-09-14
 estimate_hours:
 started: 2026-09-14T13:56:39-07:00
+card_mirror: 'f6c47cdf94b000852a743093d870291337d1e7a4' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Record attachment disconnect causes

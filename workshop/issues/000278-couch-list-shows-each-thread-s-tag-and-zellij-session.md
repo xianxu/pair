@@ -7,6 +7,7 @@ created: 2026-09-17
 updated: 2026-09-17
 estimate_hours:
 started: 2026-09-17T15:54:17-07:00
+card_mirror: '931fb69ca6af4309059bec04fc577d10c3424a76' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch --list shows each thread's tag and zellij session

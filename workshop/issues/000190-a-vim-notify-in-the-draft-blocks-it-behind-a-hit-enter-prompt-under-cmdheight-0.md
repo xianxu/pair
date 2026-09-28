@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-05
 updated: 2026-09-05
 estimate_hours:
+card_mirror: 'd92678919bc4f52299df87ec1c8c15799b5477e9' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # A vim.notify in the draft blocks it behind a hit-enter prompt under cmdheight=0

@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-02
 updated: 2026-09-02
 estimate_hours:
+card_mirror: 'a9e8cef245677bfc9b83723aba2484c05fada7da' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Resume a unique parked thread from the panel

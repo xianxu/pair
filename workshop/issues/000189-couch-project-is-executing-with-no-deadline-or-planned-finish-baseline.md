@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-04
 updated: 2026-09-04
 estimate_hours:
+card_mirror: '5a683a310c436def77da75860e17c135a056d30d' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch project is executing with no deadline or planned_finish baseline

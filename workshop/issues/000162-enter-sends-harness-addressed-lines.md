@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours:
+card_mirror: 'a18046293f294c0d0fa4385d3c7855d9b8345a64' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Enter sends when the composer line is addressed to the harness

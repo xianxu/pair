@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-12
 updated: 2026-09-12
 estimate_hours:
+card_mirror: '962aef8fce7af1e6c82623f7d9281b96c9e4d594' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # pair term: reconcile ALL pane DEC private modes across ALL takeover paths, not just mouse on switch/close

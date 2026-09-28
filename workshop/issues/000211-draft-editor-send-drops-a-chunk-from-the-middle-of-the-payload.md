@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-07
 updated: 2026-09-07
 estimate_hours:
+card_mirror: '5829d6abe327636ab74c583b449d6dc2d541ddcf' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Draft-editor send drops a chunk from the middle of the payload

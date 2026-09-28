@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: '342e8d29329bc9475e0069dd25e865d594e9288c' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Draft hit-enter prompt has no trigger, no recovery

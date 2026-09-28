@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: '50aa93e5cac0857226ee5b5f4c5e6eb0c769a534' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Surface couch-tagged agents that have no thread record

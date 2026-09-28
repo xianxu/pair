@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-18
 updated: 2026-09-18
 estimate_hours:
+card_mirror: '0bee5fb99b45fbf0660e2eaa1dcf39af45e0ddb4' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Remember a thread's right-pane tabs across cold starts

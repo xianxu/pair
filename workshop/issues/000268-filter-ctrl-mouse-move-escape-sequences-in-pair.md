@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+card_mirror: '2566a1c4078d435bfcfcf3f599ca8bc6cb18a88e' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # filter Ctrl mouse-move escape sequences in pair

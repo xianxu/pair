@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+card_mirror: 'b7294b34f3a980ce3380411f13a736b50dcf046c' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Fix Codex changelog refresh failure

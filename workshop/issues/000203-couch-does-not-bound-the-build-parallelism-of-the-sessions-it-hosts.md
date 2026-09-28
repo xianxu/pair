@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours:
+card_mirror: '3879de25044c31eacbb9b6bfaf1061d7ace01ac5' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch does not bound the build parallelism of the sessions it hosts

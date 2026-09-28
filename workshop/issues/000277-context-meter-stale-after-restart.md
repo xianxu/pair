@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-17
 updated: 2026-09-17
 estimate_hours:
+card_mirror: 'f66005bf5b6d316b6fb0c1da80ae1bb20910e968' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Context meter shows the dead conversation's count after Shift+Alt+N

@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: 'bd75e5c2e5c37e396967a947a2b9486edb7c8eb5' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch loses live agents: liveness is proved from the launcher pid the agent outlives

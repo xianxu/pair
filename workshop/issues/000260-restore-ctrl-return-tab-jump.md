@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+card_mirror: 'e399d2ba63f6c2026bc708619dcf9eff27da1a0e' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Investigate Ctrl+Return notification-tab regression

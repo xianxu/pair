@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: 'c52d41a7a4e896e9d2fb4cf829826b7d33bf7671' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # `pair term` ignores SIGHUP, so a dead session leaks its whole process tree forever

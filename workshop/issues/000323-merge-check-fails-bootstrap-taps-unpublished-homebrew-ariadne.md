@@ -7,6 +7,7 @@ created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
 started: 2026-09-24T20:13:00-07:00
+card_mirror: '021d6fc38655591694a6d52f0906bcbe48393b05' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # merge-check fails: bootstrap taps unpublished homebrew-ariadne

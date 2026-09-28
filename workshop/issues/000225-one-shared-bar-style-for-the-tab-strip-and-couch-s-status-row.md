@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-10
 updated: 2026-09-10
 estimate_hours:
+card_mirror: 'a2e4a583a3c9dd9429c83a53ab293556654e91df' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # one shared bar style for the tab strip and couch's status row

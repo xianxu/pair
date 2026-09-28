@@ -6,6 +6,7 @@ github_issue:
 created: 2026-07-28
 updated: 2026-07-28
 estimate_hours:
+card_mirror: '4751b40afe992a77c75a4e3cf0dcfc5cb1d3a74e' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Deliberate quote-paste keybind in the draft

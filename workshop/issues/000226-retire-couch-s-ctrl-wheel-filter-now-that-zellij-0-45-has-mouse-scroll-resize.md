@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-10
 updated: 2026-09-10
 estimate_hours:
+card_mirror: '5bfe17dc81f569cbb68faa9eaff406d7397cfe10' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # retire couch's ctrl+wheel filter now that zellij 0.45 has mouse_scroll_resize

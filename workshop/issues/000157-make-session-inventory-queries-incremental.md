@@ -6,6 +6,7 @@ github_issue:
 created: 2026-08-30
 updated: 2026-08-30
 estimate_hours:
+card_mirror: '4fe4c339ce8e64063fb12f605e5b71b8ef7b3f6c' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Make session inventory queries incremental

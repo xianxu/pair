@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-08
 updated: 2026-09-08
 estimate_hours:
+card_mirror: '9a617711348cfd08c47cb0ebc4807ddddf845d59' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # dim the right pane's tab strip when the pane loses focus

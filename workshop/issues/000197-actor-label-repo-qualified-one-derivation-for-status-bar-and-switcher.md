@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-06
 updated: 2026-09-21
 estimate_hours:
+card_mirror: 'ae6ef665d9be85efa70235ee6f8caae3c43b6fd6' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # actor label: repo-qualified, one derivation for status bar and switcher

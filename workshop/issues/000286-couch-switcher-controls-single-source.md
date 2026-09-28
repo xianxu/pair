@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-18
 updated: 2026-09-18
 estimate_hours:
+card_mirror: '442c05ffacc714235977ffa5ae1484b637c5daf8' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Couch switcher controls: derive menuControls from couchkeys and document Ctrl+Space's switcher meaning

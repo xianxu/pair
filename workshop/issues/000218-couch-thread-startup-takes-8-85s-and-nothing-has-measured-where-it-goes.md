@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-08
 updated: 2026-09-08
 estimate_hours:
+card_mirror: '49d2e0711f7df8564627e2cbed192284f2c6bdf5' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch thread startup takes 8.85s and nothing has measured where it goes

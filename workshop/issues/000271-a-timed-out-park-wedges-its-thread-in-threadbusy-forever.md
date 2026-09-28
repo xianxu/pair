@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: '40df61f2859724e38150e46fe4e267800c0a1e26' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # A timed-out park wedges its thread in ThreadBusy forever

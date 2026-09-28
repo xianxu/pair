@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-27
 updated: 2026-09-27
 estimate_hours:
+card_mirror: 'a9b9e295ce372d2dafe98dfd605236fd41642541' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # draft nvim: audit as-you-type completion; evaluate blink.cmp

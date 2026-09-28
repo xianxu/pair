@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: '34ba370cc69671b53bc42cb56ba347d7b86919b2' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch in brain paints a blank viewport after startup

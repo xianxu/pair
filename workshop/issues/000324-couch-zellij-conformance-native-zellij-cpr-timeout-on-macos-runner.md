@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
+card_mirror: 'b972d5f78bc86def79140318286f878855076d5f' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch-zellij-conformance: native zellij CPR timeout on macOS runner

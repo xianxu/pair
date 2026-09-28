@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-04
 updated: 2026-09-04
 estimate_hours:
+card_mirror: 'ad76636d73fee09fae9a94ef9edd046f2b6f58a0' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Core-concepts contract reads a hand-written plan list, so most plan tables are unenforced

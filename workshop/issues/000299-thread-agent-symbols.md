@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-20
 updated: 2026-09-20
 estimate_hours:
+card_mirror: '4431a7c0c2026a89f7346d5b33ba48fd9ed3b38e' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Show coding-agent symbols on thread rows

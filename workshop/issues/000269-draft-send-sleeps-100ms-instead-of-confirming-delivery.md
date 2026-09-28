@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: '15e8912d5641d3d7935f3b7057385fe1c9eadc8d' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Draft send sleeps 100ms instead of confirming delivery

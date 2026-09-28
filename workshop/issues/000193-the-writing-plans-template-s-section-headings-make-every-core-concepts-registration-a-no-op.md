@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-05
 updated: 2026-09-05
 estimate_hours:
+card_mirror: '66d7ceed6bd23b92c11d32c877e8329763094fbf' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # The writing-plans template's section headings make every Core-concepts registration a no-op

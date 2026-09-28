@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-11
 updated: 2026-09-11
 estimate_hours:
+card_mirror: '328f82b2911e8928ddd2ea1cd3bcf9c9abd0df7b' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # <M-CR> submit from the draft does nothing under WezTerm: its default keymap binds Alt+Enter to ToggleFullScreen

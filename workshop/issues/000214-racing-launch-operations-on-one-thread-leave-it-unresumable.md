@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-08
 updated: 2026-09-08
 estimate_hours:
+card_mirror: 'd2f0c9cecbd9d0f48de8cb8d23d38586ee56258f' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # racing launch operations on one thread leave it unresumable

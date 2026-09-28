@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-04
 updated: 2026-09-04
 estimate_hours:
+card_mirror: '392c51b5530132492016a3614635f597d6ece846' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Relaunch holds its pane: a surface that outlives its child

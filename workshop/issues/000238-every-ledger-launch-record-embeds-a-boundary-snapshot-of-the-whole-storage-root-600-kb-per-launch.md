@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-12
 updated: 2026-09-12
 estimate_hours:
+card_mirror: '0abd21aef2f82c4e31cce71e1a5415c59ae459ed' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # every ledger launch record embeds a boundary snapshot of the whole storage root, ~600 KB per launch

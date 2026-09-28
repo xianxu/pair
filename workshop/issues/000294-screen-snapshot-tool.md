@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-19
 updated: 2026-09-19
 estimate_hours:
+card_mirror: '45471b76f64d20b957fedcc3e8e329956e755108' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Screen snapshot for debugging: chord for the operator, pair screen for the agent

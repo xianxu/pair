@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-20
 updated: 2026-09-20
 estimate_hours:
+card_mirror: '00a3f9e9744dce2ad40dec9e9414516c7afe31ff' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Compress workshop lessons into durable guidance

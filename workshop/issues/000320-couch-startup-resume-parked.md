@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
+card_mirror: 'bd9e91cbf0ec02006bcfd7017da9875ec74c813e' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Resume every parked thread when couch starts

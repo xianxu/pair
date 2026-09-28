@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-14
 updated: 2026-09-14
 estimate_hours:
+card_mirror: '55c74eed3c247f22f2f66f983a27243910b924c5' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Preserve UTF-8 across terminal output chunks

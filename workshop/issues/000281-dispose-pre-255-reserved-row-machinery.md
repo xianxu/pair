@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-17
 updated: 2026-09-17
 estimate_hours:
+card_mirror: '6ff0239f400afccfa3e1447fb28338ca41de42ad' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Dispose the pre-#255 reserved-row machinery reachable only from tests and a probe

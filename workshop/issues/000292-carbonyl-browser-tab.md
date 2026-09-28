@@ -8,6 +8,7 @@ updated: 2026-09-19
 estimate_hours: 9.46
 started: 2026-09-19T11:10:35-07:00
 flow: {kind: full, provenance: inferred}
+card_mirror: 'a6929e18077acaca96f2bd7ffdf1eae17a4da806' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Carbonyl browser tab in the right pane, shared with the agent over DevTools

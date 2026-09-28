@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-25
 updated: 2026-09-25
 estimate_hours:
+card_mirror: '14caa91f361591b7320816b73a0a9f07bc91286a' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Detach kills an unbound session watcher

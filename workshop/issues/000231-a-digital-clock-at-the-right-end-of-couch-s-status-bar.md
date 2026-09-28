@@ -7,6 +7,7 @@ target: workbench-latency
 created: 2026-09-11
 updated: 2026-09-11
 estimate_hours:
+card_mirror: '8ceb7e41c7831d0a55ee37001662e72c57966373' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # A digital clock at the right end of couch's status bar

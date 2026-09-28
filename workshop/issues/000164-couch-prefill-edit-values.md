@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours:
+card_mirror: 'e8212ac45229030ab6a4e3f06572ba1a519eb83f' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Prefill existing values in Couch edit prompts

@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-20
 updated: 2026-09-20
 estimate_hours:
+card_mirror: 'fd9c59effbec75cf9cf8f333b48a563a9fc891bb' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Sync renamed thread labels to tab bars

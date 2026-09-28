@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-09
 updated: 2026-09-09
 estimate_hours:
+card_mirror: 'cc5048978ce74c0ce7812f99ae0b69cd3f1cfdcd' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch's console writes have no typed single-writer door

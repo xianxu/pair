@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-07
 updated: 2026-09-07
 estimate_hours:
+card_mirror: '6ed36275ccfc436f935fa247692e748cafdac563' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # perf capture: no stage is time-bounded, so one slow collector blows the budget

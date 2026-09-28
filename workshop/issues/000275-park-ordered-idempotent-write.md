@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-16
 updated: 2026-09-16
 estimate_hours:
+card_mirror: '8e8fc7545ac5af9a741a80301268274be971faf6' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Replace the park transaction with an ordered idempotent write

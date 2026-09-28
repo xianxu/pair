@@ -6,6 +6,7 @@ github_issue:
 created: 2026-08-16
 updated: 2026-08-16
 estimate_hours:
+card_mirror: '1c5bad358bad91e35a9009409beab9cf1ba4b69b' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Live cross-agent handoff

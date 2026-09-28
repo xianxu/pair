@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-02
 updated: 2026-09-02
 estimate_hours:
+card_mirror: '8541901486a4a2c06232db8d8dd8d53c0c6b84c3' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Click a misspelled word to correct it in insert mode

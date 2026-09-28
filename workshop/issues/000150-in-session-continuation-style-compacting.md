@@ -6,6 +6,7 @@ github_issue:
 created: 2026-08-22
 updated: 2026-09-17
 estimate_hours:
+card_mirror: '37b4fd9596ff39590365311b9f9543068fe890b7' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # in session continuation style compacting

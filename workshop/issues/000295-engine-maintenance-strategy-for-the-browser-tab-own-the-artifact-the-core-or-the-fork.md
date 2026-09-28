@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-19
 updated: 2026-09-19
 estimate_hours:
+card_mirror: '802e906d7f174a2ed4828989a645a0ce953fcbb5' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Engine maintenance strategy for the browser tab: own the artifact, the core, or the fork

@@ -6,6 +6,7 @@ github_issue:
 created: 2026-07-26
 updated: 2026-07-26
 estimate_hours:
+card_mirror: '54780cad7a58755c44e89c65f6811acf9654f569' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Remote Pair artifact browser

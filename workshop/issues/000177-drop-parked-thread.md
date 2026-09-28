@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-02
 updated: 2026-09-02
 estimate_hours:
+card_mirror: '1288b30278bd44bb11d42f696d56207b5da248e5' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Drop a parked thread from the switcher

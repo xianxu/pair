@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-13
 updated: 2026-09-13
 estimate_hours:
+card_mirror: 'dbf2fe17f3b1e59f8333f09f90e02999a682948b' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Shade live Couch threads by idle time

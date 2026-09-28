@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+card_mirror: '7da56b9ce9d59f97f6ebf5c92855cf89e89aaea7' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Alt+N restart confirmation has no visible result

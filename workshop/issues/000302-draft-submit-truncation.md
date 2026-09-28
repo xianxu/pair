@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-20
 updated: 2026-09-20
 estimate_hours:
+card_mirror: '5dfc07b0d3f758fae1dee57cc2d67edfc9abe1f7' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Preserve long draft submissions to agent

@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+card_mirror: '2cb3b9ff1fe8e2a3ff14dee677258dcb35cdbbc2' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # muse transcript not found after many turns prevents relaunch

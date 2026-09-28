@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-01
 updated: 2026-09-01
 estimate_hours:
+card_mirror: '78cd09dc57b8b62e38b9433f34851168301dd8d0' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Match and show actor descriptions in Couch switcher

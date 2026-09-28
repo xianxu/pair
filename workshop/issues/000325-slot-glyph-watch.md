@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-24
 updated: 2026-09-24
 estimate_hours:
+card_mirror: '554f479e960f226fb4e5a14b989bd621c32099fe' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Solidify repo state's glyph

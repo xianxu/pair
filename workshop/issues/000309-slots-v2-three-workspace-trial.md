@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-22
 updated: 2026-09-23
 estimate_hours:
+card_mirror: '7ea4fd8f22c3e5b65d5b896629fa7fa948214362' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Slots v2: three-workspace acceptance trial

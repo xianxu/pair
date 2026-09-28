@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-21
 updated: 2026-09-21
 estimate_hours:
+card_mirror: '1f70b7d757486a290f8fa199241c2a04706445e9' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # headless model calls leave durable session residue (claude, muse)

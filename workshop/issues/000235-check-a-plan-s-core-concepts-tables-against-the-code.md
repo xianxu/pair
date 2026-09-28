@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-12
 updated: 2026-09-12
 estimate_hours:
+card_mirror: '772edf9f7e7fb5d690d98ac6b0b6bdfabfa30ac6' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Check a plan's Core concepts tables against the code

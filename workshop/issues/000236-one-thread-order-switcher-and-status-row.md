@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-12
 updated: 2026-09-21
 estimate_hours:
+card_mirror: '0b82abc9643750c6c7a01f8b669734d8ebe00613' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # One thread order for the switcher and the status row: repo load order, slots grouped under their repo, operator-reorderable with Alt+Up/Down and persisted; the status row is its projection

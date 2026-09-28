@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-19
 updated: 2026-09-19
 estimate_hours:
+card_mirror: 'f28090aa36bc236eaf420a0aa4410535a7e3dcf4' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Alt+click opens a link in the right pane (browser tab or nvim)

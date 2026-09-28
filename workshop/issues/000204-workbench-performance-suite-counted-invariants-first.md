@@ -7,6 +7,7 @@ github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours:
+card_mirror: 'd542986871fc3ddda8dc50525f66bb7029563804' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # workbench performance suite: counted invariants first

@@ -7,6 +7,7 @@ created: 2026-09-06
 updated: 2026-09-12
 estimate_hours: 0.773
 started: 2026-09-12T23:21:00-07:00
+card_mirror: '84b4a3a564ce53c6cb9d57687f90a68ac7dd2275' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # couch's asserted mouse mode has no release path short of restarting couch

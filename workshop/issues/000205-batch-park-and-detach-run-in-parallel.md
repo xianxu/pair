@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-06
 updated: 2026-09-06
 estimate_hours:
+card_mirror: '71c95a0e6fc9b05bd3acf0fd88dbe86930b7f54f' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # batch park and detach run in parallel

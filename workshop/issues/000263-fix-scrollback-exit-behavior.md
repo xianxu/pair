@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-15
 updated: 2026-09-15
 estimate_hours:
+card_mirror: '25746a5582ddb46e41129f922ae1423452a165f6' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Fix scrollback viewer exit and empty-screen behavior

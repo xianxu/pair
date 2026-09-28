@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-02
 updated: 2026-09-11
 estimate_hours:
+card_mirror: 'fe235cee9cc6123e20f5651b1f834b43cab3b815' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Parallelize the zellij session snapshot

@@ -6,6 +6,7 @@ github_issue:
 created: 2026-07-26
 updated: 2026-07-26
 estimate_hours:
+card_mirror: 'd3c7e72cb66e8980e108d9d4fec1a56df97b4820' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Remote Pair terminal stream

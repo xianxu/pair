@@ -6,6 +6,7 @@ github_issue:
 created: 2026-09-09
 updated: 2026-09-09
 estimate_hours:
+card_mirror: 'bf8adb426924e866929197b68b2e3f3fe6c26101' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # sticky note spacing erodes on every send

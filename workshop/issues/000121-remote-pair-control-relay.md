@@ -7,6 +7,7 @@ created: 2026-07-26
 updated: 2026-07-26
 estimate_hours: 24.52
 started: 2026-07-26T11:20:10-07:00
+card_mirror: 'f7ed3c7ba4736d823a60124f889fce2214602d55' # card fields mirrored from issue-cards; edit via sdlc
 ---
 
 # Remote Pair control relay
