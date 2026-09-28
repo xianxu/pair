@@ -59,15 +59,6 @@ Git probe and glyph projection (ARCH-DRY).
   Live Ducks observation: `main`, clean, upstream `origin/main`, one commit ahead.
   Filed for future implementation; no behavior changes made.
 
-## Revisions
-
-### 2026-09-28 — implementation planning
-
-- Operator authorized implementation. Reuse presentationRoot for standalone
-  probe identity and SlotGlyph for all badge semantics (ARCH-DRY, ARCH-PURE).
-  Keep the existing serialized, timed background probes and refresh lifecycle;
-  add no new persistent state or external interface.
-
 - Implementation: standalone roots now enter the shared probe set and use the
   primary glyph projection. Tests failed first for absent probes and glyphs,
   then passed with the patch; focused race checks and `make bin/couch` passed.
@@ -76,3 +67,12 @@ Git probe and glyph projection (ARCH-DRY).
   The expanded couchcore run was interrupted with SIGQUIT after 327s without
   completion; it is not counted as a passing suite. The focused core glyph/
   parser/probe checks are run separately. No couchcore code changed.
+
+## Revisions
+
+### 2026-09-28 — implementation planning
+
+- Operator authorized implementation. Reuse presentationRoot for standalone
+  probe identity and SlotGlyph for all badge semantics (ARCH-DRY, ARCH-PURE).
+  Keep the existing serialized, timed background probes and refresh lifecycle;
+  add no new persistent state or external interface.
