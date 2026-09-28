@@ -83,8 +83,9 @@ Why not the other two options:
 
 Couch's failed-start cleanup needs no new mechanism. A wrap-spawned watcher is
 outside the actor's process group, like the agent itself, and its end is
-already named (ARCH-FUNERAL): it exits when it binds, when the agent's process
-identity changes, or at its 60 s startup deadline if no agent pid appears. A
+already named (ARCH-FUNERAL): after binding, Codex watchers continue observing
+lifecycle events while other agents' watchers exit. A watcher also exits when
+the agent's process identity changes, or at its 60 s startup deadline if no agent pid appears. A
 failed start kills the zellij session, and with it the agent, so the watcher
 exits on its next scan.
 
@@ -116,6 +117,14 @@ are the "equivalents" in Done-when.
       The fresh path spawns no watcher of its own.
 - [x] `TMPDIR=<scratchpad> make test`; ask the operator for a live smoke
       (detach before the first turn → reattach → one turn → alt+n).
+
+## Revisions
+
+- 2026-09-28: close review BR-1 requires a composed Codex/Claude regression
+  through detach before the first turn, reattach, first completed turn, and
+  relaunch authorization. Existing spawn/group tests prove mechanism only.
+  BR-2 corrects watcher-lifetime prose: Codex keeps observing after binding.
+  The acceptance criteria remain unchanged.
 
 ## Log
 
@@ -156,3 +165,8 @@ are the "equivalents" in Done-when.
   tests passed under `go test -race ./cmd/internal/wrapcmd -run
   'Test(WrapSpawnsOneWatcherForItsLaunch|StartWatcherProcessEscapesTheSpawnersProcessGroup|FreshAgentInvocationHandsTheWatcherToTheReplacementWrap)'
   -count=1`. Full wrapcmd and launcher package tests are running.
+- Fresh full launcher package tests passed. Full wrapcmd tests hit the recorded
+  `TestNotificationBrokerBeforeExecAndCleanup` startup-hook failure; eight
+  isolated repeats passed. Close reviewer independently passed wrapcmd,
+  launcher, and sessionwatch package suites. Close round 1 requested the
+  composed acceptance regression (BR-1) and lifetime prose correction (BR-2).
