@@ -37,11 +37,11 @@ passthrough, or the right-pane tab model.
 
 ## Plan
 
-- [ ] Reproduce the report using the #251 test and smoke conditions, identifying
+- [x] Reproduce the report using the #251 test and smoke conditions, identifying
   any difference in terminal mode or dispatch state.
-- [ ] If reproducible, restore the shared dispatch path and add focused
+- [x] If reproducible, restore the shared dispatch path and add focused
   regression coverage; otherwise record why #251 remains authoritative.
-- [ ] Run shortcut, notification and integration tests; record smoke evidence.
+- [x] Run shortcut, notification and integration tests; record smoke evidence.
 
 ## Log
 
@@ -119,3 +119,15 @@ so this issue must first establish whether the current report is a regression.
 - Relaunch/park-resume uses the thread's saved arguments, not changed path
   preferences. Switch coding agent can reread preferences but starts a fresh
   conversation even for Codex to Codex. The operator owns the restart choice.
+
+### 2026-09-28 — Operator acceptance
+
+- Operator confirmed the shortcut works now and explained that they had not
+  retried it after #279; explicitly authorized closing #260. The historical
+  regression was resolved by #279, with no additional runtime change needed.
+- Existing production-dispatch regression coverage and the recorded automated
+  no-notification/plain-Return checks remain the acceptance evidence for those
+  paths; the operator confirmation establishes the reported live jump works.
+- All three investigation steps are complete. Preserve the existing Couch-thread
+  shortcut semantics; the original right-pane-tab wording does not require a
+  new navigation feature.
