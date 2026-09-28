@@ -21,6 +21,27 @@ rounds:
           round: 1
       recipe: small-diff-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-28T12:27:52-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: The composed Codex/Claude regression exercises real watcher execution, detach, post-reattach binding and relaunch authorization. Independently restoring client-group ownership in a scratch overlay made both cases fail at post-reattach binding.
+          round: 2
+        - id: BR-2
+          disposition: addressed
+          note: atlas/session-identity.md:55–57, wrap.go:2370–2372 and the issue's lifecycle paragraph now explicitly preserve Codex observation after binding, matching sessionwatch/runcli.go:144 and run.go:185–196.
+          round: 2
+      findings:
+        - id: BR-3
+          severity: Important
+          title: Acceptance regression races final relaunch authorization
+          detail: 'cmd/internal/wrapcmd/detach_acceptance_test.go:200–210 waits only for binding before a single resolver call. The full suite failed for Codex at line 208 with “session inventory storage root is absent”; diagnostic repetitions reproduced it for Claude against the Pair data root. Both cases share this site and exhaust the family instances in this window. This is the 2nd finding in family acceptance-boundary-coverage: apply the rule that asynchronous acceptance tests await their final contractual outcome, rather than an intermediate publication. Boundedly await successful resolution and relaunch preconditions for both agents, retaining diagnostic errors and the ownership mutation check. ARCH-PURPOSE.'
+          family: acceptance-boundary-coverage
+          round: 2
+      recipe: small-diff-review
+      blocked: true
 ---
 
 # Gate ledger — pair#329 (boundary-review)
@@ -37,7 +58,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-2** [Minor] `lifecycle-documentation-fidelity` Watcher lifetime claims omit continued Codex lifecycle observation
   All instances are atlas/session-identity.md:55–56, cmd/internal/wrapcmd/wrap.go:2370–2371, and workshop/issues/000329-detach-kills-session-watcher.md:86–87. They say the watcher exits when bound, but sessionwatch/runcli.go:144 enables FollowLifecycle and sessionwatch/run.go:185–196 continues Codex observation after binding. Qualify these statements to describe the Codex exception.
 
+## Round 2 — 2026-09-28T12:27:52-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-1 — addressed — The composed Codex/Claude regression exercises real watcher execution, detach, post-reattach binding and relaunch authorization. Independently restoring client-group ownership in a scratch overlay made both cases fail at post-reattach binding.
+- BR-2 — addressed — atlas/session-identity.md:55–57, wrap.go:2370–2372 and the issue's lifecycle paragraph now explicitly preserve Codex observation after binding, matching sessionwatch/runcli.go:144 and run.go:185–196.
+
+### Raised
+
+- **BR-3** [Important] `acceptance-boundary-coverage` Acceptance regression races final relaunch authorization
+  cmd/internal/wrapcmd/detach_acceptance_test.go:200–210 waits only for binding before a single resolver call. The full suite failed for Codex at line 208 with “session inventory storage root is absent”; diagnostic repetitions reproduced it for Claude against the Pair data root. Both cases share this site and exhaust the family instances in this window. This is the 2nd finding in family acceptance-boundary-coverage: apply the rule that asynchronous acceptance tests await their final contractual outcome, rather than an intermediate publication. Boundedly await successful resolution and relaunch preconditions for both agents, retaining diagnostic errors and the ownership mutation check. ARCH-PURPOSE.
+
 ## Open findings
 
-- **BR-1** [Important] `acceptance-boundary-coverage` Required detach-before-first-turn acceptance sequence is untested
-- **BR-2** [Minor] `lifecycle-documentation-fidelity` Watcher lifetime claims omit continued Codex lifecycle observation
+- **BR-3** [Important] `acceptance-boundary-coverage` Acceptance regression races final relaunch authorization

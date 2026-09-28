@@ -203,12 +203,24 @@ func TestDetachBeforeFirstTurnAuthorizesRelaunch(t *testing.T) {
 				t.Fatalf("binding lacks native authority: %+v", binding)
 			}
 			resolver := couchcore.SessionInventoryNativeBindingResolver{Runtime: sessioninventory.NewOSRuntime(home, data)}
-			resolved, err := resolver.ResolveEstablished(context.Background(), scope, tag, agent)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := couchcore.CheckResumePreconditions(thread, resolved, true); err != nil {
-				t.Fatalf("relaunch authorization: %v", err)
+			// Binding is an intermediate publication: the watcher may still be
+			// writing inventory state. Await the final contract, not that earlier
+			// milestone, and retain the last failure if it never becomes ready.
+			var resolved couchcore.NativeBindingResolution
+			authorizationContext, cancelAuthorization := context.WithTimeout(context.Background(), 8*time.Second)
+			defer cancelAuthorization()
+			for {
+				resolved, err = resolver.ResolveEstablished(authorizationContext, scope, tag, agent)
+				if err == nil {
+					err = couchcore.CheckResumePreconditions(thread, resolved, true)
+				}
+				if err == nil {
+					break
+				}
+				if authorizationContext.Err() != nil {
+					t.Fatalf("timed out awaiting relaunch authorization: last error: %v; resolution: %+v", err, resolved)
+				}
+				time.Sleep(20 * time.Millisecond)
 			}
 			if resolved.NativeID != sid {
 				t.Fatalf("relaunch selected %q, want %q", resolved.NativeID, sid)

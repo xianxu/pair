@@ -193,3 +193,9 @@ are the "equivalents" in Done-when.
   test passed; `go test ./cmd/internal/wrapcmd ./cmd/internal/launcher
   ./cmd/internal/sessionwatch -count=1` passed all three packages (87.8 s,
   13.2 s, 1.2 s respectively). `git diff --check` passed.
+- BR-3: the shared Codex/Claude path now waits up to eight seconds for real
+  native resolution and relaunch preconditions to succeed, reporting the last
+  error and resolution on timeout. Ten race-enabled repetitions per agent
+  passed. Fresh complete wrapcmd, launcher, and sessionwatch packages passed
+  again (41.6 s, 13.2 s, 1.4 s). The pre-turn/unbound and old-ownership binding
+  failure checks remain unchanged.

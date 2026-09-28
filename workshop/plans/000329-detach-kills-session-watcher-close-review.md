@@ -67,3 +67,76 @@ findings:
     detail: |
       All instances are atlas/session-identity.md:55–56, cmd/internal/wrapcmd/wrap.go:2370–2371, and workshop/issues/000329-detach-kills-session-watcher.md:86–87. They say the watcher exits when bound, but sessionwatch/runcli.go:144 enables FollowLifecycle and sessionwatch/run.go:185–196 continues Codex observation after binding. Qualify these statements to describe the Codex exception.
 ```
+
+---
+
+## Re-review — 2026-09-28T12:27:52-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 329 — Detach kills an unbound session watcher |
+| repo | pair |
+| issue file | workshop/issues/000329-detach-kills-session-watcher.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99405e16f037ad5bbf7f05bbb4e0ed7df75261dd..189fa28f2ac0ee0e5dda0b8acb16df980117c724 |
+| command | sdlc close --issue 329 |
+| reviewer | codex |
+| timestamp | 2026-09-28T12:27:52-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The ownership change works, and both prior corrections are verified. One new issue blocks shipping: the composed acceptance test intermittently fails at final relaunch resolution. Both Codex and Claude exhibited this failure.
+
+1. **Strengths**
+   - One wrap-owned spawn site replaces both previous paths.
+   - Tests verify process-group isolation and the PID freshness bound.
+   - Restoring client-group ownership in a scratch overlay made both acceptance cases fail; production passed with race detection.
+
+2. **Critical findings:** None.
+
+3. **Important findings**
+   - `cmd/internal/wrapcmd/detach_acceptance_test.go:200–210`: the test awaits binding, then attempts authorization once. Binding publication precedes remaining watcher writes (`sessionwatch/lifecycle.go:207–219`), so it is not a completion barrier. The full suite failed for Codex with “session inventory storage root is absent”; diagnostic repetitions reproduced this for Claude. Await the final authorization condition with a bounded deadline and retain the last error. Both agent cases need this correction.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Race-enabled acceptance: passed.
+   - Ownership mutation: both agents failed as expected.
+   - Relevant package suites: first run failed as above; second passed.
+   - Repository files remained unchanged.
+
+6. **Architecture**
+   - **ARCH-DRY: pass** — consolidated spawning reuses `CommandArgs`.
+   - **ARCH-PURE: pass** — small process-boundary glue; binding logic remains separate.
+   - **ARCH-PURPOSE: flag** — intended behavior is demonstrated, but acceptance verification needs reliable completion handling.
+   - Atlas updates are present; no new user-facing syntax requires README changes.
+
+7. **Plan revision recommendation**
+   - Append a revision requiring bounded observation of final relaunch authorization for both agents, preserving the ownership mutation check.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      The composed Codex/Claude regression exercises real watcher execution, detach, post-reattach binding and relaunch authorization. Independently restoring client-group ownership in a scratch overlay made both cases fail at post-reattach binding.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      atlas/session-identity.md:55–57, wrap.go:2370–2372 and the issue's lifecycle paragraph now explicitly preserve Codex observation after binding, matching sessionwatch/runcli.go:144 and run.go:185–196.
+findings:
+  - id: new
+    severity: Important
+    family: acceptance-boundary-coverage
+    title: |
+      Acceptance regression races final relaunch authorization
+    detail: |
+      cmd/internal/wrapcmd/detach_acceptance_test.go:200–210 waits only for binding before a single resolver call. The full suite failed for Codex at line 208 with “session inventory storage root is absent”; diagnostic repetitions reproduced it for Claude against the Pair data root. Both cases share this site and exhaust the family instances in this window. This is the 2nd finding in family acceptance-boundary-coverage: apply the rule that asynchronous acceptance tests await their final contractual outcome, rather than an intermediate publication. Boundedly await successful resolution and relaunch preconditions for both agents, retaining diagnostic errors and the ownership mutation check. ARCH-PURPOSE.
+```
