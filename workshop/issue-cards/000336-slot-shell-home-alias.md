@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000336-slot-shell-home-alias.md
         source_blob: b420884b2da92f0e9e7f79a1945fadbe9ac95063
         destination: workshop/issues/000336-slot-shell-home-alias.md
+        main_commit: 83857859cb21b51d89378cf3df595eee182b5e40
 ---
 
 # Couch slot shells: home alias to checkout root
