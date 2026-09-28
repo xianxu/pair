@@ -93,6 +93,14 @@ Decisions:
   (`tests/bang-tag-nvim-test.sh`, `make test-bang-tag`).
 - [x] Operator live smoke test inside couch.
 
+## Revisions
+
+- 2026-09-28: close review requested README coverage and regression proof for
+  the existing failure contracts (BR-1/BR-2). Add documentation for the complete
+  bang syntax and boundary tests for missing, failing, and slow publishers,
+  plus failed dispatch and successful retry. Behavior and acceptance criteria
+  remain unchanged.
+
 ## Log
 
 ### 2026-09-28
