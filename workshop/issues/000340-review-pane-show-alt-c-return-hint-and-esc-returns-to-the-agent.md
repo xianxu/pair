@@ -8,6 +8,7 @@ updated: 2026-09-28
 estimate_hours:
 card_mirror: '0e09bc509411578aa6f50588394de785a997e1f0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T15:14:24-07:00
+flow: {kind: quick, provenance: inferred, spec: "e68814e2", done: "05d900cb"}
 ---
 
 # Review pane: show Alt+c return hint, and Esc returns to the agent
