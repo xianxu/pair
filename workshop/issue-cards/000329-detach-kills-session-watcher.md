@@ -1,11 +1,19 @@
 ---
 id: 000329
-status: working
+status: codecomplete
 created: 2026-09-25
 updated: 2026-09-28
 estimate_hours:
 github_issue:
 started: 2026-09-28T11:21:37-07:00
+actual_hours: 0.64
+tracker:
+    version: 1
+    completion:
+        token: close-dd2b41c7fa9a
+        repository: github.com/xianxu/pair
+        reviewed_head: df4a9496db753dd994162cbc352b3f7828a9366b
+        evidence_commit: 49658399a764c6445549ab7294cf2a415d5ae3e9
 ---
 
 # Detach kills an unbound session watcher
