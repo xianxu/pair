@@ -1,6 +1,6 @@
 ---
 id: 000339
-status: open
+status: working
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: b74c5bc1d3ab63d2524ddb1fc11163b89286960e
         destination: workshop/issues/000339-standalone-git-badges.md
         main_commit: 39db4d8e1003979424dd088948e0ab462b753261
+started: 2026-09-28T10:58:33-07:00
 ---
 
 # Show Git badges for standalone repositories
