@@ -538,7 +538,8 @@ Couch presents the thread, and the agent pane still receives it.
 `Ctrl-Space` means one thing: **open the switcher**, from any actor, focused on
 the actor with the most recent notification (or on the thread you are leaving
 when nothing is paging). There is no focus ladder and no home actor. Following a
-page through the switcher is one key plus `Enter`; `Ctrl-Return` does it in one.
+page through the normal switcher is one key plus `Enter`; `Ctrl-Return` does it in one.
+In focus view, a hidden target falls back to the first visible row.
 
 `Ctrl-Backspace` means **previous**: return to the actor you were working in.
 One slot, not a stack, and a notification hop never spends it — so chasing two
@@ -547,12 +548,20 @@ where you actually were. Returning home twice is deliberately a no-op: you are
 home, and there is nowhere to bounce to.
 
 `Ctrl-Return` means **answer the newest page**: from an actor, it lands on the
-thread `Ctrl-Space` would have opened the switcher on, with no switcher in
-between. It is the same landing as `Ctrl-Space` then `Enter`, so it counts as a
+thread `Ctrl-Space` would have selected in the normal switcher, with no switcher in
+between. This jump is independent of focus-view filtering and counts as a
 notification hop, and `Ctrl-Backspace` afterwards still brings you back to where
 you were working. Pressed again, it goes to the next page. With nothing paging it
 stays put and says so on the status row. Inside the switcher it is not claimed
 and acts as the switcher's own `Enter`.
+
+With an empty root filter, **Space** toggles the **normal view** and **focus view**.
+Focus view shows only live threads with a description, in normal-view order,
+as `name ◆ description`. Tag a thread with `! …` in its Pair draft; published
+tags take precedence over operator descriptions. An empty focus view explains
+how to tag a thread. The switcher remembers the last view used until Couch
+exits. Reopening clears search text but keeps the view. With text in the filter,
+Space is a literal search character; it does not toggle views.
 
 Printable input filters the current list from memory (typeahead). Use `↑↓` and `Enter` to
 select and switch/resume; `Tab` or `Right` opens the selected thread's actions,

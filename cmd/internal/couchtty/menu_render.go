@@ -281,6 +281,9 @@ func menuCursorIntent(frame MenuFrame, lines []string, width int) *MenuCursorInt
 
 func menuBreadcrumb(state MenuState, frame MenuFrame) string {
 	if frame.Kind == MenuFrameRoot {
+		if frame.View == MenuViewFocus {
+			return "threads › focus"
+		}
 		return "threads"
 	}
 	if frame.Kind == MenuFrameSwitchAgent {
@@ -502,7 +505,15 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		rowBudget = 1
 	}
 	if len(visible) == 0 {
-		lines = append(lines, "  (no match)")
+		empty := "  (no match)"
+		if frame.View == MenuViewFocus {
+			unfiltered := frame
+			unfiltered.Filter = ""
+			if len(visibleMenuRows(state, unfiltered)) == 0 {
+				empty = "  no tagged live threads — tag one with ! … in a pair draft"
+			}
+		}
+		lines = append(lines, empty)
 	}
 	type rootLine struct {
 		text       string
@@ -537,13 +548,16 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 		}
 		head := marker + strings.Repeat(" ", entry.Indent) + entry.Label
 		plain := clipMenuLine(head+entry.Glyph+"  "+detail, prefixWidth) + suffix
+		if frame.View == MenuViewFocus {
+			plain = clipMenuLine(head+" ◆ "+menuFocusSummary(thread), width)
+		}
 		if selectedRow {
 			plain = selectedMenuLine(plain, true, width)
 		} else if owned && view.Pending() && color256 {
 			// Greyed with the status bar's placeholder grey, so "not ready yet"
 			// looks the same in both places. Never selected: the cursor skips it.
 			plain = placeholderSGR + plain + "\x1b[0m"
-		} else if color256 {
+		} else if color256 && frame.View != MenuViewFocus {
 			outer := ""
 			if !thread.Live() {
 				outer = ageColor(AgeBandFor(now, thread.LastActiveAt))
