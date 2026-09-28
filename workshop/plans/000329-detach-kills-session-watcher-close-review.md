@@ -140,3 +140,63 @@ findings:
     detail: |
       cmd/internal/wrapcmd/detach_acceptance_test.go:200–210 waits only for binding before a single resolver call. The full suite failed for Codex at line 208 with “session inventory storage root is absent”; diagnostic repetitions reproduced it for Claude against the Pair data root. Both cases share this site and exhaust the family instances in this window. This is the 2nd finding in family acceptance-boundary-coverage: apply the rule that asynchronous acceptance tests await their final contractual outcome, rather than an intermediate publication. Boundedly await successful resolution and relaunch preconditions for both agents, retaining diagnostic errors and the ownership mutation check. ARCH-PURPOSE.
 ```
+
+---
+
+## Re-review — 2026-09-28T12:37:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 329 — Detach kills an unbound session watcher |
+| repo | pair |
+| issue file | workshop/issues/000329-detach-kills-session-watcher.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 99405e16f037ad5bbf7f05bbb4e0ed7df75261dd..df4a9496db753dd994162cbc352b3f7828a9366b |
+| command | sdlc close --issue 329 |
+| reviewer | codex |
+| timestamp | 2026-09-28T12:37:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned change fulfills the issue’s watcher-ownership contract. BR-3 is addressed: both agents await final relaunch authorization with bounded diagnostics. Independently removing that correction reproduced the reported failure for both Codex and Claude.
+
+1. **Strengths**
+   - One wrap-owned watcher spawn replaces the launcher and fresh-restart paths.
+   - Tests verify process-group isolation, launch identity, and PID freshness.
+   - Composed acceptance tests exercise detach before the first turn through successful relaunch authorization.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Full wrapcmd, launcher, and sessionwatch suites passed.
+   - Race-enabled acceptance passed ten repetitions per agent.
+   - A temporary overlay restoring the pre-BR-3 test failed for both agents with “session inventory storage root is absent.”
+   - Diff whitespace checks passed; repository files remained unchanged.
+   - Acceptance uses native fixtures and simulated terminal attachment, not interactive Zellij.
+
+6. **Architecture**
+   - **ARCH-DRY: pass** — consolidated spawning reuses `sessionwatch.CommandArgs`.
+   - **ARCH-PURE: pass** — process glue stays small; binding logic remains separate.
+   - **ARCH-PURPOSE: pass** — both required agents reach final authorization after detach.
+   - Atlas updates cover ownership and lifecycle. No new user-facing syntax requires README changes.
+
+7. **Plan revision recommendations:** None; the existing revision covers BR-3.
+
+```findings
+dispose:
+  - id: BR-3
+    disposition: addressed
+    note: |
+      cmd/internal/wrapcmd/detach_acceptance_test.go:205–228 boundedly retries resolution and relaunch preconditions for both agents, retaining failure diagnostics. Ten race-enabled repetitions per agent passed; restoring the previous test in a scratch overlay reproduced the storage-root failure for both Codex and Claude.
+```

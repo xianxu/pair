@@ -42,6 +42,16 @@ rounds:
           round: 2
       recipe: small-diff-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-28T12:37:38-07:00"
+      agent: codex
+      dispose:
+        - id: BR-3
+          disposition: addressed
+          note: cmd/internal/wrapcmd/detach_acceptance_test.go:205–228 boundedly retries resolution and relaunch preconditions for both agents, retaining failure diagnostics. Ten race-enabled repetitions per agent passed; restoring the previous test in a scratch overlay reproduced the storage-root failure for both Codex and Claude.
+          round: 3
+      recipe: small-diff-review
+      blocked: false
 ---
 
 # Gate ledger — pair#329 (boundary-review)
@@ -70,6 +80,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-3** [Important] `acceptance-boundary-coverage` Acceptance regression races final relaunch authorization
   cmd/internal/wrapcmd/detach_acceptance_test.go:200–210 waits only for binding before a single resolver call. The full suite failed for Codex at line 208 with “session inventory storage root is absent”; diagnostic repetitions reproduced it for Claude against the Pair data root. Both cases share this site and exhaust the family instances in this window. This is the 2nd finding in family acceptance-boundary-coverage: apply the rule that asynchronous acceptance tests await their final contractual outcome, rather than an intermediate publication. Boundedly await successful resolution and relaunch preconditions for both agents, retaining diagnostic errors and the ownership mutation check. ARCH-PURPOSE.
 
+## Round 3 — 2026-09-28T12:37:38-07:00 (codex) — passed
+
+### Disposed
+
+- BR-3 — addressed — cmd/internal/wrapcmd/detach_acceptance_test.go:205–228 boundedly retries resolution and relaunch preconditions for both agents, retaining failure diagnostics. Ten race-enabled repetitions per agent passed; restoring the previous test in a scratch overlay reproduced the storage-root failure for both Codex and Claude.
+
 ## Open findings
 
-- **BR-3** [Important] `acceptance-boundary-coverage` Acceptance regression races final relaunch authorization
+(none — every finding has been disposed)

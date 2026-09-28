@@ -140,6 +140,7 @@ are the "equivalents" in Done-when.
   different cause that leads to the same message.
 
 ### 2026-09-28
+- 2026-09-28: closed — Operator live pair:3 smoke passed. Composed Codex/Claude detach-before-first-turn test awaits final native resolution and relaunch authorization; ten race-enabled repetitions per agent passed. Old-ownership mutation fails post-reattach binding in both cases. Fresh complete wrapcmd, launcher and sessionwatch packages passed. Lifecycle documentation corrected.; review verdict: SHIP
 
 - Chose "run the watcher from `pair wrap`" over resolve-on-demand/restart-on-attach
   (see Spec › Decision). wrap is the only process holding the ordinal, the agent
