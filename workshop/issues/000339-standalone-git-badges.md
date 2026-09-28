@@ -47,7 +47,7 @@ Git probe and glyph projection (ARCH-DRY).
 - [x] Add failing standalone probe, badge-state, and idle-refresh tests.
 - [x] Include scope-proven standalone roots in the existing poller and render
   their primary-checkout glyphs; retain deduplication and slot behavior.
-- [ ] Update README and atlas, run focused and Couch package tests, and close
+- [x] Update README and atlas, run focused and Couch package tests, and close
   through the mandatory SDLC review.
 
 
@@ -71,3 +71,8 @@ Git probe and glyph projection (ARCH-DRY).
 - Implementation: standalone roots now enter the shared probe set and use the
   primary glyph projection. Tests failed first for absent probes and glyphs,
   then passed with the patch; focused race checks and `make bin/couch` passed.
+
+- Verification: full couchtty (9.632s) and couchcmd (44.285s) suites passed.
+  The expanded couchcore run was interrupted with SIGQUIT after 327s without
+  completion; it is not counted as a passing suite. The focused core glyph/
+  parser/probe checks are run separately. No couchcore code changed.
