@@ -54,6 +54,7 @@ Git probe and glyph projection (ARCH-DRY).
 ## Log
 
 ### 2026-09-28
+- 2026-09-28: closed — Standalone probe, both-view glyph, and idle repaint regressions failed before the fix and pass after it; focused couchtty tests pass with -race; full couchtty and couchcmd suites pass; focused core glyph/parser/probe tests pass; make bin/couch and git diff --check pass. Expanded couchcore suite interrupted after 327s without completion and is not claimed passing; no core code changed.; review verdict: SHIP
 
 - Operator requested this ticket after confirming the slot-only restriction.
   Live Ducks observation: `main`, clean, upstream `origin/main`, one commit ahead.
