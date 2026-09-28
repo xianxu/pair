@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000340-review-pane-show-alt-c-return-hint-and-esc-returns-to-the-agent.md
         source_blob: af29beb5d5b38ffd3d7cb4d86cf9bc7e67578192
         destination: workshop/issues/000340-review-pane-show-alt-c-return-hint-and-esc-returns-to-the-agent.md
+        main_commit: b2beefeacd8ca2b73e51a46b44ed87d86117ad54
 ---
 
 # Review pane: show Alt+c return hint, and Esc returns to the agent
