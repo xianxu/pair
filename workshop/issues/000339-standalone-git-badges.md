@@ -1,12 +1,14 @@
 ---
 id: 000339
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
-card_mirror: '217c1cfee2e48e42f66588bb18f99326c900120e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6c903c86db7489c3c095566d4ccb34a6ea8a3198' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T10:58:33-07:00
+flow: {kind: quick, provenance: inferred, spec: "8bda6f32", done: "b3fe3e93"}
 ---
 
 # Show Git badges for standalone repositories
@@ -42,11 +44,36 @@ Git probe and glyph projection (ARCH-DRY).
 
 ## Plan
 
+- [x] Add failing standalone probe, badge-state, and idle-refresh tests.
+- [x] Include scope-proven standalone roots in the existing poller and render
+  their primary-checkout glyphs; retain deduplication and slot behavior.
+- [x] Update README and atlas, run focused and Couch package tests, and close
+  through the mandatory SDLC review.
+
 
 ## Log
 
 ### 2026-09-28
+- 2026-09-28: closed — Standalone probe, both-view glyph, and idle repaint regressions failed before the fix and pass after it; focused couchtty tests pass with -race; full couchtty and couchcmd suites pass; focused core glyph/parser/probe tests pass; make bin/couch and git diff --check pass. Expanded couchcore suite interrupted after 327s without completion and is not claimed passing; no core code changed.; review verdict: SHIP
 
 - Operator requested this ticket after confirming the slot-only restriction.
   Live Ducks observation: `main`, clean, upstream `origin/main`, one commit ahead.
   Filed for future implementation; no behavior changes made.
+
+- Implementation: standalone roots now enter the shared probe set and use the
+  primary glyph projection. Tests failed first for absent probes and glyphs,
+  then passed with the patch; focused race checks and `make bin/couch` passed.
+
+- Verification: full couchtty (9.632s) and couchcmd (44.285s) suites passed.
+  The expanded couchcore run was interrupted with SIGQUIT after 327s without
+  completion; it is not counted as a passing suite. The focused core glyph/
+  parser/probe checks are run separately. No couchcore code changed.
+
+## Revisions
+
+### 2026-09-28 — implementation planning
+
+- Operator authorized implementation. Reuse presentationRoot for standalone
+  probe identity and SlotGlyph for all badge semantics (ARCH-DRY, ARCH-PURE).
+  Keep the existing serialized, timed background probes and refresh lifecycle;
+  add no new persistent state or external interface.

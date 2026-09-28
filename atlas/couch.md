@@ -72,9 +72,9 @@ Key files: `couchtty/thread_presentation.go`, `console_presentation.go`,
 `menu_reattach.go`, `menu_render.go`, and `reserve.go`. Rendered examples are in
 `couchtty/testdata/slots_grouped_*.txt`.
 
-### Slot quick-status glyph (#317)
+### Checkout quick-status glyph (#317, #339)
 
-Each checkout in a slot group, `:0` included, carries a glyph after its label in
+Each checkout, including standalone repositories and `:0`, carries a glyph after its label in
 both the switcher and the tabs, built from two independent parts
 (`couchcore.SlotGlyph`, #319). The branch part is `` (U+E0A0) off its resting
 branch (`main` / `main-slotN`, from `couchcore.RestingBranch`), or, on it,
@@ -90,10 +90,13 @@ The data is one `git --no-optional-locks status --porcelain=v2 --branch` per
 checkout (`couchcore.ProbeSlotGit` / `ParseSlotGitStatus`). `Console.Run` owns a
 single-flight refresh (`console_slotgit.go`, reusing `RefreshSchedule`): a 10s
 ticker, every landed inventory (so opening the switcher), and every switch
-request a pass. A worker probes the inventory's slot checkouts one at a time,
+request a pass. A worker probes the inventory's checkouts one at a time,
 3s each, outside `c.mu`; `MenuEventSlotGit` rebuilds the map over the probe set,
 keeping the last value for a failed probe. Render and keystroke paths only read
-the map. A glyph can be stale; a git failure never reaches chrome.
+the map. A glyph can be stale; a git failure never reaches chrome. Standalone
+roots are recovered from the immutable starting path and repository scope via
+`presentationRoot`, not the child's current working directory. They use `main`
+as their resting branch, just like a slot group's primary checkout.
 
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not a metadata or display authority. The one-time journal import

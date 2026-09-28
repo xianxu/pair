@@ -107,9 +107,9 @@ func PresentThreads(rows []couchcore.ActionableThreadSummary, git map[string]cou
 				if p.Path == "" {
 					p.Path = "(path unavailable)"
 				}
-				// The primary checkout is :0 of a slot group; an ordinary repo
-				// without slots has no resting branch and so no glyph.
-				if g.hasSlots && p.Path == g.root {
+				// Primary and standalone checkouts share the main resting branch.
+				// Only a scope-proven root can supply their observation.
+				if g.root != "" && p.Path == g.root {
 					p.Glyph = slotGlyphAt(git, p.Path, 0)
 				}
 				ordinary = append(ordinary, couchcore.LabelRow{Address: p.Row.Address, Label: p.Label})

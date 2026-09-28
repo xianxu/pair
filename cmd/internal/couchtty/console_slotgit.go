@@ -117,16 +117,22 @@ func (c *Console) finishSlotGit(result slotGitResult) {
 	}
 }
 
-// slotGitProbePaths is the pass's probe set: every checkout of a slot group,
-// the primary (:0) included, once each and in a stable order.
+// slotGitProbePaths includes standalone roots and every checkout of a slot
+// group, including its primary (:0), once each and in a stable order.
 func slotGitProbePaths(rows []couchcore.ActionableThreadSummary) []string {
 	seen := map[string]bool{}
 	var paths []string
 	for _, row := range rows {
-		if row.Target.Kind != couchcore.ThreadTargetSlot || row.Target.Validate() != nil {
-			continue
+		var candidates []string
+		if row.Target.Kind == couchcore.ThreadTargetSlot {
+			if row.Target.Validate() != nil {
+				continue
+			}
+			candidates = []string{row.Target.Slot.WorktreeRoot, row.Target.Slot.PrimaryRoot}
+		} else if root := presentationRoot(row.StartingPath, row.Address.RepoScope); root != "" {
+			candidates = []string{root}
 		}
-		for _, path := range []string{row.Target.Slot.WorktreeRoot, row.Target.Slot.PrimaryRoot} {
+		for _, path := range candidates {
 			if !seen[path] {
 				seen[path] = true
 				paths = append(paths, path)
