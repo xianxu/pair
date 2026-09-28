@@ -8,6 +8,7 @@ updated: 2026-09-28
 estimate_hours:
 card_mirror: 'cc44e2f2b938d514b2abdc7fe1fad0810eb5e664' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T10:31:09-07:00
+flow: {kind: quick, provenance: inferred, spec: "de93869c", done: "63bd5b23"}
 ---
 
 # Draft bang line tags the couch thread description
