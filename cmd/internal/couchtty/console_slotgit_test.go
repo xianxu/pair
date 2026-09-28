@@ -246,3 +246,34 @@ func TestSlotGitProbePaths(t *testing.T) {
 		t.Fatalf("paths = %q, want %q", got, want)
 	}
 }
+
+func TestStandaloneGitProbePaths(t *testing.T) {
+	row := groupedRow("/workspace/ducks", 0, "ducks")
+	nested := row
+	nested.StartingPath += "/subdir"
+	nested.WorkingPath = "/workspace/elsewhere"
+	unknown := row
+	unknown.Address.RepoScope = "unknown"
+	unknown.StartingPath = "/unproven"
+	got := slotGitProbePaths([]couchcore.ActionableThreadSummary{row, nested, row, unknown})
+	if !reflect.DeepEqual(got, []string{"/workspace/ducks"}) {
+		t.Fatalf("paths=%q", got)
+	}
+}
+
+func TestStandaloneGitRefreshPaintsIdleChild(t *testing.T) {
+	row := groupedRow("/workspace/ducks", 0, "ducks")
+	f := newFixtureBeforeRun(t, 24, 100, func(c *Console) {
+		c.slotGitInterval = 20 * time.Millisecond
+		p := c.panes[c.order[0]]
+		p.thread, p.tree, p.label = row.Address, couchcore.Worktree(row.StartingPath), "ducks"
+	})
+	f.con.SetActionableProvider(func(context.Context, []couchcore.LiveTTYObservation) ([]couchcore.ActionableThreadSummary, error) {
+		return []couchcore.ActionableThreadSummary{row}, nil
+	})
+	probe := newFakeSlotGitProbe(func(_ string, call int) (couchcore.SlotGitStatus, error) {
+		return couchcore.SlotGitStatus{Branch: "main", HasUpstream: true, Ahead: 1, Dirty: call >= 2}, nil
+	})
+	f.con.SetSlotGitProbe(probe.probe)
+	waitFor(t, "standalone refresh paints idle tabs", func() bool { return strings.Contains(f.screenText(), "+*") })
+}

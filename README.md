@@ -439,7 +439,8 @@ tabs show attached threads and pending reattachments. Narrow terminals clip the
 right end of the bar, keeping each visible slot after its repo context. Custom
 names remain searchable and appear beside grouped workspace rows.
 
-Each checkout in a slot group shows quick-status glyphs after its name, in both
+Each repository checkout, including standalone repositories without slots, shows
+quick-status glyphs after its name, in both
 the switcher and the tabs (`pair:1*`, `:2±`, `pair+*`). The first glyph says
 where the checkout is; a `*` follows whenever its working tree is dirty:
 

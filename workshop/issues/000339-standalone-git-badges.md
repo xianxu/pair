@@ -44,8 +44,8 @@ Git probe and glyph projection (ARCH-DRY).
 
 ## Plan
 
-- [ ] Add failing standalone probe, badge-state, and idle-refresh tests.
-- [ ] Include scope-proven standalone roots in the existing poller and render
+- [x] Add failing standalone probe, badge-state, and idle-refresh tests.
+- [x] Include scope-proven standalone roots in the existing poller and render
   their primary-checkout glyphs; retain deduplication and slot behavior.
 - [ ] Update README and atlas, run focused and Couch package tests, and close
   through the mandatory SDLC review.
@@ -67,3 +67,7 @@ Git probe and glyph projection (ARCH-DRY).
   probe identity and SlotGlyph for all badge semantics (ARCH-DRY, ARCH-PURE).
   Keep the existing serialized, timed background probes and refresh lifecycle;
   add no new persistent state or external interface.
+
+- Implementation: standalone roots now enter the shared probe set and use the
+  primary glyph projection. Tests failed first for absent probes and glyphs,
+  then passed with the patch; focused race checks and `make bin/couch` passed.

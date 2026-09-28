@@ -8,6 +8,8 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/ansi"
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/hostty"
+	"github.com/xianxu/pair/cmd/internal/ptychild"
 	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
@@ -33,8 +35,8 @@ func TestPresentThreadsSlotGlyphScope(t *testing.T) {
 		one.Address: "*",
 		// No observation, no guess.
 		two.Address: "",
-		// An ordinary repo without slots has no resting branch.
-		loner.Address: "",
+		// Standalone repositories use the primary resting branch too.
+		loner.Address: "*",
 	}
 	if !reflect.DeepEqual(glyphs, want) {
 		t.Fatalf("glyphs = %q, want %q", glyphs, want)
@@ -122,5 +124,38 @@ func TestSlotGlyphColoursInBothViews(t *testing.T) {
 	}
 	if plain := RenderMenu(state, 100, 16, time.Unix(1800000000, 0), false); strings.Contains(plain, attentionSGR) {
 		t.Fatal("switcher coloured the glyph without 256-colour support")
+	}
+}
+
+func TestStandaloneGitBadgesInBothViews(t *testing.T) {
+	row := groupedRow("/workspace/ducks", 0, "ducks")
+	for _, tc := range []struct {
+		name   string
+		status couchcore.SlotGitStatus
+		glyph  string
+	}{
+		{"ahead", couchcore.SlotGitStatus{Branch: "main", HasUpstream: true, Ahead: 1}, "+"},
+		{"behind", couchcore.SlotGitStatus{Branch: "main", HasUpstream: true, Behind: 1}, "-"},
+		{"diverged dirty", couchcore.SlotGitStatus{Branch: "main", HasUpstream: true, Ahead: 1, Behind: 1, Dirty: true}, "±*"},
+		{"issue dirty", couchcore.SlotGitStatus{Branch: "feature", Dirty: true}, "\ue0a0*"},
+		{"clean", couchcore.SlotGitStatus{Branch: "main", HasUpstream: true}, ""},
+		{"no upstream", couchcore.SlotGitStatus{Branch: "main", Ahead: 1}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			con := New(hostty.NewFakeHost(ptychild.Size{Rows: 24, Cols: 100}), strings.NewReader(""))
+			con.menu = NewMenuState([]couchcore.ActionableThreadSummary{row}, row.Address)
+			con.menu.SlotGit = map[string]couchcore.SlotGitStatus{row.StartingPath: tc.status}
+			con.order = []string{"ducks"}
+			con.panes = map[string]*pane{"ducks": {thread: row.Address, tree: couchcore.Worktree(row.StartingPath), label: "ducks"}}
+			model := con.statusModelLocked()
+			if len(model.Actors) != 1 || model.Actors[0].Glyph != tc.glyph {
+				t.Fatalf("actors=%+v want glyph %q", model.Actors, tc.glyph)
+			}
+			for _, view := range []string{RenderMenu(con.menu, 100, 16, time.Now(), false), RenderStatusRow(100, model).Body} {
+				if !strings.Contains(string(ansi.Strip([]byte(view))), "ducks"+tc.glyph) {
+					t.Fatalf("missing badge in %q", view)
+				}
+			}
+		})
 	}
 }
