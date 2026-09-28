@@ -8,6 +8,7 @@ updated: 2026-09-28
 estimate_hours:
 card_mirror: '6f2f8f0c6f1ae23dba55b5830b53383528d79151' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T13:44:11-07:00
+flow: {kind: quick, provenance: inferred, spec: "f04ec6d5", done: "91674aef"}
 ---
 
 # Couch switcher space toggles a focus view of tagged live threads
