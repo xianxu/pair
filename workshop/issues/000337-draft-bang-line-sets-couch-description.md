@@ -85,12 +85,13 @@ Decisions:
 
 - [x] Find where the draft submit path runs, and confirm the draft process
   inherits `COUCH_THREAD_SCOPE`/`COUCH_THREAD_TAG`.
-- [ ] Add a pure parser, draft to (payload, description), with unit tests for
+- [x] Add a pure parser, draft to (payload, description), with unit tests for
   the edge cases (`nvim/bang_tag.lua`, run by `make test-lua`).
-- [ ] Wire the parser into submit. Call the description writer asynchronously
+- [x] Wire the parser into submit. Call the description writer asynchronously
   and without failing the send; stay a no-op outside couch.
-- [ ] Add an integration test that uses a fake couch description sink, then ask
-  the operator to run a live smoke test.
+- [x] Add an integration test that uses a fake couch description sink
+  (`tests/bang-tag-nvim-test.sh`, `make test-bang-tag`).
+- [ ] Operator live smoke test inside couch.
 
 ## Log
 
@@ -103,3 +104,5 @@ Decisions:
   - A bare `!` returns false: nothing is sent or logged, and the draft stays as typed.
   - Growth (ARCH): this writes one existing couch description sidecar per thread and overwrites it on each tag. It creates no new durable family.
   - Integration test: a stub `couch` executable on PATH records its argv, so the real `jobstart` command is exercised with no test seam in production code.
+- Implemented: `nvim/bang_tag.lua` (pure parse), wired in `_G.submit_operator_text` inside a `do` block, because `init.lua`'s main chunk is at Lua's 200-local limit (a new top-level local fails to load with "more than 200 local variables"). The real `couch` accepts the argv: with a throwaway store it got as far as the thread lookup.
+- Side quests: main was red from #333. `artifactpath` coverage failed because `couchcmd/shortcut_focus.go` was never classified, and `workbench_route_test` still expected Alt+n unscoped. Fixed both in separate commits. Also recorded #338's revised spec (the switcher remembers the last view) on this branch.
