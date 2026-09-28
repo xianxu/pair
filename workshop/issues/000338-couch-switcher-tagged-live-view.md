@@ -50,18 +50,14 @@ Interaction:
 - When nothing is tagged, the focus view shows a one-line placeholder
   (e.g. "no tagged live threads — tag one with `! …` in a pair draft"), not an
   empty box.
-- The switcher reopens in the view it was last left in. If the operator
-  switched to the focus view and jumped to a thread from it, the next
-  `ctrl+space` opens the focus view again. The last view is couch console
-  state held in memory for the life of the couch process; it is not persisted.
+- The switcher always opens in the normal view. It does not remember the last
+  view used.
 
 ## Done when
 
 - With an empty filter, pressing space in the switcher shows only live threads
   with a non-empty description. The rows are in the normal view's order and
   read `name ◆ description`. Pressing space again returns to the normal view.
-- After leaving the switcher from the focus view, the next `ctrl+space` opens
-  the focus view; after leaving from the normal view, it opens the normal view.
 - With a non-empty filter, space is added to the filter as before.
 - Return on a tagged-view row switches to that thread.
 - Tests at the menu reducer and render boundary cover: switching views, the
@@ -79,12 +75,6 @@ Interaction:
   the `name ◆ description` render with truncation.
 - [ ] Add reducer and render tests, then ask the operator to run a live smoke
   test.
-
-## Revisions
-
-- 2026-09-28: the operator changed the starting view. The switcher now reopens in
-  the last view used, instead of always opening in the normal view. Spec and
-  Done when updated to match.
 
 ## Log
 

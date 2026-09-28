@@ -106,6 +106,12 @@ Decisions:
 
 ## Log
 
+- Landing note: `sdlc pr` refused the bundled #338 edit because its details were
+  already handed off to main. Restored that file to main for this PR. Preserve
+  the operator's #338 decision when that work starts: the switcher reopens in
+  the last view used (focus or normal), kept in memory for the Couch process
+  lifetime, without persistence. The original edit is commit `0d973f84`.
+
 ### 2026-09-28 — close review fixes
 - 2026-09-28: closed — Live operator smoke and persisted CLI description confirmed. Fresh make test-bang-tag test-submission-transaction passed six bang scenarios and send failure matrix; missing, nonzero, blocked publisher and failed-send retry covered. Three guard mutations killed. README documents full syntax. Prior Lua and targeted Couch race tests passed; unrelated broad-suite limitations remain recorded in Log.; review verdict: SHIP
 
