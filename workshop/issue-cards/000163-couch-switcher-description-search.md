@@ -1,0 +1,23 @@
+---
+id: 000163
+status: open
+created: 2026-09-01
+updated: 2026-09-01
+estimate_hours:
+github_issue:
+---
+
+# Match and show actor descriptions in Couch switcher
+
+## Problem
+
+**Blocked on `pair#173`: the description has no source today.** Nothing outside
+couch's own package calls `publish-description`, so every description is empty
+or hand-typed, and this issue as written would ship a typeahead over empty
+strings. #173 wires `pair-slug`'s turn-end output into the sidecar and takes the
+status-row display; this issue keeps the switcher half.
+
+Couch's switcher typeahead does not search an actor's assigned description, so
+users cannot find an actor using the descriptive context they gave it. The
+switcher also omits that description when it is the reason a result matched,
+making the match difficult to understand.
