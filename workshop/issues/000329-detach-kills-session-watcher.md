@@ -114,7 +114,7 @@ are the "equivalents" in Done-when.
       mtime. The real `startWatcherProcess` child gets its own session, so a
       group kill of the spawner misses it: this is the detach regression.
       The fresh path spawns no watcher of its own.
-- [ ] `TMPDIR=<scratchpad> make test`; ask the operator for a live smoke
+- [x] `TMPDIR=<scratchpad> make test`; ask the operator for a live smoke
       (detach before the first turn → reattach → one turn → alt+n).
 
 ## Log
@@ -145,3 +145,14 @@ are the "equivalents" in Done-when.
   `git archive main`, introduced by #333 (`91863e53`), not by this branch.
   `wrapcmd` `TestNotificationBrokerBeforeExecAndCleanup` failed once under
   full-suite load, then passed 8/8 alone and in two full-package runs.
+- Operator smoke on pair:3: started a new thread, completed several rounds,
+  detached, reattached, and successfully relaunched it. This confirms the live
+  detach/reattach/relaunch sequence after turns; detach before the first turn
+  was not part of this operator run. The process-group and spawn-boundary
+  regression tests cover the watcher ownership mechanism. The final plan row
+  records the suite attempt (limitations above) and completed smoke, not a
+  claim that the broad suite passed.
+- Fresh watcher spawn, process-group isolation, and replacement-wrap handoff
+  tests passed under `go test -race ./cmd/internal/wrapcmd -run
+  'Test(WrapSpawnsOneWatcherForItsLaunch|StartWatcherProcessEscapesTheSpawnersProcessGroup|FreshAgentInvocationHandsTheWatcherToTheReplacementWrap)'
+  -count=1`. Full wrapcmd and launcher package tests are running.
