@@ -94,5 +94,7 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
   They found Alt+c by guessing.
 - Added: Alt+n / Alt+Shift+N → `]m` / `[m` in the review buffer. Operator's
   choice; the Alt+Shift+N override of the global agent restart is noted in Spec.
+  Operator confirmed: while the review pane has focus, Alt+Shift+N means `[m`
+  (previous marker). Everywhere else it keeps the agent restart.
 - Added: document Alt+a / Alt+r (and the rest of the review keys). The
   operator had forgotten those too.
