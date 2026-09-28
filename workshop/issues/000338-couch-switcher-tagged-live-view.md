@@ -112,6 +112,7 @@ Implementation design:
 ## Log
 
 ### 2026-09-28
+- 2026-09-28: closed — Operator live smoke passed. Fresh full couchtty suite passed. Twenty race-enabled focus reducer/render and real-console refresh/reopen repetitions passed. Literal Space tests enumerate normal/focus with unchanged mode and no effects; broken normal-view guard mutation rejected. README checks and build passed; production unchanged since smoke.; review verdict: SHIP
 - Operator confirmed the design: the views are named "normal view" and "focus view"; space toggles both ways when the filter is empty; the focus view is a pure filter on the normal view's order; there is an empty-view placeholder; the switcher always opens in the normal view.
 - Started work after #337/#329 landed. The last-view decision above supersedes
   the initial always-normal entry. #173 is still open, but this view can consume
