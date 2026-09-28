@@ -1,6 +1,6 @@
 ---
 id: 000260
-status: codecomplete
+status: done
 created: 2026-09-15
 updated: 2026-09-28
 estimate_hours:
@@ -14,6 +14,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 98255d69330b31e233fbfd6eda9e6c884254605e
         evidence_commit: 9ab230a018170b5dea0a711497191496eaf55804
+        landed_commit: 6c303f2aee2f12b96951605f6c46b068d8fbf08d
 ---
 
 # Investigate Ctrl+Return notification-tab regression
