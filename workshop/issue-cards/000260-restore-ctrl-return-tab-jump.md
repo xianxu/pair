@@ -1,10 +1,11 @@
 ---
 id: 000260
-status: open
+status: working
 created: 2026-09-15
-updated: 2026-09-15
+updated: 2026-09-28
 estimate_hours:
 github_issue:
+started: 2026-09-28T09:47:22-07:00
 ---
 
 # Investigate Ctrl+Return notification-tab regression
