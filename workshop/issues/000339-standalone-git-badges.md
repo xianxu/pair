@@ -1,12 +1,14 @@
 ---
 id: 000339
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
-card_mirror: '217c1cfee2e48e42f66588bb18f99326c900120e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '6c903c86db7489c3c095566d4ccb34a6ea8a3198' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T10:58:33-07:00
+flow: {kind: quick, provenance: inferred, spec: "8bda6f32", done: "b3fe3e93"}
 ---
 
 # Show Git badges for standalone repositories
@@ -42,6 +44,12 @@ Git probe and glyph projection (ARCH-DRY).
 
 ## Plan
 
+- [ ] Add failing standalone probe, badge-state, and idle-refresh tests.
+- [ ] Include scope-proven standalone roots in the existing poller and render
+  their primary-checkout glyphs; retain deduplication and slot behavior.
+- [ ] Update README and atlas, run focused and Couch package tests, and close
+  through the mandatory SDLC review.
+
 
 ## Log
 
@@ -50,3 +58,12 @@ Git probe and glyph projection (ARCH-DRY).
 - Operator requested this ticket after confirming the slot-only restriction.
   Live Ducks observation: `main`, clean, upstream `origin/main`, one commit ahead.
   Filed for future implementation; no behavior changes made.
+
+## Revisions
+
+### 2026-09-28 — implementation planning
+
+- Operator authorized implementation. Reuse presentationRoot for standalone
+  probe identity and SlotGlyph for all badge semantics (ARCH-DRY, ARCH-PURE).
+  Keep the existing serialized, timed background probes and refresh lifecycle;
+  add no new persistent state or external interface.
