@@ -367,7 +367,7 @@ func TestOrientationChildEnvironmentAndReadinessStatus(t *testing.T) {
 	if record.Nonce != "attempt" || record.Tag != "work" || record.Agent != "claude" || record.Session != "pair-work" || record.Orientation == nil || record.Orientation.Phase != orientation.DeliveryCancelled {
 		t.Fatalf("ready %#v", record)
 	}
-	next, err := freshAgentInvocation("/pair", "", []string{"claude"}, []string{orientation.Env + "=" + string(raw)}, time.Now())
+	next, err := freshAgentInvocation("/pair", "", []string{"claude"}, []string{orientation.Env + "=" + string(raw)})
 	if err != nil {
 		t.Fatal(err)
 	}

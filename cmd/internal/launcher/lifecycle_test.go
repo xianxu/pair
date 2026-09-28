@@ -67,9 +67,6 @@ func TestRunLaunchAttach(t *testing.T) {
 	if rt.launched != "" || rt.launchCount != 0 {
 		t.Fatalf("attach must not create: launched=%q count=%d", rt.launched, rt.launchCount)
 	}
-	if len(rt.watchers) != 0 {
-		t.Fatalf("attach must not spawn a session watcher: %v", rt.watchers)
-	}
 	if _, ok := rt.env[AgentCommandEnv]; ok {
 		t.Fatalf("attach exported create args: %q", launchArgsText(t, rt.env))
 	}

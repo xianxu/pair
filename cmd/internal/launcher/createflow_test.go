@@ -136,7 +136,6 @@ type fakeRuntime struct {
 	livenessHook       func(n int)      // runs on the n-th probe after a launch started, before it answers
 	launchProbed       chan struct{}    // signalled, never blocking, per probe after a launch started
 	defaultReads       int
-	watchers           []string            // "agent|tag|cwd|args"
 	pollers            []string            // "tag|agent"
 	pollerEnvs         []map[string]string // the environment each title poller started with
 	cmux               []string            // "tag|title"
@@ -356,9 +355,6 @@ func (f *fakeRuntime) ProbeLiveLayout(session string) (LayoutMode, error) {
 }
 
 // ProcOps
-func (f *fakeRuntime) SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, agentArgs []string) {
-	f.watchers = append(f.watchers, fmt.Sprintf("%s|%s|%s|%s|%s|%s|%d|%s", agent, tag, scopeKey, cwd, repoRoot, repoName, launchOrdinal, strings.Join(agentArgs, " ")))
-}
 func (f *fakeRuntime) SpawnTitlePoller(tag, agent, session string, env titlepoller.SessionEnv) {
 	f.mu.Lock()
 	f.filesAtPollerSpawn = append(f.filesAtPollerSpawn, maps.Clone(f.files))
@@ -530,8 +526,8 @@ func TestRequiredNativeResumeBindingAtLaunch(t *testing.T) {
 			if err != nil || code != 1 {
 				t.Fatalf("RunLaunch = %d, %v", code, err)
 			}
-			if rt.launchCount != 0 || len(rt.preparedLaunches) != 0 || len(rt.watchers) != 0 || len(rt.ledger["work"]) != 0 || rt.defaultReads != 0 {
-				t.Fatalf("refusal effects: launches=%d prepared=%v watchers=%v ledger=%v defaultReads=%d", rt.launchCount, rt.preparedLaunches, rt.watchers, rt.ledger["work"], rt.defaultReads)
+			if rt.launchCount != 0 || len(rt.preparedLaunches) != 0 || len(rt.ledger["work"]) != 0 || rt.defaultReads != 0 {
+				t.Fatalf("refusal effects: launches=%d prepared=%v ledger=%v defaultReads=%d", rt.launchCount, rt.preparedLaunches, rt.ledger["work"], rt.defaultReads)
 			}
 		})
 	}
@@ -874,8 +870,9 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if len(ledger) != 1 || ledger[0].Agent != "claude" || ledger[0].SessionID != "MINTED-1" {
 		t.Fatalf("ledger = %+v, want claude/MINTED-1", ledger)
 	}
-	if got := rt.watchers; len(got) != 1 || !strings.HasPrefix(got[0], "claude|bugfix|") || !strings.Contains(got[0], "|1|") {
-		t.Fatalf("watchers = %v", got)
+	// pair wrap spawns the session watcher from this launch contract (#329).
+	if rt.env["PAIR_LAUNCH_ORDINAL"] != "1" || rt.env["PAIR_SCOPE_KEY"] == "" {
+		t.Fatalf("watcher launch contract: ordinal=%q scope=%q", rt.env["PAIR_LAUNCH_ORDINAL"], rt.env["PAIR_SCOPE_KEY"])
 	}
 	if len(rt.pollers) != 1 || rt.pollers[0] != "bugfix|claude" {
 		t.Fatalf("pollers = %v", rt.pollers)
@@ -932,8 +929,8 @@ func TestRunLaunchAbortsBeforeHandoffWhenNativeLaunchBoundaryFails(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if code != 1 || rt.launched != "" || len(rt.watchers) != 0 || len(rt.pollers) != 0 {
-		t.Fatalf("code=%d launched=%q watchers=%v pollers=%v", code, rt.launched, rt.watchers, rt.pollers)
+	if code != 1 || rt.launched != "" || len(rt.pollers) != 0 {
+		t.Fatalf("code=%d launched=%q pollers=%v", code, rt.launched, rt.pollers)
 	}
 	if len(rt.preparedLaunches) != 1 {
 		t.Fatalf("prepared launches = %v, want one attempted boundary", rt.preparedLaunches)
@@ -1183,8 +1180,8 @@ func TestRunLaunchFailedPreflightDoesNotAppendLedgerOrSessionIndex(t *testing.T)
 	if len(rt.files) != 0 {
 		t.Fatalf("preflight failure should not write sidecars: %+v", rt.files)
 	}
-	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
-		t.Fatalf("preflight failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	if len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("preflight failure started side effects: pollers=%v titles=%v cmux=%v dev=%v", rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
 	}
 	if len(rt.env) != 2 || rt.env[orientation.Env] != "" { // Entry establishes PATH and clears stale launch-only orientation.
 		t.Fatalf("preflight failure should only set PATH and clear orientation, got %+v", rt.env)
@@ -1208,8 +1205,8 @@ func TestRunLaunchLedgerAppendFailureAbortsBeforeHandoff(t *testing.T) {
 	if len(rt.files) != 0 {
 		t.Fatalf("ledger append failure should not write sidecars: %+v", rt.files)
 	}
-	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
-		t.Fatalf("ledger append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	if len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("ledger append failure started side effects: pollers=%v titles=%v cmux=%v dev=%v", rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
 	}
 }
 
@@ -1225,8 +1222,8 @@ func TestRunLaunchContinuesAfterCommittedCleanupWarnings(t *testing.T) {
 				rt.prepareLaunchErr = warning
 			}
 			code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "bugfix"}), rt)
-			if err != nil || code != 0 || rt.launchCount != 1 || len(rt.watchers) != 1 {
-				t.Fatalf("code=%d err=%v launchCount=%d watchers=%v", code, err, rt.launchCount, rt.watchers)
+			if err != nil || code != 0 || rt.launchCount != 1 || rt.env["PAIR_LAUNCH_ORDINAL"] == "" {
+				t.Fatalf("code=%d err=%v launchCount=%d ordinal=%q", code, err, rt.launchCount, rt.env["PAIR_LAUNCH_ORDINAL"])
 			}
 		})
 	}
@@ -1252,8 +1249,8 @@ func TestRunLaunchSessionIndexAppendFailureAbortsBeforeHandoff(t *testing.T) {
 	if len(rt.files) != 0 {
 		t.Fatalf("session index append failure should not write sidecars: %+v", rt.files)
 	}
-	if len(rt.watchers) != 0 || len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
-		t.Fatalf("session index append failure started side effects: watchers=%v pollers=%v titles=%v cmux=%v dev=%v", rt.watchers, rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
+	if len(rt.pollers) != 0 || len(rt.titles) != 0 || len(rt.cmux) != 0 || rt.devRebuilt {
+		t.Fatalf("session index append failure started side effects: pollers=%v titles=%v cmux=%v dev=%v", rt.pollers, rt.titles, rt.cmux, rt.devRebuilt)
 	}
 }
 
@@ -1271,7 +1268,7 @@ func TestRunLaunchPromptedTagIgnoresUnrelatedLegacySessionName(t *testing.T) {
 	}
 }
 
-// Codex forces --no-alt-screen and its watcher gets the final args.
+// Codex forces --no-alt-screen. pair wrap hands the watcher these same final args.
 func TestRunLaunchCodexAltScreen(t *testing.T) {
 	rt := newFakeRuntime()
 	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
@@ -1284,9 +1281,6 @@ func TestRunLaunchCodexAltScreen(t *testing.T) {
 	// Codex does not mint a claude session id.
 	if rt.env["PAIR_SESSION_ID"] != "" {
 		t.Fatalf("codex should not mint a session id: %q", rt.env["PAIR_SESSION_ID"])
-	}
-	if len(rt.watchers) != 1 || !strings.HasSuffix(rt.watchers[0], "|--no-alt-screen") {
-		t.Fatalf("watcher args = %v", rt.watchers)
 	}
 }
 

@@ -2356,15 +2356,19 @@ func (p *proxy) writeStartupBanner() {
 // ----- Main -------------------------------------------------------------------
 
 type freshExecRequest struct {
-	argv        []string
-	env         []string
-	watcherArgv []string
+	argv []string
+	env  []string
 }
 
 func (e *freshExecRequest) Error() string { return "restart fresh agent" }
 
 var execProcess = syscall.Exec
 
+// startWatcherProcess starts the session watcher in its own session. It must
+// not share the pair client's process group: Couch detach signals that whole
+// group, and a watcher killed before the first completed turn left its launch
+// unbound for good (#329). Its end is its own -- it exits once bound, when the
+// agent's process identity changes, or at its startup deadline.
 var startWatcherProcess = func(argv, env []string) error {
 	watcher := exec.Command(argv[0], argv[1:]...)
 	watcher.Env = env
@@ -2375,7 +2379,7 @@ var startWatcherProcess = func(argv, env []string) error {
 	return watcher.Process.Release()
 }
 
-func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string, pidNotBefore time.Time) (*freshExecRequest, error) {
+func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) (*freshExecRequest, error) {
 	if len(currentArgv) == 0 {
 		return nil, errors.New("missing agent command")
 	}
@@ -2436,17 +2440,28 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 	}
 	nextArgv = append(nextArgv, currentArgv[0])
 	nextArgv = append(nextArgv, freshArgs...)
-	var watcherArgv []string
-	if sessionwatch.SupportsAgent(agent) && launchOrdinal != 0 {
-		tag := envValue(nextEnv, "PAIR_TAG")
-		cwd, _ := os.Getwd()
-		watcherArgv = sessionwatch.CommandArgs(wrapperExecutable, agent, tag, scopeKey, cwd, "", "", launchOrdinal, pidNotBefore, freshArgs)
+	// No watcher here: the replacement wrap spawns one for the new ordinal when
+	// it starts the agent, like every launch (launchWatcherArgv).
+	return &freshExecRequest{argv: nextArgv, env: nextEnv}, nil
+}
+
+// launchWatcherArgv is the session watcher for the launch this wrap runs, or
+// nil when the launch has nothing for it to bind. wrap is the one spawn site
+// (#329): it alone holds the ordinal, the scope, the agent's final argv, and
+// the instant before the agent started, which bounds the agent-pid file.
+func launchWatcherArgv(executable string, argv, env []string, pidNotBefore time.Time) []string {
+	agent := filepath.Base(argv[0])
+	tag, scopeKey := envValue(env, "PAIR_TAG"), envValue(env, "PAIR_SCOPE_KEY")
+	ordinal, err := strconv.ParseUint(envValue(env, "PAIR_LAUNCH_ORDINAL"), 10, 64)
+	if err != nil || ordinal == 0 || tag == "" || scopeKey == "" || !sessionwatch.SupportsAgent(agent) {
+		return nil
 	}
-	return &freshExecRequest{argv: nextArgv, env: nextEnv, watcherArgv: watcherArgv}, nil
+	cwd, _ := os.Getwd()
+	return sessionwatch.CommandArgs(executable, agent, tag, scopeKey, cwd, "", "", ordinal, pidNotBefore, argv[1:])
 }
 
 func mustFreshExecRequest(wrapperExecutable, scrollbackLog string, currentArgv []string, env []string) error {
-	request, err := freshAgentInvocation(wrapperExecutable, scrollbackLog, currentArgv, env, time.Now())
+	request, err := freshAgentInvocation(wrapperExecutable, scrollbackLog, currentArgv, env)
 	if err != nil {
 		return err
 	}
@@ -2525,9 +2540,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		var restart *freshExecRequest
 		if errors.As(err, &restart) {
-			if len(restart.watcherArgv) > 0 {
-				_ = startWatcherProcess(restart.watcherArgv, restart.env)
-			}
 			if execErr := execProcess(restart.argv[0], restart.argv, restart.env); execErr != nil {
 				fmt.Fprintf(stderr, "pair-wrap: restart agent: %v\n", execErr)
 				return 1
@@ -2700,6 +2712,7 @@ argsDone:
 	// Spawn child in a fresh PTY.
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Env = childEnv
+	agentNotBefore := time.Now()
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
 		return 0, fmt.Errorf("cannot exec %s: %w", argv[0], err)
@@ -2749,6 +2762,13 @@ argsDone:
 		if err := os.WriteFile(p.agentPIDPath, []byte(strconv.Itoa(cmd.Process.Pid)), 0644); err != nil {
 			p.debug("AGENT-PID-write-fail", err.Error())
 			p.agentPIDPath = ""
+		}
+	}
+	if executable, err := os.Executable(); err != nil {
+		p.debug("WATCHER-exe-fail", err.Error())
+	} else if watcher := launchWatcherArgv(executable, argv, os.Environ(), agentNotBefore); watcher != nil {
+		if err := startWatcherProcess(watcher, os.Environ()); err != nil {
+			p.debug("WATCHER-start-fail", err.Error())
 		}
 	}
 

@@ -93,9 +93,6 @@ type UIOps interface {
 
 // ProcOps spawns the (already-Go) sidecar children and the dev rebuild.
 type ProcOps interface {
-	// SpawnSessionWatcher backgrounds pair session-watch (detached) to capture
-	// a uniquely correlated native session after a completed causal round.
-	SpawnSessionWatcher(agent, tag, scopeKey, cwd, repoRoot, repoName string, launchOrdinal uint64, agentArgs []string)
 	// SpawnTitlePoller backgrounds `pair title` (detached), the per-tag
 	// frame/cmux title singleton. env is its launch contract, handed to the child
 	// explicitly rather than inherited from whatever was exported first -- the

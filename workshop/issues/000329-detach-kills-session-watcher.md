@@ -102,14 +102,14 @@ are the "equivalents" in Done-when.
 
 ## Plan
 
-- [ ] wrap: after writing the agent-pid file, spawn `session-watch` for the
+- [x] wrap: after writing the agent-pid file, spawn `session-watch` for the
       current launch (ordinal/scope/tag from env, agent argv, pid bound taken
       just before `pty.Start`), via `startWatcherProcess` (own session).
-- [ ] Drop `freshExecRequest.watcherArgv`; the exec'd wrap spawns its own.
-- [ ] Remove launcher `SpawnSessionWatcher` (interface, OSRuntime, fakes, create call).
-- [ ] Sweep comments that say the watcher shares the Couch actor's group
+- [x] Drop `freshExecRequest.watcherArgv`; the exec'd wrap spawns its own.
+- [x] Remove launcher `SpawnSessionWatcher` (interface, OSRuntime, fakes, create call).
+- [x] Sweep comments that say the watcher shares the Couch actor's group
       (`couchcore/detach.go`, `couchcore/procops.go`, `launcher/osruntime.go`).
-- [ ] Tests: a wrap run with a launch ordinal spawns exactly one watcher with
+- [x] Tests: a wrap run with a launch ordinal spawns exactly one watcher with
       the right ordinal/scope/args, and a bound no later than the pid file's
       mtime. The real `startWatcherProcess` child gets its own session, so a
       group kill of the spawner misses it: this is the detach regression.
@@ -123,3 +123,25 @@ are the "equivalents" in Done-when.
 
 - Found while diagnosing #328. The tools thread's refusal was #328, a
   different cause that leads to the same message.
+
+### 2026-09-28
+
+- Chose "run the watcher from `pair wrap`" over resolve-on-demand/restart-on-attach
+  (see Spec › Decision). wrap is the only process holding the ordinal, the agent
+  argv, and an exact pid bound; the ledger's launch row records neither argv nor
+  a launch time (ARCH-DRY: one spawn site, fresh path included).
+- Mutation-checked (cp/cmp revert): no spawn at agent start →
+  `TestWrapSpawnsOneWatcherForItsLaunch` fails (0 spawns); dropping `Setsid` →
+  `TestStartWatcherProcessEscapesTheSpawnersProcessGroup` fails (shares the
+  spawner's group); bound taken after the pid write → the bound/mtime assertion fails.
+- Found while testing: this agent shell inherits a live `PAIR_LAUNCH_ORDINAL`.
+  Under `go test`, `os.Executable()` is the test binary, so an unstubbed wrap
+  run would re-exec it as a "watcher". wrapcmd's `TestMain` now stubs
+  `startWatcherProcess` package-wide.
+- Suite (scrubbed env, scratchpad TMPDIR): `go test ./...` is green except
+  `artifactpath TestProductionArtifactReferencesAreExactlyClassified`
+  (`couchcmd/shortcut_focus.go` unclassified). `make test` stops at `test-lua`
+  (`nvim/workbench_route_test.lua:40 <M-n>`). Both reproduce on a clean
+  `git archive main`, introduced by #333 (`91863e53`), not by this branch.
+  `wrapcmd` `TestNotificationBrokerBeforeExecAndCleanup` failed once under
+  full-suite load, then passed 8/8 alone and in two full-package runs.
