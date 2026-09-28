@@ -231,6 +231,7 @@ var Families = []Family{
 var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/pairlog/retention.go", Kind: ResolvedConsumer, Families: []string{"log"}, BindingNames: []string{"scoped-log"}, Vocabulary: []VocabularyAllowance{goCallVocabulary("log", "prompt-log-writer", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1)}},
 	{Path: "cmd/internal/orientation/model.go", Kind: ResolvedConsumer},
+	{Path: "cmd/internal/couchcmd/shortcut_focus.go", Kind: ResolvedConsumer},
 	{Path: "cmd/internal/changelogcmd/changelogcmd.go", Kind: ResolvedConsumer, Families: []string{"changelog"}, BindingNames: []string{"matched-changelog-family"}, Vocabulary: []VocabularyAllowance{
 		goCallVocabulary("changelog", "changelog-render", "github.com/xianxu/pair/cmd/internal/storagegc.AcquireSelectedProcess", 2, 1),
 	}},
@@ -530,6 +531,7 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/doctor/emitter-health.sh", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/adapt.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/annotate.lua", Kind: GeneratedMirror},
+	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/bang_tag.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/changelog.lua", Kind: GeneratedMirror, Families: []string{"changelog"}},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/confirm_quit.lua", Kind: GeneratedMirror},
 	{Path: "cmd/internal/runtimebundle/assets/runtime/files/nvim/doctor.lua", Kind: GeneratedMirror},
@@ -953,6 +955,7 @@ var NonArtifactSources = []string{
 	"doctor/perf.sh",
 	"nvim/adapt.lua",
 	"nvim/annotate.lua",
+	"nvim/bang_tag.lua",
 	"nvim/confirm_quit.lua",
 	"nvim/doctor.lua",
 	"nvim/draft_send.lua",

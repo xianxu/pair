@@ -223,6 +223,22 @@ Only the second line reaches the agent.
 - A prompt that's all comments is a no-op send (no log entry, no queue item consumed, no flash).
 - Comment-only edits to a `-N` history entry **autosave back into the log** — annotating an old prompt isn't a fork (the agent's view is unchanged), so it doesn't trigger the dirty prompt and the note is preserved across navigation and nvim restarts.
 
+## Draft tags (`!`)
+
+Submit `! start working on #337` to send `start working on #337` to the
+agent and save the same text as the hosting Couch thread's description.
+Publication runs asynchronously after a successful send; a missing or failing
+Couch command does not fail the prompt. Standalone Pair strips the bang and
+sends normally without publishing a description.
+
+Only a single line qualifies, after draft comments and surrounding whitespace
+are removed. A multiline prompt is sent unchanged; a bare `!` or a bang
+followed only by whitespace sends nothing and leaves the description alone.
+The Pair log keeps the authored text, including the bang.
+
+The draft owns a leading `!`, so Claude Code's bash-mode syntax is available
+only by typing directly in the agent pane. There is no `!!` escape.
+
 ## Mouse
 
 - **Click-and-drag in agent pane** → starts selecting immediately. 
