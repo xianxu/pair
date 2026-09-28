@@ -80,6 +80,9 @@ Decisions:
   specified above. Tests cover each case at the draft-submit boundary.
 - Outside couch, the same draft sends the stripped text and reports no error.
 - An operator smoke test inside couch confirms the description updates live.
+- README documents the complete syntax. Boundary tests prove unavailable,
+  failing, and blocked publishers preserve prompt delivery, a failed dispatch
+  publishes nothing, and its successful retry publishes exactly once.
 
 ## Plan
 
