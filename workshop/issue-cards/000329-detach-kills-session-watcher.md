@@ -1,6 +1,6 @@
 ---
 id: 000329
-status: codecomplete
+status: done
 created: 2026-09-25
 updated: 2026-09-28
 estimate_hours:
@@ -14,6 +14,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: df4a9496db753dd994162cbc352b3f7828a9366b
         evidence_commit: 49658399a764c6445549ab7294cf2a415d5ae3e9
+        landed_commit: 450c06b33abe0d34fbeff01a7acb498cb149740b
 ---
 
 # Detach kills an unbound session watcher
