@@ -92,10 +92,21 @@ func TestMenuFocusOrderSelectionAndRouting(t *testing.T) {
 	if len(VisibleMenuThreads(state)) != 2 {
 		t.Fatal("child return lost focus view")
 	}
-	state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'r'})
-	state = focusSpace(state)
-	if state.CurrentFrame().Filter != "r " {
-		t.Fatal("nonempty filter did not preserve space")
+}
+
+func TestMenuFocusNonemptyFilterKeepsSpaceLiteralInBothViews(t *testing.T) {
+	for name, view := range map[string]MenuRootView{"normal": MenuViewNormal, "focus": MenuViewFocus} {
+		t.Run(name, func(t *testing.T) {
+			state := NewMenuState(menuThreads(), menuAddress("couch-one"))
+			if view == MenuViewFocus {
+				state = focusSpace(state)
+			}
+			state, _ = reduceKey(state, PanelKey{Kind: KeyRune, Rune: 'r'})
+			next, effects := reduceKey(state, PanelKey{Kind: KeyRune, Rune: ' '})
+			if frame := next.CurrentFrame(); frame.Filter != "r " || frame.View != view || len(effects) != 0 {
+				t.Fatalf("literal space: frame=%+v effects=%+v", frame, effects)
+			}
+		})
 	}
 }
 

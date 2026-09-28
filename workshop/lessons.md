@@ -217,6 +217,10 @@ representative evidence, not an exhaustive index.
 
 ## Working rule
 
+- When an input rule applies across UI modes, enumerate each mode in the test
+  and assert both its text effect and the absence of an unintended transition.
+  (#338)
+
 - A lifecycle fix needs a regression through the failing event order and final
   authorization boundary. A separate process-group assertion and a successful
   already-bound smoke do not prove detach-before-binding recovery. (#329)

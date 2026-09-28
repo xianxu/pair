@@ -132,3 +132,13 @@ Implementation design:
   are complete; live smoke and the SDLC close review remain pending.
 - Operator confirmed: "#338 smoke test passed." Live acceptance is complete;
   the SDLC close review and landing remain pending.
+- Close round 1 found no implementation defect; BR-1 requested literal-Space
+  coverage in normal view as well as focus view. The shared test now enumerates
+  both modes and asserts `r `, unchanged mode, and no emitted effects. A
+  mutation that toggled normal view despite a nonempty filter failed this test;
+  production was restored byte-for-byte. No production behavior changed.
+- The follow-up race run exposed an early test observation: actor focus moves
+  before the asynchronous switch completion clears `InFlight`. The console
+  test now waits for both before reopening and issuing the next switch. Twenty
+  race-enabled repetitions of the focus tests passed with the complete outcome
+  observed; this changes test sequencing only.

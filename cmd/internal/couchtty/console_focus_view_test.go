@@ -32,6 +32,14 @@ func TestConsoleFocusViewPersistsAcrossSwitchAndReopen(t *testing.T) {
 		defer f.con.mu.Unlock()
 		return f.con.focus.IsPanel()
 	}
+	actorReady := func() bool {
+		f.con.mu.Lock()
+		defer f.con.mu.Unlock()
+		// Switching moves focus before its asynchronous completion clears the
+		// in-flight operation. Reopening early can make a later Enter get
+		// rejected as a concurrent operation instead of testing the view.
+		return !f.con.focus.IsPanel() && f.con.menu.InFlight.Operation == ""
+	}
 	send("\x00")
 	waitFor(t, "normal switcher", func() bool { return panel() && len(VisibleMenuThreads(f.con.menuSnapshot())) == 2 })
 	send(" ")
@@ -58,7 +66,7 @@ func TestConsoleFocusViewPersistsAcrossSwitchAndReopen(t *testing.T) {
 	send("root")
 	waitFor(t, "focus typeahead", func() bool { return f.con.menuSnapshot().CurrentFrame().Filter == "root" })
 	send("\r")
-	waitFor(t, "actor focus", func() bool { return !panel() })
+	waitFor(t, "actor switch completion", actorReady)
 	send("\x00")
 	waitFor(t, "reopened focus view", func() bool {
 		state := f.con.menuSnapshot()
@@ -70,7 +78,7 @@ func TestConsoleFocusViewPersistsAcrossSwitchAndReopen(t *testing.T) {
 	send(" ")
 	waitFor(t, "normal view restored", func() bool { return len(VisibleMenuThreads(f.con.menuSnapshot())) == 2 })
 	send("\r")
-	waitFor(t, "actor focus again", func() bool { return !panel() })
+	waitFor(t, "actor switch completion again", actorReady)
 	send("\x00")
 	waitFor(t, "reopened normal view", func() bool {
 		return panel() && len(VisibleMenuThreads(f.con.menuSnapshot())) == 2
