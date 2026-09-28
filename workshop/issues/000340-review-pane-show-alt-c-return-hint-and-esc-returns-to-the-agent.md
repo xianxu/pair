@@ -49,6 +49,21 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
   practical, so the list can't drift from the mappings. The bottom bar is
   narrow, so it carries only the most-needed hints: the way out, plus
   `Alt+a/r accept/reject`. Width budget and wording are to settle at design time.
+- **Alt+n / Alt+Shift+N step through markers** (operator request): in the review
+  buffer, Alt+n does `]m` (next 🤖 marker) and Alt+Shift+N does `[m` (previous),
+  both wrapping, both buffer-local, normal mode.
+  - Alt+n is free here. Pair's Alt+n reload is draft-only since #333, and the
+    review pane installs only non-draft globals
+    (`workbench_route.install_global_maps(false)`).
+  - Alt+Shift+N is the global "restart the agent conversation" shortcut, and
+    the review pane installs it. The buffer-local mapping overrides it in review
+    only (the agent restart stays reachable from the draft). The Alt+h help must
+    say so: the row for Alt+Shift+N names the review exception.
+  - Check under Couch that the review pane actually receives Alt+n
+    (Couch's routing may replace Pair's, #284), and with Pair alone.
+  - `]m` stops at every 🤖 marker, the operator's own `[H]` comments included.
+    Skipping to agent proposals only (`pending` in `review/markers.lua`) is a
+    possible refinement, not asked for.
 - Update help/README/atlas prose for the review mode's keys (lessons: UI text
   is a public contract).
 
@@ -62,6 +77,9 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
 - Normal-mode Esc in the review pane hides it and leaves focus on the agent
   pane. Insert-mode Esc still just leaves insert mode. A test covers both,
   and fails if the mapping is reverted.
+- Alt+n / Alt+Shift+N in the review buffer move to the next / previous marker,
+  under both Pair alone and Couch. Alt+Shift+N still restarts the agent from
+  the draft pane.
 - Live smoke by the operator: open review with Alt+c, read the hint, Esc back to the agent.
 
 ## Plan
@@ -74,5 +92,7 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
 
 - Filed from operator feedback (screenshot of the review bar with no exit hint).
   They found Alt+c by guessing.
+- Added: Alt+n / Alt+Shift+N → `]m` / `[m` in the review buffer. Operator's
+  choice; the Alt+Shift+N override of the global agent restart is noted in Spec.
 - Added: document Alt+a / Alt+r (and the rest of the review keys). The
   operator had forgotten those too.
