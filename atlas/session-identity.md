@@ -52,8 +52,9 @@ in a session of its own, with `--pid-not-before` set to the instant before the
 agent started. An in-pane fresh conversation gets its watcher the same way, from
 the replacement wrap. The watcher therefore lives with the agent, not with the
 pair client, so Couch detach (which signals the client's process group) cannot
-strand a launch unbound. It ends when it binds, when the agent's process
-identity changes, or at its startup deadline if no agent pid appears.
+strand a launch unbound. After binding, Codex watchers continue observing
+lifecycle events; other agents' watchers exit. A watcher also ends when the
+agent's process identity changes, or at its startup deadline if no agent pid appears.
 A production `IncrementalInventory` façade reconciles metadata with the catalog;
 fresh launches can inspect only `new` delta entries, while an already authorized
 target advances from its proof/catalog cursor. Raw launch boundaries retain the

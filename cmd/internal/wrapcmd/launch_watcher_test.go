@@ -14,10 +14,11 @@ import (
 
 var realStartWatcherProcess = startWatcherProcess
 
-// No wrap test may start a real watcher. Under `go test`, os.Executable() is the
-// test binary itself, and a run inside a Pair session inherits that session's
-// PAIR_LAUNCH_ORDINAL, so any unstubbed wrap run would re-exec this binary.
+// Ordinary wrap tests suppress real watchers: os.Executable() is the test
+// binary and Pair sessions supply a live PAIR_LAUNCH_ORDINAL. The detach
+// acceptance helper explicitly opts into executing the real watcher command.
 func TestMain(m *testing.M) {
+	detachWatcherHelper()
 	startWatcherProcess = func([]string, []string) error { return nil }
 	os.Exit(m.Run())
 }

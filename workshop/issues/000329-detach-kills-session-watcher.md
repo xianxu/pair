@@ -184,3 +184,7 @@ are the "equivalents" in Done-when.
   binding, and production was restored byte-for-byte.
 - BR-2 addressed across wrap's spawn comment, atlas, and this issue: Codex
   continues lifecycle observation after binding; other agents' watchers exit.
+- Final verification after review fixes: race-enabled composed acceptance
+  test passed; `go test ./cmd/internal/wrapcmd ./cmd/internal/launcher
+  ./cmd/internal/sessionwatch -count=1` passed all three packages (87.8 s,
+  13.2 s, 1.2 s respectively). `git diff --check` passed.

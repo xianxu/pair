@@ -2367,8 +2367,9 @@ var execProcess = syscall.Exec
 // startWatcherProcess starts the session watcher in its own session. It must
 // not share the pair client's process group: Couch detach signals that whole
 // group, and a watcher killed before the first completed turn left its launch
-// unbound for good (#329). Its end is its own -- it exits once bound, when the
-// agent's process identity changes, or at its startup deadline.
+// unbound for good (#329). After binding, Codex watchers keep observing lifecycle
+// events; other agents' watchers exit. Watchers also exit when the agent's process
+// identity changes or at the startup deadline if no agent pid appears.
 var startWatcherProcess = func(argv, env []string) error {
 	watcher := exec.Command(argv[0], argv[1:]...)
 	watcher.Env = env
