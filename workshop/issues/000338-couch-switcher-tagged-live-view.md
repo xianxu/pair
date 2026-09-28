@@ -98,7 +98,7 @@ Implementation design:
   (rows, mode) and give it unit tests.
 - [x] Add the space toggle in `reduceRootKey`, gated on an empty filter, and
   the `name ◆ description` render with truncation.
-- [ ] Add reducer and render tests, then ask the operator to run a live smoke
+- [x] Add reducer and render tests, then ask the operator to run a live smoke
   test.
 
 ## Revisions
@@ -130,3 +130,5 @@ Implementation design:
   real key input and switching. README control tests and `make build` passed.
 - Built in pair:0 and requested a fresh-Couch operator smoke. Automated tests
   are complete; live smoke and the SDLC close review remain pending.
+- Operator confirmed: "#338 smoke test passed." Live acceptance is complete;
+  the SDLC close review and landing remain pending.
