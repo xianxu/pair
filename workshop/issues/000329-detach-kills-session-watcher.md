@@ -96,8 +96,9 @@ are the "equivalents" in Done-when.
 
 ## Done when
 
-- Regression test: launch, detach before the first turn, reattach, complete a
-  turn, and the thread must be relaunchable.
+- Composed regression for both Codex and Claude: launch, detach before the first
+  turn, reattach, complete a turn, and authorize relaunch from the resulting
+  binding. The regression fails under the original watcher ownership.
 - The three stuck threads above (or their equivalents) become relaunchable
   after one turn, without manual repair.
 
