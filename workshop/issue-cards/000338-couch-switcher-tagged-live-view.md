@@ -1,6 +1,6 @@
 ---
 id: 000338
-status: codecomplete
+status: done
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 27970e7eee2bb6ca06fe2ddc0dbf9bc7ba08df6b
         evidence_commit: 4acd96f5186182c8e718ab022210915552b40ae0
+        landed_commit: fc1484fcd4fe4d7d9430c8dae368a1a1878c11e5
 ---
 
 # Couch switcher space toggles a focus view of tagged live threads
