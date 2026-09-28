@@ -107,6 +107,7 @@ Decisions:
 ## Log
 
 ### 2026-09-28 — close review fixes
+- 2026-09-28: closed — Live operator smoke and persisted CLI description confirmed. Fresh make test-bang-tag test-submission-transaction passed six bang scenarios and send failure matrix; missing, nonzero, blocked publisher and failed-send retry covered. Three guard mutations killed. README documents full syntax. Prior Lua and targeted Couch race tests passed; unrelated broad-suite limitations remain recorded in Log.; review verdict: SHIP
 
 - BR-1: README now covers bang stripping, Couch publication, standalone use,
   bare/multiline handling, comments, and the deliberate bash-mode tradeoff.

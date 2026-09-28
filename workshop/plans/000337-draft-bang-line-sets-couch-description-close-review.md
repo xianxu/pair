@@ -82,3 +82,66 @@ findings:
     detail: |
       tests/bang-tag-nvim-test.sh:12 always supplies an immediately successful Couch stub, and nvim/bang_tag_integration_test.lua:15 always succeeds at dispatch. Enumerate and test unavailable executable, nonzero publisher exit, slow publisher, failed dispatch with no publication, and successful retry with exactly one publication. Existing BODY-only transaction tests cannot verify these bang-specific guarantees.
 ```
+
+---
+
+## Re-review — 2026-09-28T11:39:30-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 337 — Draft bang line tags the couch thread description |
+| repo | pair |
+| issue file | workshop/issues/000337-draft-bang-line-sets-couch-description.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | d4e0538422eaa670a36c595f56994b764000e908..02df33439691993563c933af9e77f6a2ce111025 |
+| command | sdlc close --issue 337 |
+| reviewer | codex |
+| timestamp | 2026-09-28T11:39:30-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+Both prior findings are addressed. The pinned implementation preserves the submission transaction, isolates bang parsing, and publishes asynchronously after successful dispatch. Focused tests passed; no new findings.
+
+1. **Strengths**
+   - `nvim/bang_tag.lua:10` keeps parsing deterministic and independently tested.
+   - `nvim/init.lua:803` shares handling across both operator-send paths while preserving authored log text.
+   - `nvim/bang_tag_integration_test.lua:51` exercises missing, failing, blocked, and retried side effects through real process launching.
+   - `README.md:229` and the atlas document the new syntax and publication flow.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None remaining.
+
+4. **Minor findings:** None.
+
+5. **Test coverage notes**
+   - Passed: all six bang integration cases, bang parser tests, and submission transaction failure matrix.
+   - The blocked-publisher handshake verifies submission returns before publication completes; retry assertions verify no publication after failed dispatch and exactly one after success.
+   - Full/race suites and live Couch UI were not rerun. No independent mutation run was performed.
+   - Working tree is clean.
+
+6. **Architectural notes**
+   - **ARCH-DRY: pass.** Both send paths share the wrapper; Couch retains description storage ownership.
+   - **ARCH-PURE: pass.** Pure parsing remains separate from thin process-launch glue.
+   - **ARCH-PURPOSE: pass.** The implementation covers tagging, standalone use, and optional-publication failure behavior.
+
+7. **Plan revision recommendations:** None; the existing revision records the documentation and regression additions.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      README.md:229 now documents stripping, Couch publication, standalone behavior, bare and multiline handling, and the bash-mode compatibility change; these match nvim/bang_tag.lua and nvim/init.lua:803.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      tests/bang-tag-nvim-test.sh and nvim/bang_tag_integration_test.lua now exercise all five requested failure/retry cases. All passed independently; assertions directly cover missing-executable containment, nonzero exit tolerance, nonblocking publication, failed-dispatch suppression, and exactly-once publication after retry.
+```
