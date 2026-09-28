@@ -1,12 +1,13 @@
 ---
 id: 000337
-status: open
+status: working
 deps: [pair#173]
 github_issue:
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
-card_mirror: '455ae1fa790a6fffcb17331845dda2dc3270aa6e' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: 'cc44e2f2b938d514b2abdc7fe1fad0810eb5e664' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T10:31:09-07:00
 ---
 
 # Draft bang line tags the couch thread description
@@ -81,10 +82,10 @@ Decisions:
 
 ## Plan
 
-- [ ] Find where the draft submit path runs, and confirm the draft process
+- [x] Find where the draft submit path runs, and confirm the draft process
   inherits `COUCH_THREAD_SCOPE`/`COUCH_THREAD_TAG`.
 - [ ] Add a pure parser, draft to (payload, description), with unit tests for
-  the edge cases.
+  the edge cases (`nvim/bang_tag.lua`, run by `make test-lua`).
 - [ ] Wire the parser into submit. Call the description writer asynchronously
   and without failing the send; stay a no-op outside couch.
 - [ ] Add an integration test that uses a fake couch description sink, then ask
@@ -94,3 +95,10 @@ Decisions:
 
 ### 2026-09-28
 - Operator resolved the open questions: no `!!` escape (bash mode from the draft is unwanted); thread identity comes from the `COUCH_THREAD_SCOPE` / `COUCH_THREAD_TAG` env that couch already injects.
+- Design, from tracing the code:
+  - Seam: both operator sends (`send_and_clear`, `ship_buffer_and_reset`) call `_G.submit_operator_text(authored, agent_text)` (`nvim/init.lua`). The wrapper parses the comment-stripped `agent_text`. It sends the text after `!`; the Pair log keeps the authored body with the `!`. Sticky `===` lines are stripped before the single-line test, so a draft with a sticky block still qualifies.
+  - Publish only after the send is confirmed, so it never delays the send, and a failed send publishes nothing (the retry publishes). Run it as a detached `jobstart` of bare `couch --internal publish-description --description=<text>`, which resolves `couch` from PATH the same way the launcher's `request-continuation` call does (`cmd/internal/launcher/checkpoint_io.go`). The `--description=` form stops a tag starting with `-` from being parsed as a flag.
+  - Inside couch means both `COUCH_THREAD_SCOPE` and `COUCH_THREAD_TAG` are set. Checked live: this pair session's panes carry both, plus `COUCH_STORE_DIR`. couch's CLI fills the thread from those variables itself.
+  - A bare `!` returns false: nothing is sent or logged, and the draft stays as typed.
+  - Growth (ARCH): this writes one existing couch description sidecar per thread and overwrites it on each tag. It creates no new durable family.
+  - Integration test: a stub `couch` executable on PATH records its argv, so the real `jobstart` command is exercised with no test seam in production code.
