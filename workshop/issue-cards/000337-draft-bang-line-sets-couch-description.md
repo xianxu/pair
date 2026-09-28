@@ -1,6 +1,6 @@
 ---
 id: 000337
-status: codecomplete
+status: done
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 02df33439691993563c933af9e77f6a2ce111025
         evidence_commit: 0ebcc02bba5a5d422939678721d740b7fe09c94f
+        landed_commit: cbbf83e3f04fb64b5a2f163c748bd4804b8b43ae
 ---
 
 # Draft bang line tags the couch thread description
