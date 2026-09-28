@@ -52,6 +52,7 @@ by #251. #251's close record says the shortcut passed tests and operator smoke,
 so this issue must first establish whether the current report is a regression.
 
 ### 2026-09-28 — Investigation on current main
+- 2026-09-28: closed — Operator confirmed Ctrl+Return works after #279 and authorized closure; historical regression resolved by 75cd04a3, no new runtime changes. Fresh go test ./cmd/internal/couchtty ./cmd/internal/couchkeys ./cmd/internal/terminal ./cmd/internal/workbenchshortcut -count=1 passed, including production keyboard dispatch and newest-page/no-notification handling. Documentation-only investigation; no new architectural surface.; review verdict: SHIP
 
 - Claimed and prepared the issue branch through SDLC. No runtime changes made.
 - Historical cause is explicitly recorded in `75cd04a3` (#279): #255 M3
