@@ -171,3 +171,16 @@ are the "equivalents" in Done-when.
   isolated repeats passed. Close reviewer independently passed wrapcmd,
   launcher, and sessionwatch package suites. Close round 1 requested the
   composed acceptance regression (BR-1) and lifetime prose correction (BR-2).
+- BR-1 addressed with `TestDetachBeforeFirstTurnAuthorizesRelaunch`: real wrap
+  startup and watcher subprocess, isolated Codex/Claude native transcript
+  fixtures, real Couch detach signaling a client process group, warm reattach
+  eligibility and replacement client, then the first completed native turn.
+  Before the turn, relaunch is unbound; afterward the real native resolver
+  reads the watcher-written authorization proof and relaunch preconditions
+  pass. The terminal server/attachment is represented by a stateful fake;
+  this is composed authorization evidence, not a full interactive Zellij test.
+  Three race-enabled repetitions passed. Mutating watcher ownership into the
+  detached client's process group made both agents fail at post-reattach
+  binding, and production was restored byte-for-byte.
+- BR-2 addressed across wrap's spawn comment, atlas, and this issue: Codex
+  continues lifecycle observation after binding; other agents' watchers exit.
