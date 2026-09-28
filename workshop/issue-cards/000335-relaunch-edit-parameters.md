@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000335-relaunch-edit-parameters.md
         source_blob: 423dff62bf02ae7bc2bd54166dd566244feebfdc
         destination: workshop/issues/000335-relaunch-edit-parameters.md
+        main_commit: 9a1a5ed749d5a6ecad4af42dac3b79f3a6322408
 ---
 
 # Couch relaunch: same conversation, new parameters
