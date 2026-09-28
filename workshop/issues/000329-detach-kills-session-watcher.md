@@ -8,6 +8,7 @@ updated: 2026-09-28
 estimate_hours:
 card_mirror: '216f5292ae852f73324b0544ff18d2cc097e6c2e' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T11:21:37-07:00
+flow: {kind: quick, provenance: inferred, spec: "b257de4d", done: "4661ada9"}
 ---
 
 # Detach kills an unbound session watcher
