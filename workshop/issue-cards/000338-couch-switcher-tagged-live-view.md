@@ -1,6 +1,6 @@
 ---
 id: 000338
-status: open
+status: working
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: dfdbfa1d4bf970464b1d85b755dd62ada4cf8d47
         destination: workshop/issues/000338-couch-switcher-tagged-live-view.md
         main_commit: 72ab29e1fca915520e86d3b2c5bd18c722ff64d1
+started: 2026-09-28T13:44:11-07:00
 ---
 
 # Couch switcher space toggles a focus view of tagged live threads
