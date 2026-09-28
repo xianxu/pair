@@ -98,7 +98,8 @@ are the "equivalents" in Done-when.
 
 - Composed regression for both Codex and Claude: launch, detach before the first
   turn, reattach, complete a turn, and authorize relaunch from the resulting
-  binding. The regression fails under the original watcher ownership.
+  binding, awaiting the final authorization outcome with bounded diagnostics.
+  The regression fails under the original watcher ownership.
 - The three stuck threads above (or their equivalents) become relaunchable
   after one turn, without manual repair.
 
@@ -126,6 +127,10 @@ are the "equivalents" in Done-when.
   relaunch authorization. Existing spawn/group tests prove mechanism only.
   BR-2 corrects watcher-lifetime prose: Codex keeps observing after binding.
   The acceptance criteria remain unchanged.
+- 2026-09-28: BR-3 found the composed test observed binding before the watcher
+  finished publishing inventory state. Both agent cases now boundedly await
+  the final resolver/precondition outcome and retain its last error on timeout;
+  the detach/ownership mutation and acceptance contract remain intact.
 
 ## Log
 
