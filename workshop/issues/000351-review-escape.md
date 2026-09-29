@@ -33,6 +33,7 @@ Escape may dismiss review floats but must never return to draft. Alt+c remains t
 ## Log
 
 ### 2026-09-29
+- 2026-09-29: closed — Headless review-controls regression failed before the fix and passes after: repeated normal/insert/visual Escape keeps review open, floats dismiss, and Alt+c returns. review-window-test and go test ./cmd/internal/keyhelp pass; make build and git diff --check pass. README and atlas updated.; review verdict: SHIP
 
 - Root cause: escape_review returns to draft when no float exists. Existing headless test explicitly required this behavior.
 
