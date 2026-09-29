@@ -203,3 +203,12 @@ Recorded the operator's decision; no implementation begun. The shared checkout c
   the branch's own commits; the window should filter by author date). At the
   operator's choice, the M2 close waits for that fix, so the calibration row
   is measured, not hand-typed.
+
+### 2026-09-28 — smoke passed; tuning deferred to #343
+
+- The operator smoke-tested the `pair:0` build (`7363b5e1`): distinct shades
+  by idle age in live Couch, passed. Colour tuning, the live light-theme and
+  `NO_COLOR` checks, and the probe-cost decision go to #343.
+- The M2 review's BR-6 (switcher asserted at model level) is fixed: the test
+  now reads the rendered switcher cell under an injected clock a week behind
+  the wall clock (mutation-checked against `showMenu` using `time.Now()`).
