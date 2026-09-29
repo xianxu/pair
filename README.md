@@ -712,6 +712,10 @@ pair keys                        # in-session keybindings (what Alt+h shows)
 pair notify "review ready"      # send an attention message through the live wrapper
 pair notify --osc 9 "ready"     # legacy selector accepted; output is canonical
 pair session-inventory          # stable native forests + Pair binding status
+pair session-repair codex <tag> --scope-key <scope>
+                                 # preview recovery in the selected PAIR_DATA_DIR
+pair session-repair codex <tag> --scope-key <scope> --apply
+                                 # commit a uniquely correlated current-launch UUID
 pair session-inventory --json   # schema-v1 JSON for agents/tools
 pair session-inventory --scope all --json
                                  # include every Pair repo scope
@@ -721,13 +725,30 @@ pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
 
-Session inventory reports `provisional` until Pair observes one exact operator
-turn followed by native assistant/tool/error progress. Only then is the native
-root `established` and resumable. Repeated candidate rounds remain `ambiguous`;
-timestamps and “newest file” never choose a winner. Conformance output contains
-only agent names, status, counts, and diagnostic codes—no transcript content,
-native IDs, cwd, or home paths. Exit `0` includes partial/absent-storage results,
-`1` is invalid usage, and `2` is a fatal scan, privacy, or render failure.
+Inventory uses `provisional` for an unconfirmed association, `established` for
+a confirmed root, and `ambiguous` for conflicting evidence.
+
+A recorded resume UUID remains usable under probation while Pair observes which
+conversation the current launch actually uses. Confirmation uses current Pair
+input followed by native assistant/tool/error progress, or a newly created root
+filename for a Pair-chosen UUID. Ambiguous evidence and silence do not erase the
+requested target. Filesystem device changes, cache loss and optional parsing
+failures do not block a recorded target. For a fresh Pair-chosen `--session-id X`,
+Alt+n starts fresh with a new UUID if X has not materialized as a root transcript.
+This exception does not apply to confirmed bindings or existing-conversation
+resume requests. If native storage cannot be listed reliably, Pair refuses this
+fresh-ID restart rather than treating the probe failure as absence.
+
+`pair session-repair` previews saved current-launch evidence without writes.
+Set `PAIR_DATA_DIR` to the selected scoped directory and pass its exact scope key,
+agent and tag. Add `--apply` only to publish a unique correlation; repair preserves
+saved agent arguments and does not need a live agent PID. Missing or ambiguous
+evidence is reported without selecting a newest file.
+
+Diagnostic inventory conformance contains only agent names, status, counts and
+codes—no transcript content, native IDs, cwd or home paths. Exit `0` includes
+partial/absent-storage results, `1` is invalid usage, and `2` is a fatal scan,
+privacy or render failure.
 
 Provider or scanner changes should run `make
 test-session-inventory-conformance`. This opt-in developer check verifies the
@@ -814,6 +835,14 @@ Before enabling collection, register every Couch store with
 `pair gc --complete-migration --store PATH` (repeat `--store` for every store).
 Use an empty list only when no Couch stores exist. This explicit migration
 step accounts for custom stores that cannot be discovered automatically.
+
+If a registered store is unavailable, restore or remount it when the outage is
+temporary. For a permanently abandoned missing store, run
+`pair gc --forget-missing-store /exact/canonical/registered/path`. This removes
+only that registration and disables collection by resetting migration
+acknowledgment. Review the remaining list and re-acknowledge it with
+`pair gc --complete-migration --store PATH` (repeat `--store` for every store).
+Ordinary Couch startup keeps unavailable registrations intact.
 
 `pair gc --apply` initializes clocks and, after migration, collects eligible
 items in bounded batches: up to 100 eligible groups and the first 100 diagnostic

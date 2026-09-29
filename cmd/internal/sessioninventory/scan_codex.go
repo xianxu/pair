@@ -92,7 +92,7 @@ func ValidateCodexDelta(entry FileEntry, prior *ScannerState, records []FramedJS
 			return ScannerState{}, nil, err
 		}
 		state = cloneScannerState(*prior)
-		if state.Agent != AgentCodex || state.NativeID != nativeID || state.IdentityAnchor != nativeID || state.ScannerSchema != "codex-v1" {
+		if state.Agent != AgentCodex || state.NativeID != nativeID || state.IdentityAnchor != nativeID || state.ScannerSchema != "codex-v2" {
 			return ScannerState{}, nil, errors.New("Codex scanner state does not match artifact")
 		}
 	}
@@ -110,7 +110,7 @@ func ValidateCodexDelta(entry FileEntry, prior *ScannerState, records []FramedJS
 }
 
 func newCodexScannerState(entry FileEntry, nativeID string) ScannerState {
-	return ScannerState{Version: ScannerStateVersion, Agent: AgentCodex, NativeID: nativeID, IdentityAnchor: nativeID, Role: RoleUnknown, ScannerSchema: "codex-v1", Chronology: fallbackTime(entry)}
+	return ScannerState{Version: ScannerStateVersion, Agent: AgentCodex, NativeID: nativeID, IdentityAnchor: nativeID, Role: RoleUnknown, ScannerSchema: "codex-v2", Chronology: fallbackTime(entry)}
 }
 
 func applyCodexRecord(state *ScannerState, entry FileEntry, line []byte, diagnostics *[]Diagnostic) {
@@ -145,19 +145,11 @@ func applyCodexRecord(state *ScannerState, entry FileEntry, line []byte, diagnos
 	}
 	role, parentID, ok := codexRole(metadata.ParentThreadID, metadata.Source)
 	if !ok {
-		invalidFirst("Codex source/parent shape is not allowlisted")
+		invalidFirst("Codex metadata contains unresolved child/parent evidence")
 		return
 	}
 	if metadata.ID != state.NativeID {
-		state.Role = RoleUnknown
-		state.ParentID = nil
-		state.FirstRecordValidated = true
-		state.Disputed = true
-		if parsed := metadataTime(record.Timestamp); parsed != nil {
-			state.Chronology = parsed
-		}
-		*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticParentConflict, AgentCodex, &state.NativeID, artifact, "Codex metadata ID disagrees with path ID"))
-		return
+		*diagnostics = append(*diagnostics, artifactDiagnostic(DiagnosticParentConflict, AgentCodex, &state.NativeID, artifact, "Codex metadata ID disagrees with path ID; retaining filename identity"))
 	}
 	if state.FirstRecordValidated && (state.Role != role || !equalString(state.ParentID, parentID)) {
 		state.Disputed = true
@@ -190,17 +182,25 @@ func codexPathID(relativePath string) (string, bool) {
 }
 
 func codexRole(parentID *string, source json.RawMessage) (Role, *string, bool) {
-	var sourceString string
-	if json.Unmarshal(source, &sourceString) == nil {
-		if parentID == nil && (sourceString == "cli" || sourceString == "exec") {
-			return RoleRoot, nil, true
+	if parentID != nil {
+		if *parentID != "" && uuidPattern.MatchString(*parentID) && validCodexSubagentObject(source, *parentID) {
+			return RoleSubagent, cloneString(parentID), true
 		}
 		return RoleUnknown, nil, false
 	}
-	if parentID == nil || *parentID == "" || !uuidPattern.MatchString(*parentID) || !validCodexSubagentObject(source, *parentID) {
+	// Source is agent-owned extensible metadata. Only recognized child evidence
+	// excludes a root; absent or unfamiliar valid values are not an allowlist.
+	var label string
+	if json.Unmarshal(source, &label) == nil && label == "subagent" {
 		return RoleUnknown, nil, false
 	}
-	return RoleSubagent, cloneString(parentID), true
+	var object map[string]json.RawMessage
+	if json.Unmarshal(source, &object) == nil {
+		if _, child := object["subagent"]; child {
+			return RoleUnknown, nil, false
+		}
+	}
+	return RoleRoot, nil, true
 }
 
 func validCodexSubagentObject(source json.RawMessage, parentID string) bool {

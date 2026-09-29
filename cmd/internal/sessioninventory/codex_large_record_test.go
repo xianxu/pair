@@ -36,7 +36,7 @@ func TestCodexLargeRecordsPreserveIdentityAndEvidence(t *testing.T) {
 	}
 }
 
-func TestCodexLargeRecordsDoNotHideInvalidIdentity(t *testing.T) {
+func TestCodexLargeRecordsDoNotHideLaterDiagnostics(t *testing.T) {
 	const id = "019d1111-1111-7111-8111-111111111111"
 	meta := `{"type":"session_meta","payload":{"id":"` + id + `","source":"cli"}}`
 	padding := `{"type":"event_msg","payload":{"type":"item_completed","text":"` + strings.Repeat("x", 1<<20+1) + `"}}`
@@ -47,15 +47,15 @@ func TestCodexLargeRecordsDoNotHideInvalidIdentity(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			scan := sessioninventory.ScanCodex(codexRuntimeWithRecord(t, id, meta+"\n"+padding+"\n"+last))
 			// The large record is valid: the later invalid record must still be
-			// visited, retaining a disputed fact instead of losing the transcript.
+			// visited. A metadata ID change is diagnostic, not an identity change.
 			if len(scan.Facts) != 1 || len(scan.Diagnostics) == 0 {
 				t.Fatalf("facts=%v diagnostics=%v", scan.Facts, scan.Diagnostics)
 			}
 			inventory := inventoryFromScan(scan)
 			for _, forest := range inventory.Forests {
 				for _, root := range forest.Roots {
-					if root.Resumable {
-						t.Fatal("invalid identity became resumable")
+					if root.Resumable != (name == "conflicting") {
+						t.Fatalf("unexpected resumability for %s", name)
 					}
 				}
 			}

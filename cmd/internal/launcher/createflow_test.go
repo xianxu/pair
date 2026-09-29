@@ -21,6 +21,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 
 	"github.com/xianxu/pair/cmd/internal/readiness"
@@ -59,6 +60,7 @@ type fakeRuntime struct {
 	appendLedgerErr     error
 	prepareLaunchErr    error
 	preparedLaunches    []string
+	preparedOrigins     []sessionledger.RequestOrigin
 	appendIndexErr      error
 	threadClaimErr      error
 	threadClaims        []string
@@ -431,7 +433,8 @@ func (f *fakeRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	f.ledger[tag] = append(f.ledger[tag], entry)
 	return f.appendLedgerErr
 }
-func (f *fakeRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error) {
+func (f *fakeRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string, origin sessionledger.RequestOrigin) (uint64, error) {
+	f.preparedOrigins = append(f.preparedOrigins, origin)
 	f.preparedLaunches = append(f.preparedLaunches, strings.Join([]string{scopeKey, tag, agent, resumeNativeID}, "|"))
 	if f.prepareLaunchErr != nil {
 		if commitoutcome.Of(f.prepareLaunchErr) != commitoutcome.Committed {
@@ -534,33 +537,40 @@ func TestRequiredNativeResumeBindingAtLaunch(t *testing.T) {
 }
 
 func TestRequiredNativeResumeBindingLaunchesExactRootWithoutDefaults(t *testing.T) {
-	rt := newFakeRuntime()
-	rt.bindingStatuses["work|codex"] = sessioninventory.BindingEstablished
-	rt.establishedSessions["work|codex"] = "native-root-1"
-	args := LaunchArgs{
-		Agent: "codex", AgentExplicit: true, ForcedTag: "work",
-		AgentArgs: []string{"--sandbox", "workspace-write"}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
-		ResumeRequired: true, RequiredSessionID: "native-root-1",
-	}
-	opts := baseOpts(args)
-	scope, err := ResolveRepoScope(opts.Env.Cwd)
-	if err != nil {
-		t.Fatal(err)
-	}
-	opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = scope.Key, "work"
-	code, err := run(t, opts, rt)
-	if err != nil || code != 0 {
-		t.Fatalf("RunLaunch = %d, %v", code, err)
-	}
-	if rt.launchCount != 1 || rt.defaultReads != 0 || len(rt.preparedLaunches) != 1 ||
-		!strings.HasSuffix(rt.preparedLaunches[0], "|work|codex|native-root-1") {
-		t.Fatalf("launch effects: count=%d defaults=%d prepared=%v", rt.launchCount, rt.defaultReads, rt.preparedLaunches)
-	}
-	if len(rt.existingThreads) != 1 || len(rt.threadClaims) != 0 {
-		t.Fatalf("address validation: existing=%v create=%v", rt.existingThreads, rt.threadClaims)
-	}
-	if rt.env["PAIR_SESSION_ID"] != "native-root-1" || launchArgsText(t, rt.env) != "resume native-root-1 --sandbox workspace-write --no-alt-screen" {
-		t.Fatalf("resume env: id=%q args=%q", rt.env["PAIR_SESSION_ID"], launchArgsText(t, rt.env))
+	for _, status := range []sessioninventory.BindingStatus{sessioninventory.BindingEstablished, sessioninventory.BindingProvisional} {
+		t.Run(string(status), func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.bindingStatuses["work|codex"] = status
+			rt.establishedSessions["work|codex"] = "native-root-1"
+			args := LaunchArgs{
+				Agent: "codex", AgentExplicit: true, ForcedTag: "work",
+				AgentArgs: []string{"--sandbox", "workspace-write"}, AgentArgsExplicit: true, AgentArgsFromCouch: true,
+				ResumeRequired: true, RequiredSessionID: "native-root-1",
+			}
+			opts := baseOpts(args)
+			scope, err := ResolveRepoScope(opts.Env.Cwd)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts.Env.CouchThreadScope, opts.Env.CouchThreadTag = scope.Key, "work"
+			code, err := run(t, opts, rt)
+			if err != nil || code != 0 {
+				t.Fatalf("RunLaunch = %d, %v", code, err)
+			}
+			if rt.launchCount != 1 || rt.defaultReads != 0 || len(rt.preparedLaunches) != 1 ||
+				!strings.HasSuffix(rt.preparedLaunches[0], "|work|codex|native-root-1") {
+				t.Fatalf("launch effects: count=%d defaults=%d prepared=%v", rt.launchCount, rt.defaultReads, rt.preparedLaunches)
+			}
+			if len(rt.existingThreads) != 1 || len(rt.threadClaims) != 0 {
+				t.Fatalf("address validation: existing=%v create=%v", rt.existingThreads, rt.threadClaims)
+			}
+			if len(rt.preparedOrigins) != 1 || rt.preparedOrigins[0] != sessionledger.RequestOriginResume {
+				t.Fatalf("request origin = %v", rt.preparedOrigins)
+			}
+			if rt.env["PAIR_SESSION_ID"] != "native-root-1" || launchArgsText(t, rt.env) != "resume native-root-1 --sandbox workspace-write --no-alt-screen" {
+				t.Fatalf("resume env: id=%q args=%q", rt.env["PAIR_SESSION_ID"], launchArgsText(t, rt.env))
+			}
+		})
 	}
 }
 
@@ -838,6 +848,9 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if rt.env["PAIR_TAG"] != "bugfix" || rt.env["PAIR_AGENT"] != "claude" || rt.env["PAIR_HOME"] != "/pair" {
 		t.Fatalf("env = %+v", rt.env)
 	}
+	if len(rt.preparedOrigins) != 1 || rt.preparedOrigins[0] != sessionledger.RequestOriginChosen {
+		t.Fatalf("request origin = %v", rt.preparedOrigins)
+	}
 	if rt.env["PAIR_SESSION_ID"] != "MINTED-1" {
 		t.Fatalf("PAIR_SESSION_ID = %q", rt.env["PAIR_SESSION_ID"])
 	}
@@ -863,7 +876,7 @@ func TestRunLaunchForcedCreateClaude(t *testing.T) {
 	if rt.files["/data/agent-bugfix"] != "claude\n" {
 		t.Fatalf("agent record = %q", rt.files["/data/agent-bugfix"])
 	}
-	if got := rt.preparedLaunches; len(got) != 1 || !strings.Contains(got[0], "|bugfix|claude|") {
+	if got := rt.preparedLaunches; len(got) != 1 || !strings.HasSuffix(got[0], "|bugfix|claude|MINTED-1") {
 		t.Fatalf("prepared launches = %v", got)
 	}
 	ledger := rt.ledger["bugfix"]
@@ -1486,20 +1499,25 @@ func TestRunLaunchExplicitArgsDoNotPersistRepoDefaultOnPreLaunchAbort(t *testing
 // The tag-restart config picker: a saved config offers reuse; picking "saved
 // params + session" composes the resume binding.
 func TestRunLaunchTagRestartPickerResume(t *testing.T) {
-	rt := newFakeRuntime()
-	rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--search"],"session_id":"CX-9"}`
-	rt.agentSessions["codex|CX-9"] = true // native session artifact exists → resumable
-	rt.establishedSessions["cx|codex"] = "CX-9"
-	rt.pickFunc = func(header string, options []string) string {
-		return options[0] // "use saved params + session"
-	}
-	code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
-	if err != nil || code != 0 {
-		t.Fatalf("code=%d err=%v", code, err)
-	}
-	// codex resume subcommand LEADS, --no-alt-screen appended idempotently.
-	if launchArgsText(t, rt.env) != "resume CX-9 --search --no-alt-screen" {
-		t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
+	for _, status := range []sessioninventory.BindingStatus{sessioninventory.BindingEstablished, sessioninventory.BindingProvisional} {
+		t.Run(string(status), func(t *testing.T) {
+			rt := newFakeRuntime()
+			rt.files["/data/config-cx-codex.json"] = `{"agent":"codex","args":["--search"],"session_id":"CX-9"}`
+			// No native transcript is available: the ledger target still resumes.
+			rt.bindingStatuses["cx|codex"] = status
+			rt.establishedSessions["cx|codex"] = "CX-9"
+			rt.pickFunc = func(header string, options []string) string {
+				return options[0] // "use saved params + session"
+			}
+			code, err := run(t, baseOpts(LaunchArgs{Agent: "codex", ForcedTag: "cx"}), rt)
+			if err != nil || code != 0 {
+				t.Fatalf("code=%d err=%v", code, err)
+			}
+			// codex resume subcommand LEADS, --no-alt-screen appended idempotently.
+			if launchArgsText(t, rt.env) != "resume CX-9 --search --no-alt-screen" {
+				t.Fatalf("AgentCommand = %q", launchArgsText(t, rt.env))
+			}
+		})
 	}
 }
 

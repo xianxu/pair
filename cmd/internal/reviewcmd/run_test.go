@@ -119,8 +119,15 @@ func TestRunTargetSessionPriority(t *testing.T) {
 	if d := targetOf(t, rt, "t"); d.Session != "rootsid" {
 		t.Fatalf("inventory: %+v", d)
 	}
-	// provisional and ambiguous inventory never become target identity.
-	for _, status := range []sessioninventory.BindingStatus{sessioninventory.BindingProvisional, sessioninventory.BindingAmbiguous, sessioninventory.BindingUnbound} {
+	// Probation retains the requested target before confirmation.
+	rt = newFake()
+	rt.querySID, rt.queryStatus = "requested", sessioninventory.BindingProvisional
+	RunTarget(TargetOptions{File: "/r/doc.md", Status: "ready", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})
+	if d := targetOf(t, rt, "t"); d.Session != "requested" {
+		t.Fatalf("probation: %+v", d)
+	}
+	// Ambiguous and unbound inventory never become target identity.
+	for _, status := range []sessioninventory.BindingStatus{sessioninventory.BindingAmbiguous, sessioninventory.BindingUnbound} {
 		rt = newFake()
 		rt.querySID, rt.queryStatus = "stale", status
 		RunTarget(TargetOptions{File: "/r/doc.md", Status: "ready", Tag: "t", Agent: "codex", DataDir: "/dd"}, rt, &bytes.Buffer{}, &bytes.Buffer{})

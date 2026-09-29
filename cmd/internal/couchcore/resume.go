@@ -75,8 +75,11 @@ func ResumeDiagnosticOf(err error) ResumeDiagnosticCode {
 }
 
 type NativeBindingResolution struct {
-	Status   sessioninventory.BindingStatus
-	NativeID string
+	ObservationIncomplete bool
+	FreshRequired         bool
+	RequestedNativeID     string
+	Status                sessioninventory.BindingStatus
+	NativeID              string
 }
 
 type ResumeEligibilityInput struct {
@@ -91,6 +94,8 @@ type ResumeEligibilityInput struct {
 }
 
 type ResumeEligibility struct {
+	FreshRequired     bool
+	RequestedNativeID string
 	Address           ThreadAddress
 	WorkingPath       string
 	Profile           LaunchProfile
@@ -157,7 +162,7 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 				return ResumeEligibility{}, refuseResume(ResumeTombstoned, "latest park transaction was abandoned")
 			}
 		}
-		return ResumeEligibility{}, refuseBinding(bindingResumeDiagnostic(input.Binding))
+		return ResumeEligibility{}, refuseResolvedBinding(input.Binding)
 	}
 	// The rules that do not depend on the thread being unoccupied. Shared with
 	// relaunch, which asks them about a thread that is still LIVE.
@@ -185,6 +190,7 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 		return ResumeEligibility{
 			Address: record.Address, WorkingPath: record.WorkingPath,
 			Profile: profile, RequiredSessionID: input.Binding.NativeID,
+			FreshRequired: input.Binding.FreshRequired, RequestedNativeID: input.Binding.RequestedNativeID,
 		}, nil
 	}
 	return ResumeEligibility{
@@ -267,7 +273,7 @@ func CheckResumePreconditions(record ThreadRecord, binding NativeBindingResoluti
 		return refuseResume(ResumeAgentUnsupported, "saved launch agent is unsupported")
 	}
 	if code := bindingResumeDiagnostic(binding); code != "" {
-		return refuseBinding(code)
+		return refuseResolvedBinding(binding)
 	}
 	return nil
 }
@@ -285,6 +291,9 @@ func isBindingDiagnostic(code ResumeDiagnosticCode) bool {
 func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCode {
 	switch binding.Status {
 	case sessioninventory.BindingProvisional:
+		if binding.NativeID != "" || (binding.FreshRequired && binding.RequestedNativeID != "") {
+			return ""
+		}
 		return ResumeBindingProvisional
 	case sessioninventory.BindingAmbiguous:
 		return ResumeBindingAmbiguous
@@ -300,7 +309,14 @@ func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCo
 	}
 }
 
-// refuseBinding is the ONLY way to build a binding refusal.
+func refuseResolvedBinding(binding NativeBindingResolution) error {
+	if binding.ObservationIncomplete {
+		return refuseResume(ResumeBindingProvisional, "native storage observation is unreadable or incomplete; retry when its storage can be listed")
+	}
+	return refuseBinding(bindingResumeDiagnostic(binding))
+}
+
+// refuseBinding builds the shared status-based binding refusal.
 //
 // bindingRefusalDiagnostic gave each status its own actionable sentence and then
 // had exactly one consumer: the real resolver and its stateful fake both still
@@ -339,6 +355,8 @@ func refuseResume(code ResumeDiagnosticCode, diagnostic string) error {
 	return &ResumeRefusal{Code: code, Diagnostic: diagnostic}
 }
 
+// NativeBindingResolver resolves a usable durable target. The historical method
+// name also covers probation with a nonempty requested UUID.
 type NativeBindingResolver interface {
 	ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error)
 }
@@ -351,16 +369,21 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 	if r.Runtime == nil {
 		return NativeBindingResolution{}, errors.New("native binding resolver has no runtime")
 	}
-	query, err := sessioninventory.QuerySessionContext(ctx, r.Runtime, repoScope, tag, sessioninventory.Agent(agent))
+	query, err := sessioninventory.QueryResumeTargetContext(ctx, r.Runtime, repoScope, tag, sessioninventory.Agent(agent))
 	if err != nil {
 		return NativeBindingResolution{}, err
 	}
-	resolution := NativeBindingResolution{Status: query.Status}
-	if query.Root != nil {
-		resolution.NativeID = query.Root.NativeID
+	resolution := NativeBindingResolution{Status: query.Status, NativeID: query.NativeID, FreshRequired: query.FreshRequired, RequestedNativeID: query.RequestedNativeID}
+	if query.Status == sessioninventory.BindingProvisional && query.RequestedNativeID != "" && query.NativeID == "" && !query.FreshRequired {
+		for _, diagnostic := range query.Diagnostics {
+			if diagnostic.Code != sessioninventory.DiagnosticStorageAbsent {
+				resolution.ObservationIncomplete = true
+				break
+			}
+		}
 	}
 	if code := bindingResumeDiagnostic(resolution); code != "" {
-		return resolution, refuseBinding(code)
+		return resolution, refuseResolvedBinding(resolution)
 	}
 	return resolution, nil
 }
@@ -368,7 +391,7 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 var _ NativeBindingResolver = SessionInventoryNativeBindingResolver{}
 
 // Resume reoccupies one resumable address using only its exact saved
-// path, launch profile, and established native root binding.
+// path, launch profile, and durable native resume target.
 func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 	return c.ResumeContext(context.Background(), address)
 }
@@ -405,9 +428,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
 	// its surviving session and needs no native id, so it asks for none: the
 	// binding resolver is not consulted, cannot slow it down, and cannot fail it.
-	// (ResolveEstablished returns an ERROR for a provisional binding, so asking
-	// on the warm path refused the thread here, before DecideResume could decide
-	// anything -- which is how a detached thread became unreachable.)
 	pathExists := c.workingPathExists(thread)
 
 	// WARM first, for every thread, then COLD only if warm did not answer.
@@ -423,9 +443,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// authority and the classifier already prefers it; then ask the ledger,
 	// because a cold resume is about to pass `--resume <native-id>` and that id
 	// is the only thing that makes the relaunch land in the right conversation.
-	// The warm path asks for no id -- ResolveEstablished ERRORS on a
-	// provisional binding, so asking there refused threads before DecideResume
-	// could decide anything, which is how a detached thread became unreachable.
 	//
 	// This is the strict-action half of optimistic inventory: one `list-clients`
 	// for the single thread the operator pressed Enter on.
@@ -524,6 +541,9 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 			if detached {
 				return StartWarmReattach
 			}
+			if eligible.FreshRequired {
+				return StartFreshExisting
+			}
 			return StartColdResume
 		}(),
 		Kind:    StartClaimed,
@@ -555,12 +575,18 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
-		if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		var built string
+		if eligible.FreshRequired {
+			if !currentBinding.FreshRequired || currentBinding.Status != sessioninventory.BindingProvisional || currentBinding.NativeID != "" || currentBinding.RequestedNativeID != eligible.RequestedNativeID {
+				return ActorRecord{}, nil, errors.Join(errors.New("fresh chosen-session restart changed before launch; retry"), c.rollbackTrackedStart(thread, nonce))
+			}
+			built, err = launcher.BuildCouchFreshLaunchProfile(string(address.Tag), eligible.Profile.Agent, launcher.FreshAgentArgs(eligible.Profile.Agent, eligible.Profile.Argv), string(AgentSourceExplicit), string(ArgvSourceExplicit))
+		} else {
+			if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
+				return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+			}
+			built, err = launcher.BuildCouchResumeLaunchProfile(string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID)
 		}
-		built, err := launcher.BuildCouchResumeLaunchProfile(
-			string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID,
-		)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
@@ -573,7 +599,7 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	return c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
-		ProfileRaw: profileRaw, Resume: true, Warm: detached, Background: opts.WarmOnly,
+		ProfileRaw: profileRaw, Resume: !eligible.FreshRequired, Fresh: eligible.FreshRequired, Warm: detached, Background: opts.WarmOnly,
 	})
 }
 

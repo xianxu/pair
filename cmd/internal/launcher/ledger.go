@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
@@ -19,6 +20,7 @@ type LedgerEntry struct {
 	RepoName      string    `json:"repo_name"`
 	LegacyImport  bool      `json:"legacy_import,omitempty"`
 	Typed         bool      `json:"-"`
+	ResumeBlocked bool      `json:"-"`
 	SourceOrdinal uint64    `json:"-"`
 }
 
@@ -31,6 +33,10 @@ func BuildLedgerLine(entry LedgerEntry) (string, error) {
 }
 
 func ParseLedger(raw string) []LedgerEntry {
+	return parseLedger(raw, sessioninventory.ResumeTargetForLaunch)
+}
+
+func parseLedger(raw string, target func(sessionledger.Current) sessioninventory.ResumeTarget) []LedgerEntry {
 	var entries []LedgerEntry
 	parsed := sessionledger.ParseLedger([]byte(raw))
 	compatibility := make(map[uint64]bool, len(parsed.CompatibilityOrdinals))
@@ -64,9 +70,9 @@ func ParseLedger(raw string) []LedgerEntry {
 			continue
 		}
 		entry := LedgerEntry{Agent: owner.Agent, Typed: true, SourceOrdinal: current.Launch.Ordinal}
-		if current.Binding != nil {
-			entry.SessionID = current.Binding.RootNativeID
-		}
+		resolved := target(current)
+		entry.SessionID = resolved.NativeID
+		entry.ResumeBlocked = current.Conflict || (current.Launch.RequestOrigin == sessionledger.RequestOriginChosen && current.Binding == nil && resolved.NativeID == "" && !resolved.FreshRequired)
 		entries = append(entries, MergeAuthorityMetadata(entry, entries))
 	}
 	return entries

@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
@@ -547,7 +549,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	var savedForPicker savedConfig
 	var savedWarnings []string
 	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
-		savedForPicker, savedWarnings = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+		var savedErr error
+		savedForPicker, savedWarnings, savedErr = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+		if savedErr != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", savedErr)
+			return launchStep{code: 1}, nil
+		}
 	}
 	if !opts.SkipConfigPicker {
 		for _, warning := range savedWarnings {
@@ -575,20 +582,18 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
 	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
-		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
+		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, stderr); !ok {
 			return launchStep{code: code}, nil
 		}
 	}
 
 	// Pre-capture an explicit --resume/--conversation/`resume` binding. The
-	// synchronous launch boundary may establish this scanner-authorized native
-	// root immediately; fresh launches wait for a completed causal round.
+	// launch records this requested target; observation confirms the actual root.
 	explicitResume := extractExplicitResume(agent, agentArgs)
 
 	// Claude/qoder: mint a deterministic --session-id (uuidgen + collision
 	// retry) so two tags in one cwd can't race for the same new jsonl (#20).
-	// This remains invocation authority only until the watcher establishes the
-	// causal round.
+	// A new matching root filename can acknowledge this Pair-chosen identity.
 	newSid := ""
 	if shouldMintSessionID(agent, explicitResume, agentArgs) {
 		for i := 0; i < 5; i++ {
@@ -666,7 +671,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}
 		fmt.Fprintf(stderr, "pair: ledger for tag '%s' committed with cleanup warning: %v\n", chosenTag, err)
 	}
-	launchOrdinal, err := rt.PrepareSessionLaunch(scope.Key, chosenTag, agent, explicitResume)
+	var requestOrigin sessionledger.RequestOrigin
+	if explicitResume != "" {
+		requestOrigin = sessionledger.RequestOriginResume
+	} else if newSid != "" {
+		requestOrigin = sessionledger.RequestOriginChosen
+	}
+	launchOrdinal, err := rt.PrepareSessionLaunch(scope.Key, chosenTag, agent, sessionID, requestOrigin)
 	if err != nil {
 		if commitoutcome.Of(err) != commitoutcome.Committed {
 			fmt.Fprintf(stderr, "pair: failed to prepare native launch for tag '%s': %v\n", chosenTag, err)
@@ -942,7 +953,7 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 // the resolved launch vector. ok=false means abort with the returned exit code.
 // When no saved config applies (absent, or an explicit resume already chose),
 // it is a no-op that returns ok=true.
-func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, chosenTag string, agentArgs *[]string, cwd string, stderr io.Writer) (code int, ok bool) {
+func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, chosenTag string, agentArgs *[]string, stderr io.Writer) (code int, ok bool) {
 	if extractExplicitResume(agent, *agentArgs) != "" {
 		return 0, true // argv already pinned a resume — nothing to offer.
 	}
@@ -951,15 +962,8 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	}
 
 	savedSessionID := saved.SessionID
-	hasResumable := rt.AgentSessionExists(agent, savedSessionID, cwd)
-	var quarantine bool
-	saved, quarantine = decideAutomaticResumeConfig(agent, saved, hasResumable)
-	if savedSessionID != "" && !hasResumable {
-		fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", savedSessionID, agent)
-	}
-	if quarantine {
-		rt.Remove(configPath)
-	}
+	// saved.SessionID comes from the durable resume target, not native parsing.
+	hasResumable := savedSessionID != ""
 	savedArgsClean := persistedConfigArgs(agent, saved.Args)
 	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 
@@ -981,7 +985,22 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	return 0, true
 }
 
-func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) (savedConfig, []string) {
+func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) (savedConfig, []string, error) {
+	entries, ledgerErr := rt.ReadLedger(tag)
+	if ledgerErr != nil && !errors.Is(ledgerErr, os.ErrNotExist) {
+		return savedConfig{}, nil, fmt.Errorf("cannot read native session authority for %q: %w", tag, ledgerErr)
+	}
+	var typedTarget *LedgerEntry
+	if ledgerErr == nil {
+		if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
+			if latest.ResumeBlocked {
+				return savedConfig{}, nil, fmt.Errorf("native session identity for %q is unresolved; retry after checking its ledger and storage", tag)
+			}
+			if latest.Typed {
+				typedTarget = &latest
+			}
+		}
+	}
 	var warnings []string
 	var saved savedConfig
 	candidateSessionID := ""
@@ -996,15 +1015,22 @@ func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) 
 		}
 	}
 	if saved.Agent == "" {
-		entries, err := rt.ReadLedger(tag)
-		if err == nil {
+		if ledgerErr == nil {
 			if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
 				saved = savedConfig{Agent: latest.Agent, Args: latest.Args}
 				candidateSessionID = latest.SessionID
 			}
 		}
 	}
-	if sid, status := rt.EstablishedSessionID(scopeKey, tag, agent); status == sessioninventory.BindingEstablished {
+	sid, status := "", sessioninventory.BindingUnbound
+	if typedTarget != nil {
+		// Reuse the same typed projection checked above: probing chosen metadata
+		// again could turn an observed root into an unknown/empty fresh fallback.
+		sid, status = typedTarget.SessionID, sessioninventory.BindingProvisional
+	} else {
+		sid, status = rt.EstablishedSessionID(scopeKey, tag, agent)
+	}
+	if sid != "" && (status == sessioninventory.BindingEstablished || status == sessioninventory.BindingProvisional) {
 		saved.Agent = agent
 		saved.SessionID = sid
 	} else {
@@ -1014,7 +1040,7 @@ func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) 
 			rt.Remove(configPath)
 		}
 	}
-	return saved, warnings
+	return saved, warnings, nil
 }
 
 // resolveConfigPath returns config-<tag>-<agent>.json, migrating a legacy

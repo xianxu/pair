@@ -15,7 +15,7 @@ func TestScanCodexV1(t *testing.T) {
 	loadNativeFixture(t, runtime, sessioninventory.AgentCodex, "codex-sessions", filepath.Join("testdata", "native", "codex", "v1", "codex-sessions"))
 	got := inventoryFromScan(sessioninventory.ScanCodex(runtime))
 
-	if len(got.Forests) != 1 || len(got.Forests[0].Roots) != 1 {
+	if len(got.Forests) != 1 || len(got.Forests[0].Roots) != 2 {
 		t.Fatalf("forests = %#v", got.Forests)
 	}
 	root := got.Forests[0].Roots[0]
@@ -30,24 +30,24 @@ func TestScanCodexV1(t *testing.T) {
 			t.Fatalf("child = %#v", child)
 		}
 	}
-	if !diagnosticPresent(got.Diagnostics, sessioninventory.DiagnosticSchemaNearMiss) {
-		t.Fatalf("diagnostics = %#v, want schema_near_miss", got.Diagnostics)
+	if future := got.Forests[0].Roots[1]; !future.Resumable {
+		t.Fatalf("future-source root = %#v", future)
 	}
 }
 
-func TestScanCodexRetainsMetadataPathDisagreementUnbound(t *testing.T) {
+func TestScanCodexRetainsFilenameIdentityDespiteMetadataDisagreement(t *testing.T) {
 	t.Parallel()
 
 	const pathID = "019d5555-5555-7555-8555-555555555555"
 	runtime := codexRuntimeWithRecord(t, pathID, `{"timestamp":"2026-08-28T10:04:00Z","type":"session_meta","payload":{"id":"019d6666-6666-7666-8666-666666666666","source":"cli"}}`)
 	got := inventoryFromScan(sessioninventory.ScanCodex(runtime))
 
-	if len(got.Forests) != 1 || len(got.Forests[0].Roots) != 0 || len(got.Forests[0].Orphans) != 1 {
-		t.Fatalf("forests = %#v, want one unbound orphan", got.Forests)
+	if len(got.Forests) != 1 || len(got.Forests[0].Roots) != 1 {
+		t.Fatalf("forests = %#v, want filename-owned root", got.Forests)
 	}
-	orphan := got.Forests[0].Orphans[0]
-	if orphan.NativeID != pathID || orphan.Role != sessioninventory.RoleUnknown || orphan.Resumable {
-		t.Fatalf("orphan = %#v, want disputed path-owned node", orphan)
+	root := got.Forests[0].Roots[0]
+	if root.NativeID != pathID || !root.Resumable {
+		t.Fatalf("root=%#v", root)
 	}
 	if !diagnosticPresent(got.Diagnostics, sessioninventory.DiagnosticParentConflict) {
 		t.Fatalf("diagnostics = %#v, want parent_conflict", got.Diagnostics)
@@ -89,7 +89,7 @@ func codexRuntimeWithRecord(t *testing.T, nativeID, record string) *sessioninven
 	return runtime
 }
 
-func TestIncrementalCodexRequiresFirstSessionMetaAndDisputesConflicts(t *testing.T) {
+func TestIncrementalCodexRetainsPathIdentityAcrossMetadataIDChanges(t *testing.T) {
 	t.Parallel()
 	nativeID := "019d1111-1111-7111-8111-111111111111"
 	entry := sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-root-" + nativeID + ".jsonl"}}
@@ -101,7 +101,7 @@ func TestIncrementalCodexRequiresFirstSessionMetaAndDisputesConflicts(t *testing
 	prior := state
 	conflict := []sessioninventory.FramedJSONLRecord{{Bytes: []byte(`{"type":"session_meta","payload":{"id":"019d9999-9999-7999-8999-999999999999","parent_thread_id":null,"source":"cli"}}`)}}
 	state, diagnostics, err = sessioninventory.ValidateCodexDelta(entry, &prior, conflict)
-	if err != nil || !state.Disputed || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticParentConflict) || prior.Disputed {
+	if err != nil || state.Disputed || state.NativeID != nativeID || !diagnosticPresent(diagnostics, sessioninventory.DiagnosticParentConflict) || prior.Disputed {
 		t.Fatalf("state=%#v diagnostics=%#v prior=%#v err=%v", state, diagnostics, prior, err)
 	}
 }
@@ -127,5 +127,31 @@ func TestIncrementalCodexNeverRecoversFromInvalidFirstRecord(t *testing.T) {
 	state, _, err := sessioninventory.ValidateCodexDelta(entry, nil, records)
 	if err != nil || !state.Disputed || !state.FirstRecordValidated {
 		t.Fatalf("state=%#v err=%v", state, err)
+	}
+}
+
+func TestScanCodexAcceptsFutureRootSource(t *testing.T) {
+	const id = "019d5555-5555-7555-8555-555555555555"
+	for _, source := range []string{"vscode", "future-client-2029"} {
+		got := sessioninventory.ScanCodex(codexRuntimeWithRecord(t, id, `{"type":"session_meta","payload":{"id":"`+id+`","source":"`+source+`"}}`))
+		if len(got.Facts) != 1 || !got.Facts[0].Resumable {
+			t.Fatalf("%s: %#v", source, got)
+		}
+	}
+}
+
+func TestScanCodexRootSourceIsOpenWorldAcrossJSONShapes(t *testing.T) {
+	const id = "019d5555-5555-7555-8555-555555555555"
+	for _, source := range []string{`"source":{"future_client":{"version":17}}`, `"source":null`, `"source":["future",3]`, `"future_field":true`} {
+		got := sessioninventory.ScanCodex(codexRuntimeWithRecord(t, id, `{"type":"session_meta","payload":{"id":"`+id+`",`+source+`}}`))
+		if len(got.Facts) != 1 || !got.Facts[0].Resumable {
+			t.Fatalf("source %s: %+v", source, got)
+		}
+	}
+	for _, source := range []string{`"source":"subagent"`, `"source":{"subagent":{"future_child":true}}`} {
+		got := sessioninventory.ScanCodex(codexRuntimeWithRecord(t, id, `{"type":"session_meta","payload":{"id":"`+id+`",`+source+`}}`))
+		if len(got.Facts) != 0 {
+			t.Fatalf("known child became root: %s %+v", source, got)
+		}
 	}
 }

@@ -19,14 +19,15 @@ type ConfigPayload struct {
 // the persistence boundary.
 // pair:155-concept integration modified M2
 type WatcherInventory struct {
-	Owner         sessionledger.Owner
-	LedgerPath    string
-	LaunchOrdinal uint64
-	Inventory     sessioninventory.Inventory
-	LiveRounds    []sessioninventory.RoundObservation
-	Proofs        map[string]sessionledger.AuthorizationProof
-	RequireProof  bool
-	Args          []string
+	ConfirmationReason sessionledger.ConfirmationReason
+	Owner              sessionledger.Owner
+	LedgerPath         string
+	LaunchOrdinal      uint64
+	Inventory          sessioninventory.Inventory
+	LiveRounds         []sessioninventory.RoundObservation
+	Proofs             map[string]sessionledger.AuthorizationProof
+	RequireProof       bool
+	Args               []string
 }
 
 type ObserveInput = WatcherInventory

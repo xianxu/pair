@@ -131,13 +131,13 @@ func defaultCLIRenderers() cliRenderers {
 
 func runCLIOptionsWithRenderers(options cliOptions, runtime Runtime, stdout, stderr io.Writer, renderers cliRenderers) int {
 	if options.ownerTag != "" {
-		query, err := QuerySession(runtime, options.currentScopeKey, options.ownerTag, options.agents[0])
+		query, err := QueryResumeTarget(runtime, options.currentScopeKey, options.ownerTag, options.agents[0])
 		if err != nil {
 			_, _ = fmt.Fprintln(stderr, "pair session-inventory: owner query failed")
 			return 2
 		}
-		if query.Status == BindingEstablished && query.Root != nil {
-			_, _ = fmt.Fprintln(stdout, query.Root.NativeID)
+		if query.NativeID != "" {
+			_, _ = fmt.Fprintln(stdout, query.NativeID)
 		}
 		return 0
 	}

@@ -133,10 +133,9 @@ func TestQuerySessionRevalidatesMetadataOnlyChangeWithoutGenerationToken(t *test
 	}
 }
 
-// The content re-read is what makes the metadata fallback safe: a same-size
-// rewrite into a different conversation must not keep the old binding, and the
-// reason must be recorded for debugging even though the UI refusal is unchanged.
-func TestQuerySessionRefusesSameSizeRewriteToAnotherConversation(t *testing.T) {
+// An internal metadata ID is agent-owned and may change meaning. The root
+// filename retains identity while the disagreement remains diagnostic.
+func TestQuerySessionRetainsFilenameIdentityDespiteMetadataIDChange(t *testing.T) {
 	const nativeID = "019d1111-1111-7111-8111-111111111111"
 	const otherID = "019d2222-2222-7222-8222-222222222222"
 	runtime, transcript, _ := proofBackedCodexFixtureWithGeneration(t, nativeID, nil, "")
@@ -147,11 +146,11 @@ func TestQuerySessionRefusesSameSizeRewriteToAnotherConversation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if query.Status == sessioninventory.BindingEstablished || query.Root != nil {
-		t.Fatalf("rewritten transcript kept its binding: %#v", query)
+	if query.Status != sessioninventory.BindingEstablished || query.Root == nil || query.Root.NativeID != nativeID {
+		t.Fatalf("filename identity lost: %#v", query)
 	}
-	if !hasDiagnostic(query.Diagnostics, sessioninventory.DiagnosticBindingStale) {
-		t.Fatalf("proof failure left no diagnostic: %#v", query.Diagnostics)
+	if !hasDiagnostic(query.Diagnostics, sessioninventory.DiagnosticParentConflict) {
+		t.Fatalf("metadata disagreement missing diagnostic: %#v", query.Diagnostics)
 	}
 }
 
@@ -219,7 +218,7 @@ func TestQuerySessionCatalogLossProofClassCoversEveryAgentWithoutBodyReads(t *te
 		artifacts []sessioninventory.Artifact
 	}{
 		{sessioninventory.AgentClaude, "claude-v1", []sessioninventory.Artifact{{StorageRoot: "claude-projects", RelativePath: "-repo/" + id + ".jsonl"}}},
-		{sessioninventory.AgentCodex, "codex-v1", []sessioninventory.Artifact{{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-test-" + id + ".jsonl"}}},
+		{sessioninventory.AgentCodex, "codex-v2", []sessioninventory.Artifact{{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-test-" + id + ".jsonl"}}},
 		{sessioninventory.AgentMuse, "muse-v1", []sessioninventory.Artifact{{StorageRoot: "muse-sessions", RelativePath: "2026/08/28/" + id + "/session.jsonl"}}},
 		{sessioninventory.AgentQoder, "qoder-v1", []sessioninventory.Artifact{{StorageRoot: "qoder-projects", RelativePath: "-repo/" + id + ".jsonl"}}},
 		{sessioninventory.AgentAgy, "agy-v1", []sessioninventory.Artifact{
@@ -389,12 +388,12 @@ func proofBackedCodexFixtureWithGeneration(t *testing.T, nativeID string, modTim
 
 	state, err := json.Marshal(sessioninventory.ScannerState{
 		Version: sessioninventory.ScannerStateVersion, Agent: sessioninventory.AgentCodex, NativeID: nativeID,
-		IdentityAnchor: nativeID, Role: sessioninventory.RoleRoot, ScannerSchema: "codex-v1", FirstRecordValidated: true,
+		IdentityAnchor: nativeID, Role: sessioninventory.RoleRoot, ScannerSchema: "codex-v2", FirstRecordValidated: true,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	proof := sessionledger.AuthorizationProof{Version: 1, RootNativeID: nativeID, ScannerSchema: "codex-v1", ScannerState: state, Artifacts: []sessionledger.ArtifactProof{{
+	proof := sessionledger.AuthorizationProof{Version: 1, RootNativeID: nativeID, ScannerSchema: "codex-v2", ScannerState: state, Artifacts: []sessionledger.ArtifactProof{{
 		StorageRoot: transcript.StorageRoot, RelativePath: transcript.RelativePath, StableFileID: "dev:1/ino:1", GenerationToken: string(generation), MutationToken: "ctime:1", Size: int64(len(content)), ParserCompleteOffset: int64(len(content)),
 	}}}
 	pairRoot := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair/scope"}

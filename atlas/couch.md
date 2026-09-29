@@ -397,14 +397,12 @@ blocked launch helper; real composer recognition and actual agent submission
 remain operator smoke tests. The conformance workflow runs on relevant changes
 and weekly.
 
-`relaunch` (`pair#182`) is detailed under **Exit, detach, and terminal
-lifecycle**; the one thing worth knowing at this level is that its commonest
-refusal is not a fault. A cold resume needs `--resume <native-id>`, and that
-name comes from the ledger's `binding` row, which is written only once the agent
-completes a turn. A thread started minutes ago and never used therefore has no
-proof of WHICH conversation to resume -- the ordinary state of a fresh session,
-and the state relaunch meets most, because relaunching is something you do to a
-session you just started. It says so rather than guessing.
+`relaunch` uses the current ledger resume target. A confirmed UUID or a requested
+UUID under probation is sufficient for cold resume; transcript parsing does not
+gate startup. An early Alt+n retries that target while current-launch observation
+continues. A fresh Pair-chosen UUID whose root transcript has not materialized
+instead restarts fresh with a new UUID. A fresh launch without any known UUID must wait for correlation;
+ambiguous confirmed identities remain unavailable. See [Session identity](session-identity.md).
 
 `archive` is the operator's "delete", and it is COMPLETE: it stops the thread's
 zellij session first (`Artifacts.Quiesce` -> `zellij delete-session --force`,
@@ -2048,3 +2046,26 @@ apply. Same-address agent switching and continuation keep their existing flows.
 `TestSpawnComposesProductionPairRegistrationBoundary` runs ordinary and fresh-slot
 creation through the real Pair launcher and claim files, with the special fresh
 readiness observer unset. The slot needs no additional launch protocol.
+
+## Unavailable retention namespaces (#346)
+
+The global retention registry keeps namespace membership even when an auxiliary
+store disappears or becomes unreadable. Registering an intact selected store
+checks the registry structure and that selected directory; it does not require
+every other namespace to be mounted. Couch startup/listing can therefore proceed.
+GC inventory and migration acknowledgment still require all registered stores
+to be readable, so missing references never become implicit deletion permission.
+
+For a permanently abandoned, missing store, use
+`pair gc --forget-missing-store /exact/canonical/registered/path`. This removes
+only that registration and resets migration acknowledgment. Restore/remount a
+temporarily unavailable store instead. To re-enable collection, independently
+acknowledge every remaining namespace with `pair gc --complete-migration --store
+PATH` (repeat `--store`). Existing paths, aliases, permission failures and mixed
+mutation flags are refused. The coordinator owns the mutation under its lock.
+
+Production-boundary coverage: `couchcmd.TestListWithMissingAuxiliaryStoreUsesIsolatedRoots`;
+registry/collection recovery: `storagegc/stale_store_test.go`. Smoke invocations
+must isolate HOME, XDG_DATA_HOME, PAIR_DATA_DIR and COUCH_STORE_DIR together and
+clear inherited explicit artifact overrides. The original scratchpad producer
+has not been identified.

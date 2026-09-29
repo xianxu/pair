@@ -650,7 +650,10 @@ func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ParseLedger(raw), nil
+	native := sessioninventory.NewOSRuntime(os.Getenv("HOME"), r.DataDir)
+	return parseLedger(raw, func(current sessionledger.Current) sessioninventory.ResumeTarget {
+		return sessioninventory.ResumeTargetForRuntimeLaunch(native, current)
+	}), nil
 }
 
 func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
@@ -674,12 +677,12 @@ func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
 	return errors.Join(err, reconcileErr)
 }
 
-func (r OSRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error) {
+func (r OSRuntime) PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string, origin sessionledger.RequestOrigin) (uint64, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return 0, err
 	}
-	prepared, err := sessionwatch.PrepareOSLaunch(home, r.DataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, resumeNativeID)
+	prepared, err := sessionwatch.PrepareOSLaunchRequest(home, r.DataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, resumeNativeID, origin)
 	return prepared.Launch.Ordinal, err
 }
 
@@ -755,11 +758,11 @@ func (r OSRuntime) AgentSessionExists(agent, sid, cwd string) bool {
 func (r OSRuntime) EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
 	home := os.Getenv("HOME")
 	runtime := sessioninventory.NewOSRuntime(home, r.DataDir)
-	query, err := sessioninventory.QuerySession(runtime, scopeKey, tag, sessioninventory.Agent(agent))
-	if err != nil || query.Root == nil {
+	query, err := sessioninventory.QueryResumeTarget(runtime, scopeKey, tag, sessioninventory.Agent(agent))
+	if err != nil {
 		return "", query.Status
 	}
-	return query.Root.NativeID, query.Status
+	return query.NativeID, query.Status
 }
 
 // --- LifecycleOps ----------------------------------------------------------

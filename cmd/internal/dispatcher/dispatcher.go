@@ -67,6 +67,7 @@ func Families() []CommandFamily {
 		{Name: "hoprtt", Summary: "latency probe for doctor/perf.sh (pipe round-trip, fork+exec)", Status: "implemented", Streaming: true},
 		{Name: "scribe", Summary: "PTY logging wrapper", Status: "implemented", Streaming: true},
 		{Name: "session-inventory", Summary: "deterministic native session forests and Pair bindings", Status: "implemented"},
+		{Name: "session-repair", Summary: "preview or apply scoped native conversation recovery", Status: "implemented", Streaming: true},
 		{Name: "session-watch", Summary: "round-gated native session establishment", Status: "implemented", Streaming: true},
 		{Name: "session-log append", Summary: "durably append operator-authored text to the scoped Pair log", Status: "implemented", Streaming: true},
 		{Name: "session-log commit", Summary: "mark prepared operator text as submitted evidence", Status: "implemented", Streaming: true},

@@ -165,17 +165,6 @@ type restartPlan struct {
 	ContinueSlug string // #55 compaction re-entry: re-seed the draft from this slug
 }
 
-// decideAutomaticResumeConfig rejects only persisted Codex bindings that no
-// longer identify a verified root rollout. Keep the saved launch parameters so
-// callers can still offer a fresh launch with the user's prior flags.
-func decideAutomaticResumeConfig(agent string, saved savedConfig, sessionValid bool) (savedConfig, bool) {
-	if agent != "codex" || saved.SessionID == "" || sessionValid {
-		return saved, false
-	}
-	saved.SessionID = ""
-	return saved, true
-}
-
 // planRestart maps a restart marker + the RESOLVED (tag, agent) + saved config
 // into the next launch (#99 M5b makes rename/continue native). The caller has
 // already applied the marker's tag/agent preference AND any rename_to move before
@@ -201,7 +190,7 @@ func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartP
 	// Default Alt+n: an empty marker ID means the current typed generation is
 	// still provisional. Drop stale config and relaunch fresh with saved flags.
 	if m.SessionID == "" {
-		base.AgentArgs = append([]string(nil), saved.Args...)
+		base.AgentArgs = FreshAgentArgs(agent, saved.Args)
 		return restartPlan{Args: base, DropConfig: true}
 	}
 	base.AgentArgs = composeResumeArgs(agent, saved.Args, m.SessionID)

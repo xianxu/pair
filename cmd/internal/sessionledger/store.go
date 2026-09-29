@@ -122,6 +122,44 @@ func (s LedgerStore) AppendBindingProofIfCurrent(path string, owner Owner, launc
 	return s.appendBindingIfCurrentRecord(path, owner, record)
 }
 
+// ConfirmIfCurrent records current-launch evidence without letting competing
+// observers overwrite a confirmed identity. The same root is idempotent.
+func (s LedgerStore) ConfirmIfCurrent(path string, owner Owner, launchOrdinal uint64, nativeID string, reason ConfirmationReason, proof *AuthorizationProof) (Record, error) {
+	record := Record{Version: 3, Kind: RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: nativeID, ConfirmationReason: reason, AuthorizationProof: proof}
+	encoded, err := EncodeRecord(record)
+	if err != nil {
+		return Record{}, err
+	}
+	var existing *Record
+	ordinal, err := s.appendEncodedChecked(path, encoded, func(raw []byte) error {
+		current, ok := CurrentLaunch(ParseLedger(raw).Records, owner)
+		if !ok || current.Launch.Ordinal != launchOrdinal {
+			return ErrStaleLaunch
+		}
+		if current.Conflict {
+			return errors.New("launch has conflicting confirmations")
+		}
+		if current.Binding != nil {
+			if current.Binding.RootNativeID != nativeID {
+				return errors.New("launch already confirmed another root")
+			}
+			copy := *current.Binding
+			existing = &copy
+			return &alreadyConfirmed{ordinal: copy.Ordinal}
+		}
+		return nil
+	})
+	if existing != nil {
+		return *existing, err
+	}
+	record.Ordinal = ordinal
+	return record, err
+}
+
+type alreadyConfirmed struct{ ordinal uint64 }
+
+func (*alreadyConfirmed) Error() string { return "already confirmed" }
+
 func (s LedgerStore) appendBindingIfCurrentRecord(path string, owner Owner, record Record) (Record, error) {
 	encoded, err := EncodeRecord(record)
 	if err != nil {
@@ -224,6 +262,11 @@ func (s LedgerStore) appendEncodedChecked(path string, encoded []byte, check fun
 	}
 	if check != nil {
 		if err := check(raw); err != nil {
+			var same *alreadyConfirmed
+			if errors.As(err, &same) {
+				outcome = AppendCommitted
+				return same.ordinal, nil
+			}
 			return 0, err
 		}
 	}
@@ -296,4 +339,23 @@ func writeAll(writer io.Writer, raw []byte) (int, error) {
 		raw = raw[n:]
 	}
 	return written, nil
+}
+
+// WithCurrentConfirmation serializes compatibility-cache publication with new
+// launches. Effects must not reenter this ledger's lock.
+func (s LedgerStore) WithCurrentConfirmation(path string, owner Owner, ordinal uint64, nativeID string, effect func() error) (err error) {
+	lock, err := s.Runtime.Lock(path + ".lock")
+	if err != nil {
+		return err
+	}
+	defer func() { err = errors.Join(err, lock.Close()) }()
+	raw, err := s.Runtime.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	current, ok := CurrentLaunch(ParseLedger(raw).Records, owner)
+	if !ok || current.Launch.Ordinal != ordinal || current.Conflict || current.Binding == nil || current.Binding.RootNativeID != nativeID {
+		return ErrStaleLaunch
+	}
+	return effect()
 }

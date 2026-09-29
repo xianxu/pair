@@ -47,7 +47,7 @@ func TestEveryAgentDispatchParity(t *testing.T) {
 
 			var rootValidation *sessioninventory.TargetValidation
 			for i := range validations {
-				if validations[i].State.Role == sessioninventory.RoleRoot {
+				if validations[i].State.Role == sessioninventory.RoleRoot && validations[i].State.NativeID == agentFixtureNativeID(agent) {
 					rootValidation = &validations[i]
 					break
 				}
@@ -236,7 +236,7 @@ func agentSchema(agent sessioninventory.Agent) string {
 	case sessioninventory.AgentClaude:
 		return "claude-v1"
 	case sessioninventory.AgentCodex:
-		return "codex-v1"
+		return "codex-v2"
 	case sessioninventory.AgentMuse:
 		return "muse-v1"
 	case sessioninventory.AgentQoder:

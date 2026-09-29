@@ -47,8 +47,8 @@ type Runtime interface {
 	Classify(readinessLua string, f ReadinessFacts) (string, error)
 	// SpawnReviewPane opens the floating nvim review pane (zellij run …).
 	SpawnReviewPane(cwd, lua, absFile, nvimPidFile string) error
-	// EstablishedSessionID returns inventory authority without compatibility or
-	// live-process fallback.
+	// EstablishedSessionID returns the durable current target, including probation,
+	// without compatibility or live-process fallback.
 	EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus)
 }
 
@@ -141,7 +141,7 @@ func resolveTargetSession(rt Runtime, dataDir, scopeKey, tag, agent, envSID stri
 	if envSID != "" {
 		return envSID
 	}
-	if sid, status := rt.EstablishedSessionID(dataDir, scopeKey, tag, agent); status == sessioninventory.BindingEstablished {
+	if sid, status := rt.EstablishedSessionID(dataDir, scopeKey, tag, agent); status == sessioninventory.BindingEstablished || status == sessioninventory.BindingProvisional {
 		return sid
 	}
 	return ""

@@ -7,6 +7,14 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A filename absence decision that creates a replacement requires complete
+  enumeration. Carry failed/partial probes as unknown through every consumer;
+  an empty ID must not silently select a destructive fresh fallback. (#346)
+
+- Documentation edits can break executable contract checks. Run the complete
+  relevant suite after the final review fix, including README checks; validate
+  every durable ID field that can reach agent argv, not just request fields. (#346)
+
 - Capture external predicate status and both output streams from the running
   client/server before encoding a fake; CLI help alone may describe a different
   transport behavior. Keep false distinct from query failure. (#341)
@@ -38,6 +46,10 @@ representative evidence, not an exhaustive index.
   Verify the verification command itself. (#139, #262)
 
 ## Authority, ownership, and identity
+
+- Model present/absent/unknown at the producer instead of reconstructing it
+  from booleans in each consumer. Persistent refusals need the failed resource
+  and an explicit recovery action, not only a retry instruction. (#350)
 
 - Give each fact one production authority and make consumers derive from it.
   Negative greps, duplicate registries, and prose tables drift. If a rule fails
@@ -287,3 +299,11 @@ proof; record the surprising case so the next change starts from evidence.
 - Git checkout changes the working tree before publishing HEAD. Unchanged branch/HEAD alone is insufficient authority for working-tree snapshots; test with checkout deliberately paused mid-update. (#341 BR-5)
 - Binary file lines and editor lines differ: CRLF bytes must be decoded before entering a dos-format buffer. Share decoding across activation/refresh and assert exact saved bytes, not just displayed text. (#341 BR-6)
 - Process tests launched from a live Pair session must discard inherited session artifact variables and bind every writable path to fixture storage. Rebinding only PAIR_DATA_DIR is insufficient when explicit *_PATH variables override it; verify external sentinel files survive the actual process tests. (#341 BR-7)
+
+- A recovery command may have authority to restore a binding without authority to rewrite launch configuration. Reusing a live producer with missing argv can erase saved options; keep repair writes scoped to proven authority and test config preservation through actual cold resume. (#346 plan review)
+
+- An isolation sentinel must occupy the actual production storage path. Mutation-test the environment wrapper so leaking ambient roots changes that sentinel; a never-consumed marker cannot prove isolation. New recovery commands must be discoverable in both user documentation and the failing command’s diagnostics. (#346 M1 BR-1–3)
+
+- Recovery and live observation must call one binding decision function, not separately combine matching candidates. Exercise per-message candidate intersections in parity tests. (#346 M2 BR-6)
+- Every dispatcher family is either documented for operators or explicitly classified internal; enforce this across the family registry to prevent recurring recovery-command README omissions. (#346 M2 BR-7)
+- Identity policy changes must sweep ledger-to-legacy projections as well as direct query callers. Test actual parsed ledger data through restart-marker construction; a fake already carrying a UUID hides a dropped provisional target. (#346 M2)

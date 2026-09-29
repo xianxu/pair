@@ -36,44 +36,54 @@ reads, read-only SQLite, and process/open-file snapshots. The sibling
 paths, IDs, or transcript content. Native parentage establishes topology only;
 it is not evidence that a Pair tag owns a root.
 
-#156 makes that boundary incremental. The selected scope owns
-`session-inventory-catalog.json`, a versioned catalog of scanner facts,
-filesystem generation/mutation fingerprints, parser-complete offsets, and
-scanner state. Launch records contain metadata-only artifact exclusion
-boundaries; binding records contain a complete authorization proof. Unchanged
-catalog/proof generations need no body read, trusted append-only JSONL stores
-validate only their suffix, and replacement, truncation, unavailable generation,
-schema drift, or corruption fail closed for the targeted entry.
+#346 separates durable identity from optional transcript parsing. `QueryResumeTarget`
+projects the current owner ledger: a confirmed UUID wins, otherwise a v3
+existing-conversation resume request remains usable under probation. An unconfirmed
+fresh Pair-chosen ID needs a matching root filename before reuse; if it has not
+materialized, Alt+n starts fresh with a new UUID. This check uses metadata, not
+transcript-body parsing. A failed or partial listing without a matching filename
+keeps materialization unknown and refuses restart before destructive effects.
+The pure history projection cannot inspect filenames and conservatively omits
+unconfirmed chosen IDs; launch consumers use the runtime projection.
+Legacy v1/v2 bindings
+remain usable without their old device/inode proof. Missing files, cache loss,
+and parser failures cannot erase this resume target. Conflicting confirmations
+remain ambiguous; a fresh launch never inherits an earlier launch's target.
 
-`pair session-watch` observes only post-launch candidates and appended bytes.
-`pair wrap` is its one spawn site (#329): right after starting the agent and
-writing the agent-pid file, wrap spawns the watcher for `PAIR_LAUNCH_ORDINAL`
-in a session of its own, with `--pid-not-before` set to the instant before the
-agent started. An in-pane fresh conversation gets its watcher the same way, from
-the replacement wrap. The watcher therefore lives with the agent, not with the
-pair client, so Couch detach (which signals the client's process group) cannot
-strand a launch unbound. After binding, Codex watchers continue observing
-lifecycle events; other agents' watchers exit. A watcher also ends when the
-agent's process identity changes, or at its startup deadline if no agent pid appears.
-A production `IncrementalInventory` façade reconciles metadata with the catalog;
-fresh launches can inspect only `new` delta entries, while an already authorized
-target advances from its proof/catalog cursor. Raw launch boundaries retain the
-full continuity tuple as exclusion evidence; they never authorize reads from an
-unbound preexisting append. Established and explicit targets advance from their
-proof parser cursor instead of a launch-relative cursor.
-A unique exact operator turn followed by assistant/tool/error progress proposes
-the root; the watcher persists catalog state before appending a proof-bearing
-binding while the launch ordinal is still current. Repeated matches remain
-ambiguous and no timestamp, traversal order, first/newest file, or native parent
-edge breaks the tie. Cadence follows the causal prerequisite, not the launch
-alone (#316): fast polls for the startup window, then `ActivePoll` (1 s) for 30
-min after each observed Pair-log send, else `SlowPoll`, and a send ends a slow
-wait early, so a completed first round binds within about a second. A proofless legacy binding stays unavailable to automatic
-consumers until one keyed background migration validates its named root; an
-explicit resume may do that one-root validation synchronously. The watcher owns
-durable background proof publication, and ledger projection selects the newest
-same-root binding so the upgrade becomes visible. An unbound v1 launch has no
-safe metadata boundary and therefore stops without a compatibility corpus scan.
+The selected scope owns `session-inventory-catalog.json`, a rebuildable cache of
+scanner facts, filesystem fingerprints, parser offsets, and scanner state.
+These validate parsed contents and suffix provenance, not durable UUID identity.
+
+Launch preparation records the requested UUID and origin (`resume` or
+`chosen-id`), Pair input offset, and metadata-only native-file boundaries. It
+never preconfirms a resume by reading the old transcript. If a complete baseline
+cannot be read, startup proceeds; the watcher acquires a complete observation
+epoch later and considers only subsequent input and native bytes. Silence and
+ambiguity retain probation.
+
+`pair wrap` spawns `pair session-watch` for its launch ordinal after starting the
+agent. The watcher lives with that agent across client detach. Fresh and resumed
+launches share correlation: new files and appended activity in existing files
+are candidates, but events beginning before the corresponding byte boundary
+cannot confirm this launch. Current exact Pair sends followed by native
+assistant/tool/error progress must uniquely satisfy the existing matching
+thresholds. Repeated matches remain ambiguous; newest-file order is no tie-breaker.
+A Pair-chosen UUID also permits a newly created matching root filename to serve
+as acknowledgment when its absence at launch was known.
+
+The watcher commits confirmation only while that launch is current. Requested
+A and observed D are separate ledger facts, preserving both the effective
+identity and debugging history. Same-root confirmation is idempotent; competing
+confirmed roots are refused. Optional Codex lifecycle observation continues
+after confirmation. An unbound v1 launch has no reliable boundary for historic
+repair.
+
+For a stopped unbound launch with a complete recorded baseline, run
+`PAIR_DATA_DIR=<scoped-dir> pair session-repair <agent> <tag> --scope-key <scope>`
+to preview exact prompt/progress correlation. Add `--apply` to publish the
+current-launch confirmation. Preview is read-only; apply never rewrites saved
+launch arguments or needs a live agent PID. Ambiguous or insufficient evidence
+is reported without guessing.
 
 For Codex, the same detached watcher remains attached after a proof-bearing
 binding and incrementally follows only that authorized rollout generation. It
@@ -95,10 +105,10 @@ data. Pair's Go store and Neovim history navigation share the versioned
 byte-counted log grammar while retaining legacy entries, so authored Markdown
 separators round-trip.
 
-Inventory queries remain the only native-session read authority. Context/token
-usage, title activity, bounded slug text events, review scoping, launcher
-recovery/resume hints, and changelog keying consume an established owner
-projection by reading one ledger and its proof-named artifacts. That ledger
+`QueryResumeTarget` supplies Couch/launcher admission, review scoping, and
+changelog identity without native-body reads. `QuerySession` separately supplies
+parsed contents for optional context/token usage, title activity, and native
+text consumers. Its parser/proof diagnostics do not change the durable target. That ledger
 read uses the same chunked JSONL framer as transcripts, without arbitrary
 record/file-size cutoffs (#297). Native transcripts, ledger rows, Pair logs and
 configs, and SQLite result bodies have no matching writer ceiling; reader caps
@@ -114,11 +124,11 @@ to the durable ledger proof. On a filesystem with no generation token, a proof
 artifact that is the same file and not smaller, but whose metadata moved (for
 example growth, or a resuming agent bumping ctime without writing, #328), is
 re-read from byte zero. The content, not the metadata, decides whether the
-root still validates. A failed proof stays provisional and records a
-`binding_stale` diagnostic. Neovim's review fallback uses the bounded `--owner`
-projection rather than the diagnostic whole-inventory rendering. Provisional, ambiguous, and unbound
-owners remain explicit absence; only an exact inherited `PAIR_SESSION_ID` can
-precede that projection. Compatibility config retains launch arguments but
+root still validates. A failed parsed proof leaves contents unavailable and records a
+`binding_stale` diagnostic; the resume target remains usable. Neovim's review fallback uses the bounded `--owner`
+projection rather than the diagnostic whole-inventory rendering. The Go review
+target writer uses the durable target, including probation; an exact inherited
+`PAIR_SESSION_ID` retains its existing precedence. Compatibility config retains launch arguments but
 cannot establish identity. Alt+X reads local sidecars and paints its confirmation
 without starting inventory/activity work; age/idle enrichment is omitted from
 the modal. `make test-session-inventory-conformance` runs the one-second installed
@@ -280,13 +290,15 @@ migrates by being quit and relaunched.
 
 ## Independent Pair and Couch authorities
 
-Couch verified park preserves the exact Pair address and the established native
-root binding; it is not a new identity state in Pair. Resume therefore uses the
-existing `{repo scope, tag}` marker in read-only established mode and requires
-the same native ID before launch. It never allocates or adopts a marker, chooses
+Couch verified park preserves the exact Pair address; it is not a new native
+identity state. Cold resume uses the current durable target, including a requested
+UUID under probation, through the existing `{repo scope, tag}` marker. It requires
+the same native ID before launch for a resume. The explicit exception is an
+unmaterialized fresh Pair-chosen ID: Couch requests a fresh launch and generates
+a new UUID using the saved launch parameters. It never allocates or adopts a marker, chooses
 a newest transcript, or consults current path/root/repository launch defaults.
-The native forest remains #155's authority; Couch stores only the proof-bearing
-binding reference and last successfully registered launch profile.
+The ledger owns native identity; the native forest supplies parsed observations.
+Couch stores the last successfully registered launch profile.
 
 Pair and Couch deliberately have two independent durable authorities:
 
@@ -370,25 +382,16 @@ override a current ledger generation.
 
 ### Codex root identity
 
-A Codex rollout filename supplies only a candidate UUID; it does not prove
-which conversation owns the rollout. Pair authorizes an automatic Codex
-identity only when the rollout's first JSONL event is a matching
-`session_meta`, its `parent_thread_id` is absent or null, and its source is the
-observed root source `cli` or `exec`. Subagent, malformed, mismatched, unknown,
-oversized, and incomplete first events fail closed. Candidate scans continue
-past rejected rollouts so an open subagent cannot hide a later root candidate.
+Codex scanning treats source metadata as open-world: `vscode`, unfamiliar valid
+values, and absent source fields do not by themselves reject a root. Understood parent/subagent evidence still prevents
+child transcripts from being selected as roots. Parsing checks apply to fresh
+correlation and optional contents, never to the continued usability of a saved
+UUID. Scanner schema changes invalidate obsolete cached rejections.
 
-The rule lives in `cmd/internal/sessioninventory` and is shared by launcher,
-watcher, context, slug, title, opener, and review queries. Process/open-file
-evidence can corroborate a causal-round candidate but cannot select one.
-Persisted config IDs are compatibility evidence only: an unavailable binding is
-removed from config, its non-resume args are preserved for a fresh launch, and
-the operator is warned. Explicit inherited invocation authority remains exact.
-
-Neovim deliberately does not inspect Codex processes or rollouts. Review
-target scoping uses the inherited `PAIR_SESSION_ID`, then the established
-inventory projection; when neither exists it remains unscoped until the watcher
-publishes a validated root binding.
+The scanner lives in `cmd/internal/sessioninventory`. Process/open-file evidence
+can corroborate a causal-round candidate but cannot select one. Compatibility
+config IDs cannot override the current ledger; config retains launch options.
+Neovim does not inspect Codex processes or rollouts itself.
 
 `agent-default-<agent>.json` is different from `config-<tag>-<agent>.json`: it
 has only `{agent,args}` and belongs to the repo/agent, not to a work tag or

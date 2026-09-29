@@ -35,7 +35,7 @@ func LaunchDiagnosticOf(err error) LaunchDiagnosticCode {
 }
 
 func RequireNativeResumeBinding(required, actual string, status sessioninventory.BindingStatus) error {
-	if required == "" || status != sessioninventory.BindingEstablished || actual == "" || actual != required {
+	if required == "" || (status != sessioninventory.BindingEstablished && status != sessioninventory.BindingProvisional) || actual == "" || actual != required {
 		return &LaunchRefusal{Code: NativeBindingChanged, Diagnostic: "required native session binding changed before launch"}
 	}
 	return nil

@@ -14,6 +14,9 @@ import (
 // Argument errors are reported before any PTY/terminal op, so they need no tty.
 func TestRunArgErrors(t *testing.T) {
 	isolateNotificationSockets(t)
+	// Argument parsing is independent of managed Pair storage.
+	t.Setenv("PAIR_TAG", "")
+	t.Setenv("PAIR_DATA_DIR", "")
 	cases := []struct {
 		name    string
 		args    []string

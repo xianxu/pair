@@ -3,6 +3,9 @@ package launcher
 import (
 	"bytes"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"strings"
 	"testing"
 )
@@ -195,5 +198,89 @@ func TestRunRestartRefusesACouchOwnedSessionBeforeMutation(t *testing.T) {
 				t.Fatalf("mutated before refusing: markers=%v quit=%v killed=%v", rt.writtenMarkers, rt.touchedQuit, rt.killed)
 			}
 		})
+	}
+}
+
+func TestRunRestartPreservesRequestedProbationFromRealLedger(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "codex"
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: "requested-A", RequestOrigin: sessionledger.RequestOriginResume, BaselineComplete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.ledger["work"] = ParseLedger(string(launch) + "\n")
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 0 {
+		t.Fatalf("restart=%d: %s", code, stderr.String())
+	}
+	marker := rt.writtenMarkers["📁work"]
+	if marker.SessionID != "requested-A" {
+		t.Fatalf("probation lost at restart: %+v", marker)
+	}
+	plan := planRestart(marker, "work", "codex", savedConfig{Agent: "codex", Args: []string{"--search"}})
+	if got := strings.Join(plan.Args.AgentArgs, " "); got != "resume requested-A --search" || plan.DropConfig {
+		t.Fatalf("restart plan = %+v", plan)
+	}
+}
+
+func TestRunRestartUnmaterializedChosenIDStartsFresh(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "claude"
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", RequestedNativeID: "chosen-X", RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.ledger["work"] = parseLedger(string(launch)+"\n", func(current sessionledger.Current) sessioninventory.ResumeTarget {
+		return sessioninventory.ResumeTargetForRuntimeLaunch(sessioninventorytest.NewFakeRuntime(), current)
+	})
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	marker := rt.writtenMarkers["📁work"]
+	if marker.SessionID != "" {
+		t.Fatalf("unmaterialized chosen UUID resumed: %+v", marker)
+	}
+	plan := planRestart(marker, "work", "claude", savedConfig{Agent: "claude", SessionID: "chosen-X", Args: []string{"--model", "opus", "--session-id", "chosen-X"}})
+	if !plan.DropConfig || strings.Contains(strings.Join(plan.Args.AgentArgs, " "), "chosen-X") {
+		t.Fatalf("stale config resurrected chosen UUID: %+v", plan)
+	}
+}
+
+type unreadableLedgerRuntime struct {
+	*fakeRuntime
+	readErr error
+}
+
+func (r unreadableLedgerRuntime) ReadLedger(string) ([]LedgerEntry, error) { return nil, r.readErr }
+func TestUnreadableLedgerRefusesRestartAndCreate(t *testing.T) {
+	rt := unreadableLedgerRuntime{newFakeRuntime(), errors.New("EIO: ledger unreadable")}
+	rt.inferAgent["work"] = "claude"
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":[],"session_id":"X"}`
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 1 || len(rt.killed) != 0 {
+		t.Fatalf("restart code=%d killed=%v stderr=%s", code, rt.killed, stderr.String())
+	}
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), rt, &stderr)
+	if err != nil || code != 1 || rt.launched != "" || rt.files["/data/config-work-claude.json"] == "" {
+		t.Fatalf("create code=%d err=%v launched=%q", code, err, rt.launched)
+	}
+}
+
+func TestConflictingLedgerRefusesRestartAndPicker(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "claude"
+	raw := `{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"baseline_complete":true}` + "\n"
+	for _, id := range []string{"A", "B"} {
+		raw += `{"v":3,"kind":"binding","scope_key":"scope","tag":"work","agent":"claude","launch_ordinal":1,"root_native_id":"` + id + `","confirmation_reason":"correlation"}` + "\n"
+	}
+	rt.ledger["work"] = ParseLedger(raw)
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 1 || len(rt.killed) != 0 {
+		t.Fatalf("conflict restarted: %d %v", code, rt.killed)
+	}
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":[],"session_id":"A"}`
+	if _, _, err := readSavedConfigForTag(rt, "/data/config-work-claude.json", "scope", "work", "claude"); err == nil || rt.files["/data/config-work-claude.json"] == "" {
+		t.Fatalf("conflict admitted or removed config: %v", err)
 	}
 }

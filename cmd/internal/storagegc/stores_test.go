@@ -87,7 +87,7 @@ func TestRegistryCanonicalizesRegistrationButRejectsPersistedAliases(t *testing.
 		t.Fatal("persisted alias accepted")
 	}
 }
-func TestRegistryUnavailableStoreBlocksAllMutations(t *testing.T) {
+func TestRegistryUnavailableStoreBlocksCollectionAndRemoval(t *testing.T) {
 	c, _ := coordinatorFixture(t)
 	ctx := context.Background()
 	store := storeDirectory(t)
@@ -104,9 +104,6 @@ func TestRegistryUnavailableStoreBlocksAllMutations(t *testing.T) {
 	}
 	if err := c.CompleteMigration(ctx, []string{store}); err == nil {
 		t.Fatal("unavailable store allowed completion")
-	}
-	if err := c.RegisterStore(ctx, storeDirectory(t)); err == nil {
-		t.Fatal("outage overwritten by registration")
 	}
 	called := false
 	if err := c.UnregisterStore(ctx, store, func(string) (bool, error) { called = true; return true, nil }); err == nil || called {

@@ -5,6 +5,9 @@
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
+if [ "${PAIR_SMOKE_ISOLATED:-}" != 1 ]; then
+  exec sh "$root/tests/with-isolated-pair.sh" env PAIR_SMOKE_ISOLATED=1 sh "$root/tests/couch-recovery-smoke.sh" "$@"
+fi
 case "${1:-warm}" in
   warm|checkpoint|retired-checkpoint) mode=${1:-warm} ;;
   *) printf 'Usage: %s [warm|checkpoint|retired-checkpoint]\n' "$0" >&2; exit 2 ;;
