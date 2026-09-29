@@ -11,8 +11,8 @@ policy (`FadeStyle`) blend a label's color toward the terminal's own background,
 which Couch learns by asking the terminal once (OSC 10/11) at startup. A
 background activity pass modeled on the slot-git pass (`console_slotgit.go`)
 reads each live thread's last activity: the newest of its bound agent
-transcript's mtime, its Pair log's mtime (sends), and the thread's creation
-time as a floor. That definition lives in one shared function, which the title
+transcript's mtime, its Pair log's mtime (sends), and its current launch's
+pane-birth evidence mtime (launching is an operator action). That definition lives in one shared function, which the title
 poller's heat ramp also moves onto. The pass reduces the
 result into `MenuState` and repaints. Both renderers derive from the same
 level + style, and nothing persists.
@@ -31,7 +31,7 @@ recent-traffic dot moved to #342.
 
 ## Decisions this plan makes (flag at review if wrong)
 
-1. **Activity = max(bound transcript mtime, Pair log mtime, thread `CreatedAt`)**,
+1. **Activity = max(bound transcript mtime, Pair log mtime, pane-birth mtime)**,
    in `cmd/internal/threadactivity`. The title poller's `activityMTime` moves
    onto it (ARCH-DRY: one definition).
    - The transcript is written on the operator's prompts and the agent's work.
@@ -42,16 +42,30 @@ recent-traffic dot moved to #342.
      BufLeave and InsertLeave (`nvim/init.lua:2328`, `:3680`), so its mtime
      means "the operator last left the draft", not input. A thread switch
      would refresh it. The heat ramp inherits the same fix.
+   - The pane-birth evidence (`panebirth.Evidence(scopeDir, tag, agent)`) is
+     cleared and rewritten on every real launch, create or resume
+     (`createflow.go`), and never on attach ("Attach never clears"). Its mtime
+     is "this agent was last launched", which is operator activity. It
+     survives a Couch restart, because a restart reattaches without relaunching.
    - None of these three change on redraws, cursor blink or polling. Attach
      `Touch`es the draft only with `O_CREATE` (`osfs.Touch`), which leaves an
      existing file's mtime alone; either way the draft is no longer read.
-2. **No unknown state for a live thread: `CreatedAt` is the floor.** A thread
-   with no sends and no bound session ages from its durable creation time.
-   That's an honest lower bound, not a fabricated freshness: a new thread is
-   fresh, and an old silent one fades. It survives a Couch restart; the
-   incarnation's `StartedAt` would not, because detach retires the incarnation
-   and a restart would restamp every thread. The switcher's non-live
-   `AgeUnknown` rule is untouched. A future timestamp (clock skew) → level 0.
+2. **Launch is the lower bound, not a fallback.** A live thread always has a
+   pane-birth file, so a thread with no sends and no bound session ages from
+   its launch. A new session is fresh, and an old silent one fades.
+   - This keeps the title poller's startup behavior. It skips its frame meter
+     and heat prefix while activity reads zero (`titlepoller/run.go:151`), and
+     used to get a non-zero time from the draft. The pane birth it already
+     awaits supplies that now (plan-quality PQ-1).
+   - Rejected alternatives:
+     - The thread's `CreatedAt`: slot recovery restamps it with the recovery
+       time (`slotrecovery.go:326,437`), which fakes freshness.
+     - The incarnation's `StartedAt`: detach retires the incarnation, so a
+       Couch restart would restamp every thread.
+   - A missing pane-birth file and no other signal gives zero, which is
+     unknown and shows as level 0 in Couch, as today. That's rare: the thread
+     has no evidence of ever launching. The switcher's non-live `AgeUnknown`
+     rule is untouched. A future timestamp (clock skew) → level 0.
 3. **Precedence:** the selected chip/row, a chip or row with a pending
    notification (`Bell`), and a placeholder are never faded. Idle fading
    applies to every other live label, and to its amber slot glyphs (`±`, `*`).
@@ -65,7 +79,9 @@ recent-traffic dot moved to #342.
    bytes are kept (amber glyphs included); this issue doesn't take on no-color
    for the rest of the bar. `COLORTERM`
    not `truecolor`/`24bit` → the blended RGB is quantized to the nearest
-   xterm-256 color.
+   xterm-256 color. With an unknown palette, both faded levels render as the
+   same `SGR 90`: the two levels are indistinguishable there, and the docs say
+   so (there's only one theme-safe grey).
 6. **Scope:** live rows only. The switcher's focus view (`MenuViewFocus`) isn't
    faded; the docs say so. A theme change mid-session isn't picked up (the
    query is sent once), which is noted as a limit. Replies to a child
@@ -108,7 +124,6 @@ recent-traffic dot moved to #342.
 | `StatusActor.Idle` | `cmd/internal/couchtty/reserve.go` | modified |
 | `StatusModel.Palette` | `cmd/internal/couchtty/reserve.go` | modified |
 | `MenuState.Activity`, `MenuState.Palette`, `MenuEventActivity`, `MenuEventPalette` | `cmd/internal/couchtty/menu.go` | modified |
-| `ActionableThreadSummary.CreatedAt` | `cmd/internal/couchcore/actionableinventory.go` | modified |
 | `threadactivity.Latest` | `cmd/internal/threadactivity/activity.go` | new |
 
 - **IdleLevel / IdleLevelFor(now, last time.Time, known bool) IdleLevel** —
@@ -123,13 +138,18 @@ recent-traffic dot moved to #342.
   xterm 220 = `#ffd700`) at a level. Level 0 → `""` for default and
   `attentionSGR` for amber, byte-identical to today. The fallbacks follow
   Decision 5.
-- **threadactivity.Latest(ctx, rt Runtime, Thread{ScopeDir, Scope, Tag, Agent, CreatedAt}) time.Time**
-  — the newest of the bound transcript's `LastActivityAt`, the Pair log's
-  mtime, and `CreatedAt`. `ScopeDir` is the per-repo data directory
-  (`artifactpath.ResolveScopeDir(dataDir, scope)`), not the global data root.
-  `Runtime` is `{ModTime(path) (time.Time, bool); SessionActivity(ctx, scopeDir, scope, tag, agent) (time.Time, bool)}`.
-  Pure given its Runtime; tests use a map-backed fake. Callers can't get an
-  unknown answer, only an older one.
+- **threadactivity.Latest(ctx, rt Runtime, t Thread) time.Time**, with
+  `Thread{ScopeDir, Scope, Tag, Agent string}` — the newest of the bound
+  transcript's `LastActivityAt`, the Pair log's mtime, and the pane-birth
+  evidence mtime. Zero means no signal at all.
+  - `ScopeDir` is the per-repo data directory
+    (`artifactpath.ResolveScopeDir(dataDir, scope)` in Couch, `opts.DataDir`
+    in the title poller), not the global data root.
+  - `Runtime` is `{ModTime(path) (time.Time, bool); SessionActivity(ctx, scopeDir, scope, tag, agent) (time.Time, bool)}`.
+  - Pure given its Runtime; tests use a map-backed fake.
+  - **This is the one signature.** The Couch probe returns
+    `(threadactivity.Latest(...), nil)`; zero reaches the renderer as "no
+    entry", which is level 0.
 
 ### Integration points
 
@@ -292,6 +312,8 @@ func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
 
 ### Task 3: tab bar renders the fade
 
+**Test strategy:** risky function `RenderStatusRow`; guard = golden bytes for a level-1/level-2 chip plus byte-identity of the level-0 fixtures and unchanged `ChipSpan`s; mutation = delete the fade `case`.
+
 **Files:** Modify `cmd/internal/couchtty/reserve.go` (`StatusActor`, `StatusModel`, `RenderStatusRow` style switch). Test in `cmd/internal/couchtty/reserve_test.go`.
 
 - [ ] **Step 1: failing tests**
@@ -326,6 +348,8 @@ case !a.Active:
 
 ### Task 4: switcher renders the fade for live rows
 
+**Test strategy:** risky function `renderRootMenuFrame`; guard = a faded live row, and a selected/attention/non-live row byte-identical to today; mutation = drop the `thread.Live()` fade branch.
+
 **Files:** Modify `cmd/internal/couchtty/menu_render.go` (`renderRootMenuFrame` live branch, `colorMenuGlyph` gets a glyph-style parameter); `RenderMenuView` gains the palette and activity through `MenuState` (Task 5 adds `Activity`; this task takes a `Palette` field on `MenuState` too). Test in `menu_render_test.go`.
 
 - [ ] **Step 1: failing tests**, with `RenderMenuView(state, cols, h, now, true)`:
@@ -352,14 +376,17 @@ case !a.Active:
 **Files:** Create `cmd/internal/threadactivity/activity.go`, `activity_test.go`, `os.go`. Modify `cmd/internal/titlepoller/run.go` (`activityMTime`) and `runtime.go` (adapter).
 
 - [ ] **Step 1: failing tests** (map-backed fake Runtime):
-  - The newest of transcript, log and `CreatedAt` wins, each alone included.
-  - With no transcript and no log, the answer is `CreatedAt`.
+  - The newest of transcript, log and pane birth wins, each alone included.
+  - With no transcript and no log, the answer is the pane-birth mtime (the
+    PQ-1 regression: a fresh session is never zero).
+  - Nothing at all → zero.
   - A draft mtime newer than everything else is **ignored** (pins Decision 1).
-  - A canceled `ctx` returns promptly with the floor.
+  - A canceled `ctx` returns promptly with what the file mtimes give.
 - [ ] **Step 2:** FAIL. **Step 3:** implement `Latest` and point
-  `titlepoller.activityMTime` at it (the title poller passes its own scope dir,
-  the tag's agent and the thread creation time it can see; with no creation
-  time, it passes zero, and the transcript/log carry it). `OSRuntime` in
+  `titlepoller.activityMTime` at it (the title poller passes `opts.DataDir`,
+  its scope key, tag and agent). Add a title-poller test: a session with
+  pane birth but no transcript or log still updates its frame titles on the
+  first tick. `OSRuntime` in
   `os.go` wraps `os.Stat` plus
   `sessioninventory.NewOSRuntime(home, scopeDir)` +
   `QuerySessionContext` + `ActivityForSession`, following
@@ -369,6 +396,8 @@ case !a.Active:
 - [ ] **Step 4:** `go test ./cmd/internal/threadactivity ./cmd/internal/titlepoller` pass. **Step 5:** commit.
 
 ### Task 6: activity pass in the console
+
+**Test strategy:** risky functions `advanceActivity`/`finishActivity`; guard = a fake probe with a call log and an injected clock, asserting levels on both renderers; mutation = probe non-live rows / ignore the generation.
 
 **Files:** Create `cmd/internal/couchtty/console_activity.go`, `console_activity_test.go`. Modify `console.go` (fields, `Run` select loop: ticker plus the results channel, `now`), `menu.go` (`MenuState.Activity`, `MenuEventActivity` reduce, copy in the state-clone helper next to `SlotGit`), `console_presentation.go` (`statusModelLocked` sets `actor.Idle` and `model.Palette`).
 
@@ -397,13 +426,14 @@ case !a.Active:
   `select` on `c.stop`, `showMenu()` when the panel has focus, else
   `repaint()`). Use `defaultActivityInterval = 60 * time.Second`. Call
   `requestActivity()` beside each existing `requestSlotGit()` (inventory
-  landing `console_menu.go:153`, switch `console.go:544`). Project
-  `CreatedAt` into `ActionableThreadSummary` from the thread record.
+  landing `console_menu.go:153`, switch `console.go:544`).
 - [ ] **Step 4:** pass. Measure one production pass against the operator's real
   thread list: log the duration in the issue, budget < 2 s for 20 threads.
 - [ ] **Step 5:** commit.
 
 ### Task 7: palette query + reply capture
+
+**Test strategy:** risky functions `Run` (query order) and `routeInputEvent` (capture); guard = the fake host's write log plus fed OSC replies; mutation = skip the capture before the `Reply` drop.
 
 **Files:** Modify `console.go` (`Run`: after `MakeRaw`, before `applyLayout`, write `"\x1b]10;?\x1b\\\x1b]11;?\x1b\\"` with `c.host.WriteContext`; seed `Palette.TrueColor`/`NoColor` from env at construction), `terminal_input.go` (`routeInputEvent`: before the `Reply` early return, reduce `uv.ForegroundColorEvent`/`uv.BackgroundColorEvent` into `MenuState.Palette` via `MenuEventPalette` under `c.mu`. A nil `Color` (malformed reply) is ignored. `Known` once both have arrived. Then `showMenu()` if the panel has focus, else `repaint()`. `statusModelLocked` reads the palette from `c.menu`; it's stored in one place). Test in `console_test.go`-style harness with the fake host.
 
@@ -423,17 +453,21 @@ case !a.Active:
 **Files:** Modify `cmd/internal/couchcmd/run.go` next to `SetSlotGitProbe`:
 
 ```go
-console.SetActivityProbe(func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, bool, error) {
-	return threadactivity.Latest(threadactivity.NewOSRuntime(home, dataDir),
-		dataDir, row.Address.RepoScope, row.Address.Tag, row.Agent)
+console.SetActivityProbe(func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error) {
+	scopeDir, err := artifactpath.ResolveScopeDir(dataDir, row.Address.RepoScope)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return threadactivity.Latest(ctx, threadactivity.NewOSRuntime(home), threadactivity.Thread{
+		ScopeDir: scopeDir, Scope: row.Address.RepoScope, Tag: row.Address.Tag, Agent: row.Agent,
+	}), nil
 })
 ```
 
 where `dataDir := launcher.ResolveDataDir(...)` is the one `couchcmd/run.go:103`
-already computes, and the probe passes
-`artifactpath.ResolveScopeDir(dataDir, row.Address.RepoScope)` as `ScopeDir` and
-`row.CreatedAt` as the floor. (The snippet above is schematic; the real
-call builds the `threadactivity.Thread` value.)
+already computes. (Check `ResolveScopeDir`'s exact signature at
+implementation; switchcontext.go reaches the same dir through
+`artifactpath.Resolve(...).ScopeDir()`, and either is fine.)
 
 - [ ] No existing test pins `SetSlotGitProbe`'s wiring. This wiring is
   covered by the live smoke. Commit.
@@ -482,3 +516,18 @@ call builds the `threadactivity.Thread` value.)
   (`IdleDay`), 3 days or more (`IdleStale`). `IdleHour` is gone.
 - Blend weights: 0 / 40 / 65 % (was 0/35/55/70). Test boundaries, worked
   examples (`#999999`, amber ≈ `#fff1a6` on white) and docs updated to match.
+
+### 2026-09-28 — plan-quality gate (change-code) findings
+
+- PQ-1 (Important): moving the title poller off the draft with a zero floor
+  would have disabled its frame meter and heat prefix on new sessions. Fixed
+  at the class: activity now includes the current launch's pane-birth mtime,
+  which both consumers have. A title-poller regression test is added.
+- PQ-2 (Minor): the signatures were inconsistent. Now one
+  `Latest(ctx, rt, Thread) time.Time`, and the probe returns `(time.Time, error)`.
+- PQ-3 (Minor): the `CreatedAt` floor could be restamped by slot recovery.
+  Dropped: pane birth replaces it, and `ActionableThreadSummary` is unchanged.
+- PQ-4 (Minor): each risky task now has one test-strategy line (function,
+  guard, mutation).
+- PQ-5 (Minor): the unknown-palette fallback collapses both faded levels to
+  SGR 90, which is now documented.
