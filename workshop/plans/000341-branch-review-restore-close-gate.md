@@ -62,6 +62,39 @@ rounds:
           round: 2
       recipe: milestone-review
       blocked: true
+    - "n": 3
+      timestamp: "2026-09-28T22:17:55-07:00"
+      agent: codex
+      dispose:
+        - id: BR-5
+          disposition: not-addressed
+          note: 'Captured snapshots fix callback-time rereads, but identity.go:209,220-226 can still label B bytes as A during checkout. A deterministic real-Git probe paused checkout A→B in a smudge filter: index.lock existed, HEAD still named review/a, and a.md already contained B bytes. The production resolver returned status resolved, branch review/a, snapshot "B bytes\n". Enforce snapshot authority across concurrent checkout mutation, with fail-closed retry and a controlled in-progress-checkout regression. ARCH-ORDER, ARCH-PURPOSE; existing nonblocking-editor-observation family.'
+          round: 3
+        - id: BR-1
+          disposition: addressed
+          note: Consumption follows explicit acceptance; acceptance, uncertainty, replacement, and refusal regressions pass.
+          round: 3
+        - id: BR-2
+          disposition: addressed
+          note: Typing/focus callbacks use coalesced asynchronous observation; delayed-resolver responsiveness tests pass.
+          round: 3
+        - id: BR-3
+          disposition: addressed
+          note: README documents branch restoration, blocked switching, and recover/discard commands, consistent with the implemented interfaces.
+          round: 3
+        - id: BR-4
+          disposition: addressed
+          note: Activation clears owned rendering callbacks; repeated activation callback-count regression passes.
+          round: 3
+      findings:
+        - id: BR-6
+          severity: Critical
+          title: Activating a CRLF document corrupts its bytes on subsequent save
+          detail: nvim/review/restore_controller.lua:132-146 reads binary lines retaining carriage returns, then inserts them into a buffer whose bufload selected fileformat=dos. A controller probe activating a file containing "B\r\n" produced buffer line "B\r"; writing saved "B\r\r\n". Share byte-to-buffer decoding with the asynchronous refresh path, including fileformat and endofline handling. Add activation-and-save regressions for new and retained buffers, including branch-driven format changes. ARCH-DRY, ARCH-PURPOSE.
+          family: document-byte-preservation
+          round: 3
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#341 (boundary-review)
@@ -96,6 +129,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-5** [Critical] `nonblocking-editor-observation` Late asynchronous observation reloads another branch into the active review
   nvim/review/recovery_observer.lua:36 accepts a captured matching identity, then nvim/review.lua:843 invokes checktime against the current checkout. A controlled production-pane probe captured review/a, switched to review/b before delivery, and loaded B's bytes while the pane remained bound to A. This is the 2nd finding in this family: enforce identity-bound observation effects across refresh, preservation, and coalescing decisions rather than patching only this callback. Reload verified snapshot bytes and add a controlled late-completion regression without restoring synchronous editor observation. ARCH-ORDER, ARCH-PURPOSE.
 
+## Round 3 — 2026-09-28T22:17:55-07:00 (codex) — BLOCKED
+
+### Disposed
+
+- BR-5 — not-addressed — Captured snapshots fix callback-time rereads, but identity.go:209,220-226 can still label B bytes as A during checkout. A deterministic real-Git probe paused checkout A→B in a smudge filter: index.lock existed, HEAD still named review/a, and a.md already contained B bytes. The production resolver returned status resolved, branch review/a, snapshot "B bytes\n". Enforce snapshot authority across concurrent checkout mutation, with fail-closed retry and a controlled in-progress-checkout regression. ARCH-ORDER, ARCH-PURPOSE; existing nonblocking-editor-observation family.
+- BR-1 — addressed — Consumption follows explicit acceptance; acceptance, uncertainty, replacement, and refusal regressions pass.
+- BR-2 — addressed — Typing/focus callbacks use coalesced asynchronous observation; delayed-resolver responsiveness tests pass.
+- BR-3 — addressed — README documents branch restoration, blocked switching, and recover/discard commands, consistent with the implemented interfaces.
+- BR-4 — addressed — Activation clears owned rendering callbacks; repeated activation callback-count regression passes.
+
+### Raised
+
+- **BR-6** [Critical] `document-byte-preservation` Activating a CRLF document corrupts its bytes on subsequent save
+  nvim/review/restore_controller.lua:132-146 reads binary lines retaining carriage returns, then inserts them into a buffer whose bufload selected fileformat=dos. A controller probe activating a file containing "B\r\n" produced buffer line "B\r"; writing saved "B\r\r\n". Share byte-to-buffer decoding with the asynchronous refresh path, including fileformat and endofline handling. Add activation-and-save regressions for new and retained buffers, including branch-driven format changes. ARCH-DRY, ARCH-PURPOSE.
+
 ## Open findings
 
 - **BR-5** [Critical] `nonblocking-editor-observation` Late asynchronous observation reloads another branch into the active review
+- **BR-6** [Critical] `document-byte-preservation` Activating a CRLF document corrupts its bytes on subsequent save

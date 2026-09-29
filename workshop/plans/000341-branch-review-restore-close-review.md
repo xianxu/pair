@@ -195,3 +195,95 @@ findings:
     detail: |
       nvim/review/recovery_observer.lua:36 accepts a captured matching identity, then nvim/review.lua:843 invokes checktime against the current checkout. A controlled production-pane probe captured review/a, switched to review/b before delivery, and loaded B's bytes while the pane remained bound to A. This is the 2nd finding in this family: enforce identity-bound observation effects across refresh, preservation, and coalescing decisions rather than patching only this callback. Reload verified snapshot bytes and add a controlled late-completion regression without restoring synchronous editor observation. ARCH-ORDER, ARCH-PURPOSE.
 ```
+
+---
+
+## Re-review — 2026-09-28T22:17:55-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 341 — Alt+C restores review target from branch |
+| repo | pair |
+| issue file | workshop/issues/000341-branch-review-restore.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 41ab4f9add1908e854c3f41e491e4a64d53793db..b7c2cc78c43842bbdbef6cfbe1095344f9529a2f |
+| command | sdlc close --issue 341 |
+| reviewer | codex |
+| timestamp | 2026-09-28T22:17:55-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+The late-delivery fix has meaningful regression coverage, but BR-5 remains reproducible during an in-progress checkout. A separate activation bug corrupts CRLF documents on save. Both block shipping; the repository was left unchanged.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Captured snapshots fix callback-time rereads, but identity.go:209,220-226 can still label B bytes as A during checkout. A deterministic real-Git probe paused checkout A→B in a smudge filter: index.lock existed, HEAD still named review/a, and a.md already contained B bytes. The production resolver returned status resolved, branch review/a, snapshot "B bytes\n". Enforce snapshot authority across concurrent checkout mutation, with fail-closed retry and a controlled in-progress-checkout regression. ARCH-ORDER, ARCH-PURPOSE; existing nonblocking-editor-observation family.
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Consumption follows explicit acceptance; acceptance, uncertainty, replacement, and refusal regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Typing/focus callbacks use coalesced asynchronous observation; delayed-resolver responsiveness tests pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README documents branch restoration, blocked switching, and recover/discard commands, consistent with the implemented interfaces.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Activation clears owned rendering callbacks; repeated activation callback-count regression passes.
+findings:
+  - id: new
+    severity: Critical
+    family: document-byte-preservation
+    title: |
+      Activating a CRLF document corrupts its bytes on subsequent save
+    detail: |
+      nvim/review/restore_controller.lua:132-146 reads binary lines retaining carriage returns, then inserts them into a buffer whose bufload selected fileformat=dos. A controller probe activating a file containing "B\r\n" produced buffer line "B\r"; writing saved "B\r\r\n". Share byte-to-buffer decoding with the asynchronous refresh path, including fileformat and endofline handling. Add activation-and-save regressions for new and retained buffers, including branch-driven format changes. ARCH-DRY, ARCH-PURPOSE.
+```
+
+1. **Strengths**
+
+   - The observation regression controls delivery after checkout movement. Replacing snapshot application with a disk reread in a scratch copy makes its assertion fail.
+   - Handoff acceptance tests exercise refusal, partial-effect uncertainty, replacement, and cleanup failure.
+   - README and atlas describe restoration, recovery, and activation ownership.
+
+2. **Critical findings**
+
+   - **BR-5 remains open:** [identity.go:209](/Users/xianxu/workspace/pair/cmd/internal/reviewcmd/identity.go:209). Unchanged HEAD/branch does not establish working-tree stability during checkout. Extend the existing family rule to snapshot acquisition, and enumerate capture, delivery, preservation, and coalescing interleavings.
+   - **CRLF corruption:** [restore_controller.lua:132](/Users/xianxu/workspace/pair/nvim/review/restore_controller.lua:132). Consolidate document decoding with [review.lua:852](/Users/xianxu/workspace/pair/nvim/review.lua:852), then verify exact saved bytes.
+
+3. **Important findings:** None additional.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+
+   Go race tests, the full Lua suite, and every review shell script passed. Lua and fresh-session tests required isolated environment settings after inherited settings caused storage failures. Neither green suite covers the two reproduced failures above.
+
+6. **Architecture**
+
+   - **ARCH-DRY — flag:** activation and refresh duplicate incompatible document decoding.
+   - **ARCH-PURE — pass:** identity classification and activation policy have directly tested pure components.
+   - **ARCH-PURPOSE — flag:** branch-correct restoration and byte preservation remain incomplete.
+   - **ARCH-MOCK — pass:** injected seams and real temporary Git/Neovim tests provide useful coverage.
+   - **ARCH-CONSTRAINTS — pass:** observation is asynchronous, coalesced, and bounded.
+   - **ARCH-SECURE — flag:** a snapshot receives stronger identity authority than concurrent-checkout evidence supports.
+   - **ARCH-ORDER — flag:** checkout’s intermediate working-tree state is omitted.
+   - **ARCH-FUNERAL — pass:** snapshots have bounded admission and explicit consumption; observers and activation callbacks have cleanup owners.
+
+7. **Plan revision recommendations**
+
+   Append a `## Revisions` entry covering checkout-in-progress snapshot admission and shared document decoding. Add controlled checkout-overlap and exact-byte activation/save regressions to the verification contract.
