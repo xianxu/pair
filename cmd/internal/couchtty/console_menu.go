@@ -172,11 +172,7 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 // the Console lock.
 func (c *Console) reduceMenu(event MenuEvent) {
 	c.mu.Lock()
-	if !c.menuReady {
-		c.menu = NewMenuState(nil, couchcore.ThreadAddress{})
-		c.menu.Notice = infoMenuNotice("thread inventory unavailable")
-		c.menuReady = true
-	}
+	c.ensureMenuLocked(couchcore.ThreadAddress{})
 	var effects []MenuEffect
 	c.menu, effects = ReduceMenu(c.menu, event)
 	panelFocused := c.focus.IsPanel()

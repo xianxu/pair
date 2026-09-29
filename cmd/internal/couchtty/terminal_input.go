@@ -49,6 +49,11 @@ func (c *Console) deliverChildInput(event uv.Event) {
 
 func (c *Console) routeInputEvent(event terminal.InputEvent) {
 	if event.Reply {
+		// A reply is never a child's input. The terminal's colour answers are
+		// the one kind couch asked for itself (pair#247).
+		if c.capturePalette(event.Event) {
+			c.repaintAfterPalette()
+		}
 		return
 	}
 	switch event.Event.(type) {

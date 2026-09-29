@@ -140,6 +140,9 @@ type Console struct {
 	activityResults  chan activityResult
 	activitySchedule RefreshSchedule
 	activityInterval time.Duration
+	// paletteFG and paletteBG record which of the host terminal's colour
+	// replies have arrived (pair#247); the palette is Known once both have.
+	paletteFG, paletteBG bool
 	// now is the console's clock for idle fading, so tests can cross the day
 	// and three-day bands without waiting.
 	now                func() time.Time
@@ -454,11 +457,7 @@ func (c *Console) installObservedThreadActor(ctx context.Context, handleID strin
 			c.tracker.Switch(thread, false)
 		}
 	}
-	if !c.menuReady {
-		c.menu = NewMenuState(nil, thread)
-		c.menu.Notice = infoMenuNotice("thread inventory unavailable")
-		c.menuReady = true
-	}
+	c.ensureMenuLocked(thread)
 	c.mu.Unlock()
 	c.requestMenuRefresh()
 
@@ -586,6 +585,9 @@ func (c *Console) Run() (code int) {
 			code = 1
 		}
 	}()
+	// Before any frame: ask the terminal for its colours (pair#247). A write
+	// failure only leaves the palette unknown, which fading already handles.
+	_, _ = c.host.WriteContext(c.lifetime, []byte(paletteQuery))
 	c.mu.Lock()
 	c.started = true
 	c.mu.Unlock()
