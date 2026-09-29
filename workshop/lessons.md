@@ -47,6 +47,10 @@ representative evidence, not an exhaustive index.
 
 ## Authority, ownership, and identity
 
+- Model present/absent/unknown at the producer instead of reconstructing it
+  from booleans in each consumer. Persistent refusals need the failed resource
+  and an explicit recovery action, not only a retry instruction. (#350)
+
 - Give each fact one production authority and make consumers derive from it.
   Negative greps, duplicate registries, and prose tables drift. If a rule fails
   twice, turn it into an executable check. (ARCH-PURPOSE, #206, #256)
