@@ -24,4 +24,9 @@ function M.resolve(dir, selected)
   end)
   return ok and M.decode(out) or {status='invalid',diagnostic=tostring(out)}
 end
+function M.resolve_async(dir, selected, callback)
+  return vim.system(M.command(dir,selected),{text=true,timeout=2500},function(result)
+    callback(M.decode(result))
+  end)
+end
 return M

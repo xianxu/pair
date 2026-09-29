@@ -166,8 +166,10 @@ This exceeds the quick-flow code limit. The operator approved the durable plan b
 
 2026-09-28 21:47 PDT — Boundary REWORK identified consumption ordering, blocking edit-event observation, missing operator docs, and activation callback ownership. Preserve the approved restoration contract while fixing the complete classes (ARCH-ORDER, ARCH-CONSTRAINTS, ARCH-FUNERAL):
 
-- [ ] Consume handoffs only after explicit apply/defer acceptance; preserve refused/error/replaced payloads and test admission-to-application branch movement.
-- [ ] Coalesce proactive recovery into bounded asynchronous observation; keep synchronous authority checks at effect/quit boundaries and test delayed resolution plus stale completions.
-- [ ] Own and replace activation rendering autocmds; assert stable callback counts through A → B → A.
+- [x] Consume handoffs only after explicit apply/defer acceptance; preserve refused/error/replaced payloads and test admission-to-application branch movement.
+- [x] Coalesce proactive recovery into bounded asynchronous observation; keep synchronous authority checks at effect/quit boundaries and test delayed resolution plus stale completions.
+- [x] Own and replace activation rendering autocmds; assert stable callback counts through A → B → A.
 - [x] Explain branch restoration, blocked transitions, and recover/discard commands in README.
 - [ ] Rerun affected and full review tests, build, and repeat the SDLC boundary review.
+
+2026-09-28 — Boundary class sweep also covers definition response generation receipts and changed-selection refusal, handoff callback reentry, partial-apply uncertainty, and accepted payload cleanup failure. Shared artifact receipts avoid duplicating replacement detection (ARCH-DRY). Asynchronous focus observations preserve same-branch clean-buffer reload while refusing other-branch disk bytes; empty definition polling no longer resolves history.

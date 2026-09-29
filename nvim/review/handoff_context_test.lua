@@ -2,7 +2,7 @@ local dir=vim.fn.tempname(); vim.fn.mkdir(dir,'p')
 vim.env.PAIR_REVIEW_HANDOFF_PATH=dir..'/handoff.json'
 local H=dofile('nvim/review/handoff.lua')
 local current='a'; local received
-local stop=H.watch('test',function(records,context) received={records,context} end,{interval=10,
+local stop=H.watch('test',function(records,context) received={records,context}; return true end,{interval=10,
   admit=function(payload) return payload.context and payload.context.activation==current end})
 local payload={context={activation='b'},records={{old='x',new='y',occurrence=1}}}
 vim.fn.writefile({vim.json.encode(payload)},vim.env.PAIR_REVIEW_HANDOFF_PATH)

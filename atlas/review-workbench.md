@@ -65,11 +65,16 @@ Integration seams (headless shell tests, `make test-review`):
   produces (and as a future candidate for removal if no read use earns it).
 - `handoff.lua` — the ephemeral `review-handoff-<tag>.json` (in XDG data dir):
   the agent writes it atomically; nvim **timer-polls** (not fs_event — macOS
-  FSEvents precedent in `init.lua`), validates the envelope and activation before
-  unlinking and firing a callback. Malformed or wrong-context payloads remain on
+  FSEvents precedent in `init.lua`), validates the envelope and activation, then
+  consumes the payload only after the callback accepts application or deferral.
+  Refused, malformed, replaced, or wrong-context payloads remain on
   disk, with one warning per unchanged payload. Data and signal in one file. Also owns the reverse channel,
   `review-landed-<tag>.json`: `{context, summary, body, applied, dropped, conflicts}` for the agent
   to commit verbatim after nvim applies a handoff.
+- `artifact.lua` — shared file-generation receipts for handoff and definition
+  responses; consuming an observed response preserves a replacement published
+  during processing. Failed handoff callbacks preserve their payload without
+  automatically replaying uncertain partial edits.
 - `apply.snapshot`/`apply.apply_snapshot` (M2) — read/restore the decoration
   state: ranged extmarks ({line,end_line}) + diagnostics, as two independent
   layers (they decouple after riding) sharing a `clear()` helper with `place`.
@@ -86,6 +91,11 @@ Integration seams (headless shell tests, `make test-review`):
   activation client; verify acknowledgments before target publication or visibility.
 - `recovery.lua` — private bounded unsaved-text snapshots for checkout mismatch;
   explicit recovery/discard, matching successful-save cleanup.
+- `recovery_observer.lua` — coalesces edit events into asynchronous identity
+  observations for proactive snapshots, and focus events for clean-buffer disk
+  refresh on the matching branch. Late results must still belong to the captured
+  activation; activation stop and exit cancel outstanding work. Write/apply/quit
+  boundaries retain fresh authority checks.
 - `poke_bodies.lua` — pure builders for the prose signals sent to the agent:
   review target prep, handoff applied, human turn finished, and ship requested.
 - `readiness.lua` + `cmd/pair-review-readiness` (`cmd/internal/reviewcmd`, Go since

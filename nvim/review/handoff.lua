@@ -56,46 +56,62 @@ function M.write(tag, records)
   return p
 end
 
--- Poll for the handoff; on appearance decode → unlink → cb(records).
--- Returns a stop() function. opts.interval ms (default 100).
+local artifact=dofile(here..'artifact.lua')
+
+-- Poll, decode, authorize, then offer to cb(records,context). Only an explicit
+-- true accepts ownership (applied or durably deferred); refusal/error preserves
+-- the payload. Returns stop(). opts.interval ms defaults to 100.
 function M.watch(tag, cb, opts)
   opts = opts or {}
   local p = M.path(tag)
   if not p or p == '' then return function() end end
   local timer = vim.uv.new_timer()
-  local rejected
-  timer:start(0, opts.interval or 100, vim.schedule_wrap(function()
-    if not vim.uv.fs_stat(p) then return end
-    local fh = io.open(p, 'r')
-    if not fh then return end
-    local data = fh:read('*a'); fh:close()
-    local ok, payload = pcall(record.decode, data)
-    if not ok or not valid_payload(payload) then
-      if rejected~=data then vim.notify('review: handoff decode failed — payload preserved', vim.log.levels.WARN) end
-      rejected=data
-      return
+  local rejected,settled,stopped,running
+  local function reject(data,reason)
+    if rejected~=data then vim.notify('review: '..reason..' — payload preserved',vim.log.levels.WARN) end
+    rejected=data
+  end
+  local function consume(data,generation)
+    local removed,err=artifact.consume(p,data,generation)
+    if removed==nil then reject(data,'handoff accepted but could not remove it: '..tostring(err)); return end
+    rejected=nil
+  end
+  local function poll()
+    if stopped then return end
+    local data,generation=artifact.read(p)
+    if not data then return end
+    if settled and data==settled.data and artifact.same(generation,settled.generation) then
+      if settled.accepted then consume(data,generation) end
+      return -- uncertain or already accepted: never replay this generation
     end
+    settled=nil
+    local ok, payload = pcall(record.decode, data)
+    if not ok or not valid_payload(payload) then reject(data,'handoff decode failed'); return end
     if opts.admit then
-      local allowed, reason = opts.admit(ok and payload or nil)
-      if not allowed then
-        if rejected ~= data then
-          vim.notify('review: '..(reason or 'handoff context mismatch; payload preserved'), vim.log.levels.WARN)
-          rejected=data
-        end
-        return
+      local admitted,allowed,reason=pcall(opts.admit,payload)
+      if not admitted or allowed~=true then
+        reject(data,admitted and (reason or 'handoff context mismatch') or tostring(allowed)); return
       end
     end
-    if ok and payload then
-      local recs = payload.records or payload
-      os.remove(p)
-      rejected=nil
-      cb(recs, payload.context)
-    else
-      if rejected~=data then vim.notify('review: handoff decode failed — payload preserved', vim.log.levels.WARN) end
-      rejected=data
+    local completed,accepted,uncertain=pcall(cb,payload.records or payload,payload.context)
+    if not completed or uncertain then
+      settled={data=data,generation=generation,accepted=false}
+      reject(data,'handoff outcome uncertain; inspect the buffer before reissuing'..(not completed and ': '..tostring(accepted) or ''))
+      return
     end
+    if accepted~=true then reject(data,'handoff was not accepted'); return end
+    settled={data=data,generation=generation,accepted=true}
+    consume(data,generation)
+  end
+  timer:start(0, opts.interval or 100, vim.schedule_wrap(function()
+    if stopped or running then return end
+    running=true
+    local ok,err=pcall(poll)
+    running=false
+    if not ok then vim.notify('review: handoff observation failed — payload preserved: '..tostring(err),vim.log.levels.WARN) end
   end))
   return function()
+    stopped=true
     if timer and not timer:is_closing() then timer:stop(); timer:close() end
   end
 end

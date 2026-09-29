@@ -22,7 +22,7 @@ end
 
 local tag = 'test'
 local got
-local stop = handoff.watch(tag, function(recs) got = recs end, { interval = 20 })
+local stop = handoff.watch(tag, function(recs) got = recs; return true end, { interval = 20 })
 handoff.write(tag, { { old = 'a', occurrence = 1, new = 'b', new_occurrence = 1, explain = 'x' } })
 vim.wait(2000, function() return got ~= nil end, 20)
 stop()

@@ -1,7 +1,7 @@
 -- nvim/review/definition_seam.lua -- tag-scoped definition request/result files.
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
-local seam = dofile(here .. 'seam.lua')
+local artifact = dofile(here .. 'artifact.lua')
 
 function M.request_path(path)
   if not path or path == '' then return nil end
@@ -21,10 +21,11 @@ local function write_json(path, doc)
 end
 
 local function read_json(path)
-  if not path or vim.fn.filereadable(path) ~= 1 then return nil end
-  local ok, decoded = pcall(vim.json.decode, table.concat(vim.fn.readfile(path), '\n'))
-  if not ok or type(decoded) ~= 'table' then return nil end
-  return decoded
+  local data,generation=artifact.read(path)
+  if not data then return nil end
+  local ok,decoded=pcall(vim.json.decode,data)
+  if not ok or type(decoded)~='table' then return nil end
+  return decoded,{data=data,generation=generation}
 end
 
 function M.write_request(path, request)
@@ -35,9 +36,10 @@ function M.read_result(path)
   return read_json(M.result_path(path))
 end
 
-function M.clear_result(path)
+function M.clear_result(path,receipt)
   path = M.result_path(path)
-  if path then pcall(os.remove, path) end
+  if not path or not receipt then return false end
+  return artifact.consume(path,receipt.data,receipt.generation)
 end
 
 return M
