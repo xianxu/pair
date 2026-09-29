@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000343-couch-idle-fading-tune-colours-verify-light-theme-and-no-color.md
         source_blob: 81511374ebfa5e80919dc3818db6f21856103c06
         destination: workshop/issues/000343-couch-idle-fading-tune-colours-verify-light-theme-and-no-color.md
+        main_commit: 0fa41547ae3f54f56f7c6e3db5e0d7b05da4b962
 ---
 
 # Couch idle fading: tune colours; verify light theme and NO_COLOR
