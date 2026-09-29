@@ -100,7 +100,7 @@ Durable plan: `workshop/plans/000247-couch-live-idle-shading-plan.md`.
 - [x] M1 — pure policy + renderers: `IdleLevelFor` (1 day / 3 days, 3 levels), `FadeStyle`
       (blend toward the terminal background; SGR 90 / no-color fallbacks), tab bar
       and switcher live rows faded with selection/bell/placeholder precedence.
-- [ ] M2 — IO seams + wiring + docs: shared `threadactivity.Latest` (the title
+- [x] M2 — IO seams + wiring + docs: shared `threadactivity.Latest` (the title
       poller migrated to it), a 60 s console activity pass, an OSC 10/11 palette
       query and reply capture, `couchcmd` wiring, README/help/atlas, and an
       operator smoke on dark + light themes.
@@ -108,6 +108,8 @@ Durable plan: `workshop/plans/000247-couch-live-idle-shading-plan.md`.
 ## Log
 
 
+
+- 2026-09-28: closed M2 — threadactivity + console activity pass + OSC 10/11 palette + couchcmd wiring; mutation-checked (probe filter, failure-keeps, inventory request, capture, query, showMenu clock); switcher fade asserted on the rendered vt cell (BR-6); full make test green on every touched package after rebase onto origin/main (sole failure: #341 reviewcmd inventory, reproduced on clean origin/main); operator live smoke on the pair:0 build 7363b5e1 passed on visible shades, with tuning, light-theme/NO_COLOR live checks and the probe-cost decision moved to #343 (BR-5); --actual 0.57 = sdlc active-time since M1 close, no foreign commits in window; review verdict: SHIP
 - 2026-09-28: closed M1 — IdleLevelFor/FadeStyle/blend/quantize256 table tests; tab bar + switcher fade with selection/bell/attention/placeholder precedence and byte-identical level 0; mutation-checked both render guards; go test ./cmd/internal/couchtty green (unsandboxed); review verdict: SHIP
 ### 2026-09-13
 

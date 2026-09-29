@@ -77,6 +77,29 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-28T23:57:40-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: 'Dark-theme smoke passed and is logged; light/NO_COLOR live checks explicitly moved to #343 via Revisions in plan+issue, unit tests cover both.'
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: New switcher test reads the rendered cell under a week-offset clock; reverting console_menu.go:209 to time.Now() turns it red (verified in scratch copy).
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: 'Probe-cost overrun recorded as operator-deferred to #343 in the plan Revisions and issue log.'
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: finishActivity, finishSlotGit and the palette path all call repaintVisible (console_palette.go:84).
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#247 (boundary-review)
@@ -119,12 +142,17 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-8** [Minor] `repaint-after-background-pass` repaintAfterPalette repeats the panel-focus repaint tail also found in finishActivity and finishSlotGit
   Three copies of "showMenu if the panel has focus, else repaint". The two new sites could call one helper.
 
+## Round 4 — 2026-09-28T23:57:40-07:00 (claude) — passed
+
+### Disposed
+
+- BR-5 — addressed — Dark-theme smoke passed and is logged; light/NO_COLOR live checks explicitly moved to #343 via Revisions in plan+issue, unit tests cover both.
+- BR-6 — addressed — New switcher test reads the rendered cell under a week-offset clock; reverting console_menu.go:209 to time.Now() turns it red (verified in scratch copy).
+- BR-7 — addressed — Probe-cost overrun recorded as operator-deferred to #343 in the plan Revisions and issue log.
+- BR-8 — addressed — finishActivity, finishSlotGit and the palette path all call repaintVisible (console_palette.go:84).
+
 ## Open findings
 
 - **BR-2** [Minor] `glyph-color-derives-from-source` Glyphs with their own colour are painted faded amber no matter what colour slotGlyphSGR returned
 - **BR-3** [Minor] `atlas-describes-actual-surface` The atlas says both views read MenuState.Activity/Palette, but the tab bar reads StatusActor.Idle and StatusModel.Palette
 - **BR-4** [Minor] `fade-precedence-single-source` Each surface encodes the fade-is-weakest-cue precedence rule separately
-- **BR-5** [Important] `plan-item-claimed-undelivered` M2's operator smoke on dark and light themes (and NO_COLOR) is unticked and unlogged
-- **BR-6** [Important] `test-reaches-production-render-path` The switcher-side activity test recomputes IdleLevelFor instead of rendering through showMenu or renderRootMenuFrame
-- **BR-7** [Minor] `operating-envelope-enforced` The activity pass measures 114 ms per thread (~2.3 s for 20), over the plan's < 2 s budget, with no recorded decision
-- **BR-8** [Minor] `repaint-after-background-pass` repaintAfterPalette repeats the panel-focus repaint tail also found in finishActivity and finishSlotGit

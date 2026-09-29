@@ -111,3 +111,78 @@ findings:
     detail: |
       Three copies of "showMenu if the panel has focus, else repaint". The two new sites could call one helper.
 ```
+
+---
+
+## Re-review — 2026-09-28T23:57:40-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 247 — Shade live Couch threads by idle time |
+| repo | pair |
+| issue file | workshop/issues/000247-couch-live-idle-shading.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | ddb02f76611629759cb1515dd82236dd2437af18..92791cb72452e687620c4b55180596e2b95cb200 |
+| command | sdlc milestone-close --issue 247 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-28T23:57:40-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All four open findings are resolved, and nothing new blocks the M2 close. The BR-6 fix is backed by a real regression test. I mutation-checked it in a scratch copy of the repo at `92791cb7`: changing `showMenu`'s `c.now()` back to `time.Now()` (`console_menu.go:209`) makes `TestSwitcherDrawsTheIdleFadeWithTheConsoleClock` time out with "waiting for the switcher draws the primary row faded". Unmodified, the test passes. BR-8's three identical repaint tails are now one `repaintVisible` helper. BR-5 and BR-7 were settled by an operator decision, recorded in both the plan and the issue's `## Revisions`. The smoke passed on a dark theme. The live light-theme and `NO_COLOR` checks and the probe-cost question moved to #343, and that issue exists.
+
+1. **Strengths**
+   - The switcher test (`console_activity_test.go`) sets the console clock a week behind the wall clock. The day band and the stale band then draw different colours, so reading the wrong clock shows up as a wrong colour on screen. It reads the drawn cell's colour, not the model state.
+   - `repaintVisible` (`console_palette.go:84-98`) reads panel focus when it repaints, and its comment names every background result that goes through it: slot git, activity, and palette.
+   - `threadactivity.Latest` gives the title poller and Couch one shared definition of activity. Its comment explains why the draft is left out: autosave on focus loss would make a thread switch count as activity.
+   - Automated tests cover the cases the live smoke skipped: `NO_COLOR` keeps today's bytes (`idle_shade_test.go:137-142`), and the palette tests include a white-background reply (`console_palette_test.go:14`).
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - Two older switcher-focus repaint tails remain (`console_menu.go:158`, `:364`). They are not copies of the helper: one repaints only on success and the other only shows the switcher. They predate this diff, so I'm not raising a finding.
+
+5. **Test coverage notes:** these tests pass at HEAD: `go test ./cmd/internal/couchtty -run 'TestSwitcherDrawsTheIdleFade|TestActivityPass'`. The mutation check confirms the switcher test fails when the fix is reverted. Light-theme and `NO_COLOR` rendering are checked by unit tests only; the live check belongs to #343.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass (one repaint helper; one activity definition).
+   - **ARCH-PURE:** pass. `IdleLevelFor`, `FadeStyle` and `ReduceMenu` are pure, and the probes run in a thin worker.
+   - **ARCH-PURPOSE:** pass. Both views fade from the same state and clock.
+   - **ARCH-MOCK:** pass. The stateful `fakeActivityProbe` sits behind the `ActivityProbe` seam.
+   - **ARCH-CONSTRAINTS:** pass with a known gap. The pass takes about 2.3 s for 20 threads against a 2 s budget. The operator deferred this to #343, and the fade can go stale but never blocks.
+   - **ARCH-SECURE:** pass. A malformed OSC reply (nil colour) is ignored and falls back to ANSI 90.
+   - **ARCH-ORDER:** pass. The pass reuses `AdvanceRefreshSchedule`, and stale generations are dropped in `finishActivity`.
+   - **ARCH-FUNERAL:** pass. Activity state lives only in memory, and nothing new is written to disk.
+
+   For #343: build one session-store listing per agent per pass, instead of calling `sessioninventory.NewOSRuntime` for every thread (`threadactivity/os.go:28`).
+
+7. **Plan revisions:** none needed. The 2026-09-28 revisions in the plan and the issue already record what the smoke covered and what went to #343.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Dark-theme smoke passed and is logged; light/NO_COLOR live checks explicitly moved to #343 via Revisions in plan+issue, unit tests cover both.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      New switcher test reads the rendered cell under a week-offset clock; reverting console_menu.go:209 to time.Now() turns it red (verified in scratch copy).
+  - id: BR-7
+    disposition: addressed
+    note: |
+      Probe-cost overrun recorded as operator-deferred to #343 in the plan Revisions and issue log.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      finishActivity, finishSlotGit and the palette path all call repaintVisible (console_palette.go:84).
+```
