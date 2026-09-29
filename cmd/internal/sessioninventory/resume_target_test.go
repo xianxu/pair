@@ -80,3 +80,36 @@ func TestChosenConfirmationCanReadOptionalParsedContent(t *testing.T) {
 		t.Fatalf("optional content unavailable: %+v %v", got, err)
 	}
 }
+
+func TestUnconfirmedChosenTargetRequiresRootFilenameOnly(t *testing.T) {
+	const id = "11111111-1111-4111-8111-111111111111"
+	for _, agent := range []sessioninventory.Agent{sessioninventory.AgentClaude, sessioninventory.AgentQoder} {
+		t.Run(string(agent), func(t *testing.T) {
+			rt := sessioninventorytest.NewFakeRuntime()
+			pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
+			rt.SetPairDataRoot(pair)
+			root := sessioninventory.StorageRoot{Name: string(agent) + "-projects", Path: "/native", Agent: agent}
+			rt.AddRoot(root)
+			ledger := sessioninventory.Artifact{StorageRoot: pair.Name, RelativePath: "ledger-work.jsonl"}
+			launch := `{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"` + string(agent) + `","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"` + id + `","request_origin":"chosen-id","baseline_complete":true}` + "\n"
+			rt.PutFile(sessioninventory.FileEntry{Artifact: ledger}, []byte(launch))
+			check := func(want string) {
+				t.Helper()
+				got, err := sessioninventory.QueryResumeTarget(rt, "scope", "work", agent)
+				if err != nil || got.NativeID != want {
+					t.Fatalf("target=%+v err=%v want=%q", got, err, want)
+				}
+			}
+			check("")
+			native := sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "project/" + id + ".jsonl"}
+			rt.PutFile(sessioninventory.FileEntry{Artifact: native}, []byte("future format, no parser needed"))
+			check(id)
+			if rt.OperationCountForRoot(sessioninventorytest.OperationReadAt, root.Name) != 0 {
+				t.Fatal("resume admission read native body")
+			}
+			rt.DeleteFile(native)
+			rt.AppendFile(ledger, []byte(`{"v":3,"kind":"binding","scope_key":"scope","tag":"work","agent":"`+string(agent)+`","launch_ordinal":1,"root_native_id":"`+id+`","confirmation_reason":"chosen-id"}`+"\n"), "bound")
+			check(id)
+		})
+	}
+}

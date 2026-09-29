@@ -766,3 +766,65 @@ func TestParkScrollbackPreservesSelectedAliasInReturnedBase(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// Exercise the native metadata adapter, ledger reader and Alt+n marker together.
+func TestOSLedgerChosenRestartUsesOnlyMaterializedRoot(t *testing.T) {
+	const id = "11111111-1111-4111-8111-111111111111"
+	for _, agent := range []string{"claude", "qoder"} {
+		t.Run(agent, func(t *testing.T) {
+			home, data := t.TempDir(), t.TempDir()
+			t.Setenv("HOME", home)
+			launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: agent, RequestedNativeID: id, RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(data, "ledger-work.jsonl"), append(launch, '\n'), 0600); err != nil {
+				t.Fatal(err)
+			}
+			native := filepath.Join(home, "."+agent, "projects", "-repo", id+".jsonl")
+			for _, present := range []bool{false, true} {
+				if present {
+					if err := os.MkdirAll(filepath.Dir(native), 0700); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(native, []byte("unknown future format"), 0600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				entries, err := (OSRuntime{DataDir: data}).ReadLedger("work")
+				if err != nil {
+					t.Fatal(err)
+				}
+				rt := newFakeRuntime()
+				rt.inferAgent["work"] = agent
+				rt.ledger["work"] = entries
+				var stderr strings.Builder
+				if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 0 {
+					t.Fatal(stderr.String())
+				}
+				marker := rt.writtenMarkers["📁work"]
+				want := ""
+				if present {
+					want = id
+				}
+				if marker.SessionID != want {
+					t.Fatalf("present=%v marker=%+v", present, marker)
+				}
+				if !present {
+					plan := planRestart(marker, "work", agent, savedConfig{Agent: agent, SessionID: id, Args: []string{"--session-id", id}})
+					if !plan.DropConfig {
+						t.Fatal("did not drop stale config")
+					}
+					fresh := newFakeRuntime()
+					fresh.uuids = []string{"new-Y"}
+					if code, err := run(t, baseOpts(plan.Args), fresh); err != nil || code != 0 {
+						t.Fatalf("fresh launch=%d,%v", code, err)
+					}
+					if fresh.env["PAIR_SESSION_ID"] != "new-Y" || !strings.Contains(launchArgsText(t, fresh.env), "--session-id new-Y") {
+						t.Fatalf("did not mint new UUID: %v", fresh.env)
+					}
+				}
+			}
+		})
+	}
+}

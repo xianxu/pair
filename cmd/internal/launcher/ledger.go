@@ -32,6 +32,10 @@ func BuildLedgerLine(entry LedgerEntry) (string, error) {
 }
 
 func ParseLedger(raw string) []LedgerEntry {
+	return parseLedger(raw, sessioninventory.ResumeTargetForLaunch)
+}
+
+func parseLedger(raw string, target func(sessionledger.Current) sessioninventory.ResumeTarget) []LedgerEntry {
 	var entries []LedgerEntry
 	parsed := sessionledger.ParseLedger([]byte(raw))
 	compatibility := make(map[uint64]bool, len(parsed.CompatibilityOrdinals))
@@ -65,7 +69,7 @@ func ParseLedger(raw string) []LedgerEntry {
 			continue
 		}
 		entry := LedgerEntry{Agent: owner.Agent, Typed: true, SourceOrdinal: current.Launch.Ordinal}
-		entry.SessionID = sessioninventory.ResumeTargetForLaunch(current).NativeID
+		entry.SessionID = target(current).NativeID
 		entries = append(entries, MergeAuthorityMetadata(entry, entries))
 	}
 	return entries

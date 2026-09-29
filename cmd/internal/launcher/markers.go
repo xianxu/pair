@@ -190,7 +190,7 @@ func planRestart(m RestartMarker, tag, agent string, saved savedConfig) restartP
 	// Default Alt+n: an empty marker ID means the current typed generation is
 	// still provisional. Drop stale config and relaunch fresh with saved flags.
 	if m.SessionID == "" {
-		base.AgentArgs = append([]string(nil), saved.Args...)
+		base.AgentArgs = FreshAgentArgs(agent, saved.Args)
 		return restartPlan{Args: base, DropConfig: true}
 	}
 	base.AgentArgs = composeResumeArgs(agent, saved.Args, m.SessionID)

@@ -400,7 +400,8 @@ and weekly.
 `relaunch` uses the current ledger resume target. A confirmed UUID or a requested
 UUID under probation is sufficient for cold resume; transcript parsing does not
 gate startup. An early Alt+n retries that target while current-launch observation
-continues. A fresh launch without any known UUID must wait for correlation;
+continues. A fresh Pair-chosen UUID whose root transcript has not materialized
+instead restarts fresh with a new UUID. A fresh launch without any known UUID must wait for correlation;
 ambiguous confirmed identities remain unavailable. See [Session identity](session-identity.md).
 
 `archive` is the operator's "delete", and it is COMPLETE: it stops the thread's

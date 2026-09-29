@@ -37,8 +37,11 @@ paths, IDs, or transcript content. Native parentage establishes topology only;
 it is not evidence that a Pair tag owns a root.
 
 #346 separates durable identity from optional transcript parsing. `QueryResumeTarget`
-reads only the current owner ledger: a confirmed UUID wins, otherwise a v3
-launch's requested UUID remains usable under probation. Legacy v1/v2 bindings
+projects the current owner ledger: a confirmed UUID wins, otherwise a v3
+existing-conversation resume request remains usable under probation. An unconfirmed
+fresh Pair-chosen ID needs a matching root filename before reuse; if it has not
+materialized, Alt+n starts fresh with a new UUID. This check uses metadata, not
+transcript-body parsing. Legacy v1/v2 bindings
 remain usable without their old device/inode proof. Missing files, cache loss,
 and parser failures cannot erase this resume target. Conflicting confirmations
 remain ambiguous; a fresh launch never inherits an earlier launch's target.
@@ -286,7 +289,9 @@ migrates by being quit and relaunched.
 Couch verified park preserves the exact Pair address; it is not a new native
 identity state. Cold resume uses the current durable target, including a requested
 UUID under probation, through the existing `{repo scope, tag}` marker. It requires
-the same native ID before launch. It never allocates or adopts a marker, chooses
+the same native ID before launch for a resume. The explicit exception is an
+unmaterialized fresh Pair-chosen ID: Couch requests a fresh launch and generates
+a new UUID using the saved launch parameters. It never allocates or adopts a marker, chooses
 a newest transcript, or consults current path/root/repository launch defaults.
 The ledger owns native identity; the native forest supplies parsed observations.
 Couch stores the last successfully registered launch profile.

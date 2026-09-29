@@ -733,7 +733,10 @@ conversation the current launch actually uses. Confirmation uses current Pair
 input followed by native assistant/tool/error progress, or a newly created root
 filename for a Pair-chosen UUID. Ambiguous evidence and silence do not erase the
 requested target. Filesystem device changes, cache loss and optional parsing
-failures do not block a recorded target.
+failures do not block a recorded target. For a fresh Pair-chosen `--session-id X`,
+Alt+n starts fresh with a new UUID if X has not materialized as a root transcript.
+This exception does not apply to confirmed bindings or existing-conversation
+resume requests.
 
 `pair session-repair` previews saved current-launch evidence without writes.
 Set `PAIR_DATA_DIR` to the selected scoped directory and pass its exact scope key,

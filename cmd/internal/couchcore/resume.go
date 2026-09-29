@@ -75,8 +75,10 @@ func ResumeDiagnosticOf(err error) ResumeDiagnosticCode {
 }
 
 type NativeBindingResolution struct {
-	Status   sessioninventory.BindingStatus
-	NativeID string
+	FreshRequired     bool
+	RequestedNativeID string
+	Status            sessioninventory.BindingStatus
+	NativeID          string
 }
 
 type ResumeEligibilityInput struct {
@@ -91,6 +93,8 @@ type ResumeEligibilityInput struct {
 }
 
 type ResumeEligibility struct {
+	FreshRequired     bool
+	RequestedNativeID string
 	Address           ThreadAddress
 	WorkingPath       string
 	Profile           LaunchProfile
@@ -185,6 +189,7 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 		return ResumeEligibility{
 			Address: record.Address, WorkingPath: record.WorkingPath,
 			Profile: profile, RequiredSessionID: input.Binding.NativeID,
+			FreshRequired: input.Binding.FreshRequired, RequestedNativeID: input.Binding.RequestedNativeID,
 		}, nil
 	}
 	return ResumeEligibility{
@@ -285,7 +290,7 @@ func isBindingDiagnostic(code ResumeDiagnosticCode) bool {
 func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCode {
 	switch binding.Status {
 	case sessioninventory.BindingProvisional:
-		if binding.NativeID != "" {
+		if binding.NativeID != "" || (binding.FreshRequired && binding.RequestedNativeID != "") {
 			return ""
 		}
 		return ResumeBindingProvisional
@@ -360,7 +365,7 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 	if err != nil {
 		return NativeBindingResolution{}, err
 	}
-	resolution := NativeBindingResolution{Status: query.Status, NativeID: query.NativeID}
+	resolution := NativeBindingResolution{Status: query.Status, NativeID: query.NativeID, FreshRequired: query.FreshRequired, RequestedNativeID: query.RequestedNativeID}
 	if code := bindingResumeDiagnostic(resolution); code != "" {
 		return resolution, refuseBinding(code)
 	}
@@ -520,6 +525,9 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 			if detached {
 				return StartWarmReattach
 			}
+			if eligible.FreshRequired {
+				return StartFreshExisting
+			}
 			return StartColdResume
 		}(),
 		Kind:    StartClaimed,
@@ -551,12 +559,18 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
-		if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
-			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+		var built string
+		if eligible.FreshRequired {
+			if !currentBinding.FreshRequired || currentBinding.Status != sessioninventory.BindingProvisional || currentBinding.NativeID != "" || currentBinding.RequestedNativeID != eligible.RequestedNativeID {
+				return ActorRecord{}, nil, errors.Join(errors.New("fresh chosen-session restart changed before launch; retry"), c.rollbackTrackedStart(thread, nonce))
+			}
+			built, err = launcher.BuildCouchFreshLaunchProfile(string(address.Tag), eligible.Profile.Agent, launcher.FreshAgentArgs(eligible.Profile.Agent, eligible.Profile.Argv), string(AgentSourceExplicit), string(ArgvSourceExplicit))
+		} else {
+			if err := launcher.RequireNativeResumeBinding(eligible.RequiredSessionID, currentBinding.NativeID, currentBinding.Status); err != nil {
+				return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
+			}
+			built, err = launcher.BuildCouchResumeLaunchProfile(string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID)
 		}
-		built, err := launcher.BuildCouchResumeLaunchProfile(
-			string(address.Tag), eligible.Profile.Agent, eligible.Profile.Argv, eligible.RequiredSessionID,
-		)
 		if err != nil {
 			return ActorRecord{}, nil, errors.Join(err, c.rollbackTrackedStart(thread, nonce))
 		}
@@ -569,7 +583,7 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	return c.launchTrackedThread(trackedThreadLaunch{
 		Context: ctx,
 		Thread:  thread, Nonce: nonce, Args: args, StartedAt: startedAt,
-		ProfileRaw: profileRaw, Resume: true, Warm: detached, Background: opts.WarmOnly,
+		ProfileRaw: profileRaw, Resume: !eligible.FreshRequired, Fresh: eligible.FreshRequired, Warm: detached, Background: opts.WarmOnly,
 	})
 }
 

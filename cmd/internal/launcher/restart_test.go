@@ -220,3 +220,25 @@ func TestRunRestartPreservesRequestedProbationFromRealLedger(t *testing.T) {
 		t.Fatalf("restart plan = %+v", plan)
 	}
 }
+
+func TestRunRestartUnmaterializedChosenIDStartsFresh(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "claude"
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", RequestedNativeID: "chosen-X", RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.ledger["work"] = ParseLedger(string(launch) + "\n")
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 0 {
+		t.Fatal(stderr.String())
+	}
+	marker := rt.writtenMarkers["📁work"]
+	if marker.SessionID != "" {
+		t.Fatalf("unmaterialized chosen UUID resumed: %+v", marker)
+	}
+	plan := planRestart(marker, "work", "claude", savedConfig{Agent: "claude", SessionID: "chosen-X", Args: []string{"--model", "opus", "--session-id", "chosen-X"}})
+	if !plan.DropConfig || strings.Contains(strings.Join(plan.Args.AgentArgs, " "), "chosen-X") {
+		t.Fatalf("stale config resurrected chosen UUID: %+v", plan)
+	}
+}

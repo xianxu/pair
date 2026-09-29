@@ -142,7 +142,7 @@ func TestFreshPinAgentsMintSessionIDButKeepRecoveryProvisional(t *testing.T) {
 				t.Fatalf("PAIR_SESSION_ID = %q, want UUID", got)
 			}
 			target, err := sessioninventory.QueryResumeTarget(sessioninventory.NewOSRuntime("", data), "scope", "work", sessioninventory.Agent(agent))
-			if err != nil || target.Status != sessioninventory.BindingProvisional || target.NativeID != envValue(request.env, "PAIR_SESSION_ID") {
+			if err != nil || target.Status != sessioninventory.BindingProvisional || target.NativeID != "" || target.RequestedNativeID != envValue(request.env, "PAIR_SESSION_ID") {
 				t.Fatalf("fresh chosen target = %+v, error = %v", target, err)
 			}
 			if _, err := os.Stat(filepath.Join(data, "config-work-"+agent+".json")); !os.IsNotExist(err) {

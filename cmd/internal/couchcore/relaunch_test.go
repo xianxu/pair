@@ -2,7 +2,9 @@ package couchcore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 	"strings"
 	"testing"
 	"time"
@@ -393,4 +395,83 @@ type erroringBindingArtifacts struct {
 
 func (e *erroringBindingArtifacts) ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error) {
 	return NativeBindingResolution{}, errors.New("resolve home directory: permission denied")
+}
+
+type chosenRestartArtifacts struct {
+	*FakeThreadArtifactCollisionChecker
+	resolver      SessionInventoryNativeBindingResolver
+	beforeResolve func()
+}
+
+func (a chosenRestartArtifacts) ResolveEstablished(ctx context.Context, scope, tag, agent string) (NativeBindingResolution, error) {
+	if a.beforeResolve != nil {
+		a.beforeResolve()
+	}
+	return a.resolver.ResolveEstablished(ctx, scope, tag, agent)
+}
+
+func TestCouchRelaunchUnmaterializedChosenIDStartsFresh(t *testing.T) {
+	env, live := envWithLiveThread(t)
+	native := sessioninventorytest.NewFakeRuntime()
+	pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
+	native.SetPairDataRoot(pair)
+	const chosen = "11111111-1111-4111-8111-111111111111"
+	row := `{"v":3,"kind":"launch","scope_key":"` + live.Address.RepoScope + `","tag":"` + string(live.Address.Tag) + `","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"` + chosen + `","request_origin":"chosen-id","baseline_complete":true}` + "\n"
+	native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pair.Name, RelativePath: "ledger-" + string(live.Address.Tag) + ".jsonl"}}, []byte(row))
+	env.Couch.Artifacts = chosenRestartArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, resolver: SessionInventoryNativeBindingResolver{Runtime: native}}
+	env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+	result, err := env.Couch.Relaunch(context.Background(), live.Address)
+	if err != nil || result.Outcome != Relaunched {
+		t.Fatalf("relaunch=%+v err=%v", result, err)
+	}
+	child := env.Runner.Child(result.Handle.ID())
+	var profile launcher.TrustedLaunchProfile
+	for _, entry := range child.Env {
+		if strings.HasPrefix(entry, launcher.CouchLaunchProfileEnv+"=") {
+			if err := json.Unmarshal([]byte(strings.TrimPrefix(entry, launcher.CouchLaunchProfileEnv+"=")), &profile); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if !profile.FreshRequired || profile.ResumeRequired || profile.RequiredSessionID != "" || strings.Contains(strings.Join(child.Env, "\n"), chosen) {
+		t.Fatalf("did not launch fresh: %+v env=%v", profile, child.Env)
+	}
+}
+
+func TestCouchChosenRestartRechecksIdentityBeforeChild(t *testing.T) {
+	for _, change := range []string{"new-request", "materialized"} {
+		t.Run(change, func(t *testing.T) {
+			env, live := envWithLiveThread(t)
+			native := sessioninventorytest.NewFakeRuntime()
+			pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
+			native.SetPairDataRoot(pair)
+			artifact := sessioninventory.Artifact{StorageRoot: pair.Name, RelativePath: "ledger-" + string(live.Address.Tag) + ".jsonl"}
+			row := `{"v":3,"kind":"launch","scope_key":"` + live.Address.RepoScope + `","tag":"` + string(live.Address.Tag) + `","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"11111111-1111-4111-8111-111111111111","request_origin":"chosen-id","baseline_complete":true}` + "\n"
+			native.PutFile(sessioninventory.FileEntry{Artifact: artifact}, []byte(row))
+			calls := 0
+			env.Couch.Artifacts = chosenRestartArtifacts{
+				FakeThreadArtifactCollisionChecker: env.Artifacts,
+				resolver:                           SessionInventoryNativeBindingResolver{Runtime: native},
+				beforeResolve: func() {
+					calls++
+					if calls == 3 {
+						if change == "new-request" {
+							native.AppendFile(artifact, []byte(strings.ReplaceAll(row, "11111111-1111-4111-8111-111111111111", "chosen-Y")), "new")
+						} else {
+							native.AddRoot(sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects", Path: "/native"})
+							native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "claude-projects", RelativePath: "project/11111111-1111-4111-8111-111111111111.jsonl"}}, []byte("future format"))
+						}
+					}
+				},
+			}
+			env.Couch.FreshRegistration = func(context.Context, ThreadAddress, string, string) (bool, error) { return true, nil }
+			result, err := env.Couch.Relaunch(context.Background(), live.Address)
+			if err == nil || !strings.Contains(err.Error(), "changed before launch") || result.Outcome != ParkedNotResumed {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+			if len(env.Runner.Ops) != 0 {
+				t.Fatalf("spawned after identity changed: %v", env.Runner.Ops)
+			}
+		})
+	}
 }

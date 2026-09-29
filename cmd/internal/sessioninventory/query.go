@@ -411,9 +411,11 @@ func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string,
 }
 
 // ResumeTarget is durable requested/observed identity, independent of optional
-// native parsing and disposable catalog state. Provisional targets are usable.
+// native parsing and disposable catalog state. Requested-resume probation is
+// usable; an unmaterialized fresh chosen ID instead requires a fresh launch.
 type ResumeTarget struct {
 	Status            BindingStatus
+	FreshRequired     bool
 	NativeID          string
 	LaunchOrdinal     uint64
 	RequestedNativeID string
@@ -435,8 +437,8 @@ func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, ta
 	if err != nil || !ok {
 		return result, err
 	}
-	result = ResumeTargetForLaunch(current)
-	result.Diagnostics = diagnostics
+	result = ResumeTargetForRuntimeLaunch(runtime, current)
+	result.Diagnostics = append(result.Diagnostics, diagnostics...)
 	return result, nil
 }
 
@@ -451,8 +453,26 @@ func ResumeTargetForLaunch(current sessionledger.Current) ResumeTarget {
 	if current.Binding != nil {
 		result.Status = BindingEstablished
 		result.NativeID = current.Binding.RootNativeID
-	} else {
+	} else if current.Launch.RequestOrigin != sessionledger.RequestOriginChosen {
 		result.NativeID = current.Launch.RequestedNativeID
+	}
+	return result
+}
+
+// ResumeTargetForRuntimeLaunch admits an unconfirmed Pair-chosen UUID only
+// after its root filename exists. Confirmed and requested-resume identities
+// remain usable without a native file. No transcript contents are inspected.
+func ResumeTargetForRuntimeLaunch(runtime Runtime, current sessionledger.Current) ResumeTarget {
+	result := ResumeTargetForLaunch(current)
+	if result.Status == BindingProvisional && current.Launch.RequestOrigin == sessionledger.RequestOriginChosen {
+		observations, diagnostics := ObserveAgentMetadata(runtime, Agent(current.Launch.Agent))
+		result.Diagnostics = append(result.Diagnostics, diagnostics...)
+		selected := SelectTargetWork(TargetRequest{Mode: TargetExplicitResume, Agent: Agent(current.Launch.Agent), NativeID: current.Launch.RequestedNativeID}, observations)
+		if !selected.Unavailable {
+			result.NativeID = current.Launch.RequestedNativeID
+		} else {
+			result.FreshRequired = true
+		}
 	}
 	return result
 }

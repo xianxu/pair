@@ -650,7 +650,10 @@ func (r OSRuntime) ReadLedger(tag string) ([]LedgerEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ParseLedger(raw), nil
+	native := sessioninventory.NewOSRuntime(os.Getenv("HOME"), r.DataDir)
+	return parseLedger(raw, func(current sessionledger.Current) sessioninventory.ResumeTarget {
+		return sessioninventory.ResumeTargetForRuntimeLaunch(native, current)
+	}), nil
 }
 
 func (r OSRuntime) AppendLedger(tag string, entry LedgerEntry) error {
