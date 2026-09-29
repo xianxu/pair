@@ -1,6 +1,6 @@
 ---
 id: 000351
-status: open
+status: working
 created: 2026-09-29
 updated: 2026-09-29
 estimate_hours:
@@ -17,6 +17,7 @@ tracker:
         source_blob: 132e085cb00170a1a567de542868ec4d7d57a741
         destination: workshop/issues/000351-review-escape.md
         main_commit: 9ddb46ba1672591735932a20193c6ad18cc40f8b
+started: 2026-09-29T14:53:39-07:00
 ---
 
 # Preserve Escape in review pane
