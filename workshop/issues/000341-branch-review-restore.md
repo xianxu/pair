@@ -9,6 +9,7 @@ updated: 2026-09-28
 estimate_hours: 3.24
 card_mirror: '76cb1933ef953584b093d269e2bd56d9bed5585a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T20:39:30-07:00
+flow: {kind: full, provenance: operator}
 ---
 
 # Alt+C restores review target from branch
