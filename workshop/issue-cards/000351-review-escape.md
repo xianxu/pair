@@ -1,10 +1,12 @@
 ---
 id: 000351
-status: working
+status: codecomplete
 created: 2026-09-29
 updated: 2026-09-29
 estimate_hours:
 github_issue:
+started: 2026-09-29T14:53:39-07:00
+actual_hours: 0.23
 tracker:
     version: 1
     handoff:
@@ -17,7 +19,11 @@ tracker:
         source_blob: 132e085cb00170a1a567de542868ec4d7d57a741
         destination: workshop/issues/000351-review-escape.md
         main_commit: 9ddb46ba1672591735932a20193c6ad18cc40f8b
-started: 2026-09-29T14:53:39-07:00
+    completion:
+        token: close-ff7d354ce44f
+        repository: github.com/xianxu/pair
+        reviewed_head: 025f46c9f8de43e651f19fcc03f30be1e5e4ec8e
+        evidence_commit: 01a9ddc71c59a02929dee07083f44779692bf31a
 ---
 
 # Preserve Escape in review pane
