@@ -28,18 +28,65 @@ function C:run(cmd,opts,callback)
   end)
   if not ok then self:finish(tostring(err)) end
 end
+function C:rpc(pane,request,callback)
+  -- Only a constant expression is evaluated; arbitrary document names remain
+  -- JSON inside a quoted Vim string argument.
+  local expression='luaeval('..vim.fn.string('vim.json.encode(PairReviewPane.restore(_A))')..','
+    ..vim.fn.string(vim.json.encode(request))..')'
+  self:run({vim.v.progpath,'--server',pane.endpoint,'--remote-expr',expression},nil,callback)
+end
+function C:missing(dir,observed,receipt,callback)
+  local function selected(file)
+    local expected={repo=observed.repo,branch=observed.branch,head=observed.head,file=file}
+    self:run(identity.command(dir,expected),{timeout=2500},function(result)
+      local verified=identity.decode(result)
+      if verified.status=='resolved' and same(verified,expected,true) then callback(verified)
+      else callback({status='invalid',diagnostic='selected review changed; prepare it again'}) end
+    end)
+  end
+  if same(receipt,receipt,true) and receipt.repo==observed.repo and receipt.branch==observed.branch
+    and receipt.head==observed.head then selected(receipt.file); return end
+  -- An empty human round advances HEAD without naming a document in history.
+  -- Only an authenticated live activation can carry an earlier selection over
+  -- that gap; metadata and stale target text alone are insufficient authority.
+  local pane=self:pane()
+  local session=self.opts.session() or ''
+  if not pane or pane.legacy or pane.session~=session then callback(observed); return end
+  self:rpc(pane,{token=pane.token,session=session,probe=true},function(result)
+    local ok,ack=pcall(vim.json.decode,result.stdout or '')
+    local ctx=ok and type(ack)=='table' and ack.context or nil
+    local current=self:pane()
+    if result.code~=0 or not ok or type(ack)~='table' or ack.ok~=true or not valid_context(ctx,ack.identity)
+      or ctx.repo~=observed.repo or ctx.branch~=observed.branch
+      or not current or current.token~=pane.token or current.session~=session or current.endpoint~=pane.endpoint
+      or not valid_context(current.context,ctx) or current.context.activation~=ctx.activation
+      or (self.opts.session() or '')~=session then
+      callback({status='invalid',diagnostic='live review selection could not be authenticated; finish or reselect it'}); return
+    end
+    selected(ctx.file)
+  end)
+end
 function C:resolve(callback)
   local dir=(self.opts.cwd or vim.fn.getcwd)()
   self:run(identity.command(dir),{timeout=2500},function(result)
     local observed=identity.decode(result)
     local target=self.opts.read_target()
     local receipt=target and target.identity
-    -- Selection is an exception only for history-free, unchanged preparation in
-    -- this conversation. The CLI verifies tracked regular file and pinned HEAD.
-    if observed.status=='missing' and type(receipt)=='table' and receipt.repo==observed.repo
-      and receipt.branch==observed.branch and receipt.head==observed.head and type(receipt.file)=='string' then
-      self:run(identity.command(dir,receipt),{timeout=2500},function(selected)
-        callback(identity.decode(selected))
+    if observed.status=='missing' then self:missing(dir,observed,receipt,callback); return end
+    -- :PairReview may deliberately select a peer repository while the draft
+    -- stays in Pair. A current review branch still wins. A positive non-review
+    -- observation permits this current-conversation, explicit peer selection;
+    -- unknown Git errors and a main checkout in the SAME repo never do.
+    if observed.status=='non_review' and target and target.status=='ready'
+      and same(receipt,receipt,true) and receipt.repo~=observed.repo then
+      self:run(identity.command(receipt.repo),{timeout=2500},function(peer_result)
+        local peer=identity.decode(peer_result)
+        local function verified(value)
+          if value.status=='resolved' and same(value,receipt) then callback(value)
+          else callback({status='invalid',diagnostic='selected peer review changed; prepare it again'}) end
+        end
+        if peer.status=='missing' then self:missing(receipt.repo,peer,receipt,verified)
+        else verified(peer) end
       end)
     else callback(observed) end
   end)
@@ -67,11 +114,7 @@ function C:activate(pane,wanted,opened)
   local session=self.opts.session() or ''
   if pane.session~=session then self:finish('existing review pane belongs to another conversation; finish and close it first'); return end
   local request={token=pane.token,session=session,identity=wanted}
-  -- Only this constant expression is evaluated; request JSON remains a quoted
-  -- Vim string argument, including document names containing quotes/newlines.
-  local expression='luaeval('..vim.fn.string('vim.json.encode(PairReviewPane.restore(_A))')..','
-    ..vim.fn.string(vim.json.encode(request))..')'
-  self:run({vim.v.progpath,'--server',pane.endpoint,'--remote-expr',expression},nil,function(result)
+  self:rpc(pane,request,function(result)
     if result.code~=0 then self:finish('review activation outcome unknown; retry Alt+C to query the same pane (no replacement started)'); return end
     local ok,ack=pcall(vim.json.decode,result.stdout or '')
     if not ok or type(ack)~='table' or ack.ok~=true then
