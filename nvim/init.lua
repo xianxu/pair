@@ -905,10 +905,10 @@ do
     end
     return t
   end
-  local function write_target(file, status)
+  local function write_target(file, status, identity)
     local p = seam.target_path(vim.env.PAIR_REVIEW_TARGET_PATH)
     if p then pcall(vim.fn.writefile,
-      { vim.json.encode({ file = file, status = status, session = current_session_id() or '' }) }, p) end
+      { vim.json.encode({ file = file, status = status, session = current_session_id() or '', identity = identity }) }, p) end
   end
   -- :PairReview proposes a target, then performs deterministic local prep via the
   -- readiness shell seam. The nvim still does NOT open the pane — Alt+c does, once
@@ -951,40 +951,16 @@ do
     current_session_id = current_session_id }
   _G._pair_review_toggle_action = toggle_action -- test alias
 
-  -- Alt+c — the collaboration/review-workbench brain (#66 M3/M4b). Routed here through the draft
-  -- nvim (Alt+d-style) so the branch happens in a real nvim, not a transient shell
-  -- pane. A LIVE pane → flip visibility (`are-floating-panes-visible` →
-  -- show/hide-floating-panes; never the toggle-floating-panes footgun). Otherwise
-  -- branch on the review target (seam #6): ready→open via `pair review open`,
-  -- proposed→"prep in progress", none→drop into `:PairReview ` (file-select). The
-  -- Pair-owned overlays route Alt+c back to this authoritative function.
-  -- No has_ui() guard so the headless test records calls.
-  function _G.PairReviewToggle()
-    local alive, sf = is_alive()
-    if alive then
-      local vis = vim.fn.system({ 'zellij', 'action', 'are-floating-panes-visible' })
-      if toggle_action(true, vis:match('true') ~= nil) == 'hide' then
-        dofile(nvim_dir .. 'workbench_route.lua').return_to_draft()
-      else
-        vim.fn.system({ 'zellij', 'action', 'show-floating-panes' })
-      end
-      return
-    end
-    local t = read_target()
-    local action = toggle_action(false, false, t and t.status)
-    if action == 'open' then
-      local pair = pair_bin()
-      vim.fn.system({ pair, 'review', 'open', t.file })
-      if vim.v.shell_error ~= 0 then
-        vim.notify('PairReview: open failed — ' .. vim.fn.fnamemodify(t.file, ':t'), vim.log.levels.WARN)
-      end
-    elseif action == 'wait' then
-      vim.notify('review prep in progress — check the agent pane', vim.log.levels.INFO)
-    else -- 'prompt'
-      if sf then pcall(os.remove, sf) end -- reap a stale/dead open-state file
-      vim.api.nvim_feedkeys(':PairReview ', 'n', false)
-    end
-  end
+  -- Git selects the branch/document before pane visibility or target cache.
+  -- The async client publishes only an acknowledged, revalidated activation.
+  local client = dofile(nvim_dir .. 'review/restore_client.lua').new({
+    state_file = state_file, read_target = read_target, write_target = write_target,
+    session = current_session_id, pair_bin = pair_bin,
+    hide = function() dofile(nvim_dir .. 'workbench_route.lua').return_to_draft() end,
+    prompt = function() vim.api.nvim_feedkeys(':PairReview ', 'n', false) end,
+  })
+  _G._pair_review.client = client
+  function _G.PairReviewToggle() client:toggle() end
 end
 
 -- Strip whole-line comments (^%s*===) before sending. Comments are stored
