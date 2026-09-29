@@ -102,6 +102,11 @@ rounds:
           note: Native conformance compares incident structural observations with adapter and round behavior and names upgrade-time reruns.
           round: 3
       blocked: false
+    - "n": 4
+      timestamp: "2026-09-29T10:22:26-07:00"
+      agent: claude
+      blocked: false
+      protocol_error: no valid findings block
 content_hash: 3922615702452baa05b2a08184aa054105f423db42e8f2fdfd0eb9b1ac147a92
 ---
 
@@ -148,6 +153,10 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - PQ-4 — addressed — Writer acquisition is nonblocking; archive transaction acquisition has a five-second deadline.
 - PQ-5 — addressed — Ledger history follows owner/session retention, with stated per-launch growth and idempotent confirmation.
 - PQ-6 — addressed — Native conformance compares incident structural observations with adapter and round behavior and names upgrade-time reruns.
+
+## Round 4 — 2026-09-29T10:22:26-07:00 (claude) — passed
+
+**Protocol error:** no valid findings block — this round contributed no findings.
 
 ## Open findings
 

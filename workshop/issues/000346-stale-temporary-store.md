@@ -8,6 +8,7 @@ updated: 2026-09-29
 estimate_hours: 4.409
 card_mirror: '025fd590586521464a04d863675f5cdbfb5227da' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-29T08:41:28-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Stale temporary store blocks Couch startup
