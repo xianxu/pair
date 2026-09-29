@@ -58,9 +58,9 @@ yet, see ariadne#241") is worth proposing upstream.
 ## Plan
 
 - [x] Fix in ariadne's seed, not pair: ariadne#250 (seeded merge-check builds weave from source while the tap is unpublished)
-- [ ] Ship ariadne#250 (PR + merge)
-- [ ] Re-seed pair (`weave compile`), commit the refreshed `.github/workflows/merge-check.yml`
-- [ ] Verify: this issue's PR runs `merge-check` green past "Prepare dependencies"
+- [x] Ship ariadne#250 (PR + merge)
+- [x] Re-seed pair (`weave compile`), commit the refreshed `.github/workflows/merge-check.yml`
+- [x] Verify: this issue's PR runs `merge-check` green past "Prepare dependencies"
 
 ## Log
 
@@ -79,3 +79,12 @@ yet, see ariadne#241") is worth proposing upstream.
   is why only pair's CI is red. They would break on their next re-seed without
   ariadne#250.
 
+### 2026-09-29
+
+- Resolved upstream. ariadne#250 merged (ariadne PR #134); ariadne#241 closed
+  2026-09-28 (PR #143), publishing the tap and dropping the source-build
+  fallback, so the fallback's removal is owned there. pair re-seeded in
+  `9becfbc7` (09-25) and `6f62a7ec` (09-28). The three most recent `merge-check`
+  runs are green (e.g. 36635174446, #346, 2026-09-29). The 09-28/29 failures
+  (#338, #340) failed in "Run merge-checks over the PR range", past "Prepare
+  dependencies" — unrelated test failures. No pair code change in this window.
