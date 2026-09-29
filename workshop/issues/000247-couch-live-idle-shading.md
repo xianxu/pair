@@ -183,3 +183,23 @@ Recorded the operator's decision; no implementation begun. The shared checkout c
   `TestRenderStatusRowFadesAnIdleChip` fails; disabling the live-row branch →
   `TestSwitcherFadesAnIdleLiveRowAndItsAmberGlyphs` fails.
 - `go test ./cmd/internal/couchtty` green (unsandboxed; the pty/tmp tests need it).
+
+### 2026-09-28 — M2 verified; close on hold for ariadne#270
+
+- Rebased onto `origin/main` (the #341 merge) before closing, per the practice
+  filed as ariadne#269. Skipped the branch's two #342 issue-file commits, which
+  main already had. Then re-rebased with `--committer-date-is-author-date`
+  (tree identical) to undo the committer-date restamp.
+- Full `make test` on the rebased tree (clean session env,
+  `TMPDIR=/private/tmp/claude/t247`: the scratchpad path is too long for
+  zellij's socket, and `/tmp` → `/private/tmp` trips changelog's owner check):
+  every package this issue touches passes. The one failure,
+  `artifactpath TestProductionArtifactReferencesAreExactlyClassified` on
+  #341's `reviewcmd/identity.go` and `run.go`, reproduces on a clean
+  `git archive origin/main`. It belongs to #341, not here.
+- Hours: the rebase put #341's main commits into this branch's ancestry, and
+  active-time attributed this session's design and M1 segment to #341
+  (`sdlc actual` 1.24 h → 0.40 h). Filed as ariadne#270 (boundaries should be
+  the branch's own commits; the window should filter by author date). At the
+  operator's choice, the M2 close waits for that fix, so the calibration row
+  is measured, not hand-typed.
