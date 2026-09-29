@@ -62,7 +62,7 @@ Always preserve the raw TTY capture and timing/resize sidecar automatically. Rem
 
 One live session's capture has no row cap. The existing 2,000-row default is a rendering/view limit and may remain; changelog can continue requesting unlimited rendering. This does not require concatenating every historical capture into the default view.
 
-The original stale-store/GC requirements above remain in scope. The old durable plan at `workshop/plans/000346-stale-temporary-store-plan.md` is superseded for binding validation and recovery; reconcile its implementation details against this agreed contract before executing it.
+The original stale-store/GC requirements above remain in scope. The durable plan at `workshop/plans/000346-stale-temporary-store-plan.md` has been reconciled against this contract; its revision history preserves the superseded file-proof design.
 
 ## Done when
 
@@ -82,13 +82,11 @@ The original stale-store/GC requirements above remain in scope. The old durable 
 
 ## Plan
 
-The following workstreams replace the earlier M2/M3 approach. Detailed implementation steps and review boundaries must be reconciled in `workshop/plans/000346-stale-temporary-store-plan.md` before code changes; its prior review does not approve this revised design.
+Detailed implementation plan: `workshop/plans/000346-stale-temporary-store-plan.md`, reconciled with the agreed model after the operator requested starting work in pair:0. SDLC plan-quality/estimate gates precede code changes.
 
-- [ ] Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
-- [ ] Separate durable resume target from parser/cache validity and launch-specific confirmation; keep startup/Alt+n usable during probation.
-- [ ] Share fresh/resume root observation with existing-file post-launch boundaries, open-world metadata handling, UUID handshake, and recorded binding transitions.
-- [ ] Preserve TTY raw/sidecar automatically on quit and before same-tag reuse; move text consumers such as naming to printable TTY and isolate optional telemetry.
-- [ ] Verify the full incident inventory and regression matrix, update architecture/operator docs, and recover only targets supported by evidence without disturbing brain:0.
+- [ ] M1 — Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
+- [ ] M2 — Separate durable targets from parsed evidence; share launch-specific fresh/resume observation, open-world roots and supported incident recovery.
+- [ ] M3 — Preserve raw/sidecar automatically before reuse and on quit, use TTY for text features, verify incident inventory and full acceptance.
 
 ## Log
 
