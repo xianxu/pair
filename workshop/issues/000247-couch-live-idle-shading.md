@@ -97,7 +97,7 @@ is +15 % because there's a thorough plan document.
 
 Durable plan: `workshop/plans/000247-couch-live-idle-shading-plan.md`.
 
-- [ ] M1 — pure policy + renderers: `IdleLevelFor` (1 day / 3 days, 3 levels), `FadeStyle`
+- [x] M1 — pure policy + renderers: `IdleLevelFor` (1 day / 3 days, 3 levels), `FadeStyle`
       (blend toward the terminal background; SGR 90 / no-color fallbacks), tab bar
       and switcher live rows faded with selection/bell/placeholder precedence.
 - [ ] M2 — IO seams + wiring + docs: shared `threadactivity.Latest` (the title
@@ -107,6 +107,8 @@ Durable plan: `workshop/plans/000247-couch-live-idle-shading-plan.md`.
 
 ## Log
 
+
+- 2026-09-28: closed M1 — IdleLevelFor/FadeStyle/blend/quantize256 table tests; tab bar + switcher fade with selection/bell/attention/placeholder precedence and byte-identical level 0; mutation-checked both render guards; go test ./cmd/internal/couchtty green (unsandboxed); review verdict: SHIP
 ### 2026-09-13
 
 Captured operator request. Inspected couchtty/menu_render.go (existing AgeBandFor
