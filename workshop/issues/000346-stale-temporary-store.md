@@ -28,7 +28,7 @@ Define supported recovery for vanished registered stores and allow unaffected st
 
 Relevant code: `cmd/internal/storagegc/stores.go`, `cmd/internal/couchcore/retention.go`, and `cmd/internal/couchcmd/run.go`. ARCH-SECURE: tests must not write operator state. ARCH-FUNERAL: registration must define the lifecycle and removal of ephemeral stores.
 
-Additional recovery design (2026-09-29): allow intact namespaces to operate despite unrelated unavailable registrations while keeping GC fail-closed; provide explicit permanent-abandonment recovery that resets migration acknowledgment. Revalidate exact proof-named conversations after device-only identity changes, with cold-resume boundary tests and bounded catalog reuse. Accept parent-free Codex `vscode` roots and recover existing unbound version-2 launches only from unique completed causal rounds through a supported preview/apply command. Detailed design: `workshop/plans/000346-stale-temporary-store-plan.md` (awaiting approval).
+Additional recovery design (2026-09-29): allow intact namespaces to operate despite unrelated unavailable registrations while keeping GC fail-closed; provide explicit permanent-abandonment recovery that resets migration acknowledgment. Revalidate exact proof-named conversations after filesystem metadata changes, using `(agent, native UUID)` as durable identity, with cold-resume boundary tests and bounded catalog reuse. Accept parent-free Codex `vscode` roots and recover existing unbound version-2 launches only from unique completed causal rounds through a supported preview/apply command. Detailed design: `workshop/plans/000346-stale-temporary-store-plan.md` (awaiting approval).
 
 ## Done when
 
@@ -37,7 +37,7 @@ Additional recovery design (2026-09-29): allow intact namespaces to operate desp
 - Development/smoke-test invocations isolate all persistent roots; regression coverage proves the operator registry remains untouched.
 - Missing, unreadable, and temporarily unavailable durable stores have tested behavior that preserves references and communicates recovery requirements.
 
-- Device-only renumbering no longer invalidates a saved surviving conversation; contradictory or changed-identity transcripts remain refused, and repeat queries do not repeatedly replay the body.
+- Device/inode/generation changes no longer invalidate a saved surviving conversation by themselves; contradictory internal conversation identities remain refused, and repeat queries do not repeatedly replay the body.
 - Codex `vscode` roots bind through the production watcher; existing unbound launches have a safe, tested preview/apply recovery path using recorded causal evidence.
 - Every audited row has a verified outcome: validated cold authority, already-live authority, empty slot, or explicit insufficient evidence. No unrelated conversation is selected and brain:0 is not restarted.
 
@@ -128,3 +128,7 @@ Read-only matching found all four audited Codex transcripts use `source: vscode`
 ### 2026-09-29 — Design revision
 
 Expanded Spec/Done when and replaced the initial checklist with three actual review boundaries covering the original registry defect, proof device renumbering, and Codex binding/recovery. Added the durable implementation plan. All implementation remains behind plan approval and `sdlc change-code`; the active brain session stays running.
+
+### 2026-09-29 — Identity model corrected by operator
+
+Native conversation UUIDs make volume information unnecessary for conversation scoping/deduplication. Revised the draft plan: `(agent, native UUID)` is durable authority; file identity is a cache-continuity hint. A metadata change triggers full validation of the exact saved artifact set, not immediate loss of binding or a special device-only exception. The filename alone is insufficient; internal UUID, root role, schema, undisputed state, size bounds and read stability are checked. This replaces the earlier proposed same-inode requirement.
