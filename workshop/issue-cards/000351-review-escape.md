@@ -1,6 +1,6 @@
 ---
 id: 000351
-status: codecomplete
+status: done
 created: 2026-09-29
 updated: 2026-09-29
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 025f46c9f8de43e651f19fcc03f30be1e5e4ec8e
         evidence_commit: 01a9ddc71c59a02929dee07083f44779692bf31a
+        landed_commit: 45df769238a77c433e3b6f44966bcb727462d74f
 ---
 
 # Preserve Escape in review pane
