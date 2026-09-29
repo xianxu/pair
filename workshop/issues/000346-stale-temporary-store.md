@@ -120,6 +120,8 @@ Detailed implementation plan: `workshop/plans/000346-stale-temporary-store-plan.
 
 ## Log
 
+- 2026-09-29: M2 consumer integration in progress. RED tests reproduced rejection of a nonempty provisional UUID in full launcher and Couch admission; both now pass. Couch/launcher/review/changelog use the ledger-only target query. Saved-parameter picker resumes a durable target even with no native file; fresh Claude/Qoder launches and wrapper restarts record chosen-ID origin. Production resolver regression verifies A under probation followed by confirmed D without any transcript read. Full launcher/opener/review suites with race detection pass; focused Couch/restart/binding suite passes. Native watcher epoch/confirmation work and full M2 verification remain in progress; no milestone completion claimed.
+
 ### 2026-09-29
 - 2026-09-29: closed M1 — M1 full suites and race suites previously passed. BR-1–3 corrections: focused production CLI/subprocess checks passed; actual ambient registry write detected by isolation mutation; full storagegc/gccmd race rerun and focused couchcmd race passed; shell syntax/diff checks passed. Actual 3.46h comes from preceding sdlc measurement, first milestone includes design.; review verdict: SHIP
 
