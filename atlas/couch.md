@@ -108,8 +108,26 @@ and lightens on a light one. It falls back to ANSI 90 when the terminal has not
 reported its colours, and changes nothing under `NO_COLOR`. Fading is the
 weakest cue: the active chip / selected row, a pending notification (bell or
 attention lines) and a placeholder keep their own styling. Non-live switcher
-rows keep their own `AgeBand` ramp. Both views read `MenuState.Activity` and
-`MenuState.Palette`; a thread with no activity entry is unfaded.
+rows keep their own `AgeBand` ramp. The switcher reads `MenuState.Activity`
+and `MenuState.Palette`; the tab bar reads the same two through
+`statusModelLocked`, which fills `StatusActor.Idle` and `StatusModel.Palette`.
+A thread with no activity entry is unfaded. Each slot glyph fades from its own
+base colour (`slotGlyphBase`).
+
+The data: activity is `threadactivity.Latest`, the one definition the title
+poller's heat ramp also uses. It is the newest of the bound agent transcript's
+mtime, the Pair log's (sends), and the current launch's pane-birth evidence
+(rewritten on create or resume, never on attach). The draft is excluded: its
+autosave writes on every focus loss. `console_activity.go` runs it like the slot
+git pass: a 60s ticker, every landed inventory, and every switch request a
+single-flight pass over live threads only, 2s per thread, outside `c.mu`, merged
+with the shared `mergeObservations` (a failed probe keeps the last value). The
+palette comes from one OSC 10/11 query `Run` writes before the first frame
+(`console_palette.go`); the replies arrive as input `Reply` events, which
+`routeInputEvent` records instead of dropping. `ensureMenuLocked` keeps a palette
+that arrived before the menu was built. Measured cost: ~114ms per thread
+(56 real threads in 6.4s), all on the background worker. A mid-session theme
+change is not re-queried.
 
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not a metadata or display authority. The one-time journal import

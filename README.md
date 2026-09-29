@@ -500,6 +500,17 @@ slows a keypress. Couch never fetches, so "behind" is only as fresh as that
 checkout's last `git fetch`. The branch glyph needs a Nerd Font. Dependency
 clones inside a slot do not get entries of their own.
 
+Live threads fade as they go idle, in the tabs and the switcher: a thread
+with no activity for a day is dimmed, and after three days it's dimmed further.
+Activity means your sends and the agent's work (its transcript), or launching
+or resuming the thread; switching to a thread or merely looking at its draft
+doesn't count. Couch checks about once a minute. The fade blends toward your
+terminal's own background, which Couch asks the terminal for at startup, so it
+reads correctly on dark and light schemes; the amber `±`/`*` glyphs fade with
+their thread. The focused tab, the selected switcher row, and a thread with a
+pending notification never fade. If the terminal doesn't report its colours,
+both idle levels use the same theme grey; `NO_COLOR` turns fading off.
+
 Each numbered slot keeps its Couch metadata in its environment's `.couch/`
 directory. Opening it resumes its conversation; **Start fresh** replaces the
 conversation in the same slot after confirming its managed sessions are stopped.

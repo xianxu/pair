@@ -68,16 +68,18 @@ const (
 	placeholderSGR = "\x1b[38;5;240m"
 )
 
-// slotGlyphSGR is the one styling decision for slot glyphs, shared by the tab
+// slotGlyphBase is the one styling decision for slot glyphs, shared by the tab
 // bar and the switcher, per glyph character: a diverged resting branch (±) and a
 // dirty tree (*) ask for attention in the one amber (pair#321), and every other
-// glyph keeps its row's style (empty).
-func slotGlyphSGR(glyph rune) string {
+// glyph keeps its row's style (false). It names the glyph's BASE colour rather
+// than an escape, so idle fading (pair#247) fades each glyph from its own
+// colour: FadeStyle at IdleFresh is exactly that colour.
+func slotGlyphBase(glyph rune) (styleBase, bool) {
 	switch string(glyph) {
 	case couchcore.SlotGlyphDiverged, couchcore.SlotGlyphDirty:
-		return attentionSGR
+		return baseAmber, true
 	}
-	return ""
+	return baseDefault, false
 }
 
 // ChipSpan is the column range one actor occupies on the drawn row, and the
@@ -175,24 +177,28 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		// the columns it actually drew.
 		start := used
 		style := ""
-		// Fading is the fallback: every stronger cue wins over idleness.
+		// Fading is the fallback: every stronger cue wins over idleness. The
+		// switcher's live-row branch in renderRootMenuFrame states the same
+		// precedence from its own inputs (selection, attention); keep the two
+		// in step (pair#247).
 		faded := !a.Placeholder && !a.Active && !a.Bell
+		idle := IdleFresh
+		if faded {
+			idle = a.Idle
+		}
 		switch {
 		case a.Placeholder:
 			style = placeholderSGR
 		case a.Bell && !a.Active:
 			style = attentionSGR
 		case faded:
-			style = FadeStyle(m.Palette, a.Idle, baseDefault)
+			style = FadeStyle(m.Palette, idle, baseDefault)
 		}
 		appendText(label, style)
 		for _, r := range a.Glyph {
 			glyphStyle := style
-			if own := slotGlyphSGR(r); own != "" && !a.Placeholder {
-				glyphStyle = own
-				if faded {
-					glyphStyle = FadeStyle(m.Palette, a.Idle, baseAmber)
-				}
+			if base, own := slotGlyphBase(r); own && !a.Placeholder {
+				glyphStyle = FadeStyle(m.Palette, idle, base)
 			}
 			appendText(string(r), glyphStyle)
 		}
