@@ -182,6 +182,12 @@ All four display `binding lost` and have park receipts. `sessioninventory/query.
 
 Read-only consumer audit established that changelog and orientation already use TTY as their primary text input; naming currently parses native messages, prompt history has its own exact-input log, usage and Codex lifecycle consume native telemetry, and idle activity only needs mtime. The wrapper opens raw/events with O_TRUNC; default rendering is 2,000 rows, not a capture cap. Operator agreed on automatic preservation at quit and before same-tag startup, launch-specific observation for both fresh/resume, and nonblocking probation including early Alt+n. Updated active Spec, Done when and Plan; preserved the original incident audit and earlier decisions below as historical records. No implementation or live recovery performed in this update.
 
+### 2026-09-29 — M1 implementation and verification
+
+Implemented structural registry validation separately from namespace availability. Intact registration and production Couch listing survive unrelated missing/unreadable stores; GC and migration still require full available inventory. Added `pair gc --forget-missing-store` with exact-path checks, coordinator serialization and migration reset. Tests isolate ambient roots and cover unsafe/permission failures without treating them as absence. Original scratchpad invocation remains unidentified; no operator registry mutation was needed in this implementation.
+
+Verification: initial red regression reproduced the missing auxiliary store error; `go test ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/couch -count=1` passed. Full relevant `-race` suites passed (Couch core 270 seconds). Production CLI mutation check failed when registration's old full-availability validation was restored and passed after exact-byte restoration. Focused updated collector assertions and permission/refusal cases passed. Code commit `53be9ca8`; SDLC M1 review next. ARCH-PURPOSE/ARCH-SECURE: exercise the real list boundary and retain missing references until explicit abandonment.
+
 ## Revisions
 
 ### 2026-09-29T07:59:14-07:00 — Expand incident evidence to all visible threads
