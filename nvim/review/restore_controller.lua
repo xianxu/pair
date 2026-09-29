@@ -4,7 +4,6 @@ local here = debug.getinfo(1,'S').source:match('@?(.*/)') or './'
 local policy = dofile(here .. 'restore.lua')
 local identity = dofile(here .. 'identity.lua')
 local document_bytes = dofile(here .. 'document_bytes.lua')
-local artifact = dofile(here .. 'artifact.lua')
 local M = {}
 local C = {}; C.__index=C
 local function nonce() return vim.fn.sha256(vim.fn.tempname() .. tostring(vim.uv.hrtime())) end
@@ -16,14 +15,14 @@ function C:context(buf)
   if not buf then return self.state.context end
   return self.bindings[buf]
 end
-function C:resolve(want)
+function C:resolve(want,snapshot)
   local run=self.opts.resolve or identity.resolve
-  local observed=run(want.repo)
+  local observed=run(want.repo,nil,snapshot)
   if observed.status=='missing' and observed.repo==want.repo and observed.branch==want.branch
     and (observed.head==want.head or policy.same(self:context(),want)) then
     -- An established pane already owns this selection. An empty first human
     -- round advances HEAD without yet giving history a document pathname.
-    observed=run(want.repo,{file=want.file,head=observed.head})
+    observed=run(want.repo,{file=want.file,head=observed.head},snapshot)
   end
   return observed
 end
@@ -41,10 +40,29 @@ function C:serve()
   self.endpoint=vim.fn.serverstart(self.socket_dir..'/review.sock')
   self:publish()
 end
+local function decoded_snapshot(observed)
+  assert(type(observed.snapshot)=='string','review identity has no bounded document snapshot; retry restoration')
+  local decoded,err=document_bytes.decode(observed.snapshot)
+  assert(decoded,err)
+  return decoded
+end
+local function install_snapshot(buf,decoded)
+  vim.bo[buf].autoread=false -- entering a retained buffer must not replace captured bytes
+  if not vim.deep_equal(decoded.lines,vim.api.nvim_buf_get_lines(buf,0,-1,false)) then
+    vim.api.nvim_buf_call(buf,function()
+      vim.cmd('silent! let &undolevels = &undolevels')
+      vim.api.nvim_buf_set_lines(buf,0,-1,false,decoded.lines)
+    end)
+  end
+  for _,option in ipairs({'endofline','fileformat','fileencoding','bomb','fixendofline'}) do vim.bo[buf][option]=decoded[option] end
+  vim.bo[buf].modified=false
+end
 function C:init(buf, observed, strict)
   if observed and observed.status=='resolved' then
     assert((vim.uv.fs_realpath(vim.api.nvim_buf_get_name(buf)) or vim.api.nvim_buf_get_name(buf))==observed.repo..'/'..observed.file,
       'review startup document does not match selected branch')
+    assert(not vim.bo[buf].modified,'review startup has unsaved operator edits; finish them before restoring')
+    install_snapshot(buf,decoded_snapshot(observed))
   end
   self.buf=buf
   if observed and observed.status == 'resolved' then
@@ -109,7 +127,7 @@ function C:request(req)
   if req.probe then return {ok=true,context=self:context(),identity=self.state.identity} end
   local wanted=req.identity
   if type(wanted)~='table' or type(wanted.repo)~='string' then return {ok=false,error='invalid review identity'} end
-  local observed=self:resolve(wanted)
+  local observed=self:resolve(wanted,not policy.same(self:context(),wanted))
   if observed.status~='resolved' or not policy.same(wanted,observed) or observed.head~=wanted.head then
     return {ok=false,error=observed.status=='invalid' and observed.diagnostic or 'branch changed during restoration; invoke Alt+C again'}
   end
@@ -133,23 +151,15 @@ function C:request(req)
     return {ok=false,error=self.state.reason}
   end
   local ok,err=pcall(function()
-    -- Read without entering the buffer (BufEnter/checktime must not mutate it).
-    local decoded,decode_error=document_bytes.decode(artifact.read(file))
-    assert(decoded,decode_error)
-    local lines=decoded.lines
+    -- Neovim may load metadata from disk, but only the resolver's captured
+    -- bytes are installed as document authority, including after an ABA switch.
+    local decoded=decoded_snapshot(observed)
     if newbuf==-1 then newbuf=vim.fn.bufadd(file) end
     vim.fn.bufload(newbuf)
     local confirm=self:resolve(wanted)
     assert(confirm.status=='resolved' and policy.same(confirm,observed) and confirm.head==observed.head,'branch changed during activation')
     if self.opts.stop and oldbuf then self.opts.stop(oldbuf) end
-    if not vim.deep_equal(lines,vim.api.nvim_buf_get_lines(newbuf,0,-1,false)) then
-      vim.api.nvim_buf_call(newbuf,function()
-        vim.cmd('silent! let &undolevels = &undolevels')
-        vim.api.nvim_buf_set_lines(newbuf,0,-1,false,lines)
-      end)
-    end
-    for _,option in ipairs({'endofline','fileformat','fileencoding','bomb','fixendofline'}) do vim.bo[newbuf][option]=decoded[option] end
-    vim.bo[newbuf].modified=false
+    install_snapshot(newbuf,decoded)
     self.buf=newbuf
     self.state=policy.transition(self.state,{kind='activated',context={repo=observed.repo,
       branch=observed.branch,file=observed.file,activation=nonce()}})

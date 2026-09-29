@@ -19,9 +19,9 @@ function M.decode(result)
   end
   return out
 end
-function M.resolve(dir, selected)
+function M.resolve(dir, selected, snapshot)
   local ok, out = pcall(function()
-    return vim.system(M.command(dir,selected), {text=true}):wait(2500)
+    return vim.system(M.command(dir,selected,snapshot), {text=true}):wait(2500)
   end)
   return ok and M.decode(out) or {status='invalid',diagnostic=tostring(out)}
 end

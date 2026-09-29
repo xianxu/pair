@@ -10,8 +10,8 @@ end
 write(root..'/base.md','base\n')
 vim.cmd.edit(root..'/base.md')
 local basebuf=vim.api.nvim_get_current_buf()
-local observed={status='resolved',repo=root,branch='review/base',head='base',file='base.md'}
-local ctl=C.new({session='test',resolve=function() return observed end})
+local observed={status='resolved',repo=root,branch='review/base',head='base',file='base.md',snapshot='base\n'}
+local ctl=C.new({session='test',resolve=function(_,_,snapshot) local value=vim.deepcopy(observed);if snapshot then value.snapshot=read(root..'/'..value.file) end;return value end})
 ctl:init(basebuf,observed)
 local cases={
   {name='crlf',bytes='first\r\nlast\r\n',lines={'first','last'},eol=true,format='dos'},

@@ -964,13 +964,13 @@ vim.api.nvim_create_autocmd('VimEnter', {
       local observed
       if vim.env.PAIR_REVIEW_IDENTITY then
         local ok,want=pcall(vim.json.decode,vim.env.PAIR_REVIEW_IDENTITY)
-        if ok and type(want)=='table' then observed=identity.resolve(want.repo,want) end
+        if ok and type(want)=='table' then observed=identity.resolve(want.repo,want,true) end
         if not observed or observed.status~='resolved' or not restore_policy.same(want,observed) or want.head~=observed.head then
           vim.notify('review: checkout changed before opening',vim.log.levels.ERROR)
           return
         end
       else
-        observed=identity.resolve(vim.fn.fnamemodify(file,':h'))
+        observed=identity.resolve(vim.fn.fnamemodify(file,':h'),nil,true)
       end
       restoration:init(buf,observed,vim.env.PAIR_REVIEW_IDENTITY~=nil)
       start_review(buf,file,observed and observed.status=='resolved' and observed or nil)

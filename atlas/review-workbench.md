@@ -86,7 +86,8 @@ Integration seams (headless shell tests, `make test-review`):
 - `restore.lua` / `restore_controller.lua` — pure activation/admission policy and
   pane-owned RPC transaction. The controller revalidates branch/document before
   effects, blocks pending work, retains buffers/undo and reconstructs the selected
-  document after synchronizing clean retained bytes with disk.
+  document from a resolver-captured snapshot on both initial opening and later
+  activation. Neovim's normal buffer load supplies editor setup, not byte authority.
 - `identity.lua` / `restore_client.lua` — resolver adapter and asynchronous draft
   activation client; verify acknowledgments before target publication or visibility.
 - `recovery.lua` — private bounded unsaved-text snapshots for checkout mismatch;
