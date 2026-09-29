@@ -1,10 +1,10 @@
-# Couch recovery, observed bindings and preserved TTY history Implementation Plan
+# Couch recovery and observed bindings Implementation Plan
 
 > **For agentic workers:** Follow AGENTS.md §3 for bounded delegation; SDLC owns milestone reviews. Execute with TDD in pair:0 (`/Users/xianxu/workspace/pair`), branch `000346-stale-temporary-store`.
 
-**Goal:** Keep Couch usable after reboot, resume recorded conversations under nonblocking probation, observe actual current-launch identity, and preserve the TTY history used by text features.
+**Goal:** Keep Couch usable after reboot, resume recorded conversations under nonblocking probation, observe actual current-launch identity.
 
-**Architecture:** Separate registry structure from GC availability; separate durable requested/observed UUID from optional transcript parsing; share fresh/resume post-launch correlation. Preserve captures before path reuse under exclusive ownership, using existing archive and retention conventions.
+**Architecture:** Separate registry structure from GC availability; separate durable requested/observed UUID from optional transcript parsing; share fresh/resume post-launch correlation. Capture preservation and TTY naming are deferred to #349.
 
 **Tech Stack:** Go, Lua editor integration, JSONL ledgers, native transcript adapters, filesystem locks, existing stateful runtime fixtures.
 
@@ -34,18 +34,18 @@ One owner has many launch records; one launch has a requested UUID and at most o
 | Ledger requested/confirmed writes | `cmd/internal/sessionledger/store.go` | modified | versioned append, current-launch compare under lock |
 | Launch preparation and observation | `cmd/internal/sessionwatch/lifecycle.go`, `run.go` | modified | metadata baseline, correlation, native adapters, ledger/config publication |
 | Resume admission | `cmd/internal/couchcore`, `cmd/internal/launcher/osruntime.go`, `launch_args_policy.go` | modified | persisted target, launch argv and UI classification |
-| Capture preservation | `cmd/internal/launcher/osruntime.go`, `lifecycle.go`, `cmd/internal/wrapcmd/wrap.go`, shared capture helper as needed | modified | raw/events archive, owner lock and retention coordinator |
-| TTY naming input | `cmd/internal/slugcmd/slugcmd.go` | modified | existing scrollback replay, bounded plain text and existing model runner |
+| Capture preservation | `cmd/internal/launcher/osruntime.go`, `lifecycle.go`, `cmd/internal/wrapcmd/wrap.go`, shared capture helper as needed | deferred to #349 | raw/events archive, owner lock and retention coordinator |
+| TTY naming input | `cmd/internal/slugcmd/slugcmd.go` | deferred to #349 | existing scrollback replay, bounded plain text and existing model runner |
 
 Existing native runtime fixtures model transcript appends/metadata changes, watcher fixtures model process identity and clock, and launcher/Couch stateful fakes model lifecycle. Use real temporary file roots for ledger/archives/retention. No external agent service is added; naming reuses its existing runner and fake.
 
 ## Decisions, constraints and ordering
 
-- ARCH-PURPOSE: implement the active issue Spec/Done when, including original registry defect, early Alt+n, A-to-D observation, automatic capture preservation and TTY naming. Prior full-body admission and closed source allowlists are superseded.
+- ARCH-PURPOSE: implement the active issue Spec/Done when, including original registry defect, early Alt+n, A-to-D observation. Capture preservation and TTY naming are deferred to #349. Prior full-body admission and closed source allowlists are superseded.
 - ARCH-DRY: reuse CurrentLaunch, existing round thresholds, byte-offset event positions, artifactpath addressing, scrollback renderer and archive/retention conventions. Reuse ParkScrollback copy/publication conventions for startup, leaving compaction semantics intact.
 - ARCH-PURE: fold requested/confirmed identity and select launch suffixes as pure functions; IO gathers observations and commits under existing locks.
 - ARCH-ORDER: unknown fresh launch permits interaction but has no invented resume UUID; requested A -> probation(A); unique new-launch evidence A/D -> confirmed(A/D); silence/ambiguity -> unchanged; old-launch observation -> rejected. Alt+n during probation creates a new launch requesting A. Never infer failure from silence or timeout. Retain requested A, observed D and evidence reason in the ledger. Confirmation and config updates must not let a stale observer overwrite a newer launch.
-- ARCH-CONSTRAINTS: startup/resume target projection reads the owner ledger only, no native body scan. Observation runs off the UI path at existing bounded poll cadence; admit changed existing transcripts and new candidates, reuse incremental catalog and record-size limits, skip unchanged old corpus bodies. A single raw capture is uncapped by row count; plain rendering remains bounded at the existing default except explicit unlimited callers. Stream bounded snapshots to durable archives before source retirement; do not buffer whole captures. Bounded exclusive-lock acquisition refuses a competing same-tag writer without truncation. No network dependency on startup; CPU/network budgets otherwise unchanged.
+- ARCH-CONSTRAINTS: durable resume projection reads the owner ledger without a native body scan; an unconfirmed fresh chosen ID requires filename materialization before reuse. Observation runs off the UI path at existing bounded poll cadence; admit changed existing transcripts and new candidates, reuse incremental catalog and record-size limits, skip unchanged old corpus bodies. A single raw capture is uncapped by row count; plain rendering remains bounded at the existing default except explicit unlimited callers. Stream bounded snapshots to durable archives before source retirement; do not buffer whole captures. Bounded exclusive-lock acquisition refuses a competing same-tag writer without truncation. No network dependency on startup; CPU/network budgets otherwise unchanged.
 - ARCH-SECURE: Pair-owned ledger schema remains versioned/strict; agent-owned extensible metadata remains open-world. Preserve safe path, regular-file and bounded record readers. Unknown source is not automatic root rejection; known child/internal evidence still excludes non-root conversations. No transcript text in diagnostic history. Malformed optional native data cannot revoke durable UUID target. No credentials introduced.
 - ARCH-MOCK: isolate HOME/XDG/PAIR_DATA_DIR/COUCH_STORE_DIR and inherited artifact overrides in process tests; stateful fixtures exercise actual disk/ledger writes, partial failure and restart. Metadata-only incident inventory supplies live conformance without restarting brain:0.
 - ARCH-FUNERAL: append-only ledger owns requested/observed history. Catalog remains disposable. Capture families use existing owner/archive descriptors and GC retention; exclusive capture locks are released on close/process death and registered with artifact ownership if durable paths are introduced. No unlimited new diagnostic sidecar family. Missing registry entries require explicit abandonment, never automatic GC permission.
@@ -57,15 +57,9 @@ Existing native runtime fixtures model transcript appends/metadata changes, watc
 
 V3 launch stores `BaselineComplete` separately from its artifact list. `prepareRuntimeLaunch` records requested identity and starts the agent even when native metadata enumeration fails; incomplete is never encoded as an empty complete snapshot. The watcher cannot use absent-at-launch handshake or current-launch correlation while coverage is unknown. On the first complete later scan it establishes an in-memory observation epoch with that snapshot's raw offsets and the current Pair prompt-log offset; only subsequent exchanges can confirm. Watcher restart repeats this conservative epoch acquisition. Offline repair cannot use an unknown launch baseline to infer a missing historical binding. This sacrifices early evidence, not interaction or the resume target. The observer reports probation without erasing A. Silence with a live owned process keeps the existing slow polling cadence; disappearance of that exact process ends observation, not durable identity.
 
-### Startup capture preservation (operator simplification)
+### Capture preservation deferred
 
-Preservation happens before the wrapper reuses a capture pathname, including Alt+n wrapper exec. Quit leaves raw/events intact and removes the question/discard behavior. Keep existing compaction named-copy behavior; #347 separately designs permanent capture identities. No durable pending transaction, exactly-once archive guarantee or live-copy protocol redesign is required here.
-
-Acquire a stable per-capture writer lock nonblocking before startup preservation and retain it through capture writing. A competing writer causes an immediate diagnostic without mutation. Close/sync and release before exec; the next wrapper reacquires before modifying files. Source-file locks are insufficient because truncation/rotation changes their lifetime. Register any new lock artifact with artifactpath/retention, and use close-on-exec descriptors.
-
-Use a narrow shared archive helper based on existing ParkScrollback copy behavior: reserve a unique destination, stream and sync all existing source members, publish existing capture metadata, then permit active file reuse. An existing unreadable sidecar is failure, not optional absence. Preserve partial leftovers without attaching unrelated metadata. Failure leaves original sources untouched; incomplete archives are retained or cleaned only when demonstrably owned by this attempt. A crash may produce a redundant archive on retry, which is acceptable. No source is truncated until a complete archive exists. A crash between subsequent active-file opens cannot lose old data because that archive is already durable.
-
-Compaction continues to reference its exact named copy; it does not take the writer lifetime lock or participate in startup archival. Existing producer retention protects archive publication. Ledger history follows existing owner/session cleanup, and completed captures retain existing retention duration. Idempotent observation does not append duplicate ledger rows.
+The startup capture transition contract is preserved in #349, outside #346 after the approved scope split.
 
 ## Chunk 1: Registry startup and explicit abandonment (M1)
 

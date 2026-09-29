@@ -39,6 +39,16 @@ Leave raw TTY capture and timing/resize sidecar intact on quit; remove the prese
 
 One live session's capture has no row cap. The existing 2,000-row default is a rendering/view limit and may remain; changelog can continue requesting unlimited rendering. This does not require concatenating every historical capture into the default view.
 
+### Startup capture preservation (operator simplification)
+
+Preservation happens before the wrapper reuses a capture pathname, including Alt+n wrapper exec. Quit leaves raw/events intact and removes the question/discard behavior. Keep existing compaction named-copy behavior; #347 separately designs permanent capture identities. No durable pending transaction, exactly-once archive guarantee or live-copy protocol redesign is required here.
+
+Acquire a stable per-capture writer lock nonblocking before startup preservation and retain it through capture writing. A competing writer causes an immediate diagnostic without mutation. Close/sync and release before exec; the next wrapper reacquires before modifying files. Source-file locks are insufficient because truncation/rotation changes their lifetime. Register any new lock artifact with artifactpath/retention, and use close-on-exec descriptors.
+
+Use a narrow shared archive helper based on existing ParkScrollback copy behavior: reserve a unique destination, stream and sync all existing source members, publish existing capture metadata, then permit active file reuse. An existing unreadable sidecar is failure, not optional absence. Preserve partial leftovers without attaching unrelated metadata. Failure leaves original sources untouched; incomplete archives are retained or cleaned only when demonstrably owned by this attempt. A crash may produce a redundant archive on retry, which is acceptable. No source is truncated until a complete archive exists. A crash between subsequent active-file opens cannot lose old data because that archive is already durable.
+
+Compaction continues to reference its exact named copy; it does not take the writer lifetime lock or participate in startup archival. Existing producer retention protects archive publication. Ledger history follows existing owner/session cleanup, and completed captures retain existing retention duration. Idempotent observation does not append duplicate ledger rows.
+
 ## Done when
 
 - Human-readable text features use printable TTY; exact prompt history stays separate. Native telemetry/parser failures affect only their consumers, not startup/resume.
