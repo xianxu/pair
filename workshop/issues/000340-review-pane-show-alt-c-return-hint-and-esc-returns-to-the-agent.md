@@ -157,6 +157,15 @@ this is one atomic implementation/review boundary.
   scrollback/changelog overlay fixes, then explicitly requested close and land.
   Automated evidence is recorded above and in the revision validation below.
 
+### Boundary review round 1 — BR-1 addressed
+
+- REWORK identified a regression oracle weakened when return destination became
+  draft: reordered panes no longer asserted the separate agent-poke destination.
+- Poke fixture now puts terminal 4 before agent 7 and asserts both body and
+  submit target 7. Stateful controls host also checks destination and records
+  both successful operations. Both tests pass with production code and fail
+  with the old non-draft-title selector restored; original source restored.
+
 ## Revisions
 
 - 2026-09-28: implementation planning after operator approval; Couch focus

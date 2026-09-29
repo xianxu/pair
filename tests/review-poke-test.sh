@@ -13,9 +13,10 @@ RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-poke-test.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 RESULT="$RT/result.txt"; ZLOG="$RT/zlog.txt"; : > "$ZLOG"
 
-# canned panes: agent (id 7, tiled, "claude"), draft (id 3), review (id 9, floating, focused)
+# reordered panes: unrelated right terminal precedes agent (id 7, tiled, "claude"), draft (id 3), review (id 9, floating, focused)
 cat > "$RT/panes.json" <<'JSON'
 {"tab_one":{"panes":[
+  {"id":4,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"terminal","terminal_command":"/bin/pair term"},
   {"id":7,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"claude","terminal_command":"/bin/pair wrap --agent claude"},
   {"id":3,"is_plugin":false,"is_floating":false,"is_focused":false,"title":"draft"},
   {"id":9,"is_plugin":false,"is_floating":true,"is_focused":true,"title":"review"}

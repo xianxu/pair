@@ -23,7 +23,10 @@ elif a == ['action','hide-floating-panes']: s['visible']=False
 elif a[:2] == ['action','focus-pane-id']:
     assert not s['visible'], 'hide before focus'
     s['focused']=int(a[2])
-elif a[:2] not in [['action','write-chars'],['action','send-keys']]:
+elif a[:2] in [['action','write-chars'],['action','send-keys']]:
+    assert a[2:4] == ['--pane-id','7'], 'review submission must target agent 7'
+    s.setdefault('messages', []).append(a[1])
+else:
     raise Exception('unexpected command '+repr(a))
 p.write_text(json.dumps(s))
 PY
@@ -50,6 +53,7 @@ local function run()
   hints()
   -- Exercise the real send mapping to enter awaiting, including disk save.
   press('<M-CR>'); hints()
+  assert(vim.deep_equal(host().messages, {'write-chars', 'send-keys'}), 'body and submit must reach agent')
   press('<M-n>'); assert(vim.api.nvim_win_get_cursor(0)[1] == 3, 'next marker')
   press('<M-n>'); assert(vim.api.nvim_win_get_cursor(0)[1] == 1, 'next wraps')
   press('<M-N>'); assert(vim.api.nvim_win_get_cursor(0)[1] == 3, 'previous wraps')

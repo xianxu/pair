@@ -82,3 +82,6 @@ or land solely from these implementation checks.
   covering both real viewer initializations and preserved annotation ordering.
 
 - 2026-09-28 — operator confirmed revised smoke worked and authorized close/land.
+
+- 2026-09-28 — BR-1: strengthen both reordered-pane fixtures to assert agent
+  submission destination; both pass and fail under the old selector mutation.
