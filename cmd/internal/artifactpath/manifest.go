@@ -795,6 +795,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/keyhelp/layer.go",
 	"cmd/internal/keyhelp/parse.go",
 	"cmd/internal/keyhelp/render.go",
+	"cmd/internal/keyhelp/review.go",
 	"cmd/internal/notifycmd/run.go",
 	"cmd/internal/notifyosc/notification.go",
 	"cmd/internal/notifytransport/address.go",
