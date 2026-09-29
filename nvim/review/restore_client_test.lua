@@ -66,7 +66,12 @@ local function scenario(config)
         assert(vim.json.decode(opts.env.PAIR_REVIEW_IDENTITY).head==active_identity.head)
         vim.fn.writefile({tostring(vim.fn.getpid()),'/repo/'..identity.file,vim.json.encode(metadata)},sf)
         effects[#effects+1]='open'
-      elseif vim.tbl_contains(cmd,'are-floating-panes-visible') then result.stdout=config.visible==false and 'false' or 'true'; effects[#effects+1]='visibility'
+      elseif vim.tbl_contains(cmd,'are-floating-panes-visible') then
+        result.stdout=config.visible==false and 'false\n' or 'true\n'
+        result.code=config.visible==false and 1 or 0
+        if config.visibility_error then result={code=1,stdout='',stderr='disconnected'} end
+        if config.visibility_malformed then result={code=0,stdout='not true',stderr=''} end
+        effects[#effects+1]='visibility'
       elseif vim.tbl_contains(cmd,'show-floating-panes') then effects[#effects+1]='show'
       else error('unexpected command '..vim.inspect(cmd)) end
       vim.schedule(function() cb(result) end)
@@ -83,7 +88,13 @@ assert(vim.deep_equal(r.effects,{'resolve','rpc','resolve','publish','visibility
 r=scenario({switched=true})
 assert(vim.deep_equal(r.effects,{'resolve','rpc','resolve','publish','show'}))
 r=scenario({visible=false})
-assert(r.effects[#r.effects]=='show')
+assert(r.effects[#r.effects]=='show','hidden exit-1/false must reopen the same pane')
+assert(#r.notifications==0)
+for _,mode in ipairs({'visibility_error','visibility_malformed'}) do
+  r=scenario({[mode]=true})
+  assert(not vim.tbl_contains(r.effects,'show') and not vim.tbl_contains(r.effects,'hide'))
+  assert(#r.notifications==1,'invalid visibility result must be diagnosed')
+end
 r=scenario({pane=false})
 assert(vim.deep_equal(r.effects,{'resolve','open','rpc','resolve','publish','show'}))
 for _, mode in ipairs({'foreign','legacy','timeout','blocked','drift','sessiondrift','panedrift','badack'}) do

@@ -39,6 +39,7 @@ if [ "\$1" = action ] && [ "\$2" = list-panes ]; then
 fi
 if [ "\$1" = action ] && [ "\$2" = are-floating-panes-visible ]; then
   cat "$FLOATVIS" 2>/dev/null || echo false
+  rg -q '^true$' "$FLOATVIS" || exit 1
 fi
 exit 0
 EOF

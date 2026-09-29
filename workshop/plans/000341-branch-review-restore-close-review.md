@@ -94,3 +94,104 @@ findings:
     detail: |
       nvim/review.lua:790 registers callbacks on every activation without corresponding cleanup. A real A-to-B-to-A probe increased A's TextChanged callback count from one to two. Use a clearable owned group and assert stable counts (ARCH-FUNERAL).
 ```
+
+---
+
+## Re-review — 2026-09-28T22:00:39-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 341 — Alt+C restores review target from branch |
+| repo | pair |
+| issue file | workshop/issues/000341-branch-review-restore.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 41ab4f9add1908e854c3f41e491e4a64d53793db..e03a792b4a8fbc8e5dc04684ada8f6154307cdb1 |
+| command | sdlc close --issue 341 |
+| reviewer | codex |
+| timestamp | 2026-09-28T22:00:39-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+All four prior findings are addressed, with meaningful regression evidence. One new blocking race remains: a delayed asynchronous observation can reload another branch’s bytes into a pane still bound to the original review. The repository remains unchanged.
+
+1. **Strengths**
+
+   - Handoff deletion now follows explicit acceptance; uncertain outcomes and replacement generations remain preserved (`nvim/review/handoff.lua:96`).
+   - Git identity resolution enforces exact subjects, unique safe paths, bounded reads, and final branch/HEAD checks.
+   - Activation rendering callbacks have explicit cleanup ownership (`nvim/review.lua:725`).
+   - README and atlas cover restoration, blocked transitions, and recovery.
+
+2. **Critical findings**
+
+   **Late observation authorizes a fresh read from a different checkout** — `nvim/review/recovery_observer.lua:36` and `nvim/review.lua:843`.
+
+   The observer checks its captured Git result against the pane’s unchanged binding, then invokes `checktime`, which reads the *current* checkout. I reproduced this through the production pane: capture resolution on `review/a`, pause delivery, checkout `review/b`, then deliver the result. The pane displayed B’s `a.md` bytes (`a`) while its binding remained `review/a`; previously it displayed `a reviewed`.
+
+   **This is the 2nd finding in family `nonblocking-editor-observation`.** State and enforce the rule across asynchronous observation consumers: an observation cannot authorize a later, independently sourced read. Sweep refresh, preservation, and coalescing decisions. For reload, obtain bytes tied to a verified identity snapshot and apply those bytes; preserve asynchronous responsiveness. Add a controlled observation-before-checkout / completion-after-checkout regression. **ARCH-ORDER, ARCH-PURPOSE.**
+
+3. **Important findings**
+
+   None additional.
+
+4. **Minor findings**
+
+   None additional.
+
+5. **Test coverage notes**
+
+   - Passed: Go reviewcmd package tests; targeted Lua handoff, observer, controller, policy, recovery, definition-seam and client tests; observation, branch-restoration, and producer-context integration tests.
+   - BR-1 mutation: restoring the old watcher failed the assertion that final application refusal preserves the handoff.
+   - BR-2 mutation: restoring synchronous edit observation failed with approximately **1,155 ms** blocking and six scans.
+   - BR-4 mutation: removing callback cleanup failed with callback counts increasing **1 → 3**.
+   - The existing observation test passes but misses the newly reproduced ordering.
+   - Handoff tests required temporary XDG storage under this sandbox; they passed with that isolation.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared identity interpretation and artifact-generation receipts.
+   - **ARCH-PURE — pass:** identity classification and activation policy remain directly testable without IO.
+   - **ARCH-PURPOSE — flag:** late reload violates branch-isolated review restoration.
+   - **ARCH-MOCK — pass:** reviewed integration paths have controlled seams and real temporary-Git/Neovim coverage.
+   - **ARCH-CONSTRAINTS — pass:** bounded resolution and coalesced asynchronous observations; responsiveness regression verified.
+   - **ARCH-SECURE — pass:** reviewed paths validate canonical identity, session/activation context, and recovery storage.
+   - **ARCH-ORDER — flag:** historical observation is treated as current authority for reload.
+   - **ARCH-FUNERAL — pass:** activation callbacks and observer work have cleanup; recovery storage has bounded admission and removal.
+
+7. **Plan revision recommendations**
+
+   Append a `## Revisions` entry defining identity-bound reload snapshots and enumerating asynchronous callback decisions. Require the controlled late-completion regression before closing the boundary.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Handoff consumption follows explicit apply/defer acceptance. The passing production-function regression fails with the old watcher at the final-refusal preservation assertion.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Edit observation is asynchronous and coalesced. Restoring synchronous observation fails the responsiveness test at approximately 1155 ms with six scans. The distinct late-completion safety regression is reported below.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:99 documents branch restoration and blocking conditions; README.md:108 documents recovery/discard commands implemented in nvim/review.lua.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Activation owns a clearable rendering group. The passing observation test fails with callback counts increasing from one to three when cleanup is removed.
+findings:
+  - id: new
+    severity: Critical
+    family: nonblocking-editor-observation
+    title: |
+      Late asynchronous observation reloads another branch into the active review
+    detail: |
+      nvim/review/recovery_observer.lua:36 accepts a captured matching identity, then nvim/review.lua:843 invokes checktime against the current checkout. A controlled production-pane probe captured review/a, switched to review/b before delivery, and loaded B's bytes while the pane remained bound to A. This is the 2nd finding in this family: enforce identity-bound observation effects across refresh, preservation, and coalescing decisions rather than patching only this callback. Reload verified snapshot bytes and add a controlled late-completion regression without restoring synchronous editor observation. ARCH-ORDER, ARCH-PURPOSE.
+```

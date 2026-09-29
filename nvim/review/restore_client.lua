@@ -135,10 +135,12 @@ function C:activate(pane,wanted,opened)
       self.opts.write_target(wanted.repo..'/'..wanted.file,'ready',observed)
       if opened or ack.same~=true then self:show(); return end
       self:run({'zellij','action','are-floating-panes-visible'},nil,function(visibility)
-        if visibility.code~=0 then self:finish('could not query review visibility'); return end
-        if (visibility.stdout or ''):match('true') then
+        local visible=(visibility.stdout or ''):match('^%s*(.-)%s*$')
+        -- Zellij's predicate uses exit 1 for the normal hidden/false state.
+        if visibility.code==0 and visible=='true' then
           self.opts.hide(); self:finish()
-        else self:show() end
+        elseif visibility.code==1 and visible=='false' then self:show()
+        else self:finish('could not query review visibility') end
       end)
     end)
   end)

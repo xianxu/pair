@@ -47,20 +47,39 @@ if args and args[0]=='run':
     sys.exit(0)
 if args[:2]==['action','show-floating-panes']:(state/'visible').write_text('true')
 elif args[:2]==['action','hide-floating-panes']:(state/'visible').write_text('false')
-elif args[:2]==['action','are-floating-panes-visible']:print((state/'visible').read_text())
+elif args[:2]==['action','are-floating-panes-visible']:
+    visible=(state/'visible').read_text();print(visible);sys.exit(0 if visible=='true' else 1)
 elif args[:2]==['action','list-panes']:
     print(json.dumps({'panes':[{'id':3,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/init.lua'},
-                              {'id':42,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/review.lua'}]}))
+                              {'id':42,'terminal_command':'nvim -u '+os.environ['PAIR_HOME']+'/nvim/review.lua'},
+                              {'id':4,'is_floating':False,'is_plugin':False,'terminal_command':'pair wrap'}]}))
 ''');fake.chmod(0o700)
     driver=temp/'draft-driver.lua'
     driver.write_text(r'''
 local messages={}
+local initial
 _pair_review.client.opts.notify=function(message) messages[#messages+1]=message end
 local ok,err=xpcall(function()
   assert(_pair_review.read_target()==nil,'fresh session adopted another conversation target')
   PairReviewToggle()
   assert(vim.wait(10000,function() return not _pair_review.client.busy end,10),'Alt+C transaction did not finish')
-  vim.fn.writefile({vim.json.encode({messages=messages})},vim.env.DRIVER_RESULT)
+  if #messages==0 and _pair_review.read_target() then
+    local meta=vim.json.decode(vim.fn.readfile(vim.env.PAIR_REVIEW_OPEN_PATH)[3])
+    local snapshot="luaeval('vim.json.encode({marks=#vim.api.nvim_buf_get_extmarks(0,vim.api.nvim_create_namespace(\"review\"),0,-1,{}),diagnostics=vim.diagnostic.get(0)})')"
+    local captured=vim.system({'nvim','--server',meta.endpoint,'--remote-expr',snapshot},{text=true}):wait(5000)
+    assert(captured.code==0,vim.inspect(captured));initial=vim.json.decode(captured.stdout)
+    local start="luaeval('(function() PairReviewPane.finish_human_turn(vim.api.nvim_get_current_buf(),vim.api.nvim_buf_get_name(0)); return PairReviewPane.controller.opts.pending() end)()')"
+    local started=vim.system({'nvim','--server',meta.endpoint,'--remote-expr',start},{text=true}):wait(5000)
+    assert(started.code==0 and started.stdout:find('agent request pending',1,true),vim.inspect(started))
+    PairReviewToggle()
+    assert(vim.wait(10000,function()return not _pair_review.client.busy end,10))
+    assert(vim.fn.readfile(vim.env.FAKE_ZELLIJ_STATE..'/visible')[1]=='false','pending same-review toggle must hide')
+    PairReviewToggle()
+    assert(vim.wait(10000,function()return not _pair_review.client.busy end,10))
+    assert(vim.fn.readfile(vim.env.FAKE_ZELLIJ_STATE..'/visible')[1]=='true','exit-1 false must reopen while agent works')
+    assert(#messages==0,vim.inspect(messages))
+  end
+  vim.fn.writefile({vim.json.encode({messages=messages,initial=initial})},vim.env.DRIVER_RESULT)
 end,debug.traceback)
 if not ok then io.stderr:write(err..'\n');vim.cmd('cquit 1') end
 vim.cmd('qa!')
@@ -123,8 +142,9 @@ vim.cmd('qa!')
                 assert meta['context']['repo']==str(repo) and meta['context']['branch']=='review/a' and meta['context']['activation'],meta
                 expr="luaeval('vim.json.encode({file=vim.api.nvim_buf_get_name(0),lines=vim.api.nvim_buf_get_lines(0,0,-1,false),marks=#vim.api.nvim_buf_get_extmarks(0,vim.api.nvim_create_namespace(\"review\"),0,-1,{}),diagnostics=vim.diagnostic.get(0)})')"
                 snap=json.loads(subprocess.check_output(['nvim','--server',meta['endpoint'],'--remote-expr',expr],env=env,text=True,timeout=5))
-                assert snap['file']==str(repo/'a.md') and snap['lines']==['A reviewed'] and snap['marks']>0,snap
-                assert any('a branch explanation' in d['message'] for d in snap['diagnostics']),snap
+                assert snap['file']==str(repo/'a.md') and snap['lines']==['A reviewed'] ,snap
+                assert outcome['initial']['marks']>0,outcome
+                assert any('a branch explanation' in d['message'] for d in outcome['initial']['diagnostics']),outcome
                 assert not outcome['messages'],outcome
             assert git('rev-parse','HEAD')==before and not git('status','--porcelain'),(name,'Alt+C changed checkout')
             print('  ok  '+name)
