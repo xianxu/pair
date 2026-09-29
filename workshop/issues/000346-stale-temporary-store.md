@@ -99,6 +99,8 @@ Detailed implementation plan: `workshop/plans/000346-stale-temporary-store-plan.
 
 ## Log
 
+- 2026-09-29: The final termcmd rerun uses the isolated smoke environment and passes (0.384s, `/tmp/pair346-termcmd-final.log`). Interrupted an early issue-close dispatch while waiting for this verification; it produced no verdict or close. Restart close only with the completed test evidence.
+
 - 2026-09-29: Final unsandboxed `go test ./...` completed (`/tmp/pair346-final-unsandboxed.log`): Couch core (275.932s), launcher (17.369s), wrapper (40.160s) and remaining runtime packages pass; no reviewer PTY sandbox errors. It found the known #348 artifact inventory failure and a newly misplaced Go comment above `refuseResolvedBinding`. Moved the comment to its correct declaration without behavior changes; full `go test ./cmd/internal/termcmd -count=1` passes afterward. Only the independently reproduced baseline failure remains outstanding outside #346.
 
 - 2026-09-29: M2 re-review returned SHIP and disposed BR-14. Accepted minor state-modeling/actionability follow-ups are preserved in #350; TTY remains #349. Latest full unsandboxed Go run requested to distinguish reviewer PTY sandbox failures from product behavior before issue close.
