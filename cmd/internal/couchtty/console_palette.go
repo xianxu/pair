@@ -81,9 +81,12 @@ func toRGBA(c color.Color) color.RGBA {
 	return color.RGBA{uint8(r >> 8), uint8(g >> 8), uint8(b >> 8), 0xff}
 }
 
-// repaintAfterPalette redraws whichever surface is showing, the way a landed
-// slot git pass does.
-func (c *Console) repaintAfterPalette() {
+// repaintVisible redraws whichever surface is showing: the switcher when the
+// panel has focus, otherwise the actor and its status row. Background results
+// that change what either view draws -- a slot git pass, an activity pass, a
+// palette reply -- all end here. Focus is read at repaint time, so it is the
+// surface on screen now that gets redrawn.
+func (c *Console) repaintVisible() {
 	c.mu.Lock()
 	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()

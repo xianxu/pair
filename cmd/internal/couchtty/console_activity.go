@@ -101,17 +101,12 @@ func (c *Console) finishActivity(result activityResult) {
 	}
 	c.mu.Lock()
 	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventActivity, Activity: result.observed, ActivityFailed: result.failed})
-	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()
 	if len(result.observed)+len(result.failed) > 0 {
 		c.traceEvent(traceActivity, couchcore.ThreadAddress{}, "ok="+strconv.Itoa(len(result.observed))+" failed="+strconv.Itoa(len(result.failed)))
 	}
 	c.advanceActivity(RefreshScheduleEvent{Kind: RefreshFinished, Generation: result.generation})
-	if panelFocused {
-		c.showMenu()
-	} else {
-		c.repaint()
-	}
+	c.repaintVisible()
 }
 
 // activityProbeRows is every live thread once. Idle fading is for live threads

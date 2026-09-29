@@ -3,11 +3,14 @@ package couchtty
 import (
 	"context"
 	"errors"
+	"image/color"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
+	"github.com/xianxu/pair/cmd/internal/textwidth"
 )
 
 // fakeActivityProbe is the stateful stand-in for threadactivity.Latest
@@ -125,14 +128,6 @@ func (f *activityFixture) chipIdle(t *testing.T) IdleLevel {
 	return 0
 }
 
-// switcherIdle is the level the switcher draws for the attached thread, read
-// back from the same state and clock the console renders with.
-func (f *activityFixture) switcherIdle() IdleLevel {
-	state := f.con.menuSnapshot()
-	at, known := state.Activity[f.attached.Address]
-	return IdleLevelFor(f.clock.Now(), at, known)
-}
-
 func TestActivityPassProbesLiveThreadsOnceAndFadesBothViews(t *testing.T) {
 	clock := &testClock{now: idleNow}
 	probe := newFakeActivityProbe()
@@ -161,9 +156,6 @@ func TestActivityPassProbesLiveThreadsOnceAndFadesBothViews(t *testing.T) {
 	if got := f.chipIdle(t); got != IdleDay {
 		t.Fatalf("tab bar level = %d, want IdleDay for 30h of silence", got)
 	}
-	if got := f.switcherIdle(); got != IdleDay {
-		t.Fatalf("switcher level = %d, want the tab bar's IdleDay", got)
-	}
 
 	// Time passes with no new activity: the next pass moves the fade on.
 	clock.advance(48 * time.Hour)
@@ -171,9 +163,64 @@ func TestActivityPassProbesLiveThreadsOnceAndFadesBothViews(t *testing.T) {
 	f.con.requestActivity()
 	waitFor(t, "the next pass", func() bool { return probe.callCount() >= before+2 })
 	waitFor(t, "the chip crosses into the stale band", func() bool { return f.chipIdle(t) == IdleStale })
-	if got := f.switcherIdle(); got != IdleStale {
-		t.Fatalf("switcher level = %d, want IdleStale", got)
+}
+
+// The switcher, rendered for real: opened through stdin, drawn by showMenu,
+// read back as the colour on the host's screen (M2 review BR-6). The injected
+// clock is a week behind the wall clock, so a showMenu that read time.Now()
+// again would draw the stale band's colour instead of the day band's.
+func TestSwitcherDrawsTheIdleFadeWithTheConsoleClock(t *testing.T) {
+	clock := &testClock{now: time.Now().Add(-7 * 24 * time.Hour)}
+	probe := newFakeActivityProbe()
+	f := activityFixtureWith(t, probe, clock)
+	probe.set(f.primary.Address, clock.Now().Add(-30*time.Hour), false)
+	f.con.SetColorModes(true, false)
+	_, _ = f.stdin.Write([]byte("\x1b]11;rgb:0000/0000/0000\x1b\\\x1b]10;rgb:ffff/ffff/ffff\x1b\\"))
+	waitFor(t, "the dark palette", func() bool { return f.con.menuSnapshot().Palette.Known })
+	waitFor(t, "the primary's activity", func() bool { _, ok := f.activity()[f.primary.Address]; return ok })
+
+	_, _ = f.stdin.Write([]byte{0})
+	want := blend(white, black, idleBlend[IdleDay])
+	stale := blend(white, black, idleBlend[IdleStale])
+	var got color.RGBA
+	waitFor(t, "the switcher draws the primary row faded", func() bool {
+		var ok bool
+		got, ok = f.unselectedRowColor("pair")
+		return ok && got == want
+	})
+	if got == stale {
+		t.Fatalf("switcher drew the stale band: showMenu is not using the console clock")
 	}
+}
+
+// unselectedRowColor finds the first switcher row that shows label and is not
+// the selected one (selection never fades), and returns the foreground of the
+// label's first cell as the host terminal drew it.
+func (f *activityFixture) unselectedRowColor(label string) (color.RGBA, bool) {
+	f.screen.mu.Lock()
+	defer f.screen.mu.Unlock()
+	em := f.screen.em
+	for y := 0; y < em.Height(); y++ {
+		var line strings.Builder
+		for x := 0; x < em.Width(); x++ {
+			if cell := em.CellAt(x, y); cell != nil {
+				line.WriteString(cell.Content)
+			} else {
+				line.WriteByte(' ')
+			}
+		}
+		text := line.String()
+		at := strings.Index(text, label)
+		if at < 0 || strings.Contains(text, "▸") || !strings.Contains(text, "/workspace/pair") {
+			continue
+		}
+		cell := em.CellAt(textwidth.Width(text[:at]), y)
+		if cell == nil || cell.Style.Fg == nil {
+			return color.RGBA{}, false
+		}
+		return toRGBA(cell.Style.Fg), true
+	}
+	return color.RGBA{}, false
 }
 
 // A failed probe keeps the last value: a stale thread must not flash bright.
