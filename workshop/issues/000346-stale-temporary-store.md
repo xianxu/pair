@@ -132,3 +132,7 @@ Expanded Spec/Done when and replaced the initial checklist with three actual rev
 ### 2026-09-29 — Identity model corrected by operator
 
 Native conversation UUIDs make volume information unnecessary for conversation scoping/deduplication. Revised the draft plan: `(agent, native UUID)` is durable authority; file identity is a cache-continuity hint. A metadata change triggers full validation of the exact saved artifact set, not immediate loss of binding or a special device-only exception. The filename alone is insufficient; internal UUID, root role, schema, undisputed state, size bounds and read stability are checked. This replaces the earlier proposed same-inode requirement.
+
+### 2026-09-29 — Plan review correction
+
+Fresh-context review found one Important issue: repair must not reuse the watcher config refresh with empty argv. Changed the plan to preserve existing config bytes (and missing config), repair only ledger/catalog authority, and verify actual cold resume uses the recorded launch profile. Added old-catalog vscode regression coverage. Re-review pending; no code changes.
