@@ -1,13 +1,14 @@
 ---
 id: 000341
-status: open
+status: working
 deps: []
 github_issue:
 target: review-protocol
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
-card_mirror: '47578522d29d69247388eefe8a0f3a9ed17e2140' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '2e74fcd73db5667c843ae48ea47f356dc6ee3f2a' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T20:39:30-07:00
 ---
 
 # Alt+C restores review target from branch
@@ -43,3 +44,13 @@ Define behavior for missing or ambiguous branch-to-document identity and for non
 ### 2026-09-28
 
 Filed from the operator's Alt+C workflow questions. Current behavior traced through `nvim/init.lua` (`PairReviewToggle`, target storage), `cmd/internal/reviewcmd/run.go` (readiness and scoped-file discovery), and `nvim/review/init.lua` (reconstruct-on-open). Task capture only; implementation has not started.
+
+### 2026-09-28 — investigation and proposed design
+
+Claimed and entered planning on `000341-branch-review-restore`. Confirmed that a live pane bypasses target/branch checks, readiness picks the first path from any latest review commit, reconstruction reads any latest agent round, and handoff polling unlinks before identity can be checked. `RunOpen` also kills an existing pane whose exit handler may save stale text into the newly checked-out branch.
+
+The proposed full-flow design is in [the durable plan](../plans/000341-branch-review-restore-plan.md). Git owns review identity; the pane owns safe activation; pending work blocks replacement; context validation precedes handoff consumption (ARCH-PURPOSE, ARCH-DRY, ARCH-STATE). Implementation has not started. Estimate follows approval and the plan-quality gate.
+
+## Revisions
+
+2026-09-28 — Expanded the initial two-step outline into a durable full-flow plan after discovering cross-process activation, unscoped handoffs, and unsafe exit-save behavior. The original Spec and Done when remain the contract; proposed edge-case behavior and verification live in the linked plan pending operator approval.
