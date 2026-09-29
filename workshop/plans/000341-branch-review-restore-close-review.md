@@ -389,3 +389,65 @@ findings:
 7. **Plan revision recommendation**
 
    Append a `## Revisions` entry requiring isolated test environments across the new process fixtures and sentinel coverage proving inherited session artifact paths cannot be modified.
+
+---
+
+## Re-review — 2026-09-28T22:49:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 341 — Alt+C restores review target from branch |
+| repo | pair |
+| issue file | workshop/issues/000341-branch-review-restore.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 41ab4f9add1908e854c3f41e491e4a64d53793db..61290cba66b3449803904eae931ef5f6227cb291 |
+| command | sdlc close --issue 341 |
+| reviewer | codex |
+| timestamp | 2026-09-28T22:49:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range matches the issue’s restoration and preservation contracts. BR-7 is addressed with shared fixture isolation and a regression independently shown to fail when context-path isolation is bypassed. No new findings; repository remains unchanged.
+
+```findings
+dispose:
+  - id: BR-7
+    disposition: addressed
+    note: |
+      tests/lib/review_test_env.py:43 sanitizes inherited session variables and binds writable artifacts to fixture storage. Fresh, branch, observation and producer fixtures passed with caller sentinels intact. A scratch mutation restoring the inherited PAIR_REVIEW_CONTEXT_PATH caused the fresh-session regression to fail at the sentinel assertion.
+```
+
+1. **Strengths**
+   - Shared environment isolation covers all four new process fixtures.
+   - Real Git/editor tests exercise branch restoration, pending-work refusal, recovery and delayed observations.
+   - README and atlas document restoration, staged-index restrictions and recovery commands.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Passed: Go package race tests, all four new process fixtures, full Lua suite under isolated storage, and pinned-range whitespace checks.
+   - BR-7 mutation failed as expected.
+   - Initial Lua execution encountered a sandbox restriction on inherited editor storage; isolated rerun passed.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared resolver, byte codec and fixture environment.
+   - **ARCH-PURE — pass:** classification and activation policy remain separate from IO.
+   - **ARCH-PURPOSE — pass:** restoration covers existing panes and fresh sessions.
+   - **ARCH-MOCK — pass:** stateful host fixtures accompany real Git/editor checks.
+   - **ARCH-CONSTRAINTS — pass:** bounded resolution and coalesced observations have regression coverage.
+   - **ARCH-SECURE — pass:** contextual admission and fixture isolation protect ownership boundaries.
+   - **ARCH-ORDER — pass:** activation, refusal and delayed-completion cases are explicitly exercised.
+   - **ARCH-FUNERAL — pass:** recovery capacity, consumption and resource cleanup are defined.
+
+7. **Plan revision recommendations:** None.

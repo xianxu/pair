@@ -132,6 +132,16 @@ rounds:
           round: 4
       recipe: milestone-review
       blocked: false
+    - "n": 5
+      timestamp: "2026-09-28T22:49:39-07:00"
+      agent: codex
+      dispose:
+        - id: BR-7
+          disposition: addressed
+          note: tests/lib/review_test_env.py:43 sanitizes inherited session variables and binds writable artifacts to fixture storage. Fresh, branch, observation and producer fixtures passed with caller sentinels intact. A scratch mutation restoring the inherited PAIR_REVIEW_CONTEXT_PATH caused the fresh-session regression to fail at the sentinel assertion.
+          round: 5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#341 (boundary-review)
@@ -197,6 +207,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-7** [Important] `test-environment-isolation` Fresh-session regression overwrites inherited review context outside its fixture
   tests/review-fresh-restore-test.sh:109 inherits os.environ without rebinding PAIR_REVIEW_CONTEXT_PATH. Its finish_human_turn call at line 71 reaches nvim/review.lua:540 and overwrites that caller-owned path. Reproduced with a scratch sentinel outside the fixture: the test passed while replacing its contents with "A reviewed\n". Sanitize inherited Pair session variables, bind every writable artifact to fixture storage, and add a sentinel regression. Sweep the new branch/observation fixtures using the same environment construction. ARCH-SECURE.
 
+## Round 5 — 2026-09-28T22:49:39-07:00 (codex) — passed
+
+### Disposed
+
+- BR-7 — addressed — tests/lib/review_test_env.py:43 sanitizes inherited session variables and binds writable artifacts to fixture storage. Fresh, branch, observation and producer fixtures passed with caller sentinels intact. A scratch mutation restoring the inherited PAIR_REVIEW_CONTEXT_PATH caused the fresh-session regression to fail at the sentinel assertion.
+
 ## Open findings
 
-- **BR-7** [Important] `test-environment-isolation` Fresh-session regression overwrites inherited review context outside its fixture
+(none — every finding has been disposed)
