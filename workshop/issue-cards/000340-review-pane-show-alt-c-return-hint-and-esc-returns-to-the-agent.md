@@ -1,6 +1,6 @@
 ---
 id: 000340
-status: codecomplete
+status: done
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours:
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 69328381951c13bf9d715c81e9113b00dc0c98c0
         evidence_commit: 313b346453d7d58b43df30dc44f26c47bc8a91ee
+        landed_commit: f35a9cf7813f89f3c091147d182f8ff1770c9bbf
 ---
 
 # Review pane: show Alt+c return hint, and Esc returns to the agent
