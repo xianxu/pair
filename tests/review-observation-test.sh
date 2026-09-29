@@ -2,13 +2,16 @@
 # Slow Git observation must not block editing or accumulate activation callbacks.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PAIR_ROOT="$ROOT" python3 - <<'PY'
+PAIR_ROOT="$ROOT" python3 -B - <<'PY'
 import json,os,pathlib,subprocess,sys,tempfile,time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
+sys.path.insert(0,str(root/'tests/lib'))
+from review_test_env import ReviewTestEnvironment
 pane_init=pathlib.Path(os.environ.get('PAIR_TEST_REVIEW_INIT',str(root/'nvim/review.lua')))
-with tempfile.TemporaryDirectory(prefix='pair-observation-') as td:
+with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-observation-') as td:
     tmp=pathlib.Path(td).resolve();repo=tmp/'repo';repo.mkdir();data=tmp/'data';data.mkdir();home=tmp/'home';(home/'bin').mkdir(parents=True)
-    def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],text=True,timeout=5).strip()
+    base_env=isolated.environment(tmp,root)
+    def git(*args):return subprocess.check_output(['git','-C',str(repo),*args],env=base_env,text=True,timeout=5).strip()
     git('init','-qb','main');git('config','user.name','T');git('config','user.email','t@e.com')
     for name in ('a','b'):(repo/(name+'.md')).write_text(name+'\n')
     git('add','.');git('commit','-qm','initial')
@@ -18,7 +21,7 @@ with tempfile.TemporaryDirectory(prefix='pair-observation-') as td:
         (tmp/'msg').write_text('review('+name+'): agent r1\n\n```review-records\n'+json.dumps([record])+'\n```\n')
         git('commit','-qaF',str(tmp/'msg'))
     git('checkout','-q','review/a')
-    def resolve():return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],text=True,timeout=4))
+    def resolve():return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],env=base_env,text=True,timeout=4))
     slow=tmp/'slow';calls=tmp/'calls'
     wrapper=home/'bin/pair'
     wrapper.write_text('#!'+sys.executable+'\n'+'''import os,sys,time,subprocess
@@ -34,7 +37,7 @@ if sys.argv[1:4]==['review','readiness','--resolve'] and Path(os.environ['HOLD_F
 os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
 ''');wrapper.chmod(0o700)
     opened=data/'review.open'
-    env=dict(os.environ,PAIR_HOME=str(home),REAL_PAIR=str(root/'bin/pair'),SLOW_FILE=str(slow),CALLS_FILE=str(calls),HOLD_FILE=str(tmp/'hold'),CAPTURED_FILE=str(tmp/'captured'),RELEASE_FILE=str(tmp/'release'),
+    env=dict(base_env,PAIR_HOME=str(home),REAL_PAIR=str(root/'bin/pair'),SLOW_FILE=str(slow),CALLS_FILE=str(calls),HOLD_FILE=str(tmp/'hold'),CAPTURED_FILE=str(tmp/'captured'),RELEASE_FILE=str(tmp/'release'),
         PAIR_DATA_DIR=str(data),PAIR_TAG='observation',PAIR_SESSION_ID='sid',PAIR_REVIEW_OPEN_PATH=str(opened),
         PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_IDENTITY=json.dumps(resolve()),XDG_STATE_HOME=str(tmp/'state'),XDG_CACHE_HOME=str(tmp/'cache'),XDG_DATA_HOME=str(tmp/'xdg'))

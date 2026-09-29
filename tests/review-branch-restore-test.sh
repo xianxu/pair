@@ -2,12 +2,15 @@
 # Real Git + real review Neovim RPC; no editor or Git behavior mocked.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PAIR_ROOT="$ROOT" python3 - <<'PY'
-import json, os, pathlib, subprocess, tempfile, time
+PAIR_ROOT="$ROOT" python3 -B - <<'PY'
+import json, os, pathlib, subprocess, sys, tempfile, time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
-with tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
+sys.path.insert(0,str(root/'tests/lib'))
+from review_test_env import ReviewTestEnvironment
+with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
     temp=pathlib.Path(td).resolve(); repo=temp/'repo'; repo.mkdir(); data=temp/'data'; data.mkdir()
-    def git(*args): return subprocess.check_output(['git','-C',str(repo),*args],text=True).strip()
+    base_env=isolated.environment(temp,root)
+    def git(*args): return subprocess.check_output(['git','-C',str(repo),*args],env=base_env,text=True).strip()
     git('init','-q','-b','main'); git('config','user.email','t@e.com'); git('config','user.name','T')
     (repo/'a.md').write_text('A\n'); (repo/'b.md').write_text('B\n')
     git('add','.'); git('commit','-qm','initial')
@@ -18,12 +21,12 @@ with tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
         msg='review('+name+'): agent r1 — first\n\n```review-records\n'+json.dumps(records)+'\n```\n'
         (temp/'msg').write_text(msg); git('add','.'); git('commit','-qF',str(temp/'msg'))
     git('checkout','-q','review/a')
-    def resolve(): return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],text=True))
+    def resolve(): return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],env=base_env,text=True))
     opened=data/'review.open'; handoff=data/'handoff.json'
     bindir=temp/'bin'; bindir.mkdir()
     (bindir/'zellij').write_text('#!/usr/bin/env python3\nimport sys,os,json\nfrom pathlib import Path\np=Path(os.environ["HOST_LOG"])\nwith p.open("a") as f: f.write(" ".join(sys.argv[1:])+"\\n")\nif sys.argv[1:]==["action","are-floating-panes-visible"]: print("true")\nelif sys.argv[1:3]==["action","list-panes"]: print(json.dumps({"panes":[{"id":3,"terminal_command":"nvim -u /pair/nvim/init.lua"}]}))\n')
     (bindir/'zellij').chmod(0o755)
-    env=dict(os.environ,PATH=str(bindir)+':'+str(root/'bin')+':'+os.environ['PATH'],HOST_LOG=str(temp/'host.log'),PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='restore',PAIR_SESSION_ID='session',
+    env=dict(base_env,PATH=str(bindir)+':'+str(root/'bin')+':'+os.environ['PATH'],HOST_LOG=str(temp/'host.log'),PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='restore',PAIR_SESSION_ID='session',
         PAIR_REVIEW_OPEN_PATH=str(opened),PAIR_REVIEW_HANDOFF_PATH=str(handoff),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
         PAIR_REVIEW_MODE_PATH=str(data/'mode'),XDG_STATE_HOME=str(temp/'state'),XDG_DATA_HOME=str(temp/'xdg'),XDG_CACHE_HOME=str(temp/'cache'))
     children=[]; logs=[]

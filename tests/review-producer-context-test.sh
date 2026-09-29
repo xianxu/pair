@@ -2,6 +2,10 @@
 # Real Git and producer process: contextual refusals preserve pending artifacts.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ "${1:-}" != --isolated-child ]; then
+  exec python3 -B "$ROOT/tests/lib/review_test_env.py" "$ROOT" "$0" "$@"
+fi
+shift
 RT="$(mktemp -d "${TMPDIR:-/tmp}/pair-producer-context.XXXXXX")"
 trap 'rm -rf "$RT"' EXIT
 cat > "$RT/docflow" <<'SH'

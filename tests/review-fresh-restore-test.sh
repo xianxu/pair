@@ -3,14 +3,17 @@
 # Only Zellij's process/visibility API is faked; the fake persists its children.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-PAIR_ROOT="$ROOT" python3 - <<'PY'
+PAIR_ROOT="$ROOT" python3 -B - <<'PY'
 import json, os, pathlib, signal, subprocess, sys, tempfile, time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
+sys.path.insert(0,str(root/'tests/lib'))
+from review_test_env import ReviewTestEnvironment
 draft_init=pathlib.Path(os.environ.get('PAIR_TEST_DRAFT_INIT',str(root/'nvim/init.lua')))
-with tempfile.TemporaryDirectory(prefix='pair-fresh-restore-') as td:
+with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-fresh-restore-') as td:
     temp=pathlib.Path(td).resolve(); repo=temp/'repo'; repo.mkdir(); bindir=temp/'bin'; bindir.mkdir()
+    base_env=isolated.environment(temp,root)
     def git(*args):
-        return subprocess.check_output(['git','-C',str(repo),*args],text=True,timeout=5).strip()
+        return subprocess.check_output(['git','-C',str(repo),*args],env=base_env,text=True,timeout=5).strip()
     git('init','-q','-b','main');git('config','user.name','T');git('config','user.email','t@e.com')
     (repo/'a.md').write_text('A\n');(repo/'b.md').write_text('B\n')
     git('add','.');git('commit','-qm','initial')
@@ -21,7 +24,7 @@ with tempfile.TemporaryDirectory(prefix='pair-fresh-restore-') as td:
         message='review('+name+'): agent r1\n\n```review-records\n'+json.dumps(records)+'\n```\n'
         (temp/'msg').write_text(message);git('add','.');git('commit','-qF',str(temp/'msg'))
     def resolve():
-        return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],text=True,timeout=4))
+        return json.loads(subprocess.check_output([str(root/'bin/pair'),'review','readiness','--resolve',str(repo)],env=base_env,text=True,timeout=4))
     stale_b=resolve();assert stale_b['file']=='b.md',stale_b
     git('checkout','-qb','review/missing','main')
     git('checkout','-qb','review/ambiguous','main')
@@ -106,7 +109,7 @@ vim.cmd('qa!')
             current=resolve();stale['identity']=dict(current,file='b.md',status='resolved')
         raw=json.dumps(stale);target.write_text(raw)
         draft=data/'draft.md';draft.write_text('fresh conversation draft\n')
-        env=dict(os.environ,PATH=str(bindir)+os.pathsep+str(root/'bin')+os.pathsep+os.environ['PATH'],
+        env=dict(isolated.environment(data,root),PATH=str(bindir)+os.pathsep+str(root/'bin')+os.pathsep+os.environ['PATH'],
             PAIR_HOME=str(root),PAIR_DATA_DIR=str(data),PAIR_TAG='fresh',PAIR_AGENT='claude',PAIR_SESSION_ID='fresh-conversation',
             PAIR_DRAFT_PATH=str(draft),PAIR_REVIEW_TARGET_PATH=str(target),PAIR_REVIEW_OPEN_PATH=str(opened),
             PAIR_REVIEW_HANDOFF_PATH=str(data/'handoff.json'),PAIR_REVIEW_LANDED_PATH=str(data/'landed.json'),
