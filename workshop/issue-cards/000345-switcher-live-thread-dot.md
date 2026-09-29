@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000345-switcher-live-thread-dot.md
         source_blob: c62bd78606727d78f1aca83047abbef9ae097e91
         destination: workshop/issues/000345-switcher-live-thread-dot.md
+        main_commit: 685f9538cee9a98bd9c59684855896502d8bdb32
 ---
 
 # Switcher: prefix live threads with a green bullet
