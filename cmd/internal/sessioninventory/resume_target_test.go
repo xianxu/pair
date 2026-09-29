@@ -1,6 +1,8 @@
 package sessioninventory_test
 
 import (
+	"errors"
+	"fmt"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 	"strings"
@@ -110,6 +112,43 @@ func TestUnconfirmedChosenTargetRequiresRootFilenameOnly(t *testing.T) {
 			rt.DeleteFile(native)
 			rt.AppendFile(ledger, []byte(`{"v":3,"kind":"binding","scope_key":"scope","tag":"work","agent":"`+string(agent)+`","launch_ordinal":1,"root_native_id":"`+id+`","confirmation_reason":"chosen-id"}`+"\n"), "bound")
 			check(id)
+		})
+	}
+}
+
+type incompleteNativeListing struct {
+	*sessioninventorytest.FakeRuntime
+	partial bool
+}
+
+func (r incompleteNativeListing) ListFiles(root sessioninventory.StorageRoot) ([]sessioninventory.FileEntry, error) {
+	files, err := r.FakeRuntime.ListFiles(root)
+	if root.Name != "claude-projects" {
+		return files, err
+	}
+	if r.partial {
+		return []sessioninventory.FileEntry{{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "project/22222222-2222-4222-8222-222222222222.jsonl"}}}, errors.New("EIO: partial listing")
+	}
+	return nil, errors.New("EIO: failed listing")
+}
+func TestChosenTargetListingFailureIsUnknown(t *testing.T) {
+	for _, partial := range []bool{false, true} {
+		t.Run(fmt.Sprint(partial), func(t *testing.T) {
+			rt := sessioninventorytest.NewFakeRuntime()
+			root := sessioninventory.StorageRoot{Name: "claude-projects", Agent: sessioninventory.AgentClaude, Path: "/native"}
+			rt.AddRoot(root)
+			rt.SetPairDataRoot(sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"})
+			rt.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: "pair-data", RelativePath: "ledger-work.jsonl"}}, []byte(`{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"11111111-1111-4111-8111-111111111111","request_origin":"chosen-id","baseline_complete":true}`+"\n"))
+			rt.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "project/11111111-1111-4111-8111-111111111111.jsonl"}}, []byte("native body"))
+			got, err := sessioninventory.QueryResumeTarget(incompleteNativeListing{rt, partial}, "scope", "work", sessioninventory.AgentClaude)
+			if err != nil || got.NativeID != "" || got.FreshRequired || len(got.Diagnostics) == 0 {
+				t.Fatalf("unknown probe treated as usable: %+v %v", got, err)
+			}
+			rt.SetError(sessioninventorytest.OperationListFiles, root.Name, errors.New("EIO: unrelated entry unreadable"))
+			got, err = sessioninventory.QueryResumeTarget(rt, "scope", "work", sessioninventory.AgentClaude)
+			if err != nil || got.NativeID != "11111111-1111-4111-8111-111111111111" || got.FreshRequired {
+				t.Fatalf("observed root lost to unrelated diagnostic: %+v %v", got, err)
+			}
 		})
 	}
 }

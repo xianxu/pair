@@ -75,10 +75,11 @@ func ResumeDiagnosticOf(err error) ResumeDiagnosticCode {
 }
 
 type NativeBindingResolution struct {
-	FreshRequired     bool
-	RequestedNativeID string
-	Status            sessioninventory.BindingStatus
-	NativeID          string
+	ObservationIncomplete bool
+	FreshRequired         bool
+	RequestedNativeID     string
+	Status                sessioninventory.BindingStatus
+	NativeID              string
 }
 
 type ResumeEligibilityInput struct {
@@ -161,7 +162,7 @@ func DecideResume(input ResumeEligibilityInput) (ResumeEligibility, error) {
 				return ResumeEligibility{}, refuseResume(ResumeTombstoned, "latest park transaction was abandoned")
 			}
 		}
-		return ResumeEligibility{}, refuseBinding(bindingResumeDiagnostic(input.Binding))
+		return ResumeEligibility{}, refuseResolvedBinding(input.Binding)
 	}
 	// The rules that do not depend on the thread being unoccupied. Shared with
 	// relaunch, which asks them about a thread that is still LIVE.
@@ -272,7 +273,7 @@ func CheckResumePreconditions(record ThreadRecord, binding NativeBindingResoluti
 		return refuseResume(ResumeAgentUnsupported, "saved launch agent is unsupported")
 	}
 	if code := bindingResumeDiagnostic(binding); code != "" {
-		return refuseBinding(code)
+		return refuseResolvedBinding(binding)
 	}
 	return nil
 }
@@ -315,6 +316,13 @@ func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCo
 // passed the developer's catch-all by hand, so the path an OPERATOR actually
 // travels never saw the improvement. A message function with one caller and two
 // hand-written copies is not a fix, it is a fix that looks applied.
+func refuseResolvedBinding(binding NativeBindingResolution) error {
+	if binding.ObservationIncomplete {
+		return refuseResume(ResumeBindingProvisional, "native storage observation is unreadable or incomplete; retry when its storage can be listed")
+	}
+	return refuseBinding(bindingResumeDiagnostic(binding))
+}
+
 func refuseBinding(code ResumeDiagnosticCode) error {
 	return refuseResume(code, bindingRefusalDiagnostic(code))
 }
@@ -366,8 +374,16 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 		return NativeBindingResolution{}, err
 	}
 	resolution := NativeBindingResolution{Status: query.Status, NativeID: query.NativeID, FreshRequired: query.FreshRequired, RequestedNativeID: query.RequestedNativeID}
+	if query.Status == sessioninventory.BindingProvisional && query.RequestedNativeID != "" && query.NativeID == "" && !query.FreshRequired {
+		for _, diagnostic := range query.Diagnostics {
+			if diagnostic.Code != sessioninventory.DiagnosticStorageAbsent {
+				resolution.ObservationIncomplete = true
+				break
+			}
+		}
+	}
 	if code := bindingResumeDiagnostic(resolution); code != "" {
-		return resolution, refuseBinding(code)
+		return resolution, refuseResolvedBinding(resolution)
 	}
 	return resolution, nil
 }

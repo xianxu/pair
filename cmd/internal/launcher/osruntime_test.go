@@ -828,3 +828,49 @@ func TestOSLedgerChosenRestartUsesOnlyMaterializedRoot(t *testing.T) {
 		})
 	}
 }
+
+func TestChosenUnknownMetadataRefusesRestartAndConfigPicker(t *testing.T) {
+	home, data := t.TempDir(), t.TempDir()
+	t.Setenv("HOME", home)
+	// A rejected native entry produces an incomplete metadata listing on every OS,
+	// even when tests execute with permissions that bypass chmod-based fixtures.
+	root := filepath.Join(home, ".claude", "projects")
+	if err := os.MkdirAll(root, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("/unavailable", filepath.Join(root, "rejected")); err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"11111111-1111-4111-8111-111111111111","request_origin":"chosen-id","baseline_complete":true}` + "\n"
+	if err := os.WriteFile(filepath.Join(data, "ledger-work.jsonl"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := (OSRuntime{DataDir: data}).ReadLedger("work")
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "claude"
+	rt.ledger["work"] = entries
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 1 || len(rt.writtenMarkers) != 0 || len(rt.killed) != 0 {
+		t.Fatalf("restart destroyed unknown session: code=%d markers=%v killed=%v stderr=%s", code, rt.writtenMarkers, rt.killed, stderr.String())
+	}
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":[],"session_id":"X"}`
+	code, err := run(t, baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), rt)
+	if err != nil || code != 1 || rt.launched != "" || rt.files["/data/config-work-claude.json"] == "" {
+		t.Fatalf("createflow did not preserve/refuse unknown: code=%d err=%v launched=%q", code, err, rt.launched)
+	}
+}
+
+func TestConfigPickerReusesTypedResumeProjection(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.ledger["work"] = []LedgerEntry{{Agent: "claude", Typed: true, SessionID: "chosen-X"}}
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":[],"session_id":"chosen-X"}`
+	// The fake's separate EstablishedSessionID probe has no answer. Calling it
+	// again would lose X and remove the config despite the observed typed target.
+	saved, _, err := readSavedConfigForTag(rt, "/data/config-work-claude.json", "scope", "work", "claude")
+	if err != nil || saved.SessionID != "chosen-X" || rt.files["/data/config-work-claude.json"] == "" {
+		t.Fatalf("lost typed projection: %+v err=%v", saved, err)
+	}
+}

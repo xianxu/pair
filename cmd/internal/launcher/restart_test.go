@@ -3,6 +3,8 @@ package launcher
 import (
 	"bytes"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessioninventorytest"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"strings"
 	"testing"
@@ -228,7 +230,9 @@ func TestRunRestartUnmaterializedChosenIDStartsFresh(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rt.ledger["work"] = ParseLedger(string(launch) + "\n")
+	rt.ledger["work"] = parseLedger(string(launch)+"\n", func(current sessionledger.Current) sessioninventory.ResumeTarget {
+		return sessioninventory.ResumeTargetForRuntimeLaunch(sessioninventorytest.NewFakeRuntime(), current)
+	})
 	var stderr strings.Builder
 	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 0 {
 		t.Fatal(stderr.String())
@@ -240,5 +244,43 @@ func TestRunRestartUnmaterializedChosenIDStartsFresh(t *testing.T) {
 	plan := planRestart(marker, "work", "claude", savedConfig{Agent: "claude", SessionID: "chosen-X", Args: []string{"--model", "opus", "--session-id", "chosen-X"}})
 	if !plan.DropConfig || strings.Contains(strings.Join(plan.Args.AgentArgs, " "), "chosen-X") {
 		t.Fatalf("stale config resurrected chosen UUID: %+v", plan)
+	}
+}
+
+type unreadableLedgerRuntime struct {
+	*fakeRuntime
+	readErr error
+}
+
+func (r unreadableLedgerRuntime) ReadLedger(string) ([]LedgerEntry, error) { return nil, r.readErr }
+func TestUnreadableLedgerRefusesRestartAndCreate(t *testing.T) {
+	rt := unreadableLedgerRuntime{newFakeRuntime(), errors.New("EIO: ledger unreadable")}
+	rt.inferAgent["work"] = "claude"
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":[],"session_id":"X"}`
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 1 || len(rt.killed) != 0 {
+		t.Fatalf("restart code=%d killed=%v stderr=%s", code, rt.killed, stderr.String())
+	}
+	code, err := RunLaunch(baseOpts(LaunchArgs{Agent: "claude", ForcedTag: "work"}), rt, &stderr)
+	if err != nil || code != 1 || rt.launched != "" || rt.files["/data/config-work-claude.json"] == "" {
+		t.Fatalf("create code=%d err=%v launched=%q", code, err, rt.launched)
+	}
+}
+
+func TestConflictingLedgerRefusesRestartAndPicker(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "claude"
+	raw := `{"v":3,"kind":"launch","scope_key":"scope","tag":"work","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"baseline_complete":true}` + "\n"
+	for _, id := range []string{"A", "B"} {
+		raw += `{"v":3,"kind":"binding","scope_key":"scope","tag":"work","agent":"claude","launch_ordinal":1,"root_native_id":"` + id + `","confirmation_reason":"correlation"}` + "\n"
+	}
+	rt.ledger["work"] = ParseLedger(raw)
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 1 || len(rt.killed) != 0 {
+		t.Fatalf("conflict restarted: %d %v", code, rt.killed)
+	}
+	rt.files["/data/config-work-claude.json"] = `{"agent":"claude","args":[],"session_id":"A"}`
+	if _, _, err := readSavedConfigForTag(rt, "/data/config-work-claude.json", "scope", "work", "claude"); err == nil || rt.files["/data/config-work-claude.json"] == "" {
+		t.Fatalf("conflict admitted or removed config: %v", err)
 	}
 }

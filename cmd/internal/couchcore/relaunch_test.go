@@ -475,3 +475,20 @@ func TestCouchChosenRestartRechecksIdentityBeforeChild(t *testing.T) {
 		})
 	}
 }
+
+func TestCouchChosenUnknownMetadataRefusesBeforePark(t *testing.T) {
+	env, live := envWithLiveThread(t)
+	native := sessioninventorytest.NewFakeRuntime()
+	pair := sessioninventory.StorageRoot{Name: "pair-data", Path: "/pair"}
+	native.SetPairDataRoot(pair)
+	root := sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects", Path: "/native"}
+	native.AddRoot(root)
+	native.SetError(sessioninventorytest.OperationListFiles, root.Name, errors.New("EIO: incomplete listing"))
+	row := `{"v":3,"kind":"launch","scope_key":"` + live.Address.RepoScope + `","tag":"` + string(live.Address.Tag) + `","agent":"claude","pair_log_offset":0,"artifact_boundaries":[],"requested_native_id":"chosen-X","request_origin":"chosen-id","baseline_complete":true}` + "\n"
+	native.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: pair.Name, RelativePath: "ledger-" + string(live.Address.Tag) + ".jsonl"}}, []byte(row))
+	env.Couch.Artifacts = chosenRestartArtifacts{FakeThreadArtifactCollisionChecker: env.Artifacts, resolver: SessionInventoryNativeBindingResolver{Runtime: native}}
+	result, err := env.Couch.Relaunch(context.Background(), live.Address)
+	if err == nil || !strings.Contains(err.Error(), "storage observation is unreadable or incomplete") || result.Outcome != RefusedBeforePark || len(env.Runner.Ops) != 0 || env.Proc.Exists(42) != Live {
+		t.Fatalf("unknown metadata destroyed live session: result=%+v err=%v ops=%v", result, err, env.Runner.Ops)
+	}
+}

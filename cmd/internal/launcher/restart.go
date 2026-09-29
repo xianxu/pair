@@ -1,8 +1,10 @@
 package launcher
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"os"
 )
 
 // runRestart is the in-process port of bin/pair-restart.sh (#94 M1): resolve the
@@ -37,8 +39,17 @@ func runRestart(rt Runtime, args LaunchArgs, session, pairTag string, sessionEnv
 	agent := rt.InferAgent(tag)
 	sessionID := ""
 	if !args.NewSession {
-		if entries, err := rt.ReadLedger(tag); err == nil {
+		entries, err := rt.ReadLedger(tag)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			fmt.Fprintf(stderr, "pair restart: cannot read native session authority: %v\n", err)
+			return 1
+		}
+		if err == nil {
 			if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
+				if latest.ResumeBlocked {
+					fmt.Fprintln(stderr, "pair restart: native session identity is unresolved; retry after checking its ledger and storage")
+					return 1
+				}
 				sessionID = latest.SessionID
 			}
 		}

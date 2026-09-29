@@ -41,7 +41,11 @@ projects the current owner ledger: a confirmed UUID wins, otherwise a v3
 existing-conversation resume request remains usable under probation. An unconfirmed
 fresh Pair-chosen ID needs a matching root filename before reuse; if it has not
 materialized, Alt+n starts fresh with a new UUID. This check uses metadata, not
-transcript-body parsing. Legacy v1/v2 bindings
+transcript-body parsing. A failed or partial listing without a matching filename
+keeps materialization unknown and refuses restart before destructive effects.
+The pure history projection cannot inspect filenames and conservatively omits
+unconfirmed chosen IDs; launch consumers use the runtime projection.
+Legacy v1/v2 bindings
 remain usable without their old device/inode proof. Missing files, cache loss,
 and parser failures cannot erase this resume target. Conflicting confirmations
 remain ambiguous; a fresh launch never inherits an earlier launch's target.

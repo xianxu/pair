@@ -20,6 +20,7 @@ type LedgerEntry struct {
 	RepoName      string    `json:"repo_name"`
 	LegacyImport  bool      `json:"legacy_import,omitempty"`
 	Typed         bool      `json:"-"`
+	ResumeBlocked bool      `json:"-"`
 	SourceOrdinal uint64    `json:"-"`
 }
 
@@ -69,7 +70,9 @@ func parseLedger(raw string, target func(sessionledger.Current) sessioninventory
 			continue
 		}
 		entry := LedgerEntry{Agent: owner.Agent, Typed: true, SourceOrdinal: current.Launch.Ordinal}
-		entry.SessionID = target(current).NativeID
+		resolved := target(current)
+		entry.SessionID = resolved.NativeID
+		entry.ResumeBlocked = current.Conflict || (current.Launch.RequestOrigin == sessionledger.RequestOriginChosen && current.Binding == nil && resolved.NativeID == "" && !resolved.FreshRequired)
 		entries = append(entries, MergeAuthorityMetadata(entry, entries))
 	}
 	return entries

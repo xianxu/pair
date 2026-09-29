@@ -2,6 +2,7 @@ package launcher
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/xianxu/pair/cmd/internal/orientation"
 	"io"
@@ -548,7 +549,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	var savedForPicker savedConfig
 	var savedWarnings []string
 	if !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
-		savedForPicker, savedWarnings = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+		var savedErr error
+		savedForPicker, savedWarnings, savedErr = readSavedConfigForTag(rt, configPath, scope.Key, chosenTag, agent)
+		if savedErr != nil {
+			fmt.Fprintf(stderr, "pair: %v\n", savedErr)
+			return launchStep{code: 1}, nil
+		}
 	}
 	if !opts.SkipConfigPicker {
 		for _, warning := range savedWarnings {
@@ -979,7 +985,22 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	return 0, true
 }
 
-func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) (savedConfig, []string) {
+func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) (savedConfig, []string, error) {
+	entries, ledgerErr := rt.ReadLedger(tag)
+	if ledgerErr != nil && !errors.Is(ledgerErr, os.ErrNotExist) {
+		return savedConfig{}, nil, fmt.Errorf("cannot read native session authority for %q: %w", tag, ledgerErr)
+	}
+	var typedTarget *LedgerEntry
+	if ledgerErr == nil {
+		if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
+			if latest.ResumeBlocked {
+				return savedConfig{}, nil, fmt.Errorf("native session identity for %q is unresolved; retry after checking its ledger and storage", tag)
+			}
+			if latest.Typed {
+				typedTarget = &latest
+			}
+		}
+	}
 	var warnings []string
 	var saved savedConfig
 	candidateSessionID := ""
@@ -994,15 +1015,22 @@ func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) 
 		}
 	}
 	if saved.Agent == "" {
-		entries, err := rt.ReadLedger(tag)
-		if err == nil {
+		if ledgerErr == nil {
 			if latest, ok := LatestLedgerEntryForAgent(entries, agent); ok {
 				saved = savedConfig{Agent: latest.Agent, Args: latest.Args}
 				candidateSessionID = latest.SessionID
 			}
 		}
 	}
-	if sid, status := rt.EstablishedSessionID(scopeKey, tag, agent); sid != "" && (status == sessioninventory.BindingEstablished || status == sessioninventory.BindingProvisional) {
+	sid, status := "", sessioninventory.BindingUnbound
+	if typedTarget != nil {
+		// Reuse the same typed projection checked above: probing chosen metadata
+		// again could turn an observed root into an unknown/empty fresh fallback.
+		sid, status = typedTarget.SessionID, sessioninventory.BindingProvisional
+	} else {
+		sid, status = rt.EstablishedSessionID(scopeKey, tag, agent)
+	}
+	if sid != "" && (status == sessioninventory.BindingEstablished || status == sessioninventory.BindingProvisional) {
 		saved.Agent = agent
 		saved.SessionID = sid
 	} else {
@@ -1012,7 +1040,7 @@ func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) 
 			rt.Remove(configPath)
 		}
 	}
-	return saved, warnings
+	return saved, warnings, nil
 }
 
 // resolveConfigPath returns config-<tag>-<agent>.json, migrating a legacy

@@ -736,7 +736,8 @@ requested target. Filesystem device changes, cache loss and optional parsing
 failures do not block a recorded target. For a fresh Pair-chosen `--session-id X`,
 Alt+n starts fresh with a new UUID if X has not materialized as a root transcript.
 This exception does not apply to confirmed bindings or existing-conversation
-resume requests.
+resume requests. If native storage cannot be listed reliably, Pair refuses this
+fresh-ID restart rather than treating the probe failure as absence.
 
 `pair session-repair` previews saved current-launch evidence without writes.
 Set `PAIR_DATA_DIR` to the selected scoped directory and pass its exact scope key,

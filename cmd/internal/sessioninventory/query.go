@@ -470,9 +470,16 @@ func ResumeTargetForRuntimeLaunch(runtime Runtime, current sessionledger.Current
 		selected := SelectTargetWork(TargetRequest{Mode: TargetExplicitResume, Agent: Agent(current.Launch.Agent), NativeID: current.Launch.RequestedNativeID}, observations)
 		if !selected.Unavailable {
 			result.NativeID = current.Launch.RequestedNativeID
-		} else {
-			result.FreshRequired = true
+			return result
 		}
+		// A matching filename proves presence even in a partial listing. Only
+		// complete enumeration (or an absent root) can prove absence.
+		for _, diagnostic := range diagnostics {
+			if diagnostic.Code != DiagnosticStorageAbsent {
+				return result
+			}
+		}
+		result.FreshRequired = true
 	}
 	return result
 }
