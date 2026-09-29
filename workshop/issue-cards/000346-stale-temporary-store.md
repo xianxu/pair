@@ -1,10 +1,12 @@
 ---
 id: 000346
-status: working
+status: codecomplete
 created: 2026-09-29
 updated: 2026-09-29
 estimate_hours: 4.409
 github_issue:
+started: 2026-09-29T08:41:28-07:00
+actual_hours: 7.82
 tracker:
     version: 1
     handoff:
@@ -17,7 +19,11 @@ tracker:
         source_blob: 84db15c6aa63466f0a464a9740ef6070dd5bca3c
         destination: workshop/issues/000346-stale-temporary-store.md
         main_commit: b35b2a7fa9281058c22b1d7a35cd51508fbf1fef
-started: 2026-09-29T08:41:28-07:00
+    completion:
+        token: close-9bc9cee6762e
+        repository: github.com/xianxu/pair
+        reviewed_head: 80d611897eff2ed2d7440db4d630237638cdc71f
+        evidence_commit: 2a5045bb9fb26e265727de0266caf56dd662c1c0
 ---
 
 # Stale temporary store blocks Couch startup
