@@ -61,9 +61,15 @@ retirement with the thread's lifecycle (ARCH-CONSTRAINTS, ARCH-FUNERAL).
 
 ## Plan
 
-- [ ] Settle activity semantics, thresholds, theme behavior, and refresh/persistence design.
-- [ ] Author a durable implementation plan coordinated with existing bar-style work.
-- [ ] Implement shared policy, verify both surfaces, and update docs through SDLC gates.
+Durable plan: `workshop/plans/000247-couch-live-idle-shading-plan.md`.
+
+- [ ] M1 — pure policy + renderers: `IdleLevelFor` (1 h/24 h/48 h), `FadeStyle`
+      (blend toward the terminal background; SGR 90 / no-color fallbacks), tab bar
+      and switcher live rows faded with selection/bell/placeholder precedence.
+- [ ] M2 — IO seams + wiring + docs: shared `threadactivity.Latest` (the title
+      poller migrated to it), a 60 s console activity pass, an OSC 10/11 palette
+      query and reply capture, `couchcmd` wiring, README/help/atlas, and an
+      operator smoke on dark + light themes.
 
 ## Log
 
@@ -108,3 +114,12 @@ Recorded the operator's decision; no implementation begun. The shared checkout c
 - **Precedence confirmed**: selected/focused styling and pending notifications
   keep their own emphasis. Both themes and color-disabled rendering must stay
   correct.
+
+### 2026-09-28 — Color approach and scope
+
+- Operator chose **blend toward the terminal's background**. Couch asks the
+  terminal once for its colors (OSC 10/11) and mixes each label color toward
+  the background (0/35/55/70 %). The unanswered fallback is SGR 90 grey, with
+  amber unfaded.
+- The recent-traffic dot (2026-09-14 revision above) is **split out to #342**.
+  It is no longer part of this issue.
