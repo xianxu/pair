@@ -100,6 +100,24 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 5
+      timestamp: "2026-09-28T23:59:35-07:00"
+      agent: claude
+      dispose:
+        - id: BR-2
+          disposition: addressed
+          note: slotGlyphBase now returns a styleBase consumed by FadeStyle in both colorMenuGlyph and RenderStatusRow; a new glyph colour must add a base, it cannot silently become amber.
+          round: 5
+        - id: BR-3
+          disposition: addressed
+          note: atlas/couch.md now says the tab bar reads Activity/Palette via statusModelLocked into StatusActor.Idle/StatusModel.Palette, matching console_presentation.go, and M2 wiring is live.
+          round: 5
+        - id: BR-4
+          disposition: addressed
+          note: Cross-reference comments now sit in RenderStatusRow (reserve.go) and renderRootMenuFrame's live-row branch (menu_render.go), each naming the other.
+          round: 5
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#247 (boundary-review)
@@ -151,8 +169,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-7 — addressed — Probe-cost overrun recorded as operator-deferred to #343 in the plan Revisions and issue log.
 - BR-8 — addressed — finishActivity, finishSlotGit and the palette path all call repaintVisible (console_palette.go:84).
 
+## Round 5 — 2026-09-28T23:59:35-07:00 (claude) — passed
+
+### Disposed
+
+- BR-2 — addressed — slotGlyphBase now returns a styleBase consumed by FadeStyle in both colorMenuGlyph and RenderStatusRow; a new glyph colour must add a base, it cannot silently become amber.
+- BR-3 — addressed — atlas/couch.md now says the tab bar reads Activity/Palette via statusModelLocked into StatusActor.Idle/StatusModel.Palette, matching console_presentation.go, and M2 wiring is live.
+- BR-4 — addressed — Cross-reference comments now sit in RenderStatusRow (reserve.go) and renderRootMenuFrame's live-row branch (menu_render.go), each naming the other.
+
 ## Open findings
 
-- **BR-2** [Minor] `glyph-color-derives-from-source` Glyphs with their own colour are painted faded amber no matter what colour slotGlyphSGR returned
-- **BR-3** [Minor] `atlas-describes-actual-surface` The atlas says both views read MenuState.Activity/Palette, but the tab bar reads StatusActor.Idle and StatusModel.Palette
-- **BR-4** [Minor] `fade-precedence-single-source` Each surface encodes the fade-is-weakest-cue precedence rule separately
+(none — every finding has been disposed)
