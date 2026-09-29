@@ -90,14 +90,24 @@ os.execv(os.environ['REAL_PAIR'],[os.environ['REAL_PAIR'],*sys.argv[1:]])
         else:failures.append('matching branch external edit did not reload')
         if lua('vim.bo.endofline')!='false':failures.append('snapshot lost no-final-newline state')
         slow.unlink()
-        for body,first,eol,fmt in [('dos first\r\ndos last\r\n','dos first','true','dos'),('','','false',None),('external same branch','external same branch','false',None)]:
+        for body,first,eol,fmt,bomb in [
+            ('dos first\r\ndos last\r\n','dos first','true','dos','false'),
+            ('\ufeffBOM first\r\nBOM last\r\n','BOM first','true','dos','true'),
+            ('\ufeffBOM no EOL','BOM no EOL','false','unix','true'),
+            ('\ufeff','','false','unix','true'),
+            ('','','false','unix','false'),
+            ('LF first\nLF last\n','LF first','true','unix','false'),
+            ('lone\rcarriage return','lone\rcarriage return','false','unix','false'),
+            ('external same branch','external same branch','false','unix','false')]:
             (repo/'a.md').write_bytes(body.encode())
             lua('vim.api.nvim_exec_autocmds("FocusGained",{})')
             end=time.monotonic()+3
             while time.monotonic()<end:
-                if lua('vim.api.nvim_buf_get_lines(0,0,1,false)[1]')==first and lua('vim.bo.endofline')==eol and (not fmt or lua('vim.bo.fileformat')==fmt):break
+                if json.loads(lua('vim.json.encode(vim.api.nvim_buf_get_lines(0,0,1,false)[1])'))==first and lua('vim.bo.endofline')==eol and lua('vim.bo.fileformat')==fmt and lua('vim.bo.bomb')==bomb:break
                 time.sleep(.025)
             else:failures.append('snapshot line ending or empty-file mismatch: '+repr(body))
+            lua('vim.cmd("silent write!")')
+            if (repo/'a.md').read_bytes()!=body.encode():failures.append('snapshot save changed exact bytes: '+repr(body))
         slow.touch()
 
         # An external checkout may replace the file at the same path, but its

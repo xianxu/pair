@@ -8,6 +8,7 @@ vim.opt.compatible = false
 vim.opt.termguicolors = true
 vim.opt.wrap = true
 vim.opt.linebreak = true
+vim.opt.fixendofline = false
 vim.opt.breakindent = true
 vim.opt.smoothscroll = true
 vim.opt.clipboard = 'unnamedplus'
@@ -226,6 +227,7 @@ local spinner = dofile(here .. 'review/spinner.lua')
 local define = dofile(here .. 'review/define.lua')
 local definition_seam = dofile(here .. 'review/definition_seam.lua')
 local recovery = dofile(here .. 'review/recovery.lua')
+local document_bytes = dofile(here .. 'review/document_bytes.lua')
 local identity = dofile(here .. 'review/identity.lua')
 local restore_policy = dofile(here .. 'review/restore.lua')
 
@@ -839,7 +841,7 @@ recovery_observer=dofile(here..'review/recovery_observer.lua').new({
     return ctx
   end,
   modified=function(buf)return vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified end,
-  revision=function(buf)return {tick=vim.api.nvim_buf_get_changedtick(buf),eol=vim.bo[buf].endofline,format=vim.bo[buf].fileformat} end,
+  revision=function(buf)return {tick=vim.api.nvim_buf_get_changedtick(buf),eol=vim.bo[buf].endofline,format=vim.bo[buf].fileformat,encoding=vim.bo[buf].fileencoding,bomb=vim.bo[buf].bomb} end,
   selection=function(buf)
     local selected=restoration.state.identity
     if buf==restoration.buf and selected then return {file=selected.file,head=selected.head} end
@@ -849,27 +851,20 @@ recovery_observer=dofile(here..'review/recovery_observer.lua').new({
     if restoration.buf~=buf or vim.api.nvim_get_current_buf()~=buf or vim.bo[buf].modified then return end
     -- No filesystem read here: these exact bytes were captured before the
     -- resolver's final branch/HEAD check and travel with that identity.
-    local bytes=observed.snapshot
-    local eol=bytes:sub(-1)=='\n'
-    local lines=vim.split(bytes,'\n',{plain=true})
-    if eol then table.remove(lines) end
-    if #lines==0 then lines={''} end
-    local format=vim.bo[buf].fileformat
-    if bytes:find('\r\n',1,true) and not bytes:gsub('\r\n',''):find('\n',1,true) then
-      format='dos'
-      for i,line in ipairs(lines) do
-        if i<#lines or eol then lines[i]=line:gsub('\r$','') end
-      end
-    elseif bytes:find('\n',1,true) then format='unix' end
-    if vim.deep_equal(lines,vim.api.nvim_buf_get_lines(buf,0,-1,false)) and eol==vim.bo[buf].endofline and format==vim.bo[buf].fileformat then return end
+    local decoded,decode_error=document_bytes.decode(observed.snapshot)
+    if not decoded then vim.notify(decode_error,vim.log.levels.WARN); return end
+    local changed=not vim.deep_equal(decoded.lines,vim.api.nvim_buf_get_lines(buf,0,-1,false))
+    for _,option in ipairs({'endofline','fileformat','fileencoding','bomb','fixendofline'}) do
+      changed=changed or vim.bo[buf][option]~=decoded[option]
+    end
+    if not changed then return end
     local base=buf_content(buf)
     review.projected_mutation(buf,base,function()
       vim.api.nvim_buf_call(buf,function()
         vim.cmd('silent! let &undolevels = &undolevels')
-        vim.api.nvim_buf_set_lines(buf,0,-1,false,lines)
+        vim.api.nvim_buf_set_lines(buf,0,-1,false,decoded.lines)
       end)
-      vim.bo[buf].endofline=eol
-      vim.bo[buf].fileformat=format
+      for _,option in ipairs({'endofline','fileformat','fileencoding','bomb','fixendofline'}) do vim.bo[buf][option]=decoded[option] end
       review.reconstruct_on_open(buf,vim.api.nvim_buf_get_name(buf),observed)
     end,true)
     vim.bo[buf].modified=false
@@ -885,7 +880,8 @@ end
 review.context=function(buf) return restoration:context(buf) end
 review.admit=function(payload,buf) return restoration:admit(payload,buf) end
 review.did_land=function(body,_,buf)
-  local bytes=buf_content(buf)..(vim.bo[buf].endofline and '\n' or '')
+  local bytes,err=document_bytes.encode(vim.api.nvim_buf_get_lines(buf,0,-1,false),vim.bo[buf])
+  assert(bytes,err)
   restoration:did_land(body,bytes)
 end
 vim.api.nvim_create_autocmd('BufWritePre',{callback=function(ev)

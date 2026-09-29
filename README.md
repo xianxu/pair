@@ -104,6 +104,10 @@ block switching to another document. Return to the original branch and finish
 that work first. Missing or ambiguous review history prompts for a selection or
 reports why restoration cannot proceed.
 
+Restoration and review writes also require a stable checkout: if Git is switching
+branches or the index contains staged changes, finish the checkout or
+commit/unstage those changes and retry. Unstaged document edits remain supported.
+
 If the checkout changes while review edits are unsaved, Pair refuses writes to
 the wrong branch and preserves the text in a recovery snapshot. Return to the
 original branch, open its review, and use `:PairReviewRecover` to load the snapshot

@@ -32,6 +32,10 @@ local function location(dir, context, create)
   if stat then private(stat, 'directory', 448) end
   return dir .. '/' .. key .. '.json', stat ~= nil
 end
+local function valid_options(options)
+  return type(options)=='table' and (options.fileformat=='unix' or options.fileformat=='dos' or options.fileformat=='mac')
+    and (options.fileencoding=='' or options.fileencoding=='utf-8') and type(options.bomb)=='boolean'
+end
 local function read(path, context)
   local stat, err, code = uv.fs_lstat(path)
   if not stat then if code == 'ENOENT' then return nil end; fail(err) end
@@ -48,6 +52,7 @@ local function read(path, context)
     or type(snapshot.eol) ~= 'boolean' or type(snapshot.lines) ~= 'table' or #snapshot.lines == 0 then
     fail('invalid snapshot; preserve it for explicit discard')
   end
+  if snapshot.options~=nil and not valid_options(snapshot.options) then fail('invalid or unsupported snapshot byte format') end
   for _, key in ipairs({ 'repo', 'branch', 'file' }) do
     if snapshot[key] ~= context[key] then fail('snapshot identity mismatch') end
   end
@@ -101,7 +106,9 @@ M.save = guarded(function(dir, context, buf, owner)
     end
     if count >= capacity then fail('32 snapshot capacity reached; recover or discard an existing snapshot') end
   end
-  local snapshot = { version = 1, repo = context.repo, branch = context.branch, file = context.file,
+  local options={fileformat=vim.bo[buf].fileformat,fileencoding=vim.bo[buf].fileencoding,bomb=vim.bo[buf].bomb}
+  if not valid_options(options) then fail('recovery supports UTF-8 documents; preserve text before quitting') end
+  local snapshot = { version = 1, options=options, repo = context.repo, branch = context.branch, file = context.file,
     owner = owner, lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false), eol = vim.bo[buf].eol }
   local bytes = vim.json.encode(snapshot)
   if #bytes > limit then fail('snapshot exceeds 8 MiB; preserve text before quitting') end
@@ -125,6 +132,10 @@ M.restore = guarded(function(dir, context, buf)
   -- API replacement retains the buffer's undo tree; never reload or edit!.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, snapshot.lines)
   vim.bo[buf].eol = snapshot.eol
+  if snapshot.options then
+    for _,option in ipairs({'fileformat','fileencoding','bomb'}) do vim.bo[buf][option]=snapshot.options[option] end
+  end
+  vim.bo[buf].fixendofline=false
   vim.bo[buf].modified = true
   restored[path] = { buf = buf, bytes = bytes }
   snapshot.path = path

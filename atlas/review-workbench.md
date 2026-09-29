@@ -90,11 +90,18 @@ Integration seams (headless shell tests, `make test-review`):
 - `identity.lua` / `restore_client.lua` — resolver adapter and asynchronous draft
   activation client; verify acknowledgments before target publication or visibility.
 - `recovery.lua` — private bounded unsaved-text snapshots for checkout mismatch;
-  explicit recovery/discard, matching successful-save cleanup.
+  explicit recovery/discard, matching successful-save cleanup. Snapshots retain
+  line-ending, BOM and encoding options as well as text.
+- `document_bytes.lua` — shared byte/line conversion for activation, asynchronous
+  refresh and exact landed-content checks; preserves LF/CRLF, BOM and final-newline
+  state, refusing unsupported text instead of silently converting it.
 - `recovery_observer.lua` — coalesces edit events into asynchronous identity
   observations for proactive snapshots, and focus events for clean-buffer disk
   refresh on the matching branch. Refresh uses bounded file bytes captured by the
   resolver inside its branch/HEAD validation window, never a later checkout read.
+  Admission rejects a checkout-owned index lock, changing index generation, or
+  an index tree different from pinned HEAD. This deliberately also refuses staged
+  changes until commit/unstage, because checkout can publish its index before HEAD.
   Late results must still belong to the captured activation and unchanged buffer;
   activation stop and exit cancel outstanding work. Write/apply/quit boundaries
   retain fresh authority checks.

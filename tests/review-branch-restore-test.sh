@@ -78,15 +78,17 @@ with tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
         handoff.unlink()
         # A completed agent round is no longer pending even if branch switching
         # happens before the pane has observed its commit.
+        lua(meta,'(function() vim.bo.fileformat="dos"; vim.bo.fileencoding="utf-8"; vim.bo.bomb=true; vim.cmd("write") end)()')
         active=json.loads(opened.read_text().splitlines()[2])['context']
         handoff.write_text(json.dumps(dict(context=active,records=[dict(old='A reviewed',new='A final',occurrence=1,explain='final')])) )
         deadline=time.monotonic()+5
         while not (data/'landed.json').exists() and time.monotonic()<deadline: time.sleep(.025)
         landed=json.loads((data/'landed.json').read_text())
         assert landed['context']==active
+        assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfA final\r\n','landed round changed CRLF/BOM bytes'
         (temp/'msg').write_text('review(a): agent r2 — final\n\n'+landed['body']+'\n')
         git('add','a.md'); git('commit','-qF',str(temp/'msg'))
-        git('checkout','-q','review/b'); toggle(); assert snapshot(meta)['text']==['B reviewed']
+        git('checkout','-q','review/b'); toggle(); assert snapshot(meta)['text']==['B reviewed'],'committed CRLF/BOM round remained pending'
         git('checkout','-q','review/a'); toggle(); assert snapshot(meta)['text']==['A final']
         # Unsaved edits block retargeting and must survive an orderly mismatched exit.
         lua(meta,'vim.api.nvim_buf_set_lines(0,0,-1,false,{"human unsaved"})')
@@ -110,7 +112,7 @@ with tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
         git('checkout','-q','review/a'); meta=launch()
         lua(meta,'vim.cmd("PairReviewRecover")'); assert snapshot(meta)['text']==['human unsaved']
         lua(meta,'vim.cmd("write")'); assert not snapshots[0].exists()
-        assert (repo/'a.md').read_text()=='human unsaved\n'
+        assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfhuman unsaved\r\n'
         print('review-branch-restore-test ok')
     finally:
         for p in children:

@@ -288,6 +288,7 @@ test-lua:
 	nvim -l nvim/review/restore_test.lua
 	nvim -l nvim/review/restore_client_test.lua
 	nvim -l nvim/review/restore_controller_test.lua
+	nvim -l nvim/review/document_bytes_test.lua
 	nvim -l nvim/review/recovery_test.lua
 	nvim -l nvim/review/recovery_observer_test.lua
 	nvim -l nvim/review/handoff_acceptance_test.lua

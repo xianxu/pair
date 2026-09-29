@@ -19,6 +19,12 @@ ctl.opts.resolve=function(_,selected)
 end
 assert(ctl:guard(abuf,true),'established active selection must survive an empty first human round')
 ctl.opts.resolve=original_resolve
+local notices={}; local original_notify=vim.notify
+vim.notify=function(message) notices[#notices+1]=message end
+ctl.opts.resolve=function() return {status='invalid',diagnostic='staged changes: commit or unstage before retrying'} end
+assert(not ctl:guard(abuf))
+assert(notices[1] and notices[1]:find('commit or unstage',1,true),'guard must retain actionable resolver diagnostic')
+vim.notify=original_notify; ctl.opts.resolve=original_resolve
 local old = ctl:context(abuf)
 current=b
 vim.api.nvim_buf_set_lines(abuf,0,-1,false,{'unsaved A'})

@@ -3,6 +3,8 @@
 local here = debug.getinfo(1,'S').source:match('@?(.*/)') or './'
 local policy = dofile(here .. 'restore.lua')
 local identity = dofile(here .. 'identity.lua')
+local document_bytes = dofile(here .. 'document_bytes.lua')
+local artifact = dofile(here .. 'artifact.lua')
 local M = {}
 local C = {}; C.__index=C
 local function nonce() return vim.fn.sha256(vim.fn.tempname() .. tostring(vim.uv.hrtime())) end
@@ -60,11 +62,14 @@ function C:guard(buf, quiet)
   local observed=self:resolve(self.state.identity)
   local path=vim.api.nvim_buf_get_name(buf)
   local ok=buf==self.buf and (vim.uv.fs_realpath(path) or path)==ctx.repo..'/'..ctx.file and observed.status=='resolved' and policy.same(ctx,observed)
-  if not ok and not quiet then notify('branch changed; return to '..ctx.branch..' before saving or sending this review') end
-  return ok
+  local reason=not ok and (observed.status=='invalid' and observed.diagnostic
+    or 'branch changed; return to '..ctx.branch..' before saving or sending this review') or nil
+  if reason and not quiet then notify(reason) end
+  return ok,reason
 end
 function C:admit(payload,buf)
-  if not self:guard(buf,true) then return false,'branch changed; pending handoff preserved' end
+  local allowed,reason=self:guard(buf,true)
+  if not allowed then return false,(reason or 'review authorization refused')..'; pending handoff preserved' end
   local context=type(payload)=='table' and payload.context or nil
   if not policy.validate_context(context,self:context(buf),self.legacy) then
     return false,'handoff context does not match this activation; ask the agent to reissue it with the current context'
@@ -106,7 +111,7 @@ function C:request(req)
   if type(wanted)~='table' or type(wanted.repo)~='string' then return {ok=false,error='invalid review identity'} end
   local observed=self:resolve(wanted)
   if observed.status~='resolved' or not policy.same(wanted,observed) or observed.head~=wanted.head then
-    return {ok=false,error='branch changed during restoration; invoke Alt+C again'}
+    return {ok=false,error=observed.status=='invalid' and observed.diagnostic or 'branch changed during restoration; invoke Alt+C again'}
   end
   local pending=self:pending()
   local previous=self.state
@@ -129,9 +134,9 @@ function C:request(req)
   end
   local ok,err=pcall(function()
     -- Read without entering the buffer (BufEnter/checktime must not mutate it).
-    local lines=vim.fn.readfile(file,'b')
-    local eol=lines[#lines]==''; if eol then table.remove(lines) end
-    if #lines==0 then lines={''} end
+    local decoded,decode_error=document_bytes.decode(artifact.read(file))
+    assert(decoded,decode_error)
+    local lines=decoded.lines
     if newbuf==-1 then newbuf=vim.fn.bufadd(file) end
     vim.fn.bufload(newbuf)
     local confirm=self:resolve(wanted)
@@ -143,7 +148,8 @@ function C:request(req)
         vim.api.nvim_buf_set_lines(newbuf,0,-1,false,lines)
       end)
     end
-    vim.bo[newbuf].endofline=eol; vim.bo[newbuf].modified=false
+    for _,option in ipairs({'endofline','fileformat','fileencoding','bomb','fixendofline'}) do vim.bo[newbuf][option]=decoded[option] end
+    vim.bo[newbuf].modified=false
     self.buf=newbuf
     self.state=policy.transition(self.state,{kind='activated',context={repo=observed.repo,
       branch=observed.branch,file=observed.file,activation=nonce()}})

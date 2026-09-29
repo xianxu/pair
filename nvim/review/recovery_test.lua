@@ -92,5 +92,30 @@ for _, write in ipairs({ '1', '0' }) do
   local result = vim.system({ vim.v.progpath, '-l', script }, { env = { RECOVERY_WRITE = write }, text = true }):wait()
   assert(result.code == 0, result.stderr)
 end
+-- Recovery carries write-affecting document options, independently of the
+-- currently checked-out document's format. No-EOL survives an ordinary write.
+local formatctx=vim.deepcopy(ctx); formatctx.file='format.md'
+local source=buf({'recovered','tail'},false)
+vim.bo[source].fileformat='dos'; vim.bo[source].fileencoding='utf-8'; vim.bo[source].bomb=true
+local formatdir=root..'/formats'
+local formatpath=assert(recovery.save(formatdir,formatctx,source,'format-owner'))
+local destination=buf({'disk'},true)
+vim.bo[destination].fileformat='unix'; vim.bo[destination].fileencoding='latin1'; vim.bo[destination].bomb=false
+assert(recovery.restore(formatdir,formatctx,destination))
+assert(vim.bo[destination].fileformat=='dos' and vim.bo[destination].fileencoding=='utf-8' and vim.bo[destination].bomb,
+  'recovery must restore original byte-writing options')
+local recoveredfile=root..'/recovered.md'
+vim.api.nvim_buf_set_name(destination,recoveredfile)
+vim.api.nvim_buf_call(destination,function() vim.cmd('silent write') end)
+assert(read(recoveredfile)=='\239\187\191recovered\r\ntail','recovered byte format and no-EOL must survive write')
+-- Old snapshots have no format metadata: retain destination interpretation,
+-- while still honoring their explicit end-of-line flag.
+local legacy=vim.json.decode(read(formatpath)); legacy.options=nil
+local fd=assert(uv.fs_open(formatpath,'w',384)); assert(uv.fs_write(fd,vim.json.encode(legacy),0)); uv.fs_close(fd)
+vim.bo[destination].fileformat='unix'; vim.bo[destination].fileencoding='utf-8'; vim.bo[destination].bomb=false
+assert(recovery.restore(formatdir,formatctx,destination))
+assert(vim.bo[destination].fileformat=='unix' and not vim.bo[destination].bomb,'legacy snapshots retain loaded document format')
+vim.bo[source].fileencoding='utf-16le'
+assert(not recovery.save(formatdir,formatctx,source,'format-owner'),'unsupported output encoding must fail closed')
 vim.fn.delete(root, 'rf')
 print('recovery tests passed')
