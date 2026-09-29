@@ -93,7 +93,7 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
   a drift test, and document the review exceptions in README and atlas.
 - [x] Teach Couch's existing focus probe to preserve review Alt+n, test the
   real role classification and console forwarding, retaining draft/menu relaunch.
-- [ ] Run review and affected Go checks, build pair:0; operator smoke: Alt+c
+- [x] Run review and affected Go checks, build pair:0; operator smoke: Alt+c
   hints, Esc to agent, insert/visual Esc, Alt+n/Alt+Shift+N wrapping, Alt+h.
 
 Design: keep the existing review mappings and marker navigation authoritative
@@ -135,6 +135,12 @@ this is one atomic implementation/review boundary.
   detection; generated help and embedded-source drift tests passed.
 - `make test-review` passed all review suites; `make build` plus `make pair`
   rebuilt Couch and Pair with the current embedded sources. Operator smoke pending.
+
+### 2026-09-28 — final acceptance
+
+- Operator confirmed "worked" after the revised hints, draft return, and
+  scrollback/changelog overlay fixes, then explicitly requested close and land.
+  Automated evidence is recorded above and in the revision validation below.
 
 ## Revisions
 

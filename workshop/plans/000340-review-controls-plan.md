@@ -54,7 +54,7 @@ Ctrl+Alt+n still relaunches from review, and draft/agent/switcher keep relaunch.
 - [x] Run `make test-review` and affected Go packages with race detection;
   regenerate embedded runtime via `make build` before keyhelp drift checks.
 - [x] Commit the implementation and build pair:0; verify branch/HEAD unchanged.
-- [ ] Operator smoke in both standalone Pair and restarted Couch: hints, Alt+h,
+- [x] Operator smoke in both standalone Pair and restarted Couch: hints, Alt+h,
   Esc agent return, insert/visual Esc, diagnostic popup Esc, and marker
   next/previous wrapping. In a disposable conversation, verify Alt+Shift+N
   from the draft still restarts the agent.
@@ -80,3 +80,5 @@ or land solely from these implementation checks.
   draft after annotate's VimLeavePre sidecar emission. Headless unit sessions
   do not manipulate the live host. Add a stateful stacked-overlay regression
   covering both real viewer initializations and preserved annotation ordering.
+
+- 2026-09-28 — operator confirmed revised smoke worked and authorized close/land.
