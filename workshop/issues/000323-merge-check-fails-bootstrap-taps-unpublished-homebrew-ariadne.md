@@ -60,7 +60,7 @@ yet, see ariadne#241") is worth proposing upstream.
 - [x] Fix in ariadne's seed, not pair: ariadne#250 (seeded merge-check builds weave from source while the tap is unpublished)
 - [x] Ship ariadne#250 (PR + merge)
 - [x] Re-seed pair (`weave compile`), commit the refreshed `.github/workflows/merge-check.yml`
-- [x] Verify: this issue's PR runs `merge-check` green past "Prepare dependencies"
+- [x] Verify: a pair PR runs `merge-check` green past "Prepare dependencies" (run 36635174446, #346)
 
 ## Log
 
@@ -89,3 +89,5 @@ yet, see ariadne#241") is worth proposing upstream.
   runs are green (e.g. 36635174446, #346, 2026-09-29). The 09-28/29 failures
   (#338, #340) failed in "Run merge-checks over the PR range", past "Prepare
   dependencies" — unrelated test failures. No pair code change in this window.
+- The Spec's proposed clearer missing-tap bootstrap message is moot: the tap is
+  now published, so the misleading credentials error can no longer occur.
