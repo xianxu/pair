@@ -19,7 +19,7 @@ TTY captures currently reuse an active per-tag pathname. Archiving that path on 
 
 Give every live wrapper capture a permanent unique identity and raw/timing-sidecar paths at creation. Restart creates another capture; a current pointer locates the active one without renaming historical captures. Continuation/orientation references use the exact capture identity, optionally with a recorded end offset for a snapshot boundary. Define ownership and retention of referenced captures, and migration/read compatibility for existing active and parked paths. Reuse artifactpath and retention authorities rather than adding a competing log registry.
 
-This is a separate TTY improvement requested during #346. For #346 retain the current compaction copy arrangement and startup archival of reusable paths; this task is not a prerequisite for that recovery fix.
+This is a separate TTY improvement requested during #346. Startup archival of reusable paths and TTY naming now live in #349, split from #346 with operator approval. Retain the current compaction copy arrangement; this task is not a prerequisite for the binding recovery fix.
 
 ## Done when
 
@@ -39,3 +39,9 @@ This is a separate TTY improvement requested during #346. For #346 retain the cu
 ### 2026-09-29
 
 Operator selected permanent per-launch capture identities as a separate improvement. #346 continues with existing compaction copies; no implementation of this task has started.
+
+## Revisions
+
+### 2026-09-29 — Follow-up scope split
+
+Operator approved transferring unfinished #346 capture/naming work to #349. Permanent identities remain in this issue; no implementation is claimed in either task.
