@@ -143,3 +143,7 @@ Reopened after operator still could not return with Alt+C. Captured directly ins
 Exact live-response regression failed before the fix and passes afterward, including rejection of conflicting streams, timeout and connection diagnostics. Reloaded only the idle draft client method table under its checked session identity. Exercised the real client toggle twice: hidden returned exit 2/stderr false, then reopened returned exit 0/stdout true. Original pane and review document retained; no restart.
 
 Fresh make test-lua, make build, make test-review and git diff --check pass after the live-response correction. Live hide/reopen also passed through the real client. Repeating the SDLC boundary review against this fix.
+
+### 2026-09-28 — operator acceptance
+
+Operator smoke test passed after the live Zellij response fix; authorized close and landing. Final boundary review returned SHIP with no blocking findings. Publishing through sdlc pr / merge, including the linked ariadne#268 producer instruction change.

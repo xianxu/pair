@@ -148,7 +148,7 @@ Files: `atlas/review-workbench.md`, `workshop/targets/review-protocol.md`, issue
 
 - [x] Document branch authority, explicit fresh-session restore, blocked transitions, non-review behavior and envelope compatibility; append target Revisions and update its active seam table. Keep atlas index coverage.
 - [x] Reconcile every plan symbol and acceptance row with delivered implementation and test evidence. Record verification in the issue log; checkpoint commits.
-- [ ] Run `sdlc close --issue 341 --verified '<measured evidence>'`; its fresh-context review owns this single boundary. Fix findings, rerun affected tests, and record the verdict. Publication follows `sdlc pr` / `sdlc merge` under the session's authorization.
+- [x] Run `sdlc close --issue 341 --verified '<measured evidence>'`; its fresh-context review owns this single boundary. Fix findings, rerun affected tests, and record the verdict. Publication follows `sdlc pr` / `sdlc merge` under the session's authorization.
 
 ## Approval and estimate
 
@@ -170,7 +170,7 @@ This exceeds the quick-flow code limit. The operator approved the durable plan b
 - [x] Coalesce proactive recovery into bounded asynchronous observation; keep synchronous authority checks at effect/quit boundaries and test delayed resolution plus stale completions.
 - [x] Own and replace activation rendering autocmds; assert stable callback counts through A → B → A.
 - [x] Explain branch restoration, blocked transitions, and recover/discard commands in README.
-- [ ] Rerun affected and full review tests, build, and repeat the SDLC boundary review.
+- [x] Rerun affected and full review tests, build, and repeat the SDLC boundary review.
 
 2026-09-28 — Boundary class sweep also covers definition response generation receipts and changed-selection refusal, handoff callback reentry, partial-apply uncertainty, and accepted payload cleanup failure. Shared artifact receipts avoid duplicating replacement detection (ARCH-DRY). Asynchronous focus observations preserve same-branch clean-buffer reload while refusing other-branch disk bytes; empty definition polling no longer resolves history.
 
