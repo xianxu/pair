@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000346-stale-temporary-store.md
         source_blob: 84db15c6aa63466f0a464a9740ef6070dd5bca3c
         destination: workshop/issues/000346-stale-temporary-store.md
+        main_commit: b35b2a7fa9281058c22b1d7a35cd51508fbf1fef
 ---
 
 # Stale temporary store blocks Couch startup
