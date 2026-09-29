@@ -3,7 +3,7 @@ id: 000247
 status: working
 created: 2026-09-13
 updated: 2026-09-28
-estimate_hours:
+estimate_hours: 4.35
 github_issue:
 started: 2026-09-28T21:31:56-07:00
 ---
