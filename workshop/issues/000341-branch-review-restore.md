@@ -53,6 +53,8 @@ The proposed full-flow design is in [the durable plan](../plans/000341-branch-re
 
 Baseline checks passed: `go test ./cmd/internal/reviewcmd -count=1` and `bash tests/review-resume-test.sh`. Fresh-context plan review identified three gaps: first opens have no round history, retained buffers need byte reconciliation, and context must extend through agent-owned Git effects. The plan now specifies those cases and includes a linked Ariadne producer-instruction change because Pair's xx-fix skill resolves to `../ariadne/construct/local/fix/SKILL.md`. Ariadne's `AGENTS.local.md` was read; `MEMORY.md` is absent. No peer files changed.
 
+Fresh-context re-review approved the revised plan with no remaining blocking gaps. The linked producer-instruction change and recovery-storage regression remain required. Awaiting operator approval of the committed full-flow plan before implementation.
+
 ## Revisions
 
 2026-09-28 — Expanded the initial two-step outline into a durable full-flow plan after discovering cross-process activation, unscoped handoffs, and unsafe exit-save behavior. The original Spec and Done when remain the contract; proposed edge-case behavior and verification live in the linked plan pending operator approval.
