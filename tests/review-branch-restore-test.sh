@@ -7,7 +7,9 @@ import json, os, pathlib, subprocess, sys, tempfile, time
 root=pathlib.Path(os.environ['PAIR_ROOT'])
 sys.path.insert(0,str(root/'tests/lib'))
 from review_test_env import ReviewTestEnvironment
-with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
+# macOS Unix sockets have a short path limit; keep the explicit draft endpoint
+# separate from potentially deeply nested TMPDIR fixtures.
+with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td, tempfile.TemporaryDirectory(prefix='pair-rpc-',dir='/tmp') as rpc_td:
     temp=pathlib.Path(td).resolve(); repo=temp/'repo'; repo.mkdir(); data=temp/'data'; data.mkdir()
     base_env=isolated.environment(temp,root)
     def git(*args): return subprocess.check_output(['git','-C',str(repo),*args],env=base_env,text=True).strip()
@@ -51,13 +53,20 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         return json.loads(lua(meta,'vim.json.encode({file=vim.api.nvim_buf_get_name(0),text=vim.api.nvim_buf_get_lines(0,0,-1,false),marks=#vim.api.nvim_buf_get_extmarks(0,vim.api.nvim_create_namespace("review"),0,-1,{})})'))
     try:
         meta=launch()
-        draft=temp/'draft.md'; draft.write_text('draft\n'); draft_socket=str(temp/'draft.sock')
+        draft=temp/'draft.md'; draft.write_text('draft\n'); draft_socket=str(pathlib.Path(rpc_td)/'draft.sock')
         log=open(temp/'draft.log','w'); logs.append(log)
         d=subprocess.Popen(['nvim','--headless','--listen',draft_socket,'-u',str(root/'nvim/init.lua'),str(draft)],cwd=repo,
             env=dict(env,PAIR_DRAFT_PATH=str(draft)),stdout=log,stderr=log); children.append(d)
         deadline=time.monotonic()+8
-        while not pathlib.Path(draft_socket).exists() and time.monotonic()<deadline: time.sleep(.025)
         draft_meta={'endpoint':draft_socket}
+        while time.monotonic()<deadline:
+            if d.poll() is not None:
+                raise AssertionError('draft editor exited before readiness')
+            if pathlib.Path(draft_socket).exists() and lua(draft_meta,'type(PairReviewToggle)')=='function':
+                break
+            time.sleep(.025)
+        else:
+            raise AssertionError('draft editor did not publish toggle readiness')
         def toggle():
             lua(draft_meta,'PairReviewToggle()')
             deadline=time.monotonic()+8
@@ -117,6 +126,10 @@ with ReviewTestEnvironment() as isolated, tempfile.TemporaryDirectory(prefix='pa
         lua(meta,'vim.cmd("write")'); assert not snapshots[0].exists()
         assert (repo/'a.md').read_bytes()==b'\xef\xbb\xbfhuman unsaved\r\n'
         print('review-branch-restore-test ok')
+    except Exception:
+        if (temp/"draft.log").exists():
+            print("draft Neovim log:\n"+(temp/"draft.log").read_text(),file=sys.stderr)
+        raise
     finally:
         for p in children:
             if p.poll() is None:
