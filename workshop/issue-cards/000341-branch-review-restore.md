@@ -1,6 +1,6 @@
 ---
 id: 000341
-status: codecomplete
+status: done
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours: 3.24
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: d7699cb372b1f3cf7889657b754d8afb717a862c
         evidence_commit: b9ac41f839420bb19647208398cd03d0852fd3e2
+        landed_commit: 50649632235c0c6908fe391777136858ab6b54df
 ---
 
 # Alt+C restores review target from branch
