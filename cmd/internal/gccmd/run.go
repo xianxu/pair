@@ -29,6 +29,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	apply := flags.Bool("apply", false, "initialize clocks and collect eligible data after migration")
 	jsonOutput := flags.Bool("json", false, "write detailed metadata-only JSON")
 	complete := flags.Bool("complete-migration", false, "acknowledge the complete Couch store list supplied by --store")
+	forget := flags.String("forget-missing-store", "", "permanently abandon an exact missing registered store; disables collection until migration is acknowledged again")
 	var register, expected pathsFlag
 	flags.Var(&register, "register-store", "register an existing Couch namespace; repeat for multiple stores")
 	flags.Var(&expected, "store", "Couch namespace included in explicit migration acknowledgment; repeat for every store")
@@ -38,7 +39,7 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		}
 		return 2
 	}
-	if flags.NArg() != 0 || (*apply && *complete) || (len(expected) > 0 && !*complete) {
+	if flags.NArg() != 0 || (*apply && *complete) || (len(expected) > 0 && !*complete) || (*forget != "" && (*apply || *complete || len(register) > 0 || len(expected) > 0)) {
 		return fail(errors.New("unexpected arguments or incompatible operations"))
 	}
 	if getenv == nil {
@@ -64,6 +65,13 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 	}
 	coordinator := service.Collector.Coordinator
 	ctx := context.Background()
+	if *forget != "" {
+		if err := coordinator.ForgetMissingStore(ctx, *forget); err != nil {
+			return fail(err)
+		}
+		fmt.Fprintln(stdout, "Missing store registration removed. Collection is disabled until the remaining inventory is explicitly acknowledged with --complete-migration.")
+		return 0
+	}
 	for _, path := range register {
 		absolute, err := filepath.Abs(path)
 		if err != nil {

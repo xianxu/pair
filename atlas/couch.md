@@ -2048,3 +2048,26 @@ apply. Same-address agent switching and continuation keep their existing flows.
 `TestSpawnComposesProductionPairRegistrationBoundary` runs ordinary and fresh-slot
 creation through the real Pair launcher and claim files, with the special fresh
 readiness observer unset. The slot needs no additional launch protocol.
+
+## Unavailable retention namespaces (#346)
+
+The global retention registry keeps namespace membership even when an auxiliary
+store disappears or becomes unreadable. Registering an intact selected store
+checks the registry structure and that selected directory; it does not require
+every other namespace to be mounted. Couch startup/listing can therefore proceed.
+GC inventory and migration acknowledgment still require all registered stores
+to be readable, so missing references never become implicit deletion permission.
+
+For a permanently abandoned, missing store, use
+`pair gc --forget-missing-store /exact/canonical/registered/path`. This removes
+only that registration and resets migration acknowledgment. Restore/remount a
+temporarily unavailable store instead. To re-enable collection, independently
+acknowledge every remaining namespace with `pair gc --complete-migration --store
+PATH` (repeat `--store`). Existing paths, aliases, permission failures and mixed
+mutation flags are refused. The coordinator owns the mutation under its lock.
+
+Production-boundary coverage: `couchcmd.TestListWithMissingAuxiliaryStoreUsesIsolatedRoots`;
+registry/collection recovery: `storagegc/stale_store_test.go`. Smoke invocations
+must isolate HOME, XDG_DATA_HOME, PAIR_DATA_DIR and COUCH_STORE_DIR together and
+clear inherited explicit artifact overrides. The original scratchpad producer
+has not been identified.
