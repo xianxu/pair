@@ -63,7 +63,7 @@ retirement with the thread's lifecycle (ARCH-CONSTRAINTS, ARCH-FUNERAL).
 
 Durable plan: `workshop/plans/000247-couch-live-idle-shading-plan.md`.
 
-- [ ] M1 — pure policy + renderers: `IdleLevelFor` (1 h/24 h/48 h), `FadeStyle`
+- [ ] M1 — pure policy + renderers: `IdleLevelFor` (1 day / 3 days, 3 levels), `FadeStyle`
       (blend toward the terminal background; SGR 90 / no-color fallbacks), tab bar
       and switcher live rows faded with selection/bell/placeholder precedence.
 - [ ] M2 — IO seams + wiring + docs: shared `threadactivity.Latest` (the title
@@ -123,3 +123,10 @@ Recorded the operator's decision; no implementation begun. The shared checkout c
   amber unfaded.
 - The recent-traffic dot (2026-09-14 revision above) is **split out to #342**.
   It is no longer part of this issue.
+
+### 2026-09-28 — Operator shrinks the ramp to three levels
+
+- **Thresholds: 1 day and 3 days, three levels**: under 1 day normal; 1 day to
+  under 3 days faded; 3 days or more more faded. This supersedes the
+  1 h / 24 h / 48 h four-level ramp recorded earlier today. Blend weights
+  become 0 / 40 / 65 %.
