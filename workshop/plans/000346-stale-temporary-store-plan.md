@@ -69,10 +69,10 @@ Compaction continues to reference its exact named copy; it does not take the wri
 
 **Files:** `cmd/internal/storagegc/stores.go`, `stores_test.go`, `collector_test.go`; `cmd/internal/gccmd/run.go`, `run_test.go`; `cmd/internal/couchcore/retention_test.go`; `cmd/internal/couchcmd` production-boundary test; `tests/couch-recovery-smoke.sh`; `atlas/couch.md`.
 
-- [ ] Add failing tests at the coordinated-store/CLI boundary and pure structural validator using the strategies below; verify the expected failure before implementation.
-- [ ] Split `StoreRegistry.validateStructure` from full availability validation. `RegisterStore` checks structure and its selected canonical directory; `ReadRegistry`, `CompleteMigration` and GC keep complete availability checks. Other registrations remain intact.
-- [ ] Add coordinator `ForgetMissingStore` and exclusive `pair gc --forget-missing-store PATH`. Under the coordinator lock require an exact clean registered path and confirmed missing directory, preserve other registrations and atomically reset migration acknowledgment. Missing is explicit permanent abandonment, never empty-store proof.
-- [ ] Isolate smoke HOME/XDG/Pair/Couch roots and inherited artifact overrides; preserve the unknown provenance of the original scratchpad entry instead of inventing an originating command.
+- [x] Add failing tests at the coordinated-store/CLI boundary and pure structural validator using the strategies below; verify the expected failure before implementation.
+- [x] Split `StoreRegistry.validateStructure` from full availability validation. `RegisterStore` checks structure and its selected canonical directory; `ReadRegistry`, `CompleteMigration` and GC keep complete availability checks. Other registrations remain intact.
+- [x] Add coordinator `ForgetMissingStore` and exclusive `pair gc --forget-missing-store PATH`. Under the coordinator lock require an exact clean registered path and confirmed missing directory, preserve other registrations and atomically reset migration acknowledgment. Missing is explicit permanent abandonment, never empty-store proof.
+- [x] Isolate smoke HOME/XDG/Pair/Couch roots and inherited artifact overrides; preserve the unknown provenance of the original scratchpad entry instead of inventing an originating command.
 - [ ] Run focused red/green tests, then `go test ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/couch -count=1` and relevant `-race` suites. Update atlas/Log, commit and `sdlc milestone-close --issue 346 --milestone M1 --verified '<evidence>'`.
 
 | Risky function | Test strategy |
