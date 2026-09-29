@@ -63,6 +63,7 @@ total: 3.24
 ## Log
 
 ### 2026-09-28
+- 2026-09-28: closed — Live draft reproduction captured hidden exit2 stderr false and visible exit0 stdout true. Regression failed before fix; exact hidden forms pass while timeout, mixed streams and connection errors refuse. Reloaded idle client in authenticated live session; real toggle hid then reopened original pane without restart. Fresh make test-lua, make build, make test-review and git diff --check all pass.; review verdict: SHIP
 - 2026-09-28: closed — Product findings BR1-BR6 disposed by prior review; full Lua/review/race/build checks passed at unchanged product code. BR7 test-only fix: root reran real branch/fresh/observation/producer fixtures, all exit0 with external poisoned caller sentinels untouched. Shared environment strips Pair/Zellij/Nvim/Git session vars and confines writable artifacts/XDG storage. Previously polluted task cache remains absent after reruns. Diff checks pass.; review verdict: SHIP
 
 Filed from the operator's Alt+C workflow questions. Current behavior traced through `nvim/init.lua` (`PairReviewToggle`, target storage), `cmd/internal/reviewcmd/run.go` (readiness and scoped-file discovery), and `nvim/review/init.lua` (reconstruct-on-open). Task capture only; implementation has not started.

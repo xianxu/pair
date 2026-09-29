@@ -451,3 +451,98 @@ dispose:
    - **ARCH-FUNERAL — pass:** recovery capacity, consumption and resource cleanup are defined.
 
 7. **Plan revision recommendations:** None.
+
+---
+
+## Re-review — 2026-09-28T22:58:04-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 341 — Alt+C restores review target from branch |
+| repo | pair |
+| issue file | workshop/issues/000341-branch-review-restore.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 41ab4f9add1908e854c3f41e491e4a64d53793db..d7699cb372b1f3cf7889657b754d8afb717a862c |
+| command | sdlc close --issue 341 |
+| reviewer | codex |
+| timestamp | 2026-09-28T22:58:04-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned range satisfies the issue’s restoration and preservation contracts. Branch identity governs activation, pending work blocks unsafe switching, and captured snapshots prevent later checkout reads from changing the selected document. No new blocking findings; prior findings remain addressed.
+
+1. **Strengths**
+
+   - Shared, bounded identity resolution rejects ambiguous history and unstable checkouts.
+   - [Pane activation](/Users/xianxu/workspace/pair/nvim/review/restore_controller.lua:123) preserves retained buffers and restores the previous owner on failure.
+   - [Handoff acceptance](/Users/xianxu/workspace/pair/nvim/review/handoff.lua:79) preserves refused/replaced payloads and prevents replay after uncertain effects.
+   - Recovery has writer-side capacity limits, private storage, and explicit save/discard cleanup.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+
+   Passed independently:
+
+   - `go test ./cmd/internal/reviewcmd -count=1`
+   - `make test-lua` with temporary, isolated editor storage
+   - Branch restoration, fresh-session restoration, observation, and producer-context process tests
+   - Pinned-range `git diff --check`
+
+   Removing the new exit-2/stderr-`false` handling in a temporary copy makes its specific regression fail. The initial unisolated Lua run encountered a sandbox storage restriction; the isolated full run passed. The checkout remains clean at the pinned HEAD.
+
+6. **Architecture**
+
+   - **ARCH-DRY — pass:** shared resolver, document codec, context validation, and artifact receipts.
+   - **ARCH-PURE — pass:** classification and activation policy are separated from process/editor effects; listed pure entities match their implementations.
+   - **ARCH-PURPOSE — pass:** restoration covers fresh sessions, existing panes, subsequent writes, and pending work.
+   - **ARCH-MOCK — pass:** injected seams and stateful process fixtures exercise failures and controlled completion ordering.
+   - **ARCH-CONSTRAINTS — pass:** bounded resolution, coalesced asynchronous observation, and bounded recovery writes.
+   - **ARCH-SECURE — pass:** canonical document identity, activation checks, validated snapshots, and isolated process fixtures.
+   - **ARCH-ORDER — pass:** explicit activation transitions and acceptance outcomes preserve uncertainty and reject stale completions.
+   - **ARCH-FUNERAL — pass:** owned callback/process/socket cleanup and explicit recovery retention/removal rules.
+
+7. **Plan revision recommendations:** None required. README and atlas updates cover the introduced operator behavior.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Handoff consumption follows explicit acceptance; passing acceptance tests cover final authorization refusal, replacement generations, reentry, and uncertain effects.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Typing/focus observation uses the coalescing asynchronous observer; observer and process latency regressions pass.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README documents branch restoration, blocked switching, stable-checkout requirements, and recover/discard commands; controller and recovery implementations support those passages.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Activation rendering callbacks belong to a cleared augroup; the passing observation fixture checks stable callback counts across repeated activation.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Refresh and activation install resolver-captured bytes; passing tests cover delayed delivery, checkout pauses, index publication, and retained-buffer write refusal.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Shared byte decoding preserves line endings and BOM options; exact-save tests and the CRLF/BOM committed-round process regression pass.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      All four new process fixtures use the shared sanitized environment and caller-owned sentinels; each passed independently without sentinel changes.
+```

@@ -142,6 +142,40 @@ rounds:
           round: 5
       recipe: milestone-review
       blocked: false
+    - "n": 6
+      timestamp: "2026-09-28T22:58:04-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Handoff consumption follows explicit acceptance; passing acceptance tests cover final authorization refusal, replacement generations, reentry, and uncertain effects.
+          round: 6
+        - id: BR-2
+          disposition: addressed
+          note: Typing/focus observation uses the coalescing asynchronous observer; observer and process latency regressions pass.
+          round: 6
+        - id: BR-3
+          disposition: addressed
+          note: README documents branch restoration, blocked switching, stable-checkout requirements, and recover/discard commands; controller and recovery implementations support those passages.
+          round: 6
+        - id: BR-4
+          disposition: addressed
+          note: Activation rendering callbacks belong to a cleared augroup; the passing observation fixture checks stable callback counts across repeated activation.
+          round: 6
+        - id: BR-5
+          disposition: addressed
+          note: Refresh and activation install resolver-captured bytes; passing tests cover delayed delivery, checkout pauses, index publication, and retained-buffer write refusal.
+          round: 6
+        - id: BR-6
+          disposition: addressed
+          note: Shared byte decoding preserves line endings and BOM options; exact-save tests and the CRLF/BOM committed-round process regression pass.
+          round: 6
+        - id: BR-7
+          disposition: addressed
+          note: All four new process fixtures use the shared sanitized environment and caller-owned sentinels; each passed independently without sentinel changes.
+          round: 6
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#341 (boundary-review)
@@ -212,6 +246,18 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 ### Disposed
 
 - BR-7 — addressed — tests/lib/review_test_env.py:43 sanitizes inherited session variables and binds writable artifacts to fixture storage. Fresh, branch, observation and producer fixtures passed with caller sentinels intact. A scratch mutation restoring the inherited PAIR_REVIEW_CONTEXT_PATH caused the fresh-session regression to fail at the sentinel assertion.
+
+## Round 6 — 2026-09-28T22:58:04-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Handoff consumption follows explicit acceptance; passing acceptance tests cover final authorization refusal, replacement generations, reentry, and uncertain effects.
+- BR-2 — addressed — Typing/focus observation uses the coalescing asynchronous observer; observer and process latency regressions pass.
+- BR-3 — addressed — README documents branch restoration, blocked switching, stable-checkout requirements, and recover/discard commands; controller and recovery implementations support those passages.
+- BR-4 — addressed — Activation rendering callbacks belong to a cleared augroup; the passing observation fixture checks stable callback counts across repeated activation.
+- BR-5 — addressed — Refresh and activation install resolver-captured bytes; passing tests cover delayed delivery, checkout pauses, index publication, and retained-buffer write refusal.
+- BR-6 — addressed — Shared byte decoding preserves line endings and BOM options; exact-save tests and the CRLF/BOM committed-round process regression pass.
+- BR-7 — addressed — All four new process fixtures use the shared sanitized environment and caller-owned sentinels; each passed independently without sentinel changes.
 
 ## Open findings
 
