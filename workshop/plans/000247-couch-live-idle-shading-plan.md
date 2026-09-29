@@ -484,7 +484,7 @@ implementation; switchcontext.go reaches the same dir through
 - [x] Mutation checks (cp/cmp revert): drop the fade case in
   `RenderStatusRow` → Task 3 tests fail; skip the reply capture → Task 7 fails;
   probe non-live rows → Task 6 fails.
-- [ ] Live smoke by the operator on a dark AND a light theme: an idle thread
+- [x] Live smoke by the operator on a dark AND a light theme: an idle thread
   recedes in both bars; the selected thread and a notified thread don't fade;
   `NO_COLOR=1 couch` shows no fade bytes. On the light theme, check that the
   65 % amber (≈ `#fff1a6`) is still visible; if not, cap the amber weight
@@ -570,3 +570,15 @@ implementation; switchcontext.go reaches the same dir through
   store listing per agent per pass) is not built; raised with the operator.
 - M1 review Minors folded in: BR-2 (`slotGlyphBase`), BR-3 (atlas fields),
   BR-4 (cross-referenced precedence comments).
+
+### 2026-09-28 — operator smoke (M2 review BR-5)
+
+- Built `7363b5e1` in `pair:0` (`bin/pair`, `bin/couch` at that revision, not
+  modified). In live Couch the operator saw distinct shades by idle age and
+  passed the smoke; colour tuning is deferred. Not exercised live: the
+  light-theme amber legibility and `NO_COLOR`. Both moved to #343 with the
+  probe-cost decision (BR finding on the 2.3 s/20-thread pass), which the
+  operator left open.
+- A spot check during the smoke: `brain:0` (`couch-5f43ed128f6135e9`, codex)
+  read 28.5 h idle from its Pair log. It has no established binding, so its
+  transcript is not a signal (recorded in #343).
