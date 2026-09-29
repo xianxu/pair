@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000342-couch-green-recent-traffic-dot-after-live-thread-names.md
         source_blob: 27f80211a28ebb3a4ebb1733b1e6edc43a736601
         destination: workshop/issues/000342-couch-green-recent-traffic-dot-after-live-thread-names.md
+        main_commit: 91a1401dd2caed859927f5a9cc70c7d710575859
 ---
 
 # Couch: green recent-traffic dot after live thread names
