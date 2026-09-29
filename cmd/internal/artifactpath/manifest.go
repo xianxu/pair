@@ -390,7 +390,11 @@ var SourceClassifications = []SourceClassification{
 	{Path: "cmd/internal/panebirth/panebirth.go", Kind: ResolvedConsumer,
 		Families: []string{"pane"}, BindingNames: []string{"scoped-pane"}},
 	{Path: "cmd/internal/titlepoller/run.go", Kind: ResolvedConsumer,
-		Families: []string{"draft", "title-pid"}, BindingNames: []string{"scoped-draft", "scoped-title-pid"}},
+		Families: []string{"title-pid"}, BindingNames: []string{"scoped-title-pid"}},
+	// pair#247: the one thread-activity definition reads the Pair log (sends)
+	// and, through panebirth, the launch's pane evidence -- never the draft.
+	{Path: "cmd/internal/threadactivity/activity.go", Kind: ResolvedConsumer,
+		Families: []string{"log"}, BindingNames: []string{"scoped-log"}},
 	{Path: "cmd/internal/workbenchshortcut/shortcut.go", Kind: ResolvedConsumer,
 		Families:     []string{"last-left-pane", "last-terminal-pane", "terminal-panes"},
 		BindingNames: []string{"scoped-wrapper-last-left-pane", "scoped-wrapper-last-terminal-pane", "scoped-wrapper-terminal-panes"}},
@@ -779,6 +783,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/operation_queue.go",
 	"cmd/internal/couchtty/panelkeys.go",
 	"cmd/internal/couchtty/reserve.go",
+	"cmd/internal/couchtty/idle_shade.go",
 	"cmd/internal/couchtty/switchrule.go",
 	"cmd/internal/couchtty/trace.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",
@@ -871,6 +876,7 @@ var NonArtifactSources = []string{
 	"cmd/internal/scribecmd/scribecmd.go",
 	"cmd/internal/sessioninventory/conformance.go",
 	"cmd/internal/sessioninventory/activity.go",
+	"cmd/internal/threadactivity/os.go",
 	"cmd/internal/sessioninventory/activitycli.go",
 	"cmd/internal/sessioninventory/events.go",
 	"cmd/internal/sessioninventory/binding.go",

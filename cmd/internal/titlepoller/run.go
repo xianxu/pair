@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/artifactpath"
 	"github.com/xianxu/pair/cmd/internal/panebirth"
+	"github.com/xianxu/pair/cmd/internal/threadactivity"
 )
 
 // Options are the poller inputs after CLI/env resolution.
@@ -186,22 +187,20 @@ type pollerClock struct{ rt Runtime }
 func (c pollerClock) Now() time.Time                           { return c.rt.Now() }
 func (c pollerClock) Sleep(_ context.Context, d time.Duration) { c.rt.Sleep(d) }
 
-// activityMTime returns the most recent mtime across the poller's activity
-// sources — the nvim draft and the established inventory root. Zero time ⇒
-// nothing resolved yet.
+// activityMTime is the thread's last activity as threadactivity defines it for
+// every consumer (pair#247). Zero time ⇒ nothing resolved yet.
 func activityMTime(opts Options, rt Runtime) time.Time {
-	var latest time.Time
-	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
-	if err != nil {
-		return time.Time{}
-	}
-	if m, ok := rt.ModTime(paths.Draft()); ok && m.After(latest) {
-		latest = m
-	}
-	if m, ok := rt.SessionActivity(opts.Tag, opts.Agent); ok && m.After(latest) {
-		latest = m
-	}
-	return latest
+	return threadactivity.Latest(context.Background(), pollerActivity{rt},
+		threadactivity.Thread{ScopeDir: opts.DataDir, Tag: opts.Tag, Agent: opts.Agent})
+}
+
+// pollerActivity adapts the poller's Runtime, whose session lookup already
+// knows its scope from the launch contract.
+type pollerActivity struct{ rt Runtime }
+
+func (a pollerActivity) ModTime(path string) (time.Time, bool) { return a.rt.ModTime(path) }
+func (a pollerActivity) SessionActivity(_ context.Context, t threadactivity.Thread) (time.Time, bool) {
+	return a.rt.SessionActivity(t.Tag, t.Agent)
 }
 
 // updateFrameTitles renames the active agent's zellij frame to

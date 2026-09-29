@@ -370,14 +370,20 @@ func TestUpdateWorkspaceTitleSkipsUnchangedBucket(t *testing.T) {
 	}
 }
 
-// activityMTime picks the most recent time across the draft and established root.
+// activityMTime is threadactivity.Latest over the poller's sources: the
+// transcript, the Pair log and the launch -- never the draft (pair#247).
 func TestActivityMTimePicksLatest(t *testing.T) {
 	rt := newFake()
 	base := rt.now
-	rt.mtimes["/dd/draft-T.md"] = base.Add(-time.Hour)
-	rt.activities["claude"] = base // newer
-	if got := activityMTime(fixtureOpts(), rt); !got.Equal(base) {
-		t.Fatalf("activityMTime = %v, want the newer transcript mtime %v", got, base)
+	rt.mtimes[fixturePane] = base.Add(-3 * time.Hour)
+	rt.mtimes["/dd/log-T.md"] = base.Add(-time.Hour)
+	rt.activities["claude"] = base.Add(-2 * time.Hour)
+	if got := activityMTime(fixtureOpts(), rt); !got.Equal(base.Add(-time.Hour)) {
+		t.Fatalf("activityMTime = %v, want the newest source, the Pair log's %v", got, base.Add(-time.Hour))
+	}
+	rt.mtimes["/dd/draft-T.md"] = base // focus-loss autosave, not activity
+	if got := activityMTime(fixtureOpts(), rt); !got.Equal(base.Add(-time.Hour)) {
+		t.Fatalf("activityMTime = %v, a fresher draft must not count", got)
 	}
 	// No sources resolve ⇒ zero time.
 	empty := newFake()
@@ -416,7 +422,8 @@ func TestRunMakesNoZellijCallBeforeThePaneAppears(t *testing.T) {
 	rt := newFake()
 	rt.pid = "9001"
 	rt.panes = []PaneInfo{{Agent: "claude", PaneID: "7"}}
-	rt.mtimes["/dd/draft-T.md"] = rt.now
+	// No draft, transcript or log: the launch itself (the pane birth) is the
+	// only activity, and it must be enough for the first render (pair#247 PQ-1).
 	rt.sessionAliveSeq = []bool{true}
 	rt.sessionAliveDflt = false
 	rt.sleepHook = func(sleeps int) {
@@ -443,8 +450,15 @@ func TestRunMakesNoZellijCallBeforeThePaneAppears(t *testing.T) {
 		t.Fatalf("the gate should have waited through 3 unborn stats, saw %d: %v", misses, rt.events)
 	}
 	// And once born, the steady loop resumes as before: probe, render, probe.
-	if want := []string{"session-alive", "rename", "session-alive"}; !slices.Equal(rt.events[born+1:], want) {
-		t.Fatalf("after birth events = %v, want %v", rt.events[born+1:], want)
+	// Only zellij calls are compared; the activity read stats the pane too.
+	var zellij []string
+	for _, e := range rt.events[born+1:] {
+		if !strings.HasPrefix(e, "stat-pane:") {
+			zellij = append(zellij, e)
+		}
+	}
+	if want := []string{"session-alive", "rename", "session-alive"}; !slices.Equal(zellij, want) {
+		t.Fatalf("after birth zellij calls = %v, want %v", zellij, want)
 	}
 }
 
