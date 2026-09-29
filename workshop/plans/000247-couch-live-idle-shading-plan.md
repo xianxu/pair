@@ -375,14 +375,14 @@ case !a.Active:
 
 **Files:** Create `cmd/internal/threadactivity/activity.go`, `activity_test.go`, `os.go`. Modify `cmd/internal/titlepoller/run.go` (`activityMTime`) and `runtime.go` (adapter).
 
-- [ ] **Step 1: failing tests** (map-backed fake Runtime):
+- [x] **Step 1: failing tests** (map-backed fake Runtime):
   - The newest of transcript, log and pane birth wins, each alone included.
   - With no transcript and no log, the answer is the pane-birth mtime (the
     PQ-1 regression: a fresh session is never zero).
   - Nothing at all → zero.
   - A draft mtime newer than everything else is **ignored** (pins Decision 1).
   - A canceled `ctx` returns promptly with what the file mtimes give.
-- [ ] **Step 2:** FAIL. **Step 3:** implement `Latest` and point
+- [x] **Step 2:** FAIL. **Step 3:** implement `Latest` and point
   `titlepoller.activityMTime` at it (the title poller passes `opts.DataDir`,
   its scope key, tag and agent). Add a title-poller test: a session with
   pane birth but no transcript or log still updates its frame titles on the
@@ -392,8 +392,8 @@ case !a.Active:
   `QuerySessionContext` + `ActivityForSession`, following
   `couchcore/switchcontext.go:68-75`. `titlepoller/runtime.go:SessionActivity`
   delegates to it.
-- [ ] Record in the issue Log that the heat ramp no longer reads the draft.
-- [ ] **Step 4:** `go test ./cmd/internal/threadactivity ./cmd/internal/titlepoller` pass. **Step 5:** commit.
+- [x] Record in the issue Log that the heat ramp no longer reads the draft.
+- [x] **Step 4:** `go test ./cmd/internal/threadactivity ./cmd/internal/titlepoller` pass. **Step 5:** commit.
 
 ### Task 6: activity pass in the console
 
@@ -401,7 +401,7 @@ case !a.Active:
 
 **Files:** Create `cmd/internal/couchtty/console_activity.go`, `console_activity_test.go`. Modify `console.go` (fields, `Run` select loop: ticker plus the results channel, `now`), `menu.go` (`MenuState.Activity`, `MenuEventActivity` reduce, copy in the state-clone helper next to `SlotGit`), `console_presentation.go` (`statusModelLocked` sets `actor.Idle` and `model.Palette`).
 
-- [ ] **Step 1: failing tests** (fake probe + injected clock, following
+- [x] **Step 1: failing tests** (fake probe + injected clock, following
   `console_slotgit_test.go`):
   - A pass probes live rows only, and each once.
   - The result lands in `MenuState.Activity` and triggers a repaint. The tab
@@ -421,15 +421,15 @@ case !a.Active:
     in memory; the answer comes from the probe.
   - A pass is requested when the inventory lands and on a thread switch, not
     only on the ticker, so fading appears without a 60 s wait.
-- [ ] **Step 2:** FAIL. **Step 3:** implement by mirroring `advanceSlotGit` /
+- [x] **Step 2:** FAIL. **Step 3:** implement by mirroring `advanceSlotGit` /
   `finishSlotGit` (`RefreshSchedule`, worker outside `c.mu`, per-thread timeout,
   `select` on `c.stop`, `showMenu()` when the panel has focus, else
   `repaint()`). Use `defaultActivityInterval = 60 * time.Second`. Call
   `requestActivity()` beside each existing `requestSlotGit()` (inventory
   landing `console_menu.go:153`, switch `console.go:544`).
-- [ ] **Step 4:** pass. Measure one production pass against the operator's real
+- [x] **Step 4:** pass. Measure one production pass against the operator's real
   thread list: log the duration in the issue, budget < 2 s for 20 threads.
-- [ ] **Step 5:** commit.
+- [x] **Step 5:** commit.
 
 ### Task 7: palette query + reply capture
 
@@ -437,7 +437,7 @@ case !a.Active:
 
 **Files:** Modify `console.go` (`Run`: after `MakeRaw`, before `applyLayout`, write `"\x1b]10;?\x1b\\\x1b]11;?\x1b\\"` with `c.host.WriteContext`; seed `Palette.TrueColor`/`NoColor` from env at construction), `terminal_input.go` (`routeInputEvent`: before the `Reply` early return, reduce `uv.ForegroundColorEvent`/`uv.BackgroundColorEvent` into `MenuState.Palette` via `MenuEventPalette` under `c.mu`. A nil `Color` (malformed reply) is ignored. `Known` once both have arrived. Then `showMenu()` if the panel has focus, else `repaint()`. `statusModelLocked` reads the palette from `c.menu`; it's stored in one place). Test in `console_test.go`-style harness with the fake host.
 
-- [ ] **Step 1: failing tests**
+- [x] **Step 1: failing tests**
   - `Run` writes the query exactly once, before the first frame (assert the
     order in the fake host's write log).
   - Feeding `"\x1b]11;rgb:ffff/ffff/ffff\x1b\\"` and
@@ -446,7 +446,7 @@ case !a.Active:
   - Only one reply → palette stays unknown (the `SGR 90` fallback).
   - A malformed reply → unknown, no panic, not forwarded to the child.
   - Color replies never reach the child (existing `Reply` drop preserved).
-- [ ] **Step 2:** FAIL. **Step 3:** implement. **Step 4:** pass. **Step 5:** commit.
+- [x] **Step 2:** FAIL. **Step 3:** implement. **Step 4:** pass. **Step 5:** commit.
 
 ### Task 8: production wiring
 
@@ -469,19 +469,19 @@ already computes. (Check `ResolveScopeDir`'s exact signature at
 implementation; switchcontext.go reaches the same dir through
 `artifactpath.Resolve(...).ScopeDir()`, and either is fine.)
 
-- [ ] No existing test pins `SetSlotGitProbe`'s wiring. This wiring is
+- [x] No existing test pins `SetSlotGitProbe`'s wiring. This wiring is
   covered by the live smoke. Commit.
 
 ### Task 9: docs + verification
 
-- [ ] README Couch section and the Alt+h help: one line saying live threads
+- [x] README Couch section and the Alt+h help: one line saying live threads
   fade after 1 day and again after 3 days without activity (your input or the agent's
   work), and that the focused/selected thread and notifications never fade.
-- [ ] `atlas/`: add the activity pass and palette query to the Couch
+- [x] `atlas/`: add the activity pass and palette query to the Couch
   presentation map. Link from `atlas/index.md` if a new file is added.
-- [ ] Full suite (`go test ./... -count=1`, then `make test`, with the
+- [x] Full suite (`go test ./... -count=1`, then `make test`, with the
   session env scrubbed; see the #329 log for the command).
-- [ ] Mutation checks (cp/cmp revert): drop the fade case in
+- [x] Mutation checks (cp/cmp revert): drop the fade case in
   `RenderStatusRow` → Task 3 tests fail; skip the reply capture → Task 7 fails;
   probe non-live rows → Task 6 fails.
 - [ ] Live smoke by the operator on a dark AND a light theme: an idle thread
@@ -541,3 +541,32 @@ implementation; switchcontext.go reaches the same dir through
   writer arrives. Until then nothing writes either field in production, so
   M1 changes nothing on screen by construction.
 - `colorMenuGlyph` takes the row's amber colour as a parameter (one call site).
+
+### 2026-09-28 — M2 delivered, reconciled against the plan
+
+- Task 5: `threadactivity.Latest(ctx, rt, Thread) time.Time` as planned, plus
+  `InScope(dataDir, scope, tag, agent)`. `couchcmd` is a non-artifact source
+  that may not import `artifactpath`, so scope resolution moved next to the
+  reads it serves. The title poller adapts its own runtime (`pollerActivity`).
+  Its pane-birth ordering test now compares zellij calls only (the activity read
+  stats the pane too) and no longer seeds a draft. The launch alone drives the
+  first render, which is the PQ-1 regression.
+- Task 6: `console_activity.go` as planned. `mergeSlotGit` became the generic
+  `mergeObservations`, shared by both passes. The stale-generation check is the
+  shared `RefreshSchedule`'s, and it is exercised through the fixture rather
+  than by an injected late result. A new `activity` trace event is documented
+  in atlas (`trace_test` requires it).
+- Task 7: `console_palette.go` (`paletteQuery`, `capturePalette`,
+  `ensureMenuLocked`, `SetColorModes`, `repaintAfterPalette`). Delta: the two
+  lazy `c.menu` builds now go through `ensureMenuLocked`, which keeps a palette
+  that arrived first. The soak test's vt host now drains its emulator's replies
+  (it hung on the new query).
+- Task 8: `wireIdleFading` in `consoleRunner`, the composition root that
+  already reads the environment.
+- Task 9: README only. The Alt+h help lists keys, and idle fading has none.
+  Measured cost: 114 ms mean per thread (56 real threads in 6.4 s, slowest
+  577 ms), so ~2.3 s for 20 threads, about 15 % over the < 2 s budget. It runs
+  on the background worker once a minute. The planned follow-up (one shared
+  store listing per agent per pass) is not built; raised with the operator.
+- M1 review Minors folded in: BR-2 (`slotGlyphBase`), BR-3 (atlas fields),
+  BR-4 (cross-referenced precedence comments).

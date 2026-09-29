@@ -82,6 +82,10 @@ representative evidence, not an exhaustive index.
 - Concurrent transitions need one synchronization owner and an exclusive
   transaction token. Panic recovery must not strand the lock or leave half of a
   resize, replacement, or shutdown visible. (#239, #251)
+- A terminal double must consume what the real terminal answers. An emulator
+  that replies to queries (DA, DECRQM, OSC 10/11) wedges its own Write when no
+  one drains the reply pipe, so every host fake built on one drains or forwards
+  its replies from construction, not after the first hang. (#247)
 - Child fakes must model the real API's return values, cancellation races, and
   shutdown behavior. A fake that cannot express the failing interleaving proves
   nothing. (#206, #288)
