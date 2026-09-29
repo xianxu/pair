@@ -186,6 +186,34 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 6
+      timestamp: "2026-09-29T13:47:01-07:00"
+      agent: claude
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: sessionwatch/run.go:84-92 still carries trackedTargets/boundRootNodeID/observationEpoch as independent fields; Minor, deferral previously accepted.
+          round: 6
+        - id: BR-14
+          disposition: addressed
+          note: query.go:470-483 now returns neither NativeID nor FreshRequired when any non-absent diagnostic exists; TestChosenTargetListingFailureIsUnknown (failed + partial listing) goes red against the old else-branch; restart/picker/couch refuse before effects (restart_test, osruntime_test, relaunch_test).
+          round: 6
+      findings:
+        - id: BR-15
+          severity: Minor
+          title: Chosen-ID "materialization unknown" is an implicit field combination re-derived in three places
+          detail: 'ResumeTarget encodes unknown as NativeID=="" and !FreshRequired; couchcore/resume.go:377 (redundant diagnostics loop) and launcher/ledger.go:75 (ResumeBlocked) re-derive it, and pure ParseLedger sets ResumeBlocked for every unconfirmed chosen entry. Rule: a state with more than two legal values goes on the producing type as a tagged enum (e.g. Materialization present/absent/unknown) that consumers switch on; apply it to ResumeTarget and to the watcher phases from BR-12.'
+          family: implicit-watcher-state
+          round: 6
+        - id: BR-16
+          severity: Minor
+          title: A persistent incomplete listing (such as a symlinked project dir) refuses with a "retry" message that never succeeds
+          detail: 'A ListingIssuesError from a non-regular entry is permanent, not transient. Rule: every unknown-identity refusal names the failing root or entry and the explicit fresh-start escape hatch (pair restart --new-session or a fresh launch), rather than only telling the operator to retry.'
+          family: outage-diagnostic-actionability
+          round: 6
+      boundary: M2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#346 (boundary-review)
@@ -266,7 +294,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-14** [Important] `failed-probe-treated-as-absence` Chosen-id materialization probe collapses a native listing failure into FreshRequired
   ObserveAgentMetadata skips roots whose ListFiles fails (non-ErrStorageAbsent) or returns partial listings, and ResumeTargetForRuntimeLaunch (query.go:467) ignores the diagnostics and sets FreshRequired, so a transient EACCES/EIO abandons a materialized conversation X for a new UUID (createflow also removes the config). Make the probe tri-state (present / confirmed-absent / unknown); on unknown set neither NativeID nor FreshRequired and keep the provisional refusal; add a fake ListFiles-error test.
 
+## Round 6 — 2026-09-29T13:47:01-07:00 (claude) — passed
+
+### Disposed
+
+- BR-12 — not-addressed — sessionwatch/run.go:84-92 still carries trackedTargets/boundRootNodeID/observationEpoch as independent fields; Minor, deferral previously accepted.
+- BR-14 — addressed — query.go:470-483 now returns neither NativeID nor FreshRequired when any non-absent diagnostic exists; TestChosenTargetListingFailureIsUnknown (failed + partial listing) goes red against the old else-branch; restart/picker/couch refuse before effects (restart_test, osruntime_test, relaunch_test).
+
+### Raised
+
+- **BR-15** [Minor] `implicit-watcher-state` Chosen-ID "materialization unknown" is an implicit field combination re-derived in three places
+  ResumeTarget encodes unknown as NativeID=="" and !FreshRequired; couchcore/resume.go:377 (redundant diagnostics loop) and launcher/ledger.go:75 (ResumeBlocked) re-derive it, and pure ParseLedger sets ResumeBlocked for every unconfirmed chosen entry. Rule: a state with more than two legal values goes on the producing type as a tagged enum (e.g. Materialization present/absent/unknown) that consumers switch on; apply it to ResumeTarget and to the watcher phases from BR-12.
+- **BR-16** [Minor] `outage-diagnostic-actionability` A persistent incomplete listing (such as a symlinked project dir) refuses with a "retry" message that never succeeds
+  A ListingIssuesError from a non-regular entry is permanent, not transient. Rule: every unknown-identity refusal names the failing root or entry and the explicit fresh-start escape hatch (pair restart --new-session or a fresh launch), rather than only telling the operator to retry.
+
 ## Open findings
 
 - **BR-12** [Minor] `implicit-watcher-state` Watcher in-memory phases are separate fields rather than a tagged state enum
-- **BR-14** [Important] `failed-probe-treated-as-absence` Chosen-id materialization probe collapses a native listing failure into FreshRequired
+- **BR-15** [Minor] `implicit-watcher-state` Chosen-ID "materialization unknown" is an implicit field combination re-derived in three places
+- **BR-16** [Minor] `outage-diagnostic-actionability` A persistent incomplete listing (such as a symlinked project dir) refuses with a "retry" message that never succeeds

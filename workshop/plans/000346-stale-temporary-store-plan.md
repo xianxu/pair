@@ -91,7 +91,7 @@ The startup capture transition contract is preserved in #349, outside #346 after
 - [x] Make Codex metadata open-world; retain understood positive root/child evidence and safe file reading. New Pair-chosen root filename supplies the explicit handshake only when baseline absence is known. Rebuild obsolete rejected cache states. Keep requested-target authority independent of internal field interpretation.
 - [x] Commit unique confirmation using the current-launch lock; same-root duplicate is idempotent, competing confirmation is refused, and requested-to-observed transition remains diagnosable. Ensure config publication cannot erase saved argv or affect a newer launch. Lifecycle telemetry follows independently.
 - [x] Factor one observation pass into scoped `session-repair` preview/apply for audited v2 unbound launches. Preview is read-only; apply rechecks owner/launch and writes ledger/catalog only. No PID liveness prerequisite for historical recorded evidence.
-- [ ] Run `go test ./cmd/internal/sessionledger ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/reviewcmd ./cmd/internal/opener -count=1` and relevant `-race` suites. Update atlas/Log, commit and close M2 via SDLC.
+- [x] Run `go test ./cmd/internal/sessionledger ./cmd/internal/sessioninventory ./cmd/internal/sessionwatch ./cmd/internal/couchcore ./cmd/internal/launcher ./cmd/internal/reviewcmd ./cmd/internal/opener -count=1` and relevant `-race` suites. Update atlas/Log, commit and close M2 via SDLC.
 
 | Risky function | Test strategy |
 | --- | --- |

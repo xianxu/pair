@@ -352,3 +352,97 @@ findings:
     detail: |
       ObserveAgentMetadata skips roots whose ListFiles fails (non-ErrStorageAbsent) or returns partial listings, and ResumeTargetForRuntimeLaunch (query.go:467) ignores the diagnostics and sets FreshRequired, so a transient EACCES/EIO abandons a materialized conversation X for a new UUID (createflow also removes the config). Make the probe tri-state (present / confirmed-absent / unknown); on unknown set neither NativeID nor FreshRequired and keep the provisional refusal; add a fake ListFiles-error test.
 ```
+
+---
+
+## Re-review — 2026-09-29T13:47:01-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 346 — Stale temporary store blocks Couch startup |
+| repo | pair |
+| issue file | workshop/issues/000346-stale-temporary-store.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 73203fc0d103a8c5a5d9490211a09d6055db9a00..81106f6ad724e35dc84eeb6ac5739fa9f0fe81b6 |
+| command | sdlc milestone-close --issue 346 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-29T13:47:01-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: medium
+```
+
+**VERDICT: SHIP.** The BR-14 fix works. A chosen ID is now accepted only when a listing positively shows its root filename. Absence is concluded only after a complete listing or when the storage root is absent. Any other failure leaves the identity unknown, and each consumer refuses before doing anything destructive: standalone restart refuses before writing markers or killing the session, the config picker refuses before removing the saved config, and Couch refuses before parking. The new tests cover a failed listing, a partial listing, a present file alongside an unrelated error, an unreadable ledger and conflicting bindings. I ran them and they pass. BR-12 is unchanged, but it is Minor and was already accepted for deferral. Nothing blocks the boundary. The new findings are two Minor notes about how the "unknown" state is represented and how its refusal is worded.
+
+1. **Strengths**
+   - `cmd/internal/sessioninventory/query.go:470-483`: "a matching filename proves presence even in a partial listing" is the right order of checks. A present file wins over unrelated diagnostics, and absence needs every diagnostic to be `DiagnosticStorageAbsent`. `TestChosenTargetListingFailureIsUnknown` checks both directions. Restoring the old `else { FreshRequired = true }` would make the `!got.FreshRequired` assertion fail, so the test would catch the regression.
+   - `cmd/internal/launcher/createflow.go:988-1030`: the picker reuses the typed projection it already read instead of probing a second time. That avoids a race where a second probe could turn an observed root into "unknown", and `TestConfigPickerReusesTypedResumeProjection` pins it.
+   - `restart.go` and `createflow.go` now treat a non-ENOENT ledger read error as a refusal instead of silently continuing. This covers more than the site BR-14 named, and `TestUnreadableLedgerRefusesRestartAndCreate` covers both paths.
+   - `TestCouchChosenUnknownMetadataRefusesBeforePark` checks that no runner ops happen and the process stays Live, so it checks what actually happens, not just the error text.
+   - The atlas and README were updated in the same commit for the new refusal behaviour.
+
+2. **Critical:** none.
+
+3. **Important:** none.
+
+4. **Minor**
+   - **"Unknown" has no field of its own.** BR-14 asked for a tri-state; it was delivered as "neither `NativeID` nor `FreshRequired` is set", and three places work it out separately:
+     - `ResumeTargetForRuntimeLaunch` (query.go:477)
+     - `couchcore/resume.go:377`, which loops over the diagnostics again; that loop is redundant, since the outer condition already implies unknown
+     - `launcher/ledger.go:75`, the `ResumeBlocked` predicate
+     
+     Also, the pure `ParseLedger` sets `ResumeBlocked=true` for every unconfirmed chosen entry, because the pure projection can't see filenames. So the field's meaning depends on which projection built it. See the family note after the findings block.
+   - **The refusal is permanent in some cases but tells the operator to retry.** A symlinked `~/.claude/projects/<dir>` is rejected as a non-regular entry (`ListingIssuesError`). That makes every unmaterialized chosen ID "unknown" permanently, yet the message says "retry when its storage can be listed". Refusing is correct here, because the file could sit behind the symlink. But the message should name the rejected entry and the fresh-start escape hatch (`pair restart --new-session` / fresh launch).
+
+5. **Test coverage**
+   - The fault seams (`incompleteNativeListing`, `SetError`, `unreadableLedgerRuntime`, a real symlink under the OS runtime) are all injectable, and each one forces a single, reproducible failure. That gives the ARCH-ORDER failed-probe cases proper coverage.
+   - **My runs:**
+     - `sessioninventory`, `sessionwatch` and `sessionledger` all pass.
+     - The named `launcher` regressions pass and the `couchcore` `Chosen|Resume` subset passes.
+     - The failures I saw are sandbox errors, not regressions: `TestCreateLayoutWrapperPreservesAgentCommand` failed with "operation not permitted", and several `couchcore` pty tests failed with "ptychild ... operation not permitted", which is the known sandbox limit on starting pty children. Re-run the full suite outside the sandbox before `sdlc close`.
+
+6. **Architecture**
+   - **ARCH-DRY:** pass on the picker (it reuses the projection). Minor flag on "unknown" being derived in three places.
+   - **ARCH-PURE:** pass. The decision sits in `ResumeTargetForRuntimeLaunch`, and the probe is injected through `Runtime`.
+   - **ARCH-PURPOSE:** pass. Every consumer (restart, picker, Couch) was covered in the same round, not only the site that was named.
+   - **ARCH-MOCK:** pass. The stateful fake runtime is used, and an OS-level symlink test checks it against the real filesystem.
+   - **ARCH-CONSTRAINTS:** pass. The probe reads filenames only, never transcript bodies.
+   - **ARCH-SECURE:** pass. An unreadable or partial listing now shows up as a refusal instead of being read as absence.
+   - **ARCH-ORDER:** pass on behaviour, since an uncertain result is no longer treated as absence. Minor flag: the tri-state is implicit (same issue as BR-12).
+   - **ARCH-FUNERAL:** pass. The fix creates nothing durable, and a refusal now keeps the saved config instead of removing it.
+
+7. **Plan revisions:** none needed. The issue Log entry for BR-14 matches the code.
+
+```findings
+dispose:
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      sessionwatch/run.go:84-92 still carries trackedTargets/boundRootNodeID/observationEpoch as independent fields; Minor, deferral previously accepted.
+  - id: BR-14
+    disposition: addressed
+    note: |
+      query.go:470-483 now returns neither NativeID nor FreshRequired when any non-absent diagnostic exists; TestChosenTargetListingFailureIsUnknown (failed + partial listing) goes red against the old else-branch; restart/picker/couch refuse before effects (restart_test, osruntime_test, relaunch_test).
+findings:
+  - id: new
+    severity: Minor
+    family: implicit-watcher-state
+    title: |
+      Chosen-ID "materialization unknown" is an implicit field combination re-derived in three places
+    detail: |
+      ResumeTarget encodes unknown as NativeID=="" and !FreshRequired; couchcore/resume.go:377 (redundant diagnostics loop) and launcher/ledger.go:75 (ResumeBlocked) re-derive it, and pure ParseLedger sets ResumeBlocked for every unconfirmed chosen entry. Rule: a state with more than two legal values goes on the producing type as a tagged enum (e.g. Materialization present/absent/unknown) that consumers switch on; apply it to ResumeTarget and to the watcher phases from BR-12.
+  - id: new
+    severity: Minor
+    family: outage-diagnostic-actionability
+    title: |
+      A persistent incomplete listing (such as a symlinked project dir) refuses with a "retry" message that never succeeds
+    detail: |
+      A ListingIssuesError from a non-regular entry is permanent, not transient. Rule: every unknown-identity refusal names the failing root or entry and the explicit fresh-start escape hatch (pair restart --new-session or a fresh launch), rather than only telling the operator to retry.
+```
+
+**Family note.** This is the 2nd finding in `implicit-watcher-state` and the 2nd in `outage-diagnostic-actionability`. In both cases the findings block above states the rule to fix rather than the single instance: one typed enum for any state with more than two legal values, and refusal messages that name the failing entry and the escape hatch.
