@@ -83,6 +83,21 @@ agent pane. The operator had to guess Alt+c again. The review pane's bottom bar
   the draft pane.
 - Live smoke by the operator: open review with Alt+c, read the hint, Esc back to the agent.
 
+### Revised acceptance after operator smoke feedback
+
+The following supersedes the agent-return destination above; the remaining
+marker-navigation, mode-preservation and help requirements still apply.
+
+- Draft nvim displays Alt+c review, including while a review is active.
+- The review bar advertises Alt+Return submission in both idle/waiting states.
+- Esc in review normal mode and Alt+c hide review and focus draft nvim; an
+  internal popup closes first on Esc. Insert/visual Esc keeps its Vim meaning.
+- Closing scrollback or changelog with Esc or :qa emits annotations before
+  hiding the floating layer and focusing draft. A retained review must not
+  become visible underneath, and remains available through Alt+c.
+- Headless controls, draft status and stacked-viewer regressions cover those
+  paths; operator confirms the revised smoke behavior.
+
 ## Plan
 
 - [x] Pin idle/waiting status hints, normal-mode Esc, insert/visual Escape,
