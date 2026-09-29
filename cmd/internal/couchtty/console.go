@@ -129,11 +129,20 @@ type Console struct {
 	refreshResults  chan menuRefreshResult
 	refreshSchedule RefreshSchedule
 	// Slot quick-status glyph refresh (pair#317); see console_slotgit.go.
-	slotGitProbe       SlotGitProbe
-	slotGitRequests    chan struct{}
-	slotGitResults     chan slotGitResult
-	slotGitSchedule    RefreshSchedule
-	slotGitInterval    time.Duration
+	slotGitProbe    SlotGitProbe
+	slotGitRequests chan struct{}
+	slotGitResults  chan slotGitResult
+	slotGitSchedule RefreshSchedule
+	slotGitInterval time.Duration
+	// Idle-fading activity refresh (pair#247); see console_activity.go.
+	activityProbe    ActivityProbe
+	activityRequests chan struct{}
+	activityResults  chan activityResult
+	activitySchedule RefreshSchedule
+	activityInterval time.Duration
+	// now is the console's clock for idle fading, so tests can cross the day
+	// and three-day bands without waiting.
+	now                func() time.Time
 	orientationResults chan orientationWatchResult
 	orientationWatches map[couchcore.ThreadAddress]orientationWatch
 	// orientationFrom records which producer wrote each menu.Orientation entry;
@@ -186,6 +195,10 @@ func New(host hostty.Host, stdin io.Reader) *Console {
 		slotGitRequests:     make(chan struct{}, 1),
 		slotGitResults:      make(chan slotGitResult, 1),
 		slotGitInterval:     defaultSlotGitInterval,
+		activityRequests:    make(chan struct{}, 1),
+		activityResults:     make(chan activityResult, 1),
+		activityInterval:    defaultActivityInterval,
+		now:                 time.Now,
 		orientationResults:  make(chan orientationWatchResult, 8),
 		continuationResults: make(chan continuationScanResult, 1),
 		continuations:       make(map[couchcore.ThreadAddress]continuationWatch),
@@ -541,7 +554,9 @@ func (c *Console) switchTo(id string, force bool, how arrival) (stayed bool) {
 	stayed, err := c.selectActor(id, force, how)
 	c.terminalError(err)
 	// Arriving at a slot is when its glyph is read; refresh off the render path.
+	// A switch is also operator activity, so the fades refresh too (pair#247).
 	c.requestSlotGit()
+	c.requestActivity()
 	return stayed
 }
 
@@ -592,6 +607,8 @@ func (c *Console) Run() (code int) {
 	go func() { defer c.workers.Done(); c.operationQueue.Run(c.stop) }()
 	slotGitTicker := time.NewTicker(c.slotGitInterval)
 	defer slotGitTicker.Stop()
+	activityTicker := time.NewTicker(c.activityInterval)
+	defer activityTicker.Stop()
 	var terminated <-chan os.Signal
 	if h, ok := c.host.(hostty.TerminationHost); ok {
 		terminated = h.Terminated()
@@ -818,6 +835,12 @@ func (c *Console) Run() (code int) {
 			c.advanceSlotGit(RefreshScheduleEvent{Kind: RefreshRequested})
 		case result := <-c.slotGitResults:
 			c.finishSlotGit(result)
+		case <-activityTicker.C:
+			c.advanceActivity(RefreshScheduleEvent{Kind: RefreshRequested})
+		case <-c.activityRequests:
+			c.advanceActivity(RefreshScheduleEvent{Kind: RefreshRequested})
+		case result := <-c.activityResults:
+			c.finishActivity(result)
 		case result := <-c.orientationResults:
 			c.finishOrientation(result)
 		case result := <-c.continuationResults:

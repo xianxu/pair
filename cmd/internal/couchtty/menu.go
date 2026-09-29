@@ -262,6 +262,10 @@ const (
 	MenuEventReattachArm
 	// MenuEventSlotGit lands one slot git refresh pass (pair#317).
 	MenuEventSlotGit
+	// MenuEventActivity lands one idle-fading activity pass (pair#247).
+	MenuEventActivity
+	// MenuEventPalette records a colour the host terminal reported (pair#247).
+	MenuEventPalette
 )
 
 type MenuEvent struct {
@@ -295,6 +299,12 @@ type MenuEvent struct {
 	// the paths whose probe failed. Together they are the pass's probe set.
 	SlotGit       map[string]couchcore.SlotGitStatus
 	SlotGitFailed map[string]bool
+	// Activity and ActivityFailed are one activity pass (pair#247), shaped
+	// like SlotGit: the threads observed and the threads whose probe failed.
+	Activity       map[couchcore.ThreadAddress]time.Time
+	ActivityFailed map[couchcore.ThreadAddress]bool
+	// Palette is the host terminal's colours as known after one reply.
+	Palette Palette
 }
 
 // MenuEffect is an operation request for the thin Console shell.
@@ -408,7 +418,15 @@ func ReduceMenu(state MenuState, event MenuEvent) (MenuState, []MenuEffect) {
 		return next, nil
 	}
 	if event.Kind == MenuEventSlotGit {
-		next.SlotGit = mergeSlotGit(next.SlotGit, event.SlotGit, event.SlotGitFailed)
+		next.SlotGit = mergeObservations(next.SlotGit, event.SlotGit, event.SlotGitFailed)
+		return next, nil
+	}
+	if event.Kind == MenuEventActivity {
+		next.Activity = mergeObservations(next.Activity, event.Activity, event.ActivityFailed)
+		return next, nil
+	}
+	if event.Kind == MenuEventPalette {
+		next.Palette = event.Palette
 		return next, nil
 	}
 	if event.Kind == MenuEventOperationResult && event.Background {
@@ -2053,17 +2071,19 @@ func hierarchyNavigationKey(key PanelKey, forward PanelKeyKind) PanelKey {
 	return key
 }
 
-// mergeSlotGit rebuilds the observations over one pass's probe set: a fresh
-// observation replaces, a failed probe keeps the last value (a stale glyph beats
-// an error in chrome), and a path the pass no longer probes is dropped.
-func mergeSlotGit(prev, observed map[string]couchcore.SlotGitStatus, failed map[string]bool) map[string]couchcore.SlotGitStatus {
-	next := make(map[string]couchcore.SlotGitStatus, len(observed)+len(failed))
-	for path, status := range observed {
-		next[path] = status
+// mergeObservations rebuilds one background pass's observations over its probe
+// set: a fresh observation replaces, a failed probe keeps the last value (a
+// stale glyph or fade beats an error in chrome, and a stale thread must not
+// flash bright), and a key the pass no longer probes is dropped. Slot git
+// (pair#317) and idle activity (pair#247) share it.
+func mergeObservations[K comparable, V any](prev, observed map[K]V, failed map[K]bool) map[K]V {
+	next := make(map[K]V, len(observed)+len(failed))
+	for key, value := range observed {
+		next[key] = value
 	}
-	for path := range failed {
-		if status, ok := prev[path]; ok {
-			next[path] = status
+	for key := range failed {
+		if value, ok := prev[key]; ok {
+			next[key] = value
 		}
 	}
 	return next
@@ -2088,6 +2108,12 @@ func cloneMenuState(state MenuState) MenuState {
 		next.SlotGit = make(map[string]couchcore.SlotGitStatus, len(state.SlotGit))
 		for path, status := range state.SlotGit {
 			next.SlotGit[path] = status
+		}
+	}
+	if state.Activity != nil {
+		next.Activity = make(map[couchcore.ThreadAddress]time.Time, len(state.Activity))
+		for address, at := range state.Activity {
+			next.Activity[address] = at
 		}
 	}
 	if state.Attention != nil {

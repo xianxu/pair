@@ -1367,6 +1367,8 @@ The events:
 - `pass-seeded`, with `pending=N`;
 - `slot-git` (`pair#317`), with `ok=N failed=M` for one slot quick-status pass
   that probed at least one checkout;
+- `activity` (`pair#247`), with `ok=N failed=M` for one idle-fading activity pass
+  that probed at least one live thread;
 - `reattach-start`, with `attempt=N`;
 - `reattach-done`, with `ok`, a resume diagnostic code, or `error`;
 - `no-destination` (`pair#265`), with the abandoned operation and the
