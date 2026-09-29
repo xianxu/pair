@@ -558,11 +558,18 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 			// looks the same in both places. Never selected: the cursor skips it.
 			plain = placeholderSGR + plain + "\x1b[0m"
 		} else if color256 && frame.View != MenuViewFocus {
-			outer := ""
+			outer, amber := "", attentionSGR
 			if !thread.Live() {
 				outer = ageColor(AgeBandFor(now, thread.LastActiveAt))
+			} else if len(state.Attention[thread.Address]) == 0 {
+				// Idle fading (pair#247) applies to live rows without attention;
+				// the selected row took the branch above. An unprobed thread has
+				// no entry and stays fresh.
+				at, known := state.Activity[thread.Address]
+				level := IdleLevelFor(now, at, known)
+				outer, amber = FadeStyle(state.Palette, level, baseDefault), FadeStyle(state.Palette, level, baseAmber)
 			}
-			plain = colorMenuGlyph(plain, head, entry.Glyph, outer)
+			plain = colorMenuGlyph(plain, head, entry.Glyph, outer, amber)
 			if outer != "" {
 				plain = outer + plain + "\x1b[0m"
 			}
@@ -616,15 +623,17 @@ func renderRootMenuFrame(state MenuState, frame MenuFrame, width, height int, no
 // colorMenuGlyph draws each slot glyph character in its own colour when the clip
 // kept the glyph whole, restoring the row's style after each coloured one. The
 // selected row is re-rendered plain by selectedMenuLine, so it never gets here.
-func colorMenuGlyph(line, head, glyph, outer string) string {
+// amber is the colour of an attention glyph on this row: attentionSGR, or its
+// idle-faded form (pair#247).
+func colorMenuGlyph(line, head, glyph, outer, amber string) string {
 	if glyph == "" || !strings.HasPrefix(line, head+glyph) {
 		return line
 	}
 	var b strings.Builder
 	b.WriteString(head)
 	for _, r := range glyph {
-		if sgr := slotGlyphSGR(r); sgr != "" {
-			b.WriteString(sgr + string(r) + "\x1b[0m" + outer)
+		if slotGlyphSGR(r) != "" {
+			b.WriteString(amber + string(r) + "\x1b[0m" + outer)
 		} else {
 			b.WriteRune(r)
 		}

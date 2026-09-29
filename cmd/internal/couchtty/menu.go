@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/checkpoint"
@@ -196,6 +197,13 @@ type MenuState struct {
 	// SlotGit is the last slot git observation per checkout path (pair#317),
 	// rebuilt over each refresh's probe set. Display evidence only.
 	SlotGit map[string]couchcore.SlotGitStatus
+	// Activity is each live thread's last observed activity (pair#247): its
+	// operator's input or its agent's work. A thread with no entry has not been
+	// probed yet and draws unfaded. Display evidence only.
+	Activity map[couchcore.ThreadAddress]time.Time
+	// Palette is what the host terminal reported about its colours, which idle
+	// fading blends toward (pair#247). One copy, read by both renderers.
+	Palette Palette
 }
 
 // MenuOperationOrigin captures the exact frame that emitted asynchronous
