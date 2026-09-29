@@ -1,6 +1,7 @@
 package reviewcmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -28,15 +29,33 @@ func RunTargetCLI(args []string, getenv func(string) string, stdout, stderr io.W
 // RunDefinitionCLI is the pair-review-definition command body.
 func RunDefinitionCLI(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
 	term := ""
-	if len(args) >= 2 && args[0] == "--term" {
-		term = args[1]
+	var reviewContext json.RawMessage
+	seen := map[string]bool{}
+	for len(args) > 0 && (args[0] == "--term" || args[0] == "--context") {
+		flag := args[0]
+		if len(args) < 2 || seen[flag] {
+			fmt.Fprintln(stderr, "pair-review-definition: flags need one value and cannot repeat")
+			return 2
+		}
+		seen[flag] = true
+		if flag == "--term" {
+			term = args[1]
+		} else {
+			reviewContext = json.RawMessage(args[1])
+			if len(reviewContext) == 0 {
+				fmt.Fprintln(stderr, "pair-review-definition: empty context")
+				return 2
+			}
+		}
 		args = args[2:]
 	}
+
 	if len(args) < 2 {
-		fmt.Fprintf(stderr, "usage: pair-review-definition [--term TERM] <request-id> <definition...>\n")
+		fmt.Fprintf(stderr, "usage: pair-review-definition [--term TERM] [--context JSON] <request-id> <definition...>\n")
 		return 2
 	}
 	return RunDefinition(DefinitionOptions{
+		Context:    reviewContext,
 		RequestID:  args[0],
 		Term:       term,
 		Definition: strings.Join(args[1:], " "),
@@ -64,6 +83,22 @@ func RunOpenCLI(args []string, getenv func(string) string, stderr io.Writer) int
 
 // RunReadinessCLI is the pair-review-readiness command body.
 func RunReadinessCLI(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "--resolve" {
+		if len(args) != 2 && (len(args) != 6 || args[2] != "--selected" || args[4] != "--head") {
+			fmt.Fprintln(stderr, "usage: pair review readiness --resolve <directory> [--selected <relative-file> --head <sha>]")
+			return 2
+		}
+		selected, head := "", ""
+		if len(args) == 6 {
+			selected, head = args[3], args[5]
+		}
+		result := resolveIdentity(NewOSRuntime(), args[1], selected, head)
+		if err := json.NewEncoder(stdout).Encode(result); err != nil {
+			return 1
+		}
+		return 0
+	}
+
 	prepare := false
 	if len(args) > 0 && args[0] == "--prepare" {
 		prepare = true

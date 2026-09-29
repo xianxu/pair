@@ -2,6 +2,7 @@ package reviewcmd
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -13,20 +14,24 @@ import (
 type spawnCall struct{ cwd, lua, absFile, nvimPid string }
 
 type fakeRuntime struct {
-	files       map[string]string
-	wrote       map[string]string
-	removed     []string
-	sizes       map[string]int64
-	alive       map[string]bool
-	killed      []string
-	gitFn       func(dir string, args []string) (string, error)
-	gitCalls    [][]string
-	classify    string
-	classErr    error
-	spawn       *spawnCall
-	querySID    string
-	queryStatus sessioninventory.BindingStatus
-	writeErr    error
+	identityBranch  string
+	identityHistory string
+	identityHead    string
+	identityTracked map[string]bool
+	files           map[string]string
+	wrote           map[string]string
+	removed         []string
+	sizes           map[string]int64
+	alive           map[string]bool
+	killed          []string
+	gitFn           func(dir string, args []string) (string, error)
+	gitCalls        [][]string
+	classify        string
+	classErr        error
+	spawn           *spawnCall
+	querySID        string
+	queryStatus     sessioninventory.BindingStatus
+	writeErr        error
 }
 
 func newFake() *fakeRuntime {
@@ -69,6 +74,10 @@ func (f *fakeRuntime) LogicalDir(file string) string {
 }
 func (f *fakeRuntime) PhysicalDir(file string) string { return f.LogicalDir(file) }
 func (f *fakeRuntime) Git(dir string, args ...string) (string, error) {
+	if len(args) > 0 && args[0] == "checkout" && f.identityHead != "" {
+		f.identityBranch = args[len(args)-1]
+	}
+
 	f.gitCalls = append(f.gitCalls, append([]string{dir}, args...))
 	if f.gitFn != nil {
 		return f.gitFn(dir, args)
@@ -223,6 +232,7 @@ func gitScript(m map[string]struct {
 
 func TestRunReadinessJSON(t *testing.T) {
 	rt := newFake()
+	initIdentityFake(rt, "review/doc")
 	rt.classify = "resume"
 	rt.gitFn = gitScript(map[string]struct {
 		out string
@@ -256,6 +266,7 @@ func TestRunReadinessJSON(t *testing.T) {
 // commit, verify-tracked, clean-guard, branch-create, mark ready.
 func TestRunReadinessPrepareTrack(t *testing.T) {
 	rt := newFake()
+	initIdentityFake(rt, "main")
 	rt.classify = "track"
 	// After the add+commit, ls-files succeeds (tracked) and status is clean; the
 	// review branch doesn't exist yet.
@@ -295,6 +306,7 @@ func TestRunReadinessPrepareTrack(t *testing.T) {
 // The --prepare resume path keeps the current review branch and does NOT checkout.
 func TestRunReadinessPrepareResume(t *testing.T) {
 	rt := newFake()
+	initIdentityFake(rt, "review/doc")
 	rt.classify = "resume"
 	rt.gitFn = gitScript(map[string]struct {
 		out string
@@ -319,6 +331,7 @@ func TestRunReadinessPrepareResume(t *testing.T) {
 
 func TestRunReadinessPrepareNew(t *testing.T) {
 	rt := newFake()
+	initIdentityFake(rt, "main")
 	rt.classify = "new"
 	rt.gitFn = func(dir string, args []string) (string, error) {
 		switch args[0] {
@@ -379,17 +392,17 @@ func TestRunReadinessPrepareStopAndInteract(t *testing.T) {
 	}
 }
 
-func TestRunOpenReplacesLivePaneAndSpawns(t *testing.T) {
+func TestRunOpenSpawnsWhenNoLivePane(t *testing.T) {
 	rt := newFake()
 	rt.sizes["/repo/doc.md"] = 10
 	rt.files["/dd/review-t.open"] = "777\n"
-	rt.alive["777"] = true
+	rt.alive["777"] = false
 	code := RunOpen(OpenOptions{File: "/repo/doc.md", Tag: "t", DataDir: "/dd", PairHome: "/h"}, rt, &bytes.Buffer{})
 	if code != 0 {
 		t.Fatalf("code = %d", code)
 	}
-	if len(rt.killed) != 1 || rt.killed[0] != "777" {
-		t.Fatalf("expected kill of the live review pane, killed=%v", rt.killed)
+	if len(rt.killed) != 0 {
+		t.Fatalf("unexpected kill: %v", rt.killed)
 	}
 	if rt.spawn == nil || rt.spawn.lua != "/h/nvim/review.lua" || rt.spawn.absFile != "/repo/doc.md" {
 		t.Fatalf("spawn = %+v", rt.spawn)
@@ -420,3 +433,41 @@ func gitCalled(rt *fakeRuntime, want ...string) bool {
 	}
 	return false
 }
+
+func initIdentityFake(f *fakeRuntime, branch string) {
+	f.identityBranch = branch
+	f.identityHead = strings.Repeat("a", 40)
+	f.identityTracked = map[string]bool{"doc.md": true}
+	if strings.HasPrefix(branch, "review/") {
+		f.identityHistory = "\x00" + f.identityHead + "\x00review(doc): human r1\x00\x00\ndoc.md\x00"
+	}
+}
+func (f *fakeRuntime) GitContext(ctx context.Context, limit int, dir string, args ...string) (string, error) {
+	if f.identityHead == "" {
+		return f.Git(dir, args...)
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	switch args[0] {
+	case "rev-parse":
+		if args[1] == "--show-toplevel" {
+			return "/repo\n", nil
+		}
+		return f.identityHead + "\n", nil
+	case "symbolic-ref":
+		return f.identityBranch + "\n", nil
+	case "log":
+		return f.identityHistory, nil
+	case "ls-files":
+		p := args[len(args)-1]
+		if f.identityTracked[p] {
+			return p + "\x00", nil
+		}
+		return "", fmt.Errorf("not tracked")
+	}
+	return "", fmt.Errorf("unexpected identity query: %v", args)
+}
+
+func (f *fakeRuntime) CanonicalDir(dir string) (string, error)  { return dir, nil }
+func (f *fakeRuntime) RegularFileWithin(root, rel string) error { return nil }

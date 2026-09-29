@@ -1,11 +1,16 @@
 package reviewcmd
 
 import (
+	"bytes"
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -104,4 +109,54 @@ func (OSRuntime) EstablishedSessionID(dataDir, scopeKey, tag, agent string) (str
 		return "", query.Status
 	}
 	return query.Root.NativeID, query.Status
+}
+
+func (OSRuntime) CanonicalDir(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	return filepath.EvalSymlinks(abs)
+}
+func (OSRuntime) RegularFileWithin(root, rel string) error {
+	path := filepath.Join(root, rel)
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	if resolved != path {
+		return fmt.Errorf("review document traverses a symlink")
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("review document is not a regular file")
+	}
+	return nil
+}
+
+type limitedIdentityBuffer struct {
+	buffer bytes.Buffer
+	limit  int
+}
+
+func (b *limitedIdentityBuffer) Write(p []byte) (int, error) {
+	if len(p) > b.limit-b.buffer.Len() {
+		return 0, errors.New("review history exceeds 8 MiB")
+	}
+	return b.buffer.Write(p)
+}
+func (OSRuntime) GitContext(ctx context.Context, limit int, dir string, args ...string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+	cmd.WaitDelay = 50 * time.Millisecond
+	out := &limitedIdentityBuffer{limit: limit}
+	cmd.Stdout = out
+	cmd.Stderr = io.Discard
+	err := cmd.Run()
+	if ctx.Err() != nil {
+		err = ctx.Err()
+	}
+	return out.buffer.String(), err
 }

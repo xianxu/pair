@@ -1,6 +1,7 @@
 package reviewcmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,6 +16,9 @@ import (
 // (ReadFile/WriteFile/WriteAtomic/Remove/FileSize) come from an embedded osfs.FS
 // on the OSRuntime; git/nvim-classify/zellij-spawn/session inventory are the domain seams.
 type Runtime interface {
+	GitContext(context.Context, int, string, ...string) (string, error)
+	CanonicalDir(string) (string, error)
+	RegularFileWithin(string, string) error
 	ReadFile(path string) (string, error)
 	WriteFile(path, data string) error
 	WriteAtomic(path, data string) error // for review-target-<tag>.json (nvim Alt+c re-reads it)
@@ -82,6 +86,7 @@ func RunTarget(opts TargetOptions, rt Runtime, stdout, stderr io.Writer) int {
 // ── definition ────────────────────────────────────────────────────────────
 
 type DefinitionOptions struct {
+	Context                      json.RawMessage
 	RequestID, Term              string
 	Definition                   string
 	Tag, Agent                   string
@@ -89,6 +94,14 @@ type DefinitionOptions struct {
 }
 
 func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer) int {
+	if len(opts.Context) > 0 {
+		var fields map[string]string
+		if err := json.Unmarshal(opts.Context, &fields); err != nil || len(fields) != 4 || fields["repo"] == "" || fields["branch"] == "" || fields["file"] == "" || fields["activation"] == "" {
+			fmt.Fprintln(stderr, "pair-review-definition: context requires repo, branch, file and activation strings")
+			return 2
+		}
+	}
+
 	if opts.DataDir == "" {
 		fmt.Fprintf(stderr, "pair-review-definition: PAIR_DATA_DIR not set\n")
 		return 1
@@ -110,7 +123,8 @@ func RunDefinition(opts DefinitionOptions, rt Runtime, stdout, stderr io.Writer)
 	agent := orDefault(opts.Agent, "claude")
 	sid := resolveTargetSession(rt, opts.DataDir, opts.ScopeKey, tag, agent, opts.SessionID)
 	out := paths.ReviewDefinitionResult()
-	if err := rt.WriteAtomic(out, definitionJSON(opts.RequestID, opts.Term, opts.Definition, sid)); err != nil {
+	body, _ := json.Marshal(definitionDoc{RequestID: opts.RequestID, Term: opts.Term, Definition: opts.Definition, Session: sid, Context: opts.Context})
+	if err := rt.WriteAtomic(out, string(body)); err != nil {
 		fmt.Fprintf(stderr, "pair-review-definition: write %s: %v\n", out, err)
 		return 1
 	}
@@ -154,8 +168,8 @@ func RunOpen(opts OpenOptions, rt Runtime, stderr io.Writer) int {
 		return 1
 	}
 
-	// Single review pane: replace any LIVE review (kill the old nvim → its
-	// close_on_exit floating pane self-dismisses) before spawning the new one.
+	// A live pane owns its buffers and pending protocol state. Only its private
+	// activation endpoint may retarget it; never replace it from this launcher.
 	paths, err := artifactpath.ResolveScoped(opts.DataDir, opts.Tag)
 	if err != nil {
 		fmt.Fprintf(stderr, "pair-review-open: resolve artifact namespace: %v\n", err)
@@ -164,7 +178,8 @@ func RunOpen(opts OpenOptions, rt Runtime, stderr io.Writer) int {
 	state := paths.ReviewOpen()
 	if content, err := rt.ReadFile(state); err == nil {
 		if old := firstLine(content); old != "" && rt.ProcessAlive(old) {
-			rt.Kill(old)
+			fmt.Fprintln(stderr, "pair-review-open: a live review pane exists; use Alt+C to activate it, or finish and close it first")
+			return 1
 		}
 		rt.Remove(state)
 	}
@@ -190,7 +205,10 @@ type ReadinessOptions struct {
 }
 
 // gitInfo holds the non-boolean git facts gathered alongside ReadinessFacts.
-type gitInfo struct{ abs, top, branch, scoped string }
+type gitInfo struct {
+	abs, top, branch, scoped string
+	identity                 ReviewIdentity
+}
 
 func RunReadiness(opts ReadinessOptions, rt Runtime, stdout, stderr io.Writer) int {
 	if opts.File == "" {
@@ -200,6 +218,10 @@ func RunReadiness(opts ReadinessOptions, rt Runtime, stdout, stderr io.Writer) i
 	readinessLua := filepath.Join(opts.PairHome, "nvim", "review", "readiness.lua")
 	dir := rt.PhysicalDir(opts.File)
 	facts, gi := gatherGitFacts(rt, dir, opts.File)
+	// Explicit selection may establish the document before the first round.
+	if opts.Prepare && facts.IsTracked && gi.identity.Status == "missing" {
+		facts.FileMatches = true
+	}
 
 	reviewCase, err := rt.Classify(readinessLua, facts)
 	if err != nil || reviewCase == "" {
@@ -208,6 +230,10 @@ func RunReadiness(opts ReadinessOptions, rt Runtime, stdout, stderr io.Writer) i
 	}
 
 	if opts.Prepare {
+		if facts.OnReviewBranch && (gi.identity.Status == "invalid" || gi.identity.Status == "ambiguous") {
+			fmt.Fprintf(stdout, "review not prepared: %s %s.\n", gi.identity.Status, gi.identity.Diagnostic)
+			return 1
+		}
 		return prepare(opts, rt, stdout, reviewCase, facts, gi)
 	}
 
@@ -250,18 +276,14 @@ func gatherGitFacts(rt Runtime, dir, file string) (ReadinessFacts, gitInfo) {
 		f.IsClean = true
 	}
 	if f.OnReviewBranch {
-		if out, err := rt.Git(dir, "log", "-1", "--name-only", "--pretty=format:", "--grep=^review("); err == nil {
-			for _, line := range strings.Split(out, "\n") {
-				if strings.TrimSpace(line) != "" {
-					gi.scoped = strings.TrimSpace(line)
-					break
-				}
-			}
-		}
-		if gi.scoped != "" && gi.top != "" && filepath.Join(gi.top, gi.scoped) == gi.abs {
-			f.FileMatches = true
+		identity := resolveIdentity(rt, dir, "", "")
+		gi.identity = identity
+		if identity.Status == "resolved" {
+			gi.scoped = identity.File
+			f.FileMatches = filepath.Join(identity.Repo, identity.File) == gi.abs
 		}
 	}
+
 	return f, gi
 }
 
@@ -320,11 +342,30 @@ func prepare(opts ReadinessOptions, rt Runtime, stdout io.Writer, reviewCase str
 		action = "resumed"
 	}
 
-	// Mark the target ready in-process (the shell shelled out to pair-review-target).
+	// Verify checkout and tracked-file authority after every Git effect. A
+	// successful explicit preparation is the only issuer of a first-open receipt.
+	identity := resolveIdentity(rt, gi.top, "", "")
+	if identity.Status == "missing" {
+		rel, err := filepath.Rel(identity.Repo, gi.abs)
+		if err == nil {
+			identity = resolveIdentity(rt, gi.top, rel, identity.Head)
+		}
+	}
+	if identity.Status != "resolved" || identity.Branch != reviewBranch || filepath.Join(identity.Repo, identity.File) != gi.abs {
+		fmt.Fprintf(stdout, "review not prepared: cannot verify selected checkout: %s %s.\n", identity.Status, identity.Diagnostic)
+		return 1
+	}
 	sid := resolveTargetSession(rt, opts.DataDir, opts.ScopeKey, orDefault(opts.Tag, "default"), orDefault(opts.Agent, "claude"), opts.SessionID)
 	if opts.DataDir != "" {
-		if paths, err := artifactpath.ResolveScoped(opts.DataDir, orDefault(opts.Tag, "default")); err == nil {
-			_ = rt.WriteAtomic(paths.ReviewTarget(), targetJSON(gi.abs, "ready", sid))
+		paths, err := artifactpath.ResolveScoped(opts.DataDir, orDefault(opts.Tag, "default"))
+		if err != nil {
+			fmt.Fprintf(stdout, "review not prepared: %v\n", err)
+			return 1
+		}
+		body, _ := json.Marshal(targetDoc{File: gi.abs, Status: "ready", Session: sid, Identity: &identity})
+		if err = rt.WriteAtomic(paths.ReviewTarget(), string(body)); err != nil {
+			fmt.Fprintf(stdout, "review not prepared: cannot publish receipt: %v\n", err)
+			return 1
 		}
 	}
 
