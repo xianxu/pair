@@ -214,6 +214,24 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: false
+    - "n": 7
+      timestamp: "2026-09-29T13:57:02-07:00"
+      agent: claude
+      dispose:
+        - id: BR-12
+          disposition: not-addressed
+          note: 'Code unchanged (watcher phases still separate fields); explicitly deferred to #350 with a typed-state Done-when. Minor, non-blocking.'
+          round: 7
+        - id: BR-15
+          disposition: not-addressed
+          note: 'Unknown materialization still re-derived by consumers; deferred to #350 (single typed authority consumed by launcher and Couch). Minor, non-blocking.'
+          round: 7
+        - id: BR-16
+          disposition: not-addressed
+          note: 'resume.go:314 still says only "retry"; deferred to #350, whose Done-when requires naming the failed root/entry plus an explicit fresh-start action. Minor, non-blocking.'
+          round: 7
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#346 (boundary-review)
@@ -307,6 +325,14 @@ later rounds disposed of them. Generated — edit the gate, not this file.
   ResumeTarget encodes unknown as NativeID=="" and !FreshRequired; couchcore/resume.go:377 (redundant diagnostics loop) and launcher/ledger.go:75 (ResumeBlocked) re-derive it, and pure ParseLedger sets ResumeBlocked for every unconfirmed chosen entry. Rule: a state with more than two legal values goes on the producing type as a tagged enum (e.g. Materialization present/absent/unknown) that consumers switch on; apply it to ResumeTarget and to the watcher phases from BR-12.
 - **BR-16** [Minor] `outage-diagnostic-actionability` A persistent incomplete listing (such as a symlinked project dir) refuses with a "retry" message that never succeeds
   A ListingIssuesError from a non-regular entry is permanent, not transient. Rule: every unknown-identity refusal names the failing root or entry and the explicit fresh-start escape hatch (pair restart --new-session or a fresh launch), rather than only telling the operator to retry.
+
+## Round 7 — 2026-09-29T13:57:02-07:00 (claude) — passed
+
+### Disposed
+
+- BR-12 — not-addressed — Code unchanged (watcher phases still separate fields); explicitly deferred to #350 with a typed-state Done-when. Minor, non-blocking.
+- BR-15 — not-addressed — Unknown materialization still re-derived by consumers; deferred to #350 (single typed authority consumed by launcher and Couch). Minor, non-blocking.
+- BR-16 — not-addressed — resume.go:314 still says only "retry"; deferred to #350, whose Done-when requires naming the failed root/entry plus an explicit fresh-start action. Minor, non-blocking.
 
 ## Open findings
 
