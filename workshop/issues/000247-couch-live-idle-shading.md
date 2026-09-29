@@ -8,6 +8,7 @@ updated: 2026-09-28
 estimate_hours: 4.35
 card_mirror: 'c991ef7b9e7d16802fb6f526d44cc2836083d00d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T21:31:56-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Shade live Couch threads by idle time
