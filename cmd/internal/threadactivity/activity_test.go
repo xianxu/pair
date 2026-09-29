@@ -88,3 +88,16 @@ func TestLatestWithAnUnresolvablePathStillAsksTheSession(t *testing.T) {
 		t.Fatalf("Latest = %v, want the transcript %v", got, base)
 	}
 }
+
+func TestInScopeResolvesTheRepositoryScopeDirectory(t *testing.T) {
+	got, err := InScope("/data", "0123456789abcdef", "work", "codex")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ScopeDir != "/data/repos/0123456789abcdef" || got.Scope != "0123456789abcdef" || got.Tag != "work" || got.Agent != "codex" {
+		t.Fatalf("InScope = %+v", got)
+	}
+	if _, err := InScope("/data", "../escape", "work", "codex"); err == nil {
+		t.Fatal("an invalid scope resolved")
+	}
+}

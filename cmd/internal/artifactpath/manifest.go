@@ -784,6 +784,8 @@ var NonArtifactSources = []string{
 	"cmd/internal/couchtty/panelkeys.go",
 	"cmd/internal/couchtty/reserve.go",
 	"cmd/internal/couchtty/idle_shade.go",
+	"cmd/internal/couchtty/console_activity.go",
+	"cmd/internal/couchtty/console_palette.go",
 	"cmd/internal/couchtty/switchrule.go",
 	"cmd/internal/couchtty/trace.go",
 	"cmd/internal/ctxmeter/ctxmeter.go",

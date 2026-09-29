@@ -33,6 +33,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/keyhelp"
 	"github.com/xianxu/pair/cmd/internal/launcher"
 	"github.com/xianxu/pair/cmd/internal/runtimebundle"
+	"github.com/xianxu/pair/cmd/internal/threadactivity"
 	"github.com/xianxu/pair/cmd/internal/workbenchshortcut"
 )
 
@@ -496,6 +497,7 @@ func consoleRunnerFor(name string, stdin io.Reader, hasTerminal bool, inFile, ou
 	_ = console.SetInputTrace(getenv("COUCH_INPUT_TRACE"), options)
 	_ = console.SetEventTrace(getenv("COUCH_TRACE"), processStartedAt, options)
 	_ = console.SetMouseTrace(getenv("COUCH_MOUSE_TRACE"), options)
+	wireIdleFading(console, getenv)
 
 	profile := sync.OnceValues(func() ([]string, error) {
 		root := workbenchshortcut.DataDirFromEnv()
@@ -881,4 +883,23 @@ func usageWith(w io.Writer, bindings []couchkeys.Binding) {
 		}
 	}
 	fmt.Fprintln(w, "Other workbench keys reach the focused agent. Click another pane to leave it.")
+}
+
+// wireIdleFading hands the console what idle fading needs from the environment
+// (pair#247): the colour modes, and a probe that reads each live thread's last
+// activity through the one shared definition. Each thread's sources live under
+// its own repository's scope directory, not the global data root.
+func wireIdleFading(console *couchtty.Console, getenv func(string) string) {
+	colorTerm := strings.ToLower(getenv("COLORTERM"))
+	console.SetColorModes(colorTerm == "truecolor" || colorTerm == "24bit", getenv("NO_COLOR") != "")
+	home := getenv("HOME")
+	dataDir := launcher.ResolveDataDir(home, getenv("XDG_DATA_HOME"))
+	runtime := threadactivity.NewOSRuntime(home)
+	console.SetActivityProbe(func(ctx context.Context, row couchcore.ActionableThreadSummary) (time.Time, error) {
+		thread, err := threadactivity.InScope(dataDir, row.Address.RepoScope, string(row.Address.Tag), row.Agent)
+		if err != nil {
+			return time.Time{}, err
+		}
+		return threadactivity.Latest(ctx, runtime, thread), nil
+	})
 }

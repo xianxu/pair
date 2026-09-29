@@ -21,6 +21,16 @@ type Thread struct {
 	Agent    string
 }
 
+// InScope names a thread's sources under Pair's global data root: each thread's
+// artifacts live in its own repository's scope directory.
+func InScope(dataDir, scope, tag, agent string) (Thread, error) {
+	scopeDir, err := artifactpath.ResolveScopeDir(dataDir, scope)
+	if err != nil {
+		return Thread{}, err
+	}
+	return Thread{ScopeDir: scopeDir, Scope: scope, Tag: tag, Agent: agent}, nil
+}
+
 // Runtime is the IO Latest needs: file mtimes and the thread's bound native
 // session.
 type Runtime interface {
