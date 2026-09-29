@@ -98,6 +98,19 @@ roots are recovered from the immutable starting path and repository scope via
 `presentationRoot`, not the child's current working directory. They use `main`
 as their resting branch, just like a slot group's primary checkout.
 
+### Idle fading of live threads (#247)
+
+Live thread labels recede as they go idle, in both views: under 1 day normal,
+from 1 day faded, from 3 days more faded (`IdleLevelFor`, `couchtty/idle_shade.go`).
+`FadeStyle` blends the label's colour, or the amber of its `±`/`*` glyphs,
+toward the terminal's reported background, so fading darkens on a dark scheme
+and lightens on a light one. It falls back to ANSI 90 when the terminal has not
+reported its colours, and changes nothing under `NO_COLOR`. Fading is the
+weakest cue: the active chip / selected row, a pending notification (bell or
+attention lines) and a placeholder keep their own styling. Non-live switcher
+rows keep their own `AgeBand` ramp. Both views read `MenuState.Activity` and
+`MenuState.Palette`; a thread with no activity entry is unfaded.
+
 `registry.json` remains as a transitional live-handle cache for the shipped
 console. It is not a metadata or display authority. The one-time journal import
 of its actors into ThreadStore went with `pair#170` M4: every store that needed
