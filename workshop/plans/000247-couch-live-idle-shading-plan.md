@@ -367,7 +367,7 @@ case !a.Active:
   first pass lands, is level 0.) Pass the matching amber
   style into `colorMenuGlyph`.
 - [x] **Step 4:** pass. **Step 5:** commit.
-- [ ] **M1 boundary:** `sdlc milestone-close --issue 247 --milestone M1`.
+- [x] **M1 boundary:** `sdlc milestone-close --issue 247 --milestone M1`.
 
 ## Chunk 2 (M2): IO seams, wiring, docs
 
@@ -489,7 +489,7 @@ implementation; switchcontext.go reaches the same dir through
   `NO_COLOR=1 couch` shows no fade bytes. On the light theme, check that the
   65 % amber (≈ `#fff1a6`) is still visible; if not, cap the amber weight
   (one table entry).
-- [ ] **M2 boundary / close:** `sdlc close --issue 247 --verified '…'`.
+- [x] **M2 boundary / close:** `sdlc close --issue 247 --verified '…'`.
 
 ## Revisions
 
