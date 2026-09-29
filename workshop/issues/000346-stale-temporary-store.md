@@ -136,3 +136,7 @@ Native conversation UUIDs make volume information unnecessary for conversation s
 ### 2026-09-29 — Plan review correction
 
 Fresh-context review found one Important issue: repair must not reuse the watcher config refresh with empty argv. Changed the plan to preserve existing config bytes (and missing config), repair only ledger/catalog authority, and verify actual cold resume uses the recorded launch profile. Added old-catalog vscode regression coverage. Re-review pending; no code changes.
+
+### 2026-09-29 — Plan review approved
+
+Fresh-context re-review approved `ed84b793` with no remaining Important/Critical findings. Issue schema validation and diff whitespace checks pass. Plan is committed in pair:0 and awaits operator approval before `sdlc change-code`; implementation has not started.
