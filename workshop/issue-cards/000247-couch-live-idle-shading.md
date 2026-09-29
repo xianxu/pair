@@ -1,11 +1,19 @@
 ---
 id: 000247
-status: working
+status: codecomplete
 created: 2026-09-13
 updated: 2026-09-28
 estimate_hours: 4.35
 github_issue:
 started: 2026-09-28T21:31:56-07:00
+actual_hours: 1.81
+tracker:
+    version: 1
+    completion:
+        token: close-2ace06a59323
+        repository: github.com/xianxu/pair
+        reviewed_head: 9011130807b360cf82fa2bc9408f3f78b426d761
+        evidence_commit: 93994d3d2ab88c4a2d08244cfa85a8b9a328b3ec
 ---
 
 # Shade live Couch threads by idle time
