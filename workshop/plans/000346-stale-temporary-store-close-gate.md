@@ -156,6 +156,36 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 5
+      timestamp: "2026-09-29T13:31:56-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: addressed
+          note: ResumeTargetForRuntimeLaunch gates chosen-id on root filename via metadata; FreshRequired honoured by Alt+n, createflow, Couch; tests in resume_target_test.go:84, osruntime_test.go:771, relaunch_test.go:413 fail without it.
+          round: 5
+        - id: BR-11
+          disposition: addressed
+          note: record.go:437 applies safeNativeArg to binding RootNativeID too; probation_test.go:92 covers v1-v3 unsafe binding IDs.
+          round: 5
+        - id: BR-12
+          disposition: not-addressed
+          note: run.go:84-92 still separate fields with a descriptive comment only; acceptable to defer as Minor.
+          round: 5
+        - id: BR-13
+          disposition: addressed
+          note: go test ./cmd/internal/sessioninventory (incl. TestREADMEDocumentsSessionInventoryContract) passes at HEAD, as do the other touched packages unsandboxed.
+          round: 5
+      findings:
+        - id: BR-14
+          severity: Important
+          title: Chosen-id materialization probe collapses a native listing failure into FreshRequired
+          detail: ObserveAgentMetadata skips roots whose ListFiles fails (non-ErrStorageAbsent) or returns partial listings, and ResumeTargetForRuntimeLaunch (query.go:467) ignores the diagnostics and sets FreshRequired, so a transient EACCES/EIO abandons a materialized conversation X for a new UUID (createflow also removes the config). Make the probe tri-state (present / confirmed-absent / unknown); on unknown set neither NativeID nor FreshRequired and keep the provisional refusal; add a fake ListFiles-error test.
+          family: failed-probe-treated-as-absence
+          round: 5
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#346 (boundary-review)
@@ -222,9 +252,21 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-13** [Important] `full-suite-before-boundary` HEAD fails TestREADMEDocumentsSessionInventoryContract after the BR-7 README rewrite
   The fix commit replaced the README paragraph naming the provisional/established statuses with probation prose, so go test ./cmd/internal/sessioninventory is red (a pure string check, not the sandbox). Restore the status vocabulary next to the probation paragraph. The rule: every boundary commit runs the full non-sandboxed make test before sdlc milestone-close, because a docs-only-looking edit can break an enforced contract test.
 
+## Round 5 — 2026-09-29T13:31:56-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-5 — addressed — ResumeTargetForRuntimeLaunch gates chosen-id on root filename via metadata; FreshRequired honoured by Alt+n, createflow, Couch; tests in resume_target_test.go:84, osruntime_test.go:771, relaunch_test.go:413 fail without it.
+- BR-11 — addressed — record.go:437 applies safeNativeArg to binding RootNativeID too; probation_test.go:92 covers v1-v3 unsafe binding IDs.
+- BR-12 — not-addressed — run.go:84-92 still separate fields with a descriptive comment only; acceptable to defer as Minor.
+- BR-13 — addressed — go test ./cmd/internal/sessioninventory (incl. TestREADMEDocumentsSessionInventoryContract) passes at HEAD, as do the other touched packages unsandboxed.
+
+### Raised
+
+- **BR-14** [Important] `failed-probe-treated-as-absence` Chosen-id materialization probe collapses a native listing failure into FreshRequired
+  ObserveAgentMetadata skips roots whose ListFiles fails (non-ErrStorageAbsent) or returns partial listings, and ResumeTargetForRuntimeLaunch (query.go:467) ignores the diagnostics and sets FreshRequired, so a transient EACCES/EIO abandons a materialized conversation X for a new UUID (createflow also removes the config). Make the probe tri-state (present / confirmed-absent / unknown); on unknown set neither NativeID nor FreshRequired and keep the provisional refusal; add a fake ListFiles-error test.
+
 ## Open findings
 
-- **BR-5** [Important] `unconfirmed-identity-admitted-as-resumable` Unmaterialized Pair-chosen session ID is returned as a resume target
-- **BR-11** [Minor] `untrusted-id-to-argv` requested_native_id is not shape-validated before becoming a --resume argv value
 - **BR-12** [Minor] `implicit-watcher-state` Watcher in-memory phases are separate fields rather than a tagged state enum
-- **BR-13** [Important] `full-suite-before-boundary` HEAD fails TestREADMEDocumentsSessionInventoryContract after the BR-7 README rewrite
+- **BR-14** [Important] `failed-probe-treated-as-absence` Chosen-id materialization probe collapses a native listing failure into FreshRequired

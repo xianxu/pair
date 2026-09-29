@@ -258,3 +258,97 @@ findings:
     detail: |
       The fix commit replaced the README paragraph naming the provisional/established statuses with probation prose, so go test ./cmd/internal/sessioninventory is red (a pure string check, not the sandbox). Restore the status vocabulary next to the probation paragraph. The rule: every boundary commit runs the full non-sandboxed make test before sdlc milestone-close, because a docs-only-looking edit can break an enforced contract test.
 ```
+
+---
+
+## Re-review — 2026-09-29T13:31:56-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 346 — Stale temporary store blocks Couch startup |
+| repo | pair |
+| issue file | workshop/issues/000346-stale-temporary-store.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 73203fc0d103a8c5a5d9490211a09d6055db9a00..c1a98adbbceef2b3174482d24d9f4114bb40ac6f |
+| command | sdlc milestone-close --issue 346 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-29T13:31:56-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+Three of the four open findings are fixed. BR-5 is resolved at the production boundary: `ResumeTargetForRuntimeLaunch` now checks for the root filename, using metadata only, before it reuses an unconfirmed Pair-chosen ID. If the file is missing, it sets `FreshRequired`, and every consumer honours that: standalone Alt+n, createflow, and Couch relaunch, which also re-checks before it spawns a child. BR-11 now also validates the binding's `RootNativeID` before it can reach argv. BR-13 is fixed: every affected package passes when run outside the sandbox (sessioninventory including the README contract test, plus sessionledger, sessionwatch, launcher, couchcore, dispatcher, opener, reviewcmd, wrapcmd and couchcmd). BR-12 is still open, but it is Minor.
+
+The new gate brings one new Important defect. It cannot tell "the probe failed" apart from "the file is missing". When listing the native root fails with anything other than `ErrStorageAbsent`, or returns only part of the listing, the gate decides "unmaterialized" and restarts fresh with a new UUID. That breaks the README promise that filesystem failures don't block a recorded target, and it breaks ARCH-ORDER's rule that a failed probe does not prove absence.
+
+**Strengths**
+- `query.go:465` `ResumeTargetForRuntimeLaunch` is one shared projection. The query, `OSRuntime.ReadLedger` (`osruntime.go:653`) and Couch all use it, so ARCH-DRY holds.
+- `osruntime_test.go:771` runs the whole chain end to end: real OS ledger, then the metadata adapter, then the Alt+n marker, then a fresh launch that mints `new-Y`. It covers both Claude and Qoder, and both the absent and present cases.
+- `resume_target_test.go:84` checks that no native body is read (`OperationReadAt == 0`). This proves the metadata-only claim instead of just stating it.
+- `relaunch_test.go:444` covers two things changing between the check and the use of the ID: a new request appears, or the transcript materializes. In both cases Couch must refuse and spawn nothing.
+- `planRestart` now routes through `FreshAgentArgs`, which strips stale `--session-id` and `--resume` flags. Without that, the stale ID could come back.
+
+**Critical**
+- None.
+
+**Important**
+- **The metadata probe treats a failed probe as absence** (`query.go:467-475`, `incremental_inventory.go:72-76`, `scan_helpers.go:149`). `ObserveAgentMetadata` skips a root whose `ListFiles` fails, or returns a partial list. Its diagnostics are appended to the result, but the decision ignores them, so `SelectTargetWork` reports Unavailable and the gate sets `FreshRequired=true`.
+  - **Scenario:** an EACCES or EIO error, or a partial listing, on `~/.claude/projects` while chosen ID X has a materialized transcript.
+  - **Result:** Alt+n, Couch relaunch or `pair <tag>` starts a fresh conversation under a new UUID. Createflow also deletes the config. The tag is now bound to the new conversation and X is abandoned.
+  - **Fix:** make the probe three-valued: present, confirmed absent, or unknown. Only a complete listing, or `ErrStorageAbsent`, counts as absent. If the result is unknown, set neither `NativeID` nor `FreshRequired`, and let the existing provisional refusal handle it (with a diagnostic in Couch, a refusal in standalone).
+  - **Test to add:** a fake-runtime `ListFiles` error with X present must produce neither fresh nor admit.
+
+**Minor**
+- BR-12 is still open: `run.go:84-92` keeps the watcher phases in separate fields and only added a comment (ARCH-ORDER).
+- ARCH-CONSTRAINTS: `ResumeTargetForRuntimeLaunch` walks every native root for the agent, and Couch relaunch calls it at least three times in one relaunch. Only provisional chosen IDs pay this cost, but a targeted filename lookup, or one observation reused across the relaunch, would bound it.
+- `history.go:165` still uses the pure `ParseLedger`, so a provisional chosen ID shows an empty session there, while the runtime projection may admit it. The behaviour is conservative, but the two projections are not documented as differing.
+
+**Test coverage notes**
+- Present, absent and confirmed-without-file are covered. The failed-listing case and the partial-listing case are not, and that is exactly the gap behind the Important finding.
+
+**Architecture pass**
+- **ARCH-DRY:** pass.
+- **ARCH-PURE:** pass. The IO lives in the runtime adapter, and the selection is the pure `SelectTargetWork`.
+- **ARCH-PURPOSE:** pass. The shadow sweep of `QueryResumeTarget` consumers (runcli, reviewcmd, opener, launcher, couchcore) found that all of them derive from the runtime projection.
+- **ARCH-MOCK:** pass. There is a stateful `FakeRuntime` at the same seam, plus a real-OS test.
+- **ARCH-CONSTRAINTS:** minor note above.
+- **ARCH-SECURE:** pass. Both requested and root IDs are argv-safe.
+- **ARCH-ORDER:** flag. See the Important finding (failed probe collapsed into absence) and BR-12. The check-then-use race is handled well.
+- **ARCH-FUNERAL:** pass. The change creates nothing durable beyond the existing ledger rows.
+
+**Plan revision recommendations**
+- Add one line to the BR-5 Revision stating that "unmaterialized" requires a complete listing, and that a probe failure keeps the provisional refusal rather than restarting fresh.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: addressed
+    note: |
+      ResumeTargetForRuntimeLaunch gates chosen-id on root filename via metadata; FreshRequired honoured by Alt+n, createflow, Couch; tests in resume_target_test.go:84, osruntime_test.go:771, relaunch_test.go:413 fail without it.
+  - id: BR-11
+    disposition: addressed
+    note: |
+      record.go:437 applies safeNativeArg to binding RootNativeID too; probation_test.go:92 covers v1-v3 unsafe binding IDs.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      run.go:84-92 still separate fields with a descriptive comment only; acceptable to defer as Minor.
+  - id: BR-13
+    disposition: addressed
+    note: |
+      go test ./cmd/internal/sessioninventory (incl. TestREADMEDocumentsSessionInventoryContract) passes at HEAD, as do the other touched packages unsandboxed.
+findings:
+  - id: new
+    severity: Important
+    family: failed-probe-treated-as-absence
+    title: |
+      Chosen-id materialization probe collapses a native listing failure into FreshRequired
+    detail: |
+      ObserveAgentMetadata skips roots whose ListFiles fails (non-ErrStorageAbsent) or returns partial listings, and ResumeTargetForRuntimeLaunch (query.go:467) ignores the diagnostics and sets FreshRequired, so a transient EACCES/EIO abandons a materialized conversation X for a new UUID (createflow also removes the config). Make the probe tri-state (present / confirmed-absent / unknown); on unknown set neither NativeID nor FreshRequired and keep the provisional refusal; add a fake ListFiles-error test.
+```

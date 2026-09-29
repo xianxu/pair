@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- A filename absence decision that creates a replacement requires complete
+  enumeration. Carry failed/partial probes as unknown through every consumer;
+  an empty ID must not silently select a destructive fresh fallback. (#346)
+
 - Documentation edits can break executable contract checks. Run the complete
   relevant suite after the final review fix, including README checks; validate
   every durable ID field that can reach agent argv, not just request fields. (#346)
