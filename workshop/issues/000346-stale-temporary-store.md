@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-29
 updated: 2026-09-29
-estimate_hours:
-card_mirror: '413c83b3c173c293b1dffb3b77e0f61cd4f7531b' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.409
+card_mirror: '025fd590586521464a04d863675f5cdbfb5227da' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-29T08:41:28-07:00
 ---
 
@@ -79,6 +79,35 @@ The original stale-store/GC requirements above remain in scope. The durable plan
 - Quit preserves captures without asking; same-tag startup archives prior raw capture and sidecar before reuse, including crash/reboot leftovers. Test repeated startup/quit, partial archives, archive failure and concurrent ownership so no capture is silently overwritten.
 - Capture retains output beyond 2,000 rows for a single live session; a bounded render remains allowed and unlimited rendering can recover the full retained output.
 - Every audited row has a verified outcome: available resume target with its observation state, already-live thread, empty slot, or explicit insufficient evidence. Do not fabricate pair:4's missing transcript or restart brain:0 as an experiment.
+
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only; calibration is currently tagged stale, so values are provisional. Familiar Go/filesystem stack: familiarity 1.0. Thorough agreed spec discounts design to roughly 20% of the primitive ranges; the new capture protocol retains more design uncertainty. Existing retention/locking, ledger, correlation and VT libraries are reused; no novel external stack is assumed. Implementation values are 40% of v2.1 ranges, with a 15% design buffer.
+
+Items in order: registry availability, GC CLI, smoke isolation; ledger v3, resume projection, observation integration, open-world scanner, repair CLI, identity-consumer sweep; capture transaction, writer/quit integration, TTY naming; docs; three real milestone reviews. These are ship-time estimates, not manual actuals.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: smaller-go-module design=0.04 impl=0.2
+item: smaller-go-module design=0.03 impl=0.12
+item: smaller-go-module design=0.03 impl=0.12
+item: smaller-go-module design=0.06 impl=0.2
+item: smaller-go-module design=0.06 impl=0.2
+item: greenfield-go-module design=0.2 impl=0.32
+item: smaller-go-module design=0.03 impl=0.12
+item: smaller-go-module design=0.05 impl=0.2
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: greenfield-go-module design=0.3 impl=0.32
+item: cross-cutting-refactor design=0.1 impl=0.2
+item: smaller-go-module design=0.04 impl=0.16
+item: atlas-docs design=0.03 impl=0.08
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+item: milestone-review design=0.04 impl=0.2
+design-buffer: 0.15
+total: 4.409
+```
 
 ## Plan
 
