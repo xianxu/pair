@@ -179,7 +179,7 @@ recent-traffic dot moved to #342.
 
 **Files:** Create `cmd/internal/couchtty/idle_shade.go`, `cmd/internal/couchtty/idle_shade_test.go`
 
-- [ ] **Step 1: failing test**
+- [x] **Step 1: failing test**
 
 ```go
 func TestIdleLevelForBoundaries(t *testing.T) {
@@ -206,8 +206,8 @@ func TestIdleLevelForBoundaries(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2:** `go test ./cmd/internal/couchtty -run TestIdleLevelFor` → FAIL (undefined).
-- [ ] **Step 3: implement**
+- [x] **Step 2:** `go test ./cmd/internal/couchtty -run TestIdleLevelFor` → FAIL (undefined).
+- [x] **Step 3: implement**
 
 ```go
 type IdleLevel uint8
@@ -235,13 +235,13 @@ func IdleLevelFor(now, last time.Time, known bool) IdleLevel {
 }
 ```
 
-- [ ] **Step 4:** test passes. **Step 5:** commit `#247 M1: idle level classifier`.
+- [x] **Step 4:** test passes. **Step 5:** commit `#247 M1: idle level classifier`.
 
 ### Task 2: `Palette`, `blend`, `quantize256`, `FadeStyle`
 
 **Files:** same two files.
 
-- [ ] **Step 1: failing tests**, table-driven:
+- [x] **Step 1: failing tests**, table-driven:
   - `blend(fg, bg, 0) == fg`; `blend(white, black, 0.40)` → `#999999`
     (255·0.60 = 153); `blend(amber #ffd700, white bg, 0.65)`
     moves every channel toward 255.
@@ -260,8 +260,8 @@ func IdleLevelFor(now, last time.Time, known bool) IdleLevel {
     - Unknown palette → every level ≥1 default is `"\x1b[90m"`; amber is `attentionSGR`.
     - NoColor → today's level-0 bytes for every level: `""` for default and
       `attentionSGR` for amber (the fade is suppressed, nothing else changes).
-- [ ] **Step 2:** run → FAIL.
-- [ ] **Step 3: implement** (sketch; exact names as in the table):
+- [x] **Step 2:** run → FAIL.
+- [x] **Step 3: implement** (sketch; exact names as in the table):
 
 ```go
 type Palette struct {
@@ -308,7 +308,7 @@ func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
   `blend` mixes each channel `round(a*(1-t) + b*t)`. `quantize256` picks the
   nearest color (squared RGB distance) among the 6×6×6 cube (16–231) and the
   grey ramp (232–255).
-- [ ] **Step 4:** pass. **Step 5:** commit `#247 M1: fade style toward the terminal background`.
+- [x] **Step 4:** pass. **Step 5:** commit `#247 M1: fade style toward the terminal background`.
 
 ### Task 3: tab bar renders the fade
 
@@ -316,7 +316,7 @@ func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
 
 **Files:** Modify `cmd/internal/couchtty/reserve.go` (`StatusActor`, `StatusModel`, `RenderStatusRow` style switch). Test in `cmd/internal/couchtty/reserve_test.go`.
 
-- [ ] **Step 1: failing tests**
+- [x] **Step 1: failing tests**
   - An idle (level 1) non-active chip in a known dark truecolor palette starts
     with `FadeStyle(p, IdleDay, baseDefault)`. Its `*` glyph uses
     `FadeStyle(p, IdleDay, baseAmber)`. A level-2 chip uses the `IdleStale` pair.
@@ -326,8 +326,8 @@ func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
     render the existing `reserve_test` fixtures with the zero `Idle`).
   - Chip spans (`ChipSpan.Start/End`) are unchanged by the fade (the clipping
     and click-mapping contract).
-- [ ] **Step 2:** FAIL.
-- [ ] **Step 3: implement.** Add `Idle IdleLevel` to `StatusActor` and
+- [x] **Step 2:** FAIL.
+- [x] **Step 3: implement.** Add `Idle IdleLevel` to `StatusActor` and
   `Palette Palette` to `StatusModel`. In the style switch:
 
 ```go
@@ -344,7 +344,7 @@ case !a.Active:
   and for glyphs, when `slotGlyphSGR(r) != ""` and the chip is neither
   active, bell nor placeholder, use `FadeStyle(m.Palette, a.Idle, baseAmber)`.
   An active chip's glyph keeps `slotGlyphSGR`.
-- [ ] **Step 4:** pass, plus the whole `couchtty` package. **Step 5:** commit.
+- [x] **Step 4:** pass, plus the whole `couchtty` package. **Step 5:** commit.
 
 ### Task 4: switcher renders the fade for live rows
 
@@ -352,7 +352,7 @@ case !a.Active:
 
 **Files:** Modify `cmd/internal/couchtty/menu_render.go` (`renderRootMenuFrame` live branch, `colorMenuGlyph` gets a glyph-style parameter); `RenderMenuView` gains the palette and activity through `MenuState` (Task 5 adds `Activity`; this task takes a `Palette` field on `MenuState` too). Test in `menu_render_test.go`.
 
-- [ ] **Step 1: failing tests**, with `RenderMenuView(state, cols, h, now, true)`:
+- [x] **Step 1: failing tests**, with `RenderMenuView(state, cols, h, now, true)`:
   - A live, unselected row whose `state.Activity[addr]` is 30 h old (level 1) renders
     wrapped in `FadeStyle(p, IdleDay, baseDefault)`, and its `±` glyph in the
     amber variant.
@@ -360,13 +360,13 @@ case !a.Active:
   - A live row with attention messages → not faded.
   - Non-live rows → the `ageColor(AgeBandFor(...))` bytes, unchanged.
   - No activity entry → byte-identical to today.
-- [ ] **Step 2:** FAIL. **Step 3:** implement. In the `color256 && frame.View != MenuViewFocus`
+- [x] **Step 2:** FAIL. **Step 3:** implement. In the `color256 && frame.View != MenuViewFocus`
   branch, for `thread.Live()` with no attention:
   `outer = FadeStyle(state.Palette, IdleLevelFor(now, at, ok), baseDefault)`,
   where `at, ok := state.Activity[thread.Address]`. (An absent entry, before the
   first pass lands, is level 0.) Pass the matching amber
   style into `colorMenuGlyph`.
-- [ ] **Step 4:** pass. **Step 5:** commit.
+- [x] **Step 4:** pass. **Step 5:** commit.
 - [ ] **M1 boundary:** `sdlc milestone-close --issue 247 --milestone M1`.
 
 ## Chunk 2 (M2): IO seams, wiring, docs
@@ -531,3 +531,13 @@ implementation; switchcontext.go reaches the same dir through
   guard, mutation).
 - PQ-5 (Minor): the unknown-palette fallback collapses both faded levels to
   SGR 90, which is now documented.
+
+### 2026-09-28 — M1 delivered, reconciled against the plan
+
+- Tasks 1–4 as planned. Delta from the table: `MenuState.Activity` and
+  `MenuState.Palette` landed in M1 (Task 4 renders from them). Their
+  reducer events (`MenuEventActivity`, `MenuEventPalette`) and the clone of
+  `Activity` in the state-copy helper stay in M2 (Tasks 6–7), where the first
+  writer arrives. Until then nothing writes either field in production, so
+  M1 changes nothing on screen by construction.
+- `colorMenuGlyph` takes the row's amber colour as a parameter (one call site).
