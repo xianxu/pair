@@ -148,7 +148,8 @@ function M.clear_decorations(buf)
   projection.reset(buf)
 end
 
-function M.projected_mutation(buf, base_content, mutate)
+function M.projected_mutation(buf, base_content, mutate, preserve_base)
+  if preserve_base then projection.record(buf) end
   projection.set_applying(buf, true)
   local ok, err = pcall(mutate)
   if not ok then

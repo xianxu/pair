@@ -25,9 +25,11 @@ function C:flush()
   if self.closed or self.active then return end
   local item=self.pending;self.pending=nil
   if not item or not self:current(item) or (not item.refresh and not self.opts.modified(item.buf)) then return end
+  item.revision=self.opts.revision and self.opts.revision(item.buf)
   self.active=item
   local observe=self.opts.observe or identity.resolve_async
-  local ok,handle=pcall(observe,item.context.repo,nil,function(observed)
+  local selected=self.opts.selection and self.opts.selection(item.buf)
+  local ok,handle=pcall(observe,item.context.repo,selected,function(observed)
     vim.schedule(function()
       if self.closed or self.active~=item then return end
       self.active=nil
@@ -35,19 +37,23 @@ function C:flush()
         local ctx=item.context
         local matches=observed.repo==ctx.repo and observed.branch==ctx.branch
           and (observed.status=='missing' or (observed.status=='resolved' and observed.file==ctx.file))
-        local refresh=item.refresh or (self.pending and self.pending.buf==item.buf and self.pending.context==ctx and self.pending.refresh)
+        local revision=self.opts.revision and self.opts.revision(item.buf)
+        local unchanged=vim.deep_equal(item.revision,revision)
         local action
         if self.opts.modified(item.buf) then
+          -- Save this buffer's current bytes under its own binding. Matching
+          -- results cannot discard newer requests; those remain queued below.
           if not matches then action=self.opts.preserve end
-        elseif matches and refresh then action=self.opts.refresh end
+        elseif matches and item.refresh and unchanged and observed.status=='resolved' and type(observed.snapshot)=='string' then
+          action=self.opts.refresh
+        end
         if action then
-          local success,err=pcall(action,item.buf,ctx)
+          local success,err=pcall(action,item.buf,ctx,observed)
           if not success then (self.opts.notify or vim.notify)(tostring(err),vim.log.levels.ERROR) end
         end
       end
-      -- The result covers newer text too: snapshot reads current buffer bytes,
-      -- and no identity changed while those edits were being coalesced.
-      if self.pending and self.pending.buf==item.buf and self.pending.context==item.context then self.pending=nil end
+      -- New requests need a new observation: this result predates those
+      -- events even if they happen to name the same activation and file.
       self:schedule()
     end)
   end)

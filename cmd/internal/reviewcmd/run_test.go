@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -471,3 +472,7 @@ func (f *fakeRuntime) GitContext(ctx context.Context, limit int, dir string, arg
 
 func (f *fakeRuntime) CanonicalDir(dir string) (string, error)  { return dir, nil }
 func (f *fakeRuntime) RegularFileWithin(root, rel string) error { return nil }
+
+func (f *fakeRuntime) ReadIdentityFile(ctx context.Context, root, rel string, limit int) (string, error) {
+	return f.ReadFile(filepath.Join(root, rel))
+}

@@ -93,9 +93,11 @@ Integration seams (headless shell tests, `make test-review`):
   explicit recovery/discard, matching successful-save cleanup.
 - `recovery_observer.lua` — coalesces edit events into asynchronous identity
   observations for proactive snapshots, and focus events for clean-buffer disk
-  refresh on the matching branch. Late results must still belong to the captured
-  activation; activation stop and exit cancel outstanding work. Write/apply/quit
-  boundaries retain fresh authority checks.
+  refresh on the matching branch. Refresh uses bounded file bytes captured by the
+  resolver inside its branch/HEAD validation window, never a later checkout read.
+  Late results must still belong to the captured activation and unchanged buffer;
+  activation stop and exit cancel outstanding work. Write/apply/quit boundaries
+  retain fresh authority checks.
 - `poke_bodies.lua` — pure builders for the prose signals sent to the agent:
   review target prep, handoff applied, human turn finished, and ship requested.
 - `readiness.lua` + `cmd/pair-review-readiness` (`cmd/internal/reviewcmd`, Go since

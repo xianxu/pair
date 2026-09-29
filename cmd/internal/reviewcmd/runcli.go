@@ -84,15 +84,23 @@ func RunOpenCLI(args []string, getenv func(string) string, stderr io.Writer) int
 // RunReadinessCLI is the pair-review-readiness command body.
 func RunReadinessCLI(args []string, getenv func(string) string, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "--resolve" {
+		snapshot := len(args) > 1 && args[len(args)-1] == "--snapshot"
+		if snapshot {
+			args = args[:len(args)-1]
+		}
 		if len(args) != 2 && (len(args) != 6 || args[2] != "--selected" || args[4] != "--head") {
-			fmt.Fprintln(stderr, "usage: pair review readiness --resolve <directory> [--selected <relative-file> --head <sha>]")
+			fmt.Fprintln(stderr, "usage: pair review readiness --resolve <directory> [--selected <relative-file> --head <sha>] [--snapshot]")
 			return 2
 		}
 		selected, head := "", ""
 		if len(args) == 6 {
 			selected, head = args[3], args[5]
 		}
-		result := resolveIdentity(NewOSRuntime(), args[1], selected, head)
+		result := resolveIdentityWithSnapshot(NewOSRuntime(), args[1], selected, head, snapshot)
+		encoded, _ := json.Marshal(result)
+		if len(encoded) > identityLimit {
+			result = ReviewIdentity{Status: "invalid", Diagnostic: "encoded review observation exceeds 8 MiB"}
+		}
 		if err := json.NewEncoder(stdout).Encode(result); err != nil {
 			return 1
 		}

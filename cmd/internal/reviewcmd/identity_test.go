@@ -303,3 +303,61 @@ func TestPrepareRejectsAmbiguousBeforeTracking(t *testing.T) {
 		t.Fatalf("ambiguous prepare mutated: code=%d calls=%v", code, rt.gitCalls)
 	}
 }
+
+func TestIdentitySnapshotBindsWorkingBytes(t *testing.T) {
+	dir := identityRepo(t)
+	rt := NewOSRuntime()
+	head := identityGit(t, dir, "rev-parse", "HEAD")
+	for _, body := range []string{"uncommitted\n", "no final newline", ""} {
+		if err := os.WriteFile(filepath.Join(dir, "doc.md"), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		got := resolveIdentityWithSnapshot(rt, dir, "doc.md", head, true)
+		if got.Status != "resolved" || got.Snapshot == nil || *got.Snapshot != body {
+			t.Fatalf("snapshot: %+v", got)
+		}
+	}
+}
+
+type movingSnapshotRuntime struct{ Runtime }
+
+func (r movingSnapshotRuntime) ReadIdentityFile(ctx context.Context, root, rel string, limit int) (string, error) {
+	result, err := r.Runtime.ReadIdentityFile(ctx, root, rel, limit)
+	r.Runtime.(*fakeRuntime).identityHead = "moved"
+	return result, err
+}
+func TestIdentitySnapshotRejectsMovementAndSize(t *testing.T) {
+	fake := newFake()
+	initIdentityFake(fake, "review/doc")
+	fake.files["/repo/doc.md"] = "A bytes"
+	got := resolveIdentityWithSnapshot(movingSnapshotRuntime{fake}, "/repo", "", "", true)
+	if got.Status != "invalid" || got.Snapshot != nil {
+		t.Fatalf("moved snapshot published: %+v", got)
+	}
+	dir := identityRepo(t)
+	head := identityGit(t, dir, "rev-parse", "HEAD")
+	os.WriteFile(filepath.Join(dir, "doc.md"), []byte(strings.Repeat("x", identityLimit+1)), 0600)
+	got = resolveIdentityWithSnapshot(NewOSRuntime(), dir, "doc.md", head, true)
+	if got.Status != "invalid" || got.Snapshot != nil {
+		t.Fatalf("oversize snapshot: %+v", got)
+	}
+}
+
+func TestIdentitySnapshotRejectsNonTextAndEncodedOverflow(t *testing.T) {
+	dir := identityRepo(t)
+	head := identityGit(t, dir, "rev-parse", "HEAD")
+	for _, body := range [][]byte{{0xff}, {'x', 0, 'y'}} {
+		os.WriteFile(filepath.Join(dir, "doc.md"), body, 0600)
+		got := resolveIdentityWithSnapshot(NewOSRuntime(), dir, "doc.md", head, true)
+		if got.Status != "invalid" || got.Snapshot != nil {
+			t.Fatalf("nontext accepted: %+v", got)
+		}
+	}
+	os.WriteFile(filepath.Join(dir, "doc.md"), []byte(strings.Repeat("\x01", 2<<20)), 0600)
+	var output, diagnostic bytes.Buffer
+	code := RunReadinessCLI([]string{"--resolve", dir, "--selected", "doc.md", "--head", head, "--snapshot"}, func(string) string { return "" }, &output, &diagnostic)
+	var got ReviewIdentity
+	if code != 0 || json.Unmarshal(output.Bytes(), &got) != nil || got.Status != "invalid" || output.Len() > identityLimit {
+		t.Fatalf("encoded overflow: code=%d len=%d result=%+v", code, output.Len(), got)
+	}
+}

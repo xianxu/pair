@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/xianxu/pair/cmd/internal/osfs"
 	"github.com/xianxu/pair/cmd/internal/procutil"
@@ -159,4 +160,59 @@ func (OSRuntime) GitContext(ctx context.Context, limit int, dir string, args ...
 		err = ctx.Err()
 	}
 	return out.buffer.String(), err
+}
+
+// ReadIdentityFile captures bounded working-tree text while preserving regular
+// file/path identity. The caller rechecks pinned Git HEAD and branch afterwards.
+func (rt OSRuntime) ReadIdentityFile(ctx context.Context, root, rel string, limit int) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if err := rt.RegularFileWithin(root, rel); err != nil {
+		return "", err
+	}
+	path := filepath.Join(root, rel)
+	before, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil {
+		return "", err
+	}
+	if !opened.Mode().IsRegular() || !os.SameFile(before, opened) {
+		return "", fmt.Errorf("review file changed while opening")
+	}
+	if opened.Size() > int64(limit) {
+		return "", fmt.Errorf("review snapshot exceeds 8 MiB")
+	}
+	body, err := io.ReadAll(io.LimitReader(file, int64(limit)+1))
+	if err != nil {
+		return "", err
+	}
+	if len(body) > limit {
+		return "", fmt.Errorf("review snapshot exceeds 8 MiB")
+	}
+	after, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	if !os.SameFile(opened, after) || opened.Size() != after.Size() || !opened.ModTime().Equal(after.ModTime()) {
+		return "", fmt.Errorf("review file changed during capture")
+	}
+	if err := rt.RegularFileWithin(root, rel); err != nil {
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if !utf8.Valid(body) || bytes.IndexByte(body, 0) >= 0 {
+		return "", fmt.Errorf("review snapshot is not UTF-8 text")
+	}
+	return string(body), nil
 }

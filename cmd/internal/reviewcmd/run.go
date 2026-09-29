@@ -16,6 +16,7 @@ import (
 // (ReadFile/WriteFile/WriteAtomic/Remove/FileSize) come from an embedded osfs.FS
 // on the OSRuntime; git/nvim-classify/zellij-spawn/session inventory are the domain seams.
 type Runtime interface {
+	ReadIdentityFile(context.Context, string, string, int) (string, error)
 	GitContext(context.Context, int, string, ...string) (string, error)
 	CanonicalDir(string) (string, error)
 	RegularFileWithin(string, string) error

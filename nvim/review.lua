@@ -839,14 +839,42 @@ recovery_observer=dofile(here..'review/recovery_observer.lua').new({
     return ctx
   end,
   modified=function(buf)return vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified end,
+  revision=function(buf)return {tick=vim.api.nvim_buf_get_changedtick(buf),eol=vim.bo[buf].endofline,format=vim.bo[buf].fileformat} end,
+  selection=function(buf)
+    local selected=restoration.state.identity
+    if buf==restoration.buf and selected then return {file=selected.file,head=selected.head} end
+  end,
   preserve=preserve_buffer,
-  refresh=function(buf)
+  refresh=function(buf,_,observed)
     if restoration.buf~=buf or vim.api.nvim_get_current_buf()~=buf or vim.bo[buf].modified then return end
-    local autoread=vim.bo[buf].autoread
-    vim.bo[buf].autoread=true
-    local ok,err=pcall(vim.cmd,'silent! checktime '..buf)
-    vim.bo[buf].autoread=autoread
-    if not ok then error(err) end
+    -- No filesystem read here: these exact bytes were captured before the
+    -- resolver's final branch/HEAD check and travel with that identity.
+    local bytes=observed.snapshot
+    local eol=bytes:sub(-1)=='\n'
+    local lines=vim.split(bytes,'\n',{plain=true})
+    if eol then table.remove(lines) end
+    if #lines==0 then lines={''} end
+    local format=vim.bo[buf].fileformat
+    if bytes:find('\r\n',1,true) and not bytes:gsub('\r\n',''):find('\n',1,true) then
+      format='dos'
+      for i,line in ipairs(lines) do
+        if i<#lines or eol then lines[i]=line:gsub('\r$','') end
+      end
+    elseif bytes:find('\n',1,true) then format='unix' end
+    if vim.deep_equal(lines,vim.api.nvim_buf_get_lines(buf,0,-1,false)) and eol==vim.bo[buf].endofline and format==vim.bo[buf].fileformat then return end
+    local base=buf_content(buf)
+    review.projected_mutation(buf,base,function()
+      vim.api.nvim_buf_call(buf,function()
+        vim.cmd('silent! let &undolevels = &undolevels')
+        vim.api.nvim_buf_set_lines(buf,0,-1,false,lines)
+      end)
+      vim.bo[buf].endofline=eol
+      vim.bo[buf].fileformat=format
+      review.reconstruct_on_open(buf,vim.api.nvim_buf_get_name(buf),observed)
+    end,true)
+    vim.bo[buf].modified=false
+    render_markers(buf)
+    render_active_diagnostic(buf)
   end,
 })
 review.authorize=function(buf,context)

@@ -14,16 +14,17 @@ const identityLimit = 8 << 20
 const identityCommitLimit = 10000
 
 type ReviewIdentity struct {
-	Status            string `json:"status"`
-	Repo              string `json:"repo"`
-	Branch            string `json:"branch"`
-	Head              string `json:"head"`
-	File              string `json:"file"`
-	Diagnostic        string `json:"diagnostic,omitempty"`
-	LatestAgentBody   string `json:"latest_agent_body"`
-	LatestAgentCommit string `json:"latest_agent_commit,omitempty"`
-	HumanRound        int    `json:"human_round"`
-	AgentRound        int    `json:"agent_round"`
+	Snapshot          *string `json:"snapshot,omitempty"`
+	Status            string  `json:"status"`
+	Repo              string  `json:"repo"`
+	Branch            string  `json:"branch"`
+	Head              string  `json:"head"`
+	File              string  `json:"file"`
+	Diagnostic        string  `json:"diagnostic,omitempty"`
+	LatestAgentBody   string  `json:"latest_agent_body"`
+	LatestAgentCommit string  `json:"latest_agent_commit,omitempty"`
+	HumanRound        int     `json:"human_round"`
+	AgentRound        int     `json:"agent_round"`
 }
 
 type identityRound struct {
@@ -128,8 +129,16 @@ func parseIdentityHistory(raw string) ([]identityRound, error) {
 }
 
 func resolveIdentity(rt Runtime, dir, selected, expectedHead string) ReviewIdentity {
+	return resolveIdentityWithSnapshot(rt, dir, selected, expectedHead, false)
+}
+func resolveIdentityWithSnapshot(rt Runtime, dir, selected, expectedHead string, snapshot bool) ReviewIdentity {
 	out := ReviewIdentity{Status: "invalid"}
-	fail := func(err error) ReviewIdentity { out.Status = "invalid"; out.Diagnostic = err.Error(); return out }
+	fail := func(err error) ReviewIdentity {
+		out.Status = "invalid"
+		out.Snapshot = nil
+		out.Diagnostic = err.Error()
+		return out
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	remaining := identityLimit
@@ -195,6 +204,17 @@ func resolveIdentity(rt Runtime, dir, selected, expectedHead string) ReviewIdent
 		}
 		if err = rt.RegularFileWithin(out.Repo, out.File); err != nil {
 			return fail(err)
+		}
+		if snapshot {
+			body, e := rt.ReadIdentityFile(ctx, out.Repo, out.File, remaining)
+			if e != nil {
+				return fail(fmt.Errorf("cannot capture review document: %w", e))
+			}
+			remaining -= len(body)
+			if remaining < 0 {
+				return fail(fmt.Errorf("review snapshot exceeds 8 MiB"))
+			}
+			out.Snapshot = &body
 		}
 	}
 	after, err := git("rev-parse", "--verify", "HEAD")
