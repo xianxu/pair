@@ -188,6 +188,10 @@ Implemented structural registry validation separately from namespace availabilit
 
 Verification: initial red regression reproduced the missing auxiliary store error; `go test ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/couch -count=1` passed. Full relevant `-race` suites passed (Couch core 270 seconds). Production CLI mutation check failed when registration's old full-availability validation was restored and passed after exact-byte restoration. Focused updated collector assertions and permission/refusal cases passed. Code commit `53be9ca8`; SDLC M1 review next. ARCH-PURPOSE/ARCH-SECURE: exercise the real list boundary and retain missing references until explicit abandonment.
 
+### 2026-09-29 — M1 boundary review corrections
+
+Boundary review accepted registry behavior and raised BR-1–3: the isolation sentinel was not at the real registry path, README omitted the new flag, and GC outage diagnostics lacked actionable recovery. Added a shared smoke environment wrapper, wired the recovery smoke through it, and used a real subprocess plus ambient `.retention/stores.json` sentinel. Mutating the wrapper to leak HOME/XDG/Pair/Couch roots now changes that sentinel and fails the test; restored isolation passes. Added read-only `InspectRegistry` for availability-marked listing and restore/remount/permanent-abandonment guidance, plus README documentation. Kept conservative full-inventory `UnregisterStore` behavior and documented why (review minor). Added the resulting prevention rule to lessons.
+
 ## Revisions
 
 ### 2026-09-29T07:59:14-07:00 — Expand incident evidence to all visible threads
