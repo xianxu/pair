@@ -12,9 +12,13 @@
 
 Use the Pair checkout/current draft working directory to select the repository, not the stale target's directory. On a review branch, resolve its document before consulting pane visibility or the target cache. On a non-review branch, do not automatically restore historical reviews: prompt for explicit selection; a proposed target may still report preparation in progress. A live review bound to another branch cannot be shown as the active review.
 
-Resolve only exact current-slug round subjects, `review(<slug>): human|agent r<N>`, and their NUL-delimited changed paths. Require exactly one distinct tracked, existing regular file within the repository. Inspect all matching rounds, including the initial tracking round; do not pick the first path or infer a filename from the slug. Zero candidates, multiple candidates, detached HEAD, missing/deleted files, unsafe paths, or failed Git reads produce distinct diagnostics and no cache/pane mutations. Ordinary unrelated commits do not establish review identity. Bound reads as described below; incomplete history is an error, not proof of uniqueness.
+Resolve only exact current-slug round subjects, `review(<slug>): human|agent r<N>` with the existing optional ` — summary` suffix, and their NUL-delimited changed paths. Require exactly one distinct tracked, existing regular file within the repository. Inspect all matching rounds; do not pick the first path or infer a filename from the slug. The pre-branch `review: track <basename>` commit supplies no branch identity. Zero candidates, multiple candidates, detached HEAD, missing/deleted files, unsafe paths, or failed Git reads produce distinct diagnostics and no cache/pane mutations. Ordinary unrelated commits do not establish review identity. Bound reads as described below; incomplete history is an error, not proof of uniqueness.
+
+Preserve first opening before the first round: successful explicit `:PairReview <file>` preparation writes a current-session selection receipt containing canonical repository, branch, file and prepared HEAD. When history has zero candidates only, verify that receipt still matches the checkout and tracked regular file, then permit opening. A stale target without this receipt, another conversation's receipt, or a changed HEAD cannot authorize this exception. Once matching rounds exist, history wins. Test both already-tracked and newly tracked first opens. A fresh session with no history must select the file explicitly; no durable identity is invented.
 
 For an already-matching pane, retain the existing show/hide behavior. For a different clean idle pane, switch inside the same Neovim process through a private RPC endpoint and reconstruct the new document. Keep the old buffer and undo history. A modified buffer, deferred round, outstanding request, definition request, unconsumed handoff, or applied-but-uncommitted round refuses retargeting with a concrete recovery message. Never kill a pane to replace it. An old pane without the new RPC capability refuses safely and asks the operator to finish/close it.
+
+Before activating a retained clean buffer, compare it with the current file bytes even when the pathname is unchanged. Apply any disk-content difference as one undoable in-buffer replacement through the existing projection machinery, preserving the undo tree; reconstruct decorations only after the displayed bytes match the selected checkout. Never use `:edit!` to erase retained state. Modified retained buffers block activation. Test two branches reviewing the same path with different bytes, and A changed on disk while inactive.
 
 The draft updates its target only after acknowledged activation; fresh sessions may explicitly restore committed branch context but do not adopt another conversation's transient requests. Retargeting sends no automatic review request and makes no Git writes. Counts and decorations derive from the selected branch/file's rounds, not any inherited review commit.
 
@@ -33,7 +37,7 @@ Alternatives rejected: a persistent branch-to-file cache duplicates Git authorit
 
 `ReviewIdentity` carries repository root, branch ref, pinned HEAD, and repo-relative document path. HEAD is an observation token, not a permanent identity: legitimate round commits advance it. `classifyIdentity` consumes collected round/path facts and returns resolved, absent, ambiguous, or invalid; tests supply data without subprocesses. It replaces the first-file assumption in readiness (ARCH-DRY).
 
-`transition(state, event)` owns activation states idle, active, switching, and blocked, including the current identity, activation token and pending-work reason. It returns state plus declared effects. `validate_context` compares a handoff's activation/document identity before consumption or application. These are the single decision owners; IO code does not independently infer permission (ARCH-PURE, ARCH-STATE).
+`transition(state, event)` owns activation states idle, active, switching, and blocked, including the current identity, activation token and pending-work reason. It returns state plus declared effects. `validate_context` compares a handoff's activation/document identity before consumption or application. These are the single decision owners; IO code does not independently infer permission (ARCH-PURE, ARCH-ORDER).
 
 ### Integration points
 
@@ -68,6 +72,8 @@ The controller serializes events on Neovim's event loop; revalidates repository 
 
 Extend handoff transport to accept `{context: {repo, branch, file, activation}, records: [...]}`. New workbench request pokes explicitly supply that context and require it to be echoed. Keep commit-body record encoding unchanged. Legacy array-only payloads may continue only in an uninterrupted legacy activation; a restored or retargeted activation refuses them visibly and preserves them for reissue. This is necessary because record text alone cannot prove which document a late response belongs to. Validate again when deferred work is applied. Definition responses retain their request-ID guard and also belong to the active context.
 
+Carry the same context in landed artifacts and human-finished, agent-applied and ship pokes. The agent protocol must revalidate canonical repository, checked-out branch and document immediately before every Git effect, and preserve artifacts and stop on mismatch. Update `tests/lib/fake-review-agent.sh` to exercise that rule through its production-like producer flow. Update the authoritative producer instructions in `../ariadne/construct/local/fix/SKILL.md` (the Pair xx-fix skill is a symlink there), through a small linked Ariadne issue and its own SDLC gates; do not fork the skill into Pair. Pair's target documents the wire schema, and request pokes include it explicitly so the required envelope is visible at the moment of production. Test a branch switch after apply acknowledgment but before agent commit, and before human-round/ship effects. This governs cooperative agents; arbitrary independent Git commands remain outside the pane's authority.
+
 Track applied-but-uncommitted work until Git supplies positive evidence: the matching document/branch round contains the landed record body and expected file content. A lingering landed file by itself is neither proof of pending work nor proof of completion. Pending requests with an uncertain agent outcome remain blocked; a timeout never clears them. Expose the recovery instruction to return to the original branch and finish the round. On exit under a branch mismatch, preserve unsaved text in Neovim's recovery storage and report its path; never silently save stale buffer text into the new checkout.
 
 ## Operating envelope and ownership
@@ -91,13 +97,14 @@ Files: `cmd/internal/reviewcmd/identity.go`, `identity_test.go`, `run.go`, `runc
 
 ### Task 2: pane-owned safe activation and round admission
 
-Files: `nvim/review/restore.lua`, `restore_test.lua`, `restore_controller.lua`, `nvim/review.lua`, `nvim/review/init.lua`, `handoff.lua`, `poke_bodies.lua`, their existing tests; `tests/review-window-test.sh`, `review-handoff-test.sh`, `review-loop-test.sh`.
+Files: `nvim/review/restore.lua`, `restore_test.lua`, `restore_controller.lua`, `nvim/review.lua`, `nvim/review/init.lua`, `handoff.lua`, `poke_bodies.lua`, their existing tests; `tests/review-window-test.sh`, `review-handoff-test.sh`, `review-loop-test.sh`, `tests/lib/fake-review-agent.sh`; linked peer instruction change in `../ariadne/construct/local/fix/SKILL.md`.
 
 - [ ] Add pure transition sequence tests, then headless tests proving modified/deferred/awaiting/definition/uncommitted states refuse switching and preserve bytes/artifacts.
 - [ ] Exercise late callbacks, branch changes between probe and apply, duplicate RPC, pane death and unconfirmed timeout through controllable fake state. Confirm failures before implementation.
 - [ ] Implement the controller and private endpoint; refactor activation cleanup so old timers/autocommands do not survive a switch and old buffers/undo remain intact.
 - [ ] Gate every save/apply/send/ship path, including VimLeave autosave and deferred/definition apply. Verify recovery storage actually restores unsaved content after branch mismatch and exit.
 - [ ] Add context envelopes and request instructions without changing committed record encoding; preserve rejected payloads. Prove old/new document identical anchors cannot bypass context checks.
+- [ ] Carry context through landed artifacts and all commit/ship requests; update the stateful fake producer and authoritative xx-fix instructions via a linked peer issue. Prove a branch switch before the agent's Git effect preserves artifacts and performs no commit/ship.
 - [ ] Run the window, handoff, loop and resume shell suites; require success, then commit.
 
 ### Task 3: authoritative Alt+C and end-to-end restoration
@@ -107,6 +114,7 @@ Files: `nvim/init.lua`, `cmd/internal/reviewcmd/run.go`, `run_test.go`, `tests/r
 - [ ] Reproduce the current failure using real temporary review branches and headless draft/review processes; assert displayed buffer path/content and decorations, not just resolver output.
 - [ ] Wire resolution before liveness/visibility; activate through the pane controller and publish cache only after acknowledgment. Remove RunOpen's unconditional live-pane kill and test its refusal has no kill/remove/spawn effects.
 - [ ] Cover visible and hidden B pane on A, fresh conversation with B cache, dead/legacy pane, failed activation, missing/ambiguous branch identity, non-review branch, and branch switch during pending work. Require A → B → A to work with no repeated `:PairReview` when idle.
+- [ ] Verify zero-round explicit first opens for tracked/untracked files, refusal of stale/fresh-session receipts, same-file branch switches with different contents, and inactive files changed on disk; assert bytes, decorations and undo preservation.
 - [ ] Mutation-check the resolver call, pending guard and pre-consumption context guard independently; each removal must fail the production-boundary regression. Restore from byte copies.
 - [ ] Run `go test ./cmd/internal/reviewcmd -count=1`, `go test -race ./cmd/internal/reviewcmd -count=1`, `make test-lua`, and all `tests/review-*-test.sh` plus `tests/pair-review-target-test.sh`. Build with `make build` and record any environmental limitation precisely.
 
@@ -121,3 +129,7 @@ Files: `atlas/review-workbench.md`, `workshop/targets/review-protocol.md`, issue
 ## Approval and estimate
 
 This exceeds the quick-flow code limit. Obtain approval of this durable plan before implementation. Run full-flow `sdlc change-code` after approval; derive the estimate only after its plan-quality gate passes. No estimate has been assigned yet.
+
+## Revisions
+
+2026-09-28 — Fresh-context review identified first-open, retained-content and agent-commit gaps. Added a verified explicit-selection exception for zero-round branches, undo-preserving content reconciliation, and end-to-end context propagation through producer instructions and Git effects. Corrected ARCH-ORDER attribution. These additions preserve the original issue contract.
