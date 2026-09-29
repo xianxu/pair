@@ -815,6 +815,14 @@ Before enabling collection, register every Couch store with
 Use an empty list only when no Couch stores exist. This explicit migration
 step accounts for custom stores that cannot be discovered automatically.
 
+If a registered store is unavailable, restore or remount it when the outage is
+temporary. For a permanently abandoned missing store, run
+`pair gc --forget-missing-store /exact/canonical/registered/path`. This removes
+only that registration and disables collection by resetting migration
+acknowledgment. Review the remaining list and re-acknowledge it with
+`pair gc --complete-migration --store PATH` (repeat `--store` for every store).
+Ordinary Couch startup keeps unavailable registrations intact.
+
 `pair gc --apply` initializes clocks and, after migration, collects eligible
 items in bounded batches: up to 100 eligible groups and the first 100 diagnostic
 paths per invocation. Repeating it can collect remaining session/capture groups;

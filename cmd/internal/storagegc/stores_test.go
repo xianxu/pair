@@ -105,7 +105,6 @@ func TestRegistryUnavailableStoreBlocksCollectionAndRemoval(t *testing.T) {
 	if err := c.CompleteMigration(ctx, []string{store}); err == nil {
 		t.Fatal("unavailable store allowed completion")
 	}
-
 	called := false
 	if err := c.UnregisterStore(ctx, store, func(string) (bool, error) { called = true; return true, nil }); err == nil || called {
 		t.Fatal("unavailable store unregistered")

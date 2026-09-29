@@ -140,16 +140,27 @@ func Run(args []string, getenv func(string) string, stdout, stderr io.Writer) in
 		return 0
 	}
 	render(stdout, report)
-	registry, e := coordinator.ReadRegistry()
-	if e == nil {
+	entries, inspectErr := coordinator.InspectRegistry()
+	if inspectErr == nil {
 		fmt.Fprintln(stdout, "Registered Couch stores:")
-		for _, path := range registry.Stores {
-			fmt.Fprintf(stdout, "  %s\n", path)
+		for _, entry := range entries {
+			if entry.Unavailable == "" {
+				fmt.Fprintf(stdout, "  %s\n", entry.Path)
+				continue
+			}
+			fmt.Fprintf(stdout, "  %s (unavailable: %s)\n", entry.Path, entry.Unavailable)
 		}
-		if len(registry.Stores) == 0 {
+		if len(entries) == 0 {
 			fmt.Fprintln(stdout, "  (none)")
 		}
+		for _, entry := range entries {
+			if entry.Unavailable != "" {
+				fmt.Fprintln(stdout, "For unavailable stores, restore or remount temporary outages. For a permanently abandoned missing store, use --forget-missing-store with its exact registered path; then separately acknowledge the remaining inventory with --complete-migration.")
+				break
+			}
+		}
 	}
+
 	if !report.Storage.MigrationComplete {
 		fmt.Fprintln(stdout, "Collection is disabled until all Couch stores are registered and acknowledged with --complete-migration --store PATH (repeat --store for every registered namespace). Use --apply to initialize 60-day session clocks.")
 	}

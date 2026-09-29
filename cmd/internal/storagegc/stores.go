@@ -178,7 +178,9 @@ func (c *Coordinator) CompleteMigration(ctx context.Context, expectedPaths []str
 
 // UnregisterStore calls the namespace owner's empty proof under coordination.
 // The proof must take its store lock in that order and cover all references;
-// all membership publishers must register before adding new references.
+// all membership publishers must register before adding new references. Unlike
+// ordinary registration, removal conservatively requires full inventory
+// availability; use explicit abandonment for a permanently missing store.
 func (c *Coordinator) UnregisterStore(ctx context.Context, path string, empty func(string) (bool, error)) error {
 	if empty == nil {
 		return errors.New("unregister requires explicit empty-store proof")
@@ -270,4 +272,34 @@ func requireDirectoryOrMissing(path string) error {
 		return fmt.Errorf("unsafe registered store ancestor %q", path)
 	}
 	return nil
+}
+
+// RegistryEntry is an inspection result, never authority to collect references.
+type RegistryEntry struct {
+	Path        string
+	Unavailable string
+}
+
+// InspectRegistry reports the structurally valid inventory even during an
+// outage. GC must continue to use ReadRegistry's complete availability check.
+func (c *Coordinator) InspectRegistry() ([]RegistryEntry, error) {
+	r, err := c.readRegistryFile()
+	if err != nil {
+		return nil, err
+	}
+	if err := r.validateStructure(); err != nil {
+		return nil, err
+	}
+	entries := make([]RegistryEntry, 0, len(r.Stores))
+	for _, path := range r.Stores {
+		entry := RegistryEntry{Path: path}
+		canonical, err := canonicalStore(path)
+		if err != nil {
+			entry.Unavailable = err.Error()
+		} else if canonical != path {
+			entry.Unavailable = "registered path is no longer canonical"
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }

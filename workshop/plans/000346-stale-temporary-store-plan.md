@@ -16,6 +16,7 @@
 
 | Name | Lives in | Status |
 | --- | --- | --- |
+| RegistryEntry availability diagnostic | `cmd/internal/storagegc/stores.go` | new |
 | StoreRegistry structural validity | `cmd/internal/storagegc/stores.go` | modified |
 | RequestedNativeID and current-launch binding projection | `cmd/internal/sessionledger/record.go` | modified |
 | Resume target projection | `cmd/internal/sessioninventory/query.go` | new |
@@ -28,6 +29,7 @@ One owner has many launch records; one launch has a requested UUID and at most o
 
 | Name | Lives in | Status | Wraps |
 | --- | --- | --- | --- |
+| InspectRegistry | `cmd/internal/storagegc/stores.go` | new | read-only structural inventory plus availability diagnostics |
 | RegisterStore / explicit missing-store abandonment | `cmd/internal/storagegc/stores.go`, `cmd/internal/gccmd/run.go` | modified | retention lock and atomic registry writes |
 | Ledger requested/confirmed writes | `cmd/internal/sessionledger/store.go` | modified | versioned append, current-launch compare under lock |
 | Launch preparation and observation | `cmd/internal/sessionwatch/lifecycle.go`, `run.go` | modified | metadata baseline, correlation, native adapters, ledger/config publication |
@@ -67,7 +69,7 @@ Compaction continues to reference its exact named copy; it does not take the wri
 
 ## Chunk 1: Registry startup and explicit abandonment (M1)
 
-**Files:** `cmd/internal/storagegc/stores.go`, `stores_test.go`, `collector_test.go`; `cmd/internal/gccmd/run.go`, `run_test.go`; `cmd/internal/couchcore/retention_test.go`; `cmd/internal/couchcmd` production-boundary test; `tests/couch-recovery-smoke.sh`; `atlas/couch.md`.
+**Files:** `cmd/internal/storagegc/stores.go`, `stores_test.go`, `collector_test.go`; `cmd/internal/gccmd/run.go`, `run_test.go`; `cmd/internal/couchcore/retention_test.go`; `cmd/internal/couchcmd` production-boundary test; `tests/couch-recovery-smoke.sh`, `tests/with-isolated-pair.sh`; `atlas/couch.md`, `README.md`.
 
 - [x] Add failing tests at the coordinated-store/CLI boundary and pure structural validator using the strategies below; verify the expected failure before implementation.
 - [x] Split `StoreRegistry.validateStructure` from full availability validation. `RegisterStore` checks structure and its selected canonical directory; `ReadRegistry`, `CompleteMigration` and GC keep complete availability checks. Other registrations remain intact.
@@ -81,6 +83,7 @@ Compaction continues to reference its exact named copy; it does not take the wri
 | RegisterStore / NewCoordinatedThreadStore | Real temporary namespace disappearance followed by production list/load/save; assert only the selected store's availability gates use. |
 | ForgetMissingStore | Stateful filesystem failure/alias permutations under coordinator; assert exact removal and migration reset or byte-identical registry on rejection. |
 | Collector.Preview / Apply | Eligible payload fixture with unavailable registered namespace; assert no deletion until explicit valid migration acknowledgment. |
+| InspectRegistry / gccmd.Run | Real unavailable namespace; structurally valid paths remain visible with restore/remount or explicit abandonment guidance, without mutation. |
 | gccmd.Run / smoke process environment | Rejected operation combinations have no writes; sentinel operator-shaped root stays byte-identical through isolated subprocess. |
 
 ## Chunk 2: Durable targets and current-launch observation (M2)
@@ -157,3 +160,7 @@ Addressed PQ-1 with explicit capture phases, two-lock ordering, exec release/rea
 ### 2026-09-29T10:22:03-07:00 — Operator simplifies archival ownership
 
 Replace archive-on-quit and exactly-once recovery machinery with startup-only copy-before-truncate, writer exclusion and retained originals on failure. Redundant archives after crash are acceptable. Existing compaction named copies remain; permanent capture IDs are filed separately as #347. This explicitly supersedes the stronger PQ-1 transaction solution because its extra guarantee is not required by the operator.
+
+### 2026-09-29T10:41:21-07:00 — M1 review surfaces reconciled
+
+Add RegistryEntry/InspectRegistry to the concept tables and name the shared smoke environment wrapper and README as delivered surfaces. BR-1–3 corrections are tested at production CLI/subprocess boundaries; conservative unregister availability remains documented.

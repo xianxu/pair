@@ -104,3 +104,24 @@ func TestForgetMissingStoreRejectsMixedOperationsBeforeMutation(t *testing.T) {
 		}
 	}
 }
+
+func TestMissingStorePreviewExplainsRecovery(t *testing.T) {
+	root, store := t.TempDir(), t.TempDir()
+	var out bytes.Buffer
+	env := func(string) string { return "" }
+	if Run([]string{"--root", root, "--register-store", store}, env, &out, &out) != 0 {
+		t.Fatal(out.String())
+	}
+	if err := os.Remove(store); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	if Run([]string{"--root", root}, env, &out, &out) != 0 {
+		t.Fatal(out.String())
+	}
+	for _, text := range []string{"Registered Couch stores:", "unavailable", "--forget-missing-store", "restore", "remount"} {
+		if !strings.Contains(out.String(), text) {
+			t.Fatalf("missing recovery guidance %q: %s", text, out.String())
+		}
+	}
+}
