@@ -74,14 +74,35 @@ Extend handoff transport to accept `{context: {repo, branch, file, activation}, 
 
 Carry the same context in landed artifacts and human-finished, agent-applied and ship pokes. The agent protocol must revalidate canonical repository, checked-out branch and document immediately before every Git effect, and preserve artifacts and stop on mismatch. Update `tests/lib/fake-review-agent.sh` to exercise that rule through its production-like producer flow. Update the authoritative producer instructions in `../ariadne/construct/local/fix/SKILL.md` (the Pair xx-fix skill is a symlink there), through a small linked Ariadne issue and its own SDLC gates; do not fork the skill into Pair. Pair's target documents the wire schema, and request pokes include it explicitly so the required envelope is visible at the moment of production. Test a branch switch after apply acknowledgment but before agent commit, and before human-round/ship effects. This governs cooperative agents; arbitrary independent Git commands remain outside the pane's authority.
 
-Track applied-but-uncommitted work until Git supplies positive evidence: the matching document/branch round contains the landed record body and expected file content. A lingering landed file by itself is neither proof of pending work nor proof of completion. Pending requests with an uncertain agent outcome remain blocked; a timeout never clears them. Expose the recovery instruction to return to the original branch and finish the round. On exit under a branch mismatch, preserve unsaved text in Neovim's recovery storage and report its path; never silently save stale buffer text into the new checkout.
+Track applied-but-uncommitted work until Git supplies positive evidence: the matching document/branch round contains the landed record body and expected file content. A lingering landed file by itself is neither proof of pending work nor proof of completion. Pending requests with an uncertain agent outcome remain blocked; a timeout never clears them. Expose the recovery instruction to return to the original branch and finish the round. On exit under a branch mismatch, persist unsaved text through `recovery.save` below and report its path; never save stale buffer text into the new checkout.
 
 ## Operating envelope and ownership
 
 - ARCH-CONSTRAINTS: Alt+C is an explicit UI action, never a render-time Git scan. Start with a 2-second total resolver deadline, 5-second RPC operation deadline, 10,000 matching commits and 8 MiB history output caps (engineering assumptions). Exceeding a bound produces a diagnostic without mutation. Use asynchronous Neovim calls; disable duplicate activation while one is pending. Test cancellation and bounded failure rather than claiming latency from these assumptions.
 - ARCH-SECURE: branch names, Git paths, state files and RPC replies cross process/version boundaries. Use argument vectors, NUL framing, exact subjects, canonical in-repo regular paths, JSON validation and activation tokens. Do not evaluate untrusted Lua expressions or trust PID liveness as pane identity. A private per-process socket plus expected conversation/token handshake authorizes RPC.
-- ARCH-FUNERAL: no new durable review history store. RPC socket lives under a private temporary directory, removed on normal exit; startup removes only provably dead owned residue. Existing open-state record adds endpoint/version/identity metadata while preserving its first two lines for existing readers. Only its owning incarnation removes it. Activation context replaces the existing bounded context projection; target remains one record per existing scoped namespace. Recovery snapshots reuse Neovim's existing swap/undo lifecycle, with a regression proving recoverability before relying on it.
+- ARCH-FUNERAL: no new durable review history store. RPC socket lives under a private temporary directory, removed on normal exit; startup removes only provably dead owned residue. Existing open-state record adds endpoint/version/identity metadata while preserving its first two lines for existing readers. Only its owning incarnation removes it. Activation context replaces the existing bounded context projection; target remains one record per existing scoped namespace. Recovery snapshots use the explicit lifecycle below; swap/undo alone is not a durability mechanism.
 - ARCH-PURPOSE: cover both draft activation and pane application; fixing only the toggle leaves late rounds able to corrupt the restored document. No automatic branch checkout, review generation, or round commit belongs to this feature.
+
+## Recovery storage (PQ-1)
+
+`nvim/review/recovery.lua` owns one atomic JSON snapshot per canonical repo/branch/file in a private `review-recovery` directory beside the scoped open-state file. It stores identity and exact buffer lines/end-of-line flag, never a pathname inferred from user text; filenames are SHA-256 identity digests. The pane writes before an orderly branch-mismatched exit and on edits observed while mismatched. `QuitPre` writes synchronously and aborts an ordinary quit on failure; VimLeave is a last best-effort fallback for external termination, whose failure is reported rather than treated as preservation. Uncatchable process death remains ordinary editor crash semantics.
+
+A writer admits at most 32 identities and 8 MiB per snapshot; existing keys are replaced atomically, never append-only. Admission failure preserves the existing snapshot and blocks orderly exit. Recovery activation verifies the snapshot's full identity, offers `:PairReviewRecover`, and loads it as modified text into the correct active review. The snapshot is removed only after a successful save of that recovered text on the matching branch (or explicit `:PairReviewDiscardRecovery`), never merely after reading it. Refuse overwriting an unconsumed prior-process snapshot. The final consumer is that recovery action; unresolved snapshots occupy bounded capacity and the diagnostic tells the operator how to recover/discard them. Files and directory are private; reject symlinks/nonregular storage. No editor-controlled Git writes.
+
+## Verification strategy (PQ-2)
+
+| Risky function | Adversarial class and mechanical guard |
+|---|---|
+| `classifyIdentity` | Fuzz malformed subjects/path framing and conflicting history facts; exact grammar and unique safe path classification |
+| `resolveIdentity` | Stateful Git failure/history movement and resource exhaustion; pinned observation plus deadline/size caps, real temporary-repo conformance |
+| `transition` | Generated activation/interrupt/retry sequences; assert unchanged identity/artifacts on refusal and single owner on success |
+| `validate_context` | Malformed, missing and cross-activation payloads; no consume/apply without exact contextual admission |
+| `recovery.save` / `recovery.restore` | Failed writes and process restart; atomic old-snapshot preservation, bounded admission, exact recovered bytes, no checkout write |
+| controller activation | Two headless processes with controlled RPC completion order and retained-buffer disk drift; acknowledgment/context and byte equality before show |
+| `handoff.watch` / `apply_round` | Late/deferred cross-branch responses; production guard before unlink, apply and landed publication |
+| producer Git boundary | Stateful fake paused after acknowledgment; changed checkout prevents human/agent commit and ship without deleting artifacts |
+| `PairReviewToggle` / `RunOpen` | Stale/live/fresh-session state through real command entry points; branch authority, verified initial selection, no kill/spawn on refusal |
+| `reconstruct_on_open` | Inherited unrelated rounds with matching text anchors; only selected branch/document records decorate |
 
 ## Chunk 1: implement and verify one atomic restoration change
 
@@ -89,7 +110,7 @@ Track applied-but-uncommitted work until Git supplies positive evidence: the mat
 
 Files: `cmd/internal/reviewcmd/identity.go`, `identity_test.go`, `run.go`, `runcli.go`, `run_test.go`, `runtime.go`; `tests/review-readiness-cli-test.sh`, `tests/review-resume-test.sh`.
 
-- [ ] Add failing tests for A → B → A, two files in one matching commit, different files across matching rounds, inherited other-slug history, no rounds, empty rounds, deleted paths, spaces/newlines, detached HEAD and Git errors.
+- [ ] Add failing `classifyIdentity` and `resolveIdentity` tests using the verification strategies above.
 - [ ] Run `go test ./cmd/internal/reviewcmd -count=1`; confirm the new assertions fail on current behavior.
 - [ ] Implement pure identity classification plus bounded collection behind Runtime. Add read-only `pair review readiness --resolve <directory>` structured output; reuse it for readiness file matching.
 - [ ] Make reconstruction consume the resolved current-slug/file history; include inherited unrelated agent rounds and identical text anchors in the regression.
@@ -99,10 +120,10 @@ Files: `cmd/internal/reviewcmd/identity.go`, `identity_test.go`, `run.go`, `runc
 
 Files: `nvim/review/restore.lua`, `restore_test.lua`, `restore_controller.lua`, `nvim/review.lua`, `nvim/review/init.lua`, `handoff.lua`, `poke_bodies.lua`, their existing tests; `tests/review-window-test.sh`, `review-handoff-test.sh`, `review-loop-test.sh`, `tests/lib/fake-review-agent.sh`; linked peer instruction change in `../ariadne/construct/local/fix/SKILL.md`.
 
-- [ ] Add pure transition sequence tests, then headless tests proving modified/deferred/awaiting/definition/uncommitted states refuse switching and preserve bytes/artifacts.
-- [ ] Exercise late callbacks, branch changes between probe and apply, duplicate RPC, pane death and unconfirmed timeout through controllable fake state. Confirm failures before implementation.
+- [ ] Add failing `transition`, `validate_context` and controller tests using the verification strategies above.
+- [ ] Confirm controlled-order integration regressions fail before implementation.
 - [ ] Implement the controller and private endpoint; refactor activation cleanup so old timers/autocommands do not survive a switch and old buffers/undo remain intact.
-- [ ] Gate every save/apply/send/ship path, including VimLeave autosave and deferred/definition apply. Verify recovery storage actually restores unsaved content after branch mismatch and exit.
+- [ ] Gate save/apply/send/ship at the shared owner; implement `recovery.save`/`restore` and prove durability across process exit.
 - [ ] Add context envelopes and request instructions without changing committed record encoding; preserve rejected payloads. Prove old/new document identical anchors cannot bypass context checks.
 - [ ] Carry context through landed artifacts and all commit/ship requests; update the stateful fake producer and authoritative xx-fix instructions via a linked peer issue. Prove a branch switch before the agent's Git effect preserves artifacts and performs no commit/ship.
 - [ ] Run the window, handoff, loop and resume shell suites; require success, then commit.
@@ -113,8 +134,8 @@ Files: `nvim/init.lua`, `cmd/internal/reviewcmd/run.go`, `run_test.go`, `tests/r
 
 - [ ] Reproduce the current failure using real temporary review branches and headless draft/review processes; assert displayed buffer path/content and decorations, not just resolver output.
 - [ ] Wire resolution before liveness/visibility; activate through the pane controller and publish cache only after acknowledgment. Remove RunOpen's unconditional live-pane kill and test its refusal has no kill/remove/spawn effects.
-- [ ] Cover visible and hidden B pane on A, fresh conversation with B cache, dead/legacy pane, failed activation, missing/ambiguous branch identity, non-review branch, and branch switch during pending work. Require A → B → A to work with no repeated `:PairReview` when idle.
-- [ ] Verify zero-round explicit first opens for tracked/untracked files, refusal of stale/fresh-session receipts, same-file branch switches with different contents, and inactive files changed on disk; assert bytes, decorations and undo preservation.
+- [ ] Exercise the issue Done-when through the production-boundary strategy above; require A → B → A without repeated selection when idle.
+- [ ] Verify the explicit-selection exception and retained-buffer reconciliation contracts through displayed bytes, decorations and undo preservation.
 - [ ] Mutation-check the resolver call, pending guard and pre-consumption context guard independently; each removal must fail the production-boundary regression. Restore from byte copies.
 - [ ] Run `go test ./cmd/internal/reviewcmd -count=1`, `go test -race ./cmd/internal/reviewcmd -count=1`, `make test-lua`, and all `tests/review-*-test.sh` plus `tests/pair-review-target-test.sh`. Build with `make build` and record any environmental limitation precisely.
 
@@ -133,3 +154,5 @@ This exceeds the quick-flow code limit. Obtain approval of this durable plan bef
 ## Revisions
 
 2026-09-28 — Fresh-context review identified first-open, retained-content and agent-commit gaps. Added a verified explicit-selection exception for zero-round branches, undo-preserving content reconciliation, and end-to-end context propagation through producer instructions and Git effects. Corrected ARCH-ORDER attribution. These additions preserve the original issue contract.
+
+2026-09-28 — PQ-1/PQ-2: replaced the unsupported swap/undo recovery assumption with bounded atomic snapshots and explicit recover/discard ownership, and compressed case inventories into named function-level adversarial strategies. Operator approved execution before this safety refinement. Linked producer work is ariadne#268.
