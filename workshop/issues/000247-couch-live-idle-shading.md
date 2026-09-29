@@ -164,3 +164,20 @@ Recorded the operator's decision; no implementation begun. The shared checkout c
   under 3 days faded; 3 days or more more faded. This supersedes the
   1 h / 24 h / 48 h four-level ramp recorded earlier today. Blend weights
   become 0 / 40 / 65 %.
+
+### 2026-09-28 — M1 implementation
+
+- `idle_shade.go`: `IdleLevelFor` (24 h / 72 h, inclusive; unknown, zero or
+  future → fresh), `FadeStyle` (blend toward the reported background; SGR 90
+  when the palette is unknown; `NO_COLOR` and level 0 keep today's bytes),
+  `blend`, `quantize256` (cube + grey ramp, system colours skipped).
+- Tab bar (`RenderStatusRow`): `StatusActor.Idle` and `StatusModel.Palette`.
+  The fade is the fallback case after placeholder/bell, and never applies to
+  the active chip. Amber glyphs fade with their chip.
+- Switcher: live rows without attention fade from `MenuState.Activity` and
+  `MenuState.Palette`. The selected row, attention rows and non-live rows
+  (their age ramp) are unchanged.
+- Mutation-checked (cp/cmp revert): removing the tab-bar fade case →
+  `TestRenderStatusRowFadesAnIdleChip` fails; disabling the live-row branch →
+  `TestSwitcherFadesAnIdleLiveRowAndItsAmberGlyphs` fails.
+- `go test ./cmd/internal/couchtty` green (unsandboxed; the pty/tmp tests need it).
