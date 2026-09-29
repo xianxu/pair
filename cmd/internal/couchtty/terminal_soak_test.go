@@ -130,6 +130,10 @@ func TestCouchProductionSoak(t *testing.T) {
 		}
 	}
 	host := &couchSoakHost{FakeHost: hostty.NewFakeHost(ptychild.Size{Rows: 8, Cols: 160}), em: vt.NewEmulator(160, 8)}
+	// Drain the emulator's reply pipe, as newVTHost does: couch now asks the
+	// terminal for its colours (pair#247), the emulator answers like a real
+	// terminal, and an unread answer wedges its Write.
+	go func() { _, _ = io.Copy(io.Discard, host.em) }()
 	t.Cleanup(func() { host.em.Close() })
 	reader, input := io.Pipe()
 	con := New(host, reader)

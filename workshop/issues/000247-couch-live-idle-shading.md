@@ -1,12 +1,14 @@
 ---
 id: 000247
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-13
-updated: 2026-09-13
-estimate_hours:
-card_mirror: 'dbf2fe17f3b1e59f8333f09f90e02999a682948b' # card fields mirrored from issue-cards; edit via sdlc
+updated: 2026-09-28
+estimate_hours: 4.35
+card_mirror: 'c991ef7b9e7d16802fb6f526d44cc2836083d00d' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T21:31:56-07:00
+flow: {kind: full, provenance: inferred}
 ---
 
 # Shade live Couch threads by idle time
@@ -58,14 +60,59 @@ retirement with the thread's lifecycle (ARCH-CONSTRAINTS, ARCH-FUNERAL).
   delivery into both renderers, unknown/future timestamps, restart, and style precedence.
 - Dark/light theme and no-color checks pass; operator docs explain the shading.
 
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec             design=1.0 impl=0.05
+item: greenfield-go-module   design=0.5 impl=0.22
+item: tui-screen             design=0.5 impl=0.26
+item: smaller-go-module      design=0.1 impl=0.14
+item: smaller-go-module      design=0.1 impl=0.14
+item: greenfield-go-module   design=0.3 impl=0.22
+item: atlas-docs             design=0.1 impl=0.05
+item: milestone-review       design=0.0 impl=0.14
+item: milestone-review       design=0.0 impl=0.14
+design-buffer: 0.15
+total: 4.35
+```
+
+Items, in order:
+1. Spec and plan: brainstorm, two review rounds, operator revisions.
+2. The pure idle-level and fade policy (`idle_shade.go`: level, blend, quantize, style).
+3. Both renderers: the tab bar chip and the switcher's live rows.
+4. The shared `threadactivity`, plus the title poller moving onto it.
+5. The console activity pass, mirroring slot git.
+6. The OSC 10/11 palette query and reply capture.
+7. Docs and atlas.
+8. Two milestone reviews.
+
+`impl=` values are 40 % of the v2 table's midpoints (v3.1). The design buffer
+is +15 % because there's a thorough plan document.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (The calibration doc is flagged stale; the numbers are provisional per #127.)
+
 ## Plan
 
-- [ ] Settle activity semantics, thresholds, theme behavior, and refresh/persistence design.
-- [ ] Author a durable implementation plan coordinated with existing bar-style work.
-- [ ] Implement shared policy, verify both surfaces, and update docs through SDLC gates.
+Durable plan: `workshop/plans/000247-couch-live-idle-shading-plan.md`.
+
+- [x] M1 — pure policy + renderers: `IdleLevelFor` (1 day / 3 days, 3 levels), `FadeStyle`
+      (blend toward the terminal background; SGR 90 / no-color fallbacks), tab bar
+      and switcher live rows faded with selection/bell/placeholder precedence.
+- [x] M2 — IO seams + wiring + docs: shared `threadactivity.Latest` (the title
+      poller migrated to it), a 60 s console activity pass, an OSC 10/11 palette
+      query and reply capture, `couchcmd` wiring, README/help/atlas, and an
+      operator smoke on dark + light themes.
 
 ## Log
 
+
+
+
+- 2026-09-28: closed — Idle fading of live Couch threads (1 day / 3 days, blended toward the terminal-reported background; SGR 90 fallback; NO_COLOR keeps today bytes) in tab bar and switcher, with selection/notification/placeholder precedence; one shared thread-activity definition (transcript, Pair log, launch; draft excluded) also used by the title poller. M1 SHIP, M2 SHIP (round 2). Full make test green on every touched package after rebase onto origin/main (only failure: #341 reviewcmd inventory, reproduces on clean origin/main). Operator live smoke passed (distinct shades); tuning/light/NO_COLOR/probe cost -> #343. --actual 1.81 = M1 1.24 (measured before the rebase) + M2 0.57 (sdlc active-time since M1 close); cumulative sdlc actual undercounts after integrating main, filed as ariadne#270; review verdict: SHIP
+- 2026-09-28: closed M2 — threadactivity + console activity pass + OSC 10/11 palette + couchcmd wiring; mutation-checked (probe filter, failure-keeps, inventory request, capture, query, showMenu clock); switcher fade asserted on the rendered vt cell (BR-6); full make test green on every touched package after rebase onto origin/main (sole failure: #341 reviewcmd inventory, reproduced on clean origin/main); operator live smoke on the pair:0 build 7363b5e1 passed on visible shades, with tuning, light-theme/NO_COLOR live checks and the probe-cost decision moved to #343 (BR-5); --actual 0.57 = sdlc active-time since M1 close, no foreign commits in window; review verdict: SHIP
+- 2026-09-28: closed M1 — IdleLevelFor/FadeStyle/blend/quantize256 table tests; tab bar + switcher fade with selection/bell/attention/placeholder precedence and byte-identical level 0; mutation-checked both render guards; go test ./cmd/internal/couchtty green (unsandboxed); review verdict: SHIP
 ### 2026-09-13
 
 Captured operator request. Inspected couchtty/menu_render.go (existing AgeBandFor
@@ -93,3 +140,79 @@ Dot acceptance: an injected clock verifies the 15-byte/15-second boundaries, exp
 ### 2026-09-14 — Capture status
 
 Recorded the operator's decision; no implementation begun. The shared checkout currently carries active #250 recovery work, including staged changes, so this update publishes only #247's issue record.
+
+### 2026-09-28 — Operator answers the open idle-shading questions
+
+- **Activity = both.** Operator input to the thread AND agent work or output
+  reset idle age. Redraws, cursor blink, status refreshes and polling still
+  don't count.
+- **Thresholds: 1 h, 24 h, 48 h**, still four levels: under 1 h normal;
+  1 h to under 24 h mildly faded; 24 h to under 48 h more faded; 48 h or more
+  most faded. (Replaces the provisional 5 min / 1 h / 24 h ramp.)
+- **Fade both label colors**: the normal foreground (white on a dark theme)
+  and the amber label color, where the terminal can express it.
+- **Precedence confirmed**: selected/focused styling and pending notifications
+  keep their own emphasis. Both themes and color-disabled rendering must stay
+  correct.
+
+### 2026-09-28 — Color approach and scope
+
+- Operator chose **blend toward the terminal's background**. Couch asks the
+  terminal once for its colors (OSC 10/11) and mixes each label color toward
+  the background (0/35/55/70 %). The unanswered fallback is SGR 90 grey, with
+  amber unfaded.
+- The recent-traffic dot (2026-09-14 revision above) is **split out to #342**.
+  It is no longer part of this issue.
+
+### 2026-09-28 — Operator shrinks the ramp to three levels
+
+- **Thresholds: 1 day and 3 days, three levels**: under 1 day normal; 1 day to
+  under 3 days faded; 3 days or more more faded. This supersedes the
+  1 h / 24 h / 48 h four-level ramp recorded earlier today. Blend weights
+  become 0 / 40 / 65 %.
+
+### 2026-09-28 — M1 implementation
+
+- `idle_shade.go`: `IdleLevelFor` (24 h / 72 h, inclusive; unknown, zero or
+  future → fresh), `FadeStyle` (blend toward the reported background; SGR 90
+  when the palette is unknown; `NO_COLOR` and level 0 keep today's bytes),
+  `blend`, `quantize256` (cube + grey ramp, system colours skipped).
+- Tab bar (`RenderStatusRow`): `StatusActor.Idle` and `StatusModel.Palette`.
+  The fade is the fallback case after placeholder/bell, and never applies to
+  the active chip. Amber glyphs fade with their chip.
+- Switcher: live rows without attention fade from `MenuState.Activity` and
+  `MenuState.Palette`. The selected row, attention rows and non-live rows
+  (their age ramp) are unchanged.
+- Mutation-checked (cp/cmp revert): removing the tab-bar fade case →
+  `TestRenderStatusRowFadesAnIdleChip` fails; disabling the live-row branch →
+  `TestSwitcherFadesAnIdleLiveRowAndItsAmberGlyphs` fails.
+- `go test ./cmd/internal/couchtty` green (unsandboxed; the pty/tmp tests need it).
+
+### 2026-09-28 — M2 verified; close on hold for ariadne#270
+
+- Rebased onto `origin/main` (the #341 merge) before closing, per the practice
+  filed as ariadne#269. Skipped the branch's two #342 issue-file commits, which
+  main already had. Then re-rebased with `--committer-date-is-author-date`
+  (tree identical) to undo the committer-date restamp.
+- Full `make test` on the rebased tree (clean session env,
+  `TMPDIR=/private/tmp/claude/t247`: the scratchpad path is too long for
+  zellij's socket, and `/tmp` → `/private/tmp` trips changelog's owner check):
+  every package this issue touches passes. The one failure,
+  `artifactpath TestProductionArtifactReferencesAreExactlyClassified` on
+  #341's `reviewcmd/identity.go` and `run.go`, reproduces on a clean
+  `git archive origin/main`. It belongs to #341, not here.
+- Hours: the rebase put #341's main commits into this branch's ancestry, and
+  active-time attributed this session's design and M1 segment to #341
+  (`sdlc actual` 1.24 h → 0.40 h). Filed as ariadne#270 (boundaries should be
+  the branch's own commits; the window should filter by author date). At the
+  operator's choice, the M2 close waits for that fix, so the calibration row
+  is measured, not hand-typed.
+
+### 2026-09-28 — smoke passed; tuning deferred to #343
+
+- The operator smoke-tested the `pair:0` build (`7363b5e1`): distinct shades
+  by idle age in live Couch, passed. Colour tuning, the live light-theme and
+  `NO_COLOR` checks, and the probe-cost decision go to #343.
+- The M2 review's BR-6 (switcher asserted at model level) is fixed: the test
+  now reads the rendered switcher cell under an injected clock a week behind
+  the wall clock (mutation-checked against `showMenu` using `time.Now()`).

@@ -76,6 +76,7 @@ const (
 	traceFirstFrame    = "first-frame"    // the console's first paint of its own row
 	traceInventory     = "inventory"      // an inventory landed; counting them gives the refreshes during the pass
 	traceSlotGit       = "slot-git"       // a slot quick-status git pass landed (pair#317)
+	traceActivity      = "activity"       // an idle-fading activity pass landed (pair#247)
 	tracePassSeeded    = "pass-seeded"    // the pass took its queue from an inventory
 	traceReattachStart = "reattach-start" // one pass attempt was dispatched
 	traceReattachDone  = "reattach-done"  // ... and finished

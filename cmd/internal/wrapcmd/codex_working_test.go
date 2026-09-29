@@ -226,6 +226,9 @@ func FuzzRecognizeCodexWorkingArbitraryRenderedCells(f *testing.F) {
 func codexCouchRendered(raw string) string {
 	e := vt.NewEmulator(80, 24)
 	defer e.Close()
+	// Drain the emulator's replies: couch's host output now carries its OSC
+	// 10/11 colour query (pair#247), and an unread answer wedges Write.
+	go func() { _, _ = io.Copy(io.Discard, e) }()
 	e.Write([]byte(raw))
 	return e.String()
 }

@@ -102,7 +102,6 @@ func (c *Console) finishSlotGit(result slotGitResult) {
 	}
 	c.mu.Lock()
 	c.menu, _ = ReduceMenu(c.menu, MenuEvent{Kind: MenuEventSlotGit, SlotGit: result.observed, SlotGitFailed: result.failed})
-	panelFocused := c.focus.IsPanel()
 	c.mu.Unlock()
 	if len(result.observed)+len(result.failed) > 0 {
 		c.traceEvent(traceSlotGit, couchcore.ThreadAddress{}, "ok="+strconv.Itoa(len(result.observed))+" failed="+strconv.Itoa(len(result.failed)))
@@ -110,11 +109,7 @@ func (c *Console) finishSlotGit(result slotGitResult) {
 	c.advanceSlotGit(RefreshScheduleEvent{Kind: RefreshFinished, Generation: result.generation})
 	// Tabs render from the same state as the switcher, so a quiet child still
 	// needs the reserved row repainted (lessons: #307).
-	if panelFocused {
-		c.showMenu()
-	} else {
-		c.repaint()
-	}
+	c.repaintVisible()
 }
 
 // slotGitProbePaths includes standalone roots and every checkout of a slot

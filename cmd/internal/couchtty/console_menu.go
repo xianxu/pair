@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"strconv"
-	"time"
 
 	"github.com/xianxu/pair/cmd/internal/couchcore"
 	"github.com/xianxu/pair/cmd/internal/terminal"
@@ -151,6 +150,9 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 	// (onHotkey) reaches the slot git refresh through here too (pair#317).
 	if result.err == nil {
 		c.requestSlotGit()
+		// The first inventory is when live threads become known, so the idle
+		// fades land without waiting a full activity interval (pair#247).
+		c.requestActivity()
 	}
 	c.mu.Lock()
 	panelFocused := c.focus.IsPanel()
@@ -170,11 +172,7 @@ func (c *Console) finishMenuRefresh(result menuRefreshResult) {
 // the Console lock.
 func (c *Console) reduceMenu(event MenuEvent) {
 	c.mu.Lock()
-	if !c.menuReady {
-		c.menu = NewMenuState(nil, couchcore.ThreadAddress{})
-		c.menu.Notice = infoMenuNotice("thread inventory unavailable")
-		c.menuReady = true
-	}
+	c.ensureMenuLocked(couchcore.ThreadAddress{})
 	var effects []MenuEffect
 	c.menu, effects = ReduceMenu(c.menu, event)
 	panelFocused := c.focus.IsPanel()
@@ -208,7 +206,7 @@ func (c *Console) showMenu() {
 	state, size := cloneMenuState(c.menu), c.size
 	c.mu.Unlock()
 	height := max(1, int(size.Rows)-1)
-	view := RenderMenuView(state, int(size.Cols), height, time.Now(), true)
+	view := RenderMenuView(state, int(size.Cols), height, c.now(), true)
 	cells, err := terminal.StyledRows(view.Body, int(size.Cols), height)
 	if err != nil {
 		c.terminalError(err)
