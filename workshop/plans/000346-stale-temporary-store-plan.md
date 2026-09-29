@@ -8,7 +8,7 @@
 
 **Tech stack:** Go, macOS filesystem metadata, JSONL session ledgers/transcripts, existing stateful runtime doubles and portable fixture stores.
 
-**Status:** Draft for operator approval; no implementation authorized through `change-code` yet.
+**Status:** SUPERSEDED by the 2026-09-29 probation/TTY-first agreement in issue #346. The implementation steps below are historical, not an executable checklist. Reconcile the architecture, entities, M2/M3 tasks and review boundaries before `change-code`. M1 registry safety remains required; the earlier review verdict applies only to the earlier revision.
 
 ## Core concepts
 
@@ -108,3 +108,7 @@ Operator pointed out that native transcript UUIDs already provide conversation i
 ### 2026-09-29 — Fresh review: preserve saved arguments
 
 Reviewer found that reusing `ObserveAndPersist` config refresh with no CLI argv could erase saved options or write stale config after a concurrent launch. Repair is now explicitly ledger/catalog-only; the live watcher retains its config behavior. Added byte-preservation and production cold-resume tests, plus a rejected-vscode old-catalog regression.
+
+### 2026-09-29T09:59:21-07:00 — Superseded by agreed launch observation and TTY ownership
+
+The operator approved the conceptual model now recorded in issue #346: retain a durable UUID resume target independently of file/parser proofs, launch under probation, and observe current-launch exchanges on both existing and new root transcripts. Strong evidence may replace requested A with actual D while retaining history; silence and early Alt+n remain supported. Unknown native source values are open-world, not blanket rejection. Automatically preserve raw TTY and its sidecar on quit and before same-tag reuse; use printable TTY for text features and isolate native telemetry. This supersedes the exact-body-revalidation, conflicting-internal-UUID refusal, closed source allowlist, new-file-only recovery and immutable-existing-binding assumptions in this historical plan. The issue's active Spec/Done when/Plan are the current contract. Detailed implementation planning and review remain pending; no code has been changed.
