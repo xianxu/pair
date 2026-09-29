@@ -18,7 +18,7 @@ p=Path(os.environ['REVIEW_TEST_ROOT'])/'host.json'
 s=json.loads(p.read_text())
 a=sys.argv[1:]
 if a[:2] == ['action','list-panes']:
-    print(json.dumps({'panes': [dict(id=4,is_plugin=False,is_floating=False,title='terminal',terminal_command='/bin/pair term'),dict(id=7,is_plugin=False,is_floating=False,title='codex',terminal_command='/bin/pair wrap --agent codex'),dict(id=3,is_plugin=False,is_floating=False,title='draft'),dict(id=9,is_plugin=False,is_floating=True,title='review')]}))
+    print(json.dumps({'panes': [dict(id=4,is_plugin=False,is_floating=False,title='terminal',terminal_command='/bin/pair term'),dict(id=7,is_plugin=False,is_floating=False,title='codex',terminal_command='/bin/pair wrap --agent codex'),dict(id=3,is_plugin=False,is_floating=False,title='draft',terminal_command='/pair/nvim/init.lua nvim'),dict(id=9,is_plugin=False,is_floating=True,title='review')]}))
 elif a == ['action','hide-floating-panes']: s['visible']=False
 elif a[:2] == ['action','focus-pane-id']:
     assert not s['visible'], 'hide before focus'
@@ -43,6 +43,8 @@ local function run()
   local function hints()
     local bar = vim.api.nvim_eval_statusline(vim.o.statusline, { maxwidth = 80 }).str
     assert(bar:find('Alt+c', 1, true) and bar:find('Esc', 1, true), 'missing return hints: ' .. bar)
+    assert(bar:find('Alt+Return', 1, true), 'missing submit hint: ' .. bar)
+    assert(bar:find('draft', 1, true), 'missing draft return hint: ' .. bar)
     assert(bar:find('Alt+a/r', 1, true), 'missing accept/reject hint: ' .. bar)
   end
   hints()
@@ -64,9 +66,9 @@ local function run()
   vim.api.nvim_set_current_win(diagnostic)
   press('<Esc>'); assert(not vim.api.nvim_win_is_valid(diagnostic) and host().visible,
     'focused diagnostic must dismiss before review')
-  press('<Esc>'); assert(not host().visible and host().focused == 7, 'Escape must return to agent')
-  reset(); press('<M-c>'); assert(not host().visible and host().focused == 7, 'Alt+c must return to agent')
-  reset(); press('i<M-c><Esc>'); assert(not host().visible and host().focused == 7, 'insert Alt+c must return')
+  press('<Esc>'); assert(not host().visible and host().focused == 3, 'Escape must return to draft')
+  reset(); press('<M-c>'); assert(not host().visible and host().focused == 3, 'Alt+c must return to draft')
+  reset(); press('i<M-c><Esc>'); assert(not host().visible and host().focused == 3, 'insert Alt+c must return')
   assert(vim.fn.maparg('<M-n>', 'n', false, true).buffer == 1, 'jump must be review-local')
   vim.cmd('qa!')
 end
@@ -76,4 +78,4 @@ vim.schedule(function()
 end)
 LUA
 PATH="$RT/bin:$PATH" run_headless --timeout 30 -- nvim --headless -u "$ROOT/nvim/review.lua" "$RT/doc.md" -c "luafile $RT/check.lua"
-printf 'ok review hints, modes, float dismissal, marker wrapping and agent return\n'
+printf 'ok review hints, modes, float dismissal, marker wrapping and draft return\n'

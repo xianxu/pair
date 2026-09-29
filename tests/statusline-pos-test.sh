@@ -41,6 +41,9 @@ local ok, err = pcall(function()
     local hit = s:find(want, 1, true) ~= nil and s:find('<LOCKED>', 1, true) ~= nil
     O:write(string.format('%s\t%s\n', hit and 'ok' or 'FAIL', label))
   end
+  vim.o.columns = 120
+  local hint = _G.PairStatusline()
+  O:write((hint:find('Alt+c', 1, true) and 'ok' or 'FAIL') .. '\tdraft-review-hint\n')
   check('star',  '%#PairPosLabel#*%*')            -- at the draft
   nav('<M-Left>');  check('hist-1', '%#PairPosLabel#-1%*')
   nav('<M-Left>');  check('hist-2', '%#PairPosLabel#-2%*')
@@ -54,6 +57,7 @@ local ok, err = pcall(function()
   local compact = review:find('-2 < %#PairPosLabel#*%* > +1 •', 1, true) ~= nil
     and review:find('🪄 Edit • doc.md •', 1, true) ~= nil
     and review:find('🤖 3/4', 1, true) ~= nil
+    and review:find('Alt+c', 1, true) ~= nil
     and review:find('<LOCKED>', 1, true) == nil
     and review:find('Alt:', 1, true) == nil
     and review:find('queued', 1, true) == nil

@@ -964,7 +964,7 @@ do
     if alive then
       local vis = vim.fn.system({ 'zellij', 'action', 'are-floating-panes-visible' })
       if toggle_action(true, vis:match('true') ~= nil) == 'hide' then
-        vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
+        dofile(nvim_dir .. 'workbench_route.lua').return_to_draft()
       else
         vim.fn.system({ 'zellij', 'action', 'show-floating-panes' })
       end
@@ -2124,9 +2124,10 @@ end
 -- Right-aligned cheatsheet rendered at the end of the statusline. Listed
 -- in priority order — when the terminal is too narrow for the full set,
 -- entries drop from the bottom (lowest priority first) until what's left
--- fits in the available space. At a minimum we try to keep Alt+h so the
--- user always has a discoverable path to the full keybind help.
+-- fits in the available space. Review entry leads, followed by Alt+h for
+-- the full keybind help.
 local PAIR_CHEATS = {
+  { key = 'Alt+c',  label = 'review' },
   { key = 'Alt+h',  label = 'help'   },
   { key = 'Alt+⏎',  label = 'send'   },
   { key = 'Alt+q',  label = 'queue'  },
@@ -2197,7 +2198,7 @@ local function pair_compose_statusline(left)
   -- this hot path never shells git.
   if _G._pair_review_segment then
     local seg = _G._pair_review_segment()
-    if seg then return left .. seg .. ' ' end
+    if seg then return left .. seg .. ' • Alt+c review ' end
   end
   -- 6-cell minimum margin between the variable left segment and the
   -- cheatsheet. Capping the cheatsheet's budget at (columns - left - 6)

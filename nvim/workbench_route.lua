@@ -30,6 +30,29 @@ function M.find_draft_pane(root)
   return nil
 end
 
+-- Hide the review overlay and return to the draft's positively identified pane.
+function M.return_to_draft()
+  local raw = vim.fn.system({ 'zellij', 'action', 'list-panes', '--json', '--command' })
+  local ok, panes = pcall(vim.json.decode, raw)
+  local id = ok and M.find_draft_pane(panes) or nil
+  if not id then
+    vim.notify('review: could not find the draft pane', vim.log.levels.ERROR)
+    return false
+  end
+  vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
+  if vim.v.shell_error ~= 0 then return false end
+  vim.fn.system({ 'zellij', 'action', 'focus-pane-id', id })
+  return vim.v.shell_error == 0
+end
+
+-- Viewer annotations emit on VimLeavePre; return afterwards so draft focus
+-- observes the completed sidecar. Headless library tests never touch a host.
+function M.install_viewer_return()
+  vim.api.nvim_create_autocmd('VimLeave', { once = true, callback = function()
+    if #vim.api.nvim_list_uis() > 0 then M.return_to_draft() end
+  end })
+end
+
 function M.draft_commands(id, fn, focus)
   id = tostring(id)
   local commands = {}

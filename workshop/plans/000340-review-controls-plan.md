@@ -65,3 +65,18 @@ Ad-hoc fresh-context review found the ambiguous pre-existing agent resolver;
 fixed with command identity and retained the failing reordered-pane fixture.
 SDLC close remains the final review boundary after operator smoke; do not close
 or land solely from these implementation checks.
+
+## Revisions
+
+- 2026-09-28 — operator smoke feedback changes return destination to draft,
+  adds Alt+Return submission to the review statusline, and adds Alt+c review
+  to the draft bar (including active review). Share draft identity discovery
+  with workbench_route; keep agent poke identity separate. Updated controls,
+  toggle and draft-status regressions pass. Earlier agent-return statements
+  describe the initial implementation, superseded by this revision.
+
+- 2026-09-28 — viewer exit integration: register a shared VimLeave callback
+  for interactive scrollback/changelog to hide all floating panes and focus
+  draft after annotate's VimLeavePre sidecar emission. Headless unit sessions
+  do not manipulate the live host. Add a stateful stacked-overlay regression
+  covering both real viewer initializations and preserved annotation ordering.

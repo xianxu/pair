@@ -222,6 +222,7 @@ end
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local review = dofile(here .. 'review/init.lua')
 local poke = dofile(here .. 'pair_poke.lua')
+local workbench_route = dofile(here .. 'workbench_route.lua')
 local markers = dofile(here .. 'review/markers.lua')
 local seam = dofile(here .. 'review/seam.lua')
 local poke_bodies = dofile(here .. 'review/poke_bodies.lua')
@@ -408,7 +409,7 @@ local function mode_label()
 end
 
 local function statusline_text()
-  local hints = 'Alt+c/Esc agent · Alt+a/r accept/reject'
+  local hints = 'Alt+Return review · Alt+c/Esc draft · Alt+a/r accept/reject'
   if awaiting_since then
     local frame = spinner.frames[((spinner_tick or 0) % #spinner.frames) + 1]
     return ' ' .. frame .. ' %{v:lua._pair_review_elapsed()} ' .. mode_label() .. ' • ' .. hints .. ' • %<%t%m %= L%l/%L '
@@ -710,7 +711,7 @@ local function escape_review()
       dismissed = true
     end
   end
-  if not dismissed then poke.return_to_agent() end
+  if not dismissed then workbench_route.return_to_draft() end
 end
 
 local function start_review(buf, file)
@@ -727,9 +728,9 @@ local function start_review(buf, file)
   vim.api.nvim_create_user_command('PairReviewShip', function() request_ship(file) end, {})
 
   vim.keymap.set('n', '<Esc>', escape_review,
-    { buffer = buf, silent = true, desc = 'review: dismiss float or return to agent (normal mode)' })
-  vim.keymap.set({ 'n', 'i' }, '<M-c>', poke.return_to_agent,
-    { buffer = buf, silent = true, desc = 'review: return to agent (normal/insert)' })
+    { buffer = buf, silent = true, desc = 'review: dismiss float or return to draft (normal mode)' })
+  vim.keymap.set({ 'n', 'i' }, '<M-c>', workbench_route.return_to_draft,
+    { buffer = buf, silent = true, desc = 'review: return to draft (normal/insert)' })
   vim.keymap.set('n', '<M-n>', function() jump_marker(buf, 1) end,
     { buffer = buf, silent = true, desc = 'review: next 🤖 marker (normal mode)' })
   vim.keymap.set('n', '<M-N>', function() jump_marker(buf, -1) end,

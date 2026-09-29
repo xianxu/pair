@@ -137,7 +137,7 @@ one-line description can't carry.
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
 | **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
 | **Alt+c** | non-agent panes | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
-| **Esc** / **Alt+c** | review buffer (normal) | Hide review and return to the agent. Insert/visual Esc leaves that mode; a diagnostic or definition float closes first. |
+| **Esc** / **Alt+c** | review buffer (normal) | Hide review and return to the draft. Insert/visual Esc leaves that mode; a diagnostic or definition float closes first. |
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
 | **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |

@@ -145,3 +145,24 @@ this is one atomic implementation/review boundary.
   expanded implementation record: [plan](../plans/000340-review-controls-plan.md).
   Operator's implementation authorization covers the existing Spec unchanged;
   close must use the full review if the measured diff remains outside the shell.
+
+- 2026-09-28 — operator smoke revision (supersedes the agent-return wording
+  above): hiding review with Esc or Alt+c must focus the draft nvim, including
+  the draft-side toggle path. The draft bar must advertise Alt+c review, and
+  the review bar must advertise Alt+Return submission in idle and waiting states.
+  Existing insert/visual Esc semantics and popup-first dismissal still apply.
+  Regression checks now assert draft pane ID 3 rather than agent ID 7; draft
+  status tests cover both ordinary and active-review hints.
+
+- 2026-09-28 — additional smoke finding: closing scrollback or changelog reveals
+  a still-live review underneath. Extend the shared return-to-draft policy to
+  those viewer exits, hiding the floating layer after annotations are emitted.
+  Keep the review alive so Alt+c can reopen it; do not discard its buffer.
+
+- Revision validation: new viewer test reproduced all four stacked-overlay
+  failures (scrollback/changelog × Esc/:qa) before the shared exit hook; now
+  passes and asserts annotations precede draft focus. Revised controls/status
+  tests also failed first. Full `make test-review`, `make test-statusline`,
+  workbench routing shell/Lua tests, changelog/scrollback Lua tests and keyhelp/
+  keyscmd Go tests pass. Fresh-eyes delta review found no Important issues.
+  Rebuilt Pair/Couch in pair:0; live smoke of these corrections remains pending.

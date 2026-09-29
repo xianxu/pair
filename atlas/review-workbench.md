@@ -139,10 +139,10 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   fires from inside the focused floating review pane). Pane-open no longer sends a
   separate "review workbench open" poke; the prep and human-finished pokes carry the
   workbench protocol context. The command line is hidden until `:` commands, and the
-  pane statusline shows mode, `Alt+c/Esc agent · Alt+a/r accept/reject`,
+  pane statusline shows mode, `Alt+Return review · Alt+c/Esc draft · Alt+a/r accept/reject`,
   filename and line position in both idle and awaiting states. Normal-mode Esc
   dismisses an internal diagnostic float first, otherwise hides the review and
-  focuses the agent by pane ID; insert/visual Esc keeps its Vim behavior. Alt+c
+  focuses the draft by pane ID; insert/visual Esc keeps its Vim behavior. Alt+c
   returns directly from normal/insert mode. Alt+h derives review help from the
   mapping descriptions, with a drift test covering every local mapping. After a send
   it stays focused in the review pane and shows a 100ms braille spinner plus elapsed
@@ -285,3 +285,10 @@ Review marker navigation is buffer-local and normal-mode only. Couch's existing
 client-focus probe recognizes the review role and forwards Alt+n unchanged;
 Ctrl+Alt+n still relaunches from review, and draft/switcher relaunch is unchanged.
 Alt+Shift+N overrides agent restart only in the review buffer's normal mode.
+
+The draft statusline includes `Alt+c review` in its normal hints and while a
+review is open. Both review return keys hide the overlay and focus the draft.
+
+Scrollback and changelog exits use that same return-to-draft operation after
+annotation emission, hiding the floating layer instead of revealing a review
+underneath. The review stays alive and can be shown again with Alt+c.

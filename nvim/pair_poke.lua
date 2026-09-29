@@ -66,17 +66,4 @@ function M.send(body)
   return true
 end
 
--- Review return uses the same agent identity as review submission.
-function M.return_to_agent()
-  local agent = find_agent(list_panes())
-  if not agent then
-    vim.notify('review: could not find the agent pane', vim.log.levels.ERROR)
-    return false
-  end
-  vim.fn.system({ 'zellij', 'action', 'hide-floating-panes' })
-  if vim.v.shell_error ~= 0 then return false end
-  vim.fn.system({ 'zellij', 'action', 'focus-pane-id', tostring(agent) })
-  return vim.v.shell_error == 0
-end
-
 return M
