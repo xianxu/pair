@@ -8,7 +8,7 @@ updated: 2026-09-28
 estimate_hours:
 card_mirror: '0e09bc509411578aa6f50588394de785a997e1f0' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T15:14:24-07:00
-flow: {kind: quick, provenance: inferred, spec: "e68814e2", done: "05d900cb"}
+flow: {kind: full, provenance: inferred}
 ---
 
 # Review pane: show Alt+c return hint, and Esc returns to the agent
@@ -122,6 +122,8 @@ this is one atomic implementation/review boundary.
 ## Log
 
 ### 2026-09-28
+- 2026-09-28: closed — Operator smoke passed and close/land authorized. Full review/statusline suites, affected Go race tests, help/drift checks and viewer/routing Lua tests passed. BR-1 addressed: both reordered-pane tests assert body and submit target agent 7, pass with production, and fail with old title selector mutation; source restored. No production code changed after smoke.; review verdict: SHIP
+- 2026-09-28: flow upgraded quick → full — 193 added lines in code files (limit 100); an earlier round of this close already ran the full review
 
 - Filed from operator feedback (screenshot of the review bar with no exit hint).
   They found Alt+c by guessing.

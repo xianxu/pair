@@ -63,3 +63,67 @@ findings:
     detail: |
       tests/review-controls-test.sh:26 accepts writes to any pane despite placing an unrelated terminal before the agent; tests/review-poke-test.sh:18 checks destinations but places the agent first. ARCH-MOCK: add the reordered terminal to the destination-checking fixture, assert both body and submit target pane 7, and verify the old title-based selector makes the test fail.
 ```
+
+---
+
+## Re-review — 2026-09-28T18:57:38-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 340 — Review pane: show Alt+c return hint, and Esc returns to the agent |
+| repo | pair |
+| issue file | workshop/issues/000340-review-pane-show-alt-c-return-hint-and-esc-returns-to-the-agent.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | b2beefeacd8ca2b73e51a46b44ed87d86117ad54..69328381951c13bf9d715c81e9113b00dc0c98c0 |
+| command | sdlc close --issue 340 |
+| reviewer | codex |
+| timestamp | 2026-09-28T18:57:38-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+The pinned implementation satisfies the revised acceptance criteria: review returns to the draft, local marker shortcuts survive Couch routing, and help documents the controls. BR-1 is verified with passing tests and failing selector mutations. No blocking findings remain; the checkout is unchanged.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Both reordered-pane fixtures assert body delivery and submit target agent pane 7. Both pass on HEAD and fail when the old title-based selector is restored in a temporary copy.
+```
+
+1. **Strengths**
+   - Shared draft-return operation covers review, draft toggle, scrollback, and changelog.
+   - Real Neovim mappings exercise mode preservation, popup dismissal, marker wrapping, and submission.
+   - Review help derives descriptions from mappings, with coverage and embedded-source drift checks.
+   - Couch tests cover chord encodings and preserve explicit Ctrl+Alt+n relaunch.
+
+2. **Critical findings:** None.
+
+3. **Important findings:** None.
+
+4. **Minor findings:** None.
+
+5. **Test coverage**
+   - Passed six shell suites: review poke, controls, overlay return, toggle, window, and statusline position.
+   - Passed Go packages: keyhelp, keyscmd, workbenchshortcut, couchcmd, couchtty.
+   - Both BR-1 mutation checks failed for the intended destination assertions.
+   - `git diff --check` passed. Live operator smoke was not independently repeated.
+
+6. **Architecture**
+   - **ARCH-DRY — pass:** shared return helper and mapping-derived descriptions.
+   - **ARCH-PURE — pass:** pure parsing/classification remains separate from host operations.
+   - **ARCH-PURPOSE — pass:** revised acceptance paths are implemented.
+   - **ARCH-MOCK — pass:** stateful pane hosts and fake child endpoints exercise production boundaries.
+   - **ARCH-CONSTRAINTS — pass:** existing bounded Couch probe retained; ordinary input avoids discovery.
+   - **ARCH-SECURE — pass:** command identity and explicit pane IDs replace title-based agent selection.
+   - **ARCH-ORDER — pass:** tests verify popup-first dismissal and annotation-before-focus ordering.
+   - **ARCH-FUNERAL — pass:** no new runtime durable artifact family or background process.
+
+7. **Plan revisions:** None required; recorded revisions explain the destination change and viewer-exit scope.

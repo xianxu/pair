@@ -15,6 +15,16 @@ rounds:
           round: 1
       recipe: milestone-review
       blocked: true
+    - "n": 2
+      timestamp: "2026-09-28T18:57:38-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Both reordered-pane fixtures assert body delivery and submit target agent pane 7. Both pass on HEAD and fail when the old title-based selector is restored in a temporary copy.
+          round: 2
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#340 (boundary-review)
@@ -29,6 +39,12 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-1** [Important] `regression-oracle-covers-corrected-behavior` Agent-selection regression does not assert the selected destination
   tests/review-controls-test.sh:26 accepts writes to any pane despite placing an unrelated terminal before the agent; tests/review-poke-test.sh:18 checks destinations but places the agent first. ARCH-MOCK: add the reordered terminal to the destination-checking fixture, assert both body and submit target pane 7, and verify the old title-based selector makes the test fail.
 
+## Round 2 — 2026-09-28T18:57:38-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Both reordered-pane fixtures assert body delivery and submit target agent pane 7. Both pass on HEAD and fail when the old title-based selector is restored in a temporary copy.
+
 ## Open findings
 
-- **BR-1** [Important] `regression-oracle-covers-corrected-behavior` Agent-selection regression does not assert the selected destination
+(none — every finding has been disposed)
