@@ -96,6 +96,21 @@ journaled. Select a term and `Shift+Alt+d` to have the agent define it inline as
 a durable footnote. Useful for specs, plans, and prose where a diff is the wrong
 unit of collaboration.
 
+From the draft, `Alt+c` restores the current `review/<slug>` branch's document
+and latest agent decorations, including in a fresh session. It checks the branch
+before reusing an open pane or cached target. With the same document active it
+toggles visibility; unsaved edits, pending replies, or an uncommitted agent round
+block switching to another document. Return to the original branch and finish
+that work first. Missing or ambiguous review history prompts for a selection or
+reports why restoration cannot proceed.
+
+If the checkout changes while review edits are unsaved, Pair refuses writes to
+the wrong branch and preserves the text in a recovery snapshot. Return to the
+original branch, open its review, and use `:PairReviewRecover` to load the snapshot
+into a clean buffer. Save it to clear the snapshot, or explicitly remove it with
+`:PairReviewDiscardRecovery`. If recovery storage fails, ordinary quit retains
+the modified buffer; forced quit still has Neovim's discard semantics.
+
 **Session continuity, at three scopes**
 
 `Alt+n` reloads the workbench in place (same tag, agent, args, agent session).
@@ -136,7 +151,7 @@ one-line description can't carry.
 | **Alt+←** / **Alt+→** | layout 3 terminal | Switch local terminal tabs. |
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
 | **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
-| **Alt+c** | non-agent panes | Open/show/hide the review collaboration pane. If no review target exists, starts `:PairReview`. |
+| **Alt+c** | non-agent panes | Open/show/hide review. From the draft, restore the current review branch's document before toggling; pending work blocks switching documents. Without a review identity, offers `:PairReview`. |
 | **Esc** / **Alt+c** | review buffer (normal) | Hide review and return to the draft. Insert/visual Esc leaves that mode; a diagnostic or definition float closes first. |
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |

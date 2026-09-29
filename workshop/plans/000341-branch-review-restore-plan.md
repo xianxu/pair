@@ -163,3 +163,11 @@ This exceeds the quick-flow code limit. The operator approved the durable plan b
 2026-09-28 — Integration refinements: canonical path identity is checked before pane startup; failed activation restores the previous buffer/owner; empty first human rounds retain the already-authorized active selection. Explicit same-session peer-document selections remain usable while the draft checkout is non-review; any current review branch still takes precedence. Named delivered client, identity and recovery modules in the integration table. Context metadata lives in the existing open-state record rather than replacing stripped document text.
 
 2026-09-28 — Real-process failed-storage probe showed Neovim force-quit ignores QuitPre callback errors. Narrowed the exit guarantee to ordinary non-bang quit with the modified flag retained; forced quit remains explicit discard semantics on failed storage. Regression injects unsafe storage, proves ordinary exit is blocked, then restores storage and proves successful forced-exit recovery in a new process.
+
+2026-09-28 21:47 PDT — Boundary REWORK identified consumption ordering, blocking edit-event observation, missing operator docs, and activation callback ownership. Preserve the approved restoration contract while fixing the complete classes (ARCH-ORDER, ARCH-CONSTRAINTS, ARCH-FUNERAL):
+
+- [ ] Consume handoffs only after explicit apply/defer acceptance; preserve refused/error/replaced payloads and test admission-to-application branch movement.
+- [ ] Coalesce proactive recovery into bounded asynchronous observation; keep synchronous authority checks at effect/quit boundaries and test delayed resolution plus stale completions.
+- [ ] Own and replace activation rendering autocmds; assert stable callback counts through A → B → A.
+- [x] Explain branch restoration, blocked transitions, and recover/discard commands in README.
+- [ ] Rerun affected and full review tests, build, and repeat the SDLC boundary review.
