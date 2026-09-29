@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000351-review-escape.md
         source_blob: 132e085cb00170a1a567de542868ec4d7d57a741
         destination: workshop/issues/000351-review-escape.md
+        main_commit: 9ddb46ba1672591735932a20193c6ad18cc40f8b
 ---
 
 # Preserve Escape in review pane
