@@ -3,7 +3,7 @@
 > **For agentic workers:** Consult AGENTS.md Section 3 (Subagent Strategy) to determine the appropriate execution approach: use superpowers-subagent-driven-development (if subagents are suitable per AGENTS.md) or superpowers-executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Fade live thread labels in Couch's tab bar and switcher by idle age
-(<1 h normal; 1–24 h, 24–48 h, ≥48 h progressively faded), including the amber
+(under 1 day normal; 1–3 days faded; 3 days or more more faded), including the amber
 slot glyphs, correctly on dark and light themes.
 
 **Architecture:** A pure idle-age classifier (`IdleLevel`) and a pure color
@@ -22,7 +22,7 @@ OSC 10/11 replies as `ForegroundColorEvent`/`BackgroundColorEvent`);
 `cmd/internal/sessioninventory` for the transcript.
 
 **Operator decisions (2026-09-28, in the issue):** activity is input plus
-agent work; thresholds are 1 h / 24 h / 48 h with 4 levels; fade the normal
+agent work; thresholds are 1 day / 3 days with 3 levels (revised 2026-09-28 from 1 h/24 h/48 h and 4 levels); fade the normal
 foreground and the amber; selection and notifications keep their emphasis;
 both themes plus no-color. Colors blend toward the queried background. The
 recent-traffic dot moved to #342.
@@ -56,8 +56,8 @@ recent-traffic dot moved to #342.
    notification (`Bell`), and a placeholder are never faded. Idle fading
    applies to every other live label, and to its amber slot glyphs (`±`, `*`).
    A bell's amber stays full-strength, since it is a notification.
-4. **Blend weights toward background:** level 0 → 0 %, 1 → 35 %, 2 → 55 %,
-   3 → 70 %. The top weight keeps the label legible (ARCH-PURPOSE: recede, not
+4. **Blend weights toward background:** level 0 → 0 %, 1 → 40 %, 2 → 65 %.
+   The top weight keeps the label legible (ARCH-PURPOSE: recede, not
    vanish). Tuned at the live smoke; the weights are one table.
 5. **Fallbacks:** palette unknown (no reply) → every faded level of the normal
    label is `SGR 90` (the one theme-aware grey, per #217/#225), and faded amber
@@ -112,9 +112,8 @@ recent-traffic dot moved to #342.
 | `threadactivity.Latest` | `cmd/internal/threadactivity/activity.go` | new |
 
 - **IdleLevel / IdleLevelFor(now, last time.Time, known bool) IdleLevel** —
-  `IdleFresh` (0), `IdleHour` (1: ≥1 h), `IdleDay` (2: ≥24 h), `IdleStale`
-  (3: ≥48 h). Unknown or future → `IdleFresh`. Boundaries are inclusive at
-  exactly 1 h/24 h/48 h.
+  `IdleFresh` (0), `IdleDay` (1: ≥1 day), `IdleStale` (2: ≥3 days). Unknown or
+  future → `IdleFresh`. Boundaries are inclusive at exactly 24 h and 72 h.
   - **DRY rationale:** the one classifier both renderers call.
   - **Future extensions:** thresholds are a table if the operator retunes them.
 - **Palette{FG, BG color.RGBA; Known, TrueColor, NoColor bool}** — what Couch
@@ -174,11 +173,10 @@ func TestIdleLevelForBoundaries(t *testing.T) {
 		{"unknown", time.Time{}, false, IdleFresh},
 		{"future", now.Add(time.Minute), true, IdleFresh},
 		{"just now", now, true, IdleFresh},
-		{"59m59s", now.Add(-time.Hour + time.Second), true, IdleFresh},
-		{"1h", now.Add(-time.Hour), true, IdleHour},
-		{"23h59m", now.Add(-24*time.Hour + time.Minute), true, IdleHour},
+		{"23h59m59s", now.Add(-24*time.Hour + time.Second), true, IdleFresh},
 		{"24h", now.Add(-24 * time.Hour), true, IdleDay},
-		{"48h", now.Add(-48 * time.Hour), true, IdleStale},
+		{"71h59m", now.Add(-72*time.Hour + time.Minute), true, IdleDay},
+		{"72h", now.Add(-72 * time.Hour), true, IdleStale},
 		{"30d", now.Add(-30 * 24 * time.Hour), true, IdleStale},
 	} {
 		if got := IdleLevelFor(now, tc.last, tc.known); got != tc.want {
@@ -195,14 +193,13 @@ func TestIdleLevelForBoundaries(t *testing.T) {
 type IdleLevel uint8
 
 const (
-	IdleFresh IdleLevel = iota // < 1 h, unknown, or future
-	IdleHour                   // ≥ 1 h
-	IdleDay                    // ≥ 24 h
-	IdleStale                  // ≥ 48 h
+	IdleFresh IdleLevel = iota // < 1 day, unknown, or future
+	IdleDay                    // ≥ 1 day
+	IdleStale                  // ≥ 3 days
 )
 
 // idleThresholds are the operator's 2026-09-28 bands (#247).
-var idleThresholds = [...]time.Duration{time.Hour, 24 * time.Hour, 48 * time.Hour}
+var idleThresholds = [...]time.Duration{24 * time.Hour, 72 * time.Hour}
 
 func IdleLevelFor(now, last time.Time, known bool) IdleLevel {
 	if !known || last.IsZero() || last.After(now) {
@@ -225,16 +222,16 @@ func IdleLevelFor(now, last time.Time, known bool) IdleLevel {
 **Files:** same two files.
 
 - [ ] **Step 1: failing tests**, table-driven:
-  - `blend(fg, bg, 0) == fg`; `blend(white, black, 0.35)` → `#a6a6a6`
-    (255·0.65 = 165.75, rounds to 166); `blend(amber #ffd700, white bg, 0.7)`
+  - `blend(fg, bg, 0) == fg`; `blend(white, black, 0.40)` → `#999999`
+    (255·0.60 = 153); `blend(amber #ffd700, white bg, 0.65)`
     moves every channel toward 255.
   - `quantize256` maps `#ff0000` → 196, `#808080` → 244, and is exact for the
     6×6×6 cube corners.
   - `FadeStyle`:
     - level 0 → `""` (default) / `attentionSGR` (amber), in every palette.
     - Known + TrueColor, dark (fg `#ffffff`, bg `#000000`): level 1 default →
-      `"\x1b[38;2;166;166;166m"`.
-    - Known + TrueColor, light (fg `#000000`, bg `#ffffff`): level 3 default
+      `"\x1b[38;2;153;153;153m"`.
+    - Known + TrueColor, light (fg `#000000`, bg `#ffffff`): level 2 default
       is lighter than level 1 (channel sum strictly increases with level).
       This is the "fades toward the background on light themes" invariant,
       stated independently of the weights.
@@ -261,7 +258,7 @@ const (
 )
 
 var amberRGB = color.RGBA{0xff, 0xd7, 0x00, 0xff} // xterm 220 == attentionSGR
-var idleBlend = [...]float64{0, 0.35, 0.55, 0.70}
+var idleBlend = [...]float64{0, 0.40, 0.65}
 
 func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
 	if level == IdleFresh || p.NoColor {
@@ -298,9 +295,9 @@ func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
 **Files:** Modify `cmd/internal/couchtty/reserve.go` (`StatusActor`, `StatusModel`, `RenderStatusRow` style switch). Test in `cmd/internal/couchtty/reserve_test.go`.
 
 - [ ] **Step 1: failing tests**
-  - An idle (level 2) non-active chip in a known dark truecolor palette starts
+  - An idle (level 1) non-active chip in a known dark truecolor palette starts
     with `FadeStyle(p, IdleDay, baseDefault)`. Its `*` glyph uses
-    `FadeStyle(p, IdleDay, baseAmber)`.
+    `FadeStyle(p, IdleDay, baseAmber)`. A level-2 chip uses the `IdleStale` pair.
   - The same chip marked `Active` renders exactly as today (no fade bytes).
     Same for `Bell` (label stays `attentionSGR`) and for `Placeholder`.
   - `IdleFresh` chips are byte-identical to today's output (regression pin:
@@ -332,7 +329,7 @@ case !a.Active:
 **Files:** Modify `cmd/internal/couchtty/menu_render.go` (`renderRootMenuFrame` live branch, `colorMenuGlyph` gets a glyph-style parameter); `RenderMenuView` gains the palette and activity through `MenuState` (Task 5 adds `Activity`; this task takes a `Palette` field on `MenuState` too). Test in `menu_render_test.go`.
 
 - [ ] **Step 1: failing tests**, with `RenderMenuView(state, cols, h, now, true)`:
-  - A live, unselected row whose `state.Activity[addr]` is 30 h old renders
+  - A live, unselected row whose `state.Activity[addr]` is 30 h old (level 1) renders
     wrapped in `FadeStyle(p, IdleDay, baseDefault)`, and its `±` glyph in the
     amber variant.
   - The same row selected → reverse video exactly as today, with no fade bytes.
@@ -379,8 +376,9 @@ case !a.Active:
   `console_slotgit_test.go`):
   - A pass probes live rows only, and each once.
   - The result lands in `MenuState.Activity` and triggers a repaint. The tab
-    bar chip for a thread active 2 h ago renders level 1.
-  - Advancing the clock past 24 h plus the next tick moves the chip to level 2
+    bar chip for a thread active 2 h ago renders level 0, and one active
+    30 h ago renders level 1.
+  - Advancing the clock past 72 h plus the next tick moves the 30 h chip to level 2
     with no new activity (repaint driven by the pass).
   - A thread that stops being live drops out of `Activity` on the next pass
     (ARCH-FUNERAL).
@@ -390,7 +388,7 @@ case !a.Active:
   - The switcher, rendered through `showMenu` with the injected clock, shows
     the same level as the tab bar for the same thread.
   - **Restart:** a second Console built over the same fake probe (whose times
-    are 3 days old) renders level 3 after its first pass. Nothing is carried
+    are 4 days old) renders level 2 after its first pass. Nothing is carried
     in memory; the answer comes from the probe.
   - A pass is requested when the inventory lands and on a thread switch, not
     only on the ticker, so fading appears without a 60 s wait.
@@ -443,7 +441,7 @@ call builds the `threadactivity.Thread` value.)
 ### Task 9: docs + verification
 
 - [ ] README Couch section and the Alt+h help: one line saying live threads
-  fade after 1 h / 24 h / 48 h without activity (your input or the agent's
+  fade after 1 day and again after 3 days without activity (your input or the agent's
   work), and that the focused/selected thread and notifications never fade.
 - [ ] `atlas/`: add the activity pass and palette query to the Couch
   presentation map. Link from `atlas/index.md` if a new file is added.
@@ -455,7 +453,7 @@ call builds the `threadactivity.Thread` value.)
 - [ ] Live smoke by the operator on a dark AND a light theme: an idle thread
   recedes in both bars; the selected thread and a notified thread don't fade;
   `NO_COLOR=1 couch` shows no fade bytes. On the light theme, check that the
-  70 % amber (≈ `#fff7b2`) is still visible; if not, cap the amber weight
+  65 % amber (≈ `#fff1a6`) is still visible; if not, cap the amber weight
   (one table entry).
 - [ ] **M2 boundary / close:** `sdlc close --issue 247 --verified '…'`.
 
@@ -477,3 +475,10 @@ call builds the `threadactivity.Thread` value.)
   Checking the reviewer's point turned up that draft mtime is focus noise
   (unconditional autosave `write`), so the draft is dropped from the activity
   definition in favor of the Pair log. The title poller follows (Decision 1).
+
+### 2026-09-28 — operator shrinks the ramp to 3 levels at 1 day / 3 days
+
+- Levels: under 1 day normal (`IdleFresh`), 1 day to under 3 days
+  (`IdleDay`), 3 days or more (`IdleStale`). `IdleHour` is gone.
+- Blend weights: 0 / 40 / 65 % (was 0/35/55/70). Test boundaries, worked
+  examples (`#999999`, amber ≈ `#fff1a6` on white) and docs updated to match.
