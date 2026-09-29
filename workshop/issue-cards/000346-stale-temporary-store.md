@@ -1,6 +1,6 @@
 ---
 id: 000346
-status: codecomplete
+status: done
 created: 2026-09-29
 updated: 2026-09-29
 estimate_hours: 4.409
@@ -24,6 +24,7 @@ tracker:
         repository: github.com/xianxu/pair
         reviewed_head: 80d611897eff2ed2d7440db4d630237638cdc71f
         evidence_commit: 2a5045bb9fb26e265727de0266caf56dd662c1c0
+        landed_commit: aa547cac18857ce61bf24c0398c944e003e055c9
 ---
 
 # Stale temporary store blocks Couch startup
