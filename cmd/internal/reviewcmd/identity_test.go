@@ -361,3 +361,155 @@ func TestIdentitySnapshotRejectsNonTextAndEncodedOverflow(t *testing.T) {
 		t.Fatalf("encoded overflow: code=%d len=%d result=%+v", code, output.Len(), got)
 	}
 }
+
+func TestIdentityRejectsPausedCheckout(t *testing.T) {
+	dir := identityRepo(t)
+	filter := filepath.Join(t.TempDir(), "smudge.sh")
+	script := "#!/bin/sh\nif [ -n \"$PAIR_TEST_PAUSE_DIR\" ]; then\n : > \"$PAIR_TEST_PAUSE_DIR/ready\"\n while [ ! -f \"$PAIR_TEST_PAUSE_DIR/release\" ]; do sleep 0.01; done\nfi\ncat\n"
+	if err := os.WriteFile(filter, []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	identityGit(t, dir, "config", "filter.pause.smudge", filter)
+	identityGit(t, dir, "config", "filter.pause.clean", "cat")
+	os.WriteFile(filepath.Join(dir, ".gitattributes"), []byte("zzz.txt filter=pause\n"), 0600)
+	os.WriteFile(filepath.Join(dir, "zzz.txt"), []byte("A filter\n"), 0600)
+	identityGit(t, dir, "add", ".")
+	identityGit(t, dir, "commit", "-qm", "filter setup")
+	os.WriteFile(filepath.Join(dir, "doc.md"), []byte("A bytes\n"), 0600)
+	identityGit(t, dir, "commit", "-qam", "review(doc): human r1")
+	identityGit(t, dir, "checkout", "-qb", "review/b")
+	os.WriteFile(filepath.Join(dir, "doc.md"), []byte("B bytes\n"), 0600)
+	os.WriteFile(filepath.Join(dir, "zzz.txt"), []byte("B filter\n"), 0600)
+	identityGit(t, dir, "commit", "-qam", "other branch")
+	identityGit(t, dir, "checkout", "-q", "review/doc")
+	pause := t.TempDir()
+	command := exec.Command("git", "-C", dir, "checkout", "-q", "review/b")
+	command.Env = append(os.Environ(), "PAIR_TEST_PAUSE_DIR="+pause)
+	var output bytes.Buffer
+	command.Stdout = &output
+	command.Stderr = &output
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		os.WriteFile(filepath.Join(pause, "release"), nil, 0600)
+		if err := command.Wait(); err != nil {
+			t.Errorf("checkout: %v %s", err, output.String())
+		}
+	})
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(filepath.Join(pause, "ready")); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("smudge did not pause")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	body, _ := os.ReadFile(filepath.Join(dir, "doc.md"))
+	if string(body) != "B bytes\n" || identityGit(t, dir, "branch", "--show-current") != "review/doc" {
+		t.Fatalf("fixture did not expose intermediate checkout: %q", body)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "index.lock")); err != nil {
+		t.Fatalf("expected checkout-owned index lock: %v", err)
+	}
+	for _, snapshot := range []bool{false, true} {
+		got := resolveIdentityWithSnapshot(NewOSRuntime(), dir, "", "", snapshot)
+		if got.Status != "invalid" || got.Snapshot != nil {
+			t.Fatalf("in-progress checkout admitted: %+v", got)
+		}
+	}
+}
+
+func TestIdentityRejectsPublishedIndexBeforeHEAD(t *testing.T) {
+	dir := identityRepo(t)
+	os.WriteFile(filepath.Join(dir, "doc.md"), []byte("A bytes\n"), 0600)
+	identityGit(t, dir, "commit", "-qam", "review(doc): human r1")
+	identityGit(t, dir, "checkout", "-qb", "review/b")
+	os.WriteFile(filepath.Join(dir, "doc.md"), []byte("B bytes\n"), 0600)
+	identityGit(t, dir, "commit", "-qam", "other branch")
+	identityGit(t, dir, "checkout", "-q", "review/doc")
+	// checkout publishes its destination index before updating HEAD. read-tree
+	// reproduces that intermediate state with real Git and no remaining lock.
+	identityGit(t, dir, "read-tree", "-u", "--reset", "review/b")
+	if identityGit(t, dir, "branch", "--show-current") != "review/doc" {
+		t.Fatal("HEAD changed")
+	}
+	got := resolveIdentityWithSnapshot(NewOSRuntime(), dir, "", "", true)
+	if got.Status != "invalid" || got.Snapshot != nil {
+		t.Fatalf("destination index with old HEAD admitted: %+v", got)
+	}
+}
+
+func TestIdentityIndexAdmissionKeepsUnstagedEdits(t *testing.T) {
+	dir := identityRepo(t)
+	head := identityGit(t, dir, "rev-parse", "HEAD")
+	os.WriteFile(filepath.Join(dir, "doc.md"), []byte("unstaged document\n"), 0600)
+	got := resolveIdentityWithSnapshot(NewOSRuntime(), dir, "doc.md", head, true)
+	if got.Status != "resolved" || got.Snapshot == nil || *got.Snapshot != "unstaged document\n" {
+		t.Fatalf("unstaged edit rejected: %+v", got)
+	}
+	for _, path := range []string{"doc.md", "unrelated.txt", ".gitattributes"} {
+		if path != "doc.md" {
+			os.WriteFile(filepath.Join(dir, path), []byte("staged\n"), 0600)
+		}
+		identityGit(t, dir, "add", "--", path)
+		got = resolveIdentityWithSnapshot(NewOSRuntime(), dir, "doc.md", head, true)
+		if got.Status != "invalid" || got.Snapshot != nil || !strings.Contains(got.Diagnostic, "commit/unstage") {
+			t.Fatalf("staged %s admitted: %+v", path, got)
+		}
+		identityGit(t, dir, "reset", "-q", "HEAD", "--", path)
+	}
+	got = resolveIdentityWithSnapshot(NewOSRuntime(), dir, "doc.md", head, true)
+	if got.Status != "resolved" {
+		t.Fatalf("retry after unstage: %+v", got)
+	}
+}
+
+type changingIndexRuntime struct {
+	Runtime
+	checks       int
+	lockOnSecond bool
+}
+
+func (r *changingIndexRuntime) IndexGeneration(ctx context.Context, path string) (string, error) {
+	r.checks++
+	if r.checks > 1 {
+		if r.lockOnSecond {
+			return "", fmt.Errorf("index operation in progress")
+		}
+		return "new-index-generation", nil
+	}
+	return "old-index-generation", nil
+}
+func TestIdentityRejectsIndexMovementDuringCollection(t *testing.T) {
+	for _, locked := range []bool{false, true} {
+		fake := newFake()
+		initIdentityFake(fake, "review/doc")
+		fake.files["/repo/doc.md"] = "A bytes"
+		got := resolveIdentityWithSnapshot(&changingIndexRuntime{Runtime: fake, lockOnSecond: locked}, "/repo", "", "", true)
+		if got.Status != "invalid" || got.Snapshot != nil {
+			t.Fatalf("index movement admitted: %+v", got)
+		}
+	}
+}
+
+func TestIdentityUsesWorktreeLocalIndex(t *testing.T) {
+	dir := identityRepo(t)
+	linked := filepath.Join(t.TempDir(), "linked")
+	identityGit(t, dir, "worktree", "add", "-q", "-b", "review/linked", linked)
+	head := identityGit(t, linked, "rev-parse", "HEAD")
+	got := resolveIdentityWithSnapshot(NewOSRuntime(), linked, "doc.md", head, true)
+	if got.Status != "resolved" || got.Snapshot == nil {
+		t.Fatalf("linked identity: %+v", got)
+	}
+	index := identityGit(t, linked, "rev-parse", "--path-format=absolute", "--git-path", "index")
+	if err := os.WriteFile(index+".lock", []byte("writer"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	got = resolveIdentityWithSnapshot(NewOSRuntime(), linked, "doc.md", head, true)
+	if got.Status != "invalid" || got.Snapshot != nil {
+		t.Fatalf("linked index lock ignored: %+v", got)
+	}
+}

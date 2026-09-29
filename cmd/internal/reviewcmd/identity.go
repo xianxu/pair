@@ -159,6 +159,15 @@ func resolveIdentityWithSnapshot(rt Runtime, dir, selected, expectedHead string,
 		return fail(err)
 	}
 	dir = out.Repo
+	indexPath, err := git("rev-parse", "--path-format=absolute", "--git-path", "index")
+	if err != nil {
+		return fail(fmt.Errorf("cannot locate Git index: %w", err))
+	}
+	indexPath = strings.TrimSuffix(indexPath, "\n")
+	indexBefore, err := rt.IndexGeneration(ctx, indexPath)
+	if err != nil {
+		return fail(err)
+	}
 	branch, err := git("symbolic-ref", "--quiet", "--short", "HEAD")
 	if err != nil {
 		return fail(fmt.Errorf("cannot resolve branch (detached HEAD or Git failure): %w", err))
@@ -195,6 +204,12 @@ func resolveIdentityWithSnapshot(rt Runtime, dir, selected, expectedHead string,
 		out.Status = "resolved"
 	}
 	if out.Status == "resolved" {
+		// Checkout can publish its destination index before updating HEAD and
+		// releasing the final branch identity. That state is indistinguishable
+		// from staging. Whole-tree equality also covers attributes/filter inputs.
+		if _, err := git("diff-index", "--cached", "--quiet", "--no-ext-diff", out.Head, "--"); err != nil {
+			return fail(fmt.Errorf("Git index differs from HEAD or cannot be verified; finish checkout or commit/unstage staged changes before restoring review"))
+		}
 		if !safeIdentityPath(out.File) {
 			return fail(fmt.Errorf("unsafe selected path"))
 		}
@@ -224,6 +239,13 @@ func resolveIdentityWithSnapshot(rt Runtime, dir, selected, expectedHead string,
 	after, err = git("symbolic-ref", "--quiet", "--short", "HEAD")
 	if err != nil || strings.TrimSpace(after) != out.Branch {
 		return fail(fmt.Errorf("checkout branch changed during resolution"))
+	}
+	indexAfter, err := rt.IndexGeneration(ctx, indexPath)
+	if err != nil {
+		return fail(err)
+	}
+	if indexBefore != indexAfter {
+		return fail(fmt.Errorf("Git index changed during review observation; retry"))
 	}
 	return out
 }

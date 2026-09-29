@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -152,6 +153,7 @@ func (b *limitedIdentityBuffer) Write(p []byte) (int, error) {
 func (OSRuntime) GitContext(ctx context.Context, limit int, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
 	cmd.WaitDelay = 50 * time.Millisecond
+	cmd.Env = append(os.Environ(), "GIT_OPTIONAL_LOCKS=0")
 	out := &limitedIdentityBuffer{limit: limit}
 	cmd.Stdout = out
 	cmd.Stderr = io.Discard
@@ -215,4 +217,32 @@ func (rt OSRuntime) ReadIdentityFile(ctx context.Context, root, rel string, limi
 		return "", fmt.Errorf("review snapshot is not UTF-8 text")
 	}
 	return string(body), nil
+}
+
+// IndexGeneration observes Git's writer-owned lock and atomic index generation.
+// Readers never acquire index.lock: editor observation must not make checkout fail.
+func (OSRuntime) IndexGeneration(ctx context.Context, path string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if _, err := os.Lstat(path + ".lock"); err == nil {
+		return "", fmt.Errorf("Git index operation in progress; retry after checkout or staging finishes")
+	} else if !os.IsNotExist(err) {
+		return "", err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return "", err
+	}
+	if !info.Mode().IsRegular() {
+		return "", fmt.Errorf("Git index is not a regular file")
+	}
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return "", fmt.Errorf("cannot observe Git index generation")
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%d:%d:%d:%d", stat.Dev, stat.Ino, info.Size(), info.ModTime().UnixNano()), nil
 }

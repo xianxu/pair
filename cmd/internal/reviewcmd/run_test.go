@@ -456,6 +456,8 @@ func (f *fakeRuntime) GitContext(ctx context.Context, limit int, dir string, arg
 			return "/repo\n", nil
 		}
 		return f.identityHead + "\n", nil
+	case "diff-index":
+		return "", nil
 	case "symbolic-ref":
 		return f.identityBranch + "\n", nil
 	case "log":
@@ -475,4 +477,8 @@ func (f *fakeRuntime) RegularFileWithin(root, rel string) error { return nil }
 
 func (f *fakeRuntime) ReadIdentityFile(ctx context.Context, root, rel string, limit int) (string, error) {
 	return f.ReadFile(filepath.Join(root, rel))
+}
+
+func (f *fakeRuntime) IndexGeneration(ctx context.Context, path string) (string, error) {
+	return "stable-index", ctx.Err()
 }
