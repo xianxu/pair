@@ -114,3 +114,9 @@ Mutation evidence: in a temporary source copy only, replacing captured-snapshot 
 ### 2026-09-28 — third boundary follow-up
 
 Round 3 retained BR-5 after a real Git smudge-filter pause proved checkout can change document bytes before HEAD: snapshot admission must cover in-progress checkout. It added BR-6: controller binary-line decoding retained CR while bufload selected dos, producing CRCRLF on save. Both are being fixed with controlled production regressions; earlier handoff, latency, docs and ownership findings remain disposed.
+
+### 2026-09-28 — checkout and byte-preservation verification
+
+BR-5 admission now refuses Git-owned index.lock, changing index generations and any staged index tree differing from pinned HEAD; no reader lock is acquired. The conservative commit/unstage restriction is documented. Real Git smudge-filter pause, index-published/HEAD-old, linked-worktree lock, staged attributes/unrelated files, unstaged edits and retry tests pass. Package race verification passed after the fix. BR-6 uses shared UTF-8 byte decoding/encoding across activation, refresh and landed-content proof; recovery retains buffer encoding/lineformat/BOM metadata with legacy fallback. Exact-save tests cover new/retained buffers, LF/CRLF/mixed/lone-CR, BOM, empty/no-EOL, unsupported text refusal, and a CRLF/BOM applied round clearing pending after commit. Full Lua/review suites and build pass. One verification attempt overlapped two runtime-asset generators; rerunning after the completed build passed.
+
+Capture-class sweep is also routing initial pane opening and branch activation through the same bounded resolver snapshot instead of independent raw reads between identity checks; adding regressions before the next gate.
