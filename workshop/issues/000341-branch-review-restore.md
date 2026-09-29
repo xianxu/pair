@@ -6,8 +6,8 @@ github_issue:
 target: review-protocol
 created: 2026-09-28
 updated: 2026-09-28
-estimate_hours:
-card_mirror: '2e74fcd73db5667c843ae48ea47f356dc6ee3f2a' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 3.24
+card_mirror: '76cb1933ef953584b093d269e2bd56d9bed5585a' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T20:39:30-07:00
 ---
 
@@ -38,6 +38,25 @@ Define behavior for missing or ambiguous branch-to-document identity and for non
 - [ ] Design branch-to-document resolution and safe pane/pending-round transitions.
 - [ ] Implement restoration with regression coverage and update the review-workbench atlas.
 
+## Estimate
+
+Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only. Calibration is marked stale by `sdlc estimate-source`, so these values are provisional. The approved detailed plan earns the ×0.2 design discount and 15% design buffer; implementation uses 40% of the v2/v2.1 table, familiarity 1.0 for this existing Go/Lua stack.
+
+Resolver: greenfield single-concern Go module, base design 1.0 and implementation 0.6. Existing Runtime and standard Git/process seams are reused; no novel-stack library assumption. Pane activation/recovery: Lua feature at base design 2.0, implementation 1.5. Round admission and producer integration: Lua feature at base design 1.5, implementation 1.0. Draft activation and end-to-end wiring: Lua feature at base design 1.0, implementation 1.0. Docs and one review boundary use base design 0.2 each, implementation 0.2 and 0.4. The separately tracked Ariadne instruction edit is excluded; Pair's protocol integration tests are included.
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: greenfield-go-module design=0.20 impl=0.24
+item: lua-neovim design=0.40 impl=0.60
+item: lua-neovim design=0.30 impl=0.40
+item: lua-neovim design=0.20 impl=0.40
+item: atlas-docs design=0.04 impl=0.08
+item: milestone-review design=0.04 impl=0.16
+design-buffer: 0.15
+total: 3.24
+```
+
 
 ## Log
 
@@ -54,6 +73,8 @@ The proposed full-flow design is in [the durable plan](../plans/000341-branch-re
 Baseline checks passed: `go test ./cmd/internal/reviewcmd -count=1` and `bash tests/review-resume-test.sh`. Fresh-context plan review identified three gaps: first opens have no round history, retained buffers need byte reconciliation, and context must extend through agent-owned Git effects. The plan now specifies those cases and includes a linked Ariadne producer-instruction change because Pair's xx-fix skill resolves to `../ariadne/construct/local/fix/SKILL.md`. Ariadne's `AGENTS.local.md` was read; `MEMORY.md` is absent. No peer files changed.
 
 Fresh-context re-review approved the revised plan with no remaining blocking gaps. The linked producer-instruction change and recovery-storage regression remain required. Awaiting operator approval of the committed full-flow plan before implementation.
+
+Operator approved execution. Plan-quality rounds PQ-1/PQ-2 required concrete durable recovery and function-level test strategy; both were addressed and the gate passed. Linked producer issue is ariadne#268. Estimate derived after gate passage, as required.
 
 ## Revisions
 
