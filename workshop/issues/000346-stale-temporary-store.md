@@ -120,6 +120,8 @@ Detailed implementation plan: `workshop/plans/000346-stale-temporary-store-plan.
 
 ## Log
 
+- 2026-09-29: M2 implementation committed as `97f45851` and `eaa853e3`. Full ledger/inventory/watcher/dispatcher/pair-go tests passed; full ledger/inventory/watcher race tests passed, with final source-shape and optional-parsing additions rechecked under race. Full Couch passed (233.7s); launcher/opener/review full race passed; targeted Couch/wrapper race passed. Context/title/threadactivity/slug tests passed; all command packages compile. Installed read-only `make test-session-inventory-conformance` passed across Claude, Codex, Muse, Qoder and Agy. OS-upgraded sqlite3 resets headers with `-header -csv`; reordered to `-csv -header`, verified by existing integration test. Large slug fixture now uses unknown-event padding rather than malformed session metadata so schema-rebuild coverage reads valid data. `git diff --check` passed. M2 review pending.
+
 - 2026-09-29: M2 consumer integration in progress. RED tests reproduced rejection of a nonempty provisional UUID in full launcher and Couch admission; both now pass. Couch/launcher/review/changelog use the ledger-only target query. Saved-parameter picker resumes a durable target even with no native file; fresh Claude/Qoder launches and wrapper restarts record chosen-ID origin. Production resolver regression verifies A under probation followed by confirmed D without any transcript read. Full launcher/opener/review suites with race detection pass; focused Couch/restart/binding suite passes. Native watcher epoch/confirmation work and full M2 verification remain in progress; no milestone completion claimed.
 
 ### 2026-09-29
