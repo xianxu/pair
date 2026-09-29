@@ -1,12 +1,13 @@
 ---
 id: 000247
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-28
 estimate_hours:
-card_mirror: 'dbf2fe17f3b1e59f8333f09f90e02999a682948b' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '52e858caaf004365b6b3fba6cf8b574ee4c30b0e' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-28T21:31:56-07:00
 ---
 
 # Shade live Couch threads by idle time
@@ -93,3 +94,17 @@ Dot acceptance: an injected clock verifies the 15-byte/15-second boundaries, exp
 ### 2026-09-14 — Capture status
 
 Recorded the operator's decision; no implementation begun. The shared checkout currently carries active #250 recovery work, including staged changes, so this update publishes only #247's issue record.
+
+### 2026-09-28 — Operator answers the open idle-shading questions
+
+- **Activity = both.** Operator input to the thread AND agent work or output
+  reset idle age. Redraws, cursor blink, status refreshes and polling still
+  don't count.
+- **Thresholds: 1 h, 24 h, 48 h**, still four levels: under 1 h normal;
+  1 h to under 24 h mildly faded; 24 h to under 48 h more faded; 48 h or more
+  most faded. (Replaces the provisional 5 min / 1 h / 24 h ramp.)
+- **Fade both label colors**: the normal foreground (white on a dark theme)
+  and the amber label color, where the terminal can express it.
+- **Precedence confirmed**: selected/focused styling and pending notifications
+  keep their own emphasis. Both themes and color-disabled rendering must stay
+  correct.
