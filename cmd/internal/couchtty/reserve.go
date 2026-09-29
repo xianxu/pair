@@ -45,6 +45,11 @@ type StatusActor struct {
 	// Loading marks the one placeholder currently starting; it carries the
 	// spinner.
 	Loading bool
+	// Idle is how long this thread has gone without activity (pair#247). It
+	// fades the chip -- label and amber glyphs alike -- unless the chip is
+	// selected, has a pending notification, or is a placeholder, which all
+	// keep their own emphasis.
+	Idle IdleLevel
 }
 
 // StatusModel is everything the row shows.
@@ -53,6 +58,9 @@ type StatusModel struct {
 	Notice string
 	// Spinner is the loading placeholder's spinner frame (pair#206).
 	Spinner uint8
+	// Palette is what the host terminal told couch about its colours, which
+	// idle fading blends toward (pair#247).
+	Palette Palette
 }
 
 const (
@@ -167,17 +175,24 @@ func RenderStatusRow(width int, m StatusModel) RenderedStatusRow {
 		// the columns it actually drew.
 		start := used
 		style := ""
+		// Fading is the fallback: every stronger cue wins over idleness.
+		faded := !a.Placeholder && !a.Active && !a.Bell
 		switch {
 		case a.Placeholder:
 			style = placeholderSGR
 		case a.Bell && !a.Active:
 			style = attentionSGR
+		case faded:
+			style = FadeStyle(m.Palette, a.Idle, baseDefault)
 		}
 		appendText(label, style)
 		for _, r := range a.Glyph {
 			glyphStyle := style
 			if own := slotGlyphSGR(r); own != "" && !a.Placeholder {
 				glyphStyle = own
+				if faded {
+					glyphStyle = FadeStyle(m.Palette, a.Idle, baseAmber)
+				}
 			}
 			appendText(string(r), glyphStyle)
 		}
