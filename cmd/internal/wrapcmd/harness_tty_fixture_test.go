@@ -299,12 +299,11 @@ func assertFixtureIsMachineNeutral(t *testing.T, metadataPath, harness string, r
 	if err != nil {
 		t.Fatalf("resolve home directory: %v", err)
 	}
-	homeRoot := filepath.Dir(home) + string(filepath.Separator)
 	_, acknowledged := ttyFixtureEnvironmentGaps[harness]
 	embedded := false
 	for _, name := range sortedKeys(rawFiles) {
 		body := string(rawFiles[name])
-		if !strings.Contains(body, home) && !strings.Contains(body, homeRoot) {
+		if !fixtureContainsAbsoluteHomePath(body, home) {
 			continue
 		}
 		embedded = true
@@ -317,6 +316,30 @@ func assertFixtureIsMachineNeutral(t *testing.T, metadataPath, harness string, r
 	// before the harness started printing the path is clean without making the
 	// gap stale.
 	return embedded
+}
+
+// Frozen captures may come from another machine, while this test may run with
+// an isolated HOME. Detect conventional home paths independently of this runner.
+var ttyFixtureHomePath = regexp.MustCompile(`(?:/Users/|/home/)[^/\s]+/|[A-Za-z]:\\Users\\[^\\\s]+\\`)
+
+func fixtureContainsAbsoluteHomePath(body, home string) bool {
+	return ttyFixtureHomePath.MatchString(body) || strings.Contains(body, home) ||
+		strings.Contains(body, filepath.Dir(home)+string(filepath.Separator))
+}
+
+func TestFixtureHomePathIndependentOfRunner(t *testing.T) {
+	for _, body := range []string{
+		"warning: /Users/capture/workspace/CLAUDE.md",
+		"warning: /home/capture/workspace/CLAUDE.md",
+		`warning: C:\Users\capture\workspace\CLAUDE.md`,
+	} {
+		if !fixtureContainsAbsoluteHomePath(body, "/isolated/test/home") {
+			t.Errorf("missed capture-machine path in %q", body)
+		}
+	}
+	if fixtureContainsAbsoluteHomePath("workspace/CLAUDE.md", "/isolated/test/home") {
+		t.Fatal("relative path classified as capture-machine home")
+	}
 }
 
 func readHarnessTTYFixture(t *testing.T, metadataPath string) (ttyFixtureMetadata, map[string][]byte, bool) {
