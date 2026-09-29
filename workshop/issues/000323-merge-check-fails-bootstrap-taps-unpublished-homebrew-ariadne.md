@@ -80,6 +80,7 @@ yet, see ariadne#241") is worth proposing upstream.
   ariadne#250.
 
 ### 2026-09-29
+- 2026-09-29: closed — No pair code change: fixed upstream in ariadne#250 (PR #134) and ariadne#241 (PR #143, tap published, fallback removed). pair re-seeded in 9becfbc7/6f62a7ec. merge-check green on the last 3 PR runs, e.g. run 36635174446 (#346, 2026-09-29) passed Prepare dependencies and completed success. --no-atlas: docs-only window, no new surface.; review verdict: SHIP
 
 - Resolved upstream. ariadne#250 merged (ariadne PR #134); ariadne#241 closed
   2026-09-28 (PR #143), publishing the tap and dropping the source-build
