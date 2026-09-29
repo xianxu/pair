@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/xianxu/pair/cmd/internal/launcher"
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -139,6 +140,10 @@ func TestFreshPinAgentsMintSessionIDButKeepRecoveryProvisional(t *testing.T) {
 				t.Fatalf("PAIR_SESSION_ID = %q, want fresh id", got)
 			} else if !regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`).MatchString(got) {
 				t.Fatalf("PAIR_SESSION_ID = %q, want UUID", got)
+			}
+			target, err := sessioninventory.QueryResumeTarget(sessioninventory.NewOSRuntime("", data), "scope", "work", sessioninventory.Agent(agent))
+			if err != nil || target.Status != sessioninventory.BindingProvisional || target.NativeID != envValue(request.env, "PAIR_SESSION_ID") {
+				t.Fatalf("fresh chosen target = %+v, error = %v", target, err)
 			}
 			if _, err := os.Stat(filepath.Join(data, "config-work-"+agent+".json")); !os.IsNotExist(err) {
 				t.Fatalf("fresh provisional launch wrote config: %v", err)

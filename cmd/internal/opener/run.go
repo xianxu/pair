@@ -161,7 +161,7 @@ func RunChangelog(opts Options, rt Runtime, stderr io.Writer) int {
 
 	sid := opts.SessionID
 	if sid == "" {
-		if established, status := rt.EstablishedSessionID(opts.DataDir, opts.ScopeKey, opts.Tag, opts.Agent); status == sessioninventory.BindingEstablished {
+		if established, status := rt.EstablishedSessionID(opts.DataDir, opts.ScopeKey, opts.Tag, opts.Agent); status == sessioninventory.BindingEstablished || status == sessioninventory.BindingProvisional {
 			sid = established
 		}
 	}

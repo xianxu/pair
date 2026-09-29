@@ -15,6 +15,7 @@ import (
 	"github.com/xianxu/pair/cmd/internal/commitoutcome"
 	"github.com/xianxu/pair/cmd/internal/panebirth"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
@@ -581,14 +582,12 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	}
 
 	// Pre-capture an explicit --resume/--conversation/`resume` binding. The
-	// synchronous launch boundary may establish this scanner-authorized native
-	// root immediately; fresh launches wait for a completed causal round.
+	// launch records this requested target; observation confirms the actual root.
 	explicitResume := extractExplicitResume(agent, agentArgs)
 
 	// Claude/qoder: mint a deterministic --session-id (uuidgen + collision
 	// retry) so two tags in one cwd can't race for the same new jsonl (#20).
-	// This remains invocation authority only until the watcher establishes the
-	// causal round.
+	// A new matching root filename can acknowledge this Pair-chosen identity.
 	newSid := ""
 	if shouldMintSessionID(agent, explicitResume, agentArgs) {
 		for i := 0; i < 5; i++ {
@@ -666,7 +665,13 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 		}
 		fmt.Fprintf(stderr, "pair: ledger for tag '%s' committed with cleanup warning: %v\n", chosenTag, err)
 	}
-	launchOrdinal, err := rt.PrepareSessionLaunch(scope.Key, chosenTag, agent, explicitResume)
+	var requestOrigin sessionledger.RequestOrigin
+	if explicitResume != "" {
+		requestOrigin = sessionledger.RequestOriginResume
+	} else if newSid != "" {
+		requestOrigin = sessionledger.RequestOriginChosen
+	}
+	launchOrdinal, err := rt.PrepareSessionLaunch(scope.Key, chosenTag, agent, sessionID, requestOrigin)
 	if err != nil {
 		if commitoutcome.Of(err) != commitoutcome.Committed {
 			fmt.Fprintf(stderr, "pair: failed to prepare native launch for tag '%s': %v\n", chosenTag, err)
@@ -951,12 +956,10 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	}
 
 	savedSessionID := saved.SessionID
-	hasResumable := rt.AgentSessionExists(agent, savedSessionID, cwd)
+	// saved.SessionID comes from the durable resume target, not native parsing.
+	hasResumable := savedSessionID != ""
 	var quarantine bool
 	saved, quarantine = decideAutomaticResumeConfig(agent, saved, hasResumable)
-	if savedSessionID != "" && !hasResumable {
-		fmt.Fprintf(stderr, "pair: saved session %q for %s is not available; starting fresh\n", savedSessionID, agent)
-	}
 	if quarantine {
 		rt.Remove(configPath)
 	}
@@ -1004,7 +1007,7 @@ func readSavedConfigForTag(rt Runtime, configPath, scopeKey, tag, agent string) 
 			}
 		}
 	}
-	if sid, status := rt.EstablishedSessionID(scopeKey, tag, agent); status == sessioninventory.BindingEstablished {
+	if sid, status := rt.EstablishedSessionID(scopeKey, tag, agent); sid != "" && (status == sessioninventory.BindingEstablished || status == sessioninventory.BindingProvisional) {
 		saved.Agent = agent
 		saved.SessionID = sid
 	} else {

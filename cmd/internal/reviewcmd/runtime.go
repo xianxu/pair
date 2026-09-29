@@ -106,11 +106,11 @@ func (OSRuntime) SpawnReviewPane(cwd, lua, absFile, nvimPidFile string) error {
 func (OSRuntime) EstablishedSessionID(dataDir, scopeKey, tag, agent string) (string, sessioninventory.BindingStatus) {
 	home, _ := os.UserHomeDir()
 	runtime := sessioninventory.NewOSRuntime(home, dataDir)
-	query, err := sessioninventory.QuerySession(runtime, scopeKey, tag, sessioninventory.Agent(agent))
-	if err != nil || query.Root == nil {
+	query, err := sessioninventory.QueryResumeTarget(runtime, scopeKey, tag, sessioninventory.Agent(agent))
+	if err != nil {
 		return "", query.Status
 	}
-	return query.Root.NativeID, query.Status
+	return query.NativeID, query.Status
 }
 
 func (OSRuntime) CanonicalDir(dir string) (string, error) {

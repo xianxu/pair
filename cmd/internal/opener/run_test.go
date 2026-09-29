@@ -218,7 +218,7 @@ func TestRunChangelogSkipsDistillerWhenRunning(t *testing.T) {
 	}
 }
 
-func TestRunChangelogSessionKeyUsesEstablishedInventory(t *testing.T) {
+func TestRunChangelogSessionKeyUsesResumeTarget(t *testing.T) {
 	rt := newFake()
 	rt.pid = "100"
 	rt.sessionID, rt.sessionStatus = "rootsid", sessioninventory.BindingEstablished
@@ -228,10 +228,10 @@ func TestRunChangelogSessionKeyUsesEstablishedInventory(t *testing.T) {
 		t.Fatalf("inventory-keyed base wrong: %+v", rt.viewer)
 	}
 	rt = newFake()
-	rt.sessionID, rt.sessionStatus = "stale", sessioninventory.BindingProvisional
+	rt.sessionID, rt.sessionStatus = "requested", sessioninventory.BindingProvisional
 	RunChangelog(Options{Tag: "t", Agent: "claude", DataDir: "/dd", PairHome: "/h"}, rt, io.Discard)
-	if rt.viewer == nil || rt.viewer.file != "/dd/changelog-t-claude.md" {
-		t.Fatalf("provisional binding must keep legacy unsuffixed base: %+v", rt.viewer)
+	if rt.viewer == nil || rt.viewer.file != "/dd/changelog-t-claude-requested.md" {
+		t.Fatalf("probation must retain requested identity: %+v", rt.viewer)
 	}
 }
 

@@ -2420,7 +2420,11 @@ func freshAgentInvocation(wrapperExecutable, scrollbackLog string, currentArgv [
 		if scopeKey == "" {
 			return nil, errors.New("missing Pair scope identity for fresh launch")
 		}
-		prepared, err := sessionwatch.PrepareOSLaunch(envValue(env, "HOME"), dataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, "")
+		var origin sessionledger.RequestOrigin
+		if sessionID != "" {
+			origin = sessionledger.RequestOriginChosen
+		}
+		prepared, err := sessionwatch.PrepareOSLaunchRequest(envValue(env, "HOME"), dataDir, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: agent}, sessionID, origin)
 		if err != nil && sessionledger.AppendOutcomeOf(err) != sessionledger.AppendCommitted {
 			return nil, err
 		}

@@ -121,6 +121,14 @@ func TestDecideResumeEligibilityMatrix(t *testing.T) {
 		{name: "unsupported agent", code: ResumeAgentUnsupported, mutate: func(in *ResumeEligibilityInput) {
 			in.Thread.LatestLaunchProfile.Agent = "unknown-agent"
 		}},
+		{name: "probation target resumes", code: "", mutate: func(in *ResumeEligibilityInput) {
+			in.Binding = NativeBindingResolution{Status: sessioninventory.BindingProvisional, NativeID: "native-root"}
+		}},
+		{name: "probation target resumes without park receipt", code: "", mutate: func(in *ResumeEligibilityInput) {
+			in.Thread.VerifiedPark = nil
+			in.Thread.ParkHistory = nil
+			in.Binding = NativeBindingResolution{Status: sessioninventory.BindingProvisional, NativeID: "native-root"}
+		}},
 		{name: "provisional binding", code: ResumeBindingProvisional, mutate: func(in *ResumeEligibilityInput) {
 			in.Binding = NativeBindingResolution{Status: sessioninventory.BindingProvisional}
 		}},

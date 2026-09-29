@@ -8,6 +8,7 @@ import (
 
 	"github.com/xianxu/pair/cmd/internal/readiness"
 	"github.com/xianxu/pair/cmd/internal/sessioninventory"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"github.com/xianxu/pair/cmd/internal/titlepoller"
 )
 
@@ -139,8 +140,8 @@ type IDOps interface {
 	// AgentSessionExists reports whether the agent's native session artifact for
 	// sid is on disk (claude jsonl / codex sessions glob / agy conversation db).
 	AgentSessionExists(agent, sid, cwd string) bool
-	// EstablishedSessionID projects current typed authority, with legacy config
-	// accepted only when no typed launch generation exists.
+	// EstablishedSessionID retains its historical name but returns the durable
+	// current target, including a requested UUID under probation.
 	EstablishedSessionID(scopeKey, tag, agent string) (string, sessioninventory.BindingStatus)
 	// InferAgent resolves the agent from current ledger ownership or the live
 	// agent-<tag> record. Compatibility config filenames never establish it.
@@ -150,7 +151,7 @@ type IDOps interface {
 type LedgerOps interface {
 	ReadLedger(tag string) ([]LedgerEntry, error)
 	AppendLedger(tag string, entry LedgerEntry) error
-	PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string) (uint64, error)
+	PrepareSessionLaunch(scopeKey, tag, agent, resumeNativeID string, origin sessionledger.RequestOrigin) (uint64, error)
 }
 
 type SessionNameStoreOps interface {

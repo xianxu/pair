@@ -285,6 +285,9 @@ func isBindingDiagnostic(code ResumeDiagnosticCode) bool {
 func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCode {
 	switch binding.Status {
 	case sessioninventory.BindingProvisional:
+		if binding.NativeID != "" {
+			return ""
+		}
 		return ResumeBindingProvisional
 	case sessioninventory.BindingAmbiguous:
 		return ResumeBindingAmbiguous
@@ -339,6 +342,8 @@ func refuseResume(code ResumeDiagnosticCode, diagnostic string) error {
 	return &ResumeRefusal{Code: code, Diagnostic: diagnostic}
 }
 
+// NativeBindingResolver resolves a usable durable target. The historical method
+// name also covers probation with a nonempty requested UUID.
 type NativeBindingResolver interface {
 	ResolveEstablished(context.Context, string, string, string) (NativeBindingResolution, error)
 }
@@ -351,14 +356,11 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 	if r.Runtime == nil {
 		return NativeBindingResolution{}, errors.New("native binding resolver has no runtime")
 	}
-	query, err := sessioninventory.QuerySessionContext(ctx, r.Runtime, repoScope, tag, sessioninventory.Agent(agent))
+	query, err := sessioninventory.QueryResumeTargetContext(ctx, r.Runtime, repoScope, tag, sessioninventory.Agent(agent))
 	if err != nil {
 		return NativeBindingResolution{}, err
 	}
-	resolution := NativeBindingResolution{Status: query.Status}
-	if query.Root != nil {
-		resolution.NativeID = query.Root.NativeID
-	}
+	resolution := NativeBindingResolution{Status: query.Status, NativeID: query.NativeID}
 	if code := bindingResumeDiagnostic(resolution); code != "" {
 		return resolution, refuseBinding(code)
 	}
@@ -405,9 +407,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// is about to pass `--resume <native-id>`. A detached thread resumes warm off
 	// its surviving session and needs no native id, so it asks for none: the
 	// binding resolver is not consulted, cannot slow it down, and cannot fail it.
-	// (ResolveEstablished returns an ERROR for a provisional binding, so asking
-	// on the warm path refused the thread here, before DecideResume could decide
-	// anything -- which is how a detached thread became unreachable.)
 	pathExists := c.workingPathExists(thread)
 
 	// WARM first, for every thread, then COLD only if warm did not answer.
@@ -423,9 +422,6 @@ func (c *Couch) ResumeContextWith(ctx context.Context, address ThreadAddress, op
 	// authority and the classifier already prefers it; then ask the ledger,
 	// because a cold resume is about to pass `--resume <native-id>` and that id
 	// is the only thing that makes the relaunch land in the right conversation.
-	// The warm path asks for no id -- ResolveEstablished ERRORS on a
-	// provisional binding, so asking there refused threads before DecideResume
-	// could decide anything, which is how a detached thread became unreachable.
 	//
 	// This is the strict-action half of optimistic inventory: one `list-clients`
 	// for the single thread the operator pressed Enter on.

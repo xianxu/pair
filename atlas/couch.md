@@ -397,14 +397,11 @@ blocked launch helper; real composer recognition and actual agent submission
 remain operator smoke tests. The conformance workflow runs on relevant changes
 and weekly.
 
-`relaunch` (`pair#182`) is detailed under **Exit, detach, and terminal
-lifecycle**; the one thing worth knowing at this level is that its commonest
-refusal is not a fault. A cold resume needs `--resume <native-id>`, and that
-name comes from the ledger's `binding` row, which is written only once the agent
-completes a turn. A thread started minutes ago and never used therefore has no
-proof of WHICH conversation to resume -- the ordinary state of a fresh session,
-and the state relaunch meets most, because relaunching is something you do to a
-session you just started. It says so rather than guessing.
+`relaunch` uses the current ledger resume target. A confirmed UUID or a requested
+UUID under probation is sufficient for cold resume; transcript parsing does not
+gate startup. An early Alt+n retries that target while current-launch observation
+continues. A fresh launch without any known UUID must wait for correlation;
+ambiguous confirmed identities remain unavailable. See [Session identity](session-identity.md).
 
 `archive` is the operator's "delete", and it is COMPLETE: it stops the thread's
 zellij session first (`Artifacts.Quiesce` -> `zellij delete-session --force`,
