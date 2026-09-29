@@ -16,6 +16,7 @@ tracker:
         source_path: workshop/issues/000344-couch-remove-slot.md
         source_blob: 0a86b85d5ccbe01b73a433f58370bc35adc8a843
         destination: workshop/issues/000344-couch-remove-slot.md
+        main_commit: fb9f99a136a623488734b2b17ab0dc077e118f9a
 ---
 
 # Couch: remove slot (highest-numbered, operator-confirmed)
