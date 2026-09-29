@@ -28,7 +28,41 @@ Define supported recovery for vanished registered stores and allow unaffected st
 
 Relevant code: `cmd/internal/storagegc/stores.go`, `cmd/internal/couchcore/retention.go`, and `cmd/internal/couchcmd/run.go`. ARCH-SECURE: tests must not write operator state. ARCH-FUNERAL: registration must define the lifecycle and removal of ephemeral stores.
 
-Additional recovery design (2026-09-29): allow intact namespaces to operate despite unrelated unavailable registrations while keeping GC fail-closed; provide explicit permanent-abandonment recovery that resets migration acknowledgment. Revalidate exact proof-named conversations after filesystem metadata changes, using `(agent, native UUID)` as durable identity, with cold-resume boundary tests and bounded catalog reuse. Accept parent-free Codex `vscode` roots and recover existing unbound version-2 launches only from unique completed causal rounds through a supported preview/apply command. Detailed design: `workshop/plans/000346-stale-temporary-store-plan.md` (awaiting approval).
+### Binding and launch observation (agreed 2026-09-29)
+
+Binding means the association `(Pair tag, native root transcript UUID)` within the existing repository/agent scope. Native UUIDs identify conversations; device, inode, generation, file size and parser-cache continuity are not conversation identity. UUID-named transcripts are normally append-only. Do not require a full body reread to retain a recorded resume target after filesystem metadata changes. An internal field that appears to name a different UUID may reflect changed producer semantics; it is diagnostic evidence, not by itself grounds to revoke the filename/recorded association.
+
+Fresh launches and resumed launches share one current-launch observation/correlation process. Fresh launch discovers a root transcript. Resume starts immediately with the recorded UUID A as a provisional target (probation), then observes which root actually receives the current interaction. Candidate selection must include post-launch activity in pre-existing transcripts as well as newly created files; the current fresh-start exclusion of all baseline paths cannot be reused unchanged. Historical matching messages cannot confirm a new launch.
+
+Use the existing causal message/progress matching thresholds initially, with current-launch boundaries. If sufficiently distinctive evidence confirms A, confirm this launch; if it establishes D, trust the observation and update the binding to D, retaining A, launch identity and the reason/evidence for the change for debugging. A-to-D fallback/fork is a scenario to test, not an observed incident finding. Silence or ambiguity means not yet confirmed, not failure: normal interaction and early Alt+n remain available, retrying the best available target (usually A). A historical target must belong to the same intended conversation/agent; do not fall back to unrelated old launches such as pair:2's prior Claude sessions.
+
+Treat agent-owned extensible field values as open world. Unknown `source` values must not automatically reject an otherwise evidenced root; adding only `vscode` to a fixed allowlist is insufficient. Root/subagent distinction still matters, using understood positive evidence rather than assuming every unknown record is a root. Retain safe bounded file/JSON reading without making complete schema interpretation a startup gate. Where Pair supplies `--session-id X`, creation of the corresponding new root transcript named X can provide the handshake without requiring prompt matching. Distinguish malformed/unreadable input from unfamiliar valid metadata.
+
+Separate durable resume identity, launch-specific observation confidence, and optional parsed-content/cache availability (ARCH-PURPOSE). Cache invalidation or a native parser failure must not erase the target or block Couch/Alt+n. Publication must check the current launch under the existing ledger synchronization; stale observers cannot change a newer launch. Retain prior config/launch arguments; recovery with no argv must not overwrite them.
+
+### TTY history and feature ownership
+
+Printable TTY is the primary human-attention-level conversation history. Omission of hidden or collapsed tool payloads is intentional and useful, not a reason to require native transcripts for ordinary text features. Keep Pair prompt history separately for exact input/editor comments. Native parsing remains narrow: identity correlation and optional usage/turn-completion telemetry. Native file mtime can inform activity without parsing contents; those optional features must degrade locally.
+
+| Feature | Current source | Agreed direction |
+| --- | --- | --- |
+| Scrollback/search/annotations | Rendered raw TTY plus timing/resize sidecar | Retain TTY source |
+| Alt+l changelog | Unlimited printable TTY with timestamps | Retain TTY source |
+| Agent-switch orientation | TTY first; Pair prompts and native paths supplementary | TTY remains primary; native parsing is not an admission gate |
+| Automatic thread naming | Parsed native user/assistant messages | Move conversational text input to printable TTY |
+| Prompt history/navigation/resend | Pair editor prompt history | Retain exact input source |
+| Context/token meter | Native usage records | Optional structured telemetry |
+| Notifications | Live terminal signals plus Codex lifecycle records | Optional structured telemetry; printable text is not an exact turn-end signal |
+| Idle fading/title heat | Native file mtime, Pair prompt mtime, launch time | No body parsing required; avoid treating redraws as work |
+| Binding discovery/confirmation | Pair sends correlated with native messages/progress | Narrow current-launch identity bridge or explicit UUID handshake |
+| Continuation | Explicit checkpoint with preserved TTY support | Keep checkpoint contract |
+| Resume/review scoping/changelog naming | Session identifier | Identity use, not transcript-content parsing |
+
+Always preserve the raw TTY capture and timing/resize sidecar automatically. Remove the quit-time preservation question. Before startup reuses a same-tag capture pathname, archive any prior capture, including leftovers after crash/reboot that skipped normal quit. Use existing capture/retention ownership; avoid duplicate preservation after normal quit. Archive failure must not silently permit truncation. Retention policy remains separate from automatic capture preservation.
+
+One live session's capture has no row cap. The existing 2,000-row default is a rendering/view limit and may remain; changelog can continue requesting unlimited rendering. This does not require concatenating every historical capture into the default view.
+
+The original stale-store/GC requirements above remain in scope. The old durable plan at `workshop/plans/000346-stale-temporary-store-plan.md` is superseded for binding validation and recovery; reconcile its implementation details against this agreed contract before executing it.
 
 ## Done when
 
@@ -37,17 +71,24 @@ Additional recovery design (2026-09-29): allow intact namespaces to operate desp
 - Development/smoke-test invocations isolate all persistent roots; regression coverage proves the operator registry remains untouched.
 - Missing, unreadable, and temporarily unavailable durable stores have tested behavior that preserves references and communicates recovery requirements.
 
-- Device/inode/generation changes no longer invalidate a saved surviving conversation by themselves; contradictory internal conversation identities remain refused, and repeat queries do not repeatedly replay the body.
-- Codex `vscode` roots bind through the production watcher; existing unbound launches have a safe, tested preview/apply recovery path using recorded causal evidence.
-- Every audited row has a verified outcome: validated cold authority, already-live authority, empty slot, or explicit insufficient evidence. No unrelated conversation is selected and brain:0 is not restarted.
+- Persisted UUID targets remain resumable after device/inode/cache changes, unfamiliar native metadata, or unavailable optional parsing; test the production Couch and Alt+n boundaries with and without park receipts.
+- Fresh root binding accepts `vscode` and future unfamiliar valid source values without abandoning root/subagent discrimination; cover Pair-supplied UUID/new-file handshake.
+- Every resume is observed for its own launch: post-launch activity in existing A confirms A; evidence for D replaces A and retains diagnostic history. Old messages, silence, ambiguous candidates and stale observers cannot falsely confirm or replace it.
+- Normal interaction and early Alt+n work during probation; silence preserves the best available target. Existing launch options/config are preserved during recovery.
+- Human-readable text features use printable TTY; exact prompt history stays separate. Native telemetry/parser failures affect only their consumers, not startup/resume.
+- Quit preserves captures without asking; same-tag startup archives prior raw capture and sidecar before reuse, including crash/reboot leftovers. Test repeated startup/quit, partial archives, archive failure and concurrent ownership so no capture is silently overwritten.
+- Capture retains output beyond 2,000 rows for a single live session; a bounded render remains allowed and unlimited rendering can recover the full retained output.
+- Every audited row has a verified outcome: available resume target with its observation state, already-live thread, empty slot, or explicit insufficient evidence. Do not fabricate pair:4's missing transcript or restart brain:0 as an experiment.
 
 ## Plan
 
-Detailed plan: `workshop/plans/000346-stale-temporary-store-plan.md` (draft; operator approval required before implementation).
+The following workstreams replace the earlier M2/M3 approach. Detailed implementation steps and review boundaries must be reconciled in `workshop/plans/000346-stale-temporary-store-plan.md` before code changes; its prior review does not approve this revised design.
 
-- [ ] M1 — Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
-- [ ] M2 — Revalidate exact saved conversations across device renumbering and verify cold-resume behavior.
-- [ ] M3 — Support Codex vscode roots, recover existing unbound launches through causal evidence, verify and document incident recovery.
+- [ ] Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
+- [ ] Separate durable resume target from parser/cache validity and launch-specific confirmation; keep startup/Alt+n usable during probation.
+- [ ] Share fresh/resume root observation with existing-file post-launch boundaries, open-world metadata handling, UUID handshake, and recorded binding transitions.
+- [ ] Preserve TTY raw/sidecar automatically on quit and before same-tag reuse; move text consumers such as naming to printable TTY and isolate optional telemetry.
+- [ ] Verify the full incident inventory and regression matrix, update architecture/operator docs, and recover only targets supported by evidence without disturbing brain:0.
 
 ## Log
 
@@ -109,6 +150,10 @@ All four display `binding lost` and have park receipts. `sessioninventory/query.
 - Diagnose binding publication independently for the four unbound parked launches and the live brain launch. Preserve current-launch ownership; historical or legacy IDs are not sufficient proof.
 - No code fix or operational recovery has been attempted in this audit. Native transcript contents were checked only for identity evidence, not replayed or modified.
 
+### 2026-09-29 — Agreed probation and TTY-first model
+
+Read-only consumer audit established that changelog and orientation already use TTY as their primary text input; naming currently parses native messages, prompt history has its own exact-input log, usage and Codex lifecycle consume native telemetry, and idle activity only needs mtime. The wrapper opens raw/events with O_TRUNC; default rendering is 2,000 rows, not a capture cap. Operator agreed on automatic preservation at quit and before same-tag startup, launch-specific observation for both fresh/resume, and nonblocking probation including early Alt+n. Updated active Spec, Done when and Plan; preserved the original incident audit and earlier decisions below as historical records. No implementation or live recovery performed in this update.
+
 ## Revisions
 
 ### 2026-09-29T07:59:14-07:00 — Expand incident evidence to all visible threads
@@ -140,3 +185,7 @@ Fresh-context review found one Important issue: repair must not reuse the watche
 ### 2026-09-29 — Plan review approved
 
 Fresh-context re-review approved `ed84b793` with no remaining Important/Critical findings. Issue schema validation and diff whitespace checks pass. Plan is committed in pair:0 and awaits operator approval before `sdlc change-code`; implementation has not started.
+
+### 2026-09-29T09:59:21-07:00 — Replace rigid file-proof admission with observed binding
+
+Reason: operator clarified that the purpose of association is reliable conversation resumption; validating an old transcript's filesystem/parser identity does not establish what the new agent actually resumed. Delta: supersede full-reread/internal-UUID rejection and closed source allowlisting with durable UUID targets, open-world metadata, shared launch-specific fresh/resume observation, probation that permits interaction/Alt+n, and diagnostic A-to-D binding history. Add automatic raw/sidecar preservation on quit and before same-tag reuse, TTY-first text features, and feature-local native telemetry failures. Original stale-store safety scope remains. The prior plan review applies only to its historical revision; this update records the agreed design, not implementation completion or a new plan-quality verdict.
