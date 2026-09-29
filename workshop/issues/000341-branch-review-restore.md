@@ -110,3 +110,7 @@ BR-5 fixed: asynchronous resolver observations optionally include bounded UTF-8 
 Fresh `make test-lua`, `go test -race ./cmd/internal/reviewcmd -count=1`, `make test-review`, `make build`, and `git diff --check` pass. Coverage includes controlled observation-on-A / callback-after-checkout-B, refusal to write those A bytes on B, pending-round hide/reopen with the actual Zellij exit-status contract, newer coalesced edits, undo/redo decorations, no-EOL/CRLF/empty files, invalid text and snapshot/output bounds. Repeating the close review at this committed state.
 
 Mutation evidence: in a temporary source copy only, replacing captured-snapshot application with a callback-time disk read fails the late-completion assertion (`late observation loaded unbound bytes: 'a'`); workspace source remained unchanged.
+
+### 2026-09-28 — third boundary follow-up
+
+Round 3 retained BR-5 after a real Git smudge-filter pause proved checkout can change document bytes before HEAD: snapshot admission must cover in-progress checkout. It added BR-6: controller binary-line decoding retained CR while bufload selected dos, producing CRCRLF on save. Both are being fixed with controlled production regressions; earlier handoff, latency, docs and ownership findings remain disposed.
