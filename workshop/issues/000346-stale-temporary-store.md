@@ -1,12 +1,13 @@
 ---
 id: 000346
-status: open
+status: working
 deps: []
 github_issue:
 created: 2026-09-29
 updated: 2026-09-29
 estimate_hours:
-card_mirror: '0618ac2ff5a4412c294aa5455db6e1b126b28c03' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '413c83b3c173c293b1dffb3b77e0f61cd4f7531b' # card fields mirrored from issue-cards; edit via sdlc
+started: 2026-09-29T08:41:28-07:00
 ---
 
 # Stale temporary store blocks Couch startup
@@ -27,6 +28,8 @@ Define supported recovery for vanished registered stores and allow unaffected st
 
 Relevant code: `cmd/internal/storagegc/stores.go`, `cmd/internal/couchcore/retention.go`, and `cmd/internal/couchcmd/run.go`. ARCH-SECURE: tests must not write operator state. ARCH-FUNERAL: registration must define the lifecycle and removal of ephemeral stores.
 
+Additional recovery design (2026-09-29): allow intact namespaces to operate despite unrelated unavailable registrations while keeping GC fail-closed; provide explicit permanent-abandonment recovery that resets migration acknowledgment. Revalidate exact proof-named conversations after device-only identity changes, with cold-resume boundary tests and bounded catalog reuse. Accept parent-free Codex `vscode` roots and recover existing unbound version-2 launches only from unique completed causal rounds through a supported preview/apply command. Detailed design: `workshop/plans/000346-stale-temporary-store-plan.md` (awaiting approval).
+
 ## Done when
 
 - A regression reproduces registration of an auxiliary temporary store, deletion of its directory, and subsequent launch/list behavior for the intact normal store.
@@ -34,11 +37,17 @@ Relevant code: `cmd/internal/storagegc/stores.go`, `cmd/internal/couchcore/reten
 - Development/smoke-test invocations isolate all persistent roots; regression coverage proves the operator registry remains untouched.
 - Missing, unreadable, and temporarily unavailable durable stores have tested behavior that preserves references and communicates recovery requirements.
 
+- Device-only renumbering no longer invalidates a saved surviving conversation; contradictory or changed-identity transcripts remain refused, and repeat queries do not repeatedly replay the body.
+- Codex `vscode` roots bind through the production watcher; existing unbound launches have a safe, tested preview/apply recovery path using recorded causal evidence.
+- Every audited row has a verified outcome: validated cold authority, already-live authority, empty slot, or explicit insufficient evidence. No unrelated conversation is selected and brain:0 is not restarted.
+
 ## Plan
 
-- [ ] Define and review recovery behavior for missing registered stores, changed filesystem identities, and absent current-launch bindings.
-- [ ] Add regressions through registry startup, cold-resume authorization, and binding publication; implement the approved recovery design.
-- [ ] Verify unaffected stores remain usable while garbage collection stays fail-closed on unresolved references; document and exercise supported recovery.
+Detailed plan: `workshop/plans/000346-stale-temporary-store-plan.md` (draft; operator approval required before implementation).
+
+- [ ] M1 — Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
+- [ ] M2 — Revalidate exact saved conversations across device renumbering and verify cold-resume behavior.
+- [ ] M3 — Support Codex vscode roots, recover existing unbound launches through causal evidence, verify and document incident recovery.
 
 ## Log
 
@@ -109,3 +118,13 @@ At the operator’s request, appended the OS-upgrade context and a complete 23-r
 ### 2026-09-29 — Begin the fix
 
 Operator requested publishing the audit on main and starting implementation work. Added the initial work checklist before publication; a detailed design will be prepared on the claimed issue branch before code changes. `issue move-detail` confirmed creation was already completed, so the audit is an ordinary update to the existing main details.
+
+### 2026-09-29 — Claimed in pair:0; concrete Codex diagnosis
+
+Audit/checklist published on main as `b622052f`; #346 claimed and `sdlc start-plan` entered branch `000346-stale-temporary-store` in `/Users/xianxu/workspace/pair` as requested. The initial move was already complete; publication used `sdlc push` after associating the audit commit with the issue branch to satisfy the handoff ownership guard. No bypass flags used.
+
+Read-only matching found all four audited Codex transcripts use `source: vscode`: brain `01a0eda0-b38c-7992-988a-74ad95e6925e`, pair:0 `01a0eb3e-8a92-71a2-b35d-65d20ae3e5f4`, pair:2 `01a0e914-ec6a-7e62-bf63-e73bbf5ae9cd`, parley.nvim:0 `01a0eb40-e0b1-7db0-be0d-403f75e873e5`. Each has matching normalized Pair sends and lies outside its launch baseline. This is candidate evidence, not a replacement for the production completed-round/proof checks. `codexRole` rejects vscode before correlation; [official Codex SessionSource](https://github.com/openai/codex/blob/main/codex-rs/protocol/src/protocol.rs) recognizes VSCode as a root-capable source. The earlier audit's unknown-producer cause is now narrowed to this scanner incompatibility.
+
+### 2026-09-29 — Design revision
+
+Expanded Spec/Done when and replaced the initial checklist with three actual review boundaries covering the original registry defect, proof device renumbering, and Codex binding/recovery. Added the durable implementation plan. All implementation remains behind plan approval and `sdlc change-code`; the active brain session stays running.
