@@ -100,3 +100,88 @@ findings:
     detail: |
       stores.go:187 uses the full ReadRegistry, so removing an intact store with an empty-store proof is blocked by an unrelated outage. This is safe but inconsistent with the structure/availability split.
 ```
+
+---
+
+## Re-review — 2026-09-29T10:43:03-07:00 (SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 346 — Stale temporary store blocks Couch startup |
+| repo | pair |
+| issue file | workshop/issues/000346-stale-temporary-store.md |
+| boundary | milestone M1 |
+| milestone | M1 |
+| window | b622052f6f85db7f1585de823a8fa591b6d7e2d3..9cb97bf9df1c44de917475bb98cd52eb21b0323e |
+| command | sdlc milestone-close --issue 346 --milestone M1 |
+| reviewer | claude |
+| timestamp | 2026-09-29T10:43:03-07:00 |
+| verdict | SHIP |
+
+## Review
+
+```verdict
+verdict: SHIP
+confidence: high
+```
+
+All four prior findings are resolved, and I'm raising nothing new. The one part at real risk was the isolation oracle (BR-1). I checked it by breaking the fix on purpose: in a scratch copy of HEAD from `git archive`, I changed `tests/with-isolated-pair.sh` so it passed the ambient HOME, XDG_DATA_HOME, PAIR_DATA_DIR and COUCH_STORE_DIR through. `TestIsolatedSmokeEnvironmentProtectsAmbientRegistry` then failed with "ambient operator registry changed", and the leaked `…/pair/couch` store appeared in the sentinel `.retention/stores.json`. With the committed wrapper restored, it passed. At HEAD, `go test ./cmd/internal/storagegc ./cmd/internal/gccmd` passes, and the targeted couchcmd tests pass. The registry changes match the Spec: structure is now checked separately from availability. Registration and `couch --list` survive an unrelated store outage, while GC and `CompleteMigration` still require every registered store to be available. Nothing in the window blocks SHIP.
+
+**Strengths**
+1. `stores.go` splits validation cleanly. `validateStructure` covers registration and loading, and `validate` (the full availability check) still guards `ReadRegistry`, `CompleteMigration` and `UnregisterStore`. A missing store can never count as permission to collect (ARCH-SECURE).
+2. `ForgetMissingStore` refuses unsafe cases:
+   - it requires an exact clean absolute path that is actually registered;
+   - it walks every ancestor component, so a dangling or parent symlink can't fake absence;
+   - a permission error is not treated as proof the store is missing;
+   - it resets migration acknowledgment under the coordinator lock.
+
+   Each refusal case is tested (`stale_store_test.go` present/symlink/parent-symlink/unknown/unclean/permission).
+3. The isolation test uses a real subprocess with a polluted inherited environment and a sentinel at the real registry path, and the mutation check above confirms it can fail.
+4. The mixed-flag check in `gccmd/run.go` refuses before anything is written, and `TestForgetMissingStoreRejectsMixedOperationsBeforeMutation` asserts the root directory stays empty.
+5. `InspectRegistry` is read-only and documented as "never authority to collect", so GC keeps using `ReadRegistry`.
+
+**Critical findings:** none.
+
+**Important findings:** none.
+
+**Minor findings**
+- `tests/with-isolated-pair.sh` uses `env -i`, which also drops LANG, USER, SHELL and GOTOOLCHAIN/GOPROXY for the interactive Zellij smoke. The Log records no manual smoke run through the new wrapper. It's worth running `tests/couch-recovery-smoke.sh` once interactively before the final close.
+- `tests/with-isolated-pair.sh` is committed with mode 100644. Every caller uses `sh <script>`, so this is harmless.
+- There is a small race in `ForgetMissingStore`: another process could recreate the store directory between `lstat` and the write, because store creation doesn't take the coordinator lock. The consequence is benign: GC stays disabled until the operator acknowledges the inventory again.
+
+**Test coverage notes**
+- `TestListWithMissingAuxiliaryStoreUsesIsolatedRoots` goes through the production `couchcmd.Run --list` path and asserts the missing registration is kept.
+- Collection safety is covered for both Preview and Apply in `TestUnavailableStorePreventsCollectionAfterRegistration`, including a check that the payload survives.
+- The recovery-guidance test checks the markers "unavailable", "--forget-missing-store", "restore" and "remount". Before this fix the store list was hidden during an outage, so this test would have failed then.
+
+**Architecture**
+- ARCH-DRY: pass. `validate` builds on `validateStructure`; the inline loop in `gccmd` that prints the guidance is trivial.
+- ARCH-PURE: pass. Validation is pure; `requireMissingStore` is a small IO probe.
+- ARCH-PURPOSE: pass. Every Spec item for M1 is covered: registration survives an outage, GC still refuses, recovery is explicit, smoke runs are isolated, and diagnostics tell the operator what to do. The source of the original scratchpad registration is still unidentified, and the issue says so openly.
+- ARCH-MOCK: pass. Tests use the real filesystem and a real subprocess, with no external services.
+- ARCH-CONSTRAINTS: N/A. These are cold administrative paths.
+- ARCH-SECURE: pass. A missing or unreadable store is not treated as evidence of emptiness, and symlinked ancestors are refused.
+- ARCH-ORDER: pass. Mutations are serialized under the coordinator's `WithLock`, and migration reset plus re-acknowledgment are separate operations.
+- ARCH-FUNERAL: pass. The wrapper's trap removes its fixture directory, and the new `--forget-missing-store` gives stale registrations a removal path.
+
+**Plan revision recommendations:** none.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Sentinel now at operatorRoot/.retention/stores.json with real subprocess via tests/with-isolated-pair.sh; mutating the wrapper to leak roots turned the test red (verified in a scratch copy), restored passes; smoke script now execs through the wrapper.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      README.md 818-824 documents --forget-missing-store, the migration reset, re-acknowledgment with --complete-migration --store, and restore/remount for temporary outages.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      gccmd/run.go now lists stores via InspectRegistry with unavailable markers plus restore/remount/forget guidance; TestMissingStorePreviewExplainsRecovery pins it (the list was hidden before, so it would have failed).
+  - id: BR-4
+    disposition: addressed
+    note: |
+      Deliberately kept conservative; rationale documented in the UnregisterStore comment (stores.go ~181) and the issue Log. It is safe and the explicit abandonment path covers missing stores.
+```

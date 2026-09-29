@@ -75,7 +75,7 @@ Compaction continues to reference its exact named copy; it does not take the wri
 - [x] Split `StoreRegistry.validateStructure` from full availability validation. `RegisterStore` checks structure and its selected canonical directory; `ReadRegistry`, `CompleteMigration` and GC keep complete availability checks. Other registrations remain intact.
 - [x] Add coordinator `ForgetMissingStore` and exclusive `pair gc --forget-missing-store PATH`. Under the coordinator lock require an exact clean registered path and confirmed missing directory, preserve other registrations and atomically reset migration acknowledgment. Missing is explicit permanent abandonment, never empty-store proof.
 - [x] Isolate smoke HOME/XDG/Pair/Couch roots and inherited artifact overrides; preserve the unknown provenance of the original scratchpad entry instead of inventing an originating command.
-- [ ] Run focused red/green tests, then `go test ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/couch -count=1` and relevant `-race` suites. Update atlas/Log, commit and `sdlc milestone-close --issue 346 --milestone M1 --verified '<evidence>'`.
+- [x] Run focused red/green tests, then `go test ./cmd/internal/storagegc ./cmd/internal/gccmd ./cmd/internal/couchcore ./cmd/internal/couchcmd ./cmd/couch -count=1` and relevant `-race` suites. Update atlas/Log, commit and `sdlc milestone-close --issue 346 --milestone M1 --verified '<evidence>'`.
 
 | Risky function | Test strategy |
 | --- | --- |

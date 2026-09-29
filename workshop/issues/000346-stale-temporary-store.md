@@ -114,13 +114,14 @@ total: 4.409
 
 Detailed implementation plan: `workshop/plans/000346-stale-temporary-store-plan.md`, reconciled with the agreed model after the operator requested starting work in pair:0. SDLC plan-quality/estimate gates precede code changes.
 
-- [ ] M1 — Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
+- [x] M1 — Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
 - [ ] M2 — Separate durable targets from parsed evidence; share launch-specific fresh/resume observation, open-world roots and supported incident recovery.
 - [ ] M3 — Preserve raw/sidecar before reuse and leave them intact on quit, use TTY for text features, verify incident inventory and full acceptance.
 
 ## Log
 
 ### 2026-09-29
+- 2026-09-29: closed M1 — M1 full suites and race suites previously passed. BR-1–3 corrections: focused production CLI/subprocess checks passed; actual ambient registry write detected by isolation mutation; full storagegc/gccmd race rerun and focused couchcmd race passed; shell syntax/diff checks passed. Actual 3.46h comes from preceding sdlc measurement, first milestone includes design.; review verdict: SHIP
 
 Reproduced locally: `couch --list` exited 1 with the same missing-store error as the screenshot. With the retention coordinator's exclusive flock held, backed up `stores.json`, removed only the exact missing scratchpad registration, atomically replaced the registry, and retained the original migration flag and normal store. Backup: `~/.local/share/pair/.retention/stores.json.backup-20260929-072547`. No thread payloads were removed. Afterwards `couch --list` exited 0 and enumerated existing threads. Many report lost session bindings following the reboot; those are separate from the registry startup blocker. This ticket tracks the permanent fix; no implementation changes made.
 
