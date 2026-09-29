@@ -1,10 +1,11 @@
 ---
 id: 000247
-status: open
+status: working
 created: 2026-09-13
-updated: 2026-09-13
+updated: 2026-09-28
 estimate_hours:
 github_issue:
+started: 2026-09-28T21:31:56-07:00
 ---
 
 # Shade live Couch threads by idle time
