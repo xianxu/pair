@@ -287,3 +287,105 @@ findings:
 7. **Plan revision recommendations**
 
    Append a `## Revisions` entry covering checkout-in-progress snapshot admission and shared document decoding. Add controlled checkout-overlap and exact-byte activation/save regressions to the verification contract.
+
+---
+
+## Re-review — 2026-09-28T22:39:44-07:00 (REWORK)
+
+| field | value |
+|-------|-------|
+| issue | 341 — Alt+C restores review target from branch |
+| repo | pair |
+| issue file | workshop/issues/000341-branch-review-restore.md |
+| boundary | whole-issue close |
+| milestone | — |
+| window | 41ab4f9add1908e854c3f41e491e4a64d53793db..90d6b09e3ace106759e34036a7620ab8c5b4d0c2 |
+| command | sdlc close --issue 341 |
+| reviewer | codex |
+| timestamp | 2026-09-28T22:39:44-07:00 |
+| verdict | REWORK |
+
+## Review
+
+```verdict
+verdict: REWORK
+confidence: high
+```
+
+BR-5 and BR-6 are addressed, with passing regressions and verified mutation failures. Branch restoration and captured-byte delivery work in the exercised scenarios. One new Important finding blocks shipping: the fresh-session test can overwrite caller-owned session data through inherited environment variables.
+
+```findings
+dispose:
+  - id: BR-1
+    disposition: addressed
+    note: |
+      Acceptance precedes consumption; handoff acceptance, refusal, replacement, and uncertainty regressions pass.
+  - id: BR-2
+    disposition: addressed
+    note: |
+      Controlled slow-resolver tests pass for nonblocking edit/focus callbacks and coalesced observations.
+  - id: BR-3
+    disposition: addressed
+    note: |
+      README.md:99 documents branch restoration, blocked transitions, and recovery commands, matching the implemented controller and recovery commands.
+  - id: BR-4
+    disposition: addressed
+    note: |
+      The production observation test verifies stable rendering callback counts across repeated A → B → A activation.
+  - id: BR-5
+    disposition: addressed
+    note: |
+      Captured snapshots reach activation and refresh without later filesystem reads. Independently disabling index-generation admission and staged-tree rejection in scratch overlays makes the paused-checkout and index-before-HEAD regressions fail.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      Activation and refresh share document_bytes decoding. New/retained-buffer exact-save regressions pass across CRLF, BOM, LF, mixed endings, empty and no-EOL documents; removing CRLF decoding in a scratch copy makes the regression fail.
+findings:
+  - id: new
+    severity: Important
+    family: test-environment-isolation
+    title: |
+      Fresh-session regression overwrites inherited review context outside its fixture
+    detail: |
+      tests/review-fresh-restore-test.sh:109 inherits os.environ without rebinding PAIR_REVIEW_CONTEXT_PATH. Its finish_human_turn call at line 71 reaches nvim/review.lua:540 and overwrites that caller-owned path. Reproduced with a scratch sentinel outside the fixture: the test passed while replacing its contents with "A reviewed\n". Sanitize inherited Pair session variables, bind every writable artifact to fixture storage, and add a sentinel regression. Sweep the new branch/observation fixtures using the same environment construction. ARCH-SECURE.
+```
+
+1. **Strengths**
+
+   - Checkout admission covers both an active Git writer and destination-index publication before HEAD changes.
+   - Startup, activation, and asynchronous refresh consume identity-bound snapshots.
+   - Shared byte decoding preserves document formats; exact-save tests exercise new and retained buffers.
+   - README and atlas describe restoration, recovery, and the conservative staged-index restriction.
+
+2. **Critical findings**
+
+   None remaining.
+
+3. **Important findings**
+
+   **Test isolation:** [review-fresh-restore-test.sh:109](/Users/xianxu/workspace/pair/tests/review-fresh-restore-test.sh:109) inherits a writable path from the invoking session. The production write occurs at [review.lua:540](/Users/xianxu/workspace/pair/nvim/review.lua:540). Construct an isolated child environment and verify externally supplied sentinel files remain unchanged.
+
+4. **Minor findings**
+
+   None.
+
+5. **Test coverage notes**
+
+   Passed: Go review package tests, the full Lua suite with isolated environment, controller/document-byte tests, branch-restoration and observation integration tests, and fresh-session scenarios with controlled environment. Checkout-admission and CRLF-decoding mutations failed as expected.
+
+   The ordinary inherited-environment runs exposed storage leakage; the sentinel reproduction confirmed an actual overwrite, not merely a sandbox limitation. Repository status is clean.
+
+6. **Architectural notes**
+
+   - **ARCH-DRY — pass:** shared identity resolver and document codec.
+   - **ARCH-PURE — pass:** classification and activation policy remain separate from IO.
+   - **ARCH-PURPOSE — pass:** restoration covers live panes, fresh sessions, retained buffers, and late observations.
+   - **ARCH-MOCK — pass:** stateful doubles are supplemented by real Git and Neovim tests.
+   - **ARCH-CONSTRAINTS — pass:** bounded collection and coalesced observation are exercised.
+   - **ARCH-SECURE — flag:** test subprocesses inherit caller-owned writable state.
+   - **ARCH-ORDER — pass:** controlled late completions and intermediate checkout states have regression coverage.
+   - **ARCH-FUNERAL — pass:** recovery storage is bounded with explicit consumption/discard; owned callbacks and handles have cleanup.
+
+7. **Plan revision recommendation**
+
+   Append a `## Revisions` entry requiring isolated test environments across the new process fixtures and sentinel coverage proving inherited session artifact paths cannot be modified.

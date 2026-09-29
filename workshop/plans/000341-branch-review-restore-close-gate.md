@@ -95,6 +95,43 @@ rounds:
           round: 3
       recipe: milestone-review
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-28T22:39:45-07:00"
+      agent: codex
+      dispose:
+        - id: BR-1
+          disposition: addressed
+          note: Acceptance precedes consumption; handoff acceptance, refusal, replacement, and uncertainty regressions pass.
+          round: 4
+        - id: BR-2
+          disposition: addressed
+          note: Controlled slow-resolver tests pass for nonblocking edit/focus callbacks and coalesced observations.
+          round: 4
+        - id: BR-3
+          disposition: addressed
+          note: README.md:99 documents branch restoration, blocked transitions, and recovery commands, matching the implemented controller and recovery commands.
+          round: 4
+        - id: BR-4
+          disposition: addressed
+          note: The production observation test verifies stable rendering callback counts across repeated A → B → A activation.
+          round: 4
+        - id: BR-5
+          disposition: addressed
+          note: Captured snapshots reach activation and refresh without later filesystem reads. Independently disabling index-generation admission and staged-tree rejection in scratch overlays makes the paused-checkout and index-before-HEAD regressions fail.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: Activation and refresh share document_bytes decoding. New/retained-buffer exact-save regressions pass across CRLF, BOM, LF, mixed endings, empty and no-EOL documents; removing CRLF decoding in a scratch copy makes the regression fail.
+          round: 4
+      findings:
+        - id: BR-7
+          severity: Important
+          title: Fresh-session regression overwrites inherited review context outside its fixture
+          detail: 'tests/review-fresh-restore-test.sh:109 inherits os.environ without rebinding PAIR_REVIEW_CONTEXT_PATH. Its finish_human_turn call at line 71 reaches nvim/review.lua:540 and overwrites that caller-owned path. Reproduced with a scratch sentinel outside the fixture: the test passed while replacing its contents with "A reviewed\n". Sanitize inherited Pair session variables, bind every writable artifact to fixture storage, and add a sentinel regression. Sweep the new branch/observation fixtures using the same environment construction. ARCH-SECURE.'
+          family: test-environment-isolation
+          round: 4
+      recipe: milestone-review
+      blocked: false
 ---
 
 # Gate ledger — pair#341 (boundary-review)
@@ -144,7 +181,22 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-6** [Critical] `document-byte-preservation` Activating a CRLF document corrupts its bytes on subsequent save
   nvim/review/restore_controller.lua:132-146 reads binary lines retaining carriage returns, then inserts them into a buffer whose bufload selected fileformat=dos. A controller probe activating a file containing "B\r\n" produced buffer line "B\r"; writing saved "B\r\r\n". Share byte-to-buffer decoding with the asynchronous refresh path, including fileformat and endofline handling. Add activation-and-save regressions for new and retained buffers, including branch-driven format changes. ARCH-DRY, ARCH-PURPOSE.
 
+## Round 4 — 2026-09-28T22:39:45-07:00 (codex) — passed
+
+### Disposed
+
+- BR-1 — addressed — Acceptance precedes consumption; handoff acceptance, refusal, replacement, and uncertainty regressions pass.
+- BR-2 — addressed — Controlled slow-resolver tests pass for nonblocking edit/focus callbacks and coalesced observations.
+- BR-3 — addressed — README.md:99 documents branch restoration, blocked transitions, and recovery commands, matching the implemented controller and recovery commands.
+- BR-4 — addressed — The production observation test verifies stable rendering callback counts across repeated A → B → A activation.
+- BR-5 — addressed — Captured snapshots reach activation and refresh without later filesystem reads. Independently disabling index-generation admission and staged-tree rejection in scratch overlays makes the paused-checkout and index-before-HEAD regressions fail.
+- BR-6 — addressed — Activation and refresh share document_bytes decoding. New/retained-buffer exact-save regressions pass across CRLF, BOM, LF, mixed endings, empty and no-EOL documents; removing CRLF decoding in a scratch copy makes the regression fail.
+
+### Raised
+
+- **BR-7** [Important] `test-environment-isolation` Fresh-session regression overwrites inherited review context outside its fixture
+  tests/review-fresh-restore-test.sh:109 inherits os.environ without rebinding PAIR_REVIEW_CONTEXT_PATH. Its finish_human_turn call at line 71 reaches nvim/review.lua:540 and overwrites that caller-owned path. Reproduced with a scratch sentinel outside the fixture: the test passed while replacing its contents with "A reviewed\n". Sanitize inherited Pair session variables, bind every writable artifact to fixture storage, and add a sentinel regression. Sweep the new branch/observation fixtures using the same environment construction. ARCH-SECURE.
+
 ## Open findings
 
-- **BR-5** [Critical] `nonblocking-editor-observation` Late asynchronous observation reloads another branch into the active review
-- **BR-6** [Critical] `document-byte-preservation` Activating a CRLF document corrupts its bytes on subsequent save
+- **BR-7** [Important] `test-environment-isolation` Fresh-session regression overwrites inherited review context outside its fixture
