@@ -156,7 +156,7 @@ one-line description can't carry.
 | **Shift+Alt+←** / **Shift+Alt+→** | any pane | Switch the right terminal's tabs from wherever you are, **without moving focus** — check another tab while you keep typing in the draft. |
 | **Shift+Alt+t** | any pane | Create a new right-terminal tab from wherever you are, without moving focus — works even while a full-screen app (nvim) owns the right pane. |
 | **Alt+c** | non-agent panes | Open/show/hide review. From the draft, restore the current review branch's document before toggling; pending work blocks switching documents. Without a review identity, offers `:PairReview`. |
-| **Esc** / **Alt+c** | review buffer (normal) | Hide review and return to the draft. Insert/visual Esc leaves that mode; a diagnostic or definition float closes first. |
+| **Alt+c** | review buffer (normal/insert) | Hide review and return to the draft. Esc keeps review open; insert/visual Esc leaves that mode, and normal Esc dismisses internal floats. |
 | **Alt+a** / **Alt+r** (or **Leader+a** / **Leader+r**) | review buffer (normal) | Accept / reject the 🤖 suggestion at the cursor. |
 | **Alt+Shift+A** / **Alt+Shift+R** | review buffer (normal) | Accept / reject paragraph suggestions through the cursor. |
 | **Alt+q** | review buffer | Insert a human comment marker in normal/insert mode; quote the selection in visual mode. |

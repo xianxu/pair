@@ -174,11 +174,11 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   fires from inside the focused floating review pane). Pane-open no longer sends a
   separate "review workbench open" poke; the prep and human-finished pokes carry the
   workbench protocol context. The command line is hidden until `:` commands, and the
-  pane statusline shows mode, `Alt+Return review · Alt+c/Esc draft · Alt+a/r accept/reject`,
+  pane statusline shows mode, `Alt+Return review · Alt+c draft · Alt+a/r accept/reject`,
   filename and line position in both idle and awaiting states. Normal-mode Esc
-  dismisses an internal diagnostic float first, otherwise hides the review and
-  focuses the draft by pane ID; insert/visual Esc keeps its Vim behavior. Alt+c
-  returns directly from normal/insert mode. Alt+h derives review help from the
+  dismisses internal floats without hiding the review; insert/visual Esc keeps
+  its Vim behavior. Alt+c hides review and focuses the draft by pane ID from
+  normal/insert mode. Alt+h derives review help from the
   mapping descriptions, with a drift test covering every local mapping. After a send
   it stays focused in the review pane and shows a 100ms braille spinner plus elapsed
   time until the agent handoff lands.
