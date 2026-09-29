@@ -69,6 +69,7 @@ local function scenario(config)
       elseif vim.tbl_contains(cmd,'are-floating-panes-visible') then
         result.stdout=config.visible==false and 'false\n' or 'true\n'
         result.code=config.visible==false and 1 or 0
+        if config.visibility_result then result=config.visibility_result end
         if config.visibility_error then result={code=1,stdout='',stderr='disconnected'} end
         if config.visibility_malformed then result={code=0,stdout='not true',stderr=''} end
         effects[#effects+1]='visibility'
@@ -90,6 +91,19 @@ assert(vim.deep_equal(r.effects,{'resolve','rpc','resolve','publish','show'}))
 r=scenario({visible=false})
 assert(r.effects[#r.effects]=='show','hidden exit-1/false must reopen the same pane')
 assert(#r.notifications==0)
+r=scenario({visibility_result={code=2,stdout='',stderr='false\n'}})
+assert(r.effects[#r.effects]=='show','live Zellij hidden exit-2/stderr-false must reopen the same pane')
+assert(#r.notifications==0)
+for _,result in ipairs({
+  {code=2,stdout='',stderr='disconnected'},
+  {code=2,stdout='true',stderr='false'},
+  {code=124,stdout='',stderr='false'},
+  {code=0,stdout='true',stderr='disconnected'},
+}) do
+  r=scenario({visibility_result=result})
+  assert(not vim.tbl_contains(r.effects,'show') and not vim.tbl_contains(r.effects,'hide'))
+  assert(#r.notifications==1,'inconclusive visibility must be diagnosed')
+end
 for _,mode in ipairs({'visibility_error','visibility_malformed'}) do
   r=scenario({[mode]=true})
   assert(not vim.tbl_contains(r.effects,'show') and not vim.tbl_contains(r.effects,'hide'))

@@ -7,9 +7,10 @@ target: review-protocol
 created: 2026-09-28
 updated: 2026-09-28
 estimate_hours: 3.24
-card_mirror: '76cb1933ef953584b093d269e2bd56d9bed5585a' # card fields mirrored from issue-cards; edit via sdlc
+card_mirror: '7c70c6c5d0a3de06cc82ee05439cfca99821c4d2' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T20:39:30-07:00
 flow: {kind: full, provenance: operator}
+actual_hours: 4.76
 ---
 
 # Alt+C restores review target from branch
@@ -133,3 +134,11 @@ Round 4 disposed BR-1 through BR-6, including independently verified checkout an
 ### 2026-09-28 — test isolation verified
 
 BR-7 fixed with shared `tests/lib/review_test_env.py`: strip inherited Pair/Zellij/Neovim/Git/session settings; bind artifact paths and XDG defaults to fixture storage; disable inherited Git config. Fresh, branch, observation and producer fixtures all use this environment for Git, resolver, editor and RPC subprocesses. Each run poisons caller paths in a separate directory and asserts all sentinel bytes and directory contents remain unchanged after child cleanup. The red reproduction caught context and changelog-ready writes. Root independently reran all four fixtures; each exited 0, sentinels remained unchanged, and the previously quarantined real task target/context paths remain absent. Python imports suppress bytecode artifacts. No product-code changes in this round; previous full Lua/review/race/build evidence remains applicable. Diff checks pass.
+
+### 2026-09-28 — live hidden predicate correction
+
+Reopened after operator still could not return with Alt+C. Captured directly inside the live draft: hidden returns code 2, stdout empty, stderr `false\n`; showing the same pane succeeds, then visible returns code 0 and stdout `true\n`. Earlier help-derived exit-1/stdout fixture did not model this installed client/server response. Accept the exact observed hidden form alongside the documented form; reject ambiguous streams, timeout, and actual errors (ARCH-ORDER). Existing pane shown without replacing the pending review. Add exact-response regressions, reload the client, verify live hide/reopen, and repeat close.
+
+Exact live-response regression failed before the fix and passes afterward, including rejection of conflicting streams, timeout and connection diagnostics. Reloaded only the idle draft client method table under its checked session identity. Exercised the real client toggle twice: hidden returned exit 2/stderr false, then reopened returned exit 0/stdout true. Original pane and review document retained; no restart.
+
+Fresh make test-lua, make build, make test-review and git diff --check pass after the live-response correction. Live hide/reopen also passed through the real client. Repeating the SDLC boundary review against this fix.

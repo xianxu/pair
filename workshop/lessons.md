@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Capture external predicate status and both output streams from the running
+  client/server before encoding a fake; CLI help alone may describe a different
+  transport behavior. Keep false distinct from query failure. (#341)
+
 - Test the behavior at the production boundary that decides it. A parser,
   helper, or framing test does not prove routing, attachment, scheduling, or
   lifecycle behavior. (#139, #255, #265)

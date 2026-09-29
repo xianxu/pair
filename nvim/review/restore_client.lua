@@ -136,10 +136,14 @@ function C:activate(pane,wanted,opened)
       if opened or ack.same~=true then self:show(); return end
       self:run({'zellij','action','are-floating-panes-visible'},nil,function(visibility)
         local visible=(visibility.stdout or ''):match('^%s*(.-)%s*$')
-        -- Zellij's predicate uses exit 1 for the normal hidden/false state.
-        if visibility.code==0 and visible=='true' then
+        local diagnostic=(visibility.stderr or ''):match('^%s*(.-)%s*$')
+        -- The documented predicate uses stdout/exit 1 for false; live Zellij
+        -- also transports false as a CLI error response on stderr/exit 2.
+        -- Accept only these exact forms, never a timeout or mixed response.
+        if visibility.code==0 and visible=='true' and diagnostic=='' then
           self.opts.hide(); self:finish()
-        elseif visibility.code==1 and visible=='false' then self:show()
+        elseif (visibility.code==1 and visible=='false' and diagnostic=='')
+          or (visibility.code==2 and visible=='' and diagnostic=='false') then self:show()
         else self:finish('could not query review visibility') end
       end)
     end)
