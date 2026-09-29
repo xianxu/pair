@@ -5,8 +5,8 @@ deps: []
 github_issue:
 created: 2026-09-13
 updated: 2026-09-28
-estimate_hours:
-card_mirror: '52e858caaf004365b6b3fba6cf8b574ee4c30b0e' # card fields mirrored from issue-cards; edit via sdlc
+estimate_hours: 4.35
+card_mirror: 'c991ef7b9e7d16802fb6f526d44cc2836083d00d' # card fields mirrored from issue-cards; edit via sdlc
 started: 2026-09-28T21:31:56-07:00
 ---
 
@@ -58,6 +58,39 @@ retirement with the thread's lifecycle (ARCH-CONSTRAINTS, ARCH-FUNERAL).
 - Tests use an injected clock to cross exact thresholds and exercise activity
   delivery into both renderers, unknown/future timestamps, restart, and style precedence.
 - Dark/light theme and no-color checks pass; operator docs explain the shading.
+
+## Estimate
+
+```estimate
+model: estimate-logic-v3.1
+familiarity: 1.0
+item: issue-spec             design=1.0 impl=0.05
+item: greenfield-go-module   design=0.5 impl=0.22
+item: tui-screen             design=0.5 impl=0.26
+item: smaller-go-module      design=0.1 impl=0.14
+item: smaller-go-module      design=0.1 impl=0.14
+item: greenfield-go-module   design=0.3 impl=0.22
+item: atlas-docs             design=0.1 impl=0.05
+item: milestone-review       design=0.0 impl=0.14
+item: milestone-review       design=0.0 impl=0.14
+design-buffer: 0.15
+total: 4.35
+```
+
+Items, in order:
+1. Spec and plan: brainstorm, two review rounds, operator revisions.
+2. The pure idle-level and fade policy (`idle_shade.go`: level, blend, quantize, style).
+3. Both renderers: the tab bar chip and the switcher's live rows.
+4. The shared `threadactivity`, plus the title poller moving onto it.
+5. The console activity pass, mirroring slot git.
+6. The OSC 10/11 palette query and reply capture.
+7. Docs and atlas.
+8. Two milestone reviews.
+
+`impl=` values are 40 % of the v2 table's midpoints (v3.1). The design buffer
+is +15 % because there's a thorough plan document.
+
+*Produced via `brain/data/life/42shots/velocity/estimate-logic-v3.1.md` against `baseline-v3.1.md`. Method A only.* (The calibration doc is flagged stale; the numbers are provisional per #127.)
 
 ## Plan
 
