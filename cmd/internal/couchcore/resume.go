@@ -309,13 +309,6 @@ func bindingResumeDiagnostic(binding NativeBindingResolution) ResumeDiagnosticCo
 	}
 }
 
-// refuseBinding is the ONLY way to build a binding refusal.
-//
-// bindingRefusalDiagnostic gave each status its own actionable sentence and then
-// had exactly one consumer: the real resolver and its stateful fake both still
-// passed the developer's catch-all by hand, so the path an OPERATOR actually
-// travels never saw the improvement. A message function with one caller and two
-// hand-written copies is not a fix, it is a fix that looks applied.
 func refuseResolvedBinding(binding NativeBindingResolution) error {
 	if binding.ObservationIncomplete {
 		return refuseResume(ResumeBindingProvisional, "native storage observation is unreadable or incomplete; retry when its storage can be listed")
@@ -323,6 +316,13 @@ func refuseResolvedBinding(binding NativeBindingResolution) error {
 	return refuseBinding(bindingResumeDiagnostic(binding))
 }
 
+// refuseBinding builds the shared status-based binding refusal.
+//
+// bindingRefusalDiagnostic gave each status its own actionable sentence and then
+// had exactly one consumer: the real resolver and its stateful fake both still
+// passed the developer's catch-all by hand, so the path an OPERATOR actually
+// travels never saw the improvement. A message function with one caller and two
+// hand-written copies is not a fix, it is a fix that looks applied.
 func refuseBinding(code ResumeDiagnosticCode) error {
 	return refuseResume(code, bindingRefusalDiagnostic(code))
 }
