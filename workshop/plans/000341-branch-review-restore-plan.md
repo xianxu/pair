@@ -88,7 +88,7 @@ Track applied-but-uncommitted work until Git supplies positive evidence: the mat
 
 ## Recovery storage (PQ-1)
 
-`nvim/review/recovery.lua` owns one atomic JSON snapshot per canonical repo/branch/file in a private `review-recovery` directory beside the scoped open-state file. It stores identity and exact buffer lines/end-of-line flag, never a pathname inferred from user text; filenames are SHA-256 identity digests. The pane writes before an orderly branch-mismatched exit and on edits observed while mismatched. `QuitPre` writes synchronously and aborts an ordinary quit on failure; VimLeave is a last best-effort fallback for external termination, whose failure is reported rather than treated as preservation. Uncatchable process death remains ordinary editor crash semantics.
+`nvim/review/recovery.lua` owns one atomic JSON snapshot per canonical repo/branch/file in a private `review-recovery` directory beside the scoped open-state file. It stores identity and exact buffer lines/end-of-line flag, never a pathname inferred from user text; filenames are SHA-256 identity digests. The pane writes before an orderly branch-mismatched exit and on edits observed while mismatched. `QuitPre` writes synchronously and reports failure while retaining the modified flag, so ordinary non-bang quit remains blocked by Neovim; VimLeave is a last best-effort fallback for external termination, whose failure is reported rather than treated as preservation. Explicit forced quit (`:qa!`) can ignore autocmd errors and retains Neovim's discard semantics if storage fails; uncatchable process death remains ordinary editor crash semantics.
 
 A writer admits at most 32 identities and 8 MiB per snapshot; existing keys are replaced atomically, never append-only. Admission failure preserves the existing snapshot and blocks orderly exit. Recovery activation verifies the snapshot's full identity, offers `:PairReviewRecover`, and loads it as modified text into the correct active review. The snapshot is removed only after a successful save of that recovered text on the matching branch (or explicit `:PairReviewDiscardRecovery`), never merely after reading it. Refuse overwriting an unconsumed prior-process snapshot. The final consumer is that recovery action; unresolved snapshots occupy bounded capacity and the diagnostic tells the operator how to recover/discard them. Files and directory are private; reject symlinks/nonregular storage. No editor-controlled Git writes.
 
@@ -137,17 +137,17 @@ Files: `nvim/init.lua`, `cmd/internal/reviewcmd/run.go`, `run_test.go`, `tests/r
 
 - [x] Reproduce the current failure using real temporary review branches and headless draft/review processes; assert displayed buffer path/content and decorations, not just resolver output.
 - [x] Wire resolution before liveness/visibility; activate through the pane controller and publish cache only after acknowledgment. Remove RunOpen's unconditional live-pane kill and test its refusal has no kill/remove/spawn effects.
-- [ ] Exercise the issue Done-when through the production-boundary strategy above; require A → B → A without repeated selection when idle.
+- [x] Exercise the issue Done-when through the production-boundary strategy above; require A → B → A without repeated selection when idle.
 - [x] Verify the explicit-selection exception and retained-buffer reconciliation contracts through displayed bytes, decorations and undo preservation.
 - [x] Mutation-check the resolver call, pending guard and pre-consumption context guard independently; each removal must fail the production-boundary regression. Restore from byte copies.
-- [ ] Run `go test ./cmd/internal/reviewcmd -count=1`, `go test -race ./cmd/internal/reviewcmd -count=1`, `make test-lua`, and all `tests/review-*-test.sh` plus `tests/pair-review-target-test.sh`. Build with `make build` and record any environmental limitation precisely.
+- [x] Run `go test ./cmd/internal/reviewcmd -count=1`, `go test -race ./cmd/internal/reviewcmd -count=1`, `make test-lua`, and all `tests/review-*-test.sh` plus `tests/pair-review-target-test.sh`. Build with `make build` and record any environmental limitation precisely.
 
 ### Task 4: operator contract and boundary
 
 Files: `atlas/review-workbench.md`, `workshop/targets/review-protocol.md`, issue #341; `workshop/lessons.md` only for review findings.
 
 - [x] Document branch authority, explicit fresh-session restore, blocked transitions, non-review behavior and envelope compatibility; append target Revisions and update its active seam table. Keep atlas index coverage.
-- [ ] Reconcile every plan symbol and acceptance row with delivered implementation and test evidence. Record verification in the issue log; checkpoint commits.
+- [x] Reconcile every plan symbol and acceptance row with delivered implementation and test evidence. Record verification in the issue log; checkpoint commits.
 - [ ] Run `sdlc close --issue 341 --verified '<measured evidence>'`; its fresh-context review owns this single boundary. Fix findings, rerun affected tests, and record the verdict. Publication follows `sdlc pr` / `sdlc merge` under the session's authorization.
 
 ## Approval and estimate
@@ -161,3 +161,5 @@ This exceeds the quick-flow code limit. The operator approved the durable plan b
 2026-09-28 — PQ-1/PQ-2: replaced the unsupported swap/undo recovery assumption with bounded atomic snapshots and explicit recover/discard ownership, and compressed case inventories into named function-level adversarial strategies. Operator approved execution before this safety refinement. Linked producer work is ariadne#268.
 
 2026-09-28 — Integration refinements: canonical path identity is checked before pane startup; failed activation restores the previous buffer/owner; empty first human rounds retain the already-authorized active selection. Explicit same-session peer-document selections remain usable while the draft checkout is non-review; any current review branch still takes precedence. Named delivered client, identity and recovery modules in the integration table. Context metadata lives in the existing open-state record rather than replacing stripped document text.
+
+2026-09-28 — Real-process failed-storage probe showed Neovim force-quit ignores QuitPre callback errors. Narrowed the exit guarantee to ordinary non-bang quit with the modified flag retained; forced quit remains explicit discard semantics on failed storage. Regression injects unsafe storage, proves ordinary exit is blocked, then restores storage and proves successful forced-exit recovery in a new process.

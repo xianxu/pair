@@ -30,6 +30,8 @@ pending='agent working'; assert(not ctl:request(req).ok)
 pending=nil
 local r=ctl:request(req); assert(r.ok and not r.same, r.error)
 assert(vim.api.nvim_buf_get_name(0)==tmp..'/b.md' and starts==1 and stops==1)
+assert(ctl:context(abuf) and ctl:context(abuf).activation==old.activation,'retained buffer lost its ownership')
+assert(not ctl:guard(abuf,true),'inactive review buffer may not write into another checkout')
 assert(not ctl:admit({context=old,records={}},vim.api.nvim_get_current_buf()))
 local repeated=ctl:request(req); assert(repeated.ok and repeated.same and starts==1)
 vim.fn.writefile({'A newer'},tmp..'/a.md'); current=a; req.identity=a

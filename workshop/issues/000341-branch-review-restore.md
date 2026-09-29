@@ -37,7 +37,7 @@ Define behavior for missing or ambiguous branch-to-document identity and for non
 ## Plan
 
 - [x] Design branch-to-document resolution and safe pane/pending-round transitions.
-- [ ] Implement restoration with regression coverage and update the review-workbench atlas.
+- [x] Implement restoration with regression coverage and update the review-workbench atlas.
 
 ## Estimate
 
@@ -84,3 +84,7 @@ Operator approved execution. Plan-quality rounds PQ-1/PQ-2 required concrete dur
 ### 2026-09-28 — implementation checkpoint
 
 Implemented bounded Git identity/receipts, pane-owned RPC activation, async Alt+C resolution, scoped record/definition/landed context, bounded atomic recovery, and producer contract guards. Linked ariadne#268 closed with SHIP on `5484941c591c` (not yet published). Review documentation updated. Baselines and current targeted verification: package race tests, Lua suite, full `make test-review`, and real draft + review process A → B → A restoration passed. Tests prove old activation handoffs are preserved, modified buffers refuse switching, completed rounds unblock, and mismatched exit snapshots recover in a new process without touching the wrong checkout. Three source mutations (resolver bypass, pending guard bypass, handoff admission bypass) each failed the production-path end-to-end assertion; originals restored from byte copies. Fresh-session launcher and peer explicit-selection regressions are being completed before final full verification and SDLC boundary review.
+
+### 2026-09-28 — final verification before boundary
+
+`go test -race ./cmd/internal/reviewcmd -count=1`, `make test-lua`, `make test-review`, `make build`, and `git diff --check` passed. Full review suite includes fresh-session actual opener/RPC tests, real draft-to-review A → B → A, unsafe retained-buffer writes, producer branch-race tests, first-open receipts, malformed/context-mismatched payload preservation and scoped history repaint. An additional temporary-source mutation bypassing fresh-open acknowledgment passed the normal case but failed the wrong-session publication assertion. Recovery write failure injection verifies ordinary quit keeps unsaved text in memory; normal storage then preserves it across forced exit and restart. Explicit forced quit can ignore autocmd errors if recovery storage fails; this native limitation is documented rather than claimed safe. All implementation steps complete; running the single SDLC boundary review next.

@@ -8,10 +8,11 @@ local C = {}; C.__index=C
 local function nonce() return vim.fn.sha256(vim.fn.tempname() .. tostring(vim.uv.hrtime())) end
 local function notify(s) vim.notify('PairReview: '..s,vim.log.levels.WARN) end
 function M.new(opts)
-  return setmetatable({opts=opts or {}, state={status='idle'}, token=nonce(), legacy=true},C)
+  return setmetatable({opts=opts or {}, state={status='idle'}, bindings={}, token=nonce(), legacy=true},C)
 end
 function C:context(buf)
-  if not buf or buf == self.buf then return self.state.context end
+  if not buf then return self.state.context end
+  return self.bindings[buf]
 end
 function C:resolve(want)
   local run=self.opts.resolve or identity.resolve
@@ -48,12 +49,13 @@ function C:init(buf, observed, strict)
     self.state={status='switching',desired=observed}
     self.state=policy.transition(self.state,{kind='activated',context={repo=observed.repo,
       branch=observed.branch,file=observed.file,activation=nonce()}})
+    self.bindings[buf]=self.state.context
   end
   self.legacy=not strict
   self:serve()
 end
 function C:guard(buf, quiet)
-  local ctx=self.state.context
+  local ctx=self:context(buf)
   if not ctx then return true end -- uninterrupted legacy/manual render-only pane
   local observed=self:resolve(self.state.identity)
   local path=vim.api.nvim_buf_get_name(buf)
@@ -108,6 +110,7 @@ function C:request(req)
   end
   local pending=self:pending()
   local previous=self.state
+  local previous_legacy=self.legacy
   local next, effect=policy.transition(self.state,{kind='request',identity=observed,pending=pending})
   self.state=next
   if effect=='refuse' then return {ok=false,error=next.reason or 'review activation in progress'} end
@@ -119,6 +122,7 @@ function C:request(req)
   local oldbuf=self.buf
   local file=observed.repo..'/'..observed.file
   local newbuf=vim.fn.bufnr(file)
+  local previous_binding=self.bindings[newbuf]
   if newbuf~=-1 and vim.bo[newbuf].modified then
     self.state=policy.transition(self.state,{kind='failed',reason='destination review has unsaved edits'})
     return {ok=false,error=self.state.reason}
@@ -143,6 +147,7 @@ function C:request(req)
     self.buf=newbuf
     self.state=policy.transition(self.state,{kind='activated',context={repo=observed.repo,
       branch=observed.branch,file=observed.file,activation=nonce()}})
+    self.bindings[newbuf]=self.state.context
     self.legacy=false
     vim.api.nvim_set_current_buf(newbuf)
     if self.opts.start then self.opts.start(newbuf,file,observed) end
@@ -154,6 +159,8 @@ function C:request(req)
     -- if setup fails; its watcher remains guarded against the changed branch.
     if self.buf and self.opts.stop then pcall(self.opts.stop,self.buf) end
     self.buf=oldbuf
+    self.legacy=previous_legacy
+    if newbuf then self.bindings[newbuf]=previous_binding end
     self.state=policy.transition(previous,{kind='failed',reason=tostring(err)})
     if oldbuf and vim.api.nvim_buf_is_valid(oldbuf) then
       pcall(vim.api.nvim_set_current_buf,oldbuf)

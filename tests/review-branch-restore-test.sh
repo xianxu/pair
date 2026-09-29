@@ -68,6 +68,10 @@ with tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
             git('checkout','-q','review/'+name)
             toggle()
             snap=snapshot(meta); assert snap['file']==str(repo/(name+'.md')) and snap['text']==[name.upper()+' reviewed'] and snap['marks']>0,snap
+            if name=='b':
+                attempt='select(1,pcall(vim.api.nvim_buf_call,vim.fn.bufnr('+json.dumps(str(repo/'a.md'))+'),function() vim.cmd("write") end))'
+                assert lua(meta,attempt)=='false','inactive retained buffer wrote into another checkout'
+                assert (repo/'a.md').read_text()=='A\n'
         # A late response from A's previous activation must survive unconsumed.
         handoff.write_text(json.dumps(dict(context=first,records=[dict(old='A reviewed',new='WRONG',occurrence=1)])))
         time.sleep(.2); assert handoff.exists() and snapshot(meta)['text']==['A reviewed']
@@ -89,6 +93,15 @@ with tempfile.TemporaryDirectory(prefix='pair-branch-review-') as td:
         git('checkout','-q','review/b')
         response=restore(meta,resolve()); assert not response['ok'] and 'unsaved' in response['error'],response
         assert (repo/'a.md').read_text()=='A\n'
+        recovery_dir=data/'review-recovery'; recovery_backup=data/'recovery-backup'
+        if recovery_dir.exists(): recovery_dir.rename(recovery_backup)
+        recovery_dir.symlink_to(repo,target_is_directory=True)
+        lua(meta,'vim.schedule(function() vim.cmd("qa") end)')
+        time.sleep(.2)
+        assert children[0].poll() is None,'failed recovery did not block orderly quit'
+        assert (repo/'a.md').read_text()=='A\n'
+        recovery_dir.unlink()
+        if recovery_backup.exists(): recovery_backup.rename(recovery_dir)
         lua(meta,'vim.schedule(function() vim.cmd("qa!") end)')
         children[0].wait(timeout=5)
         assert (repo/'a.md').read_text()=='A\n','mismatched exit overwrote checkout'

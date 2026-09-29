@@ -110,6 +110,13 @@ M.save = guarded(function(dir, context, buf, owner)
   if admitted and admitted.buf == buf then admitted.bytes = bytes end
   return path
 end)
+M.inspect = guarded(function(dir, context)
+  local path,exists=location(dir,context,false)
+  if not exists then return nil end
+  local snapshot=read(path,context)
+  if snapshot then snapshot.path=path end
+  return snapshot
+end)
 M.restore = guarded(function(dir, context, buf)
   local path, exists = location(dir, context, false)
   if not exists then return nil end

@@ -727,6 +727,7 @@ local function escape_review()
   if not dismissed then workbench_route.return_to_draft() end
 end
 
+local recovery_dir
 local function start_review(buf, file, resolved)
   local tag = vim.env.PAIR_TAG
   review.start({ buf = buf, file = file, tag = (tag and tag ~= '') and tag or nil, identity=resolved })
@@ -796,19 +797,26 @@ local function start_review(buf, file, resolved)
   local pidfile = vim.env.PAIR_NVIM_PID_FILE
   if pidfile and pidfile ~= '' then vim.fn.writefile({tostring(vim.fn.getpid())},pidfile) end
   if restoration then restoration:publish() end
+  if restoration and restoration:context(buf) then
+    local snapshot,err=recovery.inspect(recovery_dir(),restoration:context(buf))
+    if snapshot then vim.notify('review: unsaved recovery available; use :PairReviewRecover or :PairReviewDiscardRecovery')
+    elseif err then vim.notify(err,vim.log.levels.WARN) end
+  end
   refresh_statusline()
 end
 
-local function recovery_dir()
+function recovery_dir()
   return vim.fn.fnamemodify(state_file() or (vim.fn.stdpath('data') .. '/pair/review.open'),':h') .. '/review-recovery'
 end
 local function preserve_mismatch()
-  if not restoration or not restoration:context() then return true end
-  local buf=restoration.buf
-  if not vim.api.nvim_buf_is_valid(buf) or not vim.bo[buf].modified or restoration:guard(buf,true) then return true end
-  local path,err=recovery.save(recovery_dir(),restoration:context(),buf,restoration.token)
-  if not path then error(err) end
-  vim.notify('review: unsaved text preserved at '..path..'; return to '..restoration:context().branch..' and use :PairReviewRecover')
+  if not restoration then return true end
+  for buf,ctx in pairs(restoration.bindings) do
+    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified and not restoration:guard(buf,true) then
+      local path,err=recovery.save(recovery_dir(),ctx,buf,restoration.token)
+      if not path then error(err) end
+      vim.notify('review: unsaved text preserved at '..path..'; return to '..ctx.branch..' and use :PairReviewRecover')
+    end
+  end
   return true
 end
 restoration=dofile(here..'review/restore_controller.lua').new({
@@ -855,6 +863,7 @@ end})
 vim.api.nvim_create_user_command('PairReviewRecover',function()
   local buf=restoration.buf
   if not restoration:guard(buf) then return end
+  if vim.bo[buf].modified then vim.notify('review: save current edits before recovering older text',vim.log.levels.WARN); return end
   local snapshot,err=recovery.restore(recovery_dir(),restoration:context(),buf)
   if err then vim.notify(err,vim.log.levels.ERROR)
   elseif not snapshot then vim.notify('review: no recovery snapshot for this document') end

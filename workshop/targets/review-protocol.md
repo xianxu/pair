@@ -56,9 +56,13 @@ pane-visibility decisions. Exact current-slug round subjects and all their
 changed paths must identify one tracked regular in-repository document. Missing,
 ambiguous, deleted, unsafe, detached or failed Git observations refuse without
 cache/pane mutation. No filename is guessed from the slug. A non-review branch
-prompts for explicit selection. Before the first path-bearing round only, a
+prompts for explicit selection, except for a verified current-session explicit
+selection in a different repository; a current review branch always wins over
+that peer selection. Before the first path-bearing round only, a
 current-session explicit preparation receipt matching repository, branch, file
-and prepared HEAD authorizes opening; committed history wins once present.
+and prepared HEAD authorizes opening; committed history wins once present. An
+authenticated matching live pane can keep its established selection across an
+empty human round that advances HEAD without establishing a file path.
 
 A matching pane toggles visibility. A different clean idle document activates
 inside the same Neovim process through private RPC, retaining buffers and undo.
@@ -299,3 +303,7 @@ same-pane activation and refusal for pending work, scopes all late responses and
 producer Git effects, and preserves unsaved text under checkout mismatch in bounded
 recovery storage. Corrected obsolete target/session fallback, pane replacement and
 unconditional exit-save descriptions; ariadne#268 owns shared producer guidance.
+
+2026-09-28 — #341 integration: retain explicitly selected peer documents when the draft checkout is non-review, and authenticated live selection across empty first rounds. Retained inactive buffers keep ownership and cannot write into a different checkout.
+
+2026-09-28 — Exit failure semantics: ordinary non-bang quit retains modified buffers when snapshot storage fails. Explicit `:qa!` may ignore callback errors and discard unsaved text on failed storage; it cannot be promised recoverable. Successful snapshot writes are tested across forced exit and restart.

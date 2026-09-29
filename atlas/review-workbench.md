@@ -184,10 +184,14 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   safely; no live pane is killed. RPC has a five-second operation deadline and
   uncertain outcomes probe the same pane/incarnation rather than spawning a fallback.
   The target updates only after acknowledgment and checkout revalidation.
-  Off a review branch, Alt+c prompts for explicit selection. No-history first opening
+  Off a review branch, Alt+c prompts unless this conversation explicitly selected a
+  document in a different repository: that verified peer selection remains usable,
+  while a current review branch always wins. No-history first opening
   requires the current conversation's explicit preparation receipt matching canonical
   repo, branch, relative file and prepared HEAD; committed round history wins once
-  present. Fresh sessions can restore committed branch context but never another
+  present. A matching authenticated live pane can maintain that selection across an
+  empty human round that advances HEAD without recording a path. Fresh sessions can
+  restore committed branch context but never another
   conversation's transient requests or selection receipt. Session identity resolves
   inherited `PAIR_SESSION_ID`, then the shared inventory's established owner projection;
   fresh asynchronous IDs remain unscoped until the watcher publishes a durable binding.
@@ -328,3 +332,7 @@ review is open. Both review return keys hide the overlay and focus the draft.
 Scrollback and changelog exits use that same return-to-draft operation after
 annotation emission, hiding the floating layer instead of revealing a review
 underneath. The review stays alive and can be shown again with Alt+c.
+
+Recovery write failures leave buffers modified and block ordinary non-bang quit.
+Explicit `:qa!` retains Neovim's discard semantics if storage fails; callback
+errors cannot prevent that forced exit.
