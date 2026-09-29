@@ -109,23 +109,9 @@ Compaction continues to reference its exact named copy; it does not take the wri
 | Run / confirmation append | Stateful clock/process/ledger interleavings; assert silence preserves target, stale observers cannot mutate, and confirmed UUID follows unique current-epoch evidence. |
 | session-repair / config publication | Real temporary ledger/config retries and injected uncertain writes; assert preview no writes, apply idempotence and saved argv/new launch preservation. |
 
-## Chunk 3: Automatic capture preservation and TTY text consumers (M3)
+## Deferred capture work
 
-**Files:** shared archive helper in `cmd/internal/launcher` and tests; `cmd/internal/wrapcmd/wrap.go`; `cmd/internal/launcher/osruntime.go`, `lifecycle.go`, runtime/quit/compaction tests; `cmd/internal/artifactpath`, `storagegc` artifact/retention integration; `cmd/internal/slugcmd/slugcmd.go`, `slug.go`, tests; reusable plain-render API in `cmd/internal/scrollbackcmd`; quit UI/help references in `nvim/init.lua`, `pairlifecycle`, README/atlas.
-
-- [ ] Implement red production archive/create tests, then the startup preservation contract above. Reuse artifactpath/retention publication and ordinary raw/events formats; no pending journal.
-- [ ] Replace independent destructive wrapper opens with writer ownership and preservation before creation. Close/sync/release on restart. Quit leaves raw/events intact, removes prompt/discard paths, and keeps unrelated cleanup. Keep current compaction copy behavior and exact continuation references.
-- [ ] Expose a bounded plain replay API and use it for naming without invented role labels; preserve existing model budgets and proposal validation. Leave exact Pair prompt history intact and optional telemetry locally degradable.
-- [ ] Run `go test ./cmd/internal/wrapcmd ./cmd/internal/launcher ./cmd/internal/slugcmd ./cmd/internal/scrollbackcmd ./cmd/internal/storagegc -count=1`, relevant race suites and applicable Lua tests. Update help/atlas with the behavior change.
-- [ ] Run `go test ./cmd/... -count=1` and `make build`. Inspect rebuilt inventory and supported repair for all incident rows without restarting brain:0. Close M3 and issue through SDLC, then publish through PR/merge.
-
-| Risky function | Test strategy |
-| --- | --- |
-| Startup archive helper | Failure injection around member copy/sync/publication and fresh-process retry; assert old data remains in sources or completed archive before any reuse, allowing redundant archives. |
-| Capture writer acquisition / wrapper startup | Competing real processes and exec restart with existing capture; assert one writer and byte preservation on contention/failure. |
-| ParkScrollback / compaction | Existing production compaction tests retain specifically named copy and exact continuation reference without writer-lock acquisition. |
-| PreserveScrollback / CleanupSidecars | Production quit cleanup asserts no prompt/archive requirement, retained raw/events and independent sidecar cleanup. |
-| Plain replay / slug input | Large terminal stream with control sequences; assert bounded model input, unlimited retained raw output and naming without native binding. |
+Former M3 transferred to #349 by operator approval on 2026-09-29; the complete implementation outline and risk tests live there. It is not a remaining #346 review boundary. Final binding/incident verification remains in M2.
 
 ## Native conformance and scope limits
 
@@ -175,3 +161,7 @@ chosen-filename handshake confirms the latter. Review BR-5 proposes changing
 this existing policy for a chosen UUID whose file does not yet exist; operator
 preference has been requested, and no additional filename admission gate is
 introduced while that policy question remains unresolved.
+
+### 2026-09-29 — TTY work transferred to #349
+
+Operator approved the scope split after binding smoke tests. Former Chunk 3 is preserved in #349 rather than marked implemented. #346 now closes after M2 and final incident verification; permanent capture identities remain separately tracked in #347.

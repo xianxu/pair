@@ -41,27 +41,9 @@ Treat agent-owned extensible field values as open world. Unknown `source` values
 
 Separate durable resume identity, launch-specific observation confidence, and optional parsed-content/cache availability (ARCH-PURPOSE). Cache invalidation or a native parser failure must not erase the target or block Couch/Alt+n. Publication must check the current launch under the existing ledger synchronization; stale observers cannot change a newer launch. Retain prior config/launch arguments; recovery with no argv must not overwrite them.
 
-### TTY history and feature ownership
+### TTY history follow-up
 
-Printable TTY is the primary human-attention-level conversation history. Omission of hidden or collapsed tool payloads is intentional and useful, not a reason to require native transcripts for ordinary text features. Keep Pair prompt history separately for exact input/editor comments. Native parsing remains narrow: identity correlation and optional usage/turn-completion telemetry. Native file mtime can inform activity without parsing contents; those optional features must degrade locally.
-
-| Feature | Current source | Agreed direction |
-| --- | --- | --- |
-| Scrollback/search/annotations | Rendered raw TTY plus timing/resize sidecar | Retain TTY source |
-| Alt+l changelog | Unlimited printable TTY with timestamps | Retain TTY source |
-| Agent-switch orientation | TTY first; Pair prompts and native paths supplementary | TTY remains primary; native parsing is not an admission gate |
-| Automatic thread naming | Parsed native user/assistant messages | Move conversational text input to printable TTY |
-| Prompt history/navigation/resend | Pair editor prompt history | Retain exact input source |
-| Context/token meter | Native usage records | Optional structured telemetry |
-| Notifications | Live terminal signals plus Codex lifecycle records | Optional structured telemetry; printable text is not an exact turn-end signal |
-| Idle fading/title heat | Native file mtime, Pair prompt mtime, launch time | No body parsing required; avoid treating redraws as work |
-| Binding discovery/confirmation | Pair sends correlated with native messages/progress | Narrow current-launch identity bridge or explicit UUID handshake |
-| Continuation | Explicit checkpoint with preserved TTY support | Keep checkpoint contract |
-| Resume/review scoping/changelog naming | Session identifier | Identity use, not transcript-content parsing |
-
-Leave raw TTY capture and timing/resize sidecar intact on quit; remove the preservation question and discard path. Before startup (including wrapper restart) reuses a same-tag pathname, copy the prior family to a unique archive and finish/sync it before truncation. Preservation failure leaves originals untouched and refuses destructive reuse. Protect against a competing live writer, but tolerate redundant archives after an interrupted startup: no exactly-once archive transaction is required. Keep current compaction behavior: make a specifically named copy on request for continuation references. Permanent per-launch capture identities are a separate improvement in #347. Retention duration is unchanged.
-
-One live session's capture has no row cap. The existing 2,000-row default is a rendering/view limit and may remain; changelog can continue requesting unlimited rendering. This does not require concatenating every historical capture into the default view.
+Automatic startup archival, quit capture retention and printable-TTY naming moved to #349 with operator approval. The feature inventory and test requirements are preserved there. #347 separately covers permanent capture identities. Optional native telemetry remains independent of durable resume identity in #346.
 
 The original stale-store/GC requirements above remain in scope. The durable plan at `workshop/plans/000346-stale-temporary-store-plan.md` has been reconciled against this contract; its revision history preserves the superseded file-proof design.
 
@@ -76,9 +58,6 @@ The original stale-store/GC requirements above remain in scope. The durable plan
 - Fresh root binding accepts `vscode` and future unfamiliar valid source values without abandoning root/subagent discrimination; cover Pair-supplied UUID/new-file handshake.
 - Every resume is observed for its own launch: post-launch activity in existing A confirms A; evidence for D replaces A and retains diagnostic history. Old messages, silence, ambiguous candidates and stale observers cannot falsely confirm or replace it.
 - Normal interaction and early Alt+n work during probation; silence preserves the best available target. Existing launch options/config are preserved during recovery.
-- Human-readable text features use printable TTY; exact prompt history stays separate. Native telemetry/parser failures affect only their consumers, not startup/resume.
-- Quit leaves capture files in place without asking or deleting; same-tag startup preserves raw/sidecar before reuse, including crash/reboot leftovers. Test archive failures and competing writers so no old data is silently overwritten; redundant archives after interrupted startup are acceptable. Compaction retains its specifically named copy and continuation reference.
-- Capture retains output beyond 2,000 rows for a single live session; a bounded render remains allowed and unlimited rendering can recover the full retained output.
 - Every audited row has a verified outcome: available resume target with its observation state, already-live thread, empty slot, or explicit insufficient evidence. Do not fabricate pair:4's missing transcript or restart brain:0 as an experiment.
 
 ## Estimate
@@ -116,7 +95,7 @@ Detailed implementation plan: `workshop/plans/000346-stale-temporary-store-plan.
 
 - [x] M1 — Keep intact stores usable, retain GC safeguards, provide explicit missing-store recovery and isolated smoke coverage.
 - [ ] M2 — Separate durable targets from parsed evidence; share launch-specific fresh/resume observation, open-world roots and supported incident recovery.
-- [ ] M3 — Preserve raw/sidecar before reuse and leave them intact on quit, use TTY for text features, verify incident inventory and full acceptance.
+- Deferred to #349: former M3 TTY preservation and naming. Incident inventory and binding acceptance remain part of M2; no M3 implementation or review is claimed.
 
 ## Log
 
@@ -248,3 +227,7 @@ Reason: operator clarified that the purpose of association is reliable conversat
 ### 2026-09-29T10:22:03-07:00 — Simplify TTY scope; separate permanent identity task
 
 Operator clarified that startup alone owns archival before path reuse. Quit leaves files intact; compaction retains its existing named-copy behavior. Removed the proposed exactly-once archive journal/two-lock transaction requirement; redundant crash-time archives are acceptable. Created #347 for permanent per-launch capture identities and stable continuation references. Continue #346 in pair:0.
+
+### 2026-09-29 — Operator-approved TTY scope split
+
+Reason: operator requested closing the smoke-tested binding fix and explicitly approved moving unfinished TTY work to a follow-up. Delta: transfer startup archival, quit retention, TTY naming, capture-length checks and related test plan to #349; remove M3 as a #346 review boundary. Keep incident verification and final binding acceptance in M2. Preserve original estimate as historical scope, not a revised measurement. No TTY completion is claimed.
