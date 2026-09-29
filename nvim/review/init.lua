@@ -47,7 +47,8 @@ end
 -- through ONE apply.apply, so decoration / single-undo / projection are identical.
 -- Undo-able apply → save → landed-artifact (what landed) → poke the agent to commit.
 -- Exposed for testing.
-function M.apply_round(buf, records)
+function M.apply_round(buf, records, context)
+  if M.authorize and not M.authorize(buf, context) then return nil end
   if M.before_agent_round then pcall(M.before_agent_round, buf) end
   local function finish()
     if M.after_agent_round then pcall(M.after_agent_round, buf) end
@@ -65,8 +66,7 @@ function M.apply_round(buf, records)
   if not ok_apply then
     projection.set_applying(buf, false) -- never leave the watcher permanently suppressed
     vim.notify('review: apply failed: ' .. tostring(enriched), vim.log.levels.ERROR)
-    finish()
-    return {}, {}
+    return nil, nil, true -- uncertain: the apply may have partially mutated text
   end
   if #dropped > 0 then
     -- never silent: a partial review must not look complete (milestone review)
@@ -101,14 +101,17 @@ function M.apply_round(buf, records)
   local tag = sess.tag or vim.fn.fnamemodify(file, ':t:r')
   local summary = string.format('%d edit(s)%s', #clean_enriched,
     n_conflicts > 0 and string.format(', %d conflict(s)', n_conflicts) or '')
-  handoff.write_landed(tag, {
+  local landed = {
     summary = summary,
     body = record.embed_in_body(summary, clean_enriched),
     applied = #clean_enriched,
     dropped = #dropped,
     conflicts = n_conflicts,
-  })
-  M.poke.send(poke_bodies.agent_applied(#clean_enriched, #dropped, file, n_conflicts))
+    context = M.context and M.context(buf) or nil,
+  }
+  handoff.write_landed(tag, landed)
+  if M.did_land then M.did_land(landed.body, base, buf) end
+  M.poke.send(poke_bodies.agent_applied(#clean_enriched, #dropped, file, n_conflicts, landed.context))
   finish()
   return enriched, dropped
 end
@@ -119,21 +122,23 @@ end
 -- applying. pane_state/on_defer are injected by the UI layer (review.lua); nil in
 -- headless apply tests → focused=false default → always applies (preserves M2 tests).
 -- Exposed for testing.
-function M.on_agent_round(buf, records)
+function M.on_agent_round(buf, records, context)
+  if M.authorize and not M.authorize(buf, context) then return nil, nil, false end
   local v0 = (sessions[buf] or {}).base
   local v1 = apply.buf_content(buf)
   local st = (M.pane_state and M.pane_state(buf)) or { focused = false, mode = 'n' }
   if M.gate.decide_apply(v0, v1, st.focused, st.mode) == 'defer' and M.on_defer then
-    M.on_defer(buf, records)
-    return
+    return nil, nil, M.on_defer(buf, records, context) == true
   end
-  return M.apply_round(buf, records)
+  local enriched, dropped, uncertain = M.apply_round(buf, records, context)
+  return enriched, dropped, enriched ~= nil, uncertain
 end
 
 -- The human finished their turn: save the incoming edits. The nvim writes no git;
 -- the AGENT commits the human round (invariant #1). The commit-request poke is
 -- issued by nvim/review.lua's finish_human_turn (the UI layer where the trigger lives).
-function M.human_round(buf, summary)
+function M.human_round(buf, summary, context)
+  if M.authorize and not M.authorize(buf, context) then return false end
   save(buf)
   return true
 end
@@ -143,7 +148,8 @@ function M.clear_decorations(buf)
   projection.reset(buf)
 end
 
-function M.projected_mutation(buf, base_content, mutate)
+function M.projected_mutation(buf, base_content, mutate, preserve_base)
+  if preserve_base then projection.record(buf) end
   projection.set_applying(buf, true)
   local ok, err = pcall(mutate)
   if not ok then
@@ -174,12 +180,19 @@ end
 -- (highlights + diagnosis) is rebuilt from the records-in-commit (the M0 decision).
 -- No-op when there's no agent round yet (a fresh review) or not in a git repo.
 -- Exposed for the resume test.
-function M.reconstruct_on_open(buf, file)
-  local dir = vim.fn.fnamemodify(file, ':h')
-  -- the latest agent round's body (subject `review(<slug>): agent r<N> — …`);
-  -- -F so the paren-bearing marker is a fixed string, not a regex.
-  local body = vim.fn.system({ 'git', '-C', dir, 'log', '-1', '--pretty=%b', '-F', '--grep=): agent r' })
-  if vim.v.shell_error ~= 0 or not body or body == '' then return false end
+function M.reconstruct_on_open(buf, file, resolved)
+  local file_abs=vim.uv.fs_realpath(file) or vim.fn.fnamemodify(file,':p')
+  if not resolved then
+    local reader=dofile(here..'identity.lua')
+    resolved=reader.resolve(vim.fn.fnamemodify(file_abs,':h'))
+    -- Explicit manual opening may precede the first file-changing round.
+    if resolved.status=='missing' and resolved.repo and file_abs:sub(1,#resolved.repo+1)==resolved.repo..'/' then
+      resolved=reader.resolve(resolved.repo,{file=file_abs:sub(#resolved.repo+2),head=resolved.head})
+    end
+  end
+  if resolved.status~='resolved' or resolved.repo..'/'..resolved.file~=file_abs then return false end
+  local body=resolved.latest_agent_body
+  if not body or body=='' then return false end
   local ok, records = pcall(record.extract_from_body, body)
   if not ok or type(records) ~= 'table' or #records == 0 then return false end
   local content = table.concat(vim.api.nvim_buf_get_lines(buf, 0, -1, false), '\n')
@@ -199,11 +212,15 @@ function M.start(opts)
   vim.bo[buf].undofile = true -- cross-session undo (decision 2)
   -- No `docflow.start` — the agent owns the `review/<slug>` branch too (seam #4,
   -- invariant #1). The nvim only opens the pane + watches for handoffs.
-  local stop = handoff.watch(tag, function(records)
-    M.on_agent_round(buf, records)
-  end, opts.watch_opts)
+  local watch_opts=vim.tbl_extend('force',{},opts.watch_opts or {})
+  if M.admit then watch_opts.admit=function(payload) return M.admit(payload,buf) end end
+  local stop = handoff.watch(tag, function(records, context)
+    local _, _, accepted, uncertain = M.on_agent_round(buf, records, context)
+    return accepted, uncertain
+  end, watch_opts)
   sessions[buf] = { tag = tag, file = file, stop = stop }
-  pcall(M.reconstruct_on_open, buf, file) -- resume repaint (no-op on a fresh review)
+  apply.clear_all(buf)
+  pcall(M.reconstruct_on_open, buf, file, opts.identity) -- scoped resume repaint
   pcall(M.rehydrate_definitions, buf)
   return sessions[buf]
 end

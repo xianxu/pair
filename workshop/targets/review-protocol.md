@@ -4,7 +4,7 @@ slug: review-protocol
 status: active
 issue: 000066
 created: 2026-06-19
-updated: 2026-09-20
+updated: 2026-09-28
 ---
 
 # Review Workbench Protocol — the agent ↔ review-nvim state machine
@@ -34,24 +34,81 @@ Why this split (not nvim-shells-docflow, which M1 scaffolded):
 
 | # | seam | writer | reader | payload | status |
 |---|------|--------|--------|---------|--------|
-| 1 | open-state file `$PAIR_DATA_DIR/review-<tag>.open` | review nvim (pid on VimEnter; removed on VimLeave) | draft nvim (`PairReviewToggle` liveness; review-mode cue) | one line: the pane nvim's pid | **BUILT** — `review-toggle-test`, `review-window-test` |
-| 2 | handoff file (agent → nvim) | agent | review nvim (`handoff.watch` poll) | `{old, occurrence, new, explain}[]` (`record.lua`; == agent commit body) | **BUILT** — `review-handoff-test`, `review-loop-test` |
-| 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`apply_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{summary, body=record.embed_in_body(clean_enriched), applied, dropped, conflicts}` — what actually landed (drops filtered, `new_occurrence` computed; body carries **only the clean records** — conflict markers live in the committed doc, `conflicts` = their count, #89 M2) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped + reconcile case) |
-| 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
-| 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), real agent = ariadne **#000121** (live smoke) |
+| 1 | open-state file `$PAIR_DATA_DIR/review-<tag>.open` | review nvim (owning incarnation publishes/removes) | draft nvim (`PairReviewToggle` liveness; review-mode cue) | line 1 PID; line 2 absolute file; line 3 JSON `{version:1, endpoint, token, session, context}` for same-pane RPC | **BUILT** — `review-toggle-test`, `review-window-test` |
+| 2 | handoff file (agent → nvim) | agent | review nvim (`handoff.watch` poll) | `{context:{repo,branch,file,activation}, records:[{old,occurrence,new,explain}]}`; record-body encoding unchanged | **BUILT** — `review-handoff-test`, `review-loop-test` |
+| 2b | landed-artifact `$XDG_DATA_HOME/pair/review-landed-<tag>.json` (nvim → agent; the handoff's reverse channel, co-located with seam #2) | review nvim (`apply_round`, post-apply; `handoff.write_landed`) | agent (commits the round verbatim) | `{context, summary, body=record.embed_in_body(clean_enriched), applied, dropped, conflicts}` — what actually landed (drops filtered, `new_occurrence` computed; body carries **only the clean records** — conflict markers live in the committed doc, `conflicts` = their count, #89 M2) | **BUILT** (pair side) — `review-loop-test` (agent-owns-git e2e + dropped + reconcile case) |
+| 3 | poke channel (nvim → agent) | review nvim (zellij `write-chars`, agent addressed by **absolute pane id**) | agent pane | NL instruction, carrying the **absolute** doc path and exact activation `context` for human/agent/ship effects | **BUILT** — `review-poke-test` (abs-path 2026-06-19) |
+| 4 | git: `review/<slug>` branch + round commits | **AGENT** (`docflow`, in the doc's repo) | review nvim **reads** (reconstruct decorations + indicator counts) | `review(<slug>): <side> r<N> — …`, per-hunk explains in body | **read** BUILT; **write** proven via `fake-agent-v2` (`review-loop-test`), producer instructions = shared `xx-fix` (ariadne#121, scoped effects ariadne#268) |
 | 5 | mode file `$PAIR_DATA_DIR/review-<tag>.mode` | **AGENT** (on a mode switch from either channel) | review nvim + draft bar (display the `🪄 <Mode>`) | one line: the active mode | **BUILT (pair side, M4c)** — `seam_test`, `review-indicator-test`, `review-window-test` |
-| 6 | review-target `$PAIR_DATA_DIR/review-target-<tag>.json` | `:PairReview` (proposes) + **AGENT** (marks `ready` after prep) | Alt+c (`PairReviewToggle`: no target → prompt; `ready` → open; `proposed` → "prep in progress") | `{file, status: proposed|ready}` — what to review, before the pane opens | **BUILT** (pair side) — `review-toggle-test` |
+| 6 | review-target `$PAIR_REVIEW_TARGET_PATH` | explicit preparation; draft after activation acknowledgment | draft (session selection receipt/cache, never branch authority) | ready/proposed target with conversation scope; explicit preparation records `{repo,branch,file,head}` identity | **BUILT** — `review-toggle-test`, `review-branch-restore-test` |
+| 7 | definition request/result `$PAIR_REVIEW_DEFINITION_REQUEST_PATH` / `$PAIR_REVIEW_DEFINITION_RESULT_PATH` | pane / `pair review definition` | producer / pane | request keeps stripped text in `.context` and activation identity in `.review_context`; result echoes it in `.context`, retaining request ID | **BUILT** — definition CLI/window tests |
 
-Review-target session scoping resolves the current conversation id as:
-`PAIR_SESSION_ID` → `config-<tag>-<agent>.json` → live Codex rollout from
-`agent-pid-<tag>`. Codex/agy fresh sessions start with an empty `PAIR_SESSION_ID`; the
-watcher writes config later, so both the draft reader and `pair-review-target` must use
-the fallback chain.
+Session scope resolves from inherited `PAIR_SESSION_ID`, then the shared
+inventory's established owner projection. It does not inspect config files,
+processes or native rollout files. A fresh conversation may restore committed
+branch history explicitly with Alt+c; it does not adopt another conversation's
+selection receipt or transient requests.
+
+### Branch restoration and activation context (#341)
+
+Alt+c resolves the current Pair checkout's review branch before target-cache or
+pane-visibility decisions. Exact current-slug round subjects and all their
+changed paths must identify one tracked regular in-repository document. Missing,
+ambiguous, deleted, unsafe, detached or failed Git observations refuse without
+cache/pane mutation. No filename is guessed from the slug. A non-review branch
+prompts for explicit selection, except for a verified current-session explicit
+selection in a different repository; a current review branch always wins over
+that peer selection. Before the first path-bearing round only, a
+current-session explicit preparation receipt matching repository, branch, file
+and prepared HEAD authorizes opening; committed history wins once present. An
+authenticated matching live pane can keep its established selection across an
+empty human round that advances HEAD without establishing a file path.
+
+A matching pane toggles visibility. A different clean idle document activates
+inside the same Neovim process through private RPC, retaining buffers and undo.
+Retained clean content is compared with disk and refreshed as one undoable edit
+before decoration reconstruction, including different branches of the same file.
+Modified buffers, pending/deferred rounds, definition requests, unconsumed
+handoffs and applied-but-uncommitted work block retargeting. A live old pane
+without the RPC capability refuses safely; it is never killed to replace it.
+The draft publishes its target only after a validated activation acknowledgment.
+Uncertain RPC outcomes are probed in that same pane; they never authorize a
+replacement process. Activation alone sends no review request or Git write.
+
+The wire context is `{repo,branch,file,activation}`: canonical absolute repository,
+repository-relative document, exact branch and opaque activation token. HEAD is
+only a resolver observation. Scope is checked before consumption/application,
+again for deferred application, and before save/send/ship. Wrong-context or
+malformed handoffs stay on disk and notify once per unchanged payload. Legacy
+array-only traffic is admitted only during an uninterrupted legacy activation;
+restoring or retargeting requires scoped traffic. Definition responses also
+retain their request-ID check.
+
+The cooperative producer echoes request context unchanged and checks the live
+open metadata plus repository/branch/document immediately before human-round,
+agent-round or ship Git effects. Landed artifacts preserve the same context;
+their record body is still committed verbatim. A mismatch preserves artifacts
+and asks the operator to return to the original branch and finish the round or
+reissue from the intended activation. The authoritative instructions are the
+shared `xx-fix` skill, updated through ariadne#268; arbitrary independent Git
+commands remain outside the pane's authority.
+
+If the checkout changes beneath an active pane, saves and review effects suspend.
+On exit, unsaved text is preserved in private `review-recovery/` storage beside
+the open-state file, keyed by repository/branch/document. Return to the original
+branch and use `:PairReviewRecover` to restore it undo-ably, or explicitly discard
+it with `:PairReviewDiscardRecovery`. A successful matching save removes only a
+snapshot written or restored by that buffer/incarnation. Prior-process snapshots
+are never silently overwritten. Storage admits at most 32 entries and 8 MiB per
+snapshot; exhaustion refuses preservation and reports the need to recover or
+discard existing data rather than evicting it.
 
 ## States & transitions
 
+All transitions below are subject to the branch/activation guards above.
+
 ```
-            Alt+c (no open-state)                handoff records arrive
+            Alt+c (resolved identity)             scoped records arrive
    ┌─────┐ ──────────────────────► ┌───────────┐ ─────────────────────► ┌──────────┐
    │idle │   :PairReview <file>     │open /     │                        │applying  │
    │     │ ◄──────────────────────  │rendering  │ ◄───────────────────── │(nvim)    │
@@ -66,9 +123,9 @@ the fallback chain.
    ship: "ship it" / `:PairReviewShip` → agent `docflow ship` (merge --no-ff + branch delete) (M4)
 ```
 
-- **idle** — no open-state file. Draft shows the normal pair-slug. `Alt+c` → file-select. **BUILT.**
-- **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; draft line-1 becomes the **review indicator** (slug generation suppressed). `Alt+c` ⇄ visibility. **BUILT** (indicator: M3-close item). In review nvim, `Alt+a` accepts, `Alt+r` rejects, and `Alt+q` inserts `🤖[]` or wraps the visual selection as `🤖<selection>[]`. The context poke defaults the agent to **Copy Edit** posture and tells it to resolve `🤖[]` human comments as edits when possible, or punt explicitly when not.
-- **agent-proposing** *(M4)* — the SKILL recognizes "please review", does memory discovery, and on the **first** round creates `review/<slug>` **in the doc's repo** (the abs path from poke #3 tells it which repo), then writes the handoff records. This IS the **xx-fix-under-docflow flow** (see *What "review" means here* below) — not a review skill the agent picks by vibe.
+- **idle** — no open-state file. `Alt+c` resolves and restores the current review branch, or prompts for selection off a review branch. **BUILT.**
+- **open / rendering** — review nvim open on `<file>`; doc + 🤖 markers rendered; the draft statusline carries the **review indicator**. `Alt+c` ⇄ visibility. **BUILT** (indicator: M3-close item). In review nvim, `Alt+a` accepts, `Alt+r` rejects, and `Alt+q` inserts `🤖[]` or wraps the visual selection as `🤖<selection>[]`. The context poke defaults the agent to **Copy Edit** posture and tells it to resolve `🤖[]` human comments as edits when possible, or punt explicitly when not.
+- **agent-proposing** *(M4)* — the SKILL recognizes "please review", uses the prepared review branch and request context, then writes the scoped handoff records. This IS the **xx-fix-under-docflow flow** (see *What "review" means here* below) — not a review skill the agent picks by vibe.
 - **applying** — review nvim polls the handoff → applies undo-ably → renders → **saves** → pokes "applied N edits to `<abs>`". **BUILT** (apply/render/save); the post-apply poke is the **commit signal**. When the human edited the doc since the agent reviewed it, this is the **reconcile** path (below), not a plain apply.
 - **agent-committing** *(M4)* — the agent commits the agent round (records in body) **only after** the "applied" poke (apply can drop unanchorable records, so the agent must not blind-commit its own proposal). `agent-count++`.
 - **human-editing** — the human edits in the review pane. **BUILT.**
@@ -99,9 +156,10 @@ human's live edits:
 - **Attribution (Option A).** The reconciled doc — which includes the human's
   concurrent edits — is committed as the *agent* round. The landed-artifact body
   carries only the clean records; the conflict markers ride in the committed doc.
-- **Durability (M3).** The human's edits are never lost: the pane saves on defer
-  and on `VimLeave`. A pending round dropped on quit/crash is re-derived by a
-  resubmit (idempotent).
+- **Durability.** Matching-context saves run on defer and exit. A changed checkout
+  blocks the save and preserves unsaved text in bounded recovery storage instead.
+  Pending work cannot authorize a different activation; finish it on the original
+  branch or explicitly reissue it.
 - **The agent must recognize reconcile markers** — see the `xx-fix` skill's
   workbench section; a `🤖<…>[reconcile — …]` can wrap git-diff-like text and
   carries the agent's own blocked intent to fold back in.
@@ -189,7 +247,7 @@ channels and the bar read the same value.
 ## Review-start & resume flow — M4a'
 
 `:PairReview` does **not** open the pane — it *proposes* a review target (seam #6); the
-agent *prepares* it (git readiness); Alt+c opens once `ready` (**manual** — auto-open's
+local deterministic readiness prepares it; Alt+c opens once `ready` (**manual** — auto-open's
 async timing is bad UX). This is the agentic embedding of "is this doc ready to review?"
 
 **Readiness prep (pair-side) — the 4 git cases.** A deterministic function of git
@@ -203,13 +261,14 @@ git effects):
 - not on a review branch: clean → **new** `review/<slug>`; dirty → **interact** (the only
   truly interactive case — clean up / choose with the operator).
 
-**Two-phase Alt+c (manual).** no target → `:PairReview` prompt (pick → proposes + local
-readiness prep + concise agent ack); target `ready` → open the pane; target `proposed` (prepping / dirty) →
-"prep in progress" (never open a half-ready review).
+**Alt+c restoration.** Resolve committed review-branch identity first, then toggle
+or activate the matching document. Explicit `:PairReview` preparation supplies the
+session receipt for the zero-round exception. A proposed target reports preparation
+in progress; stale ready targets cannot override the current branch.
 
-**Resume (case 3).** On a file-match: pair marks the target ready and asks the agent to
-ack the prepared review. The pane **reconstructs decorations on open** from the latest commit
-body (text = `undofile`; style = records-in-commit → repaint).
+**Resume.** Reconstruct only the selected current-slug/document rounds. A fresh
+session restores committed context, while in-process activation retains the buffer
+and undo tree. Neither path inherits another document's decorations or requests.
 
 **Agent-running spinner (≤6 cols).** The pane derives "agent working" from the **protocol
 state** (no `pair-wrap` flag): set when it pokes the agent, cleared when the next handoff
@@ -229,7 +288,7 @@ lands. Braille spinner + compact elapsed: `⠹ 45s` → `⠹ 2m`.
 3. **The agent commits a round only after the nvim's "applied" poke** (apply may drop
    records; the committed body must match what actually landed).
 4. **One review pane per session** (the open-state file is the singleton guard).
-5. **Pokes carry the absolute doc path** (the agent's cwd is pair's, not the doc's repo).
+5. **Pokes carry the absolute doc path and activation context** (the agent's cwd may differ). Both producer Git effects and pane application validate that identity.
 6. **The review is the xx-fix-under-docflow record flow** (propose edits → apply → rounds),
    NOT `doc-review` (read-only fact-check) standing in for it. `doc-review` is an optional
    input, never the review. (See *What "review" means here*.)
@@ -238,3 +297,13 @@ lands. Braille spinner + compact elapsed: `⠹ 45s` → `⠹ 2m`.
 
 2026-09-20 — #297 retires the review send-menu shortcut. The menu remains
 available through an explicit Neovim command; no replacement keybinding is assigned.
+
+2026-09-28 — #341 makes the current review branch authoritative for Alt+c, adds
+same-pane activation and refusal for pending work, scopes all late responses and
+producer Git effects, and preserves unsaved text under checkout mismatch in bounded
+recovery storage. Corrected obsolete target/session fallback, pane replacement and
+unconditional exit-save descriptions; ariadne#268 owns shared producer guidance.
+
+2026-09-28 — #341 integration: retain explicitly selected peer documents when the draft checkout is non-review, and authenticated live selection across empty first rounds. Retained inactive buffers keep ownership and cannot write into a different checkout.
+
+2026-09-28 — Exit failure semantics: ordinary non-bang quit retains modified buffers when snapshot storage fails. Explicit `:qa!` may ignore callback errors and discard unsaved text on failed storage; it cannot be promised recoverable. Successful snapshot writes are tested across forced exit and restart.

@@ -159,6 +159,34 @@ local context_path = _G.PairReviewPane.write_review_context(buf)
 local context_body = table.concat(vim.fn.readfile(context_path), '\n')
 ok(context_body == 'here is ASIN[^asin] in context',
   'continued-review context artifact strips managed definition footer')
+-- Refused definitions remain available for inspection; accepted old responses
+-- cannot remove a newer atomic publication at the same result pathname.
+local result_path=vim.env.PAIR_REVIEW_DEFINITION_RESULT_PATH
+vim.api.nvim_buf_set_lines(buf,0,-1,false,{'here is ASIN in context'})
+local changed_req=_G.PairReviewPane.request_definition(buf,file,{1,8},{1,11},{poke=false})
+vim.fn.writefile({vim.json.encode({request_id=changed_req.request_id,term='ASIN',definition='changed selection'})},result_path)
+vim.api.nvim_buf_set_text(buf,0,8,0,12,{'WORD'})
+ok(_G.PairReviewPane.apply_definition_result(buf)==false,'changed selection refuses definition application')
+ok(vim.fn.filereadable(result_path)==1,'refused definition response remains preserved')
+
+vim.api.nvim_buf_set_lines(buf,0,-1,false,{'here is ASIN in context'})
+local replaced_req=_G.PairReviewPane.request_definition(buf,file,{1,8},{1,11},{poke=false})
+vim.fn.writefile({vim.json.encode({request_id=replaced_req.request_id,term='ASIN',definition='accepted response'})},result_path)
+local original_set_lines=vim.api.nvim_buf_set_lines
+local replaced=false
+vim.api.nvim_buf_set_lines=function(...)
+  original_set_lines(...)
+  if not replaced then
+    replaced=true
+    vim.fn.writefile({vim.json.encode({request_id='next-request',term='ASIN',definition='next response'})},result_path..'.tmp')
+    assert(vim.uv.fs_rename(result_path..'.tmp',result_path))
+  end
+end
+local applied_ok,applied_result=pcall(_G.PairReviewPane.apply_definition_result,buf)
+vim.api.nvim_buf_set_lines=original_set_lines
+ok(applied_ok and applied_result==true,'old definition applies while newer response is published')
+ok(vim.fn.filereadable(result_path)==1 and read_json(result_path).request_id=='next-request',
+  'definition acceptance does not delete replacement payload')
 end)
 
 if not ok_run then

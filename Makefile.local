@@ -232,6 +232,10 @@ test-review: $(BIN_DIR)/pair
 	bash tests/review-indicator-test.sh
 	bash tests/review-resume-test.sh
 	bash tests/review-definition-test.sh
+	bash tests/review-branch-restore-test.sh
+	bash tests/review-observation-test.sh
+	bash tests/review-fresh-restore-test.sh
+	bash tests/review-producer-context-test.sh
 
 # Whole tree, not one package: the pumps and the switcher span packages, and
 # ./cmd/pair-wrap/ has not existed since the Go entrypoint switch -- the target
@@ -281,6 +285,16 @@ test-lua:
 	nvim -l nvim/review/menu_test.lua
 	nvim -l nvim/review/reconcile_test.lua
 	nvim -l nvim/review/gate_test.lua
+	nvim -l nvim/review/restore_test.lua
+	nvim -l nvim/review/restore_client_test.lua
+	nvim -l nvim/review/restore_controller_test.lua
+	nvim -l nvim/review/document_bytes_test.lua
+	nvim -l nvim/review/recovery_test.lua
+	nvim -l nvim/review/recovery_observer_test.lua
+	nvim -l nvim/review/handoff_acceptance_test.lua
+	nvim -l nvim/review/definition_seam_test.lua
+	nvim -l nvim/review/handoff_context_test.lua
+	nvim -l nvim/review/round_authority_test.lua
 
 # Integration test for nvim/init.lua's send/queue/history state machine.
 # Drives the real init.lua under headless nvim (it can't be unit-tested —

@@ -29,9 +29,10 @@ type ReadinessFacts struct {
 
 // targetDoc is the review-target-<tag>.json shape (session-scoped target seam #6).
 type targetDoc struct {
-	File    string `json:"file"`
-	Status  string `json:"status"`
-	Session string `json:"session"`
+	Identity *ReviewIdentity `json:"identity,omitempty"`
+	File     string          `json:"file"`
+	Status   string          `json:"status"`
+	Session  string          `json:"session"`
 }
 
 func targetJSON(file, status, session string) string {
@@ -42,10 +43,11 @@ func targetJSON(file, status, session string) string {
 // definitionDoc is the review-definition-result-<tag>.json shape. The request
 // id disambiguates multiple requests over one tag-scoped result path.
 type definitionDoc struct {
-	RequestID  string `json:"request_id"`
-	Term       string `json:"term,omitempty"`
-	Definition string `json:"definition"`
-	Session    string `json:"session"`
+	Context    json.RawMessage `json:"context,omitempty"`
+	RequestID  string          `json:"request_id"`
+	Term       string          `json:"term,omitempty"`
+	Definition string          `json:"definition"`
+	Session    string          `json:"session"`
 }
 
 func definitionJSON(requestID, term, definition, session string) string {

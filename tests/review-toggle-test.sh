@@ -8,9 +8,9 @@
 #     alive  + visible   → 'hide'
 #     alive  + hidden    → 'show'
 #   PairReviewToggle() (integration, zellij stubbed on $PATH):
-#     live state file + are-floating-panes-visible=true  → hide-floating-panes
-#     live state file + are-floating-panes-visible=false → show-floating-panes
-#     no state file → file-select (no visibility query, no show/hide)
+#     resolved identity + acknowledged pane + visible → hide-floating-panes
+#     resolved identity + acknowledged pane + hidden → show-floating-panes
+#     non-review branch → file-select, including when a stale target exists
 #   and NEVER toggle-floating-panes (the footgun).
 #
 # Live zellij pane/focus behaviour is the manual smoke (M3 plan Task 5). Here
@@ -39,6 +39,7 @@ if [ "\$1" = action ] && [ "\$2" = list-panes ]; then
 fi
 if [ "\$1" = action ] && [ "\$2" = are-floating-panes-visible ]; then
   cat "$FLOATVIS" 2>/dev/null || echo false
+  rg -q '^true$' "$FLOATVIS" || exit 1
 fi
 exit 0
 EOF
@@ -193,35 +194,60 @@ vim.env.PAIR_AGENT = 'claude'
 vim.env.PAIR_SESSION_ID = 'testsid'
 vim.fn.writefile({ '{"file":"/stale/prev.md","status":"ready","session":"oldsid"}' }, target)
 
--- live + visible → hide  (state file holds OUR pid, so kill -0 says alive)
-vim.fn.writefile({ tostring(vim.fn.getpid()) }, sf); setfloat('true')
-local n = #read_zlog(); _G.PairReviewToggle()
+-- The resolver seam supplies branch facts; the pane handshake crosses a real
+-- Neovim RPC connection. PID liveness alone no longer authorizes visibility.
+local resolved = {status='resolved',repo=vim.fn.getcwd(),branch='review/draft',head='verified-head',file='draft.md'}
+local context = {repo=resolved.repo,branch=resolved.branch,file=resolved.file,activation='test-activation'}
+local metadata = {version=1,endpoint=vim.fn.serverstart(vim.env.PAIR_DATA_DIR .. '/toggle.sock'),token='test-token',session='testsid',context=context}
+_G.PairReviewPane = {restore=function(raw)
+  local req=vim.json.decode(raw)
+  assert(req.token==metadata.token and req.session=='testsid')
+  assert(vim.deep_equal(req.identity,resolved))
+  return {ok=true,same=true,identity=resolved,context=context}
+end}
+local resolver_status='resolved'
+R.client.opts.run=function(cmd,opts,cb)
+  if vim.tbl_contains(cmd,'--resolve') then
+    local value=vim.deepcopy(resolved); value.status=resolver_status
+    vim.schedule(function() cb({code=0,stdout=vim.json.encode(value),stderr=''}) end)
+    return {}
+  end
+  return vim.system(cmd,opts,cb)
+end
+local function toggle()
+  _G.PairReviewToggle()
+  assert(vim.wait(7000,function() return not R.client.busy end,10),'toggle activation timed out')
+end
+local function live()
+  vim.fn.writefile({tostring(vim.fn.getpid()),draft,vim.json.encode(metadata)},sf)
+end
+live(); setfloat('true')
+local n = #read_zlog(); toggle()
 local d = new_since(n)
 OUT:write((has(d, 'action are-floating-panes-visible') and has(d, 'action hide-floating-panes') and has(d, 'action focus-pane-id 3'))
   and 'hide ok\n' or 'hide FAIL\n')
 
--- live + hidden → show
-vim.fn.writefile({ tostring(vim.fn.getpid()) }, sf); setfloat('false')
-n = #read_zlog(); _G.PairReviewToggle()
+live(); setfloat('false')
+n = #read_zlog(); toggle()
 d = new_since(n)
 OUT:write(has(d, 'action show-floating-panes') and 'show ok\n' or 'show FAIL\n')
 
--- no live pane, NO target → prompt: no open (zellij run), no show/hide
+-- Non-review branches prompt even when a stale ready target exists. Cached
+-- file names cannot authorize restoring another branch's review.
+resolver_status='non_review'
 os.remove(sf); os.remove(target)
-n = #read_zlog(); _G.PairReviewToggle()
+n = #read_zlog(); toggle()
 d = new_since(n)
 OUT:write((not has(d, 'run --floating') and not has(d, 'hide-floating-panes')
   and not has(d, 'show-floating-panes')) and 'prompt ok\n' or 'prompt FAIL\n')
 
--- no live pane, target READY → open the pane (pair review open → zellij run)
 R.write_target(draft, 'ready')
-n = #read_zlog(); _G.PairReviewToggle()
+n = #read_zlog(); toggle()
 d = new_since(n)
-OUT:write(has(d, 'run --floating') and 'targetopen ok\n' or 'targetopen FAIL\n')
+OUT:write((not has(d, 'run --floating') and not has(d, 'show-floating-panes')) and 'target-refused ok\n' or 'target-refused FAIL\n')
 
--- no live pane, target PROPOSED → wait: do NOT open
 R.write_target(draft, 'proposed')
-n = #read_zlog(); _G.PairReviewToggle()
+n = #read_zlog(); toggle()
 d = new_since(n)
 OUT:write((not has(d, 'run --floating')) and 'wait ok\n' or 'wait FAIL\n')
 
@@ -266,7 +292,7 @@ grep -q 'pure-show ok'    "$RESULT" && pass "pure: alive+hidden → show"       
 grep -q '^hide ok$'       "$RESULT" && pass "live+visible → hide-floating-panes" || fail "hide branch"
 grep -q '^show ok$'       "$RESULT" && pass "live+hidden → show-floating-panes" || fail "show branch"
 grep -q '^prompt ok$'     "$RESULT" && pass "no target → :PairReview prompt (no open/show/hide)" || fail "prompt branch"
-grep -q '^targetopen ok$' "$RESULT" && pass "target ready → opens the pane (pair review open)" || fail "open branch"
+grep -q '^target-refused ok$' "$RESULT" && pass "stale ready target cannot override non-review branch" || fail "stale target admitted"
 grep -q '^wait ok$'       "$RESULT" && pass "target proposed → wait (no open)" || fail "wait branch"
 grep -q '^footgun ok$'    "$RESULT" && pass "never toggle-floating-panes" || fail "footgun (toggle-floating-panes used)"
 

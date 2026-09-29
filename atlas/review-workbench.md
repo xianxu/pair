@@ -65,10 +65,16 @@ Integration seams (headless shell tests, `make test-review`):
   produces (and as a future candidate for removal if no read use earns it).
 - `handoff.lua` — the ephemeral `review-handoff-<tag>.json` (in XDG data dir):
   the agent writes it atomically; nvim **timer-polls** (not fs_event — macOS
-  FSEvents precedent in `init.lua`), decodes, unlinks, fires a callback. Data and
-  signal in one file. Also owns the reverse channel,
-  `review-landed-<tag>.json`: `{summary, body, applied, dropped}` for the agent
+  FSEvents precedent in `init.lua`), validates the envelope and activation, then
+  consumes the payload only after the callback accepts application or deferral.
+  Refused, malformed, replaced, or wrong-context payloads remain on
+  disk, with one warning per unchanged payload. Data and signal in one file. Also owns the reverse channel,
+  `review-landed-<tag>.json`: `{context, summary, body, applied, dropped, conflicts}` for the agent
   to commit verbatim after nvim applies a handoff.
+- `artifact.lua` — shared file-generation receipts for handoff and definition
+  responses; consuming an observed response preserves a replacement published
+  during processing. Failed handoff callbacks preserve their payload without
+  automatically replaying uncertain partial edits.
 - `apply.snapshot`/`apply.apply_snapshot` (M2) — read/restore the decoration
   state: ranged extmarks ({line,end_line}) + diagnostics, as two independent
   layers (they decouple after riding) sharing a `clear()` helper with `place`.
@@ -77,14 +83,41 @@ Integration seams (headless shell tests, `make test-review`):
   matching snapshot, on a novel state capture the riding decorations. The
   `record_empty_for` guard keeps a prior round's styling when round-2's base is
   round-1's output. No more clear-on-each-apply.
+- `restore.lua` / `restore_controller.lua` — pure activation/admission policy and
+  pane-owned RPC transaction. The controller revalidates branch/document before
+  effects, blocks pending work, retains buffers/undo and reconstructs the selected
+  document from a resolver-captured snapshot on both initial opening and later
+  activation. Neovim's normal buffer load supplies editor setup, not byte authority.
+- `identity.lua` / `restore_client.lua` — resolver adapter and asynchronous draft
+  activation client; verify acknowledgments before target publication or visibility.
+- `recovery.lua` — private bounded unsaved-text snapshots for checkout mismatch;
+  explicit recovery/discard, matching successful-save cleanup. Snapshots retain
+  line-ending, BOM and encoding options as well as text.
+- `document_bytes.lua` — shared byte/line conversion for activation, asynchronous
+  refresh and exact landed-content checks; preserves LF/CRLF, BOM and final-newline
+  state, refusing unsupported text instead of silently converting it.
+- `recovery_observer.lua` — coalesces edit events into asynchronous identity
+  observations for proactive snapshots, and focus events for clean-buffer disk
+  refresh on the matching branch. Refresh uses bounded file bytes captured by the
+  resolver inside its branch/HEAD validation window, never a later checkout read.
+  Admission rejects a checkout-owned index lock, changing index generation, or
+  an index tree different from pinned HEAD. This deliberately also refuses staged
+  changes until commit/unstage, because checkout can publish its index before HEAD.
+  Late results must still belong to the captured activation and unchanged buffer;
+  activation stop and exit cancel outstanding work. Write/apply/quit boundaries
+  retain fresh authority checks.
 - `poke_bodies.lua` — pure builders for the prose signals sent to the agent:
   review target prep, handoff applied, human turn finished, and ship requested.
 - `readiness.lua` + `cmd/pair-review-readiness` (`cmd/internal/reviewcmd`, Go since
   #93 M3) — pure/classified git readiness for review-start: stop / track / resume /
   new / interact. The nvim proposes; the agent acts. The 4-case decision stays
   single-source in `readiness.lua`, invoked via `nvim --headless`; the Go helper
-  gathers the git facts and emits JSON via `encoding/json` (strictly more robust
-  for quoted branch/path facts than the old `jq -n`).
+  gathers the git facts and emits JSON via `encoding/json`. The shared Go
+  `identity.go` resolver adds read-only `pair review readiness --resolve <directory>`:
+  exact current-slug round subjects and changed paths must identify one tracked,
+  existing in-repository regular file; no slug-to-filename guess or first-hit choice.
+  It bounds history to 10,000 matching commits / 8 MiB and a 2-second total deadline;
+  incomplete reads refuse instead of claiming unique identity.
 - `resolve.lua` — pure parley §5 accept/reject resolution for `🤖` marker chains;
   `nvim/review.lua` binds it to the review pane (`\a`, `\r`, `]m`, `[m`).
 - `spinner.lua` — pure compact spinner/elapsed helper wired into the review pane
@@ -98,7 +131,7 @@ Integration seams (headless shell tests, `make test-review`):
 
 `:PairReview <file>` proposes a review target → the agent runs readiness prep
 (track/new/resume/interact) and marks the target ready → Alt+c opens the pane.
-Agent writes a records handoff → nvim watcher applies undo-ably, decorates, saves,
+Agent writes `{context:{repo,branch,file,activation},records:[...]}` → nvim watcher applies undo-ably, decorates, saves,
 writes the landed-artifact, and pokes `agent_applied` → the agent commits the
 agent round from that artifact. Human edits → Alt+Return saves and pokes
 `human_finished` with the selected posture plus any one-round instruction → the
@@ -113,7 +146,8 @@ fake highlight. Generative modes should use direct replacements when marker nois
 would be too high, but deletion-only changes should remain visible as `🤖~old~`.
 `:PairReviewShip` pokes the agent to run `docflow ship`; the pane does not shell
 docflow. History lives in git (round commits + per-hunk explains in the agent commit
-body); fine-grained undo lives in nvim's `undofile`; no bespoke sidecar. The doc must
+body); fine-grained undo lives in nvim's `undofile`. Unsaved checkout-mismatch
+recovery uses the bounded snapshot lifecycle below. The doc must
 be in a git repo.
 
 ## The review window (M3)
@@ -134,8 +168,9 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   (`unnamedplus`, blinking cursor, `ignorecase`+`smartcase` so `/foo` matches
   case-insensitively but `/Foo` stays case-sensitive — #101), writes the
   open-state file (line 1 = pane nvim `pid` for
-  liveness, line 2 = the absolute doc path for the indicator), and tears down on
-  `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
+  liveness, line 2 = the absolute doc path for the indicator, line 3 = JSON
+  `{version:1,endpoint,token,session,context}` for the private same-pane RPC endpoint).
+  The owning incarnation tears it down on `VimLeave`. Also defines `PairReviewToggle()` = hide-self (the case where Alt+c
   fires from inside the focused floating review pane). Pane-open no longer sends a
   separate "review workbench open" poke; the prep and human-finished pokes carry the
   workbench protocol context. The command line is hidden until `:` commands, and the
@@ -149,8 +184,8 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   time until the agent handoff lands.
 - `bin/pair-review-open <file>` — validates + spawns the **full-screen** floating pane
   (`zellij run --floating --close-on-exit --name review --width 100% --height 100%`;
-  percentage dims, not `tput`, which measured the wrong pane), replacing any live
-  review (single pane).
+  percentage dims, not `tput`, which measured the wrong pane). A live singleton
+  refuses replacement; document changes use the existing pane's activation RPC.
 - `:PairReview <file>` (in draft `nvim/init.lua`, `complete=file`) — proposes the
   review target. It writes exact `$PAIR_REVIEW_TARGET_PATH` with `status=proposed`,
   runs `pair-review-readiness --prepare <file>` locally for deterministic
@@ -160,18 +195,28 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
 - **Alt+c** (`zellij/config.kdl`) — routed through the draft nvim like Alt+d
   (`MoveFocus Down` → `<C-\><C-n>` → `:lua PairReviewToggle()`), **not** a spawned
   shell pane. The draft's `PairReviewToggle()` (`nvim/init.lua`) branches on the
-  state-file liveness and review-target status: live review → flip visibility from
-  this *tiled* draft (`are-floating-panes-visible` → `show`/`hide-floating-panes`;
-  **never** `toggle-floating-panes`); no live review + ready target → open;
-  proposed target → "prep in progress"; no target → drop into `:PairReview `
-  (file-select). Pure decision `_pair_review_toggle_action(alive, visible, status)`.
-  Review-targets are scoped to the current conversation id so fresh sessions ignore
-  stale targets while resumed sessions keep their in-progress target. Neovim resolves
-  exact inherited `PAIR_SESSION_ID` first, then the shared inventory's established
-  owner projection; it does not inspect config identity, processes, or native files.
-  Fresh asynchronous ids remain temporarily unscoped until Pair's watcher publishes
-  a durable binding. `Alt+r` is deliberately free inside the review
-  pane for reject.
+  current checkout's branch identity before target-cache or visibility decisions.
+  A matching pane toggles; a different clean idle pane activates in the same Neovim
+  process. Modified buffers, deferred/awaiting/definition work, unconsumed handoffs
+  and applied-but-uncommitted rounds refuse switching. Committed body plus expected
+  file content proves the landed round was committed; a leftover landed file alone
+  neither blocks forever nor proves completion. An old pane lacking RPC refuses
+  safely; no live pane is killed. RPC has a five-second operation deadline and
+  uncertain outcomes probe the same pane/incarnation rather than spawning a fallback.
+  The target updates only after acknowledgment and checkout revalidation.
+  Off a review branch, Alt+c prompts unless this conversation explicitly selected a
+  document in a different repository: that verified peer selection remains usable,
+  while a current review branch always wins. No-history first opening
+  requires the current conversation's explicit preparation receipt matching canonical
+  repo, branch, relative file and prepared HEAD; committed round history wins once
+  present. A matching authenticated live pane can maintain that selection across an
+  empty human round that advances HEAD without recording a path. Fresh sessions can
+  restore committed branch context but never another
+  conversation's transient requests or selection receipt. Session identity resolves
+  inherited `PAIR_SESSION_ID`, then the shared inventory's established owner projection;
+  fresh asynchronous IDs remain unscoped until the watcher publishes a durable binding.
+  Restoration sends no automatic review request and makes no Git writes.
+  `Alt+r` remains reject inside the review pane.
 - `nvim/pair_poke.lua` — id-based agent poke: relative `move-focus` does NOT escape a
   floating pane, so it resolves the agent pane from `list-panes --json` and writes
   directly with `write-chars --pane-id <agent>` + `send-keys --pane-id <agent> "Alt Enter"`.
@@ -206,10 +251,11 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   visual-select a term in the review pane and press `Shift+Alt+d` to ask the existing
   pair agent for a concise definition. The pane writes
   `review-definition-request-<tag>.json` with the selected term, byte range, file,
-  request id, and document context after stripping only the managed definition
-  footer; then it pokes the agent to answer by running
+  request id, stripped document text in `.context`, and activation identity in
+  `.review_context` (the text strips only the managed definition footer); then it pokes the agent to answer by running
   `pair review definition --term <term> <request-id> <definition>`, which writes
-  `review-definition-result-<tag>.json`. On result, the pane rewrites the selected
+  `review-definition-result-<tag>.json`, echoing the activation in `.context`.
+  The pane checks both request ID and activation before consumption. On result, the pane rewrites the selected
   text to `term[^id]`, appends or updates a managed final `---` footnote block,
   and rehydrates diagnostics/highlights from the durable footnotes. Definition
   highlights live in a dedicated `review_define` extmark namespace but diagnostics
@@ -226,8 +272,15 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   edits, drops the spinner, stashes the round in a single `pending_records` slot, and
   raises a **`winbar`** (`✨ agent results ready · ⌥⏎ to apply`). `Alt+Return` (and the
   send menu) then *applies* the pending round instead of submitting. Durability (§8):
-  save-on-defer + save-on-`VimLeave` (both via `human_round`) mean the human's edits
-  are never lost; a pending round dropped on quit/crash is re-derived by a resubmit.
+  save-on-defer + save-on-`VimLeave` run only on the matching checkout. A branch
+  mismatch suspends apply/save/send/ship, preserving pending artifacts. Unsaved text
+  on exit goes to private `review-recovery/` beside the open-state file, keyed by
+  repository/branch/document. Return to the original branch, then use
+  `:PairReviewRecover` for an undoable restore or `:PairReviewDiscardRecovery` to
+  discard explicitly. A matching successful save removes only the snapshot this
+  buffer/incarnation wrote or restored. Prior-process snapshots cannot be silently
+  overwritten. Storage is bounded to 32 entries and 8 MiB per snapshot; capacity or
+  oversized content refuses preservation with a recovery instruction, never eviction.
   Focus tracked via `FocusGained`/`BufEnter`/`FocusLost` (benign fallback: a missed
   `FocusLost` only over-defers, never mis-applies).
 - **docflow degradation** (`nvim/review/docflow.lua`) — missing `docflow` still has
@@ -235,8 +288,13 @@ proven scrollback/changelog pattern), opened on a file, alongside pair's agent+d
   Round commits are agent-side. See `workshop/targets/review-protocol.md` for the
   full agent↔nvim state machine.
 
-The agent pane is pair's **existing** agent — ordinary chat still works; the SKILL
-that makes "please review" / "ship it" review-aware is the ariadne #000121 half of M4.
+The agent pane is pair's **existing** agent — ordinary chat still works; the shared `xx-fix` skill
+owns its producer behavior (ariadne#121; activation-scoped effects ariadne#268).
+It echoes the exact request context (canonical absolute repo, exact branch,
+repo-relative file, opaque activation) through handoffs and landed artifacts, and
+checks live pane metadata plus the checkout immediately before human/agent round
+or ship Git effects. Record-body encoding is unchanged. Legacy arrays are accepted
+only by an uninterrupted legacy activation; restore/retarget requires scoped data.
 
 ## State
 
@@ -256,18 +314,19 @@ produces a round. M1 multi-line `🤖<…>` markers, M2 the per-record reconcile
 (`reconcile.lua`: clean edits apply span-granularly, overlaps become
 `🤖<…>[reconcile]` markers via `vim.diff`, clean-inside-conflict folds into the
 marker), M3 the apply-gate (`gate.lua`: defer only while mid-edit) + winbar +
-save-on-defer/`VimLeave` durability. All headless-tested; the live pane smoke
+matching-context save-on-defer/`VimLeave` durability and mismatch recovery. All headless-tested; the live pane smoke
 (focus/winbar rendering + real agent round-trip) is the remaining manual proof.
 
-The real-agent half lives in ariadne #000121. Until that lands, pair proves the
-protocol with `tests/lib/fake-review-agent.sh`; the real live smoke remains the
-cross-repo proof that the persistent agent recognizes review mode and owns the
-docflow rounds.
+The authoritative real-agent instructions live in ariadne's shared `xx-fix` skill,
+including ariadne#268's activation checks. `tests/lib/fake-review-agent.sh` exercises
+that producer contract in integration tests; live smoke additionally checks the
+persistent agent's recognition and round-trip behavior.
 
 ## Tests
 
 - `make test-lua` — `record`, `reconstruct`, `markers`, `seam`, `mode`, `poke_bodies`,
-  `readiness`, `resolve`, `spinner`, `menu`, `reconcile` (classify/conflict_marker/
+  `readiness`, `resolve`, `restore`, `restore_controller`, `restore_client`,
+  `recovery`, `spinner`, `menu`, `reconcile` (classify/conflict_marker/
   plan_conflicts/fold, #89), `gate` (decide_apply five cases, #89) (pure/headless).
 - `make test-review` — `docflow` (+ hermetic `tests/lib/fake-docflow.sh` and a
   gated smoke against the real ariadne `docflow.sh`), `apply` (incl. snapshot
@@ -278,7 +337,8 @@ docflow rounds.
   `poke` (id-based agent poke, no relative move-focus), `window` (:PairReview +
   pair-review-open + review.lua: keymap/state/markers + Alt+Return round-trip),
   `toggle` (mode-aware branch, explicit show/hide, no toggle-floating-panes),
-  `review-readiness-cli` (quoted git facts stay valid JSON), `resume`, and the
+  `review-readiness-cli` (quoted git facts stay valid JSON), `resume`,
+  `review-branch-restore` (real branches and same-process activation), and the
   agent-owns-git loop.
 
 Review marker navigation is buffer-local and normal-mode only. Couch's existing
@@ -292,3 +352,7 @@ review is open. Both review return keys hide the overlay and focus the draft.
 Scrollback and changelog exits use that same return-to-draft operation after
 annotation emission, hiding the floating layer instead of revealing a review
 underneath. The review stays alive and can be shown again with Alt+c.
+
+Recovery write failures leave buffers modified and block ordinary non-bang quit.
+Explicit `:qa!` retains Neovim's discard semantics if storage fails; callback
+errors cannot prevent that forced exit.
