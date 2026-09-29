@@ -28,10 +28,12 @@ Escape may dismiss review floats but must never return to draft. Alt+c remains t
 
 ## Plan
 
-- [ ] Update regression, remove Escape return fallback, reconcile help and atlas, and run focused tests.
+- [x] Update regression, remove Escape return fallback, reconcile help and atlas, and run focused tests.
 
 ## Log
 
 ### 2026-09-29
 
 - Root cause: escape_review returns to draft when no float exists. Existing headless test explicitly required this behavior.
+
+- Verified red/green with real headless Neovim and the stateful host: repeated Escape retains review, floats dismiss, Alt+c returns. Review-window suite and keyhelp tests pass after make build refreshes embedded runtime.

@@ -407,7 +407,7 @@ local function mode_label()
 end
 
 local function statusline_text()
-  local hints = 'Alt+Return review · Alt+c/Esc draft · Alt+a/r accept/reject'
+  local hints = 'Alt+Return review · Alt+c draft · Alt+a/r accept/reject'
   if awaiting_since then
     local frame = spinner.frames[((spinner_tick or 0) % #spinner.frames) + 1]
     return ' ' .. frame .. ' %{v:lua._pair_review_elapsed()} ' .. mode_label() .. ' • ' .. hints .. ' • %<%t%m %= L%l/%L '
@@ -711,14 +711,11 @@ local function open_mode_menu(buf, file)
 end
 
 local function escape_review()
-  local dismissed = false
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     if vim.api.nvim_win_get_config(win).relative ~= '' then
       vim.api.nvim_win_close(win, true)
-      dismissed = true
     end
   end
-  if not dismissed then workbench_route.return_to_draft() end
 end
 
 local recovery_dir
@@ -743,7 +740,7 @@ local function start_review(buf, file, resolved)
   vim.api.nvim_create_user_command('PairReviewShip', function() request_ship(file) end, {})
 
   vim.keymap.set('n', '<Esc>', escape_review,
-    { buffer = buf, silent = true, desc = 'review: dismiss float or return to draft (normal mode)' })
+    { buffer = buf, silent = true, desc = 'review: dismiss float (normal mode)' })
   vim.keymap.set({ 'n', 'i' }, '<M-c>', workbench_route.return_to_draft,
     { buffer = buf, silent = true, desc = 'review: return to draft (normal/insert)' })
   vim.keymap.set('n', '<M-n>', function() jump_marker(buf, 1) end,
