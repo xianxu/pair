@@ -37,6 +37,11 @@ r=ctl:request(req); assert(r.ok, r.error)
 assert(vim.api.nvim_get_current_buf()==abuf and vim.api.nvim_get_current_line()=='A newer')
 assert(not vim.bo[abuf].modified)
 assert(not ctl:request({token='wrong',session='session',identity=a}).ok)
+current=b; req.identity=b
+ctl.opts.start=function(_,file) if file==tmp..'/b.md' then error('injected activation failure') end end
+local prior=ctl:context()
+assert(not ctl:request(req).ok)
+assert(ctl:context().activation==prior.activation and vim.api.nvim_get_current_buf()==abuf,'failed activation did not restore prior pane')
 current=b; assert(not ctl:guard(abuf,true))
 ctl:close(); vim.fn.delete(tmp,'rf')
 print('restore_controller_test ok')

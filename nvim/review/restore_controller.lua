@@ -107,11 +107,13 @@ function C:request(req)
     return {ok=false,error='branch changed during restoration; invoke Alt+C again'}
   end
   local pending=self:pending()
+  local previous=self.state
   local next, effect=policy.transition(self.state,{kind='request',identity=observed,pending=pending})
   self.state=next
   if effect=='refuse' then return {ok=false,error=next.reason or 'review activation in progress'} end
   if effect=='toggle' then
     self.legacy=false
+    self:publish()
     return {ok=true,same=true,context=self:context(),identity=observed}
   end
   local oldbuf=self.buf
@@ -148,7 +150,16 @@ function C:request(req)
     self:publish()
   end)
   if not ok then
-    self.state=policy.transition(self.state,{kind='failed',reason=tostring(err)})
+    -- Activation changes editor state only. Restore the prior buffer and owner
+    -- if setup fails; its watcher remains guarded against the changed branch.
+    if self.buf and self.opts.stop then pcall(self.opts.stop,self.buf) end
+    self.buf=oldbuf
+    self.state=policy.transition(previous,{kind='failed',reason=tostring(err)})
+    if oldbuf and vim.api.nvim_buf_is_valid(oldbuf) then
+      pcall(vim.api.nvim_set_current_buf,oldbuf)
+      if self.opts.start then pcall(self.opts.start,oldbuf,vim.api.nvim_buf_get_name(oldbuf),previous.identity) end
+    end
+    pcall(self.publish,self)
     return {ok=false,error=tostring(err)}
   end
   return {ok=true,same=false,context=self:context(),identity=observed}

@@ -263,3 +263,6 @@ proof; record the surprising case so the next change starts from evidence.
 - When acceptance changes a return destination, retain separate assertions for
   submission routing: a reordered fixture alone proves nothing unless the host
   checks the target of both body delivery and submit. (#340 BR-1)
+
+- Exit-time recovery must be proven through orderly process exit and a new-process restore. Swap and undo may disappear on normal quit; they are not evidence of durable unsaved text. (#341 PQ-1)
+- Branch restoration needs an explicit-selection exception before history identifies a file. An empty first human round advances HEAD without supplying that identity; preserve the authenticated active selection while still rejecting stale caches. (#341)

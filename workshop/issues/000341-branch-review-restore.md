@@ -36,7 +36,7 @@ Define behavior for missing or ambiguous branch-to-document identity and for non
 
 ## Plan
 
-- [ ] Design branch-to-document resolution and safe pane/pending-round transitions.
+- [x] Design branch-to-document resolution and safe pane/pending-round transitions.
 - [ ] Implement restoration with regression coverage and update the review-workbench atlas.
 
 ## Estimate
@@ -80,3 +80,7 @@ Operator approved execution. Plan-quality rounds PQ-1/PQ-2 required concrete dur
 ## Revisions
 
 2026-09-28 — Expanded the initial two-step outline into a durable full-flow plan after discovering cross-process activation, unscoped handoffs, and unsafe exit-save behavior. The original Spec and Done when remain the contract; proposed edge-case behavior and verification live in the linked plan pending operator approval.
+
+### 2026-09-28 — implementation checkpoint
+
+Implemented bounded Git identity/receipts, pane-owned RPC activation, async Alt+C resolution, scoped record/definition/landed context, bounded atomic recovery, and producer contract guards. Linked ariadne#268 closed with SHIP on `5484941c591c` (not yet published). Review documentation updated. Baselines and current targeted verification: package race tests, Lua suite, full `make test-review`, and real draft + review process A → B → A restoration passed. Tests prove old activation handoffs are preserved, modified buffers refuse switching, completed rounds unblock, and mismatched exit snapshots recover in a new process without touching the wrong checkout. Three source mutations (resolver bypass, pending guard bypass, handoff admission bypass) each failed the production-path end-to-end assertion; originals restored from byte copies. Fresh-session launcher and peer explicit-selection regressions are being completed before final full verification and SDLC boundary review.
