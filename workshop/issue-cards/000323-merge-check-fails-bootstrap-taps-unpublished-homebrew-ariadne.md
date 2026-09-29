@@ -1,11 +1,19 @@
 ---
 id: 000323
-status: working
+status: codecomplete
 started: 2026-09-24T20:13:00-07:00
 created: 2026-09-24
-updated: 2026-09-24
+updated: 2026-09-29
 estimate_hours:
 github_issue:
+actual_hours: 0.23
+tracker:
+    version: 1
+    completion:
+        token: close-a0d3e5608cc9
+        repository: github.com/xianxu/pair
+        reviewed_head: a5167cf17eaa23101836522d2f71742f85757996
+        evidence_commit: 304747b12c159825fafb5a423f94507a82cc8cdc
 ---
 
 # merge-check fails: bootstrap taps unpublished homebrew-ariadne
