@@ -576,7 +576,7 @@ func runCreate(opts LaunchOptions, env Env, rt Runtime, live []Session, decision
 	// offers to reuse its args / resume its session, unless an explicit resume
 	// token on argv already made the choice.
 	if !opts.SkipConfigPicker && !opts.Args.ResumeRequired && !opts.Args.FreshRequired && opts.ContinueCheckpoint.Version == 0 {
-		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, env.Cwd, stderr); !ok {
+		if code, ok := runConfigPicker(rt, configPath, savedForPicker, agent, chosenTag, &agentArgs, stderr); !ok {
 			return launchStep{code: code}, nil
 		}
 	}
@@ -947,7 +947,7 @@ func promptForTag(rt Runtime, prefill string, compose func(string) string, base 
 // the resolved launch vector. ok=false means abort with the returned exit code.
 // When no saved config applies (absent, or an explicit resume already chose),
 // it is a no-op that returns ok=true.
-func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, chosenTag string, agentArgs *[]string, cwd string, stderr io.Writer) (code int, ok bool) {
+func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, chosenTag string, agentArgs *[]string, stderr io.Writer) (code int, ok bool) {
 	if extractExplicitResume(agent, *agentArgs) != "" {
 		return 0, true // argv already pinned a resume — nothing to offer.
 	}
@@ -958,11 +958,6 @@ func runConfigPicker(rt Runtime, configPath string, saved savedConfig, agent, ch
 	savedSessionID := saved.SessionID
 	// saved.SessionID comes from the durable resume target, not native parsing.
 	hasResumable := savedSessionID != ""
-	var quarantine bool
-	saved, quarantine = decideAutomaticResumeConfig(agent, saved, hasResumable)
-	if quarantine {
-		rt.Remove(configPath)
-	}
 	savedArgsClean := persistedConfigArgs(agent, saved.Args)
 	choices := buildConfigChoices(hasResumable, savedArgsClean, *agentArgs, saved.SessionID)
 

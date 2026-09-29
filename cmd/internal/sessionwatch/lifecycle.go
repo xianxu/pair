@@ -204,7 +204,7 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 	var err error
 	if input.ConfirmationReason != "" {
 		confirmer, ok := store.(interface {
-			ConfirmIfCurrent(string, sessionledger.Owner, uint64, string, string, *sessionledger.AuthorizationProof) (sessionledger.Record, error)
+			ConfirmIfCurrent(string, sessionledger.Owner, uint64, string, sessionledger.ConfirmationReason, *sessionledger.AuthorizationProof) (sessionledger.Record, error)
 		})
 		if !ok {
 			return resolved, errors.New("ledger does not support confirmation")

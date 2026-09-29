@@ -124,7 +124,7 @@ func (s LedgerStore) AppendBindingProofIfCurrent(path string, owner Owner, launc
 
 // ConfirmIfCurrent records current-launch evidence without letting competing
 // observers overwrite a confirmed identity. The same root is idempotent.
-func (s LedgerStore) ConfirmIfCurrent(path string, owner Owner, launchOrdinal uint64, nativeID, reason string, proof *AuthorizationProof) (Record, error) {
+func (s LedgerStore) ConfirmIfCurrent(path string, owner Owner, launchOrdinal uint64, nativeID string, reason ConfirmationReason, proof *AuthorizationProof) (Record, error) {
 	record := Record{Version: 3, Kind: RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: launchOrdinal, RootNativeID: nativeID, ConfirmationReason: reason, AuthorizationProof: proof}
 	encoded, err := EncodeRecord(record)
 	if err != nil {

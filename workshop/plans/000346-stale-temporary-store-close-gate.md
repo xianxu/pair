@@ -57,6 +57,59 @@ rounds:
       boundary: M1
       recipe: milestone-review
       blocked: false
+    - "n": 3
+      timestamp: "2026-09-29T11:11:01-07:00"
+      agent: claude
+      findings:
+        - id: BR-5
+          severity: Important
+          title: Unmaterialized Pair-chosen session ID is returned as a resume target
+          detail: QueryResumeTarget (query.go:449) returns a chosen-id RequestedNativeID as Provisional before any native file exists, and createflow.go:960 dropped the AgentSessionExists check and fresh fallback. A fresh Claude/Qoder thread quit before its first message gets resumed with --resume X for a conversation that does not exist. Admit an unconfirmed chosen-id only after a metadata-only filename check; otherwise start fresh. Add a production-boundary test.
+          family: unconfirmed-identity-admitted-as-resumable
+          round: 3
+        - id: BR-6
+          severity: Important
+          title: session-repair re-implements binding resolution instead of reusing ResolveBindings
+          detail: recover.go:87 requires exactly one root across the union of all rounds, while the live watcher uses ResolveBindings (authorized filter plus per-group intersection). The two rules diverge, e.g. groups {D} and {D,E}. Call ResolveBindings and accept a unique Provisional root.
+          family: correlation-rule-single-source
+          round: 3
+        - id: BR-7
+          severity: Important
+          title: pair session-repair operator CLI is missing from README
+          detail: '2nd finding in this family. Rule: every dispatcher family an operator is expected to run must appear in README or be explicitly marked internal. Enforce it with a test walking dispatcher.Families() against README with an internal allowlist, not a one-off line.'
+          family: readme-surface-gap
+          round: 3
+        - id: BR-8
+          severity: Minor
+          title: Watcher legacy proof migration also fires for v3 bindings that have no proof
+          detail: run.go:101 lacks the Version < 3 guard that QuerySession has. On watcher restart it parses the native body, appends a v2 row that hides ConfirmationReason, and skips Codex lifecycle following.
+          family: legacy-path-version-guard
+          round: 3
+        - id: BR-9
+          severity: Minor
+          title: decideAutomaticResumeConfig quarantine can no longer trigger
+          detail: hasResumable is now always true when a session ID is set, so the Codex quarantine branch is dead.
+          family: dead-code-after-policy-change
+          round: 3
+        - id: BR-10
+          severity: Minor
+          title: ConfirmationReason is untyped string literals, unlike RequestOrigin
+          family: typed-enum-for-persisted-vocabulary
+          round: 3
+        - id: BR-11
+          severity: Minor
+          title: requested_native_id is not shape-validated before becoming a --resume argv value
+          family: untrusted-id-to-argv
+          round: 3
+        - id: BR-12
+          severity: Minor
+          title: Watcher in-memory phases are separate fields rather than a tagged state enum
+          detail: observationEpoch, boundRootNodeID and trackedTargets together encode unknown-baseline, epoch, handshake, correlation, confirmed and lifecycle phases without a written transition set (ARCH-ORDER).
+          family: implicit-watcher-state
+          round: 3
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#346 (boundary-review)
@@ -86,6 +139,32 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - BR-3 — addressed — gccmd/run.go now lists stores via InspectRegistry with unavailable markers plus restore/remount/forget guidance; TestMissingStorePreviewExplainsRecovery pins it (the list was hidden before, so it would have failed).
 - BR-4 — addressed — Deliberately kept conservative; rationale documented in the UnregisterStore comment (stores.go ~181) and the issue Log. It is safe and the explicit abandonment path covers missing stores.
 
+## Round 3 — 2026-09-29T11:11:01-07:00 (claude) — BLOCKED
+
+### Raised
+
+- **BR-5** [Important] `unconfirmed-identity-admitted-as-resumable` Unmaterialized Pair-chosen session ID is returned as a resume target
+  QueryResumeTarget (query.go:449) returns a chosen-id RequestedNativeID as Provisional before any native file exists, and createflow.go:960 dropped the AgentSessionExists check and fresh fallback. A fresh Claude/Qoder thread quit before its first message gets resumed with --resume X for a conversation that does not exist. Admit an unconfirmed chosen-id only after a metadata-only filename check; otherwise start fresh. Add a production-boundary test.
+- **BR-6** [Important] `correlation-rule-single-source` session-repair re-implements binding resolution instead of reusing ResolveBindings
+  recover.go:87 requires exactly one root across the union of all rounds, while the live watcher uses ResolveBindings (authorized filter plus per-group intersection). The two rules diverge, e.g. groups {D} and {D,E}. Call ResolveBindings and accept a unique Provisional root.
+- **BR-7** [Important] `readme-surface-gap` pair session-repair operator CLI is missing from README
+  2nd finding in this family. Rule: every dispatcher family an operator is expected to run must appear in README or be explicitly marked internal. Enforce it with a test walking dispatcher.Families() against README with an internal allowlist, not a one-off line.
+- **BR-8** [Minor] `legacy-path-version-guard` Watcher legacy proof migration also fires for v3 bindings that have no proof
+  run.go:101 lacks the Version < 3 guard that QuerySession has. On watcher restart it parses the native body, appends a v2 row that hides ConfirmationReason, and skips Codex lifecycle following.
+- **BR-9** [Minor] `dead-code-after-policy-change` decideAutomaticResumeConfig quarantine can no longer trigger
+  hasResumable is now always true when a session ID is set, so the Codex quarantine branch is dead.
+- **BR-10** [Minor] `typed-enum-for-persisted-vocabulary` ConfirmationReason is untyped string literals, unlike RequestOrigin
+- **BR-11** [Minor] `untrusted-id-to-argv` requested_native_id is not shape-validated before becoming a --resume argv value
+- **BR-12** [Minor] `implicit-watcher-state` Watcher in-memory phases are separate fields rather than a tagged state enum
+  observationEpoch, boundRootNodeID and trackedTargets together encode unknown-baseline, epoch, handshake, correlation, confirmed and lifecycle phases without a written transition set (ARCH-ORDER).
+
 ## Open findings
 
-(none — every finding has been disposed)
+- **BR-5** [Important] `unconfirmed-identity-admitted-as-resumable` Unmaterialized Pair-chosen session ID is returned as a resume target
+- **BR-6** [Important] `correlation-rule-single-source` session-repair re-implements binding resolution instead of reusing ResolveBindings
+- **BR-7** [Important] `readme-surface-gap` pair session-repair operator CLI is missing from README
+- **BR-8** [Minor] `legacy-path-version-guard` Watcher legacy proof migration also fires for v3 bindings that have no proof
+- **BR-9** [Minor] `dead-code-after-policy-change` decideAutomaticResumeConfig quarantine can no longer trigger
+- **BR-10** [Minor] `typed-enum-for-persisted-vocabulary` ConfirmationReason is untyped string literals, unlike RequestOrigin
+- **BR-11** [Minor] `untrusted-id-to-argv` requested_native_id is not shape-validated before becoming a --resume argv value
+- **BR-12** [Minor] `implicit-watcher-state` Watcher in-memory phases are separate fields rather than a tagged state enum

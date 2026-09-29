@@ -104,7 +104,7 @@ func repairFixture(t *testing.T, duplicate bool) (RecoveryOptions, repairRuntime
 
 type supersedingRepairStore struct{ sessionledger.LedgerStore }
 
-func (s supersedingRepairStore) ConfirmIfCurrent(path string, owner sessionledger.Owner, ordinal uint64, id, reason string, proof *sessionledger.AuthorizationProof) (sessionledger.Record, error) {
+func (s supersedingRepairStore) ConfirmIfCurrent(path string, owner sessionledger.Owner, ordinal uint64, id string, reason sessionledger.ConfirmationReason, proof *sessionledger.AuthorizationProof) (sessionledger.Record, error) {
 	_, err := s.Append(path, sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, BaselineComplete: true})
 	if err != nil {
 		return sessionledger.Record{}, err
@@ -157,7 +157,7 @@ func TestRepairDoesNotUseAnotherOwnersLaunch(t *testing.T) {
 
 type uncertainRepairStore struct{ sessionledger.LedgerStore }
 
-func (s uncertainRepairStore) ConfirmIfCurrent(path string, owner sessionledger.Owner, ordinal uint64, id, reason string, proof *sessionledger.AuthorizationProof) (sessionledger.Record, error) {
+func (s uncertainRepairStore) ConfirmIfCurrent(path string, owner sessionledger.Owner, ordinal uint64, id string, reason sessionledger.ConfirmationReason, proof *sessionledger.AuthorizationProof) (sessionledger.Record, error) {
 	record, err := s.LedgerStore.ConfirmIfCurrent(path, owner, ordinal, id, reason, proof)
 	if err != nil {
 		return record, err
@@ -176,5 +176,15 @@ func TestRepairReconcilesUncertainPublicationWithoutDuplicate(t *testing.T) {
 	parsed := sessionledger.ParseLedger(raw)
 	if len(parsed.Records) != 2 {
 		t.Fatalf("duplicate retry: %+v", parsed)
+	}
+}
+
+func TestRepairUsesSameRoundIntersectionAsLiveWatcher(t *testing.T) {
+	owner := sessionledger.Owner{ScopeKey: "scope", Tag: "work", Agent: "codex"}
+	inventory := sessioninventory.Inventory{Forests: []sessioninventory.Forest{{Agent: sessioninventory.AgentCodex, Roots: []sessioninventory.Node{{StableID: "D", NativeID: "D", Role: sessioninventory.RoleRoot, Resumable: true}, {StableID: "E", NativeID: "E", Role: sessioninventory.RoleRoot, Resumable: true}}}}}
+	rounds := []sessioninventory.RoundObservation{{RootNodeID: "D", PairPositions: []uint64{10}}, {RootNodeID: "D", PairPositions: []uint64{20}}, {RootNodeID: "E", PairPositions: []uint64{20}}}
+	root, status := recoveryRoot(inventory, owner, rounds)
+	if root != "D" || status != sessioninventory.BindingProvisional {
+		t.Fatalf("repair diverged from live intersection: root=%q status=%s", root, status)
 	}
 }

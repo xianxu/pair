@@ -164,3 +164,14 @@ Replace archive-on-quit and exactly-once recovery machinery with startup-only co
 ### 2026-09-29T10:41:21-07:00 — M1 review surfaces reconciled
 
 Add RegistryEntry/InspectRegistry to the concept tables and name the shared smoke environment wrapper and README as delivered surfaces. BR-1–3 corrections are tested at production CLI/subprocess boundaries; conservative unregister availability remains documented.
+
+### 2026-09-29 — M2 review corrections
+
+The live watcher and offline repair must share `ResolveBindings`, including its
+per-send candidate intersection, rather than merely share round extraction.
+Restart-marker construction must use the same pure target projection as direct
+queries. The requested UUID is still a probation target, not confirmation; the
+chosen-filename handshake confirms the latter. Review BR-5 proposes changing
+this existing policy for a chosen UUID whose file does not yet exist; operator
+preference has been requested, and no additional filename admission gate is
+introduced while that policy question remains unresolved.

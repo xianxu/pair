@@ -712,6 +712,10 @@ pair keys                        # in-session keybindings (what Alt+h shows)
 pair notify "review ready"      # send an attention message through the live wrapper
 pair notify --osc 9 "ready"     # legacy selector accepted; output is canonical
 pair session-inventory          # stable native forests + Pair binding status
+pair session-repair codex <tag> --scope-key <scope>
+                                 # preview recovery in the selected PAIR_DATA_DIR
+pair session-repair codex <tag> --scope-key <scope> --apply
+                                 # commit a uniquely correlated current-launch UUID
 pair session-inventory --json   # schema-v1 JSON for agents/tools
 pair session-inventory --scope all --json
                                  # include every Pair repo scope
@@ -721,13 +725,23 @@ pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
 
-Session inventory reports `provisional` until Pair observes one exact operator
-turn followed by native assistant/tool/error progress. Only then is the native
-root `established` and resumable. Repeated candidate rounds remain `ambiguous`;
-timestamps and “newest file” never choose a winner. Conformance output contains
-only agent names, status, counts, and diagnostic codes—no transcript content,
-native IDs, cwd, or home paths. Exit `0` includes partial/absent-storage results,
-`1` is invalid usage, and `2` is a fatal scan, privacy, or render failure.
+A recorded resume UUID remains usable under probation while Pair observes which
+conversation the current launch actually uses. Confirmation uses current Pair
+input followed by native assistant/tool/error progress, or a newly created root
+filename for a Pair-chosen UUID. Ambiguous evidence and silence do not erase the
+requested target. Filesystem device changes, cache loss and optional parsing
+failures do not block a recorded target.
+
+`pair session-repair` previews saved current-launch evidence without writes.
+Set `PAIR_DATA_DIR` to the selected scoped directory and pass its exact scope key,
+agent and tag. Add `--apply` only to publish a unique correlation; repair preserves
+saved agent arguments and does not need a live agent PID. Missing or ambiguous
+evidence is reported without selecting a newest file.
+
+Diagnostic inventory conformance contains only agent names, status, counts and
+codes—no transcript content, native IDs, cwd or home paths. Exit `0` includes
+partial/absent-storage results, `1` is invalid usage, and `2` is a fatal scan,
+privacy or render failure.
 
 Provider or scanner changes should run `make
 test-session-inventory-conformance`. This opt-in developer check verifies the

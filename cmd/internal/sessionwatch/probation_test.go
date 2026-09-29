@@ -146,3 +146,53 @@ func TestResumeExistingRootConfirmsOnlyAppendedExchange(t *testing.T) {
 		t.Fatalf("err=%v records=%+v", err, rt.store.records)
 	}
 }
+
+func TestRestartedV3ProoflessWatcherPreservesConfirmationAndFollowsLifecycle(t *testing.T) {
+	native := sessioninventorytest.NewFakeRuntime()
+	native.AddRoot(sessioninventory.StorageRoot{Agent: sessioninventory.AgentCodex, Name: "codex-sessions"})
+	const sid = "019eff64-6ceb-7e72-9d41-a735a97029ac"
+	artifact := sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/28/rollout-test-" + sid + ".jsonl", Kind: sessioninventory.ArtifactTranscript}
+	native.PutFile(sessioninventory.FileEntry{Artifact: artifact, StableFileID: "file", GenerationToken: "gen", MutationToken: "before"}, codexLifecycleRound(sid, "old", "old input"))
+	dataDir := t.TempDir()
+	paths := mustScopedPaths(t, dataDir, "work")
+	rt := newWatcherRuntime(native)
+	launch := mustLaunchRecord(t, sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: sid, RequestOrigin: sessionledger.RequestOriginResume, BaselineComplete: true})
+	binding := mustLaunchRecord(t, sessionledger.Record{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 1, RootNativeID: sid, ConfirmationReason: "chosen-id"})
+	rt.files[paths.Ledger()] = append(launch, binding...)
+	rt.files[paths.AgentPID()] = []byte("1234")
+	rt.modTimes[paths.AgentPID()] = rt.now
+	rt.identities["1234"] = "owned"
+	sleeps := 0
+	rt.onSleep = func() {
+		sleeps++
+		if sleeps == 1 {
+			native.AppendFile(artifact, []byte(`{"timestamp":"2026-08-28T02:00:00Z","type":"event_msg","payload":{"type":"task_started","turn_id":"new"}}`+"\n"+`{"timestamp":"2026-08-28T02:00:01Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"new"}}`+"\n"), "after")
+		} else {
+			rt.identities["1234"] = "gone"
+		}
+	}
+	var lifecycle []LifecycleRecord
+	err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir, Poll: time.Millisecond, FollowLifecycle: true, AppendLifecycle: func(_ string, r LifecycleRecord) error { lifecycle = append(lifecycle, r); return nil }}, rt)
+	if err != nil || len(rt.store.records) != 0 || len(lifecycle) != 2 {
+		t.Fatalf("err=%v ledger writes=%+v lifecycle=%+v", err, rt.store.records, lifecycle)
+	}
+}
+
+func TestChosenProbationUsesOneMetadataSnapshotPerPoll(t *testing.T) {
+	native := sessioninventorytest.NewFakeRuntime()
+	native.AddRoot(sessioninventory.StorageRoot{Agent: sessioninventory.AgentClaude, Name: "claude-projects"})
+	dataDir := t.TempDir()
+	paths := mustScopedPaths(t, dataDir, "work")
+	rt := newWatcherRuntime(native)
+	rt.files[paths.Ledger()] = mustLaunchRecord(t, sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "claude", RequestedNativeID: "11111111-1111-4111-8111-111111111111", RequestOrigin: sessionledger.RequestOriginChosen, BaselineComplete: true})
+	rt.files[paths.AgentPID()] = []byte("1234")
+	rt.modTimes[paths.AgentPID()] = rt.now
+	rt.identities["1234"] = "owned"
+	rt.onSleep = func() { rt.identities["1234"] = "gone" }
+	if err := Run(Options{Agent: "claude", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, DataDir: dataDir, Poll: time.Millisecond}, rt); err != nil {
+		t.Fatal(err)
+	}
+	if got := native.OperationCount(sessioninventorytest.OperationListFiles, "claude-projects"); got != 1 {
+		t.Fatalf("metadata scans per poll=%d want1", got)
+	}
+}

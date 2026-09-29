@@ -72,3 +72,17 @@ func TestConfirmedEffectCannotWriteAfterNewLaunch(t *testing.T) {
 		t.Fatalf("stale effect ran: %v %v", called, err)
 	}
 }
+
+func TestRequestedNativeIDIsSafeAsOpaqueArgvValue(t *testing.T) {
+	for _, id := range []string{"--help", "-unsafe", "bad\x00id"} {
+		_, err := EncodeRecord(Record{Version: 3, Kind: RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: id, RequestOrigin: RequestOriginResume, BaselineComplete: true})
+		if err == nil {
+			t.Fatalf("unsafe requested id accepted: %q", id)
+		}
+	}
+	for _, id := range []string{"opaque/conversation:v2", "future-format_42"} {
+		if _, err := EncodeRecord(Record{Version: 3, Kind: RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: id, RequestOrigin: RequestOriginResume, BaselineComplete: true}); err != nil {
+			t.Fatalf("opaque safe id rejected: %v", err)
+		}
+	}
+}

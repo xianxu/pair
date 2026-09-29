@@ -108,7 +108,7 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 	if current.Binding.AuthorizationProof != nil {
 		validation, diagnostics, err = incremental.ValidateBindingProof(agent, *current.Binding.AuthorizationProof)
 	} else {
-		validation, diagnostics, err = incremental.validateNamedContent(agent, current.Binding.RootNativeID)
+		validation, diagnostics, err = incremental.ValidateNamedContent(agent, current.Binding.RootNativeID)
 	}
 	if contextErr := ctx.Err(); contextErr != nil {
 		return SessionQuery{}, contextErr
@@ -435,12 +435,18 @@ func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, ta
 	if err != nil || !ok {
 		return result, err
 	}
-	result.Status = BindingProvisional
-	result.LaunchOrdinal = current.Launch.Ordinal
-	result.RequestedNativeID = current.Launch.RequestedNativeID
+	result = ResumeTargetForLaunch(current)
+	result.Diagnostics = diagnostics
+	return result, nil
+}
+
+// ResumeTargetForLaunch is the pure shared identity projection for launchers,
+// restarts and owner queries. Parser/cache state does not enter this decision.
+func ResumeTargetForLaunch(current sessionledger.Current) ResumeTarget {
+	result := ResumeTarget{Status: BindingProvisional, LaunchOrdinal: current.Launch.Ordinal, RequestedNativeID: current.Launch.RequestedNativeID}
 	if current.Conflict {
 		result.Status = BindingAmbiguous
-		return result, nil
+		return result
 	}
 	if current.Binding != nil {
 		result.Status = BindingEstablished
@@ -448,12 +454,12 @@ func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, ta
 	} else {
 		result.NativeID = current.Launch.RequestedNativeID
 	}
-	return result, nil
+	return result
 }
 
-// validateNamedContent supplies optional telemetry for filename-handshake
+// ValidateNamedContent supplies optional telemetry for filename-handshake
 // confirmations. Catalog proof reuse is an optimization, never resume authority.
-func (inventory IncrementalInventory) validateNamedContent(agent Agent, nativeID string) (TargetValidation, []Diagnostic, error) {
+func (inventory IncrementalInventory) ValidateNamedContent(agent Agent, nativeID string) (TargetValidation, []Diagnostic, error) {
 	for _, entry := range inventory.catalog.Entries {
 		state, err := DecodeScannerState(entry.ScannerState)
 		if err != nil || entry.Agent != agent || entry.Authorization != AuthorizationAuthorized || state.NativeID != nativeID || state.Role != RoleRoot {

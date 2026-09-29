@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/xianxu/pair/cmd/internal/strictjson"
@@ -17,6 +18,13 @@ type RequestOrigin string
 const (
 	RequestOriginResume RequestOrigin = "resume"
 	RequestOriginChosen RequestOrigin = "chosen-id"
+)
+
+type ConfirmationReason string
+
+const (
+	ConfirmationCorrelation ConfirmationReason = "correlation"
+	ConfirmationChosen      ConfirmationReason = "chosen-id"
 )
 
 type RecordKind string
@@ -82,7 +90,7 @@ type LedgerRecord struct {
 	RequestedNativeID        string
 	RequestOrigin            RequestOrigin
 	BaselineComplete         bool
-	ConfirmationReason       string
+	ConfirmationReason       ConfirmationReason
 	Ordinal                  uint64
 	Version                  int
 	Kind                     RecordKind
@@ -122,7 +130,7 @@ type wireRecord struct {
 	RequestedNativeID  string                    `json:"requested_native_id,omitempty"`
 	RequestOrigin      RequestOrigin             `json:"request_origin,omitempty"`
 	BaselineComplete   *bool                     `json:"baseline_complete,omitempty"`
-	ConfirmationReason string                    `json:"confirmation_reason,omitempty"`
+	ConfirmationReason ConfirmationReason        `json:"confirmation_reason,omitempty"`
 	Version            int                       `json:"v"`
 	Kind               RecordKind                `json:"kind"`
 	ScopeKey           string                    `json:"scope_key"`
@@ -212,7 +220,7 @@ type decodeWireRecord struct {
 	RequestedNativeID  strictField[string]                         `json:"requested_native_id"`
 	RequestOrigin      strictField[RequestOrigin]                  `json:"request_origin"`
 	BaselineComplete   strictField[bool]                           `json:"baseline_complete"`
-	ConfirmationReason strictField[string]                         `json:"confirmation_reason"`
+	ConfirmationReason strictField[ConfirmationReason]             `json:"confirmation_reason"`
 	Version            strictField[int]                            `json:"v"`
 	Kind               strictField[RecordKind]                     `json:"kind"`
 	ScopeKey           strictField[string]                         `json:"scope_key"`
@@ -396,6 +404,9 @@ func validateRecord(record Record) error {
 		if record.ConfirmationReason != "" {
 			return errors.New("launch carries confirmation reason")
 		}
+		if strings.HasPrefix(record.RequestedNativeID, "-") || strings.IndexByte(record.RequestedNativeID, 0) >= 0 {
+			return errors.New("requested identity is unsafe as an argv value")
+		}
 		if (record.RequestedNativeID == "") != (record.RequestOrigin == "") || (record.RequestOrigin != "" && record.RequestOrigin != RequestOriginResume && record.RequestOrigin != RequestOriginChosen) {
 			return errors.New("invalid requested identity origin")
 		}
@@ -420,7 +431,7 @@ func validateRecord(record Record) error {
 		if record.RequestedNativeID != "" || record.RequestOrigin != "" || record.BaselineComplete {
 			return errors.New("binding carries request fields")
 		}
-		if record.Version == 3 && record.ConfirmationReason != "correlation" && record.ConfirmationReason != "chosen-id" {
+		if record.Version == 3 && record.ConfirmationReason != ConfirmationCorrelation && record.ConfirmationReason != ConfirmationChosen {
 			return errors.New("invalid confirmation reason")
 		}
 		if record.LaunchOrdinal == 0 || record.RootNativeID == "" || record.PairLogOffset != 0 || len(record.NativeWatermarks) != 0 || len(record.LaunchArtifactBoundaries) != 0 {

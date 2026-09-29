@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/xianxu/pair/cmd/internal/sessioninventory"
 	"github.com/xianxu/pair/cmd/internal/sessionledger"
 )
 
@@ -64,9 +65,7 @@ func ParseLedger(raw string) []LedgerEntry {
 			continue
 		}
 		entry := LedgerEntry{Agent: owner.Agent, Typed: true, SourceOrdinal: current.Launch.Ordinal}
-		if current.Binding != nil {
-			entry.SessionID = current.Binding.RootNativeID
-		}
+		entry.SessionID = sessioninventory.ResumeTargetForLaunch(current).NativeID
 		entries = append(entries, MergeAuthorityMetadata(entry, entries))
 	}
 	return entries

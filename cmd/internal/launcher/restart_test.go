@@ -3,6 +3,7 @@ package launcher
 import (
 	"bytes"
 	"errors"
+	"github.com/xianxu/pair/cmd/internal/sessionledger"
 	"strings"
 	"testing"
 )
@@ -195,5 +196,27 @@ func TestRunRestartRefusesACouchOwnedSessionBeforeMutation(t *testing.T) {
 				t.Fatalf("mutated before refusing: markers=%v quit=%v killed=%v", rt.writtenMarkers, rt.touchedQuit, rt.killed)
 			}
 		})
+	}
+}
+
+func TestRunRestartPreservesRequestedProbationFromRealLedger(t *testing.T) {
+	rt := newFakeRuntime()
+	rt.inferAgent["work"] = "codex"
+	launch, err := sessionledger.EncodeRecord(sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: "scope", Tag: "work", Agent: "codex", RequestedNativeID: "requested-A", RequestOrigin: sessionledger.RequestOriginResume, BaselineComplete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt.ledger["work"] = ParseLedger(string(launch) + "\n")
+	var stderr strings.Builder
+	if code := runRestart(rt, LaunchArgs{}, "📁work", "work", false, &stderr); code != 0 {
+		t.Fatalf("restart=%d: %s", code, stderr.String())
+	}
+	marker := rt.writtenMarkers["📁work"]
+	if marker.SessionID != "requested-A" {
+		t.Fatalf("probation lost at restart: %+v", marker)
+	}
+	plan := planRestart(marker, "work", "codex", savedConfig{Agent: "codex", Args: []string{"--search"}})
+	if got := strings.Join(plan.Args.AgentArgs, " "); got != "resume requested-A --search" || plan.DropConfig {
+		t.Fatalf("restart plan = %+v", plan)
 	}
 }

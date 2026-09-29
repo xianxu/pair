@@ -33,7 +33,7 @@ type RecoveryResult struct {
 }
 
 type RecoveryConfirmer interface {
-	ConfirmIfCurrent(string, sessionledger.Owner, uint64, string, string, *sessionledger.AuthorizationProof) (sessionledger.Record, error)
+	ConfirmIfCurrent(string, sessionledger.Owner, uint64, string, sessionledger.ConfirmationReason, *sessionledger.AuthorizationProof) (sessionledger.Record, error)
 }
 
 // Recover previews a current-launch correlation without touching config or
@@ -80,21 +80,14 @@ func Recover(opts RecoveryOptions, rt Runtime, store RecoveryConfirmer) (Recover
 	result.Diagnostics = append(result.Diagnostics, diagnostics...)
 	rounds, diagnostics := sessioninventory.RoundsAfterLaunch(inventory, opts.ScopeKey, opts.Tag, sessioninventory.Agent(opts.Agent), log, current.Launch, events)
 	result.Diagnostics = append(result.Diagnostics, diagnostics...)
-	roots := map[string]bool{}
-	for _, round := range rounds {
-		roots[round.RootNodeID] = true
-	}
-	if len(roots) != 1 {
+	root, status := recoveryRoot(inventory, owner, rounds)
+	if root == "" {
 		result.Status = "unresolved"
 		result.Reason = "no unique current-launch correlation"
-		if len(roots) > 1 {
+		if status == sessioninventory.BindingAmbiguous {
 			result.Status = "ambiguous"
 		}
 		return result, nil
-	}
-	var root string
-	for id := range roots {
-		root = id
 	}
 	proof, ok := proofs[root]
 	if !ok {
@@ -108,7 +101,7 @@ func Recover(opts RecoveryOptions, rt Runtime, store RecoveryConfirmer) (Recover
 	if !opts.Apply {
 		return result, nil
 	}
-	record, err := store.ConfirmIfCurrent(paths.Ledger(), owner, current.Launch.Ordinal, proof.RootNativeID, "correlation", &proof)
+	record, err := store.ConfirmIfCurrent(paths.Ledger(), owner, current.Launch.Ordinal, proof.RootNativeID, sessionledger.ConfirmationCorrelation, &proof)
 	if appender, ok := store.(LedgerAppender); ok {
 		err = reconcileLedgerAppend(appender, paths.Ledger(), record, err)
 	}
@@ -185,4 +178,16 @@ func RunRepairCLI(args []string, getenv func(string) string, stdout, stderr io.W
 		return 1
 	}
 	return 0
+}
+
+func recoveryRoot(inventory sessioninventory.Inventory, owner sessionledger.Owner, rounds []sessioninventory.RoundObservation) (string, sessioninventory.BindingStatus) {
+	resolved := sessioninventory.ResolveBindings(inventory, []sessioninventory.BindingInput{{ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: sessioninventory.Agent(owner.Agent), LaunchPresent: true, LiveRounds: rounds}})
+	if len(resolved.Bindings) != 1 {
+		return "", sessioninventory.BindingUnbound
+	}
+	binding := resolved.Bindings[0]
+	if binding.Status == sessioninventory.BindingProvisional && binding.RootNodeID != nil {
+		return *binding.RootNodeID, binding.Status
+	}
+	return "", binding.Status
 }

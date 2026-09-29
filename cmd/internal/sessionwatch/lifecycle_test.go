@@ -296,7 +296,7 @@ func equalWatermarks(left, right []sessionledger.NativeWatermark) bool {
 	return true
 }
 
-func (f *fakeLifecycleStore) ConfirmIfCurrent(path string, owner sessionledger.Owner, ordinal uint64, id, reason string, proof *sessionledger.AuthorizationProof) (sessionledger.Record, error) {
+func (f *fakeLifecycleStore) ConfirmIfCurrent(path string, owner sessionledger.Owner, ordinal uint64, id string, reason sessionledger.ConfirmationReason, proof *sessionledger.AuthorizationProof) (sessionledger.Record, error) {
 	if f.stale {
 		return sessionledger.Record{}, sessionledger.ErrStaleLaunch
 	}
