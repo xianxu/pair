@@ -72,7 +72,7 @@ func TestIsolatedSmokeEnvironmentProtectsAmbientRegistry(t *testing.T) {
 	_, source, _, _ := runtime.Caller(0)
 	script := filepath.Join(filepath.Dir(source), "..", "..", "..", "tests", "with-isolated-pair.sh")
 	cmd := exec.Command("sh", script, "env", "PAIR346_ISOLATION_CHILD=1", os.Args[0], "-test.run=^TestIsolatedSmokeListChild$", "-test.v")
-	cmd.Env = append(os.Environ(), "HOME="+operatorHome, "XDG_DATA_HOME="+operatorData, "PAIR_DATA_DIR="+operatorRoot, "COUCH_STORE_DIR="+filepath.Join(operatorRoot, "couch"), "PAIR_LOG_PATH="+filepath.Join(operatorRoot, "poison-log"))
+	cmd.Env = append(os.Environ(), "HOME="+operatorHome, "TMPDIR="+operatorHome+"/", "XDG_DATA_HOME="+operatorData, "PAIR_DATA_DIR="+operatorRoot, "COUCH_STORE_DIR="+filepath.Join(operatorRoot, "couch"), "PAIR_LOG_PATH="+filepath.Join(operatorRoot, "poison-log"))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("isolated child: %v\n%s", err, output)
@@ -89,6 +89,9 @@ func TestIsolatedSmokeEnvironmentProtectsAmbientRegistry(t *testing.T) {
 func TestIsolatedSmokeListChild(t *testing.T) {
 	if os.Getenv("PAIR346_ISOLATION_CHILD") != "1" {
 		t.Skip("subprocess helper")
+	}
+	if temp := os.Getenv("TMPDIR"); temp != filepath.Clean(temp) || !strings.HasPrefix(temp, filepath.Dir(os.Getenv("HOME"))+string(filepath.Separator)) {
+		t.Fatalf("temporary storage is not canonical and isolated: %q", temp)
 	}
 	if os.Getenv("PAIR_LOG_PATH") != "" {
 		t.Fatal("inherited artifact override escaped isolation")

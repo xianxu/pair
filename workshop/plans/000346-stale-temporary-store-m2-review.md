@@ -143,3 +143,118 @@ findings:
     detail: |
       observationEpoch, boundRootNodeID and trackedTargets together encode unknown-baseline, epoch, handshake, correlation, confirmed and lifecycle phases without a written transition set (ARCH-ORDER).
 ```
+
+---
+
+## Re-review — 2026-09-29T11:26:47-07:00 (FIX-THEN-SHIP)
+
+| field | value |
+|-------|-------|
+| issue | 346 — Stale temporary store blocks Couch startup |
+| repo | pair |
+| issue file | workshop/issues/000346-stale-temporary-store.md |
+| boundary | milestone M2 |
+| milestone | M2 |
+| window | 73203fc0d103a8c5a5d9490211a09d6055db9a00..e4d1035b969a874c8d8e2a2c4e83122a37684ec9 |
+| command | sdlc milestone-close --issue 346 --milestone M2 |
+| reviewer | claude |
+| timestamp | 2026-09-29T11:26:47-07:00 |
+| verdict | FIX-THEN-SHIP |
+
+## Review
+
+```verdict
+verdict: FIX-THEN-SHIP
+confidence: high
+```
+
+The fix round handled most of round 3 well. Repair now goes through `ResolveBindings` and has a divergence test. README coverage is enforced by a test that walks `dispatcher.Families()`, so it no longer depends on hand-added lines. The v3 proofless watcher restart is guarded in both places and tested. Confirmation reasons are typed, the dead Codex quarantine code is gone, and requested IDs are checked for argv safety at decode. Two things block SHIP. First, **HEAD fails its own suite**: the README rewrite for BR-7 removed the `provisional`/`established` vocabulary that `TestREADMEDocumentsSessionInventoryContract` requires, so `go test ./cmd/internal/sessioninventory` is red. It is a pure string test, not a sandbox artifact. Second, BR-5 is still open: it is disputed pending an operator decision, and the code still admits an unmaterialized chosen ID. Launcher, wrapcmd and couchcore failures I saw were all sandbox errors (`operation not permitted` on PTY or `/tmp`). The sessionledger, sessionwatch, dispatcher, reviewcmd and opener suites are green.
+
+**1. Strengths**
+- `sessionwatch/recover.go` `recoveryRoot`: repair now delegates to `sessioninventory.ResolveBindings`. `TestRepairUsesSameRoundIntersectionAsLiveWatcher` pins the {D},{D,E} case the previous rule got wrong (ARCH-DRY resolved).
+- `dispatcher/readme_test.go`: it enforces the rule, not the instance. Every family needs README usage or a written internal reason, and stale allowlist entries fail too. This is the right answer to the `readme-surface-gap` escalation.
+- `sessionwatch/run.go`: the `Version < 3` guard sits both at the call site and inside `migrateProoflessBinding`. `validateCurrentLifecycleTarget` lets v3 filename-confirmed bindings still follow Codex lifecycle. `TestRestartedV3ProoflessWatcherPreservesConfirmationAndFollowsLifecycle` asserts zero ledger writes and 2 lifecycle records.
+- `run.go` takes one metadata snapshot per poll, shared by the epoch, handshake and correlation steps. This fixes the round-3 ARCH-CONSTRAINTS minor, and `TestChosenProbationUsesOneMetadataSnapshotPerPoll` pins it.
+- `launcher/ledger.go` `ParseLedger` now uses the shared pure `ResumeTargetForLaunch`. `TestRunRestartPreservesRequestedProbationFromRealLedger` covers the requested-A restart gap the implementor found.
+
+**2. Critical findings**
+None.
+
+**3. Important findings**
+- **The committed HEAD fails `TestREADMEDocumentsSessionInventoryContract`** (`cmd/internal/sessioninventory/runcli_test.go:208-209`, `README.md` around line 728).
+  - The BR-7 rewrite replaced the "reports `provisional` until … `established`" paragraph with probation prose. The status values `pair session-inventory` actually emits are no longer documented.
+  - Fix: restore a sentence naming the `provisional`/`established`/`ambiguous` statuses next to the probation paragraph, then run the full non-sandboxed `make test` before re-closing.
+  - This is not another `readme-surface-gap` instance: the rule is already enforced by a test, and that test caught this. What failed is that the boundary was committed without the suite being run. See the family note below.
+- **BR-5 is still open** (disposition below).
+
+**4. Minor findings**
+- BR-11 was only partly swept. Binding `RootNativeID` also reaches argv through `ResumeTargetForLaunch` → `--resume`, but `validateRecord` checks only `RequestedNativeID`. A hand-edited or older binding row bypasses the check. Apply the same argv-safety predicate to every ledger ID that can become argv, i.e. binding `RootNativeID` too.
+- BR-12: only a comment was added in `run.go:88`. The phases are still implicit fields. Deferring this is acceptable at Minor.
+- The `readme_test.go` substring match `"pair "+name` would accept a prefix collision (e.g. `pair gc` inside `pair gcx`). This is low risk.
+
+**5. Test coverage notes**
+- The new tests assert independently stated outcomes: ledger write counts, lifecycle record counts, argv-safe and unsafe ID sets, and repair/live parity.
+- Missing: a production-boundary test for "chosen ID, no native file → ?". It should pin whichever policy the operator picks for BR-5. Today `wrapcmd/agent_restart_test.go` pins admission implicitly.
+
+**6. Architecture pass**
+
+| Principle | Result |
+| --- | --- |
+| ARCH-DRY | Pass: repair and live share one resolver; restart and query share one target projection |
+| ARCH-PURE | Pass: `ResumeTargetForLaunch` and `recoveryRoot` are pure over their inputs |
+| ARCH-PURPOSE | Pass on the consumer sweep. Flag: BR-11 sibling, and BR-5 is pending |
+| ARCH-MOCK | Pass: the stateful fake native runtime drives the watcher tests |
+| ARCH-CONSTRAINTS | Pass: one snapshot per poll, now tested |
+| ARCH-SECURE | Minor: binding `RootNativeID` is not argv-validated |
+| ARCH-ORDER | Durable state passes (ledger fold under lock). The in-memory watcher phases remain implicit (BR-12, Minor) |
+| ARCH-FUNERAL | Pass: no new artifact families; the v3 fields add a few bytes per row |
+
+For upcoming work, `AgentSessionExists` is still wired (`createflow.go:595`, collision check). The metadata-only gate BR-5 proposes is therefore a one-line reuse whichever policy is chosen.
+
+**7. Plan revision recommendations**
+- Add a `## Revisions` entry recording the operator's decision on unmaterialized chosen-ID admission: either "probation target regardless of file existence" or "requires a named-file metadata check, else fresh". Whichever way it goes, the decision closes BR-5.
+- Record that `session-repair` shares `ResolveBindings` with the live watcher.
+
+```findings
+dispose:
+  - id: BR-5
+    disposition: not-addressed
+    note: |
+      Intentionally unchanged pending operator decision (issue Log 2026-09-29); QueryResumeTarget still admits an unmaterialized chosen-id and runConfigPicker has no existence check. Resolve by recorded operator Revision (then withdraw) or add the metadata-only gate plus a boundary test.
+  - id: BR-6
+    disposition: addressed
+    note: |
+      recover.go recoveryRoot now calls ResolveBindings; TestRepairUsesSameRoundIntersectionAsLiveWatcher pins the {D},{D,E} divergence the union rule got wrong.
+  - id: BR-7
+    disposition: addressed
+    note: |
+      README documents session-repair and dispatcher/readme_test.go enforces the family-level rule with an internal allowlist and stale-entry check.
+  - id: BR-8
+    disposition: addressed
+    note: |
+      Version<3 guard at run.go call site and in migrateProoflessBinding; TestRestartedV3ProoflessWatcherPreservesConfirmationAndFollowsLifecycle asserts no ledger writes and lifecycle followed.
+  - id: BR-9
+    disposition: addressed
+    note: |
+      decideAutomaticResumeConfig and its dead quarantine branch removed along with its test.
+  - id: BR-10
+    disposition: addressed
+    note: |
+      ConfirmationReason is a typed enum validated in validateRecord; all call sites use the constants.
+  - id: BR-11
+    disposition: not-addressed
+    note: |
+      RequestedNativeID is validated, but the sibling binding RootNativeID that also reaches --resume via ResumeTargetForLaunch is not; apply the same argv-safety predicate to every ledger ID that can become argv.
+  - id: BR-12
+    disposition: not-addressed
+    note: |
+      Only a descriptive comment was added at run.go:88; phases remain independent fields. Acceptable to defer as Minor.
+findings:
+  - id: new
+    severity: Important
+    family: full-suite-before-boundary
+    title: |
+      HEAD fails TestREADMEDocumentsSessionInventoryContract after the BR-7 README rewrite
+    detail: |
+      The fix commit replaced the README paragraph naming the provisional/established statuses with probation prose, so go test ./cmd/internal/sessioninventory is red (a pure string check, not the sandbox). Restore the status vocabulary next to the probation paragraph. The rule: every boundary commit runs the full non-sandboxed make test before sdlc milestone-close, because a docs-only-looking edit can break an enforced contract test.
+```

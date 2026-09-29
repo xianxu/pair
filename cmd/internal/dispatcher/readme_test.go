@@ -2,7 +2,7 @@ package dispatcher
 
 import (
 	"os"
-	"strings"
+	"regexp"
 	"testing"
 )
 
@@ -32,7 +32,7 @@ func TestOperatorFamiliesHaveREADMEUsage(t *testing.T) {
 		if internal[family.Name] != "" {
 			continue
 		}
-		if !strings.Contains(string(raw), "pair "+family.Name) {
+		if !regexp.MustCompile(`(?:^|[^[:alnum:]_-])pair ` + regexp.QuoteMeta(family.Name) + `(?:[^[:alnum:]_-]|$)`).Match(raw) {
 			t.Errorf("operator family %q needs README usage or an explicit internal classification", family.Name)
 		}
 	}

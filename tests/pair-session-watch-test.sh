@@ -36,6 +36,6 @@ got="$(jq -r '.session_id // empty' "$RT/data/config-test-codex.json")"
 }
 
 binding="$(tail -n 1 "$RT/data/ledger-test.jsonl")"
-printf '%s' "$binding" | jq -e --arg sid "$sid" '.v == 2 and .kind == "binding" and .launch_ordinal == 1 and .root_native_id == $sid and .authorization_proof.root_native_id == $sid' >/dev/null
+printf '%s' "$binding" | jq -e --arg sid "$sid" '.v == 3 and .confirmation_reason == "correlation" and .kind == "binding" and .launch_ordinal == 1 and .root_native_id == $sid and .authorization_proof.root_native_id == $sid' >/dev/null
 
 echo "pair session-watch causal-round tests PASS"

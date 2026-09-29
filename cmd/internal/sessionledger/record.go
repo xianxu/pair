@@ -404,7 +404,7 @@ func validateRecord(record Record) error {
 		if record.ConfirmationReason != "" {
 			return errors.New("launch carries confirmation reason")
 		}
-		if strings.HasPrefix(record.RequestedNativeID, "-") || strings.IndexByte(record.RequestedNativeID, 0) >= 0 {
+		if !safeNativeArg(record.RequestedNativeID) {
 			return errors.New("requested identity is unsafe as an argv value")
 		}
 		if (record.RequestedNativeID == "") != (record.RequestOrigin == "") || (record.RequestOrigin != "" && record.RequestOrigin != RequestOriginResume && record.RequestOrigin != RequestOriginChosen) {
@@ -434,7 +434,7 @@ func validateRecord(record Record) error {
 		if record.Version == 3 && record.ConfirmationReason != ConfirmationCorrelation && record.ConfirmationReason != ConfirmationChosen {
 			return errors.New("invalid confirmation reason")
 		}
-		if record.LaunchOrdinal == 0 || record.RootNativeID == "" || record.PairLogOffset != 0 || len(record.NativeWatermarks) != 0 || len(record.LaunchArtifactBoundaries) != 0 {
+		if record.LaunchOrdinal == 0 || record.RootNativeID == "" || !safeNativeArg(record.RootNativeID) || record.PairLogOffset != 0 || len(record.NativeWatermarks) != 0 || len(record.LaunchArtifactBoundaries) != 0 {
 			return errors.New("invalid binding fields")
 		}
 		if record.Version == 1 && record.AuthorizationProof != nil {
@@ -598,4 +598,10 @@ func CurrentLaunch(records []Record, owner Owner) (Current, bool) {
 
 func recordOwner(record Record, owner Owner) bool {
 	return record.ScopeKey == owner.ScopeKey && record.Tag == owner.Tag && record.Agent == owner.Agent
+}
+
+// safeNativeArg keeps opaque agent identifiers out of argv option/NUL syntax.
+// Empty is allowed here; each owning field enforces its own presence rule.
+func safeNativeArg(id string) bool {
+	return !strings.HasPrefix(id, "-") && strings.IndexByte(id, 0) < 0
 }

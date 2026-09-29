@@ -86,3 +86,20 @@ func TestRequestedNativeIDIsSafeAsOpaqueArgvValue(t *testing.T) {
 		}
 	}
 }
+
+func TestBindingNativeIDIsSafeAcrossLedgerVersions(t *testing.T) {
+	for _, version := range []int{1, 2, 3} {
+		for _, id := range []string{"--help", "-unsafe", "bad\x00id"} {
+			record := Record{Version: version, Kind: RecordBinding, ScopeKey: "scope", Tag: "work", Agent: "codex", LaunchOrdinal: 1, RootNativeID: id}
+			if version == 2 {
+				record.AuthorizationProof = &AuthorizationProof{Version: 1, RootNativeID: id, ScannerSchema: "codex-v2", ScannerState: json.RawMessage(`{"version":1}`), Artifacts: []ArtifactProof{{StorageRoot: "codex-sessions", RelativePath: "a.jsonl", StableFileID: "stable", MutationToken: "mutation"}}}
+			}
+			if version == 3 {
+				record.ConfirmationReason = ConfirmationCorrelation
+			}
+			if _, err := EncodeRecord(record); err == nil {
+				t.Fatalf("v%d unsafe binding id accepted: %q", version, id)
+			}
+		}
+	}
+}

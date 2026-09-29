@@ -110,6 +110,52 @@ rounds:
       boundary: M2
       recipe: milestone-review
       blocked: true
+    - "n": 4
+      timestamp: "2026-09-29T11:26:47-07:00"
+      agent: claude
+      dispose:
+        - id: BR-5
+          disposition: not-addressed
+          note: Intentionally unchanged pending operator decision (issue Log 2026-09-29); QueryResumeTarget still admits an unmaterialized chosen-id and runConfigPicker has no existence check. Resolve by recorded operator Revision (then withdraw) or add the metadata-only gate plus a boundary test.
+          round: 4
+        - id: BR-6
+          disposition: addressed
+          note: recover.go recoveryRoot now calls ResolveBindings; TestRepairUsesSameRoundIntersectionAsLiveWatcher pins the {D},{D,E} divergence the union rule got wrong.
+          round: 4
+        - id: BR-7
+          disposition: addressed
+          note: README documents session-repair and dispatcher/readme_test.go enforces the family-level rule with an internal allowlist and stale-entry check.
+          round: 4
+        - id: BR-8
+          disposition: addressed
+          note: Version<3 guard at run.go call site and in migrateProoflessBinding; TestRestartedV3ProoflessWatcherPreservesConfirmationAndFollowsLifecycle asserts no ledger writes and lifecycle followed.
+          round: 4
+        - id: BR-9
+          disposition: addressed
+          note: decideAutomaticResumeConfig and its dead quarantine branch removed along with its test.
+          round: 4
+        - id: BR-10
+          disposition: addressed
+          note: ConfirmationReason is a typed enum validated in validateRecord; all call sites use the constants.
+          round: 4
+        - id: BR-11
+          disposition: not-addressed
+          note: RequestedNativeID is validated, but the sibling binding RootNativeID that also reaches --resume via ResumeTargetForLaunch is not; apply the same argv-safety predicate to every ledger ID that can become argv.
+          round: 4
+        - id: BR-12
+          disposition: not-addressed
+          note: Only a descriptive comment was added at run.go:88; phases remain independent fields. Acceptable to defer as Minor.
+          round: 4
+      findings:
+        - id: BR-13
+          severity: Important
+          title: HEAD fails TestREADMEDocumentsSessionInventoryContract after the BR-7 README rewrite
+          detail: 'The fix commit replaced the README paragraph naming the provisional/established statuses with probation prose, so go test ./cmd/internal/sessioninventory is red (a pure string check, not the sandbox). Restore the status vocabulary next to the probation paragraph. The rule: every boundary commit runs the full non-sandboxed make test before sdlc milestone-close, because a docs-only-looking edit can break an enforced contract test.'
+          family: full-suite-before-boundary
+          round: 4
+      boundary: M2
+      recipe: milestone-review
+      blocked: true
 ---
 
 # Gate ledger — pair#346 (boundary-review)
@@ -158,13 +204,27 @@ later rounds disposed of them. Generated — edit the gate, not this file.
 - **BR-12** [Minor] `implicit-watcher-state` Watcher in-memory phases are separate fields rather than a tagged state enum
   observationEpoch, boundRootNodeID and trackedTargets together encode unknown-baseline, epoch, handshake, correlation, confirmed and lifecycle phases without a written transition set (ARCH-ORDER).
 
+## Round 4 — 2026-09-29T11:26:47-07:00 (claude) — BLOCKED
+
+### Disposed
+
+- BR-5 — not-addressed — Intentionally unchanged pending operator decision (issue Log 2026-09-29); QueryResumeTarget still admits an unmaterialized chosen-id and runConfigPicker has no existence check. Resolve by recorded operator Revision (then withdraw) or add the metadata-only gate plus a boundary test.
+- BR-6 — addressed — recover.go recoveryRoot now calls ResolveBindings; TestRepairUsesSameRoundIntersectionAsLiveWatcher pins the {D},{D,E} divergence the union rule got wrong.
+- BR-7 — addressed — README documents session-repair and dispatcher/readme_test.go enforces the family-level rule with an internal allowlist and stale-entry check.
+- BR-8 — addressed — Version<3 guard at run.go call site and in migrateProoflessBinding; TestRestartedV3ProoflessWatcherPreservesConfirmationAndFollowsLifecycle asserts no ledger writes and lifecycle followed.
+- BR-9 — addressed — decideAutomaticResumeConfig and its dead quarantine branch removed along with its test.
+- BR-10 — addressed — ConfirmationReason is a typed enum validated in validateRecord; all call sites use the constants.
+- BR-11 — not-addressed — RequestedNativeID is validated, but the sibling binding RootNativeID that also reaches --resume via ResumeTargetForLaunch is not; apply the same argv-safety predicate to every ledger ID that can become argv.
+- BR-12 — not-addressed — Only a descriptive comment was added at run.go:88; phases remain independent fields. Acceptable to defer as Minor.
+
+### Raised
+
+- **BR-13** [Important] `full-suite-before-boundary` HEAD fails TestREADMEDocumentsSessionInventoryContract after the BR-7 README rewrite
+  The fix commit replaced the README paragraph naming the provisional/established statuses with probation prose, so go test ./cmd/internal/sessioninventory is red (a pure string check, not the sandbox). Restore the status vocabulary next to the probation paragraph. The rule: every boundary commit runs the full non-sandboxed make test before sdlc milestone-close, because a docs-only-looking edit can break an enforced contract test.
+
 ## Open findings
 
 - **BR-5** [Important] `unconfirmed-identity-admitted-as-resumable` Unmaterialized Pair-chosen session ID is returned as a resume target
-- **BR-6** [Important] `correlation-rule-single-source` session-repair re-implements binding resolution instead of reusing ResolveBindings
-- **BR-7** [Important] `readme-surface-gap` pair session-repair operator CLI is missing from README
-- **BR-8** [Minor] `legacy-path-version-guard` Watcher legacy proof migration also fires for v3 bindings that have no proof
-- **BR-9** [Minor] `dead-code-after-policy-change` decideAutomaticResumeConfig quarantine can no longer trigger
-- **BR-10** [Minor] `typed-enum-for-persisted-vocabulary` ConfirmationReason is untyped string literals, unlike RequestOrigin
 - **BR-11** [Minor] `untrusted-id-to-argv` requested_native_id is not shape-validated before becoming a --resume argv value
 - **BR-12** [Minor] `implicit-watcher-state` Watcher in-memory phases are separate fields rather than a tagged state enum
+- **BR-13** [Important] `full-suite-before-boundary` HEAD fails TestREADMEDocumentsSessionInventoryContract after the BR-7 README rewrite

@@ -725,6 +725,9 @@ pair version, --version          # print launcher version metadata
 pair -h, --help                  # show full help
 ```
 
+Inventory uses `provisional` for an unconfirmed association, `established` for
+a confirmed root, and `ambiguous` for conflicting evidence.
+
 A recorded resume UUID remains usable under probation while Pair observes which
 conversation the current launch actually uses. Confirmation uses current Pair
 input followed by native assistant/tool/error progress, or a newly created root

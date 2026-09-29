@@ -7,6 +7,10 @@ representative evidence, not an exhaustive index.
 
 ## Proof and verification
 
+- Documentation edits can break executable contract checks. Run the complete
+  relevant suite after the final review fix, including README checks; validate
+  every durable ID field that can reach agent argv, not just request fields. (#346)
+
 - Capture external predicate status and both output streams from the running
   client/server before encoding a fake; CLI help alone may describe a different
   transport behavior. Keep false distinct from query failure. (#341)
