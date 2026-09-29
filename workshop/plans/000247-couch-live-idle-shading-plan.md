@@ -10,9 +10,10 @@ slot glyphs, correctly on dark and light themes.
 policy (`FadeStyle`) blend a label's color toward the terminal's own background,
 which Couch learns by asking the terminal once (OSC 10/11) at startup. A
 background activity pass modeled on the slot-git pass (`console_slotgit.go`)
-reads each live thread's last activity: the newer of its draft mtime and its
-bound agent transcript's mtime. That's the definition the title poller's heat
-ramp already uses, extracted into one shared function. The pass reduces the
+reads each live thread's last activity: the newest of its bound agent
+transcript's mtime, its Pair log's mtime (sends), and the thread's creation
+time as a floor. That definition lives in one shared function, which the title
+poller's heat ramp also moves onto. The pass reduces the
 result into `MenuState` and repaints. Both renderers derive from the same
 level + style, and nothing persists.
 
@@ -30,17 +31,27 @@ recent-traffic dot moved to #342.
 
 ## Decisions this plan makes (flag at review if wrong)
 
-1. **Activity source = max(draft mtime, bound transcript mtime)**, the title
-   poller's `activityMTime` (`titlepoller/run.go`), extracted to
-   `cmd/internal/threadactivity` and used by both (ARCH-DRY). The transcript
-   is written on the operator's prompts and on the agent's work; the draft is
-   written while the operator composes. Neither changes on redraws, cursor
-   blink or polling. A `send` updates the transcript within seconds, so the
-   Pair log adds nothing.
-2. **Unknown activity on a live thread → level 0 (normal).** A live thread with
-   no draft and no bound session is a thread that just started. The switcher's
-   non-live `AgeUnknown` rule (its own dim) is about archived rows. It stays as
-   it is and doesn't apply here. A future timestamp (clock skew) → level 0.
+1. **Activity = max(bound transcript mtime, Pair log mtime, thread `CreatedAt`)**,
+   in `cmd/internal/threadactivity`. The title poller's `activityMTime` moves
+   onto it (ARCH-DRY: one definition).
+   - The transcript is written on the operator's prompts and the agent's work.
+   - The Pair log (`log-<tag>.md`) is appended only on sends, so it covers an
+     agent whose session is not bound yet (see #329).
+   - **The draft mtime is dropped, and that changes the title poller's input.**
+     Draft autosave runs an unconditional `silent! write` on every FocusLost,
+     BufLeave and InsertLeave (`nvim/init.lua:2328`, `:3680`), so its mtime
+     means "the operator last left the draft", not input. A thread switch
+     would refresh it. The heat ramp inherits the same fix.
+   - None of these three change on redraws, cursor blink or polling. Attach
+     `Touch`es the draft only with `O_CREATE` (`osfs.Touch`), which leaves an
+     existing file's mtime alone; either way the draft is no longer read.
+2. **No unknown state for a live thread: `CreatedAt` is the floor.** A thread
+   with no sends and no bound session ages from its durable creation time.
+   That's an honest lower bound, not a fabricated freshness: a new thread is
+   fresh, and an old silent one fades. It survives a Couch restart; the
+   incarnation's `StartedAt` would not, because detach retires the incarnation
+   and a restart would restamp every thread. The switcher's non-live
+   `AgeUnknown` rule is untouched. A future timestamp (clock skew) → level 0.
 3. **Precedence:** the selected chip/row, a chip or row with a pending
    notification (`Bell`), and a placeholder are never faded. Idle fading
    applies to every other live label, and to its amber slot glyphs (`±`, `*`).
@@ -50,10 +61,16 @@ recent-traffic dot moved to #342.
    vanish). Tuned at the live smoke; the weights are one table.
 5. **Fallbacks:** palette unknown (no reply) → every faded level of the normal
    label is `SGR 90` (the one theme-aware grey, per #217/#225), and faded amber
-   stays `attentionSGR`. `NO_COLOR` set → fading emits nothing. `COLORTERM`
+   stays `attentionSGR`. `NO_COLOR` set → the fade is suppressed and today's
+   bytes are kept (amber glyphs included); this issue doesn't take on no-color
+   for the rest of the bar. `COLORTERM`
    not `truecolor`/`24bit` → the blended RGB is quantized to the nearest
    xterm-256 color.
-6. **Scope:** live rows only. The switcher's non-live `AgeBand` ramp (fixed dark
+6. **Scope:** live rows only. The switcher's focus view (`MenuViewFocus`) isn't
+   faded; the docs say so. A theme change mid-session isn't picked up (the
+   query is sent once), which is noted as a limit. Replies to a child
+   process's own color queries also land in the palette, which is harmless:
+   same terminal, same answer. The switcher's non-live `AgeBand` ramp (fixed dark
    greys) is untouched. Its light-theme inversion belongs to #217/#225.
 
 ## ARCH notes
@@ -63,13 +80,14 @@ recent-traffic dot moved to #342.
   query write, the reply capture, and the activity probe.
 - **ARCH-CONSTRAINTS:** one activity pass every 60 s (`defaultActivityInterval`)
   on a worker outside `c.mu`, bounded per thread by `activityProbeTimeout =
-  2 s`. Measured: listing `~/.claude/projects` (3,500 files) takes about 40 ms,
+  2 s`, with the context passed through to `sessioninventory.QuerySessionContext`. Measured: listing `~/.claude/projects` (3,500 files) takes about 40 ms,
   so 20 threads ≈ 0.8 s per pass. Task 6 re-measures one real pass, and the
   budget is < 2 s for 20 threads. Over budget → share one listing per agent per
   pass (noted, not pre-built). Render cost: one map lookup per chip.
-- **ARCH-FUNERAL:** creates nothing durable. `MenuState.Activity` is rebuilt
-  per pass over the probed set, so a thread that leaves drops out. The palette
-  lives as long as the Console.
+- **ARCH-FUNERAL:** creates nothing durable. `MenuState.Activity` is merged per
+  pass over the probed set, like `mergeSlotGit`: a failed probe keeps the last
+  value, and a thread no longer probed drops out. The palette lives in
+  `MenuState` for the Console's lifetime.
 - **ARCH-ORDER:** the palette query is written after `MakeRaw` and before the
   presenter's first write, so it cannot interleave with a frame. Replies arrive
   later through the one stdin decoder. An activity result lands only for its
@@ -89,7 +107,8 @@ recent-traffic dot moved to #342.
 | `blend`, `quantize256` | `cmd/internal/couchtty/idle_shade.go` | new |
 | `StatusActor.Idle` | `cmd/internal/couchtty/reserve.go` | modified |
 | `StatusModel.Palette` | `cmd/internal/couchtty/reserve.go` | modified |
-| `MenuState.Activity`, `MenuEventActivity` | `cmd/internal/couchtty/menu.go` | modified |
+| `MenuState.Activity`, `MenuState.Palette`, `MenuEventActivity`, `MenuEventPalette` | `cmd/internal/couchtty/menu.go` | modified |
+| `ActionableThreadSummary.CreatedAt` | `cmd/internal/couchcore/actionableinventory.go` | modified |
 | `threadactivity.Latest` | `cmd/internal/threadactivity/activity.go` | new |
 
 - **IdleLevel / IdleLevelFor(now, last time.Time, known bool) IdleLevel** —
@@ -105,10 +124,13 @@ recent-traffic dot moved to #342.
   xterm 220 = `#ffd700`) at a level. Level 0 → `""` for default and
   `attentionSGR` for amber, byte-identical to today. The fallbacks follow
   Decision 5.
-- **threadactivity.Latest(rt Runtime, dataDir, scope, tag, agent) (time.Time, bool)**
-  — newest of the draft mtime and the bound transcript's `LastActivityAt`.
-  `Runtime` is `{ModTime(path) (time.Time, bool); SessionActivity(scope, tag, agent) (time.Time, bool)}`.
-  Pure given its Runtime; tests use a map-backed fake.
+- **threadactivity.Latest(ctx, rt Runtime, Thread{ScopeDir, Scope, Tag, Agent, CreatedAt}) time.Time**
+  — the newest of the bound transcript's `LastActivityAt`, the Pair log's
+  mtime, and `CreatedAt`. `ScopeDir` is the per-repo data directory
+  (`artifactpath.ResolveScopeDir(dataDir, scope)`), not the global data root.
+  `Runtime` is `{ModTime(path) (time.Time, bool); SessionActivity(ctx, scopeDir, scope, tag, agent) (time.Time, bool)}`.
+  Pure given its Runtime; tests use a map-backed fake. Callers can't get an
+  unknown answer, only an older one.
 
 ### Integration points
 
@@ -121,12 +143,14 @@ recent-traffic dot moved to #342.
 | `threadactivity.OSRuntime` | `cmd/internal/threadactivity/os.go` | new | `os.Stat`, `sessioninventory` |
 | title poller `activityMTime` | `cmd/internal/titlepoller/run.go` | modified | (now calls `threadactivity.Latest`) |
 
-- **ActivityProbe** `func(ctx, couchcore.ActionableThreadSummary) (time.Time, bool, error)`
+- **ActivityProbe** `func(ctx, couchcore.ActionableThreadSummary) (time.Time, error)`
   — injected with `Console.SetActivityProbe`, exactly like `SetSlotGitProbe`.
   The test fake is a map keyed by address, with a call log, so a test can
   assert which threads were probed (live only).
 - **Clock:** `Console.now func() time.Time` (default `time.Now`) so tests cross
-  thresholds with an injected clock. It's used only by the new code.
+  thresholds with an injected clock. `showMenu` passes `c.now()` to
+  `RenderMenuView` instead of `time.Now()` (`console_menu.go:211`), so the
+  switcher is reachable from clock-driven tests.
 
 ---
 
@@ -217,7 +241,8 @@ func IdleLevelFor(now, last time.Time, known bool) IdleLevel {
     - Dark: channel sum strictly decreases with level, for default and amber.
     - Known, not TrueColor → `"\x1b[38;5;Nm"` with N = quantize of the blend.
     - Unknown palette → every level ≥1 default is `"\x1b[90m"`; amber is `attentionSGR`.
-    - NoColor → `""` for every level and base.
+    - NoColor → today's level-0 bytes for every level: `""` for default and
+      `attentionSGR` for amber (the fade is suppressed, nothing else changes).
 - [ ] **Step 2:** run → FAIL.
 - [ ] **Step 3: implement** (sketch; exact names as in the table):
 
@@ -239,10 +264,7 @@ var amberRGB = color.RGBA{0xff, 0xd7, 0x00, 0xff} // xterm 220 == attentionSGR
 var idleBlend = [...]float64{0, 0.35, 0.55, 0.70}
 
 func FadeStyle(p Palette, level IdleLevel, base styleBase) string {
-	if p.NoColor {
-		return ""
-	}
-	if level == IdleFresh {
+	if level == IdleFresh || p.NoColor {
 		if base == baseAmber {
 			return attentionSGR
 		}
@@ -320,7 +342,8 @@ case !a.Active:
 - [ ] **Step 2:** FAIL. **Step 3:** implement. In the `color256 && frame.View != MenuViewFocus`
   branch, for `thread.Live()` with no attention:
   `outer = FadeStyle(state.Palette, IdleLevelFor(now, at, ok), baseDefault)`,
-  where `at, ok := state.Activity[thread.Address]`. Pass the matching amber
+  where `at, ok := state.Activity[thread.Address]`. (An absent entry, before the
+  first pass lands, is level 0.) Pass the matching amber
   style into `colorMenuGlyph`.
 - [ ] **Step 4:** pass. **Step 5:** commit.
 - [ ] **M1 boundary:** `sdlc milestone-close --issue 247 --milestone M1`.
@@ -331,14 +354,21 @@ case !a.Active:
 
 **Files:** Create `cmd/internal/threadactivity/activity.go`, `activity_test.go`, `os.go`. Modify `cmd/internal/titlepoller/run.go` (`activityMTime`) and `runtime.go` (adapter).
 
-- [ ] **Step 1: failing tests** (map-backed fake Runtime): newest of draft and
-  transcript wins, either alone works, neither → `(zero, false)`, and a
-  resolve error on the path → `(zero, false)`.
-- [ ] **Step 2:** FAIL. **Step 3:** implement `Latest`, move the body of
-  `titlepoller.activityMTime` into it, and make `activityMTime` call it (same
-  answer). `OSRuntime` in `os.go` wraps `os.Stat` and the
-  `sessioninventory.QuerySession` + `ActivityForSession` pair (lifted from
-  `titlepoller/runtime.go:SessionActivity`, which then delegates).
+- [ ] **Step 1: failing tests** (map-backed fake Runtime):
+  - The newest of transcript, log and `CreatedAt` wins, each alone included.
+  - With no transcript and no log, the answer is `CreatedAt`.
+  - A draft mtime newer than everything else is **ignored** (pins Decision 1).
+  - A canceled `ctx` returns promptly with the floor.
+- [ ] **Step 2:** FAIL. **Step 3:** implement `Latest` and point
+  `titlepoller.activityMTime` at it (the title poller passes its own scope dir,
+  the tag's agent and the thread creation time it can see; with no creation
+  time, it passes zero, and the transcript/log carry it). `OSRuntime` in
+  `os.go` wraps `os.Stat` plus
+  `sessioninventory.NewOSRuntime(home, scopeDir)` +
+  `QuerySessionContext` + `ActivityForSession`, following
+  `couchcore/switchcontext.go:68-75`. `titlepoller/runtime.go:SessionActivity`
+  delegates to it.
+- [ ] Record in the issue Log that the heat ramp no longer reads the draft.
 - [ ] **Step 4:** `go test ./cmd/internal/threadactivity ./cmd/internal/titlepoller` pass. **Step 5:** commit.
 
 ### Task 6: activity pass in the console
@@ -355,18 +385,29 @@ case !a.Active:
   - A thread that stops being live drops out of `Activity` on the next pass
     (ARCH-FUNERAL).
   - A result from a stale generation is ignored.
-  - A probe error or timeout for one thread leaves that entry unknown (level 0)
-    and doesn't fail the pass.
+  - A probe error or timeout for one thread keeps its previous value (a stale
+    thread must not flash bright) and doesn't fail the pass.
+  - The switcher, rendered through `showMenu` with the injected clock, shows
+    the same level as the tab bar for the same thread.
+  - **Restart:** a second Console built over the same fake probe (whose times
+    are 3 days old) renders level 3 after its first pass. Nothing is carried
+    in memory; the answer comes from the probe.
+  - A pass is requested when the inventory lands and on a thread switch, not
+    only on the ticker, so fading appears without a 60 s wait.
 - [ ] **Step 2:** FAIL. **Step 3:** implement by mirroring `advanceSlotGit` /
   `finishSlotGit` (`RefreshSchedule`, worker outside `c.mu`, per-thread timeout,
-  `select` on `c.stop`). Use `defaultActivityInterval = 60 * time.Second`.
+  `select` on `c.stop`, `showMenu()` when the panel has focus, else
+  `repaint()`). Use `defaultActivityInterval = 60 * time.Second`. Call
+  `requestActivity()` beside each existing `requestSlotGit()` (inventory
+  landing `console_menu.go:153`, switch `console.go:544`). Project
+  `CreatedAt` into `ActionableThreadSummary` from the thread record.
 - [ ] **Step 4:** pass. Measure one production pass against the operator's real
   thread list: log the duration in the issue, budget < 2 s for 20 threads.
 - [ ] **Step 5:** commit.
 
 ### Task 7: palette query + reply capture
 
-**Files:** Modify `console.go` (`Run`: after `MakeRaw`, before `applyLayout`, write `"\x1b]10;?\x1b\\\x1b]11;?\x1b\\"` with `c.host.WriteContext`; seed `Palette.TrueColor`/`NoColor` from env at construction), `terminal_input.go` (`routeInputEvent`: before the `Reply` early return, record `uv.ForegroundColorEvent`/`uv.BackgroundColorEvent` into `c.palette` under `c.mu`; `Known` once both have arrived; then repaint). Test in `console_test.go`-style harness with the fake host.
+**Files:** Modify `console.go` (`Run`: after `MakeRaw`, before `applyLayout`, write `"\x1b]10;?\x1b\\\x1b]11;?\x1b\\"` with `c.host.WriteContext`; seed `Palette.TrueColor`/`NoColor` from env at construction), `terminal_input.go` (`routeInputEvent`: before the `Reply` early return, reduce `uv.ForegroundColorEvent`/`uv.BackgroundColorEvent` into `MenuState.Palette` via `MenuEventPalette` under `c.mu`. A nil `Color` (malformed reply) is ignored. `Known` once both have arrived. Then `showMenu()` if the panel has focus, else `repaint()`. `statusModelLocked` reads the palette from `c.menu`; it's stored in one place). Test in `console_test.go`-style harness with the fake host.
 
 - [ ] **Step 1: failing tests**
   - `Run` writes the query exactly once, before the first frame (assert the
@@ -390,11 +431,14 @@ console.SetActivityProbe(func(ctx context.Context, row couchcore.ActionableThrea
 })
 ```
 
-(`home`/`dataDir` from the same environment Couch already resolves:
-`environment.PairLifecycleDataDir()`.)
+where `dataDir := launcher.ResolveDataDir(...)` is the one `couchcmd/run.go:103`
+already computes, and the probe passes
+`artifactpath.ResolveScopeDir(dataDir, row.Address.RepoScope)` as `ScopeDir` and
+`row.CreatedAt` as the floor. (The snippet above is schematic; the real
+call builds the `threadactivity.Thread` value.)
 
-- [ ] Test: the wiring test that pins `SetSlotGitProbe` in `couchcmd` gets a
-  sibling that asserts the activity probe is installed. Commit.
+- [ ] No existing test pins `SetSlotGitProbe`'s wiring. This wiring is
+  covered by the live smoke. Commit.
 
 ### Task 9: docs + verification
 
@@ -410,5 +454,26 @@ console.SetActivityProbe(func(ctx context.Context, row couchcore.ActionableThrea
   probe non-live rows → Task 6 fails.
 - [ ] Live smoke by the operator on a dark AND a light theme: an idle thread
   recedes in both bars; the selected thread and a notified thread don't fade;
-  `NO_COLOR=1 couch` shows no fade bytes.
+  `NO_COLOR=1 couch` shows no fade bytes. On the light theme, check that the
+  70 % amber (≈ `#fff7b2`) is still visible; if not, cap the amber weight
+  (one table entry).
 - [ ] **M2 boundary / close:** `sdlc close --issue 247 --verified '…'`.
+
+## Revisions
+
+### 2026-09-28 — fresh-eyes plan review (approve-with-fixes), folded in
+
+- Critical: the probe used Couch's global data root where the per-repo scope
+  dir is needed, and named a nonexistent `environment.PairLifecycleDataDir`.
+  Now `artifactpath.ResolveScopeDir` + `launcher.ResolveDataDir`, following
+  `couchcore/switchcontext.go`.
+- `ctx` reaches `QuerySessionContext` (the timeout now bounds the probe).
+  `showMenu` uses the injected clock. `NO_COLOR` keeps today's bytes instead of
+  also stripping amber. A failed probe keeps the last value. Passes are
+  requested on inventory landing and on switch. Added a restart test. Repaint
+  follows `finishSlotGit`. The palette is stored once, in `MenuState`. Dropped
+  the claim about a nonexistent wiring test.
+- Unknown activity: replaced "unknown → level 0" with a `CreatedAt` floor.
+  Checking the reviewer's point turned up that draft mtime is focus noise
+  (unconditional autosave `write`), so the draft is dropped from the activity
+  definition in favor of the Pair log. The title poller follows (Decision 1).
