@@ -12,6 +12,13 @@ import (
 	"github.com/xianxu/pair/cmd/internal/strictjson"
 )
 
+type RequestOrigin string
+
+const (
+	RequestOriginResume RequestOrigin = "resume"
+	RequestOriginChosen RequestOrigin = "chosen-id"
+)
+
 type RecordKind string
 
 const (
@@ -72,6 +79,10 @@ type AuthorizationProof struct {
 // source position and is deliberately not encoded in the JSON row.
 // pair:155-concept pure new M2
 type LedgerRecord struct {
+	RequestedNativeID        string
+	RequestOrigin            RequestOrigin
+	BaselineComplete         bool
+	ConfirmationReason       string
 	Ordinal                  uint64
 	Version                  int
 	Kind                     RecordKind
@@ -108,6 +119,10 @@ type Current struct {
 }
 
 type wireRecord struct {
+	RequestedNativeID  string                    `json:"requested_native_id,omitempty"`
+	RequestOrigin      RequestOrigin             `json:"request_origin,omitempty"`
+	BaselineComplete   *bool                     `json:"baseline_complete,omitempty"`
+	ConfirmationReason string                    `json:"confirmation_reason,omitempty"`
 	Version            int                       `json:"v"`
 	Kind               RecordKind                `json:"kind"`
 	ScopeKey           string                    `json:"scope_key"`
@@ -194,6 +209,10 @@ type decodeAuthorizationProof struct {
 }
 
 type decodeWireRecord struct {
+	RequestedNativeID  strictField[string]                         `json:"requested_native_id"`
+	RequestOrigin      strictField[RequestOrigin]                  `json:"request_origin"`
+	BaselineComplete   strictField[bool]                           `json:"baseline_complete"`
+	ConfirmationReason strictField[string]                         `json:"confirmation_reason"`
 	Version            strictField[int]                            `json:"v"`
 	Kind               strictField[RecordKind]                     `json:"kind"`
 	ScopeKey           strictField[string]                         `json:"scope_key"`
@@ -223,6 +242,11 @@ func EncodeRecord(record Record) ([]byte, error) {
 	wire := wireRecord{Version: record.Version, Kind: record.Kind, ScopeKey: record.ScopeKey, Tag: record.Tag, Agent: record.Agent}
 	switch record.Kind {
 	case RecordLaunch:
+		if record.Version == 3 {
+			wire.RequestedNativeID = record.RequestedNativeID
+			wire.RequestOrigin = record.RequestOrigin
+			wire.BaselineComplete = &record.BaselineComplete
+		}
 		wire.PairLogOffset = &record.PairLogOffset
 		if record.Version == 1 {
 			watermarks := record.NativeWatermarks
@@ -241,6 +265,7 @@ func EncodeRecord(record Record) ([]byte, error) {
 		wire.LaunchOrdinal = &record.LaunchOrdinal
 		wire.RootNativeID = record.RootNativeID
 		wire.AuthorizationProof = record.AuthorizationProof
+		wire.ConfirmationReason = record.ConfirmationReason
 	}
 	return json.Marshal(wire)
 }
@@ -298,7 +323,7 @@ func decodeRecord(raw []byte) (Record, error) {
 	if !wire.Version.Present || !wire.Kind.Present || !wire.ScopeKey.Present || !wire.Tag.Present || !wire.Agent.Present {
 		return Record{}, errors.New("missing common ledger field")
 	}
-	record := Record{Version: wire.Version.Value, Kind: wire.Kind.Value, ScopeKey: wire.ScopeKey.Value, Tag: wire.Tag.Value, Agent: wire.Agent.Value}
+	record := Record{RequestedNativeID: wire.RequestedNativeID.Value, RequestOrigin: wire.RequestOrigin.Value, BaselineComplete: wire.BaselineComplete.Value, ConfirmationReason: wire.ConfirmationReason.Value, Version: wire.Version.Value, Kind: wire.Kind.Value, ScopeKey: wire.ScopeKey.Value, Tag: wire.Tag.Value, Agent: wire.Agent.Value}
 	if wire.NativeWatermarks.Present {
 		record.NativeWatermarks = make([]NativeWatermark, 0, len(wire.NativeWatermarks.Value))
 		for _, watermark := range wire.NativeWatermarks.Value {
@@ -341,11 +366,17 @@ func decodeRecord(raw []byte) (Record, error) {
 	if (record.Kind == RecordLaunch) != wire.PairLogOffset.Present || (record.Kind == RecordBinding) != wire.LaunchOrdinal.Present || (record.Kind == RecordBinding) != wire.RootNativeID.Present {
 		return Record{}, errors.New("missing or extraneous kind-specific field")
 	}
-	if record.Kind == RecordLaunch && ((record.Version == 1) != wire.NativeWatermarks.Present || (record.Version == 2) != wire.ArtifactBoundaries.Present || wire.AuthorizationProof.Present) {
+	if record.Kind == RecordLaunch && ((record.Version == 1) != wire.NativeWatermarks.Present || (record.Version >= 2) != wire.ArtifactBoundaries.Present || wire.AuthorizationProof.Present) {
 		return Record{}, errors.New("invalid versioned launch fields")
 	}
-	if record.Kind == RecordBinding && (wire.NativeWatermarks.Present || wire.ArtifactBoundaries.Present || (record.Version == 2) != wire.AuthorizationProof.Present) {
+	if record.Kind == RecordBinding && (wire.NativeWatermarks.Present || wire.ArtifactBoundaries.Present || (record.Version == 2 && !wire.AuthorizationProof.Present) || (record.Version == 1 && wire.AuthorizationProof.Present)) {
 		return Record{}, errors.New("invalid versioned binding fields")
+	}
+	if record.Version != 3 && (wire.RequestedNativeID.Present || wire.RequestOrigin.Present || wire.BaselineComplete.Present || wire.ConfirmationReason.Present) {
+		return Record{}, errors.New("v3 fields in older record")
+	}
+	if record.Version == 3 && ((record.Kind == RecordLaunch) != wire.BaselineComplete.Present || (record.Kind == RecordBinding) != wire.ConfirmationReason.Present) {
+		return Record{}, errors.New("missing v3 kind fields")
 	}
 	if err := validateRecord(record); err != nil {
 		return Record{}, err
@@ -354,11 +385,20 @@ func decodeRecord(raw []byte) (Record, error) {
 }
 
 func validateRecord(record Record) error {
-	if (record.Version != 1 && record.Version != 2) || record.ScopeKey == "" || record.Tag == "" || !isSupportedAgent(record.Agent) {
+	if (record.Version != 1 && record.Version != 2 && record.Version != 3) || record.ScopeKey == "" || record.Tag == "" || !isSupportedAgent(record.Agent) {
 		return errors.New("invalid common ledger fields")
+	}
+	if record.Version != 3 && (record.RequestedNativeID != "" || record.RequestOrigin != "" || record.BaselineComplete || record.ConfirmationReason != "") {
+		return errors.New("v3 fields in older record")
 	}
 	switch record.Kind {
 	case RecordLaunch:
+		if record.ConfirmationReason != "" {
+			return errors.New("launch carries confirmation reason")
+		}
+		if (record.RequestedNativeID == "") != (record.RequestOrigin == "") || (record.RequestOrigin != "" && record.RequestOrigin != RequestOriginResume && record.RequestOrigin != RequestOriginChosen) {
+			return errors.New("invalid requested identity origin")
+		}
 		if record.Version == 1 {
 			for i, watermark := range record.NativeWatermarks {
 				if watermark.RootNativeID == "" || (i > 0 && record.NativeWatermarks[i-1].RootNativeID == watermark.RootNativeID) {
@@ -377,13 +417,19 @@ func validateRecord(record Record) error {
 			return errors.New("launch carries binding fields")
 		}
 	case RecordBinding:
+		if record.RequestedNativeID != "" || record.RequestOrigin != "" || record.BaselineComplete {
+			return errors.New("binding carries request fields")
+		}
+		if record.Version == 3 && record.ConfirmationReason != "correlation" && record.ConfirmationReason != "chosen-id" {
+			return errors.New("invalid confirmation reason")
+		}
 		if record.LaunchOrdinal == 0 || record.RootNativeID == "" || record.PairLogOffset != 0 || len(record.NativeWatermarks) != 0 || len(record.LaunchArtifactBoundaries) != 0 {
 			return errors.New("invalid binding fields")
 		}
 		if record.Version == 1 && record.AuthorizationProof != nil {
 			return errors.New("v1 binding carries authorization proof")
 		}
-		if record.Version == 2 {
+		if record.Version == 2 || (record.Version == 3 && record.AuthorizationProof != nil) {
 			if record.AuthorizationProof == nil {
 				return errors.New("v2 binding is missing authorization proof")
 			}

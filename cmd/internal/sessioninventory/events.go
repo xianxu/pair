@@ -121,3 +121,13 @@ func TextEventWindowForRoot(runtime Runtime, root Node, maxRecent int) ([]Native
 	}
 	return recent, nil
 }
+
+// nativeEventRecordOffset reverses the record-position encoding, excluding
+// synthetic/invalid positions that carry no byte offset.
+func nativeEventRecordOffset(position uint64) (uint64, bool) {
+	record := position >> 8
+	if record == 0 {
+		return 0, false
+	}
+	return record - 1, true
+}

@@ -16,7 +16,7 @@ func TestColdAuthorizationMatrixSelectsOnlyPostBoundaryArtifacts(t *testing.T) {
 	}
 }
 
-func TestColdAuthorizationMatrixAgyRequiresNewJoinedPair(t *testing.T) {
+func TestColdAuthorizationMatrixAgyIncludesChangedJoinedPair(t *testing.T) {
 	t.Parallel()
 	id := "55555555-5555-4555-8555-555555555555"
 	database := ArtifactObservation{Agent: AgentAgy, Entry: FileEntry{Artifact: Artifact{StorageRoot: "agy-conversations", RelativePath: id + ".db"}}}
@@ -27,8 +27,8 @@ func TestColdAuthorizationMatrixAgyRequiresNewJoinedPair(t *testing.T) {
 		want     int
 	}{
 		{name: "both new", want: 2},
-		{name: "database old", baseline: []TargetArtifactBoundary{{StorageRoot: database.Entry.Artifact.StorageRoot, RelativePath: database.Entry.Artifact.RelativePath}}},
-		{name: "transcript old", baseline: []TargetArtifactBoundary{{StorageRoot: transcript.Entry.Artifact.StorageRoot, RelativePath: transcript.Entry.Artifact.RelativePath}}},
+		{name: "database old", want: 2, baseline: []TargetArtifactBoundary{{StorageRoot: database.Entry.Artifact.StorageRoot, RelativePath: database.Entry.Artifact.RelativePath}}},
+		{name: "transcript old", want: 2, baseline: []TargetArtifactBoundary{{StorageRoot: transcript.Entry.Artifact.StorageRoot, RelativePath: transcript.Entry.Artifact.RelativePath}}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			result := SelectTargetWork(TargetRequest{Mode: TargetNewLaunch, Agent: AgentAgy, Baseline: test.baseline}, []ArtifactObservation{database, transcript})
@@ -93,4 +93,16 @@ func targetObservation(agent Agent, id string) ArtifactObservation {
 		}
 	}
 	return ArtifactObservation{Agent: agent, Entry: FileEntry{Artifact: artifact}}
+}
+
+func TestNewLaunchIncludesChangedExistingTranscript(t *testing.T) {
+	for _, agent := range []Agent{AgentClaude, AgentCodex, AgentMuse, AgentQoder} {
+		old := targetObservation(agent, "old")
+		old.Entry.Size = 120
+		boundary := TargetArtifactBoundary{StorageRoot: old.Entry.Artifact.StorageRoot, RelativePath: old.Entry.Artifact.RelativePath, RawSize: 100}
+		got := SelectTargetWork(TargetRequest{Mode: TargetNewLaunch, Agent: agent, Baseline: []TargetArtifactBoundary{boundary}}, []ArtifactObservation{old})
+		if len(got.Eligible) != 1 {
+			t.Fatalf("%s: changed transcript excluded", agent)
+		}
+	}
 }

@@ -31,7 +31,7 @@ func TestInventoryTurnsUsesEstablishedRoot(t *testing.T) {
 
 func TestInventoryTurnsStreamsLongEstablishedRoot(t *testing.T) {
 	const nativeID = "019e8178-79c2-7862-91db-e8fa1be3b162"
-	padding := []byte(`{"type":"session_meta","padding":"` + strings.Repeat("x", 1<<20) + `"}` + "\n")
+	padding := []byte(`{"type":"future_opaque_event","padding":"` + strings.Repeat("x", 1<<20) + `"}` + "\n")
 	content := []byte(`{"timestamp":"2026-05-31T21:36:56Z","type":"session_meta","payload":{"id":"` + nativeID + `","parent_thread_id":null,"source":"cli"}}` + "\n")
 	content = append(content, bytes.Repeat(padding, 33)...)
 	content = append(content, []byte(

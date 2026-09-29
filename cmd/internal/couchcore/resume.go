@@ -370,7 +370,7 @@ func (r SessionInventoryNativeBindingResolver) ResolveEstablished(ctx context.Co
 var _ NativeBindingResolver = SessionInventoryNativeBindingResolver{}
 
 // Resume reoccupies one resumable address using only its exact saved
-// path, launch profile, and established native root binding.
+// path, launch profile, and durable native resume target.
 func (c *Couch) Resume(address ThreadAddress) (ActorRecord, Handle, error) {
 	return c.ResumeContext(context.Background(), address)
 }

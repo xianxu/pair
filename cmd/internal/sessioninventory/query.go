@@ -57,8 +57,9 @@ func SessionForOwner(inventory Inventory, scopeKey, tag string, agent Agent) Ses
 	return query
 }
 
-// QuerySession reads one exact owner ledger and validates only its proof-named
-// artifacts. Proofless legacy bindings remain unavailable for automatic use.
+// QuerySession supplies optional parsed content for one exact owner. It reads
+// proof-named artifacts, or the named root of a v3 filename confirmation.
+// Resume admission uses QueryResumeTarget instead.
 func QuerySession(runtime Runtime, scopeKey, tag string, agent Agent) (SessionQuery, error) {
 	return QuerySessionContext(context.Background(), runtime, scopeKey, tag, agent)
 }
@@ -71,45 +72,11 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 		return SessionQuery{}, err
 	}
 	query := SessionQuery{Status: BindingUnbound}
-	pairRoot := runtime.PairDataRoot()
-	files, listErr := runtime.ListFiles(pairRoot)
-	if err := ctx.Err(); err != nil {
-		return SessionQuery{}, err
-	}
-	var issues *ListingIssuesError
-	if listErr != nil && !errors.As(listErr, &issues) {
-		return SessionQuery{}, listErr
-	}
-	if issues != nil {
-		for _, artifact := range issues.Artifacts {
-			query.Diagnostics = append(query.Diagnostics, artifactDiagnostic(DiagnosticArtifactPathInvalid, "", nil, artifact, "non-regular Pair storage entry rejected"))
-		}
-	}
-	var ledger Artifact
-	for _, file := range files {
-		candidateTag, ok := artifactpath.TagFromHistorySidecar(file.Artifact.RelativePath)
-		if ok && candidateTag == tag && artifactpath.IsLedgerHistorySidecar(file.Artifact.RelativePath) {
-			ledger = file.Artifact
-			break
-		}
-	}
-	if ledger.RelativePath == "" {
-		return query, nil
-	}
-	// Both the ledger and its launch boundary snapshots grow without a writer
-	// size cap. Keep chunked reads without imposing a reader-only cutoff.
-	raw, err := readJSONLArtifact(runtime, ledger, unlimitedRecordSize)
+	current, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
+	query.Diagnostics = diagnostics
 	if err != nil {
 		return SessionQuery{}, err
 	}
-	if err := ctx.Err(); err != nil {
-		return SessionQuery{}, err
-	}
-	parsed := sessionledger.ParseLedger(raw)
-	for _, ordinal := range parsed.MalformedOrdinals {
-		query.Diagnostics = append(query.Diagnostics, diagnosticWithSource(DiagnosticPairRecordMalformed, agent, nil, fmt.Sprintf("ledger:%s:%d", tag, ordinal), "Pair ledger row is malformed"))
-	}
-	current, ok := sessionledger.CurrentLaunch(parsed.Records, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)})
 	if !ok {
 		return query, nil
 	}
@@ -121,7 +88,7 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 	if current.Binding == nil {
 		return query, nil
 	}
-	if current.Binding.AuthorizationProof == nil {
+	if current.Binding.AuthorizationProof == nil && current.Binding.Version < 3 {
 		nativeID := current.Binding.RootNativeID
 		query.Diagnostics = append(query.Diagnostics, diagnosticWithSource(DiagnosticBindingStale, agent, &nativeID, "ledger proof", "legacy binding proof migration is pending"))
 		return query, nil
@@ -136,7 +103,13 @@ func QuerySessionContext(ctx context.Context, runtime Runtime, scopeKey, tag str
 			return SessionQuery{}, err
 		}
 	}
-	validation, diagnostics, err := NewIncrementalInventory(runtime, catalog).ValidateBindingProof(agent, *current.Binding.AuthorizationProof)
+	incremental := NewIncrementalInventory(runtime, catalog)
+	var validation TargetValidation
+	if current.Binding.AuthorizationProof != nil {
+		validation, diagnostics, err = incremental.ValidateBindingProof(agent, *current.Binding.AuthorizationProof)
+	} else {
+		validation, diagnostics, err = incremental.validateNamedContent(agent, current.Binding.RootNativeID)
+	}
 	if contextErr := ctx.Err(); contextErr != nil {
 		return SessionQuery{}, contextErr
 	}
@@ -216,13 +189,19 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 	if catalogPrior, ok := inventory.catalogPriorForProof(agent, proof, selected.Eligible); ok {
 		prior = catalogPrior
 	}
-	unchanged := observationsMatchValidation(selected.Eligible, prior)
+	schemaChanged := false
+	for _, observation := range selected.Eligible {
+		if observation.ScannerSchema != prior.State.ScannerSchema {
+			schemaChanged = true
+		}
+	}
+	unchanged := !schemaChanged && observationsMatchValidation(selected.Eligible, prior)
 	if unchanged {
 		return prior, diagnostics, nil
 	}
 	advanced, found, err := AdvanceTargetValidation(inventory.runtime, prior, selected.Eligible)
 	diagnostics = append(diagnostics, found...)
-	if err == nil || !proofAllowsFullRevalidation(proof, selected.Eligible) {
+	if err == nil || (!schemaChanged && !proofAllowsFullRevalidation(proof, selected.Eligible)) {
 		return advanced, diagnostics, err
 	}
 	// Some filesystems expose stable file identity but no true generation
@@ -239,7 +218,7 @@ func (inventory IncrementalInventory) ValidateBindingProof(agent Agent, proof se
 		return TargetValidation{}, diagnostics, ErrArtifactChanged
 	}
 	candidate := validated[0]
-	if candidate.State.Agent != agent || candidate.State.NativeID != proof.RootNativeID || candidate.State.Role != RoleRoot || candidate.State.ScannerSchema != proof.ScannerSchema || candidate.State.Disputed {
+	if candidate.State.Agent != agent || candidate.State.NativeID != proof.RootNativeID || candidate.State.Role != RoleRoot || candidate.State.Disputed {
 		return TargetValidation{}, diagnostics, ErrArtifactChanged
 	}
 	return candidate, diagnostics, nil
@@ -297,7 +276,7 @@ func (inventory IncrementalInventory) catalogPriorForProof(agent Agent, proof se
 			return TargetValidation{}, false
 		}
 		state, err := DecodeScannerState(entry.ScannerState)
-		if err != nil || state.Agent != agent || state.NativeID != proof.RootNativeID || state.Role != RoleRoot || state.ScannerSchema != proof.ScannerSchema {
+		if err != nil || state.Agent != agent || state.NativeID != proof.RootNativeID || state.Role != RoleRoot || state.ScannerSchema != expectedSchema {
 			return TargetValidation{}, false
 		}
 		if i == 0 {
@@ -381,4 +360,124 @@ func RootTranscript(root Node) (Artifact, error) {
 		return Artifact{}, fmt.Errorf("%w: got %d", ErrRootTranscript, count)
 	}
 	return transcript, nil
+}
+
+// readOwnerLaunch reads only Pair-owned identity records, never native bodies.
+func readOwnerLaunch(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (sessionledger.Current, bool, []Diagnostic, error) {
+	var diagnostics []Diagnostic
+	pairRoot := runtime.PairDataRoot()
+	files, listErr := runtime.ListFiles(pairRoot)
+	if err := ctx.Err(); err != nil {
+		return sessionledger.Current{}, false, diagnostics, err
+	}
+	var issues *ListingIssuesError
+	if listErr != nil && !errors.As(listErr, &issues) {
+		return sessionledger.Current{}, false, diagnostics, listErr
+	}
+	if issues != nil {
+		for _, artifact := range issues.Artifacts {
+			diagnostics = append(diagnostics, artifactDiagnostic(DiagnosticArtifactPathInvalid, "", nil, artifact, "non-regular Pair storage entry rejected"))
+		}
+	}
+	var ledger Artifact
+	for _, file := range files {
+		candidateTag, ok := artifactpath.TagFromHistorySidecar(file.Artifact.RelativePath)
+		if ok && candidateTag == tag && artifactpath.IsLedgerHistorySidecar(file.Artifact.RelativePath) {
+			ledger = file.Artifact
+			break
+		}
+	}
+	if ledger.RelativePath == "" {
+		return sessionledger.Current{}, false, diagnostics, nil
+	}
+	// Both the ledger and its launch boundary snapshots grow without a writer
+	// size cap. Keep chunked reads without imposing a reader-only cutoff.
+	raw, err := readJSONLArtifact(runtime, ledger, unlimitedRecordSize)
+	if err != nil {
+		return sessionledger.Current{}, false, diagnostics, err
+	}
+	if err := ctx.Err(); err != nil {
+		return sessionledger.Current{}, false, diagnostics, err
+	}
+	parsed := sessionledger.ParseLedger(raw)
+	for _, ordinal := range parsed.MalformedOrdinals {
+		diagnostics = append(diagnostics, diagnosticWithSource(DiagnosticPairRecordMalformed, agent, nil, fmt.Sprintf("ledger:%s:%d", tag, ordinal), "Pair ledger row is malformed"))
+	}
+	current, ok := sessionledger.CurrentLaunch(parsed.Records, sessionledger.Owner{ScopeKey: scopeKey, Tag: tag, Agent: string(agent)})
+	if !ok {
+		return sessionledger.Current{}, false, diagnostics, nil
+	}
+	return current, true, diagnostics, nil
+}
+
+// ResumeTarget is durable requested/observed identity, independent of optional
+// native parsing and disposable catalog state. Provisional targets are usable.
+type ResumeTarget struct {
+	Status            BindingStatus
+	NativeID          string
+	LaunchOrdinal     uint64
+	RequestedNativeID string
+	Diagnostics       []Diagnostic
+}
+
+func QueryResumeTarget(runtime Runtime, scopeKey, tag string, agent Agent) (ResumeTarget, error) {
+	return QueryResumeTargetContext(context.Background(), runtime, scopeKey, tag, agent)
+}
+func QueryResumeTargetContext(ctx context.Context, runtime Runtime, scopeKey, tag string, agent Agent) (ResumeTarget, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return ResumeTarget{}, err
+	}
+	current, ok, diagnostics, err := readOwnerLaunch(ctx, runtime, scopeKey, tag, agent)
+	result := ResumeTarget{Status: BindingUnbound, Diagnostics: diagnostics}
+	if err != nil || !ok {
+		return result, err
+	}
+	result.Status = BindingProvisional
+	result.LaunchOrdinal = current.Launch.Ordinal
+	result.RequestedNativeID = current.Launch.RequestedNativeID
+	if current.Conflict {
+		result.Status = BindingAmbiguous
+		return result, nil
+	}
+	if current.Binding != nil {
+		result.Status = BindingEstablished
+		result.NativeID = current.Binding.RootNativeID
+	} else {
+		result.NativeID = current.Launch.RequestedNativeID
+	}
+	return result, nil
+}
+
+// validateNamedContent supplies optional telemetry for filename-handshake
+// confirmations. Catalog proof reuse is an optimization, never resume authority.
+func (inventory IncrementalInventory) validateNamedContent(agent Agent, nativeID string) (TargetValidation, []Diagnostic, error) {
+	for _, entry := range inventory.catalog.Entries {
+		state, err := DecodeScannerState(entry.ScannerState)
+		if err != nil || entry.Agent != agent || entry.Authorization != AuthorizationAuthorized || state.NativeID != nativeID || state.Role != RoleRoot {
+			continue
+		}
+		proof := sessionledger.AuthorizationProof{Version: 1, RootNativeID: nativeID, ScannerSchema: state.ScannerSchema, ScannerState: entry.ScannerState}
+		for _, candidate := range inventory.catalog.Entries {
+			if candidate.Agent != agent || string(candidate.ScannerState) != string(entry.ScannerState) || candidate.Authorization != AuthorizationAuthorized {
+				continue
+			}
+			f := candidate.Fingerprint
+			proof.Artifacts = append(proof.Artifacts, sessionledger.ArtifactProof{StorageRoot: candidate.Artifact.StorageRoot, RelativePath: candidate.Artifact.RelativePath, StableFileID: string(f.StableFileID), GenerationToken: string(f.GenerationToken), MutationToken: string(f.MutationToken), Size: f.Size, ParserCompleteOffset: candidate.ParserCompleteOffset})
+		}
+		if validation, diagnostics, err := inventory.ValidateBindingProof(agent, proof); err == nil {
+			return validation, diagnostics, nil
+		}
+		break
+	}
+	snapshot := inventory.Observe(agent)
+	selected := inventory.Select(TargetRequest{Mode: TargetExplicitResume, Agent: agent, NativeID: nativeID}, snapshot)
+	validations, diagnostics := ValidateTargetWork(inventory.runtime, agent, selected.Eligible)
+	diagnostics = append(snapshot.Diagnostics, diagnostics...)
+	if len(validations) != 1 || validations[0].State.Role != RoleRoot || validations[0].State.NativeID != nativeID {
+		return TargetValidation{}, diagnostics, ErrArtifactChanged
+	}
+	return validations[0], diagnostics, nil
 }

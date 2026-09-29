@@ -59,7 +59,7 @@ func OfflineRecovery(inventory Inventory, input OfflineRecoveryInput) Inventory 
 // delimited by one launch baseline. Live monitoring and offline recovery share
 // this projection; only their evidence label differs at binding time.
 func RoundsAfterLaunch(inventory Inventory, scopeKey, tag string, agent Agent, log []byte, launch sessionledger.Record, nativeEvents []NativeEventFact) ([]RoundObservation, []Diagnostic) {
-	if launch.Ordinal == 0 {
+	if launch.Ordinal == 0 || (launch.Version >= 3 && !launch.BaselineComplete) {
 		return nil, nil
 	}
 	parsed := ParsePairLog(log, launch.PairLogOffset)
@@ -78,6 +78,25 @@ func RoundsAfterLaunch(inventory Inventory, scopeKey, tag string, agent Agent, l
 	for _, watermark := range launch.NativeWatermarks {
 		watermarks[watermark.RootNativeID] = watermark.EventPosition
 	}
+	boundaries := map[string]int64{}
+	for _, boundary := range launch.LaunchArtifactBoundaries {
+		boundaries[boundary.StorageRoot+"\x00"+boundary.RelativePath] = boundary.RawSize
+	}
+	rootBoundaries := map[string]int64{}
+	for _, forest := range inventory.Forests {
+		if forest.Agent != agent {
+			continue
+		}
+		for _, root := range forest.Roots {
+			artifact, err := RootTranscript(root)
+			if err != nil {
+				continue
+			}
+			if size, exists := boundaries[targetArtifactKey(artifact)]; exists {
+				rootBoundaries[root.StableID] = size
+			}
+		}
+	}
 	filteredEvents := make([]NativeEventFact, 0, len(nativeEvents))
 	for _, event := range nativeEvents {
 		event.Agent = agent
@@ -87,6 +106,14 @@ func RoundsAfterLaunch(inventory Inventory, scopeKey, tag string, agent Agent, l
 		}
 		if watermark, existed := watermarks[nativeID]; existed && event.Position <= watermark {
 			continue
+		}
+		if launch.Version >= 2 {
+			if size, exists := rootBoundaries[event.RootNodeID]; exists {
+				offset, valid := nativeEventRecordOffset(event.Position)
+				if !valid || size < 0 || offset < uint64(size) {
+					continue
+				}
+			}
 		}
 		filteredEvents = append(filteredEvents, event)
 	}

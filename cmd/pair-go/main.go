@@ -104,6 +104,8 @@ func runStreamingSubcommand(name string, rest []string, stdin io.Reader, stdout,
 		return changelogcmd.RunWithEnv(rest, os.Getenv, stderr)
 	case "continuation":
 		return continuationcmd.Run(rest, stdin, stdout, stderr, time.Now)
+	case "session-repair":
+		return sessionwatch.RunRepairCLI(rest, os.Getenv, stdout, stderr)
 	case "session-watch":
 		return sessionwatch.RunCLI(rest, os.Getenv, stderr)
 	case "session-log append":

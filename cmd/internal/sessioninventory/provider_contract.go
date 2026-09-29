@@ -18,7 +18,7 @@ func ProviderContractFor(agent Agent, storageRoot, scannerSchema string) (Provid
 	switch {
 	case agent == AgentClaude && storageRoot == "claude-projects" && scannerSchema == "claude-v1":
 		contract = ProviderClaudeJSONLV1
-	case agent == AgentCodex && storageRoot == "codex-sessions" && scannerSchema == "codex-v1":
+	case agent == AgentCodex && storageRoot == "codex-sessions" && scannerSchema == "codex-v2":
 		contract = ProviderCodexJSONLV1
 	case agent == AgentMuse && storageRoot == "muse-sessions" && scannerSchema == "muse-v1":
 		contract = ProviderMuseJSONLV1

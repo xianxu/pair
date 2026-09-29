@@ -95,7 +95,7 @@ func artifactScannerShape(agent Agent, artifact Artifact) (string, ArtifactKind,
 		return "claude-v1", ArtifactTranscript, ok && artifact.StorageRoot == "claude-projects"
 	case AgentCodex:
 		_, ok := codexPathID(artifact.RelativePath)
-		return "codex-v1", ArtifactTranscript, ok && artifact.StorageRoot == "codex-sessions"
+		return "codex-v2", ArtifactTranscript, ok && artifact.StorageRoot == "codex-sessions"
 	case AgentMuse:
 		_, _, _, ok := musePathFact(artifact.RelativePath)
 		return "muse-v1", ArtifactTranscript, ok && artifact.StorageRoot == "muse-sessions"

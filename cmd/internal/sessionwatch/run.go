@@ -1,6 +1,7 @@
 package sessionwatch
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -84,6 +85,7 @@ func Run(opts Options, rt Runtime) error {
 	boundRootNodeID := ""
 	lifecycleWatermark := uint64(0)
 	deadline := watchStart.Add(opts.Timeout)
+	var observationEpoch *sessionledger.Record
 	for {
 		if rootIdentity != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
 			rt.Log(adapt.NearMiss, "process identity changed before completed round")
@@ -121,9 +123,50 @@ func Run(opts Options, rt Runtime) error {
 			}
 			return nil
 		}
-		if current.Launch.Version != 2 {
+		if current.Launch.Version != 2 && current.Launch.Version != 3 {
 			rt.Log(adapt.NearMiss, "legacy unbound launch has no metadata boundary; watcher failed closed")
 			return nil
+		}
+		effectiveLaunch := current.Launch
+		if current.Launch.Version == 3 && !current.Launch.BaselineComplete {
+			if observationEpoch == nil {
+				snapshot := sessioninventory.NewIncrementalInventory(nativeRuntime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}).Observe(agent)
+				boundaries, complete := launchBoundaries(snapshot)
+				pairLog, readErr := rt.ReadFile(paths.Log())
+				if complete && (readErr == nil || errors.Is(readErr, os.ErrNotExist)) {
+					epoch := current.Launch
+					epoch.BaselineComplete = true
+					epoch.LaunchArtifactBoundaries = boundaries
+					epoch.PairLogOffset = uint64(len(pairLog))
+					epoch.RequestOrigin = ""
+					epoch.RequestedNativeID = ""
+					observationEpoch = &epoch
+				}
+				rt.Sleep(opts.SlowPoll)
+				if rootPID == "" && !rt.Now().Before(deadline) {
+					return nil
+				}
+				continue
+			}
+			effectiveLaunch = *observationEpoch
+		}
+		if effectiveLaunch.Version == 3 && effectiveLaunch.RequestOrigin == sessionledger.RequestOriginChosen {
+			snapshot := sessioninventory.NewIncrementalInventory(nativeRuntime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}).Observe(agent)
+			_, complete := launchBoundaries(snapshot)
+			if complete && sessioninventory.ChosenFilenameHandshake(agent, effectiveLaunch.RequestedNativeID, targetBoundaries(effectiveLaunch), snapshot.Observations) != nil {
+				confirmer, ok := rt.LedgerAppender().(interface {
+					ConfirmIfCurrent(string, sessionledger.Owner, uint64, string, string, *sessionledger.AuthorizationProof) (sessionledger.Record, error)
+				})
+				if !ok {
+					return errors.New("ledger does not support confirmation")
+				}
+				record, err := confirmer.ConfirmIfCurrent(paths.Ledger(), owner, opts.LaunchOrdinal, effectiveLaunch.RequestedNativeID, "chosen-id", nil)
+				if err = reconcileLedgerAppend(rt.LedgerAppender(), paths.Ledger(), record, err); err != nil {
+					return err
+				}
+				rt.Log(adapt.Fired, "session_id="+effectiveLaunch.RequestedNativeID+" reason=chosen-id")
+				return nil
+			}
 		}
 		var inventory sessioninventory.Inventory
 		var events []sessioninventory.NativeEventFact
@@ -135,10 +178,10 @@ func Run(opts Options, rt Runtime) error {
 			rt.Log(adapt.NearMiss, "session inventory catalog unavailable: "+readErr.Error())
 		}
 		incremental := sessioninventory.NewIncrementalInventory(nativeRuntime, catalog)
-		inventory, events, proofs = incrementalWatcherInventory(nativeRuntime, incremental, agent, current.Launch, trackedTargets)
+		inventory, events, proofs = incrementalWatcherInventory(nativeRuntime, incremental, agent, effectiveLaunch, trackedTargets)
 		if err := persistTrackedCatalog(rt.CatalogStore(), paths.SessionInventoryCatalog(), trackedTargets); err != nil {
-			proofs = map[string]sessionledger.AuthorizationProof{}
-			inventory.Diagnostics = append(inventory.Diagnostics, sessioninventory.DiagnosticWithSource(sessioninventory.DiagnosticStorageUnreadable, agent, nil, "session inventory catalog", "catalog publication failed; binding authority withheld"))
+
+			inventory.Diagnostics = append(inventory.Diagnostics, sessioninventory.DiagnosticWithSource(sessioninventory.DiagnosticStorageUnreadable, agent, nil, "session inventory catalog", "catalog publication failed; durable observation remains usable"))
 		}
 		if boundRootNodeID != "" {
 			var publishErr error
@@ -155,7 +198,7 @@ func Run(opts Options, rt Runtime) error {
 		for _, diagnostic := range logDiagnostics {
 			rt.Log(adapt.NearMiss, string(diagnostic.Code)+": Pair log unavailable for causal matching")
 		}
-		rounds, roundDiagnostics := sessioninventory.RoundsAfterLaunch(inventory, opts.ScopeKey, opts.Tag, agent, pairLog, current.Launch, events)
+		rounds, roundDiagnostics := sessioninventory.RoundsAfterLaunch(inventory, opts.ScopeKey, opts.Tag, agent, pairLog, effectiveLaunch, events)
 		inventory.Diagnostics = append(inventory.Diagnostics, roundDiagnostics...)
 		afterRoots, afterAvailable := processAuthorizedRoots(nativeRuntime, inventory, agent, corroborationPID)
 		if rootIdentity != "" && rt.ProcessIdentity(rootPID) != rootIdentity {
@@ -167,8 +210,20 @@ func Run(opts Options, rt Runtime) error {
 		}
 		resolved, persistErr := ObserveAndPersist(ObserveInput{
 			Owner: owner, LedgerPath: paths.Ledger(), LaunchOrdinal: opts.LaunchOrdinal,
-			Inventory: inventory, LiveRounds: rounds, Proofs: proofs, RequireProof: true, Args: opts.Args,
+			Inventory: inventory, LiveRounds: rounds, Proofs: proofs, RequireProof: current.Launch.Version < 3, Args: opts.Args,
+			ConfirmationReason: "correlation",
 		}, rt.LedgerAppender(), func(payload ConfigPayload) error {
+			if saved, readErr := rt.ReadFile(configPath); readErr == nil {
+				var previous ConfigPayload
+				if json.Unmarshal(saved, &previous) != nil {
+					return errors.New("saved launch config is unreadable")
+				}
+				if previous.Agent == payload.Agent {
+					payload.Args = previous.Args
+				}
+			} else if !errors.Is(readErr, os.ErrNotExist) {
+				return readErr
+			}
 			raw, err := ConfigJSON(payload)
 			if err != nil {
 				return err
@@ -273,14 +328,7 @@ func persistTrackedCatalog(store sessioninventory.CatalogStore, path string, tra
 func incrementalWatcherInventory(runtime sessioninventory.Runtime, incremental sessioninventory.IncrementalInventory, agent sessioninventory.Agent, launch sessionledger.Record, tracked map[string]sessioninventory.TargetValidation) (sessioninventory.Inventory, []sessioninventory.NativeEventFact, map[string]sessionledger.AuthorizationProof) {
 	snapshot := incremental.Observe(agent)
 	diagnostics := snapshot.Diagnostics
-	baseline := make([]sessioninventory.TargetArtifactBoundary, 0, len(launch.LaunchArtifactBoundaries))
-	for _, boundary := range launch.LaunchArtifactBoundaries {
-		baseline = append(baseline, sessioninventory.TargetArtifactBoundary{
-			StorageRoot: boundary.StorageRoot, RelativePath: boundary.RelativePath,
-			StableFileID: sessioninventory.StableFileID(boundary.StableFileID), GenerationToken: sessioninventory.GenerationToken(boundary.GenerationToken),
-			MutationToken: sessioninventory.MutationToken(boundary.MutationToken), RawSize: boundary.RawSize,
-		})
-	}
+	baseline := targetBoundaries(launch)
 	selection := incremental.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetNewLaunch, Agent: agent, Baseline: baseline}, snapshot)
 	handled := map[string]bool{}
 	for nativeID, prior := range tracked {
@@ -465,4 +513,16 @@ func valueOrEmpty(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func targetBoundaries(launch sessionledger.Record) []sessioninventory.TargetArtifactBoundary {
+	baseline := make([]sessioninventory.TargetArtifactBoundary, 0, len(launch.LaunchArtifactBoundaries))
+	for _, boundary := range launch.LaunchArtifactBoundaries {
+		baseline = append(baseline, sessioninventory.TargetArtifactBoundary{
+			StorageRoot: boundary.StorageRoot, RelativePath: boundary.RelativePath,
+			StableFileID: sessioninventory.StableFileID(boundary.StableFileID), GenerationToken: sessioninventory.GenerationToken(boundary.GenerationToken),
+			MutationToken: sessioninventory.MutationToken(boundary.MutationToken), RawSize: boundary.RawSize,
+		})
+	}
+	return baseline
 }

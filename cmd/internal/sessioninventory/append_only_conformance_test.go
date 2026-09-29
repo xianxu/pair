@@ -31,7 +31,7 @@ func TestAppendOnlyProviderConformance(t *testing.T) {
 			},
 		},
 		{
-			name: "codex", agent: sessioninventory.AgentCodex, root: "codex-sessions", relative: "2026/08/28/rollout-root-019d1111-1111-7111-8111-111111111111.jsonl", schema: "codex-v1",
+			name: "codex", agent: sessioninventory.AgentCodex, root: "codex-sessions", relative: "2026/08/28/rollout-root-019d1111-1111-7111-8111-111111111111.jsonl", schema: "codex-v2",
 			fixture: filepath.Join("testdata", "native", "codex", "v1", "codex-sessions", "2026", "08", "28", "rollout-root-019d1111-1111-7111-8111-111111111111.jsonl"),
 			validate: func(entry sessioninventory.FileEntry, prior *sessioninventory.ScannerState, records []sessioninventory.FramedJSONLRecord) (sessioninventory.ScannerState, error) {
 				state, _, err := sessioninventory.ValidateCodexDelta(entry, prior, records)

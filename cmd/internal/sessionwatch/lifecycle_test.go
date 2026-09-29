@@ -93,7 +93,7 @@ func TestPrepareOSLaunchIncrementalCapturesMetadataWithoutBodyReads(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prepared.Launch.Version != 2 || len(prepared.Launch.LaunchArtifactBoundaries) != 1573 {
+	if prepared.Launch.Version != 3 || len(prepared.Launch.LaunchArtifactBoundaries) != 1573 {
 		t.Fatalf("launch=%#v", prepared.Launch)
 	}
 	if got := runtime.OperationCount(sessioninventorytest.OperationReadAt, ""); got != 0 {
@@ -126,7 +126,7 @@ func TestCorruptCatalogColdLaunchStaysMetadataOnly(t *testing.T) {
 	runtime.AddRoot(root)
 	runtime.PutFile(sessioninventory.FileEntry{Artifact: sessioninventory.Artifact{StorageRoot: root.Name, RelativePath: "-repo/11111111-1111-4111-8111-111111111111.jsonl"}, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: "ctime:1"}, []byte("private transcript\n"))
 	prepared, err := PrepareRuntimeLaunch(dataDir, sessionledger.Owner{ScopeKey: "scope", Tag: "work", Agent: "claude"}, "", 0, runtime, &fakeLifecycleStore{})
-	if err != nil || prepared.Launch.Version != 2 || runtime.OperationCount(sessioninventorytest.OperationReadAt, "") != 0 || runtime.OperationCount(sessioninventorytest.OperationReadFile, "") != 0 {
+	if err != nil || prepared.Launch.Version != 3 || runtime.OperationCount(sessioninventorytest.OperationReadAt, "") != 0 || runtime.OperationCount(sessioninventorytest.OperationReadFile, "") != 0 {
 		t.Fatalf("prepared=%#v reads=%d/%d err=%v", prepared, runtime.OperationCount(sessioninventorytest.OperationReadAt, ""), runtime.OperationCount(sessioninventorytest.OperationReadFile, ""), err)
 	}
 }
@@ -294,4 +294,27 @@ func equalWatermarks(left, right []sessionledger.NativeWatermark) bool {
 		}
 	}
 	return true
+}
+
+func (f *fakeLifecycleStore) ConfirmIfCurrent(path string, owner sessionledger.Owner, ordinal uint64, id, reason string, proof *sessionledger.AuthorizationProof) (sessionledger.Record, error) {
+	if f.stale {
+		return sessionledger.Record{}, sessionledger.ErrStaleLaunch
+	}
+	for _, r := range f.records {
+		if r.Kind == sessionledger.RecordBinding && r.LaunchOrdinal == ordinal {
+			if r.RootNativeID == id {
+				return r, nil
+			}
+			return sessionledger.Record{}, errors.New("competing root")
+		}
+	}
+	r := sessionledger.Record{Version: 3, Kind: sessionledger.RecordBinding, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, LaunchOrdinal: ordinal, RootNativeID: id, ConfirmationReason: reason, AuthorizationProof: proof, Ordinal: uint64(len(f.records) + 1)}
+	f.records = append(f.records, r)
+	return r, f.bindingErr
+}
+func (f *fakeLifecycleStore) WithCurrentConfirmation(_ string, _ sessionledger.Owner, _ uint64, _ string, effect func() error) error {
+	if f.stale {
+		return sessionledger.ErrStaleLaunch
+	}
+	return effect()
 }

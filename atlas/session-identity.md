@@ -373,8 +373,8 @@ override a current ledger generation.
 
 ### Codex root identity
 
-Codex scanning treats source strings as open-world: `vscode` and future root
-source values are accepted. Understood parent/subagent evidence still prevents
+Codex scanning treats source metadata as open-world: `vscode`, unfamiliar valid
+values, and absent source fields do not by themselves reject a root. Understood parent/subagent evidence still prevents
 child transcripts from being selected as roots. Parsing checks apply to fresh
 correlation and optional contents, never to the continued usability of a saved
 UUID. Scanner schema changes invalidate obsolete cached rejections.

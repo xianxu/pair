@@ -164,7 +164,7 @@ func TestWatcherIncrementalV2PublishesProofFromOnlyPostBoundaryArtifact(t *testi
 	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Second, Timeout: 20 * time.Millisecond, Poll: time.Millisecond}, runtime); err != nil {
 		t.Fatal(err)
 	}
-	if len(runtime.store.records) != 1 || runtime.store.records[0].Version != 2 || runtime.store.records[0].AuthorizationProof == nil || runtime.store.records[0].RootNativeID != sid {
+	if len(runtime.store.records) != 1 || runtime.store.records[0].Version != 3 || runtime.store.records[0].AuthorizationProof == nil || runtime.store.records[0].RootNativeID != sid {
 		t.Fatalf("records=%#v", runtime.store.records)
 	}
 	catalog, err := (sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}).Read(paths.Catalog())
@@ -194,7 +194,7 @@ func TestWatcherLaunchBaselineWinsWhenConcurrentCatalogAlreadyContainsNewArtifac
 	store := sessioninventory.CatalogStore{Runtime: sessioninventory.CatalogOSRuntime{}}
 	_, err = store.Update(paths.Catalog(), func(catalog sessioninventory.Catalog) (sessioninventory.Catalog, error) {
 		entry := files[0]
-		catalog.Entries = []sessioninventory.CatalogEntry{{Agent: sessioninventory.AgentCodex, Artifact: entry.Artifact, Fingerprint: sessioninventory.ArtifactFingerprint{StableFileID: entry.StableFileID, GenerationToken: entry.GenerationToken, MutationToken: entry.MutationToken, Size: entry.Size}, Authorization: sessioninventory.AuthorizationAuthorized, ScannerSchema: "codex-v1", ProviderContract: sessioninventory.ProviderCodexJSONLV1, RawObservedOffset: entry.Size, ParserCompleteOffset: entry.Size}}
+		catalog.Entries = []sessioninventory.CatalogEntry{{Agent: sessioninventory.AgentCodex, Artifact: entry.Artifact, Fingerprint: sessioninventory.ArtifactFingerprint{StableFileID: entry.StableFileID, GenerationToken: entry.GenerationToken, MutationToken: entry.MutationToken, Size: entry.Size}, Authorization: sessioninventory.AuthorizationAuthorized, ScannerSchema: "codex-v2", ProviderContract: sessioninventory.ProviderCodexJSONLV1, RawObservedOffset: entry.Size, ParserCompleteOffset: entry.Size}}
 		return catalog, nil
 	})
 	if err != nil {
@@ -264,12 +264,12 @@ func TestPersistTrackedCatalogDoesNotRegressNewestOrDisputedEntry(t *testing.T) 
 	validation := func(size int64, mutation string) map[string]sessioninventory.TargetValidation {
 		artifact := sessioninventory.Artifact{StorageRoot: "codex-sessions", RelativePath: "2026/08/29/rollout-id.jsonl", Kind: sessioninventory.ArtifactTranscript}
 		entry := sessioninventory.FileEntry{Artifact: artifact, StableFileID: "stable", GenerationToken: "gen:1", MutationToken: sessioninventory.MutationToken(mutation), Size: size}
-		state := sessioninventory.ScannerState{Version: sessioninventory.ScannerStateVersion, Agent: sessioninventory.AgentCodex, NativeID: "id", IdentityAnchor: "id", Role: sessioninventory.RoleRoot, ScannerSchema: "codex-v1", FirstRecordValidated: true}
+		state := sessioninventory.ScannerState{Version: sessioninventory.ScannerStateVersion, Agent: sessioninventory.AgentCodex, NativeID: "id", IdentityAnchor: "id", Role: sessioninventory.RoleRoot, ScannerSchema: "codex-v2", FirstRecordValidated: true}
 		fact, err := sessioninventory.ScannerStateFact(state, []sessioninventory.Artifact{artifact})
 		if err != nil {
 			t.Fatal(err)
 		}
-		return map[string]sessioninventory.TargetValidation{"id": {State: state, Fact: fact, Observations: []sessioninventory.ArtifactObservation{{Agent: sessioninventory.AgentCodex, Entry: entry, ScannerSchema: "codex-v1", ProviderContract: sessioninventory.ProviderCodexJSONLV1}}, Results: map[string]sessioninventory.IncrementalResult{"codex-sessions\x00" + artifact.RelativePath: {Fingerprint: sessioninventory.ArtifactFingerprint{StableFileID: "stable", GenerationToken: "gen:1", MutationToken: sessioninventory.MutationToken(mutation), Size: size}, RawObservedOffset: size, FrameState: sessioninventory.JSONLFrameState{ParserCompleteOffset: size}}}}}
+		return map[string]sessioninventory.TargetValidation{"id": {State: state, Fact: fact, Observations: []sessioninventory.ArtifactObservation{{Agent: sessioninventory.AgentCodex, Entry: entry, ScannerSchema: "codex-v2", ProviderContract: sessioninventory.ProviderCodexJSONLV1}}, Results: map[string]sessioninventory.IncrementalResult{"codex-sessions\x00" + artifact.RelativePath: {Fingerprint: sessioninventory.ArtifactFingerprint{StableFileID: "stable", GenerationToken: "gen:1", MutationToken: sessioninventory.MutationToken(mutation), Size: size}, RawObservedOffset: size, FrameState: sessioninventory.JSONLFrameState{ParserCompleteOffset: size}}}}}
 	}
 	if err := persistTrackedCatalog(store, path, validation(20, "ctime:2")); err != nil {
 		t.Fatal(err)
@@ -298,7 +298,7 @@ func TestPersistTrackedCatalogDoesNotRegressNewestOrDisputedEntry(t *testing.T) 
 	}
 }
 
-func TestWatcherCatalogFailureNeverPublishesProoflessV2Binding(t *testing.T) {
+func TestWatcherCatalogFailureDoesNotPreventDurableConfirmation(t *testing.T) {
 	t.Parallel()
 	dataDir := t.TempDir()
 	native := sessioninventorytest.NewFakeRuntime()
@@ -316,8 +316,8 @@ func TestWatcherCatalogFailureNeverPublishesProoflessV2Binding(t *testing.T) {
 	if err := Run(Options{Agent: "codex", Tag: "work", ScopeKey: "scope", LaunchOrdinal: 1, Home: "/home", DataDir: dataDir, PIDWait: time.Nanosecond, Timeout: time.Nanosecond, Poll: time.Nanosecond}, runtime); err != nil {
 		t.Fatal(err)
 	}
-	if len(runtime.store.records) != 0 {
-		t.Fatalf("proofless binding published after catalog failure: %#v", runtime.store.records)
+	if len(runtime.store.records) != 1 || runtime.store.records[0].RootNativeID != sid {
+		t.Fatalf("catalog failure prevented confirmation: %#v", runtime.store.records)
 	}
 }
 

@@ -3,7 +3,6 @@ package sessionwatch
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"slices"
 	"strings"
@@ -203,7 +202,19 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 	}
 	var appended sessionledger.Record
 	var err error
-	if hasProof {
+	if input.ConfirmationReason != "" {
+		confirmer, ok := store.(interface {
+			ConfirmIfCurrent(string, sessionledger.Owner, uint64, string, string, *sessionledger.AuthorizationProof) (sessionledger.Record, error)
+		})
+		if !ok {
+			return resolved, errors.New("ledger does not support confirmation")
+		}
+		var optionalProof *sessionledger.AuthorizationProof
+		if hasProof {
+			optionalProof = &proof
+		}
+		appended, err = confirmer.ConfirmIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID, input.ConfirmationReason, optionalProof)
+	} else if hasProof {
 		appended, err = store.AppendBindingProofIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, proof)
 	} else {
 		appended, err = store.AppendBindingIfCurrent(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID)
@@ -216,7 +227,22 @@ func ObserveAndPersist(input ObserveInput, store LedgerAppender, writeConfig Con
 	bindingInput.LedgerRootNodeID = *binding.RootNodeID
 	resolved = sessioninventory.ResolveBindings(input.Inventory, []sessioninventory.BindingInput{bindingInput})
 	if writeConfig != nil {
-		if err := writeConfig(ConfigPayload{Agent: input.Owner.Agent, Args: StripResumeArgs(input.Owner.Agent, input.Args), SessionID: nativeID}); err != nil {
+		write := func() error {
+			return writeConfig(ConfigPayload{Agent: input.Owner.Agent, Args: StripResumeArgs(input.Owner.Agent, input.Args), SessionID: nativeID})
+		}
+		var configErr error
+		if input.ConfirmationReason != "" {
+			if guarded, ok := store.(interface {
+				WithCurrentConfirmation(string, sessionledger.Owner, uint64, string, func() error) error
+			}); ok {
+				configErr = guarded.WithCurrentConfirmation(input.LedgerPath, input.Owner, input.LaunchOrdinal, nativeID, write)
+			} else {
+				configErr = errors.New("unguarded compatibility publication refused")
+			}
+		} else {
+			configErr = write()
+		}
+		if configErr != nil {
 			resolved.Diagnostics = append(resolved.Diagnostics, sessioninventory.Diagnostic{
 				Code: sessioninventory.DiagnosticBindingStale, Agent: agent,
 				Detail: "durable binding established but config cache refresh failed",
@@ -244,6 +270,14 @@ func nativeIDForRoot(forests []sessioninventory.Forest, agent sessioninventory.A
 // PrepareOSLaunch is the shared thin IO shell used by both the outer launcher
 // and an in-pane fresh-agent restart before either can accept new input.
 func PrepareOSLaunch(home, dataDir string, owner sessionledger.Owner, resumeNativeID string) (PreparedLaunch, error) {
+	origin := sessionledger.RequestOrigin("")
+	if resumeNativeID != "" {
+		origin = sessionledger.RequestOriginResume
+	}
+	return PrepareOSLaunchRequest(home, dataDir, owner, resumeNativeID, origin)
+}
+
+func PrepareOSLaunchRequest(home, dataDir string, owner sessionledger.Owner, requestedNativeID string, origin sessionledger.RequestOrigin) (PreparedLaunch, error) {
 	paths, err := artifactpath.ResolveScoped(dataDir, owner.Tag)
 	if err != nil {
 		return PreparedLaunch{}, err
@@ -254,56 +288,48 @@ func PrepareOSLaunch(home, dataDir string, owner sessionledger.Owner, resumeNati
 	} else if !os.IsNotExist(statErr) {
 		return PreparedLaunch{}, statErr
 	}
-	return prepareRuntimeLaunch(paths.Ledger(), owner, resumeNativeID, pairLogOffset, sessioninventory.NewOSRuntime(home, dataDir), sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}})
+	return prepareRuntimeLaunchRequest(paths.Ledger(), owner, requestedNativeID, origin, pairLogOffset, sessioninventory.NewOSRuntime(home, dataDir), sessionledger.LedgerStore{Runtime: sessionledger.OSRuntime{}})
 }
 
 // PrepareRuntimeLaunch is the injected metadata-only launch seam used by the
 // stateful corpus tests.
 func PrepareRuntimeLaunch(dataDir string, owner sessionledger.Owner, resumeNativeID string, pairLogOffset uint64, nativeRuntime sessioninventory.Runtime, store LedgerAppender) (PreparedLaunch, error) {
+	origin := sessionledger.RequestOrigin("")
+	if resumeNativeID != "" {
+		origin = sessionledger.RequestOriginResume
+	}
+	return PrepareRuntimeLaunchRequest(dataDir, owner, resumeNativeID, origin, pairLogOffset, nativeRuntime, store)
+}
+
+func PrepareRuntimeLaunchRequest(dataDir string, owner sessionledger.Owner, requestedNativeID string, origin sessionledger.RequestOrigin, pairLogOffset uint64, nativeRuntime sessioninventory.Runtime, store LedgerAppender) (PreparedLaunch, error) {
 	paths, err := artifactpath.ResolveScoped(dataDir, owner.Tag)
 	if err != nil {
 		return PreparedLaunch{}, err
 	}
-	return prepareRuntimeLaunch(paths.Ledger(), owner, resumeNativeID, pairLogOffset, nativeRuntime, store)
+	return prepareRuntimeLaunchRequest(paths.Ledger(), owner, requestedNativeID, origin, pairLogOffset, nativeRuntime, store)
 }
 
-func prepareRuntimeLaunch(ledgerPath string, owner sessionledger.Owner, resumeNativeID string, pairLogOffset uint64, nativeRuntime sessioninventory.Runtime, store LedgerAppender) (PreparedLaunch, error) {
-	agent := sessioninventory.Agent(owner.Agent)
-	inventory := sessioninventory.NewIncrementalInventory(nativeRuntime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion})
-	snapshot := inventory.Observe(agent)
-	observations, diagnostics := snapshot.Observations, snapshot.Diagnostics
-	for _, diagnostic := range diagnostics {
-		if diagnostic.Code == sessioninventory.DiagnosticStorageUnreadable {
-			return PreparedLaunch{}, fmt.Errorf("capture native launch metadata: %s", diagnostic.Detail)
+func prepareRuntimeLaunchRequest(ledgerPath string, owner sessionledger.Owner, requestedNativeID string, origin sessionledger.RequestOrigin, pairLogOffset uint64, nativeRuntime sessioninventory.Runtime, store LedgerAppender) (PreparedLaunch, error) {
+	snapshot := sessioninventory.NewIncrementalInventory(nativeRuntime, sessioninventory.Catalog{Version: sessioninventory.CatalogVersion}).Observe(sessioninventory.Agent(owner.Agent))
+	boundaries, complete := launchBoundaries(snapshot)
+	launch, err := store.Append(ledgerPath, sessionledger.Record{Version: 3, Kind: sessionledger.RecordLaunch, ScopeKey: owner.ScopeKey, Tag: owner.Tag, Agent: owner.Agent, PairLogOffset: pairLogOffset, LaunchArtifactBoundaries: boundaries, RequestedNativeID: requestedNativeID, RequestOrigin: origin, BaselineComplete: complete})
+	err = reconcileLedgerAppend(store, ledgerPath, launch, err)
+	return PreparedLaunch{Launch: launch}, err
+}
+
+func launchBoundaries(snapshot sessioninventory.IncrementalSnapshot) ([]sessionledger.LaunchArtifactBoundary, bool) {
+	complete := true
+	for _, diagnostic := range snapshot.Diagnostics {
+		if diagnostic.Code == sessioninventory.DiagnosticStorageUnreadable || diagnostic.Code == sessioninventory.DiagnosticArtifactPathInvalid {
+			complete = false
 		}
 	}
-	boundaries := make([]sessionledger.LaunchArtifactBoundary, 0, len(observations))
-	for _, observation := range observations {
+	boundaries := make([]sessionledger.LaunchArtifactBoundary, 0, len(snapshot.Observations))
+	for _, observation := range snapshot.Observations {
 		entry := observation.Entry
-		boundaries = append(boundaries, sessionledger.LaunchArtifactBoundary{
-			StorageRoot: entry.Artifact.StorageRoot, RelativePath: entry.Artifact.RelativePath, StableFileID: string(entry.StableFileID),
-			GenerationToken: string(entry.GenerationToken), MutationToken: string(entry.MutationToken), RawSize: entry.Size,
-		})
+		boundaries = append(boundaries, sessionledger.LaunchArtifactBoundary{StorageRoot: entry.Artifact.StorageRoot, RelativePath: entry.Artifact.RelativePath, StableFileID: string(entry.StableFileID), GenerationToken: string(entry.GenerationToken), MutationToken: string(entry.MutationToken), RawSize: entry.Size})
 	}
-	var proof *sessionledger.AuthorizationProof
-	if resumeNativeID != "" {
-		selection := inventory.Select(sessioninventory.TargetRequest{Mode: sessioninventory.TargetExplicitResume, Agent: agent, NativeID: resumeNativeID}, snapshot)
-		validations, _ := sessioninventory.ValidateTargetWork(nativeRuntime, agent, selection.Eligible)
-		for _, validation := range validations {
-			if validation.State.NativeID == resumeNativeID && validation.State.Role == sessioninventory.RoleRoot {
-				candidate, err := authorizationProof(validation)
-				if err != nil {
-					return PreparedLaunch{}, err
-				}
-				proof = &candidate
-				break
-			}
-		}
-		if proof == nil {
-			return PreparedLaunch{}, ErrResumeUnauthorized
-		}
-	}
-	return PrepareLaunch(PrepareLaunchInput{Owner: owner, LedgerPath: ledgerPath, PairLogOffset: pairLogOffset, ArtifactBoundaries: boundaries, ResumeNativeID: resumeNativeID, ResumeProof: proof}, store)
+	return boundaries, complete
 }
 
 func authorizationProof(validation sessioninventory.TargetValidation) (sessionledger.AuthorizationProof, error) {

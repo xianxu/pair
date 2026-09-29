@@ -95,3 +95,35 @@ func TestOfflineRecoveryLedgerConflictCannotFallThroughToRounds(t *testing.T) {
 		t.Fatalf("binding=%#v", binding)
 	}
 }
+
+func TestRoundsAfterLaunchUsesTranscriptByteBoundary(t *testing.T) {
+	text := "please preserve this completed native session round"
+	log := []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
+	inv := bindingTestInventory()
+	artifact := Artifact{StorageRoot: "root", RelativePath: "transcript", Kind: ArtifactTranscript}
+	inv.Forests[0].Roots[0].Artifacts = []Artifact{artifact}
+	launch := sessionledger.Record{Version: 2, Ordinal: 1, LaunchArtifactBoundaries: []sessionledger.LaunchArtifactBoundary{{StorageRoot: "root", RelativePath: "transcript", RawSize: 100}}}
+	for _, tc := range []struct {
+		name  string
+		start uint64
+		want  int
+	}{{"historical", 10, 0}, {"partial prelaunch record", 99, 0}, {"post launch", 100, 1}} {
+		t.Run(tc.name, func(t *testing.T) {
+			events := []NativeEventFact{{RootNodeID: "root-a", Position: ((tc.start + 1) << 8), Event: NativeEvent{Kind: EventOperator, Text: text}}, {RootNodeID: "root-a", Position: ((120 + 1) << 8), Event: NativeEvent{Kind: EventAssistant}}}
+			rounds, _ := RoundsAfterLaunch(inv, "scope", "tag", AgentClaude, log, launch, events)
+			if len(rounds) != tc.want {
+				t.Fatalf("rounds=%#v want %d", rounds, tc.want)
+			}
+		})
+	}
+}
+
+func TestRoundsAfterLaunchIncompleteBaselineCannotConfirm(t *testing.T) {
+	text := "please preserve this completed native session round"
+	log := []byte("## 2026-08-28 01:00:01\n\n" + text + "\n\n---\n\n")
+	events := []NativeEventFact{{RootNodeID: "root-a", Position: 256, Event: NativeEvent{Kind: EventOperator, Text: text}}, {RootNodeID: "root-a", Position: 512, Event: NativeEvent{Kind: EventAssistant}}}
+	rounds, _ := RoundsAfterLaunch(bindingTestInventory(), "scope", "tag", AgentClaude, log, sessionledger.Record{Version: 3, Ordinal: 1}, events)
+	if len(rounds) != 0 {
+		t.Fatalf("incomplete baseline confirmed: %#v", rounds)
+	}
+}

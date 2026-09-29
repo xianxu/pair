@@ -199,7 +199,7 @@ func (r OSRuntime) QuerySQLite(artifact Artifact, query string, limit int64) (SQ
 	}
 	stdout := newBoundedBuffer(limit)
 	stderr := newBoundedBuffer(8192)
-	command := exec.Command("sqlite3", "-readonly", "-header", "-csv", filePath, query)
+	command := exec.Command("sqlite3", "-readonly", "-csv", "-header", filePath, query)
 	command.Stdout = stdout
 	command.Stderr = stderr
 	if err := command.Run(); err != nil {

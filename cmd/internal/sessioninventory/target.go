@@ -123,14 +123,14 @@ func CatalogSessionCandidateExists(catalog Catalog, observations []ArtifactObser
 }
 
 func selectNewLaunchTargets(request TargetRequest, observed []ArtifactObservation) TargetResult {
-	baseline := map[string]bool{}
+	baseline := map[string]TargetArtifactBoundary{}
 	for _, boundary := range request.Baseline {
-		baseline[boundary.StorageRoot+"\x00"+boundary.RelativePath] = true
+		baseline[boundary.StorageRoot+"\x00"+boundary.RelativePath] = boundary
 	}
 	if request.Agent != AgentAgy {
 		var eligible []ArtifactObservation
 		for _, observation := range observed {
-			if !baseline[targetArtifactKey(observation.Entry.Artifact)] && observationNativeID(request.Agent, observation.Entry.Artifact) != "" {
+			if targetChangedSinceBaseline(observation, baseline) && observationNativeID(request.Agent, observation.Entry.Artifact) != "" {
 				eligible = append(eligible, observation)
 			}
 		}
@@ -138,21 +138,19 @@ func selectNewLaunchTargets(request TargetRequest, observed []ArtifactObservatio
 	}
 	byID := map[string][]ArtifactObservation{}
 	for _, observation := range observed {
-		if baseline[targetArtifactKey(observation.Entry.Artifact)] {
-			continue
-		}
 		if id := observationNativeID(AgentAgy, observation.Entry.Artifact); id != "" {
 			byID[id] = append(byID[id], observation)
 		}
 	}
 	var eligible []ArtifactObservation
 	for _, joined := range byID {
-		database, transcript := false, false
+		database, transcript, changed := false, false, false
 		for _, observation := range joined {
+			changed = changed || targetChangedSinceBaseline(observation, baseline)
 			database = database || observation.Entry.Artifact.StorageRoot == "agy-conversations"
 			transcript = transcript || observation.Entry.Artifact.StorageRoot == "agy-brain"
 		}
-		if database && transcript {
+		if database && transcript && changed {
 			eligible = append(eligible, joined...)
 		}
 	}
@@ -246,4 +244,12 @@ func sortedTargetObservations(observations []ArtifactObservation, agent Agent) [
 
 func targetArtifactKey(artifact Artifact) string {
 	return artifact.StorageRoot + "\x00" + artifact.RelativePath
+}
+
+// Metadata changes select work; byte boundaries, not metadata identity, decide
+// which records may establish this launch's conversation.
+func targetChangedSinceBaseline(observation ArtifactObservation, baseline map[string]TargetArtifactBoundary) bool {
+	entry := observation.Entry
+	boundary, exists := baseline[targetArtifactKey(entry.Artifact)]
+	return !exists || entry.Size != boundary.RawSize || entry.StableFileID != boundary.StableFileID || entry.GenerationToken != boundary.GenerationToken || entry.MutationToken != boundary.MutationToken
 }
