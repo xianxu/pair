@@ -24,6 +24,7 @@ vim.opt.signcolumn = 'yes'
 vim.opt.ignorecase = true
 vim.opt.smartcase = true
 
+local restoration
 local REVIEW_DIAG_NS = vim.api.nvim_create_namespace('review_diag')
 local ACTIVE_DIAG_NS = vim.api.nvim_create_namespace('review_active_diag')
 
@@ -209,7 +210,9 @@ apply_review_colorscheme()
 vim.opt.autoread = true
 vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter' }, {
   callback = function()
-    if vim.fn.mode() == 'n' then pcall(vim.cmd, 'silent! checktime') end
+    if vim.fn.mode() == 'n' and (not restoration or restoration:guard(vim.api.nvim_get_current_buf(),true)) then
+      pcall(vim.cmd, 'silent! checktime')
+    end
   end,
 })
 
@@ -232,6 +235,9 @@ local menu = dofile(here .. 'review/menu.lua')
 local spinner = dofile(here .. 'review/spinner.lua')
 local define = dofile(here .. 'review/define.lua')
 local definition_seam = dofile(here .. 'review/definition_seam.lua')
+local recovery = dofile(here .. 'review/recovery.lua')
+local identity = dofile(here .. 'review/identity.lua')
+local restore_policy = dofile(here .. 'review/restore.lua')
 
 -- 🤖 marker highlight groups. Keep these aligned with parley.nvim's review mode
 -- so pair and parley render the marker language consistently across themes.
@@ -499,15 +505,16 @@ if status_timer then
 end
 
 local function finish_human_turn(buf, file, mode_name, instruction)
+  if restoration and not restoration:guard(buf) then return false end
   if vim.fn.mode():match('^i') then vim.cmd('stopinsert') end
   -- Pending round waiting (#89 M3): Alt+Return APPLIES it (reconcile against the
   -- standing v0 base) rather than starting a new send. Consumes the pending slot +
   -- winbar; apply_round pokes the agent to commit the round.
   if pending_records then
     local r = pending_records
-    pending_records = nil
-    show_winbar(false)
-    return review.apply_round(buf, r)
+    local applied,dropped=review.apply_round(buf, r)
+    if applied then pending_records=nil; show_winbar(false) end
+    return applied,dropped
   end
   review.clear_decorations(buf)
   render_active_diagnostic(buf)
@@ -525,13 +532,14 @@ local function finish_human_turn(buf, file, mode_name, instruction)
   local context_path = write_review_context(buf)
   refresh_statusline()
   if poke.send(poke_bodies.human_finished(vim.fn.fnamemodify(file, ':p'), m,
-      instruction or '', seam.mode_label(m), context_path)) then
+      instruction or '', seam.mode_label(m), context_path, restoration and restoration:context(buf))) then
     mark_awaiting()
   end
 end
 
 local function request_ship(file)
-  if poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p'))) then
+  if restoration and not restoration:guard(vim.api.nvim_get_current_buf()) then return false end
+  if poke.send(poke_bodies.ship_requested(vim.fn.fnamemodify(file, ':p'), restoration and restoration:context())) then
     mark_awaiting()
   end
 end
@@ -581,9 +589,11 @@ local function pending_definition_range(buf)
 end
 
 local function apply_definition_result(buf)
+  if restoration and not restoration:guard(buf,true) then return false end
   local result = definition_seam.read_result(vim.env.PAIR_REVIEW_DEFINITION_RESULT_PATH)
   if not result or not pending_definition then return false end
   if result.request_id ~= pending_definition.request_id then return false end
+  if pending_definition.review_context and not restore_policy.validate_context(result.context,pending_definition.review_context) then return false end
   local base = buf_content(buf)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local l1, c1, l2, c2 = pending_definition_range(buf)
@@ -631,6 +641,7 @@ local function start_definition_poll(buf)
 end
 
 local function request_definition(buf, file, start_pos, end_pos, opts)
+  if restoration and not restoration:guard(buf) then return nil end
   opts = opts or {}
   local srow, scol = start_pos[1], start_pos[2]
   local erow, ecol = end_pos[1], end_pos[2]
@@ -649,6 +660,7 @@ local function request_definition(buf, file, start_pos, end_pos, opts)
     term = term,
     range = { l1 = srow, c1 = scol, l2 = erow, c2 = ecol },
     context = define.strip_definition_footnote_footer(buf_content(buf)),
+    review_context = restoration and restoration:context(buf),
   }
   if not definition_seam.write_request(vim.env.PAIR_REVIEW_DEFINITION_REQUEST_PATH, request) then
     vim.notify('review: could not write definition request', vim.log.levels.ERROR)
@@ -663,6 +675,7 @@ local function request_definition(buf, file, start_pos, end_pos, opts)
   })
   pending_definition = {
     request_id = request.request_id,
+    review_context = request.review_context,
     term = term,
     l1 = srow,
     c1 = scol,
@@ -671,7 +684,7 @@ local function request_definition(buf, file, start_pos, end_pos, opts)
     mark_id = mark_id,
   }
   if opts.poke ~= false then
-    if poke.send(poke_bodies.definition_requested(request.file, request.request_id, term)) then
+    if poke.send(poke_bodies.definition_requested(request.file, request.request_id, term, request.review_context)) then
       mark_awaiting()
       start_definition_poll(buf)
     end
@@ -714,9 +727,9 @@ local function escape_review()
   if not dismissed then workbench_route.return_to_draft() end
 end
 
-local function start_review(buf, file)
+local function start_review(buf, file, resolved)
   local tag = vim.env.PAIR_TAG
-  review.start({ buf = buf, file = file, tag = (tag and tag ~= '') and tag or nil })
+  review.start({ buf = buf, file = file, tag = (tag and tag ~= '') and tag or nil, identity=resolved })
 
   -- Alt+Return = finish the human turn: save the human round, then poke the agent
   -- to commit it and continue in the default Edit posture.
@@ -780,40 +793,82 @@ local function start_review(buf, file)
     end,
   })
 
-  -- pid file (reaped by bin/pair's cleanup) + the open-state file.
   local pidfile = vim.env.PAIR_NVIM_PID_FILE
-  if pidfile and pidfile ~= '' then
-    pcall(vim.fn.writefile, { tostring(vim.fn.getpid()) }, pidfile)
-  end
-  -- state file: line 1 = the pane nvim's pid (liveness); line 2 = the absolute
-  -- doc path (the draft reads it to render the review-mode indicator on its
-  -- line 1). The draft's PairReviewToggle decides show vs. hide from live
-  -- `are-floating-panes-visible` (reliable now that no transient floating
-  -- toggle-pane confounds it), so visibility is NOT tracked here.
-  local sf = state_file()
-  if sf then pcall(vim.fn.writefile, { tostring(vim.fn.getpid()), file }, sf) end
-
-  -- Lifecycle (the M1-carried "VimLeave timer cleanup"): tear down the handoff
-  -- poll timer + projection autocmd + state file when the pane nvim exits.
-  vim.api.nvim_create_autocmd('VimLeave', {
-    callback = function()
-      -- Durability (#89 M3, §8): persist any unsaved edits before the pane closes
-      -- (edits typed after a defer, while the winbar is up, are otherwise only in
-      -- the buffer). Reuse human_round's save — never init's file-local `save`.
-      if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].modified then
-        pcall(review.human_round, buf, 'exit')
-      end
-      pcall(review.stop, buf)
-      if sf then pcall(os.remove, sf) end
-      if status_timer then pcall(status_timer.stop, status_timer); pcall(status_timer.close, status_timer) end
-      stop_definition_poll()
-    end,
-  })
+  if pidfile and pidfile ~= '' then vim.fn.writefile({tostring(vim.fn.getpid())},pidfile) end
+  if restoration then restoration:publish() end
   refresh_statusline()
 end
 
+local function recovery_dir()
+  return vim.fn.fnamemodify(state_file() or (vim.fn.stdpath('data') .. '/pair/review.open'),':h') .. '/review-recovery'
+end
+local function preserve_mismatch()
+  if not restoration or not restoration:context() then return true end
+  local buf=restoration.buf
+  if not vim.api.nvim_buf_is_valid(buf) or not vim.bo[buf].modified or restoration:guard(buf,true) then return true end
+  local path,err=recovery.save(recovery_dir(),restoration:context(),buf,restoration.token)
+  if not path then error(err) end
+  vim.notify('review: unsaved text preserved at '..path..'; return to '..restoration:context().branch..' and use :PairReviewRecover')
+  return true
+end
+restoration=dofile(here..'review/restore_controller.lua').new({
+  open_path=state_file(), session=vim.env.PAIR_SESSION_ID or '',
+  start=start_review, stop=review.stop,
+  pending=function()
+    if pending_records then return 'deferred round; finish the original review first' end
+    if pending_definition then return 'definition request pending; finish the original review first' end
+    if awaiting_since then return 'agent request pending; finish the original review first' end
+  end,
+})
+review.authorize=function(buf) return restoration:guard(buf) end
+review.context=function(buf) return restoration:context(buf) end
+review.admit=function(payload,buf) return restoration:admit(payload,buf) end
+review.did_land=function(body,_,buf)
+  local bytes=buf_content(buf)..(vim.bo[buf].endofline and '\n' or '')
+  restoration:did_land(body,bytes)
+end
+vim.api.nvim_create_autocmd('BufWritePre',{callback=function(ev)
+  if restoration:context(ev.buf) and not restoration:guard(ev.buf) then error('review: branch mismatch; write refused') end
+end})
+vim.api.nvim_create_autocmd('BufWritePost',{callback=function(ev)
+  local ctx=restoration:context(ev.buf)
+  if ctx and restoration:guard(ev.buf,true) then
+    local _,err=recovery.saved(recovery_dir(),ctx,ev.buf,restoration.token)
+    if err then vim.notify(err,vim.log.levels.WARN) end
+  end
+end})
+vim.api.nvim_create_autocmd({'TextChanged','TextChangedI'},{callback=function()
+  local ok,err=pcall(preserve_mismatch); if not ok then vim.notify(err,vim.log.levels.ERROR) end
+end})
+vim.api.nvim_create_autocmd('QuitPre',{callback=preserve_mismatch})
+vim.api.nvim_create_autocmd('VimLeave',{callback=function()
+  local ok,err=pcall(preserve_mismatch); if not ok then vim.notify(err,vim.log.levels.ERROR) end
+  local buf=restoration.buf
+  if buf and vim.api.nvim_buf_is_valid(buf) then
+    if vim.bo[buf].modified and restoration:guard(buf,true) then pcall(review.human_round,buf,'exit') end
+    pcall(review.stop,buf)
+  end
+  restoration:close()
+  if status_timer then status_timer:stop(); status_timer:close() end
+  stop_definition_poll()
+end})
+vim.api.nvim_create_user_command('PairReviewRecover',function()
+  local buf=restoration.buf
+  if not restoration:guard(buf) then return end
+  local snapshot,err=recovery.restore(recovery_dir(),restoration:context(),buf)
+  if err then vim.notify(err,vim.log.levels.ERROR)
+  elseif not snapshot then vim.notify('review: no recovery snapshot for this document') end
+end,{})
+vim.api.nvim_create_user_command('PairReviewDiscardRecovery',function()
+  local _,err=recovery.discard(recovery_dir(),restoration:context())
+  if err then vim.notify(err,vim.log.levels.ERROR) end
+end,{})
+
 -- Exposed for the headless test.
-_G.PairReviewPane = { start_review = start_review, render_markers = render_markers,
+_G.PairReviewPane = { restore = function(request)
+    if type(request)=='string' then request=vim.json.decode(request) end
+    return restoration:request(request)
+  end, controller=restoration, start_review = start_review, render_markers = render_markers,
   state_file = state_file, finish_human_turn = finish_human_turn,
   request_ship = request_ship,
   status_timer_interval = status_timer_interval,
@@ -843,7 +898,21 @@ vim.api.nvim_create_autocmd('VimEnter', {
   callback = function()
     local buf = vim.api.nvim_get_current_buf()
     local file = vim.api.nvim_buf_get_name(buf)
-    if file ~= nil and file ~= '' then start_review(buf, file) end
+    if file ~= nil and file ~= '' then
+      local observed
+      if vim.env.PAIR_REVIEW_IDENTITY then
+        local ok,want=pcall(vim.json.decode,vim.env.PAIR_REVIEW_IDENTITY)
+        if ok and type(want)=='table' then observed=identity.resolve(want.repo,want) end
+        if not observed or observed.status~='resolved' or not restore_policy.same(want,observed) or want.head~=observed.head then
+          vim.notify('review: checkout changed before opening',vim.log.levels.ERROR)
+          return
+        end
+      else
+        observed=identity.resolve(vim.fn.fnamemodify(file,':h'))
+      end
+      restoration:init(buf,observed,vim.env.PAIR_REVIEW_IDENTITY~=nil)
+      start_review(buf,file,observed and observed.status=='resolved' and observed or nil)
+    end
   end,
 })
 

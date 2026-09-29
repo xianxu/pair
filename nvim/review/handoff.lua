@@ -8,6 +8,17 @@
 local M = {}
 local here = debug.getinfo(1, 'S').source:match('@?(.*/)') or './'
 local record = dofile(here .. 'record.lua')
+local function valid_payload(payload)
+  if type(payload)~='table' then return false end
+  local records=payload.context~=nil and payload.records or payload
+  if type(records)~='table' then return false end
+  for k,r in pairs(records) do
+    if type(k)~='number' or k<1 or k>#records or k%1~=0 or type(r)~='table'
+      or type(r.old)~='string' or type(r.new)~='string'
+      or type(r.occurrence)~='number' or r.occurrence<1 or r.occurrence%1~=0 then return false end
+  end
+  return true
+end
 
 function M.path(tag)
   return vim.env.PAIR_REVIEW_HANDOFF_PATH
@@ -50,19 +61,38 @@ end
 function M.watch(tag, cb, opts)
   opts = opts or {}
   local p = M.path(tag)
+  if not p or p == '' then return function() end end
   local timer = vim.uv.new_timer()
+  local rejected
   timer:start(0, opts.interval or 100, vim.schedule_wrap(function()
     if not vim.uv.fs_stat(p) then return end
     local fh = io.open(p, 'r')
     if not fh then return end
     local data = fh:read('*a'); fh:close()
-    os.remove(p) -- consume regardless, so a bad handoff never loops forever
-    local ok, recs = pcall(record.decode, data)
-    if ok and recs then
-      cb(recs)
+    local ok, payload = pcall(record.decode, data)
+    if not ok or not valid_payload(payload) then
+      if rejected~=data then vim.notify('review: handoff decode failed — payload preserved', vim.log.levels.WARN) end
+      rejected=data
+      return
+    end
+    if opts.admit then
+      local allowed, reason = opts.admit(ok and payload or nil)
+      if not allowed then
+        if rejected ~= data then
+          vim.notify('review: '..(reason or 'handoff context mismatch; payload preserved'), vim.log.levels.WARN)
+          rejected=data
+        end
+        return
+      end
+    end
+    if ok and payload then
+      local recs = payload.records or payload
+      os.remove(p)
+      rejected=nil
+      cb(recs, payload.context)
     else
-      -- never silent (milestone review): a malformed handoff drops the round
-      vim.notify('review: handoff decode failed — round dropped', vim.log.levels.WARN)
+      if rejected~=data then vim.notify('review: handoff decode failed — payload preserved', vim.log.levels.WARN) end
+      rejected=data
     end
   end))
   return function()
